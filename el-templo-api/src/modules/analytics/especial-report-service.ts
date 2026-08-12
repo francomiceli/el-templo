@@ -31,11 +31,13 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type { AnalyticsFilters } from "./types";
 
 export type EspecialOrigin = "socio" | "externo";
@@ -85,11 +87,12 @@ export class EspecialReportService {
    * Reporte completo REP-01 para un mes: filas actividad×origen + KPIs D-05.
    */
   async getReport(
+    ctx: TenantContext,
     month: string,
     filters: AnalyticsFilters,
   ): Promise<EspecialReportResult> {
-    const rows = await this.getActivityRows(month, filters);
-    const kpis = await this.getActiveCounts(filters);
+    const rows = await this.getActivityRows(ctx, month, filters);
+    const kpis = await this.getActiveCounts(ctx, filters);
     return { month, kpis, rows };
   }
 
@@ -99,6 +102,7 @@ export class EspecialReportService {
    * contadores + total.
    */
   private async getActivityRows(
+    ctx: TenantContext,
     month: string,
     filters: AnalyticsFilters,
   ): Promise<EspecialActivityRow[]> {
@@ -123,11 +127,16 @@ export class EspecialReportService {
     //    elige la de start_date más reciente. NULL si no hay ninguna.
     //  - `hasCoveringPresencial`: existe una sub PRESENCIAL active/paused que cubre
     //    session_date (input de la regla de fallback).
+    // Fase 174.1-03 (D-02): `s`/`sp` son `subscriptions`/`subscription_plans`
+    // (boundary de subs) — `ctx` disponible, filtro explícito por `tenant_id`
+    // en cada subquery correlacionada.
     const especialRequiresPresencial = sql<number | null>`(
       SELECT sp.requires_presencial
       FROM subscriptions s
       JOIN subscription_plans sp ON sp.id = s.plan_id
       WHERE s.user_id = ${schema.attendance.memberId}
+        AND s.tenant_id = ${ctx.tenantId}
+        AND sp.tenant_id = ${ctx.tenantId}
         AND sp.plan_category = 'especial'
         AND s.subscription_status <> 'cancelled'
         AND s.start_date <= ${schema.attendance.sessionDate}
@@ -142,6 +151,8 @@ export class EspecialReportService {
         FROM subscriptions s
         JOIN subscription_plans sp ON sp.id = s.plan_id
         WHERE s.user_id = ${schema.attendance.memberId}
+          AND s.tenant_id = ${ctx.tenantId}
+          AND sp.tenant_id = ${ctx.tenantId}
           AND sp.plan_category = 'presencial'
           AND s.subscription_status IN ('active', 'paused')
           AND s.start_date <= ${schema.attendance.sessionDate}
@@ -149,6 +160,8 @@ export class EspecialReportService {
       )
     )`;
 
+    // Boundary de scheduling (schedules): `tenantWhere` explícito en el ON del
+    // JOIN (D-02) — mismo idioma que member-profiles en engagement-service.
     const base = this.db
       .select({
         activityId: schema.activities.id,
@@ -159,7 +172,10 @@ export class EspecialReportService {
       .from(schema.attendance)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.attendance.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.attendance.scheduleId),
+        ),
       )
       .innerJoin(
         schema.activities,
@@ -218,6 +234,7 @@ export class EspecialReportService {
    * sede/país sobre `subscriptions.branchId`.
    */
   private async getActiveCounts(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<EspecialReportKpis> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
@@ -226,12 +243,18 @@ export class EspecialReportService {
       branchColumn: schema.subscriptions.branchId,
     });
 
+    // Fase 174.1-03 (D-02): helpers tipados (`eq`/`inArray`) en vez de `sql`
+    // crudo — un fragmento `sql` con columna interpolada cuenta como acceso
+    // propio para el lint (statement propio, sin el `tenantWhere` de abajo).
     const conditions: SQL[] = [
-      sql`${schema.subscriptionPlans.planCategory} = 'especial'`,
-      sql`${schema.subscriptions.status} IN ('active', 'paused')`,
+      eq(schema.subscriptionPlans.planCategory, "especial"),
+      inArray(schema.subscriptions.status, ["active", "paused"]),
       ...scopeConditions,
     ];
 
+    // Boundary de subscriptions (FROM) + subscription_plans (JOIN): `tenantWhere`
+    // explícito en el ON del JOIN (D-02) cubre las dos tablas en el mismo
+    // statement de JS.
     const base = this.db
       .select({
         requiresPresencial: schema.subscriptionPlans.requiresPresencial,
@@ -240,7 +263,11 @@ export class EspecialReportService {
       .from(schema.subscriptions)
       .innerJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        ),
       );
 
     const rows = needsBranchJoin

@@ -15,7 +15,7 @@
  *
  * WHAT IT COUNTS (RENOV-01/RENOV-02):
  *   - `renewal.nominal` = DISTINCT matured persons whose last in-range expiry
- *     satisfies `retainedExpr(window)` (renovados).
+ *     satisfies `retainedExpr(ctx, window)` (renovados).
  *   - `renewal.n`       = the matured cohort size (vencidos) — the SAME denominator
  *     churn uses, so `renewal.n === churn.window.churn.n` for identical filters.
  *   - `windowDays`      = the effective window (`filters.window ?? RENOVATION_WINDOW_DEFAULT_DAYS`).
@@ -45,6 +45,8 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { metricShape } from "./metric-shape";
 import { deriveDurationTier } from "./duration-tier";
 import { breakdownSegmentKey, type BreakdownAxis } from "./breakdowns";
@@ -108,12 +110,15 @@ export class RenewalService {
    * official renewal + grace count and the 4-axis breakdowns over the ONE shared
    * expiry cohort (the SAME denominator churn uses, RENOV-01).
    */
-  async getRenewal(filters: AnalyticsFilters): Promise<RenewalAnalytics> {
+  async getRenewal(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<RenewalAnalytics> {
     const window = filters.window ?? RENOVATION_WINDOW_DEFAULT_DAYS;
 
     const [official, breakdowns] = await Promise.all([
-      this.officialAndGrace(filters, window),
-      this.allBreakdowns(filters, window),
+      this.officialAndGrace(ctx, filters, window),
+      this.allBreakdowns(ctx, filters, window),
     ]);
 
     return {
@@ -134,6 +139,7 @@ export class RenewalService {
    *   - `enGracia` = cohort persons NOT matured at the window (the número vivo).
    */
   private async officialAndGrace(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<{ renewal: RenewalAnalytics["renewal"]; enGracia: number }> {
@@ -148,13 +154,28 @@ export class RenewalService {
     // `branches.country` condition references a table not in the FROM → 500. The
     // join never fans out (each sub has exactly one branch FK). The breakdown
     // query already joins branches unconditionally (flavor A).
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que `.from(...)`,
+    // D-02 fase 174.1-03): si el `tenantWhere` quedara en un `.where(...)`
+    // posterior a un `if` intermedio, sería otro statement y el lint marcaría
+    // `.from(...)` como sin filtrar aunque la query sí filtre.
     let query = this.db
       .select({
         userId: schema.subscriptions.userId,
         matured: maturedExpr(window),
-        retained: retainedExpr(window),
+        retained: retainedExpr(ctx, window),
       })
       .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
+          // D-11: el pase especial no cuenta en la renovación de membresía.
+          excludeEspecialSubs(ctx),
+          ...scopeConditions,
+          ...subscriptionPlanFilter(filters.planId),
+        ),
+      )
       .$dynamic();
     if (needsBranchJoin) {
       query = query.innerJoin(
@@ -162,16 +183,7 @@ export class RenewalService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       );
     }
-    const rows = await query.where(
-      and(
-        ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-        lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
-        // D-11: el pase especial no cuenta en la renovación de membresía.
-        excludeEspecialSubs(),
-        ...scopeConditions,
-        ...subscriptionPlanFilter(filters.planId),
-      ),
-    );
+    const rows = await query;
 
     const acc = emptyRenewalAcc();
     let enGracia = 0;
@@ -193,11 +205,14 @@ export class RenewalService {
 
   /** Run all four breakdown axes (RENOV-04) in parallel and flatten. */
   private async allBreakdowns(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<RenewalSegmentRow[]> {
     const perAxis = await Promise.all(
-      RENEWAL_AXES.map((axis) => this.breakdownByAxis(filters, axis, window)),
+      RENEWAL_AXES.map((axis) =>
+        this.breakdownByAxis(ctx, filters, axis, window),
+      ),
     );
     return perAxis.flat();
   }
@@ -212,6 +227,7 @@ export class RenewalService {
    * filters (scope stays in `applyScope`).
    */
   private async breakdownByAxis(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     axis: ChurnRenewalAxis,
     window: number,
@@ -229,7 +245,7 @@ export class RenewalService {
         planName: schema.subscriptionPlans.name,
         durationDays: schema.subscriptionPlans.durationDays,
         matured: maturedExpr(window),
-        retained: retainedExpr(window),
+        retained: retainedExpr(ctx, window),
       })
       .from(schema.subscriptions)
       .innerJoin(
@@ -242,8 +258,10 @@ export class RenewalService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-          lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
           // D-11: excluir el pase especial de los breakdowns de renovación.
           ne(schema.subscriptionPlans.planCategory, "especial"),
           ...scopeConditions,

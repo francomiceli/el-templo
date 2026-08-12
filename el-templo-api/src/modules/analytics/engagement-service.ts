@@ -190,12 +190,17 @@ export class EngagementService {
     // Fase 173 (D-02): `${schema.users.id}` acá es solo el VALOR correlacionado
     // de la fila externa (ya viene filtrada por gimnasio vía `base`, más
     // abajo) — esta subquery no hace FROM users, así que no hay tabla propia
-    // que filtrar adentro; agregar un tenantWhere acá sería referenciar
-    // `users` en un scope donde esa tabla no existe (rompe el SQL).
-    /* tenant-safe: subquery correlacionada por valor, no hace FROM users (D-02) */
+    // que filtrar por ese lado.
+    // Fase 174.1-03 (D-02): `subscriptions`/`subscription_plans` SÍ son
+    // tablas propias de esta subquery (aparecen en su FROM/JOIN) y son
+    // tablas del boundary — `ctx` está disponible acá, así que se filtran
+    // explícito por `tenant_id` en vez de dejarlas cubiertas por una
+    // exención (D-02: analytics con ctx real migra a filtro real, no tag).
     const planNameExpr = sql<string | null>`(SELECT sp.name FROM subscriptions s
         INNER JOIN subscription_plans sp ON sp.id = s.plan_id
         WHERE s.user_id = ${schema.users.id}
+          AND s.tenant_id = ${ctx.tenantId}
+          AND sp.tenant_id = ${ctx.tenantId}
           AND s.subscription_status IN ('active','paused')
           AND s.start_date <= CURDATE()
           AND (s.end_date IS NULL OR s.end_date >= CURDATE())

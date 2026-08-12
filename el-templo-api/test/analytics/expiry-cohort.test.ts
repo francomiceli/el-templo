@@ -14,6 +14,11 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/** Fase 174.1-03 (D-02): `lastExpiryPerPersonExpr`/`retainedExpr` ahora reciben `ctx`. */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 121 Plan 01 — expiry-cohort engine primitives (CHURN-01/04, RENOV-01).
@@ -234,7 +239,7 @@ describe("expiry-cohort engine primitives (Phase 121 Plan 01)", () => {
       .where(
         and(
           ...expiryCohortConditions(from, to),
-          lastExpiryPerPersonExpr(from, to),
+          lastExpiryPerPersonExpr(CTX, from, to),
         ),
       );
 
@@ -294,7 +299,7 @@ describe("expiry-cohort engine primitives (Phase 121 Plan 01)", () => {
     const rows = await app.db
       .select({
         id: subscriptions.id,
-        retained: sql<number>`CASE WHEN ${retainedExpr(window)} THEN 1 ELSE 0 END`,
+        retained: sql<number>`CASE WHEN ${retainedExpr(CTX, window)} THEN 1 ELSE 0 END`,
       })
       .from(subscriptions)
       .where(

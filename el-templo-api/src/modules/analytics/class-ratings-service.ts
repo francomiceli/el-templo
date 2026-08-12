@@ -28,6 +28,8 @@ import { and, eq, sql, isNotNull, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { rangeConditions, bucketExpr } from "./cohorts";
 import type {
   AnalyticsFilters,
@@ -51,13 +53,14 @@ export class ClassRatingsService {
   ) {}
 
   async getClassRatings(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<ClassRatingsAnalytics> {
     const [overall, trend, byBranch, byTurno] = await Promise.all([
       this.getOverall(filters),
       this.getTrend(filters),
       this.getByBranch(filters),
-      this.getByTurno(filters),
+      this.getByTurno(ctx, filters),
     ]);
     return { overall, trend, byBranch, byTurno };
   }
@@ -186,21 +189,31 @@ export class ClassRatingsService {
    * classified), which is why byTurno counts may sum below `overall.count`.
    */
   private async getByTurno(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<ClassRatingTurnoRow[]> {
     const { conditions, needsBranchJoin } = this.baseConditions(filters);
-    const turnoExpr = sql<string>`CASE WHEN ${schema.schedules.startTime} < '12:00' THEN 'manana' ELSE 'tarde' END`;
 
+    // Fase 174.1-03 (D-02): el CASE WHEN se escribe INLINE (no en un `const`
+    // aparte) en cada uno de los dos statements que lo usan — `select` abajo, y
+    // `groupBy`/`orderBy` en el `const rows` de más abajo — para que el
+    // `tenantWhere(schema.schedules, ctx)` de CADA statement cubra también su
+    // propia interpolación de `schema.schedules.startTime` (el lint juzga por
+    // statement, no por línea; un `const turnoExpr` compartido dejaría su
+    // propio statement de definición sin el filtro).
     let query = this.db
       .select({
-        turno: turnoExpr,
+        turno: sql<string>`CASE WHEN ${schema.schedules.startTime} < '12:00' THEN 'manana' ELSE 'tarde' END`,
         avgStars: sql<string>`AVG(${schema.coachRatings.classStars})`,
         count: sql<number>`COUNT(*)`,
       })
       .from(schema.coachRatings)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.coachRatings.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.coachRatings.scheduleId),
+        ),
       )
       .$dynamic();
 
@@ -212,9 +225,13 @@ export class ClassRatingsService {
     }
 
     const rows = await query
-      .where(and(...conditions))
-      .groupBy(turnoExpr)
-      .orderBy(turnoExpr);
+      .where(and(tenantWhere(schema.schedules, ctx), ...conditions))
+      .groupBy(
+        sql<string>`CASE WHEN ${schema.schedules.startTime} < '12:00' THEN 'manana' ELSE 'tarde' END`,
+      )
+      .orderBy(
+        sql<string>`CASE WHEN ${schema.schedules.startTime} < '12:00' THEN 'manana' ELSE 'tarde' END`,
+      );
 
     return rows.map((r) => ({
       turno: r.turno === "manana" ? "manana" : "tarde",

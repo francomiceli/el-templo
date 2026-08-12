@@ -24,10 +24,12 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   AnalyticsFilters,
   UniqueMembersMetric,
@@ -128,8 +130,14 @@ export class AttendanceMetricsService {
    *
    * Scope (D-17): applyScope on `schedules.branchId`. Optional date range
    * (filters.dateFrom / dateTo) is applied half-open on booking_date when present.
+   *
+   * `ctx` PRIMERO (regla 169-06, fase 174.1-03 D-02): `bookings` y `schedules`
+   * son tablas del boundary de `scheduling` — `tenantWhere` explícito sobre
+   * cada una aunque el join ya las acote entre sí (D-01 del plan: el sentinel
+   * chequea presencia por-tabla, no corrección del join).
    */
   async checkInAdoptionByBranch(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<CheckInAdoptionRow[]> {
     const { conditions: scopeConditions } = applyScope({
@@ -138,18 +146,20 @@ export class AttendanceMetricsService {
       branchColumn: schema.schedules.branchId,
     });
 
+    // Fase 174.1-03 (D-02): `eq`/`gte`/`lte` tipados en vez de `sql` crudo —
+    // un fragmento `sql` con una columna interpolada cuenta como acceso propio
+    // para el lint (y quedaría en su propio statement, sin el `tenantWhere`
+    // del `.where(...)` de abajo); los helpers tipados no disparan esa regla.
     const conditions: SQL[] = [
-      sql`${schema.bookings.status} = 'confirmado'`,
+      eq(schema.bookings.status, "confirmado"),
       ...scopeConditions,
     ];
 
     if (filters.dateFrom !== undefined) {
-      conditions.push(
-        sql`${schema.bookings.bookingDate} >= ${filters.dateFrom}`,
-      );
+      conditions.push(gte(schema.bookings.bookingDate, filters.dateFrom));
     }
     if (filters.dateTo !== undefined) {
-      conditions.push(sql`${schema.bookings.bookingDate} <= ${filters.dateTo}`);
+      conditions.push(lte(schema.bookings.bookingDate, filters.dateTo));
     }
 
     // LEFT JOIN attendance on (member + schedule + date). When the join matches
@@ -181,7 +191,16 @@ export class AttendanceMetricsService {
           eq(schema.attendance.sessionDate, schema.bookings.bookingDate),
         ),
       )
-      .where(and(...conditions))
+      // `tenantWhere` inline acá (no solo en `conditions`, D-02 fase 174.1-03):
+      // el lint juzga por statement, y `conditions` es una variable — el
+      // literal `tenantWhere(` tiene que aparecer en ESTE statement.
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          tenantWhere(schema.schedules, ctx),
+          ...conditions,
+        ),
+      )
       .groupBy(schema.schedules.branchId, schema.branches.name);
 
     return rows.map((r) => {

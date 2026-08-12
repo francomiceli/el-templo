@@ -113,7 +113,7 @@ export class MemberFlowsService {
 
     const [altasByBucket, bajasByBucket] = await Promise.all([
       this.altasSeries(ctx, filters, window),
-      this.bajasSeries(filters, window),
+      this.bajasSeries(ctx, filters, window),
     ]);
 
     // Merge both maps over the union of buckets, ascending (YYYY-MM lexical).
@@ -145,7 +145,7 @@ export class MemberFlowsService {
     window: number,
   ): Promise<Map<string, number>> {
     const [streakRows, legacyRows] = await Promise.all([
-      this.streakAltasRows(filters, window),
+      this.streakAltasRows(ctx, filters, window),
       this.legacyAltasRows(ctx, filters),
     ]);
 
@@ -176,6 +176,7 @@ export class MemberFlowsService {
    * activo encadena con su sub importada y no cuenta como alta.
    */
   private async streakAltasRows(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<Array<{ bucket: string; userId: number }>> {
@@ -189,9 +190,13 @@ export class MemberFlowsService {
     // Outer refs use the literal `subscriptions.` prefix (see module doc):
     // an unqualified `user_id`/`start_date` inside the correlated subquery
     // resolves to the s_prev alias and rompe el predicado en silencio.
+    // Fase 174.1-03 (D-02): `s_prev` es `subscriptions` (self-join, tabla del
+    // boundary) — `ctx` está disponible acá, se filtra explícito por
+    // `tenant_id` en el propio subquery.
     const streakStartExpr = sql`NOT EXISTS (
       SELECT 1 FROM subscriptions s_prev
       WHERE s_prev.user_id = subscriptions.user_id
+        AND s_prev.tenant_id = ${ctx.tenantId}
         AND s_prev.id <> subscriptions.id
         AND s_prev.start_date < subscriptions.start_date
         AND s_prev.end_date >= DATE_SUB(subscriptions.start_date, INTERVAL ${n} DAY)
@@ -199,12 +204,31 @@ export class MemberFlowsService {
 
     const bucket = bucketExpr(schema.subscriptions.startDate, "monthly");
 
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que `.from(...)`,
+    // D-02 fase 174.1-03 — ver el docblock de `officialAndGrace` en
+    // churn-service.ts para el detalle de por qué importa el orden).
     let query = this.db
       .select({
         bucket,
         userId: schema.subscriptions.userId,
       })
       .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          ...rangeConditions(
+            schema.subscriptions.startDate,
+            filters.dateFrom,
+            filters.dateTo,
+          ),
+          sql`${schema.subscriptions.createdAt} >= ${LEGACY_IMPORT_CUTOFF}`,
+          streakStartExpr,
+          // D-11: el pase especial no cuenta como alta de membresía.
+          excludeEspecialSubs(ctx),
+          excludeInternalSubs(),
+          ...scopeConditions,
+        ),
+      )
       .$dynamic();
     if (needsBranchJoin) {
       query = query.innerJoin(
@@ -212,21 +236,7 @@ export class MemberFlowsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       );
     }
-    return query.where(
-      and(
-        ...rangeConditions(
-          schema.subscriptions.startDate,
-          filters.dateFrom,
-          filters.dateTo,
-        ),
-        sql`${schema.subscriptions.createdAt} >= ${LEGACY_IMPORT_CUTOFF}`,
-        streakStartExpr,
-        // D-11: el pase especial no cuenta como alta de membresía.
-        excludeEspecialSubs(),
-        excludeInternalSubs(),
-        ...scopeConditions,
-      ),
-    );
+    return query;
   }
 
   /**
@@ -265,6 +275,7 @@ export class MemberFlowsService {
       .innerJoin(
         schema.subscriptions,
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, schema.users.id),
           sql`${schema.subscriptions.createdAt} < ${LEGACY_IMPORT_CUTOFF}`,
         ),
@@ -278,7 +289,7 @@ export class MemberFlowsService {
             filters.dateTo,
           ),
           // D-11: un importado cuya única sub es el pase no es alta de membresía.
-          excludeEspecialSubs(),
+          excludeEspecialSubs(ctx),
           excludeInternalSubs(),
           ...scopeConditions,
         ),
@@ -301,6 +312,7 @@ export class MemberFlowsService {
    * con el flag provisional cuando la cohorte del mes todavía no maduró.
    */
   private async bajasSeries(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<
@@ -314,16 +326,30 @@ export class MemberFlowsService {
 
     const bucket = bucketExpr(schema.subscriptions.endDate, "monthly");
 
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que `.from(...)`,
+    // D-02 fase 174.1-03 — ver el docblock de `officialAndGrace` en
+    // churn-service.ts para el detalle de por qué importa el orden).
     let query = this.db
       .select({
         bucket,
         matured: maturedExpr(window),
-        retained: retainedExpr(window),
+        retained: retainedExpr(ctx, window),
         // Literal qualifier (misma convención que maturedExpr): un end_date en
         // el futuro dentro del rango pedido es una sub VIGENTE, no una baja.
         expired: sql<number>`(subscriptions.end_date < CURDATE())`,
       })
       .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
+          // D-11: el vencimiento de un pase especial no es una baja de membresía.
+          excludeEspecialSubs(ctx),
+          excludeInternalSubs(),
+          ...scopeConditions,
+        ),
+      )
       .$dynamic();
     if (needsBranchJoin) {
       query = query.innerJoin(
@@ -331,16 +357,7 @@ export class MemberFlowsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       );
     }
-    const rows = await query.where(
-      and(
-        ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-        lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
-        // D-11: el vencimiento de un pase especial no es una baja de membresía.
-        excludeEspecialSubs(),
-        excludeInternalSubs(),
-        ...scopeConditions,
-      ),
-    );
+    const rows = await query;
 
     const out = new Map<
       string,
@@ -394,9 +411,12 @@ export class MemberFlowsService {
     // Períodos de membresía que la persona llegó a tener (proxy de "cuántas
     // membresías pagó"). Excluye 'scheduled' (todavía no arrancó). Prefijo
     // literal `subscriptions.` obligatorio: está en .select() (ver module doc).
+    // Fase 174.1-03 (D-02): `sc` es `subscriptions` (self-join, boundary) —
+    // `ctx` disponible, filtro explícito por `tenant_id`.
     const membershipsPaidExpr = sql<number>`(
       SELECT COUNT(*) FROM subscriptions sc
       WHERE sc.user_id = subscriptions.user_id
+        AND sc.tenant_id = ${ctx.tenantId}
         AND sc.subscription_status <> 'scheduled'
     )`;
 
@@ -432,10 +452,12 @@ export class MemberFlowsService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-          lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
           sql`(${maturedExpr(window)})`,
-          sql`NOT (${retainedExpr(window)})`,
+          sql`NOT (${retainedExpr(ctx, window)})`,
           // D-11: excluir el pase especial del detalle de bajas de membresía.
           ne(schema.subscriptionPlans.planCategory, "especial"),
           ...scopeConditions,

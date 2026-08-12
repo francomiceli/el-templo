@@ -37,6 +37,8 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
 import { activeMemberExists } from "../shared/active-member";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   excludeEspecialSubs,
   excludeInternalSubs,
@@ -94,7 +96,10 @@ export class RetentionService {
    * the % of each cohort reaching at least cycle N. Also computes the
    * distribution of current consecutive cycles among active members.
    */
-  async getRetention(filters: AnalyticsFilters): Promise<RetentionAnalytics> {
+  async getRetention(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<RetentionAnalytics> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
@@ -104,7 +109,8 @@ export class RetentionService {
     // D-11: el pase especial no forma cohortes/ciclos de retención de membresía.
     // Membresías internas (staff/bonificadas) tampoco forman cohortes.
     const conditions: SQL[] = [
-      excludeEspecialSubs(),
+      tenantWhere(schema.subscriptions, ctx),
+      excludeEspecialSubs(ctx),
       excludeInternalSubs(),
       ...scopeConditions,
     ];
@@ -117,6 +123,9 @@ export class RetentionService {
 
     // Build the SELECT, conditionally joining branches (country scope). Order by
     // member then startDate so the streak walk is a single linear pass per member.
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que `.from(...)`,
+    // D-02 fase 174.1-03 — ver el docblock de `officialAndGrace` en
+    // churn-service.ts para el detalle de por qué importa el orden).
     let query = this.db
       .select({
         userId: schema.subscriptions.userId,
@@ -124,6 +133,10 @@ export class RetentionService {
         endDate: schema.subscriptions.endDate,
       })
       .from(schema.subscriptions)
+      // `tenantWhere` inline (no solo en `conditions`, D-02): `conditions` es
+      // una variable — el lint busca el literal `tenantWhere(` en ESTE
+      // statement, no en el statement donde se armó el array.
+      .where(and(tenantWhere(schema.subscriptions, ctx), ...conditions))
       .$dynamic();
 
     if (needsBranchJoin) {
@@ -133,9 +146,10 @@ export class RetentionService {
       );
     }
 
-    const rows: SubRow[] = await query
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(schema.subscriptions.userId, schema.subscriptions.startDate);
+    const rows: SubRow[] = await query.orderBy(
+      schema.subscriptions.userId,
+      schema.subscriptions.startDate,
+    );
 
     // Group rows by member, dropping invalid-window subs (T-118-05).
     let invalidWindowSubs = 0;
@@ -204,8 +218,8 @@ export class RetentionService {
         return { cohort, size: bucket.size, cycleRetention };
       });
 
-    const cycleDistribution = await this.cycleDistribution(filters);
-    const availablePlans = await this.availablePlans(filters);
+    const cycleDistribution = await this.cycleDistribution(ctx, filters);
+    const availablePlans = await this.availablePlans(ctx, filters);
 
     return {
       cohorts,
@@ -224,6 +238,7 @@ export class RetentionService {
    * one never shrinks the option list). Sorted by duration then name.
    */
   private async availablePlans(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<RetentionPlanOption[]> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
@@ -232,6 +247,8 @@ export class RetentionService {
       branchColumn: schema.subscriptions.branchId,
     });
 
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que `.from(...)`,
+    // D-02 fase 174.1-03 — ver `getRetention` arriba para el detalle).
     let query = this.db
       .selectDistinct({
         id: schema.subscriptionPlans.id,
@@ -243,6 +260,15 @@ export class RetentionService {
         schema.subscriptionPlans,
         eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
       )
+      .where(
+        // D-11: el pase especial no aparece como opción de plan en retención.
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
+          ne(schema.subscriptionPlans.planCategory, "especial"),
+          ...scopeConditions,
+        ),
+      )
       .$dynamic();
 
     if (needsBranchJoin) {
@@ -252,13 +278,7 @@ export class RetentionService {
       );
     }
 
-    const rows = await query.where(
-      // D-11: el pase especial no aparece como opción de plan en retención.
-      and(
-        ne(schema.subscriptionPlans.planCategory, "especial"),
-        ...scopeConditions,
-      ),
-    );
+    const rows = await query;
 
     return rows.sort((a, b) => {
       const da = a.durationDays ?? Number.MAX_SAFE_INTEGER;
@@ -302,6 +322,7 @@ export class RetentionService {
    * `streakLength`. An inactive member with 3 historical cycles is NOT counted.
    */
   private async cycleDistribution(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<CycleDistribution> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
@@ -311,11 +332,12 @@ export class RetentionService {
     });
 
     const conditions: SQL[] = [
+      tenantWhere(schema.subscriptions, ctx),
       // Only subscriptions of members who are active RIGHT NOW (canonical).
       activeMemberExists(schema.subscriptions.userId),
       // D-11: no contar los ciclos del pase especial (el externo-solo-pase queda
       // con 0 filas → fuera de la distribución de ciclos de membresía).
-      excludeEspecialSubs(),
+      excludeEspecialSubs(ctx),
       // Membresías internas: staff/bonificadas quedan con 0 filas → fuera.
       excludeInternalSubs(),
       ...scopeConditions,
@@ -326,6 +348,8 @@ export class RetentionService {
       conditions.push(eq(schema.subscriptions.planId, filters.planId));
     }
 
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que `.from(...)`,
+    // D-02 fase 174.1-03 — ver `getRetention` arriba para el detalle).
     let query = this.db
       .select({
         userId: schema.subscriptions.userId,
@@ -333,6 +357,8 @@ export class RetentionService {
         endDate: schema.subscriptions.endDate,
       })
       .from(schema.subscriptions)
+      // `tenantWhere` inline (no solo en `conditions`, D-02): ver `getRetention`.
+      .where(and(tenantWhere(schema.subscriptions, ctx), ...conditions))
       .$dynamic();
 
     if (needsBranchJoin) {
@@ -342,9 +368,10 @@ export class RetentionService {
       );
     }
 
-    const rows: SubRow[] = await query
-      .where(and(...conditions))
-      .orderBy(schema.subscriptions.userId, schema.subscriptions.startDate);
+    const rows: SubRow[] = await query.orderBy(
+      schema.subscriptions.userId,
+      schema.subscriptions.startDate,
+    );
 
     // Group valid-window subs per active member.
     const byMember = new Map<

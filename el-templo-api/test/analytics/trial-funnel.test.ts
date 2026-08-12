@@ -16,8 +16,13 @@ import { branches } from "../../src/db/schema/branches";
 import { activities } from "../../src/db/schema/activities";
 import { schedules } from "../../src/db/schema/schedules";
 import { bookings } from "../../src/db/schema/bookings";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/** Fase 174.1-03 (D-02): `getTrialFunnel` ahora recibe `ctx`. */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 123 Plan 02 — TrialFunnelService (FUNNEL-01..05).
@@ -191,7 +196,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       await addTrialBooking(m2, sched, sessionDate, "cancelado");
       await addTrialBooking(m3, sched, sessionDate, "no_show");
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       // All three count as reservó regardless of final status (D-123-08).
       expect(result.counts.reservaron).toBe(3);
       // Only the confirmado counts as asistió.
@@ -213,7 +218,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       await addTrialBooking(mReserved, sched, sessionDate, "reservado");
       await addTrialBooking(mNoShow, sched, sessionDate, "no_show");
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       expect(result.counts.reservaron).toBe(4);
       // No attendance rows were seeded; asistió still = 2 via bookings.status.
       expect(result.counts.asistieron).toBe(2);
@@ -241,7 +246,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       );
       await addSub(mOut, outDate);
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       expect(result.counts.reservaron).toBe(2);
       expect(result.counts.asistieron).toBe(2);
       // Only mIn's in-window purchase counts as compró.
@@ -260,7 +265,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       );
       await addSub(m, inDate, { pricePaid: 0, priceType: "zero" });
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       expect(result.counts.compraron).toBe(0);
     });
   });
@@ -285,7 +290,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       );
       await addSub(returner, priorDate);
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       // Only the genuinely-new lead is in the cohort.
       expect(result.counts.reservaron).toBe(1);
       expect(result.counts.asistieron).toBe(1);
@@ -314,7 +319,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       );
       await addSub(reservers[0], buyDate);
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       expect(result.counts.reservaron).toBe(4);
       expect(result.counts.asistieron).toBe(2);
       expect(result.counts.compraron).toBe(1);
@@ -328,7 +333,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
     });
 
     it("div-by-zero → 0, never NaN (empty cohort)", async () => {
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       expect(result.counts.reservaron).toBe(0);
       expect(result.rates.tasaShow.percentage).toBe(0);
       expect(result.rates.tasaCierre.percentage).toBe(0);
@@ -349,7 +354,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       const m = await createMember();
       await addTrialBooking(m, sched, recent, "confirmado");
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       // At least one weekly/monthly bucket must be provisional.
       expect(result.series.some((s) => s.provisional)).toBe(true);
     });
@@ -360,7 +365,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       const m = await createMember();
       await addTrialBooking(m, sched, old, "confirmado");
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       expect(result.series.every((s) => !s.provisional)).toBe(true);
     });
   });
@@ -382,7 +387,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       await addTrialBooking(m2, schedTarde, sessionDate, "confirmado");
       await addTrialBooking(m3, schedOtro, sessionDate, "confirmado");
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       const turnoRows = result.breakdowns.filter((b) => b.axis === "turno");
       const keys = turnoRows.map((r) => r.key).sort();
       expect(keys).toEqual(["manana", "otro", "tarde"]);
@@ -410,7 +415,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       );
       await addSub(m, buyDate, { plan: boughtPlanId });
 
-      const result = await svc.getTrialFunnel({});
+      const result = await svc.getTrialFunnel(CTX, {});
       const planRows = result.breakdowns.filter((b) => b.axis === "plan");
       // Only buyers contribute a plan segment, keyed by the BOUGHT plan name.
       expect(planRows.length).toBe(1);
@@ -427,7 +432,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       await addTrialBooking(mAR, schedAR, sessionDate, "confirmado");
       await addTrialBooking(mES, schedES, sessionDate, "confirmado");
 
-      const onlyAr = await svc.getTrialFunnel({ country: "AR" });
+      const onlyAr = await svc.getTrialFunnel(CTX, { country: "AR" });
       // The country filter triggers the conditional branches join (needsBranchJoin).
       expect(onlyAr.counts.reservaron).toBe(1);
     });
@@ -451,11 +456,11 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       );
       await addSub(m, buyDate);
 
-      const defaultWindow = await svc.getTrialFunnel({});
+      const defaultWindow = await svc.getTrialFunnel(CTX, {});
       expect(defaultWindow.counts.compraron).toBe(0);
       expect(defaultWindow.attributionWindowDays).toBe(21);
 
-      const widerWindow = await svc.getTrialFunnel({ window: 30 });
+      const widerWindow = await svc.getTrialFunnel(CTX, { window: 30 });
       expect(widerWindow.counts.compraron).toBe(1);
       expect(widerWindow.attributionWindowDays).toBe(30);
     });
@@ -475,7 +480,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       await addTrialBooking(mManana, schedManana, sessionDate, "confirmado");
       await addTrialBooking(mTarde, schedTarde, sessionDate, "confirmado");
 
-      const result = await svc.getTrialFunnel({ turno: "manana" });
+      const result = await svc.getTrialFunnel(CTX, { turno: "manana" });
       // Only the 08:00 cohort row survives the turno filter.
       expect(result.counts.reservaron).toBe(1);
       expect(result.counts.asistieron).toBe(1);
@@ -511,7 +516,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       await addSub(mTarget, buyDate, { plan: targetPlanId });
       await addSub(mOther, buyDate, { plan: planId });
 
-      const result = await svc.getTrialFunnel({ planId: targetPlanId });
+      const result = await svc.getTrialFunnel(CTX, { planId: targetPlanId });
       // Both attended, but only the target-plan buyer counts as compró.
       expect(result.counts.reservaron).toBe(2);
       expect(result.counts.asistieron).toBe(2);
@@ -529,7 +534,7 @@ describe("TrialFunnelService (Phase 123 Plan 02)", () => {
       await addTrialBooking(mES, schedES, sessionDate, "confirmado");
 
       // turno=manana scoped to AR: the ES mañana booking must NOT leak in.
-      const result = await svc.getTrialFunnel({
+      const result = await svc.getTrialFunnel(CTX, {
         turno: "manana",
         country: "AR",
       });

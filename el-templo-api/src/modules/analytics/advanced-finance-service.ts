@@ -122,9 +122,9 @@ export class AdvancedFinanceService {
    *
    * `ctx` PRIMERO (regla 169-06). Fase 172 (D-01): `cashTrend` toca una tabla
    * strict de `finance`. Fase 173 (D-02): el denominador de ARPU
-   * (`activeMemberCount`) toca `users` — la única query de este método sobre
-   * el módulo — y también recibe `ctx`. `accruedTrend` (sobre `subscriptions`)
-   * queda afuera, de otra fase.
+   * (`activeMemberCount`) toca `users` — recibe `ctx`. Fase 174.1-03 (D-02):
+   * `accruedTrend` (sobre `subscriptions`, tabla del boundary subs/sched)
+   * también recibe `ctx` y filtra con `tenantWhere`.
    */
   async getAdvancedFinance(
     ctx: TenantContext,
@@ -132,7 +132,7 @@ export class AdvancedFinanceService {
   ): Promise<AdvancedFinanceAnalytics> {
     const [cashMap, accrual] = await Promise.all([
       this.cashTrend(ctx, filters),
-      this.accruedTrend(filters),
+      this.accruedTrend(ctx, filters),
     ]);
 
     const activeMembers = await this.activeMemberCount(ctx, filters);
@@ -258,6 +258,7 @@ export class AdvancedFinanceService {
    * per-currency map and the count of subs excluded for an invalid window.
    */
   private async accruedTrend(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<{ map: CurrencyMap; excludedInvalidWindow: number }> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
@@ -266,8 +267,15 @@ export class AdvancedFinanceService {
       branchColumn: schema.subscriptions.branchId,
     });
 
-    const conditions: SQL[] = [...scopeConditions];
+    const conditions: SQL[] = [
+      tenantWhere(schema.subscriptions, ctx),
+      ...scopeConditions,
+    ];
 
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que
+    // `.from(...)`, D-02 fase 174.1-03): si el `tenantWhere` quedara en un
+    // `.where(...)` posterior a un `if` intermedio, sería otro statement y el
+    // lint marcaría `.from(...)` como sin filtrar aunque la query sí filtre.
     let query = this.db
       .select({
         startDate: schema.subscriptions.startDate,
@@ -277,6 +285,10 @@ export class AdvancedFinanceService {
         currency: schema.subscriptions.currency,
       })
       .from(schema.subscriptions)
+      // `tenantWhere` inline (no solo en `conditions`, D-02): `conditions` es
+      // una variable — el lint busca el literal `tenantWhere(` en ESTE
+      // statement.
+      .where(and(tenantWhere(schema.subscriptions, ctx), ...conditions))
       .$dynamic();
 
     if (needsBranchJoin) {
@@ -286,9 +298,7 @@ export class AdvancedFinanceService {
       );
     }
 
-    const rows: AccrualSubRow[] = await query.where(
-      conditions.length > 0 ? and(...conditions) : undefined,
-    );
+    const rows: AccrualSubRow[] = await query;
 
     const map: CurrencyMap = new Map();
     let excludedInvalidWindow = 0;

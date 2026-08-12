@@ -175,7 +175,14 @@ function pctVariacion(current: number, prior: number): number | null {
  * — the caller skips the join when the predicate is null).
  */
 function turnoHourCondition(turno: TrialTurno): SQL | null {
-  const hour = sql`CAST(LEFT(${schema.schedules.startTime}, 2) AS UNSIGNED)`;
+  // Fase 174.1-03 (D-02): prefijo LITERAL `schedules.start_time` (no
+  // `${schema.schedules.startTime}` interpolado) — mismo idioma que
+  // `especial-exclusion.ts`. Este helper NO hace FROM/JOIN propio (el join a
+  // `schedules`, con su `tenantWhere`, lo hace el ÚNICO caller,
+  // `visitCountsForWindow`); interpolar el objeto de columna acá registraría
+  // un acceso propio a `schedules` en ESTE statement, que ningún `tenantWhere`
+  // del caller puede cubrir (son statements de JS distintos).
+  const hour = sql`CAST(LEFT(schedules.start_time, 2) AS UNSIGNED)`;
   if (turno === "manana") {
     return sql`${hour} >= ${TURNO_MANANA_START_HOUR} AND ${hour} < ${TURNO_MANANA_END_HOUR}`;
   }
@@ -244,8 +251,8 @@ export class FrequencyService {
     // Per-member visit counts for the current [now-28d, now) and prior
     // [now-56d, now-28d) windows, scoped on the attendance branch.
     const [currentCounts, priorCounts] = await Promise.all([
-      this.visitCountsForWindow(filters, now, 0),
-      this.visitCountsForWindow(filters, now, FREQUENCY_WINDOW_DAYS),
+      this.visitCountsForWindow(ctx, filters, now, 0),
+      this.visitCountsForWindow(ctx, filters, now, FREQUENCY_WINDOW_DAYS),
     ]);
 
     const memberBands = this.computeBands(
@@ -264,7 +271,7 @@ export class FrequencyService {
       await new AttendanceMetricsService(
         this.db,
         this.log,
-      ).checkInAdoptionByBranch(filters);
+      ).checkInAdoptionByBranch(ctx, filters);
 
     return { distribution, coolingDown, checkInAdoption, breakdowns };
   }
@@ -339,7 +346,11 @@ export class FrequencyService {
       )
       .innerJoin(
         schema.subscriptionPlans,
-        sql`${schema.subscriptionPlans.id} = ${schema.subscriptions.planId}`,
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
+          sql`${schema.subscriptionPlans.id} = ${schema.subscriptions.planId}`,
+        ),
       )
       .where(and(...populationConditions));
 
@@ -375,6 +386,7 @@ export class FrequencyService {
    * (121/122 lesson — else 500).
    */
   private async visitCountsForWindow(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     now: Date,
     offsetDays: number,
@@ -427,7 +439,10 @@ export class FrequencyService {
     if (turnoCondition !== null) {
       query = query.innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.attendance.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.attendance.scheduleId),
+        ),
       );
     }
     const rows = await query
@@ -635,7 +650,12 @@ export class FrequencyService {
           sql`${schema.users.id} = ${schema.subscriptions.userId}`,
         ),
       )
-      .where(inArray(schema.subscriptions.status, ["active", "paused"]));
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          inArray(schema.subscriptions.status, ["active", "paused"]),
+        ),
+      );
 
     const createdAtByUser = new Map<number, Date>();
     for (const r of activeRows) {

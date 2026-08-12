@@ -51,6 +51,8 @@ import { and, eq, ne, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { bucketExpr } from "./cohorts";
 import { metricShape } from "./metric-shape";
 import { deriveDurationTier } from "./duration-tier";
@@ -137,14 +139,17 @@ export class ChurnService {
    * official window, the multi-N comparison, the grace count, the monthly series,
    * and the 4-axis breakdowns over the ONE shared expiry cohort.
    */
-  async getChurn(filters: AnalyticsFilters): Promise<ChurnAnalytics> {
+  async getChurn(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<ChurnAnalytics> {
     const window = filters.window ?? RENOVATION_WINDOW_DEFAULT_DAYS;
 
     const [official, comparison, series, breakdowns] = await Promise.all([
-      this.officialAndGrace(filters, window),
-      this.multiNComparison(filters),
-      this.monthlySeries(filters, window),
-      this.allBreakdowns(filters, window),
+      this.officialAndGrace(ctx, filters, window),
+      this.multiNComparison(ctx, filters),
+      this.monthlySeries(ctx, filters, window),
+      this.allBreakdowns(ctx, filters, window),
     ]);
 
     return {
@@ -164,6 +169,7 @@ export class ChurnService {
    *   - `enGracia`     = cohort persons NOT matured at the official window.
    */
   private async officialAndGrace(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<{ window: ChurnWindowResult; enGracia: number }> {
@@ -178,13 +184,30 @@ export class ChurnService {
     // `branches.country` condition references a table not in the FROM → 500. The
     // join never fans out (each sub has exactly one branch FK). The breakdown
     // queries already join branches unconditionally (flavor A).
+    // `.where(...)` va ANTES de `.$dynamic()` y del `if` del join condicional
+    // (mismo statement que `.from(schema.subscriptions)`, D-02 fase 174.1-03):
+    // si el `tenantWhere` quedara en un `.where(...)` posterior a un `if`
+    // intermedio, sería otro statement y el lint marcaría `.from(...)` como
+    // sin filtrar aunque la query sí filtre.
     let query = this.db
       .select({
         userId: schema.subscriptions.userId,
         matured: maturedExpr(window),
-        retained: retainedExpr(window),
+        retained: retainedExpr(ctx, window),
       })
       .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
+          // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
+          excludeEspecialSubs(ctx),
+          excludeInternalSubs(),
+          ...scopeConditions,
+          ...subscriptionPlanFilter(filters.planId),
+        ),
+      )
       .$dynamic();
     if (needsBranchJoin) {
       query = query.innerJoin(
@@ -192,17 +215,7 @@ export class ChurnService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       );
     }
-    const rows = await query.where(
-      and(
-        ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-        lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
-        // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
-        excludeEspecialSubs(),
-        excludeInternalSubs(),
-        ...scopeConditions,
-        ...subscriptionPlanFilter(filters.planId),
-      ),
-    );
+    const rows = await query;
 
     const acc = emptyChurnAcc();
     let enGracia = 0;
@@ -231,15 +244,17 @@ export class ChurnService {
    * window. Mirrors the Promise.all-of-windows shape of the old `getRenewalRate`.
    */
   private async multiNComparison(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<ChurnWindowResult[]> {
     return Promise.all(
-      CHURN_COMPARISON_WINDOWS.map((w) => this.churnAtWindow(filters, w)),
+      CHURN_COMPARISON_WINDOWS.map((w) => this.churnAtWindow(ctx, filters, w)),
     );
   }
 
   /** Churn `{ nominal, percentage, n }` over the matured cohort at a single window. */
   private async churnAtWindow(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<ChurnWindowResult> {
@@ -250,12 +265,26 @@ export class ChurnService {
     });
 
     // Join `branches` only under an active country filter (see officialAndGrace).
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que `.from(...)`,
+    // D-02 fase 174.1-03 — ver comentario extenso en officialAndGrace).
     let query = this.db
       .select({
         matured: maturedExpr(window),
-        retained: retainedExpr(window),
+        retained: retainedExpr(ctx, window),
       })
       .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
+          // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
+          excludeEspecialSubs(ctx),
+          excludeInternalSubs(),
+          ...scopeConditions,
+          ...subscriptionPlanFilter(filters.planId),
+        ),
+      )
       .$dynamic();
     if (needsBranchJoin) {
       query = query.innerJoin(
@@ -263,17 +292,7 @@ export class ChurnService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       );
     }
-    const rows = await query.where(
-      and(
-        ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-        lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
-        // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
-        excludeEspecialSubs(),
-        excludeInternalSubs(),
-        ...scopeConditions,
-        ...subscriptionPlanFilter(filters.planId),
-      ),
-    );
+    const rows = await query;
 
     const acc = emptyChurnAcc();
     for (const r of rows) {
@@ -295,6 +314,7 @@ export class ChurnService {
    * not-yet-matured person is provisional).
    */
   private async monthlySeries(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<ChurnSeriesPoint[]> {
@@ -307,13 +327,27 @@ export class ChurnService {
     const bucket = bucketExpr(schema.subscriptions.endDate, "monthly");
 
     // Join `branches` only under an active country filter (see officialAndGrace).
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que `.from(...)`,
+    // D-02 fase 174.1-03 — ver comentario extenso en officialAndGrace).
     let query = this.db
       .select({
         bucket,
         matured: maturedExpr(window),
-        retained: retainedExpr(window),
+        retained: retainedExpr(ctx, window),
       })
       .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
+          // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
+          excludeEspecialSubs(ctx),
+          excludeInternalSubs(),
+          ...scopeConditions,
+          ...subscriptionPlanFilter(filters.planId),
+        ),
+      )
       .$dynamic();
     if (needsBranchJoin) {
       query = query.innerJoin(
@@ -321,17 +355,7 @@ export class ChurnService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       );
     }
-    const rows = await query.where(
-      and(
-        ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-        lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
-        // D-11: el pase especial no cuenta en el churn/no-renovación de membresía.
-        excludeEspecialSubs(),
-        excludeInternalSubs(),
-        ...scopeConditions,
-        ...subscriptionPlanFilter(filters.planId),
-      ),
-    );
+    const rows = await query;
 
     // Accumulate per bucket; a bucket is provisional if ANY of its persons has not
     // yet matured (the cohort is still settling).
@@ -364,11 +388,14 @@ export class ChurnService {
 
   /** Run all four breakdown axes (CHURN-06) in parallel and flatten. */
   private async allBreakdowns(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<ChurnSegmentRow[]> {
     const perAxis = await Promise.all(
-      CHURN_AXES.map((axis) => this.breakdownByAxis(filters, axis, window)),
+      CHURN_AXES.map((axis) =>
+        this.breakdownByAxis(ctx, filters, axis, window),
+      ),
     );
     return perAxis.flat();
   }
@@ -383,6 +410,7 @@ export class ChurnService {
    * ADDITIVE grouping keys, never access filters (scope stays in `applyScope`).
    */
   private async breakdownByAxis(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     axis: ChurnRenewalAxis,
     window: number,
@@ -400,7 +428,7 @@ export class ChurnService {
         planName: schema.subscriptionPlans.name,
         durationDays: schema.subscriptionPlans.durationDays,
         matured: maturedExpr(window),
-        retained: retainedExpr(window),
+        retained: retainedExpr(ctx, window),
       })
       .from(schema.subscriptions)
       .innerJoin(
@@ -413,8 +441,10 @@ export class ChurnService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-          lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
           // D-11: excluir el pase especial de los breakdowns de churn de membresía.
           ne(schema.subscriptionPlans.planCategory, "especial"),
           ...scopeConditions,

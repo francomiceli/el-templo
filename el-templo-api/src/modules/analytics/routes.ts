@@ -212,7 +212,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        const result = await analyticsService.getAttendanceAnalytics(filters);
+        const result = await analyticsService.getAttendanceAnalytics(
+          assertTenant(request.scope, "analytics.attendance"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get attendance analytics");
@@ -297,8 +300,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        const result =
-          await attendanceMetricsService.checkInAdoptionByBranch(filters);
+        const result = await attendanceMetricsService.checkInAdoptionByBranch(
+          assertTenant(request.scope, "analytics.checkin-adoption"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get check-in adoption");
@@ -368,7 +373,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateTo: request.query.dateTo,
           planId: request.query.planId,
         };
-        const result = await retentionService.getRetention(filters);
+        const result = await retentionService.getRetention(
+          assertTenant(request.scope, "analytics.retention"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get retention");
@@ -481,7 +489,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           window: request.query.window,
           planId: request.query.planId,
         };
-        const result = await churnService.getChurn(filters);
+        const result = await churnService.getChurn(
+          assertTenant(request.scope, "analytics.churn"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get churn");
@@ -667,6 +678,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
         };
         const result = await especialReportService.getReport(
+          assertTenant(request.scope, "analytics.especiales"),
           request.query.month,
           filters,
         );
@@ -697,6 +709,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           country: request.scope.country ?? undefined,
         };
         const report = await especialReportService.getReport(
+          assertTenant(request.scope, "analytics.especiales-export"),
           request.query.month,
           filters,
         );
@@ -765,7 +778,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           window: request.query.window,
           planId: request.query.planId,
         };
-        const result = await renewalService.getRenewal(filters);
+        const result = await renewalService.getRenewal(
+          assertTenant(request.scope, "analytics.renewal"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get renewal");
@@ -934,7 +950,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        return await classRatingsService.getClassRatings(filters);
+        return await classRatingsService.getClassRatings(
+          assertTenant(request.scope, "analytics.class-ratings"),
+          filters,
+        );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get class ratings");
       }
@@ -979,7 +998,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           planId: request.query.planId,
           turno: request.query.turno,
         };
-        const result = await trialFunnelService.getTrialFunnel(filters);
+        const result = await trialFunnelService.getTrialFunnel(
+          assertTenant(request.scope, "analytics.trial-funnel"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get trial funnel");

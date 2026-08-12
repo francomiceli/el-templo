@@ -224,6 +224,9 @@ export class FunnelService {
     }
 
     // ── activo historical approximation: MIN(subscriptions.created_at) ─────
+    // Fase 174.1-03 (D-02): `subscriptions` es tabla del boundary de subs —
+    // `tenantWhere` explícito, aunque `userIds` ya venga de una query de
+    // `users` scopeada (D-01 del plan: presencia por-tabla, no correctitud).
     const subRows = await this.db
       .select({
         userId: schema.subscriptions.userId,
@@ -231,10 +234,13 @@ export class FunnelService {
       })
       .from(schema.subscriptions)
       .where(
-        sql`${schema.subscriptions.userId} IN (${sql.join(
-          userIds.map((id) => sql`${id}`),
-          sql`, `,
-        )})`,
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          sql`${schema.subscriptions.userId} IN (${sql.join(
+            userIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        ),
       )
       .groupBy(schema.subscriptions.userId);
 
