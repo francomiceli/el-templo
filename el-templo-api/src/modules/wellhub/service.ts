@@ -402,6 +402,10 @@ export class WellhubService {
       )
       .where(
         and(
+          // Fase 174.1-05 (D-02): `ctx` ya resuelto por `resolverTenant` más
+          // arriba (gymId -> branches.wellhub_gym_id -> tenant) — `bookings`/
+          // `schedules` se acotan con `tenantWhere` en vez de una exención.
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, userId),
           eq(schema.bookings.bookingDate, todayStr),
           eq(schema.schedules.branchId, branch.id),
@@ -441,7 +445,12 @@ export class WellhubService {
         await tx
           .update(schema.bookings)
           .set({ status: "confirmado" })
-          .where(eq(schema.bookings.id, todayBooking.id));
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.id, todayBooking.id),
+            ),
+          );
       }
     });
 
@@ -589,6 +598,7 @@ export class WellhubService {
           .from(schema.bookings)
           .where(
             and(
+              tenantWhere(schema.bookings, ctx),
               eq(schema.bookings.memberId, visitorId),
               eq(schema.bookings.scheduleId, slot.scheduleId),
               eq(schema.bookings.bookingDate, slot.sessionDate),
@@ -627,16 +637,23 @@ export class WellhubService {
         if (duplicate && ["cancelado", "no_show"].includes(duplicate.status)) {
           await tx
             .delete(schema.bookings)
-            .where(eq(schema.bookings.id, duplicate.id));
+            .where(
+              and(
+                tenantWhere(schema.bookings, ctx),
+                eq(schema.bookings.id, duplicate.id),
+              ),
+            );
         }
 
-        const inserted = await tx.insert(schema.bookings).values({
-          memberId: visitorId,
-          scheduleId: slot.scheduleId,
-          bookingDate: slot.sessionDate,
-          status: "reservado",
-          source: "wellhub",
-        });
+        const inserted = await tx.insert(schema.bookings).values(
+          tenantValues(ctx, {
+            memberId: visitorId,
+            scheduleId: slot.scheduleId,
+            bookingDate: slot.sessionDate,
+            status: "reservado",
+            source: "wellhub",
+          }),
+        );
         return {
           decision: "RESERVED",
           rejectionCategory: null,
@@ -742,6 +759,7 @@ export class WellhubService {
         id: schema.wellhubBookings.id,
         status: schema.wellhubBookings.status,
         bookingId: schema.wellhubBookings.bookingId,
+        tenantId: schema.wellhubBookings.tenantId,
       })
       .from(schema.wellhubBookings)
       .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber))
@@ -763,6 +781,12 @@ export class WellhubService {
       return { httpStatus: 200, outcome: "duplicate" };
     }
 
+    // Fase 174.1-05 (D-02): esta cancelación NO pasa por `resolverTenant`
+    // (T-169-26, docblock de arriba) — el `ctx` se deriva de `wb.tenantId`, ya
+    // estampado cuando `wellhub_bookings` se creó en `handleBookingRequested`.
+    // Es "tenant en contexto" (derivable de la fila ya leída), no un barrido.
+    const ctx: TenantContext = { tenantId: wb.tenantId };
+
     if (wb.bookingId !== null) {
       const [booking] = await this.db
         .select({
@@ -772,14 +796,18 @@ export class WellhubService {
           bookingDate: schema.bookings.bookingDate,
         })
         .from(schema.bookings)
-        .where(eq(schema.bookings.id, wb.bookingId))
+        .where(
+          and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, wb.bookingId)),
+        )
         .limit(1);
 
       if (booking && booking.status !== "cancelado") {
         await this.db
           .update(schema.bookings)
           .set({ status: "cancelado", cancelledAt: new Date() })
-          .where(eq(schema.bookings.id, booking.id));
+          .where(
+            and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.id, booking.id)),
+          );
         await this.bookingService.promoteWaitlist(
           booking.scheduleId,
           booking.bookingDate,

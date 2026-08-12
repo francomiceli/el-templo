@@ -35,6 +35,7 @@ import * as schema from "../../db/schema";
 import { addDays, buildClassDateTime, todayInTz } from "../shared/date-utils";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import type { BookingService } from "../scheduling/booking-service";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { WellhubApiError } from "./client";
 import type { WellhubClient } from "./client";
 import type { WellhubSlot, WellhubSlotPayload } from "./types";
@@ -68,6 +69,12 @@ interface SyncBranch {
   timezone: string;
   country: string;
   maxCapacity: number;
+  // Fase 174.1-05 (D-02): tenant de la sede, resuelto en `syncAllBranches` y
+  // threadeado por toda la sincronización — `schedules`/`scheduleExceptions`/
+  // `holidays` (las 3 tablas del boundary que este servicio toca) se acotan
+  // con `tenantWhere(..., { tenantId: branch.tenantId })`, no con una
+  // exención: la sede ya tiene tenant resuelto en cada paso del sync.
+  tenantId: number;
 }
 
 export class WellhubSyncService {
@@ -104,6 +111,7 @@ export class WellhubSyncService {
         timezone: schema.branches.timezone,
         country: schema.branches.country,
         maxCapacity: schema.branches.maxCapacity,
+        tenantId: schema.branches.tenantId,
       })
       .from(schema.branches)
       .where(
@@ -124,6 +132,7 @@ export class WellhubSyncService {
           timezone: branch.timezone,
           country: branch.country,
           maxCapacity: branch.maxCapacity,
+          tenantId: branch.tenantId,
         });
         summary.branches += 1;
         summary.classesCreated += result.classesCreated;
@@ -176,8 +185,9 @@ export class WellhubSyncService {
 
   /** Actividades activas no especiales con al menos un horario activo en la sede. */
   private async listPublishableActivities(
-    branchId: number,
+    branch: SyncBranch,
   ): Promise<Array<{ id: number; name: string; description: string | null }>> {
+    const ctx: TenantContext = { tenantId: branch.tenantId };
     return await this.db
       .selectDistinct({
         id: schema.activities.id,
@@ -191,7 +201,8 @@ export class WellhubSyncService {
       )
       .where(
         and(
-          eq(schema.schedules.branchId, branchId),
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.branchId, branch.id),
           eq(schema.schedules.isActive, true),
           eq(schema.activities.isActive, true),
           eq(schema.activities.isSpecial, false),
@@ -203,7 +214,7 @@ export class WellhubSyncService {
     branch: SyncBranch,
     productId: number,
   ): Promise<number> {
-    const activities = await this.listPublishableActivities(branch.id);
+    const activities = await this.listPublishableActivities(branch);
     if (activities.length === 0) return 0;
 
     const existing = await this.db
@@ -266,6 +277,7 @@ export class WellhubSyncService {
     const horizon = this.horizonDays();
     const endDate = addDays(today, horizon);
     const now = new Date();
+    const ctx: TenantContext = { tenantId: branch.tenantId };
 
     // Mapeo class por actividad (para armar paths de la API).
     const classes = await this.db
@@ -297,6 +309,7 @@ export class WellhubSyncService {
       )
       .where(
         and(
+          tenantWhere(schema.schedules, ctx),
           eq(schema.schedules.branchId, branch.id),
           eq(schema.schedules.isActive, true),
           eq(schema.activities.isActive, true),
@@ -315,6 +328,7 @@ export class WellhubSyncService {
           .from(schema.scheduleExceptions)
           .where(
             and(
+              tenantWhere(schema.scheduleExceptions, ctx),
               inArray(schema.scheduleExceptions.scheduleId, scheduleIds),
               gte(schema.scheduleExceptions.exceptionDate, today),
               lte(schema.scheduleExceptions.exceptionDate, endDate),
@@ -330,6 +344,7 @@ export class WellhubSyncService {
       .from(schema.holidays)
       .where(
         and(
+          tenantWhere(schema.holidays, ctx),
           eq(schema.holidays.country, branch.country),
           gte(schema.holidays.date, today),
           lte(schema.holidays.date, endDate),
@@ -607,9 +622,18 @@ export class WellhubSyncService {
    * Solicitudes de reserva que quedaron 'pending' (la confirmación a Wellhub
    * nunca salió bien) con más de PENDING_EXPIRY_MINUTES: Wellhub ya las
    * auto-rechazó a los 15 min, así que el booking local libera el cupo.
+   *
+   * Fase 174.1-05 (D-02): este barrido corre UNA VEZ por `syncAllBranches`,
+   * ANTES del loop por sede (línea de arriba), sobre TODOS los
+   * `wellhub_bookings` pending de TODOS los gimnasios a la vez — es
+   * genuinamente cross-tenant (el scope no vive en una query por sede, vive
+   * en el hecho de que "pending hace más de 20 minutos" no depende del
+   * gimnasio). Exención `tenant-safe`, molde `autoExpireDueSubscriptions`
+   * (174-06). Con un solo tenant activo el resultado es IDÉNTICO.
    */
   private async expireDeadPendings(): Promise<number> {
     const cutoff = new Date(Date.now() - PENDING_EXPIRY_MINUTES * 60 * 1000);
+    /* tenant-safe: barrido cross-tenant genuino — reconciliación de pendings Wellhub vencidos corre para TODOS los gimnasios en una sola query antes del loop por sede, no hay tenant en contexto acá */
     const dead = await this.db
       .select({
         id: schema.wellhubBookings.id,
@@ -626,6 +650,7 @@ export class WellhubSyncService {
     let expired = 0;
     for (const row of dead) {
       if (row.bookingId !== null) {
+        /* tenant-safe: barrido cross-tenant genuino — ver el comentario de la query de `dead` más arriba, el booking liberado hereda el mismo alcance */
         const [booking] = await this.db
           .select({
             id: schema.bookings.id,
@@ -638,6 +663,7 @@ export class WellhubSyncService {
           .limit(1);
 
         if (booking && booking.status !== "cancelado") {
+          /* tenant-safe: barrido cross-tenant genuino — ver el comentario de la query de `dead` más arriba */
           await this.db
             .update(schema.bookings)
             .set({ status: "cancelado", cancelledAt: new Date() })

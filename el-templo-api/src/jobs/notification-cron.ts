@@ -323,6 +323,7 @@ const PLAN_RENEWAL_THRESHOLDS = [
 export async function runPlanRenewalWarnings(
   db: MySql2Database<typeof schema>,
   notificationService: NotificationService,
+  ctx: TenantContext,
 ): Promise<number> {
   let totalQueued = 0;
 
@@ -330,6 +331,11 @@ export async function runPlanRenewalWarnings(
     // Candidate subscriptions whose end_date is exactly CURDATE() + days. Use a
     // SQL DATE comparison (never JS Date math) so we stay in the AR-local DATE
     // domain that matches `subscriptions.end_date`.
+    //
+    // Fase 174.1-05 (D-02): `ctx` llega ahora desde el cuerpo por-tenant de
+    // `runBatchSegmentRecalculationForTenant` (única llamadora) — antes esta
+    // función no lo recibía y la query de `subscriptions` quedaba sin
+    // `tenantWhere`. Con un solo tenant activo el resultado es IDÉNTICO.
     const candidates = await db
       .selectDistinct({
         userId: s.subscriptions.userId,
@@ -338,6 +344,7 @@ export async function runPlanRenewalWarnings(
       .from(s.subscriptions)
       .where(
         and(
+          tenantWhere(s.subscriptions, ctx),
           inArray(s.subscriptions.status, ["active", "scheduled"]),
           sql`${s.subscriptions.endDate} = DATE_ADD(CURDATE(), INTERVAL ${days} DAY)`,
         ),
@@ -648,7 +655,7 @@ async function runBatchSegmentRecalculationForTenant(
   // su propio `forEachActiveTenant`. Agregarle uno anidaría dos barridos
   // y la haría correr N² veces.
   try {
-    await runPlanRenewalWarnings(db, notificationService);
+    await runPlanRenewalWarnings(db, notificationService, ctx);
   } catch (planErr: unknown) {
     const pMsg = planErr instanceof Error ? planErr.message : "Unknown error";
     log.error({ err: pMsg, tenantId }, "Plan renewal warning check failed");
