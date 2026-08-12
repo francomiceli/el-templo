@@ -440,10 +440,13 @@ export class ReportsService {
           eq(schema.activities.id, schema.schedules.activityId),
         )
         .where(
-          sql`${schema.schedules.id} IN (${sql.join(
-            uniqueIds.map((id) => sql`${id}`),
-            sql`, `,
-          )})`,
+          and(
+            tenantWhere(schema.schedules, ctx),
+            sql`${schema.schedules.id} IN (${sql.join(
+              uniqueIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          ),
         );
 
       for (const s of scheduleRows) {
@@ -611,7 +614,8 @@ export class ReportsService {
       SELECT 1
       FROM ${schema.subscriptions} sub2
       JOIN ${schema.subscriptionPlans} sp2 ON sp2.id = sub2.plan_id
-      WHERE sub2.user_id = ${schema.subscriptions.userId}
+      WHERE sub2.tenant_id = ${ctx.tenantId}
+        AND sub2.user_id = ${schema.subscriptions.userId}
         AND sub2.id <> ${schema.subscriptions.id}
         AND sub2.subscription_status IN ('active', 'paused', 'scheduled')
         AND sub2.end_date IS NOT NULL
@@ -619,6 +623,12 @@ export class ReportsService {
         AND (sp2.plan_category = 'presencial') = (${schema.subscriptionPlans.planCategory} = 'presencial')
     )`;
 
+    // Fase 174.1-04 (D-02): las condiciones quedan en UN solo array literal
+    // (spread condicional) en vez de `conditions.push(...)` en statements
+    // separados — el lint de tenancy juzga por STATEMENT, y varios `push`
+    // sueltos no ven el `tenantWhere(schema.subscriptions, ctx)` que va como
+    // primer elemento de este MISMO array. Cero cambio de comportamiento:
+    // mismo orden, mismos fragmentos, ahora construidos con spread.
     const conditions: ReturnType<typeof sql>[] = [
       tenantWhere(schema.subscriptions, ctx),
       sql`${schema.subscriptions.status} IN (${sql.join(
@@ -626,37 +636,27 @@ export class ReportsService {
         sql`, `,
       )})`,
       sql`${schema.subscriptions.endDate} IS NOT NULL`,
-    ];
-
-    if (useRange) {
-      conditions.push(
-        sql`${schema.subscriptions.endDate} >= ${filters.dateFrom}`,
-      );
-      conditions.push(
-        sql`${schema.subscriptions.endDate} <= ${filters.dateTo}`,
-      );
-    } else {
-      conditions.push(
-        sql`${schema.subscriptions.endDate} <= DATE_ADD(CURDATE(), INTERVAL ${daysWindow} DAY)`,
-      );
-      if (!includeExpired) {
-        // Only show those not yet expired
-        conditions.push(sql`${schema.subscriptions.endDate} >= CURDATE()`);
-      }
-    }
-
-    if (!includeRenewed) {
+      ...(useRange
+        ? [
+            sql`${schema.subscriptions.endDate} >= ${filters.dateFrom}`,
+            sql`${schema.subscriptions.endDate} <= ${filters.dateTo}`,
+          ]
+        : [
+            sql`${schema.subscriptions.endDate} <= DATE_ADD(CURDATE(), INTERVAL ${daysWindow} DAY)`,
+            // Only show those not yet expired
+            ...(!includeExpired
+              ? [sql`${schema.subscriptions.endDate} >= CURDATE()`]
+              : []),
+          ]),
       // Hide members who already renewed (have future same-category coverage).
-      conditions.push(sql`NOT ${coverageExists}`);
-    }
-
-    if (filters.branchId !== undefined) {
-      conditions.push(eq(schema.subscriptions.branchId, filters.branchId));
-    }
-
-    if (filters.country !== undefined) {
-      conditions.push(eq(schema.branches.country, filters.country));
-    }
+      ...(!includeRenewed ? [sql`NOT ${coverageExists}`] : []),
+      ...(filters.branchId !== undefined
+        ? [eq(schema.subscriptions.branchId, filters.branchId)]
+        : []),
+      ...(filters.country !== undefined
+        ? [eq(schema.branches.country, filters.country)]
+        : []),
+    ];
 
     const rows = await this.db
       .select({
@@ -939,7 +939,30 @@ export class ReportsService {
   ): SQL[] {
     // El filtro de gimnasio es el PRIMER término del WHERE de toda query que
     // componga estas conditions (convención lockeada, shared/tenant.ts:18-21).
-    const conds: SQL[] = [cols.tenantFilter];
+    // Fase 174.1-04 (D-02): los dos fragmentos `accruedFrom`/`accruedTo` van
+    // en este MISMO array literal (spread condicional) y no en un
+    // `conds.push(...)` de un `if` aparte — el lint de tenancy juzga por
+    // STATEMENT y un `push` suelto no ve el filtro de gimnasio que abre este
+    // array. Cero cambio de comportamiento.
+    const conds: SQL[] = [
+      cols.tenantFilter,
+      /* tenant-safe: fragmento de condicion por fecha de devengo, NO ejecuta
+         query propia — siempre viaja ANDed con `cols.tenantFilter`
+         (`tenantWhere(schema.balances, ctx)`, arriba) en la MISMA query
+         final. El lint juzga por statement y no ve ese AND en su propio
+         texto — mismo patron que la busqueda por nombre de mas abajo
+         (:1539) y goal-plans/routes.ts:484 (173-30, switch de members). */
+      ...(filters.accruedFrom !== undefined
+        ? [
+            sql`COALESCE(${schema.subscriptions.startDate}, DATE(${cols.createdAt})) >= ${filters.accruedFrom}`,
+          ]
+        : []),
+      ...(filters.accruedTo !== undefined
+        ? [
+            sql`COALESCE(${schema.subscriptions.startDate}, DATE(${cols.createdAt})) <= ${filters.accruedTo}`,
+          ]
+        : []),
+    ];
 
     if (filters.branchId !== undefined) {
       // Filter on subscriptions.branchId (LEFT JOIN). debt_balance rows have
@@ -984,16 +1007,8 @@ export class ReportsService {
     if (filters.registeredTo !== undefined) {
       conds.push(sql`DATE(${cols.createdAt}) <= ${filters.registeredTo}`);
     }
-    if (filters.accruedFrom !== undefined) {
-      conds.push(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${cols.createdAt})) >= ${filters.accruedFrom}`,
-      );
-    }
-    if (filters.accruedTo !== undefined) {
-      conds.push(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${cols.createdAt})) <= ${filters.accruedTo}`,
-      );
-    }
+    // accruedFrom/accruedTo ya van en el array literal inicial de `conds`
+    // (arriba, D-02 174.1-04).
 
     // "Sin asistir hace más de X días" (brief §4.4): detector de fantasmas.
     // NULL (nunca asistió) cuenta como fantasma — sin registro de asistencia
@@ -1646,11 +1661,13 @@ export class ReportsService {
             FROM bookings b2
             WHERE b2.member_id = b.member_id
               AND b2.is_trial = 1
+              AND b2.tenant_id = ${ctx.tenantId}
             ORDER BY b2.booking_date ASC, b2.id ASC
             LIMIT 1
           ) AS first_schedule_id
         FROM bookings b
         WHERE b.is_trial = 1
+          AND b.tenant_id = ${ctx.tenantId}
         GROUP BY b.member_id
       )
     `;

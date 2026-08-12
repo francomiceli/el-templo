@@ -552,7 +552,10 @@ export class CampaignService {
       .from(schema.campaignSends)
       .innerJoin(
         schema.bookings,
-        eq(schema.bookings.memberId, schema.campaignSends.userId),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.memberId, schema.campaignSends.userId),
+        ),
       )
       .where(
         and(
@@ -573,6 +576,7 @@ export class CampaignService {
       .innerJoin(
         schema.bookings,
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, schema.campaignSends.userId),
           eq(schema.bookings.isTrial, true),
           eq(schema.bookings.source, "self_service"),

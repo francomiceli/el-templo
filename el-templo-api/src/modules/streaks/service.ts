@@ -52,13 +52,17 @@ export class StreakService {
    * 2. Plan's classesPerWeek (distribute evenly Mon-Sat)
    * 3. Default: every day Mon-Sat
    */
-  async getExpectedTrainingDays(userId: number): Promise<number[]> {
+  async getExpectedTrainingDays(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<number[]> {
     // Find active subscription
     const activeSubs = await this.db
       .select({ id: subscriptions.id, planId: subscriptions.planId })
       .from(subscriptions)
       .where(
         and(
+          tenantWhere(subscriptions, ctx),
           eq(subscriptions.userId, userId),
           inArray(subscriptions.status, ["active", "paused"]),
         ),
@@ -76,8 +80,19 @@ export class StreakService {
     const scheduleSlots = await this.db
       .select({ dayOfWeek: schedules.dayOfWeek })
       .from(subscriptionSchedules)
-      .innerJoin(schedules, eq(subscriptionSchedules.scheduleId, schedules.id))
-      .where(eq(subscriptionSchedules.subscriptionId, sub.id));
+      .innerJoin(
+        schedules,
+        and(
+          tenantWhere(schedules, ctx),
+          eq(subscriptionSchedules.scheduleId, schedules.id),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(subscriptionSchedules, ctx),
+          eq(subscriptionSchedules.subscriptionId, sub.id),
+        ),
+      );
 
     if (scheduleSlots.length > 0) {
       // Unique day-of-week values from schedule slots
@@ -89,7 +104,12 @@ export class StreakService {
     const [plan] = await this.db
       .select({ classesPerWeek: subscriptionPlans.classesPerWeek })
       .from(subscriptionPlans)
-      .where(eq(subscriptionPlans.id, sub.planId));
+      .where(
+        and(
+          tenantWhere(subscriptionPlans, ctx),
+          eq(subscriptionPlans.id, sub.planId),
+        ),
+      );
 
     if (plan?.classesPerWeek) {
       return this.distributeTrainingDays(plan.classesPerWeek);
@@ -169,7 +189,7 @@ export class StreakService {
     const lastUpdated = profile.streakUpdatedAt;
 
     // Get expected training days for this member
-    const expectedDays = await this.getExpectedTrainingDays(userId);
+    const expectedDays = await this.getExpectedTrainingDays(ctx, userId);
 
     // Check for missed planned training days since last streak update
     const today = new Date();

@@ -743,6 +743,7 @@ export class ProgramsService {
       )
       .where(
         and(
+          tenantWhere(subscriptions, ctx),
           eq(subscriptions.userId, userId),
           sql`${subscriptions.status} IN ('active', 'paused')`,
         ),
@@ -1085,6 +1086,7 @@ export class ProgramsService {
         )
         .where(
           and(
+            tenantWhere(subscriptions, ctx),
             eq(subscriptions.userId, userId),
             or(
               eq(subscriptions.status, "active"),

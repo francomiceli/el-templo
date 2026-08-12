@@ -106,7 +106,7 @@ export class GoalPlanService {
    * upstream) if the resolved enrollment lacks a goalPlanType.
    * Throws SubscriptionRequiredError if not.
    */
-  async checkSubscription(userId: number): Promise<void> {
+  async checkSubscription(ctx: TenantContext, userId: number): Promise<void> {
     const [sub] = await this.db
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
@@ -116,6 +116,7 @@ export class GoalPlanService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           or(
             eq(schema.subscriptions.status, "active"),

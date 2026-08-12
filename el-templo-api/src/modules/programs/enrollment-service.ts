@@ -32,7 +32,7 @@ import type { TxHandle } from "../finance/balance-service";
 import type { TransactionService } from "../finance/transaction-service";
 import type { PaymentMethod } from "../finance/types";
 import { auditLog } from "../shared/audit-log";
-import { tenantValues, type TenantContext } from "../shared/tenant";
+import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   BadRequestError,
   ConflictError,
@@ -348,6 +348,7 @@ export class EnrollmentService {
         )
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.userId, userId),
             eq(schema.subscriptions.id, subscriptionId),
             or(
@@ -534,6 +535,7 @@ export class EnrollmentService {
    *      cancelled row (stale-pointer cleanup, mirrors phase 111 helpers).
    */
   async tearDownForSubscription(
+    ctx: TenantContext | null,
     subscriptionId: number,
     tx?: TxHandle,
     options?: {
@@ -557,7 +559,17 @@ export class EnrollmentService {
         schema.subscriptionPlans,
         eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
       )
-      .where(eq(schema.subscriptions.id, subscriptionId))
+      .where(
+        ctx
+          ? and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.id, subscriptionId),
+            )
+          : and(
+              isNotNull(schema.subscriptions.tenantId),
+              eq(schema.subscriptions.id, subscriptionId),
+            ),
+      )
       .limit(1);
 
     if (!sub) return;
@@ -577,14 +589,25 @@ export class EnrollmentService {
         eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
       )
       .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          or(
-            eq(schema.subscriptions.status, "active"),
-            eq(schema.subscriptions.status, "paused"),
-          ),
-          ne(schema.subscriptions.id, subscriptionId),
-        ),
+        ctx
+          ? and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.userId, userId),
+              or(
+                eq(schema.subscriptions.status, "active"),
+                eq(schema.subscriptions.status, "paused"),
+              ),
+              ne(schema.subscriptions.id, subscriptionId),
+            )
+          : and(
+              isNotNull(schema.subscriptions.tenantId),
+              eq(schema.subscriptions.userId, userId),
+              or(
+                eq(schema.subscriptions.status, "active"),
+                eq(schema.subscriptions.status, "paused"),
+              ),
+              ne(schema.subscriptions.id, subscriptionId),
+            ),
       );
 
     const anyProtectorIsBundle = protectorRows.some(

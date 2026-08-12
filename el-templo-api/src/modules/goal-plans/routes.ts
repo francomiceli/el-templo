@@ -186,22 +186,24 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getGoalPlanSessionSchema,
     },
     async (request, reply) => {
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+      // fila del socio autenticado — D-09: esta ruta member-facing NO
+      // recibe su caso de aislamiento en esta fase (dueño: fase de
+      // goal-plans, ver SUMMARY).
+      // Fase 174.1-04 (D-02): resuelto ANTES de checkSubscription (que ahora
+      // requiere ctx real para su lectura de subscriptions/subscription_plans).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "goal-plans.session");
+
       // Subscription enforcement: require goal-plan-enabled plan
       try {
-        await goalPlanService.checkSubscription(request.user.userId);
+        await goalPlanService.checkSubscription(ctx, request.user.userId);
       } catch (err: unknown) {
         if (err instanceof SubscriptionRequiredError) {
           return reply.status(403).send({ error: err.message });
         }
         throw err;
       }
-
-      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
-      // fila del socio autenticado — D-09: esta ruta member-facing NO
-      // recibe su caso de aislamiento en esta fase (dueño: fase de
-      // goal-plans, ver SUMMARY).
-      await attachCountryScope(request, fastify.db);
-      const ctx = assertTenant(request.scope, "goal-plans.session");
 
       const { week, day, level: levelOverride } = request.query;
 
@@ -257,22 +259,24 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { userId } = request.user;
 
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+      // fila del socio autenticado — D-09: esta ruta member-facing NO
+      // recibe su caso de aislamiento en esta fase (dueño: fase de
+      // goal-plans, ver SUMMARY).
+      // Fase 174.1-04 (D-02): resuelto ANTES de checkSubscription (que ahora
+      // requiere ctx real para su lectura de subscriptions/subscription_plans).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "goal-plans.complete");
+
       // Subscription enforcement: require goal-plan-enabled plan
       try {
-        await goalPlanService.checkSubscription(userId);
+        await goalPlanService.checkSubscription(ctx, userId);
       } catch (err: unknown) {
         if (err instanceof SubscriptionRequiredError) {
           return reply.status(403).send({ error: err.message });
         }
         throw err;
       }
-
-      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
-      // fila del socio autenticado — D-09: esta ruta member-facing NO
-      // recibe su caso de aislamiento en esta fase (dueño: fase de
-      // goal-plans, ver SUMMARY).
-      await attachCountryScope(request, fastify.db);
-      const ctx = assertTenant(request.scope, "goal-plans.complete");
 
       const {
         dayId,

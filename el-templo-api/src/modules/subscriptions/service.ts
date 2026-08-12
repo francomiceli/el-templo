@@ -3330,7 +3330,11 @@ export class SubscriptionService {
     // legacy tearDownBundleEnrollments + tearDownLinkedProgramEnrollment
     // pair with a single call. Runs inside the same tx so cancellation +
     // enrollment teardown + pointer cleanup are atomic.
-    await this.requireEnrollmentService().tearDownForSubscription(sub.id, tx);
+    await this.requireEnrollmentService().tearDownForSubscription(
+      ctx,
+      sub.id,
+      tx,
+    );
 
     await this.recomputeUserStatus(ctx, userId, tx);
 
@@ -3710,6 +3714,7 @@ export class SubscriptionService {
     // Without this exclusion, admin_addons would be cancelled here and
     // transferAddons would find nothing to move (silent D-19 violation).
     await this.requireEnrollmentService().tearDownForSubscription(
+      ctx,
       existingSub.id,
       undefined,
       { excludeSources: ["admin_addon"] },
@@ -5348,7 +5353,10 @@ export class SubscriptionService {
     // the next getMemberSubscription call repairs.
     if (expiredOnlyIds.length > 0) {
       for (const subId of expiredOnlyIds) {
-        await this.requireEnrollmentService().tearDownForSubscription(subId);
+        await this.requireEnrollmentService().tearDownForSubscription(
+          ctx,
+          subId,
+        );
       }
     }
 
@@ -5476,6 +5484,7 @@ export class SubscriptionService {
       // cancel goes through the EnrollmentService chokepoint. Runs on
       // this.db (no tx — preserves the legacy best-effort semantics).
       await this.requireEnrollmentService().tearDownForSubscription(
+        ctx,
         scheduled.previousSubscriptionId,
       );
     }
