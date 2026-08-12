@@ -29,6 +29,16 @@
           @click="onManualRefresh"
         />
       </div>
+      <div class="col-12 col-sm-auto">
+        <q-btn
+          icon="cast"
+          label="Abrir pantalla completa"
+          color="secondary"
+          outline
+          :disable="selectedBranchId === null"
+          @click="onOpenScreen"
+        />
+      </div>
     </div>
 
     <!-- Carga inicial -->
@@ -255,6 +265,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useTvApi, type TvControlContext, type TvStateWrite } from 'src/composables/useTvApi';
@@ -264,6 +275,7 @@ import type { BranchOption } from 'src/types/member';
 
 const log = createLogger('TvControlPage');
 const $q = useQuasar();
+const router = useRouter();
 const authStore = useAuthStore();
 const membersApi = useMembersApi();
 const tvApi = useTvApi();
@@ -403,6 +415,16 @@ async function onBranchChange(): Promise<void> {
   context.value = null;
   initialLoading.value = true;
   await fetchContext();
+}
+
+/**
+ * Abre la pantalla fullscreen (`/pantalla-tv`) de la sede elegida acá. Misma
+ * pestaña: en el televisor de pared no hay otra pestaña a la que volver, y en
+ * el celular del profe da igual.
+ */
+function onOpenScreen(): void {
+  if (selectedBranchId.value === null) return;
+  void router.push({ path: '/pantalla-tv', query: { branchId: String(selectedBranchId.value) } });
 }
 
 // =========================================================================

@@ -7,9 +7,10 @@
  *
  * Tres invariantes que este archivo sostiene:
  *
- *  1. **La sede sale de la FILA del dispositivo** (`device.branchId`), jamas de
- *     un parametro del request: un TV no puede leer la clase de otra sucursal
- *     (T-164-20).
+ *  1. **La sede la autoriza el caller** (`requireBranchAccess` en la ruta,
+ *     T-164-20 rehecha para el login autenticado): ya no hay un token de
+ *     dispositivo que la fije, asi que la ruta valida el scope del usuario
+ *     ANTES de invocar `buildPollPayload(branchId)`.
  *  2. **Cero datos de socio en el payload** (T-164-21). El TV cuelga de una
  *     pared publica: solo ejercicios, prescripciones, roster y estado.
  *  3. **Reposo silencioso** (D-09, T-164-22): sin sesion aprobada el payload es
@@ -68,12 +69,6 @@ const IDLE_TIMER = {
  * pantalla, pero el control del profe avisa que el play empieza en 3 segundos.
  */
 const TIMER_START_LEAD_MS = 3000;
-
-/** Lo unico que el servicio necesita saber de un televisor vinculado. */
-export interface TvDeviceRef {
-  id: number;
-  branchId: number;
-}
 
 /** La sede, con lo minimo para resolver su dia y rotular su nombre. */
 interface TvBranchRef {
@@ -281,10 +276,12 @@ export class TvService {
    * depender de la maquina que corre los tests.
    */
   async buildPollPayload(
-    device: TvDeviceRef,
+    branchId: number,
     now: Date = new Date(),
   ): Promise<TvPollResponse> {
-    // 1. La sede sale de la FILA del dispositivo (T-164-20).
+    // 1. La sede pedida (ahora resuelta por scope autenticado, ya no por la
+    // fila de un dispositivo — T-164-20 queda cubierto por `requireBranchAccess`
+    // en la ruta en vez de por esta funcion).
     const [branch] = await this.db
       .select({
         id: schema.branches.id,
@@ -292,14 +289,14 @@ export class TvService {
         timezone: schema.branches.timezone,
       })
       .from(schema.branches)
-      .where(eq(schema.branches.id, device.branchId));
+      .where(eq(schema.branches.id, branchId));
 
     if (!branch) {
-      // Sede borrada con un TV todavia vinculado: condicion esperable de datos,
-      // no una falla del sistema -> warn, y reposo en pantalla.
+      // Sede inexistente: condicion esperable de datos, no una falla del
+      // sistema -> warn, y reposo en pantalla.
       this.log.warn(
-        { deviceId: device.id, branchId: device.branchId },
-        "tv: dispositivo vinculado a una sede inexistente",
+        { branchId },
+        "tv: se pidio el estado de una sede inexistente",
       );
       return {
         serverNow: now.getTime(),

@@ -37,6 +37,18 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true },
   },
   {
+    // Pantalla de sede, fullscreen y AUTENTICADA (reemplaza al kiosco anónimo
+    // `/tv/` de RFC 8628, retirado). Top-level y NO child de AdminLayout a
+    // propósito: un televisor de pared no necesita (ni debe mostrar) el
+    // drawer/header del admin. Mismo set de roles que '/tv/control'
+    // (TV_CONTROL_ROLES) — NO `public`: el guard de abajo exige login y, si
+    // el TV todavía no tiene sesión, manda a /login preservando el destino
+    // para volver acá después (ver `router/index.ts`).
+    path: '/pantalla-tv',
+    component: () => import('pages/TvScreenPage.vue'),
+    meta: { allowedRoles: TV_CONTROL_ROLES },
+  },
+  {
     path: '/',
     component: () => import('layouts/AdminLayout.vue'),
     children: [
@@ -140,26 +152,12 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        // Fase 164 — panel de televisores de sucursal. Dueño + coach vía
-        // TV_CONTROL_ROLES (espejo del set homónimo del API, D-01); el gate real
-        // sigue siendo el API.
-        //
-        // CRÍTICO: el path es 'tv/devices', NUNCA 'tv'. El kiosco es un artefacto
-        // estático (`public/tv/index.html`) servido por nginx con `index
-        // index.html` sobre el directorio; una ruta 'tv' en el SPA se comería esa
-        // resolución y anularía toda la estrategia de compatibilidad del
-        // televisor (D-24). '/tv/devices' no existe como archivo ni como
-        // directorio, así que nginx la manda al fallback '/index.html' y el SPA
-        // la resuelve. En desarrollo el kiosco se abre en '/tv/index.html'.
-        path: 'tv/devices',
-        component: () => import('pages/TvDevicesPage.vue'),
-        meta: { allowedRoles: TV_CONTROL_ROLES },
-      },
-      {
-        // Fase 164 — control del TV desde el celular del profe (D-13). Mismo
-        // set de roles que el panel de televisores y la misma restricción de
-        // path: 'tv/control', NUNCA 'tv' (ver el comentario de arriba — una
-        // ruta 'tv' en el SPA se comería la resolución del kiosco estático).
+        // Fase 164 — control del TV desde el celular del profe (D-13). El
+        // kiosco anónimo (RFC 8628, código de vinculación) se retiró: la
+        // pantalla del TV ahora es la ruta top-level '/pantalla-tv' (ver
+        // abajo, fuera de AdminLayout). Este panel es la única sección de
+        // nav que queda bajo /tv — el path se mantiene por compatibilidad de
+        // bookmarks/nav existentes.
         path: 'tv/control',
         component: () => import('pages/TvControlPage.vue'),
         meta: { allowedRoles: TV_CONTROL_ROLES },

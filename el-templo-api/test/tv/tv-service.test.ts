@@ -35,14 +35,13 @@ let app: FastifyInstance;
 let service: TvService;
 let branchArId: number;
 let branchEsId: number;
-let deviceId: number;
 let exerciseId: number;
 
 function code(prefix: string): string {
   return `${prefix}${Date.now().toString(36).slice(-5)}`;
 }
 
-async function seedBranchesAndDevice(): Promise<void> {
+async function seedBranches(): Promise<void> {
   const [ar] = await app.db
     .insert(schema.branches)
     .values({ name: "Mogotes", code: code("TVS"), timezone: AR_TZ })
@@ -53,12 +52,6 @@ async function seedBranchesAndDevice(): Promise<void> {
     .$returningId();
   branchArId = ar.id;
   branchEsId = es.id;
-
-  const [device] = await app.db
-    .insert(schema.tvDevices)
-    .values({ branchId: ar.id, tokenHash: code("hash").padEnd(64, "0") })
-    .$returningId();
-  deviceId = device.id;
 
   const [ex] = await app.db
     .insert(schema.exercises)
@@ -180,7 +173,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await cleanAllTestData(app);
-  await seedBranchesAndDevice();
+  await seedBranches();
 });
 
 describe("TvService.readState — expire-on-read (D-07 / T-164-23)", () => {
@@ -311,7 +304,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
   it("sin sesion aprobada el payload es reposo SIN campo de error (D-09)", async () => {
     // Ni sesiones ni estado: el caso de un dia sin clase.
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -335,7 +328,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     await seedSession({ level: "alfa", roles: ["INITIUM", "NUCLEUS"] });
 
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -361,7 +354,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     });
 
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -403,12 +396,8 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       level: "alfa",
     });
 
-    const cls = (
-      await service.buildPollPayload(
-        { id: deviceId, branchId: branchArId },
-        TUESDAY_NOON_UTC,
-      )
-    ).class!;
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
 
     expect(cls.blocks[0].shared).toBe(true);
     expect(cls.levelLabel).toBe("TODOS LOS NIVELES");
@@ -433,7 +422,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     });
 
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -451,9 +440,9 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     }
   });
 
-  it("el estado de otra sede no se filtra: la sede sale de la fila del device (T-164-20)", async () => {
+  it("el estado de otra sede no se filtra: cada sede lee solo su propio estado (T-164-20)", async () => {
     await seedSession({ level: "alfa", roles: ["INITIUM", "NUCLEUS"] });
-    // Clase iniciada en Barcelona, NO en la sede del televisor.
+    // Clase iniciada en Barcelona, NO en la sede que se consulta.
     await writeState({
       branchId: branchEsId,
       classDate: TUESDAY_DATE,
@@ -462,7 +451,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     });
 
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -500,15 +489,8 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     // Y para la sede argentina, en el MISMO instante, sigue vigente.
     expect(await service.readState(branchArId, TUESDAY_DATE)).not.toBeNull();
 
-    // Extremo a extremo: el TV de Barcelona amanece en reposo sin cron.
-    const [esDevice] = await app.db
-      .insert(schema.tvDevices)
-      .values({ branchId: branchEsId, tokenHash: code("es").padEnd(64, "1") })
-      .$returningId();
-    const payload = await service.buildPollPayload(
-      { id: esDevice.id, branchId: branchEsId },
-      borderInstant,
-    );
+    // Extremo a extremo: la pantalla de Barcelona amanece en reposo sin cron.
+    const payload = await service.buildPollPayload(branchEsId, borderInstant);
     expect(payload.screen).toBe("idle");
     expect(payload.branch.utcOffsetMinutes).toBe(60);
   });

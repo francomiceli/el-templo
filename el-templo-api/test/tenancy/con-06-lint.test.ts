@@ -12,9 +12,12 @@
  *    eximen—. El fixture está fuera del alcance real del lint (D-16 excluye
  *    `test/`), así que analizarlo no contamina la allowlist del repo.
  *
- * 2. **El anclaje contra los archivos reales de `origin/master`**: las cuatro
+ * 2. **El anclaje contra los archivos reales de `origin/master`**: las tres
  *    exenciones que el matcher tiene que aceptar y los DOS casos de prosa que
- *    tiene que rechazar.
+ *    tiene que rechazar. (Eran cuatro hasta que se eliminó el pairing por
+ *    device token del TV — `src/modules/tv/pairing.ts` traía la única
+ *    exención TRAILING real del repo; la forma sigue cubierta por el fixture
+ *    `conExencionTrailing` de abajo, ahora sintética en vez de real.)
  *
  * POR QUÉ LOS DOS RECHAZOS SON EL CORAZÓN DEL ARCHIVO
  * ---------------------------------------------------
@@ -193,7 +196,9 @@ describe("lint-tenant — motor sobre fixtures", () => {
       "exenciones.ts subscription_plans query-builder viola",
       // conComentarioDeLinea: el tag solo cuenta en un comentario de BLOQUE.
       "exenciones.ts attendance query-builder viola",
-      // conExencionTrailing: la forma real de src/modules/tv/pairing.ts.
+      // conExencionTrailing: la forma que traía `src/modules/tv/pairing.ts`
+      // antes de eliminarse el pairing por device token del TV; hoy solo
+      // vive sintética, acá.
       "exenciones.ts bookings query-builder viola exento:site",
     ]);
   });
@@ -283,7 +288,6 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
   const ACEPTADOS = [
     `${API}/src/db/seed.ts`,
     `${API}/src/jobs/notification-cron.ts`,
-    `${API}/src/modules/tv/pairing.ts`,
     `${API}/src/modules/wellhub/service.ts`,
   ];
 

@@ -1,5 +1,6 @@
 /**
- * Dibujo del kiosco `/tv/`: las cuatro pantallas, el reloj de pared y el timer.
+ * Dibujo de la pantalla TV (`/pantalla-tv`): las tres pantallas (clase, reposo, cierre),
+ * el reloj de pared y el timer.
  *
  * Este archivo es lo que ven los socios. Tres reglas lo gobiernan:
  *
@@ -15,10 +16,11 @@
  *    `timer.ts` y el reloj corregido de `poll.ts`; el API solo publica el sello de
  *    arranque. Con el wifi caido la pantalla sigue contando sola.
  *
- * Compatibilidad (D-20, piso Chromium 53): el reloj de la sede se arma con
- * `getUTCHours/Minutes/Seconds` sobre `ahora + utcOffsetMinutes` y NUNCA con el formateador
- * de fechas por zona horaria — la ICU de un televisor puede venir recortada y devolver la
- * hora del server, o directamente tirar. Sin `?.`, sin `??`, sin utilidades de ES2017.
+ * El reloj de la sede se arma con `getUTCHours/Minutes/Seconds` sobre
+ * `ahora + utcOffsetMinutes` y NUNCA con el formateador de fechas por zona horaria (D-20,
+ * heredado del piso Chromium 53 del kiosco estático retirado — este archivo ahora corre
+ * dentro del bundle del admin, pero el cálculo manual sigue siendo el correcto: evita
+ * depender de que la ICU del navegador conozca el huso de la sede).
  */
 
 import { beep } from './audio';
@@ -79,9 +81,6 @@ interface Nodes {
   sub: HTMLElement;
   progreso: HTMLElement;
   hint: HTMLElement;
-  pantallaPairing: HTMLElement;
-  pairingCodigo: HTMLElement;
-  pairingInstruccion: HTMLElement;
   pantallaReposo: HTMLElement;
   reposoReloj: ClockNodes;
   reposoFecha: HTMLElement;
@@ -154,9 +153,6 @@ function ensureNodes(): Nodes {
     sub: byId('sub'),
     progreso: byId('progreso'),
     hint: byId('hint'),
-    pantallaPairing: byId('pantallaPairing'),
-    pairingCodigo: byId('pairingCodigo'),
-    pairingInstruccion: byId('pairingInstruccion'),
     pantallaReposo: byId('pantallaReposo'),
     reposoReloj: clockNodes(byId('reposoReloj')),
     reposoFecha: byId('reposoFecha'),
@@ -235,35 +231,29 @@ let lastDotsKey = '';
 let lastQuoteKey = '';
 let lastBeepKey: string | null = null;
 
-/** Las frases del PDF, que `boot.ts` recibe por parametro desde `main.ts` (D-06/D-08). */
-export function setQuotes(next: SessionQuote[]): void {
-  quotes = next;
+/**
+ * Olvida los nodos cacheados y todo el estado de idempotencia.
+ *
+ * El kiosco estatico nunca se desmontaba (una pagina entera por televisor), asi que
+ * `nodes` y los `last*` podian ser modulo-globales cacheados una sola vez. En el SPA la
+ * pantalla es una ruta que se monta y desmonta: sin este reset, un segundo montaje
+ * (navegar afuera de `/pantalla-tv` y volver) reusaria los `nodes` viejos —ya despegados
+ * del DOM— y los `last*` cortarian el primer repintado por "no cambio nada", dejando la
+ * pantalla en blanco. La pagina lo llama en `onMounted`, antes del primer render.
+ */
+export function resetRender(): void {
+  nodes = null;
+  last = null;
+  lastListKey = '';
+  lastListHeader = '';
+  lastDotsKey = '';
+  lastQuoteKey = '';
+  lastBeepKey = null;
 }
 
-// =============================================================================
-// Pantalla de vinculacion
-// =============================================================================
-
-/**
- * TV sin vincular: el codigo gigante, agrupado de a 3 para leerlo desde el mostrador.
- * `null` mientras el kiosco todavia no consiguio uno (sin red, por ejemplo).
- */
-export function renderPairing(userCode: string | null): void {
-  const n = ensureNodes();
-  const code = userCode ? userCode : '';
-  const agrupado = code.length === 6 ? code.substring(0, 3) + ' ' + code.substring(3) : code;
-  setText(n.pairingCodigo, agrupado.length > 0 ? agrupado : '…');
-  setText(
-    n.pairingInstruccion,
-    agrupado.length > 0
-      ? 'Cargá este código en el admin, en Televisores, para vincular esta pantalla a su sede.'
-      : 'Conectando…'
-  );
-  setVisible(n.pantallaPairing, 'pantalla', true);
-  setVisible(n.pantallaReposo, 'pantalla', false);
-  setVisible(n.pantallaCierre, 'pantalla', false);
-  last = null;
-  lastBeepKey = null;
+/** Las frases del PDF, que la pantalla pasa una vez al montar (D-06/D-08). */
+export function setQuotes(next: SessionQuote[]): void {
+  quotes = next;
 }
 
 // =============================================================================
@@ -340,7 +330,6 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   const c = classOf(payload);
-  setVisible(n.pantallaPairing, 'pantalla', false);
   setVisible(n.pantallaReposo, 'pantalla', !c && payload.screen !== 'closing');
   setVisible(n.pantallaCierre, 'pantalla', payload.screen === 'closing');
 

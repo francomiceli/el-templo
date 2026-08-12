@@ -53,18 +53,37 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 
 const email = ref('');
 const password = ref('');
 const showPassword = ref(false);
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
+
+/**
+ * Destino a retomar tras loguear, si el guard (`router/index.ts`) mandó acá
+ * DESDE una ruta protegida (p. ej. un TV que abre `/pantalla-tv` sin sesión).
+ * Solo se acepta un path interno (`/algo`, nunca `//algo` — protocol-relative
+ * URL trick) para no habilitar un open redirect vía `?redirect=`.
+ */
+function safeRedirectTarget(): string | null {
+  const raw = route.query.redirect;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
+  return value;
+}
 
 async function handleLogin() {
   try {
     await authStore.login(email.value, password.value);
+    const redirect = safeRedirectTarget();
+    if (redirect) {
+      router.push(redirect);
+      return;
+    }
     // Navegar a la raíz: el destino real lo resuelve landingForRole() en el
     // guard beforeEach DESPUÉS de checkAuth (owner/admin→/alumnos, empleado→
     // /pagos, Fran→/sessions). Delegar acá evita hardcodear un destino por rol.
