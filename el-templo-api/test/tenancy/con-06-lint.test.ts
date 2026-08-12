@@ -411,6 +411,19 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     // entra a TENANT_STRICT_MODULES, o un acceso migrado que sale como
     // staleNoLongerViolating). Una baja NUEVA sin ninguna de las dos sigue siendo
     // el punto ciego volviendo, y el arreglo sigue siendo isSchemaModule().
+    //
+    // TV sin emparejamiento por código (reconciliación 2026-08-12 sobre
+    // staging): `pairing.ts` y `device-auth.ts` se BORRARON enteros y eran los
+    // únicos archivos de `src/` que accedían a `tv_pairings` y `tv_devices`
+    // (los devices/pairing quedaron reemplazados por la pantalla TV
+    // autenticada). Las dos tablas siguen declaradas en
+    // `src/db/schema/tv.ts` pero ya no las toca ningún acceso real, así que
+    // salen del set: la lente ve 70. Es una TERCERA forma legítima de que el
+    // piso baje —además de TENANT_STRICT_MODULES y staleNoLongerViolating—:
+    // el/los archivo(s) que generaban la única deuda de esa tabla se
+    // borraron del repo entero. Confirmado tabla por tabla (grep de
+    // `tvPairings`/`tvDevices` fuera de `src/db/schema/` y de comentarios de
+    // `lint-tenant.ts`: cero resultados) — no es el punto ciego volviendo.
     const tablasConDeuda = new Set(REAL_RESULT.violations.map((v) => v.table));
 
     expect(
@@ -425,12 +438,14 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     expect(
       tablasConDeuda.size,
       "con el punto ciego cerrado la lente estática veía 87 tablas gym-owned con deuda; la fase " +
-        "172 pagó la de las 6 de finance (81), la 173 la de las 8 de members (73) y la 174 tenant-izó " +
-        "el último acceso de `subscription_schedule_changes` en la cadena de pricing (72). Si este " +
-        "número baja SIN que la baja quede contabilizada tabla por tabla (una tabla que entró a " +
-        "TENANT_STRICT_MODULES, o un acceso migrado que sale como staleNoLongerViolating de la " +
-        "allowlist), alguna forma de import volvió a quedar afuera del lint.",
-    ).toBeGreaterThanOrEqual(72);
+        "172 pagó la de las 6 de finance (81), la 173 la de las 8 de members (73), la 174 tenant-izó " +
+        "el último acceso de `subscription_schedule_changes` en la cadena de pricing (72), y el TV " +
+        "sin emparejamiento por código borró `pairing.ts`/`device-auth.ts` —únicos accesos a " +
+        "`tv_pairings`/`tv_devices`— (70). Si este número baja SIN que la baja quede contabilizada " +
+        "tabla por tabla (una tabla que entró a TENANT_STRICT_MODULES, un acceso migrado que sale " +
+        "como staleNoLongerViolating de la allowlist, o el archivo que generaba la deuda se borró " +
+        "del repo), alguna forma de import volvió a quedar afuera del lint.",
+    ).toBeGreaterThanOrEqual(70);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
