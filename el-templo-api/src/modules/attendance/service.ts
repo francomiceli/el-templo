@@ -953,16 +953,16 @@ export class AttendanceService {
    * Remove a check-in (coach undo). Deletes the attendance record,
    * restores classesRemaining, reverses AURA, and reverts booking status.
    *
-   * Fase 174 (174-05): `ctx` es OPCIONAL y va AL FINAL (no "ctx PRIMERO" como
-   * el resto del archivo) porque su único caller (`attendance/routes.ts`,
-   * DELETE /:attendanceId) todavia no deriva `assertTenant` — threadear ctx
-   * ahi es deuda fuera del alcance de este plan (files_modified = solo
-   * service.ts). Con ctx ausente cae al guard provisorio Pattern D
-   * (isNotNull), igual que `activateScheduledSub` en subscriptions/service.ts.
+   * Fase 174.1 (174.1-02, D-04): `ctx` es REQUERIDO — su único caller
+   * (`attendance/routes.ts`, DELETE /:attendanceId) ahora deriva
+   * `assertTenant(request.scope, "attendance.removeCheckIn")` como el resto
+   * de las rutas del archivo. `isSpecialSchedule` (único caller de este
+   * método) queda con `ctx` opcional y su guard Pattern D — diferido a 175
+   * (D-05), fuera del alcance de este plan.
    */
   async removeCheckIn(
     attendanceId: number,
-    ctx?: TenantContext,
+    ctx: TenantContext,
   ): Promise<{ removed: boolean }> {
     // Get the attendance record
     const [attRecord] = await this.db
@@ -974,15 +974,10 @@ export class AttendanceService {
       })
       .from(schema.attendance)
       .where(
-        ctx
-          ? and(
-              tenantWhere(schema.attendance, ctx),
-              eq(schema.attendance.id, attendanceId),
-            )
-          : and(
-              isNotNull(schema.attendance.tenantId),
-              eq(schema.attendance.id, attendanceId),
-            ),
+        and(
+          tenantWhere(schema.attendance, ctx),
+          eq(schema.attendance.id, attendanceId),
+        ),
       );
 
     if (!attRecord) {
@@ -1003,7 +998,7 @@ export class AttendanceService {
     );
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
-        ctx ?? null,
+        ctx,
         attRecord.memberId,
         isSpecialActivity,
       );
@@ -1013,7 +1008,12 @@ export class AttendanceService {
         .set({
           classesRemaining: sql`${schema.subscriptions.classesRemaining} + 1`,
         })
-        .where(eq(schema.subscriptions.id, subscription.id));
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, subscription.id),
+          ),
+        );
     }
 
     // Reverse AURA: spend 10 AURA as a reversal
@@ -1046,6 +1046,7 @@ export class AttendanceService {
         .set({ status: "reservado" })
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, attRecord.memberId),
             eq(schema.bookings.scheduleId, attRecord.scheduleId),
             eq(schema.bookings.bookingDate, dateStr),

@@ -164,8 +164,10 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: removeCheckInSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.removeCheckIn");
         const result = await attendanceService.removeCheckIn(
           request.params.attendanceId,
+          ctx,
         );
         return result;
       } catch (err: unknown) {
