@@ -395,6 +395,18 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     // exactamente las strict de `members`. Una baja sin esa contrapartida es
     // el punto ciego volviendo, y el arreglo sigue siendo isSchemaModule(), no
     // este número.
+    //
+    // Fase 174: sin declarar ningún módulo strict nuevo, la migración de las
+    // cadenas de pricing/scheduling/attendance (planes 174-01..06) tenant-izó el
+    // ÚLTIMO acceso sin gimnasio de `subscription_schedule_changes`
+    // (`subscriptions/service.ts`), así que esa tabla salió del set y la lente ve
+    // 72. Es reducción de deuda REAL, no ceguera: ese acceso figura entre las 29
+    // entradas `staleNoLongerViolating` que este mismo PR borró de la allowlist
+    // (D-14). El piso baja a 72 con la misma regla —la baja queda contabilizada
+    // tabla por tabla—: hay DOS formas legítimas de que caiga (una tabla que
+    // entra a TENANT_STRICT_MODULES, o un acceso migrado que sale como
+    // staleNoLongerViolating). Una baja NUEVA sin ninguna de las dos sigue siendo
+    // el punto ciego volviendo, y el arreglo sigue siendo isSchemaModule().
     const tablasConDeuda = new Set(REAL_RESULT.violations.map((v) => v.table));
 
     expect(
@@ -409,10 +421,12 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     expect(
       tablasConDeuda.size,
       "con el punto ciego cerrado la lente estática veía 87 tablas gym-owned con deuda; la fase " +
-        "172 pagó la de las 6 de finance (81) y la 173 pagó la de las 8 de members (73). Si este " +
-        "número baja SIN que la baja se explique por tablas que entraron a TENANT_STRICT_MODULES, " +
-        "alguna forma de import volvió a quedar afuera del lint.",
-    ).toBeGreaterThanOrEqual(73);
+        "172 pagó la de las 6 de finance (81), la 173 la de las 8 de members (73) y la 174 tenant-izó " +
+        "el último acceso de `subscription_schedule_changes` en la cadena de pricing (72). Si este " +
+        "número baja SIN que la baja quede contabilizada tabla por tabla (una tabla que entró a " +
+        "TENANT_STRICT_MODULES, o un acceso migrado que sale como staleNoLongerViolating de la " +
+        "allowlist), alguna forma de import volvió a quedar afuera del lint.",
+    ).toBeGreaterThanOrEqual(72);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {

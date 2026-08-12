@@ -1442,13 +1442,19 @@ describe("cobro del plan — POST /api/admin/finance/coach-load/pay-plan (actor:
   const RUTA = "POST /api/admin/finance/coach-load/pay-plan";
 
   it("aislamiento: no puede cobrarle el plan a un socio de El Templo, y no nace ninguna fila", async () => {
-    // El socio ajeno tiene una sub ACTIVA con deuda (la siembra el beforeEach) a
-    // proposito: sin ella el rechazo seria el trivial "no hay nada que renovar",
-    // que no ejerce una sola linea de tenancy. Con ella, la ruta recorre
-    // `renewSubscription` entero —lecturas de `subscriptions` que la fase 173
-    // todavia no filtra— y el UNICO guard que corta es el de socio de
-    // `TransactionService.create`. Que ese guard sea el ultimo del camino es
-    // justamente por que este caso vale: es la barrera que hoy sostiene todo.
+    // El socio ajeno tiene una sub ACTIVA con deuda (la siembra el beforeEach).
+    // Hasta la 173 las lecturas de `subscriptions` del camino de pay-plan NO
+    // filtraban por gimnasio, asi que la ruta recorria `renewSubscription` entero
+    // y el UNICO guard que cortaba el cobro ajeno era el de socio de
+    // `TransactionService.create` ("Miembro no encontrado"). La fase 174 tenant-izo
+    // esas lecturas (174-02 `getPlanById`, 174-06 `renewSubscription` /
+    // `getMemberSubscription`): ahora la sub del socio de El Templo (tenant 1) es
+    // INVISIBLE al `ctx` del coach del gimnasio 2, asi que la barrera que corta es
+    // el propio `tenantWhere` de la lectura de la sub —mas temprano y mas fuerte—,
+    // con el mensaje "No se encontro suscripcion para renovar". El guard de socio
+    // de `TransactionService.create` sigue siendo el backstop (lo ejerce el caso
+    // de control de abajo); a este camino ya ni se llega porque el aislamiento
+    // corta antes. Lo que importa se mantiene: 404 y NO nace una sola fila.
     const ledgerTemploAntes = await contarLedgerDelGimnasio(TENANT_TEMPLO);
     const ledgerDosAntes = await contarLedgerDelGimnasio(TENANT_DOS);
     const subsAntes = await contarSubsDelSocio(usuarioTemploId);
@@ -1472,11 +1478,13 @@ describe("cobro del plan — POST /api/admin/finance/coach-load/pay-plan (actor:
     ).toBe(404);
     expect(
       JSON.parse(res.body).message,
-      `${RUTA} rechazo el cobro ajeno por un motivo que NO es el guard de socio de ` +
-        `TransactionService.create. Si el mensaje habla de una suscripcion que no existe, la ` +
-        `siembra de la sub de El Templo se rompio y el caso paso por la razon equivocada. ` +
+      `${RUTA} rechazo el cobro ajeno, pero por una barrera distinta a la de antes de la 174: al ` +
+        `tenant-izarse las lecturas de subscriptions, la sub del socio de El Templo es invisible al ` +
+        `ctx del coach del gimnasio 2, asi que la ruta corta en el tenantWhere de la lectura de la ` +
+        `sub, ANTES del guard de socio de TransactionService.create. Si el mensaje NO habla de una ` +
+        `suscripcion que no se encuentra, el aislamiento de la lectura de subscriptions se movio. ` +
         `Respuesta: ${res.body}`,
-    ).toContain("Miembro no encontrado");
+    ).toContain("No se encontro suscripcion para renovar");
     expect(
       [
         await contarLedgerDelGimnasio(TENANT_TEMPLO),

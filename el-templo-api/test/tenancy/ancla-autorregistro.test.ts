@@ -248,6 +248,13 @@ describe("ancla del autorregistro (D-12/WR-01) — el promo se aplica en el gimn
     const [planGratis] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        // Fase 174-02: `getPlanById` filtra por `tenantWhere(subscriptionPlans, ctx)`.
+        // El plan del promo del gimnasio 2 tiene que nacer en su gimnasio o
+        // `assignPlan(ctx=gimnasio 2)` no lo encuentra, tira "Plan no encontrado"
+        // y el `catch` de graceful degradation de auth/routes.ts deja el registro
+        // con promoApplied=false. En prod los planes se estampan por gimnasio
+        // (`createPlan` usa `tenantValues`); el fixture tiene que hacer lo mismo.
+        tenantId: gym2.tenantId,
         name: `Plan promo gratis ${unico()}`,
         planTier: "other" as const,
         bookingMode: "flexible" as const,
@@ -263,6 +270,11 @@ describe("ancla del autorregistro (D-12/WR-01) — el promo se aplica en el gimn
     const promoCode = `PROMO${unico()}`.toUpperCase().slice(0, 20);
     const now = new Date();
     await app.db.insert(schema.promoPlans).values({
+      // El promo del gimnasio 2 vive en su gimnasio (coherente con el plan de
+      // arriba y con lo que hace un admin real). El lookup del registro
+      // (auth/routes.ts) es cross-tenant a proposito, pero estampar el tenant deja
+      // el fixture honesto y a prueba de que ese lookup se cierre en el futuro.
+      tenantId: gym2.tenantId,
       name: `Promo del gimnasio 2 ${unico()}`,
       promoCode,
       planDurationDays: 30,
