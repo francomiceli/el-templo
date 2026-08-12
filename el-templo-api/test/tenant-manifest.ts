@@ -583,12 +583,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PUT /api/admin/subscriptions/plans/:planId": { categoria: "tenant-scoped" },
 
   // ── /api/admin/tv ─────────────────────────────────────────────────────────
+  // TV sin emparejamiento por código (2026-08-12): la pantalla TV pasó a ser una
+  // vista del admin AUTENTICADA, así que se borraron el pairing (`/pair/claim`) y
+  // el panel de dispositivos (`/devices`, `/devices/:id/revoke`). `/control/screen`
+  // es la proyección TV-facing por sede que reemplaza al viejo device poll.
   "GET /api/admin/tv/control/context": { categoria: "tenant-scoped" },
-  "GET /api/admin/tv/devices": { categoria: "tenant-scoped" },
+  "GET /api/admin/tv/control/screen": { categoria: "tenant-scoped" },
   "POST /api/admin/tv/control/end-class": { categoria: "tenant-scoped" },
   "POST /api/admin/tv/control/state": { categoria: "tenant-scoped" },
-  "POST /api/admin/tv/devices/:id/revoke": { categoria: "tenant-scoped" },
-  "POST /api/admin/tv/pair/claim": { categoria: "tenant-scoped" },
 
   // ── /api/admin/users ──────────────────────────────────────────────────────
   "GET /api/admin/users": { categoria: "tenant-scoped" },
@@ -683,25 +685,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PUT /api/notifications/admin/templates/:id": { categoria: "tenant-scoped" },
   "PUT /api/notifications/preferences": { categoria: "tenant-scoped" },
 
-  // ── /api/tv ───────────────────────────────────────────────────────────────
-  "POST /api/tv/pair/start": {
-    categoria: "global",
-    motivo:
-      "Pre-claim (mina M7): la fila de pairing nace ANTES de saber de quién es el televisor — `branch_id` queda nulo hasta que el staff hace el claim.",
-  },
-  "GET /api/tv/pair/status": {
-    categoria: "global",
-    motivo:
-      "Pre-claim: el televisor poll-ea su device code sin sesión ni sede asignada, así que la fila que consulta todavía no pertenece a ningún gimnasio.",
-  },
-  // D-04 veredicto (caso 8): confirmadas `tenant-scoped`. El televisor no tiene
-  // JWT ni scope, igual que las dos rutas de pairing que sí son `global`, pero
-  // éstas son POST-claim: el tenant sale de la fila ya reclamada y no de una fila
-  // pre-claim sin dueño. Aprobado por Franco en el checkpoint del plan 171-06,
-  // 2026-07-29.
-  "GET /api/tv/me": { categoria: "tenant-scoped" },
-  "GET /api/tv/state": { categoria: "tenant-scoped" },
-  "POST /api/tv/client-log": { categoria: "tenant-scoped" },
+  // ── /api/tv (kiosco anónimo) — RETIRADO 2026-08-12 ──────────────────────────
+  // Todo el plugin de device (pairing público + poll device-authed + telemetría)
+  // se eliminó al pasar la pantalla TV a una vista autenticada del admin. Ya no hay
+  // ninguna ruta `/api/tv/*`: el estado se lee por `/api/admin/tv/control/screen`.
 
   // ── /api/webhooks ─────────────────────────────────────────────────────────
   "POST /api/webhooks/wellhub": {

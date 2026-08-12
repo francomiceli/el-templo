@@ -141,7 +141,14 @@ import {
  * master por fuera del tren v6.0; en master no existe este gate, así que este
  * bump es solo de staging.
  *
- * El reparto por categoría vigente es 225 `tenant-scoped` · 8 `global` · 141
+ * **Movido a 367 el 2026-08-12** — TV sin emparejamiento por código. La pantalla
+ * TV pasó a ser una vista del admin AUTENTICADA, así que se retiró TODO el plugin
+ * de device: se borraron 8 rutas (`/api/tv/pair/start`, `/pair/status`, `/me`,
+ * `/state`, `/client-log`, y en admin `/tv/devices`, `/tv/devices/:id/revoke`,
+ * `/tv/pair/claim`) y se agregó 1 (`GET /api/admin/tv/control/screen`,
+ * tenant-scoped, la proyección de pantalla por sede). Neto −7 (374 − 8 + 1).
+ *
+ * El reparto por categoría vigente es 220 `tenant-scoped` · 6 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
  * por categoría a propósito, y
@@ -151,7 +158,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 374;
+const ENTRADAS_BASELINE = 367;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -258,7 +265,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 374 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 367 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
