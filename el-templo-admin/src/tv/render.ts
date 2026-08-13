@@ -345,13 +345,8 @@ function buildItem(ex: TvExercise): HTMLElement {
   const item = document.createElement('div');
   item.className = 'item';
 
-  // Ranura del marcador ▸ (reservada en TODOS los ítems para no desalinear); solo
-  // se ve, en oro, sobre el ejercicio de la ronda actual (clase `actual`, vía CSS).
-  const marker = document.createElement('span');
-  marker.className = 'marker';
-  item.appendChild(marker);
-
-  // El badge de esfuerzo va antes del nombre.
+  // El badge de esfuerzo va antes del nombre. El marcador ▸ del ejercicio actual
+  // lo pinta el CSS al final de la fila (`.item.actual::after`), sin robar espacio.
   if (ex.contraction.length > 0) {
     const badge = document.createElement('span');
     badge.className = 'badge badge--' + ex.contraction.toLowerCase();

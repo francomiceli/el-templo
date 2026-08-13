@@ -725,18 +725,16 @@ onUnmounted(() => {
   /* Todos los ejercicios con la banda sand translúcida (no alternados). */
   background: rgba(219, 202, 180, 0.35);
 }
-/* Ranura del marcador ▸: reservada en todas las filas (alineación), en oro solo
-   sobre el ejercicio de la ronda actual. */
-#tvScreenRoot .lista-col .item .marker {
-  flex: 0 0 1.4rem;
-  text-align: center;
+/* Marcador ▸ del ejercicio de la ronda actual: al FINAL de la fila (a la derecha),
+   en oro y grande. Solo existe sobre la fila `actual` → no reserva espacio en las
+   demás. line-height 0 para no agrandar el alto de la fila (la punta desborda). */
+#tvScreenRoot .lista-col .item.actual::after {
+  content: '\25B8';
+  align-self: center;
   color: var(--gold);
   font-weight: 700;
-  font-size: 1.6rem;
-  line-height: 1;
-}
-#tvScreenRoot .lista-col .item.actual .marker::before {
-  content: '\25B8';
+  font-size: 4.8rem;
+  line-height: 0;
 }
 #tvScreenRoot .lista-col .item .ej-nombre {
   flex: 1 1 auto;
