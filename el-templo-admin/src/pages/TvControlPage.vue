@@ -137,14 +137,14 @@
         <!-- muestra los dos niveles del par lado a lado), no nivel por nivel.     -->
         <div class="tv-section-title">NIVELES</div>
         <div class="row q-col-gutter-sm">
-          <div v-for="pair in levelPairs" :key="pair.targetLevel" class="col-12">
+          <div v-for="pair in levelPairs" :key="pair.levels[0]" class="col-12">
             <q-btn
               class="tv-btn full-width"
               :color="isActivePair(pair) ? 'primary' : 'grey-7'"
               :outline="!isActivePair(pair)"
               :unelevated="isActivePair(pair)"
               :label="pair.label"
-              :disable="!canControl || levelsDisabled"
+              :disable="!canControl || levelsDisabled || !pair.present"
               @click="onSelectLevel(pair.targetLevel)"
             />
           </div>
@@ -418,6 +418,8 @@ interface LevelPairOption {
   label: string;
   /** Primer nivel del par presente hoy — el que manda `onSelectLevel`. */
   targetLevel: string;
+  /** Si el par tiene al menos un nivel planificado hoy (si no, el botón se ve pero va deshabilitado). */
+  present: boolean;
 }
 
 // =========================================================================
@@ -612,16 +614,20 @@ const isClosingScreen = computed(() => context.value?.state?.screen === 'closing
 const levelPairs = computed<LevelPairOption[]>(() => {
   const levels = context.value?.levels ?? [];
   const mode = context.value?.mode ?? 'regular';
-  const options: LevelPairOption[] = [];
-  for (const pair of LEVEL_PAIRS) {
+  // Los tres pares se muestran SIEMPRE (fila completa); un par sin ningún nivel
+  // planificado hoy va deshabilitado en vez de esconderse.
+  return LEVEL_PAIRS.map((pair) => {
     const present = pair.filter((lvl) => levels.includes(lvl));
-    if (present.length === 0) continue;
     const names = pair.map((lvl) =>
       mode === 'rom' ? (ROM_LEVEL_LABELS[lvl] ?? lvl.toUpperCase()) : LEVEL_NAME_LABELS[lvl] ?? lvl.toUpperCase()
     );
-    options.push({ levels: pair, label: names.join(' Y '), targetLevel: present[0] });
-  }
-  return options;
+    return {
+      levels: pair,
+      label: names.join(' Y '),
+      targetLevel: present[0] ?? pair[0],
+      present: present.length > 0,
+    };
+  });
 });
 
 function isActivePair(pair: LevelPairOption): boolean {
