@@ -41,17 +41,18 @@
     <div v-else class="tvWrap">
       <div id="tv">
         <!-- Barra superior: logo + fecha (sin "EL TEMPLO", el logo ya es la marca). -->
+        <!-- Grid de 3 zonas: marca (logo + fecha 2 líneas) izq · BLOQUE n/M centro · reloj der. -->
         <header class="topbar">
           <div class="marca">
             <img :src="tvLogo" alt="El Templo" />
-            <div class="fecha" id="fecha"></div>
-          </div>
-          <div class="topRight">
-            <div class="bloqueNum">
-              <span id="bloqueNum"></span><span class="dots" id="dots"></span>
+            <div class="fecha" id="fecha">
+              <span id="fechaL1"></span><span id="fechaL2"></span>
             </div>
-            <div class="reloj" id="reloj">--:--</div>
           </div>
+          <div class="bloqueNum">
+            <span id="bloqueNum"></span><span class="dots" id="dots"></span>
+          </div>
+          <div class="reloj" id="reloj">--:--</div>
         </header>
 
         <!-- Cabecera: a la IZQUIERDA el nombre del bloque + formato + movilidad; a la
@@ -527,34 +528,38 @@ onUnmounted(() => {
 /* ── Barra superior: logo + sede | hora con segundero ── */
 #tvScreenRoot .topbar {
   flex: 0 0 auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   padding: 0.55rem 2rem 0.25rem;
 }
 #tvScreenRoot .topbar .marca {
   display: flex;
   align-items: center;
   min-width: 0;
-  margin-right: 2rem;
+  justify-self: start;
 }
 #tvScreenRoot .topbar .marca img {
   height: 5.6rem;
   display: block;
   margin-right: 1.2rem;
 }
+/* Fecha en DOS líneas ("JUEVES 13" / "AGOSTO 2026"), ocupando el alto del logo. */
 #tvScreenRoot .topbar .fecha {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  font-size: 1.5rem;
+  letter-spacing: 0.1em;
+  font-size: 2.1rem;
+  line-height: 1.3;
   color: var(--navy);
 }
-#tvScreenRoot .topbar .topRight {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
+#tvScreenRoot .topbar .bloqueNum {
+  justify-self: center;
 }
 #tvScreenRoot .topbar .reloj {
+  justify-self: end;
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -725,16 +730,18 @@ onUnmounted(() => {
   /* Todos los ejercicios con la banda sand translúcida (no alternados). */
   background: rgba(219, 202, 180, 0.35);
 }
-/* Marcador ▸ del ejercicio de la ronda actual: al FINAL de la fila (a la derecha),
-   en oro y grande. Solo existe sobre la fila `actual` → no reserva espacio en las
-   demás. line-height 0 para no agrandar el alto de la fila (la punta desborda). */
-#tvScreenRoot .lista-col .item.actual::after {
-  content: '\25B8';
-  align-self: center;
+/* Marcador ◂ del ejercicio de la ronda actual: inmediatamente a la derecha del
+   NOMBRE (inline en `.ej-nombre`, no al final de la fila), en oro y grande,
+   apuntando a la izquierda. Solo existe sobre la fila `actual` → no reserva
+   espacio en las demás. line-height 0 para no agrandar el alto de la fila. */
+#tvScreenRoot .lista-col .item.actual .ej-nombre::after {
+  content: '\25C2';
   color: var(--gold);
   font-weight: 700;
   font-size: 4.8rem;
   line-height: 0;
+  vertical-align: middle;
+  margin-left: 0.5rem;
 }
 #tvScreenRoot .lista-col .item .ej-nombre {
   flex: 1 1 auto;

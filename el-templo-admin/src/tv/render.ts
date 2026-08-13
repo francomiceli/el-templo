@@ -61,7 +61,8 @@ interface ClockNodes {
 }
 
 interface Nodes {
-  fecha: HTMLElement;
+  fechaL1: HTMLElement;
+  fechaL2: HTMLElement;
   reloj: ClockNodes;
   titulo: HTMLElement;
   formato: HTMLElement;
@@ -126,7 +127,8 @@ function ensureNodes(): Nodes {
     return nodes;
   }
   nodes = {
-    fecha: byId('fecha'),
+    fechaL1: byId('fechaL1'),
+    fechaL2: byId('fechaL2'),
     reloj: clockNodes(byId('reloj')),
     titulo: byId('titulo'),
     formato: byId('formato'),
@@ -315,6 +317,15 @@ function formatFecha(nowMs: number, utcOffsetMinutes: number): string {
   );
 }
 
+/** Fecha compacta en dos líneas para la topbar: "JUEVES 13" / "AGOSTO 2026". */
+function fechaTopbar(nowMs: number, utcOffsetMinutes: number): { l1: string; l2: string } {
+  const d = new Date(nowMs + utcOffsetMinutes * 60000);
+  return {
+    l1: DIAS_SEMANA[d.getUTCDay()] + ' ' + d.getUTCDate(),
+    l2: MESES[d.getUTCMonth()] + ' ' + d.getUTCFullYear(),
+  };
+}
+
 /**
  * Puntitos "BLOQUE n / M": cuentan sobre el bloque VISUAL (`visualBlockCount`/
  * `visualBlockIndex`), no sobre `c.blocks`/`c.blockIndex` — DEUTEROS_1 y
@@ -454,7 +465,9 @@ export function renderState(payload: TvPollResponse): void {
   // La marca es solo el logo + la fecha calendario del día; ya no hay texto "EL TEMPLO"
   // ni el `dateLabel` del API (DÍA · SEMANA n).
   const fecha = formatFecha(nowCorrected(), payload.branch.utcOffsetMinutes);
-  setText(n.fecha, fecha);
+  const fechaCorta = fechaTopbar(nowCorrected(), payload.branch.utcOffsetMinutes);
+  setText(n.fechaL1, fechaCorta.l1);
+  setText(n.fechaL2, fechaCorta.l2);
   setText(n.reposoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
