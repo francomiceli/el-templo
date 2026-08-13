@@ -375,7 +375,9 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     // La etiqueta del formato ahora es formatName + params compactos, igual que el PDF
     // de planis (formatNameWithParams, espejo de session-data-transformer.ts).
     expect(cls.title).toBe("NUCLEUS · AMRAP 10'");
-    expect(cls.listHeader).toBe("NIVEL α | OAP 70%");
+    // El nombre completo de la ruta (OAP → "Dominadas"), igual que el PDF de
+    // planis: `getRouteLabel` (espejo de `route-labels.ts` del admin).
+    expect(cls.listHeader).toBe("NIVEL α | Dominadas 70%");
     expect(cls.mobilityLine).toBe('MOVILIDAD · Movilidad de hombro 20"');
     expect(cls.exercises).toHaveLength(3);
     expect(cls.exercises[0].rx).toBe("8-10 CON.");
@@ -387,6 +389,56 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       new Date("2026-02-24T14:58:00.000Z").getTime(),
     );
     expect(cls.timer.soundEnabled).toBe(false);
+  });
+
+  it("DEUTEROS_1/DEUTEROS_2 cuentan como UN bloque visual (C1)", async () => {
+    await seedSession({
+      level: "alfa",
+      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "DEUTEROS_2",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    // El roster REAL sigue teniendo 5 entradas (identidad real, sin tocar).
+    expect(cls.blocks.map((b) => b.role)).toEqual([
+      "INITIUM",
+      "NUCLEUS",
+      "DEUTEROS_1",
+      "DEUTEROS_2",
+      "EPIKOS",
+    ]);
+    expect(cls.blockIndex).toBe(3);
+    // Pero el bloque VISUAL colapsa DEUTEROS_1+DEUTEROS_2 en uno: 4 grupos, no
+    // 5, y estando en DEUTEROS_2 el indice visual es el mismo que en DEUTEROS_1.
+    expect(cls.visualBlockCount).toBe(4);
+    expect(cls.visualBlockIndex).toBe(2);
+  });
+
+  it("desde DEUTEROS_1 el indice visual es el mismo que desde DEUTEROS_2 (mismo grupo)", async () => {
+    await seedSession({
+      level: "alfa",
+      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "DEUTEROS_1",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    expect(cls.blockIndex).toBe(2);
+    expect(cls.visualBlockCount).toBe(4);
+    expect(cls.visualBlockIndex).toBe(2);
   });
 
   it("INITIUM es lista compartida: selector de nivel neutralizado y header propio", async () => {

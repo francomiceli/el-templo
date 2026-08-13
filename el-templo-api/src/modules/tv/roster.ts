@@ -95,6 +95,18 @@ export interface RosterClassDay<TBlock extends RosterBlock = RosterBlock> {
 }
 
 /**
+ * Clave de "bloque visual": DEUTEROS_1 y DEUTEROS_2 son dos CAMINOS del mismo
+ * bloque (el profe elige uno u otro para la clase), no dos bloques distintos.
+ * Colapsan a la misma clave para que los puntitos "BLOQUE n / M" cuenten 4 y
+ * no 5, y para decidir si cambiar de rol reinicia el cronometro (pasar de un
+ * camino al otro NO deberia, es el mismo bloque). El resto de los roles es su
+ * propia clave — no hay mas grupos que colapsar hoy.
+ */
+export function visualGroupOf(role: string): string {
+  return role === "DEUTEROS_1" || role === "DEUTEROS_2" ? "DEUTEROS" : role;
+}
+
+/**
  * Buscar un bloque por rol dentro de una sesion.
  *
  * "EPIKOS" matchea tambien "ATHLOS": son el mismo slot final del dia con dos

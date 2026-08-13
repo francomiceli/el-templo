@@ -149,6 +149,13 @@ export interface TvTimerState {
  * is DERIVED from this roster on every read, never stored — two levels of the
  * same day can have rosters of different length, so a stored index would jump
  * to another block (or out of range) when the coach switches level.
+ *
+ * `visualBlockIndex`/`visualBlockCount` are ALSO derived on every read, same
+ * as `blockIndex`, but count "visual blocks" instead of roster entries:
+ * DEUTEROS_1 and DEUTEROS_2 are two paths of the SAME block (`visualGroupOf`
+ * in `roster.ts`), so the "BLOQUE n / M" dots show 4, not 5, for a regular
+ * day. `blockIndex`/`blocks` stay the real roster identity — nothing else
+ * reads `visualBlockIndex`/`visualBlockCount` for logic, only for painting.
  */
 export interface TvClassPayload {
   mode: TvClassMode;
@@ -158,6 +165,8 @@ export interface TvClassPayload {
   blocks: TvBlockSummary[];
   blockRole: string;
   blockIndex: number;
+  visualBlockIndex: number;
+  visualBlockCount: number;
   title: string;
   listHeader: string;
   mobilityLine: string | null;

@@ -299,16 +299,22 @@ function formatFecha(nowMs: number, utcOffsetMinutes: number): string {
   );
 }
 
+/**
+ * Puntitos "BLOQUE n / M": cuentan sobre el bloque VISUAL (`visualBlockCount`/
+ * `visualBlockIndex`), no sobre `c.blocks`/`c.blockIndex` — DEUTEROS_1 y
+ * DEUTEROS_2 son dos caminos del mismo bloque y pintan un solo punto.
+ */
 function paintDots(n: Nodes, c: TvClassPayload): void {
-  const key = c.blocks.length + ':' + c.blockIndex;
+  const key = c.visualBlockCount + ':' + c.visualBlockIndex;
   if (key === lastDotsKey) {
     return;
   }
   lastDotsKey = key;
   clear(n.dots);
-  for (let i = 0; i < c.blocks.length; i++) {
+  for (let i = 0; i < c.visualBlockCount; i++) {
     const dot = document.createElement('span');
-    dot.className = 'dot' + (i < c.blockIndex ? ' hecho' : i === c.blockIndex ? ' activo' : '');
+    dot.className =
+      'dot' + (i < c.visualBlockIndex ? ' hecho' : i === c.visualBlockIndex ? ' activo' : '');
     n.dots.appendChild(dot);
   }
 }
@@ -375,7 +381,8 @@ export function renderState(payload: TvPollResponse): void {
 
   setText(n.titulo, c.title);
   setText(n.movilidad, c.mobilityLine ? c.mobilityLine : '');
-  setText(n.bloqueNum, 'BLOQUE ' + (c.blockIndex + 1) + ' / ' + c.blocks.length);
+  // Bloque VISUAL (colapsa DEUTEROS_1/DEUTEROS_2 en uno solo), no la entrada cruda del roster.
+  setText(n.bloqueNum, 'BLOQUE ' + (c.visualBlockIndex + 1) + ' / ' + c.visualBlockCount);
   paintDots(n, c);
 
   if (c.listHeader !== lastListHeader) {

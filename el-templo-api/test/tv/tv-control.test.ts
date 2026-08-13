@@ -126,6 +126,8 @@ interface TvPollBody {
     level: string;
     blockRole: string;
     blockIndex: number;
+    visualBlockIndex: number;
+    visualBlockCount: number;
     exerciseIndex: number;
     timer: {
       status: string;
@@ -645,18 +647,17 @@ describe("POST /control/state — el timer (D-16/17/18)", () => {
     await seedTuesday();
   });
 
-  it("iniciar programa el arranque 3 s adelante, no al instante", async () => {
+  it("D-16: iniciar arranca al instante, sin lead programado", async () => {
     const antes = Date.now();
     const state = await write({ timer: "start" });
 
     expect(state.timerStatus).toBe("running");
     expect(state.timerStartedAt).not.toBeNull();
-    // El sello del server queda en el FUTURO. Revisa D-16 ("arranca al instante"), que
-    // ignoraba el poll de 2,5 s del televisor: para cuando la pantalla se enteraba, el
-    // cronometro ya iba en ~3 s y saltaba de 00:00 a 00:03 (visto en sede). Con el
-    // arranque programado, todos los televisores de la sala entran en cero juntos.
-    expect(state.timerStartedAt!).toBeGreaterThanOrEqual(antes + 3000);
-    expect(state.timerStartedAt!).toBeLessThanOrEqual(Date.now() + 3000);
+    // El sello queda en el "ahora" del server, no adelantado: el arranque diferido de
+    // 3 s (visto en sede: la pantalla saltaba de 00:00 a 00:03) se saco por completo,
+    // el timer arranca desde cero apenas el profe aprieta INICIAR.
+    expect(state.timerStartedAt!).toBeGreaterThanOrEqual(antes);
+    expect(state.timerStartedAt!).toBeLessThanOrEqual(Date.now());
     expect(state.pausedAt).toBeNull();
     expect(state.pausedAccumMs).toBe(0);
   });
@@ -694,8 +695,7 @@ describe("POST /control/state — el timer (D-16/17/18)", () => {
 
     // El elapsed efectivo (now - startedAt - pausado) no supera el tiempo de pared: el
     // bloque no se comio los 60 ms de la pausa. Los `Math.max` son el mismo criterio que
-    // aplica el kiosco (`elapsedFrom`): con el arranque diferido, durante los primeros
-    // 3 s el sello esta en el futuro y el elapsed es 0, nunca negativo.
+    // aplica el kiosco (`elapsedFrom`): nunca negativo, aunque el reloj tenga jitter.
     const pared = Math.max(0, Date.now() - reanudado.timerStartedAt!);
     const efectivo = Math.max(0, pared - reanudado.pausedAccumMs);
     expect(efectivo).toBeLessThanOrEqual(pared);
@@ -754,6 +754,37 @@ describe("POST /control/state — el timer (D-16/17/18)", () => {
     expect(state.timerStartedAt).toBeGreaterThan(0);
     expect(state.pausedAccumMs).toBe(0);
   });
+
+  it("C2: pasar de DEUTEROS_1 a DEUTEROS_2 NO reinicia el timer (es el mismo bloque)", async () => {
+    await write({ blockRole: "DEUTEROS_1", exerciseIndex: 1 });
+    const arrancado = await write({ timer: "start" });
+    await sleep(40);
+
+    const state = await write({ blockRole: "DEUTEROS_2" });
+
+    // DEUTEROS es un bloque con dos caminos: cambiar de camino no es cambiar
+    // de bloque, asi que el cronometro sigue exactamente donde estaba.
+    expect(state.blockRole).toBe("DEUTEROS_2");
+    expect(state.timerStatus).toBe("running");
+    expect(state.timerStartedAt).toBe(arrancado.timerStartedAt);
+    expect(state.pausedAt).toBeNull();
+    expect(state.pausedAccumMs).toBe(0);
+    // El ejercicio si vuelve a 0: la lista del camino nuevo es otra.
+    expect(state.exerciseIndex).toBe(0);
+  });
+
+  it("C2: en cambio, NUCLEUS a EPIKOS (grupos distintos) SIGUE reiniciando el timer", async () => {
+    await write({ blockRole: "NUCLEUS" });
+    await write({ timer: "start" });
+    await sleep(40);
+
+    const state = await write({ blockRole: "EPIKOS" });
+
+    expect(state.blockRole).toBe("EPIKOS");
+    expect(state.timerStatus).toBe("idle");
+    expect(state.timerStartedAt).toBeNull();
+    expect(state.pausedAccumMs).toBe(0);
+  });
 });
 
 describe("POST /control/state — lo que ve la pantalla (GET /control/screen)", () => {
@@ -789,6 +820,10 @@ describe("POST /control/state — lo que ve la pantalla (GET /control/screen)", 
     expect(body.class!.blockRole).toBe("DEUTEROS_2");
     // `blockIndex` es derivado del roster, nunca persistido.
     expect(body.class!.blockIndex).toBe(3);
+    // C1: bloque VISUAL — REGULAR_ROLES tiene 5 entradas pero DEUTEROS_1+2
+    // colapsan en una, asi que "BLOQUE x / N" en pantalla dice 3 / 4, no 4 / 5.
+    expect(body.class!.visualBlockCount).toBe(4);
+    expect(body.class!.visualBlockIndex).toBe(2);
     expect(body.class!.level).toBe("sigma");
     expect(body.class!.exerciseIndex).toBe(1);
     expect(body.class!.timer.status).toBe("running");

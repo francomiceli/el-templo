@@ -30,7 +30,8 @@ import {
   type ClassDayBlock,
   type ClassDayPrescription,
 } from "./class-day";
-import { buildRoster, findBlock, findInitiumBlock } from "./roster";
+import { buildRoster, findBlock, findInitiumBlock, visualGroupOf } from "./roster";
+import { getRouteLabel } from "./route-labels";
 import { toTimerSpec } from "./timer-spec";
 import type {
   TvBlockSummary,
@@ -55,20 +56,6 @@ const IDLE_TIMER = {
   pausedAt: null,
   pausedAccumMs: 0,
 };
-
-/**
- * Arranque diferido del timer.
- *
- * El televisor se entera del "start" en su siguiente poll (2,5 s), y como el cronometro
- * corre contra `timerStartedAt` del server, al enterarse ya tenia ~3 s corridos: la
- * pantalla saltaba de 00:00 a 00:03 (visto en la verificacion en sede). Programando el
- * arranque unos segundos adelante, todos los televisores de la sala reciben el estado
- * ANTES de que empiece y el conteo arranca en cero, sincronizado entre aparatos.
- *
- * Revisa D-16 ("start arranca al instante"): el arranque sigue sin cuenta previa en la
- * pantalla, pero el control del profe avisa que el play empieza en 3 segundos.
- */
-const TIMER_START_LEAD_MS = 3000;
 
 /** La sede, con lo minimo para resolver su dia y rotular su nombre. */
 interface TvBranchRef {
@@ -489,6 +476,13 @@ export class TvService {
    * aplicarse: aplicarlo haria que el clamp lo baje al primer bloque del dia, o
    * sea que un valor invalido moveria al profe al bloque 1 y le reiniciaria el
    * timer. El control recibe el estado real en la respuesta y se auto-corrige.
+   *
+   * Excepcion: DEUTEROS es UN bloque con dos caminos (DEUTEROS_1/DEUTEROS_2,
+   * `visualGroupOf`). Pasar de un camino al otro es un cambio de VARIANTE
+   * dentro del mismo bloque, no un bloque nuevo — asi que el cronometro NO se
+   * reinicia (el profe puede mostrar el camino alternativo sin perder el
+   * tiempo corrido). El ejercicio si vuelve a 0: la lista del camino nuevo es
+   * otra, y arrancar en un indice ajeno seria arbitrario.
    */
   private applyBlockRole(
     state: TvControlState,
@@ -503,6 +497,9 @@ export class TvService {
         "tv: bloque inexistente en el roster del dia, descartado",
       );
       return state;
+    }
+    if (visualGroupOf(blockRole) === visualGroupOf(state.blockRole)) {
+      return { ...state, blockRole, exerciseIndex: 0 };
     }
     return { ...state, blockRole, exerciseIndex: 0, ...IDLE_TIMER };
   }
@@ -554,10 +551,8 @@ export class TvService {
         return {
           ...state,
           timerStatus: "running",
-          // Arranque programado, no inmediato: el kiosco trata un `startedAt` futuro
-          // como elapsed 0, asi que los digitos quedan en el valor inicial hasta que
-          // llega el momento y recien ahi empiezan a correr.
-          timerStartedAt: at + TIMER_START_LEAD_MS,
+          // Arranque inmediato (D-16): el sello es "ahora", sin lead programado.
+          timerStartedAt: at,
           pausedAt: null,
           pausedAccumMs: 0,
         };
@@ -754,6 +749,20 @@ export class TvService {
     const summary = blocks[blockIndex];
     const shared = summary?.shared ?? false;
 
+    // C1: DEUTEROS_1/DEUTEROS_2 son dos caminos del MISMO bloque visual — los
+    // puntitos "BLOQUE n / M" cuentan grupos, no entradas del roster real.
+    const visualGroups: string[] = [];
+    for (const b of blocks) {
+      const g = visualGroupOf(b.role);
+      if (!visualGroups.includes(g)) visualGroups.push(g);
+    }
+    const visualBlockCount = visualGroups.length;
+    const rawVisualBlockIndex = visualGroups.indexOf(
+      visualGroupOf(state.blockRole),
+    );
+    const visualBlockIndex =
+      rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
+
     const block = this.resolveBlock(classDay, state.blockRole, state.level);
     const prescriptions = this.mainPrescriptions(block);
     const formatDictated =
@@ -774,10 +783,13 @@ export class TvService {
       blockRole: state.blockRole,
       // Pitfall 1: DERIVADO del roster en cada lectura, nunca persistido.
       blockIndex: blockIndex >= 0 ? blockIndex : 0,
+      // C1: derivados del roster igual que `blockIndex`, colapsando DEUTEROS.
+      visualBlockIndex,
+      visualBlockCount,
       title: summary?.title ?? "",
       listHeader: shared
         ? `INITIUM | ${ALL_LEVELS_LABEL}`
-        : `${levelLabel} | ${block?.route ?? ""} ${block?.intensity ?? 0}%`,
+        : `${levelLabel} | ${getRouteLabel(block?.route)} ${block?.intensity ?? 0}%`,
       mobilityLine:
         mobility && mobility.length > 0
           ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`

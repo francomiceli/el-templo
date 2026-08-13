@@ -75,6 +75,9 @@ const tvClassPayloadSchema = {
     blockRole: { type: "string" },
     // Pitfall 1: derivado del roster en cada lectura, nunca persistido.
     blockIndex: { type: "integer" },
+    // C1: bloque VISUAL (colapsa DEUTEROS_1/DEUTEROS_2), tambien derivado.
+    visualBlockIndex: { type: "integer" },
+    visualBlockCount: { type: "integer" },
     title: { type: "string" },
     listHeader: { type: "string" },
     mobilityLine: { type: ["string", "null"] },

@@ -51,6 +51,10 @@ export interface TvClassPayload {
   blocks: TvBlockSummary[];
   blockRole: string;
   blockIndex: number;
+  /** DEUTEROS_1/DEUTEROS_2 colapsan a un solo bloque visual: usar estos dos
+   *  (no `blockIndex`/`blocks.length`) para "BLOQUE n / M" y los puntitos. */
+  visualBlockIndex: number;
+  visualBlockCount: number;
   title: string;
   listHeader: string;
   mobilityLine: string | null;
