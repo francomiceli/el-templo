@@ -707,7 +707,18 @@ export class BookingService {
    * Returns warnings for subscription issues without blocking.
    *
    * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a
-   * `getBookingRecord` (no hay lectura propia de `users` en este método).
+   * `getBookingRecord`.
+   *
+   * Fase 174.1-08 (T-174.1-08-04, fix de este plan): `memberId` es un body
+   * field controlado por el admin, NO derivado del actor (a diferencia de
+   * `reserve`/`cancel`, donde `memberId` sale de `request.user.userId`).
+   * Sin esta lectura, un `memberId` de OTRO gimnasio + un `scheduleId`
+   * PROPIO pasaba de largo: `pickSubscriptionForActivity` devolvía `null`
+   * (sin sub para ese userId en este tenant, warning en vez de throw) y el
+   * INSERT de abajo quedaba con `tenant_id` del gimnasio actual pero
+   * `memberId` de un socio ajeno — una fila de `bookings` con el ancla
+   * torcida. Mismo criterio que `bookTrial` (trials-service.ts): 404
+   * "Alumno no encontrado" antes de tocar nada más.
    */
   async adminAddBooking(
     ctx: TenantContext,
@@ -720,6 +731,14 @@ export class BookingService {
     // Validate schedule
     const scheduleRow = await this.getScheduleSlotRaw(ctx, scheduleId);
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
+
+    // Validate member belongs to this tenant (T-174.1-08-04).
+    const [memberRow] = await this.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)))
+      .limit(1);
+    if (!memberRow) throw new NotFoundError("Alumno no encontrado");
 
     // Per-date cancellation blocks admin adds too — the class won't run that
     // day, so seating someone into it would only create a phantom booking.
