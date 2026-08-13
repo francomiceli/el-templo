@@ -182,6 +182,28 @@ function setVisible(el: HTMLElement, base: string, visible: boolean): void {
  * Pinta un texto que puede traer simbolos de nivel, envolviendo cada simbolo en su span.
  * Todo lo demas entra como nodo de texto: sigue sin haber HTML crudo.
  */
+/**
+ * Pinta texto plano de un header, coloreando aparte el porcentaje de esfuerzo
+ * ("NN%", `.pct`) — el resto queda en el color de la cabecera.
+ */
+function appendPlain(host: HTMLElement, text: string): void {
+  const parts = text.split(/(\d+%)/);
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.length === 0) {
+      continue;
+    }
+    if (/^\d+%$/.test(part)) {
+      const span = document.createElement('span');
+      span.className = 'pct';
+      span.textContent = part;
+      host.appendChild(span);
+    } else {
+      host.appendChild(document.createTextNode(part));
+    }
+  }
+}
+
 function paintGlyphText(host: HTMLElement, text: string): void {
   clear(host);
   let plano = '';
@@ -192,7 +214,7 @@ function paintGlyphText(host: HTMLElement, text: string): void {
       continue;
     }
     if (plano.length > 0) {
-      host.appendChild(document.createTextNode(plano));
+      appendPlain(host, plano);
       plano = '';
     }
     const span = document.createElement('span');
@@ -206,7 +228,7 @@ function paintGlyphText(host: HTMLElement, text: string): void {
     host.appendChild(span);
   }
   if (plano.length > 0) {
-    host.appendChild(document.createTextNode(plano));
+    appendPlain(host, plano);
   }
 }
 

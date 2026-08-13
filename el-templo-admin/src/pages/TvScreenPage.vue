@@ -361,6 +361,9 @@ onUnmounted(() => {
   --gold: #b08d6e;
   --sand: #dbcab4;
   --muted: #c5b9a8;
+  /* Azul de acento (símbolo de nivel + % de esfuerzo). La paleta de marca es
+     cálida sin azul, pero acá se pidió explícito para que resalte en el TV. */
+  --azul: #2f6bd6;
   --cinzel: 'Cinzel', Georgia, serif;
   --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
   --glyph: 'Segoe UI', Arial, 'Noto Sans', sans-serif;
@@ -457,6 +460,11 @@ onUnmounted(() => {
 /* ── Símbolos de nivel ──────────────────────────────────────────────────── */
 #tvScreenRoot .glyph {
   font-family: var(--glyph);
+  color: var(--azul);
+}
+/* Porcentaje de esfuerzo dentro del header de columna (lo envuelve render.ts). */
+#tvScreenRoot .pct {
+  color: var(--azul);
 }
 #tvScreenRoot .glyph.kairos {
   display: inline-block;
@@ -522,7 +530,7 @@ onUnmounted(() => {
   margin-right: 2rem;
 }
 #tvScreenRoot .topbar .marca img {
-  height: 4.5rem;
+  height: 5.6rem;
   display: block;
   margin-right: 1.2rem;
 }
@@ -637,7 +645,7 @@ onUnmounted(() => {
 #tvScreenRoot .cabCol {
   font-weight: 700;
   letter-spacing: 0.06em;
-  font-size: 1.5rem;
+  font-size: 2.1rem;
   color: var(--gold);
   padding: 0 0.3rem 0.5rem;
   white-space: nowrap;
@@ -662,7 +670,7 @@ onUnmounted(() => {
   padding: 1rem 1.7rem;
 }
 #tvScreenRoot .lista-col .item {
-  margin-bottom: 0.65rem;
+  margin-bottom: 1.15rem;
 }
 #tvScreenRoot .lista-col .item:last-child {
   margin-bottom: 0;
@@ -670,7 +678,7 @@ onUnmounted(() => {
 #tvScreenRoot .lista-col .item .ej-nombre {
   font-weight: 700;
   color: var(--navy);
-  font-size: 1.65rem;
+  font-size: 2.35rem;
   line-height: 1.25;
 }
 #tvScreenRoot .lista-col .item .ej-nombre::before {
@@ -680,8 +688,8 @@ onUnmounted(() => {
 #tvScreenRoot .lista-col .item .ej-dosis {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  margin-top: 0.25rem;
+  gap: 0.9rem;
+  margin-top: 0.5rem;
   /* Alinea con el texto del nombre, después de la viñeta "• ". */
   padding-left: 1.1em;
 }
@@ -690,11 +698,11 @@ onUnmounted(() => {
    lejos. Tokens del marco #tvScreenRoot. */
 #tvScreenRoot .lista-col .item .badge {
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 1.2rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.16rem 0.6rem;
-  border-radius: 0.4rem;
+  padding: 0.24rem 0.8rem;
+  border-radius: 0.45rem;
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -713,17 +721,17 @@ onUnmounted(() => {
 #tvScreenRoot .lista-col .item .dosis {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.5rem;
   color: var(--gold);
 }
 #tvScreenRoot .lista-col .caja.compacta .item {
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.7rem;
 }
 #tvScreenRoot .lista-col .caja.compacta .item:last-child {
   margin-bottom: 0;
 }
 #tvScreenRoot .lista-col .caja.compacta .item .ej-nombre {
-  font-size: 1.3rem;
+  font-size: 1.85rem;
   line-height: 1.2;
 }
 
