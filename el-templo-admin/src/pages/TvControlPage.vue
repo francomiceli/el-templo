@@ -93,41 +93,41 @@
 
       <div v-else>
         <!-- ============================ BLOQUES ============================ -->
+        <!-- Primera fila: navegación anterior/siguiente. Debajo, los bloques en dos     -->
+        <!-- columnas (como el TIMER), con SOLO el nombre del bloque (sin el formato).    -->
         <div class="tv-section-title">BLOQUES</div>
-        <div class="row items-stretch q-col-gutter-sm">
-          <div class="col-2">
+        <div class="row q-col-gutter-sm">
+          <div class="col-6">
             <q-btn
               class="tv-btn full-width"
               icon="chevron_left"
+              label="ANTERIOR"
               color="primary"
               outline
               :disable="!canControl || blockIndex <= 0"
               @click="onBlockStep(-1)"
             />
           </div>
-          <div class="col-8">
-            <div class="row q-col-gutter-xs">
-              <div v-for="block in context.blocks" :key="block.role" class="col">
-                <q-btn
-                  class="tv-btn full-width tv-btn--chip"
-                  :color="block.role === currentBlockRole ? 'primary' : 'grey-7'"
-                  :outline="block.role !== currentBlockRole"
-                  :unelevated="block.role === currentBlockRole"
-                  :label="block.title"
-                  :disable="!canControl"
-                  @click="onSelectBlock(block.role)"
-                />
-              </div>
-            </div>
-          </div>
-          <div class="col-2">
+          <div class="col-6">
             <q-btn
               class="tv-btn full-width"
               icon="chevron_right"
+              label="SIGUIENTE"
               color="primary"
               outline
               :disable="!canControl || blockIndex < 0 || blockIndex >= context.blocks.length - 1"
               @click="onBlockStep(1)"
+            />
+          </div>
+          <div v-for="block in context.blocks" :key="block.role" class="col-6">
+            <q-btn
+              class="tv-btn full-width"
+              :color="block.role === currentBlockRole ? 'primary' : 'grey-7'"
+              :outline="block.role !== currentBlockRole"
+              :unelevated="block.role === currentBlockRole"
+              :label="blockName(block)"
+              :disable="!canControl"
+              @click="onSelectBlock(block.role)"
             />
           </div>
         </div>
@@ -135,7 +135,7 @@
         <!-- ============================ NIVELES ============================ -->
         <div class="tv-section-title">NIVELES</div>
         <div class="row q-col-gutter-sm">
-          <div v-for="level in context.levels" :key="level" class="col">
+          <div v-for="level in context.levels" :key="level" class="col-6">
             <q-btn
               class="tv-btn full-width"
               :color="level === currentLevel ? 'primary' : 'grey-7'"
@@ -268,7 +268,12 @@ import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import { useTvApi, type TvControlContext, type TvStateWrite } from 'src/composables/useTvApi';
+import {
+  useTvApi,
+  type TvControlBlock,
+  type TvControlContext,
+  type TvStateWrite,
+} from 'src/composables/useTvApi';
 import { createLogger } from 'src/utils/logger';
 import { isExpectedClientError } from 'src/utils/extract-error';
 import type { BranchOption } from 'src/types/member';
@@ -375,6 +380,18 @@ const isClosingScreen = computed(() => context.value?.state?.screen === 'closing
 function levelLabel(level: string): string {
   if (context.value?.mode === 'rom') return ROM_LEVEL_LABELS[level] ?? level.toUpperCase();
   return LEVEL_SYMBOLS[level] ?? level.toUpperCase();
+}
+
+/**
+ * Solo el NOMBRE del bloque, sin el formato: el `title` del API viene como
+ * "NOMBRE · FORMATO" (ej. "NUCLEUS · AMRAP 10'"), y el botón del control muestra
+ * únicamente la parte anterior al separador. Un bloque con customTitle (INITIUM)
+ * no trae separador, así que se muestra entero.
+ */
+function blockName(block: TvControlBlock): string {
+  const sep = ' · ';
+  const i = block.title.indexOf(sep);
+  return i >= 0 ? block.title.slice(0, i) : block.title;
 }
 
 // =========================================================================
@@ -579,12 +596,6 @@ onUnmounted(() => {
   min-height: 64px;
   font-weight: 600;
   letter-spacing: 0.04em;
-}
-
-.tv-control .tv-btn--chip {
-  font-size: 0.8rem;
-  padding-left: 4px;
-  padding-right: 4px;
 }
 
 .tv-section-title {
