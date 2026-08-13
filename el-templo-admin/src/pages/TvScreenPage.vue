@@ -795,7 +795,7 @@ onUnmounted(() => {
    se lee por la OPACIDAD de los dígitos (apagados → plenos al arrancar) y el color del
    marco. Más angosto que antes para darle aire al título/formato/movilidad. ── */
 #tvScreenRoot .cronometro {
-  flex: 0 0 26%;
+  flex: 0 0 32%;
   display: flex;
   flex-direction: column;
   align-items: center;
