@@ -96,12 +96,13 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // GET /roster/coach-today — sede donde el coach autenticado está agendado
-  // hoy en el slot de la hora actual (default de sede en el login de TV).
+  // GET /roster/coach-today — sedes donde el coach autenticado está
+  // agendado hoy, una por turno (mañana/tarde) — selección de sede del día
+  // en el login de TV.
   fastify.get("/roster/coach-today", async (request, reply) => {
     try {
       const ctx = assertTenant(request.scope, "ratings.coachToday");
-      return await ratingsService.getCoachTodayBranch(
+      return await ratingsService.getCoachTodaySchedule(
         ctx,
         request.user.userId,
       );

@@ -222,15 +222,20 @@ export function useTvApi() {
   }
 
   /**
-   * GET /admin/ratings/roster/coach-today — sede donde el coach autenticado
-   * está agendado hoy en el slot de la hora actual. Usado solo como default de
-   * sede al abrir el control (`TvControlPage`); no toca `loading`/`error`
-   * globales porque es una llamada auxiliar con fallback silencioso.
+   * GET /admin/ratings/roster/coach-today — sedes donde el coach autenticado
+   * está agendado hoy, una por turno (mañana/tarde). Usado para pre-cargar el
+   * modal de selección de sedes del día al abrir el control (`TvControlPage`);
+   * no toca `loading`/`error` globales porque es una llamada auxiliar con
+   * fallback silencioso.
    */
-  async function getCoachTodayBranch(): Promise<{ branchId: number | null }> {
-    const { data } = await api.get<{ branchId: number | null }>(
-      '/admin/ratings/roster/coach-today',
-    );
+  async function getCoachTodaySchedule(): Promise<{
+    morning: number | null;
+    afternoon: number | null;
+  }> {
+    const { data } = await api.get<{
+      morning: number | null;
+      afternoon: number | null;
+    }>('/admin/ratings/roster/coach-today');
     return data;
   }
 
@@ -246,7 +251,7 @@ export function useTvApi() {
     getControlContext,
     writeState,
     endClass,
-    getCoachTodayBranch,
+    getCoachTodaySchedule,
     cleanup,
   };
 }

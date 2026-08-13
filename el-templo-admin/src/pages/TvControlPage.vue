@@ -236,6 +236,58 @@
       </div>
     </template>
 
+    <!-- Selección de sedes del día (1ª entrada del profe al control hoy): -->
+    <!-- una sede por turno, porque un profe puede manejar dos sedes distintas -->
+    <!-- en el día. Confirmar persiste la elección y setea la sede del turno   -->
+    <!-- vigente; ver openSedeSelection/confirmSedeSelection.                 -->
+    <q-dialog v-model="sedeSelectionOpen" persistent>
+      <q-card style="min-width: 340px">
+        <q-card-section>
+          <div class="text-h6">¿Qué sede vas a manejar hoy?</div>
+          <div class="text-body2 text-grey-7 q-mt-xs">
+            Elegí la sede de cada turno. Vas a manejar la pantalla de esa sede, así que revisá que
+            esté bien.
+          </div>
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-select
+            v-model="morningBranchId"
+            :options="branchOptions"
+            label="Turno mañana"
+            outlined
+            emit-value
+            map-options
+          >
+            <template v-if="turnoActual === 'morning'" #append>
+              <q-badge color="primary" label="turno actual" />
+            </template>
+          </q-select>
+          <q-select
+            v-model="afternoonBranchId"
+            :options="branchOptions"
+            label="Turno tarde"
+            outlined
+            emit-value
+            map-options
+          >
+            <template v-if="turnoActual === 'afternoon'" #append>
+              <q-badge color="primary" label="turno actual" />
+            </template>
+          </q-select>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            class="full-width"
+            unelevated
+            size="lg"
+            color="primary"
+            label="Confirmar sedes del día"
+            @click="confirmSedeSelection"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-dialog v-model="sedeWarningOpen" persistent>
       <q-card style="min-width: 320px">
         <q-card-section>
@@ -358,8 +410,12 @@ const contextError = ref<string | null>(null);
 /** Una request de control en vuelo: bloquea la botonera contra el doble tap. */
 const busy = ref(false);
 const confirmEndOpen = ref(false);
-/** Advertencia de sede al montar el control: arranca abierta, no se reabre al cambiar de sede a mano. */
-const sedeWarningOpen = ref(true);
+/** Advertencia de sede: se abre explícitamente (re-entrada del día o cambio manual), no al montar. */
+const sedeWarningOpen = ref(false);
+/** Modal de selección de sedes por turno: solo la 1ª vez que el profe entra en el día. */
+const sedeSelectionOpen = ref(false);
+const morningBranchId = ref<number | null>(null);
+const afternoonBranchId = ref<number | null>(null);
 
 const branches = ref<BranchOption[]>([]);
 const branchesLoading = ref(false);
@@ -369,10 +425,60 @@ let refreshId: ReturnType<typeof setInterval> | null = null;
 
 // =========================================================================
 // Sedes — un televisor cuelga de una pared, así que las sedes virtuales
-// (online) se filtran. El default es la sede donde el profe está agendado
-// HOY (coach-today), con fallback a la sede de casa (D-11) y después a la
-// primera opción. El gate real de acceso es requireBranchAccess en el API.
+// (online) se filtran. La 1ª vez que el profe entra al control en el día
+// elige, por un modal, la sede de cada turno (mañana/tarde) — un profe puede
+// manejar dos sedes distintas en el día. Esa elección se persiste por fecha
+// en localStorage (DAILY_SEDES_KEY); en re-entradas del mismo día se usa la
+// sede del turno vigente sin volver a preguntar, y se muestra el aviso
+// "verificá la sede". El gate real de acceso es requireBranchAccess en el API.
 // =========================================================================
+
+type Turno = 'morning' | 'afternoon';
+const DAILY_SEDES_KEY = 'tv-control-sedes';
+
+/** YYYY-MM-DD en hora local del dispositivo (el control está físicamente en la sede). */
+function todayStr(): string {
+  return new Date().toLocaleDateString('en-CA');
+}
+
+/** Turno actual por hora local: mañana <12:00, tarde >=12:00. */
+function currentTurno(): Turno {
+  return new Date().getHours() < 12 ? 'morning' : 'afternoon';
+}
+
+interface DailySedes {
+  morning: number | null;
+  afternoon: number | null;
+}
+
+/** Devuelve la selección guardada SOLO si es de hoy; null si no hay o es de otro día. */
+function loadDailySedes(): DailySedes | null {
+  try {
+    const raw = localStorage.getItem(DAILY_SEDES_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      date?: string;
+      morning?: number | null;
+      afternoon?: number | null;
+    };
+    if (parsed.date !== todayStr()) return null;
+    return { morning: parsed.morning ?? null, afternoon: parsed.afternoon ?? null };
+  } catch {
+    return null;
+  }
+}
+
+function saveDailySedes(s: DailySedes): void {
+  try {
+    localStorage.setItem(
+      DAILY_SEDES_KEY,
+      JSON.stringify({ date: todayStr(), morning: s.morning, afternoon: s.afternoon })
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.warn('no se pudo guardar la selección de sedes del día', { error: message });
+  }
+}
 
 const branchOptions = computed(() =>
   branches.value.filter((b) => !b.isVirtual).map((b) => ({ label: b.name, value: b.id }))
@@ -383,30 +489,30 @@ const selectedBranchLabel = computed(
   () => branchOptions.value.find((o) => o.value === selectedBranchId.value)?.label ?? 'cargando…'
 );
 
+/** Turno vigente, para resaltarlo en el modal de selección. */
+const turnoActual = computed<Turno>(() => currentTurno());
+
+/** Un id sirve como opción si existe en branchOptions (sede real, no virtual). */
+function isValidOption(id: number | null | undefined): id is number {
+  return id != null && branchOptions.value.some((o) => o.value === id);
+}
+
+/** Sede de casa del profe (fallback) o la primera opción. */
+function homeSedeFallback(): number | null {
+  const own = branchOptions.value.find((o) => o.value === authStore.user?.branchId);
+  return own?.value ?? branchOptions.value[0]?.value ?? null;
+}
+
+/** Sede a manejar para un turno: la guardada si es válida, si no fallback a casa. */
+function sedeForTurno(turno: Turno, saved: DailySedes | null): number | null {
+  const id = turno === 'morning' ? saved?.morning : saved?.afternoon;
+  return isValidOption(id) ? id : homeSedeFallback();
+}
+
 async function fetchBranches(): Promise<void> {
   branchesLoading.value = true;
   try {
     branches.value = await membersApi.getBranches();
-
-    // Default de sede: primero la sede donde el coach está agendado HOY en el
-    // slot actual (coach-today); si el endpoint falla, devuelve null o esa
-    // sede no está en las opciones (sede virtual filtrada, por ejemplo), cae
-    // a la sede de casa del profe y después a la primera opción.
-    let target: number | null = null;
-    try {
-      const { branchId } = await tvApi.getCoachTodayBranch();
-      if (branchId != null && branchOptions.value.some((o) => o.value === branchId)) {
-        target = branchId;
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.warn('coach-today falló, uso sede de casa', { error: message });
-    }
-    if (target == null) {
-      const own = branchOptions.value.find((o) => o.value === authStore.user?.branchId);
-      target = own?.value ?? branchOptions.value[0]?.value ?? null;
-    }
-    selectedBranchId.value = target;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error cargando sedes', { error: message });
@@ -414,6 +520,36 @@ async function fetchBranches(): Promise<void> {
   } finally {
     branchesLoading.value = false;
   }
+}
+
+/** Abre el modal de selección por turno, pre-cargando con la agenda del día. */
+async function openSedeSelection(): Promise<void> {
+  let morning: number | null = null;
+  let afternoon: number | null = null;
+  try {
+    const sched = await tvApi.getCoachTodaySchedule();
+    morning = isValidOption(sched.morning) ? sched.morning : null;
+    afternoon = isValidOption(sched.afternoon) ? sched.afternoon : null;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.warn('coach-today falló, el profe elige la sede a mano', { error: message });
+  }
+  // Que el turno actual arranque con algo usable aunque no haya agenda.
+  if (currentTurno() === 'morning' && morning === null) morning = homeSedeFallback();
+  if (currentTurno() === 'afternoon' && afternoon === null) afternoon = homeSedeFallback();
+  morningBranchId.value = morning;
+  afternoonBranchId.value = afternoon;
+  initialLoading.value = false; // el spinner de fondo no tiene sentido detrás del modal
+  sedeSelectionOpen.value = true;
+}
+
+/** Confirma la selección del día: persiste, setea la sede del turno actual y carga contexto. */
+async function confirmSedeSelection(): Promise<void> {
+  saveDailySedes({ morning: morningBranchId.value, afternoon: afternoonBranchId.value });
+  sedeSelectionOpen.value = false;
+  selectedBranchId.value = sedeForTurno(currentTurno(), loadDailySedes());
+  initialLoading.value = true;
+  await fetchContext();
 }
 
 // =========================================================================
@@ -515,6 +651,11 @@ async function onManualRefresh(): Promise<void> {
 }
 
 async function onBranchChange(): Promise<void> {
+  const saved = loadDailySedes() ?? { morning: null, afternoon: null };
+  if (currentTurno() === 'morning') saved.morning = selectedBranchId.value;
+  else saved.afternoon = selectedBranchId.value;
+  saveDailySedes(saved);
+  sedeWarningOpen.value = true;
   context.value = null;
   initialLoading.value = true;
   await fetchContext();
@@ -628,7 +769,16 @@ async function onEndClass(): Promise<void> {
 
 onMounted(async () => {
   await fetchBranches();
-  await fetchContext();
+  const saved = loadDailySedes();
+  if (saved) {
+    // Re-entrada del mismo día: usar la sede del turno vigente y recordar cuál es.
+    selectedBranchId.value = sedeForTurno(currentTurno(), saved);
+    sedeWarningOpen.value = true;
+    await fetchContext();
+  } else {
+    // 1ª vez del día: elegir sede por turno (el modal dispara fetchContext al confirmar).
+    await openSedeSelection();
+  }
   refreshId = setInterval(() => {
     void fetchContext();
   }, REFRESH_MS);

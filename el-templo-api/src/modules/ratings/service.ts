@@ -495,18 +495,20 @@ export class RatingsService {
   }
 
   /**
-   * TV login default (Fase TV): sede donde el coach autenticado está agendado
-   * HOY en el slot de la hora actual (mañana <12:00 / tarde). Recorre las
-   * sedes del coach (user_branches) y reusa resolveRosterCoachId — el mismo
+   * TV login default (Fase TV): sedes donde el coach autenticado está
+   * agendado HOY, una por turno (mañana <12:00 / tarde). Recorre las sedes
+   * del coach (user_branches) y reusa resolveRosterCoachId — el mismo
    * change-point vigente que resuelve la atribución de ratings — así no suma
    * accesos nuevos a class_coach_assignments (evita CON-06). Devuelve
-   * branchId: null si el coach no está agendado hoy en ninguna de sus sedes.
+   * morning/afternoon: null si el coach no está agendado hoy en ese turno en
+   * ninguna de sus sedes (se queda con la primera sede que matchee cada
+   * turno).
    */
-  async getCoachTodayBranch(
+  async getCoachTodaySchedule(
     ctx: TenantContext,
     coachId: number,
     now: Date = new Date(),
-  ): Promise<{ branchId: number | null }> {
+  ): Promise<{ morning: number | null; afternoon: number | null }> {
     const rows = await this.db
       .select({
         branchId: schema.userBranches.branchId,
@@ -528,22 +530,23 @@ export class RatingsService {
       )
       .orderBy(schema.userBranches.branchId);
 
+    let morning: number | null = null;
+    let afternoon: number | null = null;
     for (const b of rows) {
-      const tz = b.timezone;
-      const today = todayInTz(tz, now);
-      const localTime = now
-        .toLocaleTimeString("en-GB", { timeZone: tz, hour12: false })
-        .slice(0, 5);
-      const effectiveCoach = await this.resolveRosterCoachId(
-        b.branchId,
-        today,
-        localTime,
-      );
-      if (effectiveCoach === coachId) {
-        return { branchId: b.branchId };
+      const today = todayInTz(b.timezone, now);
+      // "09:00" cae en el slot morning y "15:00" en afternoon
+      // (slotFromStartTime: <12:00 = morning).
+      if (morning === null) {
+        const c = await this.resolveRosterCoachId(b.branchId, today, "09:00");
+        if (c === coachId) morning = b.branchId;
       }
+      if (afternoon === null) {
+        const c = await this.resolveRosterCoachId(b.branchId, today, "15:00");
+        if (c === coachId) afternoon = b.branchId;
+      }
+      if (morning !== null && afternoon !== null) break;
     }
-    return { branchId: null };
+    return { morning, afternoon };
   }
 
   /**
