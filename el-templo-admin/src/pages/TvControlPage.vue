@@ -1,7 +1,7 @@
 <template>
   <!-- Fase 164 — Control del TV de sucursal desde el celular del profe.      -->
   <!-- D-13: control CIEGO (no espeja la pantalla del televisor) y de botones -->
-  <!-- GRANDES, en secciones BLOQUES / NIVELES / EJERCICIO / TIMER. Cada tap  -->
+  <!-- GRANDES, en secciones BLOQUES / NIVELES / TIMER. Cada tap             -->
   <!-- manda un estado ABSOLUTO y el API devuelve el estado nuevo completo,   -->
   <!-- que es lo que redibuja la botonera.                                     -->
   <q-page padding class="tv-control">
@@ -27,6 +27,16 @@
           outline
           :loading="refreshing"
           @click="onManualRefresh"
+        />
+      </div>
+      <div class="col-12 col-sm-auto">
+        <q-btn
+          icon="cast"
+          label="Abrir pantalla completa"
+          color="secondary"
+          outline
+          :disable="selectedBranchId === null"
+          @click="onOpenScreen"
         />
       </div>
     </div>
@@ -83,90 +93,64 @@
 
       <div v-else>
         <!-- ============================ BLOQUES ============================ -->
+        <!-- Primera fila: navegación anterior/siguiente. Debajo, los bloques en dos     -->
+        <!-- columnas (como el TIMER), con SOLO el nombre del bloque (sin el formato).    -->
         <div class="tv-section-title">BLOQUES</div>
-        <div class="row items-stretch q-col-gutter-sm">
-          <div class="col-2">
+        <div class="row q-col-gutter-sm">
+          <div class="col-6">
             <q-btn
               class="tv-btn full-width"
               icon="chevron_left"
+              label="ANTERIOR"
               color="primary"
               outline
               :disable="!canControl || blockIndex <= 0"
               @click="onBlockStep(-1)"
             />
           </div>
-          <div class="col-8">
-            <div class="row q-col-gutter-xs">
-              <div v-for="block in context.blocks" :key="block.role" class="col">
-                <q-btn
-                  class="tv-btn full-width tv-btn--chip"
-                  :color="block.role === currentBlockRole ? 'primary' : 'grey-7'"
-                  :outline="block.role !== currentBlockRole"
-                  :unelevated="block.role === currentBlockRole"
-                  :label="block.title"
-                  :disable="!canControl"
-                  @click="onSelectBlock(block.role)"
-                />
-              </div>
-            </div>
-          </div>
-          <div class="col-2">
+          <div class="col-6">
             <q-btn
               class="tv-btn full-width"
               icon="chevron_right"
+              label="SIGUIENTE"
               color="primary"
               outline
               :disable="!canControl || blockIndex < 0 || blockIndex >= context.blocks.length - 1"
               @click="onBlockStep(1)"
             />
           </div>
+          <div v-for="block in context.blocks" :key="block.role" class="col-6">
+            <q-btn
+              class="tv-btn full-width"
+              :color="block.role === currentBlockRole ? 'primary' : 'grey-7'"
+              :outline="block.role !== currentBlockRole"
+              :unelevated="block.role === currentBlockRole"
+              :label="blockName(block)"
+              :disable="!canControl"
+              @click="onSelectBlock(block.role)"
+            />
+          </div>
         </div>
 
         <!-- ============================ NIVELES ============================ -->
+        <!-- Rediseño fase 164: el control elige el nivel por PARES (la pantalla   -->
+        <!-- muestra los dos niveles del par lado a lado), no nivel por nivel.     -->
         <div class="tv-section-title">NIVELES</div>
         <div class="row q-col-gutter-sm">
-          <div v-for="level in context.levels" :key="level" class="col">
+          <div v-for="pair in levelPairs" :key="pair.levels[0]" class="col-12">
             <q-btn
               class="tv-btn full-width"
-              :color="level === currentLevel ? 'primary' : 'grey-7'"
-              :outline="level !== currentLevel"
-              :unelevated="level === currentLevel"
-              :label="levelLabel(level)"
-              :disable="!canControl || levelsDisabled"
-              @click="onSelectLevel(level)"
+              :color="isActivePair(pair) ? 'primary' : 'grey-7'"
+              :outline="!isActivePair(pair)"
+              :unelevated="isActivePair(pair)"
+              :label="pair.label"
+              :disable="!canControl || levelsDisabled || !pair.present"
+              @click="onSelectLevel(pair.targetLevel)"
             />
           </div>
         </div>
         <div v-if="levelsDisabled" class="text-caption text-grey-7 q-mt-xs">
           {{ currentBlockTitle }} es lista compartida: la ven todos los niveles.
-        </div>
-
-        <!-- =========================== EJERCICIO =========================== -->
-        <div class="tv-section-title">EJERCICIO</div>
-        <div class="row items-stretch q-col-gutter-sm">
-          <div class="col-4">
-            <q-btn
-              class="tv-btn full-width"
-              icon="chevron_left"
-              color="primary"
-              outline
-              :disable="!canControl || exerciseIndex <= 0"
-              @click="onExerciseStep(-1)"
-            />
-          </div>
-          <div class="col-4 flex flex-center">
-            <div class="tv-counter">{{ exerciseIndex + 1 }} / {{ Math.max(exerciseCount, 1) }}</div>
-          </div>
-          <div class="col-4">
-            <q-btn
-              class="tv-btn full-width"
-              icon="chevron_right"
-              color="primary"
-              outline
-              :disable="!canControl || exerciseIndex >= exerciseCount - 1"
-              @click="onExerciseStep(1)"
-            />
-          </div>
         </div>
 
         <!-- ============================= TIMER ============================= -->
@@ -222,16 +206,6 @@
           </div>
         </div>
 
-        <!-- El play no es instantaneo: el API programa el arranque 3 s adelante para  -->
-        <!-- que todos los televisores entren en cero juntos. El profe tiene que       -->
-        <!-- saberlo (canta el "vamos" con eso en la cabeza), asi que el aviso esta    -->
-        <!-- siempre visible y se vuelve cuenta regresiva al apretar.                  -->
-        <div class="tv-lead-hint" :class="{ 'tv-lead-hint--activa': startsIn > 0 }">
-          <q-icon :name="startsIn > 0 ? 'hourglass_top' : 'schedule'" size="16px" />
-          <span v-if="startsIn > 0">Arranca en {{ startsIn }}…</span>
-          <span v-else>El play arranca 3 s después, para que la pantalla entre en cero</span>
-        </div>
-
         <!-- =========================== FIN DE CLASE ========================= -->
         <q-separator class="q-mb-md" />
         <div class="row q-col-gutter-sm">
@@ -262,6 +236,102 @@
       </div>
     </template>
 
+    <!-- Selección de sedes del día (1ª entrada del profe al control hoy): -->
+    <!-- una sede por turno, porque un profe puede manejar dos sedes distintas -->
+    <!-- en el día. Confirmar persiste la elección y setea la sede del turno   -->
+    <!-- vigente; ver openSedeSelection/confirmSedeSelection.                 -->
+    <q-dialog v-model="sedeSelectionOpen" persistent>
+      <q-card style="min-width: 340px">
+        <q-card-section>
+          <div class="text-h6">¿Qué sede vas a manejar hoy?</div>
+          <div class="text-body2 text-grey-7 q-mt-xs">
+            Elegí la sede de cada turno. Vas a manejar la pantalla de esa sede, así que revisá que
+            esté bien.
+          </div>
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-select
+            v-model="morningBranchId"
+            :options="branchOptions"
+            label="Turno mañana"
+            outlined
+            emit-value
+            map-options
+          >
+            <template v-if="turnoActual === 'morning'" #append>
+              <q-badge color="primary" label="turno actual" />
+            </template>
+          </q-select>
+          <q-select
+            v-model="afternoonBranchId"
+            :options="branchOptions"
+            label="Turno tarde"
+            outlined
+            emit-value
+            map-options
+          >
+            <template v-if="turnoActual === 'afternoon'" #append>
+              <q-badge color="primary" label="turno actual" />
+            </template>
+          </q-select>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            class="full-width"
+            unelevated
+            size="lg"
+            color="primary"
+            label="Confirmar sedes del día"
+            @click="confirmSedeSelection"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="sedeWarningOpen" persistent>
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6">Verificá la sede</div>
+        </q-card-section>
+        <q-card-section class="text-body2">
+          Chequeá que seleccionaste la sede correcta. Si está mal elegida vas a manejar la
+          pantalla de otra sede.
+          <div class="text-weight-bold q-mt-sm">{{ selectedBranchLabel }}</div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            class="full-width"
+            unelevated
+            size="lg"
+            color="primary"
+            label="Entendido, la sede es correcta"
+            @click="sedeWarningOpen = false"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="blockConfirmOpen">
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6">¿Pasar al bloque {{ pendingBlockLabel }}?</div>
+        </q-card-section>
+        <q-card-section class="text-body2">
+          Cambiar de bloque reinicia el cronómetro del bloque actual. Confirmá para no
+          interrumpirlo por error.
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="grey-7" v-close-popup />
+          <q-btn
+            unelevated
+            color="primary"
+            label="Sí, pasar al bloque"
+            @click="confirmBlockChange"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-dialog v-model="confirmEndOpen" persistent>
       <q-card style="min-width: 320px">
         <q-card-section>
@@ -283,15 +353,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import { useTvApi, type TvControlContext, type TvStateWrite } from 'src/composables/useTvApi';
+import {
+  useTvApi,
+  type TvControlBlock,
+  type TvControlContext,
+  type TvStateWrite,
+} from 'src/composables/useTvApi';
 import { createLogger } from 'src/utils/logger';
 import { isExpectedClientError } from 'src/utils/extract-error';
 import type { BranchOption } from 'src/types/member';
 
 const log = createLogger('TvControlPage');
 const $q = useQuasar();
+const router = useRouter();
 const authStore = useAuthStore();
 const membersApi = useMembersApi();
 const tvApi = useTvApi();
@@ -305,19 +382,45 @@ const tvApi = useTvApi();
 const REFRESH_MS = 30000;
 
 /**
- * Símbolos de nivel del UI-SPEC. En sesión ROM (sábado) no existe la escalera
- * alfa/delta/sigma: son dos tiers rotulados BÁSICO / AVANZADO (D-23).
+ * En sesión ROM (sábado) no existe la escalera alfa/delta/sigma: son dos
+ * tiers rotulados BÁSICO / AVANZADO (D-23).
  */
-const LEVEL_SYMBOLS: Record<string, string> = {
-  alfa: 'α',
-  delta: 'Δ',
-  sigma: 'Σ',
-  kairos: '☉',
-};
 const ROM_LEVEL_LABELS: Record<string, string> = {
   alfa: 'BÁSICO',
   delta: 'AVANZADO',
 };
+
+/**
+ * Pares de nivel del TV (rediseño fase 164 — el control elige el nivel por
+ * PARES, no por nivel individual). Espejo a propósito de `LEVEL_PAIRS` en
+ * `el-templo-api/src/modules/tv/roster.ts`: cambiar uno REQUIERE el cambio
+ * espejo en el otro.
+ */
+const LEVEL_PAIRS: readonly (readonly [string, string])[] = [
+  ['alfa', 'delta'],
+  ['sigma', 'kairos'],
+  ['omega', 'spartan'],
+];
+
+/** Nombre completo de cada nivel (sesión regular), para el label del par. */
+const LEVEL_NAME_LABELS: Record<string, string> = {
+  alfa: 'ALFA',
+  delta: 'DELTA',
+  sigma: 'SIGMA',
+  kairos: 'KAIROS',
+  omega: 'OMEGA',
+  spartan: 'SPARTAN',
+};
+
+/** Un botón de par de nivel: a qué nivel apunta el tap y cómo se rotula. */
+interface LevelPairOption {
+  levels: readonly string[];
+  label: string;
+  /** Primer nivel del par presente hoy — el que manda `onSelectLevel`. */
+  targetLevel: string;
+  /** Si el par tiene al menos un nivel planificado hoy (si no, el botón se ve pero va deshabilitado). */
+  present: boolean;
+}
 
 // =========================================================================
 // Estado
@@ -330,6 +433,15 @@ const contextError = ref<string | null>(null);
 /** Una request de control en vuelo: bloquea la botonera contra el doble tap. */
 const busy = ref(false);
 const confirmEndOpen = ref(false);
+/** Confirmación antes de cambiar de bloque: un mis-tap no debe interrumpir el bloque en curso. */
+const blockConfirmOpen = ref(false);
+const pendingBlockRole = ref<string | null>(null);
+/** Advertencia de sede: se abre explícitamente (re-entrada del día o cambio manual), no al montar. */
+const sedeWarningOpen = ref(false);
+/** Modal de selección de sedes por turno: solo la 1ª vez que el profe entra en el día. */
+const sedeSelectionOpen = ref(false);
+const morningBranchId = ref<number | null>(null);
+const afternoonBranchId = ref<number | null>(null);
 
 const branches = ref<BranchOption[]>([]);
 const branchesLoading = ref(false);
@@ -339,20 +451,94 @@ let refreshId: ReturnType<typeof setInterval> | null = null;
 
 // =========================================================================
 // Sedes — un televisor cuelga de una pared, así que las sedes virtuales
-// (online) se filtran. El default es la sede del profe (D-11); el gate real
-// de acceso es requireBranchAccess en el API.
+// (online) se filtran. La 1ª vez que el profe entra al control en el día
+// elige, por un modal, la sede de cada turno (mañana/tarde) — un profe puede
+// manejar dos sedes distintas en el día. Esa elección se persiste por fecha
+// en localStorage (DAILY_SEDES_KEY); en re-entradas del mismo día se usa la
+// sede del turno vigente sin volver a preguntar, y se muestra el aviso
+// "verificá la sede". El gate real de acceso es requireBranchAccess en el API.
 // =========================================================================
+
+type Turno = 'morning' | 'afternoon';
+const DAILY_SEDES_KEY = 'tv-control-sedes';
+
+/** YYYY-MM-DD en hora local del dispositivo (el control está físicamente en la sede). */
+function todayStr(): string {
+  return new Date().toLocaleDateString('en-CA');
+}
+
+/** Turno actual por hora local: mañana <12:00, tarde >=12:00. */
+function currentTurno(): Turno {
+  return new Date().getHours() < 12 ? 'morning' : 'afternoon';
+}
+
+interface DailySedes {
+  morning: number | null;
+  afternoon: number | null;
+}
+
+/** Devuelve la selección guardada SOLO si es de hoy; null si no hay o es de otro día. */
+function loadDailySedes(): DailySedes | null {
+  try {
+    const raw = localStorage.getItem(DAILY_SEDES_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      date?: string;
+      morning?: number | null;
+      afternoon?: number | null;
+    };
+    if (parsed.date !== todayStr()) return null;
+    return { morning: parsed.morning ?? null, afternoon: parsed.afternoon ?? null };
+  } catch {
+    return null;
+  }
+}
+
+function saveDailySedes(s: DailySedes): void {
+  try {
+    localStorage.setItem(
+      DAILY_SEDES_KEY,
+      JSON.stringify({ date: todayStr(), morning: s.morning, afternoon: s.afternoon })
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.warn('no se pudo guardar la selección de sedes del día', { error: message });
+  }
+}
 
 const branchOptions = computed(() =>
   branches.value.filter((b) => !b.isVirtual).map((b) => ({ label: b.name, value: b.id }))
 );
 
+/** Label de la sede seleccionada para el modal de advertencia (reactivo: se actualiza solo cuando cargan las sedes). */
+const selectedBranchLabel = computed(
+  () => branchOptions.value.find((o) => o.value === selectedBranchId.value)?.label ?? 'cargando…'
+);
+
+/** Turno vigente, para resaltarlo en el modal de selección. */
+const turnoActual = computed<Turno>(() => currentTurno());
+
+/** Un id sirve como opción si existe en branchOptions (sede real, no virtual). */
+function isValidOption(id: number | null | undefined): id is number {
+  return id != null && branchOptions.value.some((o) => o.value === id);
+}
+
+/** Sede de casa del profe (fallback) o la primera opción. */
+function homeSedeFallback(): number | null {
+  const own = branchOptions.value.find((o) => o.value === authStore.user?.branchId);
+  return own?.value ?? branchOptions.value[0]?.value ?? null;
+}
+
+/** Sede a manejar para un turno: la guardada si es válida, si no fallback a casa. */
+function sedeForTurno(turno: Turno, saved: DailySedes | null): number | null {
+  const id = turno === 'morning' ? saved?.morning : saved?.afternoon;
+  return isValidOption(id) ? id : homeSedeFallback();
+}
+
 async function fetchBranches(): Promise<void> {
   branchesLoading.value = true;
   try {
     branches.value = await membersApi.getBranches();
-    const own = branchOptions.value.find((o) => o.value === authStore.user?.branchId);
-    selectedBranchId.value = own?.value ?? branchOptions.value[0]?.value ?? null;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error cargando sedes', { error: message });
@@ -360,6 +546,36 @@ async function fetchBranches(): Promise<void> {
   } finally {
     branchesLoading.value = false;
   }
+}
+
+/** Abre el modal de selección por turno, pre-cargando con la agenda del día. */
+async function openSedeSelection(): Promise<void> {
+  let morning: number | null = null;
+  let afternoon: number | null = null;
+  try {
+    const sched = await tvApi.getCoachTodaySchedule();
+    morning = isValidOption(sched.morning) ? sched.morning : null;
+    afternoon = isValidOption(sched.afternoon) ? sched.afternoon : null;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.warn('coach-today falló, el profe elige la sede a mano', { error: message });
+  }
+  // Que el turno actual arranque con algo usable aunque no haya agenda.
+  if (currentTurno() === 'morning' && morning === null) morning = homeSedeFallback();
+  if (currentTurno() === 'afternoon' && afternoon === null) afternoon = homeSedeFallback();
+  morningBranchId.value = morning;
+  afternoonBranchId.value = afternoon;
+  initialLoading.value = false; // el spinner de fondo no tiene sentido detrás del modal
+  sedeSelectionOpen.value = true;
+}
+
+/** Confirma la selección del día: persiste, setea la sede del turno actual y carga contexto. */
+async function confirmSedeSelection(): Promise<void> {
+  saveDailySedes({ morning: morningBranchId.value, afternoon: afternoonBranchId.value });
+  sedeSelectionOpen.value = false;
+  selectedBranchId.value = sedeForTurno(currentTurno(), loadDailySedes());
+  initialLoading.value = true;
+  await fetchContext();
 }
 
 // =========================================================================
@@ -383,19 +599,60 @@ const currentBlockTitle = computed(() => currentBlock.value?.title ?? 'Este bloq
 const levelsDisabled = computed(() => currentBlock.value?.shared === true);
 
 const currentLevel = computed(() => context.value?.state?.level ?? '');
-const exerciseIndex = computed(() => context.value?.state?.exerciseIndex ?? 0);
-const exerciseCount = computed(
-  () => currentBlock.value?.exerciseCountByLevel[currentLevel.value] ?? 0
-);
 
 const timerStatus = computed(() => context.value?.state?.timerStatus ?? 'idle');
 const soundEnabled = computed(() => context.value?.state?.soundEnabled === true);
 const isClosingScreen = computed(() => context.value?.state?.screen === 'closing');
 
-function levelLabel(level: string): string {
-  if (context.value?.mode === 'rom') return ROM_LEVEL_LABELS[level] ?? level.toUpperCase();
-  return LEVEL_SYMBOLS[level] ?? level.toUpperCase();
+/**
+ * Pares DISPONIBLES hoy: solo los que tienen al menos un nivel presente en
+ * `context.levels` (un sábado ROM, por ejemplo, solo tiene alfa/delta — los
+ * otros dos pares quedan afuera). El label junta los DOS nombres del par
+ * completo, presente o no, unidos por " Y "; el tap manda el primer nivel del
+ * par que sí está presente hoy.
+ */
+const levelPairs = computed<LevelPairOption[]>(() => {
+  const levels = context.value?.levels ?? [];
+  const mode = context.value?.mode ?? 'regular';
+  // Los tres pares se muestran SIEMPRE (fila completa); un par sin ningún nivel
+  // planificado hoy va deshabilitado en vez de esconderse.
+  return LEVEL_PAIRS.map((pair) => {
+    const present = pair.filter((lvl) => levels.includes(lvl));
+    const names = pair.map((lvl) =>
+      mode === 'rom' ? (ROM_LEVEL_LABELS[lvl] ?? lvl.toUpperCase()) : LEVEL_NAME_LABELS[lvl] ?? lvl.toUpperCase()
+    );
+    return {
+      levels: pair,
+      label: names.join(' Y '),
+      targetLevel: present[0] ?? pair[0],
+      present: present.length > 0,
+    };
+  });
+});
+
+function isActivePair(pair: LevelPairOption): boolean {
+  return pair.levels.includes(currentLevel.value);
 }
+
+/**
+ * Solo el NOMBRE del bloque, sin el formato: el `title` del API viene como
+ * "NOMBRE · FORMATO" (ej. "NUCLEUS · AMRAP 10'"), y el botón del control muestra
+ * únicamente la parte anterior al separador. Un bloque con customTitle (INITIUM)
+ * no trae separador, así que se muestra entero.
+ */
+function blockName(block: TvControlBlock): string {
+  const sep = ' · ';
+  const i = block.title.indexOf(sep);
+  return i >= 0 ? block.title.slice(0, i) : block.title;
+}
+
+/** Nombre del bloque destino pendiente de confirmar, para el modal. */
+const pendingBlockLabel = computed(() => {
+  const role = pendingBlockRole.value;
+  if (role === null) return '';
+  const block = (context.value?.blocks ?? []).find((b) => b.role === role);
+  return block ? blockName(block) : '';
+});
 
 // =========================================================================
 // Lectura del contexto
@@ -432,9 +689,24 @@ async function onManualRefresh(): Promise<void> {
 }
 
 async function onBranchChange(): Promise<void> {
+  const saved = loadDailySedes() ?? { morning: null, afternoon: null };
+  if (currentTurno() === 'morning') saved.morning = selectedBranchId.value;
+  else saved.afternoon = selectedBranchId.value;
+  saveDailySedes(saved);
+  sedeWarningOpen.value = true;
   context.value = null;
   initialLoading.value = true;
   await fetchContext();
+}
+
+/**
+ * Abre la pantalla fullscreen (`/pantalla-tv`) de la sede elegida acá. Misma
+ * pestaña: en el televisor de pared no hay otra pestaña a la que volver, y en
+ * el celular del profe da igual.
+ */
+function onOpenScreen(): void {
+  if (selectedBranchId.value === null) return;
+  void router.push({ path: '/pantalla-tv', query: { branchId: String(selectedBranchId.value) } });
 }
 
 // =========================================================================
@@ -479,11 +751,42 @@ function onBlockStep(delta: number): void {
   const blocks = context.value?.blocks ?? [];
   const target = blocks[blockIndex.value + delta];
   if (!target) return;
-  void send({ blockRole: target.role });
+  requestBlockChange(target.role);
 }
 
 function onSelectBlock(role: string): void {
-  if (role === currentBlockRole.value) return;
+  requestBlockChange(role);
+}
+
+/**
+ * Cambiar de bloque reinicia el cronómetro del bloque en curso, así que un tap
+ * accidental no debe aplicarse solo: primero se confirma. Si el rol destino es
+ * el actual no hay nada que cambiar.
+ */
+/** DEUTEROS_1 y DEUTEROS_2 son dos caminos del MISMO bloque visual (espejo de
+ *  `visualGroupOf` en tv/roster.ts). */
+function visualGroupOf(role: string): string {
+  return role === 'DEUTEROS_1' || role === 'DEUTEROS_2' ? 'DEUTEROS' : role;
+}
+
+function requestBlockChange(role: string): void {
+  const current = currentBlockRole.value;
+  if (role === current) return;
+  // Pasar de un DEUTEROS al otro es el MISMO bloque visual: no reinicia nada, así
+  // que se aplica directo, sin alerta. Solo se confirma al cambiar de bloque real.
+  if (visualGroupOf(role) === visualGroupOf(current)) {
+    void send({ blockRole: role });
+    return;
+  }
+  pendingBlockRole.value = role;
+  blockConfirmOpen.value = true;
+}
+
+function confirmBlockChange(): void {
+  const role = pendingBlockRole.value;
+  blockConfirmOpen.value = false;
+  pendingBlockRole.value = null;
+  if (role === null) return;
   void send({ blockRole: role });
 }
 
@@ -492,46 +795,8 @@ function onSelectLevel(level: string): void {
   void send({ level });
 }
 
-/** Índice ABSOLUTO, acotado contra la lista del (bloque, nivel) vigente. */
-function onExerciseStep(delta: number): void {
-  const target = exerciseIndex.value + delta;
-  if (target < 0 || target > exerciseCount.value - 1) return;
-  void send({ exerciseIndex: target });
-}
-
-/**
- * Cuenta local del arranque diferido (TIMER_START_LEAD_MS del API).
- *
- * Se cuenta desde el tap y NO contra el reloj del server: el profe acaba de apretar, y
- * un celular con la hora corrida mostraria cualquier cosa. Son 3 segundos de aviso, no
- * una fuente de verdad — la del cronometro sigue siendo `timerStartedAt`.
- */
-const START_LEAD_SECONDS = 3;
-const startsIn = ref(0);
-let startsInId: ReturnType<typeof setInterval> | null = null;
-
-function clearStartCountdown(): void {
-  if (startsInId !== null) {
-    clearInterval(startsInId);
-    startsInId = null;
-  }
-  startsIn.value = 0;
-}
-
-function beginStartCountdown(): void {
-  clearStartCountdown();
-  startsIn.value = START_LEAD_SECONDS;
-  startsInId = setInterval(() => {
-    startsIn.value -= 1;
-    if (startsIn.value <= 0) clearStartCountdown();
-  }, 1000);
-}
-
+/** D-16: `start` arranca al instante — el comando se manda tal cual, sin aviso local. */
 function onTimer(command: NonNullable<TvStateWrite['timer']>): void {
-  if (command === 'start' && timerStatus.value !== 'running') {
-    beginStartCountdown();
-  }
-  if (command === 'reset') clearStartCountdown();
   void send({ timer: command });
 }
 
@@ -573,7 +838,16 @@ async function onEndClass(): Promise<void> {
 
 onMounted(async () => {
   await fetchBranches();
-  await fetchContext();
+  const saved = loadDailySedes();
+  if (saved) {
+    // Re-entrada del mismo día: usar la sede del turno vigente y recordar cuál es.
+    selectedBranchId.value = sedeForTurno(currentTurno(), saved);
+    sedeWarningOpen.value = true;
+    await fetchContext();
+  } else {
+    // 1ª vez del día: elegir sede por turno (el modal dispara fetchContext al confirmar).
+    await openSedeSelection();
+  }
   refreshId = setInterval(() => {
     void fetchContext();
   }, REFRESH_MS);
@@ -584,7 +858,6 @@ onUnmounted(() => {
     clearInterval(refreshId);
     refreshId = null;
   }
-  clearStartCountdown();
   tvApi.cleanup();
 });
 </script>
@@ -598,12 +871,6 @@ onUnmounted(() => {
   letter-spacing: 0.04em;
 }
 
-.tv-control .tv-btn--chip {
-  font-size: 0.8rem;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
 .tv-section-title {
   margin-top: 24px;
   font-size: 0.85rem;
@@ -613,27 +880,4 @@ onUnmounted(() => {
   margin-bottom: 8px;
 }
 
-/* Aviso del arranque diferido: discreto mientras informa, evidente mientras cuenta. */
-.tv-lead-hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  font-size: 0.78rem;
-  line-height: 1.3;
-  color: rgba(0, 0, 0, 0.55);
-}
-
-.tv-lead-hint--activa {
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--q-positive);
-}
-
-.tv-counter {
-  font-size: 1.8rem;
-  font-weight: 700;
-  line-height: 1;
-}
 </style>

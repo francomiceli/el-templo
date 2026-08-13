@@ -114,11 +114,35 @@ export interface TvBlockSummary {
 /**
  * One exercise line. `videoUrl` comes already assembled by the API
  * (`assembleVideoUrl()`); `null` means the kiosk renders the placeholder.
+ *
+ * `contraction` and `dose` travel SEPARATE (phase 164 rediseño, app parity —
+ * `CompactExerciseList.vue`): `contraction` is the raw abbreviation ('CON' /
+ * 'EXC' / 'ISO') for the badge and its color, `dose` is the already-formatted
+ * volume string ("8-10", `20"`, or "" when the format dictates the volume —
+ * tabata/interval/hiit/…, `FORMAT_DICTATED_TYPES`). The kiosk never concatenates
+ * or parses these; it just paints each in its own slot.
  */
 export interface TvExercise {
   name: string;
-  rx: string;
+  contraction: string;
+  dose: string;
   videoUrl: string | null;
+}
+
+/**
+ * One level column of the live block (phase 164 rediseño — two levels side by
+ * side; the control picks the LEVEL by PAIRS). `header` is the full label
+ * that used to be `TvClassPayload.listHeader` — per-level ("NIVEL α |
+ * Dominadas 70%") when the block has levels, or the shared header
+ * ("PYROS | TODOS LOS NIVELES") when the block is shared (INITIUM).
+ *
+ * A shared block always yields exactly ONE column. A non-shared block yields
+ * one column per level of the pair that is present in `classDay.levels`
+ * (`LEVEL_PAIRS` in `roster.ts`) — one or two, never more.
+ */
+export interface TvLevelColumn {
+  header: string;
+  exercises: TvExercise[];
 }
 
 /**
@@ -149,6 +173,13 @@ export interface TvTimerState {
  * is DERIVED from this roster on every read, never stored — two levels of the
  * same day can have rosters of different length, so a stored index would jump
  * to another block (or out of range) when the coach switches level.
+ *
+ * `visualBlockIndex`/`visualBlockCount` are ALSO derived on every read, same
+ * as `blockIndex`, but count "visual blocks" instead of roster entries:
+ * DEUTEROS_1 and DEUTEROS_2 are two paths of the SAME block (`visualGroupOf`
+ * in `roster.ts`), so the "BLOQUE n / M" dots show 4, not 5, for a regular
+ * day. `blockIndex`/`blocks` stay the real roster identity — nothing else
+ * reads `visualBlockIndex`/`visualBlockCount` for logic, only for painting.
  */
 export interface TvClassPayload {
   mode: TvClassMode;
@@ -158,10 +189,13 @@ export interface TvClassPayload {
   blocks: TvBlockSummary[];
   blockRole: string;
   blockIndex: number;
+  visualBlockIndex: number;
+  visualBlockCount: number;
   title: string;
-  listHeader: string;
   mobilityLine: string | null;
-  exercises: TvExercise[];
+  /** 1 entrada (bloque shared, o un solo nivel del par presente hoy) o 2
+   *  (ambos niveles del par presentes) — nunca más. Ver `TvLevelColumn`. */
+  columns: TvLevelColumn[];
   exerciseIndex: number;
   timer: TvTimerState;
 }

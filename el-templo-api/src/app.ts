@@ -58,7 +58,7 @@ import { referralAdminRoutes } from "./modules/referrals/admin-routes";
 import { campaignRoutes } from "./modules/campaigns/routes";
 import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
-import { tvDeviceRoutes, tvControlRoutes } from "./modules/tv";
+import { tvControlRoutes } from "./modules/tv";
 
 /**
  * Opciones de `buildApp`. Hoy tiene un solo campo y es a propósito: la
@@ -310,13 +310,11 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     prefix: "/api/admin/finance/coach-load",
   });
 
-  // Fase 164 — pantalla TV de sucursal. DOS registros separados a proposito
-  // (mismo criterio que coachRoutes / coachLoadRoutes de arriba): los guards son
-  // incompatibles. `tvDeviceRoutes` atiende al televisor, que no tiene JWT ni
-  // rol ni scope de pais — solo un token opaco de dispositivo; `tvControlRoutes`
-  // atiende al staff con `fastify.authenticate` + TV_CONTROL_ROLES (D-01).
-  // Un unico plugin no podria tener las dos cosas.
-  await app.register(tvDeviceRoutes, { prefix: "/api/tv" });
+  // Fase 164 — pantalla TV de sucursal. El kiosco anonimo por device token
+  // (RFC 8628) se elimino: la pantalla TV ahora es una vista del admin
+  // AUTENTICADA (`tvControlRoutes`, staff con `fastify.authenticate` +
+  // TV_CONTROL_ROLES, D-01). `tv_pairings` / `tv_devices` quedan en el schema
+  // sin uso hasta que se decida el DROP.
   await app.register(tvControlRoutes, { prefix: "/api/admin/tv" });
 
   // User management routes (owner-only staff CRUD)

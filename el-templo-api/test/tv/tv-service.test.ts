@@ -35,14 +35,13 @@ let app: FastifyInstance;
 let service: TvService;
 let branchArId: number;
 let branchEsId: number;
-let deviceId: number;
 let exerciseId: number;
 
 function code(prefix: string): string {
   return `${prefix}${Date.now().toString(36).slice(-5)}`;
 }
 
-async function seedBranchesAndDevice(): Promise<void> {
+async function seedBranches(): Promise<void> {
   const [ar] = await app.db
     .insert(schema.branches)
     .values({ name: "Mogotes", code: code("TVS"), timezone: AR_TZ })
@@ -53,12 +52,6 @@ async function seedBranchesAndDevice(): Promise<void> {
     .$returningId();
   branchArId = ar.id;
   branchEsId = es.id;
-
-  const [device] = await app.db
-    .insert(schema.tvDevices)
-    .values({ branchId: ar.id, tokenHash: code("hash").padEnd(64, "0") })
-    .$returningId();
-  deviceId = device.id;
 
   const [ex] = await app.db
     .insert(schema.exercises)
@@ -180,7 +173,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await cleanAllTestData(app);
-  await seedBranchesAndDevice();
+  await seedBranches();
 });
 
 describe("TvService.readState — expire-on-read (D-07 / T-164-23)", () => {
@@ -311,7 +304,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
   it("sin sesion aprobada el payload es reposo SIN campo de error (D-09)", async () => {
     // Ni sesiones ni estado: el caso de un dia sin clase.
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -335,7 +328,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     await seedSession({ level: "alfa", roles: ["INITIUM", "NUCLEUS"] });
 
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -361,7 +354,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     });
 
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -379,11 +372,24 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     // blockIndex DERIVADO del roster, no persistido.
     expect(cls.blockRole).toBe("NUCLEUS");
     expect(cls.blockIndex).toBe(1);
-    expect(cls.title).toBe("NUCLEUS · AMRAP - 10 min");
-    expect(cls.listHeader).toBe("NIVEL α | OAP 70%");
+    // La etiqueta del formato ahora es formatName + params compactos, igual que el PDF
+    // de planis (formatNameWithParams, espejo de session-data-transformer.ts).
+    expect(cls.title).toBe("NUCLEUS · AMRAP 10'");
     expect(cls.mobilityLine).toBe('MOVILIDAD · Movilidad de hombro 20"');
-    expect(cls.exercises).toHaveLength(3);
-    expect(cls.exercises[0].rx).toBe("8-10 CON.");
+    // Rediseño fase 164: `state.level` es alfa, su par es [alfa, delta]
+    // (`LEVEL_PAIRS`/`pairFor` en roster.ts) y AMBOS estan presentes hoy en
+    // NUCLEUS -> dos columnas, alfa primero (orden del par).
+    expect(cls.columns).toHaveLength(2);
+    // El nombre completo de la ruta (OAP → "Dominadas"), igual que el PDF de
+    // planis: `getRouteLabel` (espejo de `route-labels.ts` del admin).
+    expect(cls.columns[0].header).toBe("NIVEL α | Dominadas 70%");
+    expect(cls.columns[0].exercises).toHaveLength(3);
+    expect(cls.columns[0].exercises[0].contraction).toBe("CON");
+    expect(cls.columns[0].exercises[0].dose).toBe("8-10");
+    // La columna delta resuelve SU PROPIO bloque NUCLEUS (1 ejercicio: el
+    // default de `seedSession` cuando no se pasa `nucleusExercises`).
+    expect(cls.columns[1].header).toBe("NIVEL Δ | Dominadas 70%");
+    expect(cls.columns[1].exercises).toHaveLength(1);
     expect(cls.exerciseIndex).toBe(1);
     // El timer viaja como spec + sello, nunca como segundos restantes.
     expect(cls.timer.spec).toEqual({ kind: "countdown", totalMs: 600_000 });
@@ -392,6 +398,56 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       new Date("2026-02-24T14:58:00.000Z").getTime(),
     );
     expect(cls.timer.soundEnabled).toBe(false);
+  });
+
+  it("DEUTEROS_1/DEUTEROS_2 cuentan como UN bloque visual (C1)", async () => {
+    await seedSession({
+      level: "alfa",
+      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "DEUTEROS_2",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    // El roster REAL sigue teniendo 5 entradas (identidad real, sin tocar).
+    expect(cls.blocks.map((b) => b.role)).toEqual([
+      "INITIUM",
+      "NUCLEUS",
+      "DEUTEROS_1",
+      "DEUTEROS_2",
+      "EPIKOS",
+    ]);
+    expect(cls.blockIndex).toBe(3);
+    // Pero el bloque VISUAL colapsa DEUTEROS_1+DEUTEROS_2 en uno: 4 grupos, no
+    // 5, y estando en DEUTEROS_2 el indice visual es el mismo que en DEUTEROS_1.
+    expect(cls.visualBlockCount).toBe(4);
+    expect(cls.visualBlockIndex).toBe(2);
+  });
+
+  it("desde DEUTEROS_1 el indice visual es el mismo que desde DEUTEROS_2 (mismo grupo)", async () => {
+    await seedSession({
+      level: "alfa",
+      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "DEUTEROS_1",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    expect(cls.blockIndex).toBe(2);
+    expect(cls.visualBlockCount).toBe(4);
+    expect(cls.visualBlockIndex).toBe(2);
   });
 
   it("INITIUM es lista compartida: selector de nivel neutralizado y header propio", async () => {
@@ -403,24 +459,98 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       level: "alfa",
     });
 
-    const cls = (
-      await service.buildPollPayload(
-        { id: deviceId, branchId: branchArId },
-        TUESDAY_NOON_UTC,
-      )
-    ).class!;
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
 
     expect(cls.blocks[0].shared).toBe(true);
     expect(cls.levelLabel).toBe("TODOS LOS NIVELES");
-    expect(cls.listHeader).toBe("INITIUM | TODOS LOS NIVELES");
+    // Bloque shared -> UNA sola columna, con la lista comun.
+    expect(cls.columns).toHaveLength(1);
+    expect(cls.columns[0].header).toBe("INITIUM | TODOS LOS NIVELES");
+    expect(cls.columns[0].exercises[0].contraction).toBe("CON");
     // Formato dictado por la estructura (tabata): sin volumen inventado.
-    expect(cls.exercises[0].rx).toBe("CON.");
+    expect(cls.columns[0].exercises[0].dose).toBe("");
     expect(cls.timer.spec).toEqual({
       kind: "work_rest",
       workMs: 20_000,
       restMs: 10_000,
       rounds: 8,
     });
+  });
+
+  it("con un solo nivel del par presente hoy, la columna es UNA sola", async () => {
+    // Solo alfa tiene sesion aprobada: el par de alfa es [alfa, delta]
+    // (`pairFor`), pero delta no esta en `classDay.levels` -> se filtra.
+    await seedSession({ level: "alfa", roles: ["INITIUM", "NUCLEUS"] });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "NUCLEUS",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    expect(cls.columns).toHaveLength(1);
+    expect(cls.columns[0].header).toBe("NIVEL α | Dominadas 70%");
+  });
+
+  it("una prescripcion ISO en segundos se formatea con comillas (dose) y su contraccion cruda viaja en `contraction`", async () => {
+    // Bloque armado a mano (sin `seedSession`, que solo produce CON con reps)
+    // para ejercitar la rama de `prescriptionVolume` que formatea segundos.
+    const [session] = await app.db
+      .insert(schema.sessions)
+      .values({
+        dayId: "W1-martes-alfa",
+        week: 1,
+        day: "martes",
+        levelGroup: "alfa_delta",
+        blockCount: 1,
+        status: "approved",
+      })
+      .$returningId();
+    const [block] = await app.db
+      .insert(schema.sessionBlocks)
+      .values({
+        sessionId: session.id,
+        blockId: `B-${session.id}-0`,
+        role: "NUCLEUS",
+        route: "OAP",
+        pattern: "TRACCION",
+        intensity: 70,
+        repsBudget: 40,
+        formatId: 1,
+        formatName: "AMRAP",
+        formatParams: { type: "amrap", minutes: 10 },
+        exerciseCount: 1,
+        sortOrder: 0,
+      })
+      .$returningId();
+    await app.db.insert(schema.sessionPrescriptions).values({
+      blockId: block.id,
+      exerciseId,
+      exerciseName: "Plancha isometrica",
+      contraction: "ISO",
+      reps: 0,
+      seconds: 20,
+      rest: 0,
+      sortOrder: 0,
+      exerciseType: "main",
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "NUCLEUS",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    expect(cls.columns).toHaveLength(1);
+    expect(cls.columns[0].exercises[0].contraction).toBe("ISO");
+    expect(cls.columns[0].exercises[0].dose).toBe('20"');
   });
 
   it("el payload no lleva NI UN dato de socio (T-164-21)", async () => {
@@ -433,7 +563,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     });
 
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -451,9 +581,9 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     }
   });
 
-  it("el estado de otra sede no se filtra: la sede sale de la fila del device (T-164-20)", async () => {
+  it("el estado de otra sede no se filtra: cada sede lee solo su propio estado (T-164-20)", async () => {
     await seedSession({ level: "alfa", roles: ["INITIUM", "NUCLEUS"] });
-    // Clase iniciada en Barcelona, NO en la sede del televisor.
+    // Clase iniciada en Barcelona, NO en la sede que se consulta.
     await writeState({
       branchId: branchEsId,
       classDate: TUESDAY_DATE,
@@ -462,7 +592,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     });
 
     const payload = await service.buildPollPayload(
-      { id: deviceId, branchId: branchArId },
+      branchArId,
       TUESDAY_NOON_UTC,
     );
 
@@ -500,15 +630,8 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     // Y para la sede argentina, en el MISMO instante, sigue vigente.
     expect(await service.readState(branchArId, TUESDAY_DATE)).not.toBeNull();
 
-    // Extremo a extremo: el TV de Barcelona amanece en reposo sin cron.
-    const [esDevice] = await app.db
-      .insert(schema.tvDevices)
-      .values({ branchId: branchEsId, tokenHash: code("es").padEnd(64, "1") })
-      .$returningId();
-    const payload = await service.buildPollPayload(
-      { id: esDevice.id, branchId: branchEsId },
-      borderInstant,
-    );
+    // Extremo a extremo: la pantalla de Barcelona amanece en reposo sin cron.
+    const payload = await service.buildPollPayload(branchEsId, borderInstant);
     expect(payload.screen).toBe("idle");
     expect(payload.branch.utcOffsetMinutes).toBe(60);
   });

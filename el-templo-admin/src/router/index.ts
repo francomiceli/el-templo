@@ -30,10 +30,14 @@ export default defineRouter(function () {
 
     const authStore = useAuthStore();
 
-    // Check authentication
+    // Check authentication. Se preserva el destino (`?redirect=`) para que un
+    // acceso directo a una ruta protegida — p. ej. un TV que abre
+    // '/pantalla-tv' sin sesión abierta todavía — vuelva ahí después de
+    // loguearse en vez de caer siempre en la landing por rol (LoginPage.vue
+    // lo consume con un allowlist de paths internos).
     const isValid = await authStore.checkAuth();
     if (!isValid) {
-      return '/login';
+      return { path: '/login', query: { redirect: to.fullPath } };
     }
 
     // D-14 landing por rol: cuando la navegación nace en la raíz (login →

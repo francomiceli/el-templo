@@ -26,6 +26,7 @@ import {
 import { ALL_STAFF_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { requireBranchAccess } from "../shared/branch-access";
+import { assertTenant } from "../shared/tenant";
 import type { ClassSlot, SubmitRatingInput } from "./types";
 
 /**
@@ -88,6 +89,21 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // GET /roster/coach-today — sedes donde el coach autenticado está
+  // agendado hoy, una por turno (mañana/tarde) — selección de sede del día
+  // en el login de TV.
+  fastify.get("/roster/coach-today", async (request, reply) => {
+    try {
+      const ctx = assertTenant(request.scope, "ratings.coachToday");
+      return await ratingsService.getCoachTodaySchedule(
+        ctx,
+        request.user.userId,
+      );
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "get coach today branch");
+    }
+  });
 
   // POST /roster — assign/replace a coach in a slot (immediate persistence).
   // Owner-only WRITE: only the owner assigns coaches; the rest of the staff see

@@ -20,7 +20,7 @@
  * indice. Dos niveles del mismo dia pueden tener rosters de largo distinto, asi
  * que un indice guardado saltaria a otro bloque al cambiar de nivel.
  */
-import { formatParamsLabel, type FormatParams } from "../admin/format-params";
+import { formatNameWithParams, type FormatParams } from "../admin/format-params";
 import { TRAINING_LEVELS } from "../shared/training-constants";
 import type { TvBlockSummary, TvClassMode } from "./types";
 
@@ -52,6 +52,35 @@ export const ROM_ROLES = [
  * la primera sesion que llegue de la DB (orden de filesort, no garantizado).
  */
 export const INITIUM_SOURCE_ORDER = ["alfa", "delta", "sigma", "kairos"];
+
+/**
+ * Pares de nivel del TV (fase 164 rediseño — dos columnas lado a lado). Espejo
+ * a propósito de `levelPairs` en
+ * `el-templo-admin/src/utils/pdf/session-pdf-builder.ts` (`buildDeuterosSplitPages`,
+ * ~línea 847), con el tercer par agregado: el PDF nunca imprime omega/spartan
+ * porque no se planifican por día (`REGULAR_LEVEL_ORDER` en `class-day.ts`),
+ * pero el TV deriva sus columnas de `pairFor` sin asumir cuáles pares tienen
+ * datos — mantener el tercero acá es más simple que dos listas distintas.
+ */
+export const LEVEL_PAIRS: readonly (readonly [string, string])[] = [
+  ["alfa", "delta"],
+  ["sigma", "kairos"],
+  ["omega", "spartan"],
+];
+
+/**
+ * El par que contiene `level`, en el orden del par (no el orden de llegada).
+ *
+ * Defensivo: un nivel que no está en ningún par (dato futuro, o un ROM
+ * "alfa"/"delta" — que SÍ están acá, correctamente) devuelve `[level]` solo,
+ * para que el caller nunca se quede sin columna.
+ */
+export function pairFor(level: string): readonly string[] {
+  for (const pair of LEVEL_PAIRS) {
+    if (pair.includes(level)) return pair;
+  }
+  return [level];
+}
 
 /**
  * Etiqueta visible de cada rol.
@@ -92,6 +121,18 @@ export interface RosterSession<TBlock extends RosterBlock = RosterBlock> {
 export interface RosterClassDay<TBlock extends RosterBlock = RosterBlock> {
   mode: TvClassMode;
   sessions: RosterSession<TBlock>[];
+}
+
+/**
+ * Clave de "bloque visual": DEUTEROS_1 y DEUTEROS_2 son dos CAMINOS del mismo
+ * bloque (el profe elige uno u otro para la clase), no dos bloques distintos.
+ * Colapsan a la misma clave para que los puntitos "BLOQUE n / M" cuenten 4 y
+ * no 5, y para decidir si cambiar de rol reinicia el cronometro (pasar de un
+ * camino al otro NO deberia, es el mismo bloque). El resto de los roles es su
+ * propia clave — no hay mas grupos que colapsar hoy.
+ */
+export function visualGroupOf(role: string): string {
+  return role === "DEUTEROS_1" || role === "DEUTEROS_2" ? "DEUTEROS" : role;
 }
 
 /**
@@ -160,13 +201,16 @@ function findCanonicalBlock<TBlock extends RosterBlock>(
  * Fase 100: un INITIUM con `customTitle` (formato de juegos) manda su propio
  * titulo tal cual, igual que en el PDF. Cuando el bloque es ATHLOS se rotula
  * con su propio nombre aunque su rol canonico sea EPIKOS.
+ *
+ * El FORMATO usa `formatNameWithParams`, que es un espejo a proposito de
+ * `formatNameWithParams` en
+ * `el-templo-admin/src/utils/pdf/session-data-transformer.ts` — la etiqueta
+ * del bloque en la TV tiene que ser identica a la del PDF de planis.
  */
 export function blockTitle(role: string, block: RosterBlock): string {
   if (role === "INITIUM" && block.customTitle) return block.customTitle;
   const label = ROLE_LABELS[block.role] ?? ROLE_LABELS[role] ?? role;
-  const format = block.formatParams
-    ? formatParamsLabel(block.formatParams)
-    : block.formatName;
+  const format = formatNameWithParams(block.formatName, block.formatParams);
   return `${label} · ${format}`;
 }
 

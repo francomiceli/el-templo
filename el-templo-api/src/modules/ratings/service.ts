@@ -28,6 +28,8 @@ import {
 } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { todayInTz } from "../shared/date-utils";
 // La regla de atribución (día ISO, turno, semana efectiva) vive en un módulo
 // aparte porque el export de sesiones de prueba resuelve el mismo profe por
 // otro camino — ver roster-attribution.ts.
@@ -465,6 +467,59 @@ export class RatingsService {
       classStars,
       comment: comment ?? null,
     });
+  }
+
+  /**
+   * TV login default (fase TV): sedes donde el coach autenticado está agendado
+   * HOY, una por turno (mañana <12:00 / tarde). Recorre las sedes del coach
+   * (user_branches, con tenantWhere en ambas anclas) y reusa resolveRosterCoachId
+   * — el mismo change-point vigente que resuelve la atribución de ratings — así
+   * no suma accesos nuevos a class_coach_assignments. Devuelve morning/afternoon:
+   * null si el coach no está agendado hoy en ese turno en ninguna de sus sedes.
+   */
+  async getCoachTodaySchedule(
+    ctx: TenantContext,
+    coachId: number,
+    now: Date = new Date(),
+  ): Promise<{ morning: number | null; afternoon: number | null }> {
+    const rows = await this.db
+      .select({
+        branchId: schema.userBranches.branchId,
+        timezone: schema.branches.timezone,
+      })
+      .from(schema.userBranches)
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.userBranches.branchId),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.userBranches, ctx),
+          eq(schema.userBranches.userId, coachId),
+        ),
+      )
+      .orderBy(schema.userBranches.branchId);
+
+    let morning: number | null = null;
+    let afternoon: number | null = null;
+    for (const b of rows) {
+      const today = todayInTz(b.timezone, now);
+      // "09:00" cae en el slot morning y "15:00" en afternoon
+      // (slotFromStartTime: <12:00 = morning).
+      if (morning === null) {
+        const c = await this.resolveRosterCoachId(b.branchId, today, "09:00");
+        if (c === coachId) morning = b.branchId;
+      }
+      if (afternoon === null) {
+        const c = await this.resolveRosterCoachId(b.branchId, today, "15:00");
+        if (c === coachId) afternoon = b.branchId;
+      }
+      if (morning !== null && afternoon !== null) break;
+    }
+    return { morning, afternoon };
   }
 
   /**

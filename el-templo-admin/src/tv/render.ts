@@ -1,5 +1,6 @@
 /**
- * Dibujo del kiosco `/tv/`: las cuatro pantallas, el reloj de pared y el timer.
+ * Dibujo de la pantalla TV (`/pantalla-tv`): las tres pantallas (clase, reposo, cierre),
+ * el reloj de pared y el timer.
  *
  * Este archivo es lo que ven los socios. Tres reglas lo gobiernan:
  *
@@ -15,16 +16,17 @@
  *    `timer.ts` y el reloj corregido de `poll.ts`; el API solo publica el sello de
  *    arranque. Con el wifi caido la pantalla sigue contando sola.
  *
- * Compatibilidad (D-20, piso Chromium 53): el reloj de la sede se arma con
- * `getUTCHours/Minutes/Seconds` sobre `ahora + utcOffsetMinutes` y NUNCA con el formateador
- * de fechas por zona horaria — la ICU de un televisor puede venir recortada y devolver la
- * hora del server, o directamente tirar. Sin `?.`, sin `??`, sin utilidades de ES2017.
+ * El reloj de la sede se arma con `getUTCHours/Minutes/Seconds` sobre
+ * `ahora + utcOffsetMinutes` y NUNCA con el formateador de fechas por zona horaria (D-20,
+ * heredado del piso Chromium 53 del kiosco estático retirado — este archivo ahora corre
+ * dentro del bundle del admin, pero el cálculo manual sigue siendo el correcto: evita
+ * depender de que la ICU del navegador conozca el huso de la sede).
  */
 
 import { beep } from './audio';
 import { createTvLogger } from './logger';
 import { nowCorrected } from './poll';
-import type { TvClassPayload, TvPollResponse } from './poll';
+import type { TvClassPayload, TvExercise, TvPollResponse } from './poll';
 /* El relleno a dos digitos vive en `scale.ts`: es el unico helper de relleno de todo
    `src/tv/` (reloj, timer y logger). El metodo nativo del string es ES2017 — Pitfall 5. */
 import { pad2 } from './scale';
@@ -35,7 +37,7 @@ import type { SessionQuote } from '../utils/pdf/quotes';
 const log = createTvLogger('render');
 
 /**
- * Simbolos de nivel que el API manda YA embebidos en `listHeader` (`NIVEL Δ | …`).
+ * Simbolos de nivel que el API manda YA embebidos en `TvLevelColumn.header` (`NIVEL Δ | …`).
  *
  * Se pintan dentro de un `<span class="glyph">` porque la fuente del kiosco no garantiza
  * el griego (Pitfall 6), y el de kairos (☉) lo DIBUJA el CSS con un circulo y un punto —
@@ -43,9 +45,6 @@ const log = createTvLogger('render');
  */
 const LEVEL_SYMBOLS = '☉αΔΣ';
 const KAIROS_SYMBOL = '☉';
-
-/** Separador que usa el API entre el rol y el formato: `NUCLEUS · TABATA 20"/10" ×8`. */
-const TITLE_SEPARATOR = ' · ';
 
 /** Cada cuanto rota la frase de reposo/cierre (D-06/D-08). */
 const QUOTE_ROTATION_MS = 60 * 1000;
@@ -59,32 +58,23 @@ const COMPACT_OVER = 5;
 
 interface ClockNodes {
   head: Text;
-  seg: HTMLElement;
 }
 
 interface Nodes {
-  sede: HTMLElement;
-  fecha: HTMLElement;
+  fechaL1: HTMLElement;
+  fechaL2: HTMLElement;
   reloj: ClockNodes;
   titulo: HTMLElement;
+  formato: HTMLElement;
   movilidad: HTMLElement;
   bloqueNum: HTMLElement;
   dots: HTMLElement;
-  cabNivel: HTMLElement;
-  listaBox: HTMLElement;
+  /** Contenedor de las columnas de nivel: `paintList` lo llena a mano por
+   *  cada poll (1 o 2 `.lista-col`), no viene fijo en la plantilla. */
+  stage: HTMLElement;
   timerPanel: HTMLElement;
-  timerCab: HTMLElement;
-  fase: HTMLElement;
   digitos: HTMLElement;
-  sub: HTMLElement;
   progreso: HTMLElement;
-  hint: HTMLElement;
-  cabVideo: HTMLElement;
-  video: HTMLVideoElement | null;
-  videoVacio: HTMLElement;
-  pantallaPairing: HTMLElement;
-  pairingCodigo: HTMLElement;
-  pairingInstruccion: HTMLElement;
   pantallaReposo: HTMLElement;
   reposoReloj: ClockNodes;
   reposoFecha: HTMLElement;
@@ -120,50 +110,35 @@ function clear(el: Element): void {
 }
 
 /**
- * Prepara un reloj: un nodo de texto para `HH:MM:` y un span para el segundero en oro.
+ * Prepara un reloj: un nodo de texto para `HH:MM` (el reloj de sede va SIN segundero).
  *
  * Se construye una sola vez, en vez de reusar los nodos de la plantilla, para no depender
  * de como quede el espaciado del HTML despues de formatearlo.
  */
 function clockNodes(host: HTMLElement): ClockNodes {
   clear(host);
-  const head = document.createTextNode('--:--:');
-  const seg = document.createElement('span');
-  seg.className = 'seg';
-  seg.textContent = '--';
+  const head = document.createTextNode('--:--');
   host.appendChild(head);
-  host.appendChild(seg);
-  return { head: head, seg: seg };
+  return { head: head };
 }
 
 function ensureNodes(): Nodes {
   if (nodes) {
     return nodes;
   }
-  const video = document.querySelector('.videoCol video');
   nodes = {
-    sede: byId('sede'),
-    fecha: byId('fecha'),
+    fechaL1: byId('fechaL1'),
+    fechaL2: byId('fechaL2'),
     reloj: clockNodes(byId('reloj')),
     titulo: byId('titulo'),
+    formato: byId('formato'),
     movilidad: byId('movilidad'),
     bloqueNum: byId('bloqueNum'),
     dots: byId('dots'),
-    cabNivel: byId('cabNivel'),
-    listaBox: byId('listaBox'),
+    stage: byId('stage'),
     timerPanel: byId('timerPanel'),
-    timerCab: byId('timerCab'),
-    fase: byId('fase'),
     digitos: byId('digitos'),
-    sub: byId('sub'),
     progreso: byId('progreso'),
-    hint: byId('hint'),
-    cabVideo: byId('cabVideo'),
-    video: video ? (video as HTMLVideoElement) : null,
-    videoVacio: byId('videoVacio'),
-    pantallaPairing: byId('pantallaPairing'),
-    pairingCodigo: byId('pairingCodigo'),
-    pairingInstruccion: byId('pairingInstruccion'),
     pantallaReposo: byId('pantallaReposo'),
     reposoReloj: clockNodes(byId('reposoReloj')),
     reposoFecha: byId('reposoFecha'),
@@ -175,17 +150,6 @@ function ensureNodes(): Nodes {
     cierreQuote: byId('cierreQuote'),
     cierreAutor: byId('cierreAutor'),
   };
-  if (!nodes.video) {
-    log.warn('la plantilla no tiene <video> en la columna derecha');
-  }
-  // El video del ejercicio puede fallar (R2 caido, mp4 corrupto): ahi vale el mismo
-  // criterio que la app — placeholder, nunca un panel negro sin explicacion.
-  if (nodes.video) {
-    nodes.video.addEventListener('error', function () {
-      log.warn('el video no cargo', { url: lastVideoUrl ? lastVideoUrl : '' });
-      showPlaceholder(true);
-    });
-  }
   return nodes;
 }
 
@@ -213,6 +177,28 @@ function setVisible(el: HTMLElement, base: string, visible: boolean): void {
  * Pinta un texto que puede traer simbolos de nivel, envolviendo cada simbolo en su span.
  * Todo lo demas entra como nodo de texto: sigue sin haber HTML crudo.
  */
+/**
+ * Pinta texto plano de un header, coloreando aparte el porcentaje de esfuerzo
+ * ("NN%", `.pct`) — el resto queda en el color de la cabecera.
+ */
+function appendPlain(host: HTMLElement, text: string): void {
+  const parts = text.split(/(\d+%)/);
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.length === 0) {
+      continue;
+    }
+    if (/^\d+%$/.test(part)) {
+      const span = document.createElement('span');
+      span.className = 'pct';
+      span.textContent = part;
+      host.appendChild(span);
+    } else {
+      host.appendChild(document.createTextNode(part));
+    }
+  }
+}
+
 function paintGlyphText(host: HTMLElement, text: string): void {
   clear(host);
   let plano = '';
@@ -223,7 +209,7 @@ function paintGlyphText(host: HTMLElement, text: string): void {
       continue;
     }
     if (plano.length > 0) {
-      host.appendChild(document.createTextNode(plano));
+      appendPlain(host, plano);
       plano = '';
     }
     const span = document.createElement('span');
@@ -237,7 +223,7 @@ function paintGlyphText(host: HTMLElement, text: string): void {
     host.appendChild(span);
   }
   if (plano.length > 0) {
-    host.appendChild(document.createTextNode(plano));
+    appendPlain(host, plano);
   }
 }
 
@@ -248,47 +234,35 @@ function paintGlyphText(host: HTMLElement, text: string): void {
 let quotes: SessionQuote[] = [];
 let last: TvPollResponse | null = null;
 let lastListKey = '';
-let lastListHeader = '';
+/** Ronda marcada por última vez en la lista (marcador ▸); evita tocar el DOM cada tick. */
+let lastMarkerKey: string | null = null;
 let lastDotsKey = '';
-let lastExerciseIndex = -1;
-// `undefined` = todavia no se pinto ningun video. NO puede arrancar en `null`: null es
-// tambien "este ejercicio no tiene video", y la guardia de paintVideo cortaba por igualdad
-// antes de mostrar el cartel — la primera clase con un ejercicio sin video quedaba con el
-// hueco vacio, sin video y sin placeholder (visto en el TV de sede, verificacion de 164).
-let lastVideoUrl: string | null | undefined = undefined;
 let lastQuoteKey = '';
 let lastBeepKey: string | null = null;
-let itemNodes: HTMLElement[] = [];
-
-/** Las frases del PDF, que `boot.ts` recibe por parametro desde `main.ts` (D-06/D-08). */
-export function setQuotes(next: SessionQuote[]): void {
-  quotes = next;
-}
-
-// =============================================================================
-// Pantalla de vinculacion
-// =============================================================================
 
 /**
- * TV sin vincular: el codigo gigante, agrupado de a 3 para leerlo desde el mostrador.
- * `null` mientras el kiosco todavia no consiguio uno (sin red, por ejemplo).
+ * Olvida los nodos cacheados y todo el estado de idempotencia.
+ *
+ * El kiosco estatico nunca se desmontaba (una pagina entera por televisor), asi que
+ * `nodes` y los `last*` podian ser modulo-globales cacheados una sola vez. En el SPA la
+ * pantalla es una ruta que se monta y desmonta: sin este reset, un segundo montaje
+ * (navegar afuera de `/pantalla-tv` y volver) reusaria los `nodes` viejos —ya despegados
+ * del DOM— y los `last*` cortarian el primer repintado por "no cambio nada", dejando la
+ * pantalla en blanco. La pagina lo llama en `onMounted`, antes del primer render.
  */
-export function renderPairing(userCode: string | null): void {
-  const n = ensureNodes();
-  const code = userCode ? userCode : '';
-  const agrupado = code.length === 6 ? code.substring(0, 3) + ' ' + code.substring(3) : code;
-  setText(n.pairingCodigo, agrupado.length > 0 ? agrupado : '…');
-  setText(
-    n.pairingInstruccion,
-    agrupado.length > 0
-      ? 'Cargá este código en el admin, en Televisores, para vincular esta pantalla a su sede.'
-      : 'Conectando…'
-  );
-  setVisible(n.pantallaPairing, 'pantalla', true);
-  setVisible(n.pantallaReposo, 'pantalla', false);
-  setVisible(n.pantallaCierre, 'pantalla', false);
+export function resetRender(): void {
+  nodes = null;
   last = null;
+  lastListKey = '';
+  lastMarkerKey = null;
+  lastDotsKey = '';
+  lastQuoteKey = '';
   lastBeepKey = null;
+}
+
+/** Las frases del PDF, que la pantalla pasa una vez al montar (D-06/D-08). */
+export function setQuotes(next: SessionQuote[]): void {
+  quotes = next;
 }
 
 // =============================================================================
@@ -300,95 +274,179 @@ function classOf(payload: TvPollResponse): TvClassPayload | null {
   return payload.screen === 'class' ? payload.class : null;
 }
 
-/** Formato del bloque para el header del timer: lo que sigue al `·` del titulo. */
-function formatLabel(title: string): string {
-  const at = title.lastIndexOf(TITLE_SEPARATOR);
-  return at >= 0 ? title.substring(at + TITLE_SEPARATOR.length) : title;
+/**
+ * Fecha calendario de la sede: DÍA DD DE MES AAAA (ej. `MARTES 12 DE AGOSTO 2026`).
+ *
+ * Se arma a mano con `getUTC*` sobre `ahora + utcOffsetMinutes`, NUNCA con
+ * `toLocaleDateString`: misma razón que el reloj (D-20) — la ICU de un televisor de sede
+ * puede venir recortada y devolver otra fecha o directamente tirar.
+ */
+const DIAS_SEMANA = [
+  'DOMINGO',
+  'LUNES',
+  'MARTES',
+  'MIÉRCOLES',
+  'JUEVES',
+  'VIERNES',
+  'SÁBADO',
+];
+const MESES = [
+  'ENERO',
+  'FEBRERO',
+  'MARZO',
+  'ABRIL',
+  'MAYO',
+  'JUNIO',
+  'JULIO',
+  'AGOSTO',
+  'SEPTIEMBRE',
+  'OCTUBRE',
+  'NOVIEMBRE',
+  'DICIEMBRE',
+];
+function formatFecha(nowMs: number, utcOffsetMinutes: number): string {
+  const d = new Date(nowMs + utcOffsetMinutes * 60000);
+  return (
+    DIAS_SEMANA[d.getUTCDay()] +
+    ' ' +
+    d.getUTCDate() +
+    ' DE ' +
+    MESES[d.getUTCMonth()] +
+    ' DE ' +
+    d.getUTCFullYear()
+  );
 }
 
+/** Fecha compacta en dos líneas para la topbar: "JUEVES 13" / "AGOSTO 2026". */
+function fechaTopbar(nowMs: number, utcOffsetMinutes: number): { l1: string; l2: string } {
+  const d = new Date(nowMs + utcOffsetMinutes * 60000);
+  return {
+    l1: DIAS_SEMANA[d.getUTCDay()] + ' ' + d.getUTCDate(),
+    l2: MESES[d.getUTCMonth()] + ' ' + d.getUTCFullYear(),
+  };
+}
+
+/**
+ * Puntitos "BLOQUE n / M": cuentan sobre el bloque VISUAL (`visualBlockCount`/
+ * `visualBlockIndex`), no sobre `c.blocks`/`c.blockIndex` — DEUTEROS_1 y
+ * DEUTEROS_2 son dos caminos del mismo bloque y pintan un solo punto.
+ */
 function paintDots(n: Nodes, c: TvClassPayload): void {
-  const key = c.blocks.length + ':' + c.blockIndex;
+  const key = c.visualBlockCount + ':' + c.visualBlockIndex;
   if (key === lastDotsKey) {
     return;
   }
   lastDotsKey = key;
   clear(n.dots);
-  for (let i = 0; i < c.blocks.length; i++) {
+  for (let i = 0; i < c.visualBlockCount; i++) {
     const dot = document.createElement('span');
-    dot.className = 'dot' + (i < c.blockIndex ? ' hecho' : i === c.blockIndex ? ' activo' : '');
+    dot.className =
+      'dot' + (i < c.visualBlockIndex ? ' hecho' : i === c.visualBlockIndex ? ' activo' : '');
     n.dots.appendChild(dot);
   }
 }
 
+/**
+ * Un item de ejercicio: nombre arriba, badge de contraccion + dosis abajo
+ * (mismo layout que `CompactExerciseList.vue` de la app — fase 164 rediseño).
+ * Sin badge/dosis cuando el formato dicta el volumen (`dose` vacio) y la
+ * prescripcion no trae contraccion.
+ */
+function buildItem(ex: TvExercise): HTMLElement {
+  const item = document.createElement('div');
+  item.className = 'item';
+
+  // El badge de esfuerzo va antes del nombre. El marcador ▸ del ejercicio actual
+  // lo pinta el CSS al final de la fila (`.item.actual::after`), sin robar espacio.
+  if (ex.contraction.length > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'badge badge--' + ex.contraction.toLowerCase();
+    badge.textContent = ex.contraction;
+    item.appendChild(badge);
+  }
+
+  const nombre = document.createElement('span');
+  nombre.className = 'ej-nombre';
+  nombre.textContent = ex.name;
+  item.appendChild(nombre);
+
+  // Repeticiones / segundos a la derecha de la fila.
+  if (ex.dose.length > 0) {
+    const dosis = document.createElement('span');
+    dosis.className = 'dosis';
+    dosis.textContent = ex.dose;
+    item.appendChild(dosis);
+  }
+
+  return item;
+}
+
+/**
+ * Pinta las columnas de nivel (1 o 2, `c.columns` — el rediseño de dos
+ * niveles lado a lado). Cada columna trae su propio header (que puede llevar
+ * simbolos de nivel, de ahi `paintGlyphText`) y su propia lista.
+ */
 function paintList(n: Nodes, c: TvClassPayload): void {
-  let key = c.blockRole + '|' + c.level + '|' + c.exercises.length;
-  for (let i = 0; i < c.exercises.length; i++) {
-    key += '|' + c.exercises[i].name + '~' + c.exercises[i].rx;
-  }
-  if (key !== lastListKey) {
-    lastListKey = key;
-    lastExerciseIndex = -1;
-    clear(n.listaBox);
-    itemNodes = [];
-    for (let i = 0; i < c.exercises.length; i++) {
-      const item = document.createElement('div');
-      item.className = 'item';
-      const ej = document.createElement('span');
-      ej.className = 'ej';
-      ej.textContent = c.exercises[i].name;
-      const rx = document.createElement('span');
-      rx.className = 'rx';
-      rx.textContent = c.exercises[i].rx;
-      item.appendChild(ej);
-      item.appendChild(rx);
-      n.listaBox.appendChild(item);
-      itemNodes.push(item);
+  let key = c.blockRole + '|' + c.level + '|' + c.columns.length;
+  for (let ci = 0; ci < c.columns.length; ci++) {
+    const col = c.columns[ci];
+    key += '|' + col.header + '|' + col.exercises.length;
+    for (let i = 0; i < col.exercises.length; i++) {
+      key += '~' + col.exercises[i].name + '~' + col.exercises[i].contraction + '~' + col.exercises[i].dose;
     }
+  }
+  if (key === lastListKey) {
+    return;
+  }
+  lastListKey = key;
+  // La lista se reconstruye: el marcador se re-aplica en el próximo tick.
+  lastMarkerKey = null;
+  clear(n.stage);
+
+  for (let ci = 0; ci < c.columns.length; ci++) {
+    const col = c.columns[ci];
+
+    const colEl = document.createElement('section');
+    colEl.className = 'col panel lista-col';
+
+    const cab = document.createElement('div');
+    cab.className = 'cabCol';
+    paintGlyphText(cab, col.header);
+    colEl.appendChild(cab);
+
+    const caja = document.createElement('div');
     // Listas largas (calentamiento): entran todas achicando la tipografia.
-    setClass(n.listaBox, c.exercises.length > COMPACT_OVER ? 'caja compacta' : 'caja');
-  }
-
-  if (c.exerciseIndex !== lastExerciseIndex) {
-    lastExerciseIndex = c.exerciseIndex;
-    for (let i = 0; i < itemNodes.length; i++) {
-      setClass(itemNodes[i], i === c.exerciseIndex ? 'item activo' : 'item');
+    caja.className = col.exercises.length > COMPACT_OVER ? 'caja compacta' : 'caja';
+    for (let i = 0; i < col.exercises.length; i++) {
+      caja.appendChild(buildItem(col.exercises[i]));
     }
+    colEl.appendChild(caja);
+
+    n.stage.appendChild(colEl);
   }
 }
 
-/** Muestra u oculta el cartel de "sin video". El `<video>` siempre es el mismo elemento. */
-function showPlaceholder(show: boolean): void {
-  if (!nodes) {
+/**
+ * Movilidad al pie: la etiqueta "MOVILIDAD" va en oro (como los headers de
+ * NIVEL) y el resto (ejercicios + dosis) en el navy de los ejercicios. El
+ * elemento queda vacío (:empty → oculto) cuando el bloque no trae movilidad.
+ */
+function paintMovilidad(host: HTMLElement, line: string | null): void {
+  clear(host);
+  if (!line) {
     return;
   }
-  setVisible(nodes.videoVacio, 'videoVacio', show);
-}
-
-function paintVideo(n: Nodes, url: string | null): void {
-  if (url === lastVideoUrl) {
+  const sep = ' · ';
+  const i = line.indexOf(sep);
+  if (i < 0) {
+    host.appendChild(document.createTextNode(line));
     return;
   }
-  lastVideoUrl = url;
-  if (!n.video) {
-    return;
-  }
-  if (!url) {
-    showPlaceholder(true);
-    n.video.removeAttribute('src');
-    n.video.load();
-    return;
-  }
-  showPlaceholder(false);
-  n.video.src = url;
-  n.video.load();
-  // El autoplay puede estar bloqueado por politica del navegador del TV: se intenta y, si
-  // no, queda el primer frame. Nunca puede tirar la pantalla abajo.
-  const jugando = n.video.play() as Promise<void> | undefined;
-  if (jugando && typeof jugando.catch === 'function') {
-    jugando.catch(function () {
-      log.debug('autoplay bloqueado, queda el primer frame');
-    });
-  }
+  const label = document.createElement('span');
+  label.className = 'movLabel';
+  label.textContent = line.slice(0, i);
+  host.appendChild(label);
+  host.appendChild(document.createTextNode(line.slice(i)));
 }
 
 /**
@@ -404,15 +462,18 @@ export function renderState(payload: TvPollResponse): void {
   last = payload;
 
   // Topbar (se ve en la pantalla de clase; en reposo/cierre queda tapada por el overlay).
-  setText(n.sede, 'EL TEMPLO ' + payload.branch.name);
-  setText(n.fecha, payload.branch.dateLabel);
-  setText(n.reposoFecha, payload.branch.dateLabel);
+  // La marca es solo el logo + la fecha calendario del día; ya no hay texto "EL TEMPLO"
+  // ni el `dateLabel` del API (DÍA · SEMANA n).
+  const fecha = formatFecha(nowCorrected(), payload.branch.utcOffsetMinutes);
+  const fechaCorta = fechaTopbar(nowCorrected(), payload.branch.utcOffsetMinutes);
+  setText(n.fechaL1, fechaCorta.l1);
+  setText(n.fechaL2, fechaCorta.l2);
+  setText(n.reposoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   const c = classOf(payload);
-  setVisible(n.pantallaPairing, 'pantalla', false);
-  setVisible(n.pantallaReposo, 'pantalla', !c && payload.screen !== 'closing');
-  setVisible(n.pantallaCierre, 'pantalla', payload.screen === 'closing');
+  setVisible(n.pantallaReposo, 'pantalla dosMitades', !c && payload.screen !== 'closing');
+  setVisible(n.pantallaCierre, 'pantalla dosMitades', payload.screen === 'closing');
 
   if (!c) {
     return;
@@ -424,22 +485,18 @@ export function renderState(payload: TvPollResponse): void {
     lastBeepKey = null;
   }
 
-  setText(n.titulo, c.title);
-  setText(n.movilidad, c.mobilityLine ? c.mobilityLine : '');
-  setText(n.bloqueNum, 'BLOQUE ' + (c.blockIndex + 1) + ' / ' + c.blocks.length);
+  // El título del API viene como "NOMBRE · FORMATO"; el nombre va arriba y el
+  // formato en la fila de abajo (INITIUM y demás customTitle no traen separador).
+  const sepTitulo = ' · ';
+  const iSep = c.title.indexOf(sepTitulo);
+  setText(n.titulo, iSep >= 0 ? c.title.slice(0, iSep) : c.title);
+  setText(n.formato, iSep >= 0 ? c.title.slice(iSep + sepTitulo.length) : '');
+  paintMovilidad(n.movilidad, c.mobilityLine);
+  // Bloque VISUAL (colapsa DEUTEROS_1/DEUTEROS_2 en uno solo), no la entrada cruda del roster.
+  setText(n.bloqueNum, 'BLOQUE ' + (c.visualBlockIndex + 1) + ' / ' + c.visualBlockCount);
   paintDots(n, c);
 
-  if (c.listHeader !== lastListHeader) {
-    lastListHeader = c.listHeader;
-    paintGlyphText(n.cabNivel, c.listHeader);
-  }
-
   paintList(n, c);
-
-  const actual = c.exercises[c.exerciseIndex];
-  setText(n.cabVideo, actual ? actual.name : '');
-  setText(n.timerCab, formatLabel(c.title));
-  paintVideo(n, actual ? actual.videoUrl : null);
 
   // Que el timer no espere hasta 250 ms para reflejar un start/reset del profe.
   tickTimer();
@@ -450,13 +507,9 @@ export function renderState(payload: TvPollResponse): void {
 // =============================================================================
 
 function paintClock(clock: ClockNodes, d: Date): void {
-  const head = pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) + ':';
-  const seg = pad2(d.getUTCSeconds());
+  const head = pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
   if (clock.head.data !== head) {
     clock.head.data = head;
-  }
-  if (clock.seg.textContent !== seg) {
-    clock.seg.textContent = seg;
   }
 }
 
@@ -517,7 +570,6 @@ function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): vo
 // =============================================================================
 
 interface TimerPaint {
-  fase: string;
   clase: string;
   digitos: string;
   sub: string;
@@ -525,7 +577,10 @@ interface TimerPaint {
   progreso: number;
 }
 
-/** Sub-linea del timer: la que dice en que ronda o intervalo va el bloque. */
+/**
+ * Sub-linea del timer: la ronda/intervalo del bloque. En cuenta regresiva va VACÍA — el
+ * "tiempo restante" ya no es un texto, lo dice la barra que arranca llena y se vacía.
+ */
 function subLine(c: TvClassPayload, round: number, totalRounds: number): string {
   const kind = c.timer.spec.kind;
   if (kind === 'work_rest') {
@@ -535,7 +590,7 @@ function subLine(c: TvClassPayload, round: number, totalRounds: number): string 
     return 'INTERVALO ' + round + ' / ' + totalRounds;
   }
   if (kind === 'countdown') {
-    return 'TIEMPO RESTANTE';
+    return '';
   }
   return 'A RITMO PROPIO';
 }
@@ -544,26 +599,30 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
   const t = c.timer;
   const sub = subLine(c, frame.round, frame.totalRounds);
   const libre = t.spec.kind === 'countup';
+  // Bloques de intervalos (Tabata / HIIT / ROM): los digitos van en segundos crudos
+  // (`:20`), para que el segundero se vea grande. Duracion total (AMRAP, cap, libre) → mm:ss.
+  const shortInterval = t.spec.kind === 'work_rest';
 
-  // D-16: sin cuenta previa. En reposo se ven los digitos iniciales del formato y al
-  // iniciar arranca TRABAJO al instante.
+  // Sin etiqueta de fase (ya no se muestra "LISTOS/TRABAJO"): el estado se lee por la
+  // OPACIDAD de los digitos — apagados hasta que corre, plenos cuando arranca (clase
+  // `corriendo`) — y por el color del marco (descanso / completo).
+
+  // D-16: sin cuenta previa. En reposo se ven los digitos iniciales del formato.
   if (t.status === 'idle') {
     return {
-      fase: 'LISTOS',
       clase: '',
-      digitos: formatDigits(phaseAt(0, t.spec).displayMs),
+      digitos: formatDigits(phaseAt(0, t.spec).displayMs, shortInterval),
       sub: sub,
       hint: libre ? 'Formato sin tiempos — cronómetro libre' : '',
       progreso: 0,
     };
   }
 
-  // D-17: pausa = digitos congelados exactamente donde quedaron.
+  // D-17: pausa = digitos congelados exactamente donde quedaron (apagados, no corre).
   if (t.status === 'paused') {
     return {
-      fase: 'PAUSA',
-      clase: '',
-      digitos: formatDigits(frame.displayMs),
+      clase: 'pausa',
+      digitos: formatDigits(frame.displayMs, shortInterval),
       sub: sub,
       hint: '',
       progreso: frame.progress * 100,
@@ -572,9 +631,8 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
 
   if (frame.finished) {
     return {
-      fase: 'BLOQUE COMPLETO',
       clase: 'completo',
-      digitos: formatDigits(0),
+      digitos: formatDigits(0, shortInterval),
       sub: '',
       hint: 'El profe avanza al siguiente bloque',
       progreso: 100,
@@ -583,9 +641,8 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
 
   if (frame.phase === 'rest') {
     return {
-      fase: 'DESCANSO',
-      clase: 'descanso',
-      digitos: formatDigits(frame.displayMs),
+      clase: 'corriendo descanso',
+      digitos: formatDigits(frame.displayMs, shortInterval),
       sub: sub,
       hint: '',
       progreso: frame.progress * 100,
@@ -593,13 +650,45 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
   }
 
   return {
-    fase: libre ? 'CRONÓMETRO' : 'TRABAJO',
-    clase: 'trabajo',
-    digitos: formatDigits(frame.displayMs),
+    clase: 'corriendo trabajo',
+    digitos: formatDigits(frame.displayMs, shortInterval),
     sub: sub,
     hint: libre ? 'Formato sin tiempos — cronómetro libre' : '',
     progreso: frame.progress * 100,
   };
+}
+
+/**
+ * Marca (▸ oro) el ejercicio que toca en la ronda actual de un formato con
+ * intervalos: ejercicio = (ronda-1) % nº de la columna (así una tabata de 8 con
+ * 4 ejercicios repite el 2º en la ronda 6). Los formatos sin rondas
+ * (AMRAP/countdown/libre) no tienen ejercicio "actual" → sin marcador. Guard por
+ * ronda para no tocar el DOM en cada tick.
+ */
+function updateMarkers(n: Nodes, c: TvClassPayload, frame: TimerFrame): void {
+  const kind = c.timer.spec.kind;
+  const active =
+    (kind === 'interval' || kind === 'work_rest') &&
+    !frame.finished &&
+    (c.timer.status === 'running' || c.timer.status === 'paused');
+  const key = active ? kind + '|' + frame.round : 'off';
+  if (key === lastMarkerKey) {
+    return;
+  }
+  lastMarkerKey = key;
+
+  const cols = n.stage.getElementsByClassName('lista-col');
+  for (let ci = 0; ci < cols.length; ci++) {
+    const items = cols[ci].getElementsByClassName('item');
+    const idx = active && items.length > 0 ? (frame.round - 1) % items.length : -1;
+    for (let i = 0; i < items.length; i++) {
+      if (i === idx) {
+        items[i].classList.add('actual');
+      } else {
+        items[i].classList.remove('actual');
+      }
+    }
+  }
 }
 
 /**
@@ -620,12 +709,12 @@ export function tickTimer(): void {
   const frame = phaseAt(elapsedFrom(c.timer, nowCorrected()), c.timer.spec);
   const paint = timerPaint(c, frame);
 
-  setClass(n.timerPanel, 'panel timerCaja' + (paint.clase ? ' ' + paint.clase : ''));
-  setText(n.fase, paint.fase);
+  setClass(n.timerPanel, 'cronometro' + (paint.clase ? ' ' + paint.clase : ''));
   setText(n.digitos, paint.digitos);
-  setText(n.sub, paint.sub);
-  setText(n.hint, paint.hint);
-  const ancho = Math.round(paint.progreso) + '%';
+  updateMarkers(n, c, frame);
+  // La barra muestra el tiempo QUE QUEDA: arranca llena (100%) y se vacía a medida que
+  // corre el bloque (progreso 0→100 ⇒ ancho 100→0).
+  const ancho = Math.round(100 - paint.progreso) + '%';
   if (n.progreso.style.width !== ancho) {
     n.progreso.style.width = ancho;
   }

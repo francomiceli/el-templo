@@ -33,7 +33,7 @@ export function conComentarioDeLinea(db: FakeDb): FakeDb {
   return db.select().from(schema.attendance);
 }
 
-/** EXIMIDO (site) — anotación TRAILING, como en `src/modules/tv/pairing.ts`. */
+/** EXIMIDO (site) — anotación TRAILING (forma que traía `src/modules/tv/pairing.ts` antes de eliminarse). */
 export function conExencionTrailing(db: FakeDb): FakeDb {
   return db
     .insert(

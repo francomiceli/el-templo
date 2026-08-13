@@ -6,109 +6,17 @@
  * `request.body` contra lo que Fastify realmente valido.
  *
  * Validacion de entrada (ASVS V5): ningun string libre sin `pattern` o limite.
- * Las dos superficies del modulo tienen niveles de confianza opuestos —
- * `/api/tv/*` es PUBLICA (cualquiera en internet puede llamarla, el TV no tiene
- * credenciales hasta despues del pairing) y `/api/admin/tv/*` es staff con JWT —
- * asi que la validacion sintactica es la primera linea en ambas.
+ *
+ * El pairing por device token (RFC 8628) se elimino: la pantalla TV ahora es
+ * una vista del admin AUTENTICADA. Toda esta superficie es staff con JWT
+ * (`/api/admin/tv/*`), asi que la validacion sintactica sigue siendo la primera
+ * linea pero ya no hay una superficie publica separada.
  *
  * Los schemas de RESPUESTA no son decorativos: fast-json-stringify solo
  * serializa las propiedades declaradas, asi que actuan de red de contencion
- * contra una futura fuga de `token_hash` o `device_code_hash` si alguien cambia
- * un `select({...})` explicito por un `select()` (T-164-11 / T-164-14).
+ * contra una futura fuga de datos si alguien cambia un `select({...})`
+ * explicito por un `select()` (T-164-11).
  */
-
-/**
- * Alfabeto del `user_code` visible en la pantalla del TV (RFC 8628).
- *
- * Sin `I`, `1`, `O` ni `0`: el codigo se lee a 4 metros y despues se tipea en un
- * celular. 32 simbolos ^ 6 posiciones = 1.07e9 combinaciones.
- *
- * FUENTE UNICA: `pairing.ts` genera los codigos con este mismo array y el
- * `pattern` de abajo se deriva de el, de modo que el generador y el validador no
- * pueden divergir.
- */
-export const TV_USER_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-/** Largo del `user_code`. Ver `TV_USER_CODE_ALPHABET`. */
-export const TV_USER_CODE_LENGTH = 6;
-
-/** Regex del `user_code`, derivada del alfabeto (nunca escribirla a mano). */
-export const TV_USER_CODE_PATTERN = `^[${TV_USER_CODE_ALPHABET}]{${TV_USER_CODE_LENGTH}}$`;
-
-/**
- * Piso de largo del `device_code`. El real es `randomBytes(32).base64url` = 43
- * chars; 22 es el minimo defensivo (128 bits en base64url) para rechazar de
- * entrada cualquier intento de mandar el `user_code` de 6 chars por este campo
- * — que es exactamente el ataque del Pitfall 10.
- */
-export const TV_DEVICE_CODE_MIN_LENGTH = 22;
-
-/** Techo del `device_code`: nada legitimo supera los 64 chars. */
-const TV_DEVICE_CODE_MAX_LENGTH = 64;
-
-// ---------------------------------------------------------------------------
-// Rutas de dispositivo (publicas, prefijo /api/tv)
-// ---------------------------------------------------------------------------
-
-/**
- * POST /api/tv/pair/start
- *
- * Sin body: el TV todavia no sabe nada de si mismo (ni su sede, que la elige el
- * staff al reclamar — D-01). Solo se declara la respuesta.
- */
-export const tvPairStartSchema = {
-  response: {
-    201: {
-      type: "object",
-      required: ["userCode", "deviceCode"],
-      properties: {
-        userCode: { type: "string" },
-        // Secreto que el TV guarda en localStorage. Se emite UNA sola vez y
-        // nunca se muestra en pantalla ni se loguea.
-        deviceCode: { type: "string" },
-      },
-    },
-  },
-};
-
-export interface TvPairStartResponse {
-  userCode: string;
-  deviceCode: string;
-}
-
-/**
- * GET /api/tv/pair/status?deviceCode=...
- *
- * El poll viaja con el `device_code` SECRETO, jamas con el `user_code` visible
- * (Pattern 2 / Pitfall 10): adivinar el codigo de la pantalla no entrega ningun
- * token. El `minLength` ya rechaza sintacticamente ese intento.
- *
- * Sin schema de respuesta: el body es una union de 4 formas discriminadas por
- * `status` y fast-json-stringify borraria los campos de las variantes que no
- * matchean la primera. El handler devuelve objetos construidos a mano, campo por
- * campo, sin exponer nunca la fila.
- */
-export const tvPairStatusSchema = {
-  querystring: {
-    type: "object",
-    required: ["deviceCode"],
-    properties: {
-      deviceCode: {
-        type: "string",
-        minLength: TV_DEVICE_CODE_MIN_LENGTH,
-        maxLength: TV_DEVICE_CODE_MAX_LENGTH,
-      },
-    },
-  },
-};
-
-export interface TvPairStatusQuery {
-  deviceCode: string;
-}
-
-// ---------------------------------------------------------------------------
-// Rutas de dispositivo (device token, prefijo /api/tv)
-// ---------------------------------------------------------------------------
 
 /**
  * Timer del bloque, tal como se publica en el poll.
@@ -145,6 +53,35 @@ const tvTimerStateSchema = {
   },
 };
 
+/**
+ * Una linea de ejercicio dentro de una columna. `contraction` y `dose` viajan
+ * separados (rediseño fase 164, paridad con la app — `CompactExerciseList.vue`):
+ * el kiosco pinta el badge de contraccion y la dosis en dos zonas distintas.
+ */
+const tvExerciseSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    contraction: { type: "string" },
+    dose: { type: "string" },
+    videoUrl: { type: ["string", "null"] },
+  },
+};
+
+/**
+ * Una columna de nivel (rediseño fase 164 — dos niveles lado a lado). Un
+ * bloque shared (INITIUM/PYROS) manda UNA columna con la lista comun; un
+ * bloque no-shared manda una columna por nivel del par de `state.level` que
+ * este presente hoy (`pairFor`, `roster.ts`) — 1 o 2, nunca mas.
+ */
+const tvLevelColumnSchema = {
+  type: "object",
+  properties: {
+    header: { type: "string" },
+    exercises: { type: "array", items: tvExerciseSchema },
+  },
+};
+
 /** El bloque en vivo. `null` en el payload siempre que `screen !== "class"`. */
 const tvClassPayloadSchema = {
   type: "object",
@@ -167,40 +104,47 @@ const tvClassPayloadSchema = {
     blockRole: { type: "string" },
     // Pitfall 1: derivado del roster en cada lectura, nunca persistido.
     blockIndex: { type: "integer" },
+    // C1: bloque VISUAL (colapsa DEUTEROS_1/DEUTEROS_2), tambien derivado.
+    visualBlockIndex: { type: "integer" },
+    visualBlockCount: { type: "integer" },
     title: { type: "string" },
-    listHeader: { type: "string" },
     mobilityLine: { type: ["string", "null"] },
-    exercises: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          name: { type: "string" },
-          rx: { type: "string" },
-          videoUrl: { type: ["string", "null"] },
-        },
-      },
-    },
+    columns: { type: "array", items: tvLevelColumnSchema },
     exerciseIndex: { type: "integer" },
     timer: tvTimerStateSchema,
   },
 };
 
+// ---------------------------------------------------------------------------
+// Rutas de staff (JWT + TV_CONTROL_ROLES, prefijo /api/admin/tv)
+// ---------------------------------------------------------------------------
+
 /**
- * GET /api/tv/state — el poll del televisor (cada 2.5 s).
+ * GET /api/admin/tv/control/screen?branchId=NN
  *
- * Sin querystring ni params A PROPOSITO: la sede sale de la fila del
- * dispositivo (`request.tvDevice.branchId`). Si esta ruta aceptara un
- * `branchId`, un TV comprometido podria leer la clase de otra sucursal
- * (T-164-31).
+ * La proyeccion TV-facing (idle/class/closing) del estado de clase de una
+ * sede, AUTENTICADA y scopeada por `requireBranchAccess({ from:
+ * "query.branchId" })` — reemplaza al viejo `GET /api/tv/state`, que
+ * autenticaba por device token y sacaba la sede de la fila del dispositivo
+ * (T-164-31). Con el login de staff, la sede la elige quien pregunta, dentro
+ * de su scope, en vez de venir fija por un token de kiosco.
  *
- * El schema de respuesta es la red de contencion de D-09: fast-json-stringify
- * solo serializa lo declarado, asi que aunque alguien agregue mañana un campo
- * de diagnostico al payload, NO puede aparecer en la pared de la sede sin
+ * `branchId` requerido, misma forma que `tvControlContextSchema`.
+ *
+ * El schema de respuesta sigue siendo la red de contencion de D-09:
+ * fast-json-stringify solo serializa lo declarado, asi que un campo de
+ * diagnostico agregado mañana no puede aparecer en la pared de la sede sin
  * declararlo aca. El reposo es exactamente
  * `{ serverNow, branch, screen: "idle", class: null }`.
  */
-export const tvStateSchema = {
+export const tvControlScreenSchema = {
+  querystring: {
+    type: "object",
+    required: ["branchId"],
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+    },
+  },
   response: {
     200: {
       type: "object",
@@ -227,128 +171,6 @@ export const tvStateSchema = {
     },
   },
 };
-
-/**
- * POST /api/tv/client-log — el unico canal de diagnostico del kiosco.
- *
- * Nadie va a abrir devtools en un televisor colgado a 3 metros del piso, asi
- * que el TV reporta sus propios errores por aca. La superficie esta acotada a
- * proposito (T-164-34): `level` es un enum cerrado, `message` y `context`
- * tienen techo de largo, y no se acepta ningun campo mas — un dispositivo no
- * puede inflar los logs del servidor con estructuras arbitrarias.
- */
-export const tvClientLogSchema = {
-  body: {
-    type: "object",
-    required: ["level", "message"],
-    additionalProperties: false,
-    properties: {
-      // El nivel REPORTADO por el kiosco. Que se escriba siempre como warn en
-      // el log del server es decision del handler, no de este enum.
-      level: { type: "string", enum: ["warn", "error"] },
-      message: { type: "string", minLength: 1, maxLength: 500 },
-      context: { type: "string", minLength: 1, maxLength: 100 },
-    },
-  },
-};
-
-export interface TvClientLogBody {
-  level: "warn" | "error";
-  message: string;
-  context?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Rutas de staff (JWT + TV_CONTROL_ROLES, prefijo /api/admin/tv)
-// ---------------------------------------------------------------------------
-
-/**
- * POST /api/admin/tv/pair/claim
- *
- * `branchId` es obligatorio y ademas lo verifica `requireBranchAccess({ from:
- * "body.branchId" })`: la sede la elige el staff (D-01), acotado a su scope.
- *
- * `additionalProperties: false` (fase 169, CON-04) es la regla dura del
- * milestone v6.0 llevada a este borde: el `tenant_id` JAMAS viene del payload.
- * Este claim es el momento en que el pairing aprende de que gimnasio es, y ese
- * dato sale de `assertTenant(request.scope, …)`; con el schema abierto, un
- * `tenantId` colado en el body quedaria a un solo spread de distancia de la
- * escritura. Mismo precedente que `tvControlStateSchema` (T-164-43), donde la
- * mitigacion evita que el cliente cuele su propio sello de tiempo.
- */
-export const tvPairClaimSchema = {
-  body: {
-    type: "object",
-    required: ["userCode", "branchId"],
-    additionalProperties: false,
-    properties: {
-      userCode: { type: "string", pattern: TV_USER_CODE_PATTERN },
-      branchId: { type: "integer", minimum: 1 },
-      // Etiqueta libre para el panel ("TV sala grande"). Acotada en largo.
-      name: { type: "string", minLength: 1, maxLength: 100 },
-    },
-  },
-};
-
-export interface TvPairClaimBody {
-  userCode: string;
-  branchId: number;
-  name?: string;
-}
-
-/**
- * GET /api/admin/tv/devices?branchId=NN
- *
- * `branchId` es opcional (sin el, se listan todas las sedes del scope del
- * usuario). El schema de respuesta fija el contrato del panel y garantiza que
- * `token_hash` nunca pueda salir por esta ruta.
- */
-export const tvDevicesListSchema = {
-  querystring: {
-    type: "object",
-    properties: {
-      branchId: { type: "integer", minimum: 1 },
-    },
-  },
-  response: {
-    200: {
-      type: "object",
-      required: ["devices"],
-      properties: {
-        devices: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              id: { type: "integer" },
-              name: { type: ["string", "null"] },
-              branchId: { type: "integer" },
-              branchName: { type: ["string", "null"] },
-              isActive: { type: "boolean" },
-              // D-05: alimenta el "visto hace X".
-              lastSeenAt: { type: ["string", "null"], format: "date-time" },
-              createdAt: { type: "string", format: "date-time" },
-            },
-          },
-        },
-      },
-    },
-  },
-};
-
-export interface TvDevicesListQuery {
-  branchId?: number;
-}
-
-export interface TvDeviceListItem {
-  id: number;
-  name: string | null;
-  branchId: number;
-  branchName: string | null;
-  isActive: boolean;
-  lastSeenAt: Date | null;
-  createdAt: Date;
-}
 
 /**
  * GET /api/admin/tv/control/context?branchId=NN
@@ -446,24 +268,4 @@ export const tvControlEndClassSchema = {
 
 export interface TvControlEndClassBody {
   branchId: number;
-}
-
-/**
- * POST /api/admin/tv/devices/:id/revoke
- *
- * `:id` es el id del dispositivo, no de la sede — el acceso por sede se valida
- * en el handler contra la sede REAL de la fila (no se puede leer del payload).
- */
-export const tvDeviceRevokeSchema = {
-  params: {
-    type: "object",
-    required: ["id"],
-    properties: {
-      id: { type: "integer", minimum: 1 },
-    },
-  },
-};
-
-export interface TvDeviceIdParams {
-  id: number;
 }

@@ -280,7 +280,6 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
   const ACEPTADOS = [
     `${API}/src/db/seed.ts`,
     `${API}/src/jobs/notification-cron.ts`,
-    `${API}/src/modules/tv/pairing.ts`,
     `${API}/src/modules/wellhub/service.ts`,
   ];
 
