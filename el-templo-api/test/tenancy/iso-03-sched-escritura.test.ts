@@ -912,7 +912,7 @@ describe("crear actividad — POST /api/admin/scheduling/activities", () => {
     ).toBe(201);
     const body = JSON.parse(res.body) as { id: number };
     expect(
-      await tenantDeLaFila(app, "activities", body.id),
+      (await fotoDeActivity(body.id)).tenantId,
       `${RUTA}: la actividad creada por el staff del gimnasio ${TENANT_DOS} tiene que nacer con ese tenant_id.`,
     ).toBe(TENANT_DOS);
   });
