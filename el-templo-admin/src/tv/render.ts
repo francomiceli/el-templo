@@ -58,13 +58,13 @@ const COMPACT_OVER = 5;
 
 interface ClockNodes {
   head: Text;
-  seg: HTMLElement;
 }
 
 interface Nodes {
   fecha: HTMLElement;
   reloj: ClockNodes;
   titulo: HTMLElement;
+  formato: HTMLElement;
   movilidad: HTMLElement;
   bloqueNum: HTMLElement;
   dots: HTMLElement;
@@ -111,20 +111,16 @@ function clear(el: Element): void {
 }
 
 /**
- * Prepara un reloj: un nodo de texto para `HH:MM:` y un span para el segundero en oro.
+ * Prepara un reloj: un nodo de texto para `HH:MM` (el reloj de sede va SIN segundero).
  *
  * Se construye una sola vez, en vez de reusar los nodos de la plantilla, para no depender
  * de como quede el espaciado del HTML despues de formatearlo.
  */
 function clockNodes(host: HTMLElement): ClockNodes {
   clear(host);
-  const head = document.createTextNode('--:--:');
-  const seg = document.createElement('span');
-  seg.className = 'seg';
-  seg.textContent = '--';
+  const head = document.createTextNode('--:--');
   host.appendChild(head);
-  host.appendChild(seg);
-  return { head: head, seg: seg };
+  return { head: head };
 }
 
 function ensureNodes(): Nodes {
@@ -135,6 +131,7 @@ function ensureNodes(): Nodes {
     fecha: byId('fecha'),
     reloj: clockNodes(byId('reloj')),
     titulo: byId('titulo'),
+    formato: byId('formato'),
     movilidad: byId('movilidad'),
     bloqueNum: byId('bloqueNum'),
     dots: byId('dots'),
@@ -450,7 +447,12 @@ export function renderState(payload: TvPollResponse): void {
     lastBeepKey = null;
   }
 
-  setText(n.titulo, c.title);
+  // El título del API viene como "NOMBRE · FORMATO"; el nombre va arriba y el
+  // formato en la fila de abajo (INITIUM y demás customTitle no traen separador).
+  const sepTitulo = ' · ';
+  const iSep = c.title.indexOf(sepTitulo);
+  setText(n.titulo, iSep >= 0 ? c.title.slice(0, iSep) : c.title);
+  setText(n.formato, iSep >= 0 ? c.title.slice(iSep + sepTitulo.length) : '');
   setText(n.movilidad, c.mobilityLine ? c.mobilityLine : '');
   // Bloque VISUAL (colapsa DEUTEROS_1/DEUTEROS_2 en uno solo), no la entrada cruda del roster.
   setText(n.bloqueNum, 'BLOQUE ' + (c.visualBlockIndex + 1) + ' / ' + c.visualBlockCount);
@@ -467,13 +469,9 @@ export function renderState(payload: TvPollResponse): void {
 // =============================================================================
 
 function paintClock(clock: ClockNodes, d: Date): void {
-  const head = pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) + ':';
-  const seg = pad2(d.getUTCSeconds());
+  const head = pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
   if (clock.head.data !== head) {
     clock.head.data = head;
-  }
-  if (clock.seg.textContent !== seg) {
-    clock.seg.textContent = seg;
   }
 }
 

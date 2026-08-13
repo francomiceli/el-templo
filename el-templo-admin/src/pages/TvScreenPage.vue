@@ -46,7 +46,12 @@
             <img :src="tvLogo" alt="El Templo" />
             <div class="fecha" id="fecha"></div>
           </div>
-          <div class="reloj" id="reloj">--:--:<span class="seg">--</span></div>
+          <div class="topRight">
+            <div class="bloqueNum">
+              <span id="bloqueNum"></span><span class="dots" id="dots"></span>
+            </div>
+            <div class="reloj" id="reloj">--:--</div>
+          </div>
         </header>
 
         <!-- Cabecera: a la IZQUIERDA el nombre del bloque + formato + movilidad; a la
@@ -55,10 +60,8 @@
         <div class="cabecera">
           <div class="cabInfo">
             <h1 id="titulo"></h1>
+            <div class="formato" id="formato"></div>
             <div class="movilidad" id="movilidad"></div>
-            <div class="bloqueNum">
-              <span id="bloqueNum"></span><span class="dots" id="dots"></span>
-            </div>
           </div>
           <section class="cronometro" id="timerPanel">
             <div class="digitos" id="digitos">00:00</div>
@@ -76,7 +79,7 @@
         <div class="pantalla" id="pantallaReposo">
           <div class="reposoTop">
             <img class="logoGrande" :src="tvLogo" alt="El Templo" />
-            <div class="relojXl" id="reposoReloj">--:--:<span class="seg">--</span></div>
+            <div class="relojXl" id="reposoReloj">--:--</div>
             <div class="fechaXl" id="reposoFecha"></div>
           </div>
           <div class="reposoBottom">
@@ -88,7 +91,7 @@
           <div class="contenido">
             <img class="logoGrande" :src="tvLogo" alt="El Templo" />
             <div class="titulo" id="cierreTitulo"></div>
-            <div class="relojXl" id="cierreReloj">--:--:<span class="seg">--</span></div>
+            <div class="relojXl" id="cierreReloj">--:--</div>
             <div class="quote" id="cierreQuote"></div>
             <div class="autor" id="cierreAutor"></div>
           </div>
@@ -538,6 +541,11 @@ onUnmounted(() => {
   font-size: 1.5rem;
   color: var(--gold);
 }
+#tvScreenRoot .topbar .topRight {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
 #tvScreenRoot .topbar .reloj {
   font-family: var(--cinzel);
   font-weight: 700;
@@ -579,6 +587,14 @@ onUnmounted(() => {
   color: var(--navy);
   text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
 }
+/* Formato del bloque (ej. "AMRAP 10'") en su propia fila, debajo del nombre. */
+#tvScreenRoot .cabInfo .formato {
+  margin-top: 0.15rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-size: 2rem;
+  color: var(--gold);
+}
 #tvScreenRoot .cabInfo .movilidad {
   margin-top: 0.5rem;
   font-weight: 700;
@@ -586,20 +602,21 @@ onUnmounted(() => {
   font-size: 2.2rem;
   color: var(--gold);
 }
-#tvScreenRoot .cabInfo .bloqueNum {
+/* BLOQUE n/M vive en la topbar (a la izquierda del reloj); selectores sin
+   `.cabInfo` para que funcionen ahí. */
+#tvScreenRoot .bloqueNum {
   display: inline-flex;
   align-items: center;
-  margin-top: 0.5rem;
   font-weight: 700;
   letter-spacing: 0.2em;
   font-size: 1.3rem;
   color: var(--muted);
 }
-#tvScreenRoot .cabInfo .dots {
+#tvScreenRoot .bloqueNum .dots {
   display: inline-flex;
   margin-left: 0.5rem;
 }
-#tvScreenRoot .cabInfo .dot {
+#tvScreenRoot .bloqueNum .dot {
   width: 0.7rem;
   height: 0.7rem;
   border-radius: 50%;
@@ -607,14 +624,14 @@ onUnmounted(() => {
   opacity: 0.5;
   margin-right: 0.5rem;
 }
-#tvScreenRoot .cabInfo .dot:last-child {
+#tvScreenRoot .bloqueNum .dot:last-child {
   margin-right: 0;
 }
-#tvScreenRoot .cabInfo .dot.activo {
+#tvScreenRoot .bloqueNum .dot.activo {
   background: var(--gold);
   opacity: 1;
 }
-#tvScreenRoot .cabInfo .dot.hecho {
+#tvScreenRoot .bloqueNum .dot.hecho {
   background: var(--navy);
   opacity: 0.55;
 }
@@ -692,8 +709,13 @@ onUnmounted(() => {
   font-size: 1.6rem;
   letter-spacing: 0;
   text-transform: uppercase;
-  /* Texto casi pegado al borde: padding mínimo, la sigla llena el badge. */
+  /* Texto casi pegado al borde vertical: padding mínimo. Ancho fijo (min-width)
+     con texto centrado para que CON/EXC/ISO ocupen lo mismo y los nombres de los
+     ejercicios arranquen todos en la misma x. */
   padding: 0.02em 0.18em;
+  min-width: 4rem;
+  box-sizing: border-box;
+  text-align: center;
   border-radius: 0.3rem;
   line-height: 1.02;
   white-space: nowrap;
@@ -716,7 +738,7 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   font-size: 2rem;
-  color: var(--gold);
+  color: var(--navy);
   white-space: nowrap;
 }
 #tvScreenRoot .lista-col .caja.compacta .item {
