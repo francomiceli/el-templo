@@ -707,17 +707,24 @@ onUnmounted(() => {
 #tvScreenRoot .lista-col .caja {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: 1rem 1.7rem;
+  /* Los ítems se reparten en TODA la altura de la caja (el aire crece solo
+     cuando hay pocos ejercicios); row-gap es el respiro mínimo con listas largas. */
+  justify-content: space-evenly;
+  row-gap: 0.4rem;
+  padding: 1rem 1.2rem;
 }
 #tvScreenRoot .lista-col .item {
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  margin-bottom: 1.15rem;
+  /* Padding propio para que la banda cebra respire alrededor del texto. */
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.6rem;
 }
-#tvScreenRoot .lista-col .item:last-child {
-  margin-bottom: 0;
+/* Cebra: filas alternas con fondo sutil (sand translúcido) para seguir la
+   línea de lejos. */
+#tvScreenRoot .lista-col .item:nth-child(even) {
+  background: rgba(219, 202, 180, 0.35);
 }
 #tvScreenRoot .lista-col .item .ej-nombre {
   flex: 1 1 auto;
@@ -766,12 +773,6 @@ onUnmounted(() => {
   font-size: 2rem;
   color: var(--navy);
   white-space: nowrap;
-}
-#tvScreenRoot .lista-col .caja.compacta .item {
-  margin-bottom: 0.7rem;
-}
-#tvScreenRoot .lista-col .caja.compacta .item:last-child {
-  margin-bottom: 0;
 }
 #tvScreenRoot .lista-col .caja.compacta .item .ej-nombre {
   font-size: 1.85rem;
