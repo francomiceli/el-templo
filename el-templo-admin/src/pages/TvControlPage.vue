@@ -763,8 +763,21 @@ function onSelectBlock(role: string): void {
  * accidental no debe aplicarse solo: primero se confirma. Si el rol destino es
  * el actual no hay nada que cambiar.
  */
+/** DEUTEROS_1 y DEUTEROS_2 son dos caminos del MISMO bloque visual (espejo de
+ *  `visualGroupOf` en tv/roster.ts). */
+function visualGroupOf(role: string): string {
+  return role === 'DEUTEROS_1' || role === 'DEUTEROS_2' ? 'DEUTEROS' : role;
+}
+
 function requestBlockChange(role: string): void {
-  if (role === currentBlockRole.value) return;
+  const current = currentBlockRole.value;
+  if (role === current) return;
+  // Pasar de un DEUTEROS al otro es el MISMO bloque visual: no reinicia nada, así
+  // que se aplica directo, sin alerta. Solo se confirma al cambiar de bloque real.
+  if (visualGroupOf(role) === visualGroupOf(current)) {
+    void send({ blockRole: role });
+    return;
+  }
   pendingBlockRole.value = role;
   blockConfirmOpen.value = true;
 }
