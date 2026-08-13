@@ -189,9 +189,20 @@ export interface ListPromoPlansFilters {
  * vencimiento), el push no (una sub pausada no debe suprimir el aviso). Si
  * cambiás la semántica de cobertura, tocá los dos.
  */
+/**
+ * Fase 174.1-05b: `ctx` OPCIONAL al final — mismo Pattern D provisorio que
+ * `promoteWaitlist`/`countActiveBookings` (booking-service.ts). Esta función
+ * standalone la llaman 3 módulos (subscriptions/service.ts, referrals/service.ts,
+ * jobs/notification-cron.ts); solo el call site DENTRO de este plan
+ * (`getCoveredUntil` de abajo, y su caller `booking-service.ts::reserve`) ya
+ * resuelve `ctx` real. Threadear `ctx` hasta referrals/notification-cron
+ * arrastra call sites fuera de `files_modified` de este plan — queda para la
+ * fase 175 (mismo diferimiento que `activeMemberExists`, CONTEXT D-04).
+ */
 export async function deriveCoveredUntil(
   db: MySql2Database<typeof schema>,
   userId: number,
+  ctx?: TenantContext,
 ): Promise<string | null> {
   const rows = await db
     .select({
@@ -200,6 +211,9 @@ export async function deriveCoveredUntil(
     .from(schema.subscriptions)
     .where(
       and(
+        ctx
+          ? tenantWhere(schema.subscriptions, ctx)
+          : isNotNull(schema.subscriptions.tenantId),
         eq(schema.subscriptions.userId, userId),
         inArray(schema.subscriptions.status, ["active", "scheduled"]),
         isNotNull(schema.subscriptions.endDate),
@@ -744,7 +758,9 @@ export class SubscriptionService {
     const rows = await this.db
       .select()
       .from(schema.subscriptionPlans)
-      .where(and(...conditions))
+      // Fase 174.1-05b: `tenantWhere` INLINE, redundante con el de `conditions`
+      // arriba (D-02 del PATTERNS) — ESTE statement es el que el lint mira.
+      .where(and(tenantWhere(schema.subscriptionPlans, ctx), ...conditions))
       .orderBy(schema.subscriptionPlans.name);
 
     return Promise.all(rows.map((r) => this.mapPlanRow(ctx, r)));
@@ -990,9 +1006,17 @@ export class SubscriptionService {
    * Lets callers holding the service (booking-service, subscriptions/routes)
    * reuse the one covered-until derivation the cron imports directly. No
    * duplicated query body.
+   *
+   * Fase 174.1-05b: `ctx` OPCIONAL al final — su caller dentro de este plan
+   * (`booking-service.ts::reserve`) ya lo trae; `subscriptions/member-routes.ts`
+   * queda con el fallback Pattern D hasta su propia migración (fuera de
+   * `files_modified`, fase 175).
    */
-  async getCoveredUntil(userId: number): Promise<string | null> {
-    return deriveCoveredUntil(this.db, userId);
+  async getCoveredUntil(
+    userId: number,
+    ctx?: TenantContext,
+  ): Promise<string | null> {
+    return deriveCoveredUntil(this.db, userId, ctx);
   }
 
   /**
@@ -1192,7 +1216,7 @@ export class SubscriptionService {
       );
 
     const mapped = rows.map((r) => this.mapSubscriptionRow(r));
-    return this.enrichManyWithScheduleIds(mapped);
+    return this.enrichManyWithScheduleIds(ctx, mapped);
   }
 
   /**
@@ -1324,7 +1348,7 @@ export class SubscriptionService {
       .orderBy(desc(schema.subscriptions.createdAt));
 
     const mapped = rows.map((r) => this.mapSubscriptionRow(r));
-    return this.enrichManyWithScheduleIds(mapped);
+    return this.enrichManyWithScheduleIds(ctx, mapped);
   }
 
   /**
@@ -5333,13 +5357,27 @@ export class SubscriptionService {
       await this.db
         .update(schema.subscriptions)
         .set({ status: "completed" })
-        .where(inArray(schema.subscriptions.id, completedIds));
+        .where(
+          and(
+            ctx
+              ? tenantWhere(schema.subscriptions, ctx)
+              : isNotNull(schema.subscriptions.tenantId),
+            inArray(schema.subscriptions.id, completedIds),
+          ),
+        );
     }
     if (expiredOnlyIds.length > 0) {
       await this.db
         .update(schema.subscriptions)
         .set({ status: "expired" })
-        .where(inArray(schema.subscriptions.id, expiredOnlyIds));
+        .where(
+          and(
+            ctx
+              ? tenantWhere(schema.subscriptions, ctx)
+              : isNotNull(schema.subscriptions.tenantId),
+            inArray(schema.subscriptions.id, expiredOnlyIds),
+          ),
+        );
     }
 
     // Phase 112-02: for every just-expired sub, tear down owned enrollments
@@ -5423,14 +5461,28 @@ export class SubscriptionService {
         previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
       })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, scheduledId));
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          eq(schema.subscriptions.id, scheduledId),
+        ),
+      );
 
     if (!scheduled) return;
 
     await this.db
       .update(schema.subscriptions)
       .set({ status: "active" })
-      .where(eq(schema.subscriptions.id, scheduledId));
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          eq(schema.subscriptions.id, scheduledId),
+        ),
+      );
 
     // If there's no predecessor (shouldn't happen for scheduled), we're done.
     if (!scheduled.previousSubscriptionId) return;
@@ -5452,7 +5504,14 @@ export class SubscriptionService {
         branchId: schema.subscriptions.branchId,
       })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, scheduled.previousSubscriptionId));
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          eq(schema.subscriptions.id, scheduled.previousSubscriptionId),
+        ),
+      );
 
     if (!prevSub) return;
 
@@ -5832,7 +5891,7 @@ export class SubscriptionService {
     const scheduleIds = await this.getSubscriptionScheduleIds(ctx, sub.id);
     const scheduleSlots =
       scheduleIds.length > 0
-        ? await this.getScheduleSlotDetails(scheduleIds)
+        ? await this.getScheduleSlotDetails(ctx, scheduleIds)
         : [];
 
     return {
@@ -5869,8 +5928,14 @@ export class SubscriptionService {
 
   /**
    * Fetch schedule slot details (day, time, activity) for given schedule IDs.
+   *
+   * Fase 174.1-05b: `ctx` REQUERIDO — su único caller (`getClassUsageThisWeek`)
+   * ya lo trae real (no nullable).
    */
-  private async getScheduleSlotDetails(scheduleIds: number[]): Promise<
+  private async getScheduleSlotDetails(
+    ctx: TenantContext,
+    scheduleIds: number[],
+  ): Promise<
     Array<{
       id: number;
       dayOfWeek: number;
@@ -5893,7 +5958,12 @@ export class SubscriptionService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
-      .where(inArray(schema.schedules.id, scheduleIds))
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          inArray(schema.schedules.id, scheduleIds),
+        ),
+      )
       .orderBy(schema.schedules.dayOfWeek, schema.schedules.startTime);
     return rows;
   }
@@ -5920,8 +5990,15 @@ export class SubscriptionService {
    * with a long history, holds a pool connection per row and starves the pool
    * under concurrent admin load (root cause of the simultaneous 10s timeouts on
    * the member detail tab). This collapses it to a single `IN (...)` query.
+   *
+   * Fase 174.1-05b: `ctx` REQUERIDO PERO nullable (`TenantContext | null`) —
+   * sus dos callers difieren: `getMemberSubscriptions` sigue con Pattern D
+   * (`ctx` nullable, deuda de la 174 sin cerrar acá) y
+   * `getMemberSubscriptionHistory` ya resuelve ctx real. Mismo molde que
+   * `getPlanById`/`autoExpireSubscriptions`.
    */
   private async enrichManyWithScheduleIds(
+    ctx: TenantContext | null,
     details: SubscriptionDetail[],
   ): Promise<SubscriptionDetail[]> {
     if (details.length === 0) return details;
@@ -5933,9 +6010,14 @@ export class SubscriptionService {
       })
       .from(schema.subscriptionSchedules)
       .where(
-        inArray(
-          schema.subscriptionSchedules.subscriptionId,
-          details.map((d) => d.id),
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptionSchedules, ctx)
+            : isNotNull(schema.subscriptionSchedules.tenantId),
+          inArray(
+            schema.subscriptionSchedules.subscriptionId,
+            details.map((d) => d.id),
+          ),
         ),
       );
 

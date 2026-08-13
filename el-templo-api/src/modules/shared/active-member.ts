@@ -21,10 +21,34 @@
  * Returns a Drizzle `SQL` fragment — NOT a class, NOT an entity. Parameterized
  * by the user-id column to embed in any WHERE/SELECT (e.g.
  * `activeMemberExists(schema.users.id)`).
+ *
+ * TENANT-SAFETY DE LOS 4 FRAGMENTOS DE ESTE ARCHIVO (174.1-05b)
+ * ---------------------------------------------------------------
+ * Las 4 funciones de abajo devuelven un `EXISTS(SELECT ... FROM subscriptions
+ * / subscription_plans ...)` que NUNCA se ejecuta como query propia: viaja
+ * AND-eado dentro de una query EXTERNA que el caller ya arma con
+ * `tenantWhere(schema.users, ctx)` o `tenantWhere(schema.subscriptions, ctx)`
+ * (verificado por grep sobre los 10 call sites, 174.1-05b — todos dentro de
+ * un `tenantWhere` real). La correlación es por `user_id`, globalmente único
+ * desde la fase 166: las filas de `subscriptions`/`subscription_plans` que
+ * matchean son del MISMO tenant que el socio externo por FK, sin importar si
+ * ese socio llegó como `users.id` o como `subscriptions.userId` de una fila
+ * ya tenant-scoped. Por eso el runtime NUNCA filtra cross-tenant aunque el
+ * texto de este archivo no lleve `tenant_id` — pero el lint estático SÍ lo
+ * marca (el `FROM subscriptions` vive acá, sin el literal en su propio
+ * texto), así que cada `return` lleva la exención `tenant-safe` de abajo.
+ * Threadear `ctx` real hasta acá (para que el propio EXISTS lleve
+ * `tenant_id`) queda diferido a la fase 175 — arrastra los 10 call sites de
+ * analytics/members/reports y no es necesario para el switch: alcanza con
+ * que el statement externo ya filtre.
  */
 import { sql, type SQL, type AnyColumn } from "drizzle-orm";
 
 export function activeMemberExists(userIdColumn: AnyColumn): SQL {
+  /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
+     ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
+     tenantWhere-scoped (sobre users o sobre subscriptions). Adopción de ctx
+     real diferida a fase 175. */
   return sql`EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = ${userIdColumn}
@@ -47,6 +71,9 @@ export function activeMemberExists(userIdColumn: AnyColumn): SQL {
  * EXISTS. Solo cae quien tiene ÚNICAMENTE subs especiales vigentes.
  */
 export function activeNonEspecialMemberExists(userIdColumn: AnyColumn): SQL {
+  /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
+     ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
+     tenantWhere-scoped. Adopción de ctx real diferida a fase 175. */
   return sql`EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = ${userIdColumn}
@@ -69,6 +96,9 @@ export function activeNonEspecialMemberExists(userIdColumn: AnyColumn): SQL {
 export function activePayingNonEspecialMemberExists(
   userIdColumn: AnyColumn,
 ): SQL {
+  /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
+     ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
+     tenantWhere-scoped. Adopción de ctx real diferida a fase 175. */
   return sql`EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = ${userIdColumn}
@@ -88,6 +118,9 @@ export function activePayingNonEspecialMemberExists(
  * y su comprador cuenta como miembro activo ahí (D-11).
  */
 export function activePayingMemberExists(userIdColumn: AnyColumn): SQL {
+  /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
+     ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
+     tenantWhere-scoped. Adopción de ctx real diferida a fase 175. */
   return sql`EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = ${userIdColumn}
