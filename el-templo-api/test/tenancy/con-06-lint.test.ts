@@ -374,9 +374,10 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
 
     expect(
       new Set(REAL_RESULT.violations.map((v) => v.table)).size,
-      "con el punto ciego cerrado, la lente estática llega a las 87 tablas gym-owned con deuda que " +
-        "el sentinel ve en runtime. Si este número baja, alguna forma de import volvió a quedar afuera.",
-    ).toBeGreaterThanOrEqual(87);
+      "con el punto ciego cerrado, la lente estática llega a las 85 tablas gym-owned con deuda que " +
+        "el sentinel ve en runtime (en master: el TV login borró pairing/device-auth/device-routes, " +
+        "únicos que importaban tv_pairings/tv_devices → 85 y no 87). Si baja MÁS, algún import quedó afuera.",
+    ).toBeGreaterThanOrEqual(85);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
