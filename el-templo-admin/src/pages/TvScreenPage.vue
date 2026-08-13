@@ -40,39 +40,40 @@
 
     <div v-else class="tvWrap">
       <div id="tv">
+        <!-- Barra superior: logo + fecha (sin "EL TEMPLO", el logo ya es la marca). -->
         <header class="topbar">
           <div class="marca">
             <img :src="tvLogo" alt="El Templo" />
-            <div>
-              <div class="sede" id="sede">EL TEMPLO</div>
-              <div class="fecha" id="fecha"></div>
-            </div>
+            <div class="fecha" id="fecha"></div>
           </div>
           <div class="reloj" id="reloj">--:--:<span class="seg">--</span></div>
         </header>
 
+        <!-- Cabecera: a la IZQUIERDA el nombre del bloque + formato + movilidad; a la
+             DERECHA el cronómetro (movido acá desde la columna de ejercicios, para que la
+             lista recupere todo el ancho). -->
         <div class="cabecera">
-          <h1 id="titulo"></h1>
-          <div class="movilidad" id="movilidad"></div>
-          <div class="bloqueNum">
-            <span id="bloqueNum"></span><span class="dots" id="dots"></span>
+          <div class="cabInfo">
+            <h1 id="titulo"></h1>
+            <div class="movilidad" id="movilidad"></div>
+            <div class="bloqueNum">
+              <span id="bloqueNum"></span><span class="dots" id="dots"></span>
+            </div>
           </div>
+          <section class="cronometro" id="timerPanel">
+            <div class="fase" id="fase">LISTOS</div>
+            <div class="digitos" id="digitos">00:00</div>
+            <div class="sub" id="sub"></div>
+            <div class="barra"><i id="progreso"></i></div>
+            <div class="hint" id="hint"></div>
+          </section>
         </div>
 
+        <!-- Lista de ejercicios, ahora a todo el ancho. -->
         <main class="stage" id="stage">
           <section class="col panel listaCol">
             <div class="cabCol" id="cabNivel"></div>
             <div class="caja" id="listaBox"></div>
-          </section>
-          <section class="col panel timerCaja" id="timerPanel">
-            <div class="cabCol" id="timerCab"></div>
-            <div class="caja">
-              <div class="fase" id="fase">LISTOS</div>
-              <div class="digitos" id="digitos">00:00</div>
-              <div class="sub" id="sub"></div>
-              <div class="barra"><i id="progreso"></i></div>
-              <div class="hint" id="hint"></div>
-            </div>
           </section>
         </main>
 
@@ -523,21 +524,14 @@ onUnmounted(() => {
   margin-right: 2rem;
 }
 #tvScreenRoot .topbar .marca img {
-  height: 3rem;
+  height: 4.5rem;
   display: block;
-  margin-right: 1rem;
-}
-#tvScreenRoot .topbar .sede {
-  font-family: var(--cinzel);
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  font-size: 1.3rem;
-  color: var(--navy);
+  margin-right: 1.2rem;
 }
 #tvScreenRoot .topbar .fecha {
   font-weight: 700;
   letter-spacing: 0.14em;
-  font-size: 0.95rem;
+  font-size: 1.5rem;
   color: var(--gold);
 }
 #tvScreenRoot .topbar .reloj {
@@ -553,43 +547,55 @@ onUnmounted(() => {
   color: var(--gold);
 }
 
-/* ── Título del bloque ── */
+/* ── Cabecera: info del bloque (izquierda, alineada a la izquierda) + cronómetro
+   (derecha). El cronómetro salió de la zona de ejercicios para darle todo el ancho
+   a la lista. ── */
 #tvScreenRoot .cabecera {
   flex: 0 0 auto;
-  text-align: center;
-  padding: 0 2rem;
+  display: flex;
+  align-items: stretch;
+  gap: 1.5rem;
+  padding: 0.3rem 2rem 0.7rem;
 }
-#tvScreenRoot .cabecera h1 {
+#tvScreenRoot .cabInfo {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: left;
+}
+#tvScreenRoot .cabInfo h1 {
   margin: 0;
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.09em;
-  font-size: 2.7rem;
+  font-size: 2.6rem;
   line-height: 1.1;
   color: var(--navy);
   text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
 }
-#tvScreenRoot .cabecera .movilidad {
-  margin-top: 0.2rem;
+#tvScreenRoot .cabInfo .movilidad {
+  margin-top: 0.35rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
-  font-size: 1.05rem;
+  letter-spacing: 0.1em;
+  font-size: 1.45rem;
   color: var(--gold);
 }
-#tvScreenRoot .cabecera .bloqueNum {
+#tvScreenRoot .cabInfo .bloqueNum {
   display: inline-flex;
   align-items: center;
-  margin-top: 0.25rem;
+  margin-top: 0.4rem;
   font-weight: 700;
   letter-spacing: 0.2em;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--muted);
 }
-#tvScreenRoot .cabecera .dots {
+#tvScreenRoot .cabInfo .dots {
   display: inline-flex;
   margin-left: 0.5rem;
 }
-#tvScreenRoot .cabecera .dot {
+#tvScreenRoot .cabInfo .dot {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
@@ -597,20 +603,20 @@ onUnmounted(() => {
   opacity: 0.5;
   margin-right: 0.4rem;
 }
-#tvScreenRoot .cabecera .dot:last-child {
+#tvScreenRoot .cabInfo .dot:last-child {
   margin-right: 0;
 }
-#tvScreenRoot .cabecera .dot.activo {
+#tvScreenRoot .cabInfo .dot.activo {
   background: var(--gold);
   opacity: 1;
 }
-#tvScreenRoot .cabecera .dot.hecho {
+#tvScreenRoot .cabInfo .dot.hecho {
   background: var(--navy);
   opacity: 0.55;
 }
 
-/* ── Zona principal: DOS columnas 50/50 — lista de ejercicios a la izquierda,
-   timer a la derecha (sin columna de video). */
+/* ── Zona principal: la lista de ejercicios ocupa TODO el ancho (el cronómetro ya
+   no vive acá, se movió a la cabecera). ── */
 #tvScreenRoot .stage {
   flex: 1 1 auto;
   display: flex;
@@ -624,11 +630,7 @@ onUnmounted(() => {
   min-width: 0;
 }
 #tvScreenRoot .listaCol {
-  flex: 0 0 50%;
-  padding-right: 1.2rem;
-}
-#tvScreenRoot .timerCaja {
-  flex: 0 0 50%;
+  flex: 1 1 100%;
 }
 #tvScreenRoot .cabCol {
   font-weight: 700;
@@ -648,12 +650,12 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* Columna 1: lista de ejercicios. */
+/* Lista de ejercicios (a todo el ancho). */
 #tvScreenRoot .listaCol .caja {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 1rem 1.4rem;
+  padding: 1rem 2.2rem;
 }
 #tvScreenRoot .listaCol .item {
   display: flex;
@@ -661,8 +663,8 @@ onUnmounted(() => {
   align-items: baseline;
   font-weight: 700;
   color: var(--navy);
-  font-size: 1.9rem;
-  line-height: 1.45;
+  font-size: 2.1rem;
+  line-height: 1.5;
   margin-bottom: 0.7rem;
 }
 #tvScreenRoot .listaCol .item:last-child {
@@ -679,7 +681,7 @@ onUnmounted(() => {
   color: var(--gold);
 }
 #tvScreenRoot .listaCol .caja.compacta .item {
-  font-size: 1.35rem;
+  font-size: 1.55rem;
   line-height: 1.45;
   margin-bottom: 0.4rem;
 }
@@ -687,62 +689,65 @@ onUnmounted(() => {
   margin-bottom: 0;
 }
 
-/* Timer */
-#tvScreenRoot .timerCaja .caja {
+/* ── Cronómetro: caja bordó a la derecha de la cabecera (el `.cronometro` ES la caja,
+   ya no hay un `.caja` interno). Más compacto que cuando ocupaba media pantalla. ── */
+#tvScreenRoot .cronometro {
+  flex: 0 0 38%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  padding: 1rem;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border: 0.22rem solid var(--gold);
+  border-radius: 1rem;
   transition:
     border-color 0.3s,
     background-color 0.3s;
 }
-#tvScreenRoot .timerCaja.descanso .caja {
+#tvScreenRoot .cronometro.descanso {
   border-color: var(--muted);
 }
-#tvScreenRoot .timerCaja.completo .caja {
+#tvScreenRoot .cronometro.completo {
   background: rgba(219, 202, 180, 0.35);
 }
-#tvScreenRoot .timerCaja .fase {
+#tvScreenRoot .cronometro .fase {
   font-family: var(--cinzel);
   font-weight: 700;
-  letter-spacing: 0.28em;
-  font-size: 1.9rem;
+  letter-spacing: 0.24em;
+  font-size: 1.3rem;
   color: var(--gold);
   text-align: center;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.15rem;
 }
-#tvScreenRoot .timerCaja.descanso .fase {
+#tvScreenRoot .cronometro.descanso .fase {
   color: var(--muted);
 }
-#tvScreenRoot .timerCaja .digitos {
+#tvScreenRoot .cronometro .digitos {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 7rem;
+  font-size: 5rem;
   line-height: 1;
   color: var(--navy);
-  margin-bottom: 0.6rem;
 }
-#tvScreenRoot .timerCaja .sub {
+#tvScreenRoot .cronometro .sub {
   font-weight: 700;
   letter-spacing: 0.14em;
-  font-size: 1.3rem;
+  font-size: 1.05rem;
   color: var(--gold);
-  min-height: 1.3em;
+  min-height: 1.05em;
   text-align: center;
-  margin-bottom: 0.5rem;
+  margin-top: 0.15rem;
 }
-#tvScreenRoot .timerCaja .barra {
-  width: 78%;
-  height: 0.45rem;
+#tvScreenRoot .cronometro .barra {
+  width: 82%;
+  height: 0.4rem;
   background: rgba(197, 185, 168, 0.5);
   border-radius: 99px;
   overflow: hidden;
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
 }
-#tvScreenRoot .timerCaja .barra i {
+#tvScreenRoot .cronometro .barra i {
   display: block;
   height: 100%;
   width: 0%;
@@ -750,12 +755,12 @@ onUnmounted(() => {
   border-radius: 99px;
   transition: width 0.2s linear;
 }
-#tvScreenRoot .timerCaja .hint {
+#tvScreenRoot .cronometro .hint {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   letter-spacing: 0.1em;
   color: var(--muted);
-  margin-top: 0.8rem;
+  margin-top: 0.5rem;
   text-align: center;
 }
 @keyframes tvScreenPulso {
@@ -763,11 +768,11 @@ onUnmounted(() => {
     opacity: 0.5;
   }
 }
-#tvScreenRoot .timerCaja.trabajo .fase {
+#tvScreenRoot .cronometro.trabajo .fase {
   animation: tvScreenPulso 1s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  #tvScreenRoot .timerCaja .fase {
+  #tvScreenRoot .cronometro .fase {
     animation: none !important;
   }
   #tvScreenRoot .listaCol .item {

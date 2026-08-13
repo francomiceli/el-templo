@@ -46,9 +46,6 @@ const log = createTvLogger('render');
 const LEVEL_SYMBOLS = '☉αΔΣ';
 const KAIROS_SYMBOL = '☉';
 
-/** Separador que usa el API entre el rol y el formato: `NUCLEUS · TABATA 20"/10" ×8`. */
-const TITLE_SEPARATOR = ' · ';
-
 /** Cada cuanto rota la frase de reposo/cierre (D-06/D-08). */
 const QUOTE_ROTATION_MS = 60 * 1000;
 
@@ -65,7 +62,6 @@ interface ClockNodes {
 }
 
 interface Nodes {
-  sede: HTMLElement;
   fecha: HTMLElement;
   reloj: ClockNodes;
   titulo: HTMLElement;
@@ -75,7 +71,6 @@ interface Nodes {
   cabNivel: HTMLElement;
   listaBox: HTMLElement;
   timerPanel: HTMLElement;
-  timerCab: HTMLElement;
   fase: HTMLElement;
   digitos: HTMLElement;
   sub: HTMLElement;
@@ -137,7 +132,6 @@ function ensureNodes(): Nodes {
     return nodes;
   }
   nodes = {
-    sede: byId('sede'),
     fecha: byId('fecha'),
     reloj: clockNodes(byId('reloj')),
     titulo: byId('titulo'),
@@ -147,7 +141,6 @@ function ensureNodes(): Nodes {
     cabNivel: byId('cabNivel'),
     listaBox: byId('listaBox'),
     timerPanel: byId('timerPanel'),
-    timerCab: byId('timerCab'),
     fase: byId('fase'),
     digitos: byId('digitos'),
     sub: byId('sub'),
@@ -265,12 +258,6 @@ function classOf(payload: TvPollResponse): TvClassPayload | null {
   return payload.screen === 'class' ? payload.class : null;
 }
 
-/** Formato del bloque para el header del timer: lo que sigue al `·` del titulo. */
-function formatLabel(title: string): string {
-  const at = title.lastIndexOf(TITLE_SEPARATOR);
-  return at >= 0 ? title.substring(at + TITLE_SEPARATOR.length) : title;
-}
-
 /**
  * Fecha calendario de la sede: DÍA DD DE MES AAAA (ej. `MARTES 12 DE AGOSTO 2026`).
  *
@@ -367,9 +354,8 @@ export function renderState(payload: TvPollResponse): void {
   last = payload;
 
   // Topbar (se ve en la pantalla de clase; en reposo/cierre queda tapada por el overlay).
-  // La marca dice solo "EL TEMPLO" (sin la sede) y abajo la fecha calendario del día;
-  // el `dateLabel` del API (DÍA · SEMANA n) ya no se muestra.
-  setText(n.sede, 'EL TEMPLO');
+  // La marca es solo el logo + la fecha calendario del día; ya no hay texto "EL TEMPLO"
+  // ni el `dateLabel` del API (DÍA · SEMANA n).
   const fecha = formatFecha(nowCorrected(), payload.branch.utcOffsetMinutes);
   setText(n.fecha, fecha);
   setText(n.reposoFecha, fecha);
@@ -400,8 +386,6 @@ export function renderState(payload: TvPollResponse): void {
   }
 
   paintList(n, c);
-
-  setText(n.timerCab, formatLabel(c.title));
 
   // Que el timer no espere hasta 250 ms para reflejar un start/reset del profe.
   tickTimer();
@@ -585,7 +569,7 @@ export function tickTimer(): void {
   const frame = phaseAt(elapsedFrom(c.timer, nowCorrected()), c.timer.spec);
   const paint = timerPaint(c, frame);
 
-  setClass(n.timerPanel, 'col panel timerCaja' + (paint.clase ? ' ' + paint.clase : ''));
+  setClass(n.timerPanel, 'cronometro' + (paint.clase ? ' ' + paint.clase : ''));
   setText(n.fase, paint.fase);
   setText(n.digitos, paint.digitos);
   setText(n.sub, paint.sub);
