@@ -137,7 +137,7 @@
         <!-- muestra los dos niveles del par lado a lado), no nivel por nivel.     -->
         <div class="tv-section-title">NIVELES</div>
         <div class="row q-col-gutter-sm">
-          <div v-for="pair in levelPairs" :key="pair.targetLevel" class="col-6">
+          <div v-for="pair in levelPairs" :key="pair.targetLevel" class="col-12">
             <q-btn
               class="tv-btn full-width"
               :color="isActivePair(pair) ? 'primary' : 'grey-7'"
@@ -311,6 +311,27 @@
       </q-card>
     </q-dialog>
 
+    <q-dialog v-model="blockConfirmOpen">
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6">¿Pasar al bloque {{ pendingBlockLabel }}?</div>
+        </q-card-section>
+        <q-card-section class="text-body2">
+          Cambiar de bloque reinicia el cronómetro del bloque actual. Confirmá para no
+          interrumpirlo por error.
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="grey-7" v-close-popup />
+          <q-btn
+            unelevated
+            color="primary"
+            label="Sí, pasar al bloque"
+            @click="confirmBlockChange"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-dialog v-model="confirmEndOpen" persistent>
       <q-card style="min-width: 320px">
         <q-card-section>
@@ -410,6 +431,9 @@ const contextError = ref<string | null>(null);
 /** Una request de control en vuelo: bloquea la botonera contra el doble tap. */
 const busy = ref(false);
 const confirmEndOpen = ref(false);
+/** Confirmación antes de cambiar de bloque: un mis-tap no debe interrumpir el bloque en curso. */
+const blockConfirmOpen = ref(false);
+const pendingBlockRole = ref<string | null>(null);
 /** Advertencia de sede: se abre explícitamente (re-entrada del día o cambio manual), no al montar. */
 const sedeWarningOpen = ref(false);
 /** Modal de selección de sedes por turno: solo la 1ª vez que el profe entra en el día. */
@@ -616,6 +640,14 @@ function blockName(block: TvControlBlock): string {
   return i >= 0 ? block.title.slice(0, i) : block.title;
 }
 
+/** Nombre del bloque destino pendiente de confirmar, para el modal. */
+const pendingBlockLabel = computed(() => {
+  const role = pendingBlockRole.value;
+  if (role === null) return '';
+  const block = (context.value?.blocks ?? []).find((b) => b.role === role);
+  return block ? blockName(block) : '';
+});
+
 // =========================================================================
 // Lectura del contexto
 // =========================================================================
@@ -713,11 +745,29 @@ function onBlockStep(delta: number): void {
   const blocks = context.value?.blocks ?? [];
   const target = blocks[blockIndex.value + delta];
   if (!target) return;
-  void send({ blockRole: target.role });
+  requestBlockChange(target.role);
 }
 
 function onSelectBlock(role: string): void {
+  requestBlockChange(role);
+}
+
+/**
+ * Cambiar de bloque reinicia el cronómetro del bloque en curso, así que un tap
+ * accidental no debe aplicarse solo: primero se confirma. Si el rol destino es
+ * el actual no hay nada que cambiar.
+ */
+function requestBlockChange(role: string): void {
   if (role === currentBlockRole.value) return;
+  pendingBlockRole.value = role;
+  blockConfirmOpen.value = true;
+}
+
+function confirmBlockChange(): void {
+  const role = pendingBlockRole.value;
+  blockConfirmOpen.value = false;
+  pendingBlockRole.value = null;
+  if (role === null) return;
   void send({ blockRole: role });
 }
 
