@@ -61,19 +61,21 @@
           <div class="cabInfo">
             <h1 id="titulo"></h1>
             <div class="formato" id="formato"></div>
-            <div class="movilidad" id="movilidad"></div>
           </div>
           <section class="cronometro" id="timerPanel">
             <div class="digitos" id="digitos">00:00</div>
             <div class="sub" id="sub"></div>
             <div class="barra"><i id="progreso"></i></div>
-            <div class="hint" id="hint"></div>
           </section>
         </div>
 
         <!-- Columnas de nivel (1 o 2, rediseño fase 164): `render.ts` `paintList`
              las arma a mano por cada poll, no vienen fijas acá. -->
         <main class="stage" id="stage"></main>
+
+        <!-- Movilidad: fila al pie de la pantalla, debajo de las columnas. Se
+             oculta sola (:empty) cuando el bloque no trae línea de movilidad. -->
+        <div class="movBar" id="movilidad"></div>
 
         <!-- Reposo: reloj en la mitad superior, frase en la mitad inferior. -->
         <div class="pantalla" id="pantallaReposo">
@@ -539,7 +541,7 @@ onUnmounted(() => {
   font-weight: 700;
   letter-spacing: 0.14em;
   font-size: 1.5rem;
-  color: var(--gold);
+  color: var(--navy);
 }
 #tvScreenRoot .topbar .topRight {
   display: flex;
@@ -590,17 +592,27 @@ onUnmounted(() => {
 /* Formato del bloque (ej. "AMRAP 10'") en su propia fila, debajo del nombre. */
 #tvScreenRoot .cabInfo .formato {
   margin-top: 0.15rem;
+  font-family: var(--cinzel);
   font-weight: 700;
-  letter-spacing: 0.1em;
-  font-size: 2rem;
+  letter-spacing: 0.09em;
+  font-size: 3.2rem;
+  line-height: 1.1;
   color: var(--gold);
 }
-#tvScreenRoot .cabInfo .movilidad {
-  margin-top: 0.5rem;
+/* Movilidad: fila al pie de la pantalla (debajo de las columnas), texto centrado
+   en itálica y en el navy de los ejercicios. Se oculta sola si viene vacía. */
+#tvScreenRoot .movBar {
+  flex: 0 0 auto;
+  text-align: center;
+  font-style: italic;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  font-size: 2.2rem;
-  color: var(--gold);
+  letter-spacing: 0.06em;
+  font-size: 2rem;
+  color: var(--navy);
+  padding: 0.5rem 2rem 0.9rem;
+}
+#tvScreenRoot .movBar:empty {
+  display: none;
 }
 /* BLOQUE n/M vive en la topbar (a la izquierda del reloj); selectores sin
    `.cabInfo` para que funcionen ahí. */
@@ -756,7 +768,7 @@ onUnmounted(() => {
    se lee por la OPACIDAD de los dígitos (apagados → plenos al arrancar) y el color del
    marco. Más angosto que antes para darle aire al título/formato/movilidad. ── */
 #tvScreenRoot .cronometro {
-  flex: 0 0 32%;
+  flex: 0 0 26%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -813,14 +825,6 @@ onUnmounted(() => {
   background: var(--gold);
   border-radius: 99px;
   transition: width 0.2s linear;
-}
-#tvScreenRoot .cronometro .hint {
-  font-weight: 700;
-  font-size: 0.78rem;
-  letter-spacing: 0.1em;
-  color: var(--muted);
-  margin-top: 0.5rem;
-  text-align: center;
 }
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .lista-col .item {

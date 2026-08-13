@@ -75,7 +75,6 @@ interface Nodes {
   digitos: HTMLElement;
   sub: HTMLElement;
   progreso: HTMLElement;
-  hint: HTMLElement;
   pantallaReposo: HTMLElement;
   reposoReloj: ClockNodes;
   reposoFecha: HTMLElement;
@@ -140,7 +139,6 @@ function ensureNodes(): Nodes {
     digitos: byId('digitos'),
     sub: byId('sub'),
     progreso: byId('progreso'),
-    hint: byId('hint'),
     pantallaReposo: byId('pantallaReposo'),
     reposoReloj: clockNodes(byId('reposoReloj')),
     reposoFecha: byId('reposoFecha'),
@@ -311,7 +309,7 @@ function formatFecha(nowMs: number, utcOffsetMinutes: number): string {
     d.getUTCDate() +
     ' DE ' +
     MESES[d.getUTCMonth()] +
-    ' ' +
+    ' DE ' +
     d.getUTCFullYear()
   );
 }
@@ -641,7 +639,6 @@ export function tickTimer(): void {
   setClass(n.timerPanel, 'cronometro' + (paint.clase ? ' ' + paint.clase : ''));
   setText(n.digitos, paint.digitos);
   setText(n.sub, paint.sub);
-  setText(n.hint, paint.hint);
   // La barra muestra el tiempo QUE QUEDA: arranca llena (100%) y se vacía a medida que
   // corre el bloque (progreso 0→100 ⇒ ancho 100→0).
   const ancho = Math.round(100 - paint.progreso) + '%';
