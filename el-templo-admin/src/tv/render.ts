@@ -412,6 +412,29 @@ function paintList(n: Nodes, c: TvClassPayload): void {
 }
 
 /**
+ * Movilidad al pie: la etiqueta "MOVILIDAD" va en oro (como los headers de
+ * NIVEL) y el resto (ejercicios + dosis) en el navy de los ejercicios. El
+ * elemento queda vacío (:empty → oculto) cuando el bloque no trae movilidad.
+ */
+function paintMovilidad(host: HTMLElement, line: string | null): void {
+  clear(host);
+  if (!line) {
+    return;
+  }
+  const sep = ' · ';
+  const i = line.indexOf(sep);
+  if (i < 0) {
+    host.appendChild(document.createTextNode(line));
+    return;
+  }
+  const label = document.createElement('span');
+  label.className = 'movLabel';
+  label.textContent = line.slice(0, i);
+  host.appendChild(label);
+  host.appendChild(document.createTextNode(line.slice(i)));
+}
+
+/**
  * Pinta un estado nuevo del API. Idempotente: solo escribe lo que cambio.
  *
  * D-09: cuando no hay clase el payload dice `idle` y no trae un solo campo de error — el
@@ -432,8 +455,8 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   const c = classOf(payload);
-  setVisible(n.pantallaReposo, 'pantalla', !c && payload.screen !== 'closing');
-  setVisible(n.pantallaCierre, 'pantalla', payload.screen === 'closing');
+  setVisible(n.pantallaReposo, 'pantalla dosMitades', !c && payload.screen !== 'closing');
+  setVisible(n.pantallaCierre, 'pantalla dosMitades', payload.screen === 'closing');
 
   if (!c) {
     return;
@@ -451,7 +474,7 @@ export function renderState(payload: TvPollResponse): void {
   const iSep = c.title.indexOf(sepTitulo);
   setText(n.titulo, iSep >= 0 ? c.title.slice(0, iSep) : c.title);
   setText(n.formato, iSep >= 0 ? c.title.slice(iSep + sepTitulo.length) : '');
-  setText(n.movilidad, c.mobilityLine ? c.mobilityLine : '');
+  paintMovilidad(n.movilidad, c.mobilityLine);
   // Bloque VISUAL (colapsa DEUTEROS_1/DEUTEROS_2 en uno solo), no la entrada cruda del roster.
   setText(n.bloqueNum, 'BLOQUE ' + (c.visualBlockIndex + 1) + ' / ' + c.visualBlockCount);
   paintDots(n, c);

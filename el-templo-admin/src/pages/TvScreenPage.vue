@@ -89,11 +89,16 @@
             <div class="autor" id="reposoAutor"></div>
           </div>
         </div>
+        <!-- Cierre: mismo layout que reposo (dos mitades), pero arriba va
+             "SESIÓN COMPLETA" en vez del reloj grande, y el reloj va chico en la
+             esquina superior derecha (como en los bloques). -->
         <div class="pantalla" id="pantallaCierre">
-          <div class="contenido">
+          <div class="relojEsquina" id="cierreReloj">--:--</div>
+          <div class="reposoTop">
             <img class="logoGrande" :src="tvLogo" alt="El Templo" />
-            <div class="titulo" id="cierreTitulo"></div>
-            <div class="relojXl" id="cierreReloj">--:--</div>
+            <div class="cierreTitulo" id="cierreTitulo">SESIÓN COMPLETA</div>
+          </div>
+          <div class="reposoBottom">
             <div class="quote" id="cierreQuote"></div>
             <div class="autor" id="cierreAutor"></div>
           </div>
@@ -463,6 +468,7 @@ onUnmounted(() => {
 #tvScreenRoot .glyph {
   font-family: var(--glyph);
   color: var(--navy);
+  text-transform: none;
 }
 /* Porcentaje de esfuerzo dentro del header de columna (lo envuelve render.ts).
    Mismo color que los dígitos del cronómetro (--navy), no un azul inventado. */
@@ -552,7 +558,7 @@ onUnmounted(() => {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 2.3rem;
+  font-size: 2.8rem;
   line-height: 1;
   color: var(--navy);
   white-space: nowrap;
@@ -576,7 +582,7 @@ onUnmounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   text-align: left;
 }
 #tvScreenRoot .cabInfo h1 {
@@ -597,7 +603,8 @@ onUnmounted(() => {
   letter-spacing: 0.09em;
   font-size: 3.2rem;
   line-height: 1.1;
-  color: var(--gold);
+  color: var(--navy);
+  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
 }
 /* Movilidad: fila al pie de la pantalla (debajo de las columnas), texto centrado
    en itálica y en el navy de los ejercicios. Se oculta sola si viene vacía. */
@@ -613,6 +620,10 @@ onUnmounted(() => {
 }
 #tvScreenRoot .movBar:empty {
   display: none;
+}
+/* La etiqueta "MOVILIDAD" en oro (como el header de NIVEL); el resto queda navy. */
+#tvScreenRoot .movBar .movLabel {
+  color: var(--gold);
 }
 /* BLOQUE n/M vive en la topbar (a la izquierda del reloj); selectores sin
    `.cabInfo` para que funcionen ahí. */
@@ -678,6 +689,9 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* La ruta va en mayúscula (NIVEL ya lo está); el símbolo de nivel se exceptúa
+     abajo para no transformar el glyph. */
+  text-transform: uppercase;
 }
 #tvScreenRoot .caja {
   flex: 1;
@@ -738,7 +752,7 @@ onUnmounted(() => {
 }
 #tvScreenRoot .lista-col .item .badge--exc {
   background: var(--gold);
-  color: var(--navy);
+  color: var(--cream);
 }
 #tvScreenRoot .lista-col .item .badge--iso {
   background: var(--sand);
@@ -899,27 +913,35 @@ onUnmounted(() => {
   color: var(--gold);
   margin-top: 1rem;
 }
-#tvScreenRoot #pantallaCierre .titulo {
+#tvScreenRoot #pantallaCierre .cierreTitulo {
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.09em;
-  font-size: 4.4rem;
+  font-size: 6rem;
   line-height: 1.1;
   color: var(--navy);
   text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
-  margin-bottom: 1.5rem;
 }
-#tvScreenRoot #pantallaCierre .relojXl {
-  font-size: 6rem;
+/* Reloj chico en la esquina superior derecha (como la topbar de los bloques). */
+#tvScreenRoot #pantallaCierre .relojEsquina {
+  position: absolute;
+  top: 0.9rem;
+  right: 2rem;
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 2.8rem;
+  line-height: 1;
+  color: var(--navy);
 }
-/* ── Reposo: dos mitades — reloj (un poco más chico) centrado arriba, frase (más
-   grande) centrada abajo. Se scopea a #pantallaReposo para no tocar la de cierre. ── */
-#tvScreenRoot #pantallaReposo.visible {
+/* ── Dos mitades (reposo Y cierre): logo + elemento grande centrado arriba,
+   frase centrada abajo. El reloj grande y la fecha son propios del reposo. ── */
+#tvScreenRoot .pantalla.dosMitades.visible {
   display: flex;
   flex-direction: column;
 }
-#tvScreenRoot #pantallaReposo .reposoTop,
-#tvScreenRoot #pantallaReposo .reposoBottom {
+#tvScreenRoot .dosMitades .reposoTop,
+#tvScreenRoot .dosMitades .reposoBottom {
   flex: 1 1 50%;
   min-height: 0;
   display: flex;
@@ -928,19 +950,19 @@ onUnmounted(() => {
   justify-content: center;
   padding: 1.5rem 6rem;
 }
-#tvScreenRoot #pantallaReposo .logoGrande {
+#tvScreenRoot .dosMitades .logoGrande {
   height: 5rem;
   margin-bottom: 1rem;
+}
+#tvScreenRoot .dosMitades .quote {
+  font-size: 3.4rem;
+  max-width: 82%;
+  margin-top: 0;
 }
 #tvScreenRoot #pantallaReposo .relojXl {
   font-size: 10rem;
 }
 #tvScreenRoot #pantallaReposo .fechaXl {
   margin-top: 1rem;
-}
-#tvScreenRoot #pantallaReposo .quote {
-  font-size: 3.4rem;
-  max-width: 82%;
-  margin-top: 0;
 }
 </style>
