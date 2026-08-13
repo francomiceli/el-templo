@@ -375,12 +375,21 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     // La etiqueta del formato ahora es formatName + params compactos, igual que el PDF
     // de planis (formatNameWithParams, espejo de session-data-transformer.ts).
     expect(cls.title).toBe("NUCLEUS · AMRAP 10'");
+    expect(cls.mobilityLine).toBe('MOVILIDAD · Movilidad de hombro 20"');
+    // Rediseño fase 164: `state.level` es alfa, su par es [alfa, delta]
+    // (`LEVEL_PAIRS`/`pairFor` en roster.ts) y AMBOS estan presentes hoy en
+    // NUCLEUS -> dos columnas, alfa primero (orden del par).
+    expect(cls.columns).toHaveLength(2);
     // El nombre completo de la ruta (OAP → "Dominadas"), igual que el PDF de
     // planis: `getRouteLabel` (espejo de `route-labels.ts` del admin).
-    expect(cls.listHeader).toBe("NIVEL α | Dominadas 70%");
-    expect(cls.mobilityLine).toBe('MOVILIDAD · Movilidad de hombro 20"');
-    expect(cls.exercises).toHaveLength(3);
-    expect(cls.exercises[0].rx).toBe("8-10 CON.");
+    expect(cls.columns[0].header).toBe("NIVEL α | Dominadas 70%");
+    expect(cls.columns[0].exercises).toHaveLength(3);
+    expect(cls.columns[0].exercises[0].contraction).toBe("CON");
+    expect(cls.columns[0].exercises[0].dose).toBe("8-10");
+    // La columna delta resuelve SU PROPIO bloque NUCLEUS (1 ejercicio: el
+    // default de `seedSession` cuando no se pasa `nucleusExercises`).
+    expect(cls.columns[1].header).toBe("NIVEL Δ | Dominadas 70%");
+    expect(cls.columns[1].exercises).toHaveLength(1);
     expect(cls.exerciseIndex).toBe(1);
     // El timer viaja como spec + sello, nunca como segundos restantes.
     expect(cls.timer.spec).toEqual({ kind: "countdown", totalMs: 600_000 });
@@ -455,15 +464,93 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
 
     expect(cls.blocks[0].shared).toBe(true);
     expect(cls.levelLabel).toBe("TODOS LOS NIVELES");
-    expect(cls.listHeader).toBe("INITIUM | TODOS LOS NIVELES");
+    // Bloque shared -> UNA sola columna, con la lista comun.
+    expect(cls.columns).toHaveLength(1);
+    expect(cls.columns[0].header).toBe("INITIUM | TODOS LOS NIVELES");
+    expect(cls.columns[0].exercises[0].contraction).toBe("CON");
     // Formato dictado por la estructura (tabata): sin volumen inventado.
-    expect(cls.exercises[0].rx).toBe("CON.");
+    expect(cls.columns[0].exercises[0].dose).toBe("");
     expect(cls.timer.spec).toEqual({
       kind: "work_rest",
       workMs: 20_000,
       restMs: 10_000,
       rounds: 8,
     });
+  });
+
+  it("con un solo nivel del par presente hoy, la columna es UNA sola", async () => {
+    // Solo alfa tiene sesion aprobada: el par de alfa es [alfa, delta]
+    // (`pairFor`), pero delta no esta en `classDay.levels` -> se filtra.
+    await seedSession({ level: "alfa", roles: ["INITIUM", "NUCLEUS"] });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "NUCLEUS",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    expect(cls.columns).toHaveLength(1);
+    expect(cls.columns[0].header).toBe("NIVEL α | Dominadas 70%");
+  });
+
+  it("una prescripcion ISO en segundos se formatea con comillas (dose) y su contraccion cruda viaja en `contraction`", async () => {
+    // Bloque armado a mano (sin `seedSession`, que solo produce CON con reps)
+    // para ejercitar la rama de `prescriptionVolume` que formatea segundos.
+    const [session] = await app.db
+      .insert(schema.sessions)
+      .values({
+        dayId: "W1-martes-alfa",
+        week: 1,
+        day: "martes",
+        levelGroup: "alfa_delta",
+        blockCount: 1,
+        status: "approved",
+      })
+      .$returningId();
+    const [block] = await app.db
+      .insert(schema.sessionBlocks)
+      .values({
+        sessionId: session.id,
+        blockId: `B-${session.id}-0`,
+        role: "NUCLEUS",
+        route: "OAP",
+        pattern: "TRACCION",
+        intensity: 70,
+        repsBudget: 40,
+        formatId: 1,
+        formatName: "AMRAP",
+        formatParams: { type: "amrap", minutes: 10 },
+        exerciseCount: 1,
+        sortOrder: 0,
+      })
+      .$returningId();
+    await app.db.insert(schema.sessionPrescriptions).values({
+      blockId: block.id,
+      exerciseId,
+      exerciseName: "Plancha isometrica",
+      contraction: "ISO",
+      reps: 0,
+      seconds: 20,
+      rest: 0,
+      sortOrder: 0,
+      exerciseType: "main",
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "NUCLEUS",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    expect(cls.columns).toHaveLength(1);
+    expect(cls.columns[0].exercises[0].contraction).toBe("ISO");
+    expect(cls.columns[0].exercises[0].dose).toBe('20"');
   });
 
   it("el payload no lleva NI UN dato de socio (T-164-21)", async () => {

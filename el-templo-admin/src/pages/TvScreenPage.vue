@@ -68,13 +68,9 @@
           </section>
         </div>
 
-        <!-- Lista de ejercicios, ahora a todo el ancho. -->
-        <main class="stage" id="stage">
-          <section class="col panel listaCol">
-            <div class="cabCol" id="cabNivel"></div>
-            <div class="caja" id="listaBox"></div>
-          </section>
-        </main>
+        <!-- Columnas de nivel (1 o 2, rediseño fase 164): `render.ts` `paintList`
+             las arma a mano por cada poll, no vienen fijas acá. -->
+        <main class="stage" id="stage"></main>
 
         <!-- Reposo: reloj en la mitad superior, frase en la mitad inferior. -->
         <div class="pantalla" id="pantallaReposo">
@@ -617,11 +613,15 @@ onUnmounted(() => {
   opacity: 0.55;
 }
 
-/* ── Zona principal: la lista de ejercicios ocupa TODO el ancho (el cronómetro ya
-   no vive acá, se movió a la cabecera). ── */
+/* ── Zona principal: hasta DOS columnas de nivel lado a lado, 50/50 (rediseño
+   fase 164 — el control elige el nivel por PARES). `render.ts` `paintList`
+   crea 1 o 2 `.lista-col` acá adentro por cada poll; con una sola columna
+   (bloque shared, o un solo nivel del par presente hoy) ocupa el ancho
+   entero igual que antes. ── */
 #tvScreenRoot .stage {
   flex: 1 1 auto;
   display: flex;
+  gap: 1.3rem;
   padding: 0.6rem 2rem 1.4rem;
   min-height: 0;
 }
@@ -631,13 +631,13 @@ onUnmounted(() => {
   min-height: 0;
   min-width: 0;
 }
-#tvScreenRoot .listaCol {
-  flex: 1 1 100%;
+#tvScreenRoot .lista-col {
+  flex: 1 1 0;
 }
 #tvScreenRoot .cabCol {
   font-weight: 700;
   letter-spacing: 0.06em;
-  font-size: 1.7rem;
+  font-size: 1.5rem;
   color: var(--gold);
   padding: 0 0.3rem 0.5rem;
   white-space: nowrap;
@@ -652,43 +652,79 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* Lista de ejercicios (a todo el ancho). */
-#tvScreenRoot .listaCol .caja {
+/* Lista de ejercicios: cada item apila DOS filas (como la app,
+   `CompactExerciseList.vue`) — nombre arriba, badge de contracción + dosis
+   abajo — en vez de una sola línea nombre/rx a los extremos. */
+#tvScreenRoot .lista-col .caja {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 1rem 2.2rem;
+  padding: 1rem 1.7rem;
 }
-#tvScreenRoot .listaCol .item {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  font-weight: 700;
-  color: var(--navy);
-  font-size: 2.1rem;
-  line-height: 1.5;
-  margin-bottom: 0.7rem;
+#tvScreenRoot .lista-col .item {
+  margin-bottom: 0.65rem;
 }
-#tvScreenRoot .listaCol .item:last-child {
+#tvScreenRoot .lista-col .item:last-child {
   margin-bottom: 0;
 }
-#tvScreenRoot .listaCol .item .ej::before {
+#tvScreenRoot .lista-col .item .ej-nombre {
+  font-weight: 700;
+  color: var(--navy);
+  font-size: 1.65rem;
+  line-height: 1.25;
+}
+#tvScreenRoot .lista-col .item .ej-nombre::before {
   content: '•  ';
   color: var(--gold);
 }
-#tvScreenRoot .listaCol .item .rx {
-  font-variant-numeric: tabular-nums;
+#tvScreenRoot .lista-col .item .ej-dosis {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+  /* Alinea con el texto del nombre, después de la viñeta "• ". */
+  padding-left: 1.1em;
+}
+/* Badge de contracción: TRES colores distintos (a diferencia de la app, que
+   comparte color entre CON/ISO) para que se distingan de un vistazo desde
+   lejos. Tokens del marco #tvScreenRoot. */
+#tvScreenRoot .lista-col .item .badge {
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.16rem 0.6rem;
+  border-radius: 0.4rem;
+  line-height: 1.4;
   white-space: nowrap;
-  margin-left: 1rem;
+}
+#tvScreenRoot .lista-col .item .badge--con {
+  background: var(--navy);
+  color: var(--cream);
+}
+#tvScreenRoot .lista-col .item .badge--exc {
+  background: var(--gold);
+  color: var(--navy);
+}
+#tvScreenRoot .lista-col .item .badge--iso {
+  background: var(--sand);
+  color: var(--navy);
+}
+#tvScreenRoot .lista-col .item .dosis {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1rem;
   color: var(--gold);
 }
-#tvScreenRoot .listaCol .caja.compacta .item {
-  font-size: 1.55rem;
-  line-height: 1.45;
+#tvScreenRoot .lista-col .caja.compacta .item {
   margin-bottom: 0.4rem;
 }
-#tvScreenRoot .listaCol .caja.compacta .item:last-child {
+#tvScreenRoot .lista-col .caja.compacta .item:last-child {
   margin-bottom: 0;
+}
+#tvScreenRoot .lista-col .caja.compacta .item .ej-nombre {
+  font-size: 1.3rem;
+  line-height: 1.2;
 }
 
 /* ── Cronómetro: caja bordó a la derecha de la cabecera. Sin etiqueta de fase: el estado
@@ -762,7 +798,7 @@ onUnmounted(() => {
   text-align: center;
 }
 @media (prefers-reduced-motion: reduce) {
-  #tvScreenRoot .listaCol .item {
+  #tvScreenRoot .lista-col .item {
     transition: none;
   }
 }

@@ -133,17 +133,19 @@
         </div>
 
         <!-- ============================ NIVELES ============================ -->
+        <!-- Rediseño fase 164: el control elige el nivel por PARES (la pantalla   -->
+        <!-- muestra los dos niveles del par lado a lado), no nivel por nivel.     -->
         <div class="tv-section-title">NIVELES</div>
         <div class="row q-col-gutter-sm">
-          <div v-for="level in context.levels" :key="level" class="col-6">
+          <div v-for="pair in levelPairs" :key="pair.targetLevel" class="col-6">
             <q-btn
               class="tv-btn full-width"
-              :color="level === currentLevel ? 'primary' : 'grey-7'"
-              :outline="level !== currentLevel"
-              :unelevated="level === currentLevel"
-              :label="levelLabel(level)"
+              :color="isActivePair(pair) ? 'primary' : 'grey-7'"
+              :outline="!isActivePair(pair)"
+              :unelevated="isActivePair(pair)"
+              :label="pair.label"
               :disable="!canControl || levelsDisabled"
-              @click="onSelectLevel(level)"
+              @click="onSelectLevel(pair.targetLevel)"
             />
           </div>
         </div>
@@ -284,19 +286,43 @@ const tvApi = useTvApi();
 const REFRESH_MS = 30000;
 
 /**
- * Símbolos de nivel del UI-SPEC. En sesión ROM (sábado) no existe la escalera
- * alfa/delta/sigma: son dos tiers rotulados BÁSICO / AVANZADO (D-23).
+ * En sesión ROM (sábado) no existe la escalera alfa/delta/sigma: son dos
+ * tiers rotulados BÁSICO / AVANZADO (D-23).
  */
-const LEVEL_SYMBOLS: Record<string, string> = {
-  alfa: 'α',
-  delta: 'Δ',
-  sigma: 'Σ',
-  kairos: '☉',
-};
 const ROM_LEVEL_LABELS: Record<string, string> = {
   alfa: 'BÁSICO',
   delta: 'AVANZADO',
 };
+
+/**
+ * Pares de nivel del TV (rediseño fase 164 — el control elige el nivel por
+ * PARES, no por nivel individual). Espejo a propósito de `LEVEL_PAIRS` en
+ * `el-templo-api/src/modules/tv/roster.ts`: cambiar uno REQUIERE el cambio
+ * espejo en el otro.
+ */
+const LEVEL_PAIRS: readonly (readonly [string, string])[] = [
+  ['alfa', 'delta'],
+  ['sigma', 'kairos'],
+  ['omega', 'spartan'],
+];
+
+/** Nombre completo de cada nivel (sesión regular), para el label del par. */
+const LEVEL_NAME_LABELS: Record<string, string> = {
+  alfa: 'ALFA',
+  delta: 'DELTA',
+  sigma: 'SIGMA',
+  kairos: 'KAIROS',
+  omega: 'OMEGA',
+  spartan: 'SPARTAN',
+};
+
+/** Un botón de par de nivel: a qué nivel apunta el tap y cómo se rotula. */
+interface LevelPairOption {
+  levels: readonly string[];
+  label: string;
+  /** Primer nivel del par presente hoy — el que manda `onSelectLevel`. */
+  targetLevel: string;
+}
 
 // =========================================================================
 // Estado
@@ -367,9 +393,30 @@ const timerStatus = computed(() => context.value?.state?.timerStatus ?? 'idle');
 const soundEnabled = computed(() => context.value?.state?.soundEnabled === true);
 const isClosingScreen = computed(() => context.value?.state?.screen === 'closing');
 
-function levelLabel(level: string): string {
-  if (context.value?.mode === 'rom') return ROM_LEVEL_LABELS[level] ?? level.toUpperCase();
-  return LEVEL_SYMBOLS[level] ?? level.toUpperCase();
+/**
+ * Pares DISPONIBLES hoy: solo los que tienen al menos un nivel presente en
+ * `context.levels` (un sábado ROM, por ejemplo, solo tiene alfa/delta — los
+ * otros dos pares quedan afuera). El label junta los DOS nombres del par
+ * completo, presente o no, unidos por " Y "; el tap manda el primer nivel del
+ * par que sí está presente hoy.
+ */
+const levelPairs = computed<LevelPairOption[]>(() => {
+  const levels = context.value?.levels ?? [];
+  const mode = context.value?.mode ?? 'regular';
+  const options: LevelPairOption[] = [];
+  for (const pair of LEVEL_PAIRS) {
+    const present = pair.filter((lvl) => levels.includes(lvl));
+    if (present.length === 0) continue;
+    const names = pair.map((lvl) =>
+      mode === 'rom' ? (ROM_LEVEL_LABELS[lvl] ?? lvl.toUpperCase()) : LEVEL_NAME_LABELS[lvl] ?? lvl.toUpperCase()
+    );
+    options.push({ levels: pair, label: names.join(' Y '), targetLevel: present[0] });
+  }
+  return options;
+});
+
+function isActivePair(pair: LevelPairOption): boolean {
+  return pair.levels.includes(currentLevel.value);
 }
 
 /**

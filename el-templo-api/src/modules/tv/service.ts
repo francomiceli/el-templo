@@ -30,7 +30,13 @@ import {
   type ClassDayBlock,
   type ClassDayPrescription,
 } from "./class-day";
-import { buildRoster, findBlock, findInitiumBlock, visualGroupOf } from "./roster";
+import {
+  buildRoster,
+  findBlock,
+  findInitiumBlock,
+  pairFor,
+  visualGroupOf,
+} from "./roster";
 import { getRouteLabel } from "./route-labels";
 import { toTimerSpec } from "./timer-spec";
 import type {
@@ -40,6 +46,7 @@ import type {
   TvControlContext,
   TvControlState,
   TvExercise,
+  TvLevelColumn,
   TvPollResponse,
   TvScreen,
   TvStateWrite,
@@ -93,13 +100,6 @@ const DAY_LABELS: Record<string, string> = {
   viernes: "VIERNES",
   sabado: "SÁBADO",
   domingo: "DOMINGO",
-};
-
-/** Abreviatura de contraccion, igual que el PDF. */
-const CONTRACTION_ABBR: Record<string, string> = {
-  CON: "CON.",
-  EXC: "EXC.",
-  ISO: "ISO.",
 };
 
 /**
@@ -725,19 +725,85 @@ export class TvService {
     return symbol ? `NIVEL ${symbol}` : level.toUpperCase();
   }
 
+  /**
+   * `contraction` y `dose` viajan SEPARADOS (rediseño fase 164, paridad con la
+   * app — `CompactExerciseList.vue`): el badge de contraccion y la dosis son
+   * dos zonas visuales distintas, no un string ya concatenado como el viejo
+   * `rx`. `contraction` sale CRUDO ('CON'/'EXC'/'ISO', tal cual lo guarda la
+   * DB) para que el kiosco elija el color del badge — la abreviatura con
+   * punto ("CON.") que usaba el PDF ya no aplica, el badge muestra la sigla
+   * sola.
+   */
   private toExercise(
     p: ClassDayPrescription,
     formatDictated: boolean,
   ): TvExercise {
     const name = p.weighted ? `${p.exerciseName} (W)` : p.exerciseName;
-    const contraction = CONTRACTION_ABBR[p.contraction] ?? p.contraction;
-    const volume = formatDictated ? "" : prescriptionVolume(p);
     return {
       name,
-      rx: [volume, contraction].filter(Boolean).join(" "),
+      contraction: p.contraction,
+      dose: formatDictated ? "" : prescriptionVolume(p),
       // Nunca concatenar R2_PUBLIC_URL a mano: la key vive sola en la DB.
       videoUrl: assembleVideoUrl(p.videoKey),
     };
+  }
+
+  /**
+   * Las columnas del bloque en curso (fase 164 rediseño — dos niveles lado a
+   * lado; el control elige el NIVEL por PARES).
+   *
+   * Shared (INITIUM/PYROS): UNA columna con la lista comun, igual que antes
+   * salia por `listHeader`/`exercises` a secas — `block` ya es el bloque
+   * canonico de INITIUM (`resolveBlock` ignora el nivel para ese rol) y
+   * `formatDictated` es el que calculo el caller para ESE bloque.
+   *
+   * No shared: una columna por nivel del PAR de `state.level` que este
+   * presente en `classDay.levels` (`pairFor`, `roster.ts`) — 1 o 2, nunca mas.
+   * Cada columna resuelve SU PROPIO bloque (mismo rol, nivel del par): dos
+   * niveles del mismo dia pueden tener ruta/intensidad/formato distintos
+   * (Pitfall 1), asi que el header y el `formatDictated` de cada columna
+   * salen de su propio bloque, no del bloque de `state.level`.
+   */
+  private buildColumns(
+    classDay: ClassDay,
+    state: TvControlState,
+    shared: boolean,
+    block: ClassDayBlock | undefined,
+    formatDictated: boolean,
+  ): TvLevelColumn[] {
+    if (shared) {
+      return [
+        {
+          header: `INITIUM | ${ALL_LEVELS_LABEL}`,
+          exercises: this.mainPrescriptions(block).map((p) =>
+            this.toExercise(p, formatDictated),
+          ),
+        },
+      ];
+    }
+
+    const pairLevels = pairFor(state.level).filter((lvl) =>
+      classDay.levels.includes(lvl),
+    );
+    // Defensivo: `state.level` siempre esta en `classDay.levels` (clampState
+    // lo garantiza) y `pairFor` siempre incluye al propio nivel en su par, asi
+    // que esto nunca deberia quedar vacio — pero un payload sin columnas
+    // dejaria al TV sin lista, asi que el fallback no se saca.
+    const levels = pairLevels.length > 0 ? pairLevels : [state.level];
+
+    return levels.map((level) => {
+      const levelBlock = this.resolveBlock(classDay, state.blockRole, level);
+      const dictated =
+        !!levelBlock?.formatParams &&
+        FORMAT_DICTATED_TYPES.has(levelBlock.formatParams.type);
+      const label = this.levelLabel(classDay, level, false);
+      return {
+        header: `${label} | ${getRouteLabel(levelBlock?.route)} ${levelBlock?.intensity ?? 0}%`,
+        exercises: this.mainPrescriptions(levelBlock).map((p) =>
+          this.toExercise(p, dictated),
+        ),
+      };
+    });
   }
 
   private buildClassPayload(
@@ -763,8 +829,10 @@ export class TvService {
     const visualBlockIndex =
       rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
 
+    // El bloque de `state.level`: sigue siendo la fuente UNICA del titulo, la
+    // movilidad y el timer (uno solo, como antes) aunque las columnas de
+    // ejercicios ahora puedan venir de dos niveles distintos.
     const block = this.resolveBlock(classDay, state.blockRole, state.level);
-    const prescriptions = this.mainPrescriptions(block);
     const formatDictated =
       !!block?.formatParams &&
       FORMAT_DICTATED_TYPES.has(block.formatParams.type);
@@ -787,14 +855,11 @@ export class TvService {
       visualBlockIndex,
       visualBlockCount,
       title: summary?.title ?? "",
-      listHeader: shared
-        ? `INITIUM | ${ALL_LEVELS_LABEL}`
-        : `${levelLabel} | ${getRouteLabel(block?.route)} ${block?.intensity ?? 0}%`,
       mobilityLine:
         mobility && mobility.length > 0
           ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`
           : null,
-      exercises: prescriptions.map((p) => this.toExercise(p, formatDictated)),
+      columns: this.buildColumns(classDay, state, shared, block, formatDictated),
       exerciseIndex: state.exerciseIndex,
       timer: {
         spec: toTimerSpec(block?.formatParams ?? null),

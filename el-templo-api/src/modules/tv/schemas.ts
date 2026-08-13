@@ -53,6 +53,35 @@ const tvTimerStateSchema = {
   },
 };
 
+/**
+ * Una linea de ejercicio dentro de una columna. `contraction` y `dose` viajan
+ * separados (rediseño fase 164, paridad con la app — `CompactExerciseList.vue`):
+ * el kiosco pinta el badge de contraccion y la dosis en dos zonas distintas.
+ */
+const tvExerciseSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    contraction: { type: "string" },
+    dose: { type: "string" },
+    videoUrl: { type: ["string", "null"] },
+  },
+};
+
+/**
+ * Una columna de nivel (rediseño fase 164 — dos niveles lado a lado). Un
+ * bloque shared (INITIUM/PYROS) manda UNA columna con la lista comun; un
+ * bloque no-shared manda una columna por nivel del par de `state.level` que
+ * este presente hoy (`pairFor`, `roster.ts`) — 1 o 2, nunca mas.
+ */
+const tvLevelColumnSchema = {
+  type: "object",
+  properties: {
+    header: { type: "string" },
+    exercises: { type: "array", items: tvExerciseSchema },
+  },
+};
+
 /** El bloque en vivo. `null` en el payload siempre que `screen !== "class"`. */
 const tvClassPayloadSchema = {
   type: "object",
@@ -79,19 +108,8 @@ const tvClassPayloadSchema = {
     visualBlockIndex: { type: "integer" },
     visualBlockCount: { type: "integer" },
     title: { type: "string" },
-    listHeader: { type: "string" },
     mobilityLine: { type: ["string", "null"] },
-    exercises: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          name: { type: "string" },
-          rx: { type: "string" },
-          videoUrl: { type: ["string", "null"] },
-        },
-      },
-    },
+    columns: { type: "array", items: tvLevelColumnSchema },
     exerciseIndex: { type: "integer" },
     timer: tvTimerStateSchema,
   },

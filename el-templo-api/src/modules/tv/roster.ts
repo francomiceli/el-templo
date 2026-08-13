@@ -54,6 +54,35 @@ export const ROM_ROLES = [
 export const INITIUM_SOURCE_ORDER = ["alfa", "delta", "sigma", "kairos"];
 
 /**
+ * Pares de nivel del TV (fase 164 rediseño — dos columnas lado a lado). Espejo
+ * a propósito de `levelPairs` en
+ * `el-templo-admin/src/utils/pdf/session-pdf-builder.ts` (`buildDeuterosSplitPages`,
+ * ~línea 847), con el tercer par agregado: el PDF nunca imprime omega/spartan
+ * porque no se planifican por día (`REGULAR_LEVEL_ORDER` en `class-day.ts`),
+ * pero el TV deriva sus columnas de `pairFor` sin asumir cuáles pares tienen
+ * datos — mantener el tercero acá es más simple que dos listas distintas.
+ */
+export const LEVEL_PAIRS: readonly (readonly [string, string])[] = [
+  ["alfa", "delta"],
+  ["sigma", "kairos"],
+  ["omega", "spartan"],
+];
+
+/**
+ * El par que contiene `level`, en el orden del par (no el orden de llegada).
+ *
+ * Defensivo: un nivel que no está en ningún par (dato futuro, o un ROM
+ * "alfa"/"delta" — que SÍ están acá, correctamente) devuelve `[level]` solo,
+ * para que el caller nunca se quede sin columna.
+ */
+export function pairFor(level: string): readonly string[] {
+  for (const pair of LEVEL_PAIRS) {
+    if (pair.includes(level)) return pair;
+  }
+  return [level];
+}
+
+/**
  * Etiqueta visible de cada rol.
  *
  * INITIUM se rotula PYROS (decision v8 del UI-SPEC): es "un bloque mas", no una

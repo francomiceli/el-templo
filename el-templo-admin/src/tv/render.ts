@@ -26,7 +26,7 @@
 import { beep } from './audio';
 import { createTvLogger } from './logger';
 import { nowCorrected } from './poll';
-import type { TvClassPayload, TvPollResponse } from './poll';
+import type { TvClassPayload, TvExercise, TvPollResponse } from './poll';
 /* El relleno a dos digitos vive en `scale.ts`: es el unico helper de relleno de todo
    `src/tv/` (reloj, timer y logger). El metodo nativo del string es ES2017 — Pitfall 5. */
 import { pad2 } from './scale';
@@ -37,7 +37,7 @@ import type { SessionQuote } from '../utils/pdf/quotes';
 const log = createTvLogger('render');
 
 /**
- * Simbolos de nivel que el API manda YA embebidos en `listHeader` (`NIVEL Δ | …`).
+ * Simbolos de nivel que el API manda YA embebidos en `TvLevelColumn.header` (`NIVEL Δ | …`).
  *
  * Se pintan dentro de un `<span class="glyph">` porque la fuente del kiosco no garantiza
  * el griego (Pitfall 6), y el de kairos (☉) lo DIBUJA el CSS con un circulo y un punto —
@@ -68,8 +68,9 @@ interface Nodes {
   movilidad: HTMLElement;
   bloqueNum: HTMLElement;
   dots: HTMLElement;
-  cabNivel: HTMLElement;
-  listaBox: HTMLElement;
+  /** Contenedor de las columnas de nivel: `paintList` lo llena a mano por
+   *  cada poll (1 o 2 `.lista-col`), no viene fijo en la plantilla. */
+  stage: HTMLElement;
   timerPanel: HTMLElement;
   digitos: HTMLElement;
   sub: HTMLElement;
@@ -137,8 +138,7 @@ function ensureNodes(): Nodes {
     movilidad: byId('movilidad'),
     bloqueNum: byId('bloqueNum'),
     dots: byId('dots'),
-    cabNivel: byId('cabNivel'),
-    listaBox: byId('listaBox'),
+    stage: byId('stage'),
     timerPanel: byId('timerPanel'),
     digitos: byId('digitos'),
     sub: byId('sub'),
@@ -217,7 +217,6 @@ function paintGlyphText(host: HTMLElement, text: string): void {
 let quotes: SessionQuote[] = [];
 let last: TvPollResponse | null = null;
 let lastListKey = '';
-let lastListHeader = '';
 let lastDotsKey = '';
 let lastQuoteKey = '';
 let lastBeepKey: string | null = null;
@@ -236,7 +235,6 @@ export function resetRender(): void {
   nodes = null;
   last = null;
   lastListKey = '';
-  lastListHeader = '';
   lastDotsKey = '';
   lastQuoteKey = '';
   lastBeepKey = null;
@@ -319,29 +317,85 @@ function paintDots(n: Nodes, c: TvClassPayload): void {
   }
 }
 
-function paintList(n: Nodes, c: TvClassPayload): void {
-  let key = c.blockRole + '|' + c.level + '|' + c.exercises.length;
-  for (let i = 0; i < c.exercises.length; i++) {
-    key += '|' + c.exercises[i].name + '~' + c.exercises[i].rx;
-  }
-  if (key !== lastListKey) {
-    lastListKey = key;
-    clear(n.listaBox);
-    for (let i = 0; i < c.exercises.length; i++) {
-      const item = document.createElement('div');
-      item.className = 'item';
-      const ej = document.createElement('span');
-      ej.className = 'ej';
-      ej.textContent = c.exercises[i].name;
-      const rx = document.createElement('span');
-      rx.className = 'rx';
-      rx.textContent = c.exercises[i].rx;
-      item.appendChild(ej);
-      item.appendChild(rx);
-      n.listaBox.appendChild(item);
+/**
+ * Un item de ejercicio: nombre arriba, badge de contraccion + dosis abajo
+ * (mismo layout que `CompactExerciseList.vue` de la app — fase 164 rediseño).
+ * Sin badge/dosis cuando el formato dicta el volumen (`dose` vacio) y la
+ * prescripcion no trae contraccion.
+ */
+function buildItem(ex: TvExercise): HTMLElement {
+  const item = document.createElement('div');
+  item.className = 'item';
+
+  const nombre = document.createElement('div');
+  nombre.className = 'ej-nombre';
+  nombre.textContent = ex.name;
+  item.appendChild(nombre);
+
+  if (ex.contraction.length > 0 || ex.dose.length > 0) {
+    const fila = document.createElement('div');
+    fila.className = 'ej-dosis';
+
+    if (ex.contraction.length > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'badge badge--' + ex.contraction.toLowerCase();
+      badge.textContent = ex.contraction;
+      fila.appendChild(badge);
     }
+
+    if (ex.dose.length > 0) {
+      const dosis = document.createElement('span');
+      dosis.className = 'dosis';
+      dosis.textContent = ex.dose;
+      fila.appendChild(dosis);
+    }
+
+    item.appendChild(fila);
+  }
+
+  return item;
+}
+
+/**
+ * Pinta las columnas de nivel (1 o 2, `c.columns` — el rediseño de dos
+ * niveles lado a lado). Cada columna trae su propio header (que puede llevar
+ * simbolos de nivel, de ahi `paintGlyphText`) y su propia lista.
+ */
+function paintList(n: Nodes, c: TvClassPayload): void {
+  let key = c.blockRole + '|' + c.level + '|' + c.columns.length;
+  for (let ci = 0; ci < c.columns.length; ci++) {
+    const col = c.columns[ci];
+    key += '|' + col.header + '|' + col.exercises.length;
+    for (let i = 0; i < col.exercises.length; i++) {
+      key += '~' + col.exercises[i].name + '~' + col.exercises[i].contraction + '~' + col.exercises[i].dose;
+    }
+  }
+  if (key === lastListKey) {
+    return;
+  }
+  lastListKey = key;
+  clear(n.stage);
+
+  for (let ci = 0; ci < c.columns.length; ci++) {
+    const col = c.columns[ci];
+
+    const colEl = document.createElement('section');
+    colEl.className = 'col panel lista-col';
+
+    const cab = document.createElement('div');
+    cab.className = 'cabCol';
+    paintGlyphText(cab, col.header);
+    colEl.appendChild(cab);
+
+    const caja = document.createElement('div');
     // Listas largas (calentamiento): entran todas achicando la tipografia.
-    setClass(n.listaBox, c.exercises.length > COMPACT_OVER ? 'caja compacta' : 'caja');
+    caja.className = col.exercises.length > COMPACT_OVER ? 'caja compacta' : 'caja';
+    for (let i = 0; i < col.exercises.length; i++) {
+      caja.appendChild(buildItem(col.exercises[i]));
+    }
+    colEl.appendChild(caja);
+
+    n.stage.appendChild(colEl);
   }
 }
 
@@ -384,11 +438,6 @@ export function renderState(payload: TvPollResponse): void {
   // Bloque VISUAL (colapsa DEUTEROS_1/DEUTEROS_2 en uno solo), no la entrada cruda del roster.
   setText(n.bloqueNum, 'BLOQUE ' + (c.visualBlockIndex + 1) + ' / ' + c.visualBlockCount);
   paintDots(n, c);
-
-  if (c.listHeader !== lastListHeader) {
-    lastListHeader = c.listHeader;
-    paintGlyphText(n.cabNivel, c.listHeader);
-  }
 
   paintList(n, c);
 

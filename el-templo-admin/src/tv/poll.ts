@@ -29,11 +29,30 @@ export interface TvBlockSummary {
   shared: boolean;
 }
 
-/** Una linea de la lista. `videoUrl` null = el kiosco dibuja el placeholder. */
+/**
+ * Una linea de la lista. `videoUrl` null = el kiosco dibuja el placeholder.
+ *
+ * `contraction` y `dose` viajan separados (rediseño fase 164 — dos columnas
+ * de nivel, ejercicios como en la app): `contraction` es la sigla cruda
+ * ('CON'/'EXC'/'ISO') para el color del badge, `dose` es el volumen YA
+ * formateado ("8-10", `20"`) o "" cuando el formato lo dicta la estructura.
+ */
 export interface TvExercise {
   name: string;
-  rx: string;
+  contraction: string;
+  dose: string;
   videoUrl: string | null;
+}
+
+/**
+ * Una columna de nivel (rediseño fase 164 — dos niveles lado a lado). Un
+ * bloque shared (INITIUM/PYROS) manda UNA columna con la lista comun; un
+ * bloque no-shared manda una columna por nivel del par presente hoy — 1 o 2,
+ * nunca mas.
+ */
+export interface TvLevelColumn {
+  header: string;
+  exercises: TvExercise[];
 }
 
 /** Estado del timer publicado al TV. D-19: `soundEnabled` arranca en false. */
@@ -56,9 +75,8 @@ export interface TvClassPayload {
   visualBlockIndex: number;
   visualBlockCount: number;
   title: string;
-  listHeader: string;
   mobilityLine: string | null;
-  exercises: TvExercise[];
+  columns: TvLevelColumn[];
   exerciseIndex: number;
   timer: TvTimerState;
 }
