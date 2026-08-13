@@ -16,72 +16,16 @@
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/db/fill-future-bookings.ts",
-      "table": "holidays"
-    },
-    {
-      "file": "el-templo-api/src/db/fill-future-bookings.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/db/fill-future-bookings.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/db/fill-future-bookings.ts",
-      "table": "subscription_schedules"
-    },
-    {
-      "file": "el-templo-api/src/db/fill-future-bookings.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/db/import-members.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/db/import-members.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/db/import-members.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/db/import-turnos.ts",
-      "table": "bookings"
     },
     {
       "file": "el-templo-api/src/db/import-turnos.ts",
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/db/import-turnos.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/db/import-turnos.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/db/import-turnos.ts",
-      "table": "subscription_schedules"
-    },
-    {
-      "file": "el-templo-api/src/db/import-turnos.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/db/import-vigentes.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/db/import-vigentes.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/db/import-vigentes.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/db/reprocess-videos.ts",
@@ -96,40 +40,12 @@
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/db/seed-production.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/db/seed-production.ts",
-      "table": "subscription_plans"
-    },
-    {
       "file": "el-templo-api/src/db/seed-staging.ts",
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/jobs/expire-lost-leads.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/jobs/mark-no-shows.ts",
-      "table": "activities"
-    },
-    {
-      "file": "el-templo-api/src/jobs/mark-no-shows.ts",
-      "table": "bookings"
-    },
-    {
       "file": "el-templo-api/src/jobs/mark-no-shows.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/jobs/mark-no-shows.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/jobs/mark-no-shows.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/jobs/notification-cron.ts",
@@ -142,10 +58,6 @@
     {
       "file": "el-templo-api/src/jobs/notification-cron.ts",
       "table": "programs"
-    },
-    {
-      "file": "el-templo-api/src/jobs/notification-cron.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/academy/service.ts",
@@ -292,36 +204,16 @@
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/modules/analytics/advanced-finance-service.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/analytics/attendance-metrics-service.ts",
       "table": "attendance"
     },
     {
       "file": "el-templo-api/src/modules/analytics/attendance-metrics-service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/attendance-metrics-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/attendance-metrics-service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/churn-service.ts",
       "table": "branches"
     },
     {
       "file": "el-templo-api/src/modules/analytics/churn-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/churn-service.ts",
-      "table": "subscriptions"
+      "table": "branches"
     },
     {
       "file": "el-templo-api/src/modules/analytics/class-ratings-service.ts",
@@ -332,26 +224,6 @@
       "table": "coach_ratings"
     },
     {
-      "file": "el-templo-api/src/modules/analytics/class-ratings-service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/engagement-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/engagement-service.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/especial-exclusion.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/especial-report-service.ts",
-      "table": "activities"
-    },
-    {
       "file": "el-templo-api/src/modules/analytics/especial-report-service.ts",
       "table": "attendance"
     },
@@ -360,88 +232,28 @@
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/modules/analytics/especial-report-service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/especial-report-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/especial-report-service.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/expiry-cohort.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/analytics/frequency-service.ts",
       "table": "attendance"
     },
     {
       "file": "el-templo-api/src/modules/analytics/frequency-service.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/frequency-service.ts",
-      "table": "schedules"
     },
     {
       "file": "el-templo-api/src/modules/analytics/funnel-service.ts",
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/modules/analytics/funnel-service.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ltv-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ltv-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ltv-service.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/analytics/member-flows-service.ts",
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/modules/analytics/member-flows-service.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/analytics/renewal-service.ts",
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/modules/analytics/renewal-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/renewal-service.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/analytics/retention-service.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/retention-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/retention-service.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/service.ts",
-      "table": "activities"
     },
     {
       "file": "el-templo-api/src/modules/analytics/service.ts",
@@ -449,47 +261,11 @@
     },
     {
       "file": "el-templo-api/src/modules/analytics/service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/service.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/service.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/analytics/ticket-service.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/trial-funnel-service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/trial-funnel-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/trial-funnel-service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/trial-funnel-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/trial-funnel-service.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/app-landing/service.ts",
@@ -501,15 +277,7 @@
     },
     {
       "file": "el-templo-api/src/modules/attendance/service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/attendance/service.ts",
       "table": "completed_sessions"
-    },
-    {
-      "file": "el-templo-api/src/modules/attendance/service.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/aura/service.ts",
@@ -553,14 +321,6 @@
     },
     {
       "file": "el-templo-api/src/modules/campaigns/service.ts",
-      "table": "attendance"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/service.ts",
       "table": "branches"
     },
     {
@@ -578,10 +338,6 @@
     {
       "file": "el-templo-api/src/modules/campaigns/service.ts",
       "table": "campaigns"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/service.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/campaigns/tracking-service.ts",
@@ -656,14 +412,6 @@
       "table": "sessions"
     },
     {
-      "file": "el-templo-api/src/modules/goal-plans/service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/goal-plans/service.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/improvement-proposals/service.ts",
       "table": "branches"
     },
@@ -708,20 +456,8 @@
       "table": "programs"
     },
     {
-      "file": "el-templo-api/src/modules/programs/enrollment-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/programs/enrollment-service.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/programs/routes.ts",
       "table": "program_enrollments"
-    },
-    {
-      "file": "el-templo-api/src/modules/programs/routes.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/programs/service.ts",
@@ -740,36 +476,12 @@
       "table": "programs"
     },
     {
-      "file": "el-templo-api/src/modules/programs/service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/programs/service.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/progression/routes.ts",
       "table": "completed_sessions"
     },
     {
       "file": "el-templo-api/src/modules/progression/routes.ts",
       "table": "evaluation_requests"
-    },
-    {
-      "file": "el-templo-api/src/modules/progression/routes.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/progression/routes.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/ratings/service.ts",
-      "table": "activities"
-    },
-    {
-      "file": "el-templo-api/src/modules/ratings/service.ts",
-      "table": "attendance"
     },
     {
       "file": "el-templo-api/src/modules/ratings/service.ts",
@@ -782,10 +494,6 @@
     {
       "file": "el-templo-api/src/modules/ratings/service.ts",
       "table": "coach_ratings"
-    },
-    {
-      "file": "el-templo-api/src/modules/ratings/service.ts",
-      "table": "schedules"
     },
     {
       "file": "el-templo-api/src/modules/referrals/service.ts",
@@ -809,103 +517,27 @@
     },
     {
       "file": "el-templo-api/src/modules/reports/service.ts",
-      "table": "activities"
-    },
-    {
-      "file": "el-templo-api/src/modules/reports/service.ts",
       "table": "attendance"
-    },
-    {
-      "file": "el-templo-api/src/modules/reports/service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/reports/service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/reports/service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/reports/service.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/scheduling/activity-service.ts",
       "table": "activities"
     },
     {
-      "file": "el-templo-api/src/modules/scheduling/booking-service.ts",
-      "table": "activities"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/booking-service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/booking-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/booking-service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/booking-service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/booking-service.ts",
-      "table": "subscription_schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/booking-service.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/scheduling/capacity.ts",
       "table": "activities"
     },
     {
       "file": "el-templo-api/src/modules/scheduling/capacity.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/holiday-service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/holiday-service.ts",
-      "table": "holidays"
     },
     {
       "file": "el-templo-api/src/modules/scheduling/routes.ts",
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/modules/scheduling/service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/trials-service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/scheduling/trials-service.ts",
-      "table": "schedules"
-    },
-    {
       "file": "el-templo-api/src/modules/segmentation/service.ts",
       "table": "attendance"
-    },
-    {
-      "file": "el-templo-api/src/modules/segmentation/service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/segmentation/service.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/sessions/fallback/exercise-fallback.ts",
@@ -968,14 +600,6 @@
       "table": "programs"
     },
     {
-      "file": "el-templo-api/src/modules/sessions/routes.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/sessions/routes.ts",
-      "table": "subscriptions"
-    },
-    {
       "file": "el-templo-api/src/modules/sessions/service.ts",
       "table": "exercises"
     },
@@ -994,14 +618,6 @@
     {
       "file": "el-templo-api/src/modules/sessions/service.ts",
       "table": "sessions"
-    },
-    {
-      "file": "el-templo-api/src/modules/shared/active-member.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/shared/active-member.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/spom/service.ts",
@@ -1036,26 +652,6 @@
       "table": "completed_sessions"
     },
     {
-      "file": "el-templo-api/src/modules/streaks/service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/streaks/service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/streaks/service.ts",
-      "table": "subscription_schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/streaks/service.ts",
-      "table": "subscriptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/subscriptions/service.ts",
-      "table": "activities"
-    },
-    {
       "file": "el-templo-api/src/modules/subscriptions/service.ts",
       "table": "branches"
     },
@@ -1070,22 +666,6 @@
     {
       "file": "el-templo-api/src/modules/subscriptions/service.ts",
       "table": "promo_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/subscriptions/service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/subscriptions/service.ts",
-      "table": "subscription_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/subscriptions/service.ts",
-      "table": "subscription_schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/subscriptions/service.ts",
-      "table": "subscriptions"
     },
     {
       "file": "el-templo-api/src/modules/tree-editor/service.ts",
@@ -1193,14 +773,6 @@
     },
     {
       "file": "el-templo-api/src/modules/wellhub/service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/service.ts",
-      "table": "schedules"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/service.ts",
       "table": "wellhub_bookings"
     },
     {
@@ -1209,27 +781,7 @@
     },
     {
       "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
-      "table": "activities"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
-      "table": "bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
-      "table": "holidays"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
-      "table": "schedule_exceptions"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
-      "table": "schedules"
     },
     {
       "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
@@ -1246,10 +798,6 @@
     {
       "file": "el-templo-api/src/scripts/backfill-historical-payments.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/scripts/backfill-historical-payments.ts",
-      "table": "subscriptions"
     }
   ]
 }
