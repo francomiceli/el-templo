@@ -24,7 +24,7 @@
 
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
-import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import {
   BadRequestError,
@@ -392,7 +392,12 @@ export class TrialService {
             cancelledAt: null,
             waitlistPosition: null,
           })
-          .where(eq(schema.bookings.id, existing.id));
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.id, existing.id),
+            ),
+          );
         return existing.id;
       }
 
@@ -617,7 +622,12 @@ export class TrialService {
       await tx
         .update(schema.bookings)
         .set({ status: "cancelado", cancelledAt: new Date() })
-        .where(eq(schema.bookings.id, row.bookingId));
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, row.bookingId),
+          ),
+        );
 
       // Only revert if still 'prueba' (defensive: never clobber a user who
       // became a member out-of-band). Record the history row only when we win.
@@ -772,6 +782,7 @@ export class TrialService {
         .set({ status: "no_show" })
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, input.userId),
             eq(schema.bookings.isTrial, true),
             inArray(schema.bookings.status, [...ACTIVE_TRIAL_STATUSES]),
@@ -818,7 +829,12 @@ export class TrialService {
             cancelledAt: null,
             waitlistPosition: null,
           })
-          .where(eq(schema.bookings.id, existing.id));
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.id, existing.id),
+            ),
+          );
         return existing.id;
       }
 
@@ -986,7 +1002,12 @@ export class TrialService {
           cancelledAt: new Date(),
           waitlistPosition: null,
         })
-        .where(eq(schema.bookings.id, input.bookingId));
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, input.bookingId),
+          ),
+        );
 
       // (b) Phase 163 (D-03/D-07) reset — reused verbatim from bookTrial (D-02).
       await tx
@@ -1028,7 +1049,12 @@ export class TrialService {
             cancelledAt: null,
             waitlistPosition: null,
           })
-          .where(eq(schema.bookings.id, existing.id));
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.id, existing.id),
+            ),
+          );
         return existing.id;
       }
 
@@ -1164,10 +1190,23 @@ export class TrialService {
 
     // Shift: split at 13:00 local. The schedules.start_time is stored as
     // "HH:MM" / "HH:MM:SS" so a lexicographic compare works.
+    // Fase 174.1-05b: `tenantWhere(schedules, ctx)` AND-eado — redundante con
+    // el `tenantWhere(users, ctx)` del innerJoin de abajo (D-02 del PATTERNS),
+    // pero ESTE `conditions.push(...)` es su propio statement.
     if (input.shift === "TM") {
-      conditions.push(sql`${schema.schedules.startTime} < '13:00'`);
+      conditions.push(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          sql`${schema.schedules.startTime} < '13:00'`,
+        ) as SQL,
+      );
     } else if (input.shift === "TT") {
-      conditions.push(sql`${schema.schedules.startTime} >= '13:00'`);
+      conditions.push(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          sql`${schema.schedules.startTime} >= '13:00'`,
+        ) as SQL,
+      );
     }
 
     const rows = await this.db

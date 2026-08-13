@@ -723,7 +723,12 @@ export class SchedulingService {
         inactiveReason: reasonValue,
         deactivatedAt: isActive ? null : new Date(),
       })
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
 
     const updated = await this.getScheduleSlot(ctx, scheduleId);
     if (!updated) throw new Error("Failed to retrieve updated schedule");
@@ -809,7 +814,12 @@ export class SchedulingService {
     await this.db
       .update(schema.schedules)
       .set({ activityId })
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
 
     this.log.info(
       { scheduleId, activityId },
@@ -1070,7 +1080,9 @@ export class SchedulingService {
         endTime: schema.schedules.endTime,
       })
       .from(schema.schedules)
-      .where(and(...conditions))
+      // Fase 174.1-05b: `tenantWhere` INLINE, redundante con el de `conditions`
+      // arriba (D-02 del PATTERNS) — ESTE statement es el que el lint mira.
+      .where(and(tenantWhere(schema.schedules, ctx), ...conditions))
       .limit(1);
 
     return overlap ?? null;

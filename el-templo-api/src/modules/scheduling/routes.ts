@@ -339,11 +339,13 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         if (!request.body.isActive) {
           cancelledBookings =
             await bookingService.cancelAllFutureBookingsForSchedule(
+              ctx,
               request.params.scheduleId,
             );
         } else if (previousDeactivatedAt) {
           restoredBookings =
             await bookingService.restoreCancelledBookingsForSchedule(
+              ctx,
               request.params.scheduleId,
               previousDeactivatedAt,
             );
@@ -422,6 +424,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
         const restoredBookings =
           await bookingService.restoreCancelledBookingsForDate(
+            ctx,
             scheduleId,
             date,
             exception.createdAt,

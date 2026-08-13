@@ -92,6 +92,7 @@ export class HolidayService {
           })
           .where(
             and(
+              tenantWhere(schema.bookings, ctx),
               inArray(schema.bookings.scheduleId, scheduleIds),
               eq(schema.bookings.bookingDate, date),
               sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
@@ -143,15 +144,10 @@ export class HolidayService {
     country?: string,
     year?: number,
   ): Promise<HolidayRecord[]> {
-    const conditions = [tenantWhere(schema.holidays, ctx)];
-
-    if (country) {
-      conditions.push(eq(schema.holidays.country, country));
-    }
-    if (year) {
-      conditions.push(sql`YEAR(${schema.holidays.date}) = ${year}`);
-    }
-
+    // Fase 174.1-05b: TODO el filtro INLINE en este único statement (nada de
+    // `conditions.push(...)` en statements separados) — el lint juzga por
+    // statement (PATTERNS §2.6) y cada `.push()` era su propio statement sin
+    // el marcador `tenantWhere(` en su propio texto.
     const rows = await this.db
       .select({
         id: schema.holidays.id,
@@ -160,7 +156,13 @@ export class HolidayService {
         name: schema.holidays.name,
       })
       .from(schema.holidays)
-      .where(and(...conditions))
+      .where(
+        and(
+          tenantWhere(schema.holidays, ctx),
+          country ? eq(schema.holidays.country, country) : undefined,
+          year ? sql`YEAR(${schema.holidays.date}) = ${year}` : undefined,
+        ),
+      )
       .orderBy(schema.holidays.date);
 
     return rows;
