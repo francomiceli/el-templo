@@ -366,6 +366,11 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
    * propias (D-01 de la fase 173): `audit_log`, `member_logins`,
    * `member_notes`, `member_profiles`, `user_branches`, `user_sepa_details`,
    * `user_status_history`, `users`.
+   * Las 4 de `subscriptions` y las 4 de `scheduling` son las 8 tablas del
+   * boundary de la fase 174.1 (174.1-10), migradas juntas en el mismo switch:
+   * `subscription_plans`, `subscription_schedule_changes`,
+   * `subscription_schedules`, `subscriptions`, `bookings`, `holidays`,
+   * `schedule_exceptions`, `schedules`.
    * `aura_balances` / `aura_transactions` NO están: las escribe gamification y
    * su throw llega con la adopción de ESE módulo.
    */
@@ -388,9 +393,16 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "user_status_history",
       "users",
     ],
+    subscriptions: [
+      "subscription_plans",
+      "subscription_schedule_changes",
+      "subscription_schedules",
+      "subscriptions",
+    ],
+    scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
   };
 
-  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members)", () => {
+  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling)", () => {
     const normalizar = (registro: Record<string, readonly string[]>) =>
       Object.fromEntries(
         Object.entries(registro).map(([modulo, tablas]) => [
@@ -503,17 +515,21 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
         `una regresión silenciosa, que es el peor modo de falla posible acá.`,
     ).toEqual([]);
 
-    // `bookings` es una tabla gym-owned real y NO strict hoy: nada está migrado
-    // en la 170. Cuando la fase 172 migre `finance`, esta línea se ACTUALIZA con
-    // otro ejemplo todavía no migrado — no se borra el gate. Es la única
-    // aserción del archivo que prueba el lado negativo del helper, y sin ella un
+    // `activities` es una tabla gym-owned real y NO strict hoy (174.1-10: sigue
+    // sin migrar a propósito — CONTEXT.md la excluye explícitamente del
+    // boundary de subscriptions/scheduling, aunque "suene" a scheduling).
+    // Reemplazó a `bookings`, que pasó a strict en este mismo plan. Cuando un
+    // futuro plan migre `activities`, esta línea se ACTUALIZA con otro ejemplo
+    // todavía no migrado — no se borra el gate. Es la única aserción del
+    // archivo que prueba el lado negativo del helper, y sin ella un
     // `isStrictTable` que devolviera `true` siempre pasaría todo lo de arriba.
     expect(
-      isStrictTable("bookings"),
-      `isStrictTable("bookings") devolvió true. bookings es gym-owned pero NO pertenece a ` +
-        `ningún módulo migrado en la fase 170. Si llegaste acá migrando finance en la 172: ` +
-        `cambiá el ejemplo por una tabla que siga sin migrar, no borres la aserción — es la ` +
-        `que distingue un helper que funciona de uno que dice true a todo.`,
+      isStrictTable("activities"),
+      `isStrictTable("activities") devolvió true. activities es gym-owned pero NO pertenece a ` +
+        `ningún módulo migrado todavía (174.1-10 la excluye a propósito del boundary de ` +
+        `subscriptions/scheduling). Si llegaste acá migrando ese módulo: cambiá el ejemplo por ` +
+        `una tabla que siga sin migrar, no borres la aserción — es la que distingue un helper ` +
+        `que funciona de uno que dice true a todo.`,
     ).toBe(false);
     expect(
       strictTablesSet().has("no_existe"),

@@ -521,6 +521,14 @@ export function isPlatformPhysicalTable(name: string): boolean {
  * `user_branches`, la otra tabla del invariante `user.tenant_id ===
  * branch.tenant_id` que la guarda de anclas de la fase 173 protege.
  *
+ * La TERCERA y CUARTA entrada las escribe la **fase 174.1** (`subscriptions` y
+ * `scheduling`, juntas en el mismo switch — D-01 de la fase): primero se
+ * migraron TODOS los accesos a sus 8 tablas —los ~50 archivos ajenos que las
+ * tocan (analytics, jobs, wellhub, reports, streaks, programs, scripts de
+ * import, entre otros), no solo `src/modules/subscriptions|scheduling/`,
+ * porque el alcance del throw es POR TABLA— y recién después se prendió el
+ * interruptor acá.
+ *
  * `aura_balances` y `aura_transactions` NO están acá aunque suenen a finanzas:
  * las escribe gamification, y su throw llega con la adopción de ese módulo
  * (D-05). Una tabla entra a esta lista cuando su módulo dueño la migra entera,
@@ -550,6 +558,13 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "user_status_history",
     "users",
   ],
+  subscriptions: [
+    "subscription_plans",
+    "subscription_schedule_changes",
+    "subscription_schedules",
+    "subscriptions",
+  ],
+  scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
 };
 
 const STRICT_SET: ReadonlySet<string> = new Set(
