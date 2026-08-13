@@ -20,7 +20,7 @@
  * indice. Dos niveles del mismo dia pueden tener rosters de largo distinto, asi
  * que un indice guardado saltaria a otro bloque al cambiar de nivel.
  */
-import { formatParamsLabel, type FormatParams } from "../admin/format-params";
+import { formatNameWithParams, type FormatParams } from "../admin/format-params";
 import { TRAINING_LEVELS } from "../shared/training-constants";
 import type { TvBlockSummary, TvClassMode } from "./types";
 
@@ -160,13 +160,16 @@ function findCanonicalBlock<TBlock extends RosterBlock>(
  * Fase 100: un INITIUM con `customTitle` (formato de juegos) manda su propio
  * titulo tal cual, igual que en el PDF. Cuando el bloque es ATHLOS se rotula
  * con su propio nombre aunque su rol canonico sea EPIKOS.
+ *
+ * El FORMATO usa `formatNameWithParams`, que es un espejo a proposito de
+ * `formatNameWithParams` en
+ * `el-templo-admin/src/utils/pdf/session-data-transformer.ts` — la etiqueta
+ * del bloque en la TV tiene que ser identica a la del PDF de planis.
  */
 export function blockTitle(role: string, block: RosterBlock): string {
   if (role === "INITIUM" && block.customTitle) return block.customTitle;
   const label = ROLE_LABELS[block.role] ?? ROLE_LABELS[role] ?? role;
-  const format = block.formatParams
-    ? formatParamsLabel(block.formatParams)
-    : block.formatName;
+  const format = formatNameWithParams(block.formatName, block.formatParams);
   return `${label} · ${format}`;
 }
 

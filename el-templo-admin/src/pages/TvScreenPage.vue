@@ -111,7 +111,13 @@ import { scaleTv } from 'src/tv/scale';
 import { QUOTES } from 'src/utils/pdf/quotes';
 import { createLogger } from 'src/utils/logger';
 import tvLogo from 'src/assets/tv-logo.png';
-import { MARBLE_BG_BASE64 } from 'src/utils/pdf/pdf-assets';
+import {
+  MARBLE_BG_BASE64,
+  CINZEL_REGULAR_BASE64,
+  CINZEL_BOLD_BASE64,
+  NUNITO_SANS_REGULAR_BASE64,
+  NUNITO_SANS_BOLD_BASE64,
+} from 'src/utils/pdf/pdf-assets';
 import type { BranchOption } from 'src/types/member';
 
 const log = createLogger('TvScreenPage');
@@ -127,6 +133,41 @@ const POLL_MS = 2500;
 const TICK_MS = 250;
 /** Clase que oscurece el `body` real mientras la pantalla está montada (ver estilos). */
 const BODY_ACTIVE_CLASS = 'tv-screen-active';
+
+/**
+ * Fuentes de la pantalla: las MISMAS del PDF de planis (Cinzel para títulos y citas,
+ * NunitoSans para ejercicios), embebidas como `@font-face` desde el base64 de
+ * `pdf-assets.ts`. El admin normal usa Roboto (Quasar), así que estas no existen en el CSS
+ * global; sin este bloque, `--cinzel`/`--nunito` caían a Georgia/system y se veían distintas
+ * a la plani. Se inyectan al montar y se sacan al desmontar (nada de CDN — self-contained).
+ */
+const FONTS_STYLE_ID = 'tv-screen-fonts';
+function fontFace(family: string, base64: string, weight: number): string {
+  return (
+    "@font-face{font-family:'" +
+    family +
+    "';font-weight:" +
+    weight +
+    ";font-style:normal;font-display:block;" +
+    "src:url(data:font/truetype;charset=utf-8;base64," +
+    base64 +
+    ") format('truetype');}"
+  );
+}
+function installFonts(): void {
+  if (document.getElementById(FONTS_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = FONTS_STYLE_ID;
+  style.textContent =
+    fontFace('Cinzel', CINZEL_REGULAR_BASE64, 400) +
+    fontFace('Cinzel', CINZEL_BOLD_BASE64, 700) +
+    fontFace('NunitoSans', NUNITO_SANS_REGULAR_BASE64, 400) +
+    fontFace('NunitoSans', NUNITO_SANS_BOLD_BASE64, 700);
+  document.head.appendChild(style);
+}
+function removeFonts(): void {
+  document.getElementById(FONTS_STYLE_ID)?.remove();
+}
 
 // =========================================================================
 // Resolución de sede: query ?branchId= → localStorage → selector manual.
@@ -277,6 +318,7 @@ function onResize(): void {
 // =========================================================================
 
 onMounted(async () => {
+  installFonts();
   document.body.classList.add(BODY_ACTIVE_CLASS);
   window.addEventListener('resize', onResize);
   await resolveBranch();
@@ -295,6 +337,7 @@ onUnmounted(() => {
     tickId = null;
   }
   window.removeEventListener('resize', onResize);
+  removeFonts();
   document.body.classList.remove(BODY_ACTIVE_CLASS);
   // scaleTv() escribe el tamaño de fuente raíz en <html> (rem no puede anclarse a
   // otro nodo): fuera de esta pantalla ese override no puede quedar pegado en el
@@ -780,6 +823,8 @@ onUnmounted(() => {
   margin-top: 1.2rem;
 }
 #tvScreenRoot .pantalla .quote {
+  /* Las citas van en Cinzel, igual que en el PDF de planis (session-pdf-builder). */
+  font-family: var(--cinzel);
   font-weight: 700;
   font-size: 1.9rem;
   line-height: 1.5;

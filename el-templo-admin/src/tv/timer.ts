@@ -249,18 +249,26 @@ export function elapsedFrom(timer: TimerClock, nowCorrected: number): number {
 // =============================================================================
 
 /**
- * `displayMs` (que ya viene listo para dibujar desde `phaseAt`) como `MM:SS`, o `H:MM:SS`
- * cuando pasa la hora (un AMRAP largo o un cronometro libre de un sabado ROM).
+ * `displayMs` (que ya viene listo para dibujar desde `phaseAt`) formateado para la pantalla.
  *
- * Redondea hacia arriba, igual que el mockup v8 validado: en una cuenta regresiva el
- * `00:01` se ve durante todo el ultimo segundo y el `00:00` aparece recien cuando el
- * bloque termino de verdad. La contracara es que un cronometro que cuenta hacia adelante
- * salta a `00:01` apenas arranca; se prefirio la coherencia con la maqueta aprobada y con
- * el caso dominante (los formatos que cuentan hacia atras).
+ * Dos formatos segun el tipo de bloque:
+ *  - `shortInterval` (bloques de intervalos: trabajo/descanso de una Tabata, HIIT, ROM) →
+ *    SEGUNDOS crudos con dos puntos adelante: `:20`, `:10`, `:120`. El segundero se ve mas
+ *    grande porque no hay minutos que le compitan el espacio.
+ *  - resto (AMRAP y demas cuentas de duracion total, cronometro libre) → `MM:SS`, o
+ *    `H:MM:SS` cuando pasa la hora. Un AMRAP de 10' se ve `10:00` contando hacia atras.
+ *
+ * Redondea hacia arriba en ambos casos, igual que el mockup v8 validado: en una cuenta
+ * regresiva el `:01`/`00:01` se ve durante todo el ultimo segundo y el `:00`/`00:00`
+ * aparece recien cuando el bloque termino de verdad.
  */
-export function formatDigits(displayMs: number): string {
+export function formatDigits(displayMs: number, shortInterval: boolean): string {
   const ms = Number.isFinite(displayMs) && displayMs > 0 ? displayMs : 0;
   const totalSeconds = Math.ceil(ms / 1000);
+
+  if (shortInterval) {
+    return ':' + totalSeconds;
+  }
 
   const seconds = totalSeconds % 60;
   const totalMinutes = Math.floor(totalSeconds / 60);

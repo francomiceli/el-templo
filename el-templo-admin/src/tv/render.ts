@@ -271,6 +271,49 @@ function formatLabel(title: string): string {
   return at >= 0 ? title.substring(at + TITLE_SEPARATOR.length) : title;
 }
 
+/**
+ * Fecha calendario de la sede: DÍA DD DE MES AAAA (ej. `MARTES 12 DE AGOSTO 2026`).
+ *
+ * Se arma a mano con `getUTC*` sobre `ahora + utcOffsetMinutes`, NUNCA con
+ * `toLocaleDateString`: misma razón que el reloj (D-20) — la ICU de un televisor de sede
+ * puede venir recortada y devolver otra fecha o directamente tirar.
+ */
+const DIAS_SEMANA = [
+  'DOMINGO',
+  'LUNES',
+  'MARTES',
+  'MIÉRCOLES',
+  'JUEVES',
+  'VIERNES',
+  'SÁBADO',
+];
+const MESES = [
+  'ENERO',
+  'FEBRERO',
+  'MARZO',
+  'ABRIL',
+  'MAYO',
+  'JUNIO',
+  'JULIO',
+  'AGOSTO',
+  'SEPTIEMBRE',
+  'OCTUBRE',
+  'NOVIEMBRE',
+  'DICIEMBRE',
+];
+function formatFecha(nowMs: number, utcOffsetMinutes: number): string {
+  const d = new Date(nowMs + utcOffsetMinutes * 60000);
+  return (
+    DIAS_SEMANA[d.getUTCDay()] +
+    ' ' +
+    d.getUTCDate() +
+    ' DE ' +
+    MESES[d.getUTCMonth()] +
+    ' ' +
+    d.getUTCFullYear()
+  );
+}
+
 function paintDots(n: Nodes, c: TvClassPayload): void {
   const key = c.blocks.length + ':' + c.blockIndex;
   if (key === lastDotsKey) {
@@ -324,9 +367,12 @@ export function renderState(payload: TvPollResponse): void {
   last = payload;
 
   // Topbar (se ve en la pantalla de clase; en reposo/cierre queda tapada por el overlay).
-  setText(n.sede, 'EL TEMPLO ' + payload.branch.name);
-  setText(n.fecha, payload.branch.dateLabel);
-  setText(n.reposoFecha, payload.branch.dateLabel);
+  // La marca dice solo "EL TEMPLO" (sin la sede) y abajo la fecha calendario del día;
+  // el `dateLabel` del API (DÍA · SEMANA n) ya no se muestra.
+  setText(n.sede, 'EL TEMPLO');
+  const fecha = formatFecha(nowCorrected(), payload.branch.utcOffsetMinutes);
+  setText(n.fecha, fecha);
+  setText(n.reposoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   const c = classOf(payload);
@@ -460,6 +506,9 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
   const t = c.timer;
   const sub = subLine(c, frame.round, frame.totalRounds);
   const libre = t.spec.kind === 'countup';
+  // Bloques de intervalos (Tabata / HIIT / ROM): los digitos van en segundos crudos
+  // (`:20`), para que el segundero se vea grande. Duracion total (AMRAP, cap, libre) → mm:ss.
+  const shortInterval = t.spec.kind === 'work_rest';
 
   // D-16: sin cuenta previa. En reposo se ven los digitos iniciales del formato y al
   // iniciar arranca TRABAJO al instante.
@@ -467,7 +516,7 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
     return {
       fase: 'LISTOS',
       clase: '',
-      digitos: formatDigits(phaseAt(0, t.spec).displayMs),
+      digitos: formatDigits(phaseAt(0, t.spec).displayMs, shortInterval),
       sub: sub,
       hint: libre ? 'Formato sin tiempos — cronómetro libre' : '',
       progreso: 0,
@@ -479,7 +528,7 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
     return {
       fase: 'PAUSA',
       clase: '',
-      digitos: formatDigits(frame.displayMs),
+      digitos: formatDigits(frame.displayMs, shortInterval),
       sub: sub,
       hint: '',
       progreso: frame.progress * 100,
@@ -490,7 +539,7 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
     return {
       fase: 'BLOQUE COMPLETO',
       clase: 'completo',
-      digitos: formatDigits(0),
+      digitos: formatDigits(0, shortInterval),
       sub: '',
       hint: 'El profe avanza al siguiente bloque',
       progreso: 100,
@@ -501,7 +550,7 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
     return {
       fase: 'DESCANSO',
       clase: 'descanso',
-      digitos: formatDigits(frame.displayMs),
+      digitos: formatDigits(frame.displayMs, shortInterval),
       sub: sub,
       hint: '',
       progreso: frame.progress * 100,
@@ -511,7 +560,7 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
   return {
     fase: libre ? 'CRONÓMETRO' : 'TRABAJO',
     clase: 'trabajo',
-    digitos: formatDigits(frame.displayMs),
+    digitos: formatDigits(frame.displayMs, shortInterval),
     sub: sub,
     hint: libre ? 'Formato sin tiempos — cronómetro libre' : '',
     progreso: frame.progress * 100,

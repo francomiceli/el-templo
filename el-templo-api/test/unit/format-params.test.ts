@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import {
   getDefaultFormatParams,
-  formatParamsLabel,
+  formatNameWithParams,
   type FormatParams,
 } from "../../src/modules/admin/format-params";
 
@@ -327,7 +327,7 @@ describe("getDefaultFormatParams", () => {
   });
 });
 
-describe("formatParamsLabel", () => {
+describe("formatNameWithParams", () => {
   it("returns a non-empty string for every format type", () => {
     // Generate one of each type via the factory
     const allParams: FormatParams[] = DB_FORMAT_NAMES.map((name) =>
@@ -337,42 +337,83 @@ describe("formatParamsLabel", () => {
     allParams.push({ type: "standard" });
 
     for (const params of allParams) {
-      const label = formatParamsLabel(params);
+      const label = formatNameWithParams("Some Format", params);
       expect(label).toBeTruthy();
       expect(typeof label).toBe("string");
       expect(label.length).toBeGreaterThan(0);
     }
   });
 
-  it("includes param values in labels for configurable types", () => {
-    expect(formatParamsLabel({ type: "amrap", minutes: 12 })).toContain("12");
+  it("returns the formatName unchanged when formatParams is null", () => {
+    expect(formatNameWithParams("AMRAP SERIES", null)).toBe("AMRAP SERIES");
+  });
+
+  // Espejo byte-a-byte de `formatNameWithParams` en
+  // el-templo-admin/src/utils/pdf/session-data-transformer.ts — el TV tiene
+  // que mostrar exactamente lo mismo que el PDF de planis para cada bloque.
+  it("mirrors the PDF's compact notation exactly (session-data-transformer.ts)", () => {
     expect(
-      formatParamsLabel({
+      formatNameWithParams("AMRAP SERIES", {
+        type: "amrap_series",
+        minutes: 10,
+        rounds: 3,
+      }),
+    ).toBe("AMRAP SERIES 10' X3");
+
+    expect(
+      formatNameWithParams("TABATA", {
         type: "tabata",
         workSeconds: 20,
         restSeconds: 10,
         rounds: 8,
       }),
-    ).toContain("20");
+    ).toBe('TABATA 20"/10"');
+
     expect(
-      formatParamsLabel({ type: "tempo_sets", tempo: "4-2-1-0" }),
-    ).toContain("4-2-1-0");
-    expect(
-      formatParamsLabel({ type: "accumulate", target: 100, unit: "reps" }),
-    ).toContain("100");
-    expect(formatParamsLabel({ type: "wave_loading", waves: 3 })).toContain(
-      "3",
-    );
-    expect(
-      formatParamsLabel({
-        type: "cluster",
-        clusterSize: 5,
-        restBetweenClusters: 15,
+      formatNameWithParams("EMOM", {
+        type: "emom",
+        intervalSeconds: 60,
+        totalMinutes: 10,
       }),
-    ).toContain("5");
-    expect(formatParamsLabel({ type: "combos", rounds: 4 })).toBe(
-      "Combos - 4 rondas",
+    ).toBe(`EMOM 10' (60")`);
+
+    expect(formatNameWithParams("AMRAP", { type: "amrap", minutes: 12 })).toBe(
+      "AMRAP 12'",
     );
-    expect(formatParamsLabel({ type: "stretching" })).toBe("Stretching");
+
+    expect(
+      formatNameWithParams("COMPLEX", { type: "complex", rounds: 4 }),
+    ).toBe("COMPLEX X4");
+
+    expect(
+      formatNameWithParams("ROUNDS FOR TIME", {
+        type: "rounds_for_time",
+        rounds: 5,
+        timeCapMinutes: 20,
+      }),
+    ).toBe("5 RFT 20'");
+
+    // "Interval Training" se muestra como "HIIT" (displayFormatName), igual
+    // que en el PDF.
+    expect(
+      formatNameWithParams("INTERVAL TRAINING", {
+        type: "interval",
+        workSeconds: 40,
+        restSeconds: 20,
+        rounds: 8,
+      }),
+    ).toBe('HIIT 40"/20" X8');
+  });
+
+  it("returns the format name unchanged for formats with no printable params", () => {
+    expect(formatNameWithParams("STRETCHING", { type: "stretching" })).toBe(
+      "STRETCHING",
+    );
+    expect(
+      formatNameWithParams("OPEN STYLE", { type: "open_style", minutes: 20 }),
+    ).toBe("OPEN STYLE");
+    expect(
+      formatNameWithParams("PYRAMID", { type: "pyramid", step: 2, peak: 10 }),
+    ).toBe("PYRAMID");
   });
 });
