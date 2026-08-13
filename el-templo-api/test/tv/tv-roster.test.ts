@@ -200,9 +200,9 @@ describe("TV roster — orden canonico de bloques", () => {
         blocks: [block("INITIUM", { formatParams: TABATA })],
       },
     ]);
-    expect(buildRoster(plain)[0].title).toBe(
-      "PYROS · Tabata - 20s/10s x 8 rondas",
-    );
+    // La etiqueta = formatName + params compactos (espejo del PDF de planis). El
+    // `block()` de este fixture no fija formatName, así que sale el default "Standard".
+    expect(buildRoster(plain)[0].title).toBe('PYROS · Standard 20"/10"');
 
     const games = regularDay([
       {
@@ -224,9 +224,11 @@ describe("TV roster — orden canonico de bloques", () => {
       },
     ]);
 
+    // DEUTEROS_1: sin params → solo formatName ("Complex"). DEUTEROS_2: formatName default
+    // "Standard" + params AMRAP compactos ("10'"), igual notación que el PDF de planis.
     expect(buildRoster(day).map((b) => b.title)).toEqual([
       "DEUTEROS I · Complex",
-      "DEUTEROS II · AMRAP - 10 min",
+      "DEUTEROS II · Standard 10'",
     ]);
   });
 });

@@ -372,7 +372,9 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     // blockIndex DERIVADO del roster, no persistido.
     expect(cls.blockRole).toBe("NUCLEUS");
     expect(cls.blockIndex).toBe(1);
-    expect(cls.title).toBe("NUCLEUS · AMRAP - 10 min");
+    // La etiqueta del formato ahora es formatName + params compactos, igual que el PDF
+    // de planis (formatNameWithParams, espejo de session-data-transformer.ts).
+    expect(cls.title).toBe("NUCLEUS · AMRAP 10'");
     expect(cls.listHeader).toBe("NIVEL α | OAP 70%");
     expect(cls.mobilityLine).toBe('MOVILIDAD · Movilidad de hombro 20"');
     expect(cls.exercises).toHaveLength(3);
