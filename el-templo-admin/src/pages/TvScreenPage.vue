@@ -55,18 +55,15 @@
           <div class="reloj" id="reloj">--:--</div>
         </header>
 
-        <!-- Cabecera: a la IZQUIERDA el nombre del bloque + formato + movilidad; a la
-             DERECHA el cronómetro (movido acá desde la columna de ejercicios, para que la
-             lista recupere todo el ancho). -->
+        <!-- Cabecera en 3 zonas: nombre del bloque (izq) · cronómetro (centro) ·
+             formato (der), alineados al centro vertical del timer. -->
         <div class="cabecera">
-          <div class="cabInfo">
-            <h1 id="titulo"></h1>
-            <div class="formato" id="formato"></div>
-          </div>
+          <h1 class="cabTitulo" id="titulo"></h1>
           <section class="cronometro" id="timerPanel">
             <div class="digitos" id="digitos">00:00</div>
             <div class="barra"><i id="progreso"></i></div>
           </section>
+          <div class="cabFormato" id="formato"></div>
         </div>
 
         <!-- Columnas de nivel (1 o 2, rediseño fase 164): `render.ts` `paintList`
@@ -575,41 +572,39 @@ onUnmounted(() => {
 /* ── Cabecera: info del bloque (izquierda, alineada a la izquierda) + cronómetro
    (derecha). El cronómetro salió de la zona de ejercicios para darle todo el ancho
    a la lista. ── */
+/* 3 zonas: nombre (izq, 1fr) · cronómetro (centro, auto) · formato (der, 1fr),
+   centrados verticalmente con el timer. Nombre y formato mismo tamaño/fuente,
+   cada uno pegado a su borde (simétricos) y con ellipsis si no entran. */
 #tvScreenRoot .cabecera {
   flex: 0 0 auto;
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
   gap: 1.5rem;
   padding: 0.3rem 2rem 0.7rem;
 }
-#tvScreenRoot .cabInfo {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: left;
-}
-#tvScreenRoot .cabInfo h1 {
+#tvScreenRoot .cabecera .cabTitulo,
+#tvScreenRoot .cabecera .cabFormato {
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.09em;
-  font-size: 3.2rem;
+  font-size: 3.6rem;
   line-height: 1.1;
-  /* Mismo color que los headers de NIVEL de las columnas. */
+}
+/* Nombre del bloque: pegado a la izquierda, color de los headers de NIVEL. */
+#tvScreenRoot .cabecera .cabTitulo {
+  text-align: left;
   color: var(--gold);
 }
-/* Formato del bloque (ej. "AMRAP 10'") en su propia fila, debajo del nombre. */
-#tvScreenRoot .cabInfo .formato {
-  margin-top: 0.15rem;
-  font-family: var(--cinzel);
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  font-size: 3.2rem;
-  line-height: 1.1;
+/* Formato (ej. "AMRAP 10'"): pegado a la derecha, navy. */
+#tvScreenRoot .cabecera .cabFormato {
+  text-align: right;
   color: var(--navy);
-  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
 }
 /* Movilidad: fila al pie de la pantalla (debajo de las columnas), texto centrado
    en itálica y en el navy de los ejercicios. Se oculta sola si viene vacía. */
@@ -801,7 +796,7 @@ onUnmounted(() => {
    se lee por la OPACIDAD de los dígitos (apagados → plenos al arrancar) y el color del
    marco. Más angosto que antes para darle aire al título/formato/movilidad. ── */
 #tvScreenRoot .cronometro {
-  flex: 0 0 32%;
+  justify-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -823,7 +818,7 @@ onUnmounted(() => {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 8.5rem;
+  font-size: 10rem;
   line-height: 1;
   color: var(--navy);
   /* Apagados mientras no corre; al arrancar pasan a opacidad plena. Esa transición ES
