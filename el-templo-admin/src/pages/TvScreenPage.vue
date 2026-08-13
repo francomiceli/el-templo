@@ -61,7 +61,6 @@
             </div>
           </div>
           <section class="cronometro" id="timerPanel">
-            <div class="fase" id="fase">LISTOS</div>
             <div class="digitos" id="digitos">00:00</div>
             <div class="sub" id="sub"></div>
             <div class="barra"><i id="progreso"></i></div>
@@ -579,10 +578,10 @@ onUnmounted(() => {
   text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
 }
 #tvScreenRoot .cabInfo .movilidad {
-  margin-top: 0.35rem;
+  margin-top: 0.4rem;
   font-weight: 700;
   letter-spacing: 0.1em;
-  font-size: 1.45rem;
+  font-size: 1.8rem;
   color: var(--gold);
 }
 #tvScreenRoot .cabInfo .bloqueNum {
@@ -638,9 +637,9 @@ onUnmounted(() => {
 #tvScreenRoot .cabCol {
   font-weight: 700;
   letter-spacing: 0.06em;
-  font-size: 1.4rem;
+  font-size: 1.7rem;
   color: var(--gold);
-  padding: 0 0.3rem 0.45rem;
+  padding: 0 0.3rem 0.5rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -692,15 +691,16 @@ onUnmounted(() => {
   margin-bottom: 0;
 }
 
-/* ── Cronómetro: caja bordó a la derecha de la cabecera (el `.cronometro` ES la caja,
-   ya no hay un `.caja` interno). Más compacto que cuando ocupaba media pantalla. ── */
+/* ── Cronómetro: caja bordó a la derecha de la cabecera. Sin etiqueta de fase: el estado
+   se lee por la OPACIDAD de los dígitos (apagados → plenos al arrancar) y el color del
+   marco. Más angosto que antes para darle aire al título/formato/movilidad. ── */
 #tvScreenRoot .cronometro {
-  flex: 0 0 38%;
+  flex: 0 0 32%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1rem;
   border: 0.22rem solid var(--gold);
   border-radius: 1rem;
   transition:
@@ -713,25 +713,20 @@ onUnmounted(() => {
 #tvScreenRoot .cronometro.completo {
   background: rgba(219, 202, 180, 0.35);
 }
-#tvScreenRoot .cronometro .fase {
-  font-family: var(--cinzel);
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  font-size: 1.3rem;
-  color: var(--gold);
-  text-align: center;
-  margin-bottom: 0.15rem;
-}
-#tvScreenRoot .cronometro.descanso .fase {
-  color: var(--muted);
-}
 #tvScreenRoot .cronometro .digitos {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 5rem;
+  font-size: 7rem;
   line-height: 1;
   color: var(--navy);
+  /* Apagados mientras no corre; al arrancar pasan a opacidad plena. Esa transición ES
+     el aviso de "ya arrancó" para que el profe lo cante e indique. */
+  opacity: 0.5;
+  transition: opacity 0.25s ease-in;
+}
+#tvScreenRoot .cronometro.corriendo .digitos {
+  opacity: 1;
 }
 #tvScreenRoot .cronometro .sub {
   font-weight: 700;
@@ -740,20 +735,20 @@ onUnmounted(() => {
   color: var(--gold);
   min-height: 1.05em;
   text-align: center;
-  margin-top: 0.15rem;
+  margin-top: 0.25rem;
 }
 #tvScreenRoot .cronometro .barra {
-  width: 82%;
-  height: 0.4rem;
+  width: 84%;
+  height: 0.5rem;
   background: rgba(197, 185, 168, 0.5);
   border-radius: 99px;
   overflow: hidden;
-  margin-top: 0.4rem;
+  margin-top: 0.55rem;
 }
 #tvScreenRoot .cronometro .barra i {
   display: block;
   height: 100%;
-  width: 0%;
+  width: 100%;
   background: var(--gold);
   border-radius: 99px;
   transition: width 0.2s linear;
@@ -766,18 +761,7 @@ onUnmounted(() => {
   margin-top: 0.5rem;
   text-align: center;
 }
-@keyframes tvScreenPulso {
-  50% {
-    opacity: 0.5;
-  }
-}
-#tvScreenRoot .cronometro.trabajo .fase {
-  animation: tvScreenPulso 1s ease-in-out infinite;
-}
 @media (prefers-reduced-motion: reduce) {
-  #tvScreenRoot .cronometro .fase {
-    animation: none !important;
-  }
   #tvScreenRoot .listaCol .item {
     transition: none;
   }

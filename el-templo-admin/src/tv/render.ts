@@ -71,7 +71,6 @@ interface Nodes {
   cabNivel: HTMLElement;
   listaBox: HTMLElement;
   timerPanel: HTMLElement;
-  fase: HTMLElement;
   digitos: HTMLElement;
   sub: HTMLElement;
   progreso: HTMLElement;
@@ -141,7 +140,6 @@ function ensureNodes(): Nodes {
     cabNivel: byId('cabNivel'),
     listaBox: byId('listaBox'),
     timerPanel: byId('timerPanel'),
-    fase: byId('fase'),
     digitos: byId('digitos'),
     sub: byId('sub'),
     progreso: byId('progreso'),
@@ -463,7 +461,6 @@ function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): vo
 // =============================================================================
 
 interface TimerPaint {
-  fase: string;
   clase: string;
   digitos: string;
   sub: string;
@@ -471,7 +468,10 @@ interface TimerPaint {
   progreso: number;
 }
 
-/** Sub-linea del timer: la que dice en que ronda o intervalo va el bloque. */
+/**
+ * Sub-linea del timer: la ronda/intervalo del bloque. En cuenta regresiva va VACÍA — el
+ * "tiempo restante" ya no es un texto, lo dice la barra que arranca llena y se vacía.
+ */
 function subLine(c: TvClassPayload, round: number, totalRounds: number): string {
   const kind = c.timer.spec.kind;
   if (kind === 'work_rest') {
@@ -481,7 +481,7 @@ function subLine(c: TvClassPayload, round: number, totalRounds: number): string 
     return 'INTERVALO ' + round + ' / ' + totalRounds;
   }
   if (kind === 'countdown') {
-    return 'TIEMPO RESTANTE';
+    return '';
   }
   return 'A RITMO PROPIO';
 }
@@ -494,11 +494,13 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
   // (`:20`), para que el segundero se vea grande. Duracion total (AMRAP, cap, libre) → mm:ss.
   const shortInterval = t.spec.kind === 'work_rest';
 
-  // D-16: sin cuenta previa. En reposo se ven los digitos iniciales del formato y al
-  // iniciar arranca TRABAJO al instante.
+  // Sin etiqueta de fase (ya no se muestra "LISTOS/TRABAJO"): el estado se lee por la
+  // OPACIDAD de los digitos — apagados hasta que corre, plenos cuando arranca (clase
+  // `corriendo`) — y por el color del marco (descanso / completo).
+
+  // D-16: sin cuenta previa. En reposo se ven los digitos iniciales del formato.
   if (t.status === 'idle') {
     return {
-      fase: 'LISTOS',
       clase: '',
       digitos: formatDigits(phaseAt(0, t.spec).displayMs, shortInterval),
       sub: sub,
@@ -507,11 +509,10 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
     };
   }
 
-  // D-17: pausa = digitos congelados exactamente donde quedaron.
+  // D-17: pausa = digitos congelados exactamente donde quedaron (apagados, no corre).
   if (t.status === 'paused') {
     return {
-      fase: 'PAUSA',
-      clase: '',
+      clase: 'pausa',
       digitos: formatDigits(frame.displayMs, shortInterval),
       sub: sub,
       hint: '',
@@ -521,7 +522,6 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
 
   if (frame.finished) {
     return {
-      fase: 'BLOQUE COMPLETO',
       clase: 'completo',
       digitos: formatDigits(0, shortInterval),
       sub: '',
@@ -532,8 +532,7 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
 
   if (frame.phase === 'rest') {
     return {
-      fase: 'DESCANSO',
-      clase: 'descanso',
+      clase: 'corriendo descanso',
       digitos: formatDigits(frame.displayMs, shortInterval),
       sub: sub,
       hint: '',
@@ -542,8 +541,7 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
   }
 
   return {
-    fase: libre ? 'CRONÓMETRO' : 'TRABAJO',
-    clase: 'trabajo',
+    clase: 'corriendo trabajo',
     digitos: formatDigits(frame.displayMs, shortInterval),
     sub: sub,
     hint: libre ? 'Formato sin tiempos — cronómetro libre' : '',
@@ -570,11 +568,12 @@ export function tickTimer(): void {
   const paint = timerPaint(c, frame);
 
   setClass(n.timerPanel, 'cronometro' + (paint.clase ? ' ' + paint.clase : ''));
-  setText(n.fase, paint.fase);
   setText(n.digitos, paint.digitos);
   setText(n.sub, paint.sub);
   setText(n.hint, paint.hint);
-  const ancho = Math.round(paint.progreso) + '%';
+  // La barra muestra el tiempo QUE QUEDA: arranca llena (100%) y se vacía a medida que
+  // corre el bloque (progreso 0→100 ⇒ ancho 100→0).
+  const ancho = Math.round(100 - paint.progreso) + '%';
   if (n.progreso.style.width !== ancho) {
     n.progreso.style.width = ancho;
   }
