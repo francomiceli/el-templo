@@ -587,9 +587,11 @@ onUnmounted(() => {
 #tvScreenRoot .cabecera .cabFormato {
   margin: 0;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Sin nowrap ni ellipsis: si el texto no entra, salta a la línea siguiente por
+     palabras — nunca corta una palabra al medio (overflow-wrap/word-break normal). */
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.09em;
@@ -792,9 +794,9 @@ onUnmounted(() => {
   line-height: 1.2;
 }
 
-/* ── Cronómetro: caja bordó a la derecha de la cabecera. Sin etiqueta de fase: el estado
-   se lee por la OPACIDAD de los dígitos (apagados → plenos al arrancar) y el color del
-   marco. Más angosto que antes para darle aire al título/formato/movilidad. ── */
+/* ── Cronómetro: al centro de la cabecera, sin recuadro. Sin etiqueta de fase: el estado
+   se lee por la OPACIDAD de los dígitos (apagados → plenos al arrancar) y el fondo de
+   .completo. Compacto para darle aire al título/formato/movilidad. ── */
 #tvScreenRoot .cronometro {
   justify-self: center;
   display: flex;
@@ -802,14 +804,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 0.6rem 1rem;
-  border: 0.22rem solid var(--gold);
-  border-radius: 1rem;
-  transition:
-    border-color 0.3s,
-    background-color 0.3s;
-}
-#tvScreenRoot .cronometro.descanso {
-  border-color: var(--muted);
+  /* Sin recuadro: el estado se lee por la opacidad de los dígitos y el fondo de .completo. */
+  transition: background-color 0.3s;
 }
 #tvScreenRoot .cronometro.completo {
   background: rgba(219, 202, 180, 0.35);
