@@ -77,11 +77,14 @@
           </section>
         </main>
 
+        <!-- Reposo: reloj en la mitad superior, frase en la mitad inferior. -->
         <div class="pantalla" id="pantallaReposo">
-          <div class="contenido">
+          <div class="reposoTop">
             <img class="logoGrande" :src="tvLogo" alt="El Templo" />
             <div class="relojXl" id="reposoReloj">--:--:<span class="seg">--</span></div>
             <div class="fechaXl" id="reposoFecha"></div>
+          </div>
+          <div class="reposoBottom">
             <div class="quote" id="reposoQuote"></div>
             <div class="autor" id="reposoAutor"></div>
           </div>
@@ -860,7 +863,35 @@ onUnmounted(() => {
 #tvScreenRoot #pantallaCierre .relojXl {
   font-size: 6rem;
 }
+/* ── Reposo: dos mitades — reloj (un poco más chico) centrado arriba, frase (más
+   grande) centrada abajo. Se scopea a #pantallaReposo para no tocar la de cierre. ── */
+#tvScreenRoot #pantallaReposo.visible {
+  display: flex;
+  flex-direction: column;
+}
+#tvScreenRoot #pantallaReposo .reposoTop,
+#tvScreenRoot #pantallaReposo .reposoBottom {
+  flex: 1 1 50%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 6rem;
+}
 #tvScreenRoot #pantallaReposo .logoGrande {
-  height: 8rem;
+  height: 5rem;
+  margin-bottom: 1rem;
+}
+#tvScreenRoot #pantallaReposo .relojXl {
+  font-size: 10rem;
+}
+#tvScreenRoot #pantallaReposo .fechaXl {
+  margin-top: 1rem;
+}
+#tvScreenRoot #pantallaReposo .quote {
+  font-size: 3.4rem;
+  max-width: 82%;
+  margin-top: 0;
 }
 </style>
