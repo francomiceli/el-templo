@@ -429,6 +429,7 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/ratings": { categoria: "tenant-scoped" },
   "GET /api/admin/ratings/coaches": { categoria: "tenant-scoped" },
   "GET /api/admin/ratings/roster": { categoria: "tenant-scoped" },
+  "GET /api/admin/ratings/roster/coach-today": { categoria: "tenant-scoped" },
   "POST /api/admin/ratings/roster": { categoria: "tenant-scoped" },
 
   // ── /api/admin/referrals ──────────────────────────────────────────────────

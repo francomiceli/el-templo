@@ -96,6 +96,20 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // GET /roster/coach-today — sede donde el coach autenticado está agendado
+  // hoy en el slot de la hora actual (default de sede en el login de TV).
+  fastify.get("/roster/coach-today", async (request, reply) => {
+    try {
+      const ctx = assertTenant(request.scope, "ratings.coachToday");
+      return await ratingsService.getCoachTodayBranch(
+        ctx,
+        request.user.userId,
+      );
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "get coach today branch");
+    }
+  });
+
   // POST /roster — assign/replace a coach in a slot (immediate persistence).
   // Owner-only WRITE: only the owner assigns coaches; the rest of the staff see
   // the roster read-only in Horarios. requireBranchAccess still scopes the

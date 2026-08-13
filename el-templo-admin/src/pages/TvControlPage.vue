@@ -236,6 +236,29 @@
       </div>
     </template>
 
+    <q-dialog v-model="sedeWarningOpen" persistent>
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6">Verificá la sede</div>
+        </q-card-section>
+        <q-card-section class="text-body2">
+          Chequeá que seleccionaste la sede correcta. Si está mal elegida vas a manejar la
+          pantalla de otra sede.
+          <div class="text-weight-bold q-mt-sm">{{ selectedBranchLabel }}</div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            class="full-width"
+            unelevated
+            size="lg"
+            color="primary"
+            label="Entendido, la sede es correcta"
+            @click="sedeWarningOpen = false"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-dialog v-model="confirmEndOpen" persistent>
       <q-card style="min-width: 320px">
         <q-card-section>
@@ -335,6 +358,8 @@ const contextError = ref<string | null>(null);
 /** Una request de control en vuelo: bloquea la botonera contra el doble tap. */
 const busy = ref(false);
 const confirmEndOpen = ref(false);
+/** Advertencia de sede al montar el control: arranca abierta, no se reabre al cambiar de sede a mano. */
+const sedeWarningOpen = ref(true);
 
 const branches = ref<BranchOption[]>([]);
 const branchesLoading = ref(false);
@@ -344,20 +369,44 @@ let refreshId: ReturnType<typeof setInterval> | null = null;
 
 // =========================================================================
 // Sedes — un televisor cuelga de una pared, así que las sedes virtuales
-// (online) se filtran. El default es la sede del profe (D-11); el gate real
-// de acceso es requireBranchAccess en el API.
+// (online) se filtran. El default es la sede donde el profe está agendado
+// HOY (coach-today), con fallback a la sede de casa (D-11) y después a la
+// primera opción. El gate real de acceso es requireBranchAccess en el API.
 // =========================================================================
 
 const branchOptions = computed(() =>
   branches.value.filter((b) => !b.isVirtual).map((b) => ({ label: b.name, value: b.id }))
 );
 
+/** Label de la sede seleccionada para el modal de advertencia (reactivo: se actualiza solo cuando cargan las sedes). */
+const selectedBranchLabel = computed(
+  () => branchOptions.value.find((o) => o.value === selectedBranchId.value)?.label ?? 'cargando…'
+);
+
 async function fetchBranches(): Promise<void> {
   branchesLoading.value = true;
   try {
     branches.value = await membersApi.getBranches();
-    const own = branchOptions.value.find((o) => o.value === authStore.user?.branchId);
-    selectedBranchId.value = own?.value ?? branchOptions.value[0]?.value ?? null;
+
+    // Default de sede: primero la sede donde el coach está agendado HOY en el
+    // slot actual (coach-today); si el endpoint falla, devuelve null o esa
+    // sede no está en las opciones (sede virtual filtrada, por ejemplo), cae
+    // a la sede de casa del profe y después a la primera opción.
+    let target: number | null = null;
+    try {
+      const { branchId } = await tvApi.getCoachTodayBranch();
+      if (branchId != null && branchOptions.value.some((o) => o.value === branchId)) {
+        target = branchId;
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      log.warn('coach-today falló, uso sede de casa', { error: message });
+    }
+    if (target == null) {
+      const own = branchOptions.value.find((o) => o.value === authStore.user?.branchId);
+      target = own?.value ?? branchOptions.value[0]?.value ?? null;
+    }
+    selectedBranchId.value = target;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error cargando sedes', { error: message });

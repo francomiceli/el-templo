@@ -29,6 +29,7 @@ import {
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { todayInTz } from "../shared/date-utils";
 // La regla de atribución (día ISO, turno, semana efectiva) vive en un módulo
 // aparte porque el export de sesiones de prueba resuelve el mismo profe por
 // otro camino — ver roster-attribution.ts.
@@ -491,6 +492,58 @@ export class RatingsService {
       classStars,
       comment: comment ?? null,
     });
+  }
+
+  /**
+   * TV login default (Fase TV): sede donde el coach autenticado está agendado
+   * HOY en el slot de la hora actual (mañana <12:00 / tarde). Recorre las
+   * sedes del coach (user_branches) y reusa resolveRosterCoachId — el mismo
+   * change-point vigente que resuelve la atribución de ratings — así no suma
+   * accesos nuevos a class_coach_assignments (evita CON-06). Devuelve
+   * branchId: null si el coach no está agendado hoy en ninguna de sus sedes.
+   */
+  async getCoachTodayBranch(
+    ctx: TenantContext,
+    coachId: number,
+    now: Date = new Date(),
+  ): Promise<{ branchId: number | null }> {
+    const rows = await this.db
+      .select({
+        branchId: schema.userBranches.branchId,
+        timezone: schema.branches.timezone,
+      })
+      .from(schema.userBranches)
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.userBranches.branchId),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.userBranches, ctx),
+          eq(schema.userBranches.userId, coachId),
+        ),
+      )
+      .orderBy(schema.userBranches.branchId);
+
+    for (const b of rows) {
+      const tz = b.timezone;
+      const today = todayInTz(tz, now);
+      const localTime = now
+        .toLocaleTimeString("en-GB", { timeZone: tz, hour12: false })
+        .slice(0, 5);
+      const effectiveCoach = await this.resolveRosterCoachId(
+        b.branchId,
+        today,
+        localTime,
+      );
+      if (effectiveCoach === coachId) {
+        return { branchId: b.branchId };
+      }
+    }
+    return { branchId: null };
   }
 
   /**
