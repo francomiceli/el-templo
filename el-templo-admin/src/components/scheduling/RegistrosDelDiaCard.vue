@@ -26,31 +26,76 @@
       }}
     </q-card-section>
 
-    <q-list v-else separator>
-      <q-item
-        v-for="entry in entries"
-        :key="entry.memberId"
-        clickable
-        @click="goToMember(entry.memberId)"
+    <template v-else>
+      <!-- Los que llegaron con algo "mal" o molestias: siempre a la vista. -->
+      <q-list v-if="concerning.length > 0" separator>
+        <q-item
+          v-for="entry in concerning"
+          :key="entry.memberId"
+          clickable
+          @click="goToMember(entry.memberId)"
+        >
+          <q-item-section>
+            <q-item-label>{{ entry.memberName }}</q-item-label>
+            <q-item-label caption class="q-mt-xs">
+              <CheckInChips :check-in="entry.checkIn" />
+            </q-item-label>
+          </q-item-section>
+        </q-item>
+      </q-list>
+
+      <q-card-section
+        v-else
+        class="text-grey-6 text-italic q-py-sm"
       >
-        <q-item-section>
-          <q-item-label>{{ entry.memberName }}</q-item-label>
-          <q-item-label caption class="q-mt-xs">
-            <CheckInChips :check-in="entry.checkIn" />
-          </q-item-label>
-        </q-item-section>
-      </q-item>
-    </q-list>
+        Nadie llegó con molestias hoy 🙌
+      </q-card-section>
+
+      <!-- El resto (bien/normal) queda plegado para no alargar la lista. -->
+      <template v-if="rest.length > 0">
+        <q-separator />
+        <q-item clickable dense @click="showRest = !showRest">
+          <q-item-section side>
+            <q-icon
+              :name="showRest ? 'expand_less' : 'expand_more'"
+              color="grey-6"
+            />
+          </q-item-section>
+          <q-item-section class="text-grey-7">
+            {{ showRest ? 'Ocultar el resto' : `Ver resto de registros (${rest.length})` }}
+          </q-item-section>
+        </q-item>
+
+        <q-list v-if="showRest" separator>
+          <q-item
+            v-for="entry in rest"
+            :key="entry.memberId"
+            clickable
+            @click="goToMember(entry.memberId)"
+          >
+            <q-item-section>
+              <q-item-label>{{ entry.memberName }}</q-item-label>
+              <q-item-label caption class="q-mt-xs">
+                <CheckInChips :check-in="entry.checkIn" />
+              </q-item-label>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </template>
+    </template>
   </q-card>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCheckInRosterApi } from 'src/composables/useCheckInRosterApi';
 import { createLogger } from 'src/utils/logger';
 import CheckInChips from './CheckInChips.vue';
-import type { CheckInRosterEntry } from 'src/types/checkin-roster';
+import type {
+  CheckInRosterEntry,
+  DayCheckIn,
+} from 'src/types/checkin-roster';
 
 const props = defineProps<{
   branchId: number | null;
@@ -64,6 +109,24 @@ const { getDayRoster } = useCheckInRosterApi();
 const entries = ref<CheckInRosterEntry[]>([]);
 const attendeeCount = ref(0);
 const loading = ref(false);
+const showRest = ref(false);
+
+/** Llegó con algo para mirar: energía baja, mal sueño o cualquier molestia. */
+function isConcerning(c: DayCheckIn): boolean {
+  return (
+    c.energy === 'bajo' ||
+    c.sleep === 'mal' ||
+    (c.soreness !== null && c.soreness !== 'ninguna')
+  );
+}
+
+// El backend ya ordena "peor primero", así que el split conserva ese orden.
+const concerning = computed(() =>
+  entries.value.filter((e) => isConcerning(e.checkIn))
+);
+const rest = computed(() =>
+  entries.value.filter((e) => !isConcerning(e.checkIn))
+);
 
 /** "Hoy" en la zona horaria de la sede (YYYY-MM-DD). */
 function todayInBranchTz(): string {
@@ -79,6 +142,7 @@ async function load() {
     return;
   }
   loading.value = true;
+  showRest.value = false;
   try {
     const res = await getDayRoster(props.branchId, {
       date: todayInBranchTz(),
