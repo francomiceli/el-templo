@@ -24,15 +24,16 @@ export function conExencionValida(db: FakeDb): FakeDb {
 /**
  * VIOLACIÓN — la anotación pelada no exime: sin motivo no hay exención.
  *
- * Tabla `subscription_plans` (no `users`, fase 173-30): `users` entró a
- * `TENANT_STRICT_MODULES` con la adopción de `members`, y este fixture existe
- * para probar el gate de exenciones (D-13/D-14) aislado de D-15 —mismo
- * criterio que el `it` de abajo documenta para `bookings`: si la tabla del
- * fixture pasa a ser strict de verdad, se cambia la tabla, no la aserción.
+ * Tabla `day_modes` (no `subscription_plans`, fase 174.1): `subscription_plans`
+ * entró a `TENANT_STRICT_MODULES` con el switch de `subscriptions`, y este
+ * fixture existe para probar el gate de exenciones (D-13/D-14) aislado de
+ * D-15 —mismo criterio que el `it` de abajo documenta para `bookings`: si la
+ * tabla del fixture pasa a ser strict de verdad, se cambia la tabla, no la
+ * aserción.
  */
 export function conMotivoVacio(db: FakeDb): FakeDb {
   /* tenant-safe: */
-  return db.select().from(schema.subscriptionPlans);
+  return db.select().from(schema.dayModes);
 }
 
 /** VIOLACIÓN — un comentario de línea no exime (rechazo tipo `schema/tv.ts`). */

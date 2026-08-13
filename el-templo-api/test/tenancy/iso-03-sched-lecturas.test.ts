@@ -876,7 +876,12 @@ describe("uso de bonus — GET /api/members/scheduling/bonus-usage", () => {
     await app.db
       .update(schema.subscriptionPlans)
       .set({ bookingMode: "fixed" })
-      .where(eq(schema.subscriptionPlans.id, gym2.planId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, CTX_DOS),
+          eq(schema.subscriptionPlans.id, gym2.planId),
+        ),
+      );
 
     // Un horario DISTINTO del fijo asignado en `subscription_schedules`
     // (`fx.dos.scheduleId`): una reserva ahi cuenta como "bonus" (fuera del

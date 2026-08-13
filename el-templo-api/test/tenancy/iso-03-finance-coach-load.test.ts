@@ -1352,7 +1352,7 @@ describe("alta de alumno con plan — POST /api/admin/finance/coach-load/alta (a
       sql`SELECT /* tenant-safe: leer la fila ES la asercion de evidencia (multi-columna); filtrarla por gimnasio la volveria tautologica, mismo razonamiento que tenantDeLaFila */ tenant_id, validation_status, cash_register_id, amount FROM financial_transactions WHERE id = ${chargeId}`,
     );
     const [filaSubPrecio] = await consultar<{ price_paid: number }>(
-      sql`SELECT price_paid FROM subscriptions WHERE id = ${subId}`,
+      sql`SELECT /* tenant-safe: leer la sub recien creada por su PK ES la asercion; filtrarla por gimnasio la volveria tautologica */ price_paid FROM subscriptions WHERE id = ${subId}`,
     );
     expect(
       [

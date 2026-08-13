@@ -808,7 +808,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM holidays WHERE country = 'AR' AND date = ${FECHA}`,
+        sql`SELECT /* tenant-safe: la asercion cross-tenant necesita contar los dos gimnasios */ COUNT(*) AS n FROM holidays WHERE country = 'AR' AND date = ${FECHA}`,
       );
       expect(enLosDos, "El mismo feriado, una vez por tenant").toBe(2);
 
@@ -890,7 +890,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM subscription_plans WHERE name = ${NOMBRE} AND country = 'AR'`,
+        sql`SELECT /* tenant-safe: la asercion cross-tenant necesita contar los dos gimnasios */ COUNT(*) AS n FROM subscription_plans WHERE name = ${NOMBRE} AND country = 'AR'`,
       );
       expect(enLosDos, "El mismo plan, una vez por tenant").toBe(2);
 
