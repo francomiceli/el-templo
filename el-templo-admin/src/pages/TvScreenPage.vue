@@ -551,7 +551,7 @@ onUnmounted(() => {
   justify-content: center;
   font-weight: 700;
   letter-spacing: 0.1em;
-  font-size: 2.1rem;
+  font-size: 1.5rem;
   line-height: 1.3;
   color: var(--navy);
 }
@@ -642,7 +642,7 @@ onUnmounted(() => {
   font-weight: 700;
   letter-spacing: 0.2em;
   font-size: 1.3rem;
-  color: var(--muted);
+  color: var(--navy);
 }
 #tvScreenRoot .bloqueNum .dots {
   display: inline-flex;
@@ -741,7 +741,8 @@ onUnmounted(() => {
   font-size: 4.8rem;
   line-height: 0;
   vertical-align: middle;
-  margin-left: 0.5rem;
+  /* Separación del nombre: 0.9rem (en el TV el glyph queda pegado con 0.5). */
+  margin-left: 0.9rem;
 }
 #tvScreenRoot .lista-col .item .ej-nombre {
   flex: 1 1 auto;
