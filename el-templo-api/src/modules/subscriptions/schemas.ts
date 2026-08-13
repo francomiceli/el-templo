@@ -477,6 +477,10 @@ export const renewSubscriptionSchema = {
           pattern: "^\\d{4}-\\d{2}-\\d{2}$",
         },
       },
+      // Renovación prorrateada hasta fin de mes (alineación a domiciliación):
+      // vigencia al último día del mes del inicio + precio proporcional
+      // (priceOverrideAmount = monto editado, sin razón). Excluyente con referido.
+      prorateToMonthEnd: { type: "boolean" },
     },
   },
   response: {

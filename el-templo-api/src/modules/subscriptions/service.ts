@@ -4221,9 +4221,18 @@ export class SubscriptionService {
     } else {
       newStartDate = autoStartDate;
     }
-    const newEnd = new Date(newStartDate);
-    newEnd.setDate(newEnd.getDate() + plan.durationDays);
-    const newEndDate = newEnd.toISOString().split("T")[0];
+    // Vencimiento del nuevo período. Por defecto `startDate + durationDays`
+    // (mes completo). Con prorrateo hasta fin de mes (alineación a la
+    // domiciliación) vence el último día del mes calendario del inicio — misma
+    // fuente de cálculo que el alta prorrateada (computeMonthEndProration).
+    let newEndDate: string;
+    if (input.prorateToMonthEnd) {
+      newEndDate = computeMonthEndProration(newStartDate).endDate;
+    } else {
+      const newEnd = new Date(newStartDate);
+      newEnd.setDate(newEnd.getDate() + plan.durationDays);
+      newEndDate = newEnd.toISOString().split("T")[0];
+    }
 
     // Fresh class budget for the new period. Mismo criterio que assignPlan: los
     // planes con classesPerWeek derivan; el pase especial (classesPerWeek=NULL)
@@ -4257,7 +4266,37 @@ export class SubscriptionService {
     // Referidos (fase 157): materialización del descuento en columnas nuevas.
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
-    if (
+
+    // priceType de la renovación (heredado por default). Se declara acá arriba
+    // porque el prorrateo también lo resuelve; el bloque WR-04 de más abajo lo
+    // normaliza en el camino normal.
+    const inheritedPriceType = currentSub.priceTypeApplied as PriceType;
+    let renewalPriceType = inheritedPriceType;
+
+    // Renovación prorrateada hasta fin de mes — máxima prioridad, excluyente con
+    // el override-con-razón y con el descuento de referido (mismo criterio que el
+    // alta prorrateada). El precio base del proporcional es el MES COMPLETO que el
+    // socio venía pagando (heredado, WR-04 normalizado); el proporcional se computa
+    // sobre ese base y el staff puede editar el sugerido, que llega por
+    // `priceOverrideAmount` SIN exigir razón. No se persiste como override
+    // (renewalOverrideAmount queda null): el endDate a fin de mes + pricePaid ya
+    // cuentan la historia. Cap defensivo: no puede superar el mes completo.
+    if (input.prorateToMonthEnd) {
+      renewalPriceType = await this.resolvePriceType(inheritedPriceType);
+      const fullMonthPrice =
+        renewalPriceType !== inheritedPriceType
+          ? this.getBasePrice(plan, renewalPriceType)
+          : renewalPrice;
+      renewalPrice =
+        input.priceOverrideAmount !== undefined
+          ? input.priceOverrideAmount
+          : computeProratedPrice(fullMonthPrice, newStartDate);
+      if (renewalPrice > fullMonthPrice) {
+        throw new BadRequestError(
+          "El precio prorrateado no puede superar el precio del mes completo",
+        );
+      }
+    } else if (
       input.priceOverrideAmount !== undefined &&
       input.priceOverrideAmount >= 0
     ) {
@@ -4279,9 +4318,7 @@ export class SubscriptionService {
     // de esta renovación (el override manda). Con la regla ON (El Templo) la
     // resolución es identidad y nada cambia; con la regla OFF, `credit_card`
     // normaliza a `regular` y se recobra el precio base regular del plan vigente.
-    const inheritedPriceType = currentSub.priceTypeApplied as PriceType;
-    let renewalPriceType = inheritedPriceType;
-    if (renewalOverrideAmount === null) {
+    if (!input.prorateToMonthEnd && renewalOverrideAmount === null) {
       renewalPriceType = await this.resolvePriceType(inheritedPriceType);
       if (renewalPriceType !== inheritedPriceType) {
         // credit_card → regular con la regla OFF: cobrar el precio regular
@@ -4297,7 +4334,10 @@ export class SubscriptionService {
     // D-09: los pases especiales quedan FUERA de referidos también en la
     // renovación — no cualifican vínculos ni descuentan (T-161-05). Guard por
     // categoría del plan de la sub renovada.
-    if (plan.planCategory !== "especial") {
+    // Renovación prorrateada: el proporcional es el precio final, sin descuento
+    // de referido encima (excluyente, igual que el alta); el vínculo se cualifica
+    // en la primera renovación de mes completo (que sí corre esta lógica).
+    if (plan.planCategory !== "especial" && !input.prorateToMonthEnd) {
       await this.qualifyReferralOnCharge(userId, renewalPrice);
       const referral = await this.computePriceWithReferralDiscount(
         userId,

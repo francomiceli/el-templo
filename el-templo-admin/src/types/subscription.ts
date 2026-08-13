@@ -336,6 +336,13 @@ export interface RenewSubscriptionInput {
   scheduleIds?: number[];
   /** Inicio diferido por turno (slot lleno esta semana), como en asignación. */
   scheduleStartDates?: Record<string, string>;
+  /**
+   * Renovación prorrateada hasta fin de mes (alineación a la domiciliación).
+   * true → vence el último día del mes del inicio y el precio es el proporcional
+   * (el monto editado viaja por priceOverrideAmount, sin razón). Excluyente con
+   * el descuento de referido. Default (undefined) = renovación de mes completo.
+   */
+  prorateToMonthEnd?: boolean;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

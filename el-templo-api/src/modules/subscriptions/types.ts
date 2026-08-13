@@ -456,6 +456,17 @@ export interface RenewSubscriptionInput {
    * turno en una fecha futura. Solo tiene efecto si `scheduleIds` viene.
    */
   scheduleStartDates?: Record<string, string>;
+  /**
+   * Renovación prorrateada hasta fin de mes (alineación a la domiciliación).
+   * Opt-in explícito: cuando es true, la renovación vence el último día del mes
+   * calendario del inicio (en vez de `startDate + durationDays`) y el precio es
+   * el proporcional de los días hasta fin de mes. Excluyente con el descuento de
+   * referido; el precio editado por el staff llega por `priceOverrideAmount`
+   * (sin exigir razón, igual que el alta prorrateada). El default (undefined /
+   * false) mantiene la renovación de mes completo — "no renovaciones de menos de
+   * un mes" salvo esta alineación deliberada.
+   */
+  prorateToMonthEnd?: boolean;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────
