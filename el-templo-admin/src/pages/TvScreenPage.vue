@@ -468,7 +468,6 @@ onUnmounted(() => {
 #tvScreenRoot .glyph {
   font-family: var(--glyph);
   color: var(--navy);
-  text-transform: none;
 }
 /* Porcentaje de esfuerzo dentro del header de columna (lo envuelve render.ts).
    Mismo color que los dígitos del cronómetro (--navy), no un azul inventado. */
@@ -592,8 +591,8 @@ onUnmounted(() => {
   letter-spacing: 0.09em;
   font-size: 3.2rem;
   line-height: 1.1;
-  color: var(--navy);
-  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+  /* Mismo color que los headers de NIVEL de las columnas. */
+  color: var(--gold);
 }
 /* Formato del bloque (ej. "AMRAP 10'") en su propia fila, debajo del nombre. */
 #tvScreenRoot .cabInfo .formato {
@@ -616,7 +615,11 @@ onUnmounted(() => {
   letter-spacing: 0.06em;
   font-size: 2rem;
   color: var(--navy);
-  padding: 0.5rem 2rem 0.9rem;
+  /* Banda sand como los ejercicios; menos aire arriba (era el hueco del medio). */
+  margin: 0.15rem 2rem 0.7rem;
+  padding: 0.3rem 1rem;
+  border-radius: 0.6rem;
+  background: rgba(219, 202, 180, 0.35);
 }
 #tvScreenRoot .movBar:empty {
   display: none;
@@ -689,9 +692,6 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* La ruta va en mayúscula (NIVEL ya lo está); el símbolo de nivel se exceptúa
-     abajo para no transformar el glyph. */
-  text-transform: uppercase;
 }
 #tvScreenRoot .caja {
   flex: 1;
@@ -708,22 +708,20 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   /* Los ítems se reparten en TODA la altura de la caja (el aire crece solo
-     cuando hay pocos ejercicios); row-gap es el respiro mínimo con listas largas. */
+     cuando hay pocos ejercicios); row-gap garantiza separación visible entre
+     los fondos sand aun con listas largas. */
   justify-content: space-evenly;
-  row-gap: 0.4rem;
+  row-gap: 0.6rem;
   padding: 1rem 1.2rem;
 }
 #tvScreenRoot .lista-col .item {
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  /* Padding propio para que la banda cebra respire alrededor del texto. */
+  /* Padding propio para que la banda sand respire alrededor del texto. */
   padding: 0.3rem 0.7rem;
   border-radius: 0.6rem;
-}
-/* Cebra: filas alternas con fondo sutil (sand translúcido) para seguir la
-   línea de lejos. */
-#tvScreenRoot .lista-col .item:nth-child(even) {
+  /* Todos los ejercicios con la banda sand translúcida (no alternados). */
   background: rgba(219, 202, 180, 0.35);
 }
 #tvScreenRoot .lista-col .item .ej-nombre {
@@ -770,7 +768,7 @@ onUnmounted(() => {
   padding-left: 1rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 2rem;
+  font-size: 2.4rem;
   color: var(--navy);
   white-space: nowrap;
 }
