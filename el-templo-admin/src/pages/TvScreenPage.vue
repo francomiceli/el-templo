@@ -361,9 +361,6 @@ onUnmounted(() => {
   --gold: #b08d6e;
   --sand: #dbcab4;
   --muted: #c5b9a8;
-  /* Azul de acento (símbolo de nivel + % de esfuerzo). La paleta de marca es
-     cálida sin azul, pero acá se pidió explícito para que resalte en el TV. */
-  --azul: #2f6bd6;
   --cinzel: 'Cinzel', Georgia, serif;
   --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
   --glyph: 'Segoe UI', Arial, 'Noto Sans', sans-serif;
@@ -460,11 +457,12 @@ onUnmounted(() => {
 /* ── Símbolos de nivel ──────────────────────────────────────────────────── */
 #tvScreenRoot .glyph {
   font-family: var(--glyph);
-  color: var(--azul);
+  color: var(--navy);
 }
-/* Porcentaje de esfuerzo dentro del header de columna (lo envuelve render.ts). */
+/* Porcentaje de esfuerzo dentro del header de columna (lo envuelve render.ts).
+   Mismo color que los dígitos del cronómetro (--navy), no un azul inventado. */
 #tvScreenRoot .pct {
-  color: var(--azul);
+  color: var(--navy);
 }
 #tvScreenRoot .glyph.kairos {
   display: inline-block;
@@ -568,7 +566,7 @@ onUnmounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: left;
 }
 #tvScreenRoot .cabInfo h1 {
@@ -576,25 +574,25 @@ onUnmounted(() => {
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.09em;
-  font-size: 2.6rem;
+  font-size: 3.2rem;
   line-height: 1.1;
   color: var(--navy);
   text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
 }
 #tvScreenRoot .cabInfo .movilidad {
-  margin-top: 0.4rem;
+  margin-top: 0.5rem;
   font-weight: 700;
   letter-spacing: 0.1em;
-  font-size: 1.8rem;
+  font-size: 2.2rem;
   color: var(--gold);
 }
 #tvScreenRoot .cabInfo .bloqueNum {
   display: inline-flex;
   align-items: center;
-  margin-top: 0.4rem;
+  margin-top: 0.5rem;
   font-weight: 700;
   letter-spacing: 0.2em;
-  font-size: 0.9rem;
+  font-size: 1.3rem;
   color: var(--muted);
 }
 #tvScreenRoot .cabInfo .dots {
@@ -602,12 +600,12 @@ onUnmounted(() => {
   margin-left: 0.5rem;
 }
 #tvScreenRoot .cabInfo .dot {
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 0.7rem;
+  height: 0.7rem;
   border-radius: 50%;
   background: var(--muted);
   opacity: 0.5;
-  margin-right: 0.4rem;
+  margin-right: 0.5rem;
 }
 #tvScreenRoot .cabInfo .dot:last-child {
   margin-right: 0;
@@ -670,40 +668,34 @@ onUnmounted(() => {
   padding: 1rem 1.7rem;
 }
 #tvScreenRoot .lista-col .item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
   margin-bottom: 1.15rem;
 }
 #tvScreenRoot .lista-col .item:last-child {
   margin-bottom: 0;
 }
 #tvScreenRoot .lista-col .item .ej-nombre {
+  flex: 1 1 auto;
+  min-width: 0;
   font-weight: 700;
   color: var(--navy);
   font-size: 2.35rem;
   line-height: 1.25;
-}
-#tvScreenRoot .lista-col .item .ej-nombre::before {
-  content: '•  ';
-  color: var(--gold);
-}
-#tvScreenRoot .lista-col .item .ej-dosis {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  margin-top: 0.5rem;
-  /* Alinea con el texto del nombre, después de la viñeta "• ". */
-  padding-left: 1.1em;
 }
 /* Badge de contracción: TRES colores distintos (a diferencia de la app, que
    comparte color entre CON/ISO) para que se distingan de un vistazo desde
    lejos. Tokens del marco #tvScreenRoot. */
 #tvScreenRoot .lista-col .item .badge {
   font-weight: 700;
-  font-size: 1.2rem;
-  letter-spacing: 0.08em;
+  font-size: 1.6rem;
+  letter-spacing: 0;
   text-transform: uppercase;
-  padding: 0.24rem 0.8rem;
-  border-radius: 0.45rem;
-  line-height: 1.4;
+  /* Texto casi pegado al borde: padding mínimo, la sigla llena el badge. */
+  padding: 0.02em 0.18em;
+  border-radius: 0.3rem;
+  line-height: 1.02;
   white-space: nowrap;
 }
 #tvScreenRoot .lista-col .item .badge--con {
@@ -719,10 +711,13 @@ onUnmounted(() => {
   color: var(--navy);
 }
 #tvScreenRoot .lista-col .item .dosis {
+  flex: 0 0 auto;
+  padding-left: 1rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: 1.5rem;
+  font-size: 2rem;
   color: var(--gold);
+  white-space: nowrap;
 }
 #tvScreenRoot .lista-col .caja.compacta .item {
   margin-bottom: 0.7rem;

@@ -349,30 +349,25 @@ function buildItem(ex: TvExercise): HTMLElement {
   const item = document.createElement('div');
   item.className = 'item';
 
-  const nombre = document.createElement('div');
+  // El badge de esfuerzo hace de viñeta: va ANTES del nombre (reemplaza al "•").
+  if (ex.contraction.length > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'badge badge--' + ex.contraction.toLowerCase();
+    badge.textContent = ex.contraction;
+    item.appendChild(badge);
+  }
+
+  const nombre = document.createElement('span');
   nombre.className = 'ej-nombre';
   nombre.textContent = ex.name;
   item.appendChild(nombre);
 
-  if (ex.contraction.length > 0 || ex.dose.length > 0) {
-    const fila = document.createElement('div');
-    fila.className = 'ej-dosis';
-
-    if (ex.contraction.length > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'badge badge--' + ex.contraction.toLowerCase();
-      badge.textContent = ex.contraction;
-      fila.appendChild(badge);
-    }
-
-    if (ex.dose.length > 0) {
-      const dosis = document.createElement('span');
-      dosis.className = 'dosis';
-      dosis.textContent = ex.dose;
-      fila.appendChild(dosis);
-    }
-
-    item.appendChild(fila);
+  // Repeticiones / segundos a la derecha de la fila.
+  if (ex.dose.length > 0) {
+    const dosis = document.createElement('span');
+    dosis.className = 'dosis';
+    dosis.textContent = ex.dose;
+    item.appendChild(dosis);
   }
 
   return item;
