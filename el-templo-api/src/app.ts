@@ -50,7 +50,11 @@ import { userRoutes } from "./modules/users";
 import { settingsRoutes } from "./modules/settings";
 import { onboardingRoutes } from "./modules/onboarding";
 import { barChallengeRoutes } from "./modules/bar-challenge/routes";
-import { checkInRoutes, checkInAdminRoutes } from "./modules/check-ins";
+import {
+  checkInRoutes,
+  checkInAdminRoutes,
+  checkInRosterRoutes,
+} from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
 import { notificationRoutes } from "./modules/notifications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
@@ -338,6 +342,8 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await app.register(checkInRoutes, { prefix: "/api/check-ins" });
   // Vista admin del Registro del día (tab de Feedback, ADMIN_ROLES).
   await app.register(checkInAdminRoutes, { prefix: "/api/admin/check-ins" });
+  // Roster de registros del día para Horarios (coach + admin/dueño).
+  await app.register(checkInRosterRoutes, { prefix: "/api/admin/check-ins" });
 
   // Program management routes (admin CRUD + member catalog/progress)
   await app.register(programRoutes, { prefix: "/api" });

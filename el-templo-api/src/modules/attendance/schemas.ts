@@ -122,6 +122,20 @@ const slotAttendanceItemSchema = {
     // Aniversario de permanencia: frase lista ("Cumple 1 año en El Templo") o
     // null. Aparece el día del hito o en la próxima clase si cayó en falta.
     anniversaryLabel: { type: ["string", "null"] },
+    // Registro del día del alumno (energía/sueño/molestias), su dato más
+    // reciente en los últimos 7 días. Sólo lo completa el server para coach +
+    // admin/dueño; null para el resto del staff. `daysAgo` 0 = del día.
+    checkIn: {
+      type: ["object", "null"],
+      properties: {
+        date: { type: "string" },
+        daysAgo: { type: "integer" },
+        energy: { type: ["string", "null"] },
+        soreness: { type: ["string", "null"] },
+        sorenessBodyArea: { type: ["string", "null"] },
+        sleep: { type: ["string", "null"] },
+      },
+    },
   },
 } as const;
 

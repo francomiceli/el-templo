@@ -118,6 +118,14 @@
         />
 
         <!-- ================================================================== -->
+        <!-- Registros del día de los alumnos que asisten hoy -->
+        <!-- ================================================================== -->
+        <RegistrosDelDiaCard
+          :branch-id="selectedBranchId"
+          :timezone="branchTimezone"
+        />
+
+        <!-- ================================================================== -->
         <!-- Weekly Calendar Grid -->
         <!-- ================================================================== -->
         <div v-if="loadingGrid" class="flex flex-center q-pa-xl">
@@ -451,6 +459,7 @@ import { DAY_SHORT_LABELS } from 'src/types/scheduling';
 import type { BranchOption } from 'src/types/member';
 import SlotDetailDialog from 'src/components/scheduling/SlotDetailDialog.vue';
 import AnniversariesCard from 'src/components/scheduling/AnniversariesCard.vue';
+import RegistrosDelDiaCard from 'src/components/scheduling/RegistrosDelDiaCard.vue';
 // Phase 113: ActivitiesDialog.vue was refactored into an embedded panel.
 // Filename kept for git history; import alias reflects the new shape.
 import ActivitiesPanel from 'src/components/scheduling/ActivitiesDialog.vue';

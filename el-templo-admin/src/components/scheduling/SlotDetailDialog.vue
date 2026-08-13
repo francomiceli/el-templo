@@ -332,6 +332,9 @@
                     🎉 {{ member.anniversaryLabel }}
                   </span>
                 </q-item-label>
+                <q-item-label v-if="member.checkIn" caption class="q-mt-xs">
+                  <CheckInChips :check-in="member.checkIn" />
+                </q-item-label>
               </q-item-section>
               <q-item-section side>
                 <div class="row items-center q-gutter-xs">
@@ -638,6 +641,7 @@ import { useMembersApi } from 'src/composables/useMembersApi';
 import { extractError } from 'src/utils/extract-error';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
 import MemberTags from 'src/components/scheduling/MemberTags.vue';
+import CheckInChips from 'src/components/scheduling/CheckInChips.vue';
 import type { BranchOption, MemberProfile } from 'src/types/member';
 import type {
   SlotDetailView,

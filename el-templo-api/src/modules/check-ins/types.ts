@@ -92,3 +92,45 @@ export interface CheckInScope {
   isOwner: boolean;
   country: string | null;
 }
+
+// =============================================================================
+// Registro del día para el staff operativo
+// (línea en la lista de asistencia + card "Registros del día" en Horarios)
+// =============================================================================
+
+/**
+ * El registro diario más reciente de un socio dentro de una ventana (por defecto
+ * los últimos 7 días). Es lo que ve el profe: cómo llegó el alumno a la clase.
+ *
+ * `daysAgo` = 0 → registró el día de referencia (hoy, o el día de la clase);
+ * `daysAgo` > 0 → es un registro anterior que se muestra como último dato
+ * disponible ("hace 2 días"), el fallback que pidió Franco cuando no hay registro
+ * del día. Los valores son los mismos strings que guarda `submitAnswer`
+ * (`energy`: bajo/normal/alto, `sleep`: mal/ok/bien, `soreness`:
+ * ninguna/leve/moderada + zona).
+ */
+export interface DayCheckIn {
+  /** Fecha del registro mostrado (YYYY-MM-DD). */
+  date: string;
+  /** Días entre la fecha de referencia y el registro. 0 = del día. */
+  daysAgo: number;
+  energy: string | null;
+  soreness: string | null;
+  sorenessBodyArea: string | null;
+  sleep: string | null;
+}
+
+/** Una fila del roster de registros del día (card de Horarios). */
+export interface CheckInRosterEntry {
+  memberId: number;
+  memberName: string;
+  checkIn: DayCheckIn;
+}
+
+export interface CheckInRosterResult {
+  /** Solo los asistentes CON un registro reciente, ordenados: primero los que
+   * llegaron peor (energía baja / mal sueño / molestia), luego por recencia. */
+  entries: CheckInRosterEntry[];
+  /** Cuántos alumnos asisten ese día en la sede (con reserva o asistencia). */
+  attendeeCount: number;
+}

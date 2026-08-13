@@ -2,6 +2,7 @@
  * Attendance types for admin UI.
  * Matches the AttendanceRecord shape from the attendance API.
  */
+import type { DayCheckIn } from './checkin-roster';
 
 export type AttendanceStatus = 'confirmado';
 export type AttendanceSource = 'qr' | 'manual';
@@ -50,4 +51,7 @@ export interface SlotAttendanceItem {
   // Aniversario de permanencia: frase lista ("Cumple 1 año en El Templo") o
   // null. Aparece el día del hito o en la próxima clase si cayó en falta.
   anniversaryLabel: string | null;
+  // Registro del día del alumno (cómo llegó a la clase). Sólo lo completa el
+  // server para coach + admin/dueño; null para gestión/recepción.
+  checkIn: DayCheckIn | null;
 }

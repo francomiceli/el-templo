@@ -26,6 +26,8 @@ import {
 } from "../shared/tenure-milestones";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
+import { CheckInService } from "../check-ins/service";
+import type { DayCheckIn } from "../check-ins/types";
 import type {
   AttendanceRecord,
   AttendanceListParams,
@@ -510,6 +512,7 @@ export class AttendanceService {
   async getSlotAttendance(
     scheduleId: number,
     date: string,
+    opts: { includeCheckIns?: boolean } = {},
   ): Promise<{
     members: Array<{
       memberId: number;
@@ -531,6 +534,11 @@ export class AttendanceService {
       // El Templo") cuando el alumno cruza un hito entre su clase anterior y
       // ésta. Null si no cae ningún hito en la ventana. Ver tenure-milestones.
       anniversaryLabel: string | null;
+      // Registro del día del alumno (energía/sueño/molestias), su dato más
+      // reciente en los últimos 7 días — cómo llegó a la clase. Sólo se completa
+      // cuando `opts.includeCheckIns` (coach + admin/dueño); null para el resto
+      // del staff, ya que es dato de salud autorreportado. Ver check-ins.
+      checkIn: DayCheckIn | null;
     }>;
   }> {
     // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
@@ -604,6 +612,7 @@ export class AttendanceService {
         seniority: MemberSeniority | null;
         endDate: string | null;
         anniversaryLabel: string | null;
+        checkIn: DayCheckIn | null;
       }
     >();
 
@@ -626,6 +635,7 @@ export class AttendanceService {
         seniority: computeSeniority(b.createdAt),
         endDate: b.endDate ?? null,
         anniversaryLabel: null,
+        checkIn: null,
       });
       createdAtByMember.set(b.memberId, b.createdAt);
     }
@@ -658,6 +668,7 @@ export class AttendanceService {
           seniority: computeSeniority(a.createdAt),
           endDate: a.endDate ?? null,
           anniversaryLabel: null,
+          checkIn: null,
         });
       }
       createdAtByMember.set(a.memberId, a.createdAt);
@@ -695,6 +706,19 @@ export class AttendanceService {
         if (milestone !== null) {
           entry.anniversaryLabel = `Cumple ${milestone.label} en El Templo`;
         }
+      }
+    }
+
+    // ─── Registro del día (cómo llegó el alumno) ────────────────────────────
+    // Sólo para coach + admin/dueño (opts.includeCheckIns): el registro es dato
+    // de salud autorreportado y no se expone a recepción/gestión. Se toma el
+    // más reciente de los últimos 7 días — fallback pedido por Franco cuando el
+    // alumno no registró el día de la clase.
+    if (opts.includeCheckIns && memberIds.length > 0) {
+      const checkInService = new CheckInService(this.db);
+      const checkIns = await checkInService.getRecentForUsers(memberIds, date);
+      for (const [memberId, entry] of memberMap) {
+        entry.checkIn = checkIns.get(memberId) ?? null;
       }
     }
 
