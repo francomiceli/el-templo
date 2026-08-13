@@ -64,7 +64,6 @@
           </div>
           <section class="cronometro" id="timerPanel">
             <div class="digitos" id="digitos">00:00</div>
-            <div class="sub" id="sub"></div>
             <div class="barra"><i id="progreso"></i></div>
           </section>
         </div>
@@ -138,7 +137,9 @@ const tvApi = useTvApi();
 /** Clave del TV elegido para esta pantalla — un televisor de pared lo hace una vez. */
 const BRANCH_STORAGE_KEY = 'tv.screen.branchId';
 /** Mismos tiempos que tenía el kiosco estático: poll de estado y tick de relojes. */
-const POLL_MS = 2500;
+// 750ms: la pantalla se entera del arranque del timer casi al instante (antes 2500
+// hacía que un EMOM saltara de 01:00 a ~00:58 al iniciar). Carga trivial: una por sede.
+const POLL_MS = 750;
 const TICK_MS = 250;
 /** Clase que oscurece el `body` real mientras la pantalla está montada (ver estilos). */
 const BODY_ACTIVE_CLASS = 'tv-screen-active';
@@ -724,6 +725,19 @@ onUnmounted(() => {
   /* Todos los ejercicios con la banda sand translúcida (no alternados). */
   background: rgba(219, 202, 180, 0.35);
 }
+/* Ranura del marcador ▸: reservada en todas las filas (alineación), en oro solo
+   sobre el ejercicio de la ronda actual. */
+#tvScreenRoot .lista-col .item .marker {
+  flex: 0 0 1.4rem;
+  text-align: center;
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+#tvScreenRoot .lista-col .item.actual .marker::before {
+  content: '\25B8';
+}
 #tvScreenRoot .lista-col .item .ej-nombre {
   flex: 1 1 auto;
   min-width: 0;
@@ -803,7 +817,7 @@ onUnmounted(() => {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 7rem;
+  font-size: 8.5rem;
   line-height: 1;
   color: var(--navy);
   /* Apagados mientras no corre; al arrancar pasan a opacidad plena. Esa transición ES
@@ -813,15 +827,6 @@ onUnmounted(() => {
 }
 #tvScreenRoot .cronometro.corriendo .digitos {
   opacity: 1;
-}
-#tvScreenRoot .cronometro .sub {
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  font-size: 1.05rem;
-  color: var(--gold);
-  min-height: 1.05em;
-  text-align: center;
-  margin-top: 0.25rem;
 }
 #tvScreenRoot .cronometro .barra {
   width: 84%;

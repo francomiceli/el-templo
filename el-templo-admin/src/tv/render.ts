@@ -73,7 +73,6 @@ interface Nodes {
   stage: HTMLElement;
   timerPanel: HTMLElement;
   digitos: HTMLElement;
-  sub: HTMLElement;
   progreso: HTMLElement;
   pantallaReposo: HTMLElement;
   reposoReloj: ClockNodes;
@@ -137,7 +136,6 @@ function ensureNodes(): Nodes {
     stage: byId('stage'),
     timerPanel: byId('timerPanel'),
     digitos: byId('digitos'),
-    sub: byId('sub'),
     progreso: byId('progreso'),
     pantallaReposo: byId('pantallaReposo'),
     reposoReloj: clockNodes(byId('reposoReloj')),
@@ -234,6 +232,8 @@ function paintGlyphText(host: HTMLElement, text: string): void {
 let quotes: SessionQuote[] = [];
 let last: TvPollResponse | null = null;
 let lastListKey = '';
+/** Ronda marcada por última vez en la lista (marcador ▸); evita tocar el DOM cada tick. */
+let lastMarkerKey: string | null = null;
 let lastDotsKey = '';
 let lastQuoteKey = '';
 let lastBeepKey: string | null = null;
@@ -252,6 +252,7 @@ export function resetRender(): void {
   nodes = null;
   last = null;
   lastListKey = '';
+  lastMarkerKey = null;
   lastDotsKey = '';
   lastQuoteKey = '';
   lastBeepKey = null;
@@ -344,7 +345,13 @@ function buildItem(ex: TvExercise): HTMLElement {
   const item = document.createElement('div');
   item.className = 'item';
 
-  // El badge de esfuerzo hace de viñeta: va ANTES del nombre (reemplaza al "•").
+  // Ranura del marcador ▸ (reservada en TODOS los ítems para no desalinear); solo
+  // se ve, en oro, sobre el ejercicio de la ronda actual (clase `actual`, vía CSS).
+  const marker = document.createElement('span');
+  marker.className = 'marker';
+  item.appendChild(marker);
+
+  // El badge de esfuerzo va antes del nombre.
   if (ex.contraction.length > 0) {
     const badge = document.createElement('span');
     badge.className = 'badge badge--' + ex.contraction.toLowerCase();
@@ -386,6 +393,8 @@ function paintList(n: Nodes, c: TvClassPayload): void {
     return;
   }
   lastListKey = key;
+  // La lista se reconstruye: el marcador se re-aplica en el próximo tick.
+  lastMarkerKey = null;
   clear(n.stage);
 
   for (let ci = 0; ci < c.columns.length; ci++) {
@@ -642,6 +651,39 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
 }
 
 /**
+ * Marca (▸ oro) el ejercicio que toca en la ronda actual de un formato con
+ * intervalos: ejercicio = (ronda-1) % nº de la columna (así una tabata de 8 con
+ * 4 ejercicios repite el 2º en la ronda 6). Los formatos sin rondas
+ * (AMRAP/countdown/libre) no tienen ejercicio "actual" → sin marcador. Guard por
+ * ronda para no tocar el DOM en cada tick.
+ */
+function updateMarkers(n: Nodes, c: TvClassPayload, frame: TimerFrame): void {
+  const kind = c.timer.spec.kind;
+  const active =
+    (kind === 'interval' || kind === 'work_rest') &&
+    !frame.finished &&
+    (c.timer.status === 'running' || c.timer.status === 'paused');
+  const key = active ? kind + '|' + frame.round : 'off';
+  if (key === lastMarkerKey) {
+    return;
+  }
+  lastMarkerKey = key;
+
+  const cols = n.stage.getElementsByClassName('lista-col');
+  for (let ci = 0; ci < cols.length; ci++) {
+    const items = cols[ci].getElementsByClassName('item');
+    const idx = active && items.length > 0 ? (frame.round - 1) % items.length : -1;
+    for (let i = 0; i < items.length; i++) {
+      if (i === idx) {
+        items[i].classList.add('actual');
+      } else {
+        items[i].classList.remove('actual');
+      }
+    }
+  }
+}
+
+/**
  * Repinta el timer con el reloj corregido, cada 250 ms.
  *
  * No consulta la red: el API publica `startedAt` y el kiosco deriva todo lo demas, asi que
@@ -661,7 +703,7 @@ export function tickTimer(): void {
 
   setClass(n.timerPanel, 'cronometro' + (paint.clase ? ' ' + paint.clase : ''));
   setText(n.digitos, paint.digitos);
-  setText(n.sub, paint.sub);
+  updateMarkers(n, c, frame);
   // La barra muestra el tiempo QUE QUEDA: arranca llena (100%) y se vacía a medida que
   // corre el bloque (progreso 0→100 ⇒ ancho 100→0).
   const ancho = Math.round(100 - paint.progreso) + '%';
