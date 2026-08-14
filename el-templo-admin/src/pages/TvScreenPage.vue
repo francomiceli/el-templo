@@ -851,12 +851,12 @@ onUnmounted(() => {
   border-radius: 0rem 0.5rem 0.5rem 0rem;
   background: linear-gradient(
     to right,
-    rgba(28, 42, 58, 0) 0%,
-    rgba(28, 42, 58, 0.06) 6%,
-    rgba(28, 42, 58, 0.22) 17%,
-    rgba(28, 42, 58, 0.55) 35%,
-    rgba(38, 57, 77, 0.82) 50%,
-    rgba(45, 66, 90, 0.94) 100%
+    #1c2a3a00,
+    #1c2a3a0f 6%,
+    #1c2a3a38 17%,
+    #1c2a3a8c 35%,
+    #26394dd1 47%,
+    #24364a
   );
   /* Sin la sombra navy heredada: sobre placa oscura no aporta y ensucia el número. */
   text-shadow: none;
