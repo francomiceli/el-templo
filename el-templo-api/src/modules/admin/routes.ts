@@ -260,6 +260,11 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       days?: string[];
       levelGroups?: string[];
       regenerate?: boolean;
+      // Phase 159 (SEM-01, D-02/D-03): per-day mode override, already
+      // validated by generateWeekSchema's enum + additionalProperties:false
+      // (T-159-02). See AdminSessionService.generateWeek's docblock for why
+      // this never writes to `day_modes`.
+      dayModes?: Record<string, string>;
     };
   }>(
     "/generate",
@@ -271,6 +276,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         days: request.body.days,
         levelGroups: request.body.levelGroups,
         regenerate: request.body.regenerate,
+        dayModes: request.body.dayModes,
       });
       return result;
     },

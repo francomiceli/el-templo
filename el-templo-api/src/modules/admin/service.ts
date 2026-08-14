@@ -173,8 +173,13 @@ export class AdminSessionService {
           if (b.role.startsWith("ROM_")) return ROM_DISPLAY[b.role] || b.role;
           if (b.role === "INITIUM") return "I";
           let label = b.role.charAt(0);
-          if (b.role === "DEUTEROS_1") label = "D1";
-          else if (b.role === "DEUTEROS_2") label = "D2";
+          // Phase 159 (SEM-12, D-P5): D1/D2 -> DA/DB frees "I"/"II" for the
+          // new COMBOS_I/II and TECNICA_I/II badges below. Presentation-only
+          // rename — the underlying role values (DEUTEROS_1/DEUTEROS_2) and
+          // the PDF literals ('DEUTEROS I'/'DEUTEROS II') are untouched
+          // (those are SEM-11 / phase 160 scope).
+          if (b.role === "DEUTEROS_1") label = "DA";
+          else if (b.role === "DEUTEROS_2") label = "DB";
           return `${label}: ${b.route} ${b.intensity}%`;
         })
         .join(", ");
@@ -633,6 +638,14 @@ export class AdminSessionService {
       days?: string[];
       levelGroups?: string[];
       regenerate?: boolean;
+      // Phase 159 (SEM-01, D-02/D-03): per-day mode override from the
+      // /generate request body. Keyed by day name, already validated against
+      // the enum ["regular","rom","combos","tecnica"] by generateWeekSchema
+      // (T-159-02). This ONLY overrides the mode in memory for this single
+      // generation call — it is NEVER written to `schema.dayModes` (D-02:
+      // that table has a UNIQUE (tenant_id, day_of_week) and reinterprets
+      // past/future weeks; it stays exclusively the ROM Saturday default).
+      dayModes?: Record<string, string>;
     },
   ): Promise<{
     generated: number;
@@ -642,6 +655,7 @@ export class AdminSessionService {
   }> {
     const days = options.days || [...TRAINING_DAYS];
     const levelGroups = options.levelGroups || ["alfa_delta", "sigma", "omega"];
+    const requestModes = options.dayModes ?? {};
 
     let generated = 0;
     let skipped = 0;
@@ -651,6 +665,12 @@ export class AdminSessionService {
     // Import SessionGeneratorService dynamically to avoid circular deps
     const { SessionGeneratorService } = await import("../sessions/service.js");
     const { generateRomSession } = await import("../sessions/rom-generator.js");
+    const { generateCombosSession } = await import(
+      "../sessions/combos-generator.js"
+    );
+    const { generateTecnicaSession } = await import(
+      "../sessions/tecnica-generator.js"
+    );
     const sessionService = new SessionGeneratorService(this.db);
 
     // Load day modes for ROM routing (per D-17)
@@ -660,11 +680,68 @@ export class AdminSessionService {
     );
 
     for (const day of days) {
-      // Check day mode for ROM routing
+      // Check day mode for ROM/combos/tecnica routing. The request's
+      // dayModes (per-day override, D-03) takes precedence over the
+      // day_modes table default; if neither is set, "regular".
       const dayNumber = DAY_NAME_TO_NUMBER[day];
-      const dayMode = dayNumber
-        ? dayModeMap.get(dayNumber) || "regular"
-        : "regular";
+      const dayMode =
+        requestModes[day] ??
+        (dayNumber ? dayModeMap.get(dayNumber) ?? "regular" : "regular");
+
+      if (dayMode === "combos" || dayMode === "tecnica") {
+        // Fixed-structure generation (D-10): all 6 levels across the 3
+        // level groups, same expansion as the regular loop below.
+        for (const levelGroup of levelGroups) {
+          const memberLevels: ExerciseLevel[] =
+            levelGroup === "alfa_delta"
+              ? ["alfa", "delta", "kairos"]
+              : levelGroup === "sigma"
+                ? ["sigma"]
+                : ["omega", "spartan"];
+
+          for (const memberLevel of memberLevels) {
+            const dayId = `W${week}-${day}-${memberLevel}`;
+            const existing = await sessionService.getSessionByDayId(dayId);
+            if (existing && !options.regenerate) {
+              skipped++;
+              continue;
+            }
+            if (existing && options.regenerate) {
+              await this.db
+                .delete(schema.sessions)
+                .where(eq(schema.sessions.dayId, dayId));
+            }
+            try {
+              const session =
+                dayMode === "combos"
+                  ? await generateCombosSession(
+                      this.db,
+                      week,
+                      day,
+                      levelGroup as LevelGroup,
+                      memberLevel,
+                    )
+                  : await generateTecnicaSession(
+                      this.db,
+                      week,
+                      day,
+                      levelGroup as LevelGroup,
+                      memberLevel,
+                    );
+              await sessionService.saveSession(session);
+              generated++;
+            } catch (err: unknown) {
+              failed++;
+              const errorMsg =
+                err instanceof Error ? err.message : String(err);
+              warnings.push(
+                `${dayId} (${dayMode === "combos" ? "COMBOS" : "TECNICA"}): ${errorMsg}`,
+              );
+            }
+          }
+        }
+        continue; // Skip the regular levelGroups loop for combos/tecnica days
+      }
 
       if (dayMode === "rom") {
         // ROM generation: only alfa and delta (per D-04)
