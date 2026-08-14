@@ -439,11 +439,14 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
         "172 pagó la de las 6 de finance (81), la 173 la de las 8 de members (73), la 174 tenant-izó " +
         "el último acceso de `subscription_schedule_changes` en la cadena de pricing (72) y la 174.1 " +
         "metió a strict las 8 tablas del boundary de subs+scheduling —7 nuevas, `subscription_" +
-        "schedule_changes` ya contaba desde el paso anterior— (65). Si este número baja SIN que la " +
+        "schedule_changes` ya contaba desde el paso anterior— (65), y la 175 (adopción de código del " +
+        "resto del core) migró los últimos accesos de las 4 tablas de campaigns —campaigns, " +
+        "campaign_sends, campaign_events, campaign_unsubscribes— vía los planes 175-01/175-02 (61). " +
+        "Si este número baja SIN que la " +
         "baja quede contabilizada tabla por tabla (una tabla que entró a TENANT_STRICT_MODULES, o " +
         "un acceso migrado que sale como staleNoLongerViolating de la allowlist), alguna forma de " +
         "import volvió a quedar afuera del lint.",
-    ).toBeGreaterThanOrEqual(65);
+    ).toBeGreaterThanOrEqual(61);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {

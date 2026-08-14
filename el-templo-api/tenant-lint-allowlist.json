@@ -320,34 +320,6 @@
       "table": "blog_tags"
     },
     {
-      "file": "el-templo-api/src/modules/campaigns/service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/service.ts",
-      "table": "campaign_events"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/service.ts",
-      "table": "campaign_sends"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/service.ts",
-      "table": "campaigns"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/tracking-service.ts",
-      "table": "campaign_events"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/tracking-service.ts",
-      "table": "campaign_sends"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/tracking-service.ts",
-      "table": "campaign_unsubscribes"
-    },
-    {
       "file": "el-templo-api/src/modules/check-ins/admin-service.ts",
       "table": "branches"
     },

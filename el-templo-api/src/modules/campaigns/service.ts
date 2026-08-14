@@ -230,15 +230,13 @@ export class CampaignService {
   ): Promise<CampaignListItem[]> {
     const c = schema.campaigns;
 
-    const countryFilter =
-      country === "AR" || country === "ES"
-        ? sql`(${c.country} = ${country} OR ${c.country} IS NULL)`
-        : undefined;
-
-    const where = countryFilter
-      ? and(tenantWhere(c, ctx), countryFilter)
-      : tenantWhere(c, ctx);
-
+    // T-175-02: TODO el WHERE —incluido el filtro de país— va en UNA sola
+    // expresión inline dentro de este `.where()`, sin variables intermedias
+    // (`const where = ...` / `const countryFilter = sql\`...\`` como estaba
+    // antes de este plan): el lint juzga por STATEMENT, y una variable
+    // armada en un statement separado deja los accesos de ESTE statement
+    // (`.from(c)`, el `recipientCount` correlacionado por `c.id` de abajo)
+    // sin marca textual pese a estar realmente scopeados en runtime.
     const rows = await this.db
       .select({
         id: c.id,
@@ -255,7 +253,14 @@ export class CampaignService {
         )`,
       })
       .from(c)
-      .where(where)
+      .where(
+        country === "AR" || country === "ES"
+          ? and(
+              tenantWhere(c, ctx),
+              sql`(${c.country} = ${country} OR ${c.country} IS NULL)`,
+            )
+          : tenantWhere(c, ctx),
+      )
       .orderBy(desc(c.createdAt));
 
     return rows.map((r) => ({
@@ -731,20 +736,24 @@ export class CampaignService {
     country?: "AR" | "ES" | null,
   ): Promise<BranchAddress[]> {
     const br = schema.branches;
-    const conditions = [
-      tenantWhere(br, ctx),
-      eq(br.isActive, true),
-      eq(br.isVirtual, false),
-      sql`${br.address} IS NOT NULL`,
-    ];
-    if (country === "AR" || country === "ES") {
-      conditions.push(eq(br.country, country));
-    }
+    const countryFilter =
+      country === "AR" || country === "ES" ? eq(br.country, country) : undefined;
 
+    // T-175-02: `tenantWhere(br, ctx)` INLINE en el `.where()` (antes vivía
+    // en un array `conditions` armado en un statement separado) — mismo
+    // motivo que `listCampaigns` de arriba: el lint juzga por statement.
     const rows = await this.db
       .select({ name: br.name, address: br.address })
       .from(br)
-      .where(and(...conditions));
+      .where(
+        and(
+          tenantWhere(br, ctx),
+          eq(br.isActive, true),
+          eq(br.isVirtual, false),
+          sql`${br.address} IS NOT NULL`,
+          ...(countryFilter ? [countryFilter] : []),
+        ),
+      );
 
     return rows
       .filter((r): r is { name: string; address: string } => r.address !== null)
