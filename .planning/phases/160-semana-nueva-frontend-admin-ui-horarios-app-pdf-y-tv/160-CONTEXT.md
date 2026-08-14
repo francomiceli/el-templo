@@ -48,9 +48,15 @@ Control de "modo por día" **en el área de generación** de `GeneratePage`, **s
 
 ---
 
-## Ítem ABIERTO (resolver en plan-phase)
+## Ítem RESUELTO (Franco, 2026-08-14)
 
-- **SEM-14 / SEM-10 "member app":** el relevamiento NO encontró dónde el member app muestra hoy `activityName` (búsqueda vacía en `progression/`). Confirmar si es una superficie nueva a construir o un módulo no ubicado (p.ej. checkin). La derivación de nombre (Combos/Técnica/General) es en tiempo de LECTURA: la fila `activities` quedó fija en "General" (mig 0204); combos/técnica se derivan del `sessions.sessionMode` de la sesión aprobada de esa semana/día, análogo a `resolveClassDay` (TV). No hay endpoint liviano "¿qué modo tiene el día X semana Y?" hoy — decidir si se reusa/expone algo de `resolveClassDay`/`day_modes` o consulta nueva sobre `sessions.sessionMode`.
+- **SEM-14 / SEM-10 "member app" — dónde se ve el nombre de actividad:** se ve en la **parte de reservas del alumno** (superficie a ubicar durante el plan: la vista de reservas/turnos del socio). **Chequear también si se muestra en el day player** y, si sí, derivar ahí también. La derivación (Combos/Técnica/General) es en tiempo de LECTURA: la fila `activities` quedó fija en "General" (mig 0204); combos/técnica se derivan del `sessions.sessionMode` de la sesión aprobada de esa semana/día, análogo a `resolveClassDay` (TV). No hay endpoint liviano "¿qué modo tiene el día X semana Y?" hoy — el plan decide si se reusa/expone algo de `resolveClassDay`/`day_modes` o consulta nueva sobre `sessions.sessionMode`.
+
+## D160-05 — SEM-10: sin prompt de DEUTEROS en días sin DEUTEROS (criterio de aceptación)
+En la app, en días **sin bloques DEUTEROS** (combos, técnica y también ROM), al reproducir los ejercicios **NO se debe preguntar qué bloque DEUTEROS hacer** — no existe esa elección. El relevamiento indica que `useSessionPlayer.ts::playableBlocks` (~L65-84) ya cae al modo "reproducir todos los bloques en orden, sin elección" cuando `hasDeuterosBlocks` es falso — **verificar de punta a punta** que ni el player ni ninguna pantalla intermedia muestre el selector de DEUTEROS en combos/técnica, y agregar test si falta. Es criterio de aceptación de SEM-10, no una superficie nueva.
+
+## Versionado
+- **Bump de la member app a 1.7.6** al shippear (instrucción de Franco). Actual = 1.7.5. Actualizar `el-templo-app/version.txt` (o donde corresponda) en el plan de cierre.
 
 ---
 
