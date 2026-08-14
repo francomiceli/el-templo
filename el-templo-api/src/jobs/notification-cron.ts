@@ -773,17 +773,16 @@ export async function startNotificationJobs(
 
   // ── 5. Auto-seed templates on startup ────────────────────────────────
   //
-  // ÚNICA EXCEPCIÓN al barrido por tenant de este archivo (fase 169, D-01/D-02).
-  // `notification_templates` es gym-owned (CON-01) y su unique ya es COMPUESTA
-  // `(tenant_id, template_key)` desde la 168, pero `seedTemplates()` sigue
-  // insertando GLOBAL: no recibe contexto y estampa el DEFAULT 1. Envolverlo en
-  // `forEachActiveTenant` no sembraría los templates de cada gimnasio — correría
-  // el MISMO insert global una vez por gimnasio activo, DUPLICANDO las filas del
-  // tenant 1. Por eso queda deliberadamente fuera del sweep hasta que el service
-  // reciba el `TenantContext` en la adopción del módulo notifications (fase 175).
+  // T-175-03: `seedTemplates` ahora recibe un `TenantContext` real y siembra
+  // POR TENANT (antes insertaba GLOBAL con el DEFAULT 1 — ver el historial de
+  // este comentario, dejado deliberadamente en la fase 169 hasta la adopción
+  // de `notifications`). Barrido estándar vía `forEachActiveTenant`, igual
+  // que los otros 4 schedules de este archivo — con un solo tenant activo el
+  // resultado es idéntico al insert global previo.
   const seedService = new NotificationService(db, log);
-  /* tenant-safe: seed de templates global hasta la adopción de notifications (fase 175) */
-  seedService.seedTemplates().catch((err: unknown) => {
+  forEachActiveTenant(db, log, "seed-templates", async (ctx) => {
+    await seedService.seedTemplates(ctx);
+  }).catch((err: unknown) => {
     const message = err instanceof Error ? err.message : "Unknown error";
     log.error({ err: message }, "Template seed failed");
   });
