@@ -14,7 +14,7 @@
         <div class="block-meta">
           <div class="block-meta__row">
             <span v-if="block.role.startsWith('ROM_')" class="block-meta__route">{{
-              { ROM_LOWER: 'Lower', ROM_CORE: 'Core', ROM_UPPER: 'Upper' }[block.role] || block.role
+              romZoneLabel(block.role)
             }}</span>
             <span v-else-if="block.route && block.route != 'INITIUM'" class="block-meta__route">{{
               getRouteName(block.route)
@@ -59,6 +59,7 @@
 import { computed } from 'vue'
 import type { Block, BlockRole, Prescription } from '../types/session'
 import { getRouteName } from '../utils/routeNames'
+import { ROLE_LABELS } from 'src/constants/roleLabels'
 
 interface Props {
   block: Block
@@ -73,20 +74,26 @@ const props = withDefaults(defineProps<Props>(), {
 
 /**
  * Format block role for display
+ * (dict fuente única: src/constants/roleLabels.ts, fase 160 SEM-11/D160-03)
  */
 function formatRole(role: BlockRole): string {
-  const roleNames: Record<BlockRole, string> = {
-    INITIUM: 'Initium',
-    NUCLEUS: 'Nucleus',
-    DEUTEROS_1: 'Deuteros 1',
-    DEUTEROS_2: 'Deuteros 2',
-    ATHLOS: 'Athlos',
-    EPIKOS: 'Epikos',
-    ROM_LOWER: 'Tren Inferior',
-    ROM_CORE: 'Zona Media',
-    ROM_UPPER: 'Tren Superior',
-  }
-  return roleNames[role] || role
+  return ROLE_LABELS[role] || role
+}
+
+/**
+ * Short English zone label used only in the ROM route chip (header caption).
+ * Kept separate from ROLE_LABELS (which has the Spanish long-form "Tren
+ * Inferior" etc.) — this is a distinct, narrower display need. Typed as a
+ * partial map keyed by string (not BlockRole) so it stays safe to index with
+ * any role after the fase 160 widening; only reached when role.startsWith('ROM_').
+ */
+const ROM_ZONE_LABELS: Partial<Record<string, string>> = {
+  ROM_LOWER: 'Lower',
+  ROM_CORE: 'Core',
+  ROM_UPPER: 'Upper',
+}
+function romZoneLabel(role: BlockRole): string {
+  return ROM_ZONE_LABELS[role] || role
 }
 
 /**
