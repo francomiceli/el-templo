@@ -199,6 +199,40 @@ function appendPlain(host: HTMLElement, text: string): void {
   }
 }
 
+/**
+ * Formato en la cabecera, en DOS líneas cuando el nombre va seguido de un valor
+ * numérico (segundos / minutos / rondas): p.ej. `EMOM 10' (60")` → `EMOM` arriba,
+ * `10' (60")` abajo; `AMRAP 10' X3` → `AMRAP` / `10' X3`. Sin valor (p.ej.
+ * `I GO YOU GO`) queda en una sola línea.
+ *
+ * El corte es antes del primer token que arranca en dígito o en `X<n>` (rondas),
+ * siempre con al menos una palabra de nombre delante — así `5 RFT 10'` corta en
+ * `10'` (no en el `5` del nombre). Guard por `lastFormatoRaw`: no toca el DOM si
+ * el formato no cambió (mismo criterio que `setText`).
+ */
+function paintFormato(host: HTMLElement, raw: string): void {
+  if (lastFormatoRaw === raw) {
+    return;
+  }
+  lastFormatoRaw = raw;
+  clear(host);
+  const tokens = raw.split(' ');
+  let breakAt = -1;
+  for (let i = 1; i < tokens.length; i++) {
+    if (/^\d/.test(tokens[i]) || /^[Xx]\d/.test(tokens[i])) {
+      breakAt = i;
+      break;
+    }
+  }
+  if (breakAt < 0) {
+    host.textContent = raw;
+    return;
+  }
+  host.appendChild(document.createTextNode(tokens.slice(0, breakAt).join(' ')));
+  host.appendChild(document.createElement('br'));
+  host.appendChild(document.createTextNode(tokens.slice(breakAt).join(' ')));
+}
+
 function paintGlyphText(host: HTMLElement, text: string): void {
   clear(host);
   let plano = '';
@@ -239,6 +273,8 @@ let lastMarkerKey: string | null = null;
 let lastDotsKey = '';
 let lastQuoteKey = '';
 let lastBeepKey: string | null = null;
+/** Última cadena de formato pintada (con su salto de línea nombre/spec). */
+let lastFormatoRaw: string | null = null;
 
 /**
  * Olvida los nodos cacheados y todo el estado de idempotencia.
@@ -258,6 +294,7 @@ export function resetRender(): void {
   lastDotsKey = '';
   lastQuoteKey = '';
   lastBeepKey = null;
+  lastFormatoRaw = null;
 }
 
 /** Las frases del PDF, que la pantalla pasa una vez al montar (D-06/D-08). */
@@ -504,7 +541,7 @@ export function renderState(payload: TvPollResponse): void {
   const sepTitulo = ' · ';
   const iSep = c.title.indexOf(sepTitulo);
   setText(n.titulo, iSep >= 0 ? c.title.slice(0, iSep) : c.title);
-  setText(n.formato, iSep >= 0 ? c.title.slice(iSep + sepTitulo.length) : '');
+  paintFormato(n.formato, iSep >= 0 ? c.title.slice(iSep + sepTitulo.length) : '');
   paintMovilidad(n.movilidad, c.mobilityLine);
   // Bloque VISUAL (colapsa DEUTEROS_1/DEUTEROS_2 en uno solo), no la entrada cruda del roster.
   setText(n.bloqueNum, 'BLOQUE ' + (c.visualBlockIndex + 1) + ' / ' + c.visualBlockCount);

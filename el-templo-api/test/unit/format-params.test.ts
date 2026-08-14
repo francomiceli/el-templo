@@ -345,20 +345,30 @@ describe("formatNameWithParams", () => {
   });
 
   it("returns the formatName unchanged when formatParams is null", () => {
-    expect(formatNameWithParams("AMRAP SERIES", null)).toBe("AMRAP SERIES");
+    expect(formatNameWithParams("CHIPPER", null)).toBe("CHIPPER");
   });
 
   // Espejo byte-a-byte de `formatNameWithParams` en
   // el-templo-admin/src/utils/pdf/session-data-transformer.ts — el TV tiene
   // que mostrar exactamente lo mismo que el PDF de planis para cada bloque.
   it("mirrors the PDF's compact notation exactly (session-data-transformer.ts)", () => {
+    // AMRAP Series se muestra como "AMRAP" (sin la palabra "SERIES"); el X3
+    // distingue de un AMRAP simple.
     expect(
       formatNameWithParams("AMRAP SERIES", {
         type: "amrap_series",
         minutes: 10,
         rounds: 3,
       }),
-    ).toBe("AMRAP SERIES 10' X3");
+    ).toBe("AMRAP 10' X3");
+
+    // I Go, You Go nunca lleva rondas en la etiqueta, aunque venga totalRounds.
+    expect(
+      formatNameWithParams("I Go, You Go", {
+        type: "i_go_you_go",
+        totalRounds: 10,
+      }),
+    ).toBe("I Go, You Go");
 
     expect(
       formatNameWithParams("TABATA", {
