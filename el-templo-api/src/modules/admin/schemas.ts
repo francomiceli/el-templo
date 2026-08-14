@@ -63,7 +63,22 @@ export const generateWeekSchema = {
         items: { type: "string", enum: ["alfa_delta", "sigma", "omega"] },
       },
       regenerate: { type: "boolean", default: false },
+      // Phase 159 (SEM-01, D-02/D-03): per-day mode override, chosen by the
+      // coach in /generate. Keyed by day name; additionalProperties carries
+      // the per-day shape. NEVER a fixed value of `day_modes` (T-159-04) — the
+      // PUT /admin/sessions/day-modes enum stays at ['regular','rom'].
+      dayModes: {
+        type: "object",
+        additionalProperties: {
+          type: "string",
+          enum: ["regular", "rom", "combos", "tecnica"],
+        },
+      },
     },
+    // Phase 159 (T-159-02): mass-assignment defense — the varchar(10)
+    // session_mode column has no CHECK, so this JSON Schema enum + closed
+    // object is the only guardrail on the /generate request body.
+    additionalProperties: false,
   },
 };
 
