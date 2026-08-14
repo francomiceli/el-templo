@@ -576,6 +576,9 @@ export function generateBrokenLadderPattern(
  */
 function displayFormatName(name: string): string {
   if (name.toLowerCase() === "interval training") return "HIIT";
+  // AMRAP y AMRAP Series se muestran ambos como "AMRAP": el "X<n>" de series ya
+  // los distingue en los params, sin la palabra "SERIES" redundante.
+  if (name.toLowerCase().includes("amrap")) return "AMRAP";
   return name;
 }
 
@@ -712,9 +715,10 @@ export function formatNameWithParams(
     case "tempo_sets":
       return formatParams.tempo ? `${name} ${formatParams.tempo}` : name;
 
-    // I Go, You Go
+    // I Go, You Go: sin rondas en la etiqueta — el coach no las elige (las
+    // cantidades van en las reps por ejercicio). Nombre solo.
     case "i_go_you_go":
-      return formatParams.totalRounds ? `${name} ${formatParams.totalRounds}R` : name;
+      return name;
 
     // Wave Loading
     case "wave_loading":

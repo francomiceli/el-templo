@@ -899,7 +899,11 @@ onUnmounted(() => {
   opacity: 1;
 }
 #tvScreenRoot .cronometro .barra {
-  width: 84%;
+  /* Ancho FIJO (no 84% del cronómetro): en EMOM los dígitos pasan de ":60" a ":9"
+     y achicaban el ancho auto del cronómetro, haciendo latir la barra cada segundo.
+     Fijo la barra la vuelve estable y, al ser el hijo más ancho en esos casos,
+     estabiliza también la caja (los dígitos quedan centrados sin saltar). */
+  width: 24rem;
   height: 0.5rem;
   background: rgba(197, 185, 168, 0.5);
   border-radius: 99px;
