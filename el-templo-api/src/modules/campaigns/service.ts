@@ -105,9 +105,18 @@ export class CampaignService {
           AND ${b.status} <> 'cancelado'
       )`,
       // Not on the marketing suppression list (D-15).
+      //
+      // T-175-02 (mina M3): a diferencia de subscriptions/bookings de arriba
+      // —correlacionados por ${u.id}, ya blindados por el tenantWhere(u, ctx)
+      // externo, porque users.id es una FK única global—, este WHERE
+      // correlaciona por ${u.email}, y el email NO es único global (fase 168:
+      // la unique es (tenant_id, email)). Sin filtrar `unsub` por su PROPIO
+      // tenant, un opt-out del gimnasio A suprimiría la audiencia del
+      // gimnasio B para el mismo email. `tenant_id = ${ctx.tenantId}` sigue
+      // el idioma documentado en shared/tenant.ts para un `sql` crudo.
       sql`NOT EXISTS (
         SELECT 1 FROM ${unsub}
-        WHERE ${unsub.email} = ${u.email}
+        WHERE ${unsub.email} = ${u.email} AND ${unsub.tenantId} = ${ctx.tenantId}
       )`,
     ];
 
