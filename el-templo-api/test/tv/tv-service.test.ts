@@ -75,6 +75,7 @@ async function seedSession(opts: {
   level: string;
   roles: string[];
   nucleusExercises?: number;
+  mobilityName?: string;
 }): Promise<void> {
   const [session] = await app.db
     .insert(schema.sessions)
@@ -129,7 +130,7 @@ async function seedSession(opts: {
     await app.db.insert(schema.sessionPrescriptions).values({
       blockId: block.id,
       exerciseId,
-      exerciseName: "Movilidad de hombro",
+      exerciseName: opts.mobilityName ?? "Movilidad de hombro",
       contraction: "ISO",
       reps: 0,
       seconds: 20,
@@ -448,6 +449,73 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     expect(cls.blockIndex).toBe(2);
     expect(cls.visualBlockCount).toBe(4);
     expect(cls.visualBlockIndex).toBe(2);
+  });
+
+  it("la movilidad sale del nivel canonico (kairos), no del nivel del control (KAIROS-01 en TV)", async () => {
+    // La movilidad se guarda por nivel y cada nivel la sortea aparte: aca cada
+    // sesion trae una movilidad DISTINTA. El PDF/editor muestran la de kairos
+    // (canonica); la TV tiene que mostrar la MISMA aunque el control este en alfa.
+    await seedSession({
+      level: "kairos",
+      roles: ["NUCLEUS"],
+      mobilityName: "Movilidad canonica de kairos",
+    });
+    await seedSession({
+      level: "alfa",
+      roles: ["NUCLEUS"],
+      mobilityName: "Movilidad de alfa",
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "NUCLEUS",
+      level: "alfa",
+    });
+
+    const cls = (
+      await service.buildPollPayload(
+        { id: deviceId, branchId: branchArId },
+        TUESDAY_NOON_UTC,
+      )
+    ).class!;
+
+    // El control esta en alfa (la columna visible es la de alfa)...
+    expect(cls.level).toBe("alfa");
+    expect(cls.columns[0].header).toBe("NIVEL α | Dominadas 70%");
+    // ...pero la linea de movilidad es la del nivel canonico (kairos), igual que el PDF.
+    expect(cls.mobilityLine).toBe(
+      'MOVILIDAD · Movilidad canonica de kairos 20"',
+    );
+  });
+
+  it("si no hay kairos, la movilidad cae al siguiente nivel canonico (alfa)", async () => {
+    await seedSession({
+      level: "alfa",
+      roles: ["NUCLEUS"],
+      mobilityName: "Movilidad de alfa",
+    });
+    await seedSession({
+      level: "delta",
+      roles: ["NUCLEUS"],
+      mobilityName: "Movilidad de delta",
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "NUCLEUS",
+      level: "delta",
+    });
+
+    const cls = (
+      await service.buildPollPayload(
+        { id: deviceId, branchId: branchArId },
+        TUESDAY_NOON_UTC,
+      )
+    ).class!;
+
+    expect(cls.level).toBe("delta");
+    // Sin kairos, el canonico es alfa (no el nivel del control).
+    expect(cls.mobilityLine).toBe('MOVILIDAD · Movilidad de alfa 20"');
   });
 
   it("INITIUM es lista compartida: selector de nivel neutralizado y header propio", async () => {

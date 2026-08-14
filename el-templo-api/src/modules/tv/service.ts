@@ -80,6 +80,25 @@ const LEVEL_SYMBOLS: Record<string, string> = {
 };
 
 /**
+ * Orden canonico de niveles (kairos primero), IGUAL al `LEVEL_ORDER` de
+ * `constants/levels.ts` que usa el PDF. La movilidad se guarda por nivel y cada
+ * nivel la sortea aparte (`selectMobilityExercise` es `Math.random()` por bloque),
+ * asi que TV y PDF tienen que leerla del MISMO nivel o divergen siempre: el editor
+ * y el PDF muestran la del nivel canonico (regresion KAIROS-01, fase 129) y la TV
+ * arranca en `alfa` — leia otra movilidad en todos los casos. La linea de
+ * movilidad se resuelve desde este orden; el titulo, el timer y las columnas de
+ * ejercicios siguen saliendo del nivel seleccionado en el control.
+ */
+const CANONICAL_LEVEL_ORDER = [
+  "kairos",
+  "alfa",
+  "delta",
+  "sigma",
+  "omega",
+  "spartan",
+];
+
+/**
  * Dia ROM (D-23): solo dos tiers, y NO se rotulan con simbolos de nivel — el
  * sabado no existe la escalera alfa/delta/sigma, existe basico y avanzado.
  */
@@ -705,6 +724,23 @@ export class TvService {
     return findBlock(session.blocks, role);
   }
 
+  /**
+   * Bloque del nivel canonico (kairos primero) para un rol: el mismo que el
+   * editor y el PDF muestran. La movilidad se lee de aca —no del nivel del
+   * control— para no divergir del PDF (ver `CANONICAL_LEVEL_ORDER`).
+   */
+  private resolveCanonicalBlock(
+    classDay: ClassDay,
+    role: string,
+  ): ClassDayBlock | undefined {
+    if (role === "INITIUM") return findInitiumBlock(classDay.sessions);
+    for (const level of CANONICAL_LEVEL_ORDER) {
+      const block = this.resolveBlock(classDay, role, level);
+      if (block) return block;
+    }
+    return undefined;
+  }
+
   private mainPrescriptions(
     block: ClassDayBlock | undefined,
   ): ClassDayPrescription[] {
@@ -829,16 +865,21 @@ export class TvService {
     const visualBlockIndex =
       rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
 
-    // El bloque de `state.level`: sigue siendo la fuente UNICA del titulo, la
-    // movilidad y el timer (uno solo, como antes) aunque las columnas de
-    // ejercicios ahora puedan venir de dos niveles distintos.
+    // El bloque de `state.level`: sigue siendo la fuente UNICA del titulo y el
+    // timer (uno solo, como antes) aunque las columnas de ejercicios ahora
+    // puedan venir de dos niveles distintos.
     const block = this.resolveBlock(classDay, state.blockRole, state.level);
     const formatDictated =
       !!block?.formatParams &&
       FORMAT_DICTATED_TYPES.has(block.formatParams.type);
 
     const levelLabel = this.levelLabel(classDay, state.level, shared);
-    const mobility = block?.prescriptions.filter(
+    // La movilidad sale del nivel canonico (kairos-first), como el PDF/editor:
+    // se guarda por nivel y cada nivel la sortea aparte, asi que leerla del nivel
+    // del control la haria divergir del PDF en todos los casos (regresion
+    // KAIROS-01, ahora tambien cubierta en la TV).
+    const mobilityBlock = this.resolveCanonicalBlock(classDay, state.blockRole);
+    const mobility = mobilityBlock?.prescriptions.filter(
       (p) => p.exerciseType === "mobility",
     );
 
