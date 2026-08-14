@@ -51,25 +51,6 @@
           <div class="tvFondo__marmol"></div>
           <div class="tvFondo__luz tvFondo__luz--calida"></div>
           <div class="tvFondo__luz tvFondo__luz--sombra"></div>
-          <div class="tvFondo__veta tvFondo__veta--a"></div>
-          <div class="tvFondo__veta tvFondo__veta--b"></div>
-          <div class="tvFondo__polvo">
-            <span
-              v-for="p in dustMotas"
-              :key="p.i"
-              :class="`mota mota--t${p.tone}`"
-              :style="{
-                left: p.left,
-                bottom: p.bottom,
-                width: p.size,
-                height: p.size,
-                '--dur': p.dur,
-                '--delay': p.delay,
-                '--drift': p.drift,
-                '--motaOp': p.op,
-              }"
-            ></span>
-          </div>
         </div>
         <!-- Barra superior: logo + fecha (sin "EL TEMPLO", el logo ya es la marca). -->
         <!-- Grid de 3 zonas: marca (logo + fecha 2 líneas) izq · BLOQUE n/M centro · reloj der. -->
@@ -156,22 +137,6 @@ import {
   NUNITO_SANS_BOLD_BASE64,
 } from 'src/utils/pdf/pdf-assets';
 import type { BranchOption } from 'src/types/member';
-
-/* ── Fondo vivo ──────────────────────────────────────────────────────────────
-   Motas de polvo deterministas (sin Math.random: no titilan entre renders).
-   Pocas (34), chicas, desenfocadas por CSS y en tonos de la paleta (arena /
-   oro / azul apagado vía `tone`). Posición y timing salen del índice. */
-const dustMotas = Array.from({ length: 34 }, (_, i) => ({
-  i,
-  tone: i % 3,
-  left: `${(i * 41 + 11) % 100}%`,
-  bottom: `${-(((i * 19) % 10) + 2)}%`,
-  size: `${(0.28 + ((i * 7) % 4) * 0.08).toFixed(2)}rem`,
-  dur: `${16 + ((i * 5) % 15)}s`,
-  delay: `${(i * 11) % 16}s`,
-  drift: `${((i * 47) % 48) - 24}px`,
-  op: `${(0.6 + ((i * 13) % 4) * 0.1).toFixed(2)}`,
-}));
 
 /* Estado del fondo espejado del cronómetro: `render.ts` pinta las clases
    (`corriendo` / `completo`) sobre #timerPanel y acá se leen con un poll barato
@@ -1084,8 +1049,8 @@ onUnmounted(() => {
      __marmol  · la MISMA textura, sobredimensionada, deriva de 46s
      __luz     · manchas radiales gigantes (calida en overlay + sombra que cubre
                  toda la franja inferior en multiply) recorriendo la piedra
-     __veta    · estrías blurreadas a baja opacidad, deriva de ~2 min
-     __polvo   · 34 motas desenfocadas, tonos arena/oro/azul apagado, 16-31s
+   (Vetas y polvo se sacaron por performance: eran filter:blur() animado, el mayor
+   costo en una TV encendida por horas.)
 
    Reactividad: `--fondoActividad` modula la opacidad de luz y polvo según el
    estado espejado del cronómetro (tvbg--calmo/activo/completo en el root).
@@ -1203,7 +1168,7 @@ onUnmounted(() => {
   );
   /* overlay sobre mármol claro = dodge cálido bien visible (haz de luz sobre piedra). */
   mix-blend-mode: overlay;
-  opacity: calc(1 * var(--fondoActividad));
+  opacity: calc(0.8 * var(--fondoActividad));
   animation: luzPaseo 30s ease-in-out infinite alternate;
 }
 /* Sombra suave que cubre TODA la franja inferior (elipse anclada abajo-centro),
@@ -1242,109 +1207,11 @@ onUnmounted(() => {
   }
 }
 
-/* ── Vetas: estrías diagonales blurreadas, casi invisibles, deriva de 2 min.
-   Integradas a la piedra (multiply + blur), no leen como elemento de UI. ── */
-#tvScreenRoot .tvFondo__veta {
-  position: absolute;
-  width: 85%;
-  height: 15rem;
-  opacity: 0.24;
-  filter: blur(0.3rem);
-  mix-blend-mode: multiply;
-  background: repeating-linear-gradient(
-    105deg,
-    transparent 0,
-    transparent 2.4rem,
-    rgba(176, 141, 110, 0.55) 2.4rem,
-    rgba(176, 141, 110, 0.55) 2.7rem,
-    transparent 2.7rem,
-    transparent 6.5rem
-  );
-}
-#tvScreenRoot .tvFondo__veta--a {
-  top: 16%;
-  left: -6%;
-  transform: rotate(-6deg);
-  animation: vetaDeriva 120s ease-in-out infinite alternate;
-}
-#tvScreenRoot .tvFondo__veta--b {
-  bottom: 10%;
-  right: -8%;
-  transform: rotate(4deg);
-  background: repeating-linear-gradient(
-    75deg,
-    transparent 0,
-    transparent 3rem,
-    rgba(219, 202, 180, 0.6) 3rem,
-    rgba(219, 202, 180, 0.6) 3.4rem,
-    transparent 3.4rem,
-    transparent 8rem
-  );
-  animation: vetaDeriva 150s ease-in-out infinite alternate-reverse;
-}
-@keyframes vetaDeriva {
-  from {
-    translate: 0 0;
-  }
-  to {
-    translate: 3rem 0.8rem;
-  }
-}
-
-/* ── Polvo en suspensión: pocas motas, desenfocadas, tonos de la paleta.
-   Nada de blanco brillante ni círculos nítidos. ── */
-#tvScreenRoot .tvFondo__polvo {
-  position: absolute;
-  inset: 0;
-}
-#tvScreenRoot .tvFondo__polvo .mota {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(0.07rem);
-  opacity: 0;
-  animation: motaFlota linear infinite;
-  animation-duration: var(--dur);
-  animation-delay: var(--delay);
-}
-#tvScreenRoot .tvFondo__polvo .mota--t0 {
-  background: rgba(219, 202, 180, 0.55); /* arena */
-}
-#tvScreenRoot .tvFondo__polvo .mota--t1 {
-  background: rgba(176, 141, 110, 0.5); /* oro/tierra */
-}
-#tvScreenRoot .tvFondo__polvo .mota--t2 {
-  background: rgba(96, 110, 128, 0.3); /* azul muy desaturado */
-}
-@keyframes motaFlota {
-  0% {
-    opacity: 0;
-    transform: translate3d(0, 0, 0);
-  }
-  15% {
-    opacity: calc(var(--motaOp) * var(--fondoActividad));
-  }
-  55% {
-    opacity: calc(var(--motaOp) * 0.6 * var(--fondoActividad));
-  }
-  85% {
-    opacity: calc(var(--motaOp) * var(--fondoActividad));
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(var(--drift), -50rem, 0);
-  }
-}
-
-/* Accesibilidad y ahorro: sin movimiento, piedra quieta y sin polvo. */
+/* Accesibilidad y ahorro: sin movimiento, piedra quieta. */
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .tvFondo__marmol,
-  #tvScreenRoot .tvFondo__luz,
-  #tvScreenRoot .tvFondo__veta,
-  #tvScreenRoot .tvFondo__polvo .mota {
+  #tvScreenRoot .tvFondo__luz {
     animation: none;
-  }
-  #tvScreenRoot .tvFondo__polvo .mota {
-    opacity: 0;
   }
 }
 </style>
