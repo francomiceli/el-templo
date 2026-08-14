@@ -449,18 +449,6 @@
     },
     {
       "file": "el-templo-api/src/modules/referrals/service.ts",
-      "table": "aura_transactions"
-    },
-    {
-      "file": "el-templo-api/src/modules/referrals/service.ts",
-      "table": "referral_credits"
-    },
-    {
-      "file": "el-templo-api/src/modules/referrals/service.ts",
-      "table": "referral_cta_clicks"
-    },
-    {
-      "file": "el-templo-api/src/modules/referrals/service.ts",
       "table": "referrals"
     },
     {
