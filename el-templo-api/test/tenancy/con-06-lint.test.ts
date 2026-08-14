@@ -446,12 +446,14 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
         "resto del core) migró los últimos accesos de las 4 tablas de campaigns —campaigns, " +
         "campaign_sends, campaign_events, campaign_unsubscribes— vía los planes 175-01/175-02 (61), " +
         "y el 175-03 migró los últimos accesos de las 4 tablas de notifications —device_tokens, " +
-        "notification_templates, pending_notifications, notification_preferences— (57). " +
+        "notification_templates, pending_notifications, notification_preferences— (57), y el 175-04 " +
+        "migró los inserts/lecturas de referrals (referral_credits, referral_cta_clicks, aura_transactions), " +
+        "dejando 2 tablas más de referrals sin deuda (55). " +
         "Si este número baja SIN que la " +
         "baja quede contabilizada tabla por tabla (una tabla que entró a TENANT_STRICT_MODULES, o " +
         "un acceso migrado que sale como staleNoLongerViolating de la allowlist), alguna forma de " +
         "import volvió a quedar afuera del lint.",
-    ).toBeGreaterThanOrEqual(57);
+    ).toBeGreaterThanOrEqual(55);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
