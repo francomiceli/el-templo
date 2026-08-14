@@ -28,6 +28,7 @@ import { addDays, computeSeniority, todayInTz } from "../shared/date-utils";
 import { memberCoveredUntilSql } from "../shared/covered-until";
 import { dateToWeekNumber } from "../shared/week-dates";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
+import { deriveActivityLabel } from "./derived-label";
 import type {
   ScheduleSlot,
   WeeklySlotView,
@@ -50,20 +51,6 @@ import {
   getScheduleException,
   type ScheduleExceptionRow,
 } from "./schedule-exceptions";
-
-/**
- * Phase 159-06 (D-15/D-16/D-17): etiqueta de clase derivada de la sesion
- * aprobada del dia, SOLO para la actividad generica ("General", renombrada
- * por D-16 via migracion 0204). El modo lo elige el profe en /generate dia
- * a dia, asi que la etiqueta se actualiza sola sin mapeo fijo por dia de la
- * semana. Un dia sin sesion combos/tecnica (regular o sin sesion aun) no
- * entra en este mapa y conserva el nombre original de la actividad
- * ("General").
- */
-const DERIVED_CLASS_LABEL: Record<string, string> = {
-  combos: "Combos",
-  tecnica: "Técnica",
-};
 
 export class SchedulingService {
   constructor(
@@ -352,24 +339,25 @@ export class SchedulingService {
         maxCapacity,
       );
 
-      // Phase 159-06 (D-15/D-17): derivar la etiqueta SOLO para la
+      // Phase 159-06 (D-15/D-17), refactor DRY 160-06: derivar la etiqueta
+      // via el helper compartido (scheduling/derived-label.ts) SOLO para la
       // actividad generica ("General") y SOLO cuando no es especial (D-17
       // no toca reservas/cupos/gating, solo la etiqueta visible). Un slot
       // ROM (activity "ROM") o cualquier actividad especial nunca entra
       // aca, aunque el dia tenga combos/tecnica aprobado.
-      const isGenericActivity = row.activityName === "General" && !row.isSpecial;
       const dayName = DAY_OF_WEEK_MAP[row.dayOfWeek];
       const dayMode = dayName ? modeByDay.get(dayName) : undefined;
-      const derivedLabel = isGenericActivity
-        ? DERIVED_CLASS_LABEL[dayMode ?? ""]
-        : undefined;
 
       slots.push({
         id: row.id,
         branchId: row.branchId,
         branchName: row.branchName,
         activityId: row.activityId,
-        activityName: derivedLabel ?? row.activityName,
+        activityName: deriveActivityLabel(
+          row.activityName,
+          row.isSpecial,
+          dayMode,
+        ),
         dayOfWeek: row.dayOfWeek,
         startTime: row.startTime,
         endTime: row.endTime,
