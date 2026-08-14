@@ -16,7 +16,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, gte, sql, desc, like, inArray, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
 import type {
   ProposalPromptStatus,
   SubmitProposalInput,
@@ -61,13 +61,17 @@ export class ImprovementProposalsService {
    * cadencia de re-prompt tras "Ahora no" (14 días entre apariciones) la
    * maneja el cliente con storage local.
    */
-  async getPromptStatus(memberId: number): Promise<ProposalPromptStatus> {
+  async getPromptStatus(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<ProposalPromptStatus> {
     const quietStart = new Date(Date.now() - PROMPT_QUIET_AFTER_SUBMIT_MS);
     const [row] = await this.db
       .select({ id: schema.improvementProposals.id })
       .from(schema.improvementProposals)
       .where(
         and(
+          tenantWhere(schema.improvementProposals, ctx),
           eq(schema.improvementProposals.memberId, memberId),
           gte(schema.improvementProposals.createdAt, quietStart),
         ),
@@ -122,6 +126,7 @@ export class ImprovementProposalsService {
       .from(schema.improvementProposals)
       .where(
         and(
+          tenantWhere(schema.improvementProposals, ctx),
           eq(schema.improvementProposals.memberId, memberId),
           gte(schema.improvementProposals.createdAt, windowStart),
         ),
@@ -132,11 +137,13 @@ export class ImprovementProposalsService {
       );
     }
 
-    await this.db.insert(schema.improvementProposals).values({
-      memberId,
-      branchId: user.branchId,
-      proposal,
-    });
+    await this.db.insert(schema.improvementProposals).values(
+      tenantValues(ctx, {
+        memberId,
+        branchId: user.branchId,
+        proposal,
+      }),
+    );
   }
 
   // ─── Admin ─────────────────────────────────────────────────────────────────
@@ -148,6 +155,7 @@ export class ImprovementProposalsService {
    * palabra clave (LIKE literal sobre el texto).
    */
   async getAdminProposals(
+    ctx: TenantContext,
     scope: ProposalsScope,
     filters: AdminProposalsFilters = {},
   ): Promise<AdminProposalsResult> {
@@ -161,7 +169,7 @@ export class ImprovementProposalsService {
       limit,
     };
 
-    const conds = await this.buildConditions(scope, filters);
+    const conds = await this.buildConditions(ctx, scope, filters);
     if (conds === null) {
       return emptyResult;
     }
@@ -182,10 +190,11 @@ export class ImprovementProposalsService {
    * Filas para el export xlsx: mismos filtros que el listado, sin paginar.
    */
   async getExportRows(
+    ctx: TenantContext,
     scope: ProposalsScope,
     filters: AdminProposalsFilters = {},
   ): Promise<AdminProposalRow[]> {
-    const conds = await this.buildConditions(scope, filters);
+    const conds = await this.buildConditions(ctx, scope, filters);
     if (conds === null) {
       return [];
     }
@@ -199,10 +208,11 @@ export class ImprovementProposalsService {
    * vacío sin consultar.
    */
   private async buildConditions(
+    ctx: TenantContext,
     scope: ProposalsScope,
     filters: AdminProposalsFilters,
   ): Promise<SQL[] | null> {
-    const conds: SQL[] = [];
+    const conds: SQL[] = [tenantWhere(schema.improvementProposals, ctx)];
 
     if (!scope.isOwner) {
       if (scope.country === null) {
