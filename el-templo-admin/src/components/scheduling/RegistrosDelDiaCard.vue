@@ -91,6 +91,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCheckInRosterApi } from 'src/composables/useCheckInRosterApi';
 import { createLogger } from 'src/utils/logger';
+import { isExpectedClientError } from 'src/utils/extract-error';
 import CheckInChips from './CheckInChips.vue';
 import type {
   CheckInRosterEntry,
@@ -150,7 +151,12 @@ async function load() {
     entries.value = res.entries;
     attendeeCount.value = res.attendeeCount;
   } catch (err: unknown) {
-    log.error('Error cargando registros del día', { error: err });
+    // Un 4xx acá es un resultado de autorización esperado (rol sin permiso, o
+    // sede fuera del alcance del coach): no es un error de la app, no va a
+    // Sentry. Solo se loguea lo inesperado (5xx, red, etc.).
+    if (!isExpectedClientError(err)) {
+      log.error('Error cargando registros del día', { error: err });
+    }
     entries.value = [];
     attendeeCount.value = 0;
   } finally {

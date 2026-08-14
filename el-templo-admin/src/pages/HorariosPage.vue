@@ -121,6 +121,7 @@
         <!-- Registros del día de los alumnos que asisten hoy -->
         <!-- ================================================================== -->
         <RegistrosDelDiaCard
+          v-if="canViewCheckInRoster"
           :branch-id="selectedBranchId"
           :timezone="branchTimezone"
         />
@@ -480,6 +481,13 @@ const authStore = useAuthStore();
 // Only the owner assigns coaches to slots (roster WRITE is owner-only); the rest
 // of the staff see the roster read-only inside Horarios.
 const isOwner = computed(() => authStore.user?.role === 'owner');
+
+// Espeja el backend CHECKIN_ROSTER_ROLES: solo coach/admin/owner ven los
+// registros del día. Gestión y recepción no lo ven ni disparan la request
+// (que igual les devolvería 403).
+const canViewCheckInRoster = computed(() =>
+  ['coach', 'admin', 'owner'].includes(authStore.user?.role ?? '')
+);
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
