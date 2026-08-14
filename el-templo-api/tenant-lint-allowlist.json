@@ -704,22 +704,6 @@
       "table": "tv_class_state"
     },
     {
-      "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
-      "table": "wellhub_bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
-      "table": "wellhub_classes"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
-      "table": "wellhub_slots"
-    },
-    {
       "file": "el-templo-api/src/scripts/backfill-historical-payments.ts",
       "table": "branches"
     }
