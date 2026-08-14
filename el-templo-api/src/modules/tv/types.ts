@@ -87,13 +87,20 @@ export type TvTimerStatus = "idle" | "running" | "paused";
 export type TvScreen = "idle" | "class" | "closing";
 
 /**
- * Regular weekday session vs. Saturday ROM session (D-23, Pitfall 2).
+ * Regular weekday session vs. Saturday ROM session (D-23, Pitfall 2), plus
+ * the two override modes of the phase 160 week (SEM-15): `combos` and
+ * `tecnica`.
  *
  * In `rom` the roles are ROM_LOWER/ROM_CORE/ROM_UPPER and only two tiers exist
  * (alfa = BÁSICO, delta = AVANZADO), so the level selector must be built from
  * `TvClassPayload.levels` and never from a hardcoded list.
+ *
+ * `combos` and `tecnica` behave like `regular` for level structure (6 tiers,
+ * same canonical order — `REGULAR_LEVEL_ORDER` in `class-day.ts`); the only
+ * thing that changes is the block roster (`COMBOS_ROLES`/`TECNICA_ROLES` in
+ * `roster.ts` instead of `REGULAR_ROLES`).
  */
-export type TvClassMode = "regular" | "rom";
+export type TvClassMode = "regular" | "rom" | "combos" | "tecnica";
 
 // =============================================================================
 // Poll payload (TV reads)

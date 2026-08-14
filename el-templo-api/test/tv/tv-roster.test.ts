@@ -14,14 +14,18 @@ import { describe, it, expect } from "vitest";
 import {
   REGULAR_ROLES,
   ROM_ROLES,
+  COMBOS_ROLES,
+  TECNICA_ROLES,
   INITIUM_SOURCE_ORDER,
   buildRoster,
   findBlock,
   findInitiumBlock,
+  visualGroupOf,
   type RosterBlock,
   type RosterClassDay,
 } from "../../src/modules/tv/roster";
 import type { FormatParams } from "../../src/modules/admin/format-params";
+import type { TvClassMode } from "../../src/modules/tv/types";
 
 const TABATA: FormatParams = {
   type: "tabata",
@@ -55,6 +59,13 @@ function romDay(
   sessions: { memberLevel: string; blocks: RosterBlock[] }[],
 ): RosterClassDay {
   return { mode: "rom", sessions };
+}
+
+function dayWithMode(
+  mode: TvClassMode,
+  sessions: { memberLevel: string; blocks: RosterBlock[] }[],
+): RosterClassDay {
+  return { mode, sessions };
 }
 
 describe("TV roster — orden canonico de bloques", () => {
@@ -230,5 +241,98 @@ describe("TV roster — orden canonico de bloques", () => {
       "DEUTEROS I · Complex",
       "DEUTEROS II · Standard 10'",
     ]);
+  });
+});
+
+describe("TV roster — dias combos/tecnica (fase 160, SEM-15)", () => {
+  it("arma el roster de un dia combos con los 4 bloques en orden canonico", () => {
+    const day = dayWithMode("combos", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("STRETCHING"),
+          block("INITIUM", { formatParams: TABATA }),
+          block("COMBOS_II"),
+          block("COMBOS_I"),
+        ],
+      },
+    ]);
+
+    expect(buildRoster(day).map((b) => b.role)).toEqual([...COMBOS_ROLES]);
+    expect(buildRoster(day)).toHaveLength(4);
+  });
+
+  it("rotula un dia combos con la convencion D160-02 (numerales romanos)", () => {
+    const day = dayWithMode("combos", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("COMBOS_I"),
+          block("COMBOS_II"),
+          block("STRETCHING"),
+        ],
+      },
+    ]);
+
+    const titles = buildRoster(day).map((b) => b.title);
+    expect(titles[1].startsWith("COMBOS I ")).toBe(true);
+    expect(titles[2].startsWith("COMBOS II ")).toBe(true);
+    expect(titles[3].startsWith("STRETCHING ")).toBe(true);
+  });
+
+  it("arma el roster de un dia tecnica con los 4 bloques y labels acentuadas", () => {
+    const day = dayWithMode("tecnica", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("TECNICA_I"),
+          block("TECNICA_II"),
+          block("STRETCHING"),
+        ],
+      },
+    ]);
+
+    const roster = buildRoster(day);
+    expect(roster.map((b) => b.role)).toEqual([...TECNICA_ROLES]);
+    expect(roster[1].title.startsWith("TÉCNICA I ")).toBe(true);
+    expect(roster[2].title.startsWith("TÉCNICA II ")).toBe(true);
+  });
+
+  it("NO colapsa COMBOS_I/COMBOS_II ni TECNICA_I/TECNICA_II (a diferencia de DEUTEROS)", () => {
+    expect(visualGroupOf("COMBOS_I")).toBe("COMBOS_I");
+    expect(visualGroupOf("COMBOS_II")).toBe("COMBOS_II");
+    expect(visualGroupOf("TECNICA_I")).toBe("TECNICA_I");
+    expect(visualGroupOf("TECNICA_II")).toBe("TECNICA_II");
+  });
+
+  it("regresion: un dia regular y un dia rom siguen usando su roster propio sin cambios", () => {
+    const regular = regularDay([
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("NUCLEUS"),
+          block("DEUTEROS_1"),
+          block("DEUTEROS_2"),
+          block("EPIKOS"),
+        ],
+      },
+    ]);
+    expect(buildRoster(regular).map((b) => b.role)).toEqual([...REGULAR_ROLES]);
+
+    const rom = romDay([
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("ROM_LOWER"),
+          block("ROM_CORE"),
+          block("ROM_UPPER"),
+        ],
+      },
+    ]);
+    expect(buildRoster(rom).map((b) => b.role)).toEqual([...ROM_ROLES]);
   });
 });

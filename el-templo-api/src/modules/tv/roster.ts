@@ -50,6 +50,26 @@ export const ROM_ROLES = [
 ] as const;
 
 /**
+ * Orden canonico de un dia COMBOS (fase 160, SEM-15). STRETCHING es la lista
+ * de cierre compartida por los 6 niveles (D160-04) — el roster no la trata
+ * como shared (solo INITIUM lo es), pero el generador la produce identica.
+ */
+export const COMBOS_ROLES = [
+  "INITIUM",
+  "COMBOS_I",
+  "COMBOS_II",
+  "STRETCHING",
+] as const;
+
+/** Orden canonico de un dia TECNICA (fase 160, SEM-15). Ver COMBOS_ROLES. */
+export const TECNICA_ROLES = [
+  "INITIUM",
+  "TECNICA_I",
+  "TECNICA_II",
+  "STRETCHING",
+] as const;
+
+/**
  * El INITIUM es la lista compartida del dia: se muestra UNA vez para todos los
  * niveles. Desde el fix de generacion post-v5.1 sale identico en todas las
  * sesiones, pero semanas viejas o ediciones manuales pueden divergir — por eso
@@ -210,11 +230,23 @@ export function blockTitle(role: string, block: RosterBlock): string {
  * `shared: true` solo en INITIUM — es la lista comun a todos los niveles, y es
  * lo que deshabilita el selector de nivel en el control del profe.
  */
+function rolesForMode(mode: TvClassMode): readonly string[] {
+  switch (mode) {
+    case "rom":
+      return ROM_ROLES;
+    case "combos":
+      return COMBOS_ROLES;
+    case "tecnica":
+      return TECNICA_ROLES;
+    default:
+      return REGULAR_ROLES;
+  }
+}
+
 export function buildRoster<TBlock extends RosterBlock>(
   classDay: RosterClassDay<TBlock>,
 ): TvBlockSummary[] {
-  const roles: readonly string[] =
-    classDay.mode === "rom" ? ROM_ROLES : REGULAR_ROLES;
+  const roles: readonly string[] = rolesForMode(classDay.mode);
   const roster: TvBlockSummary[] = [];
 
   for (const role of roles) {

@@ -170,11 +170,17 @@ export async function resolveClassDay(
   }
 
   // Con sesion aprobada, el modo real manda sobre `day_modes` (Pitfall 6).
-  // TvClassMode solo distingue "rom" (2 tiers, BASICO/AVANZADO) de todo lo
-  // demas -- el label visual de combos/tecnica es SEM-15/fase 160.
+  // Fase 160 (SEM-15): TvClassMode distingue "rom" (2 tiers, BASICO/AVANZADO)
+  // de "combos"/"tecnica" (6 tiers, roster propio -- COMBOS_ROLES/
+  // TECNICA_ROLES en roster.ts) y de "regular". `day_modes` NUNCA tiene
+  // combos/tecnica (D-02): el override viaja solo por sessionMode.
   const mode: TvClassMode = sessionRows.some((s) => s.sessionMode === "rom")
     ? "rom"
-    : "regular";
+    : sessionRows.some((s) => s.sessionMode === "combos")
+      ? "combos"
+      : sessionRows.some((s) => s.sessionMode === "tecnica")
+        ? "tecnica"
+        : "regular";
 
   // 3. Bloques de TODAS las sesiones en una query (sin N+1).
   const sessionIds = sessionRows.map((s) => s.id);
@@ -275,7 +281,9 @@ export async function resolveClassDay(
     blocks: blocksBySession.get(s.id) ?? [],
   }));
 
-  // 6. Niveles disponibles, en orden canonico. En ROM solo existen dos tiers.
+  // 6. Niveles disponibles, en orden canonico. En ROM solo existen dos tiers;
+  //    combos/tecnica tienen los 6 tiers de un dia habil (D160-01), asi que
+  //    usan REGULAR_LEVEL_ORDER igual que "regular" -- solo "rom" es especial.
   //    Cualquier nivel presente FUERA del orden canonico (dato viejo, o un
   //    omega colado en un sabado) se agrega al final en vez de descartarse:
   //    `levels` no puede quedar vacio mientras `approved` sea true, o el clamp
