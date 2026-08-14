@@ -165,7 +165,7 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
         checkedInAt: daysAgo(40),
       });
 
-      const result = await svc.uniqueMembers({});
+      const result = await svc.uniqueMembers(CTX, {});
       expect(result.last7).toBe(2); // m1, m2
       expect(result.last14).toBe(2); // m1, m2 (m3 is at 20d)
       expect(result.last30).toBe(3); // m1, m2, m3 (the 40d row excluded)
@@ -190,16 +190,16 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
         },
       ]);
 
-      const onlyA = await svc.uniqueMembers({ branchId: branchA });
+      const onlyA = await svc.uniqueMembers(CTX, { branchId: branchA });
       expect(onlyA.last7).toBe(1);
       expect(onlyA.last30).toBe(1);
 
-      const both = await svc.uniqueMembers({});
+      const both = await svc.uniqueMembers(CTX, {});
       expect(both.last7).toBe(2);
     });
 
     it("returns zeros when there are no check-ins", async () => {
-      const result = await svc.uniqueMembers({});
+      const result = await svc.uniqueMembers(CTX, {});
       expect(result).toEqual({ last7: 0, last14: 0, last30: 0 });
     });
   });

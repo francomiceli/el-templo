@@ -273,7 +273,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
-        const result = await attendanceMetricsService.uniqueMembers(filters);
+        const result = await attendanceMetricsService.uniqueMembers(
+          assertTenant(request.scope, "analytics.uniqueMembers"),
+          filters,
+        );
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get unique members");

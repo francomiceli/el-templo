@@ -63,8 +63,15 @@ export class AttendanceMetricsService {
    * Half-open on the raw `checked_in_at` column (D-08) so the index is usable.
    * Scope (branchId / country) is applied via `applyScope` (D-17) — a coach of
    * sede X never counts member_id of sede Y.
+   *
+   * T-175-06: `ctx` PRIMERO (mismo criterio que `checkInAdoptionByBranch` de
+   * abajo) — `tenantWhere(schema.attendance, ctx)` explícito, único fix real
+   * de tenancy pendiente en `analytics` (el resto ya lo migró la 174.1).
    */
-  async uniqueMembers(filters: AnalyticsFilters): Promise<UniqueMembersMetric> {
+  async uniqueMembers(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<UniqueMembersMetric> {
     const now = new Date();
     // Exclusive upper bound 1s past "now" so a check-in recorded this very
     // second is still inside every window.
@@ -79,17 +86,20 @@ export class AttendanceMetricsService {
     const countForWindow = async (days: number): Promise<number> => {
       const lower = isoSecond(new Date(now.getTime() - days * 86_400_000));
       const conditions: SQL[] = [
+        tenantWhere(schema.attendance, ctx),
         sql`${schema.attendance.checkedInAt} >= ${lower}`,
         sql`${schema.attendance.checkedInAt} < ${upperExclusive}`,
         ...scopeConditions,
       ];
 
+      /* tenant-safe: conditions siempre incluye tenantWhere(schema.attendance, ctx) como primer elemento (arriba) — el lint juzga por statement y este .select().from() previo al .where() no lo ve en su propio texto */
       const base = this.db
         .select({
           count: sql<number>`COUNT(DISTINCT ${schema.attendance.memberId})`,
         })
         .from(schema.attendance);
 
+      /* tenant-safe: conditions siempre incluye tenantWhere(schema.attendance, ctx) como primer elemento (arriba) — el lint juzga por statement y el spread ...conditions no lo ve en su propio texto */
       const [row] = needsBranchJoin
         ? await base
             .innerJoin(
