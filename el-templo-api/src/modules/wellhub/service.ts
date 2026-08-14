@@ -109,13 +109,16 @@ export class WellhubService {
     // Idempotencia: si ya lo procesamos, respondemos 200 sin reprocesar.
     // Estado 'error' sí se reprocesa (el reintento de Wellhub es la vía de
     // recuperación ante fallas transitorias nuestras).
+    /* tenant-safe: idempotencia global previa a la derivacion del tenant (M8), mismo motivo que el INSERT de al lado */
     const [existing] = await this.db
       .select({
         id: schema.wellhubEvents.id,
         status: schema.wellhubEvents.status,
       })
       .from(schema.wellhubEvents)
-      .where(eq(schema.wellhubEvents.eventId, eventId))
+      .where(
+        sql`/* tenant-safe: idempotencia global previa a la derivacion del tenant (M8), mismo motivo que el INSERT de al lado */ ${schema.wellhubEvents.eventId} = ${eventId}`,
+      )
       .limit(1);
 
     let eventRowId: number;
@@ -175,6 +178,7 @@ export class WellhubService {
         { eventId, eventType: event.event_type, err },
         "Error procesando webhook de Wellhub",
       );
+      /* tenant-safe: update por PK de eventRowId ya resuelto arriba en este mismo metodo — el dispatch pudo fallar antes de derivar el tenant, mismo motivo M8 que la idempotencia de :112 */
       await this.db
         .update(schema.wellhubEvents)
         .set({ status: "error", error: message })
@@ -343,6 +347,9 @@ export class WellhubService {
       .from(schema.attendance)
       .where(
         and(
+          // ctx ya resuelto por `resolverTenant` más arriba (mismo criterio que
+          // `bookings`/`schedules` de :408).
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, userId),
           eq(schema.attendance.sessionDate, todayStr),
         ),
@@ -424,6 +431,7 @@ export class WellhubService {
         .from(schema.attendance)
         .where(
           and(
+            tenantWhere(schema.attendance, ctx),
             eq(schema.attendance.memberId, userId),
             eq(schema.attendance.sessionDate, todayStr),
           ),
@@ -431,15 +439,17 @@ export class WellhubService {
         .limit(1);
       if (recheck) return;
 
-      await tx.insert(schema.attendance).values({
-        memberId: userId,
-        branchId: branch.id,
-        scheduleId: todayBooking?.scheduleId ?? null,
-        sessionDate: todayStr,
-        status: "confirmado",
-        source: "wellhub",
-        checkedInAt: now,
-      });
+      await tx.insert(schema.attendance).values(
+        tenantValues(ctx, {
+          memberId: userId,
+          branchId: branch.id,
+          scheduleId: todayBooking?.scheduleId ?? null,
+          sessionDate: todayStr,
+          status: "confirmado",
+          source: "wellhub",
+          checkedInAt: now,
+        }),
+      );
 
       if (todayBooking) {
         await tx
@@ -541,13 +551,21 @@ export class WellhubService {
     // Reintento de una solicitud ya vista (por otro event_id): si quedó
     // 'pending' la confirmación no llegó a Wellhub — se reintenta el PATCH;
     // cualquier otro estado es un duplicado ya resuelto.
+    // ctx ya resuelto por `resolverTenant` más arriba: bookingNumber es unique
+    // global (M8, id externo emitido por Wellhub) pero acá acotamos igual por
+    // tenant, consistente con el resto del método.
     const [existing] = await this.db
       .select({
         id: schema.wellhubBookings.id,
         status: schema.wellhubBookings.status,
       })
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber))
+      .where(
+        and(
+          tenantWhere(schema.wellhubBookings, ctx),
+          eq(schema.wellhubBookings.bookingNumber, bookingNumber),
+        ),
+      )
       .limit(1);
 
     if (existing) {
@@ -567,7 +585,12 @@ export class WellhubService {
       await this.db
         .update(schema.wellhubBookings)
         .set({ status: "confirmed" })
-        .where(eq(schema.wellhubBookings.id, existing.id));
+        .where(
+          and(
+            tenantWhere(schema.wellhubBookings, ctx),
+            eq(schema.wellhubBookings.id, existing.id),
+          ),
+        );
       return {
         httpStatus: 200,
         outcome: "processed",
@@ -663,16 +686,18 @@ export class WellhubService {
     );
     const { decision, rejectionCategory, bookingId } = outcome;
 
-    await this.db.insert(schema.wellhubBookings).values({
-      bookingNumber,
-      bookingId,
-      userId: visitorId,
-      wellhubSlotRowId: slot.rowId,
-      // 'pending' hasta que el PATCH de confirmación salga bien; el rechazo
-      // se registra final (si el PATCH de rechazo falla, Wellhub auto-rechaza
-      // a los 15 minutos igual).
-      status: decision === "RESERVED" ? "pending" : "rejected",
-    });
+    await this.db.insert(schema.wellhubBookings).values(
+      tenantValues(ctx, {
+        bookingNumber,
+        bookingId,
+        userId: visitorId,
+        wellhubSlotRowId: slot.rowId,
+        // 'pending' hasta que el PATCH de confirmación salga bien; el rechazo
+        // se registra final (si el PATCH de rechazo falla, Wellhub auto-rechaza
+        // a los 15 minutos igual).
+        status: decision === "RESERVED" ? "pending" : "rejected",
+      }),
+    );
 
     await this.client.validateBooking({
       gymId: slot.gymId,
@@ -694,7 +719,12 @@ export class WellhubService {
       await this.db
         .update(schema.wellhubBookings)
         .set({ status: "confirmed" })
-        .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+        .where(
+          and(
+            tenantWhere(schema.wellhubBookings, ctx),
+            eq(schema.wellhubBookings.bookingNumber, bookingNumber),
+          ),
+        );
       emitOccupancyChange({
         scheduleId: slot.scheduleId,
         date: slot.sessionDate,
@@ -762,7 +792,9 @@ export class WellhubService {
         tenantId: schema.wellhubBookings.tenantId,
       })
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber))
+      .where(
+        sql`/* tenant-safe: bookingNumber unique global (M8), pre-scope — este lookup ES la forma en la que se deriva ctx.tenantId más abajo (docblock del metodo) */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      )
       .limit(1);
 
     if (!wb) {
@@ -822,7 +854,12 @@ export class WellhubService {
     await this.db
       .update(schema.wellhubBookings)
       .set({ status: newStatus })
-      .where(eq(schema.wellhubBookings.id, wb.id));
+      .where(
+        and(
+          tenantWhere(schema.wellhubBookings, ctx),
+          eq(schema.wellhubBookings.id, wb.id),
+        ),
+      );
 
     this.log.info(
       { bookingNumber, eventType },

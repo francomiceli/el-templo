@@ -704,18 +704,6 @@
       "table": "tv_class_state"
     },
     {
-      "file": "el-templo-api/src/modules/wellhub/service.ts",
-      "table": "attendance"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/service.ts",
-      "table": "wellhub_bookings"
-    },
-    {
-      "file": "el-templo-api/src/modules/wellhub/service.ts",
-      "table": "wellhub_events"
-    },
-    {
       "file": "el-templo-api/src/modules/wellhub/sync-service.ts",
       "table": "branches"
     },
