@@ -38,6 +38,7 @@ export function useGenerateApi() {
     days?: string[];
     levelGroups?: string[];
     regenerate?: boolean;
+    dayModes?: Record<string, string>;
   }): Promise<GenerateResult> {
     loading.value = true;
     try {

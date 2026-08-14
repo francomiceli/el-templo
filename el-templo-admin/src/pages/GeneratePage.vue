@@ -66,6 +66,45 @@
                 />
               </div>
 
+              <!-- Day mode override (per-run only, does NOT persist to day_modes — D160-01) -->
+              <div v-if="generationScope !== 'day_level'" class="q-mb-md">
+                <div class="text-caption text-grey-7 q-mb-sm">
+                  Modo por dia (solo para esta generacion, no se guarda):
+                </div>
+                <div v-if="generationScope === 'week'">
+                  <div
+                    v-for="day in dayOptions"
+                    :key="day.value"
+                    class="row items-center q-gutter-sm q-mb-xs"
+                  >
+                    <div class="col-3 text-caption">{{ day.label }}</div>
+                    <q-select
+                      v-model="generateDayModes[day.value]"
+                      :options="OVERRIDE_MODE_OPTIONS"
+                      dense
+                      outlined
+                      emit-value
+                      map-options
+                      options-dense
+                      class="col"
+                      style="max-width: 160px"
+                    />
+                  </div>
+                </div>
+                <div v-else>
+                  <q-select
+                    v-model="generateDayModes[selectedDay]"
+                    :options="OVERRIDE_MODE_OPTIONS"
+                    dense
+                    outlined
+                    emit-value
+                    map-options
+                    options-dense
+                    style="max-width: 200px"
+                  />
+                </div>
+              </div>
+
               <!-- Generate button -->
               <div class="row q-gutter-md">
                 <q-btn
@@ -462,6 +501,26 @@ const levelOptions = [
   { label: 'Omega', value: 'omega' },
 ];
 
+// Day mode override for the generator run (D160-01): SEPARATE from MODE_OPTIONS
+// (the persisted day_modes table, regular/rom only). Default is a frontend
+// constant, NOT read from/written to day_modes — miercoles -> tecnica,
+// jueves -> combos reflects the observed regimen but never persists.
+const OVERRIDE_MODE_OPTIONS = [
+  { label: 'Regular', value: 'regular' },
+  { label: 'ROM', value: 'rom' },
+  { label: 'Combos', value: 'combos' },
+  { label: 'Tecnica', value: 'tecnica' },
+];
+
+const generateDayModes = ref<Record<string, string>>({
+  lunes: 'regular',
+  martes: 'regular',
+  miercoles: 'tecnica',
+  jueves: 'combos',
+  viernes: 'regular',
+  sabado: 'regular',
+});
+
 const summaryColumns = [
   { name: 'day', label: 'Dia', field: 'dayLabel', align: 'left' as const },
   { name: 'modo', label: 'Tipo de Sesion', field: 'modo', align: 'left' as const },
@@ -630,6 +689,7 @@ async function doGenerate() {
       days?: string[];
       levelGroups?: string[];
       regenerate: boolean;
+      dayModes?: Record<string, string>;
     } = {
       week: selectedWeek.value,
       regenerate: regenerate.value,
@@ -641,6 +701,19 @@ async function doGenerate() {
     } else if (generationScope.value === 'day_level') {
       options.days = [selectedDay.value];
       options.levelGroups = [selectedLevel.value];
+    }
+
+    // Day mode override (per-run only, does NOT persist to day_modes — D160-01):
+    // only send days in scope that differ from 'regular', to keep the body small.
+    const daysInScope =
+      options.days ?? ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    const dayModesPayload = Object.fromEntries(
+      Object.entries(generateDayModes.value).filter(
+        ([day, mode]) => daysInScope.includes(day) && mode !== 'regular'
+      )
+    );
+    if (Object.keys(dayModesPayload).length > 0) {
+      options.dayModes = dayModesPayload;
     }
 
     lastResult.value = await generateApi.generateWeek(options);
