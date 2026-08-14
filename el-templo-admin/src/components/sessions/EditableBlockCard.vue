@@ -347,6 +347,7 @@ import {
 import { NO_PARAMS_FORMAT_NAMES, normalizeFormatName } from 'src/constants/formats';
 import { getRouteLabel } from 'src/constants/route-labels';
 import { levelColor } from 'src/constants/levels';
+import { ROLE_LABELS } from 'src/constants/roleLabels';
 
 const props = defineProps<{
   blockGroup: BlockGroup;
@@ -396,16 +397,12 @@ const emit = defineEmits<{
 const $q = useQuasar();
 const editApi = useEditApi();
 
-// ROM block detection and display names
-const ROLE_DISPLAY_NAMES: Record<string, string> = {
-  ROM_LOWER: 'TREN INFERIOR',
-  ROM_CORE: 'ZONA MEDIA',
-  ROM_UPPER: 'TREN SUPERIOR',
-};
-
+// ROM block detection; display names centralized in the admin dict (SEM-11,
+// constants/roleLabels.ts, creado en 160-02) — reemplaza el diccionario local
+// (antes solo ROM) que vivia en este archivo.
 const isRomBlock = computed(() => props.blockGroup.role?.startsWith('ROM_') ?? false);
 const displayRoleName = computed(
-  () => ROLE_DISPLAY_NAMES[props.blockGroup.role] || props.blockGroup.role
+  () => ROLE_LABELS[props.blockGroup.role] || props.blockGroup.role
 );
 
 // Level tab state
@@ -439,6 +436,12 @@ const blockColor = computed(() => {
   if (role.includes('nucleus')) return 'deep-orange-8';
   if (role.includes('deuteros')) return 'brown-8';
   if (role.includes('athlos') || role.includes('epikos')) return 'brown-6';
+  // SEM-08 (160-03): combos/tecnica/stretching — shades distinct from the
+  // existing NUCLEUS (deep-orange-8) and ROM (blue-grey-7) families, and
+  // consistent with the SessionsPage badge colors (deep-orange/purple).
+  if (role.includes('combos')) return 'deep-orange-6';
+  if (role.includes('tecnica')) return 'purple-8';
+  if (role.includes('stretching')) return 'teal-7';
   return 'grey';
 });
 

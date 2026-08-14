@@ -81,7 +81,12 @@
                 <div class="text-subtitle1 text-weight-bold">
                   {{ dayLabel(dayGroup.day) }}
                 </div>
-                <q-badge v-if="isDayGroupRom(dayGroup)" color="info" label="ROM" class="q-ml-sm" />
+                <q-badge
+                  v-if="dayGroupModeBadge(dayGroup)"
+                  :color="dayGroupModeBadge(dayGroup)!.color"
+                  :label="dayGroupModeBadge(dayGroup)!.label"
+                  class="q-ml-sm"
+                />
                 <q-space />
                 <div class="row items-center no-wrap q-gutter-sm">
                   <q-btn
@@ -403,9 +408,21 @@ const DISPLAY_LEVELS = ['kairos', 'alfa', 'delta', 'sigma', 'omega', 'spartan'];
 const ROM_DISPLAY_LEVELS = ['alfa', 'delta'];
 const PDF_LEVELS = ['alfa', 'delta', 'sigma', 'kairos'];
 
-// Day mode state
-function isDayGroupRom(dayGroup: DayGroup): boolean {
-  return dayGroup.sessions.some((s) => s.sessionMode === 'rom');
+// Day mode badge (SEM-07, 160-03): combos/tecnica/rom son mutuamente excluyentes
+// por dia (el generador de 159 no los mezcla); usan los 6 DISPLAY_LEVELS normales,
+// solo ROM cambia displayLevels (ver dayGroups abajo) — el badge es puramente
+// informativo.
+function dayGroupModeBadge(dayGroup: DayGroup): { label: string; color: string } | null {
+  if (dayGroup.sessions.some((s) => s.sessionMode === 'combos')) {
+    return { label: 'Combos', color: 'deep-orange' };
+  }
+  if (dayGroup.sessions.some((s) => s.sessionMode === 'tecnica')) {
+    return { label: 'Técnica', color: 'purple' };
+  }
+  if (dayGroup.sessions.some((s) => s.sessionMode === 'rom')) {
+    return { label: 'ROM', color: 'info' };
+  }
+  return null;
 }
 
 interface DayLevelStatus {
