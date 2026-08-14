@@ -73,6 +73,7 @@ describe("campaign create (Phase 119)", () => {
   it("D-12: create persists a draft campaign and returns it", async () => {
     const service = makeService();
     const campaign = await service.create(
+      CTX,
       {
         name: "Sesión de prueba",
         subject: "Tu primera sesión es gratis",
@@ -96,6 +97,7 @@ describe("campaign create (Phase 119)", () => {
     const service = makeService();
     await expect(
       service.create(
+        CTX,
         {
           name: "  ",
           subject: "x",
@@ -113,6 +115,7 @@ describe("campaign send pipeline (Phase 119)", () => {
     const { id: u2 } = await createEligibleFreemium(app);
     const service = makeService();
     const campaign = await service.create(
+      CTX,
       {
         name: "Send Test",
         subject: "S",
@@ -138,6 +141,7 @@ describe("campaign send pipeline (Phase 119)", () => {
     await createEligibleFreemium(app);
     const service = makeService();
     const campaign = await service.create(
+      CTX,
       {
         name: "Idem",
         subject: "S",
@@ -172,6 +176,7 @@ describe("campaign send pipeline (Phase 119)", () => {
       .mockResolvedValue(undefined);
     const service = makeService(email);
     const campaign = await service.create(
+      CTX,
       {
         name: "Batch",
         subject: "S",
@@ -200,6 +205,7 @@ describe("campaign send pipeline (Phase 119)", () => {
     await createEligibleFreemium(app);
     const service = makeService();
     const campaign = await service.create(
+      CTX,
       {
         name: "Degrade",
         subject: "S",
@@ -229,6 +235,7 @@ describe("campaign test send (Phase 119)", () => {
       .mockResolvedValue(undefined);
     const service = makeService(email);
     const campaign = await service.create(
+      CTX,
       {
         name: "Preview",
         subject: "Tu sesión de prueba",
@@ -238,6 +245,7 @@ describe("campaign test send (Phase 119)", () => {
     );
 
     const result = await service.sendTest(
+      CTX,
       campaign.id,
       "comunidad@eltemplo.org",
     );
@@ -272,6 +280,7 @@ describe("campaign test send (Phase 119)", () => {
     );
     const service = makeService(email);
     const campaign = await service.create(
+      CTX,
       {
         name: "Preview Fail",
         subject: "S",
@@ -281,7 +290,7 @@ describe("campaign test send (Phase 119)", () => {
     );
 
     await expect(
-      service.sendTest(campaign.id, "alguien@gmail.com"),
+      service.sendTest(CTX, campaign.id, "alguien@gmail.com"),
     ).rejects.toThrow(/No se pudo enviar la prueba/i);
   });
 });

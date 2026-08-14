@@ -280,7 +280,9 @@ export class CampaignService {
     const [campaign] = await this.db
       .select()
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, campaignId))
+      .where(
+        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+      )
       .limit(1);
 
     if (!campaign) throw new BadRequestError("Campaña no encontrada");
@@ -293,6 +295,7 @@ export class CampaignService {
       .set({ status: "sending" })
       .where(
         and(
+          tenantWhere(schema.campaigns, ctx),
           eq(schema.campaigns.id, campaignId),
           eq(schema.campaigns.status, "draft"),
         ),
@@ -322,12 +325,14 @@ export class CampaignService {
     for (const user of eligible) {
       const result = await this.db
         .insert(schema.campaignSends)
-        .values({
-          campaignId,
-          userId: user.userId,
-          email: user.email,
-          status: "pending",
-        })
+        .values(
+          tenantValues(ctx, {
+            campaignId,
+            userId: user.userId,
+            email: user.email,
+            status: "pending",
+          }),
+        )
         .onDuplicateKeyUpdate({
           // No-op update so the existing row's id is preserved (idempotent).
           set: { email: sql`${schema.campaignSends.email}` },
@@ -349,13 +354,14 @@ export class CampaignService {
       .from(schema.campaignSends)
       .where(
         and(
+          tenantWhere(schema.campaignSends, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.campaignSends.status, "pending"),
         ),
       );
 
     // Sede addresses for the email (shared across all recipients in scope).
-    const sedes = await this.loadSedes(scopeCountry);
+    const sedes = await this.loadSedes(ctx, scopeCountry);
 
     // ── Render + batch-send in chunks of ≤100 ─────────────────────────────
     for (let i = 0; i < pendingSends.length; i += BATCH_SIZE) {
@@ -385,10 +391,13 @@ export class CampaignService {
           .update(schema.campaignSends)
           .set({ status: "sent", sentAt: new Date() })
           .where(
-            sql`${schema.campaignSends.id} IN (${sql.join(
-              chunkIds.map((id) => sql`${id}`),
-              sql`, `,
-            )})`,
+            and(
+              tenantWhere(schema.campaignSends, ctx),
+              sql`${schema.campaignSends.id} IN (${sql.join(
+                chunkIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})`,
+            ),
           );
       }
     }
@@ -401,6 +410,7 @@ export class CampaignService {
       .set({ status: "sent", sentAt: campaign.sentAt ?? new Date() })
       .where(
         and(
+          tenantWhere(schema.campaigns, ctx),
           eq(schema.campaigns.id, campaignId),
           eq(schema.campaigns.status, "sending"),
         ),
@@ -411,7 +421,12 @@ export class CampaignService {
         total: sql<number>`COUNT(*)`,
       })
       .from(schema.campaignSends)
-      .where(eq(schema.campaignSends.campaignId, campaignId));
+      .where(
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.campaignId, campaignId),
+        ),
+      );
 
     this.log.info(
       { campaignId, recipientCount: Number(total), newlyEnrolled },
@@ -444,13 +459,16 @@ export class CampaignService {
    * the admin sees why the preview did not arrive.
    */
   async sendTest(
+    ctx: TenantContext,
     campaignId: number,
     toEmail: string,
   ): Promise<{ from: string; to: string }> {
     const [campaign] = await this.db
       .select()
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, campaignId))
+      .where(
+        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+      )
       .limit(1);
     if (!campaign) throw new BadRequestError("Campaña no encontrada");
 
@@ -458,7 +476,7 @@ export class CampaignService {
       campaign.country === "AR" || campaign.country === "ES"
         ? campaign.country
         : null;
-    const sedes = await this.loadSedes(scopeCountry);
+    const sedes = await this.loadSedes(ctx, scopeCountry);
 
     const token = signCampaignToken({ userId: 0, campaignId, sendId: 0 });
     const vars = this.buildTemplateVars(campaign, token, sedes);

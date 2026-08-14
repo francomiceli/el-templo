@@ -247,7 +247,9 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
         return reply.status(403).send({ error: "Acceso de admin requerido" });
       }
-      return service.sendTest(request.params.id, request.body.email);
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "campaigns.test");
+      return service.sendTest(ctx, request.params.id, request.body.email);
     },
   );
 
