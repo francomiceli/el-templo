@@ -29,6 +29,10 @@ import { TENANT_TEMPLO } from "../fixtures/second-tenant";
  * `tenant_id` en el predicado hace throw antes de llegar a MySQL.
  */
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
+/** El `referrer` de la sección self-service nace en el tenant 1 (branchId
+ * default de `createMember`, no override) — `generateReferralCode` (T-175-04)
+ * recibe `ctx` primero. */
+const CTX = { tenantId: 1 };
 
 const CTA_URL = "/api/members/referrals/cta-click";
 const AB_URL = "/api/admin/referrals/ab-results";
@@ -134,7 +138,7 @@ describe("copy_variant se estampa al crear el vínculo (self-service ?ref)", () 
   it("estampa referralCopyVariant(referrerId) en el vínculo del referido", async () => {
     const referrer = await createMember(app, { email: "ss-referrer@test.com" });
     const service = new ReferralService(app.db, app.log);
-    const code = await service.generateReferralCode(referrer.id);
+    const code = await service.generateReferralCode(CTX, referrer.id);
 
     // Alta self-service del referido con ?ref=CODE (payload directo: registerUser
     // no expone `ref`). Datos únicos para no chocar con constraints.

@@ -420,7 +420,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // irrecoverable UNIQUE collision after retries leaves referral_code NULL
       // (the backfill covers it) and NEVER blocks the signup.
       try {
-        await referralService.generateReferralCode(userId);
+        await referralService.generateReferralCode(ctx, userId);
       } catch (err: unknown) {
         request.log.warn(
           { err: err instanceof Error ? err.message : String(err), userId },

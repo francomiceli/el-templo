@@ -232,7 +232,7 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
     const service = new ReferralService(app.db, app.log);
 
     // Pending: todavía no aporta descuento a ninguno de los dos lados.
-    expect(await service.computeReferralDiscountPercent(referrer.id)).toBe(0);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(0);
 
     // El hook del cobro encuentra el vínculo y lo flippea, sin saber que se
     // creó retroactivamente.
@@ -242,8 +242,8 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
     // Con ambas partes cubiertas, el descuento simétrico corre para los dos.
     await givePaidSubscription(target.id, plan.id as number, 15000);
     await givePaidSubscription(referrer.id, plan.id as number, 15000);
-    expect(await service.computeReferralDiscountPercent(referrer.id)).toBe(10);
-    expect(await service.computeReferralDiscountPercent(target.id)).toBe(10);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(10);
+    expect(await service.computeReferralDiscountPercent(CTX, target.id)).toBe(10);
   });
 
   it("el gimnasio sale del scope del request, no del body (mass-assignment)", async () => {

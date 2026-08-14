@@ -88,19 +88,22 @@ export class ReferralService {
    * Tras agotar los reintentos lanza — la política de fallo del alta la decide el
    * llamador (plan 03, best-effort), no este método.
    *
-   * T-173-08: `users` es tabla strict pero este método no recibe `ctx`
-   * externo — sus 2 call sites (`auth/routes.ts` en el autorregistro público,
-   * `members/service.ts` en el alta admin) son archivos ajenos de otras fases
-   * (173-15/173-19, D-02 no infla el alcance). El `userId` es siempre el PK
-   * propio del socio recién creado (nunca un filtro de lista), así que el
-   * guard `isNotNull(tenantId)` es el mismo fail-closed contra corrupción de
-   * datos que usa `country-scope.ts`, sin inventar una quinta fuente de ctx.
+   * T-175-04: `users` es tabla strict — `ctx` PRIMERO (D-01/D-02), reemplaza el
+   * guard provisional `isNotNull(tenantId)` (T-173-08). Sus 3 call sites
+   * (`auth/routes.ts` autorregistro público, `members/service.ts` alta admin,
+   * `scripts/backfill-referral-codes.ts`) YA resuelven `ctx` real en su propio
+   * scope (el `ctx` único del handler / el `ctx` del tx / el flag `--tenant`
+   * obligatorio del script) — threadearlo acá cierra la deuda sin inventar una
+   * quinta fuente.
    */
-  async generateReferralCode(userId: number): Promise<string> {
+  async generateReferralCode(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<string> {
     const [row] = await this.db
       .select({ code: users.referralCode, firstName: users.firstName })
       .from(users)
-      .where(and(eq(users.id, userId), isNotNull(users.tenantId)))
+      .where(and(tenantWhere(users, ctx), eq(users.id, userId)))
       .limit(1);
 
     if (!row) {
@@ -117,7 +120,7 @@ export class ReferralService {
         await this.db
           .update(users)
           .set({ referralCode: code })
-          .where(and(eq(users.id, userId), isNotNull(users.tenantId)));
+          .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
         return code;
       } catch (err: unknown) {
         if (isDuplicateKeyError(err)) {
@@ -202,8 +205,14 @@ export class ReferralService {
    * qualifyFirstPayment flippea dentro del cobro real, así el preview muestra el
    * precio que efectivamente se va a cobrar. Solo para previews — las
    * charge-paths NUNCA pasan esta opción (el flip real sigue siendo del cobro).
+   *
+   * T-175-04: `ctx` PRIMERO (D-01/D-02) — cierra el gap de `referrals` (Pattern A,
+   * sin `tenantWhere` pese a que todos los call sites YA tenían ctx: los 4
+   * charge-paths de `subscriptions/service.ts` y `getReferralOverview`) y
+   * threadea ctx real a `deriveCoveredUntil` (deuda compartida de esta misma fase).
    */
   async computeReferralDiscountPercent(
+    ctx: TenantContext,
     userId: number,
     opts?: { simulatePendingQualification?: boolean },
   ): Promise<number> {
@@ -228,6 +237,7 @@ export class ReferralService {
       .from(referrals)
       .where(
         and(
+          tenantWhere(referrals, ctx),
           statusFilter,
           or(
             eq(referrals.referrerId, userId),
@@ -241,7 +251,11 @@ export class ReferralService {
     for (const link of links) {
       const counterpartyId =
         link.referrerId === userId ? link.referredId : link.referrerId;
-      const coveredUntil = await deriveCoveredUntil(this.db, counterpartyId);
+      const coveredUntil = await deriveCoveredUntil(
+        this.db,
+        counterpartyId,
+        ctx,
+      );
       if (coveredUntil !== null && coveredUntil >= today) {
         activeLinks++;
       }
@@ -271,7 +285,7 @@ export class ReferralService {
     ctx: TenantContext,
     userId: number,
   ): Promise<ReferralOverview> {
-    const referralCode = await this.generateReferralCode(userId);
+    const referralCode = await this.generateReferralCode(ctx, userId);
 
     // Vínculos no-revoked en cualquiera de las dos direcciones.
     const links = await this.db
@@ -283,6 +297,7 @@ export class ReferralService {
       .from(referrals)
       .where(
         and(
+          tenantWhere(referrals, ctx),
           ne(referrals.status, "revoked"),
           or(
             eq(referrals.referrerId, userId),
@@ -309,7 +324,11 @@ export class ReferralService {
         // qualified: activo si la contraparte está cubierta hoy (mismo criterio
         // que computeReferralDiscountPercent) — sino suspendido (se reactiva si
         // la contraparte vuelve, D-10).
-        const coveredUntil = await deriveCoveredUntil(this.db, counterpartyId);
+        const coveredUntil = await deriveCoveredUntil(
+          this.db,
+          counterpartyId,
+          ctx,
+        );
         state =
           coveredUntil !== null && coveredUntil >= today
             ? "active"
@@ -343,7 +362,7 @@ export class ReferralService {
     }
 
     // Reuso D-30: el % vigente es EXACTAMENTE el del cobro, no una reimplementación.
-    const percent = await this.computeReferralDiscountPercent(userId);
+    const percent = await this.computeReferralDiscountPercent(ctx, userId);
 
     return {
       referralCode,
@@ -483,7 +502,12 @@ export class ReferralService {
     const [existing] = await this.db
       .select({ id: referrals.id })
       .from(referrals)
-      .where(eq(referrals.referredId, referredId))
+      .where(
+        and(
+          tenantWhere(referrals, { tenantId }),
+          eq(referrals.referredId, referredId),
+        ),
+      )
       .limit(1);
     if (existing) {
       throw new ConflictError("Este socio ya tiene un referidor asignado");
@@ -551,8 +575,13 @@ export class ReferralService {
    * referenceType='subscription', referenceId=subscriptionId — anotación de
    * trazabilidad que NO infla el saldo gastable (prohibido AuraService.award/spend).
    * Idempotente por subscriptionId / por el UNIQUE unique_user_source_ref.
+   *
+   * T-175-04: `ctx` PRIMERO (D-01/D-02) — Pattern B en ambos INSERT. El único
+   * llamador (`recordReferralCreditOnCharge`, subscriptions/service.ts) YA tiene
+   * ctx en sus 4 charge-paths (mismo motivo que `qualifyFirstPayment` arriba).
    */
   async recordReferralCredit(
+    ctx: TenantContext,
     userId: number,
     subscriptionId: number,
     percent: number,
@@ -560,20 +589,22 @@ export class ReferralService {
   ): Promise<void> {
     await this.db
       .insert(referralCredits)
-      .values({ userId, subscriptionId, percent, amount })
+      .values(tenantValues(ctx, { userId, subscriptionId, percent, amount }))
       // Duplicado por re-cobro del mismo cargo → no-op (re-escribe el mismo id).
       .onDuplicateKeyUpdate({ set: { subscriptionId } });
 
     await this.db
       .insert(auraTransactions)
-      .values({
-        userId,
-        sourceType: "referral",
-        amount: 0,
-        referenceType: "subscription",
-        referenceId: subscriptionId,
-        description: `Descuento por referido: ${percent}%`,
-      })
+      .values(
+        tenantValues(ctx, {
+          userId,
+          sourceType: "referral",
+          amount: 0,
+          referenceType: "subscription",
+          referenceId: subscriptionId,
+          description: `Descuento por referido: ${percent}%`,
+        }),
+      )
       // UNIQUE (userId, sourceType, referenceType, referenceId) → no-op idempotente.
       .onDuplicateKeyUpdate({ set: { amount: 0 } });
   }
@@ -584,12 +615,18 @@ export class ReferralService {
    * cliente, mismo criterio IDOR que el resto del módulo). Es best-effort desde
    * la vista del socio: la card no debe bloquear la navegación si esto falla, así
    * que la ruta swallowea el error — pero acá dejamos el insert crudo.
+   *
+   * T-175-04: `ctx` PRIMERO (D-01/D-02) — Pattern B. El único llamador
+   * (`referrals/routes.ts` POST /cta-click) resuelve `ctx` de la misma fila del
+   * socio autenticado que ya usa el handler GET hermano de este mismo archivo.
    */
-  async recordCtaClick(userId: number): Promise<void> {
-    await this.db.insert(referralCtaClicks).values({
-      userId,
-      variant: referralCopyVariant(userId),
-    });
+  async recordCtaClick(ctx: TenantContext, userId: number): Promise<void> {
+    await this.db.insert(referralCtaClicks).values(
+      tenantValues(ctx, {
+        userId,
+        variant: referralCopyVariant(userId),
+      }),
+    );
   }
 
   /**
@@ -623,6 +660,10 @@ export class ReferralService {
       .groupBy(sql`CASE WHEN ${users.id} % 2 = 0 THEN 'A' ELSE 'B' END`);
 
     // Clics: clickers únicos + clics totales por variante.
+    // T-175-04: exención propia (antes solo la de exposedRows/users cubría SU
+    // statement — este SELECT es el suyo, sobre referral_cta_clicks). Mismo
+    // motivo que exposedRows: A/B global, acotarlo cambiaría lo que mide.
+    /* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */
     const clickRows = await this.db
       .select({
         variant: referralCtaClicks.variant,
@@ -633,6 +674,10 @@ export class ReferralService {
       .groupBy(referralCtaClicks.variant);
 
     // Referidos: creados + cualificados por variante (solo los estampados).
+    // T-175-04: exención propia (antes solo la de exposedRows/users cubría SU
+    // statement — este SELECT es el suyo, sobre referrals). Mismo motivo que
+    // exposedRows: A/B global, acotarlo cambiaría lo que mide.
+    /* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */
     const referralRows = await this.db
       .select({
         variant: referrals.copyVariant,

@@ -38,7 +38,11 @@ export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { userId } = request.user;
       try {
-        await service.recordCtaClick(userId);
+        // T-175-04: `ctx` de la propia fila del socio autenticado, mismo patrón
+        // que el handler GET hermano de arriba (Pattern B, no del body/token).
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "referrals.cta-click");
+        await service.recordCtaClick(ctx, userId);
       } catch (err: unknown) {
         request.log.warn(
           { err: err instanceof Error ? err.message : String(err), userId },

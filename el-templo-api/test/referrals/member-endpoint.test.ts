@@ -19,6 +19,10 @@ import {
 } from "../helpers";
 import { createPlan, createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
+
+// T-175-04: `computeReferralDiscountPercent` recibe `ctx` primero.
+const CTX: TenantContext = { tenantId: 1 };
 
 const URL = "/api/members/referrals";
 const MEMBER_PASSWORD = "pass123456";
@@ -192,7 +196,7 @@ describe("GET /api/members/referrals — member overview", () => {
 
     // Paridad: el % del overview es EXACTAMENTE el del cobro (mismo método).
     const service = new ReferralService(app.db, app.log);
-    const canonical = await service.computeReferralDiscountPercent(r.id);
+    const canonical = await service.computeReferralDiscountPercent(CTX, r.id);
     expect(body.discount.percent).toBe(canonical);
     expect(body.discount.percent).toBe(20);
   });
