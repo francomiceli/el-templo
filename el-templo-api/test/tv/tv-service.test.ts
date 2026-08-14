@@ -473,10 +473,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     });
 
     const cls = (
-      await service.buildPollPayload(
-        { id: deviceId, branchId: branchArId },
-        TUESDAY_NOON_UTC,
-      )
+      await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC)
     ).class!;
 
     // El control esta en alfa (la columna visible es la de alfa)...
@@ -507,10 +504,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     });
 
     const cls = (
-      await service.buildPollPayload(
-        { id: deviceId, branchId: branchArId },
-        TUESDAY_NOON_UTC,
-      )
+      await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC)
     ).class!;
 
     expect(cls.level).toBe("delta");
