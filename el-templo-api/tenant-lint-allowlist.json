@@ -388,26 +388,6 @@
       "table": "improvement_proposals"
     },
     {
-      "file": "el-templo-api/src/modules/notifications/routes.ts",
-      "table": "notification_templates"
-    },
-    {
-      "file": "el-templo-api/src/modules/notifications/service.ts",
-      "table": "device_tokens"
-    },
-    {
-      "file": "el-templo-api/src/modules/notifications/service.ts",
-      "table": "notification_preferences"
-    },
-    {
-      "file": "el-templo-api/src/modules/notifications/service.ts",
-      "table": "notification_templates"
-    },
-    {
-      "file": "el-templo-api/src/modules/notifications/service.ts",
-      "table": "pending_notifications"
-    },
-    {
       "file": "el-templo-api/src/modules/onboarding/service.ts",
       "table": "onboarding_analytics"
     },
