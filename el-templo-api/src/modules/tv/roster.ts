@@ -19,8 +19,13 @@
  * Pitfall 1: el bloque se identifica SIEMPRE por su rol canonico, nunca por un
  * indice. Dos niveles del mismo dia pueden tener rosters de largo distinto, asi
  * que un indice guardado saltaria a otro bloque al cambiar de nivel.
+ *
+ * Las etiquetas visibles (`ROLE_LABELS`) NO viven mas aca: fase 160 (SEM-11,
+ * D160-03) las centralizo en `../shared/role-labels.ts`, la fuente unica de
+ * labels del API (consumida tambien por el badge de `admin/service.ts`).
  */
 import { formatNameWithParams, type FormatParams } from "../admin/format-params";
+import { ROLE_LABELS } from "../shared/role-labels";
 import { TRAINING_LEVELS } from "../shared/training-constants";
 import type { TvBlockSummary, TvClassMode } from "./types";
 
@@ -81,25 +86,6 @@ export function pairFor(level: string): readonly string[] {
   }
   return [level];
 }
-
-/**
- * Etiqueta visible de cada rol.
- *
- * INITIUM se rotula PYROS (decision v8 del UI-SPEC): es "un bloque mas", no una
- * pagina especial, y jamas se lo nombra con el termino generico de entrada en
- * calor. Las etiquetas ROM son las mismas que imprime el PDF.
- */
-const ROLE_LABELS: Record<string, string> = {
-  INITIUM: "PYROS",
-  NUCLEUS: "NUCLEUS",
-  DEUTEROS_1: "DEUTEROS I",
-  DEUTEROS_2: "DEUTEROS II",
-  EPIKOS: "EPIKOS",
-  ATHLOS: "ATHLOS",
-  ROM_LOWER: "TREN INFERIOR",
-  ROM_CORE: "ZONA MEDIA",
-  ROM_UPPER: "TREN SUPERIOR",
-};
 
 /**
  * Forma minima de un bloque que el roster necesita. `class-day.ts` devuelve

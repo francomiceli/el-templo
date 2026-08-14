@@ -16,6 +16,7 @@ import type { SessionStatus } from "./types";
 import type { LevelGroup, ExerciseLevel } from "../sessions/types";
 import { SpomService } from "../spom/service";
 import { isKairos } from "../sessions/pipeline/utils/kairos";
+import { ROLE_BADGE_LABELS } from "../shared/role-labels";
 import {
   TRAINING_DAYS,
   DAY_OF_WEEK_MAP,
@@ -172,14 +173,12 @@ export class AdminSessionService {
           // ROM blocks show zone display names
           if (b.role.startsWith("ROM_")) return ROM_DISPLAY[b.role] || b.role;
           if (b.role === "INITIUM") return "I";
-          let label = b.role.charAt(0);
-          // Phase 159 (SEM-12, D-P5): D1/D2 -> DA/DB frees "I"/"II" for the
-          // new COMBOS_I/II and TECNICA_I/II badges below. Presentation-only
-          // rename — the underlying role values (DEUTEROS_1/DEUTEROS_2) and
-          // the PDF literals ('DEUTEROS I'/'DEUTEROS II') are untouched
-          // (those are SEM-11 / phase 160 scope).
-          if (b.role === "DEUTEROS_1") label = "DA";
-          else if (b.role === "DEUTEROS_2") label = "DB";
+          // Phase 160 (SEM-11, D160-02): ROLE_BADGE_LABELS is the single
+          // source for the short badge (DA/DB for DEUTEROS_1/2 -- phase 159
+          // SEM-12/D-P5 -- and I/II/Stretch for the new COMBOS_*/TECNICA_*/
+          // STRETCHING roles). Unknown future roles fall back to the first
+          // letter of the role, same as before this dictionary existed.
+          const label = ROLE_BADGE_LABELS[b.role] ?? b.role.charAt(0);
           return `${label}: ${b.route} ${b.intensity}%`;
         })
         .join(", ");
