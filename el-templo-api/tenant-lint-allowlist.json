@@ -333,10 +333,6 @@
     },
     {
       "file": "el-templo-api/src/modules/campaigns/service.ts",
-      "table": "campaign_unsubscribes"
-    },
-    {
-      "file": "el-templo-api/src/modules/campaigns/service.ts",
       "table": "campaigns"
     },
     {
