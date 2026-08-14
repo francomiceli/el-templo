@@ -29,16 +29,6 @@
           @click="onManualRefresh"
         />
       </div>
-      <div class="col-12 col-sm-auto">
-        <q-btn
-          icon="cast"
-          label="Abrir pantalla completa"
-          color="secondary"
-          outline
-          :disable="selectedBranchId === null"
-          @click="onOpenScreen"
-        />
-      </div>
     </div>
 
     <!-- Carga inicial -->
@@ -275,7 +265,7 @@
             </template>
           </q-select>
         </q-card-section>
-        <q-card-actions align="right">
+        <q-card-actions>
           <q-btn
             class="full-width"
             unelevated
@@ -283,6 +273,39 @@
             color="primary"
             label="Confirmar sedes del día"
             @click="confirmSedeSelection"
+          />
+        </q-card-actions>
+
+        <q-separator class="q-my-sm" />
+
+        <!-- Camino directo del televisor de pared: abrir la pantalla con la plani  -->
+        <!-- de una sede puntual (su PROPIO selector, no la del turno), sin entrar  -->
+        <!-- al control. Ver showScreenFromSelection.                               -->
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-medium">Mostrar plani en el TV</div>
+          <div class="text-body2 text-grey-7 q-mt-xs q-mb-md">
+            Para el televisor de la sede: abre la pantalla con la plani del día, sin pasar por el
+            control.
+          </div>
+          <q-select
+            v-model="screenBranchId"
+            :options="branchOptions"
+            label="Sede de la pantalla"
+            outlined
+            emit-value
+            map-options
+          />
+        </q-card-section>
+        <q-card-actions>
+          <q-btn
+            class="full-width"
+            outline
+            size="lg"
+            color="secondary"
+            icon="cast"
+            label="Mostrar plani en el TV"
+            :disable="screenBranchId === null"
+            @click="showScreenFromSelection"
           />
         </q-card-actions>
       </q-card>
@@ -442,6 +465,8 @@ const sedeWarningOpen = ref(false);
 const sedeSelectionOpen = ref(false);
 const morningBranchId = ref<number | null>(null);
 const afternoonBranchId = ref<number | null>(null);
+/** Sede de la pantalla del TV — selector propio, independiente de las de turno. */
+const screenBranchId = ref<number | null>(null);
 
 const branches = ref<BranchOption[]>([]);
 const branchesLoading = ref(false);
@@ -565,6 +590,8 @@ async function openSedeSelection(): Promise<void> {
   if (currentTurno() === 'afternoon' && afternoon === null) afternoon = homeSedeFallback();
   morningBranchId.value = morning;
   afternoonBranchId.value = afternoon;
+  // Pre-carga usable para la pantalla: sede del turno vigente o, si no hay, la de casa.
+  screenBranchId.value = (currentTurno() === 'morning' ? morning : afternoon) ?? homeSedeFallback();
   initialLoading.value = false; // el spinner de fondo no tiene sentido detrás del modal
   sedeSelectionOpen.value = true;
 }
@@ -700,13 +727,16 @@ async function onBranchChange(): Promise<void> {
 }
 
 /**
- * Abre la pantalla fullscreen (`/pantalla-tv`) de la sede elegida acá. Misma
- * pestaña: en el televisor de pared no hay otra pestaña a la que volver, y en
- * el celular del profe da igual.
+ * Desde el modal: abre directo la pantalla (`/pantalla-tv`) de la sede elegida en
+ * el selector PROPIO de la plani (no la del turno), sin pasar por el control. Es
+ * el camino del televisor de pared. Misma pestaña: en el TV no hay otra a la que
+ * volver, y en el celular del profe da igual.
  */
-function onOpenScreen(): void {
-  if (selectedBranchId.value === null) return;
-  void router.push({ path: '/pantalla-tv', query: { branchId: String(selectedBranchId.value) } });
+function showScreenFromSelection(): void {
+  const branchId = screenBranchId.value;
+  if (!isValidOption(branchId)) return;
+  sedeSelectionOpen.value = false;
+  void router.push({ path: '/pantalla-tv', query: { branchId: String(branchId) } });
 }
 
 // =========================================================================
