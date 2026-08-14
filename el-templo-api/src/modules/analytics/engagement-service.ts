@@ -83,7 +83,7 @@ export class EngagementService {
 
     const conditions: SQL[] = [
       eq(schema.users.role, "member") as unknown as SQL,
-      activeMemberExists(schema.users.id),
+      activeMemberExists(schema.users.id, ctx),
       ...scopeConditions,
     ];
 
@@ -180,7 +180,7 @@ export class EngagementService {
       // construye en su propio statement de JS, que el lint mira aparte.
       tenantWhere(schema.memberProfiles, ctx),
       sql`${schema.memberProfiles.segment} IN ('alerta','ausente')`,
-      activeMemberExists(schema.users.id),
+      activeMemberExists(schema.users.id, ctx),
       ...scopeConditions,
     ];
 

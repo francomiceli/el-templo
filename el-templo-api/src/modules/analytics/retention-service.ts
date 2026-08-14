@@ -334,7 +334,7 @@ export class RetentionService {
     const conditions: SQL[] = [
       tenantWhere(schema.subscriptions, ctx),
       // Only subscriptions of members who are active RIGHT NOW (canonical).
-      activeMemberExists(schema.subscriptions.userId),
+      activeMemberExists(schema.subscriptions.userId, ctx),
       // D-11: no contar los ciclos del pase especial (el externo-solo-pase queda
       // con 0 filas → fuera de la distribución de ciclos de membresía).
       excludeEspecialSubs(ctx),

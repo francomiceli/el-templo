@@ -1500,7 +1500,7 @@ export class ReportsService {
       // "vencido sin renovar": negate the canonical active predicate so a member
       // who renewed (has an in-effect sub) drops out of the renewal worklist.
       // NEVER read users.status directly.
-      sql`NOT ${activeMemberExists(schema.subscriptions.userId)}`,
+      sql`NOT ${activeMemberExists(schema.subscriptions.userId, ctx)}`,
       // WR-01: also exclude members who already renewed with a FUTURE-dated
       // subscription (subscription_status='scheduled'). activeMemberExists only
       // matches active|paused with start_date <= CURDATE(), so a scheduled sub

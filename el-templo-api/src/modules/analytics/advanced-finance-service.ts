@@ -411,7 +411,7 @@ export class AdvancedFinanceService {
     const conditions: SQL[] = [
       // Membresías internas (staff/bonificadas) fuera del denominador del ARPU
       // (2026-08-07). Los pases 'especial' SÍ cuentan acá (su plata es real).
-      activePayingMemberExists(schema.users.id),
+      activePayingMemberExists(schema.users.id, ctx),
       ...scopeConditions,
     ];
 

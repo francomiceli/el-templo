@@ -20,9 +20,9 @@
  *
  * Returns a Drizzle `SQL` fragment — NOT a class, NOT an entity. Parameterized
  * by the user-id column to embed in any WHERE/SELECT (e.g.
- * `activeMemberExists(schema.users.id)`).
+ * `activeMemberExists(schema.users.id, ctx)`).
  *
- * TENANT-SAFETY DE LOS 4 FRAGMENTOS DE ESTE ARCHIVO (174.1-05b)
+ * TENANT-SAFETY DE LOS 4 FRAGMENTOS DE ESTE ARCHIVO (174.1-05b, ctx real 175-04)
  * ---------------------------------------------------------------
  * Las 4 funciones de abajo devuelven un `EXISTS(SELECT ... FROM subscriptions
  * / subscription_plans ...)` que NUNCA se ejecuta como query propia: viaja
@@ -33,23 +33,40 @@
  * desde la fase 166: las filas de `subscriptions`/`subscription_plans` que
  * matchean son del MISMO tenant que el socio externo por FK, sin importar si
  * ese socio llegó como `users.id` o como `subscriptions.userId` de una fila
- * ya tenant-scoped. Por eso el runtime NUNCA filtra cross-tenant aunque el
- * texto de este archivo no lleve `tenant_id` — pero el lint estático SÍ lo
- * marca (el `FROM subscriptions` vive acá, sin el literal en su propio
- * texto), así que cada `return` lleva la exención `tenant-safe` de abajo.
- * Threadear `ctx` real hasta acá (para que el propio EXISTS lleve
- * `tenant_id`) queda diferido a la fase 175 — arrastra los 10 call sites de
- * analytics/members/reports y no es necesario para el switch: alcanza con
- * que el statement externo ya filtre.
+ * ya tenant-scoped. Por eso el runtime NUNCA filtró cross-tenant aunque el
+ * texto de este archivo no llevara `tenant_id`.
+ *
+ * Fase 175-04: `ctx` OPCIONAL al final (mismo Pattern D que `deriveCoveredUntil`,
+ * subscriptions/service.ts:202). Con `ctx` real el EXISTS suma
+ * `AND s.tenant_id = ?` (cinturón-y-tirantes explícito, no solo la correlación
+ * implícita) — los 10 call sites de analytics/members/reports YA tenían `ctx`
+ * en su método contenedor y pasan a threadearlo real. Sin `ctx`, el fragmento
+ * queda exactamente como antes (exención `tenant-safe` como comentario TS
+ * pegado al `return`, canal del LINT — D-17: el lint y el sentinel son DOS
+ * canales de exención distintos por diseño, no hace falta que la anotación
+ * viaje embebida en el SQL para el lint).
  */
 import { sql, type SQL, type AnyColumn } from "drizzle-orm";
+import type { TenantContext } from "./tenant";
 
-export function activeMemberExists(userIdColumn: AnyColumn): SQL {
+export function activeMemberExists(
+  userIdColumn: AnyColumn,
+  ctx?: TenantContext,
+): SQL {
   /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
      ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
-     tenantWhere-scoped (sobre users o sobre subscriptions). Adopción de ctx
-     real diferida a fase 175. */
-  return sql`EXISTS (
+     tenantWhere-scoped (sobre users o sobre subscriptions). Con `ctx` real
+     (fase 175-04) suma además su propio `tenant_id` explícito. */
+  return ctx
+    ? sql`EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.user_id = ${userIdColumn}
+      AND s.subscription_status IN ('active','paused')
+      AND s.start_date <= CURDATE()
+      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND s.tenant_id = ${ctx.tenantId}
+  )`
+    : sql`EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = ${userIdColumn}
       AND s.subscription_status IN ('active','paused')
@@ -70,11 +87,27 @@ export function activeMemberExists(userIdColumn: AnyColumn): SQL {
  * Un socio con presencial + pase SÍ cuenta: su sub presencial satisface el
  * EXISTS. Solo cae quien tiene ÚNICAMENTE subs especiales vigentes.
  */
-export function activeNonEspecialMemberExists(userIdColumn: AnyColumn): SQL {
+export function activeNonEspecialMemberExists(
+  userIdColumn: AnyColumn,
+  ctx?: TenantContext,
+): SQL {
   /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
      ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
-     tenantWhere-scoped. Adopción de ctx real diferida a fase 175. */
-  return sql`EXISTS (
+     tenantWhere-scoped. Con `ctx` real (fase 175-04) suma su propio
+     `tenant_id` explícito. */
+  return ctx
+    ? sql`EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.user_id = ${userIdColumn}
+      AND s.subscription_status IN ('active','paused')
+      AND s.start_date <= CURDATE()
+      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND s.plan_id NOT IN (
+        SELECT id FROM subscription_plans WHERE plan_category = 'especial'
+      )
+      AND s.tenant_id = ${ctx.tenantId}
+  )`
+    : sql`EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = ${userIdColumn}
       AND s.subscription_status IN ('active','paused')
@@ -95,11 +128,26 @@ export function activeNonEspecialMemberExists(userIdColumn: AnyColumn): SQL {
  */
 export function activePayingNonEspecialMemberExists(
   userIdColumn: AnyColumn,
+  ctx?: TenantContext,
 ): SQL {
   /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
      ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
-     tenantWhere-scoped. Adopción de ctx real diferida a fase 175. */
-  return sql`EXISTS (
+     tenantWhere-scoped. Con `ctx` real (fase 175-04) suma su propio
+     `tenant_id` explícito. */
+  return ctx
+    ? sql`EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.user_id = ${userIdColumn}
+      AND s.subscription_status IN ('active','paused')
+      AND s.start_date <= CURDATE()
+      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND s.membership_kind = 'paga'
+      AND s.plan_id NOT IN (
+        SELECT id FROM subscription_plans WHERE plan_category = 'especial'
+      )
+      AND s.tenant_id = ${ctx.tenantId}
+  )`
+    : sql`EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = ${userIdColumn}
       AND s.subscription_status IN ('active','paused')
@@ -117,11 +165,25 @@ export function activePayingNonEspecialMemberExists(
  * internas pero NO los pases 'especial' — la plata del pase sí es ingreso real
  * y su comprador cuenta como miembro activo ahí (D-11).
  */
-export function activePayingMemberExists(userIdColumn: AnyColumn): SQL {
+export function activePayingMemberExists(
+  userIdColumn: AnyColumn,
+  ctx?: TenantContext,
+): SQL {
   /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
      ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
-     tenantWhere-scoped. Adopción de ctx real diferida a fase 175. */
-  return sql`EXISTS (
+     tenantWhere-scoped. Con `ctx` real (fase 175-04) suma su propio
+     `tenant_id` explícito. */
+  return ctx
+    ? sql`EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.user_id = ${userIdColumn}
+      AND s.subscription_status IN ('active','paused')
+      AND s.start_date <= CURDATE()
+      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND s.membership_kind = 'paga'
+      AND s.tenant_id = ${ctx.tenantId}
+  )`
+    : sql`EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = ${userIdColumn}
       AND s.subscription_status IN ('active','paused')

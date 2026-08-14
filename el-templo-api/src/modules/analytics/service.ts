@@ -280,7 +280,7 @@ export class AnalyticsService {
       // cuenta (su presencial satisface el EXISTS). La plata del pase igual entra
       // por caja/cobros/advanced-finance, que NO se tocan.
       // Membresías internas (staff/bonificadas) tampoco cuentan (2026-08-07).
-      activePayingNonEspecialMemberExists(schema.users.id),
+      activePayingNonEspecialMemberExists(schema.users.id, ctx),
     ];
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
@@ -396,7 +396,7 @@ export class AnalyticsService {
       // cuenta (su presencial satisface el EXISTS). La plata del pase igual entra
       // por caja/cobros/advanced-finance, que NO se tocan.
       // Membresías internas (staff/bonificadas) tampoco cuentan (2026-08-07).
-      activePayingNonEspecialMemberExists(schema.users.id),
+      activePayingNonEspecialMemberExists(schema.users.id, ctx),
       sql`${schema.users.createdAt} >= ${dateFrom}`,
       sql`${schema.users.createdAt} < ${nextDay(dateTo)}`,
     ];
@@ -761,7 +761,7 @@ export class AnalyticsService {
       sql`subscriptions.end_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`,
       // "vencido sin renovar": negate the canonical active predicate so a member
       // who renewed (has an in-effect sub) drops out of the overdue worklist.
-      sql`NOT ${activeMemberExists(schema.subscriptions.userId)}`,
+      sql`NOT ${activeMemberExists(schema.subscriptions.userId, ctx)}`,
       ...scope.conditions,
     ];
 
@@ -895,6 +895,7 @@ export class AnalyticsService {
           ending: sql<number>`COUNT(DISTINCT ${schema.subscriptions.userId})`,
           renewed: sql<number>`COUNT(DISTINCT CASE WHEN ${activeMemberExists(
             schema.subscriptions.userId,
+            ctx,
           )} THEN ${schema.subscriptions.userId} END)`,
         })
         .from(schema.subscriptions)

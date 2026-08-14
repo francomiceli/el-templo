@@ -193,11 +193,14 @@ export interface ListPromoPlansFilters {
  * Fase 174.1-05b: `ctx` OPCIONAL al final — mismo Pattern D provisorio que
  * `promoteWaitlist`/`countActiveBookings` (booking-service.ts). Esta función
  * standalone la llaman 3 módulos (subscriptions/service.ts, referrals/service.ts,
- * jobs/notification-cron.ts); solo el call site DENTRO de este plan
- * (`getCoveredUntil` de abajo, y su caller `booking-service.ts::reserve`) ya
- * resuelve `ctx` real. Threadear `ctx` hasta referrals/notification-cron
- * arrastra call sites fuera de `files_modified` de este plan — queda para la
- * fase 175 (mismo diferimiento que `activeMemberExists`, CONTEXT D-04).
+ * jobs/notification-cron.ts).
+ *
+ * Fase 175-04: los 3 call sites externos (`referrals/service.ts` x2,
+ * `jobs/notification-cron.ts::runPlanRenewalWarnings`) ya threadean `ctx` real —
+ * cierra la deuda anotada en 174.1-05b. El parámetro sigue OPCIONAL (no
+ * required) porque `test/subscriptions/covered-until.test.ts` ejercita
+ * deliberadamente el fallback Pattern D (`isNotNull`) como caso de cobertura
+ * propio; forzar `ctx` ahí no es parte del alcance de esta fase.
  */
 export async function deriveCoveredUntil(
   db: MySql2Database<typeof schema>,
@@ -504,13 +507,14 @@ export class SubscriptionService {
    * pct<=0 → devuelve el precio sin descuento.
    */
   private async computePriceWithReferralDiscount(
+    ctx: TenantContext,
     userId: number,
     basePrice: number,
   ): Promise<{ percent: number; amount: number; pricePaid: number }> {
     const percent = await new ReferralService(
       this.db,
       this.log,
-    ).computeReferralDiscountPercent(userId);
+    ).computeReferralDiscountPercent(ctx, userId);
     if (percent <= 0) {
       return { percent: 0, amount: 0, pricePaid: basePrice };
     }
@@ -524,6 +528,7 @@ export class SubscriptionService {
    * Se llama tras recordAssignmentCharge con el subscriptionId ya conocido.
    */
   private async recordReferralCreditOnCharge(
+    ctx: TenantContext,
     userId: number,
     subscriptionId: number,
     percent: number,
@@ -531,6 +536,7 @@ export class SubscriptionService {
   ): Promise<void> {
     if (amount <= 0) return;
     await new ReferralService(this.db, this.log).recordReferralCredit(
+      ctx,
       userId,
       subscriptionId,
       percent,
@@ -1721,6 +1727,7 @@ export class SubscriptionService {
     if (plan.planCategory !== "especial") {
       await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
       const referral = await this.computePriceWithReferralDiscount(
+        ctx,
         userId,
         pricePaid,
       );
@@ -2131,6 +2138,7 @@ export class SubscriptionService {
     // Referidos (AURA-01): registro auditable del descuento aplicado, tras el
     // cargo y con el subscriptionId ya conocido. No-op si no hubo descuento.
     await this.recordReferralCreditOnCharge(
+      ctx,
       userId,
       subscriptionId,
       referralDiscountPercent ?? 0,
@@ -3511,7 +3519,7 @@ export class SubscriptionService {
       const referralPct = await new ReferralService(
         this.db,
         this.log,
-      ).computeReferralDiscountPercent(userId, {
+      ).computeReferralDiscountPercent(ctx, userId, {
         simulatePendingQualification: true,
       });
       if (referralPct > 0) {
@@ -3716,6 +3724,7 @@ export class SubscriptionService {
     if (targetPlan.planCategory !== "especial") {
       await this.qualifyReferralOnCharge(ctx, userId, netAmount);
       const referral = await this.computePriceWithReferralDiscount(
+        ctx,
         userId,
         netAmount,
       );
@@ -3981,6 +3990,7 @@ export class SubscriptionService {
 
       // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
       await this.recordReferralCreditOnCharge(
+        ctx,
         userId,
         newSubscriptionId,
         referralDiscountPercent ?? 0,
@@ -4280,6 +4290,7 @@ export class SubscriptionService {
     if (targetPlan.planCategory !== "especial") {
       await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
       const referral = await this.computePriceWithReferralDiscount(
+        ctx,
         userId,
         pricePaid,
       );
@@ -4423,6 +4434,7 @@ export class SubscriptionService {
 
     // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
     await this.recordReferralCreditOnCharge(
+      ctx,
       userId,
       newSubscriptionId,
       referralDiscountPercent ?? 0,
@@ -4700,6 +4712,7 @@ export class SubscriptionService {
     if (plan.planCategory !== "especial") {
       await this.qualifyReferralOnCharge(ctx, userId, renewalPrice);
       const referral = await this.computePriceWithReferralDiscount(
+        ctx,
         userId,
         renewalPrice,
       );
@@ -4999,6 +5012,7 @@ export class SubscriptionService {
     // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0
     // (los pases especiales quedan en 0/0 por el guard D-09 de arriba).
     await this.recordReferralCreditOnCharge(
+      ctx,
       userId,
       newSubscriptionId,
       referralDiscountPercent ?? 0,
@@ -5235,7 +5249,7 @@ export class SubscriptionService {
       const referralPct = await new ReferralService(
         this.db,
         this.log,
-      ).computeReferralDiscountPercent(userId, {
+      ).computeReferralDiscountPercent(ctx, userId, {
         simulatePendingQualification: true,
       });
       if (referralPct > 0) {
