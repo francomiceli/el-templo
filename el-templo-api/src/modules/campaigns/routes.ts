@@ -139,13 +139,10 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       const payload = validateCampaignToken(request.query.t);
       if (payload) {
         try {
-          const send = await tracking.getSendEmail(payload.sendId);
-          if (send) {
-            await tracking.recordUnsubscribe(send.email, {
-              userId: send.userId,
-              campaignId: send.campaignId,
-            });
-          }
+          // T-175-02: recordUnsubscribe resuelve tenant+email por su cuenta
+          // desde campaign_sends (via sendId) — ya no hace falta el
+          // getSendEmail previo que hacía esta ruta.
+          await tracking.recordUnsubscribe(payload.sendId);
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
           request.log.warn({ err: message }, "recordUnsubscribe failed");
