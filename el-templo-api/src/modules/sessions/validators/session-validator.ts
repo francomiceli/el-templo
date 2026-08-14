@@ -33,6 +33,13 @@ const INTENSITY_RANGES: Record<BlockRole, { min: number; max: number }> = {
   ROM_LOWER: { min: 30, max: 70 },
   ROM_CORE: { min: 30, max: 70 },
   ROM_UPPER: { min: 30, max: 70 },
+  // Phase 159 (D-04/D-07/D-11): combos/tecnica/stretching blocks use the same
+  // fixed moderate intensity reference as ROM.
+  COMBOS_I: { min: 30, max: 70 },
+  COMBOS_II: { min: 30, max: 70 },
+  TECNICA_I: { min: 30, max: 70 },
+  TECNICA_II: { min: 30, max: 70 },
+  STRETCHING: { min: 30, max: 70 },
 };
 
 /**
@@ -53,16 +60,20 @@ export function validateSession(session: DaySession): SessionValidationResult {
   const sessionErrors: string[] = [];
   const blockResults: BlockValidationResult[] = [];
 
-  // Detect ROM session (3 body-zone blocks, different structure from regular)
-  const isRomSession =
+  // Detect fixed-structure session: ROM (3 body-zone blocks) or the phase 159
+  // (D-04/D-07) combos/tecnica day modes (INITIUM + 2 role blocks + STRETCHING),
+  // all of which are exactly 4 blocks — different structure from regular.
+  const isFixedStructureSession =
     session.sessionMode === "rom" ||
+    session.sessionMode === "combos" ||
+    session.sessionMode === "tecnica" ||
     session.blocks.some((b) => b.role.startsWith("ROM_"));
 
-  // Check 1: Block count (ROM = 4: INITIUM + 3 zones, regular = 4-5)
-  if (isRomSession) {
+  // Check 1: Block count (ROM/combos/tecnica = 4, regular = 4-5)
+  if (isFixedStructureSession) {
     if (session.blocks.length !== 4) {
       sessionErrors.push(
-        `ROM session has ${session.blocks.length} blocks (expected: 4)`,
+        `Fixed-structure session has ${session.blocks.length} blocks (expected: 4)`,
       );
     }
   } else if (session.blocks.length < MIN_BLOCKS) {
@@ -133,7 +144,7 @@ export function validateSession(session: DaySession): SessionValidationResult {
   // Check 7: Final block should be ATHLOS or EPIKOS (regular sessions only)
   const lastBlock = session.blocks[session.blocks.length - 1];
   if (
-    !isRomSession &&
+    !isFixedStructureSession &&
     lastBlock &&
     lastBlock.role !== "ATHLOS" &&
     lastBlock.role !== "EPIKOS"

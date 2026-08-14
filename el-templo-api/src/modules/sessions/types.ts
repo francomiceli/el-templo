@@ -34,7 +34,12 @@ export type ExerciseLevel =
  */
 export type ContentLevel = Exclude<ExerciseLevel, "kairos">;
 
-/** Block roles in a training session (5 blocks for regular, 3 for ROM) */
+/**
+ * Block roles in a training session (5 blocks for regular, 4 for ROM/combos/tecnica).
+ * Phase 159 (SEM-01, D-04/D-07/D-11): COMBOS_I/COMBOS_II and TECNICA_I/TECNICA_II
+ * are the fixed-structure blocks of a "día de combos"/"día de técnica" (analogous
+ * to ROM_*); STRETCHING is the shared final block for both new day modes.
+ */
 export type BlockRole =
   | "INITIUM"
   | "NUCLEUS"
@@ -44,7 +49,12 @@ export type BlockRole =
   | "EPIKOS"
   | "ROM_LOWER"
   | "ROM_CORE"
-  | "ROM_UPPER";
+  | "ROM_UPPER"
+  | "COMBOS_I"
+  | "COMBOS_II"
+  | "TECNICA_I"
+  | "TECNICA_II"
+  | "STRETCHING";
 
 /** Final block type - alternates by week */
 export type FinalBlockRole = "ATHLOS" | "EPIKOS";
@@ -157,6 +167,10 @@ export interface DaySession {
   readonly trace: readonly TraceEvent[];
   /** Goal plan type for goal plan sessions. Null/undefined for general Entrenamiento. */
   readonly goalPlanType?: string | null;
-  /** Session mode: 'regular' (default SPOM) or 'rom' (mobility-focused) */
-  readonly sessionMode?: "regular" | "rom";
+  /**
+   * Session mode: 'regular' (default SPOM), 'rom' (mobility-focused), or the
+   * phase 159 (D-01) day modes 'combos'/'tecnica' — chosen per-day by the coach
+   * in /generate (D-02), never a fixed value of `day_modes`.
+   */
+  readonly sessionMode?: "regular" | "rom" | "combos" | "tecnica";
 }

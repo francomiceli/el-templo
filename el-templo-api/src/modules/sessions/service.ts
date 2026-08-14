@@ -735,7 +735,13 @@ export class SessionGeneratorService {
         blocks: blockPlans,
         trace: (session.traceJson as TraceEvent[]) ?? [],
         ...(session.sessionMode && session.sessionMode !== "regular"
-          ? { sessionMode: session.sessionMode as "regular" | "rom" }
+          ? {
+              sessionMode: session.sessionMode as
+                | "regular"
+                | "rom"
+                | "combos"
+                | "tecnica",
+            }
           : {}),
       });
     }
@@ -866,7 +872,13 @@ export class SessionGeneratorService {
       blocks: blockPlans,
       trace: (session.traceJson as TraceEvent[]) ?? [],
       ...(session.sessionMode && session.sessionMode !== "regular"
-        ? { sessionMode: session.sessionMode as "regular" | "rom" }
+        ? {
+            sessionMode: session.sessionMode as
+              | "regular"
+              | "rom"
+              | "combos"
+              | "tecnica",
+          }
         : {}),
     };
   }
