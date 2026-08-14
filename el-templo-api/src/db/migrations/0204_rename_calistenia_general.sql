@@ -1,0 +1,36 @@
+-- @data-only
+-- Fase 159-06 (D-16, SEM-13): renombrar la actividad generica "Calistenia" a
+-- "General" -- el nombre por default cuando el dia de la semana es regular
+-- (D-15: combos/tecnica se derivan de la sesion aprobada del dia, todo lo
+-- demas cae en "General").
+--
+-- "Calistenia" es una FILA de `activities` (no un string de UI), referenciada
+-- por analytics/ratings/reports/attendance/bookings via activity_id -- el
+-- UPDATE solo toca el campo `name`, ningun id ni FK cambia. Efecto
+-- retroactivo aceptado: reports/analytics historicos van a mostrar "General"
+-- en vez de "Calistenia" para esas filas (A2, pendiente de confirmacion de
+-- Franco).
+--
+-- Hand-written (misma razon que 0202/0203: drizzle-kit generate pega contra
+-- el drift interactivo preexistente de sessions.goal_plan_type). NUNCA
+-- drizzle-kit push/migrate -- la tabla _migrations es la unica fuente de
+-- verdad, local y prod.
+--
+-- Numeracion: 0202/0203 los toma 159-04 (session_week_regime + backfill),
+-- verificado antes de escribir este archivo que 0204 es el siguiente numero
+-- libre tanto en el checkout local como en origin/master (que llega solo
+-- hasta 0201).
+--
+-- CRITICO -- MISMO commit que las ediciones de codigo de los dos get-or-create
+-- por literal (scheduling/service.ts:seedDefaultSchedules y
+-- seed-production.ts): si se renombra el dato sin actualizar esos dos
+-- literales, la proxima sede sembrada crea una segunda fila "Calistenia"
+-- duplicada (Pitfall 4).
+--
+-- Idempotente: WHERE evita reprocesar filas ya renombradas -- no-op en replay.
+--
+-- Un comentario SQL NUNCA debe contener el separador de statements -- el
+-- runner parte los statements crudos primero y recien despues borra los
+-- comentarios de doble guion.
+
+UPDATE activities SET name = 'General' WHERE name = 'Calistenia';

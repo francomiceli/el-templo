@@ -237,8 +237,13 @@ export class SchedulingService {
     // semana SPOM, en UNA sola query cargada en un Map antes del loop de
     // slots (mismo patron que bookingCountMap/holidayDates, nunca dentro del
     // for). Solo sesiones de la plani regular (goal_plan_type IS NULL) y ya
-    // aprobadas cuentan para la etiqueta visible.
+    // aprobadas cuentan para la etiqueta visible. `scheduling` todavia no
+    // llego a su fase de adopcion de tenancy (doc 03 §3: los services
+    // mantienen su firma actual hasta esa fase) -- el resto del archivo
+    // esta grandfathered en el allowlist con el mismo patron no-strict,
+    // single-tenant activo hoy.
     const week = dateToWeekNumber(weekStartDate);
+    /* tenant-safe: scheduling aun no adopto tenantWhere (doc 03 §3); mismo patron no-strict que el resto del archivo, single-tenant activo hoy */
     const modeRows = await this.db
       .selectDistinct({
         day: schema.sessions.day,

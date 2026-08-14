@@ -97,34 +97,35 @@ async function seedProduction() {
     // activities has no unique constraint on name, so check-then-insert.
     console.log("\n--- Seeding activity ---");
 
+    // Phase 159-06 (D-16): literal de la actividad generica, renombrado por
+    // la migracion 0204 -- DEBE coincidir con el dato o este seed crea una
+    // segunda fila duplicada (Pitfall 4).
     const existingActivity = await db
       .select({ id: activities.id })
       .from(activities)
-      .where(eq(activities.name, "Calistenia"))
+      .where(eq(activities.name, "General"))
       .limit(1);
 
     if (existingActivity.length === 0) {
-      await db
-        .insert(activities)
-        .values({ name: "Calistenia", isActive: true });
-      console.log("Created activity: Calistenia");
+      await db.insert(activities).values({ name: "General", isActive: true });
+      console.log("Created activity: General");
     } else {
       await db
         .update(activities)
         .set({ isActive: true })
-        .where(eq(activities.name, "Calistenia"));
-      console.log("Activity already exists: Calistenia (ensured active)");
+        .where(eq(activities.name, "General"));
+      console.log("Activity already exists: General (ensured active)");
     }
 
     // Fetch activity ID for schedule creation
     const [activity] = await db
       .select({ id: activities.id })
       .from(activities)
-      .where(eq(activities.name, "Calistenia"))
+      .where(eq(activities.name, "General"))
       .limit(1);
 
     if (!activity) {
-      throw new Error("Failed to find Calistenia activity after insert");
+      throw new Error("Failed to find General activity after insert");
     }
     const activityId = activity.id;
 
@@ -346,7 +347,7 @@ async function seedProduction() {
     console.log(
       `  Branches: ${branchesData.length} (${branchesData.filter((b) => !b.isVirtual).length} physical + 1 virtual)`,
     );
-    console.log(`  Activity: 1 (Calistenia)`);
+    console.log(`  Activity: 1 (General)`);
     console.log(`  Subscription plans: ${plansData.length}`);
     console.log(
       `  Schedule slots: ${schedulesCreated + schedulesSkipped} (across ${physicalBranches.length} branches)`,
