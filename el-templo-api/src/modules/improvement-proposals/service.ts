@@ -175,6 +175,7 @@ export class ImprovementProposalsService {
     }
     const whereClause = conds.length > 0 ? and(...conds) : undefined;
 
+    /* tenant-safe: whereClause siempre incluye tenantWhere(schema.improvementProposals, ctx) como primer termino (buildConditions, arriba) — el lint juzga por statement y no ve el AND armado en otro metodo */
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.improvementProposals)
@@ -218,6 +219,7 @@ export class ImprovementProposalsService {
       if (scope.country === null) {
         return null;
       }
+      /* tenant-safe: sub-lookup de sedes por pais para reducir branchIds; improvementProposals ya viene acotado por tenantWhere (primer elemento de conds, arriba) — este inArray solo estrecha DENTRO de ese conjunto, branchId es FK global y no amplia el resultado */
       const branchRows = await this.db
         .select({ id: schema.branches.id })
         .from(schema.branches)
@@ -233,11 +235,13 @@ export class ImprovementProposalsService {
       conds.push(eq(schema.improvementProposals.branchId, filters.branchId));
     }
     if (filters.dateFrom !== undefined) {
+      /* tenant-safe: fragmento de condicion sobre created_at, NO ejecuta query propia — siempre se agrega a conds y viaja ANDed con tenantWhere(schema.improvementProposals, ctx) (primer elemento de conds, arriba) en la query final. El lint juzga por statement y este push no ve ese AND en su propio texto */
       conds.push(
         sql`DATE(${schema.improvementProposals.createdAt}) >= ${filters.dateFrom}`,
       );
     }
     if (filters.dateTo !== undefined) {
+      /* tenant-safe: idem el bloque de dateFrom arriba — mismo motivo */
       conds.push(
         sql`DATE(${schema.improvementProposals.createdAt}) <= ${filters.dateTo}`,
       );
@@ -257,6 +261,7 @@ export class ImprovementProposalsService {
     limit?: number,
     offset?: number,
   ): Promise<AdminProposalRow[]> {
+    /* tenant-safe: whereClause siempre incluye tenantWhere(schema.improvementProposals, ctx) como primer termino (buildConditions) — el lint juzga por statement y no ve el AND armado en otro metodo */
     let query = this.db
       .select({
         id: schema.improvementProposals.id,
