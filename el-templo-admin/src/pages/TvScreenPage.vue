@@ -11,7 +11,11 @@
     vinculación (`pantallaPairing` se borró con el kiosco) ni columna de
     video (se sacó antes de este pase: layout de 2 columnas lista+timer).
   -->
-  <div id="tvScreenRoot" :style="{ '--marble': `url('${MARBLE_BG_BASE64}')` }">
+  <div
+    id="tvScreenRoot"
+    :class="`tvbg--${bgState}`"
+    :style="{ '--marble': `url('${MARBLE_BG_BASE64}')` }"
+  >
     <!-- Selector de sede: solo la primera vez que se abre esta pantalla en
          este TV (sin `?branchId=` en la URL y sin sede guardada todavía). -->
     <div v-if="!ready" class="tvPicker">
@@ -40,6 +44,33 @@
 
     <div v-else class="tvWrap">
       <div id="tv">
+        <!-- Fondo vivo: capas detrás de toda la UI — mármol con deriva lenta, luz
+             ambiental que recorre la piedra, vetas casi invisibles y polvo en
+             suspensión. render.ts no las toca (sin ids). -->
+        <div class="tvFondo" aria-hidden="true">
+          <div class="tvFondo__marmol"></div>
+          <div class="tvFondo__luz tvFondo__luz--calida"></div>
+          <div class="tvFondo__luz tvFondo__luz--sombra"></div>
+          <div class="tvFondo__veta tvFondo__veta--a"></div>
+          <div class="tvFondo__veta tvFondo__veta--b"></div>
+          <div class="tvFondo__polvo">
+            <span
+              v-for="p in dustMotas"
+              :key="p.i"
+              :class="`mota mota--t${p.tone}`"
+              :style="{
+                left: p.left,
+                bottom: p.bottom,
+                width: p.size,
+                height: p.size,
+                '--dur': p.dur,
+                '--delay': p.delay,
+                '--drift': p.drift,
+                '--motaOp': p.op,
+              }"
+            ></span>
+          </div>
+        </div>
         <!-- Barra superior: logo + fecha (sin "EL TEMPLO", el logo ya es la marca). -->
         <!-- Grid de 3 zonas: marca (logo + fecha 2 líneas) izq · BLOQUE n/M centro · reloj der. -->
         <header class="topbar">
@@ -125,6 +156,44 @@ import {
   NUNITO_SANS_BOLD_BASE64,
 } from 'src/utils/pdf/pdf-assets';
 import type { BranchOption } from 'src/types/member';
+
+/* ── Fondo vivo ──────────────────────────────────────────────────────────────
+   Motas de polvo deterministas (sin Math.random: no titilan entre renders).
+   Pocas (34), chicas, desenfocadas por CSS y en tonos de la paleta (arena /
+   oro / azul apagado vía `tone`). Posición y timing salen del índice. */
+const dustMotas = Array.from({ length: 34 }, (_, i) => ({
+  i,
+  tone: i % 3,
+  left: `${(i * 41 + 11) % 100}%`,
+  bottom: `${-(((i * 19) % 10) + 2)}%`,
+  size: `${(0.28 + ((i * 7) % 4) * 0.08).toFixed(2)}rem`,
+  dur: `${16 + ((i * 5) % 15)}s`,
+  delay: `${(i * 11) % 16}s`,
+  drift: `${((i * 47) % 48) - 24}px`,
+  op: `${(0.6 + ((i * 13) % 4) * 0.1).toFixed(2)}`,
+}));
+
+/* Estado del fondo espejado del cronómetro: `render.ts` pinta las clases
+   (`corriendo` / `completo`) sobre #timerPanel y acá se leen con un poll barato
+   (una lectura de classList cada 500 ms) — sin tocar el contrato de render.ts.
+   calmo = reposo/descanso · activo = timer corriendo · completo = bloque cerrado. */
+const bgState = ref<'calmo' | 'activo' | 'completo'>('calmo');
+let bgStateTimer: number | undefined;
+function leerEstadoTimer(): 'calmo' | 'activo' | 'completo' {
+  const el = document.getElementById('timerPanel');
+  if (!el) return 'calmo';
+  if (el.classList.contains('completo')) return 'completo';
+  if (el.classList.contains('corriendo')) return 'activo';
+  return 'calmo';
+}
+onMounted(() => {
+  bgStateTimer = window.setInterval(() => {
+    bgState.value = leerEstadoTimer();
+  }, 500);
+});
+onUnmounted(() => {
+  if (bgStateTimer !== undefined) window.clearInterval(bgStateTimer);
+});
 
 const log = createLogger('TvScreenPage');
 const route = useRoute();
@@ -686,12 +755,25 @@ onUnmounted(() => {
 #tvScreenRoot .lista-col {
   flex: 1 1 0;
 }
+/* Header de la columna: NIVEL a la izquierda, RUTA empujada al final de la row
+   (sin el separador "|"). render.ts parte el string en `.cabCol__nivel` +
+   `.cabCol__ruta`; si no hay separador, el texto entra directo (queda a la izq). */
 #tvScreenRoot .cabCol {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   font-size: 2.1rem;
   color: var(--gold);
   padding: 0 0.3rem 0.5rem;
+}
+#tvScreenRoot .cabCol__nivel {
+  white-space: nowrap;
+}
+#tvScreenRoot .cabCol__ruta {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -721,8 +803,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.8rem;
-  /* Padding propio para que la banda sand respire alrededor del texto. */
-  padding: 0.3rem 0.7rem;
+  /* Margin (no padding): la banda sand hugea el contenido y el chip de repes llega
+     al borde para fundirse; el aire entre ejercicios lo da el margin externo. */
+  margin: 0.3rem 0.7rem;
   border-radius: 0.6rem;
   /* Todos los ejercicios con la banda sand translúcida (no alternados). */
   background: rgba(219, 202, 180, 0.35);
@@ -780,14 +863,38 @@ onUnmounted(() => {
   background: var(--sand);
   color: var(--navy);
 }
+/* Repes como CHIP: placa navy + número en ivory cálido. Contra el fondo oscuro el
+   dato salta. El lado IZQUIERDO de la placa se funde con la banda sand del ítem
+   (arranca transparente → navy sólido a la derecha), como si el número emergiera
+   de la piedra. Padding izq extra para que los dígitos caigan sobre navy sólido. */
 #tvScreenRoot .lista-col .item .dosis {
   flex: 0 0 auto;
-  padding-left: 1rem;
+  /* Si el nombre salta de línea el ítem crece: la placa se estira a toda su altura
+     (align-self) y el número queda centrado dentro (flex), en vez de una placa
+     corta centrada con huecos arriba y abajo. */
+  align-self: stretch;
+  display: flex;
+  align-items: center;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   font-size: 2.4rem;
-  color: var(--navy);
+  /* Ivory cálido: brillo alto pero dentro de la familia crema/sand/gold (no el
+     peach #ffe5cd, que se iba de paleta). */
+  color: #f7e6cd;
   white-space: nowrap;
+  padding: 0.08em 0.6em 0.08em 2em;
+  border-radius: 0rem 0.5rem 0.5rem 0rem;
+  background: linear-gradient(
+    to right,
+    rgba(28, 42, 58, 0) 0%,
+    rgba(28, 42, 58, 0.06) 6%,
+    rgba(28, 42, 58, 0.22) 17%,
+    rgba(28, 42, 58, 0.55) 35%,
+    rgba(38, 57, 77, 0.82) 50%,
+    rgba(45, 66, 90, 0.94) 100%
+  );
+  /* Sin la sombra navy heredada: sobre placa oscura no aporta y ensucia el número. */
+  text-shadow: none;
 }
 #tvScreenRoot .lista-col .caja.compacta .item .ej-nombre {
   font-size: 1.85rem;
@@ -807,8 +914,9 @@ onUnmounted(() => {
   /* Sin recuadro: el estado se lee por la opacidad de los dígitos y el fondo de .completo. */
   transition: background-color 0.3s;
 }
-#tvScreenRoot .cronometro.completo {
-  background: rgba(219, 202, 180, 0.35);
+/* Al terminar el bloque, dígitos a opacidad plena (sin recuadro). */
+#tvScreenRoot .cronometro.completo .digitos {
+  opacity: 1;
 }
 #tvScreenRoot .cronometro .digitos {
   font-family: var(--cinzel);
@@ -965,5 +1073,278 @@ onUnmounted(() => {
 }
 #tvScreenRoot #pantallaReposo .fechaXl {
   margin-top: 1rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Fondo vivo: "un templo antiguo iluminado por luz que se mueve". Capas detrás de
+   toda la UI, paleta intacta, solo transform/opacity (compositor de GPU, apto para
+   horas de pantalla encendida).
+
+   Capas (z-index 0, contenido en 1):
+     __marmol  · la MISMA textura, sobredimensionada, deriva de 46s
+     __luz     · manchas radiales gigantes (calida en overlay + sombra que cubre
+                 toda la franja inferior en multiply) recorriendo la piedra
+     __veta    · estrías blurreadas a baja opacidad, deriva de ~2 min
+     __polvo   · 34 motas desenfocadas, tonos arena/oro/azul apagado, 16-31s
+
+   Reactividad: `--fondoActividad` modula la opacidad de luz y polvo según el
+   estado espejado del cronómetro (tvbg--calmo/activo/completo en el root).
+   El reposo entre clases ya es "casi estático" gratis: las pantallas de
+   reposo/cierre son overlays opacos con su propio mármol quieto.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Intensidad global del fondo. Calmo apagado, corriendo pleno, cierre con un
+   respiro breve (la transición de las capas hace el fade, no hay keyframe extra). */
+#tvScreenRoot {
+  --fondoActividad: 1;
+}
+#tvScreenRoot.tvbg--activo {
+  --fondoActividad: 1.3;
+}
+#tvScreenRoot.tvbg--completo {
+  --fondoActividad: 1.6;
+}
+
+/* Sombra en TODAS las letras para reforzar su presencia sobre el fondo vivo:
+   dos capas — una ceñida que marca el borde + una suave que da profundidad
+   (text-shadow hereda: quien ya define la suya —relojes/títulos con sombra sand—
+   la conserva). Valores en em: escalan con cada tamaño de fuente. */
+#tvScreenRoot {
+  text-shadow:
+    0 0.02em 0.04em rgba(20, 32, 46, 0.42),
+    0 0.05em 0.13em rgba(20, 32, 46, 0.22);
+}
+
+/* Énfasis en la row del cronómetro (nombre de bloque + formato): contorno navy
+   —hecho con 4 sombras tight, sin -webkit-text-stroke que engrosa el serif— más
+   una capa de profundidad. Los despega de la piedra como una inscripción tallada.
+   Sobrescribe la sombra global heredada para estos dos. */
+#tvScreenRoot .cabecera .cabTitulo {
+  text-shadow:
+    0.018em 0 0.01em rgba(226, 190, 120, 0.58),
+    -0.018em 0 0.01em rgba(226, 190, 120, 0.58),
+    0 0.018em 0.01em rgba(226, 190, 120, 0.58),
+    0 -0.018em 0.01em rgba(226, 190, 120, 0.58),
+    0 0 0.5em rgba(232, 205, 150, 0.35),
+    0 0.07em 0.18em rgba(20, 32, 46, 0.4);
+}
+#tvScreenRoot .cabecera .cabFormato {
+  text-shadow:
+    0.014em 0 0.01em rgba(20, 32, 46, 0.4),
+    -0.014em 0 0.01em rgba(20, 32, 46, 0.4),
+    0 0.014em 0.01em rgba(20, 32, 46, 0.4),
+    0 -0.014em 0.01em rgba(20, 32, 46, 0.4),
+    0 0.07em 0.18em rgba(20, 32, 46, 0.42);
+}
+
+/* El mármol deja de ser background fijo de #tv (pasa a la capa móvil). */
+#tvScreenRoot #tv {
+  background: var(--cream);
+}
+/* Contenido siempre por encima del fondo. `.pantalla` ya es absolute: solo z. */
+#tvScreenRoot #tv > .topbar,
+#tvScreenRoot #tv > .cabecera,
+#tvScreenRoot #tv > .stage,
+#tvScreenRoot #tv > .movBar {
+  position: relative;
+  z-index: 1;
+}
+#tvScreenRoot #tv > .pantalla {
+  z-index: 1;
+}
+
+#tvScreenRoot .tvFondo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ── Mármol con deriva: sobredimensionado 3rem por lado para que el paseo nunca
+   descubra un borde. 90s ida y vuelta: piedra viva, no animación evidente. ── */
+#tvScreenRoot .tvFondo__marmol {
+  position: absolute;
+  inset: -5rem;
+  background: var(--marble, none) center / cover no-repeat;
+  animation: fondoDeriva 46s ease-in-out infinite alternate;
+}
+@keyframes fondoDeriva {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.04);
+  }
+  to {
+    transform: translate3d(5rem, 3rem, 0) scale(1.13);
+  }
+}
+
+/* ── Luz ambiental: dos manchas radiales gigantes que recorren la superficie.
+   La cálida ilumina (oro/arena), la sombra navy desaturada en multiply apaga
+   levemente el sector opuesto — juntas leen como luz natural moviéndose. ── */
+#tvScreenRoot .tvFondo__luz {
+  position: absolute;
+  width: 110rem;
+  height: 70rem;
+  border-radius: 50%;
+  will-change: transform;
+  transition: opacity 2.5s ease;
+}
+/* Sobre mármol claro la "luz" se percibe por CONTRASTE: la mancha cálida dora el
+   sector iluminado y la sombra ámbar/navy apaga el opuesto. Alphas altas a
+   propósito en esta ronda de calibración. */
+#tvScreenRoot .tvFondo__luz--calida {
+  top: -24rem;
+  left: -32rem;
+  background: radial-gradient(
+    closest-side,
+    rgba(250, 232, 185, 0.92) 0%,
+    rgba(206, 166, 116, 0.5) 44%,
+    transparent 74%
+  );
+  /* overlay sobre mármol claro = dodge cálido bien visible (haz de luz sobre piedra). */
+  mix-blend-mode: overlay;
+  opacity: calc(1 * var(--fondoActividad));
+  animation: luzPaseo 30s ease-in-out infinite alternate;
+}
+/* Sombra suave que cubre TODA la franja inferior (elipse anclada abajo-centro),
+   no una mancha en una esquina. Deriva lateral leve para que respire. */
+#tvScreenRoot .tvFondo__luz--sombra {
+  left: -12rem;
+  right: -12rem;
+  bottom: -16rem;
+  width: auto;
+  height: 46rem;
+  border-radius: 0;
+  background: radial-gradient(
+    120% 100% at 50% 100%,
+    rgba(48, 40, 32, 0.32) 0%,
+    rgba(36, 54, 74, 0.13) 46%,
+    transparent 72%
+  );
+  mix-blend-mode: multiply;
+  opacity: calc(0.85 * var(--fondoActividad));
+  animation: sombraPaseo 52s ease-in-out infinite alternate;
+}
+@keyframes sombraPaseo {
+  from {
+    transform: translate3d(-4rem, 0, 0);
+  }
+  to {
+    transform: translate3d(4rem, 0, 0);
+  }
+}
+@keyframes luzPaseo {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(64rem, 16rem, 0) scale(1.18);
+  }
+}
+
+/* ── Vetas: estrías diagonales blurreadas, casi invisibles, deriva de 2 min.
+   Integradas a la piedra (multiply + blur), no leen como elemento de UI. ── */
+#tvScreenRoot .tvFondo__veta {
+  position: absolute;
+  width: 85%;
+  height: 15rem;
+  opacity: 0.24;
+  filter: blur(0.3rem);
+  mix-blend-mode: multiply;
+  background: repeating-linear-gradient(
+    105deg,
+    transparent 0,
+    transparent 2.4rem,
+    rgba(176, 141, 110, 0.55) 2.4rem,
+    rgba(176, 141, 110, 0.55) 2.7rem,
+    transparent 2.7rem,
+    transparent 6.5rem
+  );
+}
+#tvScreenRoot .tvFondo__veta--a {
+  top: 16%;
+  left: -6%;
+  transform: rotate(-6deg);
+  animation: vetaDeriva 120s ease-in-out infinite alternate;
+}
+#tvScreenRoot .tvFondo__veta--b {
+  bottom: 10%;
+  right: -8%;
+  transform: rotate(4deg);
+  background: repeating-linear-gradient(
+    75deg,
+    transparent 0,
+    transparent 3rem,
+    rgba(219, 202, 180, 0.6) 3rem,
+    rgba(219, 202, 180, 0.6) 3.4rem,
+    transparent 3.4rem,
+    transparent 8rem
+  );
+  animation: vetaDeriva 150s ease-in-out infinite alternate-reverse;
+}
+@keyframes vetaDeriva {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: 3rem 0.8rem;
+  }
+}
+
+/* ── Polvo en suspensión: pocas motas, desenfocadas, tonos de la paleta.
+   Nada de blanco brillante ni círculos nítidos. ── */
+#tvScreenRoot .tvFondo__polvo {
+  position: absolute;
+  inset: 0;
+}
+#tvScreenRoot .tvFondo__polvo .mota {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(0.07rem);
+  opacity: 0;
+  animation: motaFlota linear infinite;
+  animation-duration: var(--dur);
+  animation-delay: var(--delay);
+}
+#tvScreenRoot .tvFondo__polvo .mota--t0 {
+  background: rgba(219, 202, 180, 0.55); /* arena */
+}
+#tvScreenRoot .tvFondo__polvo .mota--t1 {
+  background: rgba(176, 141, 110, 0.5); /* oro/tierra */
+}
+#tvScreenRoot .tvFondo__polvo .mota--t2 {
+  background: rgba(96, 110, 128, 0.3); /* azul muy desaturado */
+}
+@keyframes motaFlota {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0);
+  }
+  15% {
+    opacity: calc(var(--motaOp) * var(--fondoActividad));
+  }
+  55% {
+    opacity: calc(var(--motaOp) * 0.6 * var(--fondoActividad));
+  }
+  85% {
+    opacity: calc(var(--motaOp) * var(--fondoActividad));
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--drift), -50rem, 0);
+  }
+}
+
+/* Accesibilidad y ahorro: sin movimiento, piedra quieta y sin polvo. */
+@media (prefers-reduced-motion: reduce) {
+  #tvScreenRoot .tvFondo__marmol,
+  #tvScreenRoot .tvFondo__luz,
+  #tvScreenRoot .tvFondo__veta,
+  #tvScreenRoot .tvFondo__polvo .mota {
+    animation: none;
+  }
+  #tvScreenRoot .tvFondo__polvo .mota {
+    opacity: 0;
+  }
 }
 </style>

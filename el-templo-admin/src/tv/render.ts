@@ -411,7 +411,21 @@ function paintList(n: Nodes, c: TvClassPayload): void {
 
     const cab = document.createElement('div');
     cab.className = 'cabCol';
-    paintGlyphText(cab, col.header);
+    // Header "NIVEL X | RUTA %": sin separador, con el nivel a la izquierda y la
+    // ruta empujada al final de la row (dos zonas, layout por CSS en .cabCol).
+    const sepIdx = col.header.indexOf(' | ');
+    if (sepIdx >= 0) {
+      const nivelEl = document.createElement('span');
+      nivelEl.className = 'cabCol__nivel';
+      paintGlyphText(nivelEl, col.header.slice(0, sepIdx));
+      const rutaEl = document.createElement('span');
+      rutaEl.className = 'cabCol__ruta';
+      paintGlyphText(rutaEl, col.header.slice(sepIdx + 3));
+      cab.appendChild(nivelEl);
+      cab.appendChild(rutaEl);
+    } else {
+      paintGlyphText(cab, col.header);
+    }
     colEl.appendChild(cab);
 
     const caja = document.createElement('div');
