@@ -282,9 +282,12 @@ describe("lint-tenant — motor sobre fixtures", () => {
 describe("lint-tenant — anclaje de exenciones contra los archivos reales", () => {
   const API = "el-templo-api";
 
+  // notification-cron.ts SALIÓ de esta lista en 175-03: era la exención de fase
+  // 169 del seed global de templates; la adopción de `notifications` la pagó
+  // (`seedTemplates` recibe `TenantContext` real y siembra por-tenant vía
+  // `forEachActiveTenant`), así que el archivo ya no tiene ninguna exención.
   const ACEPTADOS = [
     `${API}/src/db/seed.ts`,
-    `${API}/src/jobs/notification-cron.ts`,
     `${API}/src/modules/tv/pairing.ts`,
     `${API}/src/modules/wellhub/service.ts`,
   ];
@@ -441,12 +444,14 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
         "metió a strict las 8 tablas del boundary de subs+scheduling —7 nuevas, `subscription_" +
         "schedule_changes` ya contaba desde el paso anterior— (65), y la 175 (adopción de código del " +
         "resto del core) migró los últimos accesos de las 4 tablas de campaigns —campaigns, " +
-        "campaign_sends, campaign_events, campaign_unsubscribes— vía los planes 175-01/175-02 (61). " +
+        "campaign_sends, campaign_events, campaign_unsubscribes— vía los planes 175-01/175-02 (61), " +
+        "y el 175-03 migró los últimos accesos de las 4 tablas de notifications —device_tokens, " +
+        "notification_templates, pending_notifications, notification_preferences— (57). " +
         "Si este número baja SIN que la " +
         "baja quede contabilizada tabla por tabla (una tabla que entró a TENANT_STRICT_MODULES, o " +
         "un acceso migrado que sale como staleNoLongerViolating de la allowlist), alguna forma de " +
         "import volvió a quedar afuera del lint.",
-    ).toBeGreaterThanOrEqual(61);
+    ).toBeGreaterThanOrEqual(57);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
@@ -485,15 +490,26 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     }
   });
 
-  it("no duplica la exención de notification-cron.ts (dedup por range.pos)", () => {
+  it("no duplica exenciones por posición (dedup Pitfall 7, guard durable)", () => {
     // El MISMO comentario aparece como leading del ExpressionStatement y como
     // leading del CallExpression interno, porque los dos arrancan en el mismo
     // token (Pitfall 7). Sin dedup el inventario mostraría dos exenciones donde
-    // hay una, y una exención de más es una autorización de más.
-    const entradas = REAL_RESULT.exemptionInventory.filter(
-      (entry) => entry.file === `${API}/src/jobs/notification-cron.ts`,
-    );
-    expect(entradas).toHaveLength(1);
+    // hay una, y una exención de más es una autorización de más. El lint dedupea
+    // por `range.pos` (lint-tenant.ts:820).
+    //
+    // Antes este guard se anclaba a notification-cron.ts (que tenía ese caso
+    // exacto), pero 175-03 pagó esa exención. Guard equivalente e independiente
+    // del archivo: NINGUNA (file,line) puede aparecer dos veces en el inventario
+    // — dos records en la misma posición serían el mismo comentario contado doble.
+    const porPosicion = new Map<string, number>();
+    for (const entry of REAL_RESULT.exemptionInventory) {
+      const key = `${entry.file}:${entry.line}`;
+      porPosicion.set(key, (porPosicion.get(key) ?? 0) + 1);
+    }
+    const duplicadas = [...porPosicion.entries()]
+      .filter(([, n]) => n > 1)
+      .map(([key]) => key);
+    expect(duplicadas).toEqual([]);
   });
 
   it("toda exención del inventario tiene motivo escrito y alcance declarado", () => {
