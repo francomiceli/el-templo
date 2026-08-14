@@ -108,6 +108,7 @@ import { useWeekData } from '../composables/useWeekData'
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
+import { ROLE_LABELS } from 'src/constants/roleLabels'
 
 // Data
 import { getQuoteForBlock } from '../data/quotes'
@@ -263,18 +264,6 @@ const anyExerciseStarted = computed(() => {
   return false
 })
 
-const BLOCK_NAMES: Record<string, string> = {
-  INITIUM: 'Initium',
-  NUCLEUS: 'Nucleus',
-  DEUTEROS_1: 'Deuteros',
-  DEUTEROS_2: 'Deuteros',
-  ATHLOS: 'Athlos',
-  EPIKOS: 'Epikos',
-  ROM_LOWER: 'Tren Inferior',
-  ROM_CORE: 'Zona Media',
-  ROM_UPPER: 'Tren Superior',
-}
-
 function onSplashStart(): void {
   splashDismissed.value = true
   sessionStartedAt.value = new Date().toISOString()
@@ -408,8 +397,8 @@ async function onBlockComplete(): Promise<void> {
   if (!player.value) return
 
   const p = player.value
-  const completedRole = p.currentBlock.value?.role ?? ''
-  const completedName = BLOCK_NAMES[completedRole] ?? ''
+  const completedRole = p.currentBlock.value?.role
+  const completedName = completedRole ? (ROLE_LABELS[completedRole] ?? '') : ''
   const completedBlockIndex = p.currentBlockIndex.value
 
   // Get mobility name for the current block
@@ -429,7 +418,7 @@ async function onBlockComplete(): Promise<void> {
     } else {
       const nb = p.playableBlocks.value[p.currentBlockIndex.value + 1]
       if (nb) {
-        actionLabel = `Siguiente: ${BLOCK_NAMES[nb.role] ?? nb.role}`
+        actionLabel = `Siguiente: ${ROLE_LABELS[nb.role] ?? nb.role}`
       }
     }
   }
