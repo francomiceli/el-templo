@@ -286,10 +286,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (promoCode) {
         try {
           // Look up promo plan
+          // T-175-06 (bug post-168): promo_code es UNIQUE compuesto con
+          // tenant_id — el mismo codigo puede existir en dos gimnasios. Sin
+          // tenantWhere esto podia resolver la promo de OTRO gimnasio. Reusa
+          // el ctx unico del handler (linea de arriba).
           const [promo] = await fastify.db
             .select()
             .from(promoPlans)
-            .where(eq(promoPlans.promoCode, promoCode))
+            .where(
+              and(tenantWhere(promoPlans, ctx), eq(promoPlans.promoCode, promoCode)),
+            )
             .limit(1);
 
           if (promo && promo.isActive) {
@@ -350,7 +356,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
                 .set({
                   redemptionCount: sql`${promoPlans.redemptionCount} + 1`,
                 })
-                .where(eq(promoPlans.id, promo.id));
+                .where(
+                  and(tenantWhere(promoPlans, ctx), eq(promoPlans.id, promo.id)),
+                );
 
               promoApplied = true;
             }
@@ -392,16 +400,18 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               .update(users)
               .set({ referredBy: referrerId })
               .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
-            await fastify.db.insert(referrals).values({
-              referrerId,
-              referredId: userId,
-              status: "pending",
-              attributionChannel: "self_service",
-              // A/B copy test: estampa la variante que vio el referidor (derivada
-              // de su id) para atribuir la conversión al copy sin depender del
-              // cliente ni de recomputar el bucketing a posteriori.
-              copyVariant: referralCopyVariant(referrerId),
-            });
+            await fastify.db.insert(referrals).values(
+              tenantValues(ctx, {
+                referrerId,
+                referredId: userId,
+                status: "pending",
+                attributionChannel: "self_service",
+                // A/B copy test: estampa la variante que vio el referidor (derivada
+                // de su id) para atribuir la conversión al copy sin depender del
+                // cliente ni de recomputar el bucketing a posteriori.
+                copyVariant: referralCopyVariant(referrerId),
+              }),
+            );
           }
         } catch (err: unknown) {
           request.log.warn(
