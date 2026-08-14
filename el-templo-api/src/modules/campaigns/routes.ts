@@ -180,11 +180,13 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: "Acceso de admin requerido" });
       }
       await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "campaigns.create");
       // Non-owner admins are pinned to their own country scope.
       const country = request.scope.isOwner
         ? (request.body.country ?? null)
         : scopeCountry(request);
       const campaign = await service.create(
+        ctx,
         { ...request.body, country },
         request.user.userId,
       );
@@ -201,10 +203,11 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: "Acceso de admin requerido" });
       }
       await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "campaigns.list");
       const country = request.scope.isOwner
         ? (request.query.country ?? null)
         : scopeCountry(request);
-      return service.listCampaigns(country);
+      return service.listCampaigns(ctx, country);
     },
   );
 

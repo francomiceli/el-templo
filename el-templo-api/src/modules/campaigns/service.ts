@@ -19,7 +19,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
 import { EmailService } from "../email/service";
 import { signCampaignToken } from "./token-service";
 import { trialCampaignHtml } from "./templates";
@@ -145,6 +145,7 @@ export class CampaignService {
    * string, never fetched.
    */
   async create(
+    ctx: TenantContext,
     input: CreateCampaignInput,
     adminUserId: number,
   ): Promise<CampaignRecord> {
@@ -181,23 +182,27 @@ export class CampaignService {
 
     const [inserted] = await this.db
       .insert(schema.campaigns)
-      .values({
-        name,
-        subject,
-        status: "draft",
-        createdBy: adminUserId,
-        country,
-        headline,
-        subheadline,
-        body,
-        heroImageUrl,
-      })
+      .values(
+        tenantValues(ctx, {
+          name,
+          subject,
+          status: "draft",
+          createdBy: adminUserId,
+          country,
+          headline,
+          subheadline,
+          body,
+          heroImageUrl,
+        }),
+      )
       .$returningId();
 
     const [row] = await this.db
       .select()
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, inserted.id))
+      .where(
+        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, inserted.id)),
+      )
       .limit(1);
 
     this.log.info({ campaignId: row.id, country }, "campaign created (draft)");
@@ -211,14 +216,19 @@ export class CampaignService {
    * global campaigns are always visible).
    */
   async listCampaigns(
+    ctx: TenantContext,
     country?: "AR" | "ES" | null,
   ): Promise<CampaignListItem[]> {
     const c = schema.campaigns;
 
-    const where =
+    const countryFilter =
       country === "AR" || country === "ES"
         ? sql`(${c.country} = ${country} OR ${c.country} IS NULL)`
         : undefined;
+
+    const where = countryFilter
+      ? and(tenantWhere(c, ctx), countryFilter)
+      : tenantWhere(c, ctx);
 
     const rows = await this.db
       .select({
@@ -666,10 +676,12 @@ export class CampaignService {
 
   /** Load active physical (non-virtual) sedes with an address, scoped by country. */
   private async loadSedes(
+    ctx: TenantContext,
     country?: "AR" | "ES" | null,
   ): Promise<BranchAddress[]> {
     const br = schema.branches;
     const conditions = [
+      tenantWhere(br, ctx),
       eq(br.isActive, true),
       eq(br.isVirtual, false),
       sql`${br.address} IS NOT NULL`,
