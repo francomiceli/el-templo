@@ -31,12 +31,26 @@ const MOBILITY_DEFAULTS = {
   CON_REPS: 10,
 };
 
-export async function selectMobilityExercise(
-  blockRoute: string,
+/** One row of the shared MOVILIDAD exercise pool. */
+export type MobilityPoolRow = {
+  id: number;
+  name: string;
+  effort: string | null;
+  mobilityRelated: string | null;
+};
+
+/**
+ * Query ALL exercises with pattern = 'MOVILIDAD'.
+ *
+ * Single source of the `exercises` table access for mobility selection (D-12):
+ * both ROM's `selectMobilityExercise` and phase 159's STRETCHING selector share
+ * this pool instead of reinventing the query. Keeping the raw `exercises` access
+ * in this one file is also what keeps it covered by the tenant-lint allowlist.
+ */
+export async function queryMobilityPool(
   db: MySql2Database<typeof schema>,
-): Promise<ExercisePrescription | null> {
-  // 1. Query ALL exercises with pattern = 'MOVILIDAD'
-  const allMobility = await db
+): Promise<MobilityPoolRow[]> {
+  return db
     .select({
       id: schema.exercises.id,
       name: schema.exercises.exercise,
@@ -45,6 +59,14 @@ export async function selectMobilityExercise(
     })
     .from(schema.exercises)
     .where(eq(schema.exercises.pattern, 'MOVILIDAD'));
+}
+
+export async function selectMobilityExercise(
+  blockRoute: string,
+  db: MySql2Database<typeof schema>,
+): Promise<ExercisePrescription | null> {
+  // 1. Query ALL exercises with pattern = 'MOVILIDAD'
+  const allMobility = await queryMobilityPool(db);
 
   if (allMobility.length === 0) return null;
 

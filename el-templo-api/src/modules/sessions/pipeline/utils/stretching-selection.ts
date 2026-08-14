@@ -19,9 +19,9 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq } from "drizzle-orm";
 import * as schema from "../../../../db/schema";
 import type { ExercisePrescription } from "../../types";
+import { queryMobilityPool } from "./mobility-selection";
 import { simpleHash } from "./deterministic-hash";
 
 // Same defaults as mobility-selection.ts (examples.txt analysis):
@@ -47,14 +47,10 @@ export async function selectStretchingExercises(
   week: number,
   day: string,
 ): Promise<ExercisePrescription[]> {
-  const allMobility = await db
-    .select({
-      id: schema.exercises.id,
-      name: schema.exercises.exercise,
-      effort: schema.exercises.effort,
-    })
-    .from(schema.exercises)
-    .where(eq(schema.exercises.pattern, "MOVILIDAD"));
+  // D-12: reuse the shared MOVILIDAD pool (single tenant-audited access to the
+  // `exercises` table lives in mobility-selection.ts). We ignore the extra
+  // `mobilityRelated` column the shared query returns.
+  const allMobility = await queryMobilityPool(db);
 
   if (allMobility.length === 0) return [];
 
