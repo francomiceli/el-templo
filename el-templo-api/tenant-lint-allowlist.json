@@ -204,14 +204,6 @@
       "table": "branches"
     },
     {
-      "file": "el-templo-api/src/modules/analytics/attendance-metrics-service.ts",
-      "table": "attendance"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/attendance-metrics-service.ts",
-      "table": "branches"
-    },
-    {
       "file": "el-templo-api/src/modules/analytics/churn-service.ts",
       "table": "branches"
     },
@@ -292,20 +284,8 @@
       "table": "aura_transactions"
     },
     {
-      "file": "el-templo-api/src/modules/auth/refresh-token-service.ts",
-      "table": "refresh_tokens"
-    },
-    {
       "file": "el-templo-api/src/modules/auth/routes.ts",
       "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/auth/routes.ts",
-      "table": "promo_plans"
-    },
-    {
-      "file": "el-templo-api/src/modules/auth/routes.ts",
-      "table": "referrals"
     },
     {
       "file": "el-templo-api/src/modules/blog/service.ts",
@@ -378,14 +358,6 @@
     {
       "file": "el-templo-api/src/modules/goal-plans/service.ts",
       "table": "sessions"
-    },
-    {
-      "file": "el-templo-api/src/modules/improvement-proposals/service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/improvement-proposals/service.ts",
-      "table": "improvement_proposals"
     },
     {
       "file": "el-templo-api/src/modules/onboarding/service.ts",
