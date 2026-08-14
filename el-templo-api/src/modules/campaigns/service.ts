@@ -527,7 +527,9 @@ export class CampaignService {
     const [campaign] = await this.db
       .select({ id: schema.campaigns.id, sentAt: schema.campaigns.sentAt })
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, campaignId))
+      .where(
+        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+      )
       .limit(1);
 
     if (!campaign) throw new BadRequestError("Campaña no encontrada");
@@ -543,6 +545,7 @@ export class CampaignService {
       .from(schema.campaignSends)
       .where(
         and(
+          tenantWhere(schema.campaignSends, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.campaignSends.status, "sent"),
         ),
@@ -555,10 +558,14 @@ export class CampaignService {
       .from(schema.campaignEvents)
       .innerJoin(
         schema.campaignSends,
-        eq(schema.campaignSends.id, schema.campaignEvents.sendId),
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.id, schema.campaignEvents.sendId),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.campaignEvents, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.campaignEvents.type, "open"),
         ),
@@ -571,10 +578,14 @@ export class CampaignService {
       .from(schema.campaignEvents)
       .innerJoin(
         schema.campaignSends,
-        eq(schema.campaignSends.id, schema.campaignEvents.sendId),
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.id, schema.campaignEvents.sendId),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.campaignEvents, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.campaignEvents.type, "click"),
         ),
@@ -596,6 +607,7 @@ export class CampaignService {
       )
       .where(
         and(
+          tenantWhere(schema.campaignSends, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.bookings.isTrial, true),
           eq(schema.bookings.source, "self_service"),
@@ -623,11 +635,17 @@ export class CampaignService {
       .innerJoin(
         schema.attendance,
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, schema.campaignSends.userId),
           eq(schema.attendance.status, "confirmado"),
         ),
       )
-      .where(eq(schema.campaignSends.campaignId, campaignId));
+      .where(
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.campaignId, campaignId),
+        ),
+      );
 
     // convirtió: of those recipients, later reaching status='activo' in
     // user_status_history after the campaign send (aligns with funnel-service —
@@ -640,6 +658,7 @@ export class CampaignService {
       .innerJoin(
         schema.bookings,
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, schema.campaignSends.userId),
           eq(schema.bookings.isTrial, true),
           eq(schema.bookings.source, "self_service"),
@@ -655,7 +674,12 @@ export class CampaignService {
           sql`${schema.userStatusHistory.changedAt} >= ${sentAtSql}`,
         ),
       )
-      .where(eq(schema.campaignSends.campaignId, campaignId));
+      .where(
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.campaignId, campaignId),
+        ),
+      );
 
     return {
       enviado: Number(enviadoRow?.n ?? 0),
