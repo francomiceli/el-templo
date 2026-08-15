@@ -790,3 +790,606 @@ export async function limpiarSubsSchedDeLaBateria(
     conn.release();
   }
 }
+
+// ─── Siembra adicional: datos de `analytics` (Fase 175.1 Plan 02) ───────────
+
+/**
+ * Prefijo grepeable de toda fila que {@link sembrarDatosAnalyticsGimnasioDos}
+ * crea con un campo de texto libre (hoy solo `coach_ratings.comment`, la única
+ * tabla nueva de este bloque que NO está en `TABLES_TO_CLEAN` — ver
+ * {@link limpiarDatosAnalyticsDeLaBateria}).
+ */
+export const MARCA_ISO03A = "ISO03A";
+
+/**
+ * Lo que {@link sembrarDatosAnalyticsGimnasioDos} deja sembrado para UN lado
+ * (El Templo o el gimnasio 2): el complemento que `analytics` necesita y que
+ * ni `subs-sched-gimnasio-dos.ts` (bookings/schedules pelados, sin
+ * `attendance`/`coach_ratings`) ni `members-gimnasio-dos.ts` (ficha de socio,
+ * sin cohortes vencidas ni pruebas) sembraban. `extraActive*` es `null` del
+ * lado de El Templo (ver el docblock de la función: la asimetría 1 vs 2 es a
+ * propósito).
+ */
+export interface FichaAnalyticsExtra {
+  /** 3 (Templo) o 5 (gimnasio 2) filas de `attendance`, hoy, a proposito distintas. */
+  attendanceIds: number[];
+  coachRatingId: number;
+  /** Marcado con {@link MARCA_ISO03A} — unica columna de texto libre de la tabla. */
+  coachRatingComment: string;
+  coachRatingStars: number;
+  /** Socio DEDICADO con una unica suscripcion vencida hace 25 dias (madura, sin renovacion). */
+  churnedUserId: number;
+  churnedSubscriptionId: number;
+  churnedPricePaid: number;
+  churnedEndDate: string;
+  /** Socio DEDICADO con una reserva de prueba, sin compra posterior. */
+  trialUserId: number;
+  trialBookingId: number;
+  trialBookingDate: string;
+  /** Actividad+horario marcados `isSpecial`, con una asistencia hoy. */
+  especialActivityId: number;
+  especialScheduleId: number;
+  especialUserId: number;
+  especialSubscriptionId: number;
+  especialAttendanceId: number;
+  /** Reserva `confirmado` (checkin-adoption necesita ese status exacto). */
+  confirmedBookingId: number;
+  /** `plan_charge` validado + `transaction_links` a la suscripcion principal (TICKET-01 exige el link). */
+  ticketTransactionId: number;
+  ticketTransactionAmount: number;
+  /** Solo el gimnasio 2 (ver docblock de la funcion): rompe el empate 1=1 de "miembros activos". */
+  extraActiveUserId: number | null;
+  extraActiveSubscriptionId: number | null;
+  extraActivePricePaid: number | null;
+}
+
+/** Lo que deja sembrado {@link sembrarDatosAnalyticsGimnasioDos}: los dos lados. */
+export interface DatosAnalyticsGimnasioDos {
+  templo: FichaAnalyticsExtra;
+  dos: FichaAnalyticsExtra;
+}
+
+/**
+ * Complemento de `analytics` (ISO-03, plan 175.1-02): siembra lo que las
+ * ~22 rutas de `/api/admin/analytics` necesitan y que NINGÚN fixture existente
+ * deja — `attendance`, `coach_ratings`, una cohorte de vencimiento madura
+ * (churn/renovación/retención/LTV/altas-bajas/bajas detalle), una sesión de
+ * prueba (trial-funnel), una actividad especial con asistencia (especiales) y
+ * un cobro `plan_charge` CON link (ticket/advanced-finance/financial — el
+ * `advance_payment` sin link de `members-gimnasio-dos.ts` no le sirve a
+ * TICKET-01, que exige `transaction_links`).
+ *
+ * REUSA `fx` (subs-sched-gimnasio-dos) y `gym2` (second-tenant): NO crea un
+ * tercer fixture — cuelga socios/subs/attendance NUEVOS de las sedes,
+ * horarios y suscripciones YA sembrados por esos dos, tal como pide el plan
+ * ("si falta un dato marcador, agregarlo al fixture existente"). Es OPT-IN:
+ * ningún otro archivo de la batería la llama, así que no cambia una sola
+ * aserción de `iso-03-subs-lecturas.test.ts` / `iso-03-subs-escritura.test.ts`
+ * / `iso-03-sched-*.test.ts` (que solo usan `.toContain`, nunca `.toEqual` de
+ * listados completos, sobre estos datos).
+ *
+ * ASIMETRÍA A PROPÓSITO ("miembros activos" 1 vs 2, D-06/D-07 del plan): sin
+ * un dato adicional, El Templo y el gimnasio 2 quedarían EMPATADOS en 1 socio
+ * con suscripción activa no-especial (`fx.templo.userId` / `gym2.socios[0]`),
+ * y un 1===1 no prueba aislamiento — pasaría en verde tanto si el número
+ * está bien scopeado como si viene sumado y coincide por casualidad. Por eso
+ * SOLO el gimnasio 2 recibe un socio activo extra (`extraActive*`): El
+ * Templo queda en 1, el gimnasio 2 en 2 — un valor contaminado sería 3 para
+ * cualquiera de los dos lados, nunca 1 ni 2.
+ *
+ * Va SIEMPRE después de `sembrarSubsSchedGimnasioDos` (necesita `fx.templo`/
+ * `fx.dos` y `gym2.socios`).
+ */
+export async function sembrarDatosAnalyticsGimnasioDos(
+  app: FastifyInstance,
+  gym2: SegundoGimnasio,
+  fx: SubsSchedFixture,
+): Promise<DatosAnalyticsGimnasioDos> {
+  const templo = await sembrarLadoAnalyticsTemplo(app, fx);
+  const dos = await sembrarLadoAnalyticsGimnasioDos(app, gym2, fx);
+  return { templo, dos };
+}
+
+async function sembrarLadoAnalyticsTemplo(
+  app: FastifyInstance,
+  fx: SubsSchedFixture,
+): Promise<FichaAnalyticsExtra> {
+  const suf = sufijo();
+  const authorId = await adminSemillaId(app);
+  const t = fx.templo;
+  const hoy = todayStr();
+  const ayer = dateOffsetStr(-1);
+
+  const attendanceIds: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    const [row] = await app.db
+      .insert(schema.attendance)
+      .values(
+        tenantValues(CTX_TEMPLO, {
+          memberId: t.userId,
+          branchId: t.branchId,
+          scheduleId: t.scheduleId,
+          sessionDate: hoy,
+          status: "confirmado" as const,
+          source: "qr" as const,
+        }),
+      )
+      .$returningId();
+    attendanceIds.push(row.id);
+  }
+
+  // checkin-adoption necesita una reserva `confirmado` — la que ya deja
+  // `sembrarLadoTemplo` es `reservado` y de otra fecha (no cuenta para esta ruta).
+  const [confirmedBooking] = await app.db
+    .insert(schema.bookings)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        memberId: t.userId,
+        scheduleId: t.scheduleId,
+        bookingDate: hoy,
+        status: "confirmado" as const,
+        isTrial: false,
+      }),
+    )
+    .$returningId();
+
+  const coachRatingComment = `${MARCA_ISO03A} rating templo ${suf}`;
+  const [coachRating] = await app.db
+    .insert(schema.coachRatings)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        coachId: authorId,
+        memberId: t.userId,
+        branchId: t.branchId,
+        scheduleId: t.scheduleId,
+        sessionDate: hoy,
+        stars: 1,
+        classStars: 1,
+        comment: coachRatingComment,
+      }),
+    )
+    .$returningId();
+
+  const churnedSocio = await createTestMember(app, {
+    email: `analytics-churned-templo-${suf}@test.com`,
+    password: "pass123456",
+    firstName: "AnalyticsChurnedTemplo",
+    lastName: MARCA_ISO03A,
+    branchId: t.branchId,
+    dni: `ACT${suf}`,
+  });
+  const churnedPricePaid = 44400;
+  const churnedEndDate = dateOffsetStr(-25);
+  const [churnedSub] = await app.db
+    .insert(schema.subscriptions)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        userId: churnedSocio.id,
+        planId: t.planId,
+        branchId: t.branchId,
+        status: "expired" as const,
+        startDate: dateOffsetStr(-55),
+        endDate: churnedEndDate,
+        pricePaid: churnedPricePaid,
+        currency: "ARS" as const,
+        priceTypeApplied: "regular" as const,
+      }),
+    )
+    .$returningId();
+
+  const trialSocio = await createTestMember(app, {
+    email: `analytics-trial-templo-${suf}@test.com`,
+    password: "pass123456",
+    firstName: "AnalyticsTrialTemplo",
+    lastName: MARCA_ISO03A,
+    branchId: t.branchId,
+    dni: `ATT${suf}`,
+  });
+  const trialBookingDate = dateOffsetStr(-3);
+  const [trialBooking] = await app.db
+    .insert(schema.bookings)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        memberId: trialSocio.id,
+        scheduleId: t.scheduleId,
+        bookingDate: trialBookingDate,
+        status: "confirmado" as const,
+        isTrial: true,
+      }),
+    )
+    .$returningId();
+
+  const [especialActivity] = await app.db
+    .insert(schema.activities)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        name: `${MARCA_ISO03A} Actividad Especial Templo ${suf}`,
+        isActive: true,
+        isSpecial: true,
+      }),
+    )
+    .$returningId();
+  const [especialSchedule] = await app.db
+    .insert(schema.schedules)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        branchId: t.branchId,
+        activityId: especialActivity.id,
+        dayOfWeek: 5,
+        startTime: "09:00",
+        endTime: "10:00",
+        isActive: true,
+      }),
+    )
+    .$returningId();
+  // Templo no tiene ninguna suscripcion especial en `fx` — a diferencia del
+  // gimnasio 2 (que reusa `fx.dos.subscriptionEspecialId`), acá hace falta un
+  // plan especial NUEVO. `t.userId` ya tiene la presencial activa: sumarle la
+  // especial es el patron real "presencial + pase" (D-11 de analytics).
+  const [especialPlan] = await app.db
+    .insert(schema.subscriptionPlans)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        name: `${MARCA_ISO03A} Plan Especial Templo ${suf}`,
+        planTier: "other" as const,
+        bookingMode: "flexible" as const,
+        planCategory: "especial" as const,
+        priceRegular: 999900,
+        priceZero: 900000,
+        durationDays: 30,
+        monthlyClassBudget: 2,
+        requiresPresencial: false,
+        country: "AR" as const,
+      }),
+    )
+    .$returningId();
+  const [especialSub] = await app.db
+    .insert(schema.subscriptions)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        userId: t.userId,
+        planId: especialPlan.id,
+        branchId: t.branchId,
+        status: "active" as const,
+        startDate: hoy,
+        endDate: dateOffsetStr(30),
+        pricePaid: 999900,
+        currency: "ARS" as const,
+        priceTypeApplied: "regular" as const,
+        classesRemaining: 2,
+        classesBudget: 2,
+      }),
+    )
+    .$returningId();
+  // Fecha AYER (no hoy): las 3 filas de `attendance` de arriba (`attendanceIds`)
+  // deben quedar como el ÚNICO aporte de El Templo al bucket "hoy" que leen
+  // dailyCheckins/checkin-adoption — sembrar esta 4ta fila en la MISMA fecha
+  // ensuciaría ese conteo exacto. `especiales` lee todo el MES (`monthRange`),
+  // así que ayer sigue entrando.
+  const [especialAttendance] = await app.db
+    .insert(schema.attendance)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        memberId: t.userId,
+        branchId: t.branchId,
+        scheduleId: especialSchedule.id,
+        sessionDate: ayer,
+        status: "confirmado" as const,
+        source: "qr" as const,
+      }),
+    )
+    .$returningId();
+
+  // TICKET-01 exige `transaction_links`: el `advance_payment` sin link que
+  // deja `members-gimnasio-dos.ts` no entra al universo `plan_charge`.
+  const ticketAmount = 33300;
+  const [ticketTx] = await app.db
+    .insert(schema.financialTransactions)
+    .values(
+      tenantValues(CTX_TEMPLO, {
+        memberId: t.userId,
+        kind: "plan_charge" as const,
+        direction: "inflow" as const,
+        amount: ticketAmount,
+        currency: "ARS",
+        paymentMethod: "transfer" as const,
+        transactionDate: hoy,
+        effectiveDate: hoy,
+        branchId: t.branchId,
+        recordedBy: authorId,
+        validationStatus: "validado" as const,
+      }),
+    )
+    .$returningId();
+  await app.db.insert(schema.transactionLinks).values(
+    tenantValues(CTX_TEMPLO, {
+      transactionId: ticketTx.id,
+      targetKind: "subscription" as const,
+      targetId: t.subscriptionId,
+      allocatedAmount: ticketAmount,
+    }),
+  );
+
+  return {
+    attendanceIds,
+    coachRatingId: coachRating.id,
+    coachRatingComment,
+    coachRatingStars: 1,
+    churnedUserId: churnedSocio.id,
+    churnedSubscriptionId: churnedSub.id,
+    churnedPricePaid,
+    churnedEndDate,
+    trialUserId: trialSocio.id,
+    trialBookingId: trialBooking.id,
+    trialBookingDate,
+    especialActivityId: especialActivity.id,
+    especialScheduleId: especialSchedule.id,
+    especialUserId: t.userId,
+    especialSubscriptionId: especialSub.id,
+    especialAttendanceId: especialAttendance.id,
+    confirmedBookingId: confirmedBooking.id,
+    ticketTransactionId: ticketTx.id,
+    ticketTransactionAmount: ticketAmount,
+    extraActiveUserId: null,
+    extraActiveSubscriptionId: null,
+    extraActivePricePaid: null,
+  };
+}
+
+async function sembrarLadoAnalyticsGimnasioDos(
+  app: FastifyInstance,
+  gym2: SegundoGimnasio,
+  fx: SubsSchedFixture,
+): Promise<FichaAnalyticsExtra> {
+  const suf = sufijo();
+  const d = fx.dos;
+  const hoy = todayStr();
+  const ayer = dateOffsetStr(-1);
+  const socioPrincipal = gym2.socios[0].id;
+  const socioEspecial = gym2.socios[1].id;
+
+  const attendanceIds: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    const [row] = await app.db
+      .insert(schema.attendance)
+      .values(
+        tenantValues(CTX_DOS, {
+          memberId: socioPrincipal,
+          branchId: gym2.branchId,
+          scheduleId: d.scheduleId,
+          sessionDate: hoy,
+          status: "confirmado" as const,
+          source: "qr" as const,
+        }),
+      )
+      .$returningId();
+    attendanceIds.push(row.id);
+  }
+
+  const [confirmedBooking] = await app.db
+    .insert(schema.bookings)
+    .values(
+      tenantValues(CTX_DOS, {
+        memberId: socioPrincipal,
+        scheduleId: d.scheduleId,
+        bookingDate: hoy,
+        status: "confirmado" as const,
+        isTrial: false,
+      }),
+    )
+    .$returningId();
+
+  const coachRatingComment = `${MARCA_ISO03A} rating dos ${suf}`;
+  const [coachRating] = await app.db
+    .insert(schema.coachRatings)
+    .values(
+      tenantValues(CTX_DOS, {
+        coachId: gym2.coachId,
+        memberId: socioPrincipal,
+        branchId: gym2.branchId,
+        scheduleId: d.scheduleId,
+        sessionDate: hoy,
+        stars: 5,
+        classStars: 5,
+        comment: coachRatingComment,
+      }),
+    )
+    .$returningId();
+
+  const churnedSocio = await createTestMember(app, {
+    email: `analytics-churned-dos-${suf}@test.com`,
+    branchId: gym2.branchId,
+    tenantId: TENANT_DOS,
+  });
+  const churnedPricePaid = 666600;
+  const churnedEndDate = dateOffsetStr(-25);
+  const [churnedSub] = await app.db
+    .insert(schema.subscriptions)
+    .values(
+      tenantValues(CTX_DOS, {
+        userId: churnedSocio.id,
+        planId: gym2.planId,
+        branchId: gym2.branchId,
+        status: "expired" as const,
+        startDate: dateOffsetStr(-55),
+        endDate: churnedEndDate,
+        pricePaid: churnedPricePaid,
+        currency: "ARS" as const,
+        priceTypeApplied: "regular" as const,
+      }),
+    )
+    .$returningId();
+
+  const trialSocio1 = await createTestMember(app, {
+    email: `analytics-trial-dos-1-${suf}@test.com`,
+    branchId: gym2.branchId,
+    tenantId: TENANT_DOS,
+  });
+  const trialSocio2 = await createTestMember(app, {
+    email: `analytics-trial-dos-2-${suf}@test.com`,
+    branchId: gym2.branchId,
+    tenantId: TENANT_DOS,
+  });
+  const trialBookingDate = dateOffsetStr(-3);
+  const [trialBooking] = await app.db
+    .insert(schema.bookings)
+    .values(
+      tenantValues(CTX_DOS, {
+        memberId: trialSocio1.id,
+        scheduleId: d.scheduleId,
+        bookingDate: trialBookingDate,
+        status: "confirmado" as const,
+        isTrial: true,
+      }),
+    )
+    .$returningId();
+  // Segunda reserva de prueba: SOLO cuenta = 2 del gimnasio 2 (asimetria a
+  // proposito con Templo=1, mismo motivo que "miembros activos").
+  await app.db.insert(schema.bookings).values(
+    tenantValues(CTX_DOS, {
+      memberId: trialSocio2.id,
+      scheduleId: d.scheduleId,
+      bookingDate: trialBookingDate,
+      status: "confirmado" as const,
+      isTrial: true,
+    }),
+  );
+
+  const [especialActivity] = await app.db
+    .insert(schema.activities)
+    .values(
+      tenantValues(CTX_DOS, {
+        name: `${MARCA_ISO03A} Actividad Especial GDos ${suf}`,
+        isActive: true,
+        isSpecial: true,
+      }),
+    )
+    .$returningId();
+  const [especialSchedule] = await app.db
+    .insert(schema.schedules)
+    .values(
+      tenantValues(CTX_DOS, {
+        branchId: gym2.branchId,
+        activityId: especialActivity.id,
+        dayOfWeek: 6,
+        startTime: "09:00",
+        endTime: "10:00",
+        isActive: true,
+      }),
+    )
+    .$returningId();
+  // El gimnasio 2 SI tiene una suscripcion especial en `fx` (socios[1]) — se
+  // reusa, no se crea un plan especial nuevo (a diferencia de Templo).
+  // Fecha AYER (no hoy) por el mismo motivo que el lado Templo: no ensuciar
+  // el bucket "hoy" de dailyCheckins/checkin-adoption con una 6ta fila.
+  const [especialAttendance] = await app.db
+    .insert(schema.attendance)
+    .values(
+      tenantValues(CTX_DOS, {
+        memberId: socioEspecial,
+        branchId: gym2.branchId,
+        scheduleId: especialSchedule.id,
+        sessionDate: ayer,
+        status: "confirmado" as const,
+        source: "qr" as const,
+      }),
+    )
+    .$returningId();
+
+  const ticketAmount = 444400;
+  const [ticketTx] = await app.db
+    .insert(schema.financialTransactions)
+    .values(
+      tenantValues(CTX_DOS, {
+        memberId: socioPrincipal,
+        kind: "plan_charge" as const,
+        direction: "inflow" as const,
+        amount: ticketAmount,
+        currency: "ARS",
+        paymentMethod: "transfer" as const,
+        transactionDate: hoy,
+        effectiveDate: hoy,
+        branchId: gym2.branchId,
+        recordedBy: gym2.adminId,
+        validationStatus: "validado" as const,
+      }),
+    )
+    .$returningId();
+  await app.db.insert(schema.transactionLinks).values(
+    tenantValues(CTX_DOS, {
+      transactionId: ticketTx.id,
+      targetKind: "subscription" as const,
+      targetId: d.subscriptionId,
+      allocatedAmount: ticketAmount,
+    }),
+  );
+
+  // Rompe el empate "miembros activos" 1=1 con Templo (ver docblock de
+  // sembrarDatosAnalyticsGimnasioDos): SOLO el gimnasio 2 recibe este socio
+  // extra, activo, no-especial.
+  const extraActiveSocio = await createTestMember(app, {
+    email: `analytics-extra-activo-dos-${suf}@test.com`,
+    branchId: gym2.branchId,
+    tenantId: TENANT_DOS,
+  });
+  const extraActivePricePaid = 555500;
+  const [extraActiveSub] = await app.db
+    .insert(schema.subscriptions)
+    .values(
+      tenantValues(CTX_DOS, {
+        userId: extraActiveSocio.id,
+        planId: gym2.planId,
+        branchId: gym2.branchId,
+        status: "active" as const,
+        startDate: hoy,
+        endDate: dateOffsetStr(30),
+        pricePaid: extraActivePricePaid,
+        currency: "ARS" as const,
+        priceTypeApplied: "regular" as const,
+      }),
+    )
+    .$returningId();
+
+  return {
+    attendanceIds,
+    coachRatingId: coachRating.id,
+    coachRatingComment,
+    coachRatingStars: 5,
+    churnedUserId: churnedSocio.id,
+    churnedSubscriptionId: churnedSub.id,
+    churnedPricePaid,
+    churnedEndDate,
+    trialUserId: trialSocio1.id,
+    trialBookingId: trialBooking.id,
+    trialBookingDate,
+    especialActivityId: especialActivity.id,
+    especialScheduleId: especialSchedule.id,
+    especialUserId: socioEspecial,
+    especialSubscriptionId: d.subscriptionEspecialId,
+    especialAttendanceId: especialAttendance.id,
+    confirmedBookingId: confirmedBooking.id,
+    ticketTransactionId: ticketTx.id,
+    ticketTransactionAmount: ticketAmount,
+    extraActiveUserId: extraActiveSocio.id,
+    extraActiveSubscriptionId: extraActiveSub.id,
+    extraActivePricePaid,
+  };
+}
+
+/**
+ * Borra lo que {@link sembrarDatosAnalyticsGimnasioDos} deja en `coach_ratings`
+ * — la ÚNICA tabla de este bloque que `TABLES_TO_CLEAN` (`test/helpers.ts`) NO
+ * vacía (a diferencia de `attendance`/`bookings`/`subscriptions`/
+ * `subscription_plans`/`activities`/`schedules`/`financial_transactions`/
+ * `transaction_links`/`users`, las 9 restantes, todas cubiertas). Filtra por
+ * {@link MARCA_ISO03A} en `comment` (única columna de texto libre de la
+ * tabla): borrar TODO `coach_ratings` de los dos tenants se llevaría por
+ * delante filas reales de otros archivos del mismo worker (`isolate: false`).
+ */
+export async function limpiarDatosAnalyticsDeLaBateria(
+  app: FastifyInstance,
+): Promise<void> {
+  await app.db.execute(
+    sql`DELETE FROM coach_ratings WHERE comment LIKE ${`${MARCA_ISO03A}%`}`,
+  );
+}
