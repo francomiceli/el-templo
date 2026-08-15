@@ -69,8 +69,8 @@
               <!-- Day mode override (per-run only, does NOT persist to day_modes — D160-01) -->
               <div v-if="generationScope !== 'day_level'" class="q-mb-md">
                 <div class="text-caption text-grey-7 q-mb-sm">
-                  Modo por dia — solo para ESTA generacion (no se guarda). Usalo para semanas con
-                  Combos/Tecnica puntuales; el default habitual se configura mas abajo.
+                  Modo por dia — se recuerda tu ultima eleccion por dia hasta que la cambies. Elegi
+                  Regular / ROM / Combos / Tecnica; se aplica al generar.
                 </div>
                 <div v-if="generationScope === 'week'">
                   <div
@@ -121,44 +121,6 @@
           </q-card-section>
         </q-card>
 
-        <!-- Configuración habitual por día (persistente): default por día de la
-             semana para futuras generaciones (Regular / ROM). Es DISTINTO del
-             override "Modo por día" de arriba, que solo afecta esta corrida, y
-             de la tabla de resultados, que es de solo lectura. -->
-        <q-card flat bordered class="q-mb-md" style="max-width: 480px">
-          <q-expansion-item
-            icon="tune"
-            label="Configuracion habitual por dia"
-            caption="Default persistente por dia de la semana (Regular / ROM)"
-          >
-            <q-card-section>
-              <div class="text-caption text-grey-7 q-mb-sm">
-                Se aplica a las futuras generaciones cuando no elegis un modo distinto en "Modo por
-                dia". No cambia las sesiones ya generadas.
-              </div>
-              <div
-                v-for="day in dayOptions"
-                :key="day.value"
-                class="row items-center q-gutter-sm q-mb-xs"
-              >
-                <div class="col-3 text-caption">{{ day.label }}</div>
-                <q-select
-                  :model-value="getDayMode(day.value)"
-                  :options="MODE_OPTIONS"
-                  dense
-                  outlined
-                  emit-value
-                  map-options
-                  options-dense
-                  class="col"
-                  style="max-width: 160px"
-                  @update:model-value="(val: string) => updateDayMode(day.value, val)"
-                />
-              </div>
-            </q-card-section>
-          </q-expansion-item>
-        </q-card>
-
         <!-- Week summary -->
         <q-card v-if="weekSummary" flat bordered>
           <q-card-section>
@@ -178,8 +140,8 @@
               <template #body-cell-modo="props">
                 <q-td :props="props">
                   <!-- Read-only: el modo REAL de lo generado. Para cambiarlo se
-                       regenera el día (con "Regenerar"); el default habitual se
-                       configura en "Configuración habitual por día". -->
+                       elige el modo en "Modo por dia" y se regenera el día (con
+                       "Regenerar"). -->
                   <q-badge
                     :color="sessionModeColor(props.row.sessionMode)"
                     :label="sessionModeLabel(props.row.sessionMode)"
@@ -413,7 +375,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, defineComponent, h } from 'vue';
+import { ref, computed, watch, onMounted, defineComponent, h } from 'vue';
 import { useQuasar, QIcon } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatWeekLabel } from 'src/utils/weekDates';
@@ -454,11 +416,6 @@ const DAY_OF_WEEK_MAP: Record<string, number> = {
   viernes: 5,
   sabado: 6,
 };
-const MODE_OPTIONS = [
-  { label: 'Regular', value: 'regular' },
-  { label: 'ROM', value: 'rom' },
-];
-
 function getDayMode(day: string): string {
   const dow = DAY_OF_WEEK_MAP[day];
   return dayModes.value.find((dm) => dm.dayOfWeek === dow)?.sessionMode || 'regular';
@@ -470,19 +427,6 @@ async function loadDayModes() {
     dayModes.value = data;
   } catch {
     log.error('Failed to load day modes', {});
-  }
-}
-
-async function updateDayMode(day: string, newMode: string) {
-  const dow = DAY_OF_WEEK_MAP[day];
-  try {
-    await api.put('/admin/sessions/day-modes', {
-      modes: [{ dayOfWeek: dow, sessionMode: newMode }],
-    });
-    await loadDayModes();
-    $q.notify({ type: 'positive', message: 'Tipo de sesion actualizado' });
-  } catch {
-    $q.notify({ type: 'negative', message: 'No se pudo actualizar el modo' });
   }
 }
 
@@ -535,11 +479,14 @@ const levelOptions = [
   { label: 'Omega', value: 'omega' },
 ];
 
-// Day mode override for the generator run (D160-01): SEPARATE from MODE_OPTIONS
-// (the persisted day_modes table, regular/rom only). Default is a frontend
-// constant, NOT read from/written to day_modes — miercoles -> tecnica,
-// jueves -> combos reflects the observed regimen, sabado -> rom matches the
-// persisted Saturday default (mig 0080), but the override never persists.
+// Single per-day mode selector for /generate. Carries all four modes and
+// REMEMBERS the coach's last choice per weekday in localStorage ("hasta que se
+// cambie"). It is deliberately NOT persisted to the server day_modes table:
+// that table has one row per weekday with no week dimension, so writing
+// combos/tecnica there would clamp every past/future week to a fixed regimen
+// (D-02 — the real regimen alternates week to week). Remembering client-side
+// gives the sticky UX without reopening that product bug; day_modes stays the
+// ROM-interpretation source, seeded Saturday=rom (mig 0080).
 const OVERRIDE_MODE_OPTIONS = [
   { label: 'Regular', value: 'regular' },
   { label: 'ROM', value: 'rom' },
@@ -547,14 +494,52 @@ const OVERRIDE_MODE_OPTIONS = [
   { label: 'Tecnica', value: 'tecnica' },
 ];
 
-const generateDayModes = ref<Record<string, string>>({
+// Starting point the first time (nothing remembered yet): the coach's usual
+// regimen — Mié Técnica, Jue Combos, Sáb ROM, resto Regular.
+const DAY_MODE_DEFAULTS: Record<string, string> = {
   lunes: 'regular',
   martes: 'regular',
   miercoles: 'tecnica',
   jueves: 'combos',
   viernes: 'regular',
   sabado: 'rom',
-});
+};
+const DAY_MODES_STORAGE_KEY = 'generate:dayModes';
+const VALID_DAY_MODES = new Set(['regular', 'rom', 'combos', 'tecnica']);
+
+function loadRememberedDayModes(): Record<string, string> {
+  const modes = { ...DAY_MODE_DEFAULTS };
+  try {
+    const raw = localStorage.getItem(DAY_MODES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      for (const day of Object.keys(modes)) {
+        const val = parsed[day];
+        if (typeof val === 'string' && VALID_DAY_MODES.has(val)) {
+          modes[day] = val;
+        }
+      }
+    }
+  } catch {
+    log.error('Failed to read remembered day modes', {});
+  }
+  return modes;
+}
+
+const generateDayModes = ref<Record<string, string>>(loadRememberedDayModes());
+
+// Persist every change so the selection sticks across reloads (per browser).
+watch(
+  generateDayModes,
+  (modes) => {
+    try {
+      localStorage.setItem(DAY_MODES_STORAGE_KEY, JSON.stringify(modes));
+    } catch {
+      log.error('Failed to persist day modes', {});
+    }
+  },
+  { deep: true }
+);
 
 // Visible label + chip color for a session mode, shared by the read-only badge
 // in "Sesiones generadas" and the override selector.
@@ -764,8 +749,11 @@ async function doGenerate() {
       options.levelGroups = [selectedLevel.value];
     }
 
-    // Day mode override (per-run only, does NOT persist to day_modes — D160-01):
-    // only send days in scope that differ from 'regular', to keep the body small.
+    // Day mode override (per-run only, never persisted to day_modes — D-02).
+    // Send the selected mode for EVERY day in scope so the selector is
+    // authoritative: an explicit 'regular' must override the day_modes default
+    // too (e.g. a Saturday the coach wants NOT to be ROM), which a
+    // "skip regular" filter would silently drop back to the rom default.
     const daysInScope = options.days ?? [
       'lunes',
       'martes',
@@ -775,9 +763,7 @@ async function doGenerate() {
       'sabado',
     ];
     const dayModesPayload = Object.fromEntries(
-      Object.entries(generateDayModes.value).filter(
-        ([day, mode]) => daysInScope.includes(day) && mode !== 'regular'
-      )
+      Object.entries(generateDayModes.value).filter(([day]) => daysInScope.includes(day))
     );
     if (Object.keys(dayModesPayload).length > 0) {
       options.dayModes = dayModesPayload;
