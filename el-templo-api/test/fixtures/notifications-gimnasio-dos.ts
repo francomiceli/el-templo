@@ -28,8 +28,15 @@
  * forma de distinguir "leyó mi fila" de "no filtró nada y cayó al default de
  * todos modos" — mismo criterio de "orden de magnitud distinto" que el resto
  * de la batería (`members-gimnasio-dos.ts`). El Templo y el gimnasio 2 usan
- * categorías DISTINTAS (`planes` / `entrenamiento`) para poder afirmar en la
- * misma llamada "lo mío cambió, lo del otro sigue en default".
+ * categorías DISTINTAS (`entrenamiento` / `programas`) para poder afirmar en
+ * la misma llamada "lo mío cambió, lo del otro sigue en default". Las 2
+ * quedan DENTRO de las 4 categorías que `getPreferencesResponseSchema`/
+ * `updatePreferenceSchema` (routes.ts) realmente exponen — `planes` y
+ * `referidos` existen en `NOTIFICATION_CATEGORIES` (types.ts) pero esas 2
+ * rutas las descartan en la serialización (no es una restricción de tenancy,
+ * así que este archivo no la ejercita) — y ni `anuncios`
+ * (`POST /admin/send-segment` la usa siempre) ni `motivacion` (reservada por
+ * el caso de `PUT /preferences`), para no pisar otros describes del archivo.
  *
  * @see test/fixtures/campaigns-gimnasio-dos.ts — el molde inmediato (175.1-03)
  * @see test/fixtures/members-gimnasio-dos.ts — el molde original (173-26)
@@ -85,19 +92,19 @@ interface FichaNotifComun {
   deviceToken: string;
   /** La fila EXPLÍCITA de `notification_preferences` (ver docblock del archivo). */
   preferenceId: number;
-  preferenceCategory: "planes" | "entrenamiento";
+  preferenceCategory: "entrenamiento" | "programas";
   /** `pending_notifications` con `templateId` apuntando a la plantilla propia. */
   pendingId: number;
 }
 
 /** El recurso ajeno: la ficha completa de notifications de El Templo. */
 export interface FichaNotifTemplo extends FichaNotifComun {
-  preferenceCategory: "planes";
+  preferenceCategory: "entrenamiento";
 }
 
 /** Lo propio: la ficha completa de notifications del gimnasio 2. */
 export interface FichaNotifGimnasioDos extends FichaNotifComun {
-  preferenceCategory: "entrenamiento";
+  preferenceCategory: "programas";
   /** Actor `owner` dedicado — `POST /admin/seed-templates` exige `OWNER_ROLES`. */
   ownerId: number;
   ownerToken: string;
@@ -267,15 +274,24 @@ export async function sembrarNotifTemplo(
     )
     .$returningId();
 
-  // Preferencia EXPLICITA (ver docblock del archivo): categoria 'planes',
-  // distinta de la del gimnasio 2 ('entrenamiento'), en `false` (default es
-  // `true` para toda fila ausente).
+  // Preferencia EXPLICITA (ver docblock del archivo): categoria
+  // 'entrenamiento', distinta de la del gimnasio 2 ('programas'), en `false`
+  // (default es `true` para toda fila ausente). NI 'anuncios' NI 'motivacion':
+  // `POST /admin/send-segment` (routes.ts) encola SIEMPRE con
+  // `category: "anuncios"` — un false explícito ahí bloquearía el propio
+  // caso de esa ruta (`userHasDeviceToken`/prefs check en
+  // `queueAdHocNotification`, service.ts) — y 'motivacion' la reserva el
+  // caso de `PUT /preferences` más abajo. 'planes'/'referidos' existen en
+  // `NOTIFICATION_CATEGORIES` (types.ts) pero
+  // `getPreferencesResponseSchema`/`updatePreferenceSchema` (routes.ts) las
+  // descarta en la serialización — no es un bug de tenancy, restricción
+  // ajena a este plan.
   const [preference] = await app.db
     .insert(schema.notificationPreferences)
     .values(
       tenantValues(CTX_TEMPLO, {
         userId: member.id,
-        category: "planes" as const,
+        category: "entrenamiento" as const,
         enabled: false,
       }),
     )
@@ -307,7 +323,7 @@ export async function sembrarNotifTemplo(
     deviceTokenId: device.id,
     deviceToken,
     preferenceId: preference.id,
-    preferenceCategory: "planes",
+    preferenceCategory: "entrenamiento",
     pendingId: pending.id,
   };
 }
@@ -389,14 +405,14 @@ export async function sembrarNotifGimnasioDos(
     )
     .$returningId();
 
-  // Preferencia EXPLICITA: categoria 'entrenamiento' (distinta de la de El
-  // Templo), en `false`.
+  // Preferencia EXPLICITA: categoria 'programas' (distinta de la de El
+  // Templo, 'anuncios' — ver el docblock de `sembrarNotifTemplo`), en `false`.
   const [preference] = await app.db
     .insert(schema.notificationPreferences)
     .values(
       tenantValues(CTX_DOS, {
         userId: member.id,
-        category: "entrenamiento" as const,
+        category: "programas" as const,
         enabled: false,
       }),
     )
@@ -428,7 +444,7 @@ export async function sembrarNotifGimnasioDos(
     deviceTokenId: device.id,
     deviceToken,
     preferenceId: preference.id,
-    preferenceCategory: "entrenamiento",
+    preferenceCategory: "programas",
     pendingId: pending.id,
     ownerId,
     ownerToken,
