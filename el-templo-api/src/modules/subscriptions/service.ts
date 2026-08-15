@@ -6138,15 +6138,17 @@ export class SubscriptionService {
     ctx: TenantContext,
     filters: ListPromoPlansFilters = {},
   ): Promise<PromoListItem[]> {
-    const conditions = [tenantWhere(schema.promoPlans, ctx)];
-    if (filters.country !== undefined) {
-      conditions.push(eq(schema.promoPlans.country, filters.country));
-    }
-
     const rows = await this.db
       .select()
       .from(schema.promoPlans)
-      .where(and(...conditions))
+      .where(
+        and(
+          tenantWhere(schema.promoPlans, ctx),
+          filters.country !== undefined
+            ? eq(schema.promoPlans.country, filters.country)
+            : undefined,
+        ),
+      )
       .orderBy(desc(schema.promoPlans.createdAt));
     return rows.map((r) => ({
       ...r,
