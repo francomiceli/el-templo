@@ -170,10 +170,13 @@ export class ReferralService {
    * sin deploy.
    */
   async getReferralConfig(): Promise<ReferralConfig> {
+    /* tenant-safe: aura_config.sourceType es UNIQUE a nivel de columna (src/db/schema/aura-config.ts) — una sola fila 'referral' existe en TODA la tabla, config global del sistema Aura, no per-gimnasio pese a tener tenant_id; no expone datos de miembro */
     const [cfg] = await this.db
       .select({ amount: auraConfig.defaultAmount })
       .from(auraConfig)
-      .where(eq(auraConfig.sourceType, "referral"))
+      .where(
+        sql`/* tenant-safe: aura_config.sourceType es UNIQUE a nivel de columna — una sola fila 'referral' existe en TODA la tabla, config global del sistema Aura, no per-gimnasio pese a tener tenant_id; no expone datos de miembro */ ${eq(auraConfig.sourceType, "referral")}`,
+      )
       .limit(1);
 
     const [cap] = await this.db
@@ -399,6 +402,14 @@ export class ReferralService {
     ctx: TenantContext,
     payerUserId: number,
   ): Promise<{ referrerId: number; referredFirstName: string } | null> {
+    // T-175.1-01-03 (D-04): `tenantWhere(referrals, ctx)` explícito en las DOS
+    // queries — el SELECT ya venía protegido de rebote por el
+    // `tenantWhere(users, ctx)` del innerJoin (un `payerUserId` de otro
+    // gimnasio no matchea esa fila de `users`), pero el UPDATE de abajo NO
+    // tenía NINGÚN filtro de tenant, ni siquiera indirecto. `referrals` es la
+    // única tabla del scope de este plan que baja el ratchet con-06 — el fix
+    // tiene que ser scope real, no exención.
+    //
     // SELECT previo del vínculo pending (con el firstName del payer/referido)
     // ANTES del UPDATE: si no hay pending, no hubo flip → no notificar.
     const [pending] = await this.db
@@ -413,6 +424,7 @@ export class ReferralService {
       )
       .where(
         and(
+          tenantWhere(referrals, ctx),
           eq(referrals.referredId, payerUserId),
           eq(referrals.status, "pending"),
         ),
@@ -424,6 +436,7 @@ export class ReferralService {
       .set({ status: "qualified", qualifiedAt: new Date() })
       .where(
         and(
+          tenantWhere(referrals, ctx),
           eq(referrals.referredId, payerUserId),
           eq(referrals.status, "pending"),
         ),

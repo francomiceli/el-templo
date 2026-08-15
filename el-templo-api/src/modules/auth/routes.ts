@@ -439,6 +439,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Get branch info for response
+      /* tenant-safe: branchId es el MISMO id ya resuelto arriba (el bootstrap que deriva ctx.tenantId), releer por PK para el response no expone otro gimnasio (D4) */
       const [branchRow] = await fastify.db
         .select({
           name: branches.name,
@@ -446,7 +447,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           country: branches.country,
         })
         .from(branches)
-        .where(eq(branches.id, branchId))
+        .where(
+          sql`/* tenant-safe: branchId es el MISMO id ya resuelto arriba (el bootstrap que deriva ctx.tenantId), releer por PK para el response no expone otro gimnasio (D4) */ ${eq(branches.id, branchId)}`,
+        )
         .limit(1);
 
       // Sign JWT (legacy 7d token kept for backwards-compat — Req 7)
@@ -569,6 +572,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Get branch name and virtual status
+      /* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */
       const branchResults = await fastify.db
         .select({
           name: branches.name,
@@ -576,7 +580,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           country: branches.country,
         })
         .from(branches)
-        .where(eq(branches.id, user.branchId))
+        .where(
+          sql`/* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */ ${eq(branches.id, user.branchId)}`,
+        )
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;
@@ -801,6 +807,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const user = userResults[0];
 
       // Get branch name and virtual status
+      /* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */
       const branchResults = await fastify.db
         .select({
           name: branches.name,
@@ -808,7 +815,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           country: branches.country,
         })
         .from(branches)
-        .where(eq(branches.id, user.branchId))
+        .where(
+          sql`/* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */ ${eq(branches.id, user.branchId)}`,
+        )
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;
