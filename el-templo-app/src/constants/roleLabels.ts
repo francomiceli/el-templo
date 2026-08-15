@@ -4,6 +4,11 @@ import type { BlockRole } from '../modules/training/types/session'
  * Diccionario rol de bloque -> etiqueta visible, fuente única para el member app
  * (fase 160, SEM-11, D160-03).
  *
+ * NOTE (deploy): este archivo se re-toca junto al fix-forward de CI del tren
+ * 159/160 para que dorny/paths-filter marque `app` como cambiado y el deploy
+ * de prod arrastre los cambios de la app — que ya están en el base
+ * `event.before` y de otro modo no se re-desplegarían. Ver deploy.yml.
+ *
  * ─────────────────────────────────────────────────────────────────────────────
  * DUPLICACIÓN ACEPTADA A PROPÓSITO — "un diccionario por app" (D160-03). Hay
  * un espejo equivalente en `el-templo-api` (`src/modules/shared/role-labels.ts`,
