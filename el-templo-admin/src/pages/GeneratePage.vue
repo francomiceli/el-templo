@@ -69,7 +69,8 @@
               <!-- Day mode override (per-run only, does NOT persist to day_modes — D160-01) -->
               <div v-if="generationScope !== 'day_level'" class="q-mb-md">
                 <div class="text-caption text-grey-7 q-mb-sm">
-                  Modo por dia (solo para esta generacion, no se guarda):
+                  Modo por dia — solo para ESTA generacion (no se guarda). Usalo para semanas con
+                  Combos/Tecnica puntuales; el default habitual se configura mas abajo.
                 </div>
                 <div v-if="generationScope === 'week'">
                   <div
@@ -120,6 +121,44 @@
           </q-card-section>
         </q-card>
 
+        <!-- Configuración habitual por día (persistente): default por día de la
+             semana para futuras generaciones (Regular / ROM). Es DISTINTO del
+             override "Modo por día" de arriba, que solo afecta esta corrida, y
+             de la tabla de resultados, que es de solo lectura. -->
+        <q-card flat bordered class="q-mb-md" style="max-width: 480px">
+          <q-expansion-item
+            icon="tune"
+            label="Configuracion habitual por dia"
+            caption="Default persistente por dia de la semana (Regular / ROM)"
+          >
+            <q-card-section>
+              <div class="text-caption text-grey-7 q-mb-sm">
+                Se aplica a las futuras generaciones cuando no elegis un modo distinto en "Modo por
+                dia". No cambia las sesiones ya generadas.
+              </div>
+              <div
+                v-for="day in dayOptions"
+                :key="day.value"
+                class="row items-center q-gutter-sm q-mb-xs"
+              >
+                <div class="col-3 text-caption">{{ day.label }}</div>
+                <q-select
+                  :model-value="getDayMode(day.value)"
+                  :options="MODE_OPTIONS"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  options-dense
+                  class="col"
+                  style="max-width: 160px"
+                  @update:model-value="(val: string) => updateDayMode(day.value, val)"
+                />
+              </div>
+            </q-card-section>
+          </q-expansion-item>
+        </q-card>
+
         <!-- Week summary -->
         <q-card v-if="weekSummary" flat bordered>
           <q-card-section>
@@ -138,17 +177,12 @@
             >
               <template #body-cell-modo="props">
                 <q-td :props="props">
-                  <q-select
-                    :model-value="props.row.modo"
-                    :options="MODE_OPTIONS"
-                    dense
-                    borderless
-                    emit-value
-                    map-options
-                    options-dense
-                    class="text-caption"
-                    style="min-width: 70px; max-width: 80px"
-                    @update:model-value="(val: string) => updateDayMode(props.row.day, val)"
+                  <!-- Read-only: el modo REAL de lo generado. Para cambiarlo se
+                       regenera el día (con "Regenerar"); el default habitual se
+                       configura en "Configuración habitual por día". -->
+                  <q-badge
+                    :color="sessionModeColor(props.row.sessionMode)"
+                    :label="sessionModeLabel(props.row.sessionMode)"
                   />
                 </q-td>
               </template>
@@ -504,7 +538,8 @@ const levelOptions = [
 // Day mode override for the generator run (D160-01): SEPARATE from MODE_OPTIONS
 // (the persisted day_modes table, regular/rom only). Default is a frontend
 // constant, NOT read from/written to day_modes — miercoles -> tecnica,
-// jueves -> combos reflects the observed regimen but never persists.
+// jueves -> combos reflects the observed regimen, sabado -> rom matches the
+// persisted Saturday default (mig 0080), but the override never persists.
 const OVERRIDE_MODE_OPTIONS = [
   { label: 'Regular', value: 'regular' },
   { label: 'ROM', value: 'rom' },
@@ -518,8 +553,29 @@ const generateDayModes = ref<Record<string, string>>({
   miercoles: 'tecnica',
   jueves: 'combos',
   viernes: 'regular',
-  sabado: 'regular',
+  sabado: 'rom',
 });
+
+// Visible label + chip color for a session mode, shared by the read-only badge
+// in "Sesiones generadas" and the override selector.
+const SESSION_MODE_LABELS: Record<string, string> = {
+  regular: 'Regular',
+  rom: 'ROM',
+  combos: 'Combos',
+  tecnica: 'Tecnica',
+};
+const SESSION_MODE_COLORS: Record<string, string> = {
+  regular: 'blue-grey',
+  rom: 'teal',
+  combos: 'deep-orange',
+  tecnica: 'purple',
+};
+function sessionModeLabel(mode: string | null): string {
+  return mode ? (SESSION_MODE_LABELS[mode] ?? mode) : '—';
+}
+function sessionModeColor(mode: string | null): string {
+  return mode ? (SESSION_MODE_COLORS[mode] ?? 'grey') : 'grey-4';
+}
 
 const summaryColumns = [
   { name: 'day', label: 'Dia', field: 'dayLabel', align: 'left' as const },
@@ -544,11 +600,16 @@ const summaryRows = computed(() => {
   };
 
   return weekSummary.value.days.map((d) => {
-    const modo = getDayMode(d.day);
+    // Real generated mode (from the persisted sessions). Fall back to the
+    // day_modes config only when nothing was generated yet, so the ROM columns
+    // still read as N/A for the Saturday-ROM default before any generation.
+    const modo = d.sessionMode ?? getDayMode(d.day);
     const alfaDeltaStatus = d.levels.find((l) => l.levelGroup === 'alfa_delta')?.status || null;
     return {
       day: d.day,
       dayLabel: dayLabels[d.day] || d.day,
+      // Badge value: the REAL generated mode (null -> "—" for ungenerated days).
+      sessionMode: d.sessionMode,
       modo,
       // kairos vive en el grupo alfa_delta (se genera junto con alfa/delta), así
       // que comparte su status — mismo criterio que alfa y delta.
@@ -705,8 +766,14 @@ async function doGenerate() {
 
     // Day mode override (per-run only, does NOT persist to day_modes — D160-01):
     // only send days in scope that differ from 'regular', to keep the body small.
-    const daysInScope =
-      options.days ?? ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    const daysInScope = options.days ?? [
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
+    ];
     const dayModesPayload = Object.fromEntries(
       Object.entries(generateDayModes.value).filter(
         ([day, mode]) => daysInScope.includes(day) && mode !== 'regular'

@@ -491,6 +491,12 @@ export class AdminSessionService {
     week: number;
     days: {
       day: string;
+      // Actual mode of the sessions generated for this day (regular/rom/
+      // combos/tecnica), or null when the day has no generated sessions. This
+      // is the REAL persisted session mode — distinct from the day_modes config
+      // default — so the admin summary can show what was actually generated
+      // instead of a config proxy (fase 160 follow-up: controles claros).
+      sessionMode: string | null;
       levels: {
         levelGroup: string;
         hasSession: boolean;
@@ -503,6 +509,7 @@ export class AdminSessionService {
         day: schema.sessions.day,
         levelGroup: schema.sessions.levelGroup,
         status: schema.sessions.status,
+        sessionMode: schema.sessions.sessionMode,
       })
       .from(schema.sessions)
       .where(eq(schema.sessions.week, week));
@@ -512,28 +519,35 @@ export class AdminSessionService {
 
     return {
       week,
-      days: days.map((day) => ({
-        day,
-        levels: levels.map((levelGroup) => {
-          const groupSessions = sessions.filter(
-            (s) => s.day === day && s.levelGroup === levelGroup,
-          );
-          // Show worst status: pending > approved
-          const worstStatus =
-            groupSessions.length === 0
-              ? null
-              : groupSessions.some((s) => s.status === "pending_review")
-                ? "pending_review"
-                : groupSessions.every((s) => s.status === "approved")
-                  ? "approved"
-                  : (groupSessions[0].status as SessionStatus);
-          return {
-            levelGroup,
-            hasSession: groupSessions.length > 0,
-            status: worstStatus,
-          };
-        }),
-      })),
+      days: days.map((day) => {
+        const daySessions = sessions.filter((s) => s.day === day);
+        // All levels of a day share the same mode (dayModes routes per-day),
+        // so any session of the day carries the representative mode.
+        const sessionMode = daySessions[0]?.sessionMode ?? null;
+        return {
+          day,
+          sessionMode,
+          levels: levels.map((levelGroup) => {
+            const groupSessions = sessions.filter(
+              (s) => s.day === day && s.levelGroup === levelGroup,
+            );
+            // Show worst status: pending > approved
+            const worstStatus =
+              groupSessions.length === 0
+                ? null
+                : groupSessions.some((s) => s.status === "pending_review")
+                  ? "pending_review"
+                  : groupSessions.every((s) => s.status === "approved")
+                    ? "approved"
+                    : (groupSessions[0].status as SessionStatus);
+            return {
+              levelGroup,
+              hasSession: groupSessions.length > 0,
+              status: worstStatus,
+            };
+          }),
+        };
+      }),
     };
   }
 
@@ -664,12 +678,10 @@ export class AdminSessionService {
     // Import SessionGeneratorService dynamically to avoid circular deps
     const { SessionGeneratorService } = await import("../sessions/service.js");
     const { generateRomSession } = await import("../sessions/rom-generator.js");
-    const { generateCombosSession } = await import(
-      "../sessions/combos-generator.js"
-    );
-    const { generateTecnicaSession } = await import(
-      "../sessions/tecnica-generator.js"
-    );
+    const { generateCombosSession } =
+      await import("../sessions/combos-generator.js");
+    const { generateTecnicaSession } =
+      await import("../sessions/tecnica-generator.js");
     const sessionService = new SessionGeneratorService(this.db);
 
     // Load day modes for ROM routing (per D-17)
@@ -685,7 +697,7 @@ export class AdminSessionService {
       const dayNumber = DAY_NAME_TO_NUMBER[day];
       const dayMode =
         requestModes[day] ??
-        (dayNumber ? dayModeMap.get(dayNumber) ?? "regular" : "regular");
+        (dayNumber ? (dayModeMap.get(dayNumber) ?? "regular") : "regular");
 
       if (dayMode === "combos" || dayMode === "tecnica") {
         // Fixed-structure generation (D-10): all 6 levels across the 3
@@ -731,8 +743,7 @@ export class AdminSessionService {
               generated++;
             } catch (err: unknown) {
               failed++;
-              const errorMsg =
-                err instanceof Error ? err.message : String(err);
+              const errorMsg = err instanceof Error ? err.message : String(err);
               warnings.push(
                 `${dayId} (${dayMode === "combos" ? "COMBOS" : "TECNICA"}): ${errorMsg}`,
               );

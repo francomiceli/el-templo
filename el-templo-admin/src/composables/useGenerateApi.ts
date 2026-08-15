@@ -5,6 +5,10 @@ export interface WeekSummary {
   week: number;
   days: {
     day: string;
+    // Actual persisted mode of the day's generated sessions (regular/rom/
+    // combos/tecnica), or null when nothing was generated. The read-only badge
+    // in "Sesiones generadas" shows this real mode — NOT the day_modes config.
+    sessionMode: string | null;
     levels: {
       levelGroup: string;
       hasSession: boolean;
