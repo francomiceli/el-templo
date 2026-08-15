@@ -500,10 +500,6 @@
       "table": "programs"
     },
     {
-      "file": "el-templo-api/src/modules/subscriptions/service.ts",
-      "table": "promo_plans"
-    },
-    {
       "file": "el-templo-api/src/modules/tree-editor/service.ts",
       "table": "exercise_dimension_proposals"
     },
