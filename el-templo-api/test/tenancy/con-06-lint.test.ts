@@ -451,12 +451,17 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
         "dejando 2 tablas más de referrals sin deuda (55), y el 175-05 migró los últimos accesos de " +
         "las 4 tablas de wellhub —wellhub_bookings, wellhub_classes, wellhub_slots, wellhub_events— (51), " +
         "y el 175-06 migró improvement_proposals + auth (promo_plans/refresh_tokens) + analytics " +
-        "(unique-members sobre attendance), dejando 2 tablas más sin deuda (49). " +
+        "(unique-members sobre attendance), dejando 2 tablas más sin deuda (49), " +
+        "y el 175.1-01 tenant-izó con tenantWhere real el UPDATE/SELECT de `referrals.qualifyFirstPayment` " +
+        "—la última tabla `referrals` con deuda (era la única del scope con 1 sola entrada en todo el repo)—, " +
+        "dejándola sin deuda (48). (En el mismo plan se arreglaron fugas reales cross-tenant en " +
+        "`coach_ratings` y `attendance` con tenantWhere real, pero esas tablas conservan deuda ajena fuera " +
+        "de scope 175.1 —ratings/reports/segmentation, fase 176— así que NO bajan este número.) " +
         "Si este número baja SIN que la " +
         "baja quede contabilizada tabla por tabla (una tabla que entró a TENANT_STRICT_MODULES, o " +
         "un acceso migrado que sale como staleNoLongerViolating de la allowlist), alguna forma de " +
         "import volvió a quedar afuera del lint.",
-    ).toBeGreaterThanOrEqual(49);
+    ).toBeGreaterThanOrEqual(48);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
