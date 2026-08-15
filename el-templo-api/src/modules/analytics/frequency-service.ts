@@ -406,6 +406,7 @@ export class FrequencyService {
       branchColumn: schema.attendance.branchId,
     });
 
+    /* tenant-safe: solo el filtro de rango de fecha + sede/país — el tenantWhere(schema.attendance, ctx) real se aplica más abajo en el .where() del build de la query, ver T-175.1-01-03 */
     const conditions: SQL[] = [
       sql`${schema.attendance.checkedInAt} >= ${lower}`,
       sql`${schema.attendance.checkedInAt} < ${upperExclusive}`,
@@ -423,17 +424,25 @@ export class FrequencyService {
       conditions.push(turnoCondition);
     }
 
+    // T-175.1-01-03 (D-04, hallazgo del gap-fix): `attendance` NO estaba
+    // scopeado por tenant en este path cuando `turnoCondition === null` (el
+    // JOIN a `schedules`, que sí trae `tenantWhere`, es CONDICIONAL). Se
+    // agrega `tenantWhere(schema.attendance, ctx)` explícito e inline (D-02:
+    // `.where(...)` va ANTES de `.$dynamic()`, mismo statement que `.from(...)`,
+    // así el lint ve el literal `tenantWhere(` en ESTE statement).
     let query = this.db
       .select({
         memberId: schema.attendance.memberId,
         visits: sql<number>`COUNT(*)`,
       })
       .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
       .$dynamic();
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/sede de una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       query = query.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.attendance.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/sede de una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
       );
     }
     if (turnoCondition !== null) {
@@ -445,9 +454,7 @@ export class FrequencyService {
         ),
       );
     }
-    const rows = await query
-      .where(and(...conditions))
-      .groupBy(schema.attendance.memberId);
+    const rows = await query.groupBy(schema.attendance.memberId);
 
     const map = new Map<number, number>();
     for (const r of rows) {
@@ -702,6 +709,7 @@ export class FrequencyService {
       new Date(now.getTime() - (offsetDays + windowDays) * 86_400_000),
     );
 
+    /* tenant-safe: deliberadamente global (D-123-01, ver docblock de coolingOrInactiveUserIds) — agrupa por memberId, clave globalmente única por persona; el único consumidor filtra el resultado contra userIds ya tenant-scopeados de activeRows, las filas de otros gimnasios en este Map nunca se leen, no expone datos cross-gym al caller */
     const rows = await this.db
       .select({
         memberId: schema.attendance.memberId,
@@ -710,7 +718,7 @@ export class FrequencyService {
       .from(schema.attendance)
       .where(
         and(
-          sql`${schema.attendance.checkedInAt} >= ${lower}`,
+          sql`/* tenant-safe: deliberadamente global (D-123-01) — agrupa por memberId (clave globalmente única por persona); el único consumidor filtra el resultado contra userIds ya tenant-scopeados, no expone datos cross-gym */ ${schema.attendance.checkedInAt} >= ${lower}`,
           sql`${schema.attendance.checkedInAt} < ${upperExclusive}`,
         ),
       )

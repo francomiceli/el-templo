@@ -150,9 +150,10 @@ export class FunnelService {
       .$dynamic();
 
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       usersQuery = usersQuery.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.users.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.users.branchId}`,
       );
     }
 

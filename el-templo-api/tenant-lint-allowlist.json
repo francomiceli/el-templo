@@ -200,66 +200,6 @@
       "table": "exercises"
     },
     {
-      "file": "el-templo-api/src/modules/analytics/advanced-finance-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/churn-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/class-ratings-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/class-ratings-service.ts",
-      "table": "coach_ratings"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/especial-report-service.ts",
-      "table": "attendance"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/especial-report-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/frequency-service.ts",
-      "table": "attendance"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/frequency-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/funnel-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/member-flows-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/renewal-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/retention-service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/service.ts",
-      "table": "attendance"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/analytics/ticket-service.ts",
-      "table": "branches"
-    },
-    {
       "file": "el-templo-api/src/modules/app-landing/service.ts",
       "table": "app_waitlist"
     },

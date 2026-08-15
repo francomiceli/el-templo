@@ -231,9 +231,10 @@ export class MemberFlowsService {
       )
       .$dynamic();
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de subscriptions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       query = query.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.subscriptions.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de subscriptions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.subscriptions.branchId}`,
       );
     }
     return query;
@@ -296,9 +297,10 @@ export class MemberFlowsService {
       )
       .$dynamic();
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de subscriptions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       query = query.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.subscriptions.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de subscriptions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.subscriptions.branchId}`,
       );
     }
     return query;
@@ -352,9 +354,10 @@ export class MemberFlowsService {
       )
       .$dynamic();
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de subscriptions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       query = query.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.subscriptions.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de subscriptions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.subscriptions.branchId}`,
       );
     }
     const rows = await query;

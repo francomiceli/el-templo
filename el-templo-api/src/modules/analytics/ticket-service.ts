@@ -605,9 +605,10 @@ export class TicketService {
       .$dynamic();
 
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de financial_transactions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       query = query.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.financialTransactions.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de financial_transactions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.financialTransactions.branchId}`,
       );
     }
 

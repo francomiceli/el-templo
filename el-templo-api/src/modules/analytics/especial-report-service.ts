@@ -113,8 +113,15 @@ export class EspecialReportService {
       branchColumn: schema.attendance.branchId,
     });
 
+    // T-175.1-01-03 (D-04): este array es SOLO el filtro de rango de fecha +
+    // sede/país — `attendance` ya viene tenant-scopeado indirectamente por el
+    // INNER JOIN a `schedules` (`tenantWhere(schema.schedules, ctx)`, tabla
+    // strict) más abajo en `base`, vía FK `attendance.schedule_id ->
+    // schedules.id`: una fila de `attendance` cuyo schedule pertenezca a otro
+    // gimnasio nunca matchea ese JOIN. No expone datos cross-gym (D4).
+    /* tenant-safe: attendance scopeado indirectamente por el INNER JOIN a schedules (tenantWhere, FK schedule_id) en `base`, no expone datos cross-gym (D4) */
     const conditions: SQL[] = [
-      sql`${schema.attendance.sessionDate} >= ${start}`,
+      sql`/* tenant-safe: attendance scopeado indirectamente por el INNER JOIN a schedules (tenantWhere, FK schedule_id) en \`base\`, no expone datos cross-gym (D4) */ ${schema.attendance.sessionDate} >= ${start}`,
       sql`${schema.attendance.sessionDate} < ${endExclusive}`,
       ...scopeConditions,
     ];
@@ -185,11 +192,12 @@ export class EspecialReportService {
         ),
       );
 
+    /* tenant-safe: branches joineado por FK para resolver country/sede de una fila de attendance ya scopeada indirectamente (ver `conditions` arriba), no expone datos cross-gym (D4) */
     const raw = needsBranchJoin
       ? await base
           .innerJoin(
             schema.branches,
-            eq(schema.branches.id, schema.attendance.branchId),
+            sql`/* tenant-safe: branches joineado por FK para resolver country/sede de una fila de attendance ya scopeada indirectamente (ver \`conditions\` arriba), no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
           )
           .where(and(...conditions))
       : await base.where(and(...conditions));
@@ -270,11 +278,12 @@ export class EspecialReportService {
         ),
       );
 
+    /* tenant-safe: branches joineado por FK para resolver country/sede de una fila de subscriptions ya scopeada por tenantWhere en `base` arriba, no expone datos cross-gym (D4) */
     const rows = needsBranchJoin
       ? await base
           .innerJoin(
             schema.branches,
-            eq(schema.branches.id, schema.subscriptions.branchId),
+            sql`/* tenant-safe: branches joineado por FK para resolver country/sede de una fila de subscriptions ya scopeada por tenantWhere en \`base\` arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.subscriptions.branchId}`,
           )
           .where(and(...conditions))
           .groupBy(schema.subscriptionPlans.requiresPresencial)

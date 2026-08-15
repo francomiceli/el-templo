@@ -109,6 +109,7 @@ export class AnalyticsService {
           priorTo,
         ),
         this.getDailyAttendanceKpi(
+          ctx,
           branchId,
           country,
           dateFrom,
@@ -167,10 +168,13 @@ export class AnalyticsService {
   // ─── Attendance Analytics ──────────────────────────────────────────────────
 
   /**
-   * Fase 174.1-03 (D-02): `ctx` PRIMERO. `getSlotOccupancy`/`getNoShowRate`
-   * tocan `bookings`/`schedules` (boundary de scheduling). `getDailyCheckins`/
-   * `getPeakHoursHeatmap` solo leen `attendance` (fuera del boundary de esta
-   * fase) y no reciben `ctx`.
+   * T-175.1-01-03 (D-04, hallazgo del gap-fix): `getDailyCheckins`/
+   * `getPeakHoursHeatmap` NO recibían `ctx` (fase 174.1-03, D-02, las dejó
+   * documentalmente fuera del boundary de esa fase por leer solo
+   * `attendance`) — sin filtro de tenant, con `branchId`/`country` ambos
+   * `undefined` (vista "todas las sedes" del admin) leían `attendance` de
+   * TODOS los gimnasios mezclado. `ctx` ya estaba disponible en este call
+   * site; se threadea a las dos.
    */
   async getAttendanceAnalytics(
     ctx: TenantContext,
@@ -182,8 +186,8 @@ export class AnalyticsService {
 
     const [dailyCheckins, peakHoursHeatmap, slotOccupancy, noShowRate] =
       await Promise.all([
-        this.getDailyCheckins(branchId, country, dateFrom, dateTo),
-        this.getPeakHoursHeatmap(branchId, country, dateFrom, dateTo),
+        this.getDailyCheckins(ctx, branchId, country, dateFrom, dateTo),
+        this.getPeakHoursHeatmap(ctx, branchId, country, dateFrom, dateTo),
         this.getSlotOccupancy(ctx, branchId, country, dateFrom, dateTo),
         this.getNoShowRate(ctx, branchId, country, dateFrom, dateTo),
       ]);
@@ -342,6 +346,7 @@ export class AnalyticsService {
   }
 
   private async getDailyAttendanceKpi(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -350,12 +355,14 @@ export class AnalyticsService {
     priorTo: string,
   ): Promise<{ value: number; trend: Trend }> {
     const currentAvg = await this.computeDailyAvg(
+      ctx,
       branchId,
       country,
       dateFrom,
       dateTo,
     );
     const priorAvg = await this.computeDailyAvg(
+      ctx,
       branchId,
       country,
       priorFrom,
@@ -924,6 +931,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async getDailyCheckins(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -931,7 +939,8 @@ export class AnalyticsService {
   ): Promise<Array<{ date: string; count: number }>> {
     // Phase 117 D-08: half-open [dateFrom, dateTo+1) on the raw column keeps the
     // checkedInAt index usable (DATE(col) wrapped the column and forced a scan).
-    const conditions: ReturnType<typeof eq>[] = [
+    /* tenant-safe: solo el filtro de rango de fecha/sede/país — el tenantWhere(schema.attendance, ctx) real se aplica más abajo en el .where() del build de la query, ver T-175.1-01-03 */
+    const conditions: SQL[] = [
       sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
       sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
     ];
@@ -943,27 +952,32 @@ export class AnalyticsService {
       conditions.push(eq(schema.branches.country, country));
     }
 
-    const base = this.db
+    // T-175.1-01-03 (D-04): `tenantWhere` INLINE y `.where(...)` va ANTES del
+    // `.innerJoin` condicional a `branches` (D-02, `$dynamic()` — el orden de
+    // encadenado no cambia el SQL, Drizzle arma por config acumulada). Así
+    // `.from(schema.attendance)` y el `tenantWhere` quedan en el MISMO
+    // statement de JS.
+    let query = this.db
       .select({
         date: sql<string>`DATE(${schema.attendance.checkedInAt})`,
         count: sql<number>`COUNT(*)`,
       })
-      .from(schema.attendance);
+      .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
+      .$dynamic();
 
-    const rows =
-      country !== undefined
-        ? await base
-            .innerJoin(
-              schema.branches,
-              eq(schema.branches.id, schema.attendance.branchId),
-            )
-            .where(and(...conditions))
-            .groupBy(sql`DATE(${schema.attendance.checkedInAt})`)
-            .orderBy(sql`DATE(${schema.attendance.checkedInAt})`)
-        : await base
-            .where(and(...conditions))
-            .groupBy(sql`DATE(${schema.attendance.checkedInAt})`)
-            .orderBy(sql`DATE(${schema.attendance.checkedInAt})`);
+    if (country !== undefined) {
+      /* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
+      query = query.innerJoin(
+        schema.branches,
+        sql`/* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
+      );
+    }
+
+    /* tenant-safe: mismo `query` ya scopeado por tenantWhere(schema.attendance, ctx) arriba en el .where() del build, ver T-175.1-01-03 */
+    const rows = await query
+      .groupBy(sql`DATE(${schema.attendance.checkedInAt})`)
+      .orderBy(sql`DATE(${schema.attendance.checkedInAt})`);
 
     return rows.map((r) => ({
       date: String(r.date),
@@ -972,6 +986,7 @@ export class AnalyticsService {
   }
 
   private async getPeakHoursHeatmap(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -980,7 +995,8 @@ export class AnalyticsService {
     // Phase 117 D-08: half-open [dateFrom, dateTo+1) on the raw column keeps the
     // checkedInAt index usable. (The DAYOFWEEK/HOUR projections below still need
     // the raw timestamp — only the range filter is de-wrapped.)
-    const conditions: ReturnType<typeof eq>[] = [
+    /* tenant-safe: solo el filtro de rango de fecha/sede/país — el tenantWhere(schema.attendance, ctx) real se aplica más abajo en el .where() del build de la query, ver T-175.1-01-03 */
+    const conditions: SQL[] = [
       sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
       sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
     ];
@@ -1010,41 +1026,45 @@ export class AnalyticsService {
     // that franja; that's a heatmap-shaped change out of scope here. The
     // per-slot fix (WR-03) lands in getSlotOccupancy below; this stays
     // normalized by the branch cap until a follow-up phase revisits it.
+    // T-175.1-01-03 (D-04): `tenantWhere(schema.branches, ctx)` explícito —
+    // `branchId` es input del caller; sin el filtro, un `branchId` de OTRO
+    // gimnasio filtraba su `maxCapacity` igual.
     let maxCapacity = 22; // default
     if (branchId !== undefined) {
       const [branch] = await this.db
         .select({ maxCapacity: schema.branches.maxCapacity })
         .from(schema.branches)
-        .where(eq(schema.branches.id, branchId));
+        .where(
+          and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        );
       if (branch) maxCapacity = branch.maxCapacity;
     }
 
-    const base = this.db
+    // T-175.1-01-03 (D-04): `tenantWhere` INLINE, mismo statement que
+    // `.from(schema.attendance)` (D-02, `$dynamic()`).
+    let query = this.db
       .select({
         dayOfWeek: sql<number>`DAYOFWEEK(${schema.attendance.checkedInAt})`,
         hour: sql<number>`HOUR(${schema.attendance.checkedInAt})`,
         total: sql<number>`COUNT(*)`,
       })
-      .from(schema.attendance);
+      .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
+      .$dynamic();
 
-    const rows =
-      country !== undefined
-        ? await base
-            .innerJoin(
-              schema.branches,
-              eq(schema.branches.id, schema.attendance.branchId),
-            )
-            .where(and(...conditions))
-            .groupBy(
-              sql`DAYOFWEEK(${schema.attendance.checkedInAt})`,
-              sql`HOUR(${schema.attendance.checkedInAt})`,
-            )
-        : await base
-            .where(and(...conditions))
-            .groupBy(
-              sql`DAYOFWEEK(${schema.attendance.checkedInAt})`,
-              sql`HOUR(${schema.attendance.checkedInAt})`,
-            );
+    if (country !== undefined) {
+      /* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
+      query = query.innerJoin(
+        schema.branches,
+        sql`/* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
+      );
+    }
+
+    /* tenant-safe: mismo `query` ya scopeado por tenantWhere(schema.attendance, ctx) arriba en el .where() del build, ver T-175.1-01-03 */
+    const rows = await query.groupBy(
+      sql`DAYOFWEEK(${schema.attendance.checkedInAt})`,
+      sql`HOUR(${schema.attendance.checkedInAt})`,
+    );
 
     return rows.map((r) => {
       // MySQL DAYOFWEEK: 1=Sunday, 2=Monday...7=Saturday
@@ -1103,12 +1123,17 @@ export class AnalyticsService {
     const weeksInPeriod = Math.max(1, totalDays / 7);
 
     // Get branch capacity
+    // T-175.1-01-03 (D-04): `tenantWhere(schema.branches, ctx)` explícito —
+    // `branchId` es input del caller; sin el filtro, un `branchId` de OTRO
+    // gimnasio filtraba su `maxCapacity` igual.
     let maxCapacity = 22;
     if (branchId !== undefined) {
       const [branch] = await this.db
         .select({ maxCapacity: schema.branches.maxCapacity })
         .from(schema.branches)
-        .where(eq(schema.branches.id, branchId));
+        .where(
+          and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        );
       if (branch) maxCapacity = branch.maxCapacity;
     }
 
@@ -1215,12 +1240,13 @@ export class AnalyticsService {
         ),
       );
 
+    /* tenant-safe: branches joineado por FK para resolver country de una fila de schedules ya scopeada por tenantWhere en `base` arriba, no expone datos cross-gym (D4) */
     const [result] =
       country !== undefined
         ? await base
             .innerJoin(
               schema.branches,
-              eq(schema.branches.id, schema.schedules.branchId),
+              sql`/* tenant-safe: branches joineado por FK para resolver country de una fila de schedules ya scopeada por tenantWhere en \`base\` arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.schedules.branchId}`,
             )
             .where(and(...conditions))
         : await base.where(and(...conditions));
@@ -1611,6 +1637,7 @@ export class AnalyticsService {
   }
 
   private async computeDailyAvg(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1618,7 +1645,13 @@ export class AnalyticsService {
   ): Promise<number> {
     // Phase 117 D-08: half-open [dateFrom, dateTo+1) keeps the checkedInAt index
     // usable instead of wrapping the column in DATE().
-    const conditions: ReturnType<typeof eq>[] = [
+    // T-175.1-01-03 (D-04, hallazgo del gap-fix): `computeDailyAvg` NO recibía
+    // `ctx` (mismo gap documentado en `getDailyCheckins`/`getPeakHoursHeatmap`
+    // arriba) — sin filtro de tenant, con branchId/country ambos undefined
+    // leía `attendance` de TODOS los gimnasios. `ctx` ya estaba disponible en
+    // `getDailyAttendanceKpi`; se threadea.
+    /* tenant-safe: solo el filtro de rango de fecha/sede/país — el tenantWhere(schema.attendance, ctx) real se aplica más abajo en el .where() del build de la query, ver T-175.1-01-03 */
+    const conditions: SQL[] = [
       sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
       sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
     ];
@@ -1630,19 +1663,21 @@ export class AnalyticsService {
       conditions.push(eq(schema.branches.country, country));
     }
 
-    const base = this.db
+    let query = this.db
       .select({ count: sql<number>`COUNT(*)` })
-      .from(schema.attendance);
+      .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
+      .$dynamic();
 
-    const [result] =
-      country !== undefined
-        ? await base
-            .innerJoin(
-              schema.branches,
-              eq(schema.branches.id, schema.attendance.branchId),
-            )
-            .where(and(...conditions))
-        : await base.where(and(...conditions));
+    if (country !== undefined) {
+      /* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
+      query = query.innerJoin(
+        schema.branches,
+        sql`/* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
+      );
+    }
+
+    const [result] = await query;
 
     const total = Number(result?.count ?? 0);
 
