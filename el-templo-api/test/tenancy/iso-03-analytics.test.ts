@@ -908,6 +908,41 @@ describe("frecuencia de asistencia — GET /api/admin/analytics/frequency", () =
 describe("calificación de clases — GET /api/admin/analytics/class-ratings", () => {
   const RUTA = "GET /api/admin/analytics/class-ratings";
 
+  // SIN branchId ("todas las sedes", vista real del owner) — a diferencia
+  // del resto de esta batería, que siempre pasa `branchId` propio. Se agrega
+  // por un hallazgo de la mutación de cierre (Task 2, ver el SUMMARY): con
+  // `branchId` puesto, un `branches.id` es único por gimnasio y por sí solo
+  // ya aísla — la mutación que le sacó el `tenantWhere(coach_ratings, ctx)`
+  // a `getOverall` NO se puso roja con `branchId`. Sin `branchId` el ÚNICO
+  // filtro posible es `tenantWhere`, y ahí SÍ se detectó la fuga (avgStars
+  // pasó de 5 a 3, mezclado con el 1 de El Templo — transcripto en el
+  // SUMMARY). Este caso cierra ese hueco de cobertura de forma permanente.
+  it("aislamiento (sin branchId, vista 'todas las sedes'): overall del gimnasio 2 sigue siendo SOLO su propia calificación", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${BASE}/class-ratings?dateFrom=${DATE_FROM}&dateTo=${DATE_TO}`,
+      headers: { authorization: `Bearer ${gym2.adminToken}` },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      overall: { avgStars: number | null; count: number };
+    };
+    expect(
+      body.overall.count,
+      porQueImportaLaMetrica(
+        RUTA,
+        "overall.count sin branchId debería seguir siendo 1 (propio), no 2 (mezclado con El Templo)",
+      ),
+    ).toBe(1);
+    expect(
+      body.overall.avgStars,
+      porQueImportaLaMetrica(
+        RUTA,
+        "overall.avgStars sin branchId debería seguir siendo 5 (propio); mezclado con el 1 de El Templo da 3",
+      ),
+    ).toBe(5);
+  });
+
   it("aislamiento: overall del gimnasio 2 es SOLO su propia calificación (avgStars=5, count=1)", async () => {
     const res = await getComoGimnasioDos("/class-ratings");
     expect(res.statusCode, res.body).toBe(200);
