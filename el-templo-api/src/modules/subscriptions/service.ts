@@ -1786,6 +1786,17 @@ export class SubscriptionService {
     // architectural change).
     const { subscriptionId, replacementCredits } = await this.db.transaction(
       async (tx) => {
+        // Fase 175.1-08 (D1/T-175.1-08-01): guard TEMPRANO — `input.branchId`
+        // es un dato de entrada del payload y hasta acá solo se validaba
+        // contra el gimnasio dentro del sub-flujo condicional de migración
+        // virtual→física, más abajo (que no corre en todos los casos). Sin
+        // este guard, un alta con `branchId` de otro gimnasio envenenaba la FK
+        // `subscriptions.branch_id`. Mismo idioma que `members/service.ts:852`
+        // — se resuelve DENTRO de esta misma tx (404 "Sede no encontrada",
+        // jamás un código de acceso denegado, D-06) y se usa `branch.id` (la
+        // fila YA resuelta) en el insert, nunca el número crudo del payload.
+        const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
         // Insert subscription. `currency` is inherited from the plan so EUR
         // plans produce EUR subscriptions (defense in depth — the country
         // guard above already prevents cross-country assignments).
@@ -1806,7 +1817,7 @@ export class SubscriptionService {
           tenantValues(ctx, {
             userId,
             planId: input.planId,
-            branchId: input.branchId,
+            branchId: branch.id,
             status: initialStatus,
             startDate: input.startDate,
             endDate: endDateStr,
@@ -3841,11 +3852,18 @@ export class SubscriptionService {
       // Fase 174-02: DEUDA de `:3547` (D-02/D-13) saldada — `tenantValues(ctx, {...})`,
       // mismo idioma que el insert ya migrado de `assignPlan`.
       const { newSubscriptionId } = await this.db.transaction(async (tx) => {
+        // Fase 175.1-08 (D1/T-175.1-08-01): guard TEMPRANO, mismo idioma que
+        // el sitio gemelo en `assignPlan` — `input.branchId` no se validaba
+        // acá salvo dentro del sub-flujo condicional de migración
+        // virtual→física, más abajo (fuera de esta tx, sobre `this.db`), que
+        // no cubre todos los caminos. Se usa `branch.id` en el insert.
+        const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
         const insResult = await tx.insert(schema.subscriptions).values(
           tenantValues(ctx, {
             userId,
             planId: input.planId,
-            branchId: input.branchId,
+            branchId: branch.id,
             status: "active",
             startDate: input.startDate,
             endDate: endDateStr,
@@ -4333,11 +4351,18 @@ export class SubscriptionService {
     // Fase 174-02: DEUDA de `:4018` (D-02/D-13) saldada — `tenantValues(ctx, {...})`,
     // mismo idioma que `changePlanNow`/`assignPlan`.
     const { newSubscriptionId } = await this.db.transaction(async (tx) => {
+      // Fase 175.1-08 (D1/T-175.1-08-01): guard TEMPRANO — `changePlanAfterCurrent`
+      // no validaba `input.branchId` contra el gimnasio en NINGÚN camino (gap
+      // total, a diferencia de `assignPlan`/`changePlanNow` que al menos lo
+      // cubrían en el sub-flujo condicional de migración virtual→física). Se
+      // usa `branch.id` en el insert.
+      const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
       const insResult = await tx.insert(schema.subscriptions).values(
         tenantValues(ctx, {
           userId,
           planId: input.planId,
-          branchId: input.branchId,
+          branchId: branch.id,
           status: "scheduled",
           startDate: newStartDate,
           endDate: newEndDate,
