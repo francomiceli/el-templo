@@ -165,14 +165,14 @@ describe("lint-tenant — motor sobre fixtures", () => {
       "accesos.ts activities query-builder viola",
       // joinSinFiltro: el JOIN genera su propio par (WR-01) y se visita ANTES
       // que el `.from()` interno, porque es el nodo más externo del encadenado.
-      // Tablas `campaigns`/`completed_sessions` (no `schedules`/`bookings`,
-      // fase 174.1): ver docblock en accesos.ts.
-      "accesos.ts campaigns query-builder viola",
+      // Tablas `day_modes`/`completed_sessions` (no `schedules`/`bookings`,
+      // fase 174.1; no `campaigns`, fase 175.1): ver docblock en accesos.ts.
+      "accesos.ts day_modes query-builder viola",
       // joinSinFiltro: …y el `from` sigue produciendo el suyo.
       "accesos.ts completed_sessions query-builder viola",
       // joinConTenantWhere: el mismo join, con el gimnasio nombrado en el
       // statement. Sumar los joins no inventa rojos donde el sitio cumple.
-      "accesos.ts campaigns query-builder cumple",
+      "accesos.ts day_modes query-builder cumple",
       "accesos.ts completed_sessions query-builder cumple",
     ]);
   });
@@ -246,7 +246,7 @@ describe("lint-tenant — motor sobre fixtures", () => {
       // local, `alias()` en variable y las dos del join sin filtro.
       "accesos.ts attendance query-builder viola",
       "accesos.ts activities query-builder viola",
-      "accesos.ts campaigns query-builder viola",
+      "accesos.ts day_modes query-builder viola",
       "accesos.ts completed_sessions query-builder viola",
       "exenciones.ts day_modes query-builder viola",
       "exenciones.ts attendance query-builder viola",
@@ -457,11 +457,18 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
         "dejándola sin deuda (48). (En el mismo plan se arreglaron fugas reales cross-tenant en " +
         "`coach_ratings` y `attendance` con tenantWhere real, pero esas tablas conservan deuda ajena fuera " +
         "de scope 175.1 —ratings/reports/segmentation, fase 176— así que NO bajan este número.) " +
+        "El 175.1-07 (el switch de los 6 módulos restantes) tenant-izó `listPromoPlans` en " +
+        "`subscriptions/service.ts` —el `tenantWhere` se armaba en un array `conditions` en un statement " +
+        "separado del `.where()`, invisible al lint por-statement (mismo patrón que `reports/service.ts:1545`)— " +
+        "que era el ÚLTIMO acceso vivo de `promo_plans` en todo el repo, dejándola sin deuda (47). El switch " +
+        "EN SÍ (agregar las 6 entradas a TENANT_STRICT_MODULES) no baja este número: las 18 tablas del " +
+        "boundary ya tenían 0 deuda de allowlist desde la fase 175 — la única baja real de 175.1-07 es " +
+        "esta, y es previa al switch (commit `9c89312c`, antes del commit `9a43d624` que agrega las entradas). " +
         "Si este número baja SIN que la " +
         "baja quede contabilizada tabla por tabla (una tabla que entró a TENANT_STRICT_MODULES, o " +
         "un acceso migrado que sale como staleNoLongerViolating de la allowlist), alguna forma de " +
         "import volvió a quedar afuera del lint.",
-    ).toBeGreaterThanOrEqual(48);
+    ).toBeGreaterThanOrEqual(47);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
@@ -588,18 +595,21 @@ function lintFixture(
  * mensaje del gate sigue nombrando la misma entrada de siempre.
  *
  * Ni `member_profiles` ni `users` aparecen acá (fase 173-30), ni `bookings`,
- * `schedules`, `subscriptions` o `subscription_plans` (fase 174.1): las
- * primeras dos entraron a `TENANT_STRICT_MODULES` con la adopción de
- * `members`, las últimas cuatro con el switch de `subscriptions`+
- * `scheduling`, y este `describe` prueba los gates D-13/D-14 aislado de D-15
- * — `completed_sessions`, `campaigns`, `activities` y `day_modes` los
- * reemplazan (ver docblocks de los fixtures).
+ * `schedules`, `subscriptions` o `subscription_plans` (fase 174.1), ni
+ * `campaigns` (fase 175.1 — el switch de `auth`/`campaigns`/
+ * `improvement-proposals`/`notifications`/`referrals`/`wellhub`, 175.1-07):
+ * las primeras dos entraron a `TENANT_STRICT_MODULES` con la adopción de
+ * `members`, las cuatro de subs+scheduling con ESE switch, y `campaigns` con
+ * el de 175.1-07, y este `describe` prueba los gates D-13/D-14 aislado de
+ * D-15 — `completed_sessions`, `day_modes` (×2, en `accesos.ts` reemplazando
+ * a `campaigns`, y en `exenciones.ts` reemplazando a `subscription_plans`,
+ * fase 174.1) y `activities` los reemplazan (ver docblocks de los fixtures).
  */
 const COBERTURA_COMPLETA: AllowlistEntry[] = [
   { file: "accesos.ts", table: "completed_sessions" },
   { file: "accesos.ts", table: "attendance" },
   { file: "accesos.ts", table: "activities" },
-  { file: "accesos.ts", table: "campaigns" },
+  { file: "accesos.ts", table: "day_modes" },
   { file: "exenciones.ts", table: "attendance" },
   { file: "exenciones.ts", table: "day_modes" },
 ];
@@ -618,7 +628,7 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
       "accesos.ts completed_sessions",
       "accesos.ts attendance",
       "accesos.ts activities",
-      "accesos.ts campaigns",
+      "accesos.ts day_modes",
       "accesos.ts completed_sessions",
       "exenciones.ts day_modes",
       "exenciones.ts attendance",
