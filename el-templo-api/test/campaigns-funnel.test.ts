@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -73,7 +73,9 @@ async function seedSentCampaign(): Promise<number> {
   await app.db
     .update(schema.campaigns)
     .set({ sentAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) })
-    .where(eq(schema.campaigns.id, campaignId));
+    .where(
+      sql`/* tenant-safe: update por PK propio (campaignId), fila creada por createTestCampaign en este mismo test */ ${schema.campaigns.id} = ${campaignId}`,
+    );
   return campaignId;
 }
 

@@ -371,6 +371,16 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
    * `subscription_plans`, `subscription_schedule_changes`,
    * `subscription_schedules`, `subscriptions`, `bookings`, `holidays`,
    * `schedule_exceptions`, `schedules`.
+   * Las 18 de `auth`/`campaigns`/`improvement-proposals`/`notifications`/
+   * `referrals`/`wellhub` son el boundary de la fase 175.1 (175.1-07),
+   * migradas juntas en el mismo switch: `promo_plans`, `refresh_tokens`;
+   * `campaign_events`, `campaign_sends`, `campaign_unsubscribes`,
+   * `campaigns`; `improvement_proposals`; `device_tokens`,
+   * `notification_preferences`, `notification_templates`,
+   * `pending_notifications`; `referral_credits`, `referral_cta_clicks`,
+   * `referrals`; `wellhub_bookings`, `wellhub_classes`, `wellhub_events`,
+   * `wellhub_slots`. `analytics` NO está: no posee ninguna tabla propia
+   * (D-01, fase 175.1) — ver el docblock de `TENANT_STRICT_MODULES`.
    * `aura_balances` / `aura_transactions` NO están: las escribe gamification y
    * su throw llega con la adopción de ESE módulo.
    */
@@ -400,9 +410,30 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "subscriptions",
     ],
     scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
+    auth: ["promo_plans", "refresh_tokens"],
+    campaigns: [
+      "campaign_events",
+      "campaign_sends",
+      "campaign_unsubscribes",
+      "campaigns",
+    ],
+    "improvement-proposals": ["improvement_proposals"],
+    notifications: [
+      "device_tokens",
+      "notification_preferences",
+      "notification_templates",
+      "pending_notifications",
+    ],
+    referrals: ["referral_credits", "referral_cta_clicks", "referrals"],
+    wellhub: [
+      "wellhub_bookings",
+      "wellhub_classes",
+      "wellhub_events",
+      "wellhub_slots",
+    ],
   };
 
-  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling)", () => {
+  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub)", () => {
     const normalizar = (registro: Record<string, readonly string[]>) =>
       Object.fromEntries(
         Object.entries(registro).map(([modulo, tablas]) => [

@@ -152,10 +152,15 @@ export class NotificationService {
    * Remove a device token (called when FCM reports token invalid).
    */
   async removeToken(token: string): Promise<void> {
+    // 175.1-07 (D-17, dos canales): este comentario exime al LINT; la MISMA
+    // exención se repite EMBEBIDA en el `sql` de abajo porque el sentinel de
+    // runtime solo lee el SQL final, nunca comentarios TS.
     /* tenant-safe: borrado por token, UNIQUE global (M8) — FCM reporta el token inválido, nunca el usuario/gimnasio dueño (T-175-03) */
     await this.db
       .delete(schema.deviceTokens)
-      .where(eq(schema.deviceTokens.token, token));
+      .where(
+        sql`/* tenant-safe: borrado por token, UNIQUE global (M8) — FCM reporta el token inválido, nunca el usuario/gimnasio dueño (T-175-03) */ ${schema.deviceTokens.token} = ${token}`,
+      );
 
     this.log.info(
       { token: token.slice(0, 20) + "..." },
@@ -179,7 +184,9 @@ export class NotificationService {
         enabled: schema.notificationPreferences.enabled,
       })
       .from(schema.notificationPreferences)
-      .where(eq(schema.notificationPreferences.userId, userId));
+      .where(
+        sql`/* tenant-safe: filtro por userId propio del destinatario — acota a las filas de un solo usuario sin ambigüedad, no hace falta tenant para resolverlas (mismo criterio que resolveUserTenant, T-175-03) */ ${schema.notificationPreferences.userId} = ${userId}`,
+      );
 
     // Default all categories to true
     const prefs: Record<NotificationCategory, boolean> = {
@@ -493,6 +500,7 @@ export class NotificationService {
       .from(schema.pendingNotifications)
       .where(
         and(
+          sql`/* tenant-safe: barrido cron genuinamente cross-tenant — procesa la cola de TODOS los gimnasios en una pasada, ver docblock del método (T-175-03) */ 1 = 1`,
           eq(schema.pendingNotifications.status, "pending"),
           lte(schema.pendingNotifications.scheduledAt, now),
         ),
@@ -514,7 +522,9 @@ export class NotificationService {
       const tokens = await this.db
         .select({ token: schema.deviceTokens.token })
         .from(schema.deviceTokens)
-        .where(eq(schema.deviceTokens.userId, notification.userId));
+        .where(
+          sql`/* tenant-safe: barrido cron genuinamente cross-tenant, userId de la fila ya tenant-correcta de arriba — ver docblock de processQueue (T-175-03) */ ${schema.deviceTokens.userId} = ${notification.userId}`,
+        );
 
       if (tokens.length === 0) {
         /* tenant-safe: update por PK de una fila ya resuelta por el barrido de arriba — ver docblock de processQueue (T-175-03) */
@@ -524,7 +534,9 @@ export class NotificationService {
             status: "failed",
             errorMessage: "No device tokens registered",
           })
-          .where(eq(schema.pendingNotifications.id, notification.id));
+          .where(
+            sql`/* tenant-safe: update por PK de una fila ya resuelta por el barrido de arriba — ver docblock de processQueue (T-175-03) */ ${schema.pendingNotifications.id} = ${notification.id}`,
+          );
 
         failed++;
         continue;
@@ -554,7 +566,9 @@ export class NotificationService {
             status: "sent",
             sentAt: new Date(),
           })
-          .where(eq(schema.pendingNotifications.id, notification.id));
+          .where(
+            sql`/* tenant-safe: update por PK de una fila ya resuelta por el barrido de arriba — ver docblock de processQueue (T-175-03) */ ${schema.pendingNotifications.id} = ${notification.id}`,
+          );
 
         // Increment sentCount on template if applicable (per D-31)
         if (notification.templateId) {
@@ -576,7 +590,9 @@ export class NotificationService {
             status: "failed",
             errorMessage: "All device tokens failed",
           })
-          .where(eq(schema.pendingNotifications.id, notification.id));
+          .where(
+            sql`/* tenant-safe: update por PK de una fila ya resuelta por el barrido de arriba — ver docblock de processQueue (T-175-03) */ ${schema.pendingNotifications.id} = ${notification.id}`,
+          );
 
         failed++;
       }
@@ -684,7 +700,9 @@ export class NotificationService {
     const [notification] = await this.db
       .select({ templateId: schema.pendingNotifications.templateId })
       .from(schema.pendingNotifications)
-      .where(eq(schema.pendingNotifications.id, notificationId))
+      .where(
+        sql`/* tenant-safe: notificationId es la PK propia de la fila, pre-scope — no hay ctx en esta ruta pública (T-175-03) */ ${schema.pendingNotifications.id} = ${notificationId}`,
+      )
       .limit(1);
 
     if (!notification?.templateId) {
@@ -728,6 +746,7 @@ export class NotificationService {
       .delete(schema.pendingNotifications)
       .where(
         and(
+          sql`/* tenant-safe: barrido cron genuinamente cross-tenant — purga la cola de TODOS los gimnasios en una pasada, ver docblock del método (T-175-03) */ 1 = 1`,
           inArray(schema.pendingNotifications.status, ["sent", "failed"]),
           lte(schema.pendingNotifications.createdAt, cutoff),
         ),

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq, isNull, isNotNull, sql } from "drizzle-orm";
+import { and, isNull, isNotNull, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, registerUser } from "../helpers";
@@ -145,7 +145,7 @@ describe("Refresh Tokens — integración (Phase 116 Req 14)", () => {
       .select()
       .from(schema.refreshTokens)
       .where(
-        eq(schema.refreshTokens.tokenHash, hashToken(session.refreshToken)),
+        sql`/* tenant-safe: lookup por token_hash, UNIQUE global (M8) */ ${schema.refreshTokens.tokenHash} = ${hashToken(session.refreshToken)}`,
       )
       .limit(1);
     expect(oldRow).toBeDefined();
@@ -156,7 +156,9 @@ describe("Refresh Tokens — integración (Phase 116 Req 14)", () => {
     const [newRow] = await app.db
       .select()
       .from(schema.refreshTokens)
-      .where(eq(schema.refreshTokens.tokenHash, hashToken(body.refreshToken)))
+      .where(
+        sql`/* tenant-safe: lookup por token_hash, UNIQUE global (M8) */ ${schema.refreshTokens.tokenHash} = ${hashToken(body.refreshToken)}`,
+      )
       .limit(1);
     expect(newRow).toBeDefined();
     expect(newRow.revokedAt).toBeNull();
@@ -183,7 +185,7 @@ describe("Refresh Tokens — integración (Phase 116 Req 14)", () => {
    */
   async function ageRevocation(plain: string, seconds: number): Promise<void> {
     await app.db.execute(
-      sql`UPDATE refresh_tokens
+      sql`/* tenant-safe: update por token_hash, UNIQUE global (M8) */ UPDATE refresh_tokens
           SET revoked_at = DATE_SUB(NOW(), INTERVAL ${seconds} SECOND)
           WHERE token_hash = ${hashToken(plain)}`,
     );
@@ -236,7 +238,9 @@ describe("Refresh Tokens — integración (Phase 116 Req 14)", () => {
     const alive = await app.db
       .select()
       .from(schema.refreshTokens)
-      .where(eq(schema.refreshTokens.userId, session.userId));
+      .where(
+        sql`/* tenant-safe: filtro por userId propio (users.id, globalmente único) */ ${schema.refreshTokens.userId} = ${session.userId}`,
+      );
     expect(alive.filter((r) => r.revokedAt === null)).toHaveLength(1);
   });
 
@@ -356,14 +360,24 @@ describe("Refresh Tokens — integración (Phase 116 Req 14)", () => {
     const active = await app.db
       .select()
       .from(schema.refreshTokens)
-      .where(isNotNull(schema.refreshTokens.revokedAt));
+      .where(
+        and(
+          sql`/* tenant-safe: barrido de la corrida de este test, sin fixture de 2do tenant — filtrado en JS por session.userId abajo */ 1 = 1`,
+          isNotNull(schema.refreshTokens.revokedAt),
+        ),
+      );
     const revokedMine = active.filter((r) => r.userId === session.userId);
     expect(revokedMine.length).toBeGreaterThan(0);
 
     const stillActive = await app.db
       .select()
       .from(schema.refreshTokens)
-      .where(isNull(schema.refreshTokens.revokedAt));
+      .where(
+        and(
+          sql`/* tenant-safe: barrido de la corrida de este test, sin fixture de 2do tenant — filtrado en JS por session.userId abajo */ 1 = 1`,
+          isNull(schema.refreshTokens.revokedAt),
+        ),
+      );
     const mineActive = stillActive.filter((r) => r.userId === session.userId);
     expect(mineActive.length).toBe(0);
   });

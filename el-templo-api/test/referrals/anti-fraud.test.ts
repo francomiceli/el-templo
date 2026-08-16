@@ -11,7 +11,7 @@
  *  - toda alta exitosa deja el nuevo socio con referral_code eager (D-25)
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { users } from "../../src/db/schema/users";
@@ -104,7 +104,9 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     const [link] = await app.db
       .select()
       .from(referrals)
-      .where(eq(referrals.referredId, memberId));
+      .where(
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${referrals.referredId} = ${memberId}`,
+      );
     expect(link).toBeDefined();
     expect(link.referrerId).toBe(referrerId);
     expect(link.status).toBe("pending");
@@ -127,7 +129,9 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     const links = await app.db
       .select()
       .from(referrals)
-      .where(eq(referrals.referredId, memberId));
+      .where(
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${referrals.referredId} = ${memberId}`,
+      );
     expect(links).toHaveLength(0);
 
     const [u] = await app.db
@@ -149,6 +153,7 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     // mismo referred_id debe romper por el UNIQUE de referrals.referred_id.
     await expect(
       app.db.insert(referrals).values({
+        tenantId: TENANT_TEMPLO,
         referrerId: referrerB,
         referredId: memberId,
         status: "pending",
@@ -165,7 +170,9 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     const links = await app.db
       .select()
       .from(referrals)
-      .where(eq(referrals.referredId, memberId));
+      .where(
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${referrals.referredId} = ${memberId}`,
+      );
     expect(links).toHaveLength(0);
 
     const [u] = await app.db

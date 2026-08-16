@@ -13,13 +13,17 @@
  * de Drizzle guardado en variable y la tabla joineada. Las tres dejaban el
  * build en VERDE con un acceso sin `tenant_id` escrito así.
  *
- * Tablas `completed_sessions`/`campaigns`/`activities` (no `bookings`/
- * `schedules`/`subscriptions`, fase 174.1): esas tres entraron a
- * `TENANT_STRICT_MODULES` con el switch de `subscriptions`+`scheduling`, y
- * este `describe` prueba los gates D-13/D-14/WR-01/CR-01 aislado de D-15 —
- * mismo criterio que el resto de los swaps de este archivo (fase 173-30 lo
- * documentó primero para `member_profiles`/`users`): si la tabla del fixture
- * pasa a ser strict de verdad, se cambia la tabla, no la aserción.
+ * Tablas `completed_sessions`/`day_modes`/`activities` (no `bookings`/
+ * `schedules`/`subscriptions`/`campaigns`, fases 174.1 y 175.1): esas cuatro
+ * entraron a `TENANT_STRICT_MODULES` con el switch de
+ * `subscriptions`+`scheduling` (174.1-10) y el switch de
+ * `auth`+`campaigns`+`improvement-proposals`+`notifications`+`referrals`+
+ * `wellhub` (175.1-07), y este `describe` prueba los gates D-13/D-14/WR-01/
+ * CR-01 aislado de D-15 — mismo criterio que el resto de los swaps de este
+ * archivo (fase 173-30 lo documentó primero para `member_profiles`/`users`):
+ * si la tabla del fixture pasa a ser strict de verdad, se cambia la tabla, no
+ * la aserción. `campaigns` (usada acá hasta 175.1) se repuntó a `day_modes`:
+ * ambas gym-owned, ninguna con FK real entre sí — el join es sintético.
  */
 
 import { eq, sql } from "drizzle-orm";
@@ -108,32 +112,34 @@ export function selectPorAliasDeDrizzle(db: FakeDb): FakeDb {
 }
 
 /**
- * DOS VIOLACIONES (`campaigns` por el join, `completed_sessions` por el
+ * DOS VIOLACIONES (`day_modes` por el join, `completed_sessions` por el
  * from), las dos query-builder.
  *
  * El par nuevo del ratchet es el del JOIN (WR-01): la clave es el par
  * (archivo, tabla) y no el statement, así que un join sin scope a otra tabla
  * gym-owned crecía deuda en silencio aunque el `from` ya estuviera listado.
  *
- * Tablas `campaigns`/`completed_sessions` (no `schedules`/`bookings`, fase
- * 174.1): las dos entraron a `TENANT_STRICT_MODULES` con el switch de
- * scheduling, y este fixture prueba el gate del JOIN (WR-01) aislado de D-15
- * — mismo criterio que el resto de los swaps de este archivo. El join en sí
- * es sintético (no hay FK real entre las dos tablas): lo único que le importa
- * al motor es que las DOS son gym-owned y ninguna trae `tenant_id`.
+ * Tablas `day_modes`/`completed_sessions` (no `schedules`/`bookings`, fase
+ * 174.1; no `campaigns`, fase 175.1): las dos entraron a
+ * `TENANT_STRICT_MODULES` con el switch de scheduling y el switch de
+ * campaigns respectivamente, y este fixture prueba el gate del JOIN (WR-01)
+ * aislado de D-15 — mismo criterio que el resto de los swaps de este
+ * archivo. El join en sí es sintético (no hay FK real entre las dos tablas):
+ * lo único que le importa al motor es que las DOS son gym-owned y ninguna
+ * trae `tenant_id`.
  */
 export function joinSinFiltro(db: FakeDb): FakeDb {
   return db
     .select()
     .from(schema.completedSessions)
     .innerJoin(
-      schema.campaigns,
-      eq(schema.campaigns.id, schema.completedSessions.id),
+      schema.dayModes,
+      eq(schema.dayModes.id, schema.completedSessions.id),
     );
 }
 
 /**
- * CUMPLEN LOS DOS (`campaigns` y `completed_sessions`) — el mismo join, con
+ * CUMPLEN LOS DOS (`day_modes` y `completed_sessions`) — el mismo join, con
  * `tenantWhere` en el `.where(...)` del mismo statement.
  *
  * Es el caso que prueba que sumar los joins a `TABLE_METHODS` no inventa rojos
@@ -144,8 +150,8 @@ export function joinConTenantWhere(db: FakeDb, ctx: FakeCtx): FakeDb {
     .select()
     .from(schema.completedSessions)
     .innerJoin(
-      schema.campaigns,
-      eq(schema.campaigns.id, schema.completedSessions.id),
+      schema.dayModes,
+      eq(schema.dayModes.id, schema.completedSessions.id),
     )
     .where(tenantWhere(schema.completedSessions, ctx));
 }

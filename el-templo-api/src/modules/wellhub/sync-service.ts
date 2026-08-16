@@ -602,7 +602,6 @@ export class WellhubSyncService {
     // tenant explícitamente. El JOIN a `branches` deriva el tenant real de la
     // fila, que se usa para el UPDATE de abajo (mismo criterio "anchor
     // derivado" que `handleBookingCanceled` en `service.ts`).
-    /* tenant-safe: scheduleId+sessionDate componen un unique index propio, sin ambiguedad cross-tenant; el tenant se deriva de la fila (branches.tenantId) para el UPDATE que sigue */
     const [slot] = await this.db
       .select({
         id: schema.wellhubSlots.id,
@@ -624,6 +623,7 @@ export class WellhubSyncService {
       )
       .where(
         and(
+          sql`/* tenant-safe: scheduleId+sessionDate componen un unique index propio, sin ambiguedad cross-tenant; el tenant se deriva de la fila (branches.tenantId) para el UPDATE que sigue */ 1 = 1`,
           eq(schema.wellhubSlots.scheduleId, scheduleId),
           eq(schema.wellhubSlots.sessionDate, date),
         ),

@@ -55,8 +55,8 @@ async function linkQualified(
   status: "qualified" | "pending" = "qualified",
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at)
-        VALUES (${referrerId}, ${referredId}, ${status}, 'assisted', NOW())`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel, qualified_at)
+        VALUES (1, ${referrerId}, ${referredId}, ${status}, 'assisted', NOW())`,
   );
 }
 
@@ -153,7 +153,7 @@ describe("ReferralService.qualifyFirstPayment", () => {
     await service.qualifyFirstPayment(CTX, referred.id); // 2da vez = no-op
 
     const rows = await app.db.execute(
-      sql`SELECT status FROM referrals WHERE referred_id = ${referred.id}`,
+      sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ SELECT status FROM referrals WHERE referred_id = ${referred.id}`,
     );
     const statuses = (rows[0] as Array<{ status: string }>).map(
       (r) => r.status,

@@ -61,8 +61,8 @@ async function linkPending(
   referredId: number,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel)
-        VALUES (${referrerId}, ${referredId}, 'pending', 'assisted')`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+        VALUES (1, ${referrerId}, ${referredId}, 'pending', 'assisted')`,
   );
 }
 
@@ -71,8 +71,8 @@ async function linkQualified(
   referredId: number,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at)
-        VALUES (${referrerId}, ${referredId}, 'qualified', 'assisted', NOW())`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel, qualified_at)
+        VALUES (1, ${referrerId}, ${referredId}, 'qualified', 'assisted', NOW())`,
   );
 }
 

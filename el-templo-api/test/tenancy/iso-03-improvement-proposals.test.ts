@@ -40,7 +40,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { Workbook } from "exceljs";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import {
   tenantValues,
@@ -365,7 +365,9 @@ describe("enviar propuesta — POST /api/members/improvement-proposals", () => {
         proposal: schema.improvementProposals.proposal,
       })
       .from(schema.improvementProposals)
-      .where(eq(schema.improvementProposals.memberId, dos.freshMemberId));
+      .where(
+        sql`/* tenant-safe: filtro por memberId propio (users.id, globalmente único) */ ${schema.improvementProposals.memberId} = ${dos.freshMemberId}`,
+      );
     const nueva = filas.find((f) => f.proposal === texto);
     expect(
       nueva?.tenantId,
@@ -393,7 +395,9 @@ describe("enviar propuesta — POST /api/members/improvement-proposals", () => {
         proposal: schema.improvementProposals.proposal,
       })
       .from(schema.improvementProposals)
-      .where(eq(schema.improvementProposals.memberId, templo.freshMemberId));
+      .where(
+        sql`/* tenant-safe: filtro por memberId propio (users.id, globalmente único) */ ${schema.improvementProposals.memberId} = ${templo.freshMemberId}`,
+      );
     const nueva = filas.find((f) => f.proposal === texto);
     expect(nueva?.tenantId).toBe(TENANT_TEMPLO);
     expect(nueva?.branchId).toBe(templo.branchId);

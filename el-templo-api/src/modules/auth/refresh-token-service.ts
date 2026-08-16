@@ -131,11 +131,16 @@ export class RefreshTokenService {
   }
 
   private async findByPlain(plain: string): Promise<RefreshTokenRow | null> {
+    // 175.1-07 (D-17, dos canales): este comentario exime al LINT (ancla AST);
+    // la MISMA exención se repite EMBEBIDA en el `sql` de abajo porque el
+    // sentinel de runtime solo lee el SQL final, nunca comentarios TS.
     /* tenant-safe: lookup pre-scope por hash opaco del token (M8) — el tenant_id recien se conoce DESPUES de encontrar la fila por su hash, componer la unique por tenant seria circular (mismo criterio que tokenHash UNIQUE global, tenant-column.ts:42) */
     const [row] = await this.db
       .select()
       .from(schema.refreshTokens)
-      .where(eq(schema.refreshTokens.tokenHash, this.hash(plain)))
+      .where(
+        sql`/* tenant-safe: lookup pre-scope por hash opaco del token (M8) — el tenant_id recien se conoce DESPUES de encontrar la fila por su hash, componer la unique por tenant seria circular (mismo criterio que tokenHash UNIQUE global, tenant-column.ts:42) */ ${schema.refreshTokens.tokenHash} = ${this.hash(plain)}`,
+      )
       .limit(1);
     return row ?? null;
   }
@@ -251,7 +256,9 @@ export class RefreshTokenService {
     await this.db
       .update(schema.refreshTokens)
       .set({ revokedAt: new Date(), replacedById: newId })
-      .where(eq(schema.refreshTokens.id, row.id));
+      .where(
+        sql`/* tenant-safe: update por PK de row.id, fila ya resuelta (ancla derivada) — mismo criterio que processQueue en notifications/service.ts */ ${schema.refreshTokens.id} = ${row.id}`,
+      );
 
     return { newToken: newPlain, userId: row.userId };
   }
@@ -274,7 +281,9 @@ export class RefreshTokenService {
       const [next] = await this.db
         .select()
         .from(schema.refreshTokens)
-        .where(eq(schema.refreshTokens.id, current.replacedById))
+        .where(
+          sql`/* tenant-safe: select por PK de replacedById, fila ya resuelta (ancla derivada) — mismo criterio que issueReplacementFor de arriba */ ${schema.refreshTokens.id} = ${current.replacedById}`,
+        )
         .limit(1);
       if (!next) return current;
       current = next;
@@ -300,6 +309,7 @@ export class RefreshTokenService {
           .set({ revokedAt: sql`NOW()` })
           .where(
             and(
+              sql`/* tenant-safe: update por PK de current.id, fila ya resuelta (ancla derivada) — mismo criterio que issueReplacementFor de arriba */ 1 = 1`,
               eq(schema.refreshTokens.id, current.id),
               isNull(schema.refreshTokens.revokedAt),
             ),
@@ -310,7 +320,9 @@ export class RefreshTokenService {
       const [next] = await this.db
         .select()
         .from(schema.refreshTokens)
-        .where(eq(schema.refreshTokens.id, current.replacedById))
+        .where(
+          sql`/* tenant-safe: select por PK de replacedById, fila ya resuelta (ancla derivada) — mismo criterio que chainTip de arriba */ ${schema.refreshTokens.id} = ${current.replacedById}`,
+        )
         .limit(1);
       if (!next) return;
       current = next;
@@ -332,6 +344,7 @@ export class RefreshTokenService {
       .set({ revokedAt: new Date() })
       .where(
         and(
+          sql`/* tenant-safe: lookup pre-scope por hash opaco del token (M8) — mismo motivo que findByPlain arriba */ 1 = 1`,
           eq(schema.refreshTokens.tokenHash, this.hash(plainToken)),
           isNull(schema.refreshTokens.revokedAt),
         ),
@@ -349,6 +362,7 @@ export class RefreshTokenService {
       .set({ revokedAt: sql`NOW()` })
       .where(
         and(
+          sql`/* tenant-safe: filtro por userId propio del dueño de la sesion — acota a las filas de un solo usuario sin ambiguedad, userId ya resuelve el gimnasio (mismo criterio que getUserPreferences en notifications/service.ts) */ 1 = 1`,
           eq(schema.refreshTokens.userId, userId),
           isNull(schema.refreshTokens.revokedAt),
         ),

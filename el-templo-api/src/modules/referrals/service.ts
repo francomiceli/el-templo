@@ -684,6 +684,9 @@ export class ReferralService {
         totalClicks: sql<number>`COUNT(*)`,
       })
       .from(referralCtaClicks)
+      .where(
+        sql`/* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */ 1 = 1`,
+      )
       .groupBy(referralCtaClicks.variant);
 
     // Referidos: creados + cualificados por variante (solo los estampados).
@@ -698,7 +701,12 @@ export class ReferralService {
         qualified: sql<number>`SUM(CASE WHEN ${referrals.status} = 'qualified' THEN 1 ELSE 0 END)`,
       })
       .from(referrals)
-      .where(isNotNull(referrals.copyVariant))
+      .where(
+        and(
+          sql`/* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */ 1 = 1`,
+          isNotNull(referrals.copyVariant),
+        ),
+      )
       .groupBy(referrals.copyVariant);
 
     const buildVariant = (v: "A" | "B"): ReferralAbVariantResult => {

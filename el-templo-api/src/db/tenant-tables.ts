@@ -534,6 +534,31 @@ export function isPlatformPhysicalTable(name: string): boolean {
  * (D-05). Una tabla entra a esta lista cuando su módulo dueño la migra entera,
  * no cuando su nombre encaja en un rubro.
  *
+ * La QUINTA entrada la escribe la **fase 175.1** (`auth`, `campaigns`,
+ * `improvement-proposals`, `notifications`, `referrals` y `wellhub` — los SEIS
+ * módulos restantes del core que POSEEN tablas propias, en orden alfabético
+ * entre sí): mismo orden interno de siempre — primero se migraron TODOS los
+ * accesos a sus 18 tablas (la adopción de código la hizo la fase 175, planes
+ * 01..06), y recién después se prendió el interruptor acá.
+ *
+ * `analytics` NO tiene entrada acá, y NO la va a tener nunca (D-01, fase
+ * 175.1): no existe `src/db/schema/analytics.ts` — el módulo no POSEE ninguna
+ * tabla gym-owned, solo LEE tablas que son propiedad de otros módulos
+ * (`branches`, `attendance`, `coach_ratings`, además de `subscriptions`,
+ * `bookings` y `users`, ya strict por sus dueños). Agregar una clave
+ * `analytics: []` mentiría sobre lo que este registro afirma —"módulo → tablas
+ * que ese módulo POSEE y hace throw"— y no encendería ningún throw nuevo,
+ * porque el sentinel indexa por TABLA (`STRICT_SET`), no por módulo. Los
+ * accesos legítimos de analytics a `branches`/`attendance`/`coach_ratings` se
+ * resuelven con la exención `tenant-safe` embebida en el SQL (patrón D4,
+ * fase 175.1-01) verificada caso por caso — no scopeando esas tablas enteras a
+ * strict, porque siguen cargando deuda ajena real de otros módulos
+ * (scheduling, tv, scripts — fase 176). El switch de la 175.1 en sí NO baja el
+ * ratchet `con-06-lint` salvo por `referrals` (única tabla del boundary con 1
+ * sola entrada en todo el repo): las 18 tablas ya tenían 0 deuda de allowlist
+ * desde la fase 175 — ver contabilidad tabla-por-tabla en el docblock de
+ * `con-06-lint.test.ts`.
+ *
  * El gate de forma de `test/db/tenant-tables.test.ts` obliga a que sumar cada
  * entrada nueva sea una decisión de diseño visible en el diff, no un detalle de
  * implementación: exige las tablas exactas de los módulos ya declarados y cruza
@@ -565,6 +590,27 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "subscriptions",
   ],
   scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
+  auth: ["promo_plans", "refresh_tokens"],
+  campaigns: [
+    "campaign_events",
+    "campaign_sends",
+    "campaign_unsubscribes",
+    "campaigns",
+  ],
+  "improvement-proposals": ["improvement_proposals"],
+  notifications: [
+    "device_tokens",
+    "notification_preferences",
+    "notification_templates",
+    "pending_notifications",
+  ],
+  referrals: ["referral_credits", "referral_cta_clicks", "referrals"],
+  wellhub: [
+    "wellhub_bookings",
+    "wellhub_classes",
+    "wellhub_events",
+    "wellhub_slots",
+  ],
 };
 
 const STRICT_SET: ReadonlySet<string> = new Set(

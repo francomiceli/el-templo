@@ -122,8 +122,8 @@ async function linkQualified(
   referredId: number,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at)
-        VALUES (${referrerId}, ${referredId}, 'qualified', 'assisted', NOW())`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel, qualified_at)
+        VALUES (1, ${referrerId}, ${referredId}, 'qualified', 'assisted', NOW())`,
   );
 }
 
@@ -132,8 +132,8 @@ async function linkPending(
   referredId: number,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel)
-        VALUES (${referrerId}, ${referredId}, 'pending', 'assisted')`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+        VALUES (1, ${referrerId}, ${referredId}, 'pending', 'assisted')`,
   );
 }
 
@@ -150,7 +150,7 @@ async function giveCoverage(
 
 async function readReferralStatus(referredId: number): Promise<string | null> {
   const rows = await app.db.execute(
-    sql`SELECT status FROM referrals WHERE referred_id = ${referredId} LIMIT 1`,
+    sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ SELECT status FROM referrals WHERE referred_id = ${referredId} LIMIT 1`,
   );
   const row = (rows[0] as Array<{ status: string }>)[0];
   return row?.status ?? null;

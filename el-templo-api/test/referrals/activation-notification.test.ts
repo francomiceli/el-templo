@@ -19,6 +19,10 @@ import {
   assignPlan,
 } from "../subscriptions/_helpers";
 import { NotificationService } from "../../src/modules/notifications/service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
+
+// T-175-03: `seedTemplates` ahora exige `ctx` real (siembra por tenant).
+const CTX: TenantContext = { tenantId: 1 };
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -46,7 +50,7 @@ beforeEach(async () => {
         ON DUPLICATE KEY UPDATE setting_value = '40'`,
   );
   // El template referral_link_activated debe existir para poder encolar.
-  await new NotificationService(app.db, app.log).seedTemplates();
+  await new NotificationService(app.db, app.log).seedTemplates(CTX);
 });
 
 /** Crea el vínculo referrer→referred con el status dado (pending por defecto). */
@@ -56,16 +60,16 @@ async function link(
   status: "pending" | "qualified" = "pending",
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel)
-        VALUES (${referrerId}, ${referredId}, ${status}, 'assisted')`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+        VALUES (${CTX.tenantId}, ${referrerId}, ${referredId}, ${status}, 'assisted')`,
   );
 }
 
 /** Registra un device token para el usuario (sin él, queueNotification skippea -1). */
 async function giveDeviceToken(userId: number): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO device_tokens (user_id, token, device_platform)
-        VALUES (${userId}, ${`tok-${userId}-${Date.now()}`}, 'android')`,
+    sql`INSERT INTO device_tokens (tenant_id, user_id, token, device_platform)
+        VALUES (${CTX.tenantId}, ${userId}, ${`tok-${userId}-${Date.now()}`}, 'android')`,
   );
 }
 
@@ -77,7 +81,7 @@ async function readNotifications(
     sql`SELECT pn.body AS body, t.template_key AS template_key
         FROM pending_notifications pn
         LEFT JOIN notification_templates t ON t.id = pn.template_id
-        WHERE pn.user_id = ${userId}`,
+        WHERE pn.user_id = ${userId} AND pn.tenant_id = ${CTX.tenantId}`,
   );
   return rows[0] as Array<{ body: string; template_key: string | null }>;
 }
@@ -156,7 +160,7 @@ describe("Referral activation notification on first payment", () => {
 
     // El flip igual ocurrió (el vínculo cualificó); solo la notificación se saltó.
     const l = await app.db.execute(
-      sql`SELECT status FROM referrals WHERE referred_id = ${referred.id} LIMIT 1`,
+      sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ SELECT status FROM referrals WHERE referred_id = ${referred.id} LIMIT 1`,
     );
     expect((l[0] as Array<{ status: string }>)[0]?.status).toBe("qualified");
 

@@ -56,8 +56,8 @@ async function link(
   status: "qualified" | "pending" = "pending",
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel)
-        VALUES (${referrerId}, ${referredId}, ${status}, 'assisted')`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+        VALUES (1, ${referrerId}, ${referredId}, ${status}, 'assisted')`,
   );
 }
 
@@ -77,7 +77,7 @@ async function readLink(
   referredId: number,
 ): Promise<{ status: string; qualified_at: string | null } | undefined> {
   const rows = await app.db.execute(
-    sql`SELECT status, qualified_at FROM referrals WHERE referred_id = ${referredId} LIMIT 1`,
+    sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ SELECT status, qualified_at FROM referrals WHERE referred_id = ${referredId} LIMIT 1`,
   );
   return (rows[0] as Array<{ status: string; qualified_at: string | null }>)[0];
 }
@@ -139,7 +139,7 @@ describe("Referral qualification on first payment (assignPlan)", () => {
     const referred = await createMember(app, { email: "qc-d@test.com" });
     await link(referrer.id, referred.id, "qualified");
     await app.db.execute(
-      sql`UPDATE referrals SET qualified_at = '2020-01-01 00:00:00' WHERE referred_id = ${referred.id}`,
+      sql`/* tenant-safe: update por referred_id, UNIQUE (D-14/REF-04) */ UPDATE referrals SET qualified_at = '2020-01-01 00:00:00' WHERE referred_id = ${referred.id}`,
     );
 
     const res = await assignPlan(app, adminToken, referred.id, {

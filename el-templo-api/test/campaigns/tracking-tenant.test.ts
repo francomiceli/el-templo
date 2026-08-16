@@ -29,7 +29,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createTestApp, cleanAllTestData, createEligibleFreemium } from "../helpers";
 import {
   seedSecondTenant,
@@ -269,7 +269,12 @@ describe("campaign tracking: supresión de unsubscribes POR TENANT (T-175-02, mi
     });
     expect(res.statusCode).toBe(200);
 
-    const filas = await app.db.select().from(schema.campaignUnsubscribes);
+    const filas = await app.db
+      .select()
+      .from(schema.campaignUnsubscribes)
+      .where(
+        sql`/* tenant-safe: aserción de vacío sobre la corrida de este test, sendId inexistente no crea fila */ 1 = 1`,
+      );
     expect(filas).toHaveLength(0);
   });
 });
