@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "./helpers";
 import * as schema from "../src/db/schema";
 import { NotificationService } from "../src/modules/notifications/service";
@@ -47,7 +47,8 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     // Seed the plan_renewal_warning_* templates BEFORE invoking the cron —
     // queueNotification no-ops without them and the asserts would see 0 rows.
     notificationService = new NotificationService(app.db, app.log);
-    await notificationService.seedTemplates();
+    // T-175-03: `seedTemplates` ahora exige `ctx` real (siembra por tenant).
+    await notificationService.seedTemplates(TEMPLO_CTX);
   });
 
   /**
@@ -75,6 +76,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
   /** Give the member a device token so queueNotification does not skip them. */
   async function giveDeviceToken(userId: number): Promise<void> {
     await app.db.insert(schema.deviceTokens).values({
+      tenantId: TENANT_TEMPLO,
       userId,
       token: `tok-${userId}-${Date.now()}`,
       platform: "android",
@@ -84,6 +86,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
   /** Silence the `planes` category for the member (opt-out). */
   async function silencePlanes(userId: number): Promise<void> {
     await app.db.insert(schema.notificationPreferences).values({
+      tenantId: TENANT_TEMPLO,
       userId,
       category: "planes",
       enabled: false,
@@ -102,7 +105,12 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
           schema.notificationTemplates.id,
         ),
       )
-      .where(eq(schema.pendingNotifications.userId, userId));
+      .where(
+        and(
+          eq(schema.pendingNotifications.userId, userId),
+          eq(schema.pendingNotifications.tenantId, TENANT_TEMPLO),
+        ),
+      );
     return rows.map((r) => r.key);
   }
 
