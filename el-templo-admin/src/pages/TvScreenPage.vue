@@ -898,6 +898,73 @@ onUnmounted(() => {
 #tvScreenRoot .cronometro.corriendo .digitos {
   opacity: 1;
 }
+/* Descanso: dígitos un poco más apagados que el trabajo — segundo canal visual
+   (además del beep de cambio de fase) para distinguir trabajo de descanso. */
+#tvScreenRoot .cronometro.corriendo.descanso .digitos {
+  opacity: 0.72;
+}
+/* Últimos segundos de la fase (clase la pone render.ts: trabajo ≤5", descanso
+   ≤3"): dígitos en ORO titilante. En descanso conserva la opacidad más baja. */
+#tvScreenRoot .cronometro.corriendo.porterminar .digitos {
+  color: var(--gold);
+  animation: titilarOro 0.5s steps(1, end) infinite;
+}
+#tvScreenRoot .cronometro.corriendo.descanso.porterminar .digitos {
+  animation-name: titilarOroDescanso;
+}
+@keyframes titilarOro {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0.35;
+  }
+}
+@keyframes titilarOroDescanso {
+  0%,
+  50% {
+    opacity: 0.72;
+  }
+  50.01%,
+  100% {
+    opacity: 0.2;
+  }
+}
+/* ARRANQUE: al dar INICIAR, los dígitos hacen un envión — oro, pequeña vibración
+   y fade-up hasta desaparecer (clase `.arranque`, ~0.85 s, la pone render.ts).
+   Sin fill-mode: al terminar, los dígitos vuelven a su cuenta normal. */
+#tvScreenRoot .cronometro.arranque .digitos {
+  color: var(--gold);
+  animation: arranqueEnvion 0.8s ease-out;
+}
+@keyframes arranqueEnvion {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  10% {
+    transform: translate(-0.03em, 0) scale(1.02);
+  }
+  22% {
+    transform: translate(0.03em, 0) scale(1.02);
+  }
+  34% {
+    transform: translate(-0.02em, 0) scale(1.02);
+  }
+  46% {
+    transform: translate(0.02em, 0) scale(1.01);
+  }
+  58% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, -0.4em) scale(1.05);
+  }
+}
 #tvScreenRoot .cronometro .barra {
   /* Ancho FIJO (no 84% del cronómetro): en EMOM los dígitos pasan de ":60" a ":9"
      y achicaban el ancho auto del cronómetro, haciendo latir la barra cada segundo.
@@ -921,6 +988,11 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .lista-col .item {
     transition: none;
+  }
+  /* Sin envión ni titileo: el oro de los últimos segundos queda fijo. */
+  #tvScreenRoot .cronometro.arranque .digitos,
+  #tvScreenRoot .cronometro.corriendo.porterminar .digitos {
+    animation: none;
   }
 }
 
