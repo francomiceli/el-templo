@@ -30,7 +30,7 @@ import type { TvClassPayload, TvExercise, TvPollResponse } from './poll';
 /* El relleno a dos digitos vive en `scale.ts`: es el unico helper de relleno de todo
    `src/tv/` (reloj, timer y logger). El metodo nativo del string es ES2017 — Pitfall 5. */
 import { pad2 } from './scale';
-import type { TimerFrame } from './timer';
+import type { TimerFrame, TvTimerStatus } from './timer';
 import { elapsedFrom, formatDigits, phaseAt } from './timer';
 import type { SessionQuote } from '../utils/pdf/quotes';
 
@@ -51,6 +51,9 @@ const QUOTE_ROTATION_MS = 60 * 1000;
 
 /** Lista de mas de esto = modo compacto (UI-SPEC). */
 const COMPACT_OVER = 5;
+
+/** Duración del flourish de arranque (clase `.arranque` sobre el cronómetro). */
+const ARRANQUE_MS = 850;
 
 // =============================================================================
 // Nodos: se buscan UNA vez y se guardan
@@ -275,6 +278,12 @@ let lastQuoteKey = '';
 let lastBeepKey: string | null = null;
 /** Última cadena de formato pintada (con su salto de línea nombre/spec). */
 let lastFormatoRaw: string | null = null;
+/** Estado del timer en el tick anterior — para detectar el ARRANQUE (idle→running). */
+let lastTimerStatus: TvTimerStatus | null = null;
+/** `startedAt` visto por última vez — un valor NUEVO marca un arranque real (no un resume). */
+let lastStartedAt: number | null = null;
+/** Instante (reloj corregido) hasta el que dura el flourish de arranque. */
+let arranqueUntil = 0;
 
 /**
  * Olvida los nodos cacheados y todo el estado de idempotencia.
@@ -295,6 +304,9 @@ export function resetRender(): void {
   lastQuoteKey = '';
   lastBeepKey = null;
   lastFormatoRaw = null;
+  lastTimerStatus = null;
+  lastStartedAt = null;
+  arranqueUntil = 0;
 }
 
 /** Las frases del PDF, que la pantalla pasa una vez al montar (D-06/D-08). */
@@ -646,6 +658,23 @@ function subLine(c: TvClassPayload, round: number, totalRounds: number): string 
   return 'A RITMO PROPIO';
 }
 
+/** Segundos que faltan para el fin de la fase actual (redondeo hacia arriba, como los dígitos). */
+function remainingSeconds(frame: TimerFrame): number {
+  const ms = frame.displayMs > 0 ? frame.displayMs : 0;
+  return Math.ceil(ms / 1000);
+}
+
+/**
+ * Clase ' porterminar' cuando quedan pocos segundos de la fase (dígitos en oro
+ * titilante): trabajo ≤5", descanso ≤3". Solo aplica a bloques de intervalos
+ * (`work_rest`) que cuentan hacia atrás — ROM (`workMs === 0`) cuenta HACIA
+ * ADELANTE, así que su fase de trabajo no tiene "últimos segundos".
+ */
+function endingClass(frame: TimerFrame, threshold: number): string {
+  const s = remainingSeconds(frame);
+  return s >= 1 && s <= threshold ? ' porterminar' : '';
+}
+
 function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
   const t = c.timer;
   const sub = subLine(c, frame.round, frame.totalRounds);
@@ -692,7 +721,8 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
 
   if (frame.phase === 'rest') {
     return {
-      clase: 'corriendo descanso',
+      // Últimos 3" del descanso: oro titilante para anticipar la vuelta al trabajo.
+      clase: 'corriendo descanso' + endingClass(frame, 3),
       digitos: formatDigits(frame.displayMs, shortInterval),
       sub: sub,
       hint: '',
@@ -700,8 +730,12 @@ function timerPaint(c: TvClassPayload, frame: TimerFrame): TimerPaint {
     };
   }
 
+  // Últimos 5" del trabajo en oro titilante — solo en intervalos con cuenta
+  // regresiva (no ROM, que cuenta hacia adelante).
+  const isRom = t.spec.kind === 'work_rest' && t.spec.workMs === 0;
+  const trabajoPorTerminar = t.spec.kind === 'work_rest' && !isRom ? endingClass(frame, 5) : '';
   return {
-    clase: 'corriendo trabajo',
+    clase: 'corriendo trabajo' + trabajoPorTerminar,
     digitos: formatDigits(frame.displayMs, shortInterval),
     sub: sub,
     hint: libre ? 'Formato sin tiempos — cronómetro libre' : '',
@@ -760,7 +794,29 @@ export function tickTimer(): void {
   const frame = phaseAt(elapsedFrom(c.timer, nowCorrected()), c.timer.spec);
   const paint = timerPaint(c, frame);
 
-  setClass(n.timerPanel, 'cronometro' + (paint.clase ? ' ' + paint.clase : ''));
+  // ARRANQUE (D-16 sigue: sin cuenta previa): cuando el profe da INICIAR —una
+  // transición a `running` con un `startedAt` NUEVO, no un resume— se dispara un
+  // flourish de ~0.85 s en los dígitos (oro + vibración + fade-up). El primer
+  // tick observado (status previo desconocido) nunca lo dispara: un TV que se
+  // reconecta en medio de la clase no tiene que pegar el saltito.
+  const t = c.timer;
+  const arranco =
+    lastTimerStatus !== null &&
+    lastTimerStatus !== 'running' &&
+    t.status === 'running' &&
+    t.startedAt !== null &&
+    t.startedAt !== lastStartedAt;
+  if (arranco) {
+    arranqueUntil = nowCorrected() + ARRANQUE_MS;
+  }
+  lastTimerStatus = t.status;
+  lastStartedAt = t.startedAt;
+
+  let clase = 'cronometro' + (paint.clase ? ' ' + paint.clase : '');
+  if (nowCorrected() < arranqueUntil) {
+    clase += ' arranque';
+  }
+  setClass(n.timerPanel, clase);
   setText(n.digitos, paint.digitos);
   updateMarkers(n, c, frame);
   // La barra muestra el tiempo QUE QUEDA: arranca llena (100%) y se vacía a medida que
