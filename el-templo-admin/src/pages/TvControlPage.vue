@@ -29,6 +29,18 @@
           @click="onManualRefresh"
         />
       </div>
+      <!-- Mismo camino que "Mostrar plani en el TV" del modal, pero disponible -->
+      <!-- una vez adentro del control: abre la pantalla de la sede vigente.     -->
+      <div class="col-12 col-sm-auto">
+        <q-btn
+          icon="cast"
+          label="Mostrar plani en el TV"
+          color="secondary"
+          outline
+          :disable="selectedBranchId === null"
+          @click="onShowScreen"
+        />
+      </div>
     </div>
 
     <!-- Carga inicial -->
@@ -733,9 +745,21 @@ async function onBranchChange(): Promise<void> {
  * volver, y en el celular del profe da igual.
  */
 function showScreenFromSelection(): void {
-  const branchId = screenBranchId.value;
-  if (!isValidOption(branchId)) return;
   sedeSelectionOpen.value = false;
+  openScreen(screenBranchId.value);
+}
+
+/**
+ * Camino del televisor de pared, ya adentro del control: abre la pantalla
+ * (`/pantalla-tv`) de la sede vigente. Mismo destino que el botón del modal.
+ */
+function onShowScreen(): void {
+  openScreen(selectedBranchId.value);
+}
+
+/** Abre la pantalla del TV de una sede en la misma pestaña (fuente única del push). */
+function openScreen(branchId: number | null): void {
+  if (!isValidOption(branchId)) return;
   void router.push({ path: '/pantalla-tv', query: { branchId: String(branchId) } });
 }
 
