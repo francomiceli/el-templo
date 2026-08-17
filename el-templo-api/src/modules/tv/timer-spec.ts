@@ -60,15 +60,23 @@ function capOrCountup(timeCapMinutes: number | undefined): TimerSpec {
  * `null` (block without configured params) is a legitimate input and maps to
  * the free count-up stopwatch, same as `standard`/`chipper`.
  */
-export function toTimerSpec(params: FormatParams | null): TimerSpec {
+export function toTimerSpec(
+  params: FormatParams | null,
+  exerciseCount = 1,
+): TimerSpec {
   if (!params) return COUNTUP;
 
   switch (params.type) {
     // ── work / rest cycles ────────────────────────────────────────────────
-    // `interval` and `hiit` have exactly the same shape as `tabata`.
-    case "tabata":
-    case "interval":
-    case "hiit": {
+    // `tabata`, `interval` and `hiit` share the SAME field shape
+    // (`workSeconds`/`restSeconds`/`rounds`), but their `rounds` means two
+    // different things — so the two cases are deliberately split:
+    //
+    //  - `tabata`: `rounds` is the TOTAL count of work/rest intervals. When the
+    //    block lists several exercises they ROTATE across those intervals (a
+    //    tabata ×8 with 4 exercises runs each exercise twice). The interval
+    //    count is `rounds` as-is — never multiplied by the exercise count.
+    case "tabata": {
       const workMs = sanitizeMs(params.workSeconds, MS_PER_SECOND);
       const restMs = sanitizeMs(params.restSeconds, MS_PER_SECOND);
       if (workMs + restMs <= 0) return COUNTUP;
@@ -77,6 +85,28 @@ export function toTimerSpec(params: FormatParams | null): TimerSpec {
         workMs,
         restMs,
         rounds: sanitizeRounds(params.rounds),
+      };
+    }
+
+    //  - `interval` / `hiit`: these are CIRCUITS. `rounds` is the number of laps
+    //    through ALL the block's exercises, so the timer runs
+    //    `exerciseCount × rounds` work/rest cycles. Without the multiplication a
+    //    "45\"/15\" ×2" HIIT with 2 exercises stopped after the 2nd exercise of
+    //    the 1st lap (it did only 2 cycles instead of 4). `exerciseCount`
+    //    defaults to 1, so a single-exercise block — or a caller that does not
+    //    know the count — keeps the pre-fix cycle count.
+    case "interval":
+    case "hiit": {
+      const workMs = sanitizeMs(params.workSeconds, MS_PER_SECOND);
+      const restMs = sanitizeMs(params.restSeconds, MS_PER_SECOND);
+      if (workMs + restMs <= 0) return COUNTUP;
+      const laps = sanitizeRounds(params.rounds);
+      const stations = exerciseCount > 0 ? exerciseCount : 1;
+      return {
+        kind: "work_rest",
+        workMs,
+        restMs,
+        rounds: laps * stations,
       };
     }
 
