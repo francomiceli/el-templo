@@ -903,7 +903,13 @@ export class TvService {
       columns: this.buildColumns(classDay, state, shared, block, formatDictated),
       exerciseIndex: state.exerciseIndex,
       timer: {
-        spec: toTimerSpec(block?.formatParams ?? null),
+        // `mainPrescriptions(block).length` = estaciones del circuito: interval
+        // y hiit corren `estaciones × rondas` ciclos (toTimerSpec). tabata lo
+        // ignora (sus rondas ya son el total de intervalos).
+        spec: toTimerSpec(
+          block?.formatParams ?? null,
+          this.mainPrescriptions(block).length,
+        ),
         status: state.timerStatus,
         startedAt: state.timerStartedAt,
         pausedAt: state.pausedAt,
