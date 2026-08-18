@@ -3,6 +3,20 @@ import { eq, and, gte, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import type { ExerciseQueryInput, SpomLookupInput } from "./schemas";
 
+/**
+ * Map a calendar week onto the rotator cycle.
+ *
+ * The weekly rotator only defines a fixed cycle of weeks (1..cycleWeeks — 26
+ * in the source CSV), while calendar weeks keep counting up to 52. Weeks past
+ * the end of the cycle wrap around so the route rotation repeats (week 27 ->
+ * 1 with a 26-week cycle). Weeks within the cycle pass through unchanged, as
+ * does everything when the table is empty (cycleWeeks <= 0).
+ */
+export function wrapToRotatorCycle(week: number, cycleWeeks: number): number {
+  if (cycleWeeks <= 0 || week <= cycleWeeks) return week;
+  return ((week - 1) % cycleWeeks) + 1;
+}
+
 export class SpomService {
   constructor(private db: MySql2Database<typeof schema>) {}
 
@@ -102,14 +116,24 @@ export class SpomService {
     return rule;
   }
 
-  // Get weekly rotator entry
+  // Get weekly rotator entry.
+  // Weeks beyond the planned cycle wrap around (see wrapToRotatorCycle) —
+  // SPOM rules are intentionally NOT wrapped: spom_rules covers all 52
+  // calendar weeks, so periodization keeps advancing while routes repeat.
   async getWeeklyRotator(week: number, day: string, levelGroup: string) {
+    const [maxRow] = await this.db
+      .select({
+        maxWeek: sql<number | null>`MAX(${schema.weeklyRotator.week})`,
+      })
+      .from(schema.weeklyRotator);
+    const rotatorWeek = wrapToRotatorCycle(week, maxRow?.maxWeek ?? 0);
+
     const [entry] = await this.db
       .select()
       .from(schema.weeklyRotator)
       .where(
         and(
-          eq(schema.weeklyRotator.week, week),
+          eq(schema.weeklyRotator.week, rotatorWeek),
           eq(
             schema.weeklyRotator.day,
             day as
