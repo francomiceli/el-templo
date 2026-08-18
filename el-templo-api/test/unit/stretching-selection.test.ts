@@ -130,7 +130,9 @@ describe("selectStretchingExercises", () => {
     const result = await selectStretchingExercises(createMockDb(), 21, "jueves");
 
     for (const ex of result) {
-      expect(ex.exerciseType).toBe("mobility");
+      // Main-type on purpose (implicit): tagging the whole block "mobility"
+      // made every renderer show it empty (UAT 2026-08-18).
+      expect(ex.exerciseType).toBeUndefined();
       if (ex.contraction === "ISO") {
         expect(ex.seconds).toBeGreaterThan(0);
         expect(ex.reps).toBe(0);

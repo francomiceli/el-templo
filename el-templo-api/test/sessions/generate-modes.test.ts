@@ -100,7 +100,7 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
     await app.db.delete(schema.sessions).where(eq(schema.sessions.week, week));
   }
 
-  it("dayModes:{miercoles:'combos'} persists session_mode='combos' with COMBOS_I/COMBOS_II/STRETCHING roles", async (ctx) => {
+  it("dayModes:{miercoles:'combos'} persists session_mode='combos' with COMBOS_I/COMBOS_II + full-body EPIKOS close", async (ctx) => {
     if (!catalogSeeded) ctx.skip(SKIP_NOTE);
     const week = 40;
     try {
@@ -125,9 +125,13 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
       expect(result!.session.sessionMode).toBe("combos");
 
       const roles = result!.blocks.map((b) => b.role).sort();
+      // Week 40 is even -> the full-body close is EPIKOS (odd weeks: ATHLOS).
       expect(roles).toEqual(
-        ["COMBOS_I", "COMBOS_II", "INITIUM", "STRETCHING"].sort(),
+        ["COMBOS_I", "COMBOS_II", "EPIKOS", "INITIUM"].sort(),
       );
+      const fullBody = result!.blocks.find((b) => b.role === "EPIKOS");
+      expect(fullBody?.route).toBe("FB");
+      expect(fullBody?.formatName).toBe("Circuito cooperativo");
     } finally {
       await cleanupWeek(week);
     }
@@ -187,12 +191,10 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
       expect(result).not.toBeNull();
       const comboI = result!.blocks.find((b) => b.role === "COMBOS_I");
       const comboII = result!.blocks.find((b) => b.role === "COMBOS_II");
-      const stretching = result!.blocks.find((b) => b.role === "STRETCHING");
       // Untruncated round-trip: exact string match against the full role
       // name proves the varchar(20) column didn't cut anything off.
       expect(comboI?.role).toBe("COMBOS_I");
       expect(comboII?.role).toBe("COMBOS_II");
-      expect(stretching?.role).toBe("STRETCHING");
     } finally {
       await cleanupWeek(week);
     }

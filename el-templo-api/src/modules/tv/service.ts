@@ -38,6 +38,7 @@ import {
   visualGroupOf,
 } from "./roster";
 import { getRouteLabel } from "./route-labels";
+import { ROLE_LABELS } from "../shared/role-labels";
 import { toTimerSpec } from "./timer-spec";
 import type {
   TvBlockSummary,
@@ -808,9 +809,11 @@ export class TvService {
     formatDictated: boolean,
   ): TvLevelColumn[] {
     if (shared) {
+      // INITIUM o STRETCHING: una sola columna comun a todos los niveles.
+      const roleLabel = ROLE_LABELS[state.blockRole] ?? state.blockRole;
       return [
         {
-          header: `INITIUM | ${ALL_LEVELS_LABEL}`,
+          header: `${roleLabel} | ${ALL_LEVELS_LABEL}`,
           exercises: this.mainPrescriptions(block).map((p) =>
             this.toExercise(p, formatDictated),
           ),

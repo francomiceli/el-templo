@@ -14,7 +14,6 @@ import { describe, it, expect } from "vitest";
 import {
   REGULAR_ROLES,
   ROM_ROLES,
-  COMBOS_ROLES,
   TECNICA_ROLES,
   INITIUM_SOURCE_ORDER,
   buildRoster,
@@ -184,7 +183,7 @@ describe("TV roster — orden canonico de bloques", () => {
     expect(findInitiumBlock(day.sessions)).toBe(day.sessions[1].blocks[0]);
   });
 
-  it("marca shared SOLO en INITIUM (es la unica lista sin niveles)", () => {
+  it("marca shared en INITIUM (dia regular: es la unica lista sin niveles)", () => {
     const day = regularDay([
       {
         memberLevel: "alfa",
@@ -245,7 +244,7 @@ describe("TV roster — orden canonico de bloques", () => {
 });
 
 describe("TV roster — dias combos/tecnica (fase 160, SEM-15)", () => {
-  it("arma el roster de un dia combos con los 4 bloques en orden canonico", () => {
+  it("arma el roster de un dia combos legacy (cierre STRETCHING) en orden canonico", () => {
     const day = dayWithMode("combos", [
       {
         memberLevel: "alfa",
@@ -258,8 +257,58 @@ describe("TV roster — dias combos/tecnica (fase 160, SEM-15)", () => {
       },
     ]);
 
-    expect(buildRoster(day).map((b) => b.role)).toEqual([...COMBOS_ROLES]);
-    expect(buildRoster(day)).toHaveLength(4);
+    expect(buildRoster(day).map((b) => b.role)).toEqual([
+      "INITIUM",
+      "COMBOS_I",
+      "COMBOS_II",
+      "STRETCHING",
+    ]);
+  });
+
+  it("arma el roster de un dia combos con cierre full-body (ATHLOS/EPIKOS) y lo deja NO shared", () => {
+    const day = dayWithMode("combos", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("EPIKOS"),
+          block("INITIUM", { formatParams: TABATA }),
+          block("COMBOS_II"),
+          block("COMBOS_I"),
+        ],
+      },
+    ]);
+
+    const roster = buildRoster(day);
+    expect(roster.map((b) => b.role)).toEqual([
+      "INITIUM",
+      "COMBOS_I",
+      "COMBOS_II",
+      "EPIKOS",
+    ]);
+    // El circuito FB es por nivel (dificultad distinta) — columna por nivel.
+    expect(roster.filter((b) => b.shared).map((b) => b.role)).toEqual([
+      "INITIUM",
+    ]);
+  });
+
+  it("marca shared en STRETCHING ademas de INITIUM (dia tecnica: lista unica de cierre)", () => {
+    const day = dayWithMode("tecnica", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("TECNICA_I"),
+          block("TECNICA_II"),
+          block("STRETCHING"),
+        ],
+      },
+    ]);
+
+    expect(
+      buildRoster(day)
+        .filter((b) => b.shared)
+        .map((b) => b.role),
+    ).toEqual(["INITIUM", "STRETCHING"]);
   });
 
   it("rotula un dia combos con la convencion D160-02 (numerales romanos)", () => {

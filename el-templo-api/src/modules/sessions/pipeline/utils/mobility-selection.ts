@@ -18,7 +18,7 @@
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import * as schema from '../../../../db/schema';
 import { ROUTE_TO_MOBILITY_ROUTES } from './mobility-routes';
 import type { ExercisePrescription } from '../../types';
@@ -59,6 +59,46 @@ export async function queryMobilityPool(
     })
     .from(schema.exercises)
     .where(eq(schema.exercises.pattern, 'MOVILIDAD'));
+}
+
+/** One row of the full-body circuit exercise pool. */
+export type FullBodyPoolRow = {
+  id: number;
+  name: string;
+  effort: string | null;
+  pattern: string;
+  dificultadLineal: number;
+};
+
+/** Movement patterns eligible for the full-body cooperative circuit. */
+export const FULL_BODY_CIRCUIT_PATTERNS = [
+  'PUSH',
+  'LOWER',
+  'CORE',
+  'PULL',
+] as const;
+
+/**
+ * Query the exercise pool for the full-body cooperative circuit (combos-day
+ * closing block): every PUSH/LOWER/CORE/PULL exercise, any route.
+ *
+ * Lives here for the same reason as `queryMobilityPool` (D-12): this file is
+ * the single home of raw `exercises` access for the selection utils, covered
+ * by the tenant-lint allowlist.
+ */
+export async function queryFullBodyCircuitPool(
+  db: MySql2Database<typeof schema>,
+): Promise<FullBodyPoolRow[]> {
+  return db
+    .select({
+      id: schema.exercises.id,
+      name: schema.exercises.exercise,
+      effort: schema.exercises.effort,
+      pattern: schema.exercises.pattern,
+      dificultadLineal: schema.exercises.dificultadLineal,
+    })
+    .from(schema.exercises)
+    .where(inArray(schema.exercises.pattern, [...FULL_BODY_CIRCUIT_PATTERNS]));
 }
 
 export async function selectMobilityExercise(

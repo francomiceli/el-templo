@@ -5,10 +5,11 @@
  * `runSemanaNuevaBlockPipeline` for COMBOS_I/COMBOS_II, so — like
  * `rom-generator.test.ts` mocks `runInitiumPipeline` to isolate ROM's own
  * assembly logic — this suite mocks `runSemanaNuevaBlockPipeline`,
- * `selectStretchingExercises` and `queryFormatByName` to isolate what
+ * `selectFullBodyCircuitExercises` and `queryFormatByName` to isolate what
  * combos-generator.ts itself is responsible for: route pool selection
- * (D-05), format resolution (D-06), block ordering, and STRETCHING
- * determinism across the 6 member levels (D-11, anti Pitfall 1).
+ * (D-05), format resolution (D-06), block ordering, and the full-body
+ * "Circuito cooperativo" close (UAT 2026-08-18: ATHLOS/EPIKOS por paridad,
+ * ruta FB, per-level).
  *
  * `resolveRoutePool` (real, unmocked) is exercised as-is so the route
  * membership assertions (Test 2) reflect the actual deterministic hash.
@@ -58,20 +59,21 @@ const ROLE_ID_OFFSET: Partial<Record<BlockRole, number>> = {
   COMBOS_II: 300,
 };
 
-const MOCK_STRETCHING_EXERCISES: ExercisePrescription[] = [
-  { exerciseId: 900, name: "Mock Stretch 1", contraction: "CON", reps: 10, seconds: 0, rest: 0, exerciseType: "mobility" },
-  { exerciseId: 901, name: "Mock Stretch 2", contraction: "ISO", reps: 0, seconds: 20, rest: 0, exerciseType: "mobility" },
-  { exerciseId: 902, name: "Mock Stretch 3", contraction: "CON", reps: 10, seconds: 0, rest: 0, exerciseType: "mobility" },
-  { exerciseId: 903, name: "Mock Stretch 4", contraction: "CON", reps: 10, seconds: 0, rest: 0, exerciseType: "mobility" },
+const MOCK_FULL_BODY_EXERCISES: ExercisePrescription[] = [
+  { exerciseId: 910, name: "Mock FB Push", contraction: "CON", reps: 100, seconds: 0, rest: 60, dificultadLineal: 2 },
+  { exerciseId: 911, name: "Mock FB Lower", contraction: "CON", reps: 100, seconds: 0, rest: 60, dificultadLineal: 2 },
+  { exerciseId: 912, name: "Mock FB Core", contraction: "ISO", reps: 0, seconds: 200, rest: 60, dificultadLineal: 1 },
 ];
 
 const {
   mockRunSemanaNuevaBlockPipeline,
   mockSelectStretchingExercises,
+  mockSelectFullBodyCircuitExercises,
   mockQueryFormatByName,
 } = vi.hoisted(() => ({
   mockRunSemanaNuevaBlockPipeline: vi.fn(),
   mockSelectStretchingExercises: vi.fn(),
+  mockSelectFullBodyCircuitExercises: vi.fn(),
   mockQueryFormatByName: vi.fn(),
 }));
 
@@ -89,6 +91,10 @@ vi.mock("../../src/modules/sessions/pipeline/semana-nueva-pipeline", async () =>
 
 vi.mock("../../src/modules/sessions/pipeline/utils/stretching-selection", () => ({
   selectStretchingExercises: mockSelectStretchingExercises,
+}));
+
+vi.mock("../../src/modules/sessions/pipeline/utils/full-body-selection", () => ({
+  selectFullBodyCircuitExercises: mockSelectFullBodyCircuitExercises,
 }));
 
 vi.mock("../../src/modules/sessions/fallback/format-fallback", () => ({
@@ -158,18 +164,21 @@ describe("Combos Generator", () => {
     );
 
     mockSelectStretchingExercises.mockReset();
-    mockSelectStretchingExercises.mockResolvedValue(MOCK_STRETCHING_EXERCISES);
+
+    mockSelectFullBodyCircuitExercises.mockReset();
+    mockSelectFullBodyCircuitExercises.mockResolvedValue(MOCK_FULL_BODY_EXERCISES);
 
     mockQueryFormatByName.mockReset();
     mockQueryFormatByName.mockImplementation(async (_db: unknown, name: string) => {
       if (name === "Combos") return { formatId: 501, name: "Combos", compatibility: 1 };
       if (name === "Stretching") return { formatId: 502, name: "Stretching", compatibility: 1 };
+      if (name === "Circuito cooperativo") return { formatId: 503, name: "Circuito cooperativo", compatibility: 1 };
       return null;
     });
   });
 
   describe("generateCombosSession", () => {
-    it("returns sessionMode='combos' with 4 blocks in order INITIUM->COMBOS_I->COMBOS_II->STRETCHING", async () => {
+    it("returns sessionMode='combos' with 4 blocks closing in ATHLOS (odd week) full-body circuit", async () => {
       const { generateCombosSession } = await import("../../src/modules/sessions/combos-generator");
       const db = createMockDb();
 
@@ -187,10 +196,58 @@ describe("Combos Generator", () => {
         "INITIUM",
         "COMBOS_I",
         "COMBOS_II",
-        "STRETCHING",
+        "ATHLOS",
       ]);
       expect(session.dayId).toBe("W21-miercoles-alfa");
       expect(session.goalPlanType).toBeNull();
+      // Combos days no longer produce STRETCHING (tecnica-only close).
+      expect(mockSelectStretchingExercises).not.toHaveBeenCalled();
+    });
+
+    it("closes with EPIKOS on even weeks (regular pipeline's final-role parity)", async () => {
+      const { generateCombosSession } = await import("../../src/modules/sessions/combos-generator");
+      const db = createMockDb();
+
+      const session = await generateCombosSession(
+        db as Parameters<typeof generateCombosSession>[0],
+        22,
+        "jueves",
+        "alfa_delta",
+        "alfa",
+      );
+
+      expect(session.blocks.map((b) => b.role)).toEqual([
+        "INITIUM",
+        "COMBOS_I",
+        "COMBOS_II",
+        "EPIKOS",
+      ]);
+    });
+
+    it("full-body close uses route FB, format 'Circuito cooperativo' and mirrors COMBOS_II numbers", async () => {
+      const { generateCombosSession } = await import("../../src/modules/sessions/combos-generator");
+      const db = createMockDb();
+
+      const session = await generateCombosSession(
+        db as Parameters<typeof generateCombosSession>[0],
+        21,
+        "miercoles",
+        "alfa_delta",
+        "alfa",
+      );
+
+      const fullBody = session.blocks.find((b) => b.role === "ATHLOS")!;
+      const comboII = session.blocks.find((b) => b.role === "COMBOS_II")!;
+
+      expect(fullBody.route).toBe("FB");
+      expect(fullBody.format.name).toBe("Circuito cooperativo");
+      expect(fullBody.format.formatId).not.toBe(0);
+      expect(fullBody.formatParams).toEqual({ type: "circuito_cooperativo" });
+      expect(fullBody.intensity).toBe(comboII.intensity);
+      expect(fullBody.repsBudget).toBe(comboII.repsBudget);
+      expect(fullBody.exercises.map((ex) => ex.exerciseId)).toEqual([910, 911, 912]);
+      // The selector is per-level: it must receive memberLevel.
+      expect(mockSelectFullBodyCircuitExercises).toHaveBeenCalledWith(db, 21, "miercoles", "alfa");
     });
 
     it("COMBOS_I route belongs to tren_superior, COMBOS_II to tren_inferior (D-05)", async () => {
@@ -233,7 +290,7 @@ describe("Combos Generator", () => {
       expect(comboII.format.formatId).not.toBe(0);
     });
 
-    it("STRETCHING block is IDENTICAL across the 6 member levels of the same (week, day) — anti Pitfall 1", async () => {
+    it("the full-body selector runs once per level with that level's memberLevel", async () => {
       const { generateCombosSession } = await import("../../src/modules/sessions/combos-generator");
       const db = createMockDb();
 
@@ -246,36 +303,32 @@ describe("Combos Generator", () => {
         { levelGroup: "omega", memberLevel: "spartan" },
       ];
 
-      const stretchingIdSets: number[][] = [];
       for (const { levelGroup, memberLevel } of levels) {
-        const session = await generateCombosSession(
+        await generateCombosSession(
           db as Parameters<typeof generateCombosSession>[0],
           21,
           "miercoles",
           levelGroup,
           memberLevel as Parameters<typeof generateCombosSession>[4],
         );
-        const stretchingBlock = session.blocks.find((b) => b.role === "STRETCHING")!;
-        stretchingIdSets.push(stretchingBlock.exercises.map((ex) => ex.exerciseId));
       }
 
-      // All 6 levels produced the exact same STRETCHING exerciseId sequence.
-      for (const ids of stretchingIdSets) {
-        expect(ids).toEqual(stretchingIdSets[0]);
-      }
-
-      // The selector must never receive memberLevel/levelGroup — pure (db, week, day).
-      expect(mockSelectStretchingExercises).toHaveBeenCalledTimes(6);
-      for (const call of mockSelectStretchingExercises.mock.calls) {
-        expect(call).toEqual([db, 21, "miercoles"]);
-      }
+      expect(mockSelectFullBodyCircuitExercises).toHaveBeenCalledTimes(6);
+      expect(mockSelectFullBodyCircuitExercises.mock.calls.map((c) => c[3])).toEqual([
+        "alfa",
+        "delta",
+        "kairos",
+        "sigma",
+        "omega",
+        "spartan",
+      ]);
     });
 
-    it("succeeds with graceful degradation when the STRETCHING pool is thin", async () => {
+    it("succeeds with graceful degradation when the full-body pool is thin", async () => {
       const { generateCombosSession } = await import("../../src/modules/sessions/combos-generator");
       const db = createMockDb();
 
-      mockSelectStretchingExercises.mockResolvedValueOnce(MOCK_STRETCHING_EXERCISES.slice(0, 2));
+      mockSelectFullBodyCircuitExercises.mockResolvedValueOnce(MOCK_FULL_BODY_EXERCISES.slice(0, 1));
 
       const session = await generateCombosSession(
         db as Parameters<typeof generateCombosSession>[0],
@@ -286,8 +339,8 @@ describe("Combos Generator", () => {
       );
 
       expect(session.blocks).toHaveLength(4);
-      const stretchingBlock = session.blocks.find((b) => b.role === "STRETCHING")!;
-      expect(stretchingBlock.exercises).toHaveLength(2);
+      const fullBody = session.blocks.find((b) => b.role === "ATHLOS")!;
+      expect(fullBody.exercises).toHaveLength(1);
     });
 
     it("validateSession reports no ERROR severity on the generated session", async () => {

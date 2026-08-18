@@ -1,9 +1,14 @@
 /**
  * Combos Session Generator
  *
- * Phase 159 (SEM-02/SEM-03, D-05/D-06/D-10/D-11): generates "dia de combos"
+ * Phase 159 (SEM-02/SEM-03, D-05/D-06/D-10): generates "dia de combos"
  * sessions with 4 blocks: INITIUM (warmup), COMBOS_I (tren_superior),
- * COMBOS_II (tren_inferior), STRETCHING (shared mobility close).
+ * COMBOS_II (tren_inferior), and a full-body "Circuito cooperativo" close
+ * (ATHLOS on odd weeks / EPIKOS on even, route FB). The FB close supersedes
+ * D-11's STRETCHING for the combos day (UAT 2026-08-18): it automates what
+ * the coaches were doing by hand in prod W21-W26 (route_update -> FB +
+ * format_change -> Circuito cooperativo). STRETCHING remains the close of
+ * the tecnica day only.
  *
  * COMBOS_I and COMBOS_II reuse the SPOM pipeline stages 2-7 via
  * `runSemanaNuevaBlockPipeline` (plan 02, D-P6) with a route injected
@@ -13,8 +18,9 @@
  *
  * This file also hosts `assembleFixedStructureSession`, the shared trunk
  * reused by `tecnica-generator.ts` (Task 2): both day modes are
- * INITIUM -> role block 1 -> role block 2 -> STRETCHING, and only differ in
- * how the two role blocks resolve their route(s) and forced format.
+ * INITIUM -> role block 1 -> role block 2 -> closing block, and differ in
+ * how the two role blocks resolve their route(s)/format and in the closing
+ * block (combos: FB circuit; tecnica: STRETCHING).
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
@@ -35,8 +41,11 @@ import {
   resolveRoutePool,
 } from "./pipeline/semana-nueva-pipeline";
 import { selectStretchingExercises } from "./pipeline/utils/stretching-selection";
+import { selectFullBodyCircuitExercises } from "./pipeline/utils/full-body-selection";
 import { queryFormatByName } from "./fallback/format-fallback";
 import { GOAL_PLAN_ROUTE_MAP } from "../goal-plans/constants";
+import { getFinalBlockRole } from "./types";
+import { FULL_BODY_ROUTE } from "../shared/training-constants";
 
 /**
  * D-05: COMBOS_I resolves its route from the curated tren_superior pool,
@@ -72,7 +81,9 @@ export interface FixedStructureBlockSpec {
 /**
  * Shared trunk (D-P6, ~80% of the assembly) for the combos/tecnica
  * generators: builds the 4-block DaySession (INITIUM -> block 1 -> block 2
- * -> STRETCHING) common to both day modes.
+ * -> closing block) common to both day modes. The closing block branches on
+ * `sessionMode`: combos closes with the full-body ATHLOS/EPIKOS circuit,
+ * tecnica with STRETCHING.
  *
  * `blockSpecs` supplies the two role blocks in output order (their routes
  * already resolved by the caller — COMBOS uses two different pools per role,
@@ -80,12 +91,13 @@ export interface FixedStructureBlockSpec {
  * `formats` row both role blocks are forced onto (D-06/D-09 — never a
  * synthetic/zero format id).
  *
- * STRETCHING is the exception to the shared pipeline: it never goes through
- * `runSemanaNuevaBlockPipeline` (no force route, no budget/SPOM concept) and
- * is assembled directly from `selectStretchingExercises(db, week, day)` — a
- * pure function of (week, day) only (Pitfall 1: no `memberLevel`, no
- * non-deterministic randomness, identical across the 6 levels of the same
- * day).
+ * Both closing blocks are exceptions to the shared pipeline: they never go
+ * through `runSemanaNuevaBlockPipeline` (no SPOM rules for their routes) and
+ * are assembled directly from their selectors — STRETCHING from
+ * `selectStretchingExercises(db, week, day)`, a pure function of (week, day)
+ * only (Pitfall 1: no `memberLevel`, identical across the 6 levels of the
+ * day); the FB circuit from `selectFullBodyCircuitExercises`, per-level
+ * because each level caps difficulty differently.
  */
 export async function assembleFixedStructureSession(
   db: MySql2Database<typeof schema>,
@@ -160,41 +172,89 @@ export async function assembleFixedStructureSession(
     });
   }
 
-  // STRETCHING: pure (week, day) selection — must stay byte-identical across
-  // all 6 levels of the same day (D-11, Pitfall 1). Never derived from
-  // memberLevel/levelGroup.
-  const stretchingExercises = await selectStretchingExercises(db, week, day);
-  const stretchingBlockId = `${traceCodePrefix}-STRETCHING-W${week}-${day}-${memberLevel}`;
-  const stretchingBlock: BlockPlan = {
-    blockId: stretchingBlockId,
-    role: "STRETCHING",
-    route: STRETCHING_ROUTE,
-    pattern: "MOVILIDAD",
-    intensity: STRETCHING_INTENSITY,
-    repsBudget: STRETCHING_REPS_BUDGET,
-    format: await resolveStretchingFormat(db),
-    formatParams: { type: "stretching" },
-    exercises: stretchingExercises,
-    trace: [],
-  };
-  blocks.push(stretchingBlock);
-
-  sessionTrace.push({
-    ts: new Date().toISOString(),
-    severity: "INFO",
-    code: `${traceCodePrefix}_STRETCHING_GENERATED`,
-    where: {
+  if (sessionMode === "combos") {
+    // Combos close (UAT 2026-08-18, supersedes D-11 for this day): full-body
+    // "Circuito cooperativo" on route FB, keeping the regular pipeline's
+    // final-role alternation (odd weeks ATHLOS / even EPIKOS). Intensity and
+    // reps budget mirror the day's COMBOS_II block — the manual prod blocks
+    // kept the generator's numbers and only replaced route/format/exercises.
+    const finalRole = getFinalBlockRole(week);
+    const fullBodyExercises = await selectFullBodyCircuitExercises(
+      db,
       week,
       day,
-      levelGroup,
       memberLevel,
+    );
+    const lastRoleBlock = blocks[blocks.length - 1];
+    const fullBodyBlockId = `${traceCodePrefix}-${finalRole}-W${week}-${day}-${memberLevel}`;
+    const fullBodyBlock: BlockPlan = {
+      blockId: fullBodyBlockId,
+      role: finalRole,
+      route: FULL_BODY_ROUTE,
+      pattern: "FULL BODY",
+      intensity: lastRoleBlock.intensity,
+      repsBudget: lastRoleBlock.repsBudget,
+      format: await resolveRealFormat(db, "Circuito cooperativo"),
+      formatParams: { type: "circuito_cooperativo" },
+      exercises: fullBodyExercises,
+      trace: [],
+    };
+    blocks.push(fullBodyBlock);
+
+    sessionTrace.push({
+      ts: new Date().toISOString(),
+      severity: "INFO",
+      code: `${traceCodePrefix}_FULL_BODY_GENERATED`,
+      where: {
+        week,
+        day,
+        levelGroup,
+        memberLevel,
+        blockId: fullBodyBlockId,
+        role: finalRole,
+      },
+      decision: {
+        route: FULL_BODY_ROUTE,
+        exerciseCount: fullBodyExercises.length,
+      },
+    });
+  } else {
+    // STRETCHING (tecnica only): pure (week, day) selection — must stay
+    // byte-identical across all 6 levels of the same day (D-11, Pitfall 1).
+    // Never derived from memberLevel/levelGroup.
+    const stretchingExercises = await selectStretchingExercises(db, week, day);
+    const stretchingBlockId = `${traceCodePrefix}-STRETCHING-W${week}-${day}-${memberLevel}`;
+    const stretchingBlock: BlockPlan = {
       blockId: stretchingBlockId,
       role: "STRETCHING",
-    },
-    decision: {
-      exerciseCount: stretchingExercises.length,
-    },
-  });
+      route: STRETCHING_ROUTE,
+      pattern: "MOVILIDAD",
+      intensity: STRETCHING_INTENSITY,
+      repsBudget: STRETCHING_REPS_BUDGET,
+      format: await resolveRealFormat(db, "Stretching"),
+      formatParams: { type: "stretching" },
+      exercises: stretchingExercises,
+      trace: [],
+    };
+    blocks.push(stretchingBlock);
+
+    sessionTrace.push({
+      ts: new Date().toISOString(),
+      severity: "INFO",
+      code: `${traceCodePrefix}_STRETCHING_GENERATED`,
+      where: {
+        week,
+        day,
+        levelGroup,
+        memberLevel,
+        blockId: stretchingBlockId,
+        role: "STRETCHING",
+      },
+      decision: {
+        exerciseCount: stretchingExercises.length,
+      },
+    });
+  }
 
   return {
     dayId,
@@ -210,20 +270,19 @@ export async function assembleFixedStructureSession(
 }
 
 /**
- * Resolve the real 'Stretching' formats row (migration 0172). Never a
- * synthetic/zero format id — 'Stretching' is a real format, unlike ROM's
- * synthetic one.
+ * Resolve a real `formats` row by name ('Stretching' from migration 0172,
+ * 'Circuito cooperativo' pre-existing). Never a synthetic/zero format id —
+ * both closing blocks use real formats, unlike ROM's synthetic one.
  */
-async function resolveStretchingFormat(
+async function resolveRealFormat(
   db: MySql2Database<typeof schema>,
+  name: string,
 ): Promise<FormatInstance> {
-  const stretchingFormat = await queryFormatByName(db, "Stretching");
-  if (!stretchingFormat) {
-    throw new Error(
-      "Format 'Stretching' not found in formats table (expected from migration 0172)",
-    );
+  const format = await queryFormatByName(db, name);
+  if (!format) {
+    throw new Error(`Format '${name}' not found in formats table`);
   }
-  return { formatId: stretchingFormat.formatId, name: stretchingFormat.name };
+  return { formatId: format.formatId, name: format.name };
 }
 
 /**

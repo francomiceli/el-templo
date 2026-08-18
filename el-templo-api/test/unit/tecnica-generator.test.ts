@@ -54,10 +54,10 @@ const ROLE_ID_OFFSET: Partial<Record<BlockRole, number>> = {
 };
 
 const MOCK_STRETCHING_EXERCISES: ExercisePrescription[] = [
-  { exerciseId: 900, name: "Mock Stretch 1", contraction: "CON", reps: 10, seconds: 0, rest: 0, exerciseType: "mobility" },
-  { exerciseId: 901, name: "Mock Stretch 2", contraction: "ISO", reps: 0, seconds: 20, rest: 0, exerciseType: "mobility" },
-  { exerciseId: 902, name: "Mock Stretch 3", contraction: "CON", reps: 10, seconds: 0, rest: 0, exerciseType: "mobility" },
-  { exerciseId: 903, name: "Mock Stretch 4", contraction: "CON", reps: 10, seconds: 0, rest: 0, exerciseType: "mobility" },
+  { exerciseId: 900, name: "Mock Stretch 1", contraction: "CON", reps: 10, seconds: 0, rest: 0 },
+  { exerciseId: 901, name: "Mock Stretch 2", contraction: "ISO", reps: 0, seconds: 20, rest: 0 },
+  { exerciseId: 902, name: "Mock Stretch 3", contraction: "CON", reps: 10, seconds: 0, rest: 0 },
+  { exerciseId: 903, name: "Mock Stretch 4", contraction: "CON", reps: 10, seconds: 0, rest: 0 },
 ];
 
 const {

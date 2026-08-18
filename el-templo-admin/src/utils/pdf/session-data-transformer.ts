@@ -493,6 +493,21 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
     const tecnicaII = buildGridPage('TECNICA_II', ROLE_LABELS.TECNICA_II, sessionsByLevel);
     if (tecnicaII) blocks.push(tecnicaII);
 
+    // Cierre FB del día combos (UAT 2026-08-18): ATHLOS/EPIKOS ruta FB,
+    // grid por nivel como en la rama regular (los ejercicios difieren por
+    // nivel). En días técnica no hay ATHLOS/EPIKOS y esto queda en null.
+    const ctFinal = buildGridPage('EPIKOS', 'EPIKOS', sessionsByLevel);
+    if (ctFinal) {
+      for (const s of sessions) {
+        const block = findBlock(s.blocks, 'EPIKOS');
+        if (block) {
+          ctFinal.role = block.role;
+          break;
+        }
+      }
+      blocks.push(ctFinal);
+    }
+
     // STRETCHING (D160-04): lista simple compartida por los 6 niveles, estilo
     // INITIUM — NO grid por nivel. Fuente determinista via findCanonicalBlock
     // (mismo criterio que movilidad/formato de buildGridPage).

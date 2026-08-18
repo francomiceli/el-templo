@@ -50,18 +50,26 @@ export const ROM_ROLES = [
 ] as const;
 
 /**
- * Orden canonico de un dia COMBOS (fase 160, SEM-15). STRETCHING es la lista
- * de cierre compartida por los 6 niveles (D160-04) — el roster no la trata
- * como shared (solo INITIUM lo es), pero el generador la produce identica.
+ * Orden canonico de un dia COMBOS (fase 160, SEM-15; cierre FB UAT
+ * 2026-08-18). El cierre es el circuito full-body con la alternancia del
+ * pipeline regular (ATHLOS semanas impares / EPIKOS pares) — ambos roles van
+ * en la lista y `buildRoster` saltea el ausente. Dias combos viejos (pre-FB)
+ * cerraban con STRETCHING: se mantiene al final para que sigan rendereando.
  */
 export const COMBOS_ROLES = [
   "INITIUM",
   "COMBOS_I",
   "COMBOS_II",
+  "ATHLOS",
+  "EPIKOS",
   "STRETCHING",
 ] as const;
 
-/** Orden canonico de un dia TECNICA (fase 160, SEM-15). Ver COMBOS_ROLES. */
+/**
+ * Orden canonico de un dia TECNICA (fase 160, SEM-15). STRETCHING es la lista
+ * de cierre compartida por los 6 niveles (D160-04), tratada como shared igual
+ * que INITIUM.
+ */
 export const TECNICA_ROLES = [
   "INITIUM",
   "TECNICA_I",
@@ -227,8 +235,10 @@ export function blockTitle(role: string, block: RosterBlock): string {
  * sin DEUTEROS_2 produce un roster de 4 bloques, y los dots "BLOQUE n / M" del
  * TV cuentan sobre ese largo real.
  *
- * `shared: true` solo en INITIUM — es la lista comun a todos los niveles, y es
- * lo que deshabilita el selector de nivel en el control del profe.
+ * `shared: true` en INITIUM y STRETCHING — son las listas comunes a todos los
+ * niveles (INITIUM siempre; STRETCHING por D-11/Pitfall 1, identico en los 6
+ * niveles del dia), y es lo que deshabilita el selector de nivel en el
+ * control del profe y colapsa las columnas a una sola.
  */
 function rolesForMode(mode: TvClassMode): readonly string[] {
   switch (mode) {
@@ -258,7 +268,7 @@ export function buildRoster<TBlock extends RosterBlock>(
     roster.push({
       role,
       title: blockTitle(role, block),
-      shared: role === "INITIUM",
+      shared: role === "INITIUM" || role === "STRETCHING",
     });
   }
 

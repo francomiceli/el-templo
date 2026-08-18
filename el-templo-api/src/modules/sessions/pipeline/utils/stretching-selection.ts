@@ -70,6 +70,11 @@ export async function selectStretchingExercises(
     }
   }
 
+  // exerciseType stays "main" (implicit) on purpose: everywhere else in the
+  // system "mobility" means THE single bonus mobility add-on of a normal
+  // block (singular, Phase 17), and every renderer (admin editor, public
+  // endpoint, PDF, TV) filters on that semantic. Tagging the whole block as
+  // "mobility" made it render empty in all of them (UAT 2026-08-18).
   return picked.map((selected) => {
     const isISO = selected.effort?.toUpperCase() === "ISO";
     return {
@@ -79,7 +84,6 @@ export async function selectStretchingExercises(
       reps: isISO ? 0 : MOBILITY_DEFAULTS.CON_REPS,
       seconds: isISO ? MOBILITY_DEFAULTS.ISO_SECONDS : 0,
       rest: 0,
-      exerciseType: "mobility",
     };
   });
 }
