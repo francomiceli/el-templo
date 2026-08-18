@@ -453,8 +453,6 @@ export class TvService {
       classDay,
     );
 
-    // Rol previo, para detectar la pisada manual entre estaciones de deuteros.
-    const prevRole = state.blockRole;
     // El orden importa y es parte del contrato: el bloque resetea, el nivel no.
     state = this.applyBlockRole(state, write.blockRole, classDay, roster);
     state = this.applyLevel(state, write.level, classDay);
@@ -471,14 +469,14 @@ export class TvService {
     if (write.deuterosAutoRotate !== undefined) {
       state = { ...state, deuterosAutoRotate: write.deuterosAutoRotate };
     }
-    // Pisada: si el profe cambia a mano ENTRE las dos estaciones de deuteros
-    // (I<->II, mismo grupo visual), se fija esa estacion 30s antes de que la
-    // rotacion automatica la retome. Entrar/salir de deuteros NO pisa.
+    // Pisada: cualquier seleccion MANUAL de una estacion de deuteros (el profe
+    // eligiendo I o II) se respeta 30s antes de que la rotacion automatica
+    // retome — asi "lo que escribe el profe es lo que pinta la pantalla" (D-13).
+    // Solo cuenta el write explicito de blockRole; la rotacion (que no toca el
+    // blockRole persistido) nunca pisa.
     if (
       write.blockRole !== undefined &&
-      visualGroupOf(prevRole) === "DEUTEROS" &&
-      visualGroupOf(state.blockRole) === "DEUTEROS" &&
-      state.blockRole !== prevRole
+      visualGroupOf(state.blockRole) === "DEUTEROS"
     ) {
       state = { ...state, deuterosPinnedAt: now.getTime() };
     }

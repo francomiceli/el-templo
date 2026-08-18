@@ -628,12 +628,11 @@ describe("POST /control/state — bloque, nivel y ejercicio (D-15)", () => {
   });
 
   it("tocar a mano entre DEUTEROS_1 y DEUTEROS_2 fija la pisada (deuterosPinnedAt)", async () => {
-    // Entrar a deuteros y arrancar: sin pisada todavía.
+    // Elegir a mano una estación ya la pisa (se respeta 30s antes de rotar).
     await write({ blockRole: "DEUTEROS_1" });
     const arrancado = await write({ timer: "start" });
-    expect(arrancado.deuterosPinnedAt).toBeNull();
 
-    // Cambiar a mano a la otra estación fija la pisada, sin resetear el timer.
+    // Cambiar a la otra estación re-fija la pisada, sin resetear el timer.
     const pisado = await write({ blockRole: "DEUTEROS_2" });
     expect(pisado.deuterosPinnedAt).not.toBeNull();
     expect(pisado.timerStatus).toBe("running");

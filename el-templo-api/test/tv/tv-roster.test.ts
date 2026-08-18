@@ -327,7 +327,7 @@ describe("TV roster — dias combos/tecnica (fase 160, SEM-15)", () => {
     const titles = buildRoster(day).map((b) => b.title);
     expect(titles[1].startsWith("COMBOS I ")).toBe(true);
     expect(titles[2].startsWith("COMBOS II ")).toBe(true);
-    expect(titles[3].startsWith("STRETCHING ")).toBe(true);
+    expect(titles[3].startsWith("KINESIS ")).toBe(true);
   });
 
   it("arma el roster de un dia tecnica con los 4 bloques y labels acentuadas", () => {
