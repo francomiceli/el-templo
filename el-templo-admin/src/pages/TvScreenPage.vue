@@ -764,7 +764,7 @@ onUnmounted(() => {
   margin: 0.1rem 0.3rem 0.7rem;
   background: var(--gold);
   border-radius: 99px;
-  opacity: 0.55;
+  opacity: 0.55; /* separador semitransparente entre header y lista */
 }
 /* Lista SIN recuadro: respira y usa el espacio; el divisor es la columna dórica. */
 #tvScreenRoot .caja {
