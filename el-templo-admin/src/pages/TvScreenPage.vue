@@ -72,7 +72,13 @@
         <div class="cabecera">
           <h1 class="cabTitulo" id="titulo"></h1>
           <section class="cronometro" id="timerPanel">
-            <div class="digitos" id="digitos">00:00</div>
+            <div class="digitosWrap">
+              <div class="digitos" id="digitos">00:00</div>
+              <!-- Copia fantasma que hace el envión (sube y se desvanece) al
+                   iniciar, dejando el número real fijo en su lugar. render.ts le
+                   pone el texto en el arranque; la animación la dispara .arranque. -->
+              <div class="digitos-ghost" id="digitosGhost" aria-hidden="true"></div>
+            </div>
             <div class="barra"><i id="progreso"></i></div>
           </section>
           <div class="cabFormato" id="formato"></div>
@@ -538,7 +544,10 @@ onUnmounted(() => {
   justify-content: center;
   height: 100%;
   min-height: 0;
-  padding: 1vh 1vw;
+  /* Sin padding: achica ~media pulgada el negro alrededor del marco 16:9. El
+     letterbox por diferencia de aspecto (pantalla no 16:9) es inevitable sin
+     romper la paridad con el PDF, pero el respiro y la sombra sí se bajan. */
+  padding: 0;
 }
 #tvScreenRoot #tv {
   position: relative;
@@ -553,7 +562,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.55);
+  /* Halo más chico: menos negro alrededor del marco (ver .tvWrap). */
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.4);
 }
 
 /* ── Barra superior: logo + sede | hora con segundero ── */
@@ -732,7 +742,9 @@ onUnmounted(() => {
   letter-spacing: 0.06em;
   font-size: 2.1rem;
   color: var(--gold);
-  padding: 0 0.3rem 0.5rem;
+  /* Aire arriba: separa el "NIVEL · RUTA" de la cabecera (título + cronómetro +
+     formato) que va encima. */
+  padding: 1.9rem 0.3rem 0.5rem;
 }
 #tvScreenRoot .cabCol__nivel {
   white-space: nowrap;
@@ -743,10 +755,20 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Separador entre el header NIVEL·RUTA y la lista: una línea redondeada igual a
+   la barra del cronómetro detenido (oro lleno, radio 99px), en lugar del
+   recuadro. Mismo lenguaje visual que la barra de progreso. */
+#tvScreenRoot .columnaDorica {
+  flex: 0 0 auto;
+  height: 0.5rem;
+  margin: 0.1rem 0.3rem 0.7rem;
+  background: var(--gold);
+  border-radius: 99px;
+  opacity: 0.55;
+}
+/* Lista SIN recuadro: respira y usa el espacio; el divisor es la columna dórica. */
 #tvScreenRoot .caja {
   flex: 1;
-  border: 0.22rem solid var(--gold);
-  border-radius: 1rem;
   min-height: 0;
   overflow: hidden;
 }
@@ -762,15 +784,20 @@ onUnmounted(() => {
      los fondos sand aun con listas largas. */
   justify-content: space-evenly;
   row-gap: 0.6rem;
-  padding: 1rem 1.2rem;
+  /* Sin recuadro: menos padding lateral para que cada ejercicio se estire hacia
+     los costados y aproveche el ancho que antes comía el borde de la caja. */
+  padding: 1rem 0.3rem;
 }
 #tvScreenRoot .lista-col .item {
   display: flex;
   align-items: center;
   gap: 0.8rem;
   /* Margin (no padding): la banda sand hugea el contenido y el chip de repes llega
-     al borde para fundirse; el aire entre ejercicios lo da el margin externo. */
-  margin: 0.3rem 0.7rem;
+     al borde para fundirse; el aire entre ejercicios lo da el margin externo.
+     Menos margin lateral = ejercicios más anchos. `padding-left` para que el badge
+     de contracción no quede pegado al borde izquierdo de la banda sand. */
+  margin: 0.3rem 0.2rem;
+  padding-left: 0.8rem;
   border-radius: 0.6rem;
   /* Todos los ejercicios con la banda sand translúcida (no alternados). */
   background: rgba(219, 202, 180, 0.35);
@@ -861,6 +888,12 @@ onUnmounted(() => {
   /* Sin la sombra navy heredada: sobre placa oscura no aporta y ensucia el número. */
   text-shadow: none;
 }
+/* El número 15% más grande SIN agrandar la placa: el transform es visual (no
+   reflowea), así que el chip conserva su tamaño y el dígito sobresale un poco. */
+#tvScreenRoot .lista-col .item .dosis .dosis-num {
+  display: inline-block;
+  transform: scale(1.15);
+}
 #tvScreenRoot .lista-col .caja.compacta .item .ej-nombre {
   font-size: 1.85rem;
   line-height: 1.2;
@@ -932,11 +965,30 @@ onUnmounted(() => {
     opacity: 0.2;
   }
 }
-/* ARRANQUE: al dar INICIAR, los dígitos hacen un envión — oro, pequeña vibración
-   y fade-up hasta desaparecer (clase `.arranque`, ~0.85 s, la pone render.ts).
-   Sin fill-mode: al terminar, los dígitos vuelven a su cuenta normal. */
-#tvScreenRoot .cronometro.arranque .digitos {
+/* ARRANQUE: al dar INICIAR, una COPIA del número hace el envión — oro, pequeña
+   vibración y fade-up hasta desaparecer — mientras el número REAL queda fijo en
+   su lugar contando. El clon es `.digitos-ghost`, superpuesto por `.digitosWrap`;
+   render.ts le pone el texto en el arranque y `.arranque` (~0.85 s) dispara la
+   animación. Sin fill-mode: al terminar, el clon queda invisible (opacity 0). */
+#tvScreenRoot .cronometro .digitosWrap {
+  position: relative;
+}
+#tvScreenRoot .cronometro .digitos-ghost {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 10rem;
+  line-height: 1;
   color: var(--gold);
+}
+#tvScreenRoot .cronometro.arranque .digitos-ghost {
   animation: arranqueEnvion 0.8s ease-out;
 }
 @keyframes arranqueEnvion {
@@ -990,7 +1042,7 @@ onUnmounted(() => {
     transition: none;
   }
   /* Sin envión ni titileo: el oro de los últimos segundos queda fijo. */
-  #tvScreenRoot .cronometro.arranque .digitos,
+  #tvScreenRoot .cronometro.arranque .digitos-ghost,
   #tvScreenRoot .cronometro.corriendo.porterminar .digitos {
     animation: none;
   }

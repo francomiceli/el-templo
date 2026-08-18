@@ -208,6 +208,24 @@
           </div>
         </div>
 
+        <!-- Rotación automática de las dos estaciones de deuteros (I<->II) en el TV. -->
+        <!-- Solo aplica en un bloque de deuteros con el timer corriendo; el profe la -->
+        <!-- pisa 30 s eligiendo I o II a mano. Se muestra siempre (el estado persiste). -->
+        <div class="row q-col-gutter-sm q-mt-sm">
+          <div class="col-12">
+            <q-btn
+              class="tv-btn full-width"
+              :icon="deuterosAutoRotate ? 'sync' : 'sync_disabled'"
+              :label="deuterosAutoRotate ? 'ROTACIÓN DEUTEROS ON' : 'ROTACIÓN DEUTEROS OFF'"
+              :color="deuterosAutoRotate ? 'primary' : 'grey-7'"
+              :outline="!deuterosAutoRotate"
+              :unelevated="deuterosAutoRotate"
+              :disable="!canControl"
+              @click="onToggleDeuteros"
+            />
+          </div>
+        </div>
+
         <!-- =========================== FIN DE CLASE ========================= -->
         <q-separator class="q-mb-md" />
         <div class="row q-col-gutter-sm">
@@ -641,6 +659,9 @@ const currentLevel = computed(() => context.value?.state?.level ?? '');
 
 const timerStatus = computed(() => context.value?.state?.timerStatus ?? 'idle');
 const soundEnabled = computed(() => context.value?.state?.soundEnabled === true);
+const deuterosAutoRotate = computed(
+  () => context.value?.state?.deuterosAutoRotate === true
+);
 const isClosingScreen = computed(() => context.value?.state?.screen === 'closing');
 
 /**
@@ -856,6 +877,10 @@ function onTimer(command: NonNullable<TvStateWrite['timer']>): void {
 
 function onToggleSound(): void {
   void send({ soundEnabled: !soundEnabled.value });
+}
+
+function onToggleDeuteros(): void {
+  void send({ deuterosAutoRotate: !deuterosAutoRotate.value });
 }
 
 function onToggleClosing(): void {

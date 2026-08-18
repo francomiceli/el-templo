@@ -41,7 +41,7 @@ export const ROLE_LABELS: Record<string, string> = {
   COMBOS_II: "COMBOS II",
   TECNICA_I: "TÉCNICA I",
   TECNICA_II: "TÉCNICA II",
-  STRETCHING: "STRETCHING",
+  STRETCHING: "KINESIS",
 };
 
 /**

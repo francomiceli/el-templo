@@ -228,6 +228,8 @@ export class TvService {
         pausedAt: schema.tvClassState.pausedAt,
         pausedAccumMs: schema.tvClassState.pausedAccumMs,
         soundEnabled: schema.tvClassState.soundEnabled,
+        deuterosAutoRotate: schema.tvClassState.deuterosAutoRotate,
+        deuterosPinnedAt: schema.tvClassState.deuterosPinnedAt,
       })
       .from(schema.tvClassState)
       .where(eq(schema.tvClassState.branchId, branchId));
@@ -246,6 +248,10 @@ export class TvService {
       pausedAt: row.pausedAt ? row.pausedAt.getTime() : null,
       pausedAccumMs: row.pausedAccumMs,
       soundEnabled: row.soundEnabled,
+      deuterosAutoRotate: row.deuterosAutoRotate,
+      deuterosPinnedAt: row.deuterosPinnedAt
+        ? row.deuterosPinnedAt.getTime()
+        : null,
     };
   }
 
@@ -349,7 +355,7 @@ export class TvService {
     return {
       ...base,
       screen,
-      class: this.buildClassPayload(classDay, state),
+      class: this.buildClassPayload(classDay, state, now),
     };
   }
 
@@ -439,11 +445,16 @@ export class TvService {
         level: "alfa",
         exerciseIndex: 0,
         soundEnabled: false,
+        // La rotacion de deuteros arranca prendida (feature automatica).
+        deuterosAutoRotate: true,
+        deuterosPinnedAt: null,
         ...IDLE_TIMER,
       },
       classDay,
     );
 
+    // Rol previo, para detectar la pisada manual entre estaciones de deuteros.
+    const prevRole = state.blockRole;
     // El orden importa y es parte del contrato: el bloque resetea, el nivel no.
     state = this.applyBlockRole(state, write.blockRole, classDay, roster);
     state = this.applyLevel(state, write.level, classDay);
@@ -456,6 +467,20 @@ export class TvService {
     }
     if (write.soundEnabled !== undefined) {
       state = { ...state, soundEnabled: write.soundEnabled };
+    }
+    if (write.deuterosAutoRotate !== undefined) {
+      state = { ...state, deuterosAutoRotate: write.deuterosAutoRotate };
+    }
+    // Pisada: si el profe cambia a mano ENTRE las dos estaciones de deuteros
+    // (I<->II, mismo grupo visual), se fija esa estacion 30s antes de que la
+    // rotacion automatica la retome. Entrar/salir de deuteros NO pisa.
+    if (
+      write.blockRole !== undefined &&
+      visualGroupOf(prevRole) === "DEUTEROS" &&
+      visualGroupOf(state.blockRole) === "DEUTEROS" &&
+      state.blockRole !== prevRole
+    ) {
+      state = { ...state, deuterosPinnedAt: now.getTime() };
     }
     // D-08: la pantalla de cierre es un estado del profe, no del reloj. "idle"
     // no se escribe: para volver a reposo esta `endClass`.
@@ -624,6 +649,10 @@ export class TvService {
       pausedAt: state.pausedAt ? new Date(state.pausedAt) : null,
       pausedAccumMs: state.pausedAccumMs,
       soundEnabled: state.soundEnabled,
+      deuterosAutoRotate: state.deuterosAutoRotate,
+      deuterosPinnedAt: state.deuterosPinnedAt
+        ? new Date(state.deuterosPinnedAt)
+        : null,
       updatedBy: userId,
     };
 
@@ -818,12 +847,20 @@ export class TvService {
       const levelsLabel =
         classDay.mode === "rom"
           ? ALL_LEVELS_LABEL
-          : `NIVELES ${classDay.levels
-              .map((lvl) => LEVEL_SYMBOLS[lvl] ?? lvl.toUpperCase())
+          : // Solo los niveles con simbolo canonico (kairos/alfa/delta/sigma):
+            // omega/spartan no se planifican por dia (class-day.ts) y si se
+            // cuelan no van en el header compartido de INITIUM/STRETCHING.
+            `NIVELES ${classDay.levels
+              .filter((lvl) => LEVEL_SYMBOLS[lvl])
+              .map((lvl) => LEVEL_SYMBOLS[lvl])
               .join(" ")}`;
+      // STRETCHING se rotula KINESIS (misma categoria que PYROS/NUCLEUS/DEUTEROS).
+      // INITIUM conserva su header historico del kiosco ("INITIUM", no "PYROS").
+      const sharedName =
+        state.blockRole === "STRETCHING" ? "KINESIS" : state.blockRole;
       return [
         {
-          header: `${state.blockRole} | ${levelsLabel}`,
+          header: `${sharedName} | ${levelsLabel}`,
           exercises: this.mainPrescriptions(block).map((p) =>
             this.toExercise(p, formatDictated),
           ),
@@ -858,9 +895,46 @@ export class TvService {
   private buildClassPayload(
     classDay: ClassDay,
     state: TvControlState,
+    now: Date,
   ): TvClassPayload {
     const blocks: TvBlockSummary[] = buildRoster(classDay);
-    const blockIndex = blocks.findIndex((b) => b.role === state.blockRole);
+
+    // Rotacion automatica de deuteros: si el bloque activo es deuteros, el toggle
+    // esta prendido y el timer corre, la ESTACION mostrada (I/II) alterna cada
+    // 10s segun el tiempo transcurrido del propio timer — sin tocar el `blockRole`
+    // persistido ni el timer. Todos los TVs de la sede, derivando del mismo
+    // `startedAt`, muestran la misma estacion. La pisada manual la fija 30s.
+    let displayRole = state.blockRole;
+    const hasBothDeuteros =
+      blocks.some((b) => b.role === "DEUTEROS_1") &&
+      blocks.some((b) => b.role === "DEUTEROS_2");
+    if (
+      hasBothDeuteros &&
+      visualGroupOf(state.blockRole) === "DEUTEROS" &&
+      state.deuterosAutoRotate &&
+      state.timerStatus === "running"
+    ) {
+      const nowMs = now.getTime();
+      const pinned =
+        state.deuterosPinnedAt !== null &&
+        nowMs - state.deuterosPinnedAt < 30_000;
+      if (!pinned) {
+        const elapsed = Math.max(
+          0,
+          nowMs - (state.timerStartedAt ?? nowMs) - state.pausedAccumMs,
+        );
+        displayRole =
+          Math.floor(elapsed / 10_000) % 2 === 0 ? "DEUTEROS_1" : "DEUTEROS_2";
+      }
+    }
+    // Estado "efectivo" para lo VISUAL (columnas, titulo, movilidad, blockRole):
+    // la estacion mostrada. El timer se mantiene sobre el bloque PERSISTIDO.
+    const effState: TvControlState =
+      displayRole === state.blockRole
+        ? state
+        : { ...state, blockRole: displayRole };
+
+    const blockIndex = blocks.findIndex((b) => b.role === effState.blockRole);
     const summary = blocks[blockIndex];
     const shared = summary?.shared ?? false;
 
@@ -873,25 +947,36 @@ export class TvService {
     }
     const visualBlockCount = visualGroups.length;
     const rawVisualBlockIndex = visualGroups.indexOf(
-      visualGroupOf(state.blockRole),
+      visualGroupOf(effState.blockRole),
     );
     const visualBlockIndex =
       rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
 
-    // El bloque de `state.level`: sigue siendo la fuente UNICA del titulo y el
-    // timer (uno solo, como antes) aunque las columnas de ejercicios ahora
-    // puedan venir de dos niveles distintos.
-    const block = this.resolveBlock(classDay, state.blockRole, state.level);
+    // Columnas/titulo salen de la estacion MOSTRADA (effState).
+    const block = this.resolveBlock(
+      classDay,
+      effState.blockRole,
+      effState.level,
+    );
     const formatDictated =
       !!block?.formatParams &&
       FORMAT_DICTATED_TYPES.has(block.formatParams.type);
+    // El TIMER se calcula del bloque PERSISTIDO (state.blockRole): la rotacion no
+    // puede cambiar su spec (interval/hiit podrian tener distinto conteo de
+    // ejercicios entre I y II y el total del bloque saltaria cada 10s).
+    const timerBlock = this.resolveBlock(
+      classDay,
+      state.blockRole,
+      state.level,
+    );
 
-    const levelLabel = this.levelLabel(classDay, state.level, shared);
-    // La movilidad sale del nivel canonico (kairos-first), como el PDF/editor:
-    // se guarda por nivel y cada nivel la sortea aparte, asi que leerla del nivel
-    // del control la haria divergir del PDF en todos los casos (regresion
-    // KAIROS-01, ahora tambien cubierta en la TV).
-    const mobilityBlock = this.resolveCanonicalBlock(classDay, state.blockRole);
+    const levelLabel = this.levelLabel(classDay, effState.level, shared);
+    // La movilidad sale del nivel canonico (kairos-first), como el PDF/editor
+    // (regresion KAIROS-01, tambien cubierta en la TV).
+    const mobilityBlock = this.resolveCanonicalBlock(
+      classDay,
+      effState.blockRole,
+    );
     const mobility = mobilityBlock?.prescriptions.filter(
       (p) => p.exerciseType === "mobility",
     );
@@ -902,7 +987,7 @@ export class TvService {
       level: state.level,
       levelLabel,
       blocks,
-      blockRole: state.blockRole,
+      blockRole: effState.blockRole,
       // Pitfall 1: DERIVADO del roster en cada lectura, nunca persistido.
       blockIndex: blockIndex >= 0 ? blockIndex : 0,
       // C1: derivados del roster igual que `blockIndex`, colapsando DEUTEROS.
@@ -913,15 +998,21 @@ export class TvService {
         mobility && mobility.length > 0
           ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`
           : null,
-      columns: this.buildColumns(classDay, state, shared, block, formatDictated),
+      columns: this.buildColumns(
+        classDay,
+        effState,
+        shared,
+        block,
+        formatDictated,
+      ),
       exerciseIndex: state.exerciseIndex,
       timer: {
         // `mainPrescriptions(block).length` = estaciones del circuito: interval
         // y hiit corren `estaciones × rondas` ciclos (toTimerSpec). tabata lo
         // ignora (sus rondas ya son el total de intervalos).
         spec: toTimerSpec(
-          block?.formatParams ?? null,
-          this.mainPrescriptions(block).length,
+          timerBlock?.formatParams ?? null,
+          this.mainPrescriptions(timerBlock).length,
         ),
         status: state.timerStatus,
         startedAt: state.timerStartedAt,

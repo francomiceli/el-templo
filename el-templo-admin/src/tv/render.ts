@@ -77,6 +77,7 @@ interface Nodes {
   stage: HTMLElement;
   timerPanel: HTMLElement;
   digitos: HTMLElement;
+  digitosGhost: HTMLElement;
   progreso: HTMLElement;
   pantallaReposo: HTMLElement;
   reposoReloj: ClockNodes;
@@ -141,6 +142,7 @@ function ensureNodes(): Nodes {
     stage: byId('stage'),
     timerPanel: byId('timerPanel'),
     digitos: byId('digitos'),
+    digitosGhost: byId('digitosGhost'),
     progreso: byId('progreso'),
     pantallaReposo: byId('pantallaReposo'),
     reposoReloj: clockNodes(byId('reposoReloj')),
@@ -419,11 +421,16 @@ function buildItem(ex: TvExercise): HTMLElement {
   nombre.textContent = ex.name;
   item.appendChild(nombre);
 
-  // Repeticiones / segundos a la derecha de la fila.
+  // Repeticiones / segundos a la derecha de la fila. El numero va en un span
+  // interno para poder agrandarlo (transform: scale) SIN agrandar el chip: el
+  // transform es visual, no reflowea, asi que la placa conserva su tamaño.
   if (ex.dose.length > 0) {
     const dosis = document.createElement('span');
     dosis.className = 'dosis';
-    dosis.textContent = ex.dose;
+    const num = document.createElement('span');
+    num.className = 'dosis-num';
+    num.textContent = ex.dose;
+    dosis.appendChild(num);
     item.appendChild(dosis);
   }
 
@@ -476,6 +483,13 @@ function paintList(n: Nodes, c: TvClassPayload): void {
       paintGlyphText(cab, col.header);
     }
     colEl.appendChild(cab);
+
+    // Separador dórico: una columna griega tumbada (fuste estriado + capitel/base)
+    // entre el header nivel/ruta y la lista, en vez de una línea. Estilos en
+    // TvScreenPage.vue (.columnaDorica). Reemplaza el borde del recuadro como divisor.
+    const dorica = document.createElement('div');
+    dorica.className = 'columnaDorica';
+    colEl.appendChild(dorica);
 
     const caja = document.createElement('div');
     // Listas largas (calentamiento): entran todas achicando la tipografia.
@@ -808,6 +822,10 @@ export function tickTimer(): void {
     t.startedAt !== lastStartedAt;
   if (arranco) {
     arranqueUntil = nowCorrected() + ARRANQUE_MS;
+    // El número real queda FIJO en su lugar; una copia (este fantasma) sube y se
+    // desvanece. Se llena con el número del arranque; la animación la dispara el
+    // CSS via la clase `.arranque` del panel (misma ventana que el número real).
+    n.digitosGhost.textContent = paint.digitos;
   }
   lastTimerStatus = t.status;
   lastStartedAt = t.startedAt;

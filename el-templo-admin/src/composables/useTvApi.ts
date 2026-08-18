@@ -80,6 +80,10 @@ export interface TvControlState {
   pausedAccumMs: number;
   /** D-19: arranca apagado; el profe prende los beeps desde el celular. */
   soundEnabled: boolean;
+  /** Rotación automática de las estaciones de deuteros (I↔II) en el TV. */
+  deuterosAutoRotate: boolean;
+  /** Epoch ms de la última selección manual de estación (pisada de 30s), o null. */
+  deuterosPinnedAt: number | null;
 }
 
 /**
@@ -115,6 +119,7 @@ export interface TvStateWrite {
   exerciseIndex?: number;
   timer?: 'start' | 'pause' | 'resume' | 'reset';
   soundEnabled?: boolean;
+  deuterosAutoRotate?: boolean;
 }
 
 /**

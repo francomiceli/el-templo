@@ -255,6 +255,10 @@ export interface TvControlState {
   pausedAt: number | null;
   pausedAccumMs: number;
   soundEnabled: boolean;
+  /** Rotación automática de las estaciones de deuteros (I↔II). Arranca en true. */
+  deuterosAutoRotate: boolean;
+  /** Epoch ms de la última selección manual de estación (pisada de 30s), o null. */
+  deuterosPinnedAt: number | null;
 }
 
 /**
@@ -293,4 +297,5 @@ export interface TvStateWrite {
   exerciseIndex?: number;
   timer?: "start" | "pause" | "resume" | "reset";
   soundEnabled?: boolean;
+  deuterosAutoRotate?: boolean;
 }

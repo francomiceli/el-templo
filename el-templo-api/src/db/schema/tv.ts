@@ -153,6 +153,13 @@ export const tvClassState = mysqlTable(
     pausedAccumMs: int("paused_accum_ms").default(0).notNull(),
     // D-19: los beeps arrancan APAGADOS.
     soundEnabled: boolean("sound_enabled").default(false).notNull(),
+    // Rotacion automatica de las dos estaciones de deuteros (I<->II) en el TV,
+    // cada 10s bajo el timer compartido. Arranca PRENDIDA (feature automatica);
+    // el profe la apaga desde el control o la pisa 30s eligiendo I/II a mano.
+    deuterosAutoRotate: boolean("deuteros_auto_rotate").default(true).notNull(),
+    // Sello de la ultima seleccion manual de estacion (fsp 3): dentro de los 30s
+    // la rotacion queda fija en la estacion elegida. null = sin pisada vigente.
+    deuterosPinnedAt: timestamp("deuteros_pinned_at", { fsp: 3 }),
     updatedBy: int("updated_by").references(() => users.id),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

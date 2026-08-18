@@ -104,6 +104,8 @@ interface ControlState {
   pausedAt: number | null;
   pausedAccumMs: number;
   soundEnabled: boolean;
+  deuterosAutoRotate: boolean;
+  deuterosPinnedAt: number | null;
 }
 
 interface ControlContext {
@@ -609,6 +611,33 @@ describe("POST /control/state — bloque, nivel y ejercicio (D-15)", () => {
     const state = await write({ blockRole: "NUCLEUS", exerciseIndex: 99 });
     // NUCLEUS en alfa tiene 2 ejercicios.
     expect(state.exerciseIndex).toBe(1);
+  });
+
+  it("la rotación de deuteros arranca prendida y prender/apagar persiste", async () => {
+    const inicial = await write({});
+    expect(inicial.deuterosAutoRotate).toBe(true);
+
+    const apagada = await write({ deuterosAutoRotate: false });
+    expect(apagada.deuterosAutoRotate).toBe(false);
+    // Una escritura que no la nombra no la vuelve a prender (campo absoluto).
+    const otra = await write({ blockRole: "NUCLEUS" });
+    expect(otra.deuterosAutoRotate).toBe(false);
+
+    const prendida = await write({ deuterosAutoRotate: true });
+    expect(prendida.deuterosAutoRotate).toBe(true);
+  });
+
+  it("tocar a mano entre DEUTEROS_1 y DEUTEROS_2 fija la pisada (deuterosPinnedAt)", async () => {
+    // Entrar a deuteros y arrancar: sin pisada todavía.
+    await write({ blockRole: "DEUTEROS_1" });
+    const arrancado = await write({ timer: "start" });
+    expect(arrancado.deuterosPinnedAt).toBeNull();
+
+    // Cambiar a mano a la otra estación fija la pisada, sin resetear el timer.
+    const pisado = await write({ blockRole: "DEUTEROS_2" });
+    expect(pisado.deuterosPinnedAt).not.toBeNull();
+    expect(pisado.timerStatus).toBe("running");
+    expect(pisado.timerStartedAt).toBe(arrancado.timerStartedAt);
   });
 
   it("un bloque que no existe en el roster de hoy se descarta, no mueve al profe", async () => {

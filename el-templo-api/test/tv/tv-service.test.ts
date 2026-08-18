@@ -254,6 +254,8 @@ describe("TvService.clampState — el nivel nunca rompe el bloque (Pitfall 1)", 
     pausedAt: null,
     pausedAccumMs: 0,
     soundEnabled: false,
+    deuterosAutoRotate: true,
+    deuterosPinnedAt: null,
   };
 
   it("un rol que ya no esta en el roster cae al primer bloque", async () => {
@@ -429,6 +431,56 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     // 5, y estando en DEUTEROS_2 el indice visual es el mismo que en DEUTEROS_1.
     expect(cls.visualBlockCount).toBe(4);
     expect(cls.visualBlockIndex).toBe(2);
+  });
+
+  it("deuteros con timer corriendo: la estación mostrada rota I→II cada 10s, timer estable", async () => {
+    await seedSession({
+      level: "alfa",
+      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
+    });
+    // Profe parado en DEUTEROS_1, timer corriendo desde TUESDAY_NOON. La rotación
+    // arranca prendida por default (columna DB) y no hay pisada (pinned_at NULL).
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "DEUTEROS_1",
+      level: "alfa",
+      timerStatus: "running",
+      timerStartedAt: TUESDAY_NOON_UTC,
+    });
+
+    // A los 3s de arrancado: primera ventana de 10s → estación I.
+    const at3 = new Date(TUESDAY_NOON_UTC.getTime() + 3_000);
+    const cls3 = (await service.buildPollPayload(branchArId, at3)).class!;
+    expect(cls3.blockRole).toBe("DEUTEROS_1");
+
+    // A los 13s: segunda ventana → estación II, SIN que el profe toque nada.
+    const at13 = new Date(TUESDAY_NOON_UTC.getTime() + 13_000);
+    const cls13 = (await service.buildPollPayload(branchArId, at13)).class!;
+    expect(cls13.blockRole).toBe("DEUTEROS_2");
+
+    // El timer NO cambia con la rotación: mismo spec en las dos ventanas (los dos
+    // deuteros comparten formato; el spec sale del bloque persistido, estable).
+    expect(cls13.timer.spec).toEqual(cls3.timer.spec);
+    expect(cls13.timer.startedAt).toBe(cls3.timer.startedAt);
+  });
+
+  it("deuteros con timer IDLE no rota: queda en la estación elegida", async () => {
+    await seedSession({
+      level: "alfa",
+      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "DEUTEROS_1",
+      level: "alfa",
+      // timerStatus default "idle": sin timer corriendo no hay rotación.
+    });
+
+    const at13 = new Date(TUESDAY_NOON_UTC.getTime() + 13_000);
+    const cls = (await service.buildPollPayload(branchArId, at13)).class!;
+    expect(cls.blockRole).toBe("DEUTEROS_1");
   });
 
   it("desde DEUTEROS_1 el indice visual es el mismo que desde DEUTEROS_2 (mismo grupo)", async () => {
