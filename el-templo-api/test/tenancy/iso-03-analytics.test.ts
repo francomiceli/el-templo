@@ -171,6 +171,39 @@ const getComoGimnasioDos = (url: string, extra: Record<string, string> = {}) =>
 const getComoTemplo = (url: string, extra: Record<string, string> = {}) =>
   inject(url, templeAdminToken, fx.templo.branchId, extra);
 
+/**
+ * Variante de `inject` SIN `branchId` (vista "todas las sedes", la que el
+ * owner usa de verdad — `branchId` es `optional: true` en las 22 rutas, ver
+ * `src/modules/analytics/routes.ts`). El caso "aislamiento" de cada `describe`
+ * pasa `branchId` propio, y como `branches.id` es único por gimnasio eso YA
+ * aísla sin necesidad de `tenantWhere` — estos helpers ejercitan el ÚNICO
+ * filtro que queda cuando no hay `branchId`: `tenantWhere(tabla, ctx)`.
+ */
+function injectSinBranch(
+  url: string,
+  token: string,
+  extra: Record<string, string> = {},
+) {
+  const params = new URLSearchParams({
+    dateFrom: DATE_FROM,
+    dateTo: DATE_TO,
+    ...extra,
+  });
+  return app.inject({
+    method: "GET",
+    url: `${BASE}${url}?${params.toString()}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+const getComoGimnasioDosSinBranch = (
+  url: string,
+  extra: Record<string, string> = {},
+) => injectSinBranch(url, gym2.adminToken, extra);
+
+const getComoTemploSinBranch = (url: string, extra: Record<string, string> = {}) =>
+  injectSinBranch(url, templeAdminToken, extra);
+
 /** Mensaje compartido de los rojos de AISLAMIENTO (número/lista mezclada). */
 function porQueImportaLaMetrica(ruta: string, detalle: string): string {
   return (
@@ -255,6 +288,26 @@ describe("precondiciones de la batería", () => {
 describe("KPIs — GET /api/admin/analytics", () => {
   const RUTA = "GET /api/admin/analytics";
 
+  it("aislamiento (sin branchId, vista 'todas las sedes'): activeMembers y monthlyRevenue del gimnasio 2 no incluyen los de El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      activeMembers: { value: number };
+      monthlyRevenue: { ARS: { value: number } };
+    };
+    expect(
+      body.activeMembers.value,
+      porQueImportaLaMetrica(RUTA, "activeMembers debería ser 2 (propio), no 1+2=3"),
+    ).toBe(2);
+    expect(
+      body.monthlyRevenue.ARS.value,
+      porQueImportaLaMetrica(
+        RUTA,
+        `monthlyRevenue.ARS debería ser ${datos.dos.ticketTransactionAmount} (propio), no sumado con el de El Templo`,
+      ),
+    ).toBe(datos.dos.ticketTransactionAmount);
+  });
+
   it("aislamiento: activeMembers y monthlyRevenue del gimnasio 2 no incluyen los de El Templo", async () => {
     const res = await getComoGimnasioDos("/");
     expect(res.statusCode, res.body).toBe(200);
@@ -296,6 +349,19 @@ describe("KPIs — GET /api/admin/analytics", () => {
 describe("member analytics — GET /api/admin/analytics/members", () => {
   const RUTA = "GET /api/admin/analytics/members";
 
+  it("aislamiento (sin branchId, vista 'todas las sedes'): planDistribution del gimnasio 2 no incluye el plan de El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/members");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      planDistribution: Array<{ planName: string }>;
+    };
+    const nombres = body.planDistribution.map((p) => p.planName);
+    expect(
+      nombres,
+      porQueImportaLaMetrica(RUTA, "planDistribution trae un plan de El Templo"),
+    ).not.toContain(fx.templo.planName);
+  });
+
   it("aislamiento: planDistribution del gimnasio 2 no incluye el plan de El Templo", async () => {
     const res = await getComoGimnasioDos("/members");
     expect(res.statusCode, res.body).toBe(200);
@@ -331,6 +397,22 @@ describe("attendance analytics — GET /api/admin/analytics/attendance", () => {
   // y `checkedInAt` es `defaultNow()`: las 5/3 filas del loop principal MÁS
   // la fila `especialAttendance` (sessionDate=ayer, pero checkedInAt=ahora
   // igual) caen todas en el bucket de HOY. 5+1=6 (gimnasio 2), 3+1=4 (Templo).
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): dailyCheckins de hoy del gimnasio 2 cuenta SOLO sus 6 asistencias (no las 4 de El Templo mezcladas)", async () => {
+    const res = await getComoGimnasioDosSinBranch("/attendance");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      dailyCheckins: Array<{ date: string; count: number }>;
+    };
+    const hoy = body.dailyCheckins.find((d) => d.date === todayStr());
+    expect(
+      hoy?.count,
+      porQueImportaLaMetrica(
+        RUTA,
+        `dailyCheckins de hoy debería ser 6 (propio), no 6+4=10`,
+      ),
+    ).toBe(6);
+  });
 
   it("aislamiento: dailyCheckins de hoy del gimnasio 2 cuenta SOLO sus 6 asistencias (no las 4 de El Templo mezcladas)", async () => {
     const res = await getComoGimnasioDos("/attendance");
@@ -373,6 +455,27 @@ describe("check-in adoption — GET /api/admin/analytics/attendance/checkin-adop
   // compartida del resto del archivo.
   const HOY = todayStr();
   const MANANA = dateOffsetStr(1);
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): la fila del gimnasio 2 nunca trae el branchId de El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/attendance/checkin-adoption", {
+      dateFrom: HOY,
+      dateTo: MANANA,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as Array<{
+      branchId: number;
+      branchName: string;
+      confirmados: number;
+      conCheckin: number;
+      ratio: number;
+    }>;
+    for (const fila of body) {
+      expect(
+        fila.branchId,
+        porQueImportaLaMetrica(RUTA, `fila con branchId de El Templo (${fx.templo.branchId})`),
+      ).not.toBe(fx.templo.branchId);
+    }
+  });
 
   it("aislamiento: la fila del gimnasio 2 nunca trae el branchId de El Templo", async () => {
     const res = await getComoGimnasioDos("/attendance/checkin-adoption", {
@@ -422,6 +525,22 @@ describe("check-in adoption — GET /api/admin/analytics/attendance/checkin-adop
 describe("únicos por ventana — GET /api/admin/analytics/attendance/unique-members", () => {
   const RUTA = "GET /api/admin/analytics/attendance/unique-members";
 
+  it("aislamiento (sin branchId, vista 'todas las sedes'): last7 del gimnasio 2 cuenta 2 socios únicos (el principal + el del pase especial), no mezclado con El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/attendance/unique-members");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      last7: number;
+      last30: number;
+    };
+    expect(
+      body.last7,
+      porQueImportaLaMetrica(
+        RUTA,
+        "last7 debería ser 2 (propio: principal + especial), no 2+1=3",
+      ),
+    ).toBe(2);
+  });
+
   it("aislamiento: last7 del gimnasio 2 cuenta 2 socios únicos (el principal + el del pase especial), no mezclado con El Templo", async () => {
     const res = await getComoGimnasioDos("/attendance/unique-members");
     expect(res.statusCode, res.body).toBe(200);
@@ -457,6 +576,18 @@ describe("únicos por ventana — GET /api/admin/analytics/attendance/unique-mem
 describe("engagement — GET /api/admin/analytics/engagement", () => {
   const RUTA = "GET /api/admin/analytics/engagement";
 
+  it("aislamiento (sin branchId, vista 'todas las sedes'): counts.sinSegmento del gimnasio 2 es 3 (propio), no mezclado con El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/engagement");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      counts: { sinSegmento: number };
+    };
+    expect(
+      body.counts.sinSegmento,
+      porQueImportaLaMetrica(RUTA, "sinSegmento debería ser 3 (propio), no 3+1=4"),
+    ).toBe(3);
+  });
+
   it("aislamiento: counts.sinSegmento del gimnasio 2 es 3 (propio), no mezclado con El Templo", async () => {
     const res = await getComoGimnasioDos("/engagement");
     expect(res.statusCode, res.body).toBe(200);
@@ -488,6 +619,24 @@ describe("engagement — GET /api/admin/analytics/engagement", () => {
 
 describe("retención por ciclos — GET /api/admin/analytics/retention", () => {
   const RUTA = "GET /api/admin/analytics/retention";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): cycleDistribution.ciclo1 y availablePlans del gimnasio 2 no incluyen los de El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/retention");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      cycleDistribution: { ciclo1: number };
+      availablePlans: Array<{ name: string }>;
+    };
+    expect(
+      body.cycleDistribution.ciclo1,
+      porQueImportaLaMetrica(RUTA, "ciclo1 debería ser 2 (propio, ver asimetría 1 vs 2)"),
+    ).toBe(2);
+    const nombresPlanes = body.availablePlans.map((p) => p.name);
+    expect(
+      nombresPlanes,
+      porQueImportaLaMetrica(RUTA, "availablePlans trae un plan de El Templo"),
+    ).not.toContain(fx.templo.planName);
+  });
 
   it("aislamiento: cycleDistribution.ciclo1 y availablePlans del gimnasio 2 no incluyen los de El Templo", async () => {
     const res = await getComoGimnasioDos("/retention");
@@ -529,6 +678,22 @@ describe("retención por ciclos — GET /api/admin/analytics/retention", () => {
 describe("finanzas avanzadas — GET /api/admin/analytics/advanced-finance", () => {
   const RUTA = "GET /api/admin/analytics/advanced-finance";
 
+  it("aislamiento (sin branchId, vista 'todas las sedes'): cashTrend del mes del gimnasio 2 no suma el plan_charge de El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/advanced-finance");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      cashTrend: Array<{ month: string; ARS: number }>;
+    };
+    const mes = body.cashTrend.find((m) => m.month === MONTH_ACTUAL);
+    expect(
+      mes?.ARS,
+      porQueImportaLaMetrica(
+        RUTA,
+        `cashTrend del mes actual debería ser ${datos.dos.ticketTransactionAmount} (propio)`,
+      ),
+    ).toBe(datos.dos.ticketTransactionAmount);
+  });
+
   it("aislamiento: cashTrend del mes del gimnasio 2 no suma el plan_charge de El Templo", async () => {
     const res = await getComoGimnasioDos("/advanced-finance");
     expect(res.statusCode, res.body).toBe(200);
@@ -564,6 +729,25 @@ describe("finanzas avanzadas — GET /api/admin/analytics/advanced-finance", () 
 
 describe("ticket promedio — GET /api/admin/analytics/ticket", () => {
   const RUTA = "GET /api/admin/analytics/ticket";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): byCurrency.ARS.global del gimnasio 2 es SOLO su propio cobro (n=1, nominal=pricePaid propio)", async () => {
+    const res = await getComoGimnasioDosSinBranch("/ticket");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      byCurrency: { ARS: { global: { nominal: number; n: number } } };
+    };
+    expect(
+      body.byCurrency.ARS.global.n,
+      porQueImportaLaMetrica(RUTA, "global.n debería ser 1 (propio), no 2 mezclado"),
+    ).toBe(1);
+    expect(
+      body.byCurrency.ARS.global.nominal,
+      porQueImportaLaMetrica(
+        RUTA,
+        `global.nominal debería ser ${fx.dos.pricePaid} (propio pricePaid), no el de El Templo`,
+      ),
+    ).toBe(fx.dos.pricePaid);
+  });
 
   it("aislamiento: byCurrency.ARS.global del gimnasio 2 es SOLO su propio cobro (n=1, nominal=pricePaid propio)", async () => {
     const res = await getComoGimnasioDos("/ticket");
@@ -603,6 +787,26 @@ describe("ticket promedio — GET /api/admin/analytics/ticket", () => {
 
 describe("churn — GET /api/admin/analytics/churn", () => {
   const RUTA = "GET /api/admin/analytics/churn";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): la cohorte madura del gimnasio 2 es SOLO su socio churneado (n=1), churn 100%", async () => {
+    const res = await getComoGimnasioDosSinBranch("/churn");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      window: { churn: { nominal: number; n: number } };
+      breakdowns: Array<{ axis: string; key: string }>;
+    };
+    expect(
+      body.window.churn.n,
+      porQueImportaLaMetrica(RUTA, "la cohorte madura debería ser n=1 (propio), no 1+1=2"),
+    ).toBe(1);
+    expect(body.window.churn.nominal).toBe(1);
+    const planRows = body.breakdowns.filter((b) => b.axis === "plan");
+    const nombresPlanes = planRows.map((r) => r.key);
+    expect(
+      nombresPlanes,
+      porQueImportaLaMetrica(RUTA, "breakdown por plan trae el plan de El Templo"),
+    ).not.toContain(fx.templo.planName);
+  });
 
   it("aislamiento: la cohorte madura del gimnasio 2 es SOLO su socio churneado (n=1), churn 100%", async () => {
     const res = await getComoGimnasioDos("/churn");
@@ -644,6 +848,19 @@ describe("churn — GET /api/admin/analytics/churn", () => {
 describe("renovación — GET /api/admin/analytics/renewal", () => {
   const RUTA = "GET /api/admin/analytics/renewal";
 
+  it("aislamiento (sin branchId, vista 'todas las sedes'): la cohorte vencida del gimnasio 2 es SOLO su socio (n=1), 0 renovados", async () => {
+    const res = await getComoGimnasioDosSinBranch("/renewal");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      renewal: { nominal: number; n: number };
+    };
+    expect(
+      body.renewal.n,
+      porQueImportaLaMetrica(RUTA, "la cohorte vencida debería ser n=1 (propio), no 1+1=2"),
+    ).toBe(1);
+    expect(body.renewal.nominal).toBe(0);
+  });
+
   it("aislamiento: la cohorte vencida del gimnasio 2 es SOLO su socio (n=1), 0 renovados", async () => {
     const res = await getComoGimnasioDos("/renewal");
     expect(res.statusCode, res.body).toBe(200);
@@ -674,6 +891,20 @@ describe("renovación — GET /api/admin/analytics/renewal", () => {
 
 describe("altas y bajas — GET /api/admin/analytics/member-flows", () => {
   const RUTA = "GET /api/admin/analytics/member-flows";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): las bajas del mes de vencimiento del gimnasio 2 (bajas=1) no incluyen la de El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/member-flows");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      series: Array<{ bucket: string; altas: number; bajas: number }>;
+    };
+    const mesVencimiento = datos.dos.churnedEndDate.slice(0, 7);
+    const fila = body.series.find((s) => s.bucket === mesVencimiento);
+    expect(
+      fila?.bajas,
+      porQueImportaLaMetrica(RUTA, "bajas del mes de vencimiento debería ser 1 (propio), no 2"),
+    ).toBe(1);
+  });
 
   it("aislamiento: las bajas del mes de vencimiento del gimnasio 2 (bajas=1) no incluyen la de El Templo", async () => {
     const res = await getComoGimnasioDos("/member-flows");
@@ -707,6 +938,21 @@ describe("altas y bajas — GET /api/admin/analytics/member-flows", () => {
 
 describe("detalle de bajas — GET /api/admin/analytics/churned-members", () => {
   const RUTA = "GET /api/admin/analytics/churned-members";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): el detalle del gimnasio 2 trae SOLO su propio socio churneado, con su pricePaid propio", async () => {
+    const res = await getComoGimnasioDosSinBranch("/churned-members");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      members: Array<{ userId: number; pricePaid: number }>;
+    };
+    expect(
+      body.members.map((m) => m.userId),
+      porQueImportaLaMetrica(RUTA, "el detalle de bajas trae el socio churneado de El Templo"),
+    ).not.toContain(datos.templo.churnedUserId);
+    const propio = body.members.find((m) => m.userId === datos.dos.churnedUserId);
+    expect(propio, porQueImportaElControl(RUTA)).toBeDefined();
+    expect(propio?.pricePaid).toBe(datos.dos.churnedPricePaid);
+  });
 
   it("aislamiento: el detalle del gimnasio 2 trae SOLO su propio socio churneado, con su pricePaid propio", async () => {
     const res = await getComoGimnasioDos("/churned-members");
@@ -744,6 +990,16 @@ describe("detalle de bajas — GET /api/admin/analytics/churned-members", () => 
 describe("export de bajas — GET /api/admin/analytics/churned-members/export", () => {
   const RUTA = "GET /api/admin/analytics/churned-members/export";
 
+  it("aislamiento (sin branchId, vista 'todas las sedes'): el XLSX del gimnasio 2 tiene EXACTAMENTE 1 fila de datos (su propio churneado)", async () => {
+    const res = await getComoGimnasioDosSinBranch("/churned-members/export");
+    expect(res.statusCode, res.body).toBe(200);
+    expect(
+      res.headers["content-type"],
+      porQueImportaLaMetrica(RUTA, "no devolvió un XLSX"),
+    ).toContain("spreadsheet");
+    expect(res.rawPayload.length).toBeGreaterThan(0);
+  });
+
   it("aislamiento: el XLSX del gimnasio 2 tiene EXACTAMENTE 1 fila de datos (su propio churneado)", async () => {
     const res = await getComoGimnasioDos("/churned-members/export");
     expect(res.statusCode, res.body).toBe(200);
@@ -772,6 +1028,25 @@ describe("export de bajas — GET /api/admin/analytics/churned-members/export", 
 
 describe("LTV — GET /api/admin/analytics/ltv", () => {
   const RUTA = "GET /api/admin/analytics/ltv";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): n (cohorte madura) del gimnasio 2 es 1 (propio), y breakdowns no traen el plan de El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/ltv");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      n: number;
+      breakdowns: Array<{ axis: string; key: string }>;
+    };
+    expect(
+      body.n,
+      porQueImportaLaMetrica(RUTA, "n (cohorte madura) debería ser 1 (propio), no 2"),
+    ).toBe(1);
+    const planRows = body.breakdowns.filter((b) => b.axis === "plan");
+    const nombresPlanes = planRows.map((r) => r.key);
+    expect(
+      nombresPlanes,
+      porQueImportaLaMetrica(RUTA, "breakdown por plan trae el plan de El Templo"),
+    ).not.toContain(fx.templo.planName);
+  });
 
   it("aislamiento: n (cohorte madura) del gimnasio 2 es 1 (propio), y breakdowns no traen el plan de El Templo", async () => {
     const res = await getComoGimnasioDos("/ltv");
@@ -806,6 +1081,23 @@ describe("LTV — GET /api/admin/analytics/ltv", () => {
 
 describe("funnel de conversión — GET /api/admin/analytics/funnel", () => {
   const RUTA = "GET /api/admin/analytics/funnel";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): la cohorte del mes actual del gimnasio 2 no incluye usuarios de El Templo (leído directo de la base)", async () => {
+    const res = await getComoGimnasioDosSinBranch("/funnel");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      cohorts: Array<{ cohortMonth: string; size: number }>;
+    };
+    const [{ total }] = await countUsuariosDelMes(gym2.tenantId, gym2.branchId);
+    const fila = body.cohorts.find((c) => c.cohortMonth === MONTH_ACTUAL);
+    expect(
+      fila?.size,
+      porQueImportaLaMetrica(
+        RUTA,
+        `cohorts[mes actual].size debería ser ${total} (leído de la base, propio del gimnasio ${TENANT_DOS}), no sumado con El Templo`,
+      ),
+    ).toBe(total);
+  });
 
   it("aislamiento: la cohorte del mes actual del gimnasio 2 no incluye usuarios de El Templo (leído directo de la base)", async () => {
     const res = await getComoGimnasioDos("/funnel");
@@ -866,6 +1158,21 @@ async function countUsuariosDelMes(
 
 describe("frecuencia de asistencia — GET /api/admin/analytics/frequency", () => {
   const RUTA = "GET /api/admin/analytics/frequency";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): checkInAdoption (reusado) del gimnasio 2 nunca trae la sede de El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/frequency");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      checkInAdoption: Array<{ branchId: number }>;
+      breakdowns: Array<{ axis: string; key: string; count: { n: number } }>;
+    };
+    for (const fila of body.checkInAdoption) {
+      expect(
+        fila.branchId,
+        porQueImportaLaMetrica(RUTA, "checkInAdoption trae la sede de El Templo"),
+      ).not.toBe(fx.templo.branchId);
+    }
+  });
 
   it("aislamiento: checkInAdoption (reusado) del gimnasio 2 nunca trae la sede de El Templo", async () => {
     const res = await getComoGimnasioDos("/frequency");
@@ -980,6 +1287,25 @@ describe("calificación de clases — GET /api/admin/analytics/class-ratings", (
 describe("reporte de especiales — GET /api/admin/analytics/especiales", () => {
   const RUTA = "GET /api/admin/analytics/especiales";
 
+  it("aislamiento (sin branchId, vista 'todas las sedes'): rows del gimnasio 2 no incluye la actividad especial de El Templo", async () => {
+    const res = await getComoGimnasioDosSinBranch("/especiales", { month: MONTH_ACTUAL });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      rows: Array<{ activityId: number; total: number }>;
+      kpis: { sociosActivos: number; externosActivos: number };
+    };
+    const nombresIds = body.rows.map((r) => r.activityId);
+    expect(
+      nombresIds,
+      porQueImportaLaMetrica(RUTA, "rows trae la actividad especial de El Templo"),
+    ).not.toContain(datos.templo.especialActivityId);
+    const propia = body.rows.find(
+      (r) => r.activityId === datos.dos.especialActivityId,
+    );
+    expect(propia, porQueImportaElControl(RUTA)).toBeDefined();
+    expect(propia?.total).toBe(1);
+  });
+
   it("aislamiento: rows del gimnasio 2 no incluye la actividad especial de El Templo", async () => {
     const res = await getComoGimnasioDos("/especiales", { month: MONTH_ACTUAL });
     expect(res.statusCode, res.body).toBe(200);
@@ -1020,6 +1346,24 @@ describe("reporte de especiales — GET /api/admin/analytics/especiales", () => 
 describe("export de especiales — GET /api/admin/analytics/especiales/export", () => {
   const RUTA = "GET /api/admin/analytics/especiales/export";
 
+  it("aislamiento y control (sin branchId, vista 'todas las sedes'): el gimnasio 2 y El Templo generan cada uno su propio XLSX sin error", async () => {
+    const resDos = await getComoGimnasioDosSinBranch("/especiales/export", {
+      month: MONTH_ACTUAL,
+    });
+    const resTemplo = await getComoTemploSinBranch("/especiales/export", {
+      month: MONTH_ACTUAL,
+    });
+    expect(resDos.statusCode, resDos.body).toBe(200);
+    expect(resTemplo.statusCode, resTemplo.body).toBe(200);
+    expect(
+      resDos.headers["content-type"],
+      porQueImportaLaMetrica(RUTA, "no devolvió un XLSX"),
+    ).toContain("spreadsheet");
+    expect(resTemplo.headers["content-type"], porQueImportaElControl(RUTA)).toContain(
+      "spreadsheet",
+    );
+  });
+
   it("aislamiento y control: el gimnasio 2 y El Templo generan cada uno su propio XLSX sin error", async () => {
     const resDos = await getComoGimnasioDos("/especiales/export", {
       month: MONTH_ACTUAL,
@@ -1045,6 +1389,23 @@ describe("export de especiales — GET /api/admin/analytics/especiales/export", 
 
 describe("financial analytics — GET /api/admin/analytics/financial", () => {
   const RUTA = "GET /api/admin/analytics/financial";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): revenueByBranch del gimnasio 2 no trae la sede de El Templo, y revenueTrend del mes es SOLO el propio", async () => {
+    const res = await getComoGimnasioDosSinBranch("/financial");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      revenueTrend: Array<{ month: string; ARS: number }>;
+      revenueByBranch: Array<{ branchName: string; branchId?: number }>;
+    };
+    const mes = body.revenueTrend.find((m) => m.month === MONTH_ACTUAL);
+    expect(
+      mes?.ARS,
+      porQueImportaLaMetrica(
+        RUTA,
+        `revenueTrend del mes actual debería ser ${datos.dos.ticketTransactionAmount} (propio)`,
+      ),
+    ).toBe(datos.dos.ticketTransactionAmount);
+  });
 
   it("aislamiento: revenueByBranch del gimnasio 2 no trae la sede de El Templo, y revenueTrend del mes es SOLO el propio", async () => {
     const res = await getComoGimnasioDos("/financial");
@@ -1082,6 +1443,19 @@ describe("financial analytics — GET /api/admin/analytics/financial", () => {
 
 describe("trial funnel — GET /api/admin/analytics/trial-funnel", () => {
   const RUTA = "GET /api/admin/analytics/trial-funnel";
+
+  it("aislamiento (sin branchId, vista 'todas las sedes'): counts.reservaron del gimnasio 2 es 2 (sus 2 reservas de prueba), no 2+1=3", async () => {
+    const res = await getComoGimnasioDosSinBranch("/trial-funnel");
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      counts: { reservaron: number; asistieron: number };
+    };
+    expect(
+      body.counts.reservaron,
+      porQueImportaLaMetrica(RUTA, "counts.reservaron debería ser 2 (propio), no 2+1=3"),
+    ).toBe(2);
+    expect(body.counts.asistieron).toBe(2);
+  });
 
   it("aislamiento: counts.reservaron del gimnasio 2 es 2 (sus 2 reservas de prueba), no 2+1=3", async () => {
     const res = await getComoGimnasioDos("/trial-funnel");
