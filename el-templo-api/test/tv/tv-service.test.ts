@@ -526,9 +526,11 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
 
     expect(cls.blocks[0].shared).toBe(true);
     expect(cls.levelLabel).toBe("TODOS LOS NIVELES");
-    // Bloque shared -> UNA sola columna, con la lista comun.
+    // Bloque shared -> UNA sola columna, con la lista comun. El header lista
+    // los niveles del dia con sus simbolos (UAT 2026-08-18): solo alfa
+    // seedeado -> "NIVELES α".
     expect(cls.columns).toHaveLength(1);
-    expect(cls.columns[0].header).toBe("INITIUM | TODOS LOS NIVELES");
+    expect(cls.columns[0].header).toBe("INITIUM | NIVELES α");
     expect(cls.columns[0].exercises[0].contraction).toBe("CON");
     // Formato dictado por la estructura (tabata): sin volumen inventado.
     expect(cls.columns[0].exercises[0].dose).toBe("");

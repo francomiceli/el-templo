@@ -38,7 +38,6 @@ import {
   visualGroupOf,
 } from "./roster";
 import { getRouteLabel } from "./route-labels";
-import { ROLE_LABELS } from "../shared/role-labels";
 import { toTimerSpec } from "./timer-spec";
 import type {
   TvBlockSummary,
@@ -809,11 +808,22 @@ export class TvService {
     formatDictated: boolean,
   ): TvLevelColumn[] {
     if (shared) {
-      // INITIUM o STRETCHING: una sola columna comun a todos los niveles.
-      const roleLabel = ROLE_LABELS[state.blockRole] ?? state.blockRole;
+      // INITIUM o STRETCHING: una sola columna comun a todos los niveles. El
+      // rol va por su nombre de bloque, NO por ROLE_LABELS (INITIUM mapea a
+      // "PYROS" y el header historico del kiosco es "INITIUM"). La segunda
+      // mitad lista los niveles del dia con sus simbolos (UAT 2026-08-18)
+      // en vez del literal "TODOS LOS NIVELES" — el kiosco ya pinta esos
+      // glifos via paintGlyphText. ROM no usa la escalera de simbolos
+      // (D-23: BASICO/AVANZADO) y conserva el literal.
+      const levelsLabel =
+        classDay.mode === "rom"
+          ? ALL_LEVELS_LABEL
+          : `NIVELES ${classDay.levels
+              .map((lvl) => LEVEL_SYMBOLS[lvl] ?? lvl.toUpperCase())
+              .join(" ")}`;
       return [
         {
-          header: `${roleLabel} | ${ALL_LEVELS_LABEL}`,
+          header: `${state.blockRole} | ${levelsLabel}`,
           exercises: this.mainPrescriptions(block).map((p) =>
             this.toExercise(p, formatDictated),
           ),
