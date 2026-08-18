@@ -20,31 +20,19 @@
  *   - `GET /api/members/referrals` — socio, propio.
  *   - `POST /api/members/referrals/cta-click` — socio, escritura best-effort.
  *
- * `GET /api/admin/referrals/ab-results` ES DELIBERADAMENTE GLOBAL — NO ES UN CASO
- * DE AISLAMIENTO CONVENCIONAL (hallazgo de este plan, ya revisado y shippeado en
- * fase 175-04)
+ * `GET /api/admin/referrals/ab-results` — ACOTADO AL GIMNASIO DEL REQUEST
+ * (decisión de Franco 2026-08-18; revierte la exención global de 173/175-04)
  * -----------------------------------------------------------------------
- * `ReferralService.getAbTestResults()` (`referrals/service.ts` líneas ~657-703)
- * NO recibe `ctx` — sus 3 queries llevan una exención `tenant-safe` EMBEBIDA en
- * el SQL, con el motivo transcrito literal: "A/B test global de todo el sistema
- * de referidos (...); acotarlo por gimnasio cambiaria lo que la metrica mide".
- * Esta decisión ya fue tomada y shippeada por la fase 175 (`175-04-SUMMARY.md`
- * línea 84: "getAbTestResults con exención propia por statement"), NO es un
- * hallazgo nuevo de este plan ni algo que este plan deba corregir (Rule 4 —
- * cambio arquitectónico, fuera de alcance de una batería de tests).
+ * `ReferralService.getAbTestResults(ctx)` (`referrals/service.ts`) ahora recibe
+ * `ctx` y sus 3 queries filtran por `tenantWhere(tabla, ctx)` como el resto del
+ * módulo. Cada gimnasio ve SOLO sus propios números por variante — dejó de ser
+ * una superficie de negocio cross-tenant.
  *
- * El test de esta ruta, entonces, no busca un 404/403 cross-tenant — busca
- * DOCUMENTAR Y VERIFICAR el comportamiento global tal como está diseñado: un
- * clic del gimnasio 2 y un clic de El Templo aparecen en LOS MISMOS números,
- * vistos por CUALQUIER staff con acceso (gym2 o Templo). "Cero 403" acá se
- * cumple trivialmente porque la ruta nunca filtró por tenant — el gate es
- * solo de ROL (`ANALYTICS_OPERATIONAL_ROLES`), no de gimnasio.
- *
- * ⚠ NOTA PARA FRANCO (flag, no fix): en un SaaS multi-tenant, un tab de
- * Analíticas de CUALQUIER gimnasio mostrando el volumen A/B combinado de
- * TODOS los gimnasios es una superficie de negocio cross-tenant real (no
- * solo un detalle de implementación) — vale una revisión de producto cuando
- * se onboardee el segundo gimnasio de verdad (fuera del alcance de 175.1-05).
+ * El test de esta ruta, entonces, SÍ es un caso de aislamiento: un clic del
+ * gimnasio 2 y un clic de El Templo NO aparecen en los mismos números. El staff
+ * del gimnasio 2 ve solo su propio delta (+1), nunca el de El Templo (evita el
+ * +2 que probaría fuga). "Cero 403" se verifica para cada staff sobre SU propio
+ * gimnasio (el gate de ROL — `ANALYTICS_OPERATIONAL_ROLES` — sigue vigente).
  *
  * CERO 403 (D-06 del milestone) EN LAS OTRAS 2 RUTAS
  * -----------------------------------------------------------------------
@@ -128,8 +116,8 @@ function porQueImportaElAislamiento(ruta: string, detalle: string): string {
   return (
     `${ruta} mezcló datos de El Templo (${TENANT_TEMPLO}) y el gimnasio ` +
     `${TENANT_DOS}: ${detalle}. Revisar el \`tenantWhere(tabla, ctx)\` del ` +
-    `método que sirve esta ruta en src/modules/referrals/*.ts. NO "arreglar" ` +
-    `esto filtrando en el front.`
+    `método que sirve esta ruta en los .ts de src/modules/referrals. NO ` +
+    `"arreglar" esto filtrando en el front.`
   );
 }
 
@@ -234,66 +222,68 @@ describe("click en el CTA — POST /api/members/referrals/cta-click", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GET /api/admin/referrals/ab-results — DELIBERADAMENTE GLOBAL (ver docblock)
+// GET /api/admin/referrals/ab-results — ACOTADO AL GIMNASIO (ver docblock)
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("resultados A/B — GET /api/admin/referrals/ab-results (deliberadamente global, T-175-04)", () => {
+describe("resultados A/B — GET /api/admin/referrals/ab-results (acotado al gimnasio, T-175.1)", () => {
   const RUTA = "GET /api/admin/referrals/ab-results";
 
-  it("documentado: un clic de El Templo Y uno del gimnasio 2 aparecen en LOS MISMOS números, vistos por CUALQUIER staff (no hay filtro de tenant — por diseño, ver docblock)", async () => {
-    const antes = await getComo(
-      "/api/admin/referrals/ab-results",
-      gym2.adminToken,
-    );
-    expect(antes.statusCode, `${RUTA} falló: ${antes.body}`).toBe(200);
-    const bodyAntes = JSON.parse(antes.body) as {
+  /** Suma de totalClicks de todas las variantes en un body de ab-results. */
+  function totalClicksDe(body: string): number {
+    const parsed = JSON.parse(body) as {
       variants: Array<{ totalClicks: number }>;
     };
-    const totalAntes = bodyAntes.variants.reduce(
-      (suma, v) => suma + v.totalClicks,
-      0,
+    return parsed.variants.reduce((suma, v) => suma + v.totalClicks, 0);
+  }
+
+  it("aislamiento: un clic del gimnasio 2 y uno de El Templo NO se mezclan — cada staff ve SOLO el +1 de su propio gimnasio (nunca +2)", async () => {
+    // Baseline por-tenant (cada uno visto por SU propio staff).
+    const baseGdos = totalClicksDe(
+      (await getComo("/api/admin/referrals/ab-results", gym2.adminToken)).body,
+    );
+    const baseTemplo = totalClicksDe(
+      (await getComo("/api/admin/referrals/ab-results", templeAdminToken)).body,
     );
 
     // Un clic de CADA tenant.
     await postComo("/api/members/referrals/cta-click", dos.referredToken);
     await postComo("/api/members/referrals/cta-click", templo.referredToken);
 
-    const despuesComoGdos = await getComo(
+    // El staff del gimnasio 2 ve SOLO su propio clic (+1), no el de El Templo.
+    const gdos = await getComo(
       "/api/admin/referrals/ab-results",
       gym2.adminToken,
     );
-    expect(despuesComoGdos.statusCode, despuesComoGdos.body).toBe(200);
-    const bodyDespuesGdos = JSON.parse(despuesComoGdos.body) as {
-      variants: Array<{ totalClicks: number }>;
-    };
-    const totalDespuesGdos = bodyDespuesGdos.variants.reduce(
-      (suma, v) => suma + v.totalClicks,
-      0,
-    );
+    expect(gdos.statusCode, `${RUTA} falló: ${gdos.body}`).toBe(200);
+    const totalGdos = totalClicksDe(gdos.body);
     expect(
-      totalDespuesGdos,
-      `${RUTA}: se esperaba que el staff del gimnasio 2 viera AMBOS clics ` +
-        `nuevos en el total (diseño deliberadamente global, T-175-04) — antes=${totalAntes}, después=${totalDespuesGdos}`,
-    ).toBe(totalAntes + 2);
+      totalGdos,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el staff del gimnasio ${TENANT_DOS} vio ${totalGdos} clics (esperaba ` +
+          `${baseGdos + 1}=solo el suyo); si es ${baseGdos + 2} la ruta contó ` +
+          `también el clic de El Templo`,
+      ),
+    ).toBe(baseGdos + 1);
 
-    // El staff de El Templo ve EXACTAMENTE el mismo número — misma fuente global.
-    const despuesComoTemplo = await getComo(
+    // El staff de El Templo ve SOLO su propio clic (+1), no el del gimnasio 2.
+    const comoTemplo = await getComo(
       "/api/admin/referrals/ab-results",
       templeAdminToken,
     );
-    expect(despuesComoTemplo.statusCode, despuesComoTemplo.body).toBe(200);
-    const bodyDespuesTemplo = JSON.parse(despuesComoTemplo.body) as {
-      variants: Array<{ totalClicks: number }>;
-    };
+    expect(comoTemplo.statusCode, comoTemplo.body).toBe(200);
+    const totalTemplo = totalClicksDe(comoTemplo.body);
     expect(
-      bodyDespuesTemplo,
-      `${RUTA}: el staff de El Templo y el del gimnasio 2 deberían ver ` +
-        `EXACTAMENTE los mismos números (agregado global) — si difieren, la ` +
-        `ruta dejó de ser global sin que este test se haya actualizado`,
-    ).toEqual(bodyDespuesGdos);
+      totalTemplo,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el staff de El Templo vio ${totalTemplo} clics (esperaba ` +
+          `${baseTemplo + 1}=solo el suyo)`,
+      ),
+    ).toBe(baseTemplo + 1);
   });
 
-  it("cero 403: cualquier staff con rol operativo (gestion/admin/owner) de CUALQUIER gimnasio accede — el gate es de ROL, no de tenant", async () => {
+  it("cero 403: cada staff con rol operativo (gestion/admin/owner) accede a los números de SU gimnasio — el gate de ROL sigue vigente sobre el scope propio", async () => {
     const comoGdos = await getComo(
       "/api/admin/referrals/ab-results",
       gym2.adminToken,

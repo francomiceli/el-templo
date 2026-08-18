@@ -654,13 +654,14 @@ export class ReferralService {
    *     (los previos al experimento son NULL y quedan fuera).
    * Las tasas (CTR, conversión) se calculan sobre "expuestos".
    */
-  async getAbTestResults(): Promise<ReferralAbResults> {
-    // Expuestos por variante: paridad del id del socio activo.
-    // Fase 173 (ADO-02, T-173-21/T-173-22): el comentario TS de abajo exime
-    // al LINT (ancla por AST), pero el SENTINEL solo lee el SQL de runtime
-    // (D-17) — la misma exención se repite EMBEBIDA en el `where`, el único
-    // canal que el sentinel puede leer.
-    /* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */
+  async getAbTestResults(ctx: TenantContext): Promise<ReferralAbResults> {
+    // T-175.1 (decisión de Franco, 2026-08-18): el A/B test se ACOTA al gimnasio
+    // del request. Cada gimnasio ve solo sus propios números por variante —
+    // revierte la exención global heredada de 173/175-04 (D-17). El bucketing
+    // par/impar del id sigue siendo justo dentro de un mismo tenant. Las tres
+    // queries filtran por `tenantWhere` como el resto del módulo.
+
+    // Expuestos por variante: paridad del id del socio activo del gimnasio.
     const exposedRows = await this.db
       .select({
         variant: sql<string>`CASE WHEN ${users.id} % 2 = 0 THEN 'A' ELSE 'B' END`,
@@ -668,15 +669,15 @@ export class ReferralService {
       })
       .from(users)
       .where(
-        sql`/* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */ ${and(eq(users.role, "member"), eq(users.status, "activo"))}`,
+        and(
+          tenantWhere(users, ctx),
+          eq(users.role, "member"),
+          eq(users.status, "activo"),
+        ),
       )
       .groupBy(sql`CASE WHEN ${users.id} % 2 = 0 THEN 'A' ELSE 'B' END`);
 
-    // Clics: clickers únicos + clics totales por variante.
-    // T-175-04: exención propia (antes solo la de exposedRows/users cubría SU
-    // statement — este SELECT es el suyo, sobre referral_cta_clicks). Mismo
-    // motivo que exposedRows: A/B global, acotarlo cambiaría lo que mide.
-    /* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */
+    // Clics: clickers únicos + clics totales por variante (del gimnasio).
     const clickRows = await this.db
       .select({
         variant: referralCtaClicks.variant,
@@ -684,16 +685,10 @@ export class ReferralService {
         totalClicks: sql<number>`COUNT(*)`,
       })
       .from(referralCtaClicks)
-      .where(
-        sql`/* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */ 1 = 1`,
-      )
+      .where(tenantWhere(referralCtaClicks, ctx))
       .groupBy(referralCtaClicks.variant);
 
     // Referidos: creados + cualificados por variante (solo los estampados).
-    // T-175-04: exención propia (antes solo la de exposedRows/users cubría SU
-    // statement — este SELECT es el suyo, sobre referrals). Mismo motivo que
-    // exposedRows: A/B global, acotarlo cambiaría lo que mide.
-    /* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */
     const referralRows = await this.db
       .select({
         variant: referrals.copyVariant,
@@ -702,10 +697,7 @@ export class ReferralService {
       })
       .from(referrals)
       .where(
-        and(
-          sql`/* tenant-safe: A/B test global de todo el sistema de referidos (docblock de referrals/admin-routes.ts: "superficie de LECTURA global, no per-gimnasio"); acotarlo por gimnasio cambiaria lo que la metrica mide */ 1 = 1`,
-          isNotNull(referrals.copyVariant),
-        ),
+        and(tenantWhere(referrals, ctx), isNotNull(referrals.copyVariant)),
       )
       .groupBy(referrals.copyVariant);
 
