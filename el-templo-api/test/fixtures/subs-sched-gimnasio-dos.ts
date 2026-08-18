@@ -406,6 +406,14 @@ async function sembrarLadoTemplo(
         promoCode,
         planDurationDays: 30,
         subscriptionPlanId: plan.id,
+        // ⚠ FLAKE DE TIMEZONE CONOCIDO — DIFERIDO (decisión de Franco 2026-08-18).
+        // `new Date()` se serializa a UTC; entre 21:00-00:00 ART (−03) eso cae en
+        // el día UTC SIGUIENTE, y el chequeo "promo activa hoy" (EXISTS contra
+        // CURDATE(), tz local del server) la ve en el futuro → la batería de
+        // analytics falla SOLO en esa ventana horaria, en local. CI de GitHub
+        // corre en UTC, donde NO se dispara. Si CI se mudara a tz local y esto se
+        // pusiera rojo: sembrar con string local TZ-safe (como `today`/todayStr()),
+        // no `new Date()`. Ver reference_test_arpu_dependiente_del_calendario.
         startDate: new Date(),
         expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90),
         promoType: "admin_assignable" as const,
@@ -607,6 +615,14 @@ async function sembrarLadoGimnasioDos(
         promoCode,
         planDurationDays: 30,
         subscriptionPlanId: gym2.planId,
+        // ⚠ FLAKE DE TIMEZONE CONOCIDO — DIFERIDO (decisión de Franco 2026-08-18).
+        // `new Date()` se serializa a UTC; entre 21:00-00:00 ART (−03) eso cae en
+        // el día UTC SIGUIENTE, y el chequeo "promo activa hoy" (EXISTS contra
+        // CURDATE(), tz local del server) la ve en el futuro → la batería de
+        // analytics falla SOLO en esa ventana horaria, en local. CI de GitHub
+        // corre en UTC, donde NO se dispara. Si CI se mudara a tz local y esto se
+        // pusiera rojo: sembrar con string local TZ-safe (como `today`/todayStr()),
+        // no `new Date()`. Ver reference_test_arpu_dependiente_del_calendario.
         startDate: new Date(),
         expiryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 90),
         promoType: "admin_assignable" as const,
