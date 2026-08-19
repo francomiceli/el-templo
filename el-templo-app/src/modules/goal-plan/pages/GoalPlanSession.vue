@@ -107,6 +107,7 @@ import { useGoalPlanSession } from '../composables/useGoalPlanSession'
 import { useWakeLock } from '../../training/composables/useWakeLock'
 import { useGoalPlanStore } from '../stores/goalPlanStore'
 import { createLogger } from 'src/utils/logger'
+import { ROLE_LABELS } from 'src/constants/roleLabels'
 import TemploLoader from 'src/components/TemploLoader.vue'
 
 import { getQuoteForBlock } from '../../training/data/quotes'
@@ -228,15 +229,6 @@ const hasUnsavedProgress = computed(() => {
   )
 })
 
-const BLOCK_NAMES: Record<string, string> = {
-  INITIUM: 'Initium',
-  NUCLEUS: 'Nucleus',
-  DEUTEROS_1: 'Deuteros',
-  DEUTEROS_2: 'Deuteros',
-  ATHLOS: 'Athlos',
-  EPIKOS: 'Epikos',
-}
-
 // --- Event Handlers ---
 
 function onSplashComplete(): void {
@@ -279,8 +271,8 @@ async function onBlockComplete(): Promise<void> {
   if (!player.value) return
 
   const p = player.value
-  const completedRole = p.currentBlock.value?.role ?? ''
-  const completedName = BLOCK_NAMES[completedRole] ?? ''
+  const completedRole = p.currentBlock.value?.role
+  const completedName = completedRole ? (ROLE_LABELS[completedRole] ?? '') : ''
   const completedBlockIndex = p.currentBlockIndex.value
 
   // Get mobility name for the current block
@@ -295,7 +287,7 @@ async function onBlockComplete(): Promise<void> {
   } else {
     const nb = p.visibleBlocks.value[p.currentBlockIndex.value + 1]
     if (nb) {
-      actionLabel = `Siguiente: ${BLOCK_NAMES[nb.role] ?? nb.role}`
+      actionLabel = `Siguiente: ${ROLE_LABELS[nb.role] ?? nb.role}`
     }
   }
 

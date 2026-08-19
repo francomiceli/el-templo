@@ -12,7 +12,7 @@ export interface SessionSummary {
   status: SessionStatus;
   blockCount: number;
   goalPlanType: string | null;
-  sessionMode?: 'regular' | 'rom';
+  sessionMode?: 'regular' | 'rom' | 'combos' | 'tecnica';
   approvedAt: string | null;
   approvedBy: number | null;
   approvedByName: string | null;

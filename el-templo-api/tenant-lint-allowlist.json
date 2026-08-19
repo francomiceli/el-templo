@@ -564,34 +564,6 @@
       "table": "sessions"
     },
     {
-      "file": "el-templo-api/src/modules/tv/control-routes.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/tv/control-routes.ts",
-      "table": "tv_devices"
-    },
-    {
-      "file": "el-templo-api/src/modules/tv/device-auth.ts",
-      "table": "tv_devices"
-    },
-    {
-      "file": "el-templo-api/src/modules/tv/device-routes.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/tv/pairing.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/tv/pairing.ts",
-      "table": "tv_devices"
-    },
-    {
-      "file": "el-templo-api/src/modules/tv/pairing.ts",
-      "table": "tv_pairings"
-    },
-    {
       "file": "el-templo-api/src/modules/tv/service.ts",
       "table": "branches"
     },

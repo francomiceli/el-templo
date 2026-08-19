@@ -27,8 +27,11 @@ import type {
  * Route code that accepts every exercise (no route filter on the block pool).
  * Real row in `routes` (excluded_from_tree=1), but special-cased here like INITIUM.
  * Display name: "Full Body" (routes.display_name + route-labels in both frontends).
+ * Canonical definition moved to shared/training-constants (the combos-day
+ * closing circuit uses it too); re-exported here for existing importers.
  */
-export const FULL_BODY_ROUTE = "FB";
+import { FULL_BODY_ROUTE } from "../shared/training-constants";
+export { FULL_BODY_ROUTE };
 
 export class ExerciseSwapService {
   private prescribeService: PrescribeService;
@@ -75,6 +78,11 @@ export class ExerciseSwapService {
     // (contraction/difficulty filters still apply)
     const isFullBody = route === FULL_BODY_ROUTE;
 
+    // STRETCHING closes with a full mobility list (route='STRETCHING' is a
+    // marker like INITIUM's, not a real route) — its swap pool is the whole
+    // MOVILIDAD pattern, same pool its generator selects from.
+    const isStretching = blockRole === "STRETCHING";
+
     const primaryConditions = isInitium
       ? [
           or(
@@ -82,9 +90,11 @@ export class ExerciseSwapService {
             eq(schema.exercises.category, "Movilidad"),
           )!,
         ]
-      : isFullBody
-        ? []
-        : [eq(schema.exercises.route, route)];
+      : isStretching
+        ? [eq(schema.exercises.pattern, "MOVILIDAD")]
+        : isFullBody
+          ? []
+          : [eq(schema.exercises.route, route)];
 
     if (contraction) {
       primaryConditions.push(
@@ -123,7 +133,7 @@ export class ExerciseSwapService {
     // Cross-route logic for non-INITIUM blocks:
     // Include pattern_2 exercises from a different route (per 13-08).
     // FULLBODY already includes every route, so cross-route adds nothing.
-    if (!isInitium && !isFullBody && pattern2) {
+    if (!isInitium && !isFullBody && !isStretching && pattern2) {
       const crossConditions = [eq(schema.exercises.pattern, pattern2)];
       if (contraction) {
         crossConditions.push(

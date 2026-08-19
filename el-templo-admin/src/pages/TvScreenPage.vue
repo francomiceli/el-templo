@@ -1,0 +1,1345 @@
+<template>
+  <!--
+    Pantalla de sede, fullscreen y AUTENTICADA. Reemplaza al kiosco estático
+    `/tv/` (RFC 8628: código de vinculación + dispositivo anónimo, retirado).
+    Ruta top-level `/pantalla-tv` (fuera de AdminLayout: sin drawer/header) —
+    ver `router/routes.ts` y el guard de `router/index.ts`.
+
+    El esqueleto de abajo (ids/clases) es el contrato de `src/tv/render.ts`
+    (plan 164-11 original): `renderState`/`tickClock`/`tickTimer` actualizan
+    estos nodos con `textContent`, nunca los recrean. NO hay pantalla de
+    vinculación (`pantallaPairing` se borró con el kiosco) ni columna de
+    video (se sacó antes de este pase: layout de 2 columnas lista+timer).
+  -->
+  <div
+    id="tvScreenRoot"
+    :class="`tvbg--${bgState}`"
+    :style="{ '--marble': `url('${MARBLE_BG_BASE64}')` }"
+  >
+    <!-- Selector de sede: solo la primera vez que se abre esta pantalla en
+         este TV (sin `?branchId=` en la URL y sin sede guardada todavía). -->
+    <div v-if="!ready" class="tvPicker">
+      <img :src="tvLogo" alt="El Templo" class="tvPicker__logo" />
+      <div class="tvPicker__title">Elegí la sede de esta pantalla</div>
+      <div class="tvPicker__hint">Se guarda en este televisor: no hace falta elegirla de nuevo.</div>
+
+      <div v-if="pickerLoading" class="tvPicker__status">Cargando sedes…</div>
+      <div v-else-if="pickerError" class="tvPicker__status tvPicker__status--error">
+        {{ pickerError }}
+        <button type="button" class="tvPicker__retry" @click="onRetryPicker">Reintentar</button>
+      </div>
+      <div v-else class="tvPicker__list">
+        <button
+          v-for="b in pickerBranches"
+          :key="b.id"
+          type="button"
+          class="tvPicker__btn"
+          @click="choosePickerBranch(b.id)"
+        >
+          {{ b.name }}
+          <span v-if="b.id === ownBranchId" class="tvPicker__own">tu sede</span>
+        </button>
+      </div>
+    </div>
+
+    <div v-else class="tvWrap">
+      <div id="tv">
+        <!-- Fondo vivo: capas detrás de toda la UI — mármol con deriva lenta, luz
+             ambiental que recorre la piedra, vetas casi invisibles y polvo en
+             suspensión. render.ts no las toca (sin ids). -->
+        <div class="tvFondo" aria-hidden="true">
+          <div class="tvFondo__marmol"></div>
+          <div class="tvFondo__luz tvFondo__luz--calida"></div>
+          <div class="tvFondo__luz tvFondo__luz--sombra"></div>
+        </div>
+        <!-- Barra superior: logo + fecha (sin "EL TEMPLO", el logo ya es la marca). -->
+        <!-- Grid de 3 zonas: marca (logo + fecha 2 líneas) izq · BLOQUE n/M centro · reloj der. -->
+        <header class="topbar">
+          <div class="marca">
+            <img :src="tvLogo" alt="El Templo" />
+            <div class="fecha" id="fecha">
+              <span id="fechaL1"></span><span id="fechaL2"></span>
+            </div>
+          </div>
+          <div class="bloqueNum">
+            <span id="bloqueNum"></span><span class="dots" id="dots"></span>
+          </div>
+          <div class="reloj" id="reloj">--:--</div>
+        </header>
+
+        <!-- Cabecera en 3 zonas: nombre del bloque (izq) · cronómetro (centro) ·
+             formato (der), alineados al centro vertical del timer. -->
+        <div class="cabecera">
+          <h1 class="cabTitulo" id="titulo"></h1>
+          <section class="cronometro" id="timerPanel">
+            <div class="digitosWrap">
+              <div class="digitos" id="digitos">00:00</div>
+              <!-- Copia fantasma que hace el envión (sube y se desvanece) al
+                   iniciar, dejando el número real fijo en su lugar. render.ts le
+                   pone el texto en el arranque; la animación la dispara .arranque. -->
+              <div class="digitos-ghost" id="digitosGhost" aria-hidden="true"></div>
+            </div>
+            <div class="barra"><i id="progreso"></i></div>
+          </section>
+          <div class="cabFormato" id="formato"></div>
+        </div>
+
+        <!-- Columnas de nivel (1 o 2, rediseño fase 164): `render.ts` `paintList`
+             las arma a mano por cada poll, no vienen fijas acá. -->
+        <main class="stage" id="stage"></main>
+
+        <!-- Movilidad: fila al pie de la pantalla, debajo de las columnas. Se
+             oculta sola (:empty) cuando el bloque no trae línea de movilidad. -->
+        <div class="movBar" id="movilidad"></div>
+
+        <!-- Reposo: reloj en la mitad superior, frase en la mitad inferior. -->
+        <div class="pantalla" id="pantallaReposo">
+          <div class="reposoTop">
+            <img class="logoGrande" :src="tvLogo" alt="El Templo" />
+            <div class="relojXl" id="reposoReloj">--:--</div>
+            <div class="fechaXl" id="reposoFecha"></div>
+          </div>
+          <div class="reposoBottom">
+            <div class="quote" id="reposoQuote"></div>
+            <div class="autor" id="reposoAutor"></div>
+          </div>
+        </div>
+        <!-- Cierre: mismo layout que reposo (dos mitades), pero arriba va
+             "SESIÓN COMPLETA" en vez del reloj grande, y el reloj va chico en la
+             esquina superior derecha (como en los bloques). -->
+        <div class="pantalla" id="pantallaCierre">
+          <div class="relojEsquina" id="cierreReloj">--:--</div>
+          <div class="reposoTop">
+            <img class="logoGrande" :src="tvLogo" alt="El Templo" />
+            <div class="cierreTitulo" id="cierreTitulo">SESIÓN COMPLETA</div>
+          </div>
+          <div class="reposoBottom">
+            <div class="quote" id="cierreQuote"></div>
+            <div class="autor" id="cierreAutor"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import { useMembersApi } from 'src/composables/useMembersApi';
+import { useTvApi } from 'src/composables/useTvApi';
+import { applyServerNow } from 'src/tv/poll';
+import { renderState, resetRender, setQuotes, tickClock, tickTimer } from 'src/tv/render';
+import { scaleTv } from 'src/tv/scale';
+import { QUOTES } from 'src/utils/pdf/quotes';
+import { createLogger } from 'src/utils/logger';
+import tvLogo from 'src/assets/tv-logo.png';
+import {
+  MARBLE_BG_BASE64,
+  CINZEL_REGULAR_BASE64,
+  CINZEL_BOLD_BASE64,
+  NUNITO_SANS_REGULAR_BASE64,
+  NUNITO_SANS_BOLD_BASE64,
+} from 'src/utils/pdf/pdf-assets';
+import type { BranchOption } from 'src/types/member';
+
+/* Estado del fondo espejado del cronómetro: `render.ts` pinta las clases
+   (`corriendo` / `completo`) sobre #timerPanel y acá se leen con un poll barato
+   (una lectura de classList cada 500 ms) — sin tocar el contrato de render.ts.
+   calmo = reposo/descanso · activo = timer corriendo · completo = bloque cerrado. */
+const bgState = ref<'calmo' | 'activo' | 'completo'>('calmo');
+let bgStateTimer: number | undefined;
+function leerEstadoTimer(): 'calmo' | 'activo' | 'completo' {
+  const el = document.getElementById('timerPanel');
+  if (!el) return 'calmo';
+  if (el.classList.contains('completo')) return 'completo';
+  if (el.classList.contains('corriendo')) return 'activo';
+  return 'calmo';
+}
+onMounted(() => {
+  bgStateTimer = window.setInterval(() => {
+    bgState.value = leerEstadoTimer();
+  }, 500);
+});
+onUnmounted(() => {
+  if (bgStateTimer !== undefined) window.clearInterval(bgStateTimer);
+});
+
+const log = createLogger('TvScreenPage');
+const route = useRoute();
+const authStore = useAuthStore();
+const membersApi = useMembersApi();
+const tvApi = useTvApi();
+
+/** Clave del TV elegido para esta pantalla — un televisor de pared lo hace una vez. */
+const BRANCH_STORAGE_KEY = 'tv.screen.branchId';
+/** Mismos tiempos que tenía el kiosco estático: poll de estado y tick de relojes. */
+// 750ms: la pantalla se entera del arranque del timer casi al instante (antes 2500
+// hacía que un EMOM saltara de 01:00 a ~00:58 al iniciar). Carga trivial: una por sede.
+const POLL_MS = 750;
+const TICK_MS = 250;
+/** Clase que oscurece el `body` real mientras la pantalla está montada (ver estilos). */
+const BODY_ACTIVE_CLASS = 'tv-screen-active';
+
+/**
+ * Fuentes de la pantalla: las MISMAS del PDF de planis (Cinzel para títulos y citas,
+ * NunitoSans para ejercicios), embebidas como `@font-face` desde el base64 de
+ * `pdf-assets.ts`. El admin normal usa Roboto (Quasar), así que estas no existen en el CSS
+ * global; sin este bloque, `--cinzel`/`--nunito` caían a Georgia/system y se veían distintas
+ * a la plani. Se inyectan al montar y se sacan al desmontar (nada de CDN — self-contained).
+ */
+const FONTS_STYLE_ID = 'tv-screen-fonts';
+function fontFace(family: string, base64: string, weight: number): string {
+  return (
+    "@font-face{font-family:'" +
+    family +
+    "';font-weight:" +
+    weight +
+    ";font-style:normal;font-display:block;" +
+    "src:url(data:font/truetype;charset=utf-8;base64," +
+    base64 +
+    ") format('truetype');}"
+  );
+}
+function installFonts(): void {
+  if (document.getElementById(FONTS_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = FONTS_STYLE_ID;
+  style.textContent =
+    fontFace('Cinzel', CINZEL_REGULAR_BASE64, 400) +
+    fontFace('Cinzel', CINZEL_BOLD_BASE64, 700) +
+    fontFace('NunitoSans', NUNITO_SANS_REGULAR_BASE64, 400) +
+    fontFace('NunitoSans', NUNITO_SANS_BOLD_BASE64, 700);
+  document.head.appendChild(style);
+}
+function removeFonts(): void {
+  document.getElementById(FONTS_STYLE_ID)?.remove();
+}
+
+// =========================================================================
+// Resolución de sede: query ?branchId= → localStorage → selector manual.
+// =========================================================================
+
+const branchId = ref<number | null>(null);
+const ready = computed(() => branchId.value !== null);
+
+const pickerBranches = ref<BranchOption[]>([]);
+const pickerLoading = ref(false);
+const pickerError = ref<string | null>(null);
+const ownBranchId = computed(() => authStore.user?.branchId ?? null);
+
+function readStoredBranchId(): number | null {
+  try {
+    const raw = window.localStorage.getItem(BRANCH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    // Un TV con storage deshabilitado o lleno vuelve a mostrar el selector en cada carga.
+    return null;
+  }
+}
+
+function writeStoredBranchId(id: number): void {
+  try {
+    window.localStorage.setItem(BRANCH_STORAGE_KEY, String(id));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.warn('No se pudo guardar la sede de la pantalla en localStorage', { error: message });
+  }
+}
+
+function parseQueryBranchId(): number | null {
+  const raw = route.query.branchId;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function loadPickerBranches(): Promise<void> {
+  pickerLoading.value = true;
+  pickerError.value = null;
+  try {
+    const branches = await membersApi.getBranches();
+    // Un televisor cuelga de una pared: las sedes virtuales (online) no aplican.
+    // La propia sede del usuario logueado queda primera en la lista (D-11, mismo
+    // criterio que TvControlPage.vue).
+    pickerBranches.value = branches
+      .filter((b) => !b.isVirtual)
+      .sort((a, b) => {
+        const aOwn = a.id === ownBranchId.value ? 0 : 1;
+        const bOwn = b.id === ownBranchId.value ? 0 : 1;
+        return aOwn - bOwn;
+      });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error cargando sedes para el selector de la pantalla TV', { error: message });
+    pickerError.value = 'No se pudieron cargar las sedes.';
+  } finally {
+    pickerLoading.value = false;
+  }
+}
+
+function onRetryPicker(): void {
+  void loadPickerBranches();
+}
+
+function choosePickerBranch(id: number): void {
+  writeStoredBranchId(id);
+  branchId.value = id;
+  void startScreen();
+}
+
+async function resolveBranch(): Promise<void> {
+  const fromQuery = parseQueryBranchId();
+  if (fromQuery !== null) {
+    // Persistido también: un refresh sin el query string (el TV no guarda bookmarks
+    // con parámetros) tiene que seguir apuntando a la misma sede.
+    writeStoredBranchId(fromQuery);
+    branchId.value = fromQuery;
+    return;
+  }
+  const stored = readStoredBranchId();
+  if (stored !== null) {
+    branchId.value = stored;
+    return;
+  }
+  await loadPickerBranches();
+}
+
+// =========================================================================
+// Ciclo de poll + tick. La PÁGINA es dueña del ciclo de vida (CLAUDE.md): los
+// dos intervalos se crean acá y se cortan en onUnmounted, nunca en un composable.
+// =========================================================================
+
+let pollId: ReturnType<typeof setInterval> | null = null;
+let tickId: ReturnType<typeof setInterval> | null = null;
+
+async function pollOnce(): Promise<void> {
+  const id = branchId.value;
+  if (id === null) return;
+  try {
+    const payload = await tvApi.getScreen(id);
+    applyServerNow(payload.serverNow);
+    renderState(payload);
+  } catch (err: unknown) {
+    // Mismo criterio que tenía el kiosco estático (T-164-49): un poll fallido NO
+    // toca el estado en memoria. El timer sigue local con lo último bueno y la
+    // pantalla no se vacía ni parpadea.
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.warn('Poll de la pantalla TV fallido, sigue el último estado conocido', {
+      error: message,
+      branchId: id,
+    });
+  }
+}
+
+async function startScreen(): Promise<void> {
+  // El esqueleto (`v-else` de arriba) recién existe en el DOM después de que Vue
+  // reacciona a `ready`: sin este await, `ensureNodes()` (dentro de render.ts)
+  // buscaría ids que todavía no se pintaron.
+  await nextTick();
+  // El render cachea nodos y estado a nivel de modulo (venia del kiosco, que no se
+  // desmontaba). Como esta pantalla es una ruta que se monta y desmonta, hay que
+  // olvidar ese cache antes del primer render o un segundo montaje pinta en blanco.
+  resetRender();
+  setQuotes(QUOTES);
+  scaleTv();
+  await pollOnce();
+  pollId = setInterval(() => {
+    void pollOnce();
+  }, POLL_MS);
+  tickId = setInterval(() => {
+    tickClock();
+    tickTimer();
+  }, TICK_MS);
+}
+
+function onResize(): void {
+  scaleTv();
+}
+
+// =========================================================================
+// Montaje / desmontaje
+// =========================================================================
+
+onMounted(async () => {
+  installFonts();
+  document.body.classList.add(BODY_ACTIVE_CLASS);
+  window.addEventListener('resize', onResize);
+  await resolveBranch();
+  if (branchId.value !== null) {
+    await startScreen();
+  }
+});
+
+onUnmounted(() => {
+  if (pollId !== null) {
+    clearInterval(pollId);
+    pollId = null;
+  }
+  if (tickId !== null) {
+    clearInterval(tickId);
+    tickId = null;
+  }
+  window.removeEventListener('resize', onResize);
+  removeFonts();
+  document.body.classList.remove(BODY_ACTIVE_CLASS);
+  // scaleTv() escribe el tamaño de fuente raíz en <html> (rem no puede anclarse a
+  // otro nodo): fuera de esta pantalla ese override no puede quedar pegado en el
+  // resto del admin.
+  document.documentElement.style.fontSize = '';
+  tvApi.cleanup();
+});
+</script>
+
+<!--
+  Sin scope A PROPÓSITO: `render.ts` pinta con `document.createElement` sobre ids
+  globales (contrato del kiosco original), y `scoped` de Vue no le llega a nodos
+  creados por JS. Cada selector de acá abajo está prefijado con `#tvScreenRoot`
+  para que nada se filtre al resto del admin al navegar fuera de /pantalla-tv.
+-->
+<style>
+#tvScreenRoot {
+  /* Réplica del lenguaje visual del PDF de planis: mármol crema + navy + oro
+     mate + arena (ver session-pdf-builder.ts). */
+  --cream: #f2ebe1;
+  --navy: #24364a;
+  --gold: #b08d6e;
+  --sand: #dbcab4;
+  --muted: #c5b9a8;
+  --cinzel: 'Cinzel', Georgia, serif;
+  --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
+  --glyph: 'Segoe UI', Arial, 'Noto Sans', sans-serif;
+
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  margin: 0;
+  background: #17140f;
+  overflow: hidden;
+  font-family: var(--nunito);
+  cursor: none;
+}
+#tvScreenRoot,
+#tvScreenRoot * {
+  box-sizing: border-box;
+}
+
+/* ── Selector de sede (primera vez en este TV) ─────────────────────────── */
+#tvScreenRoot .tvPicker {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4vh 4vw;
+  text-align: center;
+  color: var(--cream);
+}
+#tvScreenRoot .tvPicker__logo {
+  height: 6rem;
+  margin-bottom: 1.5rem;
+}
+#tvScreenRoot .tvPicker__title {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 1.8rem;
+  color: var(--cream);
+}
+#tvScreenRoot .tvPicker__hint {
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  color: var(--gold);
+}
+#tvScreenRoot .tvPicker__status {
+  margin-top: 2rem;
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+#tvScreenRoot .tvPicker__status--error {
+  color: #ff9b8c;
+}
+#tvScreenRoot .tvPicker__retry {
+  display: block;
+  margin: 1rem auto 0;
+  padding: 0.5rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--navy);
+  background: var(--gold);
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+#tvScreenRoot .tvPicker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  width: min(28rem, 80vw);
+}
+#tvScreenRoot .tvPicker__btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--navy);
+  background: var(--cream);
+  border: 0.15rem solid var(--gold);
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+#tvScreenRoot .tvPicker__own {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+
+/* ── Símbolos de nivel ──────────────────────────────────────────────────── */
+#tvScreenRoot .glyph {
+  font-family: var(--glyph);
+  color: var(--navy);
+}
+/* Porcentaje de esfuerzo dentro del header de columna (lo envuelve render.ts).
+   Mismo color que los dígitos del cronómetro (--navy), no un azul inventado. */
+#tvScreenRoot .pct {
+  color: var(--navy);
+}
+#tvScreenRoot .glyph.kairos {
+  display: inline-block;
+  position: relative;
+  width: 0.78em;
+  height: 0.78em;
+  border: 0.09em solid currentColor;
+  border-radius: 50%;
+  vertical-align: -0.06em;
+}
+#tvScreenRoot .glyph.kairos::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.24em;
+  height: 0.24em;
+  margin-left: -0.12em;
+  margin-top: -0.12em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ── El marco 16:9 ── El tamaño real lo escribe scale.ts (width/height en px +
+   el font-size raíz de <html>). El 100% de acá es el estado previo al primer
+   scaleTv(). */
+#tvScreenRoot .tvWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 0;
+  /* Sin padding: achica ~media pulgada el negro alrededor del marco 16:9. El
+     letterbox por diferencia de aspecto (pantalla no 16:9) es inevitable sin
+     romper la paridad con el PDF, pero el respiro y la sombra sí se bajan. */
+  padding: 0;
+}
+#tvScreenRoot #tv {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  /* Crema + textura de mármol (misma del PDF de planis, MARBLE_BG_BASE64 inyectado
+     como var en el root): mantiene el lenguaje visual del kiosco original. */
+  background: var(--cream) var(--marble, none) center / cover no-repeat;
+  color: var(--navy);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Halo más chico: menos negro alrededor del marco (ver .tvWrap). */
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Barra superior: logo + sede | hora con segundero ── */
+#tvScreenRoot .topbar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0.55rem 2rem 0.25rem;
+}
+#tvScreenRoot .topbar .marca {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  justify-self: start;
+}
+#tvScreenRoot .topbar .marca img {
+  height: 5.6rem;
+  display: block;
+  margin-right: 1.2rem;
+}
+/* Fecha en DOS líneas ("JUEVES 13" / "AGOSTO 2026"), ocupando el alto del logo. */
+#tvScreenRoot .topbar .fecha {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-size: 1.5rem;
+  line-height: 1.3;
+  color: var(--navy);
+}
+#tvScreenRoot .topbar .bloqueNum {
+  justify-self: center;
+}
+#tvScreenRoot .topbar .reloj {
+  justify-self: end;
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 2.8rem;
+  line-height: 1;
+  color: var(--navy);
+  white-space: nowrap;
+}
+#tvScreenRoot .topbar .reloj .seg {
+  color: var(--gold);
+}
+
+/* ── Cabecera: info del bloque (izquierda, alineada a la izquierda) + cronómetro
+   (derecha). El cronómetro salió de la zona de ejercicios para darle todo el ancho
+   a la lista. ── */
+/* 3 zonas: nombre (izq, 1fr) · cronómetro (centro, auto) · formato (der, 1fr),
+   centrados verticalmente con el timer. Nombre y formato mismo tamaño/fuente,
+   cada uno pegado a su borde (simétricos) y con ellipsis si no entran. */
+#tvScreenRoot .cabecera {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.3rem 2rem 0.7rem;
+}
+#tvScreenRoot .cabecera .cabTitulo,
+#tvScreenRoot .cabecera .cabFormato {
+  margin: 0;
+  min-width: 0;
+  /* Sin nowrap ni ellipsis: si el texto no entra, salta a la línea siguiente por
+     palabras — nunca corta una palabra al medio (overflow-wrap/word-break normal). */
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+  font-family: var(--cinzel);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  font-size: 3.6rem;
+  line-height: 1.1;
+}
+/* Nombre del bloque: pegado a la izquierda, color de los headers de NIVEL. */
+#tvScreenRoot .cabecera .cabTitulo {
+  text-align: left;
+  color: var(--gold);
+}
+/* Formato (ej. "AMRAP 10'"): pegado a la derecha, navy. */
+#tvScreenRoot .cabecera .cabFormato {
+  text-align: right;
+  color: var(--navy);
+}
+/* Movilidad: fila al pie de la pantalla (debajo de las columnas), texto centrado
+   en itálica y en el navy de los ejercicios. Se oculta sola si viene vacía. */
+#tvScreenRoot .movBar {
+  flex: 0 0 auto;
+  text-align: center;
+  font-style: italic;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 2rem;
+  color: var(--navy);
+  /* Banda sand como los ejercicios; menos aire arriba (era el hueco del medio). */
+  margin: 0.15rem 2rem 0.7rem;
+  padding: 0.3rem 1rem;
+  border-radius: 0.6rem;
+  background: rgba(219, 202, 180, 0.35);
+}
+#tvScreenRoot .movBar:empty {
+  display: none;
+}
+/* La etiqueta "MOVILIDAD" en oro (como el header de NIVEL); el resto queda navy. */
+#tvScreenRoot .movBar .movLabel {
+  color: var(--gold);
+}
+/* BLOQUE n/M vive en la topbar (a la izquierda del reloj); selectores sin
+   `.cabInfo` para que funcionen ahí. */
+#tvScreenRoot .bloqueNum {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  font-size: 1.3rem;
+  color: var(--navy);
+}
+#tvScreenRoot .bloqueNum .dots {
+  display: inline-flex;
+  margin-left: 0.5rem;
+}
+#tvScreenRoot .bloqueNum .dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.5;
+  margin-right: 0.5rem;
+}
+#tvScreenRoot .bloqueNum .dot:last-child {
+  margin-right: 0;
+}
+#tvScreenRoot .bloqueNum .dot.activo {
+  background: var(--gold);
+  opacity: 1;
+}
+#tvScreenRoot .bloqueNum .dot.hecho {
+  background: var(--navy);
+  opacity: 0.55;
+}
+
+/* ── Zona principal: hasta DOS columnas de nivel lado a lado, 50/50 (rediseño
+   fase 164 — el control elige el nivel por PARES). `render.ts` `paintList`
+   crea 1 o 2 `.lista-col` acá adentro por cada poll; con una sola columna
+   (bloque shared, o un solo nivel del par presente hoy) ocupa el ancho
+   entero igual que antes. ── */
+#tvScreenRoot .stage {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 1.3rem;
+  padding: 0.6rem 2rem 1.4rem;
+  min-height: 0;
+}
+#tvScreenRoot .col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+#tvScreenRoot .lista-col {
+  flex: 1 1 0;
+}
+/* Header de la columna: NIVEL a la izquierda, RUTA empujada al final de la row
+   (sin el separador "|"). render.ts parte el string en `.cabCol__nivel` +
+   `.cabCol__ruta`; si no hay separador, el texto entra directo (queda a la izq). */
+#tvScreenRoot .cabCol {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 2.1rem;
+  color: var(--gold);
+  /* Aire arriba: separa el "NIVEL · RUTA" de la cabecera (título + cronómetro +
+     formato) que va encima. */
+  padding: 1.9rem 0.3rem 0.5rem;
+}
+#tvScreenRoot .cabCol__nivel {
+  white-space: nowrap;
+}
+#tvScreenRoot .cabCol__ruta {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Separador entre el header NIVEL·RUTA y la lista: una línea redondeada igual a
+   la barra del cronómetro detenido (oro lleno, radio 99px), en lugar del
+   recuadro. Mismo lenguaje visual que la barra de progreso. */
+#tvScreenRoot .columnaDorica {
+  flex: 0 0 auto;
+  height: 0.5rem;
+  margin: 0.1rem 0.3rem 0.7rem;
+  background: var(--gold);
+  border-radius: 99px;
+  opacity: 0.55; /* separador semitransparente entre header y lista */
+}
+/* Lista SIN recuadro: respira y usa el espacio; el divisor es la columna dórica. */
+#tvScreenRoot .caja {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Lista de ejercicios: cada item apila DOS filas (como la app,
+   `CompactExerciseList.vue`) — nombre arriba, badge de contracción + dosis
+   abajo — en vez de una sola línea nombre/rx a los extremos. */
+#tvScreenRoot .lista-col .caja {
+  display: flex;
+  flex-direction: column;
+  /* Los ítems se reparten en TODA la altura de la caja (el aire crece solo
+     cuando hay pocos ejercicios); row-gap garantiza separación visible entre
+     los fondos sand aun con listas largas. */
+  justify-content: space-evenly;
+  row-gap: 0.6rem;
+  /* Sin recuadro: menos padding lateral para que cada ejercicio se estire hacia
+     los costados y aproveche el ancho que antes comía el borde de la caja. */
+  padding: 1rem 0.3rem;
+}
+#tvScreenRoot .lista-col .item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  /* Margin (no padding): la banda sand hugea el contenido y el chip de repes llega
+     al borde para fundirse; el aire entre ejercicios lo da el margin externo.
+     Menos margin lateral = ejercicios más anchos. `padding-left` para que el badge
+     de contracción no quede pegado al borde izquierdo de la banda sand. */
+  margin: 0.3rem 0.2rem;
+  padding-left: 0.8rem;
+  border-radius: 0.6rem;
+  /* Todos los ejercicios con la banda sand translúcida (no alternados). */
+  background: rgba(219, 202, 180, 0.35);
+}
+/* Marcador ◂ del ejercicio de la ronda actual: inmediatamente a la derecha del
+   NOMBRE (inline en `.ej-nombre`, no al final de la fila), en oro y grande,
+   apuntando a la izquierda. Solo existe sobre la fila `actual` → no reserva
+   espacio en las demás. line-height 0 para no agrandar el alto de la fila. */
+#tvScreenRoot .lista-col .item.actual .ej-nombre::after {
+  content: '\25C2';
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 4.8rem;
+  line-height: 0;
+  vertical-align: middle;
+  /* Separación del nombre: 0.9rem (en el TV el glyph queda pegado con 0.5). */
+  margin-left: 0.9rem;
+}
+#tvScreenRoot .lista-col .item .ej-nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+  color: var(--navy);
+  font-size: 2.35rem;
+  line-height: 1.25;
+}
+/* Badge de contracción: TRES colores distintos (a diferencia de la app, que
+   comparte color entre CON/ISO) para que se distingan de un vistazo desde
+   lejos. Tokens del marco #tvScreenRoot. */
+#tvScreenRoot .lista-col .item .badge {
+  font-weight: 700;
+  font-size: 1.6rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  /* Texto casi pegado al borde vertical: padding mínimo. Ancho fijo (min-width)
+     con texto centrado para que CON/EXC/ISO ocupen lo mismo y los nombres de los
+     ejercicios arranquen todos en la misma x. */
+  padding: 0.02em 0.18em;
+  min-width: 4rem;
+  box-sizing: border-box;
+  text-align: center;
+  border-radius: 0.3rem;
+  line-height: 1.02;
+  white-space: nowrap;
+}
+#tvScreenRoot .lista-col .item .badge--con {
+  background: var(--navy);
+  color: var(--cream);
+}
+#tvScreenRoot .lista-col .item .badge--exc {
+  background: var(--gold);
+  color: var(--cream);
+}
+#tvScreenRoot .lista-col .item .badge--iso {
+  background: var(--sand);
+  color: var(--navy);
+}
+/* Repes como CHIP: placa navy + número en ivory cálido. Contra el fondo oscuro el
+   dato salta. El lado IZQUIERDO de la placa se funde con la banda sand del ítem
+   (arranca transparente → navy sólido a la derecha), como si el número emergiera
+   de la piedra. Padding izq extra para que los dígitos caigan sobre navy sólido. */
+#tvScreenRoot .lista-col .item .dosis {
+  flex: 0 0 auto;
+  /* Si el nombre salta de línea el ítem crece: la placa se estira a toda su altura
+     (align-self) y el número queda centrado dentro (flex), en vez de una placa
+     corta centrada con huecos arriba y abajo. */
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 2.4rem;
+  /* Ivory cálido: brillo alto pero dentro de la familia crema/sand/gold (no el
+     peach #ffe5cd, que se iba de paleta). */
+  color: #f7e6cd;
+  white-space: nowrap;
+  padding: 0.08em 0.6em 0.08em 2em;
+  border-radius: 0rem 0.5rem 0.5rem 0rem;
+  background: linear-gradient(
+    to right,
+    #1c2a3a00,
+    #1c2a3a0f 6%,
+    #1c2a3a38 17%,
+    #1c2a3a8c 35%,
+    #26394dd1 47%,
+    #24364a
+  );
+  /* Sin la sombra navy heredada: sobre placa oscura no aporta y ensucia el número. */
+  text-shadow: none;
+}
+/* El número 15% más grande SIN agrandar la placa: el transform es visual (no
+   reflowea), así que el chip conserva su tamaño y el dígito sobresale un poco. */
+#tvScreenRoot .lista-col .item .dosis .dosis-num {
+  display: inline-block;
+  transform: scale(1.15);
+}
+#tvScreenRoot .lista-col .caja.compacta .item .ej-nombre {
+  font-size: 1.85rem;
+  line-height: 1.2;
+}
+
+/* ── Cronómetro: al centro de la cabecera, sin recuadro. Sin etiqueta de fase: el estado
+   se lee por la OPACIDAD de los dígitos (apagados → plenos al arrancar) y el fondo de
+   .completo. Compacto para darle aire al título/formato/movilidad. ── */
+#tvScreenRoot .cronometro {
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1rem;
+  /* Sin recuadro: el estado se lee por la opacidad de los dígitos y el fondo de .completo. */
+  transition: background-color 0.3s;
+}
+/* Al terminar el bloque, dígitos a opacidad plena (sin recuadro). */
+#tvScreenRoot .cronometro.completo .digitos {
+  opacity: 1;
+}
+#tvScreenRoot .cronometro .digitos {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 10rem;
+  line-height: 1;
+  color: var(--navy);
+  /* Apagados mientras no corre; al arrancar pasan a opacidad plena. Esa transición ES
+     el aviso de "ya arrancó" para que el profe lo cante e indique. */
+  opacity: 0.5;
+  transition: opacity 0.25s ease-in;
+}
+#tvScreenRoot .cronometro.corriendo .digitos {
+  opacity: 1;
+}
+/* Descanso: dígitos un poco más apagados que el trabajo — segundo canal visual
+   (además del beep de cambio de fase) para distinguir trabajo de descanso. */
+#tvScreenRoot .cronometro.corriendo.descanso .digitos {
+  opacity: 0.72;
+}
+/* Últimos segundos de la fase (clase la pone render.ts: trabajo ≤5", descanso
+   ≤3"): dígitos en ORO titilante. En descanso conserva la opacidad más baja. */
+#tvScreenRoot .cronometro.corriendo.porterminar .digitos {
+  color: var(--gold);
+  animation: titilarOro 0.5s steps(1, end) infinite;
+}
+#tvScreenRoot .cronometro.corriendo.descanso.porterminar .digitos {
+  animation-name: titilarOroDescanso;
+}
+@keyframes titilarOro {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0.35;
+  }
+}
+@keyframes titilarOroDescanso {
+  0%,
+  50% {
+    opacity: 0.72;
+  }
+  50.01%,
+  100% {
+    opacity: 0.2;
+  }
+}
+/* ARRANQUE: al dar INICIAR, una COPIA del número hace el envión — oro, pequeña
+   vibración y fade-up hasta desaparecer — mientras el número REAL queda fijo en
+   su lugar contando. El clon es `.digitos-ghost`, superpuesto por `.digitosWrap`;
+   render.ts le pone el texto en el arranque y `.arranque` (~0.85 s) dispara la
+   animación. Sin fill-mode: al terminar, el clon queda invisible (opacity 0). */
+#tvScreenRoot .cronometro .digitosWrap {
+  position: relative;
+}
+#tvScreenRoot .cronometro .digitos-ghost {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 10rem;
+  line-height: 1;
+  color: var(--gold);
+}
+#tvScreenRoot .cronometro.arranque .digitos-ghost {
+  animation: arranqueEnvion 0.8s ease-out;
+}
+@keyframes arranqueEnvion {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  10% {
+    transform: translate(-0.03em, 0) scale(1.02);
+  }
+  22% {
+    transform: translate(0.03em, 0) scale(1.02);
+  }
+  34% {
+    transform: translate(-0.02em, 0) scale(1.02);
+  }
+  46% {
+    transform: translate(0.02em, 0) scale(1.01);
+  }
+  58% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, -0.4em) scale(1.05);
+  }
+}
+#tvScreenRoot .cronometro .barra {
+  /* Ancho FIJO (no 84% del cronómetro): en EMOM los dígitos pasan de ":60" a ":9"
+     y achicaban el ancho auto del cronómetro, haciendo latir la barra cada segundo.
+     Fijo la barra la vuelve estable y, al ser el hijo más ancho en esos casos,
+     estabiliza también la caja (los dígitos quedan centrados sin saltar). */
+  width: 24rem;
+  height: 0.5rem;
+  background: rgba(197, 185, 168, 0.5);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 0.55rem;
+}
+#tvScreenRoot .cronometro .barra i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--gold);
+  border-radius: 99px;
+  transition: width 0.2s linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  #tvScreenRoot .lista-col .item {
+    transition: none;
+  }
+  /* Sin envión ni titileo: el oro de los últimos segundos queda fijo. */
+  #tvScreenRoot .cronometro.arranque .digitos-ghost,
+  #tvScreenRoot .cronometro.corriendo.porterminar .digitos {
+    animation: none;
+  }
+}
+
+/* ── Las otras pantallas (reposo / cierre): overlays del marco 16:9 ── */
+#tvScreenRoot .pantalla {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--cream) var(--marble, none) center / cover no-repeat;
+  color: var(--navy);
+  text-align: center;
+}
+#tvScreenRoot .pantalla.visible {
+  display: block;
+}
+#tvScreenRoot .pantalla .contenido {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 3rem 6rem;
+}
+#tvScreenRoot .pantalla .logoGrande {
+  height: 7rem;
+  display: block;
+  margin-bottom: 2rem;
+}
+#tvScreenRoot .pantalla .relojXl {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  font-size: 13rem;
+  color: var(--navy);
+  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+}
+#tvScreenRoot .pantalla .relojXl .seg {
+  color: var(--gold);
+}
+#tvScreenRoot .pantalla .fechaXl {
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  font-size: 1.6rem;
+  color: var(--gold);
+  margin-top: 1.2rem;
+}
+#tvScreenRoot .pantalla .quote {
+  /* Las citas van en Cinzel, igual que en el PDF de planis (session-pdf-builder). */
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 1.9rem;
+  line-height: 1.5;
+  max-width: 68%;
+  margin-top: 3rem;
+  color: var(--navy);
+}
+#tvScreenRoot .pantalla .quote .oro {
+  color: var(--gold);
+}
+#tvScreenRoot .pantalla .autor {
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  font-size: 1.3rem;
+  color: var(--gold);
+  margin-top: 1rem;
+}
+#tvScreenRoot #pantallaCierre .cierreTitulo {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  font-size: 6rem;
+  line-height: 1.1;
+  color: var(--navy);
+  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+}
+/* Reloj chico en la esquina superior derecha (como la topbar de los bloques). */
+#tvScreenRoot #pantallaCierre .relojEsquina {
+  position: absolute;
+  top: 0.9rem;
+  right: 2rem;
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 2.8rem;
+  line-height: 1;
+  color: var(--navy);
+}
+/* ── Dos mitades (reposo Y cierre): logo + elemento grande centrado arriba,
+   frase centrada abajo. El reloj grande y la fecha son propios del reposo. ── */
+#tvScreenRoot .pantalla.dosMitades.visible {
+  display: flex;
+  flex-direction: column;
+}
+#tvScreenRoot .dosMitades .reposoTop,
+#tvScreenRoot .dosMitades .reposoBottom {
+  flex: 1 1 50%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 6rem;
+}
+#tvScreenRoot .dosMitades .logoGrande {
+  height: 5rem;
+  margin-bottom: 1rem;
+}
+#tvScreenRoot .dosMitades .quote {
+  font-size: 3.4rem;
+  max-width: 82%;
+  margin-top: 0;
+}
+#tvScreenRoot #pantallaReposo .relojXl {
+  font-size: 10rem;
+}
+#tvScreenRoot #pantallaReposo .fechaXl {
+  margin-top: 1rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Fondo vivo: "un templo antiguo iluminado por luz que se mueve". Capas detrás de
+   toda la UI, paleta intacta, solo transform/opacity (compositor de GPU, apto para
+   horas de pantalla encendida).
+
+   Capas (z-index 0, contenido en 1):
+     __marmol  · la MISMA textura, sobredimensionada, deriva de 46s
+     __luz     · manchas radiales gigantes (calida en overlay + sombra que cubre
+                 toda la franja inferior en multiply) recorriendo la piedra
+   (Vetas y polvo se sacaron por performance: eran filter:blur() animado, el mayor
+   costo en una TV encendida por horas.)
+
+   Reactividad: `--fondoActividad` modula la opacidad de luz y polvo según el
+   estado espejado del cronómetro (tvbg--calmo/activo/completo en el root).
+   El reposo entre clases ya es "casi estático" gratis: las pantallas de
+   reposo/cierre son overlays opacos con su propio mármol quieto.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Intensidad global del fondo. Calmo apagado, corriendo pleno, cierre con un
+   respiro breve (la transición de las capas hace el fade, no hay keyframe extra). */
+#tvScreenRoot {
+  --fondoActividad: 1;
+}
+#tvScreenRoot.tvbg--activo {
+  --fondoActividad: 1.3;
+}
+#tvScreenRoot.tvbg--completo {
+  --fondoActividad: 1.6;
+}
+
+/* Sombra en TODAS las letras para reforzar su presencia sobre el fondo vivo:
+   dos capas — una ceñida que marca el borde + una suave que da profundidad
+   (text-shadow hereda: quien ya define la suya —relojes/títulos con sombra sand—
+   la conserva). Valores en em: escalan con cada tamaño de fuente. */
+#tvScreenRoot {
+  text-shadow:
+    0 0.02em 0.04em rgba(20, 32, 46, 0.42),
+    0 0.05em 0.13em rgba(20, 32, 46, 0.22);
+}
+
+/* Énfasis en la row del cronómetro (nombre de bloque + formato): contorno navy
+   —hecho con 4 sombras tight, sin -webkit-text-stroke que engrosa el serif— más
+   una capa de profundidad. Los despega de la piedra como una inscripción tallada.
+   Sobrescribe la sombra global heredada para estos dos. */
+#tvScreenRoot .cabecera .cabTitulo {
+  text-shadow:
+    0.018em 0 0.01em rgba(226, 190, 120, 0.58),
+    -0.018em 0 0.01em rgba(226, 190, 120, 0.58),
+    0 0.018em 0.01em rgba(226, 190, 120, 0.58),
+    0 -0.018em 0.01em rgba(226, 190, 120, 0.58),
+    0 0 0.5em rgba(232, 205, 150, 0.35),
+    0 0.07em 0.18em rgba(20, 32, 46, 0.4);
+}
+#tvScreenRoot .cabecera .cabFormato {
+  text-shadow:
+    0.014em 0 0.01em rgba(20, 32, 46, 0.4),
+    -0.014em 0 0.01em rgba(20, 32, 46, 0.4),
+    0 0.014em 0.01em rgba(20, 32, 46, 0.4),
+    0 -0.014em 0.01em rgba(20, 32, 46, 0.4),
+    0 0.07em 0.18em rgba(20, 32, 46, 0.42);
+}
+
+/* El mármol deja de ser background fijo de #tv (pasa a la capa móvil). */
+#tvScreenRoot #tv {
+  background: var(--cream);
+}
+/* Contenido siempre por encima del fondo. `.pantalla` ya es absolute: solo z. */
+#tvScreenRoot #tv > .topbar,
+#tvScreenRoot #tv > .cabecera,
+#tvScreenRoot #tv > .stage,
+#tvScreenRoot #tv > .movBar {
+  position: relative;
+  z-index: 1;
+}
+#tvScreenRoot #tv > .pantalla {
+  z-index: 1;
+}
+
+#tvScreenRoot .tvFondo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ── Mármol con deriva: sobredimensionado 3rem por lado para que el paseo nunca
+   descubra un borde. 90s ida y vuelta: piedra viva, no animación evidente. ── */
+#tvScreenRoot .tvFondo__marmol {
+  position: absolute;
+  inset: -5rem;
+  background: var(--marble, none) center / cover no-repeat;
+  animation: fondoDeriva 46s ease-in-out infinite alternate;
+}
+@keyframes fondoDeriva {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.04);
+  }
+  to {
+    transform: translate3d(5rem, 3rem, 0) scale(1.13);
+  }
+}
+
+/* ── Luz ambiental: dos manchas radiales gigantes que recorren la superficie.
+   La cálida ilumina (oro/arena), la sombra navy desaturada en multiply apaga
+   levemente el sector opuesto — juntas leen como luz natural moviéndose. ── */
+#tvScreenRoot .tvFondo__luz {
+  position: absolute;
+  width: 110rem;
+  height: 70rem;
+  border-radius: 50%;
+  will-change: transform;
+  transition: opacity 2.5s ease;
+}
+/* Sobre mármol claro la "luz" se percibe por CONTRASTE: la mancha cálida dora el
+   sector iluminado y la sombra ámbar/navy apaga el opuesto. Alphas altas a
+   propósito en esta ronda de calibración. */
+#tvScreenRoot .tvFondo__luz--calida {
+  top: -24rem;
+  left: -32rem;
+  background: radial-gradient(
+    closest-side,
+    rgba(250, 232, 185, 0.92) 0%,
+    rgba(206, 166, 116, 0.5) 44%,
+    transparent 74%
+  );
+  /* overlay sobre mármol claro = dodge cálido bien visible (haz de luz sobre piedra). */
+  mix-blend-mode: overlay;
+  opacity: calc(0.8 * var(--fondoActividad));
+  animation: luzPaseo 30s ease-in-out infinite alternate;
+}
+/* Sombra suave que cubre TODA la franja inferior (elipse anclada abajo-centro),
+   no una mancha en una esquina. Deriva lateral leve para que respire. */
+#tvScreenRoot .tvFondo__luz--sombra {
+  left: -12rem;
+  right: -12rem;
+  bottom: -16rem;
+  width: auto;
+  height: 46rem;
+  border-radius: 0;
+  background: radial-gradient(
+    120% 100% at 50% 100%,
+    rgba(48, 40, 32, 0.32) 0%,
+    rgba(36, 54, 74, 0.13) 46%,
+    transparent 72%
+  );
+  mix-blend-mode: multiply;
+  opacity: calc(0.85 * var(--fondoActividad));
+  animation: sombraPaseo 52s ease-in-out infinite alternate;
+}
+@keyframes sombraPaseo {
+  from {
+    transform: translate3d(-4rem, 0, 0);
+  }
+  to {
+    transform: translate3d(4rem, 0, 0);
+  }
+}
+@keyframes luzPaseo {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(64rem, 16rem, 0) scale(1.18);
+  }
+}
+
+/* Accesibilidad y ahorro: sin movimiento, piedra quieta. */
+@media (prefers-reduced-motion: reduce) {
+  #tvScreenRoot .tvFondo__marmol,
+  #tvScreenRoot .tvFondo__luz {
+    animation: none;
+  }
+}
+</style>

@@ -16,6 +16,7 @@ import type {
   AssignPlanInput,
   RenewSubscriptionInput,
   PricingPreview,
+  AssignProrationPreview,
   ChangePlanPreview,
   PriceType,
   ClassUsageInfo,
@@ -306,6 +307,28 @@ export function useSubscriptionsApi() {
     }
   }
 
+  async function getAssignProrationPreview(
+    userId: number,
+    planId: number,
+    startDate: string,
+    priceType: PriceType
+  ): Promise<AssignProrationPreview> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<AssignProrationPreview>(
+        `/admin/subscriptions/members/${userId}/subscription/assign-proration-preview`,
+        { params: { planId, startDate, priceType } }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error obteniendo preview de prorrateo');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Class Usage ─────────────────────────────────────────────────────
 
   async function getClassUsage(userId: number): Promise<ClassUsageInfo | null> {
@@ -471,6 +494,7 @@ export function useSubscriptionsApi() {
     resumeSubscription,
     cancelSubscription,
     getPricingPreview,
+    getAssignProrationPreview,
     getChangePlanPreview,
     getClassUsage,
     listPromos,

@@ -409,6 +409,86 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
   ];
 }
 
+/**
+ * STRETCHING page (fase 160, SEM-09, D160-04): shared simple exercise list,
+ * same family as buildInitiumPage (list layout, not the per-level grid used
+ * by NUCLEUS/DEUTEROS/COMBOS/TECNICA) — because the generator produces
+ * STRETCHING identical across the 6 levels.
+ *
+ * Derived from buildInitiumPage but WITHOUT the hardcoded 'PYROS' title:
+ * buildInitiumPage always prints the literal "PYROS" as the block title
+ * (:314, `text: 'PYROS'`), which is correct for INITIUM but wrong here — the
+ * title must be the block's own role ("STRETCHING"). Minimal: no customTitle
+ * support (the transformer never sets customTitle for STRETCHING) and no
+ * formatParams row (dead field — transformer never populates it either, see
+ * buildInitiumPage's own formatParams block for the legacy precedent).
+ */
+function buildStretchingPage(block: PdfBlockPage): Content[] {
+  const exerciseGap = 32;
+
+  return [
+    { text: '', pageBreak: 'before' as const },
+    { text: '', margin: [0, 120, 0, 0] },
+    // Block title — the role itself (STRETCHING), never PYROS.
+    {
+      text: block.role,
+      fontSize: 260,
+      bold: true,
+      color: NAVY,
+      margin: [250, 0, 0, 0],
+      characterSpacing: 20,
+      font: 'Cinzel',
+    },
+    // Subtitle: format (STRETCHING has no customTitle flow, unlike INITIUM).
+    {
+      text: block.formatName,
+      fontSize: 130,
+      bold: true,
+      color: GOLD,
+      margin: [260, 24, 0, 0],
+      characterSpacing: 6,
+      font: 'NunitoSans',
+    },
+    { text: '', margin: [0, 112, 0, 0] },
+    // NIVEL α Δ Σ ☉ — STRETCHING is also shared across all 6 levels.
+    {
+      columns: [
+        {
+          width: 'auto',
+          text: 'NIVEL  ',
+          fontSize: 100,
+          color: GOLD,
+          bold: true,
+          font: 'NunitoSans',
+        },
+        {
+          width: 'auto',
+          text: 'α Δ Σ',
+          fontSize: 100,
+          color: GOLD,
+          bold: true,
+          characterSpacing: 20,
+          font: 'Roboto',
+          margin: [24, 14, 0, 0],
+        },
+        kairosGlyphColumn(80, 30, 24),
+      ],
+      columnGap: 8,
+      margin: [260, 0, 0, 0],
+    },
+    { text: '', margin: [0, 80, 0, 0] },
+    // Exercise list — same layout as INITIUM's.
+    ...(block.simpleExercises || []).map((ex) => ({
+      text: `•  ${ex}`,
+      fontSize: 90,
+      bold: true,
+      color: NAVY,
+      margin: [260, exerciseGap, 0, 0] as [number, number, number, number],
+      font: 'NunitoSans',
+    })),
+  ];
+}
+
 // Level box column width: (3840 - 60 page margins - 120 grid margins - 100 gap) / 2 = 1780
 const LEVEL_BOX_WIDTH = 1780;
 
@@ -1065,6 +1145,16 @@ export function buildDayContent(day: PdfDaySession): Content[] {
   // 2. Check if this is a ROM day
   const isRomDay = day.blocks.some((b) => b.isRom);
 
+  // Combos/Técnica day (fase 160, SEM-09): unambiguous detection via
+  // isStretching, which the transformer sets ONLY on the STRETCHING block it
+  // builds in the combos/técnica branch of sessionsToPdfDay — a regular day
+  // never has a STRETCHING role/block, and a ROM day is already captured by
+  // isRomDay above, so this flag alone can't false-positive on either. (An
+  // alternative was comparing `role` against the long display labels from
+  // ROLE_LABELS, but that couples this file to the exact label strings —
+  // isStretching is a structural flag, not a display string.)
+  const isCombosTecnicaDay = day.blocks.some((b) => b.isStretching);
+
   if (isRomDay) {
     // ROM day: INITIUM warmup page + each zone gets its own page
     const initium = day.blocks.find((b) => b.role === 'INITIUM');
@@ -1073,6 +1163,20 @@ export function buildDayContent(day: PdfDaySession): Content[] {
       if (block.role === 'INITIUM') continue; // already rendered above
       content.push(...buildRomBlockPage(block));
     }
+  } else if (isCombosTecnicaDay) {
+    // Combos/Técnica day: INITIUM warmup + COMBOS/TECNICA I/II full-page
+    // grids (same layout as NUCLEUS, D160-04 doesn't touch these) + a single
+    // shared STRETCHING page styled like INITIUM (D160-04).
+    const ctInitium = day.blocks.find((b) => b.role === 'INITIUM');
+    if (ctInitium) content.push(...buildInitiumPage(ctInitium));
+
+    for (const block of day.blocks) {
+      if (block.role === 'INITIUM' || block.isStretching) continue; // handled separately
+      content.push(...buildFullBlockPage(block));
+    }
+
+    const stretching = day.blocks.find((b) => b.isStretching);
+    if (stretching) content.push(...buildStretchingPage(stretching));
   } else {
     // Regular day: standard block layout
     const initium = day.blocks.find((b) => b.role === 'INITIUM');

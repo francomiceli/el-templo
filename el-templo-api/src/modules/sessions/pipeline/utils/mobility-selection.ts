@@ -18,7 +18,7 @@
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import * as schema from '../../../../db/schema';
 import { ROUTE_TO_MOBILITY_ROUTES } from './mobility-routes';
 import type { ExercisePrescription } from '../../types';
@@ -31,12 +31,26 @@ const MOBILITY_DEFAULTS = {
   CON_REPS: 10,
 };
 
-export async function selectMobilityExercise(
-  blockRoute: string,
+/** One row of the shared MOVILIDAD exercise pool. */
+export type MobilityPoolRow = {
+  id: number;
+  name: string;
+  effort: string | null;
+  mobilityRelated: string | null;
+};
+
+/**
+ * Query ALL exercises with pattern = 'MOVILIDAD'.
+ *
+ * Single source of the `exercises` table access for mobility selection (D-12):
+ * both ROM's `selectMobilityExercise` and phase 159's STRETCHING selector share
+ * this pool instead of reinventing the query. Keeping the raw `exercises` access
+ * in this one file is also what keeps it covered by the tenant-lint allowlist.
+ */
+export async function queryMobilityPool(
   db: MySql2Database<typeof schema>,
-): Promise<ExercisePrescription | null> {
-  // 1. Query ALL exercises with pattern = 'MOVILIDAD'
-  const allMobility = await db
+): Promise<MobilityPoolRow[]> {
+  return db
     .select({
       id: schema.exercises.id,
       name: schema.exercises.exercise,
@@ -45,6 +59,54 @@ export async function selectMobilityExercise(
     })
     .from(schema.exercises)
     .where(eq(schema.exercises.pattern, 'MOVILIDAD'));
+}
+
+/** One row of the full-body circuit exercise pool. */
+export type FullBodyPoolRow = {
+  id: number;
+  name: string;
+  effort: string | null;
+  pattern: string;
+  dificultadLineal: number;
+};
+
+/** Movement patterns eligible for the full-body cooperative circuit. */
+export const FULL_BODY_CIRCUIT_PATTERNS = [
+  'PUSH',
+  'LOWER',
+  'CORE',
+  'PULL',
+] as const;
+
+/**
+ * Query the exercise pool for the full-body cooperative circuit (combos-day
+ * closing block): every PUSH/LOWER/CORE/PULL exercise, any route.
+ *
+ * Lives here for the same reason as `queryMobilityPool` (D-12): this file is
+ * the single home of raw `exercises` access for the selection utils, covered
+ * by the tenant-lint allowlist.
+ */
+export async function queryFullBodyCircuitPool(
+  db: MySql2Database<typeof schema>,
+): Promise<FullBodyPoolRow[]> {
+  return db
+    .select({
+      id: schema.exercises.id,
+      name: schema.exercises.exercise,
+      effort: schema.exercises.effort,
+      pattern: schema.exercises.pattern,
+      dificultadLineal: schema.exercises.dificultadLineal,
+    })
+    .from(schema.exercises)
+    .where(inArray(schema.exercises.pattern, [...FULL_BODY_CIRCUIT_PATTERNS]));
+}
+
+export async function selectMobilityExercise(
+  blockRoute: string,
+  db: MySql2Database<typeof schema>,
+): Promise<ExercisePrescription | null> {
+  // 1. Query ALL exercises with pattern = 'MOVILIDAD'
+  const allMobility = await queryMobilityPool(db);
 
   if (allMobility.length === 0) return null;
 

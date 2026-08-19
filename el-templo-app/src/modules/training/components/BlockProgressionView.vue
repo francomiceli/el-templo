@@ -154,7 +154,7 @@
             @click="viewBlock(blockIndexOf(block))"
           >
             <q-icon name="arrow_back" size="12px" class="q-mr-xs" />
-            {{ BLOCK_NAMES[block.role] || block.role }}
+            {{ LABEL_OVERRIDES[block.role] ?? ROLE_LABELS[block.role] ?? block.role }}
           </button>
         </div>
       </div>
@@ -188,18 +188,13 @@ import { useStoryNavigation } from '../composables/useStoryNavigation'
 import { getRouteName } from '../utils/routeNames'
 import { IN_SESSION_ADJUST_ENABLED } from 'src/config/featureFlags'
 import { formatDose, formatQuickDose } from '../utils/formatDose'
+import { ROLE_LABELS } from 'src/constants/roleLabels'
 
-const BLOCK_NAMES: Record<string, string> = {
-  INITIUM: 'Pyros',
-  NUCLEUS: 'Nucleus',
-  DEUTEROS_1: 'Deuteros',
-  DEUTEROS_2: 'Deuteros',
-  ATHLOS: 'Athlos',
-  EPIKOS: 'Epikos',
-  ROM_LOWER: 'Tren Inferior',
-  ROM_CORE: 'Zona Media',
-  ROM_UPPER: 'Tren Superior',
-}
+// Override intencional (confirmado con Franco, fase 160-05): esta vista
+// históricamente rotula INITIUM como 'Pyros'; el resto del app usa el
+// canónico 'Initium' del diccionario centralizado (roleLabels.ts). NO
+// propagar este override a otras superficies.
+const LABEL_OVERRIDES: Partial<Record<BlockRole, string>> = { INITIUM: 'Pyros' }
 
 interface Props {
   dayName: string
@@ -486,13 +481,14 @@ const formattedTime = computed(() => {
 
 const viewingBlockName = computed(() => {
   if (!viewingBlock.value) return ''
-  return BLOCK_NAMES[viewingBlock.value.role] || viewingBlock.value.role
+  const role = viewingBlock.value.role
+  return LABEL_OVERRIDES[role] ?? ROLE_LABELS[role] ?? role
 })
 
 const currentBlockName = computed(() => {
   const block = props.playableBlocks[props.activeBlockIndex]
   if (!block) return ''
-  return BLOCK_NAMES[block.role] || block.role
+  return LABEL_OVERRIDES[block.role] ?? ROLE_LABELS[block.role] ?? block.role
 })
 
 // Handle exercise completion from story card (only on active block)

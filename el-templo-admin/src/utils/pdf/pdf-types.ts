@@ -43,6 +43,10 @@ export interface PdfBlockPage {
   levelBlocks?: PdfLevelBlock[];
   // ROM mode flag — signals PDF builder to use 2-row stacked layout
   isRom?: boolean;
+  // STRETCHING mode flag (fase 160, D160-04) — signals PDF builder to render
+  // this block as a shared simple exercise list (buildStretchingPage), same
+  // family as INITIUM, instead of the per-level grid used by COMBOS/TECNICA.
+  isStretching?: boolean;
 }
 
 export interface PdfDaySession {

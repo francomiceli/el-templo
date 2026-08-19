@@ -46,6 +46,14 @@ const FORMAT_COMPATIBILITY: Record<BlockRole, readonly string[]> = {
   ROM_LOWER: ["For Quality"],
   ROM_CORE: ["For Quality"],
   ROM_UPPER: ["For Quality"],
+  // Phase 159 (D-04/D-06): combos blocks use the fixed "Combos" format
+  COMBOS_I: ["Combos"],
+  COMBOS_II: ["Combos"],
+  // Phase 159 (D-07/D-09): tecnica blocks use skill/quality formats
+  TECNICA_I: ["For Quality", "Cluster", "Accumulate X"],
+  TECNICA_II: ["For Quality", "Cluster", "Accumulate X"],
+  // Phase 159 (D-11): STRETCHING uses the fixed "Stretching" format
+  STRETCHING: ["Stretching"],
 };
 
 /** Budget tolerance percentage (10% overage allowed) */

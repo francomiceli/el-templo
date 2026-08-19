@@ -8,7 +8,17 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, asc, gte, lte, inArray, isNotNull } from "drizzle-orm";
+import {
+  eq,
+  and,
+  sql,
+  asc,
+  gte,
+  lte,
+  inArray,
+  isNull,
+  isNotNull,
+} from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "../subscriptions/service";
@@ -21,6 +31,8 @@ import {
   todayInTz,
   toDateString,
 } from "../shared/date-utils";
+import { dateToWeekNumber } from "../shared/week-dates";
+import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
 import type {
   BookingRecord,
   BookingStatus,
@@ -41,6 +53,7 @@ import {
   tenantValues,
   type TenantContext,
 } from "../shared/tenant";
+import { deriveActivityLabel } from "./derived-label";
 
 /**
  * Member self-booking window: today .. today + N days (branch-local).
@@ -593,6 +606,37 @@ export class BookingService {
    *
    * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
    */
+  /**
+   * Phase 160-06 (DRY con 159-06/scheduling/service.ts::getWeeklyGrid):
+   * modo aprobado por dia de la semana SPOM, en UNA sola query cargada en
+   * un Map antes de mapear filas (anti N+1, mismo patron que
+   * bookingCountMap/modeByDay de getWeeklyGrid). Solo sesiones de la plani
+   * regular (goal_plan_type IS NULL) y ya aprobadas cuentan para la
+   * etiqueta visible. `scheduling` todavia no llego a su fase de adopcion
+   * de tenancy (doc 03 §3) -- grandfathered en el allowlist con el mismo
+   * patron no-strict, single-tenant activo hoy.
+   */
+  private async loadModeByDay(
+    weekStartDate: string,
+  ): Promise<Map<string, string>> {
+    const week = dateToWeekNumber(weekStartDate);
+    /* tenant-safe: scheduling aun no adopto tenantWhere (doc 03 §3); mismo patron no-strict que el resto del archivo, single-tenant activo hoy */
+    const modeRows = await this.db
+      .selectDistinct({
+        day: schema.sessions.day,
+        sessionMode: schema.sessions.sessionMode,
+      })
+      .from(schema.sessions)
+      .where(
+        and(
+          eq(schema.sessions.week, week),
+          eq(schema.sessions.status, "approved"),
+          isNull(schema.sessions.goalPlanType),
+        ),
+      );
+    return new Map(modeRows.map((r) => [r.day, r.sessionMode]));
+  }
+
   async getMyBookings(
     ctx: TenantContext,
     memberId: number,
@@ -644,7 +688,19 @@ export class BookingService {
       )
       .orderBy(schema.bookings.bookingDate, schema.schedules.startTime);
 
-    return rows.map((r) => this.mapBookingRow(r));
+    // Phase 160-06 (SEM-14): derivar Combos/Tecnica/General para la
+    // actividad generica antes de mapear a BookingRecord (misma regla que
+    // getWeeklyGrid).
+    const modeByDay = await this.loadModeByDay(weekStartDate);
+
+    return rows.map((r) => {
+      const dayName = DAY_OF_WEEK_MAP[r.dayOfWeek];
+      const dayMode = dayName ? modeByDay.get(dayName) : undefined;
+      return this.mapBookingRow({
+        ...r,
+        activityName: deriveActivityLabel(r.activityName, r.isSpecial, dayMode),
+      });
+    });
   }
 
   /**
@@ -668,6 +724,9 @@ export class BookingService {
         startTime: schema.schedules.startTime,
         checkedInAt: schema.attendance.checkedInAt,
         status: schema.attendance.status,
+        // Phase 160-06 (SEM-14): needed to derive Combos/Tecnica/General
+        // for the "Asististe" line (2nd source of ReservasPage).
+        isSpecial: schema.activities.isSpecial,
       })
       .from(schema.attendance)
       .innerJoin(
@@ -688,18 +747,27 @@ export class BookingService {
       )
       .orderBy(schema.attendance.checkedInAt);
 
-    return rows.map((r) => ({
-      id: r.id,
-      scheduleId: r.scheduleId as number,
-      activityName: r.activityName,
-      dayOfWeek: r.dayOfWeek,
-      startTime: r.startTime,
-      checkedInAt:
-        r.checkedInAt instanceof Date
-          ? r.checkedInAt.toISOString()
-          : String(r.checkedInAt),
-      status: r.status as "confirmado",
-    }));
+    // Phase 160-06 (SEM-14): misma derivacion que getMyBookings, para que
+    // "Asististe" no muestre "General" mientras las proximas reservas del
+    // mismo dia ya dicen "Tecnica"/"Combos".
+    const modeByDay = await this.loadModeByDay(weekStartDate);
+
+    return rows.map((r) => {
+      const dayName = DAY_OF_WEEK_MAP[r.dayOfWeek];
+      const dayMode = dayName ? modeByDay.get(dayName) : undefined;
+      return {
+        id: r.id,
+        scheduleId: r.scheduleId as number,
+        activityName: deriveActivityLabel(r.activityName, r.isSpecial, dayMode),
+        dayOfWeek: r.dayOfWeek,
+        startTime: r.startTime,
+        checkedInAt:
+          r.checkedInAt instanceof Date
+            ? r.checkedInAt.toISOString()
+            : String(r.checkedInAt),
+        status: r.status as "confirmado",
+      };
+    });
   }
 
   /**

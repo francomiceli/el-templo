@@ -23,7 +23,7 @@ import {
   removeCheckInSchema,
 } from "./schemas";
 
-import { ATTENDANCE_ROLES } from "../shared/permissions";
+import { ATTENDANCE_ROLES, CHECKIN_ROSTER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
@@ -120,10 +120,16 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "attendance.slotAttendance");
+        // El registro del día es dato de salud: sólo coach + admin/dueño lo ven.
+        // El resto de ATTENDANCE_ROLES (gestión/recepción) recibe checkIn: null.
+        const includeCheckIns = (
+          CHECKIN_ROSTER_ROLES as readonly string[]
+        ).includes(request.user.role);
         const result = await attendanceService.getSlotAttendance(
           ctx,
           request.params.scheduleId,
           request.params.date,
+          { includeCheckIns },
         );
         return result;
       } catch (err: unknown) {

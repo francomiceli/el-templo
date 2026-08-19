@@ -845,8 +845,10 @@ export function lintTenantSources(opts: LintSourcesOptions): LintSourceResult {
         for (const range of ts.getLeadingCommentRanges(text, node.pos) ?? []) {
           pushTag(range, "site");
         }
-        // El caso TRAILING existe de verdad: en `src/modules/tv/pairing.ts` la
-        // exención está entre `.insert(schema.tvPairings)` y `.values(...)`.
+        // El caso TRAILING existía de verdad en `src/modules/tv/pairing.ts`
+        // (eliminado junto con el pairing por device token del TV), entre
+        // `.insert(schema.tvPairings)` y `.values(...)`. Sigue cubierto por el
+        // fixture `conExencionTrailing` en `test/tenancy/con-06-lint.test.ts`.
         for (const range of ts.getTrailingCommentRanges(text, node.end) ?? []) {
           pushTag(range, "site");
         }

@@ -286,9 +286,13 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
   // 169 del seed global de templates; la adopción de `notifications` la pagó
   // (`seedTemplates` recibe `TenantContext` real y siembra por-tenant vía
   // `forEachActiveTenant`), así que el archivo ya no tiene ninguna exención.
+  // Post back-merge del tren v6.0: dos entradas que traían las ramas quedaron
+  // stale y NO se agregan. (a) `tv/pairing.ts` lo borró el TV login de master
+  // (pairing/device-auth/device-routes retirados) → el archivo ya no existe.
+  // (b) `notification-cron.ts` salió en 175-03 (ver comentario arriba). La lista
+  // queda con las dos exenciones vivas de siempre.
   const ACEPTADOS = [
     `${API}/src/db/seed.ts`,
-    `${API}/src/modules/tv/pairing.ts`,
     `${API}/src/modules/wellhub/service.ts`,
   ];
 
@@ -464,11 +468,14 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
         "EN SÍ (agregar las 6 entradas a TENANT_STRICT_MODULES) no baja este número: las 18 tablas del " +
         "boundary ya tenían 0 deuda de allowlist desde la fase 175 — la única baja real de 175.1-07 es " +
         "esta, y es previa al switch (commit `9c89312c`, antes del commit `9a43d624` que agrega las entradas). " +
+        "Post back-merge del tren v6.0 contra master: el TV login de master borró pairing/device-auth/" +
+        "device-routes —los únicos accesores de `tv_pairings` y `tv_devices`—, así que esas 2 tablas salen " +
+        "de la deuda (47 → 45), baja contabilizada tabla por tabla (accesos eliminados, no un import perdido). " +
         "Si este número baja SIN que la " +
         "baja quede contabilizada tabla por tabla (una tabla que entró a TENANT_STRICT_MODULES, o " +
         "un acceso migrado que sale como staleNoLongerViolating de la allowlist), alguna forma de " +
         "import volvió a quedar afuera del lint.",
-    ).toBeGreaterThanOrEqual(47);
+    ).toBeGreaterThanOrEqual(45);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {

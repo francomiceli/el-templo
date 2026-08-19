@@ -96,13 +96,15 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 87 gym-owned + 4 exentas y cubren las 91 tablas del schema", () => {
-    expect(GYM_OWNED_TABLES.length).toBe(87);
+  it("los conteos son 88 gym-owned + 4 exentas y cubren las 92 tablas del schema", () => {
+    // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
+    // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
+    expect(GYM_OWNED_TABLES.length).toBe(88);
     expect(TENANT_EXEMPT_TABLES.length).toBe(4);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(91);
+    expect(schemaTables.size).toBe(92);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -125,7 +127,8 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
  * los DOS registros de uniques que la 168 le sumó a este archivo.
  *
  * Los cinco tests de arriba no se tocan: la 168 no agrega ni saca tablas, así
- * que 87 / 4 / 91 tienen que seguir intactos. Un rojo ahí NO es de esta fase.
+ * que 88 / 4 / 92 (actualizado por la fase 159, ver arriba) tienen que seguir
+ * intactos. Un rojo ahí NO es de esta fase.
  *
  * Qué protege este bloque que el verificador de base de datos no puede
  * proteger: `verify-tenant-uniques.ts` cruza los registros contra

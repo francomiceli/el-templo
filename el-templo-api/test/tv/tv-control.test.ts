@@ -1,15 +1,17 @@
 /**
- * Rutas de control del profe (fase 164, plan 10):
+ * Rutas de control del profe (fase 164, plan 10; screen re-plataformada
+ * fase "TV login"):
  *
  *   GET  /api/admin/tv/control/context?branchId=NN
+ *   GET  /api/admin/tv/control/screen?branchId=NN
  *   POST /api/admin/tv/control/state
  *   POST /api/admin/tv/control/end-class
  *
  * Es la UNICA superficie de escritura de la fase, y lo que escribe termina
- * proyectado en la pared de la sala. Por eso cada regla de estado del CONTEXT
- * queda congelada aca contra MySQL real, una por caso:
+ * proyectado en la pantalla de la sala. Por eso cada regla de estado del
+ * CONTEXT queda congelada aca contra MySQL real, una por caso:
  *
- *   D-10  el control SI avisa que la sesion no esta aprobada (el TV no)
+ *   D-10  el control SI avisa que la sesion no esta aprobada (la pantalla no)
  *   D-11  la sede se autoriza en cada llamada (coach ajeno 403, owner 200)
  *   D-12  ultima escritura gana, sin locks ni avisos
  *   D-15  el nivel persiste al cambiar de bloque; el bloque resetea ejercicio
@@ -18,12 +20,14 @@
  *   D-17  pausar y reanudar conserva el elapsed exacto
  *   D-18  solo cuatro comandos de timer, todos idempotentes
  *   D-19  los beeps arrancan apagados y se encienden desde el celular
- *   D-07  terminar la clase deja el televisor en reposo
+ *   D-07  terminar la clase deja la pantalla en reposo
  *   D-08  la pantalla de cierre no muestra bloque
  *   D-23  el sabado ROM solo tiene dos tiers
  *
- * Varios casos cruzan el control con el poll del TV (`GET /api/tv/state`): lo
- * que importa no es que la fila quede escrita, sino que el televisor lo vea.
+ * Varios casos cruzan el control con `GET /control/screen`: lo que importa no
+ * es que la fila quede escrita, sino que la pantalla lo vea. El pairing por
+ * device token (RFC 8628) se elimino — la pantalla ahora es una vista mas del
+ * admin, AUTENTICADA con el mismo JWT que el resto del control.
  *
  * El reloj se congela con fake timers: sin eso el archivo entero seria rojo un
  * domingo (no hay clase) y el sabado ROM solo se podria probar los sabados.
@@ -39,7 +43,7 @@ import {
 } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import {
   createTestApp,
   cleanAllTestData,
@@ -49,9 +53,9 @@ import {
 import * as schema from "../../src/db/schema";
 
 const CONTEXT_URL = "/api/admin/tv/control/context";
+const SCREEN_URL = "/api/admin/tv/control/screen";
 const STATE_URL = "/api/admin/tv/control/state";
 const END_CLASS_URL = "/api/admin/tv/control/end-class";
-const TV_STATE_URL = "/api/tv/state";
 
 const AR_TZ = "America/Argentina/Buenos_Aires";
 
@@ -100,6 +104,8 @@ interface ControlState {
   pausedAt: number | null;
   pausedAccumMs: number;
   soundEnabled: boolean;
+  deuterosAutoRotate: boolean;
+  deuterosPinnedAt: number | null;
 }
 
 interface ControlContext {
@@ -122,6 +128,8 @@ interface TvPollBody {
     level: string;
     blockRole: string;
     blockIndex: number;
+    visualBlockIndex: number;
+    visualBlockCount: number;
     exerciseIndex: number;
     timer: {
       status: string;
@@ -260,23 +268,6 @@ async function setDayMode(dayOfWeek: number, mode: string): Promise<void> {
   await app.db.insert(schema.dayModes).values({ dayOfWeek, sessionMode: mode });
 }
 
-/** Un televisor vinculado, para cruzar el control con el poll del TV. */
-async function createDevice(
-  branchId: number,
-): Promise<{ id: number; token: string }> {
-  const token = randomBytes(32).toString("base64url");
-  const [row] = await app.db
-    .insert(schema.tvDevices)
-    .values({
-      branchId,
-      tokenHash: createHash("sha256").update(token).digest("hex"),
-      name: "TV sala",
-      isActive: true,
-    })
-    .$returningId();
-  return { id: row.id, token };
-}
-
 // ---------------------------------------------------------------------------
 // Llamadas
 // ---------------------------------------------------------------------------
@@ -307,11 +298,12 @@ function postEndClass(token: string, branchId: number) {
   });
 }
 
-function pollTv(token: string) {
+/** GET /control/screen — la proyeccion TV-facing, autenticada. */
+function getScreen(token: string, branchId: number) {
   return app.inject({
     method: "GET",
-    url: TV_STATE_URL,
-    headers: { authorization: `Device ${token}` },
+    url: `${SCREEN_URL}?branchId=${branchId}`,
+    headers: { authorization: `Bearer ${token}` },
   });
 }
 
@@ -489,6 +481,53 @@ describe("GET /control/context — lo que el control ciego necesita (D-13)", () 
   });
 });
 
+describe("GET /control/screen — la proyeccion TV-facing, ahora autenticada", () => {
+  it("200 con la forma del poll para una sede accesible, en reposo sin clase iniciada", async () => {
+    await seedTuesday();
+
+    const res = await getScreen(coachAToken, branchAId);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["cache-control"]).toBe("no-store");
+
+    const body = JSON.parse(res.body) as TvPollBody & {
+      serverNow: number;
+      branch: { name: string; utcOffsetMinutes: number; dateLabel: string };
+    };
+    // Sesion aprobada pero clase todavia no iniciada: reposo (D-09), igual que
+    // el viejo poll device-authed.
+    expect(body.screen).toBe("idle");
+    expect(body.class).toBeNull();
+    expect(typeof body.serverNow).toBe("number");
+    expect(body.branch.name).toBe("MOGOTES");
+  });
+
+  it("D-11: un coach de otra sede recibe 403, el owner entra a cualquiera", async () => {
+    await seedTuesday();
+    await createStaffUser(app, {
+      email: "tv-ctrl-screen-coach-b@test.com",
+      password: "coach-pass-123",
+      firstName: "Coach",
+      lastName: "B",
+      role: "coach",
+      branchId: branchBId,
+    });
+    const coachBToken = await getAuthToken(
+      app,
+      "tv-ctrl-screen-coach-b@test.com",
+      "coach-pass-123",
+    );
+
+    const ajena = await getScreen(coachBToken, branchAId);
+    expect(ajena.statusCode).toBe(403);
+    expect(JSON.parse(ajena.body).code).toBe("BRANCH_OUT_OF_SCOPE");
+
+    // Su propia sede si, y el owner entra a las dos.
+    expect((await getScreen(coachBToken, branchBId)).statusCode).toBe(200);
+    expect((await getScreen(ownerToken, branchAId)).statusCode).toBe(200);
+    expect((await getScreen(ownerToken, branchBId)).statusCode).toBe(200);
+  });
+});
+
 describe("POST /control/state — bloque, nivel y ejercicio (D-15)", () => {
   beforeEach(async () => {
     await seedTuesday();
@@ -574,6 +613,32 @@ describe("POST /control/state — bloque, nivel y ejercicio (D-15)", () => {
     expect(state.exerciseIndex).toBe(1);
   });
 
+  it("la rotación de deuteros arranca prendida y prender/apagar persiste", async () => {
+    const inicial = await write({});
+    expect(inicial.deuterosAutoRotate).toBe(true);
+
+    const apagada = await write({ deuterosAutoRotate: false });
+    expect(apagada.deuterosAutoRotate).toBe(false);
+    // Una escritura que no la nombra no la vuelve a prender (campo absoluto).
+    const otra = await write({ blockRole: "NUCLEUS" });
+    expect(otra.deuterosAutoRotate).toBe(false);
+
+    const prendida = await write({ deuterosAutoRotate: true });
+    expect(prendida.deuterosAutoRotate).toBe(true);
+  });
+
+  it("tocar a mano entre DEUTEROS_1 y DEUTEROS_2 fija la pisada (deuterosPinnedAt)", async () => {
+    // Elegir a mano una estación ya la pisa (se respeta 30s antes de rotar).
+    await write({ blockRole: "DEUTEROS_1" });
+    const arrancado = await write({ timer: "start" });
+
+    // Cambiar a la otra estación re-fija la pisada, sin resetear el timer.
+    const pisado = await write({ blockRole: "DEUTEROS_2" });
+    expect(pisado.deuterosPinnedAt).not.toBeNull();
+    expect(pisado.timerStatus).toBe("running");
+    expect(pisado.timerStartedAt).toBe(arrancado.timerStartedAt);
+  });
+
   it("un bloque que no existe en el roster de hoy se descarta, no mueve al profe", async () => {
     await write({ blockRole: "DEUTEROS_2", exerciseIndex: 3 });
     const arrancado = await write({ timer: "start" });
@@ -610,18 +675,17 @@ describe("POST /control/state — el timer (D-16/17/18)", () => {
     await seedTuesday();
   });
 
-  it("iniciar programa el arranque 3 s adelante, no al instante", async () => {
+  it("D-16: iniciar arranca al instante, sin lead programado", async () => {
     const antes = Date.now();
     const state = await write({ timer: "start" });
 
     expect(state.timerStatus).toBe("running");
     expect(state.timerStartedAt).not.toBeNull();
-    // El sello del server queda en el FUTURO. Revisa D-16 ("arranca al instante"), que
-    // ignoraba el poll de 2,5 s del televisor: para cuando la pantalla se enteraba, el
-    // cronometro ya iba en ~3 s y saltaba de 00:00 a 00:03 (visto en sede). Con el
-    // arranque programado, todos los televisores de la sala entran en cero juntos.
-    expect(state.timerStartedAt!).toBeGreaterThanOrEqual(antes + 3000);
-    expect(state.timerStartedAt!).toBeLessThanOrEqual(Date.now() + 3000);
+    // El sello queda en el "ahora" del server, no adelantado: el arranque diferido de
+    // 3 s (visto en sede: la pantalla saltaba de 00:00 a 00:03) se saco por completo,
+    // el timer arranca desde cero apenas el profe aprieta INICIAR.
+    expect(state.timerStartedAt!).toBeGreaterThanOrEqual(antes);
+    expect(state.timerStartedAt!).toBeLessThanOrEqual(Date.now());
     expect(state.pausedAt).toBeNull();
     expect(state.pausedAccumMs).toBe(0);
   });
@@ -659,8 +723,7 @@ describe("POST /control/state — el timer (D-16/17/18)", () => {
 
     // El elapsed efectivo (now - startedAt - pausado) no supera el tiempo de pared: el
     // bloque no se comio los 60 ms de la pausa. Los `Math.max` son el mismo criterio que
-    // aplica el kiosco (`elapsedFrom`): con el arranque diferido, durante los primeros
-    // 3 s el sello esta en el futuro y el elapsed es 0, nunca negativo.
+    // aplica el kiosco (`elapsedFrom`): nunca negativo, aunque el reloj tenga jitter.
     const pared = Math.max(0, Date.now() - reanudado.timerStartedAt!);
     const efectivo = Math.max(0, pared - reanudado.pausedAccumMs);
     expect(efectivo).toBeLessThanOrEqual(pared);
@@ -719,40 +782,76 @@ describe("POST /control/state — el timer (D-16/17/18)", () => {
     expect(state.timerStartedAt).toBeGreaterThan(0);
     expect(state.pausedAccumMs).toBe(0);
   });
+
+  it("C2: pasar de DEUTEROS_1 a DEUTEROS_2 NO reinicia el timer (es el mismo bloque)", async () => {
+    await write({ blockRole: "DEUTEROS_1", exerciseIndex: 1 });
+    const arrancado = await write({ timer: "start" });
+    await sleep(40);
+
+    const state = await write({ blockRole: "DEUTEROS_2" });
+
+    // DEUTEROS es un bloque con dos caminos: cambiar de camino no es cambiar
+    // de bloque, asi que el cronometro sigue exactamente donde estaba.
+    expect(state.blockRole).toBe("DEUTEROS_2");
+    expect(state.timerStatus).toBe("running");
+    expect(state.timerStartedAt).toBe(arrancado.timerStartedAt);
+    expect(state.pausedAt).toBeNull();
+    expect(state.pausedAccumMs).toBe(0);
+    // El ejercicio si vuelve a 0: la lista del camino nuevo es otra.
+    expect(state.exerciseIndex).toBe(0);
+  });
+
+  it("C2: en cambio, NUCLEUS a EPIKOS (grupos distintos) SIGUE reiniciando el timer", async () => {
+    await write({ blockRole: "NUCLEUS" });
+    await write({ timer: "start" });
+    await sleep(40);
+
+    const state = await write({ blockRole: "EPIKOS" });
+
+    expect(state.blockRole).toBe("EPIKOS");
+    expect(state.timerStatus).toBe("idle");
+    expect(state.timerStartedAt).toBeNull();
+    expect(state.pausedAccumMs).toBe(0);
+  });
 });
 
-describe("POST /control/state — lo que ve el televisor", () => {
+describe("POST /control/state — lo que ve la pantalla (GET /control/screen)", () => {
   beforeEach(async () => {
     await seedTuesday();
   });
 
-  it("D-19: el sonido se enciende desde el celular y llega al TV", async () => {
-    const device = await createDevice(branchAId);
+  it("D-19: el sonido se enciende desde el celular y llega a la pantalla", async () => {
     await write({ blockRole: "NUCLEUS" });
 
-    const apagado = JSON.parse((await pollTv(device.token)).body) as TvPollBody;
+    const apagado = JSON.parse(
+      (await getScreen(coachAToken, branchAId)).body,
+    ) as TvPollBody;
     expect(apagado.class!.timer.soundEnabled).toBe(false);
 
     const state = await write({ soundEnabled: true });
     expect(state.soundEnabled).toBe(true);
 
     const encendido = JSON.parse(
-      (await pollTv(device.token)).body,
+      (await getScreen(coachAToken, branchAId)).body,
     ) as TvPollBody;
     expect(encendido.class!.timer.soundEnabled).toBe(true);
   });
 
-  it("lo que escribe el profe es lo que pinta el televisor", async () => {
-    const device = await createDevice(branchAId);
-
+  it("lo que escribe el profe es lo que pinta la pantalla", async () => {
     await write({ blockRole: "DEUTEROS_2", level: "sigma", exerciseIndex: 1 });
     const arrancado = await write({ timer: "start" });
 
-    const body = JSON.parse((await pollTv(device.token)).body) as TvPollBody;
+    const body = JSON.parse(
+      (await getScreen(coachAToken, branchAId)).body,
+    ) as TvPollBody;
     expect(body.screen).toBe("class");
     expect(body.class!.blockRole).toBe("DEUTEROS_2");
     // `blockIndex` es derivado del roster, nunca persistido.
     expect(body.class!.blockIndex).toBe(3);
+    // C1: bloque VISUAL — REGULAR_ROLES tiene 5 entradas pero DEUTEROS_1+2
+    // colapsan en una, asi que "BLOQUE x / N" en pantalla dice 3 / 4, no 4 / 5.
+    expect(body.class!.visualBlockCount).toBe(4);
+    expect(body.class!.visualBlockIndex).toBe(2);
     expect(body.class!.level).toBe("sigma");
     expect(body.class!.exerciseIndex).toBe(1);
     expect(body.class!.timer.status).toBe("running");
@@ -760,29 +859,32 @@ describe("POST /control/state — lo que ve el televisor", () => {
     expect(body.class!.timer.startedAt).toBe(arrancado.timerStartedAt);
   });
 
-  it("D-08: la pantalla de cierre deja el televisor sin bloque", async () => {
-    const device = await createDevice(branchAId);
+  it("D-08: la pantalla de cierre deja la pantalla sin bloque", async () => {
     await write({ blockRole: "EPIKOS" });
 
     const state = await write({ screen: "closing" });
     expect(state.screen).toBe("closing");
 
-    const body = JSON.parse((await pollTv(device.token)).body) as TvPollBody;
+    const body = JSON.parse(
+      (await getScreen(coachAToken, branchAId)).body,
+    ) as TvPollBody;
     expect(body.screen).toBe("closing");
     expect(body.class).toBeNull();
   });
 
-  it("D-07: terminar la clase devuelve el TV a reposo, y es idempotente", async () => {
-    const device = await createDevice(branchAId);
+  it("D-07: terminar la clase devuelve la pantalla a reposo, y es idempotente", async () => {
     await write({ blockRole: "NUCLEUS", timer: "start" });
     expect(
-      (JSON.parse((await pollTv(device.token)).body) as TvPollBody).screen,
+      (JSON.parse((await getScreen(coachAToken, branchAId)).body) as TvPollBody)
+        .screen,
     ).toBe("class");
 
     const primera = await postEndClass(coachAToken, branchAId);
     expect(primera.statusCode).toBe(200);
 
-    const body = JSON.parse((await pollTv(device.token)).body) as TvPollBody;
+    const body = JSON.parse(
+      (await getScreen(coachAToken, branchAId)).body,
+    ) as TvPollBody;
     expect(body.screen).toBe("idle");
     expect(body.class).toBeNull();
 

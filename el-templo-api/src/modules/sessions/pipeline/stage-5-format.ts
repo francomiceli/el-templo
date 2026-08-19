@@ -42,6 +42,14 @@ function roleToBlock(
     case "ROM_CORE":
     case "ROM_UPPER":
       return "initium"; // Fallback; ROM blocks never reach stage-5
+    // Phase 159 (D-P6): combos/tecnica bypass this stage via the dedicated
+    // semana-nueva pipeline (plan 02/03) — this should never be called for them
+    case "COMBOS_I":
+    case "COMBOS_II":
+    case "TECNICA_I":
+    case "TECNICA_II":
+    case "STRETCHING":
+      return "initium"; // Fallback; combos/tecnica blocks never reach stage-5
   }
 }
 

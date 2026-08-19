@@ -2,6 +2,7 @@ import type { SessionDetail, SessionBlock, SessionExercise } from 'src/types/ses
 import type { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
 import { isFormatDictatedByName } from 'src/constants/formats';
 import { getRouteLabel } from 'src/constants/route-labels';
+import { ROLE_LABELS } from 'src/constants/roleLabels';
 // Orden canónico de niveles (kairos-first, Phase 129). El editor de sesiones
 // muestra/edita la movilidad del PRIMER nivel presente en este orden
 // (levelBlocks[0]); el PDF debe leer del mismo nivel para no divergir.
@@ -53,6 +54,9 @@ function findInitiumBlock(sessions: SessionDetail[]): SessionBlock | undefined {
 /** Display-name overrides for PDF output */
 function displayFormatName(name: string): string {
   if (name.toLowerCase() === 'interval training') return 'HIIT';
+  // AMRAP y AMRAP Series se muestran ambos como "AMRAP": el "X<n>" de series ya
+  // los distingue en los params, sin la palabra "SERIES" redundante.
+  if (name.toLowerCase().includes('amrap')) return 'AMRAP';
   return name;
 }
 
@@ -167,9 +171,10 @@ function formatNameWithParams(
     case 'tempo_sets':
       return p.tempo ? `${name} ${p.tempo}` : name;
 
-    // I Go, You Go
+    // I Go, You Go: sin rondas en la etiqueta — el coach no las elige (las
+    // cantidades van en las reps por ejercicio). Nombre solo.
     case 'i_go_you_go':
-      return p.totalRounds ? `${name} ${p.totalRounds}R` : name;
+      return name;
 
     // Wave Loading
     case 'wave_loading':
@@ -381,12 +386,9 @@ function buildGridPage(
 }
 
 // ROM zone constants for PDF transformer
+// Labels migrated to constants/roleLabels.ts (fase 160, SEM-11, D160-03) —
+// consumido acá vía ROLE_LABELS en vez del literal local.
 const ROM_ZONES = ['ROM_LOWER', 'ROM_CORE', 'ROM_UPPER'] as const;
-const ROM_ZONE_LABELS: Record<string, string> = {
-  ROM_LOWER: 'TREN INFERIOR',
-  ROM_CORE: 'ZONA MEDIA',
-  ROM_UPPER: 'TREN SUPERIOR',
-};
 
 /**
  * Transform multiple sessions (one per level) into a single PdfDaySession
@@ -442,13 +444,83 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
 
       if (levelBlocks.length > 0) {
         blocks.push({
-          role: ROM_ZONE_LABELS[zone] || zone,
+          role: ROLE_LABELS[zone] || zone,
           formatName,
           mobility: undefined, // No mobility slot for ROM (per D-10)
           levelBlocks,
           isRom: true,
         });
       }
+    }
+
+    return { dayName, week, blocks };
+  }
+
+  // Detect COMBOS/TECNICA sessions (fase 160, SEM-09): un día combos o técnica
+  // trae roles COMBOS_I/II o TECNICA_I/II en vez de NUCLEUS/DEUTEROS/EPIKOS.
+  // Sin esta rama caería en la regular de abajo, no encontraría ninguno de
+  // esos bloques y saldría "solo INITIUM + cierre" (bug vivo apenas el profe
+  // genere un día de este tipo — ver 160-CONTEXT.md).
+  const isCombosTecnica = sessions.some((s) =>
+    s.blocks.some((b) => b.role.startsWith('COMBOS_') || b.role.startsWith('TECNICA_'))
+  );
+
+  if (isCombosTecnica) {
+    // INITIUM compartido del día — mismo patrón que la rama regular.
+    const ctInitium = findInitiumBlock(sessions);
+    if (ctInitium) {
+      blocks.push({
+        role: 'INITIUM',
+        blockName: ctInitium.pattern || 'PYROS',
+        formatName: formatNameWithParams(ctInitium.formatName, ctInitium.formatParams),
+        customTitle: ctInitium.customTitle ?? null,
+        simpleExercises: ctInitium.exercises.map((e) =>
+          formatInitiumExercise(e, ctInitium.formatName)
+        ),
+      });
+    }
+
+    // Un día es combos O técnica, nunca ambos — buildGridPage devuelve null
+    // si no hay bloques de ese rol, así que en la práctica se pushea solo uno
+    // de los dos pares.
+    const combosI = buildGridPage('COMBOS_I', ROLE_LABELS.COMBOS_I, sessionsByLevel);
+    if (combosI) blocks.push(combosI);
+    const combosII = buildGridPage('COMBOS_II', ROLE_LABELS.COMBOS_II, sessionsByLevel);
+    if (combosII) blocks.push(combosII);
+
+    const tecnicaI = buildGridPage('TECNICA_I', ROLE_LABELS.TECNICA_I, sessionsByLevel);
+    if (tecnicaI) blocks.push(tecnicaI);
+    const tecnicaII = buildGridPage('TECNICA_II', ROLE_LABELS.TECNICA_II, sessionsByLevel);
+    if (tecnicaII) blocks.push(tecnicaII);
+
+    // Cierre FB del día combos (UAT 2026-08-18): ATHLOS/EPIKOS ruta FB,
+    // grid por nivel como en la rama regular (los ejercicios difieren por
+    // nivel). En días técnica no hay ATHLOS/EPIKOS y esto queda en null.
+    const ctFinal = buildGridPage('EPIKOS', 'EPIKOS', sessionsByLevel);
+    if (ctFinal) {
+      for (const s of sessions) {
+        const block = findBlock(s.blocks, 'EPIKOS');
+        if (block) {
+          ctFinal.role = block.role;
+          break;
+        }
+      }
+      blocks.push(ctFinal);
+    }
+
+    // STRETCHING (D160-04): lista simple compartida por los 6 niveles, estilo
+    // INITIUM — NO grid por nivel. Fuente determinista via findCanonicalBlock
+    // (mismo criterio que movilidad/formato de buildGridPage).
+    const stretchingBlock = findCanonicalBlock('STRETCHING', sessionsByLevel);
+    if (stretchingBlock) {
+      blocks.push({
+        role: ROLE_LABELS.STRETCHING,
+        formatName: formatNameWithParams(stretchingBlock.formatName, stretchingBlock.formatParams),
+        isStretching: true,
+        simpleExercises: stretchingBlock.exercises.map((e) =>
+          formatInitiumExercise(e, stretchingBlock.formatName)
+        ),
+      });
     }
 
     return { dayName, week, blocks };

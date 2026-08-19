@@ -19,8 +19,13 @@
  * Pitfall 1: el bloque se identifica SIEMPRE por su rol canonico, nunca por un
  * indice. Dos niveles del mismo dia pueden tener rosters de largo distinto, asi
  * que un indice guardado saltaria a otro bloque al cambiar de nivel.
+ *
+ * Las etiquetas visibles (`ROLE_LABELS`) NO viven mas aca: fase 160 (SEM-11,
+ * D160-03) las centralizo en `../shared/role-labels.ts`, la fuente unica de
+ * labels del API (consumida tambien por el badge de `admin/service.ts`).
  */
-import { formatParamsLabel, type FormatParams } from "../admin/format-params";
+import { formatNameWithParams, type FormatParams } from "../admin/format-params";
+import { ROLE_LABELS } from "../shared/role-labels";
 import { TRAINING_LEVELS } from "../shared/training-constants";
 import type { TvBlockSummary, TvClassMode } from "./types";
 
@@ -45,6 +50,34 @@ export const ROM_ROLES = [
 ] as const;
 
 /**
+ * Orden canonico de un dia COMBOS (fase 160, SEM-15; cierre FB UAT
+ * 2026-08-18). El cierre es el circuito full-body con la alternancia del
+ * pipeline regular (ATHLOS semanas impares / EPIKOS pares) — ambos roles van
+ * en la lista y `buildRoster` saltea el ausente. Dias combos viejos (pre-FB)
+ * cerraban con STRETCHING: se mantiene al final para que sigan rendereando.
+ */
+export const COMBOS_ROLES = [
+  "INITIUM",
+  "COMBOS_I",
+  "COMBOS_II",
+  "ATHLOS",
+  "EPIKOS",
+  "STRETCHING",
+] as const;
+
+/**
+ * Orden canonico de un dia TECNICA (fase 160, SEM-15). STRETCHING es la lista
+ * de cierre compartida por los 6 niveles (D160-04), tratada como shared igual
+ * que INITIUM.
+ */
+export const TECNICA_ROLES = [
+  "INITIUM",
+  "TECNICA_I",
+  "TECNICA_II",
+  "STRETCHING",
+] as const;
+
+/**
  * El INITIUM es la lista compartida del dia: se muestra UNA vez para todos los
  * niveles. Desde el fix de generacion post-v5.1 sale identico en todas las
  * sesiones, pero semanas viejas o ediciones manuales pueden divergir — por eso
@@ -54,23 +87,33 @@ export const ROM_ROLES = [
 export const INITIUM_SOURCE_ORDER = ["alfa", "delta", "sigma", "kairos"];
 
 /**
- * Etiqueta visible de cada rol.
- *
- * INITIUM se rotula PYROS (decision v8 del UI-SPEC): es "un bloque mas", no una
- * pagina especial, y jamas se lo nombra con el termino generico de entrada en
- * calor. Las etiquetas ROM son las mismas que imprime el PDF.
+ * Pares de nivel del TV (fase 164 rediseño — dos columnas lado a lado). Espejo
+ * a propósito de `levelPairs` en
+ * `el-templo-admin/src/utils/pdf/session-pdf-builder.ts` (`buildDeuterosSplitPages`,
+ * ~línea 847), con el tercer par agregado: el PDF nunca imprime omega/spartan
+ * porque no se planifican por día (`REGULAR_LEVEL_ORDER` en `class-day.ts`),
+ * pero el TV deriva sus columnas de `pairFor` sin asumir cuáles pares tienen
+ * datos — mantener el tercero acá es más simple que dos listas distintas.
  */
-const ROLE_LABELS: Record<string, string> = {
-  INITIUM: "PYROS",
-  NUCLEUS: "NUCLEUS",
-  DEUTEROS_1: "DEUTEROS I",
-  DEUTEROS_2: "DEUTEROS II",
-  EPIKOS: "EPIKOS",
-  ATHLOS: "ATHLOS",
-  ROM_LOWER: "TREN INFERIOR",
-  ROM_CORE: "ZONA MEDIA",
-  ROM_UPPER: "TREN SUPERIOR",
-};
+export const LEVEL_PAIRS: readonly (readonly [string, string])[] = [
+  ["alfa", "delta"],
+  ["sigma", "kairos"],
+  ["omega", "spartan"],
+];
+
+/**
+ * El par que contiene `level`, en el orden del par (no el orden de llegada).
+ *
+ * Defensivo: un nivel que no está en ningún par (dato futuro, o un ROM
+ * "alfa"/"delta" — que SÍ están acá, correctamente) devuelve `[level]` solo,
+ * para que el caller nunca se quede sin columna.
+ */
+export function pairFor(level: string): readonly string[] {
+  for (const pair of LEVEL_PAIRS) {
+    if (pair.includes(level)) return pair;
+  }
+  return [level];
+}
 
 /**
  * Forma minima de un bloque que el roster necesita. `class-day.ts` devuelve
@@ -92,6 +135,18 @@ export interface RosterSession<TBlock extends RosterBlock = RosterBlock> {
 export interface RosterClassDay<TBlock extends RosterBlock = RosterBlock> {
   mode: TvClassMode;
   sessions: RosterSession<TBlock>[];
+}
+
+/**
+ * Clave de "bloque visual": DEUTEROS_1 y DEUTEROS_2 son dos CAMINOS del mismo
+ * bloque (el profe elige uno u otro para la clase), no dos bloques distintos.
+ * Colapsan a la misma clave para que los puntitos "BLOQUE n / M" cuenten 4 y
+ * no 5, y para decidir si cambiar de rol reinicia el cronometro (pasar de un
+ * camino al otro NO deberia, es el mismo bloque). El resto de los roles es su
+ * propia clave — no hay mas grupos que colapsar hoy.
+ */
+export function visualGroupOf(role: string): string {
+  return role === "DEUTEROS_1" || role === "DEUTEROS_2" ? "DEUTEROS" : role;
 }
 
 /**
@@ -160,13 +215,16 @@ function findCanonicalBlock<TBlock extends RosterBlock>(
  * Fase 100: un INITIUM con `customTitle` (formato de juegos) manda su propio
  * titulo tal cual, igual que en el PDF. Cuando el bloque es ATHLOS se rotula
  * con su propio nombre aunque su rol canonico sea EPIKOS.
+ *
+ * El FORMATO usa `formatNameWithParams`, que es un espejo a proposito de
+ * `formatNameWithParams` en
+ * `el-templo-admin/src/utils/pdf/session-data-transformer.ts` — la etiqueta
+ * del bloque en la TV tiene que ser identica a la del PDF de planis.
  */
 export function blockTitle(role: string, block: RosterBlock): string {
   if (role === "INITIUM" && block.customTitle) return block.customTitle;
   const label = ROLE_LABELS[block.role] ?? ROLE_LABELS[role] ?? role;
-  const format = block.formatParams
-    ? formatParamsLabel(block.formatParams)
-    : block.formatName;
+  const format = formatNameWithParams(block.formatName, block.formatParams);
   return `${label} · ${format}`;
 }
 
@@ -177,14 +235,28 @@ export function blockTitle(role: string, block: RosterBlock): string {
  * sin DEUTEROS_2 produce un roster de 4 bloques, y los dots "BLOQUE n / M" del
  * TV cuentan sobre ese largo real.
  *
- * `shared: true` solo en INITIUM — es la lista comun a todos los niveles, y es
- * lo que deshabilita el selector de nivel en el control del profe.
+ * `shared: true` en INITIUM y STRETCHING — son las listas comunes a todos los
+ * niveles (INITIUM siempre; STRETCHING por D-11/Pitfall 1, identico en los 6
+ * niveles del dia), y es lo que deshabilita el selector de nivel en el
+ * control del profe y colapsa las columnas a una sola.
  */
+function rolesForMode(mode: TvClassMode): readonly string[] {
+  switch (mode) {
+    case "rom":
+      return ROM_ROLES;
+    case "combos":
+      return COMBOS_ROLES;
+    case "tecnica":
+      return TECNICA_ROLES;
+    default:
+      return REGULAR_ROLES;
+  }
+}
+
 export function buildRoster<TBlock extends RosterBlock>(
   classDay: RosterClassDay<TBlock>,
 ): TvBlockSummary[] {
-  const roles: readonly string[] =
-    classDay.mode === "rom" ? ROM_ROLES : REGULAR_ROLES;
+  const roles: readonly string[] = rolesForMode(classDay.mode);
   const roster: TvBlockSummary[] = [];
 
   for (const role of roles) {
@@ -196,7 +268,7 @@ export function buildRoster<TBlock extends RosterBlock>(
     roster.push({
       role,
       title: blockTitle(role, block),
-      shared: role === "INITIUM",
+      shared: role === "INITIUM" || role === "STRETCHING",
     });
   }
 

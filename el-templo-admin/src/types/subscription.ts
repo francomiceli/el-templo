@@ -289,6 +289,23 @@ export interface AssignPlanInput {
    * método, atómico. Si el anticipo excede el precio → 400 (excedente aparte).
    */
   appliedMiscChargeId?: number;
+  /**
+   * Alta prorrateada hasta fin de mes: la vigencia termina el último día del mes
+   * del startDate y el precio es el proporcional de los días restantes (día del
+   * alta incluido). El monto editado por el staff viaja en priceOverrideAmount.
+   * Solo aplica al alta — excluyente con boardingPass/AURA/precio personalizado.
+   */
+  prorateToMonthEnd?: boolean;
+}
+
+/** Respuesta del preview de alta prorrateada hasta fin de mes. */
+export interface AssignProrationPreview {
+  basePrice: number;
+  suggestedPrice: number;
+  endDate: string;
+  daysCharged: number;
+  daysInMonth: number;
+  currency: string;
 }
 
 export interface RenewSubscriptionInput {
@@ -319,6 +336,13 @@ export interface RenewSubscriptionInput {
   scheduleIds?: number[];
   /** Inicio diferido por turno (slot lleno esta semana), como en asignación. */
   scheduleStartDates?: Record<string, string>;
+  /**
+   * Renovación prorrateada hasta fin de mes (alineación a la domiciliación).
+   * true → vence el último día del mes del inicio y el precio es el proporcional
+   * (el monto editado viaja por priceOverrideAmount, sin razón). Excluyente con
+   * el descuento de referido. Default (undefined) = renovación de mes completo.
+   */
+  prorateToMonthEnd?: boolean;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

@@ -66,6 +66,7 @@ export * from "./program-enrollments";
 export * from "./notifications";
 export * from "./promo-plans";
 export * from "./day-modes";
+export * from "./session-week-regime";
 export * from "./audit-log";
 export * from "./refresh-tokens";
 export * from "./user-status-history";

@@ -147,6 +147,47 @@ describe("toTimerSpec — work_rest family (tabata / interval / hiit)", () => {
       }),
     ).toEqual<TimerSpec>({ kind: "countup" });
   });
+
+  // ── exerciseCount: interval/hiit are circuits, tabata is not ──────────────
+  it("hiit multiplies rounds by the exercise count (circuit laps)", () => {
+    // ×5 laps through 3 exercises = 15 work/rest cycles. Without this the block
+    // stopped after the last exercise of the 1st lap.
+    expect(toTimerSpec(SAMPLES.hiit, 3)).toEqual<TimerSpec>({
+      kind: "work_rest",
+      workMs: 40_000,
+      restMs: 20_000,
+      rounds: 15,
+    });
+  });
+
+  it("interval multiplies rounds by the exercise count too", () => {
+    expect(toTimerSpec(SAMPLES.interval, 2)).toEqual<TimerSpec>({
+      kind: "work_rest",
+      workMs: 30_000,
+      restMs: 30_000,
+      rounds: 12,
+    });
+  });
+
+  it("tabata does NOT multiply: rounds is the total interval count", () => {
+    // A tabata ×8 with 4 exercises still runs 8 intervals (the exercises rotate
+    // within them). The exercise count must not change its cycle count.
+    expect(toTimerSpec(SAMPLES.tabata, 4)).toEqual<TimerSpec>({
+      kind: "work_rest",
+      workMs: 20_000,
+      restMs: 10_000,
+      rounds: 8,
+    });
+  });
+
+  it("hiit with no main exercises falls back to 1 station (rounds unchanged)", () => {
+    expect(toTimerSpec(SAMPLES.hiit, 0)).toEqual<TimerSpec>({
+      kind: "work_rest",
+      workMs: 40_000,
+      restMs: 20_000,
+      rounds: 5,
+    });
+  });
 });
 
 describe("toTimerSpec — rom (Saturday, D-23)", () => {

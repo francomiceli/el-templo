@@ -58,6 +58,13 @@ export const DAY_NAME_TO_NUMBER: Record<string, number> = {
 /** Sort order for mobility exercises (always last in block) */
 export const MOBILITY_SORT_ORDER = 999;
 
+/**
+ * Full Body pseudo-route (migrations 0172/0173): means "no route filter" —
+ * exercise pools built for it span the whole catalog. Used by the exercise
+ * swap and by the combos-day closing circuit.
+ */
+export const FULL_BODY_ROUTE = "FB";
+
 /** Maximum exercise difficulty per member level */
 export const LEVEL_DIFFICULTY_MAP: Record<string, number> = {
   // Phase 129 (KAIROS-02): kairos inherits Alfa's content, so reuse Alfa's cap (3).

@@ -14,14 +14,17 @@ import { describe, it, expect } from "vitest";
 import {
   REGULAR_ROLES,
   ROM_ROLES,
+  TECNICA_ROLES,
   INITIUM_SOURCE_ORDER,
   buildRoster,
   findBlock,
   findInitiumBlock,
+  visualGroupOf,
   type RosterBlock,
   type RosterClassDay,
 } from "../../src/modules/tv/roster";
 import type { FormatParams } from "../../src/modules/admin/format-params";
+import type { TvClassMode } from "../../src/modules/tv/types";
 
 const TABATA: FormatParams = {
   type: "tabata",
@@ -55,6 +58,13 @@ function romDay(
   sessions: { memberLevel: string; blocks: RosterBlock[] }[],
 ): RosterClassDay {
   return { mode: "rom", sessions };
+}
+
+function dayWithMode(
+  mode: TvClassMode,
+  sessions: { memberLevel: string; blocks: RosterBlock[] }[],
+): RosterClassDay {
+  return { mode, sessions };
 }
 
 describe("TV roster — orden canonico de bloques", () => {
@@ -173,7 +183,7 @@ describe("TV roster — orden canonico de bloques", () => {
     expect(findInitiumBlock(day.sessions)).toBe(day.sessions[1].blocks[0]);
   });
 
-  it("marca shared SOLO en INITIUM (es la unica lista sin niveles)", () => {
+  it("marca shared en INITIUM (dia regular: es la unica lista sin niveles)", () => {
     const day = regularDay([
       {
         memberLevel: "alfa",
@@ -200,9 +210,9 @@ describe("TV roster — orden canonico de bloques", () => {
         blocks: [block("INITIUM", { formatParams: TABATA })],
       },
     ]);
-    expect(buildRoster(plain)[0].title).toBe(
-      "PYROS · Tabata - 20s/10s x 8 rondas",
-    );
+    // La etiqueta = formatName + params compactos (espejo del PDF de planis). El
+    // `block()` de este fixture no fija formatName, así que sale el default "Standard".
+    expect(buildRoster(plain)[0].title).toBe('PYROS · Standard 20"/10"');
 
     const games = regularDay([
       {
@@ -224,9 +234,154 @@ describe("TV roster — orden canonico de bloques", () => {
       },
     ]);
 
+    // DEUTEROS_1: sin params → solo formatName ("Complex"). DEUTEROS_2: formatName default
+    // "Standard" + params AMRAP compactos ("10'"), igual notación que el PDF de planis.
     expect(buildRoster(day).map((b) => b.title)).toEqual([
       "DEUTEROS I · Complex",
-      "DEUTEROS II · AMRAP - 10 min",
+      "DEUTEROS II · Standard 10'",
     ]);
+  });
+});
+
+describe("TV roster — dias combos/tecnica (fase 160, SEM-15)", () => {
+  it("arma el roster de un dia combos legacy (cierre STRETCHING) en orden canonico", () => {
+    const day = dayWithMode("combos", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("STRETCHING"),
+          block("INITIUM", { formatParams: TABATA }),
+          block("COMBOS_II"),
+          block("COMBOS_I"),
+        ],
+      },
+    ]);
+
+    expect(buildRoster(day).map((b) => b.role)).toEqual([
+      "INITIUM",
+      "COMBOS_I",
+      "COMBOS_II",
+      "STRETCHING",
+    ]);
+  });
+
+  it("arma el roster de un dia combos con cierre full-body (ATHLOS/EPIKOS) y lo deja NO shared", () => {
+    const day = dayWithMode("combos", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("EPIKOS"),
+          block("INITIUM", { formatParams: TABATA }),
+          block("COMBOS_II"),
+          block("COMBOS_I"),
+        ],
+      },
+    ]);
+
+    const roster = buildRoster(day);
+    expect(roster.map((b) => b.role)).toEqual([
+      "INITIUM",
+      "COMBOS_I",
+      "COMBOS_II",
+      "EPIKOS",
+    ]);
+    // El circuito FB es por nivel (dificultad distinta) — columna por nivel.
+    expect(roster.filter((b) => b.shared).map((b) => b.role)).toEqual([
+      "INITIUM",
+    ]);
+  });
+
+  it("marca shared en STRETCHING ademas de INITIUM (dia tecnica: lista unica de cierre)", () => {
+    const day = dayWithMode("tecnica", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("TECNICA_I"),
+          block("TECNICA_II"),
+          block("STRETCHING"),
+        ],
+      },
+    ]);
+
+    expect(
+      buildRoster(day)
+        .filter((b) => b.shared)
+        .map((b) => b.role),
+    ).toEqual(["INITIUM", "STRETCHING"]);
+  });
+
+  it("rotula un dia combos con la convencion D160-02 (numerales romanos)", () => {
+    const day = dayWithMode("combos", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("COMBOS_I"),
+          block("COMBOS_II"),
+          block("STRETCHING"),
+        ],
+      },
+    ]);
+
+    const titles = buildRoster(day).map((b) => b.title);
+    expect(titles[1].startsWith("COMBOS I ")).toBe(true);
+    expect(titles[2].startsWith("COMBOS II ")).toBe(true);
+    expect(titles[3].startsWith("KINESIS ")).toBe(true);
+  });
+
+  it("arma el roster de un dia tecnica con los 4 bloques y labels acentuadas", () => {
+    const day = dayWithMode("tecnica", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("TECNICA_I"),
+          block("TECNICA_II"),
+          block("STRETCHING"),
+        ],
+      },
+    ]);
+
+    const roster = buildRoster(day);
+    expect(roster.map((b) => b.role)).toEqual([...TECNICA_ROLES]);
+    expect(roster[1].title.startsWith("TÉCNICA I ")).toBe(true);
+    expect(roster[2].title.startsWith("TÉCNICA II ")).toBe(true);
+  });
+
+  it("NO colapsa COMBOS_I/COMBOS_II ni TECNICA_I/TECNICA_II (a diferencia de DEUTEROS)", () => {
+    expect(visualGroupOf("COMBOS_I")).toBe("COMBOS_I");
+    expect(visualGroupOf("COMBOS_II")).toBe("COMBOS_II");
+    expect(visualGroupOf("TECNICA_I")).toBe("TECNICA_I");
+    expect(visualGroupOf("TECNICA_II")).toBe("TECNICA_II");
+  });
+
+  it("regresion: un dia regular y un dia rom siguen usando su roster propio sin cambios", () => {
+    const regular = regularDay([
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("NUCLEUS"),
+          block("DEUTEROS_1"),
+          block("DEUTEROS_2"),
+          block("EPIKOS"),
+        ],
+      },
+    ]);
+    expect(buildRoster(regular).map((b) => b.role)).toEqual([...REGULAR_ROLES]);
+
+    const rom = romDay([
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("ROM_LOWER"),
+          block("ROM_CORE"),
+          block("ROM_UPPER"),
+        ],
+      },
+    ]);
+    expect(buildRoster(rom).map((b) => b.role)).toEqual([...ROM_ROLES]);
   });
 });

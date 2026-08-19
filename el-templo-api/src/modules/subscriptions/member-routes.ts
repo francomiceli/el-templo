@@ -204,8 +204,10 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
       return {
         hasPass: true,
-        classesRemaining: pass.classesRemaining ?? 0,
-        classesBudget: pass.classesBudget ?? 0,
+        // null = acceso ilimitado (plan con monthly_class_budget NULL). NO colapsar
+        // a 0 — el 0 significaría "cupo agotado" y la app bloquearía la reserva.
+        classesRemaining: pass.classesRemaining ?? null,
+        classesBudget: pass.classesBudget ?? null,
         endDate: pass.endDate,
         isSocio: plan?.requiresPresencial ?? false,
       };

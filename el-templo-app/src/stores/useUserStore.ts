@@ -69,8 +69,10 @@ export interface MemberSubscription {
 // un socio con presencial+pase NO debe perder acceso a la grilla presencial.
 export interface EspecialPass {
   hasPass: boolean
-  classesRemaining: number
-  classesBudget: number
+  // null = acceso ilimitado (plan con monthly_class_budget NULL). Los tiers con
+  // cupo (2/4 accesos) traen el entero.
+  classesRemaining: number | null
+  classesBudget: number | null
   endDate: string | null
   isSocio: boolean
 }
@@ -224,9 +226,15 @@ export const useUserStore = defineStore('user', () => {
   // (D-06 capabilities aditivas). No mutan hasPresencialReservationAccess.
   const hasEspecialPass = computed(() => especialPass.value?.hasPass === true)
 
+  // Acceso ilimitado: pase presente con saldo NULL (plan monthly_class_budget NULL).
+  // Se chequea ANTES que los contadores — un pase ilimitado nunca está "agotado".
+  const especialUnlimited = computed(
+    () => hasEspecialPass.value && especialPass.value?.classesRemaining == null,
+  )
+
   const especialClassesRemaining = computed(() => especialPass.value?.classesRemaining ?? 0)
 
-  const especialClassesBudget = computed(() => especialPass.value?.classesBudget ?? 2)
+  const especialClassesBudget = computed(() => especialPass.value?.classesBudget ?? 0)
 
   // Externo-solo-pase: tiene pase pero NO acceso presencial. Distingue al
   // socio-con-pase (que conserva la grilla presencial) del externo cuyo único
@@ -325,8 +333,10 @@ export const useUserStore = defineStore('user', () => {
       } else {
         especialPass.value = {
           hasPass: true,
-          classesRemaining: data.classesRemaining ?? 0,
-          classesBudget: data.classesBudget ?? 2,
+          // Preservar null (= ilimitado). NO colapsar a 0/2 o se perdería la
+          // semántica de acceso ilimitado y la app lo trataría como agotado.
+          classesRemaining: data.classesRemaining ?? null,
+          classesBudget: data.classesBudget ?? null,
           endDate: data.endDate ?? null,
           isSocio: data.isSocio ?? false,
         }
@@ -502,6 +512,7 @@ export const useUserStore = defineStore('user', () => {
     hasPresencialReservationAccess,
     // Phase 162: capabilities del pase especial (aditivas)
     hasEspecialPass,
+    especialUnlimited,
     especialClassesRemaining,
     especialClassesBudget,
     hasOnlyEspecialPass,

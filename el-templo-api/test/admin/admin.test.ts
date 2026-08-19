@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { eq } from "drizzle-orm";
+import * as schema from "../../src/db/schema";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 
 describe("Admin Routes", () => {
@@ -192,6 +194,44 @@ describe("Admin Routes", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body).toBeDefined();
+    });
+
+    it("exposes the real sessionMode per day (combos) and null for empty days", async () => {
+      // Insert a session directly (no SPOM catalog needed) so the summary has a
+      // real persisted mode to report — the admin UI badge reads this, not the
+      // day_modes config (fase 160 follow-up: controles claros).
+      const week = 30;
+      try {
+        await app.db.insert(schema.sessions).values({
+          dayId: `W${week}-miercoles-alfa`,
+          week,
+          day: "miercoles",
+          levelGroup: "alfa_delta",
+          blockCount: 0,
+          status: "approved",
+          sessionMode: "combos",
+        });
+
+        const res = await app.inject({
+          method: "GET",
+          url: `/api/admin/weeks/${week}/summary`,
+          headers: { authorization: `Bearer ${adminToken}` },
+        });
+
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body);
+        const mie = body.days.find(
+          (d: { day: string }) => d.day === "miercoles",
+        );
+        const lun = body.days.find((d: { day: string }) => d.day === "lunes");
+        expect(mie.sessionMode).toBe("combos");
+        // A day with no generated sessions reports null (badge shows "—").
+        expect(lun.sessionMode).toBeNull();
+      } finally {
+        await app.db
+          .delete(schema.sessions)
+          .where(eq(schema.sessions.week, week));
+      }
     });
   });
 

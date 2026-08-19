@@ -568,149 +568,206 @@ export function generateBrokenLadderPattern(
 }
 
 /**
- * Generate human-readable label from FormatParams
+ * Display-name overrides applied before params are appended.
+ *
+ * ESPEJO A PROPOSITO de `displayFormatName` en
+ * `el-templo-admin/src/utils/pdf/session-data-transformer.ts` — misma regla,
+ * misma razon (DB dice "Interval Training", el impreso/TV dicen "HIIT").
  */
-export function formatParamsLabel(params: FormatParams): string {
-  switch (params.type) {
-    // Time-based
+function displayFormatName(name: string): string {
+  if (name.toLowerCase() === "interval training") return "HIIT";
+  // AMRAP y AMRAP Series se muestran ambos como "AMRAP": el "X<n>" de series ya
+  // los distingue en los params, sin la palabra "SERIES" redundante.
+  if (name.toLowerCase().includes("amrap")) return "AMRAP";
+  return name;
+}
+
+/**
+ * Compact block-title label: format name + params in the PDF's terse
+ * notation (e.g. "AMRAP SERIES 10' X3", "TABATA 20"/10"", "EMOM 10' (60")").
+ *
+ * ESPEJO A PROPOSITO, CASO POR CASO, de `formatNameWithParams` en
+ * `el-templo-admin/src/utils/pdf/session-data-transformer.ts` (la funcion que
+ * arma el mismo texto para el PDF de planis). El TV y el PDF tienen que
+ * mostrar exactamente lo mismo para el mismo bloque — cualquier cambio en la
+ * funcion del PDF REQUIERE el cambio espejo aca, y viceversa.
+ *
+ * Tipos de `FormatParams` sin caso propio en el switch del PDF (chipper,
+ * unbroken_reps, unbroken_chipper, ub_test, for_max_carga, for_max_tiempo,
+ * flow_guiado, stretching, couplet, triplet, singlet, benchmark_wod,
+ * hero_wod, floater_wod, task_priority, circuito_cooperativo, standard) caen
+ * en el `default` de esa funcion, que devuelve el nombre tal cual — acá se
+ * listan explicitamente con el mismo resultado para mantener el switch
+ * exhaustivo.
+ */
+export function formatNameWithParams(
+  formatName: string,
+  formatParams: FormatParams | null,
+): string {
+  const name = displayFormatName(formatName);
+  if (!formatParams) return name;
+
+  switch (formatParams.type) {
+    // Minutes-only formats
     case "amrap":
-      return `AMRAP - ${params.minutes} min`;
-    case "amrap_series":
-      return `AMRAP Series - ${params.minutes} min x ${params.rounds} rondas`;
-    case "emom":
-      return `EMOM - ${params.intervalSeconds}s / ${params.totalMinutes} min total`;
-    case "tabata":
-      return `Tabata - ${params.workSeconds}s/${params.restSeconds}s x ${params.rounds} rondas`;
-    case "interval":
-      return `HIIT - ${params.workSeconds}s/${params.restSeconds}s x ${params.rounds} rondas`;
-    case "hiit":
-      return `HIIT - ${params.workSeconds}s/${params.restSeconds}s x ${params.rounds} rondas`;
     case "time_cap":
-      return `Time Cap - ${params.minutes} min`;
-    case "every_x_seconds":
-      return `E${params.intervalSeconds}s - ${params.totalMinutes} min total`;
-    case "on_the_x":
-      return `On the ${Math.floor(params.intervalSeconds / 60)}:00 - ${params.rounds} rondas`;
-    case "for_time":
-      return params.timeCapMinutes
-        ? `For Time - ${params.timeCapMinutes} min cap`
-        : "For Time";
-    case "for_max_tiempo":
-      return "For Max (Tiempo)";
-
-    // Volume-based
-    case "chipper":
-      return "Chipper";
-    case "death_by":
-      return "Death By";
-    case "death_by_unbroken":
-      return "Death By Unbroken";
-    case "ladder":
-      return `Ladder ${params.direction === "ascending" ? "↑" : "↓"} — ${generateLadderPattern(params.start, params.step, params.rounds, params.direction)}`;
-    case "ladder_block":
-      return `Ladder Block ${params.direction === "ascending" ? "↑" : "↓"} — ${generateLadderBlockPattern(params.start, params.step, params.blockSize, params.direction)}`;
-    case "ladder_corta":
-      return `Ladder Corta ${params.direction === "ascending" ? "↑" : "↓"} — ${generateLadderPattern(params.start, params.step, params.rounds, params.direction)}`;
-    case "pyramid":
-      return params.step && params.peak
-        ? `Pyramid — ${generatePyramidPattern(params.step, params.peak)}`
-        : "Pyramid";
-    case "accumulate":
-      return `Acumular ${params.target} ${params.unit}`;
-    case "for_max_reps":
-      return params.timeCapMinutes
-        ? `For Max Reps - ${params.timeCapMinutes} min`
-        : "For Max Reps";
-    case "for_max_carga":
-      return "For Max (Carga)";
-    case "for_max_distancia":
-      return params.timeCapMinutes
-        ? `For Max (Distancia) - ${params.timeCapMinutes} min`
-        : "For Max (Distancia)";
-    case "unbroken_reps":
-      return "Unbroken Reps";
-    case "unbroken_chipper":
-      return "Unbroken Chipper";
-    case "ub_test":
-      return "UB Test";
-
-    // ROM
-    case "rom":
-      return `ROM - ${params.rounds} rondas - ${params.restSeconds}s descanso`;
-
-    // Technical
-    case "complex":
-      return `Complex - ${params.rounds} rondas`;
-    case "combos":
-      return `Combos - ${params.rounds} rondas`;
-    case "for_quality":
-      return `For Quality - ${params.rounds} rondas`;
     case "for_tech":
-      return `For Tech - ${params.minutes} min`;
-    case "tempo_sets":
-      return `Tempo Sets - ${params.tempo}`;
-    case "flow_guiado":
-      return "Flow Guiado";
-    case "stretching":
-      return "Stretching";
-    case "cluster":
-      return `Cluster - ${params.clusterSize} reps, ${params.restBetweenClusters}s rest`;
+      return formatParams.minutes ? `${name} ${formatParams.minutes}'` : name;
 
-    // Structure-based
-    case "rounds_for_time":
-      return params.timeCapMinutes
-        ? `${params.rounds} RFT - ${params.timeCapMinutes} min cap`
-        : `${params.rounds} Rounds for Time`;
-    case "couplet":
-      return "Couplet";
-    case "triplet":
-      return "Triplet";
-    case "singlet":
-      return "Singlet";
-    case "benchmark_wod":
-      return "Benchmark WOD";
-    case "hero_wod":
-      return "Hero WOD";
-    case "buy_in_cash_out":
-      return params.rounds
-        ? `Buy-in/Cash-out - ${params.rounds} rondas`
-        : "Buy-in/Cash-out";
-    case "i_go_you_go":
-      return params.totalRounds
-        ? `I Go, You Go - ${params.totalRounds} rondas`
-        : "I Go, You Go";
-    case "floater_wod":
-      return "Floater WOD";
-    case "acropolis":
-      return `Acropolis - ${params.phases} fases`;
-
-    // Hybrid
-    case "wave_loading":
-      return `Wave Loading - ${params.waves} ondas`;
-    case "drop_set":
-      return `Drop Set - ${params.drops} drops`;
-    case "rest_pause":
-      return `Rest-Pause - ${params.pauseSeconds}s`;
+    // Open Style: el tiempo lo decide el profe sobre la marcha — nunca se
+    // imprime, aunque bloques viejos tengan minutes guardado en formatParams.
     case "open_style":
-      return params.minutes
-        ? `Open Style - ${params.minutes} min`
-        : "Open Style";
-    case "emom_for_time":
-      return `EMOM ${params.emomMinutes}' (${params.intervalSeconds}s) + For Time`;
-    case "broken_ladder":
-      return `Broken Ladder ${params.direction === "ascending" ? "↑" : "↓"} — ${generateBrokenLadderPattern(params.start, params.step, params.breakAfter, params.direction)}`;
-    case "task_priority":
-      return "Task Priority";
-    case "circuito_cooperativo":
-      return "Circuito Cooperativo";
+      return name;
 
-    // Fallback
+    case "amrap_series": {
+      const parts = [name];
+      if (formatParams.minutes) parts.push(`${formatParams.minutes}'`);
+      if (formatParams.rounds) parts.push(`X${formatParams.rounds}`);
+      return parts.join(" ");
+    }
+
+    // EMOM-shape formats (intervalSeconds + totalMinutes)
+    case "emom":
+    case "every_x_seconds": {
+      const parts = [name];
+      if (formatParams.totalMinutes) parts.push(`${formatParams.totalMinutes}'`);
+      if (formatParams.intervalSeconds)
+        parts.push(`(${formatParams.intervalSeconds}")`);
+      return parts.join(" ");
+    }
+
+    // On the X:00 (intervalSeconds + rounds)
+    case "on_the_x": {
+      const mins = Math.floor(formatParams.intervalSeconds / 60);
+      return formatParams.rounds
+        ? `${name} ${mins}:00 X${formatParams.rounds}`
+        : name;
+    }
+
+    // Death By (optional time cap)
+    case "death_by":
+    case "death_by_unbroken":
+      return formatParams.timeCapMinutes
+        ? `${name} ${formatParams.timeCapMinutes}'`
+        : name;
+
+    // ROM (rounds + rest)
+    case "rom":
+      return formatParams.rounds
+        ? `${formatParams.rounds} Rondas · Hold ${formatParams.restSeconds || 30}s`
+        : name;
+
+    // Rounds-only formats
+    case "complex":
+    case "combos":
+    case "for_quality":
+      return formatParams.rounds ? `${name} X${formatParams.rounds}` : name;
+
+    // Tabata: las rondas son fijas y no se imprimen (ver espejo del PDF).
+    case "tabata":
+      return formatParams.workSeconds && formatParams.restSeconds
+        ? `${name} ${formatParams.workSeconds}"/${formatParams.restSeconds}"`
+        : name;
+
+    // Work/rest/rounds formats — acá las rondas SÍ las configura el coach
+    case "interval":
+    case "hiit": {
+      const parts = [name];
+      if (formatParams.workSeconds && formatParams.restSeconds)
+        parts.push(`${formatParams.workSeconds}"/${formatParams.restSeconds}"`);
+      if (formatParams.rounds) parts.push(`X${formatParams.rounds}`);
+      return parts.join(" ");
+    }
+
+    // Optional time cap formats
+    case "for_time":
+    case "for_max_reps":
+    case "for_max_distancia":
+      return formatParams.timeCapMinutes
+        ? `${name} ${formatParams.timeCapMinutes}'`
+        : name;
+
+    // Rounds for Time (rounds + optional cap)
+    case "rounds_for_time": {
+      const parts = [`${formatParams.rounds || 5} RFT`];
+      if (formatParams.timeCapMinutes) parts.push(`${formatParams.timeCapMinutes}'`);
+      return parts.join(" ");
+    }
+
+    // Pyramid — per-exercise params now, no block-level pattern
+    case "pyramid":
+      return name;
+
+    // Ladder formats: name only, per-exercise patterns shown on each exercise line
+    case "ladder":
+    case "ladder_corta":
+    case "ladder_block":
+    case "broken_ladder":
+      return name;
+
+    // No-params formats — name only
+    case "cluster":
+    case "accumulate":
+    case "buy_in_cash_out":
+      return name;
+
+    // Tempo
+    case "tempo_sets":
+      return formatParams.tempo ? `${name} ${formatParams.tempo}` : name;
+
+    // I Go, You Go: sin rondas en la etiqueta — el coach no las elige (las
+    // cantidades van en las reps por ejercicio). Nombre solo.
+    case "i_go_you_go":
+      return name;
+
+    // Wave Loading
+    case "wave_loading":
+      return formatParams.waves ? `${name} ${formatParams.waves} ondas` : name;
+
+    // Drop Set
+    case "drop_set":
+      return formatParams.drops ? `${name} ${formatParams.drops} drops` : name;
+
+    // Rest-Pause
+    case "rest_pause":
+      return formatParams.pauseSeconds ? `${name} ${formatParams.pauseSeconds}"` : name;
+
+    // EMOM + For Time hybrid
+    case "emom_for_time": {
+      const parts = [name];
+      if (formatParams.emomMinutes) parts.push(`${formatParams.emomMinutes}'`);
+      if (formatParams.intervalSeconds)
+        parts.push(`(${formatParams.intervalSeconds}")`);
+      return parts.join(" ");
+    }
+
+    // Acropolis
+    case "acropolis":
+      return formatParams.phases ? `${name} ${formatParams.phases} fases` : name;
+
+    // Sin caso propio en el PDF (caen en su `default` → name tal cual).
+    case "for_max_tiempo":
+    case "chipper":
+    case "for_max_carga":
+    case "unbroken_reps":
+    case "unbroken_chipper":
+    case "ub_test":
+    case "flow_guiado":
+    case "stretching":
+    case "couplet":
+    case "triplet":
+    case "singlet":
+    case "benchmark_wod":
+    case "hero_wod":
+    case "floater_wod":
+    case "task_priority":
+    case "circuito_cooperativo":
     case "standard":
-      return "Standard";
+      return name;
 
     default: {
-      const _exhaustive: never = params;
-      return String((_exhaustive as { type: string }).type || "Unknown");
+      const _exhaustive: never = formatParams;
+      return String((_exhaustive as { type: string }).type || name);
     }
   }
 }

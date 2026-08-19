@@ -31,9 +31,14 @@
 // Del inventario cerrado `.docs/saas-multitenancy/05-inventario-tablas-2026-07-26.md`:
 // 46 tablas CORE (§1) + 42 TEMPLO-MÓDULO (§2) = 88, menos `system_settings`
 // (§1.7, no recibe columna), más las 2 anclas que la fase 166 ya migró
-// (`users` y `branches`, migración 0191) = **87 gym-owned**. Las 4 restantes
-// del schema quedan exentas, con motivo explícito abajo. 87 + 4 = 91 = el
-// total de tablas del schema Drizzle, verificado por
+// (`users` y `branches`, migración 0191) = 87 gym-owned del inventario
+// original. Las 4 restantes del schema quedan exentas, con motivo explícito
+// abajo.
+//
+// Fase 159 (SEM-05) suma `session_week_regime` — no viene del inventario de
+// la 166, es la PRIMERA tabla gym-owned que nace con `tenant_id` desde el
+// inicio (no un ALTER de la tanda C) — llevando el total a **88 gym-owned**.
+// 88 + 4 = 92 = el total de tablas del schema Drizzle, verificado por
 // `test/db/tenant-tables.test.ts`.
 //
 // POR QUÉ IMPORTA MANTENERLA
@@ -129,6 +134,7 @@ export const GYM_OWNED_TABLES = [
   "session_edit_logs",
   "session_prescriptions",
   "session_traces",
+  "session_week_regime",
   "sessions",
   "spom_config",
   "spom_rules",
