@@ -69,6 +69,31 @@ export function resolveRoutePool(pool: readonly string[], hashInput: string): st
 }
 
 /**
+ * Like `resolveRoutePool`, but guarantees the result differs from
+ * `avoidRoute` when the pool has 2+ routes — shifts deterministically to the
+ * next pool index on collision (phase 178, T-178-03).
+ *
+ * Used by the `*_II_ALT` block (plan 03): it reuses the SAME pool as `*_II`
+ * but its `hashInput` includes the role (unlike `*_I`/`*_II`, which exclude
+ * or share it per D-08), so it lands on a distinct route and therefore
+ * distinct exercises. If the hash still collides with the II's route (pool
+ * too small relative to hash spread), shift to the next index instead of
+ * silently reusing the same route.
+ */
+export function resolveDistinctRoutePool(
+  pool: readonly string[],
+  hashInput: string,
+  avoidRoute: string,
+): string {
+  const candidate = resolveRoutePool(pool, hashInput);
+  if (pool.length < 2 || candidate !== avoidRoute) {
+    return candidate;
+  }
+  const nextIndex = (pool.indexOf(candidate) + 1) % pool.length;
+  return pool[nextIndex];
+}
+
+/**
  * Run the semana-nueva block pipeline.
  *
  * Executes a modified 7-stage pipeline for combos/tecnica sessions:

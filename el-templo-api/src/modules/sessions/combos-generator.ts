@@ -2,25 +2,26 @@
  * Combos Session Generator
  *
  * Phase 159 (SEM-02/SEM-03, D-05/D-06/D-10): generates "dia de combos"
- * sessions with 4 blocks: INITIUM (warmup), COMBOS_I (tren_superior),
- * COMBOS_II (tren_inferior), and a full-body "Circuito cooperativo" close
- * (ATHLOS on odd weeks / EPIKOS on even, route FB). The FB close supersedes
- * D-11's STRETCHING for the combos day (UAT 2026-08-18): it automates what
- * the coaches were doing by hand in prod W21-W26 (route_update -> FB +
- * format_change -> Circuito cooperativo). STRETCHING remains the close of
- * the tecnica day only.
+ * sessions with 5 blocks: INITIUM (warmup), COMBOS_I (tren_superior),
+ * COMBOS_II (tren_inferior), COMBOS_II_ALT (phase 178 — alternative variant
+ * of COMBOS_II, same pool/format, distinct route/exercises), and a full-body
+ * "Circuito cooperativo" close (ATHLOS on odd weeks / EPIKOS on even, route
+ * FB). The FB close supersedes D-11's STRETCHING for the combos day (UAT
+ * 2026-08-18): it automates what the coaches were doing by hand in prod
+ * W21-W26 (route_update -> FB + format_change -> Circuito cooperativo).
+ * STRETCHING remains the close of the tecnica day only.
  *
- * COMBOS_I and COMBOS_II reuse the SPOM pipeline stages 2-7 via
- * `runSemanaNuevaBlockPipeline` (plan 02, D-P6) with a route injected
+ * COMBOS_I, COMBOS_II and COMBOS_II_ALT reuse the SPOM pipeline stages 2-7
+ * via `runSemanaNuevaBlockPipeline` (plan 02, D-P6) with a route injected
  * deterministically from the goal-plan route map (D-05) and the real
  * 'Combos' format forced (D-06 — same rounds+reps-per-exercise shape the
  * coach already uses, migration 0172; NO new single-reps parameter).
  *
  * This file also hosts `assembleFixedStructureSession`, the shared trunk
  * reused by `tecnica-generator.ts` (Task 2): both day modes are
- * INITIUM -> role block 1 -> role block 2 -> closing block, and differ in
- * how the two role blocks resolve their route(s)/format and in the closing
- * block (combos: FB circuit; tecnica: STRETCHING).
+ * INITIUM -> role block 1 -> role block 2 -> alt block -> closing block, and
+ * differ in how the role/alt blocks resolve their route(s)/format and in the
+ * closing block (combos: FB circuit; tecnica: STRETCHING).
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
@@ -39,6 +40,7 @@ import { createInitialContext } from "./pipeline/context";
 import {
   runSemanaNuevaBlockPipeline,
   resolveRoutePool,
+  resolveDistinctRoutePool,
 } from "./pipeline/semana-nueva-pipeline";
 import { selectStretchingExercises } from "./pipeline/utils/stretching-selection";
 import { selectFullBodyCircuitExercises } from "./pipeline/utils/full-body-selection";
@@ -80,16 +82,21 @@ export interface FixedStructureBlockSpec {
 
 /**
  * Shared trunk (D-P6, ~80% of the assembly) for the combos/tecnica
- * generators: builds the 4-block DaySession (INITIUM -> block 1 -> block 2
- * -> closing block) common to both day modes. The closing block branches on
- * `sessionMode`: combos closes with the full-body ATHLOS/EPIKOS circuit,
- * tecnica with STRETCHING.
+ * generators: builds the 5-block DaySession (INITIUM -> block 1 -> block 2
+ * -> alt block -> closing block) common to both day modes. The closing block
+ * branches on `sessionMode`: combos closes with the full-body ATHLOS/EPIKOS
+ * circuit, tecnica with STRETCHING.
  *
  * `blockSpecs` supplies the two role blocks in output order (their routes
  * already resolved by the caller — COMBOS uses two different pools per role,
- * TECNICA uses ONE shared route for both, D-08). `forcedFormat` is the real
- * `formats` row both role blocks are forced onto (D-06/D-09 — never a
- * synthetic/zero format id).
+ * TECNICA uses ONE shared route for both, D-08). `altSpec` supplies the
+ * phase-178 alternative of the 2nd role block (`*_II_ALT`): same pool and
+ * `forcedFormat` as the II, but a route resolved by the caller with a
+ * role-inclusive hash so it lands on different exercises (T-178-03). The alt
+ * block is inserted immediately after the two role blocks and before the
+ * closing block. `forcedFormat` is the real `formats` row the role blocks
+ * AND the alt block are forced onto (D-06/D-09 — never a synthetic/zero
+ * format id).
  *
  * Both closing blocks are exceptions to the shared pipeline: they never go
  * through `runSemanaNuevaBlockPipeline` (no SPOM rules for their routes) and
@@ -97,7 +104,11 @@ export interface FixedStructureBlockSpec {
  * `selectStretchingExercises(db, week, day)`, a pure function of (week, day)
  * only (Pitfall 1: no `memberLevel`, identical across the 6 levels of the
  * day); the FB circuit from `selectFullBodyCircuitExercises`, per-level
- * because each level caps difficulty differently.
+ * because each level caps difficulty differently. The combos FB close keeps
+ * mirroring the SECOND role block's (`*_II`) intensity/repsBudget, captured
+ * in `secondRoleBlock` before the alt block is generated and pushed — the
+ * alt is now the new last entry of `blocks`, so `blocks[blocks.length - 1]`
+ * can no longer be used for that purpose.
  */
 export async function assembleFixedStructureSession(
   db: MySql2Database<typeof schema>,
@@ -108,6 +119,7 @@ export async function assembleFixedStructureSession(
   sessionMode: "combos" | "tecnica",
   blockSpecs: readonly [FixedStructureBlockSpec, FixedStructureBlockSpec],
   forcedFormat: FormatInstance,
+  altSpec: FixedStructureBlockSpec,
 ): Promise<DaySession> {
   const dayId = `W${week}-${day}-${memberLevel}`;
   const spomService = new SpomService(db);
@@ -172,12 +184,49 @@ export async function assembleFixedStructureSession(
     });
   }
 
+  // Capture the second role block (COMBOS_II/TECNICA_II) BEFORE generating
+  // the alt block below — the combos FB close mirrors its intensity/
+  // repsBudget, and once the alt block is pushed it becomes the new last
+  // entry of `blocks`.
+  const secondRoleBlock = blocks[blocks.length - 1];
+
+  // Alt block (phase 178, T-178-03): reuses the SAME pool and forcedFormat as
+  // the II, but `altSpec.route` was resolved by the caller with a
+  // role-inclusive hash so it lands on a DIFFERENT route/exercises than the
+  // II — a real, editable block, not an ephemeral TV-only swap.
+  const altCtx = createInitialContext(week, day, levelGroup, memberLevel, altSpec.role);
+  const altBlock = await runSemanaNuevaBlockPipeline(altCtx, spomService, db, {
+    route: altSpec.route,
+    forcedFormat,
+  });
+  blocks.push(altBlock);
+
+  sessionTrace.push({
+    ts: new Date().toISOString(),
+    severity: "INFO",
+    code: `${traceCodePrefix}_ALT_GENERATED`,
+    where: {
+      week,
+      day,
+      levelGroup,
+      memberLevel,
+      blockId: altBlock.blockId,
+      role: altSpec.role,
+    },
+    decision: {
+      route: altBlock.route,
+      format: altBlock.format.name,
+      exerciseCount: altBlock.exercises.length,
+    },
+  });
+
   if (sessionMode === "combos") {
     // Combos close (UAT 2026-08-18, supersedes D-11 for this day): full-body
     // "Circuito cooperativo" on route FB, keeping the regular pipeline's
     // final-role alternation (odd weeks ATHLOS / even EPIKOS). Intensity and
-    // reps budget mirror the day's COMBOS_II block — the manual prod blocks
-    // kept the generator's numbers and only replaced route/format/exercises.
+    // reps budget mirror the day's COMBOS_II block (`secondRoleBlock`, NOT
+    // the alt) — the manual prod blocks kept the generator's numbers and only
+    // replaced route/format/exercises.
     const finalRole = getFinalBlockRole(week);
     const fullBodyExercises = await selectFullBodyCircuitExercises(
       db,
@@ -185,15 +234,14 @@ export async function assembleFixedStructureSession(
       day,
       memberLevel,
     );
-    const lastRoleBlock = blocks[blocks.length - 1];
     const fullBodyBlockId = `${traceCodePrefix}-${finalRole}-W${week}-${day}-${memberLevel}`;
     const fullBodyBlock: BlockPlan = {
       blockId: fullBodyBlockId,
       role: finalRole,
       route: FULL_BODY_ROUTE,
       pattern: "FULL BODY",
-      intensity: lastRoleBlock.intensity,
-      repsBudget: lastRoleBlock.repsBudget,
+      intensity: secondRoleBlock.intensity,
+      repsBudget: secondRoleBlock.repsBudget,
       format: await resolveRealFormat(db, "Circuito cooperativo"),
       formatParams: { type: "circuito_cooperativo" },
       exercises: fullBodyExercises,
@@ -325,6 +373,16 @@ export async function generateCombosSession(
     `${week}-${day}-COMBOS_II`,
   );
 
+  // Phase 178 (T-178-03): COMBOS_II_ALT reuses the COMBOS_II pool, but its
+  // hashInput includes "COMBOS_II_ALT" (not just the role) so it lands on a
+  // different index than routeComboII in the common case; if it still
+  // collides, `resolveDistinctRoutePool` shifts to the next pool index.
+  const routeComboIIAlt = resolveDistinctRoutePool(
+    COMBOS_ROUTE_POOLS.COMBOS_II,
+    `${week}-${day}-COMBOS_II_ALT`,
+    routeComboII,
+  );
+
   return assembleFixedStructureSession(
     db,
     week,
@@ -337,5 +395,6 @@ export async function generateCombosSession(
       { role: "COMBOS_II", route: routeComboII },
     ],
     forcedFormat,
+    { role: "COMBOS_II_ALT", route: routeComboIIAlt },
   );
 }
