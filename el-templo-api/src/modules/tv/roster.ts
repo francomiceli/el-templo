@@ -142,11 +142,21 @@ export interface RosterClassDay<TBlock extends RosterBlock = RosterBlock> {
  * bloque (el profe elige uno u otro para la clase), no dos bloques distintos.
  * Colapsan a la misma clave para que los puntitos "BLOQUE n / M" cuenten 4 y
  * no 5, y para decidir si cambiar de rol reinicia el cronometro (pasar de un
- * camino al otro NO deberia, es el mismo bloque). El resto de los roles es su
- * propia clave — no hay mas grupos que colapsar hoy.
+ * camino al otro NO deberia, es el mismo bloque).
+ *
+ * Fase 178: `COMBOS_II_ALT`/`TECNICA_II_ALT` son el bloque alternativo del 2º
+ * bloque de técnica/combos — sibling VISUAL del II (mismo grupo/índice de
+ * bloque, mismo cronómetro), NUNCA un paso navegable propio. Por eso colapsan
+ * al grupo del II acá, pero NO se agregan a `COMBOS_ROLES`/`TECNICA_ROLES`
+ * (los arrays canónicos que alimentan `buildRoster` → `context.blocks` del
+ * control): agregarlos ahí lo convertiría en un botón navegable y extendería
+ * ANTERIOR/SIGUIENTE, violando la decisión LOCKED del CONTEXT de la fase.
  */
 export function visualGroupOf(role: string): string {
-  return role === "DEUTEROS_1" || role === "DEUTEROS_2" ? "DEUTEROS" : role;
+  if (role === "DEUTEROS_1" || role === "DEUTEROS_2") return "DEUTEROS";
+  if (role === "COMBOS_II_ALT") return "COMBOS_II";
+  if (role === "TECNICA_II_ALT") return "TECNICA_II";
+  return role;
 }
 
 /**

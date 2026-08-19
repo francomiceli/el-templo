@@ -31,6 +31,7 @@ import {
   type ClassDayPrescription,
 } from "./class-day";
 import {
+  blockTitle,
   buildRoster,
   findBlock,
   findInitiumBlock,
@@ -228,8 +229,7 @@ export class TvService {
         pausedAt: schema.tvClassState.pausedAt,
         pausedAccumMs: schema.tvClassState.pausedAccumMs,
         soundEnabled: schema.tvClassState.soundEnabled,
-        deuterosAutoRotate: schema.tvClassState.deuterosAutoRotate,
-        deuterosPinnedAt: schema.tvClassState.deuterosPinnedAt,
+        showAlternative: schema.tvClassState.showAlternative,
       })
       .from(schema.tvClassState)
       .where(eq(schema.tvClassState.branchId, branchId));
@@ -248,10 +248,7 @@ export class TvService {
       pausedAt: row.pausedAt ? row.pausedAt.getTime() : null,
       pausedAccumMs: row.pausedAccumMs,
       soundEnabled: row.soundEnabled,
-      deuterosAutoRotate: row.deuterosAutoRotate,
-      deuterosPinnedAt: row.deuterosPinnedAt
-        ? row.deuterosPinnedAt.getTime()
-        : null,
+      showAlternative: row.showAlternative,
     };
   }
 
@@ -445,9 +442,8 @@ export class TvService {
         level: "alfa",
         exerciseIndex: 0,
         soundEnabled: false,
-        // La rotacion de deuteros arranca prendida (feature automatica).
-        deuterosAutoRotate: true,
-        deuterosPinnedAt: null,
+        // Toggle "Ver alternativo" arranca apagado (fase 178).
+        showAlternative: false,
         ...IDLE_TIMER,
       },
       classDay,
@@ -466,19 +462,8 @@ export class TvService {
     if (write.soundEnabled !== undefined) {
       state = { ...state, soundEnabled: write.soundEnabled };
     }
-    if (write.deuterosAutoRotate !== undefined) {
-      state = { ...state, deuterosAutoRotate: write.deuterosAutoRotate };
-    }
-    // Pisada: cualquier seleccion MANUAL de una estacion de deuteros (el profe
-    // eligiendo I o II) se respeta 30s antes de que la rotacion automatica
-    // retome — asi "lo que escribe el profe es lo que pinta la pantalla" (D-13).
-    // Solo cuenta el write explicito de blockRole; la rotacion (que no toca el
-    // blockRole persistido) nunca pisa.
-    if (
-      write.blockRole !== undefined &&
-      visualGroupOf(state.blockRole) === "DEUTEROS"
-    ) {
-      state = { ...state, deuterosPinnedAt: now.getTime() };
+    if (write.showAlternative !== undefined) {
+      state = { ...state, showAlternative: write.showAlternative };
     }
     // D-08: la pantalla de cierre es un estado del profe, no del reloj. "idle"
     // no se escribe: para volver a reposo esta `endClass`.
@@ -647,10 +632,7 @@ export class TvService {
       pausedAt: state.pausedAt ? new Date(state.pausedAt) : null,
       pausedAccumMs: state.pausedAccumMs,
       soundEnabled: state.soundEnabled,
-      deuterosAutoRotate: state.deuterosAutoRotate,
-      deuterosPinnedAt: state.deuterosPinnedAt
-        ? new Date(state.deuterosPinnedAt)
-        : null,
+      showAlternative: state.showAlternative,
       updatedBy: userId,
     };
 
