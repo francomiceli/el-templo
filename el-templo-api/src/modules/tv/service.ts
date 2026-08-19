@@ -23,6 +23,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
 import { ConflictError, NotFoundError } from "../shared/errors";
+import { ROLE_LABELS } from "../shared/role-labels";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   resolveClassDay,
@@ -802,12 +803,22 @@ export class TvService {
    * canonico de INITIUM (`resolveBlock` ignora el nivel para ese rol) y
    * `formatDictated` es el que calculo el caller para ESE bloque.
    *
-   * No shared: una columna por nivel del PAR de `state.level` que este
-   * presente en `classDay.levels` (`pairFor`, `roster.ts`) — 1 o 2, nunca mas.
-   * Cada columna resuelve SU PROPIO bloque (mismo rol, nivel del par): dos
-   * niveles del mismo dia pueden tener ruta/intensidad/formato distintos
-   * (Pitfall 1), asi que el header y el `formatDictated` de cada columna
-   * salen de su propio bloque, no del bloque de `state.level`.
+   * No shared, caso general: una columna por nivel del PAR de `state.level`
+   * que este presente en `classDay.levels` (`pairFor`, `roster.ts`) — 1 o 2,
+   * nunca mas. Cada columna resuelve SU PROPIO bloque (mismo rol, nivel del
+   * par): dos niveles del mismo dia pueden tener ruta/intensidad/formato
+   * distintos (Pitfall 1), asi que el header y el `formatDictated` de cada
+   * columna salen de su propio bloque, no del bloque de `state.level`.
+   *
+   * No shared, caso DEUTEROS (fase 178, dia regular): en vez de 1 columna por
+   * nivel de UN rol, se emiten columnas para AMBOS deuteros (I y II) × el par
+   * de niveles — hasta 4 (2×2). Un dia regular puede no tener DEUTEROS_2 (o un
+   * nivel puntual del par puede no tener el bloque): cada `(rol, nivel)` que
+   * no resuelve bloque se OMITE (nunca una columna con header roto o lista
+   * vacia), asi que un dia con un solo deutero emite 2 columnas, no 4. Cada
+   * columna se prefija con la etiqueta del deutero (`ROLE_LABELS`, "DEUTEROS
+   * I"/"DEUTEROS II") para distinguir las 4 en pantalla. El bloque alt
+   * (`effState.blockRole = *_II_ALT`) NO es deuteros: cae en el caso general.
    */
   private buildColumns(
     classDay: ClassDay,
@@ -857,6 +868,30 @@ export class TvService {
     // dejaria al TV sin lista, asi que el fallback no se saca.
     const levels = pairLevels.length > 0 ? pairLevels : [state.level];
 
+    if (visualGroupOf(state.blockRole) === "DEUTEROS") {
+      const columns: TvLevelColumn[] = [];
+      for (const deuterosRole of ["DEUTEROS_1", "DEUTEROS_2"]) {
+        for (const level of levels) {
+          const levelBlock = this.resolveBlock(classDay, deuterosRole, level);
+          // Guard: un dia regular puede no tener DEUTEROS_2 (o un nivel
+          // puntual del par sin bloque) — se omite, nunca una columna rota.
+          if (!levelBlock) continue;
+          const dictated =
+            !!levelBlock.formatParams &&
+            FORMAT_DICTATED_TYPES.has(levelBlock.formatParams.type);
+          const label = this.levelLabel(classDay, level, false);
+          const deuterosLabel = ROLE_LABELS[deuterosRole] ?? deuterosRole;
+          columns.push({
+            header: `${deuterosLabel} ${label} | ${getRouteLabel(levelBlock.route)} ${levelBlock.intensity}%`,
+            exercises: this.mainPrescriptions(levelBlock).map((p) =>
+              this.toExercise(p, dictated),
+            ),
+          });
+        }
+      }
+      return columns;
+    }
+
     return levels.map((level) => {
       const levelBlock = this.resolveBlock(classDay, state.blockRole, level);
       const dictated =
@@ -879,42 +914,37 @@ export class TvService {
   ): TvClassPayload {
     const blocks: TvBlockSummary[] = buildRoster(classDay);
 
-    // Rotacion automatica de deuteros: si el bloque activo es deuteros, el toggle
-    // esta prendido y el timer corre, la ESTACION mostrada (I/II) alterna cada
-    // 10s segun el tiempo transcurrido del propio timer — sin tocar el `blockRole`
-    // persistido ni el timer. Todos los TVs de la sede, derivando del mismo
-    // `startedAt`, muestran la misma estacion. La pisada manual la fija 30s.
+    // Toggle "Ver alternativo" (fase 178): con el toggle prendido y el bloque
+    // activo el II de un dia combos/tecnica, la ESTACION mostrada swapea al
+    // bloque alt (COMBOS_II_ALT/TECNICA_II_ALT) — sin tocar el `blockRole`
+    // persistido ni el timer. Defensivo: si la sesion es vieja y no tiene el
+    // bloque alt generado, `resolveBlock` da undefined y el swap no aplica.
     let displayRole = state.blockRole;
-    const hasBothDeuteros =
-      blocks.some((b) => b.role === "DEUTEROS_1") &&
-      blocks.some((b) => b.role === "DEUTEROS_2");
-    if (
-      hasBothDeuteros &&
-      visualGroupOf(state.blockRole) === "DEUTEROS" &&
-      state.deuterosAutoRotate &&
-      state.timerStatus === "running"
-    ) {
-      const nowMs = now.getTime();
-      const pinned =
-        state.deuterosPinnedAt !== null &&
-        nowMs - state.deuterosPinnedAt < 30_000;
-      if (!pinned) {
-        const elapsed = Math.max(
-          0,
-          nowMs - (state.timerStartedAt ?? nowMs) - state.pausedAccumMs,
-        );
-        displayRole =
-          Math.floor(elapsed / 10_000) % 2 === 0 ? "DEUTEROS_1" : "DEUTEROS_2";
+    if (state.showAlternative) {
+      const altRole =
+        state.blockRole === "COMBOS_II"
+          ? "COMBOS_II_ALT"
+          : state.blockRole === "TECNICA_II"
+            ? "TECNICA_II_ALT"
+            : null;
+      if (altRole && this.resolveBlock(classDay, altRole, state.level)) {
+        displayRole = altRole;
       }
     }
-    // Estado "efectivo" para lo VISUAL (columnas, titulo, movilidad, blockRole):
-    // la estacion mostrada. El timer se mantiene sobre el bloque PERSISTIDO.
+    // Estado "efectivo" para lo VISUAL (columnas, movilidad, blockRole): la
+    // estacion mostrada. El timer se mantiene sobre el bloque PERSISTIDO.
     const effState: TvControlState =
       displayRole === state.blockRole
         ? state
         : { ...state, blockRole: displayRole };
 
-    const blockIndex = blocks.findIndex((b) => b.role === effState.blockRole);
+    // El alt NO esta en `blocks` (sibling visual, nunca su propia entrada de
+    // roster — decision LOCKED): `summary`/`blockIndex` resuelven SIEMPRE
+    // contra el bloque PERSISTIDO (`state.blockRole`), que si esta en el
+    // roster. En un dia regular esto no cambia nada (displayRole === el
+    // persistido, siempre); en combos/tecnica con el toggle prendido, apunta
+    // al II real (nunca a -1) y `shared` da el valor correcto del II (false).
+    const blockIndex = blocks.findIndex((b) => b.role === state.blockRole);
     const summary = blocks[blockIndex];
     const shared = summary?.shared ?? false;
 
@@ -941,9 +971,18 @@ export class TvService {
     const formatDictated =
       !!block?.formatParams &&
       FORMAT_DICTATED_TYPES.has(block.formatParams.type);
-    // El TIMER se calcula del bloque PERSISTIDO (state.blockRole): la rotacion no
+    // Titulo: con el toggle apagado (dia regular, o combos/tecnica sin
+    // "Ver alternativo"), sale del roster real (`summary.title`), igual que
+    // siempre. Con el toggle PRENDIDO el bloque mostrado (el alt) no esta en
+    // `blocks` (decision LOCKED, no navegable) — se computa directo del
+    // bloque resuelto arriba, sin depender del array canonico.
+    const title =
+      displayRole !== state.blockRole && block
+        ? blockTitle(displayRole, block)
+        : (summary?.title ?? "");
+    // El TIMER se calcula del bloque PERSISTIDO (state.blockRole): el toggle no
     // puede cambiar su spec (interval/hiit podrian tener distinto conteo de
-    // ejercicios entre I y II y el total del bloque saltaria cada 10s).
+    // ejercicios entre I y II y el total del bloque saltaria al prenderlo).
     const timerBlock = this.resolveBlock(
       classDay,
       state.blockRole,
@@ -973,7 +1012,7 @@ export class TvService {
       // C1: derivados del roster igual que `blockIndex`, colapsando DEUTEROS.
       visualBlockIndex,
       visualBlockCount,
-      title: summary?.title ?? "",
+      title,
       mobilityLine:
         mobility && mobility.length > 0
           ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`
