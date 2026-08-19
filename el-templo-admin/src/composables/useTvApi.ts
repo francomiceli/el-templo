@@ -87,6 +87,8 @@ export interface TvControlState {
    * II_ALT), comparte cronómetro (fase 178, plan 06). No aplica a días
    * regulares.
    */
+  // deploy(178): el fix de CI fue solo-de-tests; este toque fuerza el build del
+  // admin en el paths-filter para que el front del TV llegue a prod.
   showAlternative: boolean;
 }
 
