@@ -66,6 +66,8 @@ interface ClockNodes {
 interface Nodes {
   fechaL1: HTMLElement;
   fechaL2: HTMLElement;
+  cierreFechaL1: HTMLElement;
+  cierreFechaL2: HTMLElement;
   reloj: ClockNodes;
   titulo: HTMLElement;
   formato: HTMLElement;
@@ -133,6 +135,8 @@ function ensureNodes(): Nodes {
   nodes = {
     fechaL1: byId('fechaL1'),
     fechaL2: byId('fechaL2'),
+    cierreFechaL1: byId('cierreFechaL1'),
+    cierreFechaL2: byId('cierreFechaL2'),
     reloj: clockNodes(byId('reloj')),
     titulo: byId('titulo'),
     formato: byId('formato'),
@@ -484,11 +488,19 @@ function paintList(n: Nodes, c: TvClassPayload): void {
     }
     colEl.appendChild(cab);
 
-    // Separador dórico: una columna griega tumbada (fuste estriado + capitel/base)
-    // entre el header nivel/ruta y la lista, en vez de una línea. Estilos en
-    // TvScreenPage.vue (.columnaDorica). Reemplaza el borde del recuadro como divisor.
+    // Separador dórico: una columna griega tumbada (capitel · fuste · capitel)
+    // entre el header nivel/ruta y la lista, en vez de una línea. Tres piezas flex:
+    // los capiteles guardan su proporción en los extremos y el fuste ocupa SOLO el
+    // medio (no atraviesa los capiteles). Estilos en TvScreenPage.vue.
     const dorica = document.createElement('div');
     dorica.className = 'columnaDorica';
+    const capIzq = document.createElement('div');
+    capIzq.className = 'columnaDorica__cap columnaDorica__cap--izq';
+    const fuste = document.createElement('div');
+    fuste.className = 'columnaDorica__fuste';
+    const capDer = document.createElement('div');
+    capDer.className = 'columnaDorica__cap columnaDorica__cap--der';
+    dorica.append(capIzq, fuste, capDer);
     colEl.appendChild(dorica);
 
     const caja = document.createElement('div');
@@ -545,6 +557,8 @@ export function renderState(payload: TvPollResponse): void {
   const fechaCorta = fechaTopbar(nowCorrected(), payload.branch.utcOffsetMinutes);
   setText(n.fechaL1, fechaCorta.l1);
   setText(n.fechaL2, fechaCorta.l2);
+  setText(n.cierreFechaL1, fechaCorta.l1);
+  setText(n.cierreFechaL2, fechaCorta.l2);
   setText(n.reposoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 

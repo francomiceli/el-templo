@@ -79,7 +79,23 @@
                    pone el texto en el arranque; la animación la dispara .arranque. -->
               <div class="digitos-ghost" id="digitosGhost" aria-hidden="true"></div>
             </div>
-            <div class="barra"><i id="progreso"></i></div>
+            <!-- Barra de progreso con estética de columna: una copia tenue de fondo
+                 (tiempo consumido) y una copia opaca recortada por el progreso
+                 (#progreso, su width lo setea render.ts). -->
+            <div class="barra">
+              <div class="barraCol barraCol--track" aria-hidden="true">
+                <div class="columnaDorica__cap columnaDorica__cap--izq"></div>
+                <div class="columnaDorica__fuste"></div>
+                <div class="columnaDorica__cap columnaDorica__cap--der"></div>
+              </div>
+              <i id="progreso" class="barraCol__fill">
+                <div class="barraCol barraCol--full">
+                  <div class="columnaDorica__cap columnaDorica__cap--izq"></div>
+                  <div class="columnaDorica__fuste"></div>
+                  <div class="columnaDorica__cap columnaDorica__cap--der"></div>
+                </div>
+              </i>
+            </div>
           </section>
           <div class="cabFormato" id="formato"></div>
         </div>
@@ -108,10 +124,26 @@
              "SESIÓN COMPLETA" en vez del reloj grande, y el reloj va chico en la
              esquina superior derecha (como en los bloques). -->
         <div class="pantalla" id="pantallaCierre">
-          <div class="relojEsquina" id="cierreReloj">--:--</div>
+          <!-- Topbar como en la vista de clase: logo + fecha (izq) y reloj (der). -->
+          <header class="topbar topbar--cierre">
+            <div class="marca">
+              <img :src="tvLogo" alt="El Templo" />
+              <div class="fecha">
+                <span id="cierreFechaL1"></span><span id="cierreFechaL2"></span>
+              </div>
+            </div>
+            <div class="reloj" id="cierreReloj">--:--</div>
+          </header>
           <div class="reposoTop">
-            <img class="logoGrande" :src="tvLogo" alt="El Templo" />
-            <div class="cierreTitulo" id="cierreTitulo">SESIÓN COMPLETA</div>
+            <div class="cierreBloque">
+              <div class="cierreTitulo" id="cierreTitulo">SESIÓN COMPLETA</div>
+              <!-- Barra con barrido (misma columna que los separadores) bajo el título. -->
+              <div class="columnaDorica cierreBarra">
+                <div class="columnaDorica__cap columnaDorica__cap--izq"></div>
+                <div class="columnaDorica__fuste"></div>
+                <div class="columnaDorica__cap columnaDorica__cap--der"></div>
+              </div>
+            </div>
           </div>
           <div class="reposoBottom">
             <div class="quote" id="cierreQuote"></div>
@@ -141,6 +173,7 @@ import {
   CINZEL_BOLD_BASE64,
   NUNITO_SANS_REGULAR_BASE64,
   NUNITO_SANS_BOLD_BASE64,
+  GREAT_VIBES_REGULAR_BASE64,
 } from 'src/utils/pdf/pdf-assets';
 import type { BranchOption } from 'src/types/member';
 
@@ -210,7 +243,8 @@ function installFonts(): void {
     fontFace('Cinzel', CINZEL_REGULAR_BASE64, 400) +
     fontFace('Cinzel', CINZEL_BOLD_BASE64, 700) +
     fontFace('NunitoSans', NUNITO_SANS_REGULAR_BASE64, 400) +
-    fontFace('NunitoSans', NUNITO_SANS_BOLD_BASE64, 700);
+    fontFace('NunitoSans', NUNITO_SANS_BOLD_BASE64, 700) +
+    fontFace('GreatVibes', GREAT_VIBES_REGULAR_BASE64, 400);
   document.head.appendChild(style);
 }
 function removeFonts(): void {
@@ -412,6 +446,7 @@ onUnmounted(() => {
   --muted: #c5b9a8;
   --cinzel: 'Cinzel', Georgia, serif;
   --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
+  --firma: 'GreatVibes', 'Segoe Script', cursive;
   --glyph: 'Segoe UI', Arial, 'Noto Sans', sans-serif;
 
   position: fixed;
@@ -612,6 +647,23 @@ onUnmounted(() => {
 #tvScreenRoot .topbar .reloj .seg {
   color: var(--gold);
 }
+/* Pantalla de cierre: la topbar es de 2 zonas (marca izq · reloj der). */
+#tvScreenRoot .topbar--cierre {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+/* Barra con barrido bajo "SESIÓN COMPLETA": ocupa el ancho del título (el
+   contenedor .cierreBloque lo fija a fit-content). */
+#tvScreenRoot .cierreBarra {
+  width: 100%;
+  height: 1.4rem;
+  margin: 0.2rem 0rem 0.7rem;
+}
+/* La cita sube un poco respecto al centro de la mitad inferior. */
+#tvScreenRoot #pantallaCierre .quote {
+  margin-top: -2.5rem;
+}
 
 /* ── Cabecera: info del bloque (izquierda, alineada a la izquierda) + cronómetro
    (derecha). El cronómetro salió de la zona de ejercicios para darle todo el ancho
@@ -755,16 +807,66 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Separador entre el header NIVEL·RUTA y la lista: una línea redondeada igual a
-   la barra del cronómetro detenido (oro lleno, radio 99px), en lugar del
-   recuadro. Mismo lenguaje visual que la barra de progreso. */
+/* Separador entre el header NIVEL·RUTA y la lista: la columna tumbada en el
+   color de marca (columnas templo 2). Tres piezas flex (render.ts): los capiteles
+   guardan su proporción en los extremos y el fuste ocupa SOLO el medio, así las
+   líneas del centro no atraviesan los capiteles. Reemplaza la barra dorada y el
+   recuadro como divisor. */
 #tvScreenRoot .columnaDorica {
   flex: 0 0 auto;
-  height: 0.5rem;
-  margin: 0.1rem 0.3rem 0.7rem;
-  background: var(--gold);
-  border-radius: 99px;
-  opacity: 0.55; /* separador semitransparente entre header y lista */
+  display: flex;
+  align-items: stretch;
+  height: 1.3rem;
+  margin: 0.2rem 0.3rem 0.7rem;
+  /* Contorno oro claro (ceñido) + halo suave, y una profundidad navy sutil para
+     no oscurecer. Mismo lenguaje que el título tallado del bloque. */
+  filter:
+    drop-shadow(0 0.03em 0.05em rgba(20, 32, 46, 0.2))
+    drop-shadow(0 0 0.09em rgba(255, 238, 196, 0.95))
+    drop-shadow(0 0 0.3em rgba(232, 205, 150, 0.5));
+}
+#tvScreenRoot .columnaDorica__cap,
+#tvScreenRoot .columnaDorica__fuste {
+  height: 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+}
+/* Capiteles con proporción fija (sin brillo). */
+#tvScreenRoot .columnaDorica__cap {
+  flex: 0 0 auto;
+}
+#tvScreenRoot .columnaDorica__cap--izq {
+  aspect-ratio: 43 / 69;
+  background-image: url('/tv-col-cap-izq.png');
+}
+#tvScreenRoot .columnaDorica__cap--der {
+  aspect-ratio: 45 / 69;
+  background-image: url('/tv-col-cap-der.png');
+}
+/* Fuste: llena el medio y lleva la banda de luz (screen) recortada a su silueta
+   por `mask`; la banda barre en horizontal (columnaBrillo). */
+#tvScreenRoot .columnaDorica__fuste {
+  flex: 1 1 auto;
+  background-image:
+    linear-gradient(105deg, transparent 47.5%, rgba(255, 248, 232, 0.85) 50%, transparent 52.5%),
+    url('/tv-col-fuste.png');
+  background-size: 300% 100%, 100% 100%;
+  background-blend-mode: screen, normal;
+  -webkit-mask: url('/tv-col-fuste.png') center / 100% 100% no-repeat;
+  mask: url('/tv-col-fuste.png') center / 100% 100% no-repeat;
+  animation: columnaBrillo 10s linear infinite;
+}
+/* Con dos columnas lado a lado, la 2da barre desfasada medio ciclo (-5s de 10s)
+   para que las barras no brillen al mismo tiempo. */
+#tvScreenRoot .lista-col:nth-child(2n) .columnaDorica__fuste {
+  animation-delay: -5s;
+}
+/* Barrido del brillo: solo la banda de luz (1ra capa) se desplaza; la imagen
+   (2da capa) queda fija en center. */
+@keyframes columnaBrillo {
+  from { background-position: -150% 0, center; }
+  to { background-position: 250% 0, center; }
 }
 /* Lista SIN recuadro: respira y usa el espacio; el divisor es la columna dórica. */
 #tvScreenRoot .caja {
@@ -991,24 +1093,10 @@ onUnmounted(() => {
 #tvScreenRoot .cronometro.arranque .digitos-ghost {
   animation: arranqueEnvion 0.8s ease-out;
 }
+/* Sin vibración: el clon hace directamente el fade-up (sube y se desvanece)
+   desde el arranque, en el momento en que antes ocurría la vibración. */
 @keyframes arranqueEnvion {
   0% {
-    opacity: 1;
-    transform: translate(0, 0) scale(1);
-  }
-  10% {
-    transform: translate(-0.03em, 0) scale(1.02);
-  }
-  22% {
-    transform: translate(0.03em, 0) scale(1.02);
-  }
-  34% {
-    transform: translate(-0.02em, 0) scale(1.02);
-  }
-  46% {
-    transform: translate(0.02em, 0) scale(1.01);
-  }
-  58% {
     opacity: 1;
     transform: translate(0, 0) scale(1);
   }
@@ -1021,21 +1109,45 @@ onUnmounted(() => {
   /* Ancho FIJO (no 84% del cronómetro): en EMOM los dígitos pasan de ":60" a ":9"
      y achicaban el ancho auto del cronómetro, haciendo latir la barra cada segundo.
      Fijo la barra la vuelve estable y, al ser el hijo más ancho en esos casos,
-     estabiliza también la caja (los dígitos quedan centrados sin saltar). */
+     estabiliza también la caja (los dígitos quedan centrados sin saltar).
+     Ahora hospeda la columna: track tenue + fill opaco recortado por el progreso. */
+  position: relative;
   width: 24rem;
-  height: 0.5rem;
-  background: rgba(197, 185, 168, 0.5);
-  border-radius: 99px;
+  height: 1.3rem;
   overflow: hidden;
   margin-top: 0.55rem;
+  /* Profundidad + glow dorado, igual que el separador de columna. */
+  filter:
+    drop-shadow(0 0.03em 0.05em rgba(20, 32, 46, 0.2))
+    drop-shadow(0 0 0.09em rgba(255, 238, 196, 0.95))
+    drop-shadow(0 0 0.3em rgba(232, 205, 150, 0.5));
 }
-#tvScreenRoot .cronometro .barra i {
-  display: block;
+/* Cada capa es una columna completa de ancho FIJO (24rem): así el fill recorta
+   sin comprimir la columna. Reusa las piezas .columnaDorica__cap/__fuste. */
+#tvScreenRoot .cronometro .barraCol {
+  display: flex;
+  align-items: stretch;
+  width: 24rem;
   height: 100%;
-  width: 100%;
-  background: var(--gold);
-  border-radius: 99px;
+}
+#tvScreenRoot .cronometro .barraCol--track {
+  opacity: 0.28; /* columna tenue: el tiempo ya consumido */
+}
+#tvScreenRoot .cronometro .barraCol__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  overflow: hidden; /* recorta la columna opaca al ancho del progreso */
+  display: block;
   transition: width 0.2s linear;
+}
+/* La barra del cronómetro no lleva el barrido de brillo (el vaciado ya es su
+   movimiento): sin animación y sin la capa de luz, solo la imagen del fuste. */
+#tvScreenRoot .cronometro .barra .columnaDorica__fuste {
+  animation: none;
+  background-image: url('/tv-col-fuste.png');
+  background-size: 100% 100%;
 }
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .lista-col .item {
@@ -1103,26 +1215,38 @@ onUnmounted(() => {
   line-height: 1.5;
   max-width: 68%;
   margin-top: 3rem;
-  color: var(--navy);
+  color: var(--gold);
 }
 #tvScreenRoot .pantalla .quote .oro {
-  color: var(--gold);
+  color: var(--navy);
 }
 #tvScreenRoot .pantalla .autor {
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  font-size: 1.3rem;
-  color: var(--gold);
-  margin-top: 1rem;
+  /* Firma manuscrita (Great Vibes), igual que el autor de la frase en el PDF:
+     navy, como el título "SESIÓN COMPLETA". */
+  font-family: var(--firma);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  font-size: 2.7rem;
+  color: var(--navy);
+  margin-top: 0.5rem;
 }
 #tvScreenRoot #pantallaCierre .cierreTitulo {
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.09em;
-  font-size: 6rem;
+  font-size: 5.3rem;
   line-height: 1.1;
   color: var(--navy);
   text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+  white-space: nowrap;
+}
+/* Título + barra agrupados: el contenedor se ajusta al ancho del texto (fit-content)
+   y la barra ocupa el 100% de ese ancho, así coincide con "SESIÓN COMPLETA". */
+#tvScreenRoot #pantallaCierre .cierreBloque {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: fit-content;
 }
 /* Reloj chico en la esquina superior derecha (como la topbar de los bloques). */
 #tvScreenRoot #pantallaCierre .relojEsquina {
@@ -1338,7 +1462,9 @@ onUnmounted(() => {
 /* Accesibilidad y ahorro: sin movimiento, piedra quieta. */
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .tvFondo__marmol,
-  #tvScreenRoot .tvFondo__luz {
+  #tvScreenRoot .tvFondo__luz,
+  #tvScreenRoot .columnaDorica__cap,
+  #tvScreenRoot .columnaDorica__fuste {
     animation: none;
   }
 }
