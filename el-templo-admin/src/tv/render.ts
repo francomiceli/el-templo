@@ -473,6 +473,9 @@ function paintList(n: Nodes, c: TvClassPayload): void {
   // La lista se reconstruye: el marcador se re-aplica en el próximo tick.
   lastMarkerKey = null;
   clear(n.stage);
+  // Marca el layout según la cantidad de columnas (fase 178): con 4 (deuteros
+  // regular, I+II × par de niveles) el CSS pasa de fila flex a grilla 2×2.
+  n.stage.setAttribute('data-cols', String(c.columns.length));
 
   for (let ci = 0; ci < c.columns.length; ci++) {
     const col = c.columns[ci];

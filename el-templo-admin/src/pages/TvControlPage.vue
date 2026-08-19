@@ -208,20 +208,20 @@
           </div>
         </div>
 
-        <!-- Rotación automática de las dos estaciones de deuteros (I<->II) en el TV. -->
-        <!-- Solo aplica en un bloque de deuteros con el timer corriendo; el profe la -->
-        <!-- pisa 30 s eligiendo I o II a mano. Se muestra siempre (el estado persiste). -->
-        <div class="row q-col-gutter-sm q-mt-sm">
+        <!-- Días técnica/combos: swapea la vista del 2º bloque al alternativo -->
+        <!-- (COMBOS/TÉCNICA II ALT), mismo cronómetro — no reinicia nada, el -->
+        <!-- profe la prende y apaga cuantas veces quiera. No aplica en regular. -->
+        <div v-if="isAltEligibleMode" class="row q-col-gutter-sm q-mt-sm">
           <div class="col-12">
             <q-btn
               class="tv-btn full-width"
-              :icon="deuterosAutoRotate ? 'sync' : 'sync_disabled'"
-              :label="deuterosAutoRotate ? 'ROTACIÓN DEUTEROS ON' : 'ROTACIÓN DEUTEROS OFF'"
-              :color="deuterosAutoRotate ? 'primary' : 'grey-7'"
-              :outline="!deuterosAutoRotate"
-              :unelevated="deuterosAutoRotate"
+              icon="swap_horiz"
+              :label="showAlternative ? 'VIENDO ALTERNATIVO' : 'VER ALTERNATIVO'"
+              :color="showAlternative ? 'primary' : 'grey-7'"
+              :outline="!showAlternative"
+              :unelevated="showAlternative"
               :disable="!canControl"
-              @click="onToggleDeuteros"
+              @click="onToggleAlternative"
             />
           </div>
         </div>
@@ -659,8 +659,10 @@ const currentLevel = computed(() => context.value?.state?.level ?? '');
 
 const timerStatus = computed(() => context.value?.state?.timerStatus ?? 'idle');
 const soundEnabled = computed(() => context.value?.state?.soundEnabled === true);
-const deuterosAutoRotate = computed(
-  () => context.value?.state?.deuterosAutoRotate === true
+const showAlternative = computed(() => context.value?.state?.showAlternative === true);
+/** El botón "Ver alternativo" solo tiene sentido en días técnica/combos (5º bloque). */
+const isAltEligibleMode = computed(
+  () => context.value?.mode === 'combos' || context.value?.mode === 'tecnica'
 );
 const isClosingScreen = computed(() => context.value?.state?.screen === 'closing');
 
@@ -879,8 +881,8 @@ function onToggleSound(): void {
   void send({ soundEnabled: !soundEnabled.value });
 }
 
-function onToggleDeuteros(): void {
-  void send({ deuterosAutoRotate: !deuterosAutoRotate.value });
+function onToggleAlternative(): void {
+  void send({ showAlternative: !showAlternative.value });
 }
 
 function onToggleClosing(): void {

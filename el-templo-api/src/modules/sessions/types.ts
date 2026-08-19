@@ -35,10 +35,15 @@ export type ExerciseLevel =
 export type ContentLevel = Exclude<ExerciseLevel, "kairos">;
 
 /**
- * Block roles in a training session (5 blocks for regular, 4 for ROM/combos/tecnica).
+ * Block roles in a training session (5 blocks for regular and ROM, 5 for
+ * combos/tecnica as of Phase 178).
  * Phase 159 (SEM-01, D-04/D-07/D-11): COMBOS_I/COMBOS_II and TECNICA_I/TECNICA_II
  * are the fixed-structure blocks of a "día de combos"/"día de técnica" (analogous
  * to ROM_*); STRETCHING is the shared final block for both new day modes.
+ * Phase 178: COMBOS_II_ALT/TECNICA_II_ALT add a 5th fixed block — an alternative
+ * variant of the 2nd block (same moment/window, different exercises). Combos/
+ * tecnica structure is now INITIUM → II_I → II_II → II_ALT → STRETCHING (5 blocks,
+ * up from 4). ROM keeps its own 4-block fixed structure.
  */
 export type BlockRole =
   | "INITIUM"
@@ -52,8 +57,12 @@ export type BlockRole =
   | "ROM_UPPER"
   | "COMBOS_I"
   | "COMBOS_II"
+  // Phase 178: variante alternativa del 2º bloque, mismo momento/ventana
+  | "COMBOS_II_ALT"
   | "TECNICA_I"
   | "TECNICA_II"
+  // Phase 178: variante alternativa del 2º bloque, mismo momento/ventana
+  | "TECNICA_II_ALT"
   | "STRETCHING";
 
 /** Final block type - alternates by week */

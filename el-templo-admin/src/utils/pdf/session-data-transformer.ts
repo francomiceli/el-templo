@@ -487,11 +487,15 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
     if (combosI) blocks.push(combosI);
     const combosII = buildGridPage('COMBOS_II', ROLE_LABELS.COMBOS_II, sessionsByLevel);
     if (combosII) blocks.push(combosII);
+    const combosIIAlt = buildGridPage('COMBOS_II_ALT', ROLE_LABELS.COMBOS_II_ALT, sessionsByLevel);
+    if (combosIIAlt) blocks.push(combosIIAlt);
 
     const tecnicaI = buildGridPage('TECNICA_I', ROLE_LABELS.TECNICA_I, sessionsByLevel);
     if (tecnicaI) blocks.push(tecnicaI);
     const tecnicaII = buildGridPage('TECNICA_II', ROLE_LABELS.TECNICA_II, sessionsByLevel);
     if (tecnicaII) blocks.push(tecnicaII);
+    const tecnicaIIAlt = buildGridPage('TECNICA_II_ALT', ROLE_LABELS.TECNICA_II_ALT, sessionsByLevel);
+    if (tecnicaIIAlt) blocks.push(tecnicaIIAlt);
 
     // Cierre FB del día combos (UAT 2026-08-18): ATHLOS/EPIKOS ruta FB,
     // grid por nivel como en la rama regular (los ejercicios difieren por

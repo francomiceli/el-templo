@@ -46,8 +46,14 @@ function roleToBlock(
     // semana-nueva pipeline (plan 02/03) — this should never be called for them
     case "COMBOS_I":
     case "COMBOS_II":
+    // Phase 178: II_ALT reuses the same forced-format route as II_II and also
+    // bypasses stage 5 — this case exists only to satisfy the exhaustive switch.
+    case "COMBOS_II_ALT":
     case "TECNICA_I":
     case "TECNICA_II":
+    // Phase 178: II_ALT reuses the same forced-format route as II_II and also
+    // bypasses stage 5 — this case exists only to satisfy the exhaustive switch.
+    case "TECNICA_II_ALT":
     case "STRETCHING":
       return "initium"; // Fallback; combos/tecnica blocks never reach stage-5
   }

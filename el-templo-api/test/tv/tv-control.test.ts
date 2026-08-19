@@ -104,8 +104,7 @@ interface ControlState {
   pausedAt: number | null;
   pausedAccumMs: number;
   soundEnabled: boolean;
-  deuterosAutoRotate: boolean;
-  deuterosPinnedAt: number | null;
+  showAlternative: boolean;
 }
 
 interface ControlContext {
@@ -613,30 +612,34 @@ describe("POST /control/state — bloque, nivel y ejercicio (D-15)", () => {
     expect(state.exerciseIndex).toBe(1);
   });
 
-  it("la rotación de deuteros arranca prendida y prender/apagar persiste", async () => {
+  it("showAlternative arranca apagado, prender/apagar persiste, y el campo viejo se rechaza (fase 178)", async () => {
     const inicial = await write({});
-    expect(inicial.deuterosAutoRotate).toBe(true);
+    expect(inicial.showAlternative).toBe(false);
 
-    const apagada = await write({ deuterosAutoRotate: false });
-    expect(apagada.deuterosAutoRotate).toBe(false);
-    // Una escritura que no la nombra no la vuelve a prender (campo absoluto).
+    const prendido = await write({ showAlternative: true });
+    expect(prendido.showAlternative).toBe(true);
+    // Una escritura que no lo nombra no lo vuelve a apagar (campo absoluto).
     const otra = await write({ blockRole: "NUCLEUS" });
-    expect(otra.deuterosAutoRotate).toBe(false);
+    expect(otra.showAlternative).toBe(true);
 
-    const prendida = await write({ deuterosAutoRotate: true });
-    expect(prendida.deuterosAutoRotate).toBe(true);
-  });
+    const apagado = await write({ showAlternative: false });
+    expect(apagado.showAlternative).toBe(false);
 
-  it("tocar a mano entre DEUTEROS_1 y DEUTEROS_2 fija la pisada (deuterosPinnedAt)", async () => {
-    // Elegir a mano una estación ya la pisa (se respeta 30s antes de rotar).
-    await write({ blockRole: "DEUTEROS_1" });
-    const arrancado = await write({ timer: "start" });
+    // El write persiste: el readState siguiente (via GET /context) lo trae.
+    const prendidoOtraVez = await write({ showAlternative: true });
+    expect(prendidoOtraVez.showAlternative).toBe(true);
+    const context = JSON.parse(
+      (await getContext(coachAToken, branchAId)).body,
+    ) as ControlContext;
+    expect(context.state?.showAlternative).toBe(true);
 
-    // Cambiar a la otra estación re-fija la pisada, sin resetear el timer.
-    const pisado = await write({ blockRole: "DEUTEROS_2" });
-    expect(pisado.deuterosPinnedAt).not.toBeNull();
-    expect(pisado.timerStatus).toBe("running");
-    expect(pisado.timerStartedAt).toBe(arrancado.timerStartedAt);
+    // El campo viejo de la rotación ya no existe: additionalProperties:false
+    // lo rechaza con 400 (no lo ignora en silencio).
+    const res = await postState(coachAToken, {
+      branchId: branchAId,
+      deuterosAutoRotate: true,
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   it("un bloque que no existe en el roster de hoy se descarta, no mueve al profe", async () => {
@@ -948,5 +951,38 @@ describe("POST /control/state — sabado ROM (D-23)", () => {
     // El tier avanzado del dia si se aplica.
     const avanzado = await write({ level: "delta" });
     expect(avanzado.level).toBe("delta");
+  });
+});
+
+describe("POST /control/state — bloque alternativo técnica/combos (fase 178)", () => {
+  it("BLOCKER (decisión LOCKED): el alt NO es navegable — context.blocks no trae roles _ALT y su largo es el canónico del modo", async () => {
+    // Día técnica con el 5º bloque físico (TECNICA_II_ALT) generado, pero
+    // context.blocks (buildRoster -> TECNICA_ROLES) es el canónico de 4.
+    await seedSession({
+      day: "martes",
+      level: "alfa",
+      roles: [
+        "INITIUM",
+        "TECNICA_I",
+        "TECNICA_II",
+        "TECNICA_II_ALT",
+        "STRETCHING",
+      ],
+      sessionMode: "tecnica",
+    });
+
+    const context = JSON.parse(
+      (await getContext(coachAToken, branchAId)).body,
+    ) as ControlContext;
+
+    expect(context.mode).toBe("tecnica");
+    // TECNICA_ROLES canónico: INITIUM, TECNICA_I, TECNICA_II, STRETCHING — 4,
+    // no 5. El alt existe como bloque físico pero nunca es un paso propio del
+    // roster que alimenta la botonera / ANTERIOR-SIGUIENTE.
+    expect(context.blocks).toHaveLength(4);
+    expect(context.blocks.map((b) => b.role)).not.toContain("TECNICA_II_ALT");
+    for (const block of context.blocks) {
+      expect(block.role.endsWith("_ALT")).toBe(false);
+    }
   });
 });

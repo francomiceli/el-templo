@@ -51,6 +51,7 @@ const MOCK_INITIUM_BLOCK: BlockPlan = {
 const ROLE_ID_OFFSET: Partial<Record<BlockRole, number>> = {
   TECNICA_I: 400,
   TECNICA_II: 500,
+  TECNICA_II_ALT: 550,
 };
 
 const MOCK_STRETCHING_EXERCISES: ExercisePrescription[] = [
@@ -161,7 +162,7 @@ describe("Tecnica Generator", () => {
   });
 
   describe("generateTecnicaSession", () => {
-    it("returns sessionMode='tecnica' with 4 blocks in order INITIUM->TECNICA_I->TECNICA_II->STRETCHING", async () => {
+    it("returns sessionMode='tecnica' with 5 blocks in order INITIUM->TECNICA_I->TECNICA_II->TECNICA_II_ALT->STRETCHING", async () => {
       const { generateTecnicaSession } = await import("../../src/modules/sessions/tecnica-generator");
       const db = createMockDb();
 
@@ -174,15 +175,64 @@ describe("Tecnica Generator", () => {
       );
 
       expect(session.sessionMode).toBe("tecnica");
-      expect(session.blocks).toHaveLength(4);
+      expect(session.blocks).toHaveLength(5);
       expect(session.blocks.map((b) => b.role)).toEqual([
         "INITIUM",
         "TECNICA_I",
         "TECNICA_II",
+        "TECNICA_II_ALT",
         "STRETCHING",
       ]);
       expect(session.dayId).toBe("W21-jueves-alfa");
       expect(session.goalPlanType).toBeNull();
+    });
+
+    it("TECNICA_II_ALT reuses the shared pool but resolves a distinct route/exercises (T-178-03)", async () => {
+      const { generateTecnicaSession, TECNICA_ROUTE_POOL } = await import(
+        "../../src/modules/sessions/tecnica-generator"
+      );
+      const db = createMockDb();
+
+      const session = await generateTecnicaSession(
+        db as Parameters<typeof generateTecnicaSession>[0],
+        21,
+        "jueves",
+        "alfa_delta",
+        "alfa",
+      );
+
+      const tecnicaII = session.blocks.find((b) => b.role === "TECNICA_II")!;
+      const tecnicaIIAlt = session.blocks.find((b) => b.role === "TECNICA_II_ALT")!;
+
+      // Same pool as TECNICA_I/II, same forced quality/skill format.
+      expect(TECNICA_ROUTE_POOL).toContain(tecnicaIIAlt.route);
+      expect(tecnicaIIAlt.format.name).toBe(tecnicaII.format.name);
+      expect(tecnicaIIAlt.format.formatId).not.toBe(0);
+
+      // Distinct route (pool has >=2 members) and distinct exercise set —
+      // unlike TECNICA_I/II which deliberately share the route (D-08), the
+      // alt's hashInput INCLUDES the role precisely to differ.
+      expect(tecnicaIIAlt.route).not.toBe(tecnicaII.route);
+      const tecnicaIIIds = new Set(tecnicaII.exercises.map((ex) => ex.exerciseId));
+      const tecnicaIIAltIds = new Set(tecnicaIIAlt.exercises.map((ex) => ex.exerciseId));
+      expect(tecnicaIIAltIds).not.toEqual(tecnicaIIIds);
+    });
+
+    it("TECNICA_II_ALT sits between TECNICA_II and STRETCHING, immediately after the role blocks", async () => {
+      const { generateTecnicaSession } = await import("../../src/modules/sessions/tecnica-generator");
+      const db = createMockDb();
+
+      const session = await generateTecnicaSession(
+        db as Parameters<typeof generateTecnicaSession>[0],
+        21,
+        "jueves",
+        "alfa_delta",
+        "alfa",
+      );
+
+      const roles = session.blocks.map((b) => b.role);
+      expect(roles.indexOf("TECNICA_II_ALT")).toBe(roles.indexOf("TECNICA_II") + 1);
+      expect(roles.indexOf("TECNICA_II_ALT")).toBe(roles.length - 2);
     });
 
     it("TECNICA_I and TECNICA_II resolve to the SAME route (D-08)", async () => {
@@ -204,9 +254,13 @@ describe("Tecnica Generator", () => {
 
       // D-08: the hashInput used to resolve the shared route must exclude
       // the role — assert directly on what runSemanaNuevaBlockPipeline (the
-      // mock) received as `options.route` for both calls.
+      // mock) received as `options.route` for both calls. TECNICA_II_ALT is
+      // excluded here on purpose: unlike I/II it DOES include the role in
+      // its hashInput (T-178-03), so it is covered by its own test above.
       const roleBlockCalls = mockRunSemanaNuevaBlockPipeline.mock.calls.filter(
-        (call) => (call[0] as { role: BlockRole }).role !== "INITIUM",
+        (call) =>
+          (call[0] as { role: BlockRole }).role === "TECNICA_I" ||
+          (call[0] as { role: BlockRole }).role === "TECNICA_II",
       );
       expect(roleBlockCalls).toHaveLength(2);
       const routesPassed = roleBlockCalls.map(

@@ -765,15 +765,24 @@ onUnmounted(() => {
 
 /* ── Zona principal: hasta DOS columnas de nivel lado a lado, 50/50 (rediseño
    fase 164 — el control elige el nivel por PARES). `render.ts` `paintList`
-   crea 1 o 2 `.lista-col` acá adentro por cada poll; con una sola columna
-   (bloque shared, o un solo nivel del par presente hoy) ocupa el ancho
-   entero igual que antes. ── */
+   crea 1, 2 o 4 `.lista-col` acá adentro por cada poll (`data-cols` marca la
+   cantidad); con 1-2 columnas (bloque shared, un solo nivel del par presente
+   hoy, o técnica/combos) el layout es la fila flex de siempre. ── */
 #tvScreenRoot .stage {
   flex: 1 1 auto;
   display: flex;
   gap: 1.3rem;
   padding: 0.6rem 2rem 1.4rem;
   min-height: 0;
+}
+/* Deuteros regular 2×2 (fase 178): 4 columnas (I+II × par de niveles) en
+   grilla, dos filas iguales, en vez de una fila de 4 apretadas. */
+#tvScreenRoot .stage[data-cols='4'] {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 0.9rem 1.3rem;
+  padding: 0.4rem 1.6rem 1rem;
 }
 #tvScreenRoot .col {
   display: flex;
@@ -802,6 +811,12 @@ onUnmounted(() => {
 }
 #tvScreenRoot .cabCol__nivel {
   white-space: nowrap;
+}
+/* 2×2 de deuteros (fase 178): 4 headers en vez de 1-2 — bajar tipografía y
+   aire para que las cuatro cabeceras entren legibles sin cortarse. */
+#tvScreenRoot .stage[data-cols='4'] .cabCol {
+  font-size: 1.5rem;
+  padding: 1rem 0.3rem 0.4rem;
 }
 #tvScreenRoot .cabCol__ruta {
   min-width: 0;
@@ -1029,6 +1044,34 @@ onUnmounted(() => {
 #tvScreenRoot .lista-col .caja.compacta .item .ej-nombre {
   font-size: 1.85rem;
   line-height: 1.2;
+}
+
+/* 2×2 de deuteros (fase 178): 4 listas en vez de 1-2, cada una con la mitad
+   del ancho y aprox. la mitad del alto (2 filas) — la tipografía baja en
+   bloque para que las cuatro entren legibles sin desbordar la grilla. */
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item {
+  margin: 0.2rem 0.15rem;
+  padding-left: 0.55rem;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item.actual .ej-nombre::after {
+  font-size: 3rem;
+  margin-left: 0.6rem;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item .ej-nombre {
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .caja.compacta .item .ej-nombre {
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item .badge {
+  font-size: 1.05rem;
+  min-width: 2.6rem;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item .dosis {
+  font-size: 1.6rem;
+  padding: 0.08em 0.45em 0.08em 1.3em;
 }
 
 /* ── Cronómetro: al centro de la cabecera, sin recuadro. Sin etiqueta de fase: el estado

@@ -153,13 +153,13 @@ export const tvClassState = mysqlTable(
     pausedAccumMs: int("paused_accum_ms").default(0).notNull(),
     // D-19: los beeps arrancan APAGADOS.
     soundEnabled: boolean("sound_enabled").default(false).notNull(),
-    // Rotacion automatica de las dos estaciones de deuteros (I<->II) en el TV,
-    // cada 10s bajo el timer compartido. Arranca PRENDIDA (feature automatica);
-    // el profe la apaga desde el control o la pisa 30s eligiendo I/II a mano.
-    deuterosAutoRotate: boolean("deuteros_auto_rotate").default(true).notNull(),
-    // Sello de la ultima seleccion manual de estacion (fsp 3): dentro de los 30s
-    // la rotacion queda fija en la estacion elegida. null = sin pisada vigente.
-    deuterosPinnedAt: timestamp("deuteros_pinned_at", { fsp: 3 }),
+    // Fase 178: toggle "Ver alternativo" del 2º bloque en dias tecnica/combos
+    // (TECNICA_II_ALT / COMBOS_II_ALT). Mismo cronometro que el bloque
+    // principal — solo cambia que roster se muestra. Una fila por sede,
+    // espejada por N televisores (mismo patron D-04 que el resto de la tabla).
+    // Reemplaza a las dos columnas de rotacion automatica de deuteros de la
+    // fase 164, dadas de baja en la migracion 0206 junto con esta columna.
+    showAlternative: boolean("show_alternative").default(false).notNull(),
     updatedBy: int("updated_by").references(() => users.id),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
