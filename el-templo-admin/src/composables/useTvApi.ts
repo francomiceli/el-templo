@@ -43,11 +43,13 @@ export type TvScreen = 'idle' | 'class' | 'closing';
 export type TvTimerStatus = 'idle' | 'running' | 'paused';
 
 /**
- * Sesión regular de semana vs. sesión ROM del sábado (D-23). En `rom` los
- * niveles son solo dos y se rotulan BÁSICO / AVANZADO, así que el selector se
- * construye SIEMPRE desde `TvControlContext.levels`, nunca de una lista fija.
+ * Sesión regular de semana vs. sesión ROM del sábado (D-23) vs. días
+ * técnica/combos (fase 178: 5º bloque alternativo, botón "Ver alternativo").
+ * En `rom` los niveles son solo dos y se rotulan BÁSICO / AVANZADO, así que el
+ * selector se construye SIEMPRE desde `TvControlContext.levels`, nunca de una
+ * lista fija.
  */
-export type TvClassMode = 'regular' | 'rom';
+export type TvClassMode = 'regular' | 'rom' | 'combos' | 'tecnica';
 
 /**
  * Un bloque del roster del día, con lo que el control necesita para acotar el
@@ -80,10 +82,12 @@ export interface TvControlState {
   pausedAccumMs: number;
   /** D-19: arranca apagado; el profe prende los beeps desde el celular. */
   soundEnabled: boolean;
-  /** Rotación automática de las estaciones de deuteros (I↔II) en el TV. */
-  deuterosAutoRotate: boolean;
-  /** Epoch ms de la última selección manual de estación (pisada de 30s), o null. */
-  deuterosPinnedAt: number | null;
+  /**
+   * Días técnica/combos: swap de vista sobre la zona del 2º bloque (II ↔
+   * II_ALT), comparte cronómetro (fase 178, plan 06). No aplica a días
+   * regulares.
+   */
+  showAlternative: boolean;
 }
 
 /**
@@ -119,7 +123,7 @@ export interface TvStateWrite {
   exerciseIndex?: number;
   timer?: 'start' | 'pause' | 'resume' | 'reset';
   soundEnabled?: boolean;
-  deuterosAutoRotate?: boolean;
+  showAlternative?: boolean;
 }
 
 /**
