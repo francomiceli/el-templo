@@ -612,7 +612,7 @@ describe("POST /control/state — bloque, nivel y ejercicio (D-15)", () => {
     expect(state.exerciseIndex).toBe(1);
   });
 
-  it("showAlternative arranca apagado, prender/apagar persiste, y el campo viejo se rechaza (fase 178)", async () => {
+  it("showAlternative arranca apagado, prender/apagar persiste, y el campo viejo se ignora sin efecto (fase 178)", async () => {
     const inicial = await write({});
     expect(inicial.showAlternative).toBe(false);
 
@@ -633,13 +633,20 @@ describe("POST /control/state — bloque, nivel y ejercicio (D-15)", () => {
     ) as ControlContext;
     expect(context.state?.showAlternative).toBe(true);
 
-    // El campo viejo de la rotación ya no existe: additionalProperties:false
-    // lo rechaza con 400 (no lo ignora en silencio).
+    // El campo viejo de la rotación ya no existe. Fastify compila ajv con
+    // removeAdditional:true (default), así que additionalProperties:false
+    // STRIPEA la prop desconocida en vez de rechazarla: la escritura sale 200
+    // pero el campo viejo no tiene ningún efecto (el backend ya no lo lee). La
+    // garantía real es que no resucita rotación ni pisa el toggle vigente.
     const res = await postState(coachAToken, {
       branchId: branchAId,
       deuterosAutoRotate: true,
     });
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(200);
+    const stripState = (JSON.parse(res.body) as ControlContext).state;
+    expect(stripState?.showAlternative).toBe(true);
+    expect(stripState).not.toHaveProperty("deuterosAutoRotate");
+    expect(stripState).not.toHaveProperty("deuterosPinnedAt");
   });
 
   it("un bloque que no existe en el roster de hoy se descarta, no mueve al profe", async () => {
