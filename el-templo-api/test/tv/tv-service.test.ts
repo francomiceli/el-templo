@@ -76,6 +76,8 @@ async function seedSession(opts: {
   roles: string[];
   nucleusExercises?: number;
   mobilityName?: string;
+  /** Fase 178: día combos/técnica en vez de regular (default). */
+  sessionMode?: string;
 }): Promise<void> {
   const [session] = await app.db
     .insert(schema.sessions)
@@ -86,6 +88,7 @@ async function seedSession(opts: {
       levelGroup: opts.level === "sigma" ? "sigma" : "alfa_delta",
       blockCount: opts.roles.length,
       status: "approved",
+      sessionMode: opts.sessionMode ?? "regular",
     })
     .$returningId();
 
@@ -150,6 +153,7 @@ async function writeState(opts: {
   screen?: string;
   timerStatus?: string;
   timerStartedAt?: Date | null;
+  showAlternative?: boolean;
 }): Promise<void> {
   await app.db.insert(schema.tvClassState).values({
     branchId: opts.branchId,
@@ -160,6 +164,7 @@ async function writeState(opts: {
     screen: opts.screen ?? "class",
     timerStatus: opts.timerStatus ?? "idle",
     timerStartedAt: opts.timerStartedAt ?? null,
+    showAlternative: opts.showAlternative ?? false,
   });
 }
 
@@ -254,8 +259,7 @@ describe("TvService.clampState — el nivel nunca rompe el bloque (Pitfall 1)", 
     pausedAt: null,
     pausedAccumMs: 0,
     soundEnabled: false,
-    deuterosAutoRotate: true,
-    deuterosPinnedAt: null,
+    showAlternative: false,
   };
 
   it("un rol que ya no esta en el roster cae al primer bloque", async () => {
@@ -433,54 +437,130 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     expect(cls.visualBlockIndex).toBe(2);
   });
 
-  it("deuteros con timer corriendo: la estación mostrada rota I→II cada 10s, timer estable", async () => {
+  it("deuteros con AMBOS presentes: el payload trae 4 columnas (2×2), distinguibles por deutero y nivel", async () => {
     await seedSession({
       level: "alfa",
       roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
     });
-    // Profe parado en DEUTEROS_1, timer corriendo desde TUESDAY_NOON. La rotación
-    // arranca prendida por default (columna DB) y no hay pisada (pinned_at NULL).
+    await seedSession({
+      level: "delta",
+      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
+    });
     await writeState({
       branchId: branchArId,
       classDate: TUESDAY_DATE,
       blockRole: "DEUTEROS_1",
       level: "alfa",
-      timerStatus: "running",
-      timerStartedAt: TUESDAY_NOON_UTC,
     });
 
-    // A los 3s de arrancado: primera ventana de 10s → estación I.
-    const at3 = new Date(TUESDAY_NOON_UTC.getTime() + 3_000);
-    const cls3 = (await service.buildPollPayload(branchArId, at3)).class!;
-    expect(cls3.blockRole).toBe("DEUTEROS_1");
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
 
-    // A los 13s: segunda ventana → estación II, SIN que el profe toque nada.
-    const at13 = new Date(TUESDAY_NOON_UTC.getTime() + 13_000);
-    const cls13 = (await service.buildPollPayload(branchArId, at13)).class!;
-    expect(cls13.blockRole).toBe("DEUTEROS_2");
-
-    // El timer NO cambia con la rotación: mismo spec en las dos ventanas (los dos
-    // deuteros comparten formato; el spec sale del bloque persistido, estable).
-    expect(cls13.timer.spec).toEqual(cls3.timer.spec);
-    expect(cls13.timer.startedAt).toBe(cls3.timer.startedAt);
+    // El par de alfa es [alfa, delta] y ambos están presentes hoy en los dos
+    // deuteros → 2 deuteros × 2 niveles = 4 columnas, en el orden
+    // [D1·alfa, D1·delta, D2·alfa, D2·delta].
+    expect(cls.columns).toHaveLength(4);
+    const headers = cls.columns.map((c) => c.header);
+    expect(headers[0]).toMatch(/^DEUTEROS I NIVEL α \|/);
+    expect(headers[1]).toMatch(/^DEUTEROS I NIVEL Δ \|/);
+    expect(headers[2]).toMatch(/^DEUTEROS II NIVEL α \|/);
+    expect(headers[3]).toMatch(/^DEUTEROS II NIVEL Δ \|/);
+    // Las 4 son distinguibles entre sí — nada de headers duplicados.
+    expect(new Set(headers).size).toBe(4);
+    for (const col of cls.columns) {
+      expect(col.exercises.length).toBeGreaterThan(0);
+    }
   });
 
-  it("deuteros con timer IDLE no rota: queda en la estación elegida", async () => {
+  it("con SOLO un deutero presente hoy, el payload trae 2 columnas — sin columna vacía ni rota (guard)", async () => {
+    // DEUTEROS_2 no existe en NINGUN nivel del día: un día regular real que
+    // todavía no tiene el segundo deutero cargado.
     await seedSession({
       level: "alfa",
-      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
+      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "EPIKOS"],
+    });
+    await seedSession({
+      level: "delta",
+      roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "EPIKOS"],
     });
     await writeState({
       branchId: branchArId,
       classDate: TUESDAY_DATE,
       blockRole: "DEUTEROS_1",
       level: "alfa",
-      // timerStatus default "idle": sin timer corriendo no hay rotación.
     });
 
-    const at13 = new Date(TUESDAY_NOON_UTC.getTime() + 13_000);
-    const cls = (await service.buildPollPayload(branchArId, at13)).class!;
-    expect(cls.blockRole).toBe("DEUTEROS_1");
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    // Ni el roster real trae DEUTEROS_2 (findCanonicalBlock no lo encuentra)...
+    expect(cls.blocks.map((b) => b.role)).not.toContain("DEUTEROS_2");
+    // ...ni las columnas: 2 (D1 × par), ninguna vacía ni con header de un
+    // DEUTEROS_2 inexistente.
+    expect(cls.columns).toHaveLength(2);
+    for (const col of cls.columns) {
+      expect(col.header).toMatch(/^DEUTEROS I /);
+      expect(col.header).not.toContain("DEUTEROS II");
+      expect(col.exercises.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("BLOCKER: toggle showAlternative swapea columnas y título del alt sin tocar el timer, visualBlockIndex estable (combos)", async () => {
+    // Día combos de un solo nivel, con el 5º bloque alt generado (fase 178).
+    await seedSession({
+      level: "alfa",
+      roles: [
+        "INITIUM",
+        "COMBOS_I",
+        "COMBOS_II",
+        "COMBOS_II_ALT",
+        "STRETCHING",
+      ],
+      sessionMode: "combos",
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "COMBOS_II",
+      level: "alfa",
+      timerStatus: "running",
+      timerStartedAt: new Date("2026-02-24T14:58:00.000Z"),
+      showAlternative: false,
+    });
+
+    const off = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+    expect(off.blockRole).toBe("COMBOS_II");
+    expect(off.title).toContain("COMBOS II");
+    expect(off.title).not.toContain("ALT");
+    expect(off.title).not.toBe("");
+
+    // El profe prende "Ver alternativo": el bloque persistido NO se toca, solo
+    // el toggle (equivalente a lo que hace TvService.writeState).
+    await app.db
+      .update(schema.tvClassState)
+      .set({ showAlternative: true })
+      .where(eq(schema.tvClassState.branchId, branchArId));
+
+    const on = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+    expect(on.blockRole).toBe("COMBOS_II_ALT");
+    expect(on.title).toContain("COMBOS II ALT");
+    expect(on.title).not.toBe("");
+    // El alt no está en el roster real (sibling visual, no navegable): el
+    // roster crudo sigue siendo el canónico, sin la entrada _ALT.
+    expect(on.blocks.map((b) => b.role)).not.toContain("COMBOS_II_ALT");
+
+    // El TIMER no cambia con el toggle: spec y sello sobre el bloque
+    // persistido (COMBOS_II), estable en las dos lecturas.
+    expect(on.timer.spec).toEqual(off.timer.spec);
+    expect(on.timer.startedAt).toBe(off.timer.startedAt);
+    expect(on.timer.status).toBe(off.timer.status);
+
+    // El bloque visual sigue siendo el mismo grupo (el II): el toggle no mueve
+    // los puntitos "BLOQUE n / M".
+    expect(on.visualBlockIndex).toBe(off.visualBlockIndex);
+    expect(on.visualBlockCount).toBe(off.visualBlockCount);
   });
 
   it("desde DEUTEROS_1 el indice visual es el mismo que desde DEUTEROS_2 (mismo grupo)", async () => {
@@ -524,9 +604,8 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       level: "alfa",
     });
 
-    const cls = (
-      await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC)
-    ).class!;
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
 
     // El control esta en alfa (la columna visible es la de alfa)...
     expect(cls.level).toBe("alfa");
@@ -555,9 +634,8 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       level: "delta",
     });
 
-    const cls = (
-      await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC)
-    ).class!;
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
 
     expect(cls.level).toBe("delta");
     // Sin kairos, el canonico es alfa (no el nivel del control).
