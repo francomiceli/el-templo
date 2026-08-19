@@ -234,7 +234,18 @@ function paintFormato(host: HTMLElement, raw: string): void {
     }
   }
   if (breakAt < 0) {
-    host.textContent = raw;
+    // Sin número no hay corte forzado: dejamos que envuelva por espacios, pero los
+    // guiones de nombres compuestos (Buy-in, Cash-out) NO deben partir la palabra.
+    // Cada token va en un span nowrap → "Buy-in /" en una línea y "Cash-out" en la otra.
+    for (let i = 0; i < tokens.length; i++) {
+      if (i > 0) {
+        host.appendChild(document.createTextNode(' '));
+      }
+      const span = document.createElement('span');
+      span.style.whiteSpace = 'nowrap';
+      span.textContent = tokens[i];
+      host.appendChild(span);
+    }
     return;
   }
   host.appendChild(document.createTextNode(tokens.slice(0, breakAt).join(' ')));
