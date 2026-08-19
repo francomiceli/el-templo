@@ -209,6 +209,46 @@ export async function deriveCoveredUntil(
   return rows[0]?.coveredUntil ?? null;
 }
 
+/**
+ * Versión batcheada de {@link deriveCoveredUntil}: resuelve el covered-until de
+ * MUCHOS socios en UNA sola query (`WHERE userId IN (...) GROUP BY userId`), para
+ * evitar el N+1 cuando un consumidor necesita la cobertura de una lista entera
+ * (p. ej. un referidor prolífico en `/mis-referidos`). Misma semántica exacta que
+ * la versión de a uno (mismo set de estados, mismo guard de `end_date` NULL): si
+ * cambiás una, cambiá la otra.
+ *
+ * Devuelve un Map de userId → covered-until. Un userId sin filas cubiertas NO
+ * aparece en el Map; los consumidores tratan la ausencia como `null` ("nunca
+ * cubierto"), idéntico a lo que devuelve la versión de a uno.
+ */
+export async function deriveCoveredUntilBatch(
+  db: MySql2Database<typeof schema>,
+  userIds: number[],
+): Promise<Map<number, string | null>> {
+  const result = new Map<number, string | null>();
+  if (userIds.length === 0) return result;
+
+  const rows = await db
+    .select({
+      userId: schema.subscriptions.userId,
+      coveredUntil: sql<string | null>`MAX(${schema.subscriptions.endDate})`,
+    })
+    .from(schema.subscriptions)
+    .where(
+      and(
+        inArray(schema.subscriptions.userId, userIds),
+        inArray(schema.subscriptions.status, ["active", "scheduled"]),
+        isNotNull(schema.subscriptions.endDate),
+      ),
+    )
+    .groupBy(schema.subscriptions.userId);
+
+  for (const row of rows) {
+    result.set(row.userId, row.coveredUntil ?? null);
+  }
+  return result;
+}
+
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
 

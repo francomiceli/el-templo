@@ -17,7 +17,17 @@
 //
 // Constructor DI (db, log) clonado de settings/service.ts:26-30.
 
-import { and, eq, gt, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -31,7 +41,7 @@ import {
   auraTransactions,
   systemSettings,
 } from "../../db/schema";
-import { deriveCoveredUntil } from "../subscriptions/service";
+import { deriveCoveredUntilBatch } from "../subscriptions/service";
 import {
   BadRequestError,
   ConflictError,
@@ -237,11 +247,14 @@ export class ReferralService {
       );
 
     const today = new Date().toISOString().split("T")[0];
+    const counterpartyIds = links.map((link) =>
+      link.referrerId === userId ? link.referredId : link.referrerId,
+    );
+    // Batch: la cobertura de todas las contrapartes en UNA query (evita N+1).
+    const coveredMap = await deriveCoveredUntilBatch(this.db, counterpartyIds);
     let activeLinks = 0;
-    for (const link of links) {
-      const counterpartyId =
-        link.referrerId === userId ? link.referredId : link.referrerId;
-      const coveredUntil = await deriveCoveredUntil(this.db, counterpartyId);
+    for (const counterpartyId of counterpartyIds) {
+      const coveredUntil = coveredMap.get(counterpartyId) ?? null;
       if (coveredUntil !== null && coveredUntil >= today) {
         activeLinks++;
       }
@@ -298,6 +311,32 @@ export class ReferralService {
     let referredBy: ReferralLinkView | null = null;
     let activeCount = 0;
 
+    // Batch de cobertura y nombres de TODAS las contrapartes en 2 queries (evita
+    // el N+1 que reventaba el gateway timeout con un referidor prolífico).
+    const counterpartyIds = links.map((link) =>
+      link.referrerId === userId ? link.referredId : link.referrerId,
+    );
+    const coveredMap = await deriveCoveredUntilBatch(this.db, counterpartyIds);
+    const nameMap = new Map<number, string>();
+    if (counterpartyIds.length > 0) {
+      // `users` es tabla strict: el filtro de tenant evita que el nombre de la
+      // contraparte se resuelva a un homónimo de OTRO gimnasio (T-173-08).
+      const rows = await this.db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+        })
+        .from(users)
+        .where(and(tenantWhere(users, ctx), inArray(users.id, counterpartyIds)));
+      for (const row of rows) {
+        nameMap.set(
+          row.id,
+          [row.firstName, row.lastName].filter(Boolean).join(" ").trim(),
+        );
+      }
+    }
+
     for (const link of links) {
       const isReferrer = link.referrerId === userId;
       const counterpartyId = isReferrer ? link.referredId : link.referrerId;
@@ -309,7 +348,7 @@ export class ReferralService {
         // qualified: activo si la contraparte está cubierta hoy (mismo criterio
         // que computeReferralDiscountPercent) — sino suspendido (se reactiva si
         // la contraparte vuelve, D-10).
-        const coveredUntil = await deriveCoveredUntil(this.db, counterpartyId);
+        const coveredUntil = coveredMap.get(counterpartyId) ?? null;
         state =
           coveredUntil !== null && coveredUntil >= today
             ? "active"
@@ -319,19 +358,9 @@ export class ReferralService {
         activeCount++;
       }
 
-      const [cp] = await this.db
-        .select({ firstName: users.firstName, lastName: users.lastName })
-        .from(users)
-        .where(and(tenantWhere(users, ctx), eq(users.id, counterpartyId)))
-        .limit(1);
-      const fullName = [cp?.firstName, cp?.lastName]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
-
       const view: ReferralLinkView = {
         userId: counterpartyId,
-        fullName,
+        fullName: nameMap.get(counterpartyId) ?? "",
         state,
       };
       if (isReferrer) {
