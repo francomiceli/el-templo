@@ -41,8 +41,10 @@ export const ROLE_LABELS: Record<BlockRole, string> = {
   ROM_UPPER: 'Tren Superior',
   COMBOS_I: 'Combos I',
   COMBOS_II: 'Combos II',
+  COMBOS_II_ALT: 'Combos II Alt',
   TECNICA_I: 'Técnica I',
   TECNICA_II: 'Técnica II',
+  TECNICA_II_ALT: 'Técnica II Alt',
   STRETCHING: 'Stretching',
 }
 

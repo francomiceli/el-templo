@@ -35,8 +35,11 @@ export function getBlockColorClass(role: BlockRole): string {
     // fase 160 (SEM-10): reusar clases existentes, sin CSS nuevo (paleta de marca)
     COMBOS_I: 'block-bg--nucleus', // terracotta, como NUCLEUS (primary)
     COMBOS_II: 'block-bg--deuteros-2', // aged-gold, como DEUTEROS_2 (secondary)
+    // fase 178: bloque alternativo, mismo color que su rol *_II (reusar clases existentes, sin CSS nuevo)
+    COMBOS_II_ALT: 'block-bg--deuteros-2',
     TECNICA_I: 'block-bg--deuteros-1', // terracotta, distinto matiz de COMBOS_I (primary)
     TECNICA_II: 'block-bg--athlos', // blend terracotta/oro, distinto matiz de COMBOS_II (secondary)
+    TECNICA_II_ALT: 'block-bg--athlos',
     STRETCHING: 'block-bg--default', // aged-gold suave, como ROM_* (cierre/movilidad)
   }
   return opacityMap[role] || 'block-bg--default'
@@ -66,8 +69,10 @@ export function getBlockAccentColor(role: BlockRole): string {
     // fase 160 (SEM-10): COMBOS/TECNICA como NUCLEUS/DEUTEROS (primary/secondary); STRETCHING como ROM (secondary)
     COMBOS_I: 'primary', // Terracotta - combos block 1
     COMBOS_II: 'secondary', // Aged Gold - combos block 2
+    COMBOS_II_ALT: 'secondary', // fase 178: bloque alternativo, mismo color que COMBOS_II
     TECNICA_I: 'primary', // Terracotta - tecnica block 1
     TECNICA_II: 'secondary', // Aged Gold - tecnica block 2
+    TECNICA_II_ALT: 'secondary', // fase 178: bloque alternativo, mismo color que TECNICA_II
     STRETCHING: 'secondary', // Aged Gold - mobility close-out
   }
   return colorMap[role] || 'primary'
@@ -95,8 +100,10 @@ export function getBlockCSSColor(role: BlockRole): string {
     // fase 160 (SEM-10): espeja getBlockAccentColor (primary=terracotta, secondary=oro)
     COMBOS_I: BRAND_TERRACOTTA, // Terracotta - combos block 1
     COMBOS_II: BRAND_AGED_GOLD, // Aged Gold - combos block 2
+    COMBOS_II_ALT: BRAND_AGED_GOLD, // fase 178: bloque alternativo, mismo color que COMBOS_II
     TECNICA_I: BRAND_TERRACOTTA, // Terracotta - tecnica block 1
     TECNICA_II: BRAND_AGED_GOLD, // Aged Gold - tecnica block 2
+    TECNICA_II_ALT: BRAND_AGED_GOLD, // fase 178: bloque alternativo, mismo color que TECNICA_II
     STRETCHING: BRAND_AGED_GOLD, // Aged Gold - mobility close-out
   }
   return colorMap[role] || BRAND_TERRACOTTA

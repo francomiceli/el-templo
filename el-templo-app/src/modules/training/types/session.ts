@@ -21,8 +21,10 @@ export type BlockRole =
   | 'ROM_UPPER' // ROM mobility - upper body (Tren Superior)
   | 'COMBOS_I' // Combos day - first block (fase 160, SEM-10)
   | 'COMBOS_II' // Combos day - second block (fase 160, SEM-10)
+  | 'COMBOS_II_ALT' // Combos day - alternate second block (fase 178: bloque alternativo del 2º bloque)
   | 'TECNICA_I' // Tecnica day - first block (fase 160, SEM-10)
   | 'TECNICA_II' // Tecnica day - second block (fase 160, SEM-10)
+  | 'TECNICA_II_ALT' // Tecnica day - alternate second block (fase 178: bloque alternativo del 2º bloque)
   | 'STRETCHING' // Shared mobility pool, all levels (fase 160, D160-04)
 
 /**
