@@ -39,8 +39,10 @@ export const ROLE_LABELS: Record<string, string> = {
   ROM_UPPER: "TREN SUPERIOR",
   COMBOS_I: "COMBOS I",
   COMBOS_II: "COMBOS II",
+  COMBOS_II_ALT: "COMBOS II ALT",
   TECNICA_I: "TÉCNICA I",
   TECNICA_II: "TÉCNICA II",
+  TECNICA_II_ALT: "TÉCNICA II ALT",
   STRETCHING: "KINESIS",
 };
 
@@ -66,7 +68,9 @@ export const ROLE_BADGE_LABELS: Record<string, string> = {
   ATHLOS: "A",
   COMBOS_I: "I",
   COMBOS_II: "II",
+  COMBOS_II_ALT: "II·A",
   TECNICA_I: "I",
   TECNICA_II: "II",
+  TECNICA_II_ALT: "II·A",
   STRETCHING: "Stretch",
 };
