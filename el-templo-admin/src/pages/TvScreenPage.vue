@@ -674,7 +674,9 @@ onUnmounted(() => {
 #tvScreenRoot .cabecera {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  /* Centro de ancho FIJO (no auto): así el cronómetro —cuyos dígitos cambian de
+     ancho al arrancar— no mueve las zonas laterales y el formato no re-wrapea. */
+  grid-template-columns: 1fr 28rem 1fr;
   align-items: center;
   gap: 1.5rem;
   padding: 0.3rem 2rem 0.7rem;
@@ -848,25 +850,53 @@ onUnmounted(() => {
    por `mask`; la banda barre en horizontal (columnaBrillo). */
 #tvScreenRoot .columnaDorica__fuste {
   flex: 1 1 auto;
-  background-image:
-    linear-gradient(105deg, transparent 47.5%, rgba(255, 248, 232, 0.85) 50%, transparent 52.5%),
-    url('/tv-col-fuste.png');
-  background-size: 300% 100%, 100% 100%;
-  background-blend-mode: screen, normal;
-  -webkit-mask: url('/tv-col-fuste.png') center / 100% 100% no-repeat;
-  mask: url('/tv-col-fuste.png') center / 100% 100% no-repeat;
-  animation: columnaBrillo 10s linear infinite;
+  position: relative;
+  overflow: hidden;
+  background-image: url('/tv-col-fuste.png');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+}
+/* Banda de brillo: una franja de luz que cruza el fuste movida con `transform`
+   (compositado por GPU, SIN repaint por frame) para que sea fluida en el TV de la
+   sucursal. El enfoque anterior (background-position + blend + mask animados)
+   repintaba cada frame y se arrastraba en el hardware del televisor. */
+#tvScreenRoot .columnaDorica__fuste::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  /* Ancho = el de la barra; la banda de luz (5rem fijos) va centrada en el
+     gradiente y el recorrido es relativo a la barra (translateX -100%→100%), así
+     el timing es proporcional a cada barra y dos barras pueden barrer consecutivas. */
+  width: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent calc(50% - 2.5rem),
+    rgba(255, 248, 232, 0.8) 50%,
+    transparent calc(50% + 2.5rem)
+  );
+  transform: translateX(-100%);
+  animation: columnaBrillo 12s linear infinite;
+  will-change: transform;
+  pointer-events: none;
 }
 /* Con dos columnas lado a lado, la 2da barre desfasada medio ciclo (-5s de 10s)
    para que las barras no brillen al mismo tiempo. */
-#tvScreenRoot .lista-col:nth-child(2n) .columnaDorica__fuste {
-  animation-delay: -5s;
+#tvScreenRoot .lista-col:nth-child(2n) .columnaDorica__fuste::after {
+  /* Arranca cuando la 1ra barra termina de cruzar (25% de 12s = 3s): consecutivas. */
+  animation-delay: 3s;
 }
 /* Barrido del brillo: solo la banda de luz (1ra capa) se desplaza; la imagen
    (2da capa) queda fija en center. */
+/* La banda cruza rápido en el primer tramo del ciclo y luego queda fuera (a la
+   derecha) el resto = cooldown. Con dos barras, la 2da arranca justo cuando la
+   1ra sale (animation-delay), y se ven consecutivas. */
 @keyframes columnaBrillo {
-  from { background-position: -150% 0, center; }
-  to { background-position: 250% 0, center; }
+  0% { transform: translateX(-100%); }
+  25% { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
 }
 /* Lista SIN recuadro: respira y usa el espacio; el divisor es la columna dórica. */
 #tvScreenRoot .caja {
@@ -1143,11 +1173,9 @@ onUnmounted(() => {
   transition: width 0.2s linear;
 }
 /* La barra del cronómetro no lleva el barrido de brillo (el vaciado ya es su
-   movimiento): sin animación y sin la capa de luz, solo la imagen del fuste. */
-#tvScreenRoot .cronometro .barra .columnaDorica__fuste {
-  animation: none;
-  background-image: url('/tv-col-fuste.png');
-  background-size: 100% 100%;
+   movimiento): oculto la banda de luz, queda solo la imagen del fuste. */
+#tvScreenRoot .cronometro .barra .columnaDorica__fuste::after {
+  display: none;
 }
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .lista-col .item {
@@ -1463,8 +1491,7 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .tvFondo__marmol,
   #tvScreenRoot .tvFondo__luz,
-  #tvScreenRoot .columnaDorica__cap,
-  #tvScreenRoot .columnaDorica__fuste {
+  #tvScreenRoot .columnaDorica__fuste::after {
     animation: none;
   }
 }
