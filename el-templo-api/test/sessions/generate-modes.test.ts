@@ -100,7 +100,7 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
     await app.db.delete(schema.sessions).where(eq(schema.sessions.week, week));
   }
 
-  it("dayModes:{miercoles:'combos'} persists session_mode='combos' with COMBOS_I/COMBOS_II + full-body EPIKOS close", async (ctx) => {
+  it("dayModes:{miercoles:'combos'} persists session_mode='combos' with COMBOS_I/COMBOS_II/COMBOS_II_ALT + full-body EPIKOS close", async (ctx) => {
     if (!catalogSeeded) ctx.skip(SKIP_NOTE);
     const week = 40;
     try {
@@ -124,20 +124,29 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
       expect(result).not.toBeNull();
       expect(result!.session.sessionMode).toBe("combos");
 
+      // Phase 178 (T-178-03): the generator ALWAYS emits a 5th physical block,
+      // COMBOS_II_ALT, between COMBOS_II and the full-body close.
       const roles = result!.blocks.map((b) => b.role).sort();
       // Week 40 is even -> the full-body close is EPIKOS (odd weeks: ATHLOS).
       expect(roles).toEqual(
-        ["COMBOS_I", "COMBOS_II", "EPIKOS", "INITIUM"].sort(),
+        ["COMBOS_I", "COMBOS_II", "COMBOS_II_ALT", "EPIKOS", "INITIUM"].sort(),
       );
       const fullBody = result!.blocks.find((b) => b.role === "EPIKOS");
       expect(fullBody?.route).toBe("FB");
       expect(fullBody?.formatName).toBe("Circuito cooperativo");
+
+      // The alt reuses COMBOS_II's pool/format but resolves a distinct route
+      // (role-inclusive hash) -> distinct exercises from the real generator.
+      const comboII = result!.blocks.find((b) => b.role === "COMBOS_II");
+      const comboIIAlt = result!.blocks.find((b) => b.role === "COMBOS_II_ALT");
+      expect(comboIIAlt?.formatName).toBe(comboII?.formatName);
+      expect(comboIIAlt?.route).not.toBe(comboII?.route);
     } finally {
       await cleanupWeek(week);
     }
   });
 
-  it("dayModes:{jueves:'tecnica'} persists session_mode='tecnica' with TECNICA_I/TECNICA_II/STRETCHING roles", async (ctx) => {
+  it("dayModes:{jueves:'tecnica'} persists session_mode='tecnica' with TECNICA_I/TECNICA_II/TECNICA_II_ALT/STRETCHING roles", async (ctx) => {
     if (!catalogSeeded) ctx.skip(SKIP_NOTE);
     const week = 41;
     try {
@@ -161,10 +170,19 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
       expect(result).not.toBeNull();
       expect(result!.session.sessionMode).toBe("tecnica");
 
+      // Phase 178 (T-178-03): the generator ALWAYS emits a 5th physical block,
+      // TECNICA_II_ALT, between TECNICA_II and STRETCHING.
       const roles = result!.blocks.map((b) => b.role).sort();
       expect(roles).toEqual(
-        ["TECNICA_I", "TECNICA_II", "INITIUM", "STRETCHING"].sort(),
+        ["TECNICA_I", "TECNICA_II", "TECNICA_II_ALT", "INITIUM", "STRETCHING"].sort(),
       );
+
+      // Unlike TECNICA_I/II (deliberately SAME route, D-08), the alt resolves
+      // a DIFFERENT route via a role-inclusive hash.
+      const tecnicaII = result!.blocks.find((b) => b.role === "TECNICA_II");
+      const tecnicaIIAlt = result!.blocks.find((b) => b.role === "TECNICA_II_ALT");
+      expect(tecnicaIIAlt?.formatName).toBe(tecnicaII?.formatName);
+      expect(tecnicaIIAlt?.route).not.toBe(tecnicaII?.route);
     } finally {
       await cleanupWeek(week);
     }
@@ -191,10 +209,13 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
       expect(result).not.toBeNull();
       const comboI = result!.blocks.find((b) => b.role === "COMBOS_I");
       const comboII = result!.blocks.find((b) => b.role === "COMBOS_II");
+      const comboIIAlt = result!.blocks.find((b) => b.role === "COMBOS_II_ALT");
       // Untruncated round-trip: exact string match against the full role
       // name proves the varchar(20) column didn't cut anything off.
+      // COMBOS_II_ALT (13 chars, phase 178) is the longest role name so far.
       expect(comboI?.role).toBe("COMBOS_I");
       expect(comboII?.role).toBe("COMBOS_II");
+      expect(comboIIAlt?.role).toBe("COMBOS_II_ALT");
     } finally {
       await cleanupWeek(week);
     }
