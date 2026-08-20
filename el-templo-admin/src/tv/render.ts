@@ -66,6 +66,8 @@ interface ClockNodes {
 interface Nodes {
   fechaL1: HTMLElement;
   fechaL2: HTMLElement;
+  cierreFechaL1: HTMLElement;
+  cierreFechaL2: HTMLElement;
   reloj: ClockNodes;
   titulo: HTMLElement;
   formato: HTMLElement;
@@ -133,6 +135,8 @@ function ensureNodes(): Nodes {
   nodes = {
     fechaL1: byId('fechaL1'),
     fechaL2: byId('fechaL2'),
+    cierreFechaL1: byId('cierreFechaL1'),
+    cierreFechaL2: byId('cierreFechaL2'),
     reloj: clockNodes(byId('reloj')),
     titulo: byId('titulo'),
     formato: byId('formato'),
@@ -230,7 +234,18 @@ function paintFormato(host: HTMLElement, raw: string): void {
     }
   }
   if (breakAt < 0) {
-    host.textContent = raw;
+    // Sin número no hay corte forzado: dejamos que envuelva por espacios, pero los
+    // guiones de nombres compuestos (Buy-in, Cash-out) NO deben partir la palabra.
+    // Cada token va en un span nowrap → "Buy-in /" en una línea y "Cash-out" en la otra.
+    for (let i = 0; i < tokens.length; i++) {
+      if (i > 0) {
+        host.appendChild(document.createTextNode(' '));
+      }
+      const span = document.createElement('span');
+      span.style.whiteSpace = 'nowrap';
+      span.textContent = tokens[i];
+      host.appendChild(span);
+    }
     return;
   }
   host.appendChild(document.createTextNode(tokens.slice(0, breakAt).join(' ')));
@@ -458,6 +473,9 @@ function paintList(n: Nodes, c: TvClassPayload): void {
   // La lista se reconstruye: el marcador se re-aplica en el próximo tick.
   lastMarkerKey = null;
   clear(n.stage);
+  // Marca el layout según la cantidad de columnas (fase 178): con 4 (deuteros
+  // regular, I+II × par de niveles) el CSS pasa de fila flex a grilla 2×2.
+  n.stage.setAttribute('data-cols', String(c.columns.length));
 
   for (let ci = 0; ci < c.columns.length; ci++) {
     const col = c.columns[ci];
@@ -484,11 +502,27 @@ function paintList(n: Nodes, c: TvClassPayload): void {
     }
     colEl.appendChild(cab);
 
-    // Separador dórico: una columna griega tumbada (fuste estriado + capitel/base)
-    // entre el header nivel/ruta y la lista, en vez de una línea. Estilos en
-    // TvScreenPage.vue (.columnaDorica). Reemplaza el borde del recuadro como divisor.
+    // Separador dórico: una columna griega tumbada (capitel · fuste · capitel)
+    // entre el header nivel/ruta y la lista, en vez de una línea. Las tres piezas
+    // van en un wrapper `__piezas` (ahí vive el filter del glow) y la banda de
+    // brillo `__brillo` es un overlay HERMANO: si la banda animada quedara adentro
+    // del subtree filtrado, los drop-shadow se recalcularían en cada frame del
+    // barrido y en el TV la animación se arrastra. Estilos en TvScreenPage.vue.
     const dorica = document.createElement('div');
     dorica.className = 'columnaDorica';
+    const piezas = document.createElement('div');
+    piezas.className = 'columnaDorica__piezas';
+    const capIzq = document.createElement('div');
+    capIzq.className = 'columnaDorica__cap columnaDorica__cap--izq';
+    const fuste = document.createElement('div');
+    fuste.className = 'columnaDorica__fuste';
+    const capDer = document.createElement('div');
+    capDer.className = 'columnaDorica__cap columnaDorica__cap--der';
+    piezas.append(capIzq, fuste, capDer);
+    const brillo = document.createElement('div');
+    brillo.className = 'columnaDorica__brillo';
+    brillo.setAttribute('aria-hidden', 'true');
+    dorica.append(piezas, brillo);
     colEl.appendChild(dorica);
 
     const caja = document.createElement('div');
@@ -545,6 +579,8 @@ export function renderState(payload: TvPollResponse): void {
   const fechaCorta = fechaTopbar(nowCorrected(), payload.branch.utcOffsetMinutes);
   setText(n.fechaL1, fechaCorta.l1);
   setText(n.fechaL2, fechaCorta.l2);
+  setText(n.cierreFechaL1, fechaCorta.l1);
+  setText(n.cierreFechaL2, fechaCorta.l2);
   setText(n.reposoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 

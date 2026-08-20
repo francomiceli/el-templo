@@ -2,21 +2,26 @@
  * Tecnica Session Generator
  *
  * Phase 159 (SEM-02/SEM-04, D-08/D-09/D-10/D-11): generates "dia de tecnica"
- * sessions with 4 blocks: INITIUM (warmup), TECNICA_I, TECNICA_II (both on
- * the SAME route, D-08), STRETCHING (shared mobility close, identical to
+ * sessions with 5 blocks: INITIUM (warmup), TECNICA_I, TECNICA_II (both on
+ * the SAME route, D-08), TECNICA_II_ALT (phase 178 — alternative variant of
+ * TECNICA_II, same pool/format, distinct route/exercises via a
+ * role-inclusive hash), STRETCHING (shared mobility close, identical to
  * combos-generator's STRETCHING block).
  *
  * Reuses `assembleFixedStructureSession` (the shared trunk defined in
  * combos-generator.ts, Task 1) — the only difference vs. combos is how the
- * two role blocks resolve their route (ONE shared route instead of two
- * separate pools) and which format gets forced (a quality/skill format
- * instead of 'Combos').
+ * role/alt blocks resolve their route (ONE shared route for TECNICA_I/II
+ * instead of two separate pools) and which format gets forced (a
+ * quality/skill format instead of 'Combos').
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type { DaySession, ExerciseLevel, LevelGroup, FormatInstance } from "./types";
-import { resolveRoutePool } from "./pipeline/semana-nueva-pipeline";
+import {
+  resolveRoutePool,
+  resolveDistinctRoutePool,
+} from "./pipeline/semana-nueva-pipeline";
 import { queryFormatByName } from "./fallback/format-fallback";
 import { GOAL_PLAN_ROUTE_MAP } from "../goal-plans/constants";
 import { assembleFixedStructureSession } from "./combos-generator";
@@ -75,6 +80,17 @@ export async function generateTecnicaSession(
   // different pools/indices).
   const sharedRoute = resolveRoutePool(TECNICA_ROUTE_POOL, `${week}-${day}`);
 
+  // Phase 178 (T-178-03): TECNICA_II_ALT is the ONE exception that DOES
+  // include the role in its hashInput — the opposite of I/II above — so it
+  // lands on a different route than `sharedRoute` (and therefore different
+  // exercises). `resolveDistinctRoutePool` shifts to the next pool index on
+  // the rare hash collision.
+  const sharedRouteAlt = resolveDistinctRoutePool(
+    TECNICA_ROUTE_POOL,
+    `${week}-${day}-TECNICA_II_ALT`,
+    sharedRoute,
+  );
+
   return assembleFixedStructureSession(
     db,
     week,
@@ -87,5 +103,6 @@ export async function generateTecnicaSession(
       { role: "TECNICA_II", route: sharedRoute },
     ],
     forcedFormat,
+    { role: "TECNICA_II_ALT", route: sharedRouteAlt },
   );
 }

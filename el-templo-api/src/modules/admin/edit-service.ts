@@ -671,8 +671,12 @@ export class AdminEditService {
       // and getCompatibleFormats returns an empty list, which is correct).
       COMBOS_I: "nucleus",
       COMBOS_II: "nucleus",
+      // Phase 178: alternative variant of the 2nd block, same format family as II
+      COMBOS_II_ALT: "nucleus",
       TECNICA_I: "nucleus",
       TECNICA_II: "nucleus",
+      // Phase 178: alternative variant of the 2nd block, same format family as II
+      TECNICA_II_ALT: "nucleus",
     };
     const compatBlock = blockMap[blockRole];
 

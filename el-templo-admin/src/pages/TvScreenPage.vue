@@ -79,7 +79,23 @@
                    pone el texto en el arranque; la animación la dispara .arranque. -->
               <div class="digitos-ghost" id="digitosGhost" aria-hidden="true"></div>
             </div>
-            <div class="barra"><i id="progreso"></i></div>
+            <!-- Barra de progreso con estética de columna: una copia tenue de fondo
+                 (tiempo consumido) y una copia opaca recortada por el progreso
+                 (#progreso, su width lo setea render.ts). -->
+            <div class="barra">
+              <div class="barraCol barraCol--track" aria-hidden="true">
+                <div class="columnaDorica__cap columnaDorica__cap--izq"></div>
+                <div class="columnaDorica__fuste"></div>
+                <div class="columnaDorica__cap columnaDorica__cap--der"></div>
+              </div>
+              <i id="progreso" class="barraCol__fill">
+                <div class="barraCol barraCol--full">
+                  <div class="columnaDorica__cap columnaDorica__cap--izq"></div>
+                  <div class="columnaDorica__fuste"></div>
+                  <div class="columnaDorica__cap columnaDorica__cap--der"></div>
+                </div>
+              </i>
+            </div>
           </section>
           <div class="cabFormato" id="formato"></div>
         </div>
@@ -108,10 +124,29 @@
              "SESIÓN COMPLETA" en vez del reloj grande, y el reloj va chico en la
              esquina superior derecha (como en los bloques). -->
         <div class="pantalla" id="pantallaCierre">
-          <div class="relojEsquina" id="cierreReloj">--:--</div>
+          <!-- Topbar como en la vista de clase: logo + fecha (izq) y reloj (der). -->
+          <header class="topbar topbar--cierre">
+            <div class="marca">
+              <img :src="tvLogo" alt="El Templo" />
+              <div class="fecha">
+                <span id="cierreFechaL1"></span><span id="cierreFechaL2"></span>
+              </div>
+            </div>
+            <div class="reloj" id="cierreReloj">--:--</div>
+          </header>
           <div class="reposoTop">
-            <img class="logoGrande" :src="tvLogo" alt="El Templo" />
-            <div class="cierreTitulo" id="cierreTitulo">SESIÓN COMPLETA</div>
+            <div class="cierreBloque">
+              <div class="cierreTitulo" id="cierreTitulo">SESIÓN COMPLETA</div>
+              <!-- Barra con barrido (misma columna que los separadores) bajo el título. -->
+              <div class="columnaDorica cierreBarra">
+                <div class="columnaDorica__piezas">
+                  <div class="columnaDorica__cap columnaDorica__cap--izq"></div>
+                  <div class="columnaDorica__fuste"></div>
+                  <div class="columnaDorica__cap columnaDorica__cap--der"></div>
+                </div>
+                <div class="columnaDorica__brillo" aria-hidden="true"></div>
+              </div>
+            </div>
           </div>
           <div class="reposoBottom">
             <div class="quote" id="cierreQuote"></div>
@@ -141,6 +176,7 @@ import {
   CINZEL_BOLD_BASE64,
   NUNITO_SANS_REGULAR_BASE64,
   NUNITO_SANS_BOLD_BASE64,
+  GREAT_VIBES_REGULAR_BASE64,
 } from 'src/utils/pdf/pdf-assets';
 import type { BranchOption } from 'src/types/member';
 
@@ -210,7 +246,8 @@ function installFonts(): void {
     fontFace('Cinzel', CINZEL_REGULAR_BASE64, 400) +
     fontFace('Cinzel', CINZEL_BOLD_BASE64, 700) +
     fontFace('NunitoSans', NUNITO_SANS_REGULAR_BASE64, 400) +
-    fontFace('NunitoSans', NUNITO_SANS_BOLD_BASE64, 700);
+    fontFace('NunitoSans', NUNITO_SANS_BOLD_BASE64, 700) +
+    fontFace('GreatVibes', GREAT_VIBES_REGULAR_BASE64, 400);
   document.head.appendChild(style);
 }
 function removeFonts(): void {
@@ -412,6 +449,7 @@ onUnmounted(() => {
   --muted: #c5b9a8;
   --cinzel: 'Cinzel', Georgia, serif;
   --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
+  --firma: 'GreatVibes', 'Segoe Script', cursive;
   --glyph: 'Segoe UI', Arial, 'Noto Sans', sans-serif;
 
   position: fixed;
@@ -612,6 +650,23 @@ onUnmounted(() => {
 #tvScreenRoot .topbar .reloj .seg {
   color: var(--gold);
 }
+/* Pantalla de cierre: la topbar es de 2 zonas (marca izq · reloj der). */
+#tvScreenRoot .topbar--cierre {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+/* Barra con barrido bajo "SESIÓN COMPLETA": ocupa el ancho del título (el
+   contenedor .cierreBloque lo fija a fit-content). */
+#tvScreenRoot .cierreBarra {
+  width: 100%;
+  height: 1.4rem;
+  margin: 0.2rem 0rem 0.7rem;
+}
+/* La cita sube un poco respecto al centro de la mitad inferior. */
+#tvScreenRoot #pantallaCierre .quote {
+  margin-top: -2.5rem;
+}
 
 /* ── Cabecera: info del bloque (izquierda, alineada a la izquierda) + cronómetro
    (derecha). El cronómetro salió de la zona de ejercicios para darle todo el ancho
@@ -622,7 +677,9 @@ onUnmounted(() => {
 #tvScreenRoot .cabecera {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  /* Centro de ancho FIJO (no auto): así el cronómetro —cuyos dígitos cambian de
+     ancho al arrancar— no mueve las zonas laterales y el formato no re-wrapea. */
+  grid-template-columns: 1fr 28rem 1fr;
   align-items: center;
   gap: 1.5rem;
   padding: 0.3rem 2rem 0.7rem;
@@ -711,15 +768,24 @@ onUnmounted(() => {
 
 /* ── Zona principal: hasta DOS columnas de nivel lado a lado, 50/50 (rediseño
    fase 164 — el control elige el nivel por PARES). `render.ts` `paintList`
-   crea 1 o 2 `.lista-col` acá adentro por cada poll; con una sola columna
-   (bloque shared, o un solo nivel del par presente hoy) ocupa el ancho
-   entero igual que antes. ── */
+   crea 1, 2 o 4 `.lista-col` acá adentro por cada poll (`data-cols` marca la
+   cantidad); con 1-2 columnas (bloque shared, un solo nivel del par presente
+   hoy, o técnica/combos) el layout es la fila flex de siempre. ── */
 #tvScreenRoot .stage {
   flex: 1 1 auto;
   display: flex;
   gap: 1.3rem;
   padding: 0.6rem 2rem 1.4rem;
   min-height: 0;
+}
+/* Deuteros regular 2×2 (fase 178): 4 columnas (I+II × par de niveles) en
+   grilla, dos filas iguales, en vez de una fila de 4 apretadas. */
+#tvScreenRoot .stage[data-cols='4'] {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 0.9rem 1.3rem;
+  padding: 0.4rem 1.6rem 1rem;
 }
 #tvScreenRoot .col {
   display: flex;
@@ -749,22 +815,120 @@ onUnmounted(() => {
 #tvScreenRoot .cabCol__nivel {
   white-space: nowrap;
 }
+/* 2×2 de deuteros (fase 178): 4 headers en vez de 1-2 — bajar tipografía y
+   aire para que las cuatro cabeceras entren legibles sin cortarse. */
+#tvScreenRoot .stage[data-cols='4'] .cabCol {
+  font-size: 1.5rem;
+  padding: 1rem 0.3rem 0.4rem;
+}
 #tvScreenRoot .cabCol__ruta {
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Separador entre el header NIVEL·RUTA y la lista: una línea redondeada igual a
-   la barra del cronómetro detenido (oro lleno, radio 99px), en lugar del
-   recuadro. Mismo lenguaje visual que la barra de progreso. */
+/* Separador entre el header NIVEL·RUTA y la lista: la columna tumbada en el
+   color de marca (columnas templo 2). Tres piezas flex (render.ts): los capiteles
+   guardan su proporción en los extremos y el fuste ocupa SOLO el medio, así las
+   líneas del centro no atraviesan los capiteles. Reemplaza la barra dorada y el
+   recuadro como divisor. */
 #tvScreenRoot .columnaDorica {
   flex: 0 0 auto;
-  height: 0.5rem;
-  margin: 0.1rem 0.3rem 0.7rem;
-  background: var(--gold);
-  border-radius: 99px;
-  opacity: 0.55; /* separador semitransparente entre header y lista */
+  position: relative;
+  height: 1.3rem;
+  margin: 0.2rem 0.3rem 0.7rem;
+}
+/* Las piezas van en un wrapper ESTÁTICO propio y el glow (filter) vive acá, NO
+   en .columnaDorica: la banda de brillo animada tiene que quedar FUERA del
+   subtree filtrado. Con el filter en el padre, los 3 drop-shadow se
+   recalculaban en cada frame del barrido (el resultado de un filtro no se
+   cachea si algo adentro cambia) y en el browser del TV eso arrastraba la
+   animación. Así las piezas no cambian nunca y el filtro se pinta una vez. */
+#tvScreenRoot .columnaDorica__piezas {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  /* Contorno oro claro (ceñido) + halo suave, y una profundidad navy sutil para
+     no oscurecer. Mismo lenguaje que el título tallado del bloque. */
+  filter:
+    drop-shadow(0 0.03em 0.05em rgba(20, 32, 46, 0.2))
+    drop-shadow(0 0 0.09em rgba(255, 238, 196, 0.95))
+    drop-shadow(0 0 0.3em rgba(232, 205, 150, 0.5));
+}
+#tvScreenRoot .columnaDorica__cap,
+#tvScreenRoot .columnaDorica__fuste {
+  height: 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+}
+/* Capiteles con proporción fija (sin brillo). */
+#tvScreenRoot .columnaDorica__cap {
+  flex: 0 0 auto;
+}
+#tvScreenRoot .columnaDorica__cap--izq {
+  aspect-ratio: 43 / 69;
+  background-image: url('/tv-col-cap-izq.png');
+}
+#tvScreenRoot .columnaDorica__cap--der {
+  aspect-ratio: 45 / 69;
+  background-image: url('/tv-col-cap-der.png');
+}
+/* Fuste: llena el medio; la banda de luz barre por encima (__brillo). */
+#tvScreenRoot .columnaDorica__fuste {
+  flex: 1 1 auto;
+  background-image: url('/tv-col-fuste.png');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+}
+/* Banda de brillo: overlay HERMANO de las piezas (fuera del filter, ver
+   __piezas), recortado al box de la columna; la franja de luz cruza con
+   `transform` (compositado por GPU, SIN repaint por frame) para que sea fluida
+   en el TV de la sucursal. El enfoque anterior (background-position + blend +
+   mask animados) repintaba cada frame y se arrastraba en el hardware del
+   televisor. Ahora la banda cruza la columna completa, capiteles incluidos. */
+#tvScreenRoot .columnaDorica__brillo {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+#tvScreenRoot .columnaDorica__brillo::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  /* Ancho = el de la barra; la banda de luz (5rem fijos) va centrada en el
+     gradiente y el recorrido es relativo a la barra (translateX -100%→100%), así
+     el timing es proporcional a cada barra y dos barras pueden barrer consecutivas. */
+  width: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent calc(50% - 2.5rem),
+    rgba(255, 248, 232, 0.8) 50%,
+    transparent calc(50% + 2.5rem)
+  );
+  transform: translateX(-100%);
+  animation: columnaBrillo 12s linear infinite;
+  will-change: transform;
+}
+/* Con dos columnas lado a lado, la 2da barre desfasada medio ciclo (-5s de 10s)
+   para que las barras no brillen al mismo tiempo. */
+#tvScreenRoot .lista-col:nth-child(2n) .columnaDorica__brillo::after {
+  /* Arranca cuando la 1ra barra termina de cruzar (25% de 12s = 3s): consecutivas. */
+  animation-delay: 3s;
+}
+/* Barrido del brillo: solo la banda de luz (1ra capa) se desplaza; la imagen
+   (2da capa) queda fija en center. */
+/* La banda cruza rápido en el primer tramo del ciclo y luego queda fuera (a la
+   derecha) el resto = cooldown. Con dos barras, la 2da arranca justo cuando la
+   1ra sale (animation-delay), y se ven consecutivas. */
+@keyframes columnaBrillo {
+  0% { transform: translateX(-100%); }
+  25% { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
 }
 /* Lista SIN recuadro: respira y usa el espacio; el divisor es la columna dórica. */
 #tvScreenRoot .caja {
@@ -899,6 +1063,34 @@ onUnmounted(() => {
   line-height: 1.2;
 }
 
+/* 2×2 de deuteros (fase 178): 4 listas en vez de 1-2, cada una con la mitad
+   del ancho y aprox. la mitad del alto (2 filas) — la tipografía baja en
+   bloque para que las cuatro entren legibles sin desbordar la grilla. */
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item {
+  margin: 0.2rem 0.15rem;
+  padding-left: 0.55rem;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item.actual .ej-nombre::after {
+  font-size: 3rem;
+  margin-left: 0.6rem;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item .ej-nombre {
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .caja.compacta .item .ej-nombre {
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item .badge {
+  font-size: 1.05rem;
+  min-width: 2.6rem;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item .dosis {
+  font-size: 1.6rem;
+  padding: 0.08em 0.45em 0.08em 1.3em;
+}
+
 /* ── Cronómetro: al centro de la cabecera, sin recuadro. Sin etiqueta de fase: el estado
    se lee por la OPACIDAD de los dígitos (apagados → plenos al arrancar) y el fondo de
    .completo. Compacto para darle aire al título/formato/movilidad. ── */
@@ -991,24 +1183,10 @@ onUnmounted(() => {
 #tvScreenRoot .cronometro.arranque .digitos-ghost {
   animation: arranqueEnvion 0.8s ease-out;
 }
+/* Sin vibración: el clon hace directamente el fade-up (sube y se desvanece)
+   desde el arranque, en el momento en que antes ocurría la vibración. */
 @keyframes arranqueEnvion {
   0% {
-    opacity: 1;
-    transform: translate(0, 0) scale(1);
-  }
-  10% {
-    transform: translate(-0.03em, 0) scale(1.02);
-  }
-  22% {
-    transform: translate(0.03em, 0) scale(1.02);
-  }
-  34% {
-    transform: translate(-0.02em, 0) scale(1.02);
-  }
-  46% {
-    transform: translate(0.02em, 0) scale(1.01);
-  }
-  58% {
     opacity: 1;
     transform: translate(0, 0) scale(1);
   }
@@ -1021,22 +1199,47 @@ onUnmounted(() => {
   /* Ancho FIJO (no 84% del cronómetro): en EMOM los dígitos pasan de ":60" a ":9"
      y achicaban el ancho auto del cronómetro, haciendo latir la barra cada segundo.
      Fijo la barra la vuelve estable y, al ser el hijo más ancho en esos casos,
-     estabiliza también la caja (los dígitos quedan centrados sin saltar). */
+     estabiliza también la caja (los dígitos quedan centrados sin saltar).
+     Ahora hospeda la columna: track tenue + fill opaco recortado por el progreso. */
+  position: relative;
   width: 24rem;
-  height: 0.5rem;
-  background: rgba(197, 185, 168, 0.5);
-  border-radius: 99px;
+  height: 1.3rem;
   overflow: hidden;
   margin-top: 0.55rem;
+  /* Profundidad + glow dorado, igual que el separador de columna — pero con
+     box-shadow y NO con filter: drop-shadow. El width del fill (#progreso)
+     cambia en cada tick del timer y un filter acá obligaba a recalcular los 3
+     drop-shadow por frame durante toda la clase. El box-shadow es del
+     border-box (rectangular, no sigue las estrías), se pinta una vez y a
+     tamaño TV la diferencia no se distingue. */
+  box-shadow:
+    0 0.03em 0.05em rgba(20, 32, 46, 0.2),
+    0 0 0.09em rgba(255, 238, 196, 0.95),
+    0 0 0.3em rgba(232, 205, 150, 0.5);
 }
-#tvScreenRoot .cronometro .barra i {
-  display: block;
+/* Cada capa es una columna completa de ancho FIJO (24rem): así el fill recorta
+   sin comprimir la columna. Reusa las piezas .columnaDorica__cap/__fuste. */
+#tvScreenRoot .cronometro .barraCol {
+  display: flex;
+  align-items: stretch;
+  width: 24rem;
   height: 100%;
-  width: 100%;
-  background: var(--gold);
-  border-radius: 99px;
+}
+#tvScreenRoot .cronometro .barraCol--track {
+  opacity: 0.28; /* columna tenue: el tiempo ya consumido */
+}
+#tvScreenRoot .cronometro .barraCol__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  overflow: hidden; /* recorta la columna opaca al ancho del progreso */
+  display: block;
   transition: width 0.2s linear;
 }
+/* La barra del cronómetro no lleva el barrido de brillo (el vaciado ya es su
+   movimiento): su markup no incluye .columnaDorica__brillo, no hay nada que
+   ocultar. */
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .lista-col .item {
     transition: none;
@@ -1103,26 +1306,38 @@ onUnmounted(() => {
   line-height: 1.5;
   max-width: 68%;
   margin-top: 3rem;
-  color: var(--navy);
+  color: var(--gold);
 }
 #tvScreenRoot .pantalla .quote .oro {
-  color: var(--gold);
+  color: var(--navy);
 }
 #tvScreenRoot .pantalla .autor {
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  font-size: 1.3rem;
-  color: var(--gold);
-  margin-top: 1rem;
+  /* Firma manuscrita (Great Vibes), igual que el autor de la frase en el PDF:
+     navy, como el título "SESIÓN COMPLETA". */
+  font-family: var(--firma);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  font-size: 2.7rem;
+  color: var(--navy);
+  margin-top: 0.5rem;
 }
 #tvScreenRoot #pantallaCierre .cierreTitulo {
   font-family: var(--cinzel);
   font-weight: 700;
   letter-spacing: 0.09em;
-  font-size: 6rem;
+  font-size: 5.3rem;
   line-height: 1.1;
   color: var(--navy);
   text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+  white-space: nowrap;
+}
+/* Título + barra agrupados: el contenedor se ajusta al ancho del texto (fit-content)
+   y la barra ocupa el 100% de ese ancho, así coincide con "SESIÓN COMPLETA". */
+#tvScreenRoot #pantallaCierre .cierreBloque {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: fit-content;
 }
 /* Reloj chico en la esquina superior derecha (como la topbar de los bloques). */
 #tvScreenRoot #pantallaCierre .relojEsquina {
@@ -1262,12 +1477,16 @@ onUnmounted(() => {
   background: var(--marble, none) center / cover no-repeat;
   animation: fondoDeriva 46s ease-in-out infinite alternate;
 }
+/* Escala CONSTANTE (antes 1.04→1.13): animar scale obliga a re-muestrear la
+   textura full-screen en cada frame en el compositor del TV; el translate solo
+   es mucho más barato. 1.08 fijo + inset -5rem siguen cubriendo el recorrido
+   (5rem, 3rem) sin descubrir bordes. */
 @keyframes fondoDeriva {
   from {
-    transform: translate3d(0, 0, 0) scale(1.04);
+    transform: translate3d(0, 0, 0) scale(1.08);
   }
   to {
-    transform: translate3d(5rem, 3rem, 0) scale(1.13);
+    transform: translate3d(5rem, 3rem, 0) scale(1.08);
   }
 }
 
@@ -1288,14 +1507,17 @@ onUnmounted(() => {
 #tvScreenRoot .tvFondo__luz--calida {
   top: -24rem;
   left: -32rem;
+  /* SIN mix-blend-mode (antes overlay): un blend mode sobre una capa gigante
+     animada obliga al compositor del TV a una pasada extra de mezcla de toda
+     la pantalla POR FRAME — era el mayor costo fijo de la página. Sobre un
+     mármol claro y conocido, el dodge cálido se aproxima con un gradiente
+     rgba en blending normal (tonos más blancos y alphas más bajos). */
   background: radial-gradient(
     closest-side,
-    rgba(250, 232, 185, 0.92) 0%,
-    rgba(206, 166, 116, 0.5) 44%,
+    rgba(255, 241, 205, 0.5) 0%,
+    rgba(235, 202, 150, 0.24) 44%,
     transparent 74%
   );
-  /* overlay sobre mármol claro = dodge cálido bien visible (haz de luz sobre piedra). */
-  mix-blend-mode: overlay;
   opacity: calc(0.8 * var(--fondoActividad));
   animation: luzPaseo 30s ease-in-out infinite alternate;
 }
@@ -1308,13 +1530,15 @@ onUnmounted(() => {
   width: auto;
   height: 46rem;
   border-radius: 0;
+  /* SIN mix-blend-mode (antes multiply), por el mismo costo por frame que la
+     mancha cálida: un multiply oscuro se aproxima con el mismo gradiente en
+     blending normal, apenas más tenue. */
   background: radial-gradient(
     120% 100% at 50% 100%,
-    rgba(48, 40, 32, 0.32) 0%,
-    rgba(36, 54, 74, 0.13) 46%,
+    rgba(44, 38, 31, 0.28) 0%,
+    rgba(33, 49, 67, 0.11) 46%,
     transparent 72%
   );
-  mix-blend-mode: multiply;
   opacity: calc(0.85 * var(--fondoActividad));
   animation: sombraPaseo 52s ease-in-out infinite alternate;
 }
@@ -1338,7 +1562,8 @@ onUnmounted(() => {
 /* Accesibilidad y ahorro: sin movimiento, piedra quieta. */
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .tvFondo__marmol,
-  #tvScreenRoot .tvFondo__luz {
+  #tvScreenRoot .tvFondo__luz,
+  #tvScreenRoot .columnaDorica__brillo::after {
     animation: none;
   }
 }

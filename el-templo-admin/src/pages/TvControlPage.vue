@@ -208,24 +208,6 @@
           </div>
         </div>
 
-        <!-- Rotación automática de las dos estaciones de deuteros (I<->II) en el TV. -->
-        <!-- Solo aplica en un bloque de deuteros con el timer corriendo; el profe la -->
-        <!-- pisa 30 s eligiendo I o II a mano. Se muestra siempre (el estado persiste). -->
-        <div class="row q-col-gutter-sm q-mt-sm">
-          <div class="col-12">
-            <q-btn
-              class="tv-btn full-width"
-              :icon="deuterosAutoRotate ? 'sync' : 'sync_disabled'"
-              :label="deuterosAutoRotate ? 'ROTACIÓN DEUTEROS ON' : 'ROTACIÓN DEUTEROS OFF'"
-              :color="deuterosAutoRotate ? 'primary' : 'grey-7'"
-              :outline="!deuterosAutoRotate"
-              :unelevated="deuterosAutoRotate"
-              :disable="!canControl"
-              @click="onToggleDeuteros"
-            />
-          </div>
-        </div>
-
         <!-- =========================== FIN DE CLASE ========================= -->
         <q-separator class="q-mb-md" />
         <div class="row q-col-gutter-sm">
@@ -659,9 +641,6 @@ const currentLevel = computed(() => context.value?.state?.level ?? '');
 
 const timerStatus = computed(() => context.value?.state?.timerStatus ?? 'idle');
 const soundEnabled = computed(() => context.value?.state?.soundEnabled === true);
-const deuterosAutoRotate = computed(
-  () => context.value?.state?.deuterosAutoRotate === true
-);
 const isClosingScreen = computed(() => context.value?.state?.screen === 'closing');
 
 /**
@@ -838,10 +817,15 @@ function onSelectBlock(role: string): void {
  * accidental no debe aplicarse solo: primero se confirma. Si el rol destino es
  * el actual no hay nada que cambiar.
  */
-/** DEUTEROS_1 y DEUTEROS_2 son dos caminos del MISMO bloque visual (espejo de
- *  `visualGroupOf` en tv/roster.ts). */
+/** DEUTEROS_1/DEUTEROS_2 y COMBOS_II/COMBOS_II_ALT (idem TECNICA_II) son
+ *  caminos del MISMO bloque visual (espejo de `visualGroupOf` en
+ *  tv/roster.ts): navegar dentro del grupo no reinicia el cronómetro, asi que
+ *  tampoco pide confirmación acá (ver `requestBlockChange`). */
 function visualGroupOf(role: string): string {
-  return role === 'DEUTEROS_1' || role === 'DEUTEROS_2' ? 'DEUTEROS' : role;
+  if (role === 'DEUTEROS_1' || role === 'DEUTEROS_2') return 'DEUTEROS';
+  if (role === 'COMBOS_II_ALT') return 'COMBOS_II';
+  if (role === 'TECNICA_II_ALT') return 'TECNICA_II';
+  return role;
 }
 
 function requestBlockChange(role: string): void {
@@ -877,10 +861,6 @@ function onTimer(command: NonNullable<TvStateWrite['timer']>): void {
 
 function onToggleSound(): void {
   void send({ soundEnabled: !soundEnabled.value });
-}
-
-function onToggleDeuteros(): void {
-  void send({ deuterosAutoRotate: !deuterosAutoRotate.value });
 }
 
 function onToggleClosing(): void {

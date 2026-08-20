@@ -23,6 +23,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
 import { ConflictError, NotFoundError } from "../shared/errors";
+import { ROLE_LABELS } from "../shared/role-labels";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   resolveClassDay,
@@ -228,8 +229,6 @@ export class TvService {
         pausedAt: schema.tvClassState.pausedAt,
         pausedAccumMs: schema.tvClassState.pausedAccumMs,
         soundEnabled: schema.tvClassState.soundEnabled,
-        deuterosAutoRotate: schema.tvClassState.deuterosAutoRotate,
-        deuterosPinnedAt: schema.tvClassState.deuterosPinnedAt,
       })
       .from(schema.tvClassState)
       .where(eq(schema.tvClassState.branchId, branchId));
@@ -248,10 +247,6 @@ export class TvService {
       pausedAt: row.pausedAt ? row.pausedAt.getTime() : null,
       pausedAccumMs: row.pausedAccumMs,
       soundEnabled: row.soundEnabled,
-      deuterosAutoRotate: row.deuterosAutoRotate,
-      deuterosPinnedAt: row.deuterosPinnedAt
-        ? row.deuterosPinnedAt.getTime()
-        : null,
     };
   }
 
@@ -445,9 +440,6 @@ export class TvService {
         level: "alfa",
         exerciseIndex: 0,
         soundEnabled: false,
-        // La rotacion de deuteros arranca prendida (feature automatica).
-        deuterosAutoRotate: true,
-        deuterosPinnedAt: null,
         ...IDLE_TIMER,
       },
       classDay,
@@ -465,20 +457,6 @@ export class TvService {
     }
     if (write.soundEnabled !== undefined) {
       state = { ...state, soundEnabled: write.soundEnabled };
-    }
-    if (write.deuterosAutoRotate !== undefined) {
-      state = { ...state, deuterosAutoRotate: write.deuterosAutoRotate };
-    }
-    // Pisada: cualquier seleccion MANUAL de una estacion de deuteros (el profe
-    // eligiendo I o II) se respeta 30s antes de que la rotacion automatica
-    // retome — asi "lo que escribe el profe es lo que pinta la pantalla" (D-13).
-    // Solo cuenta el write explicito de blockRole; la rotacion (que no toca el
-    // blockRole persistido) nunca pisa.
-    if (
-      write.blockRole !== undefined &&
-      visualGroupOf(state.blockRole) === "DEUTEROS"
-    ) {
-      state = { ...state, deuterosPinnedAt: now.getTime() };
     }
     // D-08: la pantalla de cierre es un estado del profe, no del reloj. "idle"
     // no se escribe: para volver a reposo esta `endClass`.
@@ -519,11 +497,13 @@ export class TvService {
    * sea que un valor invalido moveria al profe al bloque 1 y le reiniciaria el
    * timer. El control recibe el estado real en la respuesta y se auto-corrige.
    *
-   * Excepcion: DEUTEROS es UN bloque con dos caminos (DEUTEROS_1/DEUTEROS_2,
-   * `visualGroupOf`). Pasar de un camino al otro es un cambio de VARIANTE
-   * dentro del mismo bloque, no un bloque nuevo — asi que el cronometro NO se
-   * reinicia (el profe puede mostrar el camino alternativo sin perder el
-   * tiempo corrido). El ejercicio si vuelve a 0: la lista del camino nuevo es
+   * Excepcion: `visualGroupOf` agrupa bloques que son UN mismo bloque con
+   * varios caminos — DEUTEROS_1/DEUTEROS_2, y COMBOS_II/COMBOS_II_ALT (idem
+   * TECNICA_II/TECNICA_II_ALT). Pasar de un camino al otro dentro del mismo
+   * grupo es un cambio de VARIANTE, no un bloque nuevo — asi que el
+   * cronometro NO se reinicia (el profe puede mostrar el camino alternativo
+   * sin perder el tiempo corrido) y ambos caminos comparten el mismo indice
+   * "BLOQUE n / M". El ejercicio si vuelve a 0: la lista del camino nuevo es
    * otra, y arrancar en un indice ajeno seria arbitrario.
    */
   private applyBlockRole(
@@ -647,10 +627,6 @@ export class TvService {
       pausedAt: state.pausedAt ? new Date(state.pausedAt) : null,
       pausedAccumMs: state.pausedAccumMs,
       soundEnabled: state.soundEnabled,
-      deuterosAutoRotate: state.deuterosAutoRotate,
-      deuterosPinnedAt: state.deuterosPinnedAt
-        ? new Date(state.deuterosPinnedAt)
-        : null,
       updatedBy: userId,
     };
 
@@ -820,12 +796,22 @@ export class TvService {
    * canonico de INITIUM (`resolveBlock` ignora el nivel para ese rol) y
    * `formatDictated` es el que calculo el caller para ESE bloque.
    *
-   * No shared: una columna por nivel del PAR de `state.level` que este
-   * presente en `classDay.levels` (`pairFor`, `roster.ts`) — 1 o 2, nunca mas.
-   * Cada columna resuelve SU PROPIO bloque (mismo rol, nivel del par): dos
-   * niveles del mismo dia pueden tener ruta/intensidad/formato distintos
-   * (Pitfall 1), asi que el header y el `formatDictated` de cada columna
-   * salen de su propio bloque, no del bloque de `state.level`.
+   * No shared, caso general: una columna por nivel del PAR de `state.level`
+   * que este presente en `classDay.levels` (`pairFor`, `roster.ts`) — 1 o 2,
+   * nunca mas. Cada columna resuelve SU PROPIO bloque (mismo rol, nivel del
+   * par): dos niveles del mismo dia pueden tener ruta/intensidad/formato
+   * distintos (Pitfall 1), asi que el header y el `formatDictated` de cada
+   * columna salen de su propio bloque, no del bloque de `state.level`.
+   *
+   * No shared, caso DEUTEROS (fase 178, dia regular): en vez de 1 columna por
+   * nivel de UN rol, se emiten columnas para AMBOS deuteros (I y II) × el par
+   * de niveles — hasta 4 (2×2). Un dia regular puede no tener DEUTEROS_2 (o un
+   * nivel puntual del par puede no tener el bloque): cada `(rol, nivel)` que
+   * no resuelve bloque se OMITE (nunca una columna con header roto o lista
+   * vacia), asi que un dia con un solo deutero emite 2 columnas, no 4. Cada
+   * columna se prefija con la etiqueta del deutero (`ROLE_LABELS`, "DEUTEROS
+   * I"/"DEUTEROS II") para distinguir las 4 en pantalla. El bloque alt
+   * (`state.blockRole = *_II_ALT`) NO es deuteros: cae en el caso general.
    */
   private buildColumns(
     classDay: ClassDay,
@@ -875,6 +861,30 @@ export class TvService {
     // dejaria al TV sin lista, asi que el fallback no se saca.
     const levels = pairLevels.length > 0 ? pairLevels : [state.level];
 
+    if (visualGroupOf(state.blockRole) === "DEUTEROS") {
+      const columns: TvLevelColumn[] = [];
+      for (const deuterosRole of ["DEUTEROS_1", "DEUTEROS_2"]) {
+        for (const level of levels) {
+          const levelBlock = this.resolveBlock(classDay, deuterosRole, level);
+          // Guard: un dia regular puede no tener DEUTEROS_2 (o un nivel
+          // puntual del par sin bloque) — se omite, nunca una columna rota.
+          if (!levelBlock) continue;
+          const dictated =
+            !!levelBlock.formatParams &&
+            FORMAT_DICTATED_TYPES.has(levelBlock.formatParams.type);
+          const label = this.levelLabel(classDay, level, false);
+          const deuterosLabel = ROLE_LABELS[deuterosRole] ?? deuterosRole;
+          columns.push({
+            header: `${deuterosLabel} ${label} | ${getRouteLabel(levelBlock.route)} ${levelBlock.intensity}%`,
+            exercises: this.mainPrescriptions(levelBlock).map((p) =>
+              this.toExercise(p, dictated),
+            ),
+          });
+        }
+      }
+      return columns;
+    }
+
     return levels.map((level) => {
       const levelBlock = this.resolveBlock(classDay, state.blockRole, level);
       const dictated =
@@ -897,47 +907,17 @@ export class TvService {
   ): TvClassPayload {
     const blocks: TvBlockSummary[] = buildRoster(classDay);
 
-    // Rotacion automatica de deuteros: si el bloque activo es deuteros, el toggle
-    // esta prendido y el timer corre, la ESTACION mostrada (I/II) alterna cada
-    // 10s segun el tiempo transcurrido del propio timer — sin tocar el `blockRole`
-    // persistido ni el timer. Todos los TVs de la sede, derivando del mismo
-    // `startedAt`, muestran la misma estacion. La pisada manual la fija 30s.
-    let displayRole = state.blockRole;
-    const hasBothDeuteros =
-      blocks.some((b) => b.role === "DEUTEROS_1") &&
-      blocks.some((b) => b.role === "DEUTEROS_2");
-    if (
-      hasBothDeuteros &&
-      visualGroupOf(state.blockRole) === "DEUTEROS" &&
-      state.deuterosAutoRotate &&
-      state.timerStatus === "running"
-    ) {
-      const nowMs = now.getTime();
-      const pinned =
-        state.deuterosPinnedAt !== null &&
-        nowMs - state.deuterosPinnedAt < 30_000;
-      if (!pinned) {
-        const elapsed = Math.max(
-          0,
-          nowMs - (state.timerStartedAt ?? nowMs) - state.pausedAccumMs,
-        );
-        displayRole =
-          Math.floor(elapsed / 10_000) % 2 === 0 ? "DEUTEROS_1" : "DEUTEROS_2";
-      }
-    }
-    // Estado "efectivo" para lo VISUAL (columnas, titulo, movilidad, blockRole):
-    // la estacion mostrada. El timer se mantiene sobre el bloque PERSISTIDO.
-    const effState: TvControlState =
-      displayRole === state.blockRole
-        ? state
-        : { ...state, blockRole: displayRole };
-
-    const blockIndex = blocks.findIndex((b) => b.role === effState.blockRole);
+    // COMBOS_II_ALT/TECNICA_II_ALT viven en el roster canonico (roster.ts):
+    // se resuelven exactamente igual que cualquier otro rol, sin swap. El
+    // viejo toggle "Ver alternativo" (fase 178, showAlternative) que mostraba
+    // el alt como un sibling fuera de `blocks` quedo eliminado.
+    const blockIndex = blocks.findIndex((b) => b.role === state.blockRole);
     const summary = blocks[blockIndex];
     const shared = summary?.shared ?? false;
 
-    // C1: DEUTEROS_1/DEUTEROS_2 son dos caminos del MISMO bloque visual — los
-    // puntitos "BLOQUE n / M" cuentan grupos, no entradas del roster real.
+    // C1: DEUTEROS_1/DEUTEROS_2 (y ahora COMBOS_II_ALT/TECNICA_II_ALT con su
+    // II) son caminos del MISMO bloque visual — los puntitos "BLOQUE n / M"
+    // cuentan grupos, no entradas del roster real.
     const visualGroups: string[] = [];
     for (const b of blocks) {
       const g = visualGroupOf(b.role);
@@ -945,35 +925,23 @@ export class TvService {
     }
     const visualBlockCount = visualGroups.length;
     const rawVisualBlockIndex = visualGroups.indexOf(
-      visualGroupOf(effState.blockRole),
+      visualGroupOf(state.blockRole),
     );
     const visualBlockIndex =
       rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
 
-    // Columnas/titulo salen de la estacion MOSTRADA (effState).
-    const block = this.resolveBlock(
-      classDay,
-      effState.blockRole,
-      effState.level,
-    );
+    const block = this.resolveBlock(classDay, state.blockRole, state.level);
     const formatDictated =
       !!block?.formatParams &&
       FORMAT_DICTATED_TYPES.has(block.formatParams.type);
-    // El TIMER se calcula del bloque PERSISTIDO (state.blockRole): la rotacion no
-    // puede cambiar su spec (interval/hiit podrian tener distinto conteo de
-    // ejercicios entre I y II y el total del bloque saltaria cada 10s).
-    const timerBlock = this.resolveBlock(
-      classDay,
-      state.blockRole,
-      state.level,
-    );
+    const title = summary?.title ?? "";
 
-    const levelLabel = this.levelLabel(classDay, effState.level, shared);
+    const levelLabel = this.levelLabel(classDay, state.level, shared);
     // La movilidad sale del nivel canonico (kairos-first), como el PDF/editor
     // (regresion KAIROS-01, tambien cubierta en la TV).
     const mobilityBlock = this.resolveCanonicalBlock(
       classDay,
-      effState.blockRole,
+      state.blockRole,
     );
     const mobility = mobilityBlock?.prescriptions.filter(
       (p) => p.exerciseType === "mobility",
@@ -985,32 +953,29 @@ export class TvService {
       level: state.level,
       levelLabel,
       blocks,
-      blockRole: effState.blockRole,
+      blockRole: state.blockRole,
       // Pitfall 1: DERIVADO del roster en cada lectura, nunca persistido.
       blockIndex: blockIndex >= 0 ? blockIndex : 0,
-      // C1: derivados del roster igual que `blockIndex`, colapsando DEUTEROS.
+      // C1: derivados del roster igual que `blockIndex`, colapsando DEUTEROS
+      // (y el II/II_ALT).
       visualBlockIndex,
       visualBlockCount,
-      title: summary?.title ?? "",
+      title,
       mobilityLine:
         mobility && mobility.length > 0
           ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`
           : null,
-      columns: this.buildColumns(
-        classDay,
-        effState,
-        shared,
-        block,
-        formatDictated,
-      ),
+      columns: this.buildColumns(classDay, state, shared, block, formatDictated),
       exerciseIndex: state.exerciseIndex,
       timer: {
         // `mainPrescriptions(block).length` = estaciones del circuito: interval
         // y hiit corren `estaciones × rondas` ciclos (toTimerSpec). tabata lo
-        // ignora (sus rondas ya son el total de intervalos).
+        // ignora (sus rondas ya son el total de intervalos). El alt reusa
+        // este mismo camino: su spec sale de SU propio bloque (`block`), como
+        // cualquier rol — ya no hay un "timerBlock" separado del persistido.
         spec: toTimerSpec(
-          timerBlock?.formatParams ?? null,
-          this.mainPrescriptions(timerBlock).length,
+          block?.formatParams ?? null,
+          this.mainPrescriptions(block).length,
         ),
         status: state.timerStatus,
         startedAt: state.timerStartedAt,

@@ -57,6 +57,7 @@ const MOCK_INITIUM_BLOCK: BlockPlan = {
 const ROLE_ID_OFFSET: Partial<Record<BlockRole, number>> = {
   COMBOS_I: 200,
   COMBOS_II: 300,
+  COMBOS_II_ALT: 350,
 };
 
 const MOCK_FULL_BODY_EXERCISES: ExercisePrescription[] = [
@@ -178,7 +179,7 @@ describe("Combos Generator", () => {
   });
 
   describe("generateCombosSession", () => {
-    it("returns sessionMode='combos' with 4 blocks closing in ATHLOS (odd week) full-body circuit", async () => {
+    it("returns sessionMode='combos' with 5 blocks closing in ATHLOS (odd week) full-body circuit", async () => {
       const { generateCombosSession } = await import("../../src/modules/sessions/combos-generator");
       const db = createMockDb();
 
@@ -191,11 +192,12 @@ describe("Combos Generator", () => {
       );
 
       expect(session.sessionMode).toBe("combos");
-      expect(session.blocks).toHaveLength(4);
+      expect(session.blocks).toHaveLength(5);
       expect(session.blocks.map((b) => b.role)).toEqual([
         "INITIUM",
         "COMBOS_I",
         "COMBOS_II",
+        "COMBOS_II_ALT",
         "ATHLOS",
       ]);
       expect(session.dayId).toBe("W21-miercoles-alfa");
@@ -220,8 +222,55 @@ describe("Combos Generator", () => {
         "INITIUM",
         "COMBOS_I",
         "COMBOS_II",
+        "COMBOS_II_ALT",
         "EPIKOS",
       ]);
+    });
+
+    it("COMBOS_II_ALT reuses COMBOS_II's pool but resolves a distinct route/exercises (T-178-03)", async () => {
+      const { generateCombosSession, COMBOS_ROUTE_POOLS } = await import(
+        "../../src/modules/sessions/combos-generator"
+      );
+      const db = createMockDb();
+
+      const session = await generateCombosSession(
+        db as Parameters<typeof generateCombosSession>[0],
+        21,
+        "miercoles",
+        "alfa_delta",
+        "alfa",
+      );
+
+      const comboII = session.blocks.find((b) => b.role === "COMBOS_II")!;
+      const comboIIAlt = session.blocks.find((b) => b.role === "COMBOS_II_ALT")!;
+
+      // Same pool as COMBOS_II (tren_inferior), same forced format.
+      expect(COMBOS_ROUTE_POOLS.COMBOS_II).toContain(comboIIAlt.route);
+      expect(comboIIAlt.format.name).toBe("Combos");
+      expect(comboIIAlt.format.formatId).not.toBe(0);
+
+      // Distinct route (pool has >=2 members) and distinct exercise set.
+      expect(comboIIAlt.route).not.toBe(comboII.route);
+      const comboIIIds = new Set(comboII.exercises.map((ex) => ex.exerciseId));
+      const comboIIAltIds = new Set(comboIIAlt.exercises.map((ex) => ex.exerciseId));
+      expect(comboIIAltIds).not.toEqual(comboIIIds);
+    });
+
+    it("COMBOS_II_ALT sits between COMBOS_II and the FB close, immediately after the role blocks", async () => {
+      const { generateCombosSession } = await import("../../src/modules/sessions/combos-generator");
+      const db = createMockDb();
+
+      const session = await generateCombosSession(
+        db as Parameters<typeof generateCombosSession>[0],
+        21,
+        "miercoles",
+        "alfa_delta",
+        "alfa",
+      );
+
+      const roles = session.blocks.map((b) => b.role);
+      expect(roles.indexOf("COMBOS_II_ALT")).toBe(roles.indexOf("COMBOS_II") + 1);
+      expect(roles.indexOf("COMBOS_II_ALT")).toBe(roles.length - 2);
     });
 
     it("full-body close uses route FB, format 'Circuito cooperativo' and mirrors COMBOS_II numbers", async () => {
@@ -338,7 +387,7 @@ describe("Combos Generator", () => {
         "alfa",
       );
 
-      expect(session.blocks).toHaveLength(4);
+      expect(session.blocks).toHaveLength(5);
       const fullBody = session.blocks.find((b) => b.role === "ATHLOS")!;
       expect(fullBody.exercises).toHaveLength(1);
     });
