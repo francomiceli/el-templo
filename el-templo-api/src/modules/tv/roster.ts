@@ -60,6 +60,7 @@ export const COMBOS_ROLES = [
   "INITIUM",
   "COMBOS_I",
   "COMBOS_II",
+  "COMBOS_II_ALT",
   "ATHLOS",
   "EPIKOS",
   "STRETCHING",
@@ -74,6 +75,7 @@ export const TECNICA_ROLES = [
   "INITIUM",
   "TECNICA_I",
   "TECNICA_II",
+  "TECNICA_II_ALT",
   "STRETCHING",
 ] as const;
 
@@ -144,13 +146,16 @@ export interface RosterClassDay<TBlock extends RosterBlock = RosterBlock> {
  * no 5, y para decidir si cambiar de rol reinicia el cronometro (pasar de un
  * camino al otro NO deberia, es el mismo bloque).
  *
- * Fase 178: `COMBOS_II_ALT`/`TECNICA_II_ALT` son el bloque alternativo del 2º
- * bloque de técnica/combos — sibling VISUAL del II (mismo grupo/índice de
- * bloque, mismo cronómetro), NUNCA un paso navegable propio. Por eso colapsan
- * al grupo del II acá, pero NO se agregan a `COMBOS_ROLES`/`TECNICA_ROLES`
- * (los arrays canónicos que alimentan `buildRoster` → `context.blocks` del
- * control): agregarlos ahí lo convertiría en un botón navegable y extendería
- * ANTERIOR/SIGUIENTE, violando la decisión LOCKED del CONTEXT de la fase.
+ * Fase 178 (rehecha): `COMBOS_II_ALT`/`TECNICA_II_ALT` son el bloque
+ * alternativo del 2º bloque de técnica/combos — para Franco (dueño del
+ * producto) el II y el II ALT son el MISMO bloque, dos juegos de ejercicios.
+ * Por eso SÍ estan en `COMBOS_ROLES`/`TECNICA_ROLES` (son un boton navegable
+ * mas de la grilla del control, con ANTERIOR/SIGUIENTE incluido) pero
+ * colapsan al grupo del II acá: navegar del II al alt (o viceversa) NO
+ * reinicia el cronómetro (misma excepción de `applyBlockRole` que
+ * DEUTEROS_1↔DEUTEROS_2) y ambos comparten el mismo índice/contador "BLOQUE
+ * n / M". El viejo toggle "Ver alternativo" (`showAlternative`) que hacia
+ * esto vía un swap efímero fuera del roster quedó eliminado.
  */
 export function visualGroupOf(role: string): string {
   if (role === "DEUTEROS_1" || role === "DEUTEROS_2") return "DEUTEROS";

@@ -104,7 +104,6 @@ interface ControlState {
   pausedAt: number | null;
   pausedAccumMs: number;
   soundEnabled: boolean;
-  showAlternative: boolean;
 }
 
 interface ControlContext {
@@ -612,39 +611,20 @@ describe("POST /control/state — bloque, nivel y ejercicio (D-15)", () => {
     expect(state.exerciseIndex).toBe(1);
   });
 
-  it("showAlternative arranca apagado, prender/apagar persiste, y el campo viejo se ignora sin efecto (fase 178)", async () => {
-    const inicial = await write({});
-    expect(inicial.showAlternative).toBe(false);
-
-    const prendido = await write({ showAlternative: true });
-    expect(prendido.showAlternative).toBe(true);
-    // Una escritura que no lo nombra no lo vuelve a apagar (campo absoluto).
-    const otra = await write({ blockRole: "NUCLEUS" });
-    expect(otra.showAlternative).toBe(true);
-
-    const apagado = await write({ showAlternative: false });
-    expect(apagado.showAlternative).toBe(false);
-
-    // El write persiste: el readState siguiente (via GET /context) lo trae.
-    const prendidoOtraVez = await write({ showAlternative: true });
-    expect(prendidoOtraVez.showAlternative).toBe(true);
-    const context = JSON.parse(
-      (await getContext(coachAToken, branchAId)).body,
-    ) as ControlContext;
-    expect(context.state?.showAlternative).toBe(true);
-
-    // El campo viejo de la rotación ya no existe. Fastify compila ajv con
+  it("campos viejos/desconocidos del body (showAlternative incluido) se stripean sin error y sin efecto", async () => {
+    // El toggle "Ver alternativo" (fase 178) y la vieja rotación automática de
+    // deuteros ya no existen en el contrato. Fastify compila ajv con
     // removeAdditional:true (default), así que additionalProperties:false
-    // STRIPEA la prop desconocida en vez de rechazarla: la escritura sale 200
-    // pero el campo viejo no tiene ningún efecto (el backend ya no lo lee). La
-    // garantía real es que no resucita rotación ni pisa el toggle vigente.
+    // STRIPEA props desconocidas en vez de rechazarlas: la escritura sale 200
+    // y el body de vuelta no trae ninguno de estos campos.
     const res = await postState(coachAToken, {
       branchId: branchAId,
+      showAlternative: true,
       deuterosAutoRotate: true,
     });
     expect(res.statusCode).toBe(200);
     const stripState = (JSON.parse(res.body) as ControlContext).state;
-    expect(stripState?.showAlternative).toBe(true);
+    expect(stripState).not.toHaveProperty("showAlternative");
     expect(stripState).not.toHaveProperty("deuterosAutoRotate");
     expect(stripState).not.toHaveProperty("deuterosPinnedAt");
   });
@@ -961,10 +941,9 @@ describe("POST /control/state — sabado ROM (D-23)", () => {
   });
 });
 
-describe("POST /control/state — bloque alternativo técnica/combos (fase 178)", () => {
-  it("BLOCKER (decisión LOCKED): el alt NO es navegable — context.blocks no trae roles _ALT y su largo es el canónico del modo", async () => {
-    // Día técnica con el 5º bloque físico (TECNICA_II_ALT) generado, pero
-    // context.blocks (buildRoster -> TECNICA_ROLES) es el canónico de 4.
+describe("POST /control/state — bloque alternativo técnica/combos (rehecho, botón navegable)", () => {
+  /** Día técnica con los 5 bloques físicos, incluido el alt. */
+  async function seedTecnicaConAlt(): Promise<void> {
     await seedSession({
       day: "martes",
       level: "alfa",
@@ -977,18 +956,124 @@ describe("POST /control/state — bloque alternativo técnica/combos (fase 178)"
       ],
       sessionMode: "tecnica",
     });
+  }
 
-    const context = JSON.parse(
+  /** Día combos con los 6 bloques físicos, incluido el alt. */
+  async function seedCombosConAlt(): Promise<void> {
+    await seedSession({
+      day: "martes",
+      level: "alfa",
+      roles: [
+        "INITIUM",
+        "COMBOS_I",
+        "COMBOS_II",
+        "COMBOS_II_ALT",
+        "EPIKOS",
+        "STRETCHING",
+      ],
+      sessionMode: "combos",
+    });
+  }
+
+  it("el alt aparece como boton propio en context.blocks (técnica)", async () => {
+    await seedTecnicaConAlt();
+
+    const tecnica = JSON.parse(
       (await getContext(coachAToken, branchAId)).body,
     ) as ControlContext;
+    expect(tecnica.mode).toBe("tecnica");
+    // Ahora SI son 5 (el alt es un paso mas del roster canonico), en el orden
+    // TECNICA_ROLES: INITIUM, TECNICA_I, TECNICA_II, TECNICA_II_ALT, STRETCHING.
+    expect(tecnica.blocks.map((b) => b.role)).toEqual([
+      "INITIUM",
+      "TECNICA_I",
+      "TECNICA_II",
+      "TECNICA_II_ALT",
+      "STRETCHING",
+    ]);
+    const altBlock = tecnica.blocks.find((b) => b.role === "TECNICA_II_ALT")!;
+    expect(altBlock.title.startsWith("TÉCNICA II ALT")).toBe(true);
+  });
 
-    expect(context.mode).toBe("tecnica");
-    // TECNICA_ROLES canónico: INITIUM, TECNICA_I, TECNICA_II, STRETCHING — 4,
-    // no 5. El alt existe como bloque físico pero nunca es un paso propio del
-    // roster que alimenta la botonera / ANTERIOR-SIGUIENTE.
-    expect(context.blocks).toHaveLength(4);
-    expect(context.blocks.map((b) => b.role)).not.toContain("TECNICA_II_ALT");
-    for (const block of context.blocks) {
+  it("el alt aparece como boton propio en context.blocks (combos)", async () => {
+    await seedCombosConAlt();
+
+    const combos = JSON.parse(
+      (await getContext(coachAToken, branchAId)).body,
+    ) as ControlContext;
+    expect(combos.mode).toBe("combos");
+    expect(combos.blocks.map((b) => b.role)).toContain("COMBOS_II_ALT");
+    const combosAlt = combos.blocks.find((b) => b.role === "COMBOS_II_ALT")!;
+    expect(combosAlt.title.startsWith("COMBOS II ALT")).toBe(true);
+  });
+
+  it("navegar II <-> alt NO reinicia el cronometro (mismo visualGroup) y comparte el contador n/M", async () => {
+    await seedTecnicaConAlt();
+
+    await write({ blockRole: "TECNICA_II", exerciseIndex: 1 });
+    const arrancado = await write({ timer: "start" });
+    await sleep(40);
+
+    const enAlt = await write({ blockRole: "TECNICA_II_ALT" });
+    expect(enAlt.blockRole).toBe("TECNICA_II_ALT");
+    // El cronometro sigue exactamente donde estaba: es el MISMO bloque visual.
+    expect(enAlt.timerStatus).toBe("running");
+    expect(enAlt.timerStartedAt).toBe(arrancado.timerStartedAt);
+    expect(enAlt.pausedAccumMs).toBe(0);
+    // El ejercicio si vuelve a 0: la lista del camino nuevo es otra.
+    expect(enAlt.exerciseIndex).toBe(0);
+
+    const pantallaAlt = JSON.parse(
+      (await getScreen(coachAToken, branchAId)).body,
+    ) as TvPollBody;
+    // TECNICA_ROLES colapsa TECNICA_II/TECNICA_II_ALT: 5 entradas de roster,
+    // 4 grupos visuales (INITIUM, TECNICA_I, TECNICA_II, STRETCHING).
+    expect(pantallaAlt.class!.visualBlockCount).toBe(4);
+    expect(pantallaAlt.class!.visualBlockIndex).toBe(2);
+    // blockIndex SI distingue el alt de su II (son entradas de roster
+    // distintas), aunque compartan grupo visual.
+    expect(pantallaAlt.class!.blockIndex).toBe(3);
+
+    // Y volver al II tampoco reinicia nada.
+    const devuelta = await write({ blockRole: "TECNICA_II" });
+    expect(devuelta.timerStatus).toBe("running");
+    expect(devuelta.timerStartedAt).toBe(arrancado.timerStartedAt);
+
+    const pantallaII = JSON.parse(
+      (await getScreen(coachAToken, branchAId)).body,
+    ) as TvPollBody;
+    // Mismo indice visual que el alt: comparten el contador "BLOQUE n / M".
+    expect(pantallaII.class!.visualBlockCount).toBe(4);
+    expect(pantallaII.class!.visualBlockIndex).toBe(2);
+    expect(pantallaII.class!.blockIndex).toBe(2);
+  });
+
+  it("en un dia regular el alt no existe (no esta en REGULAR_ROLES)", async () => {
+    await seedTuesday();
+    const regular = JSON.parse(
+      (await getContext(coachAToken, branchAId)).body,
+    ) as ControlContext;
+    expect(regular.mode).toBe("regular");
+    for (const block of regular.blocks) {
+      expect(block.role.endsWith("_ALT")).toBe(false);
+    }
+  });
+
+  it("en un sabado ROM el alt no existe (no esta en ROM_ROLES)", async () => {
+    vi.setSystemTime(SATURDAY);
+    for (const level of ["alfa", "delta"]) {
+      await seedSession({
+        day: "sabado",
+        level,
+        roles: ROM_ROLES,
+        sessionMode: "rom",
+      });
+    }
+    const rom = JSON.parse(
+      (await getContext(coachAToken, branchAId)).body,
+    ) as ControlContext;
+    expect(rom.mode).toBe("rom");
+    for (const block of rom.blocks) {
       expect(block.role.endsWith("_ALT")).toBe(false);
     }
   });

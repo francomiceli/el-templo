@@ -32,7 +32,6 @@ import {
   type ClassDayPrescription,
 } from "./class-day";
 import {
-  blockTitle,
   buildRoster,
   findBlock,
   findInitiumBlock,
@@ -230,7 +229,6 @@ export class TvService {
         pausedAt: schema.tvClassState.pausedAt,
         pausedAccumMs: schema.tvClassState.pausedAccumMs,
         soundEnabled: schema.tvClassState.soundEnabled,
-        showAlternative: schema.tvClassState.showAlternative,
       })
       .from(schema.tvClassState)
       .where(eq(schema.tvClassState.branchId, branchId));
@@ -249,7 +247,6 @@ export class TvService {
       pausedAt: row.pausedAt ? row.pausedAt.getTime() : null,
       pausedAccumMs: row.pausedAccumMs,
       soundEnabled: row.soundEnabled,
-      showAlternative: row.showAlternative,
     };
   }
 
@@ -443,8 +440,6 @@ export class TvService {
         level: "alfa",
         exerciseIndex: 0,
         soundEnabled: false,
-        // Toggle "Ver alternativo" arranca apagado (fase 178).
-        showAlternative: false,
         ...IDLE_TIMER,
       },
       classDay,
@@ -462,9 +457,6 @@ export class TvService {
     }
     if (write.soundEnabled !== undefined) {
       state = { ...state, soundEnabled: write.soundEnabled };
-    }
-    if (write.showAlternative !== undefined) {
-      state = { ...state, showAlternative: write.showAlternative };
     }
     // D-08: la pantalla de cierre es un estado del profe, no del reloj. "idle"
     // no se escribe: para volver a reposo esta `endClass`.
@@ -505,11 +497,13 @@ export class TvService {
    * sea que un valor invalido moveria al profe al bloque 1 y le reiniciaria el
    * timer. El control recibe el estado real en la respuesta y se auto-corrige.
    *
-   * Excepcion: DEUTEROS es UN bloque con dos caminos (DEUTEROS_1/DEUTEROS_2,
-   * `visualGroupOf`). Pasar de un camino al otro es un cambio de VARIANTE
-   * dentro del mismo bloque, no un bloque nuevo — asi que el cronometro NO se
-   * reinicia (el profe puede mostrar el camino alternativo sin perder el
-   * tiempo corrido). El ejercicio si vuelve a 0: la lista del camino nuevo es
+   * Excepcion: `visualGroupOf` agrupa bloques que son UN mismo bloque con
+   * varios caminos — DEUTEROS_1/DEUTEROS_2, y COMBOS_II/COMBOS_II_ALT (idem
+   * TECNICA_II/TECNICA_II_ALT). Pasar de un camino al otro dentro del mismo
+   * grupo es un cambio de VARIANTE, no un bloque nuevo — asi que el
+   * cronometro NO se reinicia (el profe puede mostrar el camino alternativo
+   * sin perder el tiempo corrido) y ambos caminos comparten el mismo indice
+   * "BLOQUE n / M". El ejercicio si vuelve a 0: la lista del camino nuevo es
    * otra, y arrancar en un indice ajeno seria arbitrario.
    */
   private applyBlockRole(
@@ -633,7 +627,6 @@ export class TvService {
       pausedAt: state.pausedAt ? new Date(state.pausedAt) : null,
       pausedAccumMs: state.pausedAccumMs,
       soundEnabled: state.soundEnabled,
-      showAlternative: state.showAlternative,
       updatedBy: userId,
     };
 
@@ -818,7 +811,7 @@ export class TvService {
    * vacia), asi que un dia con un solo deutero emite 2 columnas, no 4. Cada
    * columna se prefija con la etiqueta del deutero (`ROLE_LABELS`, "DEUTEROS
    * I"/"DEUTEROS II") para distinguir las 4 en pantalla. El bloque alt
-   * (`effState.blockRole = *_II_ALT`) NO es deuteros: cae en el caso general.
+   * (`state.blockRole = *_II_ALT`) NO es deuteros: cae en el caso general.
    */
   private buildColumns(
     classDay: ClassDay,
@@ -914,42 +907,17 @@ export class TvService {
   ): TvClassPayload {
     const blocks: TvBlockSummary[] = buildRoster(classDay);
 
-    // Toggle "Ver alternativo" (fase 178): con el toggle prendido y el bloque
-    // activo el II de un dia combos/tecnica, la ESTACION mostrada swapea al
-    // bloque alt (COMBOS_II_ALT/TECNICA_II_ALT) — sin tocar el `blockRole`
-    // persistido ni el timer. Defensivo: si la sesion es vieja y no tiene el
-    // bloque alt generado, `resolveBlock` da undefined y el swap no aplica.
-    let displayRole = state.blockRole;
-    if (state.showAlternative) {
-      const altRole =
-        state.blockRole === "COMBOS_II"
-          ? "COMBOS_II_ALT"
-          : state.blockRole === "TECNICA_II"
-            ? "TECNICA_II_ALT"
-            : null;
-      if (altRole && this.resolveBlock(classDay, altRole, state.level)) {
-        displayRole = altRole;
-      }
-    }
-    // Estado "efectivo" para lo VISUAL (columnas, movilidad, blockRole): la
-    // estacion mostrada. El timer se mantiene sobre el bloque PERSISTIDO.
-    const effState: TvControlState =
-      displayRole === state.blockRole
-        ? state
-        : { ...state, blockRole: displayRole };
-
-    // El alt NO esta en `blocks` (sibling visual, nunca su propia entrada de
-    // roster — decision LOCKED): `summary`/`blockIndex` resuelven SIEMPRE
-    // contra el bloque PERSISTIDO (`state.blockRole`), que si esta en el
-    // roster. En un dia regular esto no cambia nada (displayRole === el
-    // persistido, siempre); en combos/tecnica con el toggle prendido, apunta
-    // al II real (nunca a -1) y `shared` da el valor correcto del II (false).
+    // COMBOS_II_ALT/TECNICA_II_ALT viven en el roster canonico (roster.ts):
+    // se resuelven exactamente igual que cualquier otro rol, sin swap. El
+    // viejo toggle "Ver alternativo" (fase 178, showAlternative) que mostraba
+    // el alt como un sibling fuera de `blocks` quedo eliminado.
     const blockIndex = blocks.findIndex((b) => b.role === state.blockRole);
     const summary = blocks[blockIndex];
     const shared = summary?.shared ?? false;
 
-    // C1: DEUTEROS_1/DEUTEROS_2 son dos caminos del MISMO bloque visual — los
-    // puntitos "BLOQUE n / M" cuentan grupos, no entradas del roster real.
+    // C1: DEUTEROS_1/DEUTEROS_2 (y ahora COMBOS_II_ALT/TECNICA_II_ALT con su
+    // II) son caminos del MISMO bloque visual — los puntitos "BLOQUE n / M"
+    // cuentan grupos, no entradas del roster real.
     const visualGroups: string[] = [];
     for (const b of blocks) {
       const g = visualGroupOf(b.role);
@@ -957,44 +925,23 @@ export class TvService {
     }
     const visualBlockCount = visualGroups.length;
     const rawVisualBlockIndex = visualGroups.indexOf(
-      visualGroupOf(effState.blockRole),
+      visualGroupOf(state.blockRole),
     );
     const visualBlockIndex =
       rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
 
-    // Columnas/titulo salen de la estacion MOSTRADA (effState).
-    const block = this.resolveBlock(
-      classDay,
-      effState.blockRole,
-      effState.level,
-    );
+    const block = this.resolveBlock(classDay, state.blockRole, state.level);
     const formatDictated =
       !!block?.formatParams &&
       FORMAT_DICTATED_TYPES.has(block.formatParams.type);
-    // Titulo: con el toggle apagado (dia regular, o combos/tecnica sin
-    // "Ver alternativo"), sale del roster real (`summary.title`), igual que
-    // siempre. Con el toggle PRENDIDO el bloque mostrado (el alt) no esta en
-    // `blocks` (decision LOCKED, no navegable) — se computa directo del
-    // bloque resuelto arriba, sin depender del array canonico.
-    const title =
-      displayRole !== state.blockRole && block
-        ? blockTitle(displayRole, block)
-        : (summary?.title ?? "");
-    // El TIMER se calcula del bloque PERSISTIDO (state.blockRole): el toggle no
-    // puede cambiar su spec (interval/hiit podrian tener distinto conteo de
-    // ejercicios entre I y II y el total del bloque saltaria al prenderlo).
-    const timerBlock = this.resolveBlock(
-      classDay,
-      state.blockRole,
-      state.level,
-    );
+    const title = summary?.title ?? "";
 
-    const levelLabel = this.levelLabel(classDay, effState.level, shared);
+    const levelLabel = this.levelLabel(classDay, state.level, shared);
     // La movilidad sale del nivel canonico (kairos-first), como el PDF/editor
     // (regresion KAIROS-01, tambien cubierta en la TV).
     const mobilityBlock = this.resolveCanonicalBlock(
       classDay,
-      effState.blockRole,
+      state.blockRole,
     );
     const mobility = mobilityBlock?.prescriptions.filter(
       (p) => p.exerciseType === "mobility",
@@ -1006,10 +953,11 @@ export class TvService {
       level: state.level,
       levelLabel,
       blocks,
-      blockRole: effState.blockRole,
+      blockRole: state.blockRole,
       // Pitfall 1: DERIVADO del roster en cada lectura, nunca persistido.
       blockIndex: blockIndex >= 0 ? blockIndex : 0,
-      // C1: derivados del roster igual que `blockIndex`, colapsando DEUTEROS.
+      // C1: derivados del roster igual que `blockIndex`, colapsando DEUTEROS
+      // (y el II/II_ALT).
       visualBlockIndex,
       visualBlockCount,
       title,
@@ -1017,21 +965,17 @@ export class TvService {
         mobility && mobility.length > 0
           ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`
           : null,
-      columns: this.buildColumns(
-        classDay,
-        effState,
-        shared,
-        block,
-        formatDictated,
-      ),
+      columns: this.buildColumns(classDay, state, shared, block, formatDictated),
       exerciseIndex: state.exerciseIndex,
       timer: {
         // `mainPrescriptions(block).length` = estaciones del circuito: interval
         // y hiit corren `estaciones × rondas` ciclos (toTimerSpec). tabata lo
-        // ignora (sus rondas ya son el total de intervalos).
+        // ignora (sus rondas ya son el total de intervalos). El alt reusa
+        // este mismo camino: su spec sale de SU propio bloque (`block`), como
+        // cualquier rol — ya no hay un "timerBlock" separado del persistido.
         spec: toTimerSpec(
-          timerBlock?.formatParams ?? null,
-          this.mainPrescriptions(timerBlock).length,
+          block?.formatParams ?? null,
+          this.mainPrescriptions(block).length,
         ),
         status: state.timerStatus,
         startedAt: state.timerStartedAt,
