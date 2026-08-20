@@ -13,8 +13,13 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/** Fase 174.1-03 (D-02): `getChurn`/`getRenewal` ahora reciben `ctx`. */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 121 Plan 03 — RenewalService (Block 2, RENOV-01..04).
@@ -194,8 +199,8 @@ describe("RenewalService (Phase 121 Plan 03)", () => {
     });
 
     const filters = await wideRange();
-    const renewal = await renewalSvc.getRenewal(filters);
-    const churn = await churnSvc.getChurn(filters);
+    const renewal = await renewalSvc.getRenewal(CTX, filters);
+    const churn = await churnSvc.getChurn(CTX, filters);
 
     // Shared cohort: the vencidos denominator is byte-identical.
     expect(renewal.renewal.n).toBe(churn.window.churn.n);
@@ -226,7 +231,7 @@ describe("RenewalService (Phase 121 Plan 03)", () => {
       endDate: await dateOffset(60),
     });
 
-    const res = await renewalSvc.getRenewal(await wideRange());
+    const res = await renewalSvc.getRenewal(CTX, await wideRange());
     expect(res.renewal.n).toBe(1); // one distinct person
     expect(res.renewal.nominal).toBe(1); // renovó
     expect(res.renewal.percentage).toBe(100);
@@ -250,7 +255,7 @@ describe("RenewalService (Phase 121 Plan 03)", () => {
       endDate: await dateOffset(82),
     });
 
-    const res = await renewalSvc.getRenewal(await wideRange());
+    const res = await renewalSvc.getRenewal(CTX, await wideRange());
     expect(res.renewal.n).toBe(1);
     expect(res.renewal.nominal).toBe(1);
   });
@@ -272,7 +277,7 @@ describe("RenewalService (Phase 121 Plan 03)", () => {
       endDate: await dateOffset(40),
     });
 
-    const res = await renewalSvc.getRenewal(await wideRange());
+    const res = await renewalSvc.getRenewal(CTX, await wideRange());
     expect(res.renewal.n).toBe(1);
     expect(res.renewal.nominal).toBe(1);
   });
@@ -290,10 +295,10 @@ describe("RenewalService (Phase 121 Plan 03)", () => {
     });
 
     const range = await wideRange();
-    const def = await renewalSvc.getRenewal(range);
+    const def = await renewalSvc.getRenewal(CTX, range);
     expect(def.windowDays).toBe(15);
 
-    const narrowed = await renewalSvc.getRenewal({ ...range, window: 10 });
+    const narrowed = await renewalSvc.getRenewal(CTX, { ...range, window: 10 });
     expect(narrowed.windowDays).toBe(10);
   });
 
@@ -317,8 +322,8 @@ describe("RenewalService (Phase 121 Plan 03)", () => {
     });
 
     const filters = await wideRange();
-    const renewal = await renewalSvc.getRenewal(filters);
-    const churn = await churnSvc.getChurn(filters);
+    const renewal = await renewalSvc.getRenewal(CTX, filters);
+    const churn = await churnSvc.getChurn(CTX, filters);
 
     // The in-grace person is excluded from the matured cohort but surfaced.
     expect(renewal.enGracia).toBe(1);
@@ -355,8 +360,8 @@ describe("RenewalService (Phase 121 Plan 03)", () => {
     });
 
     const filters = await wideRange();
-    const renewal = await renewalSvc.getRenewal(filters);
-    const churn = await churnSvc.getChurn(filters);
+    const renewal = await renewalSvc.getRenewal(CTX, filters);
+    const churn = await churnSvc.getChurn(CTX, filters);
 
     expect(renewal.enGracia).toBe(0);
     expect(renewal.renewal.percentage + churn.window.churn.percentage).toBe(
@@ -384,7 +389,7 @@ describe("RenewalService (Phase 121 Plan 03)", () => {
       endDate: await dateOffset(60),
     });
 
-    const res = await renewalSvc.getRenewal(await wideRange());
+    const res = await renewalSvc.getRenewal(CTX, await wideRange());
     const axes = new Set(res.breakdowns.map((b) => b.axis));
     expect(axes.has("branch")).toBe(true);
     expect(axes.has("country")).toBe(true);

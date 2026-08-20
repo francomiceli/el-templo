@@ -91,6 +91,9 @@ const EMAIL_ADMIN_SEMILLA = "admin@test.com";
 /** Contexto de El Templo, para filtrar la lectura del admin semilla. */
 const CTX_TEMPLO: TenantContext = { tenantId: TENANT_TEMPLO };
 
+/** Contexto del gimnasio 2, para filtrar lecturas de tablas strict (174.1). */
+const CTX_DOS: TenantContext = { tenantId: TENANT_DOS };
+
 /** Ruta del setup global, para el gate de opt-in (D-05). */
 const RUTA_SETUP = path.resolve(__dirname, "..", "setup.ts");
 
@@ -280,7 +283,12 @@ describe("A. el espejo mínimo de D-06 nace en el gimnasio 2", () => {
         activityId: schema.schedules.activityId,
       })
       .from(schema.schedules)
-      .where(eq(schema.schedules.id, gym2.scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, CTX_DOS),
+          eq(schema.schedules.id, gym2.scheduleId),
+        ),
+      );
 
     expect(
       { branchId: horario?.branchId, activityId: horario?.activityId },

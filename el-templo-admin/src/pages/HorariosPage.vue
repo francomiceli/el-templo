@@ -118,6 +118,15 @@
         />
 
         <!-- ================================================================== -->
+        <!-- Registros del día de los alumnos que asisten hoy -->
+        <!-- ================================================================== -->
+        <RegistrosDelDiaCard
+          v-if="canViewCheckInRoster"
+          :branch-id="selectedBranchId"
+          :timezone="branchTimezone"
+        />
+
+        <!-- ================================================================== -->
         <!-- Weekly Calendar Grid -->
         <!-- ================================================================== -->
         <div v-if="loadingGrid" class="flex flex-center q-pa-xl">
@@ -451,6 +460,7 @@ import { DAY_SHORT_LABELS } from 'src/types/scheduling';
 import type { BranchOption } from 'src/types/member';
 import SlotDetailDialog from 'src/components/scheduling/SlotDetailDialog.vue';
 import AnniversariesCard from 'src/components/scheduling/AnniversariesCard.vue';
+import RegistrosDelDiaCard from 'src/components/scheduling/RegistrosDelDiaCard.vue';
 // Phase 113: ActivitiesDialog.vue was refactored into an embedded panel.
 // Filename kept for git history; import alias reflects the new shape.
 import ActivitiesPanel from 'src/components/scheduling/ActivitiesDialog.vue';
@@ -471,6 +481,13 @@ const authStore = useAuthStore();
 // Only the owner assigns coaches to slots (roster WRITE is owner-only); the rest
 // of the staff see the roster read-only inside Horarios.
 const isOwner = computed(() => authStore.user?.role === 'owner');
+
+// Espeja el backend CHECKIN_ROSTER_ROLES: solo coach/admin/owner ven los
+// registros del día. Gestión y recepción no lo ven ni disparan la request
+// (que igual les devolvería 403).
+const canViewCheckInRoster = computed(() =>
+  ['coach', 'admin', 'owner'].includes(authStore.user?.role ?? '')
+);
 
 // ─── State ──────────────────────────────────────────────────────────────────
 

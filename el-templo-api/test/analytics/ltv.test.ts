@@ -271,7 +271,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
 
     const filters = await wideRange();
     const ltv = await ltvSvc.getLtv(CTX, filters);
-    const churn = await churnSvc.getChurn(filters);
+    const churn = await churnSvc.getChurn(CTX, filters);
 
     // The headline is exactly 1 ÷ (churn% / 100) for the SAME filters (D-122-03).
     const pct = churn.window.churn.percentage;
@@ -298,7 +298,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
 
     const filters = await wideRange();
     const ltv = await ltvSvc.getLtv(CTX, filters);
-    const churn = await churnSvc.getChurn(filters);
+    const churn = await churnSvc.getChurn(CTX, filters);
 
     expect(churn.window.churn.percentage).toBe(0);
     expect(ltv.lifetimeHeadlineMonths).toBeNull();
@@ -334,7 +334,7 @@ describe("LtvService (Phase 122 Plan 03)", () => {
 
     const filters = await wideRange();
     const ltv = await ltvSvc.getLtv(CTX, filters);
-    const churn = await churnSvc.getChurn(filters);
+    const churn = await churnSvc.getChurn(CTX, filters);
 
     // n is the FULL matured cohort (closed + censored), matching churn's denominator —
     // the censored lives were NOT discarded (D-122-05).

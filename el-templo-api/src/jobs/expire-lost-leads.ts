@@ -41,16 +41,26 @@ const log = pino({ name: "expire-lost-leads" });
  * migración 0170 (95-118) y al reporte de sesiones de prueba, para que cron,
  * reporte y backfill cuenten exactamente lo mismo. Se reutiliza como fragmento
  * compartido entre el UPDATE de flip y el COUNT de salteados-manuales (DRY).
+ *
+ * Fase 174.1-05 (D-02): pasó de `const` a función que recibe `ctx` — vivía
+ * como fragmento módulo-level sin acceso al `ctx` per-tenant del barrido, así
+ * que su propio acceso a `bookings` (la tabla del boundary) quedaba sin
+ * `tenantWhere`. `b2.tenant_id`/`b.tenant_id` acotan el JOIN al mismo gimnasio
+ * que ya filtra `u.tenant_id` en cada statement que lo interpola — con un solo
+ * tenant activo el resultado es IDÉNTICO al de antes (la FK ya garantizaba
+ * que una booking de otro gimnasio nunca cruzaba con un `u.id` de este).
  */
-const lastTrialBookingJoin = sql`
+function lastTrialBookingJoin(ctx: TenantContext) {
+  return sql`
   JOIN (
     SELECT b2.member_id, MAX(b2.id) AS booking_id
     FROM bookings b2
-    WHERE b2.is_trial = 1 AND b2.booking_status <> 'cancelado'
+    WHERE b2.tenant_id = ${ctx.tenantId} AND b2.is_trial = 1 AND b2.booking_status <> 'cancelado'
     GROUP BY b2.member_id
   ) lt ON lt.member_id = u.id
-  JOIN bookings b ON b.id = lt.booking_id
+  JOIN bookings b ON b.id = lt.booking_id AND b.tenant_id = ${ctx.tenantId}
 `;
+}
 
 /**
  * Predicados base del candidato a vencer (sin el guard de source, que difiere
@@ -119,7 +129,7 @@ async function runExpireLostLeadsForTenant(
   const countRes = await db.execute(sql`
     SELECT COUNT(*) AS cnt
     FROM users u
-    ${lastTrialBookingJoin}
+    ${lastTrialBookingJoin(ctx)}
     WHERE u.tenant_id = ${ctx.tenantId}
       AND ${base}
       AND u.lead_status_source = 'manual'
@@ -132,7 +142,7 @@ async function runExpireLostLeadsForTenant(
   // `u.tenant_id` PRIMERO, mismo motivo que el COUNT de arriba.
   const updateRes = await db.execute(sql`
     UPDATE users u
-    ${lastTrialBookingJoin}
+    ${lastTrialBookingJoin(ctx)}
     SET u.lead_status = 'perdido', u.lead_status_source = 'auto'
     WHERE u.tenant_id = ${ctx.tenantId}
       AND ${base}

@@ -307,7 +307,10 @@ export class RatingsService {
    *
    * Exposes NOTHING about the coach (D-A3).
    */
-  async getPendingRating(memberId: number): Promise<PendingRating | null> {
+  async getPendingRating(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<PendingRating | null> {
     const now = Date.now();
 
     // Candidate in-person classes: confirmed attendance with a schedule (the
@@ -325,7 +328,10 @@ export class RatingsService {
       .from(schema.attendance)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.attendance.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.attendance.scheduleId),
+        ),
       )
       .innerJoin(
         schema.activities,
@@ -399,6 +405,7 @@ export class RatingsService {
    * (D-Q1) and enforces every server-side guard before inserting.
    */
   async submitRating(
+    ctx: TenantContext,
     memberId: number,
     input: SubmitRatingInput,
   ): Promise<void> {
@@ -428,7 +435,10 @@ export class RatingsService {
       .from(schema.attendance)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.attendance.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.attendance.scheduleId),
+        ),
       )
       .where(
         and(
@@ -495,14 +505,12 @@ export class RatingsService {
   }
 
   /**
-   * TV login default (Fase TV): sedes donde el coach autenticado está
-   * agendado HOY, una por turno (mañana <12:00 / tarde). Recorre las sedes
-   * del coach (user_branches) y reusa resolveRosterCoachId — el mismo
-   * change-point vigente que resuelve la atribución de ratings — así no suma
-   * accesos nuevos a class_coach_assignments (evita CON-06). Devuelve
-   * morning/afternoon: null si el coach no está agendado hoy en ese turno en
-   * ninguna de sus sedes (se queda con la primera sede que matchee cada
-   * turno).
+   * TV login default (fase TV): sedes donde el coach autenticado está agendado
+   * HOY, una por turno (mañana <12:00 / tarde). Recorre las sedes del coach
+   * (user_branches, con tenantWhere en ambas anclas) y reusa resolveRosterCoachId
+   * — el mismo change-point vigente que resuelve la atribución de ratings — así
+   * no suma accesos nuevos a class_coach_assignments. Devuelve morning/afternoon:
+   * null si el coach no está agendado hoy en ese turno en ninguna de sus sedes.
    */
   async getCoachTodaySchedule(
     ctx: TenantContext,

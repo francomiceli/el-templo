@@ -95,7 +95,7 @@ export async function backfillReferralCodes(
   let errors = 0;
   for (const row of rows) {
     try {
-      await service.generateReferralCode(row.id);
+      await service.generateReferralCode(ctx, row.id);
       assigned++;
     } catch (err: unknown) {
       errors++;

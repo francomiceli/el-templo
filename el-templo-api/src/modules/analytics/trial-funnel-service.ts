@@ -49,6 +49,8 @@ import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { bucketExpr, rangeConditions } from "./cohorts";
 import { metricShape } from "./metric-shape";
 import type {
@@ -180,12 +182,13 @@ export class TrialFunnelService {
    * breakdowns.
    */
   async getTrialFunnel(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<TrialFunnelAnalytics> {
     const attributionWindowDays =
       filters.window ?? TRIAL_ATTRIBUTION_WINDOW_DEFAULT_DAYS;
 
-    const fetched = await this.readCohort(filters, attributionWindowDays);
+    const fetched = await this.readCohort(ctx, filters, attributionWindowDays);
 
     // Turno INPUT filter (Phase 132 D-10): restrict the already-scoped cohort to
     // bookings whose schedule classifies to the selected turno. Applied in-memory
@@ -242,6 +245,7 @@ export class TrialFunnelService {
    * otherwise bind the unqualified ref to the inner subscriptions table).
    */
   private async readCohort(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     windowDays: number,
   ): Promise<TrialBookingRow[]> {
@@ -270,9 +274,13 @@ export class TrialFunnelService {
     // a PRIOR paid subscription that started strictly before the session date.
     // Outer refs qualified with the literal schema.bookings.* prefix (T-123-09).
     // Uses the UNRESTRICTED paid-sub predicate (any plan makes a returner).
+    // Fase 174.1-03 (D-02): `s`/`sp` son `subscriptions`/`subscription_plans`
+    // (self-join, boundary de subs) — `ctx` disponible, filtro explícito por
+    // `tenant_id` en las 4 subqueries correlacionadas.
     const newLeadCondition = sql`NOT EXISTS (
       SELECT 1 FROM subscriptions s
       WHERE s.user_id = ${schema.bookings.memberId}
+        AND s.tenant_id = ${ctx.tenantId}
         AND ${paidSubPredicate}
         AND s.start_date < ${schema.bookings.bookingDate}
     )`;
@@ -286,6 +294,7 @@ export class TrialFunnelService {
       EXISTS (
         SELECT 1 FROM subscriptions s
         WHERE s.user_id = ${schema.bookings.memberId}
+          AND s.tenant_id = ${ctx.tenantId}
           AND ${boughtPlanPredicate}
           AND s.start_date >= ${schema.bookings.bookingDate}
           AND s.start_date < DATE_ADD(${schema.bookings.bookingDate}, INTERVAL ${windowDays} DAY)
@@ -298,6 +307,8 @@ export class TrialFunnelService {
       SELECT sp.name FROM subscriptions s
       JOIN subscription_plans sp ON sp.id = s.plan_id
       WHERE s.user_id = ${schema.bookings.memberId}
+        AND s.tenant_id = ${ctx.tenantId}
+        AND sp.tenant_id = ${ctx.tenantId}
         AND ${boughtPlanPredicate}
         AND s.start_date >= ${schema.bookings.bookingDate}
         AND s.start_date < DATE_ADD(${schema.bookings.bookingDate}, INTERVAL ${windowDays} DAY)
@@ -308,6 +319,8 @@ export class TrialFunnelService {
       SELECT sp.country FROM subscriptions s
       JOIN subscription_plans sp ON sp.id = s.plan_id
       WHERE s.user_id = ${schema.bookings.memberId}
+        AND s.tenant_id = ${ctx.tenantId}
+        AND sp.tenant_id = ${ctx.tenantId}
         AND ${boughtPlanPredicate}
         AND s.start_date >= ${schema.bookings.bookingDate}
         AND s.start_date < DATE_ADD(${schema.bookings.bookingDate}, INTERVAL ${windowDays} DAY)
@@ -318,8 +331,11 @@ export class TrialFunnelService {
     // Provisional (D-123-12): 1 when this session's attribution window has NOT
     // fully elapsed yet (sessionDate + windowDays > today) — the cohort matures
     // itself as the window closes.
+    // Fase 174.1-03 (D-02): prefijo LITERAL `bookings.booking_date` (no
+    // `${schema.bookings.bookingDate}` interpolado) — este statement no tiene
+    // otro marcador de `tenant_id` propio.
     const provisionalExpr = sql<number>`(
-      DATE_ADD(${schema.bookings.bookingDate}, INTERVAL ${windowDays} DAY) > CURDATE()
+      DATE_ADD(bookings.booking_date, INTERVAL ${windowDays} DAY) > CURDATE()
     )`;
 
     // `branches` is joined UNCONDITIONALLY (flavor A): the branch/country/turno
@@ -358,7 +374,11 @@ export class TrialFunnelService {
       .from(schema.bookings)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.bookings.scheduleId),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.bookings.scheduleId),
+        ),
       )
       .innerJoin(
         schema.branches,

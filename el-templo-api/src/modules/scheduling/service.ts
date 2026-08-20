@@ -10,12 +10,26 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, inArray, gte, lte, lt, gt, ne } from "drizzle-orm";
+import {
+  eq,
+  and,
+  sql,
+  inArray,
+  gte,
+  lte,
+  lt,
+  gt,
+  ne,
+  isNull,
+} from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays, computeSeniority, todayInTz } from "../shared/date-utils";
 import { memberCoveredUntilSql } from "../shared/covered-until";
 import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
+import { dateToWeekNumber } from "../shared/week-dates";
+import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
+import { deriveActivityLabel } from "./derived-label";
 import type {
   ScheduleSlot,
   WeeklySlotView,
@@ -234,6 +248,32 @@ export class SchedulingService {
     );
     const holidayDates = new Set(holidaysInWeek.map((h) => h.date));
 
+    // Phase 159-06 (D-15/D-17, anti Pitfall 5): modo aprobado por dia de la
+    // semana SPOM, en UNA sola query cargada en un Map antes del loop de
+    // slots (mismo patron que bookingCountMap/holidayDates, nunca dentro del
+    // for). Solo sesiones de la plani regular (goal_plan_type IS NULL) y ya
+    // aprobadas cuentan para la etiqueta visible. `scheduling` todavia no
+    // llego a su fase de adopcion de tenancy (doc 03 §3: los services
+    // mantienen su firma actual hasta esa fase) -- el resto del archivo
+    // esta grandfathered en el allowlist con el mismo patron no-strict,
+    // single-tenant activo hoy.
+    const week = dateToWeekNumber(weekStartDate);
+    /* tenant-safe: scheduling aun no adopto tenantWhere (doc 03 §3); mismo patron no-strict que el resto del archivo, single-tenant activo hoy */
+    const modeRows = await this.db
+      .selectDistinct({
+        day: schema.sessions.day,
+        sessionMode: schema.sessions.sessionMode,
+      })
+      .from(schema.sessions)
+      .where(
+        and(
+          eq(schema.sessions.week, week),
+          eq(schema.sessions.status, "approved"),
+          isNull(schema.sessions.goalPlanType),
+        ),
+      );
+    const modeByDay = new Map(modeRows.map((r) => [r.day, r.sessionMode]));
+
     // Batch-fetch confirmed booking counts (single GROUP BY instead of N+1).
     // Phase 102-06: compute bookedCount (non-trials, drives capacity) and
     // trialCount (trials walking in, displayed separately) in one query —
@@ -329,12 +369,25 @@ export class SchedulingService {
         maxCapacity,
       );
 
+      // Phase 159-06 (D-15/D-17), refactor DRY 160-06: derivar la etiqueta
+      // via el helper compartido (scheduling/derived-label.ts) SOLO para la
+      // actividad generica ("General") y SOLO cuando no es especial (D-17
+      // no toca reservas/cupos/gating, solo la etiqueta visible). Un slot
+      // ROM (activity "ROM") o cualquier actividad especial nunca entra
+      // aca, aunque el dia tenga combos/tecnica aprobado.
+      const dayName = DAY_OF_WEEK_MAP[row.dayOfWeek];
+      const dayMode = dayName ? modeByDay.get(dayName) : undefined;
+
       slots.push({
         id: row.id,
         branchId: row.branchId,
         branchName: row.branchName,
         activityId: row.activityId,
-        activityName: row.activityName,
+        activityName: deriveActivityLabel(
+          row.activityName,
+          row.isSpecial,
+          dayMode,
+        ),
         dayOfWeek: row.dayOfWeek,
         startTime: row.startTime,
         endTime: row.endTime,
@@ -723,7 +776,12 @@ export class SchedulingService {
         inactiveReason: reasonValue,
         deactivatedAt: isActive ? null : new Date(),
       })
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
 
     const updated = await this.getScheduleSlot(ctx, scheduleId);
     if (!updated) throw new Error("Failed to retrieve updated schedule");
@@ -751,7 +809,7 @@ export class SchedulingService {
   }
 
   /**
-   * Change the activity assigned to a schedule slot (e.g. Calistenia → Combos).
+   * Change the activity assigned to a schedule slot (e.g. General → Yoga).
    *
    * Existing bookings for this slot are intentionally left intact — the
    * admin intent is to rebrand the recurring slot, not kick members out.
@@ -809,7 +867,12 @@ export class SchedulingService {
     await this.db
       .update(schema.schedules)
       .set({ activityId })
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
 
     this.log.info(
       { scheduleId, activityId },
@@ -891,14 +954,16 @@ export class SchedulingService {
       );
     }
 
-    // Get or create "Calistenia" activity
+    // Get or create "General" activity (D-16: renombrada por la migracion
+    // 0204 — este literal DEBE coincidir con el dato o la proxima sede
+    // sembrada duplica la actividad generica, ver Pitfall 4).
     let [regularActivity] = await this.db
       .select({ id: schema.activities.id })
       .from(schema.activities)
       .where(
         and(
           tenantWhere(schema.activities, ctx),
-          eq(schema.activities.name, "Calistenia"),
+          eq(schema.activities.name, "General"),
         ),
       )
       .limit(1);
@@ -906,7 +971,7 @@ export class SchedulingService {
     if (!regularActivity) {
       const result = await this.db.insert(schema.activities).values(
         tenantValues(ctx, {
-          name: "Calistenia",
+          name: "General",
           description: "Clase grupal de entrenamiento funcional",
         }),
       );
@@ -1070,7 +1135,9 @@ export class SchedulingService {
         endTime: schema.schedules.endTime,
       })
       .from(schema.schedules)
-      .where(and(...conditions))
+      // Fase 174.1-05b: `tenantWhere` INLINE, redundante con el de `conditions`
+      // arriba (D-02 del PATTERNS) — ESTE statement es el que el lint mira.
+      .where(and(tenantWhere(schema.schedules, ctx), ...conditions))
       .limit(1);
 
     return overlap ?? null;
@@ -1079,6 +1146,15 @@ export class SchedulingService {
   /**
    * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO, filtra `schedules` en el
    * WHERE y `branches`/`activities` en el ON de sus joins.
+   *
+   * Phase 159-06: NO se le aplica la etiqueta derivada (D-15). Este lookup
+   * es por scheduleId sin fecha/semana asociada -- lo usan createSchedule/
+   * updateScheduleActivity/deleteSchedule para confirmar el slot recien
+   * tocado, y getSlotDetail para el roster de una fecha puntual (admin).
+   * D-17 acota la derivacion al read-model de horarios/app (getWeeklyGrid);
+   * sumarla aca requeriria enhebrar (week, day) por todos esos call sites
+   * sin necesidad real -- ninguno muestra el nombre de la clase como dato
+   * primario para el socio.
    */
   private async getScheduleSlot(
     ctx: TenantContext,

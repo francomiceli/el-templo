@@ -175,7 +175,14 @@ function pctVariacion(current: number, prior: number): number | null {
  * — the caller skips the join when the predicate is null).
  */
 function turnoHourCondition(turno: TrialTurno): SQL | null {
-  const hour = sql`CAST(LEFT(${schema.schedules.startTime}, 2) AS UNSIGNED)`;
+  // Fase 174.1-03 (D-02): prefijo LITERAL `schedules.start_time` (no
+  // `${schema.schedules.startTime}` interpolado) — mismo idioma que
+  // `especial-exclusion.ts`. Este helper NO hace FROM/JOIN propio (el join a
+  // `schedules`, con su `tenantWhere`, lo hace el ÚNICO caller,
+  // `visitCountsForWindow`); interpolar el objeto de columna acá registraría
+  // un acceso propio a `schedules` en ESTE statement, que ningún `tenantWhere`
+  // del caller puede cubrir (son statements de JS distintos).
+  const hour = sql`CAST(LEFT(schedules.start_time, 2) AS UNSIGNED)`;
   if (turno === "manana") {
     return sql`${hour} >= ${TURNO_MANANA_START_HOUR} AND ${hour} < ${TURNO_MANANA_END_HOUR}`;
   }
@@ -244,8 +251,8 @@ export class FrequencyService {
     // Per-member visit counts for the current [now-28d, now) and prior
     // [now-56d, now-28d) windows, scoped on the attendance branch.
     const [currentCounts, priorCounts] = await Promise.all([
-      this.visitCountsForWindow(filters, now, 0),
-      this.visitCountsForWindow(filters, now, FREQUENCY_WINDOW_DAYS),
+      this.visitCountsForWindow(ctx, filters, now, 0),
+      this.visitCountsForWindow(ctx, filters, now, FREQUENCY_WINDOW_DAYS),
     ]);
 
     const memberBands = this.computeBands(
@@ -264,7 +271,7 @@ export class FrequencyService {
       await new AttendanceMetricsService(
         this.db,
         this.log,
-      ).checkInAdoptionByBranch(filters);
+      ).checkInAdoptionByBranch(ctx, filters);
 
     return { distribution, coolingDown, checkInAdoption, breakdowns };
   }
@@ -339,7 +346,11 @@ export class FrequencyService {
       )
       .innerJoin(
         schema.subscriptionPlans,
-        sql`${schema.subscriptionPlans.id} = ${schema.subscriptions.planId}`,
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
+          sql`${schema.subscriptionPlans.id} = ${schema.subscriptions.planId}`,
+        ),
       )
       .where(and(...populationConditions));
 
@@ -375,6 +386,7 @@ export class FrequencyService {
    * (121/122 lesson — else 500).
    */
   private async visitCountsForWindow(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     now: Date,
     offsetDays: number,
@@ -394,6 +406,7 @@ export class FrequencyService {
       branchColumn: schema.attendance.branchId,
     });
 
+    /* tenant-safe: solo el filtro de rango de fecha + sede/país — el tenantWhere(schema.attendance, ctx) real se aplica más abajo en el .where() del build de la query, ver T-175.1-01-03 */
     const conditions: SQL[] = [
       sql`${schema.attendance.checkedInAt} >= ${lower}`,
       sql`${schema.attendance.checkedInAt} < ${upperExclusive}`,
@@ -411,28 +424,37 @@ export class FrequencyService {
       conditions.push(turnoCondition);
     }
 
+    // T-175.1-01-03 (D-04, hallazgo del gap-fix): `attendance` NO estaba
+    // scopeado por tenant en este path cuando `turnoCondition === null` (el
+    // JOIN a `schedules`, que sí trae `tenantWhere`, es CONDICIONAL). Se
+    // agrega `tenantWhere(schema.attendance, ctx)` explícito e inline (D-02:
+    // `.where(...)` va ANTES de `.$dynamic()`, mismo statement que `.from(...)`,
+    // así el lint ve el literal `tenantWhere(` en ESTE statement).
     let query = this.db
       .select({
         memberId: schema.attendance.memberId,
         visits: sql<number>`COUNT(*)`,
       })
       .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
       .$dynamic();
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/sede de una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       query = query.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.attendance.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/sede de una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
       );
     }
     if (turnoCondition !== null) {
       query = query.innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.attendance.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.attendance.scheduleId),
+        ),
       );
     }
-    const rows = await query
-      .where(and(...conditions))
-      .groupBy(schema.attendance.memberId);
+    const rows = await query.groupBy(schema.attendance.memberId);
 
     const map = new Map<number, number>();
     for (const r of rows) {
@@ -635,7 +657,12 @@ export class FrequencyService {
           sql`${schema.users.id} = ${schema.subscriptions.userId}`,
         ),
       )
-      .where(inArray(schema.subscriptions.status, ["active", "paused"]));
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          inArray(schema.subscriptions.status, ["active", "paused"]),
+        ),
+      );
 
     const createdAtByUser = new Map<number, Date>();
     for (const r of activeRows) {
@@ -682,6 +709,7 @@ export class FrequencyService {
       new Date(now.getTime() - (offsetDays + windowDays) * 86_400_000),
     );
 
+    /* tenant-safe: deliberadamente global (D-123-01, ver docblock de coolingOrInactiveUserIds) — agrupa por memberId, clave globalmente única por persona; el único consumidor filtra el resultado contra userIds ya tenant-scopeados de activeRows, las filas de otros gimnasios en este Map nunca se leen, no expone datos cross-gym al caller */
     const rows = await this.db
       .select({
         memberId: schema.attendance.memberId,
@@ -690,7 +718,7 @@ export class FrequencyService {
       .from(schema.attendance)
       .where(
         and(
-          sql`${schema.attendance.checkedInAt} >= ${lower}`,
+          sql`/* tenant-safe: deliberadamente global (D-123-01) — agrupa por memberId (clave globalmente única por persona); el único consumidor filtra el resultado contra userIds ya tenant-scopeados, no expone datos cross-gym */ ${schema.attendance.checkedInAt} >= ${lower}`,
           sql`${schema.attendance.checkedInAt} < ${upperExclusive}`,
         ),
       )

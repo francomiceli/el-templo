@@ -223,7 +223,9 @@ async function eventoDe(app: FastifyInstance, eventId: string) {
       tenantId: schema.wellhubEvents.tenantId,
     })
     .from(schema.wellhubEvents)
-    .where(eq(schema.wellhubEvents.eventId, eventId));
+    .where(
+      sql`/* tenant-safe: event_id es UNIQUE global (M8), idempotencia — esta ES la lectura que verifica el tenant DERIVADO, filtrarla por tenant seria circular */ ${schema.wellhubEvents.eventId} = ${eventId}`,
+    );
   return fila;
 }
 
@@ -336,7 +338,12 @@ afterAll(async () => {
   if (eventosEmitidos.length > 0) {
     await app.db
       .delete(schema.wellhubEvents)
-      .where(inArray(schema.wellhubEvents.eventId, eventosEmitidos));
+      .where(
+        and(
+          sql`/* tenant-safe: limpieza de los DOS gimnasios que este archivo siembra, por event_id (UNIQUE global, M8) ya emitido */ 1=1`,
+          inArray(schema.wellhubEvents.eventId, eventosEmitidos),
+        ),
+      );
   }
   await app.db
     .delete(schema.branches)

@@ -304,7 +304,7 @@ describe("ancla del autorregistro (D-12/WR-01) — el promo se aplica en el gimn
     // Evidencia leída de la base, no del status 200: la sub tiene que existir
     // y colgar del socio y de la sede correctos.
     const [sub] = await app.db.execute(
-      sql`SELECT user_id AS userId, branch_id AS branchId, plan_id AS planId
+      sql`SELECT /* tenant-safe: leer la sub recien creada por su usuario ES la asercion; filtrar por tenant la volveria tautologica */ user_id AS userId, branch_id AS branchId, plan_id AS planId
           FROM subscriptions WHERE user_id = ${body.user.id}`,
     );
     const filas = sub as unknown as Array<{

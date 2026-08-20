@@ -93,6 +93,12 @@ export class SegmentationService {
 
     // Step 2: active plan (D-08). Need an active/paused subscription; the label
     // only applies to presencial plans (physical attendance).
+    //
+    // Fase 174.1-04 (D-02): mismo caso que el guard de `users` de arriba —
+    // este método sigue sin `ctx` externo (sus 2 call sites, auth/routes.ts
+    // y notification-cron.ts, quedan fuera del alcance de este plan). Se
+    // aplica el MISMO Pattern D (`isNotNull(tenantId)`) sobre `subscriptions`
+    // que ya usa el guard de `users` — cirugía mínima, sin inflar el alcance.
     const [activeSub] = await this.db
       .select({
         classesPerWeek: schema.subscriptionPlans.classesPerWeek,
@@ -105,6 +111,7 @@ export class SegmentationService {
       )
       .where(
         and(
+          isNotNull(schema.subscriptions.tenantId),
           eq(schema.subscriptions.userId, userId),
           inArray(schema.subscriptions.status, ["active", "paused"]),
         ),

@@ -817,10 +817,15 @@ function onSelectBlock(role: string): void {
  * accidental no debe aplicarse solo: primero se confirma. Si el rol destino es
  * el actual no hay nada que cambiar.
  */
-/** DEUTEROS_1 y DEUTEROS_2 son dos caminos del MISMO bloque visual (espejo de
- *  `visualGroupOf` en tv/roster.ts). */
+/** DEUTEROS_1/DEUTEROS_2 y COMBOS_II/COMBOS_II_ALT (idem TECNICA_II) son
+ *  caminos del MISMO bloque visual (espejo de `visualGroupOf` en
+ *  tv/roster.ts): navegar dentro del grupo no reinicia el cronómetro, asi que
+ *  tampoco pide confirmación acá (ver `requestBlockChange`). */
 function visualGroupOf(role: string): string {
-  return role === 'DEUTEROS_1' || role === 'DEUTEROS_2' ? 'DEUTEROS' : role;
+  if (role === 'DEUTEROS_1' || role === 'DEUTEROS_2') return 'DEUTEROS';
+  if (role === 'COMBOS_II_ALT') return 'COMBOS_II';
+  if (role === 'TECNICA_II_ALT') return 'TECNICA_II';
+  return role;
 }
 
 function requestBlockChange(role: string): void {

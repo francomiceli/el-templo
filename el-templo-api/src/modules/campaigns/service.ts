@@ -19,7 +19,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
 import { EmailService } from "../email/service";
 import { signCampaignToken } from "./token-service";
 import { trialCampaignHtml } from "./templates";
@@ -105,9 +105,18 @@ export class CampaignService {
           AND ${b.status} <> 'cancelado'
       )`,
       // Not on the marketing suppression list (D-15).
+      //
+      // T-175-02 (mina M3): a diferencia de subscriptions/bookings de arriba
+      // —correlacionados por ${u.id}, ya blindados por el tenantWhere(u, ctx)
+      // externo, porque users.id es una FK única global—, este WHERE
+      // correlaciona por ${u.email}, y el email NO es único global (fase 168:
+      // la unique es (tenant_id, email)). Sin filtrar `unsub` por su PROPIO
+      // tenant, un opt-out del gimnasio A suprimiría la audiencia del
+      // gimnasio B para el mismo email. `tenant_id = ${ctx.tenantId}` sigue
+      // el idioma documentado en shared/tenant.ts para un `sql` crudo.
       sql`NOT EXISTS (
         SELECT 1 FROM ${unsub}
-        WHERE ${unsub.email} = ${u.email}
+        WHERE ${unsub.email} = ${u.email} AND ${unsub.tenantId} = ${ctx.tenantId}
       )`,
     ];
 
@@ -145,6 +154,7 @@ export class CampaignService {
    * string, never fetched.
    */
   async create(
+    ctx: TenantContext,
     input: CreateCampaignInput,
     adminUserId: number,
   ): Promise<CampaignRecord> {
@@ -181,23 +191,27 @@ export class CampaignService {
 
     const [inserted] = await this.db
       .insert(schema.campaigns)
-      .values({
-        name,
-        subject,
-        status: "draft",
-        createdBy: adminUserId,
-        country,
-        headline,
-        subheadline,
-        body,
-        heroImageUrl,
-      })
+      .values(
+        tenantValues(ctx, {
+          name,
+          subject,
+          status: "draft",
+          createdBy: adminUserId,
+          country,
+          headline,
+          subheadline,
+          body,
+          heroImageUrl,
+        }),
+      )
       .$returningId();
 
     const [row] = await this.db
       .select()
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, inserted.id))
+      .where(
+        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, inserted.id)),
+      )
       .limit(1);
 
     this.log.info({ campaignId: row.id, country }, "campaign created (draft)");
@@ -211,15 +225,18 @@ export class CampaignService {
    * global campaigns are always visible).
    */
   async listCampaigns(
+    ctx: TenantContext,
     country?: "AR" | "ES" | null,
   ): Promise<CampaignListItem[]> {
     const c = schema.campaigns;
 
-    const where =
-      country === "AR" || country === "ES"
-        ? sql`(${c.country} = ${country} OR ${c.country} IS NULL)`
-        : undefined;
-
+    // T-175-02: TODO el WHERE —incluido el filtro de país— va en UNA sola
+    // expresión inline dentro de este `.where()`, sin variables intermedias
+    // (`const where = ...` / `const countryFilter = sql\`...\`` como estaba
+    // antes de este plan): el lint juzga por STATEMENT, y una variable
+    // armada en un statement separado deja los accesos de ESTE statement
+    // (`.from(c)`, el `recipientCount` correlacionado por `c.id` de abajo)
+    // sin marca textual pese a estar realmente scopeados en runtime.
     const rows = await this.db
       .select({
         id: c.id,
@@ -236,7 +253,14 @@ export class CampaignService {
         )`,
       })
       .from(c)
-      .where(where)
+      .where(
+        country === "AR" || country === "ES"
+          ? and(
+              tenantWhere(c, ctx),
+              sql`(${c.country} = ${country} OR ${c.country} IS NULL)`,
+            )
+          : tenantWhere(c, ctx),
+      )
       .orderBy(desc(c.createdAt));
 
     return rows.map((r) => ({
@@ -270,7 +294,9 @@ export class CampaignService {
     const [campaign] = await this.db
       .select()
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, campaignId))
+      .where(
+        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+      )
       .limit(1);
 
     if (!campaign) throw new BadRequestError("Campaña no encontrada");
@@ -283,6 +309,7 @@ export class CampaignService {
       .set({ status: "sending" })
       .where(
         and(
+          tenantWhere(schema.campaigns, ctx),
           eq(schema.campaigns.id, campaignId),
           eq(schema.campaigns.status, "draft"),
         ),
@@ -312,12 +339,14 @@ export class CampaignService {
     for (const user of eligible) {
       const result = await this.db
         .insert(schema.campaignSends)
-        .values({
-          campaignId,
-          userId: user.userId,
-          email: user.email,
-          status: "pending",
-        })
+        .values(
+          tenantValues(ctx, {
+            campaignId,
+            userId: user.userId,
+            email: user.email,
+            status: "pending",
+          }),
+        )
         .onDuplicateKeyUpdate({
           // No-op update so the existing row's id is preserved (idempotent).
           set: { email: sql`${schema.campaignSends.email}` },
@@ -339,13 +368,14 @@ export class CampaignService {
       .from(schema.campaignSends)
       .where(
         and(
+          tenantWhere(schema.campaignSends, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.campaignSends.status, "pending"),
         ),
       );
 
     // Sede addresses for the email (shared across all recipients in scope).
-    const sedes = await this.loadSedes(scopeCountry);
+    const sedes = await this.loadSedes(ctx, scopeCountry);
 
     // ── Render + batch-send in chunks of ≤100 ─────────────────────────────
     for (let i = 0; i < pendingSends.length; i += BATCH_SIZE) {
@@ -375,10 +405,13 @@ export class CampaignService {
           .update(schema.campaignSends)
           .set({ status: "sent", sentAt: new Date() })
           .where(
-            sql`${schema.campaignSends.id} IN (${sql.join(
-              chunkIds.map((id) => sql`${id}`),
-              sql`, `,
-            )})`,
+            and(
+              tenantWhere(schema.campaignSends, ctx),
+              sql`${schema.campaignSends.id} IN (${sql.join(
+                chunkIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})`,
+            ),
           );
       }
     }
@@ -391,6 +424,7 @@ export class CampaignService {
       .set({ status: "sent", sentAt: campaign.sentAt ?? new Date() })
       .where(
         and(
+          tenantWhere(schema.campaigns, ctx),
           eq(schema.campaigns.id, campaignId),
           eq(schema.campaigns.status, "sending"),
         ),
@@ -401,7 +435,12 @@ export class CampaignService {
         total: sql<number>`COUNT(*)`,
       })
       .from(schema.campaignSends)
-      .where(eq(schema.campaignSends.campaignId, campaignId));
+      .where(
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.campaignId, campaignId),
+        ),
+      );
 
     this.log.info(
       { campaignId, recipientCount: Number(total), newlyEnrolled },
@@ -434,13 +473,16 @@ export class CampaignService {
    * the admin sees why the preview did not arrive.
    */
   async sendTest(
+    ctx: TenantContext,
     campaignId: number,
     toEmail: string,
   ): Promise<{ from: string; to: string }> {
     const [campaign] = await this.db
       .select()
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, campaignId))
+      .where(
+        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+      )
       .limit(1);
     if (!campaign) throw new BadRequestError("Campaña no encontrada");
 
@@ -448,7 +490,7 @@ export class CampaignService {
       campaign.country === "AR" || campaign.country === "ES"
         ? campaign.country
         : null;
-    const sedes = await this.loadSedes(scopeCountry);
+    const sedes = await this.loadSedes(ctx, scopeCountry);
 
     const token = signCampaignToken({ userId: 0, campaignId, sendId: 0 });
     const vars = this.buildTemplateVars(campaign, token, sedes);
@@ -490,7 +532,9 @@ export class CampaignService {
     const [campaign] = await this.db
       .select({ id: schema.campaigns.id, sentAt: schema.campaigns.sentAt })
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, campaignId))
+      .where(
+        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+      )
       .limit(1);
 
     if (!campaign) throw new BadRequestError("Campaña no encontrada");
@@ -506,6 +550,7 @@ export class CampaignService {
       .from(schema.campaignSends)
       .where(
         and(
+          tenantWhere(schema.campaignSends, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.campaignSends.status, "sent"),
         ),
@@ -518,10 +563,14 @@ export class CampaignService {
       .from(schema.campaignEvents)
       .innerJoin(
         schema.campaignSends,
-        eq(schema.campaignSends.id, schema.campaignEvents.sendId),
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.id, schema.campaignEvents.sendId),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.campaignEvents, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.campaignEvents.type, "open"),
         ),
@@ -534,10 +583,14 @@ export class CampaignService {
       .from(schema.campaignEvents)
       .innerJoin(
         schema.campaignSends,
-        eq(schema.campaignSends.id, schema.campaignEvents.sendId),
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.id, schema.campaignEvents.sendId),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.campaignEvents, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.campaignEvents.type, "click"),
         ),
@@ -552,10 +605,14 @@ export class CampaignService {
       .from(schema.campaignSends)
       .innerJoin(
         schema.bookings,
-        eq(schema.bookings.memberId, schema.campaignSends.userId),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.memberId, schema.campaignSends.userId),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.campaignSends, ctx),
           eq(schema.campaignSends.campaignId, campaignId),
           eq(schema.bookings.isTrial, true),
           eq(schema.bookings.source, "self_service"),
@@ -573,6 +630,7 @@ export class CampaignService {
       .innerJoin(
         schema.bookings,
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, schema.campaignSends.userId),
           eq(schema.bookings.isTrial, true),
           eq(schema.bookings.source, "self_service"),
@@ -582,11 +640,17 @@ export class CampaignService {
       .innerJoin(
         schema.attendance,
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, schema.campaignSends.userId),
           eq(schema.attendance.status, "confirmado"),
         ),
       )
-      .where(eq(schema.campaignSends.campaignId, campaignId));
+      .where(
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.campaignId, campaignId),
+        ),
+      );
 
     // convirtió: of those recipients, later reaching status='activo' in
     // user_status_history after the campaign send (aligns with funnel-service —
@@ -599,6 +663,7 @@ export class CampaignService {
       .innerJoin(
         schema.bookings,
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, schema.campaignSends.userId),
           eq(schema.bookings.isTrial, true),
           eq(schema.bookings.source, "self_service"),
@@ -614,7 +679,12 @@ export class CampaignService {
           sql`${schema.userStatusHistory.changedAt} >= ${sentAtSql}`,
         ),
       )
-      .where(eq(schema.campaignSends.campaignId, campaignId));
+      .where(
+        and(
+          tenantWhere(schema.campaignSends, ctx),
+          eq(schema.campaignSends.campaignId, campaignId),
+        ),
+      );
 
     return {
       enviado: Number(enviadoRow?.n ?? 0),
@@ -662,22 +732,28 @@ export class CampaignService {
 
   /** Load active physical (non-virtual) sedes with an address, scoped by country. */
   private async loadSedes(
+    ctx: TenantContext,
     country?: "AR" | "ES" | null,
   ): Promise<BranchAddress[]> {
     const br = schema.branches;
-    const conditions = [
-      eq(br.isActive, true),
-      eq(br.isVirtual, false),
-      sql`${br.address} IS NOT NULL`,
-    ];
-    if (country === "AR" || country === "ES") {
-      conditions.push(eq(br.country, country));
-    }
+    const countryFilter =
+      country === "AR" || country === "ES" ? eq(br.country, country) : undefined;
 
+    // T-175-02: `tenantWhere(br, ctx)` INLINE en el `.where()` (antes vivía
+    // en un array `conditions` armado en un statement separado) — mismo
+    // motivo que `listCampaigns` de arriba: el lint juzga por statement.
     const rows = await this.db
       .select({ name: br.name, address: br.address })
       .from(br)
-      .where(and(...conditions));
+      .where(
+        and(
+          tenantWhere(br, ctx),
+          eq(br.isActive, true),
+          eq(br.isVirtual, false),
+          sql`${br.address} IS NOT NULL`,
+          ...(countryFilter ? [countryFilter] : []),
+        ),
+      );
 
     return rows
       .filter((r): r is { name: string; address: string } => r.address !== null)

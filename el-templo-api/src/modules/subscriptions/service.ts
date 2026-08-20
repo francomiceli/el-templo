@@ -129,6 +129,42 @@ function daysBetween(fromIso: string, toIso: string): number {
 }
 
 /**
+ * Prorrateo hasta fin de mes de un alta. Dado un `startDate` "YYYY-MM-DD",
+ * devuelve el último día de ese mes calendario (la vigencia del alta) y cuántos
+ * días se cobran — el día del alta INCLUIDO — sobre los días del mes. Ej.: alta
+ * el 2026-01-20 (enero, 31 días) → 12 días (20..31), endDate 2026-01-31.
+ *
+ * Parsea las partes de la fecha en vez de `new Date(str)` para no depender de la
+ * zona horaria (una "YYYY-MM-DD" se interpreta como UTC y podría correrse un día
+ * al construir el string de fin de mes en runtimes con TZ negativa).
+ */
+function computeMonthEndProration(startDate: string): {
+  endDate: string;
+  daysCharged: number;
+  daysInMonth: number;
+} {
+  const [year, month, day] = startDate.split("-").map(Number);
+  // `month` viene 1-based del string; Date.UTC lo trata 0-based, así que
+  // (year, month, 0) = día 0 del mes siguiente = último día del mes del alta.
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const daysCharged = daysInMonth - day + 1;
+  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(
+    daysInMonth,
+  ).padStart(2, "0")}`;
+  return { endDate, daysCharged, daysInMonth };
+}
+
+/**
+ * Precio proporcional del alta hasta fin de mes:
+ * `round(base * díasCobrados / díasDelMes)`. Fuente única del cálculo, la
+ * comparte el endpoint de preview y el alta real.
+ */
+function computeProratedPrice(basePrice: number, startDate: string): number {
+  const { daysCharged, daysInMonth } = computeMonthEndProration(startDate);
+  return Math.round((basePrice * daysCharged) / daysInMonth);
+}
+
+/**
  * Throws BadRequestError if startDate is outside the allowed window
  * relative to today. Used by assignPlan and editSubscriptionStartDate.
  */
@@ -189,9 +225,23 @@ export interface ListPromoPlansFilters {
  * vencimiento), el push no (una sub pausada no debe suprimir el aviso). Si
  * cambiás la semántica de cobertura, tocá los dos.
  */
+/**
+ * Fase 174.1-05b: `ctx` OPCIONAL al final — mismo Pattern D provisorio que
+ * `promoteWaitlist`/`countActiveBookings` (booking-service.ts). Esta función
+ * standalone la llaman 3 módulos (subscriptions/service.ts, referrals/service.ts,
+ * jobs/notification-cron.ts).
+ *
+ * Fase 175-04: los 3 call sites externos (`referrals/service.ts` x2,
+ * `jobs/notification-cron.ts::runPlanRenewalWarnings`) ya threadean `ctx` real —
+ * cierra la deuda anotada en 174.1-05b. El parámetro sigue OPCIONAL (no
+ * required) porque `test/subscriptions/covered-until.test.ts` ejercita
+ * deliberadamente el fallback Pattern D (`isNotNull`) como caso de cobertura
+ * propio; forzar `ctx` ahí no es parte del alcance de esta fase.
+ */
 export async function deriveCoveredUntil(
   db: MySql2Database<typeof schema>,
   userId: number,
+  ctx?: TenantContext,
 ): Promise<string | null> {
   const rows = await db
     .select({
@@ -200,6 +250,9 @@ export async function deriveCoveredUntil(
     .from(schema.subscriptions)
     .where(
       and(
+        ctx
+          ? tenantWhere(schema.subscriptions, ctx)
+          : isNotNull(schema.subscriptions.tenantId),
         eq(schema.subscriptions.userId, userId),
         inArray(schema.subscriptions.status, ["active", "scheduled"]),
         isNotNull(schema.subscriptions.endDate),
@@ -220,10 +273,17 @@ export async function deriveCoveredUntil(
  * Devuelve un Map de userId → covered-until. Un userId sin filas cubiertas NO
  * aparece en el Map; los consumidores tratan la ausencia como `null` ("nunca
  * cubierto"), idéntico a lo que devuelve la versión de a uno.
+ *
+ * Tenancy (reconciliación tren v6.0): `subscriptions` es tabla strict, así que
+ * el filtro de tenant es OBLIGATORIO — mismo patrón que la versión de a uno:
+ * `ctx` real ⇒ `tenantWhere` (aislamiento por gimnasio); sin `ctx` ⇒ fallback
+ * `isNotNull(tenantId)` (tenant-blind pero visible al sentinel). El fix N+1 de
+ * master llegó sin este filtro y habría tirado TenantSentinelError en strict.
  */
 export async function deriveCoveredUntilBatch(
   db: MySql2Database<typeof schema>,
   userIds: number[],
+  ctx?: TenantContext,
 ): Promise<Map<number, string | null>> {
   const result = new Map<number, string | null>();
   if (userIds.length === 0) return result;
@@ -236,6 +296,9 @@ export async function deriveCoveredUntilBatch(
     .from(schema.subscriptions)
     .where(
       and(
+        ctx
+          ? tenantWhere(schema.subscriptions, ctx)
+          : isNotNull(schema.subscriptions.tenantId),
         inArray(schema.subscriptions.userId, userIds),
         inArray(schema.subscriptions.status, ["active", "scheduled"]),
         isNotNull(schema.subscriptions.endDate),
@@ -530,13 +593,14 @@ export class SubscriptionService {
    * pct<=0 → devuelve el precio sin descuento.
    */
   private async computePriceWithReferralDiscount(
+    ctx: TenantContext,
     userId: number,
     basePrice: number,
   ): Promise<{ percent: number; amount: number; pricePaid: number }> {
     const percent = await new ReferralService(
       this.db,
       this.log,
-    ).computeReferralDiscountPercent(userId);
+    ).computeReferralDiscountPercent(ctx, userId);
     if (percent <= 0) {
       return { percent: 0, amount: 0, pricePaid: basePrice };
     }
@@ -550,6 +614,7 @@ export class SubscriptionService {
    * Se llama tras recordAssignmentCharge con el subscriptionId ya conocido.
    */
   private async recordReferralCreditOnCharge(
+    ctx: TenantContext,
     userId: number,
     subscriptionId: number,
     percent: number,
@@ -557,6 +622,7 @@ export class SubscriptionService {
   ): Promise<void> {
     if (amount <= 0) return;
     await new ReferralService(this.db, this.log).recordReferralCredit(
+      ctx,
       userId,
       subscriptionId,
       percent,
@@ -784,7 +850,9 @@ export class SubscriptionService {
     const rows = await this.db
       .select()
       .from(schema.subscriptionPlans)
-      .where(and(...conditions))
+      // Fase 174.1-05b: `tenantWhere` INLINE, redundante con el de `conditions`
+      // arriba (D-02 del PATTERNS) — ESTE statement es el que el lint mira.
+      .where(and(tenantWhere(schema.subscriptionPlans, ctx), ...conditions))
       .orderBy(schema.subscriptionPlans.name);
 
     return Promise.all(rows.map((r) => this.mapPlanRow(ctx, r)));
@@ -1030,9 +1098,17 @@ export class SubscriptionService {
    * Lets callers holding the service (booking-service, subscriptions/routes)
    * reuse the one covered-until derivation the cron imports directly. No
    * duplicated query body.
+   *
+   * Fase 174.1-05b: `ctx` OPCIONAL al final — su caller dentro de este plan
+   * (`booking-service.ts::reserve`) ya lo trae; `subscriptions/member-routes.ts`
+   * queda con el fallback Pattern D hasta su propia migración (fuera de
+   * `files_modified`, fase 175).
    */
-  async getCoveredUntil(userId: number): Promise<string | null> {
-    return deriveCoveredUntil(this.db, userId);
+  async getCoveredUntil(
+    userId: number,
+    ctx?: TenantContext,
+  ): Promise<string | null> {
+    return deriveCoveredUntil(this.db, userId, ctx);
   }
 
   /**
@@ -1232,7 +1308,7 @@ export class SubscriptionService {
       );
 
     const mapped = rows.map((r) => this.mapSubscriptionRow(r));
-    return this.enrichManyWithScheduleIds(mapped);
+    return this.enrichManyWithScheduleIds(ctx, mapped);
   }
 
   /**
@@ -1364,7 +1440,7 @@ export class SubscriptionService {
       .orderBy(desc(schema.subscriptions.createdAt));
 
     const mapped = rows.map((r) => this.mapSubscriptionRow(r));
-    return this.enrichManyWithScheduleIds(mapped);
+    return this.enrichManyWithScheduleIds(ctx, mapped);
   }
 
   /**
@@ -1631,11 +1707,17 @@ export class SubscriptionService {
       }
     }
 
-    // Calculate end date
+    // Calculate end date. Alta prorrateada hasta fin de mes: la vigencia termina
+    // el último día del mes calendario del startDate (no startDate +
+    // durationDays), para que el ciclo quede alineado al corte mensual de la
+    // domiciliación. Solo el alta se prorratea — las renovaciones siguen usando
+    // durationDays (mes completo).
     const startDate = new Date(input.startDate);
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + plan.durationDays);
-    const endDateStr = endDate.toISOString().split("T")[0];
+    const endDateStr = input.prorateToMonthEnd
+      ? computeMonthEndProration(input.startDate).endDate
+      : endDate.toISOString().split("T")[0];
 
     // Status: scheduled when startDate is in the future, active otherwise.
     // The status drives recomputeUserStatus (only active/paused count for
@@ -1658,8 +1740,37 @@ export class SubscriptionService {
     let priceOverrideAmount: number | null = null;
     let priceOverrideReason: string | null = null;
 
+    // Alta prorrateada hasta fin de mes — máxima prioridad. El precio es el
+    // proporcional de los días restantes (día del alta incluido); el staff puede
+    // editar el sugerido y lo recibimos por priceOverrideAmount. El proporcional
+    // ES el precio final: sin razón obligatoria y sin AURA/referidos/boarding
+    // pass encima (ramas excluyentes). Cap defensivo: no puede superar el mes
+    // completo. No se persiste como override (priceOverrideAmount queda null); el
+    // endDate a fin de mes + pricePaid ya cuentan la historia.
+    if (input.prorateToMonthEnd) {
+      if (input.boardingPass) {
+        throw new BadRequestError(
+          "No se puede combinar el prorrateo hasta fin de mes con el boarding pass",
+        );
+      }
+      if (input.auraSpend && input.auraSpend > 0) {
+        throw new BadRequestError(
+          "No se puede combinar el prorrateo hasta fin de mes con un descuento AURA",
+        );
+      }
+      const basePrice = this.getBasePrice(plan, priceTypeApplied);
+      pricePaid =
+        input.priceOverrideAmount !== undefined
+          ? input.priceOverrideAmount
+          : computeProratedPrice(basePrice, input.startDate);
+      if (pricePaid > basePrice) {
+        throw new BadRequestError(
+          "El precio prorrateado no puede superar el precio del mes completo",
+        );
+      }
+    }
     // Price override takes highest priority
-    if (
+    else if (
       input.priceOverrideAmount !== undefined &&
       input.priceOverrideAmount >= 0
     ) {
@@ -1734,9 +1845,13 @@ export class SubscriptionService {
     // D-09: los pases especiales quedan FUERA del sistema de referidos — no
     // cualifican vínculos ni reciben el descuento simétrico (el descuento es de
     // cuotas de membresía, no del pase). Guard por categoría (T-161-05).
-    if (plan.planCategory !== "especial") {
+    // Alta prorrateada: el proporcional es el precio final, sin descuento de
+    // referido encima; el vínculo se cualifica en la primera renovación de mes
+    // completo (que sí corre esta lógica).
+    if (plan.planCategory !== "especial" && !input.prorateToMonthEnd) {
       await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
       const referral = await this.computePriceWithReferralDiscount(
+        ctx,
         userId,
         pricePaid,
       );
@@ -1795,6 +1910,17 @@ export class SubscriptionService {
     // architectural change).
     const { subscriptionId, replacementCredits } = await this.db.transaction(
       async (tx) => {
+        // Fase 175.1-08 (D1/T-175.1-08-01): guard TEMPRANO — `input.branchId`
+        // es un dato de entrada del payload y hasta acá solo se validaba
+        // contra el gimnasio dentro del sub-flujo condicional de migración
+        // virtual→física, más abajo (que no corre en todos los casos). Sin
+        // este guard, un alta con `branchId` de otro gimnasio envenenaba la FK
+        // `subscriptions.branch_id`. Mismo idioma que `members/service.ts:852`
+        // — se resuelve DENTRO de esta misma tx (404 "Sede no encontrada",
+        // jamás un código de acceso denegado, D-06) y se usa `branch.id` (la
+        // fila YA resuelta) en el insert, nunca el número crudo del payload.
+        const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
         // Insert subscription. `currency` is inherited from the plan so EUR
         // plans produce EUR subscriptions (defense in depth — the country
         // guard above already prevents cross-country assignments).
@@ -1815,7 +1941,7 @@ export class SubscriptionService {
           tenantValues(ctx, {
             userId,
             planId: input.planId,
-            branchId: input.branchId,
+            branchId: branch.id,
             status: initialStatus,
             startDate: input.startDate,
             endDate: endDateStr,
@@ -2147,6 +2273,7 @@ export class SubscriptionService {
     // Referidos (AURA-01): registro auditable del descuento aplicado, tras el
     // cargo y con el subscriptionId ya conocido. No-op si no hubo descuento.
     await this.recordReferralCreditOnCharge(
+      ctx,
       userId,
       subscriptionId,
       referralDiscountPercent ?? 0,
@@ -3370,7 +3497,11 @@ export class SubscriptionService {
     // legacy tearDownBundleEnrollments + tearDownLinkedProgramEnrollment
     // pair with a single call. Runs inside the same tx so cancellation +
     // enrollment teardown + pointer cleanup are atomic.
-    await this.requireEnrollmentService().tearDownForSubscription(sub.id, tx);
+    await this.requireEnrollmentService().tearDownForSubscription(
+      ctx,
+      sub.id,
+      tx,
+    );
 
     await this.recomputeUserStatus(ctx, userId, tx);
 
@@ -3451,6 +3582,47 @@ export class SubscriptionService {
   }
 
   /**
+   * Preview del precio de un alta prorrateada hasta fin de mes. Fuente única del
+   * cálculo (la comparte assignPlan): dado un plan, una fecha de alta y el tipo
+   * de precio, devuelve el precio del mes completo, el proporcional sugerido, la
+   * vigencia (último día del mes) y el desglose de días. El front lo usa para
+   * precargar el input editable de precio. No muta nada.
+   */
+  async getAssignProrationPreview(
+    ctx: TenantContext,
+    planId: number,
+    startDate: string,
+    priceTypeApplied: PriceType,
+  ): Promise<{
+    basePrice: number;
+    suggestedPrice: number;
+    endDate: string;
+    daysCharged: number;
+    daysInMonth: number;
+    currency: string;
+  }> {
+    const plan = await this.getPlanById(ctx, planId);
+    if (!plan) {
+      throw new NotFoundError("Plan no encontrado");
+    }
+
+    const resolvedType = await this.resolvePriceType(priceTypeApplied);
+    const basePrice = this.getBasePrice(plan, resolvedType);
+    const { endDate, daysCharged, daysInMonth } =
+      computeMonthEndProration(startDate);
+    const suggestedPrice = computeProratedPrice(basePrice, startDate);
+
+    return {
+      basePrice,
+      suggestedPrice,
+      endDate,
+      daysCharged,
+      daysInMonth,
+      currency: plan.currency,
+    };
+  }
+
+  /**
    * Preview a plan change for a member: checks upgrade/downgrade,
    * calculates proration, and returns net amount.
    *
@@ -3523,7 +3695,7 @@ export class SubscriptionService {
       const referralPct = await new ReferralService(
         this.db,
         this.log,
-      ).computeReferralDiscountPercent(userId, {
+      ).computeReferralDiscountPercent(ctx, userId, {
         simulatePendingQualification: true,
       });
       if (referralPct > 0) {
@@ -3728,6 +3900,7 @@ export class SubscriptionService {
     if (targetPlan.planCategory !== "especial") {
       await this.qualifyReferralOnCharge(ctx, userId, netAmount);
       const referral = await this.computePriceWithReferralDiscount(
+        ctx,
         userId,
         netAmount,
       );
@@ -3750,6 +3923,7 @@ export class SubscriptionService {
     // Without this exclusion, admin_addons would be cancelled here and
     // transferAddons would find nothing to move (silent D-19 violation).
     await this.requireEnrollmentService().tearDownForSubscription(
+      ctx,
       existingSub.id,
       undefined,
       { excludeSources: ["admin_addon"] },
@@ -3843,11 +4017,18 @@ export class SubscriptionService {
       // Fase 174-02: DEUDA de `:3547` (D-02/D-13) saldada — `tenantValues(ctx, {...})`,
       // mismo idioma que el insert ya migrado de `assignPlan`.
       const { newSubscriptionId } = await this.db.transaction(async (tx) => {
+        // Fase 175.1-08 (D1/T-175.1-08-01): guard TEMPRANO, mismo idioma que
+        // el sitio gemelo en `assignPlan` — `input.branchId` no se validaba
+        // acá salvo dentro del sub-flujo condicional de migración
+        // virtual→física, más abajo (fuera de esta tx, sobre `this.db`), que
+        // no cubre todos los caminos. Se usa `branch.id` en el insert.
+        const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
         const insResult = await tx.insert(schema.subscriptions).values(
           tenantValues(ctx, {
             userId,
             planId: input.planId,
-            branchId: input.branchId,
+            branchId: branch.id,
             status: "active",
             startDate: input.startDate,
             endDate: endDateStr,
@@ -3992,6 +4173,7 @@ export class SubscriptionService {
 
       // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
       await this.recordReferralCreditOnCharge(
+        ctx,
         userId,
         newSubscriptionId,
         referralDiscountPercent ?? 0,
@@ -4291,6 +4473,7 @@ export class SubscriptionService {
     if (targetPlan.planCategory !== "especial") {
       await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
       const referral = await this.computePriceWithReferralDiscount(
+        ctx,
         userId,
         pricePaid,
       );
@@ -4333,11 +4516,18 @@ export class SubscriptionService {
     // Fase 174-02: DEUDA de `:4018` (D-02/D-13) saldada — `tenantValues(ctx, {...})`,
     // mismo idioma que `changePlanNow`/`assignPlan`.
     const { newSubscriptionId } = await this.db.transaction(async (tx) => {
+      // Fase 175.1-08 (D1/T-175.1-08-01): guard TEMPRANO — `changePlanAfterCurrent`
+      // no validaba `input.branchId` contra el gimnasio en NINGÚN camino (gap
+      // total, a diferencia de `assignPlan`/`changePlanNow` que al menos lo
+      // cubrían en el sub-flujo condicional de migración virtual→física). Se
+      // usa `branch.id` en el insert.
+      const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
       const insResult = await tx.insert(schema.subscriptions).values(
         tenantValues(ctx, {
           userId,
           planId: input.planId,
-          branchId: input.branchId,
+          branchId: branch.id,
           status: "scheduled",
           startDate: newStartDate,
           endDate: newEndDate,
@@ -4434,6 +4624,7 @@ export class SubscriptionService {
 
     // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
     await this.recordReferralCreditOnCharge(
+      ctx,
       userId,
       newSubscriptionId,
       referralDiscountPercent ?? 0,
@@ -4632,9 +4823,18 @@ export class SubscriptionService {
     } else {
       newStartDate = autoStartDate;
     }
-    const newEnd = new Date(newStartDate);
-    newEnd.setDate(newEnd.getDate() + plan.durationDays);
-    const newEndDate = newEnd.toISOString().split("T")[0];
+    // Vencimiento del nuevo período. Por defecto `startDate + durationDays`
+    // (mes completo). Con prorrateo hasta fin de mes (alineación a la
+    // domiciliación) vence el último día del mes calendario del inicio — misma
+    // fuente de cálculo que el alta prorrateada (computeMonthEndProration).
+    let newEndDate: string;
+    if (input.prorateToMonthEnd) {
+      newEndDate = computeMonthEndProration(newStartDate).endDate;
+    } else {
+      const newEnd = new Date(newStartDate);
+      newEnd.setDate(newEnd.getDate() + plan.durationDays);
+      newEndDate = newEnd.toISOString().split("T")[0];
+    }
 
     // Fresh class budget for the new period. Mismo criterio que assignPlan: los
     // planes con classesPerWeek derivan; el pase especial (classesPerWeek=NULL)
@@ -4668,7 +4868,37 @@ export class SubscriptionService {
     // Referidos (fase 157): materialización del descuento en columnas nuevas.
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
-    if (
+
+    // priceType de la renovación (heredado por default). Se declara acá arriba
+    // porque el prorrateo también lo resuelve; el bloque WR-04 de más abajo lo
+    // normaliza en el camino normal.
+    const inheritedPriceType = currentSub.priceTypeApplied as PriceType;
+    let renewalPriceType = inheritedPriceType;
+
+    // Renovación prorrateada hasta fin de mes — máxima prioridad, excluyente con
+    // el override-con-razón y con el descuento de referido (mismo criterio que el
+    // alta prorrateada). El precio base del proporcional es el MES COMPLETO que el
+    // socio venía pagando (heredado, WR-04 normalizado); el proporcional se computa
+    // sobre ese base y el staff puede editar el sugerido, que llega por
+    // `priceOverrideAmount` SIN exigir razón. No se persiste como override
+    // (renewalOverrideAmount queda null): el endDate a fin de mes + pricePaid ya
+    // cuentan la historia. Cap defensivo: no puede superar el mes completo.
+    if (input.prorateToMonthEnd) {
+      renewalPriceType = await this.resolvePriceType(inheritedPriceType);
+      const fullMonthPrice =
+        renewalPriceType !== inheritedPriceType
+          ? this.getBasePrice(plan, renewalPriceType)
+          : renewalPrice;
+      renewalPrice =
+        input.priceOverrideAmount !== undefined
+          ? input.priceOverrideAmount
+          : computeProratedPrice(fullMonthPrice, newStartDate);
+      if (renewalPrice > fullMonthPrice) {
+        throw new BadRequestError(
+          "El precio prorrateado no puede superar el precio del mes completo",
+        );
+      }
+    } else if (
       input.priceOverrideAmount !== undefined &&
       input.priceOverrideAmount >= 0
     ) {
@@ -4690,9 +4920,7 @@ export class SubscriptionService {
     // de esta renovación (el override manda). Con la regla ON (El Templo) la
     // resolución es identidad y nada cambia; con la regla OFF, `credit_card`
     // normaliza a `regular` y se recobra el precio base regular del plan vigente.
-    const inheritedPriceType = currentSub.priceTypeApplied as PriceType;
-    let renewalPriceType = inheritedPriceType;
-    if (renewalOverrideAmount === null) {
+    if (!input.prorateToMonthEnd && renewalOverrideAmount === null) {
       renewalPriceType = await this.resolvePriceType(inheritedPriceType);
       if (renewalPriceType !== inheritedPriceType) {
         // credit_card → regular con la regla OFF: cobrar el precio regular
@@ -4708,9 +4936,13 @@ export class SubscriptionService {
     // D-09: los pases especiales quedan FUERA de referidos también en la
     // renovación — no cualifican vínculos ni descuentan (T-161-05). Guard por
     // categoría del plan de la sub renovada.
-    if (plan.planCategory !== "especial") {
+    // Renovación prorrateada: el proporcional es el precio final, sin descuento
+    // de referido encima (excluyente, igual que el alta); el vínculo se cualifica
+    // en la primera renovación de mes completo (que sí corre esta lógica).
+    if (plan.planCategory !== "especial" && !input.prorateToMonthEnd) {
       await this.qualifyReferralOnCharge(ctx, userId, renewalPrice);
       const referral = await this.computePriceWithReferralDiscount(
+        ctx,
         userId,
         renewalPrice,
       );
@@ -5010,6 +5242,7 @@ export class SubscriptionService {
     // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0
     // (los pases especiales quedan en 0/0 por el guard D-09 de arriba).
     await this.recordReferralCreditOnCharge(
+      ctx,
       userId,
       newSubscriptionId,
       referralDiscountPercent ?? 0,
@@ -5246,7 +5479,7 @@ export class SubscriptionService {
       const referralPct = await new ReferralService(
         this.db,
         this.log,
-      ).computeReferralDiscountPercent(userId, {
+      ).computeReferralDiscountPercent(ctx, userId, {
         simulatePendingQualification: true,
       });
       if (referralPct > 0) {
@@ -5368,13 +5601,27 @@ export class SubscriptionService {
       await this.db
         .update(schema.subscriptions)
         .set({ status: "completed" })
-        .where(inArray(schema.subscriptions.id, completedIds));
+        .where(
+          and(
+            ctx
+              ? tenantWhere(schema.subscriptions, ctx)
+              : isNotNull(schema.subscriptions.tenantId),
+            inArray(schema.subscriptions.id, completedIds),
+          ),
+        );
     }
     if (expiredOnlyIds.length > 0) {
       await this.db
         .update(schema.subscriptions)
         .set({ status: "expired" })
-        .where(inArray(schema.subscriptions.id, expiredOnlyIds));
+        .where(
+          and(
+            ctx
+              ? tenantWhere(schema.subscriptions, ctx)
+              : isNotNull(schema.subscriptions.tenantId),
+            inArray(schema.subscriptions.id, expiredOnlyIds),
+          ),
+        );
     }
 
     // Phase 112-02: for every just-expired sub, tear down owned enrollments
@@ -5388,7 +5635,10 @@ export class SubscriptionService {
     // the next getMemberSubscription call repairs.
     if (expiredOnlyIds.length > 0) {
       for (const subId of expiredOnlyIds) {
-        await this.requireEnrollmentService().tearDownForSubscription(subId);
+        await this.requireEnrollmentService().tearDownForSubscription(
+          ctx,
+          subId,
+        );
       }
     }
 
@@ -5455,14 +5705,28 @@ export class SubscriptionService {
         previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
       })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, scheduledId));
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          eq(schema.subscriptions.id, scheduledId),
+        ),
+      );
 
     if (!scheduled) return;
 
     await this.db
       .update(schema.subscriptions)
       .set({ status: "active" })
-      .where(eq(schema.subscriptions.id, scheduledId));
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          eq(schema.subscriptions.id, scheduledId),
+        ),
+      );
 
     // If there's no predecessor (shouldn't happen for scheduled), we're done.
     if (!scheduled.previousSubscriptionId) return;
@@ -5484,7 +5748,14 @@ export class SubscriptionService {
         branchId: schema.subscriptions.branchId,
       })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, scheduled.previousSubscriptionId));
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          eq(schema.subscriptions.id, scheduled.previousSubscriptionId),
+        ),
+      );
 
     if (!prevSub) return;
 
@@ -5516,6 +5787,7 @@ export class SubscriptionService {
       // cancel goes through the EnrollmentService chokepoint. Runs on
       // this.db (no tx — preserves the legacy best-effort semantics).
       await this.requireEnrollmentService().tearDownForSubscription(
+        ctx,
         scheduled.previousSubscriptionId,
       );
     }
@@ -5863,7 +6135,7 @@ export class SubscriptionService {
     const scheduleIds = await this.getSubscriptionScheduleIds(ctx, sub.id);
     const scheduleSlots =
       scheduleIds.length > 0
-        ? await this.getScheduleSlotDetails(scheduleIds)
+        ? await this.getScheduleSlotDetails(ctx, scheduleIds)
         : [];
 
     return {
@@ -5900,8 +6172,14 @@ export class SubscriptionService {
 
   /**
    * Fetch schedule slot details (day, time, activity) for given schedule IDs.
+   *
+   * Fase 174.1-05b: `ctx` REQUERIDO — su único caller (`getClassUsageThisWeek`)
+   * ya lo trae real (no nullable).
    */
-  private async getScheduleSlotDetails(scheduleIds: number[]): Promise<
+  private async getScheduleSlotDetails(
+    ctx: TenantContext,
+    scheduleIds: number[],
+  ): Promise<
     Array<{
       id: number;
       dayOfWeek: number;
@@ -5924,7 +6202,12 @@ export class SubscriptionService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
-      .where(inArray(schema.schedules.id, scheduleIds))
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          inArray(schema.schedules.id, scheduleIds),
+        ),
+      )
       .orderBy(schema.schedules.dayOfWeek, schema.schedules.startTime);
     return rows;
   }
@@ -5951,8 +6234,15 @@ export class SubscriptionService {
    * with a long history, holds a pool connection per row and starves the pool
    * under concurrent admin load (root cause of the simultaneous 10s timeouts on
    * the member detail tab). This collapses it to a single `IN (...)` query.
+   *
+   * Fase 174.1-05b: `ctx` REQUERIDO PERO nullable (`TenantContext | null`) —
+   * sus dos callers difieren: `getMemberSubscriptions` sigue con Pattern D
+   * (`ctx` nullable, deuda de la 174 sin cerrar acá) y
+   * `getMemberSubscriptionHistory` ya resuelve ctx real. Mismo molde que
+   * `getPlanById`/`autoExpireSubscriptions`.
    */
   private async enrichManyWithScheduleIds(
+    ctx: TenantContext | null,
     details: SubscriptionDetail[],
   ): Promise<SubscriptionDetail[]> {
     if (details.length === 0) return details;
@@ -5964,9 +6254,14 @@ export class SubscriptionService {
       })
       .from(schema.subscriptionSchedules)
       .where(
-        inArray(
-          schema.subscriptionSchedules.subscriptionId,
-          details.map((d) => d.id),
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptionSchedules, ctx)
+            : isNotNull(schema.subscriptionSchedules.tenantId),
+          inArray(
+            schema.subscriptionSchedules.subscriptionId,
+            details.map((d) => d.id),
+          ),
         ),
       );
 
@@ -6073,15 +6368,17 @@ export class SubscriptionService {
     ctx: TenantContext,
     filters: ListPromoPlansFilters = {},
   ): Promise<PromoListItem[]> {
-    const conditions = [tenantWhere(schema.promoPlans, ctx)];
-    if (filters.country !== undefined) {
-      conditions.push(eq(schema.promoPlans.country, filters.country));
-    }
-
     const rows = await this.db
       .select()
       .from(schema.promoPlans)
-      .where(and(...conditions))
+      .where(
+        and(
+          tenantWhere(schema.promoPlans, ctx),
+          filters.country !== undefined
+            ? eq(schema.promoPlans.country, filters.country)
+            : undefined,
+        ),
+      )
       .orderBy(desc(schema.promoPlans.createdAt));
     return rows.map((r) => ({
       ...r,

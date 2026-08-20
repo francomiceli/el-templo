@@ -665,6 +665,18 @@ export class AdminEditService {
       DEUTEROS_2: "deuteros",
       ATHLOS: "athlos",
       EPIKOS: "epikos",
+      // Phase 159 (D-P4): combos/tecnica map to the 'nucleus' family of
+      // format_compatibility (mysqlEnum of 5 real values) — avoids an ALTER.
+      // STRETCHING has NO entry (fixed format, compatBlock stays undefined
+      // and getCompatibleFormats returns an empty list, which is correct).
+      COMBOS_I: "nucleus",
+      COMBOS_II: "nucleus",
+      // Phase 178: alternative variant of the 2nd block, same format family as II
+      COMBOS_II_ALT: "nucleus",
+      TECNICA_I: "nucleus",
+      TECNICA_II: "nucleus",
+      // Phase 178: alternative variant of the 2nd block, same format family as II
+      TECNICA_II_ALT: "nucleus",
     };
     const compatBlock = blockMap[blockRole];
 

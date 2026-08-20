@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { promoPlans } from "../../src/db/schema/promo-plans";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
@@ -49,6 +49,7 @@ describe("Promo Registration Flow", () => {
   ) {
     const now = new Date();
     const defaults = {
+      tenantId: 1,
       name: "Test Promo",
       promoCode: overrides.promoCode ?? "TESTPROMO",
       planDurationDays: 30,
@@ -100,10 +101,14 @@ describe("Promo Registration Flow", () => {
     expect(sub.status).toBe("active");
 
     // Verify redemption count incremented
+    // promo_code es UNIQUE POR TENANT (no global) — filtro real por tenant_id,
+    // no exención (este archivo es single-tenant, tenant 1 / El Templo).
     const [promo] = await app.db
       .select()
       .from(promoPlans)
-      .where(eq(promoPlans.promoCode, "VALIDCODE"));
+      .where(
+        and(eq(promoPlans.tenantId, 1), eq(promoPlans.promoCode, "VALIDCODE")),
+      );
     expect(promo.redemptionCount).toBe(1);
   });
 

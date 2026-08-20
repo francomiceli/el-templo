@@ -33,6 +33,17 @@ const INTENSITY_RANGES: Record<BlockRole, { min: number; max: number }> = {
   ROM_LOWER: { min: 30, max: 70 },
   ROM_CORE: { min: 30, max: 70 },
   ROM_UPPER: { min: 30, max: 70 },
+  // Phase 159 (D-04/D-07/D-11): combos/tecnica/stretching blocks use the same
+  // fixed moderate intensity reference as ROM.
+  COMBOS_I: { min: 30, max: 70 },
+  COMBOS_II: { min: 30, max: 70 },
+  // Phase 178: alternative variant of the 2nd block, same intensity range as II
+  COMBOS_II_ALT: { min: 30, max: 70 },
+  TECNICA_I: { min: 30, max: 70 },
+  TECNICA_II: { min: 30, max: 70 },
+  // Phase 178: alternative variant of the 2nd block, same intensity range as II
+  TECNICA_II_ALT: { min: 30, max: 70 },
+  STRETCHING: { min: 30, max: 70 },
 };
 
 /**
@@ -53,16 +64,27 @@ export function validateSession(session: DaySession): SessionValidationResult {
   const sessionErrors: string[] = [];
   const blockResults: BlockValidationResult[] = [];
 
-  // Detect ROM session (3 body-zone blocks, different structure from regular)
+  // Detect fixed-structure session: ROM (3 body-zone blocks + STRETCHING) or the
+  // phase 159 (D-04/D-07) combos/tecnica day modes (INITIUM + 2 role blocks +
+  // STRETCHING) — both fixed structures, different from regular.
+  const isFixedStructureSession =
+    session.sessionMode === "rom" ||
+    session.sessionMode === "combos" ||
+    session.sessionMode === "tecnica" ||
+    session.blocks.some((b) => b.role.startsWith("ROM_"));
+
+  // Phase 178: combos/tecnica gained a 5th fixed block (II_ALT), so their
+  // expected count moved from 4 to 5. ROM keeps its original 4-block structure.
   const isRomSession =
     session.sessionMode === "rom" ||
     session.blocks.some((b) => b.role.startsWith("ROM_"));
+  const expectedFixedBlocks = isRomSession ? 4 : 5;
 
-  // Check 1: Block count (ROM = 4: INITIUM + 3 zones, regular = 4-5)
-  if (isRomSession) {
-    if (session.blocks.length !== 4) {
+  // Check 1: Block count (ROM = 4, combos/tecnica = 5, regular = 4-5)
+  if (isFixedStructureSession) {
+    if (session.blocks.length !== expectedFixedBlocks) {
       sessionErrors.push(
-        `ROM session has ${session.blocks.length} blocks (expected: 4)`,
+        `Fixed-structure session has ${session.blocks.length} blocks (expected: ${expectedFixedBlocks})`,
       );
     }
   } else if (session.blocks.length < MIN_BLOCKS) {
@@ -133,7 +155,7 @@ export function validateSession(session: DaySession): SessionValidationResult {
   // Check 7: Final block should be ATHLOS or EPIKOS (regular sessions only)
   const lastBlock = session.blocks[session.blocks.length - 1];
   if (
-    !isRomSession &&
+    !isFixedStructureSession &&
     lastBlock &&
     lastBlock.role !== "ATHLOS" &&
     lastBlock.role !== "EPIKOS"

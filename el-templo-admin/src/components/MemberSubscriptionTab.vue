@@ -379,8 +379,34 @@
             </template>
           </div>
 
+          <!-- Prorrateo hasta fin de mes (solo España / domiciliación) -->
+          <div v-if="renewalProrateAvailable && !renewalUseOverride" class="q-mt-md">
+            <q-toggle
+              v-model="renewalProrate"
+              label="Prorratear hasta fin de mes (alinear a domiciliación)"
+            />
+            <template v-if="renewalProrate">
+              <q-input
+                v-model.number="renewalProratedAmount"
+                label="Monto prorrateado"
+                type="number"
+                dense
+                outlined
+                prefix="$"
+                :min="0"
+                class="q-mt-xs"
+                :hint="`Cobra ${renewalMonthEndParts.daysCharged} de ${renewalMonthEndParts.daysInMonth} días · vence ${renewalEndDate}`"
+              />
+              <div v-if="renewalProrateInvalid" class="text-caption text-negative q-mt-xs">
+                El monto no puede superar el mes completo ({{
+                  formatPrice(renewalFullMonthBase, renewTarget.currency ?? 'EUR')
+                }}).
+              </div>
+            </template>
+          </div>
+
           <!-- Precio personalizado -->
-          <div class="q-mt-md">
+          <div v-if="!renewalProrate" class="q-mt-md">
             <q-toggle v-model="renewalUseOverride" label="Precio personalizado" />
             <template v-if="renewalUseOverride">
               <div class="row q-col-gutter-sm q-mt-xs">
@@ -466,6 +492,7 @@
             :loading="renewalLoading"
             :disable="
               renewalOverrideInvalid ||
+              renewalProrateInvalid ||
               !!renewalStartDateError ||
               !!renewalTurnosError ||
               renewalAmountReceived === null ||
@@ -702,6 +729,12 @@ const renewalAmountReceived = ref<number | null>(null);
 const renewalUseOverride = ref(false);
 const renewalOverrideAmount = ref<number | null>(null);
 const renewalOverrideReason = ref('');
+// Renovación prorrateada hasta fin de mes (alineación a la domiciliación de
+// España). Opt-in explícito y excluyente con el precio personalizado: vence el
+// último día del mes del inicio y cobra el proporcional. El monto es editable
+// (prellenado con el sugerido) y viaja al backend por priceOverrideAmount.
+const renewalProrate = ref(false);
+const renewalProratedAmount = ref<number | null>(null);
 // Precio normalizado por el server al renovar (revisión v5.4 WR-04). Cuando el socio
 // venía con priceType 'credit_card' y la regla de recargo está OFF, el server normaliza
 // a 'regular' → el precio a cobrar (Y) es menor que el pricePaid heredado (X). Guardamos
@@ -902,6 +935,10 @@ const renewalStartDateError = computed<string | null>(() => {
 
 const renewalEndDate = computed(() => {
   if (!renewTarget.value?.endDate) return '—';
+  // Prorrateo: vence el último día del mes del inicio (no start + duración).
+  if (renewalProrate.value) {
+    return formatDate(renewalMonthEndParts.value.endDate);
+  }
   const end = new Date(renewalEffectiveStartDate.value);
   end.setDate(end.getDate() + renewalDurationDays.value);
   return formatDate(end.toISOString().split('T')[0]);
@@ -915,6 +952,53 @@ const renewalActivationDate = computed(() => {
   if (renewalEffectiveStartDate.value <= today) return null;
   return formatDate(renewalEffectiveStartDate.value);
 });
+
+// ── Renovación prorrateada hasta fin de mes (alineación a domiciliación) ──
+// Solo tiene sentido para las subs de España (domiciliación) — el toggle se
+// ofrece únicamente cuando la moneda es EUR, mismo gate que la domiciliación.
+const renewalProrateAvailable = computed(() => renewTarget.value?.currency === 'EUR');
+
+// Último día del mes del inicio + días cobrados (día del inicio incluido),
+// parseando las partes de la fecha para no depender de la zona horaria — misma
+// fórmula que el backend (computeMonthEndProration).
+const renewalMonthEndParts = computed(() => {
+  const [y, m, d] = renewalEffectiveStartDate.value.split('-').map(Number);
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const daysCharged = daysInMonth - d + 1;
+  const endDate = `${y}-${String(m).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+  return { endDate, daysCharged, daysInMonth };
+});
+
+// Precio del MES COMPLETO que el socio venía pagando (base del proporcional):
+// el normalizado si el server va a normalizar (credit_card→regular), si no el
+// heredado con add-back del descuento de referido. Espejo del backend.
+const renewalFullMonthBase = computed(() => {
+  if (renewalNormalizedPrice.value !== null) return renewalNormalizedPrice.value;
+  return (renewTarget.value?.pricePaid ?? 0) + (renewTarget.value?.referralDiscountAmount ?? 0);
+});
+
+// Proporcional sugerido: round(base * díasCobrados / díasDelMes). Igual fórmula
+// que el server (computeProratedPrice).
+const renewalSuggestedProrated = computed(() => {
+  const { daysCharged, daysInMonth } = renewalMonthEndParts.value;
+  return Math.round((renewalFullMonthBase.value * daysCharged) / daysInMonth);
+});
+
+// Monto prorrateado efectivo: el editado por el staff si lo tocó, si no el
+// sugerido. Clampeado a >= 0.
+const renewalEffectiveProrated = computed(() =>
+  Math.max(0, renewalProratedAmount.value ?? renewalSuggestedProrated.value)
+);
+
+// El prorrateo es inválido si está activo pero el monto supera el mes completo
+// (el server también lo rechaza) o es negativo.
+const renewalProrateInvalid = computed(
+  () =>
+    renewalProrate.value &&
+    (renewalProratedAmount.value !== null && renewalProratedAmount.value < 0
+      ? true
+      : renewalEffectiveProrated.value > renewalFullMonthBase.value)
+);
 
 // Base de renovación PRE-descuento de referido, espejo del server:
 // override > precio normalizado (credit_card→regular con la regla OFF) >
@@ -939,12 +1023,17 @@ const renewalBasePreReferral = computed(() => {
 
 // Misma price-math del server (floor(base*pct/100)). El server también
 // descuenta referidos sobre el precio personalizado, así que aplica al override.
+// El prorrateo es excluyente con el descuento de referido → 0 en ese modo.
 const renewalReferralAmount = computed(() =>
-  Math.floor(renewalBasePreReferral.value * (renewalReferralPct.value / 100))
+  renewalProrate.value
+    ? 0
+    : Math.floor(renewalBasePreReferral.value * (renewalReferralPct.value / 100))
 );
 
-const renewalChargeBase = computed(
-  () => renewalBasePreReferral.value - renewalReferralAmount.value
+const renewalChargeBase = computed(() =>
+  renewalProrate.value
+    ? renewalEffectiveProrated.value
+    : renewalBasePreReferral.value - renewalReferralAmount.value
 );
 
 // El override es válido si está activo, tiene monto >= 0 y una razón no vacía.
@@ -1060,6 +1149,8 @@ function openRenewal(sub: SubscriptionDetail) {
   renewalUseOverride.value = false;
   renewalOverrideAmount.value = null;
   renewalOverrideReason.value = '';
+  renewalProrate.value = false;
+  renewalProratedAmount.value = null;
   renewalNormalizedPrice.value = null;
   renewalReferralPct.value = 0;
   renewalUseCustomStartDate.value = false;
@@ -1131,6 +1222,23 @@ watch(renewalChargeBase, (base) => {
   renewalAmountReceived.value = base;
 });
 
+// Prorrateo y precio personalizado son excluyentes. Al activar el prorrateo
+// apagamos el override y prellenamos el monto con el proporcional sugerido; al
+// apagarlo, limpiamos el monto editado (vuelve a recalcularse el sugerido).
+watch(renewalProrate, (on) => {
+  if (on) {
+    renewalUseOverride.value = false;
+    renewalOverrideAmount.value = null;
+    renewalOverrideReason.value = '';
+    renewalProratedAmount.value = renewalSuggestedProrated.value;
+  } else {
+    renewalProratedAmount.value = null;
+  }
+});
+watch(renewalUseOverride, (on) => {
+  if (on) renewalProrate.value = false;
+});
+
 function openEditStartDate(sub: SubscriptionDetail) {
   editStartDateTarget.value = sub;
   showEditStartDateDialog.value = true;
@@ -1145,7 +1253,12 @@ async function executeRenewal() {
   // Aviso de normalización (revisión v5.4 WR-04): si el precio se normaliza por el
   // recargo de tarjeta, confirmamos con el usuario antes de renovar, mostrando X→Y.
   // El override manual salta la normalización en el server, así que no avisamos ahí.
-  if (renewalNormalizedPrice.value !== null && !renewalUseOverride.value && renewTarget.value) {
+  if (
+    renewalNormalizedPrice.value !== null &&
+    !renewalUseOverride.value &&
+    !renewalProrate.value &&
+    renewTarget.value
+  ) {
     const currency = renewTarget.value.currency ?? 'ARS';
     const from = formatPrice(renewTarget.value.pricePaid ?? 0, currency);
     const to = formatPrice(renewalNormalizedPrice.value, currency);
@@ -1184,6 +1297,15 @@ async function performRenewal() {
             priceOverrideReason: renewalOverrideReason.value.trim(),
           }
         : {}),
+      // Prorrateo hasta fin de mes: el monto (editado o sugerido) viaja por
+      // priceOverrideAmount SIN razón; el backend fija el vencimiento a fin de
+      // mes y recalcula el proporcional como red de seguridad si no llega.
+      ...(renewalProrate.value
+        ? {
+            prorateToMonthEnd: true,
+            priceOverrideAmount: renewalEffectiveProrated.value,
+          }
+        : {}),
       // Solo enviamos startDate si el admin lo modificó explícitamente; si no,
       // el backend deriva la fecha automáticamente (comportamiento previo).
       ...(renewalUseCustomStartDate.value && renewalStartDate.value
@@ -1209,6 +1331,8 @@ async function performRenewal() {
     renewalUseOverride.value = false;
     renewalOverrideAmount.value = null;
     renewalOverrideReason.value = '';
+    renewalProrate.value = false;
+    renewalProratedAmount.value = null;
     renewalNormalizedPrice.value = null;
     renewalUseCustomStartDate.value = false;
     renewalStartDate.value = '';

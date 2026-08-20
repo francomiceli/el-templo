@@ -146,7 +146,9 @@ describe("Notification Module", () => {
       const rows = await app.db
         .select()
         .from(schema.deviceTokens)
-        .where(eq(schema.deviceTokens.token, tokenValue));
+        .where(
+          sql`/* tenant-safe: token único por test, lectura por UNIQUE global (M8) */ ${schema.deviceTokens.token} = ${tokenValue}`,
+        );
       expect(rows).toHaveLength(1);
     });
 
@@ -522,7 +524,9 @@ describe("Notification Module", () => {
       const [row] = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.id, notificationId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (notificationId), fila creada por este mismo test */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        );
       expect(row).toBeDefined();
       expect(row.status).toBe("pending");
       expect(row.userId).toBe(memberId);
@@ -543,7 +547,9 @@ describe("Notification Module", () => {
       const rows = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.userId, memberId));
+        .where(
+          sql`/* tenant-safe: filtro por userId propio (memberId), sin ambigüedad cross-tenant */ ${schema.pendingNotifications.userId} = ${memberId}`,
+        );
       expect(rows).toHaveLength(0);
     });
 
@@ -572,7 +578,9 @@ describe("Notification Module", () => {
       const [row] = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.id, notificationId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (notificationId), fila creada por este mismo test */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        );
       expect(row.status).toBe("sent");
       expect(row.sentAt).not.toBeNull();
 
@@ -580,7 +588,9 @@ describe("Notification Module", () => {
       const [template] = await app.db
         .select()
         .from(schema.notificationTemplates)
-        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
+        .where(
+          sql`/* tenant-safe: template_key fijo de este test, single-tenant (El Templo) */ ${schema.notificationTemplates.templateKey} = 'morning_energy'`,
+        );
       expect(template.sentCount).toBeGreaterThanOrEqual(1);
     });
 
@@ -606,7 +616,9 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.pendingNotifications)
         .set({ createdAt: pastDate })
-        .where(eq(schema.pendingNotifications.id, notificationId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (notificationId), fila creada por este mismo test */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        );
 
       // Purge old notifications
       const deletedCount = await service.purgeOldNotifications();
@@ -616,7 +628,9 @@ describe("Notification Module", () => {
       const rows = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.id, notificationId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (notificationId), fila creada por este mismo test */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        );
       expect(rows).toHaveLength(0);
     });
 
@@ -627,7 +641,9 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.notificationTemplates)
         .set({ isEnabled: false })
-        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
+        .where(
+          sql`/* tenant-safe: template_key fijo de este test, single-tenant (El Templo) */ ${schema.notificationTemplates.templateKey} = 'morning_energy'`,
+        );
 
       const notificationId = await service.queueNotification({
         userId: memberId,
@@ -670,7 +686,9 @@ describe("Notification Module", () => {
       // or FCM-invalid cleanup from a previous send).
       await app.db
         .delete(schema.deviceTokens)
-        .where(eq(schema.deviceTokens.token, tokenValue));
+        .where(
+          sql`/* tenant-safe: token único por test, lectura por UNIQUE global (M8) */ ${schema.deviceTokens.token} = ${tokenValue}`,
+        );
 
       const result = await service.processQueue();
       expect(result.failed).toBeGreaterThanOrEqual(1);
@@ -678,7 +696,9 @@ describe("Notification Module", () => {
       const [row] = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.id, notificationId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (notificationId), fila creada por este mismo test */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        );
       expect(row.status).toBe("failed");
       expect(row.errorMessage).toContain("No device tokens");
     });
@@ -701,7 +721,7 @@ describe("Notification Module", () => {
       await app.db.execute(
         sql`UPDATE notification_templates
             SET title_female = ${titleFemale}, body_female = ${bodyFemale}
-            WHERE template_key = ${templateKey}`,
+            WHERE template_key = ${templateKey} AND tenant_id = ${CTX.tenantId}`,
       );
     }
 
@@ -741,7 +761,9 @@ describe("Notification Module", () => {
       const [row] = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.id, notificationId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (notificationId), fila creada por este mismo test */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        );
       expect(row.title).toBe("Titulo femenino test");
       expect(row.body).toBe("Cuerpo femenino test");
     });
@@ -768,7 +790,9 @@ describe("Notification Module", () => {
       const [template] = await app.db
         .select()
         .from(schema.notificationTemplates)
-        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
+        .where(
+          sql`/* tenant-safe: template_key fijo de este test, single-tenant (El Templo) */ ${schema.notificationTemplates.templateKey} = 'morning_energy'`,
+        );
 
       // Device token required at enqueue time
       await service.registerToken(
@@ -788,7 +812,9 @@ describe("Notification Module", () => {
       const [row] = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.id, notificationId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (notificationId), fila creada por este mismo test */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        );
       expect(row.title).toBe(template.title);
       expect(row.body).toBe(template.body);
       expect(row.title).not.toBe("Titulo femenino test");
@@ -817,7 +843,9 @@ describe("Notification Module", () => {
       const [template] = await app.db
         .select()
         .from(schema.notificationTemplates)
-        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
+        .where(
+          sql`/* tenant-safe: template_key fijo de este test, single-tenant (El Templo) */ ${schema.notificationTemplates.templateKey} = 'morning_energy'`,
+        );
 
       // Device token required at enqueue time
       await service.registerToken(
@@ -837,7 +865,9 @@ describe("Notification Module", () => {
       const [row] = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.id, notificationId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (notificationId), fila creada por este mismo test */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        );
       expect(row.title).toBe(template.title);
       expect(row.body).toBe(template.body);
     });
@@ -861,7 +891,9 @@ describe("Notification Module", () => {
       const [template] = await app.db
         .select()
         .from(schema.notificationTemplates)
-        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
+        .where(
+          sql`/* tenant-safe: template_key fijo de este test, single-tenant (El Templo) */ ${schema.notificationTemplates.templateKey} = 'morning_energy'`,
+        );
 
       // Device token required at enqueue time
       await service.registerToken(
@@ -881,7 +913,9 @@ describe("Notification Module", () => {
       const [row] = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.id, notificationId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (notificationId), fila creada por este mismo test */ ${schema.pendingNotifications.id} = ${notificationId}`,
+        );
       expect(row.title).toBe(template.title);
       expect(row.body).toBe(template.body);
     });
@@ -964,7 +998,9 @@ describe("Notification Module", () => {
       const maleNotifications = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.userId, memberId));
+        .where(
+          sql`/* tenant-safe: filtro por userId propio (memberId), sin ambigüedad cross-tenant */ ${schema.pendingNotifications.userId} = ${memberId}`,
+        );
       expect(maleNotifications.length).toBeGreaterThanOrEqual(1);
       const maleNotif = maleNotifications[maleNotifications.length - 1];
       expect(maleNotif.title).toBe("Titulo default");
@@ -974,7 +1010,9 @@ describe("Notification Module", () => {
       const femaleNotifications = await app.db
         .select()
         .from(schema.pendingNotifications)
-        .where(eq(schema.pendingNotifications.userId, femaleMemberId));
+        .where(
+          sql`/* tenant-safe: filtro por userId propio (femaleMemberId), sin ambigüedad cross-tenant */ ${schema.pendingNotifications.userId} = ${femaleMemberId}`,
+        );
       expect(femaleNotifications.length).toBeGreaterThanOrEqual(1);
       const femaleNotif = femaleNotifications[femaleNotifications.length - 1];
       expect(femaleNotif.title).toBe("Titulo femenino");

@@ -22,12 +22,20 @@
  *
  * Para las queries user-based (miembros activos KPI) que no tienen `subscriptions`
  * como tabla base, usar `activeNonEspecialMemberExists` (shared/active-member.ts).
+ *
+ * Fase 174.1-03 (D-02): `excludeEspecialSubs` hace su propio `FROM
+ * subscription_plans` (tabla del boundary) — recibe `ctx` PRIMERO (regla
+ * 169-06) y lo filtra explícito por `tenant_id`, threadeado desde cada
+ * caller (churn/renewal/retention/member-flows, todos con ctx real de
+ * request admin).
  */
 import { sql, type SQL } from "drizzle-orm";
+import type { TenantContext } from "../shared/tenant";
 
-export function excludeEspecialSubs(): SQL {
+export function excludeEspecialSubs(ctx: TenantContext): SQL {
   return sql`subscriptions.plan_id NOT IN (
-    SELECT id FROM subscription_plans WHERE plan_category = 'especial'
+    SELECT id FROM subscription_plans
+    WHERE plan_category = 'especial' AND tenant_id = ${ctx.tenantId}
   )`;
 }
 

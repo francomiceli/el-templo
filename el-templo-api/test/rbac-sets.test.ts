@@ -8,6 +8,7 @@ import {
   PROGRAMAS_LIST_ROLES,
   TEMPLO_RBAC_OVERRIDES,
   TV_CONTROL_ROLES,
+  CHECKIN_ROSTER_ROLES,
 } from "../src/modules/shared/permissions";
 
 /**
@@ -73,6 +74,15 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
     expect([...TV_CONTROL_ROLES]).toEqual(["admin", "owner", "coach"]);
     expect([...TV_CONTROL_ROLES]).not.toContain("gestion");
     expect([...TV_CONTROL_ROLES]).not.toContain("recepcion");
+  });
+
+  it("CHECKIN_ROSTER_ROLES is Dueño core + coach (registro del día) — 2026-08-13", () => {
+    // Dato de salud autorreportado: coach + admin/dueño lo ven, gestion/recepcion
+    // NO (la vista de Feedback sigue dueño-only). Mismo valor que TV_CONTROL_ROLES
+    // pero declarado aparte a propósito.
+    expect([...CHECKIN_ROSTER_ROLES]).toEqual(["admin", "owner", "coach"]);
+    expect([...CHECKIN_ROSTER_ROLES]).not.toContain("gestion");
+    expect([...CHECKIN_ROSTER_ROLES]).not.toContain("recepcion");
   });
 
   it("TEMPLO_RBAC_OVERRIDES holds only the extra roles layered over the core", () => {

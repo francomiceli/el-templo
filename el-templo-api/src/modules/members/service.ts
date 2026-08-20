@@ -960,7 +960,7 @@ export class MemberService {
     // independent of referredBy. An irrecoverable UNIQUE collision leaves
     // referral_code NULL (the backfill covers it) and NEVER blocks the alta.
     try {
-      await referralService.generateReferralCode(userId);
+      await referralService.generateReferralCode(ctx, userId);
     } catch (err: unknown) {
       this.log.warn(
         { err: err instanceof Error ? err.message : String(err), userId },
@@ -2353,7 +2353,7 @@ export class MemberService {
     // Default 'activo': el archivo del banco es solo de socios con cuota
     // vigente. 'todos' queda para control/auditoría de datos cargados.
     if (params.status !== "todos") {
-      conditions.push(activeMemberExists(schema.users.id));
+      conditions.push(activeMemberExists(schema.users.id, ctx));
     }
 
     // Fase 173-19: `sp.tenant_id`/`s.tenant_id` inline.

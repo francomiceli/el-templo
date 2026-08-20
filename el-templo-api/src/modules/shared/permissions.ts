@@ -277,3 +277,18 @@ export const MEMBER_LIFECYCLE_ROLES = ["owner", "admin", "gestion"] as const;
  * un coach de Moreno no puede vincular un TV de Jujuy aunque pase este guard.
  */
 export const TV_CONTROL_ROLES = [...ADMIN_ROLES, "coach"] as const;
+
+/**
+ * Roles que ven el "Registro del día" del alumno (energía/sueño/molestias) en la
+ * lista de asistencia y en la card de Horarios (2026-08-13): el core Dueño
+ * (ADMIN_ROLES) + coach, porque el profe es quien tiene la clase enfrente y
+ * ajusta el entrenamiento según cómo llegó cada uno.
+ *
+ * Valor efectivo `["admin", "owner", "coach"]`, fijado byte a byte por
+ * `rbac-sets.test.ts`. Deliberadamente EXCLUYE gestion/recepcion: el check-in es
+ * dato de salud autorreportado con nombre y apellido, y la vista de Feedback lo
+ * mantiene dueño-only. Coincide en VALOR con TV_CONTROL_ROLES, pero se declara
+ * aparte a propósito (misma regla que ahí: "si otro módulo necesita dueño +
+ * coach, que declare el suyo") para que ensanchar uno no ensanche el otro.
+ */
+export const CHECKIN_ROSTER_ROLES = [...ADMIN_ROLES, "coach"] as const;

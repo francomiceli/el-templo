@@ -141,14 +141,24 @@ import {
  * master por fuera del tren v6.0; en master no existe este gate, así que este
  * bump es solo de staging.
  *
- * **Movido a 367 el 2026-08-12** — TV sin emparejamiento por código. La pantalla
- * TV pasó a ser una vista del admin AUTENTICADA, así que se retiró TODO el plugin
- * de device: se borraron 8 rutas (`/api/tv/pair/start`, `/pair/status`, `/me`,
- * `/state`, `/client-log`, y en admin `/tv/devices`, `/tv/devices/:id/revoke`,
- * `/tv/pair/claim`) y se agregó 1 (`GET /api/admin/tv/control/screen`,
- * tenant-scoped, la proyección de pantalla por sede). Neto −7 (374 − 8 + 1).
+ * **Movido a 375 el 2026-08-11**, ruta nueva y no un merge:
+ * `GET /api/admin/subscriptions/members/:userId/subscription/assign-proration-preview`
+ * (preview del precio de un alta prorrateada hasta fin de mes). **tenant-scoped**:
+ * devuelve el precio de UN plan para el alta de un socio, datos de un solo
+ * gimnasio, el caso normal de D-02. Esta feature viajó directo a master (fuera
+ * del tren v6.0), donde este gate SÍ existe (fase 171 en prod) — a diferencia de
+ * la nota de aniversarios de arriba, este bump es de master.
  *
- * El reparto por categoría vigente es 220 `tenant-scoped` · 6 `global` · 141
+ * **Movido a 370 el 2026-08-13**, ruta nueva y no un merge:
+ * `GET /api/admin/check-ins/roster` (registros del día de los asistentes de una
+ * sede, card de Horarios para coach + admin/dueño). **tenant-scoped**: lista los
+ * asistentes de UNA sede en una fecha (branchId + requireBranchAccess) con su
+ * check-in, datos de un solo gimnasio, el caso normal de D-02. Viajó directo a
+ * master (fuera del tren v6.0), donde este gate SÍ existe. NOTA: el número
+ * arranca en 369 en master (no en 375: los bumps de referrals/proration de la
+ * narrativa de arriba son de staging), así que en master 369 → 370.
+ *
+ * El reparto por categoría vigente es 226 `tenant-scoped` · 8 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
  * por categoría a propósito, y
@@ -158,7 +168,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 368;
+const ENTRADAS_BASELINE = 370;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -265,7 +275,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 368 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 370 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

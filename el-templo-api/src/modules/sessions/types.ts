@@ -34,7 +34,17 @@ export type ExerciseLevel =
  */
 export type ContentLevel = Exclude<ExerciseLevel, "kairos">;
 
-/** Block roles in a training session (5 blocks for regular, 3 for ROM) */
+/**
+ * Block roles in a training session (5 blocks for regular and ROM, 5 for
+ * combos/tecnica as of Phase 178).
+ * Phase 159 (SEM-01, D-04/D-07/D-11): COMBOS_I/COMBOS_II and TECNICA_I/TECNICA_II
+ * are the fixed-structure blocks of a "día de combos"/"día de técnica" (analogous
+ * to ROM_*); STRETCHING is the shared final block for both new day modes.
+ * Phase 178: COMBOS_II_ALT/TECNICA_II_ALT add a 5th fixed block — an alternative
+ * variant of the 2nd block (same moment/window, different exercises). Combos/
+ * tecnica structure is now INITIUM → II_I → II_II → II_ALT → STRETCHING (5 blocks,
+ * up from 4). ROM keeps its own 4-block fixed structure.
+ */
 export type BlockRole =
   | "INITIUM"
   | "NUCLEUS"
@@ -44,7 +54,16 @@ export type BlockRole =
   | "EPIKOS"
   | "ROM_LOWER"
   | "ROM_CORE"
-  | "ROM_UPPER";
+  | "ROM_UPPER"
+  | "COMBOS_I"
+  | "COMBOS_II"
+  // Phase 178: variante alternativa del 2º bloque, mismo momento/ventana
+  | "COMBOS_II_ALT"
+  | "TECNICA_I"
+  | "TECNICA_II"
+  // Phase 178: variante alternativa del 2º bloque, mismo momento/ventana
+  | "TECNICA_II_ALT"
+  | "STRETCHING";
 
 /** Final block type - alternates by week */
 export type FinalBlockRole = "ATHLOS" | "EPIKOS";
@@ -157,6 +176,10 @@ export interface DaySession {
   readonly trace: readonly TraceEvent[];
   /** Goal plan type for goal plan sessions. Null/undefined for general Entrenamiento. */
   readonly goalPlanType?: string | null;
-  /** Session mode: 'regular' (default SPOM) or 'rom' (mobility-focused) */
-  readonly sessionMode?: "regular" | "rom";
+  /**
+   * Session mode: 'regular' (default SPOM), 'rom' (mobility-focused), or the
+   * phase 159 (D-01) day modes 'combos'/'tecnica' — chosen per-day by the coach
+   * in /generate (D-02), never a fixed value of `day_modes`.
+   */
+  readonly sessionMode?: "regular" | "rom" | "combos" | "tecnica";
 }

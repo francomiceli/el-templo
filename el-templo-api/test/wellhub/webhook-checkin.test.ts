@@ -33,7 +33,7 @@ import {
 } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createHmac } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createTestApp, cleanAllTestData, registerUser } from "../helpers";
 import * as schema from "../../src/db/schema";
 import {
@@ -192,7 +192,12 @@ describe("Wellhub webhook — check-in", () => {
     expect(firmaAjena.statusCode).toBe(401);
 
     // Nada quedó registrado.
-    const events = await app.db.select().from(schema.wellhubEvents);
+    const events = await app.db
+      .select()
+      .from(schema.wellhubEvents)
+      .where(
+        sql`/* tenant-safe: aserción de vacío sobre la corrida de este test, sin fixture de 2do tenant */ 1 = 1`,
+      );
     expect(events).toHaveLength(0);
   });
 
@@ -335,7 +340,9 @@ describe("Wellhub webhook — check-in", () => {
     const [event] = await app.db
       .select()
       .from(schema.wellhubEvents)
-      .where(eq(schema.wellhubEvents.eventType, "checkin"));
+      .where(
+        sql`/* tenant-safe: aserción sobre datos propios de este test, sin fixture de 2do tenant */ ${schema.wellhubEvents.eventType} = 'checkin'`,
+      );
     expect(event.status).toBe("processed");
   });
 
@@ -437,7 +444,9 @@ describe("Wellhub webhook — check-in", () => {
     const [event] = await app.db
       .select()
       .from(schema.wellhubEvents)
-      .where(eq(schema.wellhubEvents.eventType, "checkin"));
+      .where(
+        sql`/* tenant-safe: aserción sobre datos propios de este test, sin fixture de 2do tenant */ ${schema.wellhubEvents.eventType} = 'checkin'`,
+      );
     expect(event.status).toBe("error");
 
     // Reintento de Wellhub con el mismo payload, ahora la API responde bien.

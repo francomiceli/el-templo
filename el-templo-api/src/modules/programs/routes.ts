@@ -499,6 +499,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
           .from(schema.subscriptions)
           .where(
             and(
+              tenantWhere(schema.subscriptions, ctxAddon),
               eq(schema.subscriptions.userId, request.params.userId),
               or(
                 eq(schema.subscriptions.status, "active"),

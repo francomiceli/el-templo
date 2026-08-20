@@ -53,9 +53,7 @@
         <q-icon name="auto_awesome" class="especial-card__icon" />
         <span class="especial-card__text">
           <span class="especial-card__title">Actividades con Aura</span>
-          <span class="especial-card__value"
-            >{{ userStore.especialClassesRemaining }} de 2 clases este mes</span
-          >
+          <span class="especial-card__value">{{ especialBalanceText }}</span>
           <span v-if="especialPeriodEnd" class="especial-card__meta"
             >Se renuevan el {{ especialPeriodEnd }}</span
           >
@@ -214,6 +212,14 @@ const especialPeriodEnd = computed(() => {
   const d = new Date(end + 'T12:00:00')
   return `${d.getDate()}/${d.getMonth() + 1}`
 })
+
+// Saldo del pase: ilimitado → sin contador; con cupo → "x de N clases este mes".
+// El budget viene del plan (2/4), ya no hardcodeado.
+const especialBalanceText = computed(() =>
+  userStore.especialUnlimited
+    ? 'Accesos ilimitados este mes'
+    : `${userStore.especialClassesRemaining} de ${userStore.especialClassesBudget} clases este mes`,
+)
 
 function scrollCheckIns(direction: 'left' | 'right') {
   const el = checkInsRowRef.value

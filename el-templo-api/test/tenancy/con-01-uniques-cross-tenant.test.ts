@@ -629,7 +629,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM promo_plans WHERE promo_code = ${PROMO}`,
+        sql`/* tenant-safe: aserción deliberadamente cross-tenant — este test verifica que la unique es POR TENANT, no global (con-01) */ SELECT COUNT(*) AS n FROM promo_plans WHERE promo_code = ${PROMO}`,
       );
       expect(enLosDos, "El mismo código promo, una vez por tenant").toBe(2);
 
@@ -665,7 +665,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM campaign_unsubscribes WHERE email = ${EMAIL}`,
+        sql`/* tenant-safe: aserción deliberadamente cross-tenant — este test verifica que la unique es POR TENANT, no global (con-01, mina M3) */ SELECT COUNT(*) AS n FROM campaign_unsubscribes WHERE email = ${EMAIL}`,
       );
       expect(
         enLosDos,
@@ -692,7 +692,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const sinSocio = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM campaign_unsubscribes
+        sql`/* tenant-safe: aserción deliberadamente cross-tenant — este test verifica que la unique es POR TENANT, no global (con-01, mina M3) */ SELECT COUNT(*) AS n FROM campaign_unsubscribes
             WHERE email = ${SOLO_EMAIL} AND user_id IS NULL`,
       );
       expect(sinSocio, "La baja solo-email se guarda con user_id NULL").toBe(1);
@@ -734,7 +734,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM notification_templates WHERE template_key = ${CLAVE}`,
+        sql`/* tenant-safe: aserción deliberadamente cross-tenant — este test verifica que la unique es POR TENANT, no global (con-01) */ SELECT COUNT(*) AS n FROM notification_templates WHERE template_key = ${CLAVE}`,
       );
       expect(
         enLosDos,
@@ -808,7 +808,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM holidays WHERE country = 'AR' AND date = ${FECHA}`,
+        sql`SELECT /* tenant-safe: la asercion cross-tenant necesita contar los dos gimnasios */ COUNT(*) AS n FROM holidays WHERE country = 'AR' AND date = ${FECHA}`,
       );
       expect(enLosDos, "El mismo feriado, una vez por tenant").toBe(2);
 
@@ -890,7 +890,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM subscription_plans WHERE name = ${NOMBRE} AND country = 'AR'`,
+        sql`SELECT /* tenant-safe: la asercion cross-tenant necesita contar los dos gimnasios */ COUNT(*) AS n FROM subscription_plans WHERE name = ${NOMBRE} AND country = 'AR'`,
       );
       expect(enLosDos, "El mismo plan, una vez por tenant").toBe(2);
 

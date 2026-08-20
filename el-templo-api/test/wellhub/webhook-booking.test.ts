@@ -368,7 +368,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select()
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("confirmed");
     expect(wb.bookingId).toBe(bookings[0].id);
   });
@@ -417,7 +419,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select()
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("rejected");
     expect(wb.bookingId).toBeNull();
 
@@ -508,7 +512,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select()
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("canceled");
 
     const [cancelled] = await app.db
@@ -567,7 +573,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select()
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("late_canceled");
   });
 
@@ -692,7 +700,9 @@ describe("Wellhub — reservas y sincronización", () => {
       const [slotRow] = await app.db
         .select({ totalBooked: schema.wellhubSlots.totalBooked })
         .from(schema.wellhubSlots)
-        .where(eq(schema.wellhubSlots.id, slot.slotRowId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (slot.slotRowId), fila creada por este mismo test */ ${schema.wellhubSlots.id} = ${slot.slotRowId}`,
+        );
       expect(slotRow.totalBooked).toBe(1);
     });
   });
@@ -712,6 +722,7 @@ describe("Wellhub — reservas y sincronización", () => {
       .from(schema.wellhubClasses)
       .where(
         and(
+          sql`/* tenant-safe: (branch_id, activity_id) es UNIQUE (idx_wellhub_classes_branch_activity), sin ambigüedad cross-tenant */ 1 = 1`,
           eq(schema.wellhubClasses.branchId, branchId),
           eq(schema.wellhubClasses.activityId, activityId),
         ),
@@ -722,7 +733,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const slots = await app.db
       .select()
       .from(schema.wellhubSlots)
-      .where(eq(schema.wellhubSlots.scheduleId, scheduleId));
+      .where(
+        sql`/* tenant-safe: aserción sobre datos propios de este test, scheduleId de la fixture local */ ${schema.wellhubSlots.scheduleId} = ${scheduleId}`,
+      );
     expect(slots.length).toBeGreaterThanOrEqual(1);
     const tomorrowSlot = slots.find((s) => s.sessionDate === tomorrow);
     expect(tomorrowSlot).toBeDefined();
@@ -745,7 +758,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const [patched] = await app.db
       .select({ totalCapacity: schema.wellhubSlots.totalCapacity })
       .from(schema.wellhubSlots)
-      .where(eq(schema.wellhubSlots.id, tomorrowSlot?.id as number));
+      .where(
+        sql`/* tenant-safe: lectura por PK propia (tomorrowSlot.id), fila ya resuelta arriba en este mismo test */ ${schema.wellhubSlots.id} = ${tomorrowSlot?.id as number}`,
+      );
     expect(patched.totalCapacity).toBe(4);
 
     // 3. Excepción de fecha → despublica.
@@ -761,6 +776,7 @@ describe("Wellhub — reservas y sincronización", () => {
       .from(schema.wellhubSlots)
       .where(
         and(
+          sql`/* tenant-safe: (schedule_id, session_date) es UNIQUE (idx_wellhub_slots_schedule_date) */ 1 = 1`,
           eq(schema.wellhubSlots.scheduleId, scheduleId),
           eq(schema.wellhubSlots.sessionDate, tomorrow),
         ),
@@ -834,7 +850,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const slots = await app.db
       .select()
       .from(schema.wellhubSlots)
-      .where(eq(schema.wellhubSlots.scheduleId, scheduleId));
+      .where(
+        sql`/* tenant-safe: aserción sobre datos propios de este test, scheduleId de la fixture local */ ${schema.wellhubSlots.scheduleId} = ${scheduleId}`,
+      );
     expect(slots).toHaveLength(1);
     expect(slots[0].wellhubSlotId).toBe(ORPHAN_ID);
     expect(slots[0].totalCapacity).toBe(2);
@@ -863,6 +881,7 @@ describe("Wellhub — reservas y sincronización", () => {
 
     const bookingNumber = `BK_DEAD${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
     await app.db.insert(schema.wellhubBookings).values({
+      tenantId: 1,
       bookingNumber,
       bookingId,
       userId: visitorId,
@@ -871,7 +890,7 @@ describe("Wellhub — reservas y sincronización", () => {
     });
     // Envejecer el pending más allá de la ventana de expiración.
     await app.db.execute(
-      sql`UPDATE wellhub_bookings SET created_at = DATE_SUB(NOW(), INTERVAL 30 MINUTE) WHERE booking_number = ${bookingNumber}`,
+      sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ UPDATE wellhub_bookings SET created_at = DATE_SUB(NOW(), INTERVAL 30 MINUTE) WHERE booking_number = ${bookingNumber}`,
     );
 
     const summary = await runWellhubSync(app.db);
@@ -880,7 +899,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select({ status: schema.wellhubBookings.status })
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("expired");
 
     const [booking] = await app.db

@@ -258,7 +258,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
       endDate: await dateOffset(-40),
     });
 
-    const res = await churnSvc.getChurn({
+    const res = await churnSvc.getChurn(CTX, {
       dateFrom: await dateOffset(-90),
       dateTo: await dateOffset(1),
     });

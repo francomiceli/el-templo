@@ -16,7 +16,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, gte, sql, desc, like, inArray, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
 import type {
   ProposalPromptStatus,
   SubmitProposalInput,
@@ -61,13 +61,17 @@ export class ImprovementProposalsService {
    * cadencia de re-prompt tras "Ahora no" (14 días entre apariciones) la
    * maneja el cliente con storage local.
    */
-  async getPromptStatus(memberId: number): Promise<ProposalPromptStatus> {
+  async getPromptStatus(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<ProposalPromptStatus> {
     const quietStart = new Date(Date.now() - PROMPT_QUIET_AFTER_SUBMIT_MS);
     const [row] = await this.db
       .select({ id: schema.improvementProposals.id })
       .from(schema.improvementProposals)
       .where(
         and(
+          tenantWhere(schema.improvementProposals, ctx),
           eq(schema.improvementProposals.memberId, memberId),
           gte(schema.improvementProposals.createdAt, quietStart),
         ),
@@ -122,6 +126,7 @@ export class ImprovementProposalsService {
       .from(schema.improvementProposals)
       .where(
         and(
+          tenantWhere(schema.improvementProposals, ctx),
           eq(schema.improvementProposals.memberId, memberId),
           gte(schema.improvementProposals.createdAt, windowStart),
         ),
@@ -132,11 +137,13 @@ export class ImprovementProposalsService {
       );
     }
 
-    await this.db.insert(schema.improvementProposals).values({
-      memberId,
-      branchId: user.branchId,
-      proposal,
-    });
+    await this.db.insert(schema.improvementProposals).values(
+      tenantValues(ctx, {
+        memberId,
+        branchId: user.branchId,
+        proposal,
+      }),
+    );
   }
 
   // ─── Admin ─────────────────────────────────────────────────────────────────
@@ -148,6 +155,7 @@ export class ImprovementProposalsService {
    * palabra clave (LIKE literal sobre el texto).
    */
   async getAdminProposals(
+    ctx: TenantContext,
     scope: ProposalsScope,
     filters: AdminProposalsFilters = {},
   ): Promise<AdminProposalsResult> {
@@ -161,12 +169,13 @@ export class ImprovementProposalsService {
       limit,
     };
 
-    const conds = await this.buildConditions(scope, filters);
+    const conds = await this.buildConditions(ctx, scope, filters);
     if (conds === null) {
       return emptyResult;
     }
     const whereClause = conds.length > 0 ? and(...conds) : undefined;
 
+    /* tenant-safe: whereClause siempre incluye tenantWhere(schema.improvementProposals, ctx) como primer termino (buildConditions, arriba) — el lint juzga por statement y no ve el AND armado en otro metodo */
     const [countRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.improvementProposals)
@@ -182,10 +191,11 @@ export class ImprovementProposalsService {
    * Filas para el export xlsx: mismos filtros que el listado, sin paginar.
    */
   async getExportRows(
+    ctx: TenantContext,
     scope: ProposalsScope,
     filters: AdminProposalsFilters = {},
   ): Promise<AdminProposalRow[]> {
-    const conds = await this.buildConditions(scope, filters);
+    const conds = await this.buildConditions(ctx, scope, filters);
     if (conds === null) {
       return [];
     }
@@ -199,15 +209,17 @@ export class ImprovementProposalsService {
    * vacío sin consultar.
    */
   private async buildConditions(
+    ctx: TenantContext,
     scope: ProposalsScope,
     filters: AdminProposalsFilters,
   ): Promise<SQL[] | null> {
-    const conds: SQL[] = [];
+    const conds: SQL[] = [tenantWhere(schema.improvementProposals, ctx)];
 
     if (!scope.isOwner) {
       if (scope.country === null) {
         return null;
       }
+      /* tenant-safe: sub-lookup de sedes por pais para reducir branchIds; improvementProposals ya viene acotado por tenantWhere (primer elemento de conds, arriba) — este inArray solo estrecha DENTRO de ese conjunto, branchId es FK global y no amplia el resultado */
       const branchRows = await this.db
         .select({ id: schema.branches.id })
         .from(schema.branches)
@@ -223,11 +235,13 @@ export class ImprovementProposalsService {
       conds.push(eq(schema.improvementProposals.branchId, filters.branchId));
     }
     if (filters.dateFrom !== undefined) {
+      /* tenant-safe: fragmento de condicion sobre created_at, NO ejecuta query propia — siempre se agrega a conds y viaja ANDed con tenantWhere(schema.improvementProposals, ctx) (primer elemento de conds, arriba) en la query final. El lint juzga por statement y este push no ve ese AND en su propio texto */
       conds.push(
         sql`DATE(${schema.improvementProposals.createdAt}) >= ${filters.dateFrom}`,
       );
     }
     if (filters.dateTo !== undefined) {
+      /* tenant-safe: idem el bloque de dateFrom arriba — mismo motivo */
       conds.push(
         sql`DATE(${schema.improvementProposals.createdAt}) <= ${filters.dateTo}`,
       );
@@ -247,6 +261,7 @@ export class ImprovementProposalsService {
     limit?: number,
     offset?: number,
   ): Promise<AdminProposalRow[]> {
+    /* tenant-safe: whereClause siempre incluye tenantWhere(schema.improvementProposals, ctx) como primer termino (buildConditions) — el lint juzga por statement y no ve el AND armado en otro metodo */
     let query = this.db
       .select({
         id: schema.improvementProposals.id,

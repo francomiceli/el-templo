@@ -1,11 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "./helpers";
 import * as schema from "../src/db/schema";
 import { NotificationService } from "../src/modules/notifications/service";
 import { runPlanRenewalWarnings } from "../src/jobs/notification-cron";
 import { createPlan, createMember } from "./subscriptions/_helpers";
+// Fase 174.1-05 (D-02): runPlanRenewalWarnings ahora recibe ctx (threadeado
+// desde el barrido por-tenant que lo llama en producción).
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 144-02 Task 2 — Plan Renewal Warning cron (D-02, D-03, D-05).
@@ -42,7 +47,8 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     // Seed the plan_renewal_warning_* templates BEFORE invoking the cron —
     // queueNotification no-ops without them and the asserts would see 0 rows.
     notificationService = new NotificationService(app.db, app.log);
-    await notificationService.seedTemplates();
+    // T-175-03: `seedTemplates` ahora exige `ctx` real (siembra por tenant).
+    await notificationService.seedTemplates(TEMPLO_CTX);
   });
 
   /**
@@ -70,6 +76,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
   /** Give the member a device token so queueNotification does not skip them. */
   async function giveDeviceToken(userId: number): Promise<void> {
     await app.db.insert(schema.deviceTokens).values({
+      tenantId: TENANT_TEMPLO,
       userId,
       token: `tok-${userId}-${Date.now()}`,
       platform: "android",
@@ -79,6 +86,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
   /** Silence the `planes` category for the member (opt-out). */
   async function silencePlanes(userId: number): Promise<void> {
     await app.db.insert(schema.notificationPreferences).values({
+      tenantId: TENANT_TEMPLO,
       userId,
       category: "planes",
       enabled: false,
@@ -97,7 +105,12 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
           schema.notificationTemplates.id,
         ),
       )
-      .where(eq(schema.pendingNotifications.userId, userId));
+      .where(
+        and(
+          eq(schema.pendingNotifications.userId, userId),
+          eq(schema.pendingNotifications.tenantId, TENANT_TEMPLO),
+        ),
+      );
     return rows.map((r) => r.key);
   }
 
@@ -106,7 +119,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     await giveDeviceToken(member.id);
     await insertSub(member.id, "active", 7);
 
-    await runPlanRenewalWarnings(app.db, notificationService);
+    await runPlanRenewalWarnings(app.db, notificationService, TEMPLO_CTX);
 
     expect(await pendingKeysFor(member.id)).toEqual([
       "plan_renewal_warning_7d",
@@ -118,7 +131,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     await giveDeviceToken(member.id);
     await insertSub(member.id, "active", 3);
 
-    await runPlanRenewalWarnings(app.db, notificationService);
+    await runPlanRenewalWarnings(app.db, notificationService, TEMPLO_CTX);
 
     expect(await pendingKeysFor(member.id)).toEqual([
       "plan_renewal_warning_3d",
@@ -130,7 +143,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     await giveDeviceToken(member.id);
     await insertSub(member.id, "active", 0);
 
-    await runPlanRenewalWarnings(app.db, notificationService);
+    await runPlanRenewalWarnings(app.db, notificationService, TEMPLO_CTX);
 
     expect(await pendingKeysFor(member.id)).toEqual([
       "plan_renewal_warning_expired",
@@ -144,7 +157,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     await insertSub(member.id, "active", 3);
     await insertSub(member.id, "scheduled", 33);
 
-    await runPlanRenewalWarnings(app.db, notificationService);
+    await runPlanRenewalWarnings(app.db, notificationService, TEMPLO_CTX);
 
     // covered-until = today+33 ≠ today+3 → no push for the 3d window.
     expect(await pendingKeysFor(member.id)).toEqual([]);
@@ -156,7 +169,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     await insertSub(member.id, "active", 3);
     await silencePlanes(member.id);
 
-    await runPlanRenewalWarnings(app.db, notificationService);
+    await runPlanRenewalWarnings(app.db, notificationService, TEMPLO_CTX);
 
     expect(await pendingKeysFor(member.id)).toEqual([]);
   });
@@ -166,7 +179,7 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     await giveDeviceToken(member.id);
     await insertSub(member.id, "active", 5);
 
-    await runPlanRenewalWarnings(app.db, notificationService);
+    await runPlanRenewalWarnings(app.db, notificationService, TEMPLO_CTX);
 
     expect(await pendingKeysFor(member.id)).toEqual([]);
   });

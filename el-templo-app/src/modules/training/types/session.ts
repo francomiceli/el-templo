@@ -19,6 +19,13 @@ export type BlockRole =
   | 'ROM_LOWER' // ROM mobility - lower body (Tren Inferior)
   | 'ROM_CORE' // ROM mobility - core (Zona Media)
   | 'ROM_UPPER' // ROM mobility - upper body (Tren Superior)
+  | 'COMBOS_I' // Combos day - first block (fase 160, SEM-10)
+  | 'COMBOS_II' // Combos day - second block (fase 160, SEM-10)
+  | 'COMBOS_II_ALT' // Combos day - alternate second block (fase 178: bloque alternativo del 2º bloque)
+  | 'TECNICA_I' // Tecnica day - first block (fase 160, SEM-10)
+  | 'TECNICA_II' // Tecnica day - second block (fase 160, SEM-10)
+  | 'TECNICA_II_ALT' // Tecnica day - alternate second block (fase 178: bloque alternativo del 2º bloque)
+  | 'STRETCHING' // Shared mobility pool, all levels (fase 160, D160-04)
 
 /**
  * Individual exercise prescription within a block
@@ -136,8 +143,8 @@ export interface Session {
   /** Ordered list of training blocks */
   blocks: Block[]
 
-  /** Session mode: 'regular' for SPOM training, 'rom' for ROM mobility */
-  sessionMode?: 'regular' | 'rom'
+  /** Session mode: 'regular' for SPOM training, 'rom' for ROM mobility, 'combos'/'tecnica' for the day-override modes (fase 160) */
+  sessionMode?: 'regular' | 'rom' | 'combos' | 'tecnica'
 }
 
 /**

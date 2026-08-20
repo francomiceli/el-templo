@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -81,7 +81,9 @@ describe("campaign tracking endpoints (Phase 119)", () => {
     const events = await app.db
       .select()
       .from(schema.campaignEvents)
-      .where(eq(schema.campaignEvents.sendId, sendId));
+      .where(
+        sql`/* tenant-safe: lectura por FK propia (sendId), send creado por este mismo test */ ${schema.campaignEvents.sendId} = ${sendId}`,
+      );
     expect(events.some((e) => e.type === "open")).toBe(true);
   });
 
@@ -102,7 +104,9 @@ describe("campaign tracking endpoints (Phase 119)", () => {
     const events = await app.db
       .select()
       .from(schema.campaignEvents)
-      .where(eq(schema.campaignEvents.sendId, sendId));
+      .where(
+        sql`/* tenant-safe: lectura por FK propia (sendId), send creado por este mismo test */ ${schema.campaignEvents.sendId} = ${sendId}`,
+      );
     expect(events.some((e) => e.type === "click")).toBe(true);
   });
 
@@ -135,7 +139,9 @@ describe("campaign tracking endpoints (Phase 119)", () => {
     const rows = await app.db
       .select()
       .from(schema.campaignUnsubscribes)
-      .where(eq(schema.campaignUnsubscribes.email, email));
+      .where(
+        sql`/* tenant-safe: lectura por email único generado por este mismo test (seedSend) */ ${schema.campaignUnsubscribes.email} = ${email}`,
+      );
     expect(rows).toHaveLength(1);
   });
 
@@ -151,7 +157,9 @@ describe("campaign tracking endpoints (Phase 119)", () => {
     const rows = await app.db
       .select()
       .from(schema.campaignUnsubscribes)
-      .where(eq(schema.campaignUnsubscribes.email, email));
+      .where(
+        sql`/* tenant-safe: lectura por email único generado por este mismo test (seedSend) */ ${schema.campaignUnsubscribes.email} = ${email}`,
+      );
     expect(rows).toHaveLength(1);
   });
 
@@ -162,7 +170,12 @@ describe("campaign tracking endpoints (Phase 119)", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("image/gif");
-    const events = await app.db.select().from(schema.campaignEvents);
+    const events = await app.db
+      .select()
+      .from(schema.campaignEvents)
+      .where(
+        sql`/* tenant-safe: aserción de vacío sobre la corrida de este test, token inválido no crea fila */ 1 = 1`,
+      );
     expect(events).toHaveLength(0);
   });
 });

@@ -55,8 +55,8 @@ async function linkQualified(
   status: "qualified" | "pending" = "qualified",
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at)
-        VALUES (${referrerId}, ${referredId}, ${status}, 'assisted', NOW())`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel, qualified_at)
+        VALUES (1, ${referrerId}, ${referredId}, ${status}, 'assisted', NOW())`,
   );
 }
 
@@ -76,7 +76,7 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
   it("sin vínculos devuelve 0", async () => {
     const m = await createMember(app, { email: "d0@test.com" });
     const service = new ReferralService(app.db, app.log);
-    expect(await service.computeReferralDiscountPercent(m.id)).toBe(0);
+    expect(await service.computeReferralDiscountPercent(CTX, m.id)).toBe(0);
   });
 
   it("un vínculo qualified con contraparte activa suma 10%", async () => {
@@ -88,7 +88,7 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
 
     const service = new ReferralService(app.db, app.log);
     // El referrer descuenta porque la contraparte (referred) está cubierta.
-    expect(await service.computeReferralDiscountPercent(referrer.id)).toBe(10);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(10);
   });
 
   it("una contraparte vencida NO suma ese ciclo", async () => {
@@ -99,7 +99,7 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
     await giveCoverage(referred.id, plan.id, dateOffsetStr(-5)); // vencido
 
     const service = new ReferralService(app.db, app.log);
-    expect(await service.computeReferralDiscountPercent(referrer.id)).toBe(0);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(0);
   });
 
   it("un vínculo pending NO computa (solo qualified)", async () => {
@@ -110,7 +110,7 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
     await giveCoverage(referred.id, plan.id, dateOffsetStr(30));
 
     const service = new ReferralService(app.db, app.log);
-    expect(await service.computeReferralDiscountPercent(referrer.id)).toBe(0);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(0);
   });
 
   it("5 vínculos activos topean a 40 (no 50)", async () => {
@@ -122,7 +122,7 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
       await linkQualified(referrer.id, referred.id);
       await giveCoverage(referred.id, plan.id, dateOffsetStr(30));
     }
-    expect(await service.computeReferralDiscountPercent(referrer.id)).toBe(40);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(40);
   });
 
   it("es bidireccional: cuenta vínculos como referrer Y como referred", async () => {
@@ -138,7 +138,7 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
     await giveCoverage(asReferrer.id, plan.id, dateOffsetStr(30));
 
     const service = new ReferralService(app.db, app.log);
-    expect(await service.computeReferralDiscountPercent(x.id)).toBe(20);
+    expect(await service.computeReferralDiscountPercent(CTX, x.id)).toBe(20);
   });
 });
 
@@ -153,7 +153,7 @@ describe("ReferralService.qualifyFirstPayment", () => {
     await service.qualifyFirstPayment(CTX, referred.id); // 2da vez = no-op
 
     const rows = await app.db.execute(
-      sql`SELECT status FROM referrals WHERE referred_id = ${referred.id}`,
+      sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ SELECT status FROM referrals WHERE referred_id = ${referred.id}`,
     );
     const statuses = (rows[0] as Array<{ status: string }>).map(
       (r) => r.status,

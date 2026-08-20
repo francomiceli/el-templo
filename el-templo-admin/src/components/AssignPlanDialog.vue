@@ -240,6 +240,7 @@
                 :min="startDateMin"
                 :max="startDateMax"
                 class="q-mb-xs"
+                @update:model-value="onStartDateChange"
               />
               <div class="text-caption text-grey-7 q-mb-xs">
                 Vencimiento estimado: {{ calculatedEndDate ? formatDate(calculatedEndDate) : '—' }}
@@ -258,12 +259,45 @@
                  Hidden in 'mantener vencimiento': there the charge is the
                  manual difference, not a discounted plan price. -->
             <template v-if="!isKeepMode">
+              <!-- Prorrateo hasta fin de mes (solo alta): la vigencia termina el
+                   último día del mes y se cobra el proporcional editable. Es
+                   excluyente con boarding pass / AURA / precio personalizado, que
+                   se ocultan mientras está activo. -->
+              <div v-if="props.mode !== 'change'" class="q-mb-md">
+                <q-toggle
+                  v-model="assignForm.prorateToMonthEnd"
+                  label="Prorratear hasta fin de mes"
+                  @update:model-value="onProrateToggle"
+                />
+                <template v-if="assignForm.prorateToMonthEnd">
+                  <div class="row q-col-gutter-sm q-mt-xs">
+                    <div class="col-12 col-sm-5">
+                      <q-input
+                        v-model.number="proratedPrice"
+                        label="Precio prorrateado"
+                        type="number"
+                        dense
+                        outlined
+                        prefix="$"
+                        hint="Sugerido según los días restantes. Editable."
+                      />
+                    </div>
+                  </div>
+                  <div v-if="prorationInfo" class="text-caption text-grey-7 q-mt-xs">
+                    Cobra {{ prorationInfo.daysCharged }} de {{ prorationInfo.daysInMonth }} días ·
+                    precio del mes completo
+                    {{ formatPrice(prorationInfo.basePrice, displayCurrency) }} · vence el
+                    {{ formatDate(prorationInfo.endDate) }}
+                  </div>
+                </template>
+              </div>
+
               <!-- Boarding pass — WR-05 (156): gateado por zeroPriceEnabled,
                    simétrico a la opción Zero del selector (D-05). Con la regla
                    Zero OFF el server normaliza a 'regular' + priceRegular pero
                    igual marca boardingPassUsed=true: ofrecer el toggle solo
                    quemaría el regalo one-shot cobrando precio completo. -->
-              <div v-if="zeroPriceEnabled" class="q-mb-md">
+              <div v-if="zeroPriceEnabled && !assignForm.prorateToMonthEnd" class="q-mb-md">
                 <q-toggle
                   v-model="assignForm.boardingPass"
                   label="Usar Boarding Pass"
@@ -276,7 +310,14 @@
               </div>
 
               <!-- AURA discount -->
-              <div v-if="!assignForm.boardingPass && !assignForm.useOverride" class="q-mb-md">
+              <div
+                v-if="
+                  !assignForm.boardingPass &&
+                  !assignForm.useOverride &&
+                  !assignForm.prorateToMonthEnd
+                "
+                class="q-mb-md"
+              >
                 <q-select
                   v-model="assignForm.auraSpend"
                   :options="auraOptions"
@@ -291,7 +332,7 @@
               </div>
 
               <!-- Price override -->
-              <div class="q-mb-md">
+              <div v-if="!assignForm.prorateToMonthEnd" class="q-mb-md">
                 <q-toggle
                   v-model="assignForm.useOverride"
                   label="Precio personalizado"
@@ -947,6 +988,7 @@ import {
   type PlanTier,
   type PriceType,
   type PricingPreview,
+  type AssignProrationPreview,
   type AssignPlanInput,
   type ChangePlanPreview,
 } from 'src/types/subscription';
@@ -1094,8 +1136,15 @@ const assignForm = ref({
   useOverride: false,
   priceOverrideAmount: null as number | null,
   priceOverrideReason: '',
+  // Alta prorrateada hasta fin de mes (solo modo assign).
+  prorateToMonthEnd: false,
   notes: '',
 });
+
+// Alta prorrateada: datos del preview del server (fuente del sugerido y del
+// vencimiento a fin de mes) y el precio editable que finalmente se cobra.
+const prorationInfo = ref<AssignProrationPreview | null>(null);
+const proratedPrice = ref<number | null>(null);
 
 // Change-mode only: single source of truth for how the change applies.
 //   'now_reset'     → fresh full period from today, proration credit (legacy).
@@ -1371,6 +1420,19 @@ const pricingDisplay = computed(() => {
   // precios personalizados, así que el override lo refleja igual — si no, el
   // "monto recibido" precargado excede el cobro real y el backend lo rechaza.
   const referralPercent = pricingPreview.value?.referralDiscountPercent ?? 0;
+  // Alta prorrateada: el precio base es el del mes completo (del preview) y el
+  // final es el proporcional editable; sin descuentos automáticos.
+  if (assignForm.value.prorateToMonthEnd) {
+    const base = prorationInfo.value?.basePrice ?? getBasePrice();
+    const final = proratedPrice.value ?? prorationInfo.value?.suggestedPrice ?? base;
+    return {
+      basePrice: base,
+      discountAmount: Math.max(0, base - final),
+      referralPercent: 0,
+      referralAmount: 0,
+      finalPrice: final,
+    };
+  }
   if (assignForm.value.useOverride && assignForm.value.priceOverrideAmount !== null) {
     const base = getBasePrice();
     const override = assignForm.value.priceOverrideAmount;
@@ -1419,6 +1481,11 @@ const chargeBase = computed<number>(() => {
   // Debe evaluarse ANTES de la rama de prorrateo (es también startMode 'now').
   if (isKeepMode.value) {
     return Math.max(0, keepDiffAmount.value ?? 0) - keepDiffReferralAmount.value;
+  }
+  // Alta prorrateada hasta fin de mes: cobramos el proporcional editable, sin
+  // AURA/referidos encima (el precio del input ES el final).
+  if (assignForm.value.prorateToMonthEnd) {
+    return proratedPrice.value ?? 0;
   }
   // Override: pricingDisplay ya restó el descuento de referido del monto digitado.
   if (assignForm.value.useOverride && assignForm.value.priceOverrideAmount !== null) {
@@ -1473,6 +1540,8 @@ const calculatedEndDate = computed(() => {
   // 'mantener vencimiento': el vencimiento es el heredado (editable), no el
   // período completo desde el inicio.
   if (isKeepMode.value) return keepExpiryDate.value;
+  // Alta prorrateada: la vigencia es el último día del mes (del preview).
+  if (assignForm.value.prorateToMonthEnd) return prorationInfo.value?.endDate ?? '';
   if (!selectedPlan.value || !assignForm.value.startDate) return '';
   const start = new Date(assignForm.value.startDate);
   const end = new Date(start);
@@ -1682,6 +1751,54 @@ async function loadPricingPreview() {
   }
 }
 
+// Alta prorrateada: pide al server el precio sugerido + vencimiento a fin de mes
+// y precarga el input editable con el sugerido. Se re-ejecuta al cambiar plan,
+// fecha de inicio o tipo de precio mientras el prorrateo está activo.
+async function loadProrationPreview() {
+  if (!selectedPlan.value || !assignForm.value.startDate) return;
+  try {
+    const preview = await subsApi.getAssignProrationPreview(
+      props.userId,
+      selectedPlan.value.id,
+      assignForm.value.startDate,
+      assignForm.value.priceTypeApplied
+    );
+    prorationInfo.value = preview;
+    proratedPrice.value = preview.suggestedPrice;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading proration preview', { error: message });
+  }
+}
+
+// Toggle del prorrateo hasta fin de mes. Al activarlo, apaga las opciones
+// excluyentes (boarding pass / AURA / precio personalizado) y pide el preview.
+// Al desactivarlo, limpia el estado y restaura el preview de precio normal.
+function onProrateToggle() {
+  if (assignForm.value.prorateToMonthEnd) {
+    assignForm.value.boardingPass = false;
+    assignForm.value.auraSpend = null;
+    assignForm.value.useOverride = false;
+    assignForm.value.priceOverrideAmount = null;
+    assignForm.value.priceOverrideReason = '';
+    amountReceived.value = null;
+    loadProrationPreview();
+  } else {
+    prorationInfo.value = null;
+    proratedPrice.value = null;
+    amountReceived.value = null;
+    loadPricingPreview();
+  }
+}
+
+// La fecha de inicio solo afecta el precio en modo prorrateo (ahí recalcula el
+// proporcional); en modo normal el precio no depende de la fecha.
+function onStartDateChange() {
+  if (assignForm.value.prorateToMonthEnd) {
+    loadProrationPreview();
+  }
+}
+
 // =========================================================================
 // Actions
 // =========================================================================
@@ -1694,6 +1811,9 @@ async function selectPlan(plan: PlanListItem) {
   assignForm.value.useOverride = false;
   assignForm.value.priceOverrideAmount = null;
   assignForm.value.priceOverrideReason = '';
+  assignForm.value.prorateToMonthEnd = false;
+  prorationInfo.value = null;
+  proratedPrice.value = null;
   // D — change-plan flow: pre-populate the schedule step with the alumno's
   // current turnos so admins keep them by default instead of starting blank.
   // The picker stays fully editable; admin can desmark/re-pick before
@@ -1756,6 +1876,11 @@ function onChangeMode(mode: 'now_reset' | 'now_keep' | 'after_current') {
 function onPricingOptionChange() {
   if (isKeepMode.value) {
     recomputeKeepDiff();
+    return;
+  }
+  // En modo prorrateo, un cambio de tipo de precio recalcula el proporcional.
+  if (assignForm.value.prorateToMonthEnd) {
+    loadProrationPreview();
     return;
   }
   if (!assignForm.value.boardingPass && !assignForm.value.useOverride) {
@@ -1826,17 +1951,22 @@ async function executeConfirm() {
           : undefined,
       // 'mantener vencimiento': charge the difference via the override
       // mechanism (pricePaid = difference, no proration) and inherit the
-      // current sub's expiry. Otherwise honor the manual override section.
+      // current sub's expiry. Alta prorrateada: el precio proporcional editable
+      // viaja también por priceOverrideAmount (el backend no exige razón en ese
+      // modo). Si no, honra la sección de precio personalizado manual.
       priceOverrideAmount: isKeepMode.value
         ? (keepDiffAmount.value ?? undefined)
-        : assignForm.value.useOverride
-          ? (assignForm.value.priceOverrideAmount ?? undefined)
-          : undefined,
+        : assignForm.value.prorateToMonthEnd
+          ? (proratedPrice.value ?? undefined)
+          : assignForm.value.useOverride
+            ? (assignForm.value.priceOverrideAmount ?? undefined)
+            : undefined,
       priceOverrideReason: isKeepMode.value
         ? 'Cambio de plan manteniendo vencimiento'
-        : assignForm.value.useOverride
+        : assignForm.value.useOverride && !assignForm.value.prorateToMonthEnd
           ? assignForm.value.priceOverrideReason || undefined
           : undefined,
+      prorateToMonthEnd: assignForm.value.prorateToMonthEnd || undefined,
       endDateOverride: isKeepMode.value ? keepExpiryDate.value : undefined,
       notes: assignForm.value.notes.trim() || undefined,
       startMode: props.mode === 'change' ? startMode.value : undefined,

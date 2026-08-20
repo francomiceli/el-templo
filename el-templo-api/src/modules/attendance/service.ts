@@ -28,6 +28,8 @@ import {
 import { milestoneInWindow, toUtcDateStr } from "../shared/tenure-milestones";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
+import { CheckInService } from "../check-ins/service";
+import type { DayCheckIn } from "../check-ins/types";
 import type {
   AttendanceRecord,
   AttendanceListParams,
@@ -328,6 +330,7 @@ export class AttendanceService {
           })
           .where(
             and(
+              tenantWhere(schema.subscriptions, ctx),
               eq(schema.subscriptions.id, subscription.id),
               sql`${schema.subscriptions.classesRemaining} > 0`,
             ),
@@ -338,7 +341,12 @@ export class AttendanceService {
       await tx
         .update(schema.bookings)
         .set({ status: "qr_escaneado" })
-        .where(eq(schema.bookings.id, matchingBooking.id));
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, matchingBooking.id),
+          ),
+        );
 
       return id;
     });
@@ -524,6 +532,7 @@ export class AttendanceService {
         })
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.id, subscription.id),
             sql`${schema.subscriptions.classesRemaining} > 0`,
           ),
@@ -562,6 +571,7 @@ export class AttendanceService {
     ctx: TenantContext,
     scheduleId: number,
     date: string,
+    opts: { includeCheckIns?: boolean } = {},
   ): Promise<{
     members: Array<{
       memberId: number;
@@ -583,6 +593,11 @@ export class AttendanceService {
       // El Templo") cuando el alumno cruza un hito entre su clase anterior y
       // ésta. Null si no cae ningún hito en la ventana. Ver tenure-milestones.
       anniversaryLabel: string | null;
+      // Registro del día del alumno (energía/sueño/molestias), su dato más
+      // reciente en los últimos 7 días — cómo llegó a la clase. Sólo se completa
+      // cuando `opts.includeCheckIns` (coach + admin/dueño); null para el resto
+      // del staff, ya que es dato de salud autorreportado. Ver check-ins.
+      checkIn: DayCheckIn | null;
     }>;
   }> {
     // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
@@ -674,6 +689,7 @@ export class AttendanceService {
         seniority: MemberSeniority | null;
         endDate: string | null;
         anniversaryLabel: string | null;
+        checkIn: DayCheckIn | null;
       }
     >();
 
@@ -696,6 +712,7 @@ export class AttendanceService {
         seniority: computeSeniority(b.createdAt),
         endDate: b.endDate ?? null,
         anniversaryLabel: null,
+        checkIn: null,
       });
       createdAtByMember.set(b.memberId, b.createdAt);
     }
@@ -728,6 +745,7 @@ export class AttendanceService {
           seniority: computeSeniority(a.createdAt),
           endDate: a.endDate ?? null,
           anniversaryLabel: null,
+          checkIn: null,
         });
       }
       createdAtByMember.set(a.memberId, a.createdAt);
@@ -768,6 +786,19 @@ export class AttendanceService {
         if (milestone !== null) {
           entry.anniversaryLabel = `Cumple ${milestone.label} en El Templo`;
         }
+      }
+    }
+
+    // ─── Registro del día (cómo llegó el alumno) ────────────────────────────
+    // Sólo para coach + admin/dueño (opts.includeCheckIns): el registro es dato
+    // de salud autorreportado y no se expone a recepción/gestión. Se toma el
+    // más reciente de los últimos 7 días — fallback pedido por Franco cuando el
+    // alumno no registró el día de la clase.
+    if (opts.includeCheckIns && memberIds.length > 0) {
+      const checkInService = new CheckInService(this.db);
+      const checkIns = await checkInService.getRecentForUsers(memberIds, date);
+      for (const [memberId, entry] of memberMap) {
+        entry.checkIn = checkIns.get(memberId) ?? null;
       }
     }
 
@@ -911,6 +942,7 @@ export class AttendanceService {
         })
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.id, subscription.id),
             sql`${schema.subscriptions.classesRemaining} > 0`,
           ),
@@ -923,9 +955,16 @@ export class AttendanceService {
     // bookings table. The unique index on (member_id, schedule_id,
     // booking_date) means at most one row exists per tuple, so ON
     // DUPLICATE KEY UPDATE handles every prior state atomically.
+    //
+    // Fase 174.1 (174.1-02, hallazgo con-06-lint): `tenant_id` va como columna
+    // EXPLÍCITA desde `ctx.tenantId` — mismo patrón que
+    // `subscriptions/booking-population.ts` (T-174-01-T). Este INSERT crudo
+    // vía `sql` template no pasa por `tenantValues`; sin la columna la fila
+    // nace en el DEFAULT 1 de la tabla. Solo afecta la rama INSERT: si la fila
+    // ya existe, ON DUPLICATE KEY UPDATE no toca `tenant_id`.
     await this.db.execute(sql`
-      INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status)
-      VALUES (${memberId}, ${scheduleId}, ${date}, 'confirmado')
+      INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, tenant_id)
+      VALUES (${memberId}, ${scheduleId}, ${date}, 'confirmado', ${ctx.tenantId})
       ON DUPLICATE KEY UPDATE
         cancelled_at = NULL,
         waitlist_position = NULL,
@@ -953,16 +992,16 @@ export class AttendanceService {
    * Remove a check-in (coach undo). Deletes the attendance record,
    * restores classesRemaining, reverses AURA, and reverts booking status.
    *
-   * Fase 174 (174-05): `ctx` es OPCIONAL y va AL FINAL (no "ctx PRIMERO" como
-   * el resto del archivo) porque su único caller (`attendance/routes.ts`,
-   * DELETE /:attendanceId) todavia no deriva `assertTenant` — threadear ctx
-   * ahi es deuda fuera del alcance de este plan (files_modified = solo
-   * service.ts). Con ctx ausente cae al guard provisorio Pattern D
-   * (isNotNull), igual que `activateScheduledSub` en subscriptions/service.ts.
+   * Fase 174.1 (174.1-02, D-04): `ctx` es REQUERIDO — su único caller
+   * (`attendance/routes.ts`, DELETE /:attendanceId) ahora deriva
+   * `assertTenant(request.scope, "attendance.removeCheckIn")` como el resto
+   * de las rutas del archivo. `isSpecialSchedule` (único caller de este
+   * método) queda con `ctx` opcional y su guard Pattern D — diferido a 175
+   * (D-05), fuera del alcance de este plan.
    */
   async removeCheckIn(
     attendanceId: number,
-    ctx?: TenantContext,
+    ctx: TenantContext,
   ): Promise<{ removed: boolean }> {
     // Get the attendance record
     const [attRecord] = await this.db
@@ -974,15 +1013,10 @@ export class AttendanceService {
       })
       .from(schema.attendance)
       .where(
-        ctx
-          ? and(
-              tenantWhere(schema.attendance, ctx),
-              eq(schema.attendance.id, attendanceId),
-            )
-          : and(
-              isNotNull(schema.attendance.tenantId),
-              eq(schema.attendance.id, attendanceId),
-            ),
+        and(
+          tenantWhere(schema.attendance, ctx),
+          eq(schema.attendance.id, attendanceId),
+        ),
       );
 
     if (!attRecord) {
@@ -1003,7 +1037,7 @@ export class AttendanceService {
     );
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
-        ctx ?? null,
+        ctx,
         attRecord.memberId,
         isSpecialActivity,
       );
@@ -1013,7 +1047,12 @@ export class AttendanceService {
         .set({
           classesRemaining: sql`${schema.subscriptions.classesRemaining} + 1`,
         })
-        .where(eq(schema.subscriptions.id, subscription.id));
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, subscription.id),
+          ),
+        );
     }
 
     // Reverse AURA: spend 10 AURA as a reversal
@@ -1046,6 +1085,7 @@ export class AttendanceService {
         .set({ status: "reservado" })
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, attRecord.memberId),
             eq(schema.bookings.scheduleId, attRecord.scheduleId),
             eq(schema.bookings.bookingDate, dateStr),

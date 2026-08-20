@@ -96,13 +96,15 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 87 gym-owned + 4 exentas y cubren las 91 tablas del schema", () => {
-    expect(GYM_OWNED_TABLES.length).toBe(87);
+  it("los conteos son 88 gym-owned + 4 exentas y cubren las 92 tablas del schema", () => {
+    // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
+    // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
+    expect(GYM_OWNED_TABLES.length).toBe(88);
     expect(TENANT_EXEMPT_TABLES.length).toBe(4);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(91);
+    expect(schemaTables.size).toBe(92);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -125,7 +127,8 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
  * los DOS registros de uniques que la 168 le sumó a este archivo.
  *
  * Los cinco tests de arriba no se tocan: la 168 no agrega ni saca tablas, así
- * que 87 / 4 / 91 tienen que seguir intactos. Un rojo ahí NO es de esta fase.
+ * que 88 / 4 / 92 (actualizado por la fase 159, ver arriba) tienen que seguir
+ * intactos. Un rojo ahí NO es de esta fase.
  *
  * Qué protege este bloque que el verificador de base de datos no puede
  * proteger: `verify-tenant-uniques.ts` cruza los registros contra
@@ -366,6 +369,21 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
    * propias (D-01 de la fase 173): `audit_log`, `member_logins`,
    * `member_notes`, `member_profiles`, `user_branches`, `user_sepa_details`,
    * `user_status_history`, `users`.
+   * Las 4 de `subscriptions` y las 4 de `scheduling` son las 8 tablas del
+   * boundary de la fase 174.1 (174.1-10), migradas juntas en el mismo switch:
+   * `subscription_plans`, `subscription_schedule_changes`,
+   * `subscription_schedules`, `subscriptions`, `bookings`, `holidays`,
+   * `schedule_exceptions`, `schedules`.
+   * Las 18 de `auth`/`campaigns`/`improvement-proposals`/`notifications`/
+   * `referrals`/`wellhub` son el boundary de la fase 175.1 (175.1-07),
+   * migradas juntas en el mismo switch: `promo_plans`, `refresh_tokens`;
+   * `campaign_events`, `campaign_sends`, `campaign_unsubscribes`,
+   * `campaigns`; `improvement_proposals`; `device_tokens`,
+   * `notification_preferences`, `notification_templates`,
+   * `pending_notifications`; `referral_credits`, `referral_cta_clicks`,
+   * `referrals`; `wellhub_bookings`, `wellhub_classes`, `wellhub_events`,
+   * `wellhub_slots`. `analytics` NO está: no posee ninguna tabla propia
+   * (D-01, fase 175.1) — ver el docblock de `TENANT_STRICT_MODULES`.
    * `aura_balances` / `aura_transactions` NO están: las escribe gamification y
    * su throw llega con la adopción de ESE módulo.
    */
@@ -388,9 +406,37 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "user_status_history",
       "users",
     ],
+    subscriptions: [
+      "subscription_plans",
+      "subscription_schedule_changes",
+      "subscription_schedules",
+      "subscriptions",
+    ],
+    scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
+    auth: ["promo_plans", "refresh_tokens"],
+    campaigns: [
+      "campaign_events",
+      "campaign_sends",
+      "campaign_unsubscribes",
+      "campaigns",
+    ],
+    "improvement-proposals": ["improvement_proposals"],
+    notifications: [
+      "device_tokens",
+      "notification_preferences",
+      "notification_templates",
+      "pending_notifications",
+    ],
+    referrals: ["referral_credits", "referral_cta_clicks", "referrals"],
+    wellhub: [
+      "wellhub_bookings",
+      "wellhub_classes",
+      "wellhub_events",
+      "wellhub_slots",
+    ],
   };
 
-  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members)", () => {
+  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub)", () => {
     const normalizar = (registro: Record<string, readonly string[]>) =>
       Object.fromEntries(
         Object.entries(registro).map(([modulo, tablas]) => [
@@ -503,17 +549,21 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
         `una regresión silenciosa, que es el peor modo de falla posible acá.`,
     ).toEqual([]);
 
-    // `bookings` es una tabla gym-owned real y NO strict hoy: nada está migrado
-    // en la 170. Cuando la fase 172 migre `finance`, esta línea se ACTUALIZA con
-    // otro ejemplo todavía no migrado — no se borra el gate. Es la única
-    // aserción del archivo que prueba el lado negativo del helper, y sin ella un
+    // `activities` es una tabla gym-owned real y NO strict hoy (174.1-10: sigue
+    // sin migrar a propósito — CONTEXT.md la excluye explícitamente del
+    // boundary de subscriptions/scheduling, aunque "suene" a scheduling).
+    // Reemplazó a `bookings`, que pasó a strict en este mismo plan. Cuando un
+    // futuro plan migre `activities`, esta línea se ACTUALIZA con otro ejemplo
+    // todavía no migrado — no se borra el gate. Es la única aserción del
+    // archivo que prueba el lado negativo del helper, y sin ella un
     // `isStrictTable` que devolviera `true` siempre pasaría todo lo de arriba.
     expect(
-      isStrictTable("bookings"),
-      `isStrictTable("bookings") devolvió true. bookings es gym-owned pero NO pertenece a ` +
-        `ningún módulo migrado en la fase 170. Si llegaste acá migrando finance en la 172: ` +
-        `cambiá el ejemplo por una tabla que siga sin migrar, no borres la aserción — es la ` +
-        `que distingue un helper que funciona de uno que dice true a todo.`,
+      isStrictTable("activities"),
+      `isStrictTable("activities") devolvió true. activities es gym-owned pero NO pertenece a ` +
+        `ningún módulo migrado todavía (174.1-10 la excluye a propósito del boundary de ` +
+        `subscriptions/scheduling). Si llegaste acá migrando ese módulo: cambiá el ejemplo por ` +
+        `una tabla que siga sin migrar, no borres la aserción — es la que distingue un helper ` +
+        `que funciona de uno que dice true a todo.`,
     ).toBe(false);
     expect(
       strictTablesSet().has("no_existe"),

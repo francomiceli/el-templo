@@ -182,8 +182,8 @@ export const NAV_MODEL: NavCategory[] = [
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
       {
-        // TV (fase 164, unificado 2026-08-12 tras el retiro del kiosco anónimo
-        // RFC 8628): antes eran dos ítems ("Control TV" + "Televisores"); ahora la
+        // TV (fase 164, unificado tras el retiro del kiosco anónimo RFC 8628):
+        // antes eran dos ítems ("Control TV" + "Televisores"); ahora la
         // pantalla del TV es la ruta autenticada '/pantalla-tv' (se abre
         // desde un botón dentro de TvControlPage.vue, no desde el nav — un
         // televisor de pared no navega el drawer del admin). Mismo set de

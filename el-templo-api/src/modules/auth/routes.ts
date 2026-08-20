@@ -286,10 +286,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (promoCode) {
         try {
           // Look up promo plan
+          // T-175-06 (bug post-168): promo_code es UNIQUE compuesto con
+          // tenant_id — el mismo codigo puede existir en dos gimnasios. Sin
+          // tenantWhere esto podia resolver la promo de OTRO gimnasio. Reusa
+          // el ctx unico del handler (linea de arriba).
           const [promo] = await fastify.db
             .select()
             .from(promoPlans)
-            .where(eq(promoPlans.promoCode, promoCode))
+            .where(
+              and(tenantWhere(promoPlans, ctx), eq(promoPlans.promoCode, promoCode)),
+            )
             .limit(1);
 
           if (promo && promo.isActive) {
@@ -350,7 +356,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
                 .set({
                   redemptionCount: sql`${promoPlans.redemptionCount} + 1`,
                 })
-                .where(eq(promoPlans.id, promo.id));
+                .where(
+                  and(tenantWhere(promoPlans, ctx), eq(promoPlans.id, promo.id)),
+                );
 
               promoApplied = true;
             }
@@ -392,16 +400,18 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               .update(users)
               .set({ referredBy: referrerId })
               .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
-            await fastify.db.insert(referrals).values({
-              referrerId,
-              referredId: userId,
-              status: "pending",
-              attributionChannel: "self_service",
-              // A/B copy test: estampa la variante que vio el referidor (derivada
-              // de su id) para atribuir la conversión al copy sin depender del
-              // cliente ni de recomputar el bucketing a posteriori.
-              copyVariant: referralCopyVariant(referrerId),
-            });
+            await fastify.db.insert(referrals).values(
+              tenantValues(ctx, {
+                referrerId,
+                referredId: userId,
+                status: "pending",
+                attributionChannel: "self_service",
+                // A/B copy test: estampa la variante que vio el referidor (derivada
+                // de su id) para atribuir la conversión al copy sin depender del
+                // cliente ni de recomputar el bucketing a posteriori.
+                copyVariant: referralCopyVariant(referrerId),
+              }),
+            );
           }
         } catch (err: unknown) {
           request.log.warn(
@@ -420,7 +430,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // irrecoverable UNIQUE collision after retries leaves referral_code NULL
       // (the backfill covers it) and NEVER blocks the signup.
       try {
-        await referralService.generateReferralCode(userId);
+        await referralService.generateReferralCode(ctx, userId);
       } catch (err: unknown) {
         request.log.warn(
           { err: err instanceof Error ? err.message : String(err), userId },
@@ -429,6 +439,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Get branch info for response
+      /* tenant-safe: branchId es el MISMO id ya resuelto arriba (el bootstrap que deriva ctx.tenantId), releer por PK para el response no expone otro gimnasio (D4) */
       const [branchRow] = await fastify.db
         .select({
           name: branches.name,
@@ -436,7 +447,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           country: branches.country,
         })
         .from(branches)
-        .where(eq(branches.id, branchId))
+        .where(
+          sql`/* tenant-safe: branchId es el MISMO id ya resuelto arriba (el bootstrap que deriva ctx.tenantId), releer por PK para el response no expone otro gimnasio (D4) */ ${eq(branches.id, branchId)}`,
+        )
         .limit(1);
 
       // Sign JWT (legacy 7d token kept for backwards-compat — Req 7)
@@ -559,6 +572,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Get branch name and virtual status
+      /* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */
       const branchResults = await fastify.db
         .select({
           name: branches.name,
@@ -566,7 +580,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           country: branches.country,
         })
         .from(branches)
-        .where(eq(branches.id, user.branchId))
+        .where(
+          sql`/* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */ ${eq(branches.id, user.branchId)}`,
+        )
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;
@@ -791,6 +807,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const user = userResults[0];
 
       // Get branch name and virtual status
+      /* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */
       const branchResults = await fastify.db
         .select({
           name: branches.name,
@@ -798,7 +815,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           country: branches.country,
         })
         .from(branches)
-        .where(eq(branches.id, user.branchId))
+        .where(
+          sql`/* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */ ${eq(branches.id, user.branchId)}`,
+        )
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;

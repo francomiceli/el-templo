@@ -23,6 +23,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
 import { ConflictError, NotFoundError } from "../shared/errors";
+import { ROLE_LABELS } from "../shared/role-labels";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   resolveClassDay,
@@ -349,7 +350,7 @@ export class TvService {
     return {
       ...base,
       screen,
-      class: this.buildClassPayload(classDay, state),
+      class: this.buildClassPayload(classDay, state, now),
     };
   }
 
@@ -496,11 +497,13 @@ export class TvService {
    * sea que un valor invalido moveria al profe al bloque 1 y le reiniciaria el
    * timer. El control recibe el estado real en la respuesta y se auto-corrige.
    *
-   * Excepcion: DEUTEROS es UN bloque con dos caminos (DEUTEROS_1/DEUTEROS_2,
-   * `visualGroupOf`). Pasar de un camino al otro es un cambio de VARIANTE
-   * dentro del mismo bloque, no un bloque nuevo — asi que el cronometro NO se
-   * reinicia (el profe puede mostrar el camino alternativo sin perder el
-   * tiempo corrido). El ejercicio si vuelve a 0: la lista del camino nuevo es
+   * Excepcion: `visualGroupOf` agrupa bloques que son UN mismo bloque con
+   * varios caminos — DEUTEROS_1/DEUTEROS_2, y COMBOS_II/COMBOS_II_ALT (idem
+   * TECNICA_II/TECNICA_II_ALT). Pasar de un camino al otro dentro del mismo
+   * grupo es un cambio de VARIANTE, no un bloque nuevo — asi que el
+   * cronometro NO se reinicia (el profe puede mostrar el camino alternativo
+   * sin perder el tiempo corrido) y ambos caminos comparten el mismo indice
+   * "BLOQUE n / M". El ejercicio si vuelve a 0: la lista del camino nuevo es
    * otra, y arrancar en un indice ajeno seria arbitrario.
    */
   private applyBlockRole(
@@ -793,12 +796,22 @@ export class TvService {
    * canonico de INITIUM (`resolveBlock` ignora el nivel para ese rol) y
    * `formatDictated` es el que calculo el caller para ESE bloque.
    *
-   * No shared: una columna por nivel del PAR de `state.level` que este
-   * presente en `classDay.levels` (`pairFor`, `roster.ts`) — 1 o 2, nunca mas.
-   * Cada columna resuelve SU PROPIO bloque (mismo rol, nivel del par): dos
-   * niveles del mismo dia pueden tener ruta/intensidad/formato distintos
-   * (Pitfall 1), asi que el header y el `formatDictated` de cada columna
-   * salen de su propio bloque, no del bloque de `state.level`.
+   * No shared, caso general: una columna por nivel del PAR de `state.level`
+   * que este presente en `classDay.levels` (`pairFor`, `roster.ts`) — 1 o 2,
+   * nunca mas. Cada columna resuelve SU PROPIO bloque (mismo rol, nivel del
+   * par): dos niveles del mismo dia pueden tener ruta/intensidad/formato
+   * distintos (Pitfall 1), asi que el header y el `formatDictated` de cada
+   * columna salen de su propio bloque, no del bloque de `state.level`.
+   *
+   * No shared, caso DEUTEROS (fase 178, dia regular): en vez de 1 columna por
+   * nivel de UN rol, se emiten columnas para AMBOS deuteros (I y II) × el par
+   * de niveles — hasta 4 (2×2). Un dia regular puede no tener DEUTEROS_2 (o un
+   * nivel puntual del par puede no tener el bloque): cada `(rol, nivel)` que
+   * no resuelve bloque se OMITE (nunca una columna con header roto o lista
+   * vacia), asi que un dia con un solo deutero emite 2 columnas, no 4. Cada
+   * columna se prefija con la etiqueta del deutero (`ROLE_LABELS`, "DEUTEROS
+   * I"/"DEUTEROS II") para distinguir las 4 en pantalla. El bloque alt
+   * (`state.blockRole = *_II_ALT`) NO es deuteros: cae en el caso general.
    */
   private buildColumns(
     classDay: ClassDay,
@@ -808,9 +821,30 @@ export class TvService {
     formatDictated: boolean,
   ): TvLevelColumn[] {
     if (shared) {
+      // INITIUM o STRETCHING: una sola columna comun a todos los niveles. El
+      // rol va por su nombre de bloque, NO por ROLE_LABELS (INITIUM mapea a
+      // "PYROS" y el header historico del kiosco es "INITIUM"). La segunda
+      // mitad lista los niveles del dia con sus simbolos (UAT 2026-08-18)
+      // en vez del literal "TODOS LOS NIVELES" — el kiosco ya pinta esos
+      // glifos via paintGlyphText. ROM no usa la escalera de simbolos
+      // (D-23: BASICO/AVANZADO) y conserva el literal.
+      const levelsLabel =
+        classDay.mode === "rom"
+          ? ALL_LEVELS_LABEL
+          : // Solo los niveles con simbolo canonico (kairos/alfa/delta/sigma):
+            // omega/spartan no se planifican por dia (class-day.ts) y si se
+            // cuelan no van en el header compartido de INITIUM/STRETCHING.
+            `NIVELES ${classDay.levels
+              .filter((lvl) => LEVEL_SYMBOLS[lvl])
+              .map((lvl) => LEVEL_SYMBOLS[lvl])
+              .join(" ")}`;
+      // STRETCHING se rotula KINESIS (misma categoria que PYROS/NUCLEUS/DEUTEROS).
+      // INITIUM conserva su header historico del kiosco ("INITIUM", no "PYROS").
+      const sharedName =
+        state.blockRole === "STRETCHING" ? "KINESIS" : state.blockRole;
       return [
         {
-          header: `INITIUM | ${ALL_LEVELS_LABEL}`,
+          header: `${sharedName} | ${levelsLabel}`,
           exercises: this.mainPrescriptions(block).map((p) =>
             this.toExercise(p, formatDictated),
           ),
@@ -826,6 +860,30 @@ export class TvService {
     // que esto nunca deberia quedar vacio — pero un payload sin columnas
     // dejaria al TV sin lista, asi que el fallback no se saca.
     const levels = pairLevels.length > 0 ? pairLevels : [state.level];
+
+    if (visualGroupOf(state.blockRole) === "DEUTEROS") {
+      const columns: TvLevelColumn[] = [];
+      for (const deuterosRole of ["DEUTEROS_1", "DEUTEROS_2"]) {
+        for (const level of levels) {
+          const levelBlock = this.resolveBlock(classDay, deuterosRole, level);
+          // Guard: un dia regular puede no tener DEUTEROS_2 (o un nivel
+          // puntual del par sin bloque) — se omite, nunca una columna rota.
+          if (!levelBlock) continue;
+          const dictated =
+            !!levelBlock.formatParams &&
+            FORMAT_DICTATED_TYPES.has(levelBlock.formatParams.type);
+          const label = this.levelLabel(classDay, level, false);
+          const deuterosLabel = ROLE_LABELS[deuterosRole] ?? deuterosRole;
+          columns.push({
+            header: `${deuterosLabel} ${label} | ${getRouteLabel(levelBlock.route)} ${levelBlock.intensity}%`,
+            exercises: this.mainPrescriptions(levelBlock).map((p) =>
+              this.toExercise(p, dictated),
+            ),
+          });
+        }
+      }
+      return columns;
+    }
 
     return levels.map((level) => {
       const levelBlock = this.resolveBlock(classDay, state.blockRole, level);
@@ -845,14 +903,21 @@ export class TvService {
   private buildClassPayload(
     classDay: ClassDay,
     state: TvControlState,
+    now: Date,
   ): TvClassPayload {
     const blocks: TvBlockSummary[] = buildRoster(classDay);
+
+    // COMBOS_II_ALT/TECNICA_II_ALT viven en el roster canonico (roster.ts):
+    // se resuelven exactamente igual que cualquier otro rol, sin swap. El
+    // viejo toggle "Ver alternativo" (fase 178, showAlternative) que mostraba
+    // el alt como un sibling fuera de `blocks` quedo eliminado.
     const blockIndex = blocks.findIndex((b) => b.role === state.blockRole);
     const summary = blocks[blockIndex];
     const shared = summary?.shared ?? false;
 
-    // C1: DEUTEROS_1/DEUTEROS_2 son dos caminos del MISMO bloque visual — los
-    // puntitos "BLOQUE n / M" cuentan grupos, no entradas del roster real.
+    // C1: DEUTEROS_1/DEUTEROS_2 (y ahora COMBOS_II_ALT/TECNICA_II_ALT con su
+    // II) son caminos del MISMO bloque visual — los puntitos "BLOQUE n / M"
+    // cuentan grupos, no entradas del roster real.
     const visualGroups: string[] = [];
     for (const b of blocks) {
       const g = visualGroupOf(b.role);
@@ -865,20 +930,19 @@ export class TvService {
     const visualBlockIndex =
       rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
 
-    // El bloque de `state.level`: sigue siendo la fuente UNICA del titulo y el
-    // timer (uno solo, como antes) aunque las columnas de ejercicios ahora
-    // puedan venir de dos niveles distintos.
     const block = this.resolveBlock(classDay, state.blockRole, state.level);
     const formatDictated =
       !!block?.formatParams &&
       FORMAT_DICTATED_TYPES.has(block.formatParams.type);
+    const title = summary?.title ?? "";
 
     const levelLabel = this.levelLabel(classDay, state.level, shared);
-    // La movilidad sale del nivel canonico (kairos-first), como el PDF/editor:
-    // se guarda por nivel y cada nivel la sortea aparte, asi que leerla del nivel
-    // del control la haria divergir del PDF en todos los casos (regresion
-    // KAIROS-01, ahora tambien cubierta en la TV).
-    const mobilityBlock = this.resolveCanonicalBlock(classDay, state.blockRole);
+    // La movilidad sale del nivel canonico (kairos-first), como el PDF/editor
+    // (regresion KAIROS-01, tambien cubierta en la TV).
+    const mobilityBlock = this.resolveCanonicalBlock(
+      classDay,
+      state.blockRole,
+    );
     const mobility = mobilityBlock?.prescriptions.filter(
       (p) => p.exerciseType === "mobility",
     );
@@ -892,10 +956,11 @@ export class TvService {
       blockRole: state.blockRole,
       // Pitfall 1: DERIVADO del roster en cada lectura, nunca persistido.
       blockIndex: blockIndex >= 0 ? blockIndex : 0,
-      // C1: derivados del roster igual que `blockIndex`, colapsando DEUTEROS.
+      // C1: derivados del roster igual que `blockIndex`, colapsando DEUTEROS
+      // (y el II/II_ALT).
       visualBlockIndex,
       visualBlockCount,
-      title: summary?.title ?? "",
+      title,
       mobilityLine:
         mobility && mobility.length > 0
           ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`
@@ -905,7 +970,9 @@ export class TvService {
       timer: {
         // `mainPrescriptions(block).length` = estaciones del circuito: interval
         // y hiit corren `estaciones × rondas` ciclos (toTimerSpec). tabata lo
-        // ignora (sus rondas ya son el total de intervalos).
+        // ignora (sus rondas ya son el total de intervalos). El alt reusa
+        // este mismo camino: su spec sale de SU propio bloque (`block`), como
+        // cualquier rol — ya no hay un "timerBlock" separado del persistido.
         spec: toTimerSpec(
           block?.formatParams ?? null,
           this.mainPrescriptions(block).length,

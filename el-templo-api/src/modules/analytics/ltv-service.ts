@@ -175,8 +175,8 @@ export class LtvService {
     const window = filters.window ?? RENOVATION_WINDOW_DEFAULT_DAYS;
 
     const [churn, lives, paymentsByMember, breakdowns] = await Promise.all([
-      this.churnService.getChurn(filters),
-      this.cohortLives(filters, window),
+      this.churnService.getChurn(ctx, filters),
+      this.cohortLives(ctx, filters, window),
       this.realPaymentsByMember(ctx, filters),
       this.allBreakdowns(ctx, filters, window),
     ]);
@@ -216,6 +216,7 @@ export class LtvService {
    * so the life span stays inside the active scope (consistent with the cohort engine).
    */
   private async cohortLives(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<CohortLifeRow[]> {
@@ -229,13 +230,16 @@ export class LtvService {
       .select({
         userId: schema.subscriptions.userId,
         currency: schema.subscriptions.currency,
+        // Fase 174.1-03 (D-02): `s_life` es `subscriptions` (self-join,
+        // boundary) — filtro explícito por `tenant_id`, y el `NOT IN` sobre
+        // `subscription_plans` (otra tabla del boundary) también.
         firstStart: sql<
           string | null
-        >`(SELECT MIN(s_life.start_date) FROM subscriptions s_life WHERE s_life.user_id = ${schema.subscriptions.userId} AND s_life.branch_id = ${schema.subscriptions.branchId} AND s_life.subscription_status <> 'paused' AND s_life.plan_id NOT IN (SELECT id FROM subscription_plans WHERE plan_category = 'especial'))`,
+        >`(SELECT MIN(s_life.start_date) FROM subscriptions s_life WHERE s_life.user_id = ${schema.subscriptions.userId} AND s_life.tenant_id = ${ctx.tenantId} AND s_life.branch_id = ${schema.subscriptions.branchId} AND s_life.subscription_status <> 'paused' AND s_life.plan_id NOT IN (SELECT id FROM subscription_plans WHERE plan_category = 'especial' AND tenant_id = ${ctx.tenantId}))`,
         lastEnd: schema.subscriptions.endDate,
         today: sql<string>`DATE_FORMAT(CURDATE(), '%Y-%m-%d')`,
         matured: maturedExpr(window),
-        retained: retainedExpr(window),
+        retained: retainedExpr(ctx, window),
         branchName: schema.branches.name,
         country: schema.subscriptionPlans.country,
         planName: schema.subscriptionPlans.name,
@@ -252,8 +256,10 @@ export class LtvService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-          lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
           // D-11: el pase especial no cuenta en el LTV de membresía (la plata
           // igual cuenta en caja/cobros/advanced-finance, que no se tocan).
           ne(schema.subscriptionPlans.planCategory, "especial"),
@@ -436,7 +442,7 @@ export class LtvService {
     window: number,
   ): Promise<LtvSegmentRow[]> {
     const [lives, paymentsByMember] = await Promise.all([
-      this.cohortLives(filters, window),
+      this.cohortLives(ctx, filters, window),
       this.realPaymentsByMember(ctx, filters),
     ]);
 

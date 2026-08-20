@@ -95,6 +95,13 @@ export interface CoachAltaInput {
   planId: number;
   /** Toggle "Precio Zero". paymentMethod 'card' override a priceCreditCard server-side. */
   zero?: boolean;
+  /**
+   * Alta prorrateada hasta fin de mes: vigencia al último día del mes y precio
+   * proporcional. El monto editado viaja en priceOverrideAmount; sin él, el
+   * server calcula el proporcional. Excluyente con zero.
+   */
+  prorateToMonthEnd?: boolean;
+  priceOverrideAmount?: number;
   paymentMethod: PaymentMethod;
   /** Monto recibido; < precio → deja deuda (assignPlan lo soporta). Omitido = total. */
   amountReceived?: number;

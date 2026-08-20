@@ -17,6 +17,10 @@ import {
 } from "../helpers";
 import { createPlan, createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
+
+// T-175-04: `recordReferralCredit` recibe `ctx` primero (Pattern B).
+const CTX: TenantContext = { tenantId: 1 };
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -72,7 +76,7 @@ describe("ReferralService.recordReferralCredit", () => {
 
     const balanceBefore = await readBalance(member.id);
     const service = new ReferralService(app.db, app.log);
-    await service.recordReferralCredit(member.id, subId, 10, 1000);
+    await service.recordReferralCredit(CTX, member.id, subId, 10, 1000);
 
     // referral_credits: una fila con los valores dados.
     const [credits] = await app.db.execute(
@@ -101,8 +105,8 @@ describe("ReferralService.recordReferralCredit", () => {
     const subId = await createSubscription(member.id, plan.id);
 
     const service = new ReferralService(app.db, app.log);
-    await service.recordReferralCredit(member.id, subId, 10, 1000);
-    await service.recordReferralCredit(member.id, subId, 10, 1000);
+    await service.recordReferralCredit(CTX, member.id, subId, 10, 1000);
+    await service.recordReferralCredit(CTX, member.id, subId, 10, 1000);
 
     const [credits] = await app.db.execute(
       sql`SELECT id FROM referral_credits WHERE subscription_id = ${subId}`,

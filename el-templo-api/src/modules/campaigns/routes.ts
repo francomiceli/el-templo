@@ -139,13 +139,10 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       const payload = validateCampaignToken(request.query.t);
       if (payload) {
         try {
-          const send = await tracking.getSendEmail(payload.sendId);
-          if (send) {
-            await tracking.recordUnsubscribe(send.email, {
-              userId: send.userId,
-              campaignId: send.campaignId,
-            });
-          }
+          // T-175-02: recordUnsubscribe resuelve tenant+email por su cuenta
+          // desde campaign_sends (via sendId) — ya no hace falta el
+          // getSendEmail previo que hacía esta ruta.
+          await tracking.recordUnsubscribe(payload.sendId);
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
           request.log.warn({ err: message }, "recordUnsubscribe failed");
@@ -180,11 +177,13 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: "Acceso de admin requerido" });
       }
       await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "campaigns.create");
       // Non-owner admins are pinned to their own country scope.
       const country = request.scope.isOwner
         ? (request.body.country ?? null)
         : scopeCountry(request);
       const campaign = await service.create(
+        ctx,
         { ...request.body, country },
         request.user.userId,
       );
@@ -201,10 +200,11 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: "Acceso de admin requerido" });
       }
       await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "campaigns.list");
       const country = request.scope.isOwner
         ? (request.query.country ?? null)
         : scopeCountry(request);
-      return service.listCampaigns(country);
+      return service.listCampaigns(ctx, country);
     },
   );
 
@@ -244,7 +244,9 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
         return reply.status(403).send({ error: "Acceso de admin requerido" });
       }
-      return service.sendTest(request.params.id, request.body.email);
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "campaigns.test");
+      return service.sendTest(ctx, request.params.id, request.body.email);
     },
   );
 

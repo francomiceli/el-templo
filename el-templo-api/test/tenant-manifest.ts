@@ -527,6 +527,8 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/subscriptions/members/:userId/subscription": {
     categoria: "tenant-scoped",
   },
+  "GET /api/admin/subscriptions/members/:userId/subscription/assign-proration-preview":
+    { categoria: "tenant-scoped" },
   "GET /api/admin/subscriptions/members/:userId/subscription/change-plan-preview":
     { categoria: "tenant-scoped" },
   "GET /api/admin/subscriptions/members/:userId/subscription/history": {
@@ -1117,6 +1119,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
+  // El roster de "Registros del día" (card de Horarios, coach + admin/dueño) NO
+  // es templo-module como sus hermanas de arriba: lee los asistentes de UNA sede
+  // en una fecha (branchId + requireBranchAccess) para mostrar su check-in.
+  // Datos de un solo gimnasio → tenant-scoped, igual que /anniversaries.
+  "GET /api/admin/check-ins/roster": { categoria: "tenant-scoped" },
   "GET /api/check-ins/today": {
     categoria: "templo-module",
     modulo: "templo-training",

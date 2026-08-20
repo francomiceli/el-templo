@@ -12,6 +12,18 @@
  * plan 09 (punto ciego CR-01/WR-01): el alias de variable local, el `alias()`
  * de Drizzle guardado en variable y la tabla joineada. Las tres dejaban el
  * build en VERDE con un acceso sin `tenant_id` escrito así.
+ *
+ * Tablas `completed_sessions`/`day_modes`/`activities` (no `bookings`/
+ * `schedules`/`subscriptions`/`campaigns`, fases 174.1 y 175.1): esas cuatro
+ * entraron a `TENANT_STRICT_MODULES` con el switch de
+ * `subscriptions`+`scheduling` (174.1-10) y el switch de
+ * `auth`+`campaigns`+`improvement-proposals`+`notifications`+`referrals`+
+ * `wellhub` (175.1-07), y este `describe` prueba los gates D-13/D-14/WR-01/
+ * CR-01 aislado de D-15 — mismo criterio que el resto de los swaps de este
+ * archivo (fase 173-30 lo documentó primero para `member_profiles`/`users`):
+ * si la tabla del fixture pasa a ser strict de verdad, se cambia la tabla, no
+ * la aserción. `campaigns` (usada acá hasta 175.1) se repuntó a `day_modes`:
+ * ambas gym-owned, ninguna con FK real entre sí — el join es sintético.
  */
 
 import { eq, sql } from "drizzle-orm";
@@ -23,17 +35,17 @@ import {
 } from "../../../../src/modules/shared/tenant";
 import type { FakeCtx, FakeDb } from "./tipos";
 
-/** VIOLACIÓN — `bookings` es gym-owned y el statement no nombra el gimnasio. */
+/** VIOLACIÓN — `completed_sessions` es gym-owned y el statement no nombra el gimnasio. */
 export function selectSinFiltro(db: FakeDb): FakeDb {
-  return db.select().from(schema.bookings);
+  return db.select().from(schema.completedSessions);
 }
 
 /** CUMPLE — `tenantWhere` es la forma canónica premiada (fase 169). */
 export function selectConTenantWhere(db: FakeDb, ctx: FakeCtx): FakeDb {
   return db
     .select()
-    .from(schema.bookings)
-    .where(tenantWhere(schema.bookings, ctx));
+    .from(schema.completedSessions)
+    .where(tenantWhere(schema.completedSessions, ctx));
 }
 
 /**
@@ -51,13 +63,13 @@ export function insertConTenantValues(db: FakeDb, ctx: FakeCtx): FakeDb {
 
 /** VIOLACIÓN — template `sql` crudo sobre tabla gym-owned, sin filtro. */
 export function sqlCrudoSinTenant(db: FakeDb): FakeDb {
-  return db.execute(sql`select count(*) from bookings`);
+  return db.execute(sql`select count(*) from completed_sessions`);
 }
 
 /** CUMPLE — el mismo template, con el filtro escrito a mano. */
 export function sqlCrudoConTenant(db: FakeDb, ctx: FakeCtx): FakeDb {
   return db.execute(
-    sql`select count(*) from bookings where tenant_id = ${ctx.tenantId}`,
+    sql`select count(*) from completed_sessions where tenant_id = ${ctx.tenantId}`,
   );
 }
 
@@ -87,7 +99,7 @@ export function selectPorAliasLocal(db: FakeDb): FakeDb {
 }
 
 /**
- * VIOLACIÓN (`subscriptions`, query-builder) — `alias()` de Drizzle guardado en
+ * VIOLACIÓN (`activities`, query-builder) — `alias()` de Drizzle guardado en
  * una variable.
  *
  * El motor ya resolvía `alias(schema.x, "y")` escrito INLINE dentro del
@@ -95,36 +107,39 @@ export function selectPorAliasLocal(db: FakeDb): FakeDb {
  * no resolvía nada.
  */
 export function selectPorAliasDeDrizzle(db: FakeDb): FakeDb {
-  const s = alias(schema.subscriptions, "s");
-  return db.select().from(s);
+  const act = alias(schema.activities, "act");
+  return db.select().from(act);
 }
 
 /**
- * DOS VIOLACIONES (`schedules` por el join, `bookings` por el from), las
- * dos query-builder.
+ * DOS VIOLACIONES (`day_modes` por el join, `completed_sessions` por el
+ * from), las dos query-builder.
  *
  * El par nuevo del ratchet es el del JOIN (WR-01): la clave es el par
  * (archivo, tabla) y no el statement, así que un join sin scope a otra tabla
  * gym-owned crecía deuda en silencio aunque el `from` ya estuviera listado.
  *
- * Tabla `schedules` (no `member_profiles`, fase 173-30): `member_profiles`
- * entró a `TENANT_STRICT_MODULES` con la adopción de `members`, y este
- * fixture prueba el gate del JOIN (WR-01) aislado de D-15 — mismo criterio
- * que el `it` de más abajo documenta para `bookings`: si la tabla del
- * fixture pasa a ser strict de verdad, se cambia la tabla, no la aserción.
+ * Tablas `day_modes`/`completed_sessions` (no `schedules`/`bookings`, fase
+ * 174.1; no `campaigns`, fase 175.1): las dos entraron a
+ * `TENANT_STRICT_MODULES` con el switch de scheduling y el switch de
+ * campaigns respectivamente, y este fixture prueba el gate del JOIN (WR-01)
+ * aislado de D-15 — mismo criterio que el resto de los swaps de este
+ * archivo. El join en sí es sintético (no hay FK real entre las dos tablas):
+ * lo único que le importa al motor es que las DOS son gym-owned y ninguna
+ * trae `tenant_id`.
  */
 export function joinSinFiltro(db: FakeDb): FakeDb {
   return db
     .select()
-    .from(schema.bookings)
+    .from(schema.completedSessions)
     .innerJoin(
-      schema.schedules,
-      eq(schema.schedules.id, schema.bookings.scheduleId),
+      schema.dayModes,
+      eq(schema.dayModes.id, schema.completedSessions.id),
     );
 }
 
 /**
- * CUMPLEN LOS DOS (`schedules` y `bookings`) — el mismo join, con
+ * CUMPLEN LOS DOS (`day_modes` y `completed_sessions`) — el mismo join, con
  * `tenantWhere` en el `.where(...)` del mismo statement.
  *
  * Es el caso que prueba que sumar los joins a `TABLE_METHODS` no inventa rojos
@@ -133,10 +148,10 @@ export function joinSinFiltro(db: FakeDb): FakeDb {
 export function joinConTenantWhere(db: FakeDb, ctx: FakeCtx): FakeDb {
   return db
     .select()
-    .from(schema.bookings)
+    .from(schema.completedSessions)
     .innerJoin(
-      schema.schedules,
-      eq(schema.schedules.id, schema.bookings.scheduleId),
+      schema.dayModes,
+      eq(schema.dayModes.id, schema.completedSessions.id),
     )
-    .where(tenantWhere(schema.bookings, ctx));
+    .where(tenantWhere(schema.completedSessions, ctx));
 }

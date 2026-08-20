@@ -24,6 +24,7 @@ import {
 import { EnrollmentService } from "../modules/programs/enrollment-service";
 import {
   forEachActiveTenant,
+  tenantWhere,
   type TenantContext,
 } from "../modules/shared/tenant";
 
@@ -165,6 +166,11 @@ async function runMarkNoShowsForTenantTz(
     )
     .where(
       and(
+        // Fase 174.1-05 (D-02): ctx YA resuelto por el loop de
+        // `forEachActiveTenant` de más arriba — este barrido corre POR
+        // GIMNASIO, así que `bookings`/`schedules` se acotan con `tenantWhere`
+        // en vez de una exención cross-tenant.
+        tenantWhere(bookings, ctx),
         eq(bookings.status, "reservado"),
         sql`${bookings.bookingDate} < ${today}`,
         eq(schema.branches.timezone, tz),
@@ -179,7 +185,7 @@ async function runMarkNoShowsForTenantTz(
   await db
     .update(bookings)
     .set({ status: "no_show" })
-    .where(inArray(bookings.id, ids));
+    .where(and(tenantWhere(bookings, ctx), inArray(bookings.id, ids)));
 
   // Group no-shows by (member, is-special) so each bucket decrements the right
   // subscription. A member with a regular AND a special no-show on the same
@@ -222,6 +228,10 @@ async function runMarkNoShowsForTenantTz(
       })
       .where(
         and(
+          // Fase 174.1-05 (D-02): `sub` ya salió de `pickSubscriptionForActivity(ctx, ...)`
+          // scopeado al gimnasio del barrido — `tenantWhere` acá es defensivo
+          // (belt-and-suspenders), no un cambio de comportamiento.
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.id, sub.id),
           sql`${schema.subscriptions.classesRemaining} > 0`,
         ),

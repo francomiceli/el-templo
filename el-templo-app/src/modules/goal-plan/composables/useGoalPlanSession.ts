@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { useSessionPlayerStore } from '../../training/stores/sessionPlayerStore'
 import { createLogger } from 'src/utils/logger'
+import { ROLE_LABELS } from 'src/constants/roleLabels'
 import type { Block, BlockRole } from '../../training/types/session'
 import type { GoalPlanSessionResponse } from '../types'
 
@@ -84,15 +85,7 @@ export function useGoalPlanSession(
    * Block labels for progress bar, derived from visible blocks.
    */
   const blockLabels = computed(() => {
-    const BLOCK_NAMES: Record<string, string> = {
-      INITIUM: 'Initium',
-      NUCLEUS: 'Nucleus',
-      DEUTEROS_1: 'Deuteros',
-      DEUTEROS_2: 'Deuteros',
-      ATHLOS: 'Athlos',
-      EPIKOS: 'Epikos',
-    }
-    return visibleBlocks.value.map((b) => BLOCK_NAMES[b.role] ?? b.role)
+    return visibleBlocks.value.map((b) => ROLE_LABELS[b.role] ?? b.role)
   })
 
   // --- Timer management ---

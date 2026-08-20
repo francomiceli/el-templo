@@ -150,9 +150,10 @@ export class FunnelService {
       .$dynamic();
 
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       usersQuery = usersQuery.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.users.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.users.branchId}`,
       );
     }
 
@@ -224,6 +225,9 @@ export class FunnelService {
     }
 
     // ── activo historical approximation: MIN(subscriptions.created_at) ─────
+    // Fase 174.1-03 (D-02): `subscriptions` es tabla del boundary de subs —
+    // `tenantWhere` explícito, aunque `userIds` ya venga de una query de
+    // `users` scopeada (D-01 del plan: presencia por-tabla, no correctitud).
     const subRows = await this.db
       .select({
         userId: schema.subscriptions.userId,
@@ -231,10 +235,13 @@ export class FunnelService {
       })
       .from(schema.subscriptions)
       .where(
-        sql`${schema.subscriptions.userId} IN (${sql.join(
-          userIds.map((id) => sql`${id}`),
-          sql`, `,
-        )})`,
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          sql`${schema.subscriptions.userId} IN (${sql.join(
+            userIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        ),
       )
       .groupBy(schema.subscriptions.userId);
 

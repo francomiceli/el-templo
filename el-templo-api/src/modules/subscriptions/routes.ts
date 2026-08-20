@@ -49,6 +49,7 @@ import {
   cancelSubscriptionSchema,
   classUsageSchema,
   pricingPreviewSchema,
+  assignProrationPreviewSchema,
   changeFixedSchedulesSchema,
   compensateDaysSchema,
   editStartDateSchema,
@@ -654,6 +655,30 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         return preview;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "pricing preview");
+      }
+    },
+  );
+
+  // GET /members/:userId/subscription/assign-proration-preview
+  // Precio prorrateado hasta fin de mes para un alta (precio del mes completo,
+  // proporcional sugerido, vigencia a fin de mes, desglose de días).
+  fastify.get<{
+    Params: { userId: number };
+    Querystring: { planId: number; startDate: string; priceType: PriceType };
+  }>(
+    "/members/:userId/subscription/assign-proration-preview",
+    { schema: assignProrationPreviewSchema },
+    async (request, reply) => {
+      try {
+        const preview = await subscriptionService.getAssignProrationPreview(
+          assertTenant(request.scope, "subscriptions.getAssignProrationPreview"),
+          request.query.planId,
+          request.query.startDate,
+          request.query.priceType,
+        );
+        return preview;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "assign proration preview");
       }
     },
   );

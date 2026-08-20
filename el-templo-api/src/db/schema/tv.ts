@@ -153,6 +153,13 @@ export const tvClassState = mysqlTable(
     pausedAccumMs: int("paused_accum_ms").default(0).notNull(),
     // D-19: los beeps arrancan APAGADOS.
     soundEnabled: boolean("sound_enabled").default(false).notNull(),
+    // Fase 178: toggle "Ver alternativo" del 2º bloque en dias tecnica/combos
+    // (TECNICA_II_ALT / COMBOS_II_ALT). Mismo cronometro que el bloque
+    // principal — solo cambia que roster se muestra. Una fila por sede,
+    // espejada por N televisores (mismo patron D-04 que el resto de la tabla).
+    // Reemplaza a las dos columnas de rotacion automatica de deuteros de la
+    // fase 164, dadas de baja en la migracion 0206 junto con esta columna.
+    showAlternative: boolean("show_alternative").default(false).notNull(),
     updatedBy: int("updated_by").references(() => users.id),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

@@ -76,7 +76,7 @@ describe("ReferralService.generateReferralCode", () => {
     });
     const service = new ReferralService(app.db, app.log);
 
-    const code = await service.generateReferralCode(member.id);
+    const code = await service.generateReferralCode(CTX, member.id);
 
     expect(code).toMatch(/^[A-Z]+-[A-Z0-9]+$/);
     expect(code.startsWith("FRAN-")).toBe(true);
@@ -89,8 +89,8 @@ describe("ReferralService.generateReferralCode", () => {
     });
     const service = new ReferralService(app.db, app.log);
 
-    const first = await service.generateReferralCode(member.id);
-    const second = await service.generateReferralCode(member.id);
+    const first = await service.generateReferralCode(CTX, member.id);
+    const second = await service.generateReferralCode(CTX, member.id);
 
     expect(second).toBe(first);
   });
@@ -109,7 +109,7 @@ describe("ReferralService.generateReferralCode", () => {
 
     // A ocupa FRAN-AAAA (sufijo fijo).
     const serviceA = new ReferralService(app.db, app.log, () => "AAAA");
-    const codeA = await serviceA.generateReferralCode(a.id);
+    const codeA = await serviceA.generateReferralCode(CTX, a.id);
     expect(codeA).toBe("FRAN-AAAA");
 
     // B intenta FRAN-AAAA (colisión) y luego FRAN-BBBB.
@@ -117,7 +117,7 @@ describe("ReferralService.generateReferralCode", () => {
     const serviceB = new ReferralService(app.db, app.log, () =>
       call++ === 0 ? "AAAA" : "BBBB",
     );
-    const codeB = await serviceB.generateReferralCode(b.id);
+    const codeB = await serviceB.generateReferralCode(CTX, b.id);
 
     expect(codeB).toBe("FRAN-BBBB");
     expect(codeB).not.toBe(codeA);
@@ -131,7 +131,7 @@ describe("ReferralService.generateReferralCode", () => {
     await clearCode(member.id);
     const service = new ReferralService(app.db, app.log, () => "ZZZZ");
 
-    const code = await service.generateReferralCode(member.id);
+    const code = await service.generateReferralCode(CTX, member.id);
 
     expect(code).toBe("REF-ZZZZ");
   });
@@ -144,7 +144,7 @@ describe("ReferralService.resolveReferralCode", () => {
       firstName: "Nadia",
     });
     const service = new ReferralService(app.db, app.log);
-    const code = await service.generateReferralCode(member.id);
+    const code = await service.generateReferralCode(CTX, member.id);
 
     expect(await service.resolveReferralCode(CTX, code)).toBe(member.id);
     expect(await service.resolveReferralCode(CTX, "NOPE-9999")).toBeNull();

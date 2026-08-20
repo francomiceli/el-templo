@@ -34,6 +34,13 @@
  *
  * Este archivo es de SOLO LECTURA sobre el schema y no deja filas: la única
  * escritura es la fila del round-trip, que se borra en el mismo test.
+ *
+ * Nota (fase 159, SEM-05): las 87 tablas de este archivo son las de la tanda C
+ * (fase 167). `session_week_regime` (159) suma una tabla gym-owned nueva
+ * fuera de esa tanda -- nace con tenant_id desde el inicio, no por un ALTER de
+ * 0192-0195 -- así que `report.gymOwnedChecked` (que recorre TODA
+ * GYM_OWNED_TABLES) pasa de 87 a 88. El resto de este docblock describe la
+ * tanda C tal cual la dejó la fase 167 y no se reescribe.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { sql, eq } from "drizzle-orm";
@@ -136,8 +143,9 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
   });
 
   // ─── 2. Cobertura ───────────────────────────────────────────────────────
-  it("Test 2: la verificacion cubre las 87 tablas gym-owned, no un subconjunto", () => {
-    expect(report.gymOwnedChecked).toBe(87);
+  it("Test 2: la verificacion cubre las 88 tablas gym-owned, no un subconjunto", () => {
+    // 87 de la tanda C (fase 167) + session_week_regime (fase 159, SEM-05).
+    expect(report.gymOwnedChecked).toBe(88);
   });
 
   // ─── 3. Exclusiones de diseño ───────────────────────────────────────────

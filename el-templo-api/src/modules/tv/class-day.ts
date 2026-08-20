@@ -129,24 +129,31 @@ export async function resolveClassDay(
     return emptyDay(date, week, dayName, "regular");
   }
 
-  // 1. Modo del dia. El sabado viene seedeado como ROM desde la migracion 0080
-  //    (D-23), pero se lee de `day_modes` y no se asume por el nombre del dia.
+  // 1. Modo del dia -- fallback desde `day_modes`, usado SOLO cuando todavia
+  //    no hay sesion aprobada (paso 2). El sabado viene seedeado como ROM
+  //    desde la migracion 0080 (D-23).
   const dayNumber = DAY_NAME_TO_NUMBER[dayName];
-  let mode: TvClassMode = "regular";
+  let fallbackMode: TvClassMode = "regular";
   if (dayNumber) {
     const [dayModeRow] = await db
       .select({ sessionMode: schema.dayModes.sessionMode })
       .from(schema.dayModes)
       .where(eq(schema.dayModes.dayOfWeek, dayNumber));
-    if (dayModeRow?.sessionMode === "rom") mode = "rom";
+    if (dayModeRow?.sessionMode === "rom") fallbackMode = "rom";
   }
 
   // 2. Sesiones aprobadas de la plani REGULAR (D-14): `goal_plan_type IS NULL`.
   //    Los goal plans son curados por socio, no son "la clase de la sede".
+  //    Fase 159-06 (D-P3): `sessionMode` viaja en el mismo select -- CERO
+  //    queries nuevas -- porque `day_modes` NUNCA tiene combos/tecnica (D-02:
+  //    esos modos son override per-request en /generate, no un valor
+  //    fijable de `day_modes`); la fuente de verdad de "hoy es ROM" es la
+  //    sesion generada, no la config del dia.
   const sessionRows = await db
     .select({
       id: schema.sessions.id,
       dayId: schema.sessions.dayId,
+      sessionMode: schema.sessions.sessionMode,
     })
     .from(schema.sessions)
     .where(
@@ -159,8 +166,21 @@ export async function resolveClassDay(
     );
 
   if (sessionRows.length === 0) {
-    return emptyDay(date, week, dayName, mode);
+    return emptyDay(date, week, dayName, fallbackMode);
   }
+
+  // Con sesion aprobada, el modo real manda sobre `day_modes` (Pitfall 6).
+  // Fase 160 (SEM-15): TvClassMode distingue "rom" (2 tiers, BASICO/AVANZADO)
+  // de "combos"/"tecnica" (6 tiers, roster propio -- COMBOS_ROLES/
+  // TECNICA_ROLES en roster.ts) y de "regular". `day_modes` NUNCA tiene
+  // combos/tecnica (D-02): el override viaja solo por sessionMode.
+  const mode: TvClassMode = sessionRows.some((s) => s.sessionMode === "rom")
+    ? "rom"
+    : sessionRows.some((s) => s.sessionMode === "combos")
+      ? "combos"
+      : sessionRows.some((s) => s.sessionMode === "tecnica")
+        ? "tecnica"
+        : "regular";
 
   // 3. Bloques de TODAS las sesiones en una query (sin N+1).
   const sessionIds = sessionRows.map((s) => s.id);
@@ -261,7 +281,9 @@ export async function resolveClassDay(
     blocks: blocksBySession.get(s.id) ?? [],
   }));
 
-  // 6. Niveles disponibles, en orden canonico. En ROM solo existen dos tiers.
+  // 6. Niveles disponibles, en orden canonico. En ROM solo existen dos tiers;
+  //    combos/tecnica tienen los 6 tiers de un dia habil (D160-01), asi que
+  //    usan REGULAR_LEVEL_ORDER igual que "regular" -- solo "rom" es especial.
   //    Cualquier nivel presente FUERA del orden canonico (dato viejo, o un
   //    omega colado en un sabado) se agrega al final en vez de descartarse:
   //    `levels` no puede quedar vacio mientras `approved` sea true, o el clamp

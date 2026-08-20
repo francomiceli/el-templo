@@ -98,8 +98,8 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
     referredPlanId: number,
   ): Promise<void> {
     await app.db.execute(
-      sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at)
-          VALUES (${referrerId}, ${referredId}, 'qualified', 'assisted', NOW())`,
+      sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel, qualified_at)
+          VALUES (1, ${referrerId}, ${referredId}, 'qualified', 'assisted', NOW())`,
     );
     await app.db.execute(
       sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)

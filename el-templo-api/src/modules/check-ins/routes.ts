@@ -1,10 +1,13 @@
 import { FastifyPluginAsync } from "fastify";
 import { CheckInService } from "./service";
 import { CheckInAdminService } from "./admin-service";
+import { CheckInRosterService } from "./roster-service";
 import { handleServiceError } from "../shared/error-handler";
-import { ADMIN_ROLES } from "../shared/permissions";
+import { ADMIN_ROLES, CHECKIN_ROSTER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { requireBranchAccess } from "../shared/branch-access";
 import { assertTenant } from "../shared/tenant";
+import { todayInTz } from "../shared/date-utils";
 import type { CheckInAnswer, AdminCheckInsFilters } from "./types";
 import {
   submitCheckInBodySchema,
@@ -12,7 +15,10 @@ import {
   todayCheckInResponseSchema,
   errorResponseSchema,
   adminCheckInsQuerySchema,
+  checkInRosterSchema,
 } from "./schemas";
+
+const AR_TZ = "America/Argentina/Buenos_Aires";
 
 export const checkInRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new CheckInService(fastify.db);
@@ -120,6 +126,49 @@ export const checkInAdminRoutes: FastifyPluginAsync = async (fastify) => {
         );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get admin check-ins");
+      }
+    },
+  );
+};
+
+/**
+ * Registros del día para el staff operativo (card de Horarios), registrada en
+ * /api/admin/check-ins/roster. Guard MÁS AMPLIO que la vista admin de arriba:
+ * CHECKIN_ROSTER_ROLES = coach + admin/dueño (NO recepción/gestión). El profe ve
+ * cómo llegó cada alumno de SU clase para ajustar el entrenamiento — decisión de
+ * Franco 2026-08-13. Es un plugin aparte (no comparte el hook ADMIN_ROLES-only
+ * del de Feedback) y usa el mismo trío de guardas de sede que aniversarios:
+ * attachCountryScope + requireBranchAccess + assertTenant.
+ */
+export const checkInRosterRoutes: FastifyPluginAsync = async (fastify) => {
+  const service = new CheckInRosterService(fastify.db);
+
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request, reply);
+    if (
+      !(CHECKIN_ROSTER_ROLES as readonly string[]).includes(request.user.role)
+    ) {
+      return reply.code(403).send({
+        error: "Acceso denegado",
+        message: "No tenés permisos para ver el registro del día",
+      });
+    }
+    await attachCountryScope(request, fastify.db);
+  });
+
+  fastify.get<{ Querystring: { branchId: number; date?: string } }>(
+    "/roster",
+    {
+      schema: checkInRosterSchema,
+      preHandler: [requireBranchAccess({ from: "query.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "check-ins.roster");
+        const date = request.query.date ?? todayInTz(AR_TZ);
+        return await service.getDayRoster(ctx, request.query.branchId, date);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "check-ins roster");
       }
     },
   );

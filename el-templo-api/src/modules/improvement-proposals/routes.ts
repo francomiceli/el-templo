@@ -54,7 +54,12 @@ export const improvementProposalsAdminRoutes: FastifyPluginAsync = async (
     { schema: adminProposalsQuerySchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(
+          request.scope,
+          "improvement-proposals.getAdminProposals",
+        );
         return await service.getAdminProposals(
+          ctx,
           {
             isOwner: request.scope.isOwner,
             country: request.scope.country,
@@ -73,7 +78,12 @@ export const improvementProposalsAdminRoutes: FastifyPluginAsync = async (
     { schema: adminProposalsExportQuerySchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(
+          request.scope,
+          "improvement-proposals.getExportRows",
+        );
         const rows = await service.getExportRows(
+          ctx,
           {
             isOwner: request.scope.isOwner,
             country: request.scope.country,
@@ -124,7 +134,15 @@ export const improvementProposalsMemberRoutes: FastifyPluginAsync = async (
     { schema: promptStatusSchema },
     async (request, reply) => {
       try {
-        const result = await service.getPromptStatus(request.user.userId);
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(
+          request.scope,
+          "improvement-proposals.getPromptStatus",
+        );
+        const result = await service.getPromptStatus(
+          ctx,
+          request.user.userId,
+        );
         return reply.send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get proposal prompt");
