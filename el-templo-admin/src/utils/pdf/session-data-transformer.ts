@@ -1,5 +1,11 @@
 import type { SessionDetail, SessionBlock, SessionExercise } from 'src/types/session';
-import type { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
+import type {
+  PdfDaySession,
+  PdfBlockPage,
+  PdfLevelBlock,
+  PdfExercise,
+  PdfDayType,
+} from './pdf-types';
 import { isFormatDictatedByName } from 'src/constants/formats';
 import { getRouteLabel } from 'src/constants/route-labels';
 import { ROLE_LABELS } from 'src/constants/roleLabels';
@@ -391,6 +397,28 @@ function buildGridPage(
 const ROM_ZONES = ['ROM_LOWER', 'ROM_CORE', 'ROM_UPPER'] as const;
 
 /**
+ * Resolve the day's training type. Primary source is the persisted
+ * `sessionMode` (`sessions.session_mode`, exposed on every SessionDetail).
+ *
+ * Fallback (decisión UAT 2026-08-20): si `sessionMode` viene ausente o
+ * 'regular' pero los roles de bloque delatan otra estructura (data histórica
+ * generada antes de persistir bien el modo, o un modo mal guardado), se corrige
+ * por roles. Así el PDF nunca vuelve a saltear bloques por confiar ciegamente
+ * en un modo desincronizado — que fue exactamente el bug de combos.
+ */
+export function resolveDayType(sessions: SessionDetail[]): PdfDayType {
+  const mode = sessions[0]?.sessionMode;
+  if (mode === 'rom' || mode === 'combos' || mode === 'tecnica') return mode;
+
+  const hasRole = (prefix: string) =>
+    sessions.some((s) => s.blocks.some((b) => b.role.startsWith(prefix)));
+  if (hasRole('ROM_')) return 'rom';
+  if (hasRole('COMBOS_')) return 'combos';
+  if (hasRole('TECNICA_')) return 'tecnica';
+  return 'regular';
+}
+
+/**
  * Transform multiple sessions (one per level) into a single PdfDaySession
  * with multi-level grids for each block.
  *
@@ -400,6 +428,7 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
   const first = sessions[0];
   const dayName = DAY_LABELS[first.day] || first.day.toUpperCase();
   const week = first.week;
+  const dayType = resolveDayType(sessions);
 
   // Group sessions by memberLevel
   const sessionsByLevel = new Map<string, SessionDetail>();
@@ -409,10 +438,7 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
 
   const blocks: PdfBlockPage[] = [];
 
-  // Detect ROM sessions: check if any session has ROM block roles
-  const isRom = sessions.some((s) => s.blocks.some((b) => b.role.startsWith('ROM_')));
-
-  if (isRom) {
+  if (dayType === 'rom') {
     // ROM sessions: INITIUM warmup + 3 zone blocks, 2 tiers (alfa=BASICO, delta=AVANZADO)
 
     // INITIUM compartido del día — fuente determinista (ver INITIUM_SOURCE_ORDER)
@@ -453,19 +479,13 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
       }
     }
 
-    return { dayName, week, blocks };
+    return { dayName, week, dayType, blocks };
   }
 
-  // Detect COMBOS/TECNICA sessions (fase 160, SEM-09): un día combos o técnica
-  // trae roles COMBOS_I/II o TECNICA_I/II en vez de NUCLEUS/DEUTEROS/EPIKOS.
-  // Sin esta rama caería en la regular de abajo, no encontraría ninguno de
-  // esos bloques y saldría "solo INITIUM + cierre" (bug vivo apenas el profe
-  // genere un día de este tipo — ver 160-CONTEXT.md).
-  const isCombosTecnica = sessions.some((s) =>
-    s.blocks.some((b) => b.role.startsWith('COMBOS_') || b.role.startsWith('TECNICA_'))
-  );
-
-  if (isCombosTecnica) {
+  // COMBOS/TECNICA (fase 160, SEM-09): un día combos o técnica trae roles
+  // COMBOS_I/II o TECNICA_I/II en vez de NUCLEUS/DEUTEROS/EPIKOS. El día combos
+  // cierra con FULL BODY (ATHLOS/EPIKOS) y el técnica con STRETCHING.
+  if (dayType === 'combos' || dayType === 'tecnica') {
     // INITIUM compartido del día — mismo patrón que la rama regular.
     const ctInitium = findInitiumBlock(sessions);
     if (ctInitium) {
@@ -527,7 +547,7 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
       });
     }
 
-    return { dayName, week, blocks };
+    return { dayName, week, dayType, blocks };
   }
 
   // INITIUM compartido del día — fuente determinista (ver INITIUM_SOURCE_ORDER)
@@ -567,7 +587,7 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
     blocks.push(epikos);
   }
 
-  return { dayName, week, blocks };
+  return { dayName, week, dayType, blocks };
 }
 
 /**

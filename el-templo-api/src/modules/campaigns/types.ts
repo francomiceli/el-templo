@@ -39,7 +39,7 @@ export interface TrialCampaignVars {
   trackingPixelUrl: string;
   /** Primary CTA URL (click-tracked redirect to the trial deep link). */
   ctaAppUrl: string;
-  /** WhatsApp CTA URL (wa.me link, per-recipient country). */
+  /** WhatsApp CTA URL (wa.me link, per campaign country scope; global → AR). */
   whatsappUrl: string;
   /** Active physical branches to list in the "Nuestras sedes" table. */
   sedes: BranchAddress[];

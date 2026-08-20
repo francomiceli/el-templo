@@ -374,6 +374,8 @@ jobs:
           WELLHUB_API_KEY=${{ secrets.WELLHUB_API_KEY }}
           WELLHUB_WEBHOOK_SECRET=${{ secrets.WELLHUB_WEBHOOK_SECRET }}
           WELLHUB_BASE_URL=${{ secrets.WELLHUB_BASE_URL }}
+          RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+          CAMPAIGN_EMAIL_FROM=${{ secrets.CAMPAIGN_EMAIL_FROM }}
           EOF
 
       # --- Deploy via rsync (only projects that were built) ---
