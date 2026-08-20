@@ -503,18 +503,26 @@ function paintList(n: Nodes, c: TvClassPayload): void {
     colEl.appendChild(cab);
 
     // Separador dórico: una columna griega tumbada (capitel · fuste · capitel)
-    // entre el header nivel/ruta y la lista, en vez de una línea. Tres piezas flex:
-    // los capiteles guardan su proporción en los extremos y el fuste ocupa SOLO el
-    // medio (no atraviesa los capiteles). Estilos en TvScreenPage.vue.
+    // entre el header nivel/ruta y la lista, en vez de una línea. Las tres piezas
+    // van en un wrapper `__piezas` (ahí vive el filter del glow) y la banda de
+    // brillo `__brillo` es un overlay HERMANO: si la banda animada quedara adentro
+    // del subtree filtrado, los drop-shadow se recalcularían en cada frame del
+    // barrido y en el TV la animación se arrastra. Estilos en TvScreenPage.vue.
     const dorica = document.createElement('div');
     dorica.className = 'columnaDorica';
+    const piezas = document.createElement('div');
+    piezas.className = 'columnaDorica__piezas';
     const capIzq = document.createElement('div');
     capIzq.className = 'columnaDorica__cap columnaDorica__cap--izq';
     const fuste = document.createElement('div');
     fuste.className = 'columnaDorica__fuste';
     const capDer = document.createElement('div');
     capDer.className = 'columnaDorica__cap columnaDorica__cap--der';
-    dorica.append(capIzq, fuste, capDer);
+    piezas.append(capIzq, fuste, capDer);
+    const brillo = document.createElement('div');
+    brillo.className = 'columnaDorica__brillo';
+    brillo.setAttribute('aria-hidden', 'true');
+    dorica.append(piezas, brillo);
     colEl.appendChild(dorica);
 
     const caja = document.createElement('div');

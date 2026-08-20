@@ -139,9 +139,12 @@
               <div class="cierreTitulo" id="cierreTitulo">SESIÓN COMPLETA</div>
               <!-- Barra con barrido (misma columna que los separadores) bajo el título. -->
               <div class="columnaDorica cierreBarra">
-                <div class="columnaDorica__cap columnaDorica__cap--izq"></div>
-                <div class="columnaDorica__fuste"></div>
-                <div class="columnaDorica__cap columnaDorica__cap--der"></div>
+                <div class="columnaDorica__piezas">
+                  <div class="columnaDorica__cap columnaDorica__cap--izq"></div>
+                  <div class="columnaDorica__fuste"></div>
+                  <div class="columnaDorica__cap columnaDorica__cap--der"></div>
+                </div>
+                <div class="columnaDorica__brillo" aria-hidden="true"></div>
               </div>
             </div>
           </div>
@@ -831,10 +834,20 @@ onUnmounted(() => {
    recuadro como divisor. */
 #tvScreenRoot .columnaDorica {
   flex: 0 0 auto;
-  display: flex;
-  align-items: stretch;
+  position: relative;
   height: 1.3rem;
   margin: 0.2rem 0.3rem 0.7rem;
+}
+/* Las piezas van en un wrapper ESTÁTICO propio y el glow (filter) vive acá, NO
+   en .columnaDorica: la banda de brillo animada tiene que quedar FUERA del
+   subtree filtrado. Con el filter en el padre, los 3 drop-shadow se
+   recalculaban en cada frame del barrido (el resultado de un filtro no se
+   cachea si algo adentro cambia) y en el browser del TV eso arrastraba la
+   animación. Así las piezas no cambian nunca y el filtro se pinta una vez. */
+#tvScreenRoot .columnaDorica__piezas {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
   /* Contorno oro claro (ceñido) + halo suave, y una profundidad navy sutil para
      no oscurecer. Mismo lenguaje que el título tallado del bloque. */
   filter:
@@ -861,22 +874,27 @@ onUnmounted(() => {
   aspect-ratio: 45 / 69;
   background-image: url('/tv-col-cap-der.png');
 }
-/* Fuste: llena el medio y lleva la banda de luz (screen) recortada a su silueta
-   por `mask`; la banda barre en horizontal (columnaBrillo). */
+/* Fuste: llena el medio; la banda de luz barre por encima (__brillo). */
 #tvScreenRoot .columnaDorica__fuste {
   flex: 1 1 auto;
-  position: relative;
-  overflow: hidden;
   background-image: url('/tv-col-fuste.png');
   background-repeat: no-repeat;
   background-position: center;
   background-size: 100% 100%;
 }
-/* Banda de brillo: una franja de luz que cruza el fuste movida con `transform`
-   (compositado por GPU, SIN repaint por frame) para que sea fluida en el TV de la
-   sucursal. El enfoque anterior (background-position + blend + mask animados)
-   repintaba cada frame y se arrastraba en el hardware del televisor. */
-#tvScreenRoot .columnaDorica__fuste::after {
+/* Banda de brillo: overlay HERMANO de las piezas (fuera del filter, ver
+   __piezas), recortado al box de la columna; la franja de luz cruza con
+   `transform` (compositado por GPU, SIN repaint por frame) para que sea fluida
+   en el TV de la sucursal. El enfoque anterior (background-position + blend +
+   mask animados) repintaba cada frame y se arrastraba en el hardware del
+   televisor. Ahora la banda cruza la columna completa, capiteles incluidos. */
+#tvScreenRoot .columnaDorica__brillo {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+#tvScreenRoot .columnaDorica__brillo::after {
   content: '';
   position: absolute;
   top: 0;
@@ -895,11 +913,10 @@ onUnmounted(() => {
   transform: translateX(-100%);
   animation: columnaBrillo 12s linear infinite;
   will-change: transform;
-  pointer-events: none;
 }
 /* Con dos columnas lado a lado, la 2da barre desfasada medio ciclo (-5s de 10s)
    para que las barras no brillen al mismo tiempo. */
-#tvScreenRoot .lista-col:nth-child(2n) .columnaDorica__fuste::after {
+#tvScreenRoot .lista-col:nth-child(2n) .columnaDorica__brillo::after {
   /* Arranca cuando la 1ra barra termina de cruzar (25% de 12s = 3s): consecutivas. */
   animation-delay: 3s;
 }
@@ -1189,11 +1206,16 @@ onUnmounted(() => {
   height: 1.3rem;
   overflow: hidden;
   margin-top: 0.55rem;
-  /* Profundidad + glow dorado, igual que el separador de columna. */
-  filter:
-    drop-shadow(0 0.03em 0.05em rgba(20, 32, 46, 0.2))
-    drop-shadow(0 0 0.09em rgba(255, 238, 196, 0.95))
-    drop-shadow(0 0 0.3em rgba(232, 205, 150, 0.5));
+  /* Profundidad + glow dorado, igual que el separador de columna — pero con
+     box-shadow y NO con filter: drop-shadow. El width del fill (#progreso)
+     cambia en cada tick del timer y un filter acá obligaba a recalcular los 3
+     drop-shadow por frame durante toda la clase. El box-shadow es del
+     border-box (rectangular, no sigue las estrías), se pinta una vez y a
+     tamaño TV la diferencia no se distingue. */
+  box-shadow:
+    0 0.03em 0.05em rgba(20, 32, 46, 0.2),
+    0 0 0.09em rgba(255, 238, 196, 0.95),
+    0 0 0.3em rgba(232, 205, 150, 0.5);
 }
 /* Cada capa es una columna completa de ancho FIJO (24rem): así el fill recorta
    sin comprimir la columna. Reusa las piezas .columnaDorica__cap/__fuste. */
@@ -1216,10 +1238,8 @@ onUnmounted(() => {
   transition: width 0.2s linear;
 }
 /* La barra del cronómetro no lleva el barrido de brillo (el vaciado ya es su
-   movimiento): oculto la banda de luz, queda solo la imagen del fuste. */
-#tvScreenRoot .cronometro .barra .columnaDorica__fuste::after {
-  display: none;
-}
+   movimiento): su markup no incluye .columnaDorica__brillo, no hay nada que
+   ocultar. */
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .lista-col .item {
     transition: none;
@@ -1457,12 +1477,16 @@ onUnmounted(() => {
   background: var(--marble, none) center / cover no-repeat;
   animation: fondoDeriva 46s ease-in-out infinite alternate;
 }
+/* Escala CONSTANTE (antes 1.04→1.13): animar scale obliga a re-muestrear la
+   textura full-screen en cada frame en el compositor del TV; el translate solo
+   es mucho más barato. 1.08 fijo + inset -5rem siguen cubriendo el recorrido
+   (5rem, 3rem) sin descubrir bordes. */
 @keyframes fondoDeriva {
   from {
-    transform: translate3d(0, 0, 0) scale(1.04);
+    transform: translate3d(0, 0, 0) scale(1.08);
   }
   to {
-    transform: translate3d(5rem, 3rem, 0) scale(1.13);
+    transform: translate3d(5rem, 3rem, 0) scale(1.08);
   }
 }
 
@@ -1483,14 +1507,17 @@ onUnmounted(() => {
 #tvScreenRoot .tvFondo__luz--calida {
   top: -24rem;
   left: -32rem;
+  /* SIN mix-blend-mode (antes overlay): un blend mode sobre una capa gigante
+     animada obliga al compositor del TV a una pasada extra de mezcla de toda
+     la pantalla POR FRAME — era el mayor costo fijo de la página. Sobre un
+     mármol claro y conocido, el dodge cálido se aproxima con un gradiente
+     rgba en blending normal (tonos más blancos y alphas más bajos). */
   background: radial-gradient(
     closest-side,
-    rgba(250, 232, 185, 0.92) 0%,
-    rgba(206, 166, 116, 0.5) 44%,
+    rgba(255, 241, 205, 0.5) 0%,
+    rgba(235, 202, 150, 0.24) 44%,
     transparent 74%
   );
-  /* overlay sobre mármol claro = dodge cálido bien visible (haz de luz sobre piedra). */
-  mix-blend-mode: overlay;
   opacity: calc(0.8 * var(--fondoActividad));
   animation: luzPaseo 30s ease-in-out infinite alternate;
 }
@@ -1503,13 +1530,15 @@ onUnmounted(() => {
   width: auto;
   height: 46rem;
   border-radius: 0;
+  /* SIN mix-blend-mode (antes multiply), por el mismo costo por frame que la
+     mancha cálida: un multiply oscuro se aproxima con el mismo gradiente en
+     blending normal, apenas más tenue. */
   background: radial-gradient(
     120% 100% at 50% 100%,
-    rgba(48, 40, 32, 0.32) 0%,
-    rgba(36, 54, 74, 0.13) 46%,
+    rgba(44, 38, 31, 0.28) 0%,
+    rgba(33, 49, 67, 0.11) 46%,
     transparent 72%
   );
-  mix-blend-mode: multiply;
   opacity: calc(0.85 * var(--fondoActividad));
   animation: sombraPaseo 52s ease-in-out infinite alternate;
 }
@@ -1534,7 +1563,7 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .tvFondo__marmol,
   #tvScreenRoot .tvFondo__luz,
-  #tvScreenRoot .columnaDorica__fuste::after {
+  #tvScreenRoot .columnaDorica__brillo::after {
     animation: none;
   }
 }
