@@ -208,24 +208,6 @@
           </div>
         </div>
 
-        <!-- Días técnica/combos: swapea la vista del 2º bloque al alternativo -->
-        <!-- (COMBOS/TÉCNICA II ALT), mismo cronómetro — no reinicia nada, el -->
-        <!-- profe la prende y apaga cuantas veces quiera. No aplica en regular. -->
-        <div v-if="isAltEligibleMode" class="row q-col-gutter-sm q-mt-sm">
-          <div class="col-12">
-            <q-btn
-              class="tv-btn full-width"
-              icon="swap_horiz"
-              :label="showAlternative ? 'VIENDO ALTERNATIVO' : 'VER ALTERNATIVO'"
-              :color="showAlternative ? 'primary' : 'grey-7'"
-              :outline="!showAlternative"
-              :unelevated="showAlternative"
-              :disable="!canControl"
-              @click="onToggleAlternative"
-            />
-          </div>
-        </div>
-
         <!-- =========================== FIN DE CLASE ========================= -->
         <q-separator class="q-mb-md" />
         <div class="row q-col-gutter-sm">
@@ -659,11 +641,6 @@ const currentLevel = computed(() => context.value?.state?.level ?? '');
 
 const timerStatus = computed(() => context.value?.state?.timerStatus ?? 'idle');
 const soundEnabled = computed(() => context.value?.state?.soundEnabled === true);
-const showAlternative = computed(() => context.value?.state?.showAlternative === true);
-/** El botón "Ver alternativo" solo tiene sentido en días técnica/combos (5º bloque). */
-const isAltEligibleMode = computed(
-  () => context.value?.mode === 'combos' || context.value?.mode === 'tecnica'
-);
 const isClosingScreen = computed(() => context.value?.state?.screen === 'closing');
 
 /**
@@ -840,10 +817,15 @@ function onSelectBlock(role: string): void {
  * accidental no debe aplicarse solo: primero se confirma. Si el rol destino es
  * el actual no hay nada que cambiar.
  */
-/** DEUTEROS_1 y DEUTEROS_2 son dos caminos del MISMO bloque visual (espejo de
- *  `visualGroupOf` en tv/roster.ts). */
+/** DEUTEROS_1/DEUTEROS_2 y COMBOS_II/COMBOS_II_ALT (idem TECNICA_II) son
+ *  caminos del MISMO bloque visual (espejo de `visualGroupOf` en
+ *  tv/roster.ts): navegar dentro del grupo no reinicia el cronómetro, asi que
+ *  tampoco pide confirmación acá (ver `requestBlockChange`). */
 function visualGroupOf(role: string): string {
-  return role === 'DEUTEROS_1' || role === 'DEUTEROS_2' ? 'DEUTEROS' : role;
+  if (role === 'DEUTEROS_1' || role === 'DEUTEROS_2') return 'DEUTEROS';
+  if (role === 'COMBOS_II_ALT') return 'COMBOS_II';
+  if (role === 'TECNICA_II_ALT') return 'TECNICA_II';
+  return role;
 }
 
 function requestBlockChange(role: string): void {
@@ -879,10 +861,6 @@ function onTimer(command: NonNullable<TvStateWrite['timer']>): void {
 
 function onToggleSound(): void {
   void send({ soundEnabled: !soundEnabled.value });
-}
-
-function onToggleAlternative(): void {
-  void send({ showAlternative: !showAlternative.value });
 }
 
 function onToggleClosing(): void {
