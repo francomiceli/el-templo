@@ -82,14 +82,6 @@ export interface TvControlState {
   pausedAccumMs: number;
   /** D-19: arranca apagado; el profe prende los beeps desde el celular. */
   soundEnabled: boolean;
-  /**
-   * Días técnica/combos: swap de vista sobre la zona del 2º bloque (II ↔
-   * II_ALT), comparte cronómetro (fase 178, plan 06). No aplica a días
-   * regulares.
-   */
-  // deploy(178): el fix de CI fue solo-de-tests; este toque fuerza el build del
-  // admin en el paths-filter para que el front del TV llegue a prod.
-  showAlternative: boolean;
 }
 
 /**
@@ -125,7 +117,6 @@ export interface TvStateWrite {
   exerciseIndex?: number;
   timer?: 'start' | 'pause' | 'resume' | 'reset';
   soundEnabled?: boolean;
-  showAlternative?: boolean;
 }
 
 /**
