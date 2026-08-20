@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -21,6 +21,7 @@ import {
   cleanAllTestData,
 } from "./helpers";
 import * as schema from "../src/db/schema";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
 
 const ADMIN_SUBS_URL = "/api/admin/subscriptions";
 const ADMIN_MEMBERS_URL = "/api/admin/members";
@@ -472,7 +473,12 @@ describe("Country scope — RBAC matrix, cross-country guards, forward-compat (P
           currency: schema.subscriptions.currency,
         })
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.id, body.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.id, body.id),
+          ),
+        );
       expect(row.currency).toBe("ARS");
     });
   });

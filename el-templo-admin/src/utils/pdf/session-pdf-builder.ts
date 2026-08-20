@@ -1142,59 +1142,62 @@ export function buildDayContent(day: PdfDaySession): Content[] {
     margin: [0, 400, 0, 0] as [number, number, number, number],
   });
 
-  // 2. Check if this is a ROM day
-  const isRomDay = day.blocks.some((b) => b.isRom);
-
-  // Combos/Técnica day (fase 160, SEM-09): unambiguous detection via
-  // isStretching, which the transformer sets ONLY on the STRETCHING block it
-  // builds in the combos/técnica branch of sessionsToPdfDay — a regular day
-  // never has a STRETCHING role/block, and a ROM day is already captured by
-  // isRomDay above, so this flag alone can't false-positive on either. (An
-  // alternative was comparing `role` against the long display labels from
-  // ROLE_LABELS, but that couples this file to the exact label strings —
-  // isStretching is a structural flag, not a display string.)
-  const isCombosTecnicaDay = day.blocks.some((b) => b.isStretching);
-
-  if (isRomDay) {
-    // ROM day: INITIUM warmup page + each zone gets its own page
-    const initium = day.blocks.find((b) => b.role === 'INITIUM');
-    if (initium) content.push(...buildInitiumPage(initium));
-    for (const block of day.blocks) {
-      if (block.role === 'INITIUM') continue; // already rendered above
-      content.push(...buildRomBlockPage(block));
+  // 2. Layout the day's blocks according to its explicit training type
+  // (day.dayType, resolved from the persisted sessionMode). Cada tipo dibuja
+  // sus bloques a su manera; agregar un tipo nuevo = un case nuevo. El default
+  // degrada al layout estándar (regular). Ya NO se infiere el tipo de día
+  // espiando flags de bloque (isRom/isStretching) — eso desincronizaba el PDF
+  // cada vez que cambiaba la estructura de un modo (bug de combos 2026-08).
+  switch (day.dayType) {
+    case 'rom': {
+      // ROM day: INITIUM warmup page + each zone gets its own page
+      const initium = day.blocks.find((b) => b.role === 'INITIUM');
+      if (initium) content.push(...buildInitiumPage(initium));
+      for (const block of day.blocks) {
+        if (block.role === 'INITIUM') continue; // already rendered above
+        content.push(...buildRomBlockPage(block));
+      }
+      break;
     }
-  } else if (isCombosTecnicaDay) {
-    // Combos/Técnica day: INITIUM warmup + COMBOS/TECNICA I/II full-page
-    // grids (same layout as NUCLEUS, D160-04 doesn't touch these) + a single
-    // shared STRETCHING page styled like INITIUM (D160-04).
-    const ctInitium = day.blocks.find((b) => b.role === 'INITIUM');
-    if (ctInitium) content.push(...buildInitiumPage(ctInitium));
+    case 'combos':
+    case 'tecnica': {
+      // Combos/Técnica day: INITIUM warmup + COMBOS/TECNICA I/II (+ ALT)
+      // full-page grids (same layout as NUCLEUS) + closing. El cierre difiere
+      // por modo: combos cierra con FULL BODY (ATHLOS/EPIKOS, un bloque más
+      // en el loop de grids); técnica con una página STRETCHING compartida
+      // estilo INITIUM (D160-04). Ambos se derivan de la estructura de bloques
+      // que arma el transformer, no del dayType.
+      const ctInitium = day.blocks.find((b) => b.role === 'INITIUM');
+      if (ctInitium) content.push(...buildInitiumPage(ctInitium));
 
-    for (const block of day.blocks) {
-      if (block.role === 'INITIUM' || block.isStretching) continue; // handled separately
-      content.push(...buildFullBlockPage(block));
+      for (const block of day.blocks) {
+        if (block.role === 'INITIUM' || block.isStretching) continue; // handled separately
+        content.push(...buildFullBlockPage(block));
+      }
+
+      const stretching = day.blocks.find((b) => b.isStretching);
+      if (stretching) content.push(...buildStretchingPage(stretching));
+      break;
     }
+    default: {
+      // Regular day: standard block layout
+      const initium = day.blocks.find((b) => b.role === 'INITIUM');
+      const nucleus = day.blocks.find((b) => b.role === 'NUCLEUS');
+      const deut1 = day.blocks.find((b) => b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS I');
+      const deut2 = day.blocks.find((b) => b.role === 'DEUTEROS_2' || b.role === 'DEUTEROS II');
+      const epikos = day.blocks.find((b) => b.role === 'EPIKOS' || b.role === 'ATHLOS');
 
-    const stretching = day.blocks.find((b) => b.isStretching);
-    if (stretching) content.push(...buildStretchingPage(stretching));
-  } else {
-    // Regular day: standard block layout
-    const initium = day.blocks.find((b) => b.role === 'INITIUM');
-    const nucleus = day.blocks.find((b) => b.role === 'NUCLEUS');
-    const deut1 = day.blocks.find((b) => b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS I');
-    const deut2 = day.blocks.find((b) => b.role === 'DEUTEROS_2' || b.role === 'DEUTEROS II');
-    const epikos = day.blocks.find((b) => b.role === 'EPIKOS' || b.role === 'ATHLOS');
-
-    if (initium) content.push(...buildInitiumPage(initium));
-    if (nucleus) content.push(...buildFullBlockPage(nucleus));
-    if (deut1 && deut2) {
-      content.push(...buildDeuterosSplitPages(deut1, deut2));
-    } else if (deut1) {
-      content.push(...buildFullBlockPage(deut1));
-    } else if (deut2) {
-      content.push(...buildFullBlockPage(deut2));
+      if (initium) content.push(...buildInitiumPage(initium));
+      if (nucleus) content.push(...buildFullBlockPage(nucleus));
+      if (deut1 && deut2) {
+        content.push(...buildDeuterosSplitPages(deut1, deut2));
+      } else if (deut1) {
+        content.push(...buildFullBlockPage(deut1));
+      } else if (deut2) {
+        content.push(...buildFullBlockPage(deut2));
+      }
+      if (epikos) content.push(...buildFullBlockPage(epikos));
     }
-    if (epikos) content.push(...buildFullBlockPage(epikos));
   }
 
   // 3. Closing page (rotate quotes by week + day for variety)

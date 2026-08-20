@@ -98,6 +98,7 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -126,7 +127,12 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     const after = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, member.id as number));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, member.id as number),
+        ),
+      );
     expect(after).toHaveLength(1);
     expect(after[0].status).toBe("cancelled");
     expect(after[0].cancelledAt).toBeTruthy();
@@ -171,6 +177,7 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -189,7 +196,12 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     await app.db
       .update(subscriptions)
       .set({ startDate: dateOffsetStr(-10), endDate: dateOffsetStr(-5) })
-      .where(eq(subscriptions.userId, member.id as number));
+      .where(
+        and(
+          tenantWhere(subscriptions, TEMPLO_CTX),
+          eq(subscriptions.userId, member.id as number),
+        ),
+      );
 
     // Trigger autoExpireSubscriptions via the GET route.
     const readRes = await app.inject({
@@ -203,7 +215,12 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     const enrollmentsAfter = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, member.id as number));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, member.id as number),
+        ),
+      );
     expect(enrollmentsAfter).toHaveLength(1);
     expect(enrollmentsAfter[0].status).toBe("cancelled");
 
@@ -255,6 +272,7 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     const today = todayStr();
     const yesterday = dateOffsetStr(-1);
     await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: member.id as number,
       planId: planA.id,
       branchId: 1,
@@ -271,6 +289,7 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.programId, programId),
           eq(programEnrollments.status, "active"),
@@ -292,7 +311,12 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     const [enrollmentAfter] = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.id, enrollmentBefore[0].id));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.id, enrollmentBefore[0].id),
+        ),
+      );
     expect(enrollmentAfter.status).toBe("active");
 
     // user.status remains 'activo' because sub B is still active
@@ -335,6 +359,7 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -345,7 +370,12 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     await app.db
       .update(subscriptions)
       .set({ endDate: dateOffsetStr(-1) })
-      .where(eq(subscriptions.userId, member.id as number));
+      .where(
+        and(
+          tenantWhere(subscriptions, TEMPLO_CTX),
+          eq(subscriptions.userId, member.id as number),
+        ),
+      );
 
     const readRes = await app.inject({
       method: "GET",
@@ -357,7 +387,12 @@ describe("Linked-program enrollment teardown (cancel + autoExpire)", () => {
     const enrollmentsAfter = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, member.id as number));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, member.id as number),
+        ),
+      );
     for (const e of enrollmentsAfter) {
       expect(e.status).toBe("cancelled");
     }

@@ -25,6 +25,7 @@ describe("Promo Registration Flow", () => {
     const [planResult] = await app.db
       .insert(subscriptionPlans)
       .values({
+        tenantId: 1,
         name: "Test Promo Plan",
         planTier: "other",
         bookingMode: "flexible",
@@ -96,7 +97,12 @@ describe("Promo Registration Flow", () => {
     const [sub] = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, body.user.id));
+      .where(
+        and(
+          eq(subscriptions.tenantId, 1),
+          eq(subscriptions.userId, body.user.id),
+        ),
+      );
     expect(sub).toBeDefined();
     expect(sub.status).toBe("active");
 
@@ -136,7 +142,12 @@ describe("Promo Registration Flow", () => {
     const subs = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, body.user.id));
+      .where(
+        and(
+          eq(subscriptions.tenantId, 1),
+          eq(subscriptions.userId, body.user.id),
+        ),
+      );
     expect(subs).toHaveLength(0);
   });
 

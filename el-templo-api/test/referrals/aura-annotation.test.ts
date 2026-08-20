@@ -18,6 +18,7 @@ import {
 import { createPlan, createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
 import type { TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 // T-175-04: `recordReferralCredit` recibe `ctx` primero (Pattern B).
 const CTX: TenantContext = { tenantId: 1 };
@@ -43,8 +44,8 @@ async function createSubscription(
   planId: number,
 ): Promise<number> {
   const [res] = await app.db.execute(
-    sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, price_paid, currency, price_type_applied)
-        VALUES (${userId}, ${planId}, 1, 'active', ${todayStr()}, 10000, 'ARS', 'regular')`,
+    sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, price_paid, currency, price_type_applied)
+        VALUES (${TENANT_TEMPLO}, ${userId}, ${planId}, 1, 'active', ${todayStr()}, 10000, 'ARS', 'regular')`,
   );
   return (res as { insertId: number }).insertId;
 }
@@ -62,7 +63,7 @@ async function readAuraTx(
 ): Promise<Array<{ amount: number; source_type: string }>> {
   const [rows] = await app.db.execute(
     sql`SELECT amount, source_type FROM aura_transactions
-        WHERE user_id = ${userId} AND source_type = 'referral'`,
+        WHERE user_id = ${userId} AND source_type = 'referral' AND tenant_id = ${TENANT_TEMPLO}`,
   );
   return rows as Array<{ amount: number; source_type: string }>;
 }
@@ -80,7 +81,7 @@ describe("ReferralService.recordReferralCredit", () => {
 
     // referral_credits: una fila con los valores dados.
     const [credits] = await app.db.execute(
-      sql`SELECT percent, amount FROM referral_credits WHERE subscription_id = ${subId}`,
+      sql`SELECT percent, amount FROM referral_credits WHERE subscription_id = ${subId} AND tenant_id = ${TENANT_TEMPLO}`,
     );
     expect(credits as unknown[]).toHaveLength(1);
     expect((credits as Array<{ percent: number; amount: number }>)[0]).toEqual({
@@ -109,7 +110,7 @@ describe("ReferralService.recordReferralCredit", () => {
     await service.recordReferralCredit(CTX, member.id, subId, 10, 1000);
 
     const [credits] = await app.db.execute(
-      sql`SELECT id FROM referral_credits WHERE subscription_id = ${subId}`,
+      sql`SELECT id FROM referral_credits WHERE subscription_id = ${subId} AND tenant_id = ${TENANT_TEMPLO}`,
     );
     expect(credits as unknown[]).toHaveLength(1);
 

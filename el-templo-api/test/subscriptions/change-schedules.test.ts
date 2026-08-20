@@ -86,6 +86,7 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
       const startTime = `${String(startHour).padStart(2, "0")}:00`;
       const endTime = `${String(startHour + 1).padStart(2, "0")}:00`;
       const result = await app.db.insert(schedules).values({
+        tenantId: TENANT_TEMPLO,
         branchId,
         activityId,
         dayOfWeek,
@@ -155,7 +156,12 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
     const rows = await app.db
       .select()
       .from(subscriptionSchedules)
-      .where(eq(subscriptionSchedules.subscriptionId, subId));
+      .where(
+        and(
+          eq(subscriptionSchedules.tenantId, TENANT_TEMPLO),
+          eq(subscriptionSchedules.subscriptionId, subId),
+        ),
+      );
     expect(rows.map((r) => r.scheduleId).sort()).toEqual([...newSlots].sort());
   });
 
@@ -166,7 +172,8 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
       .select({ c: sql<number>`COUNT(*)` })
       .from(bookings)
       .where(
-        sql`${bookings.memberId} = ${memberId}
+        sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+            AND ${bookings.memberId} = ${memberId}
             AND ${bookings.scheduleId} IN (${sql.join(
               originalSlots.map((id) => sql`${id}`),
               sql`, `,
@@ -186,7 +193,8 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
       .select({ c: sql<number>`COUNT(*)` })
       .from(bookings)
       .where(
-        sql`${bookings.memberId} = ${memberId}
+        sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+            AND ${bookings.memberId} = ${memberId}
             AND ${bookings.scheduleId} IN (${sql.join(
               originalSlots.map((id) => sql`${id}`),
               sql`, `,
@@ -200,7 +208,8 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
       .select({ c: sql<number>`COUNT(*)` })
       .from(bookings)
       .where(
-        sql`${bookings.memberId} = ${memberId}
+        sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+            AND ${bookings.memberId} = ${memberId}
             AND ${bookings.scheduleId} IN (${sql.join(
               newSlots.map((id) => sql`${id}`),
               sql`, `,
@@ -280,7 +289,12 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
     await app.db
       .update(subscriptions)
       .set({ status: "scheduled", startDate: tomorrow })
-      .where(eq(subscriptions.id, subId));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, subId),
+        ),
+      );
 
     const newSlots = await createScheduleSlots(1, 2, 60);
     const { statusCode, body } = await patchSchedules(subId, {
@@ -297,7 +311,12 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
     await app.db
       .update(subscriptions)
       .set({ status: "cancelled", cancelledAt: new Date() })
-      .where(eq(subscriptions.id, subId));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, subId),
+        ),
+      );
 
     const newSlots = await createScheduleSlots(1, 2, 70);
     const { statusCode, body } = await patchSchedules(subId, {
@@ -379,7 +398,12 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
     const rows = await app.db
       .select()
       .from(subscriptionSchedules)
-      .where(eq(subscriptionSchedules.subscriptionId, subId));
+      .where(
+        and(
+          eq(subscriptionSchedules.tenantId, TENANT_TEMPLO),
+          eq(subscriptionSchedules.subscriptionId, subId),
+        ),
+      );
     expect(rows).toHaveLength(0);
   });
 
@@ -398,7 +422,12 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
     await app.db
       .update(schedules)
       .set({ isActive: false })
-      .where(eq(schedules.id, newSlots[0]));
+      .where(
+        and(
+          eq(schedules.tenantId, TENANT_TEMPLO),
+          eq(schedules.id, newSlots[0]),
+        ),
+      );
 
     const { statusCode, body } = await patchSchedules(subId, {
       scheduleIds: newSlots,

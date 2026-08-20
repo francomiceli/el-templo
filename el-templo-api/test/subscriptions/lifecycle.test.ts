@@ -301,7 +301,12 @@ describe("Subscriptions API — Lifecycle", () => {
       await app.db
         .update(subscriptions)
         .set({ startDate: dateOffsetStr(-10), endDate: dateOffsetStr(-5) })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",
@@ -336,7 +341,12 @@ describe("Subscriptions API — Lifecycle", () => {
       await app.db
         .update(subscriptions)
         .set({ startDate: dateOffsetStr(-10), endDate: dateOffsetStr(-5) })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       const [before] = await app.db
         .select({ status: schema.users.status })
@@ -383,7 +393,12 @@ describe("Subscriptions API — Lifecycle", () => {
       const [sub] = await app.db
         .select({ status: subscriptions.status })
         .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       expect(sub.status).toBe("expired");
 
       const [after] = await app.db
@@ -444,7 +459,12 @@ describe("Subscriptions API — Lifecycle", () => {
       await app.db
         .update(subscriptions)
         .set({ pauseEndDate: dateOffsetStr(-1) })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       // Run auto-resume directly via the service
       const { SubscriptionService } =
@@ -468,7 +488,12 @@ describe("Subscriptions API — Lifecycle", () => {
       const [sub] = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       expect(sub.status).toBe("active");
       expect(sub.pauseEndDate).toBeNull();
       expect(sub.pausedAt).toBeNull();
@@ -1014,7 +1039,12 @@ describe("Subscriptions API — Lifecycle", () => {
       const [activeRow] = await app.db
         .select()
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.id, activeId));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.id, activeId),
+          ),
+        );
       expect(activeRow.status).toBe("active");
     });
 

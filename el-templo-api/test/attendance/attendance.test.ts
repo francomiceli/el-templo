@@ -274,24 +274,28 @@ describe("Attendance API", () => {
     const activityId = Number(actResult.insertId);
 
     // Create schedule for Wednesday (day 3) at 10:00 (matches faked time)
-    const [schResult] = await app.db.insert(schedules).values({
-      activityId,
-      branchId,
-      dayOfWeek: 3, // Wednesday
-      startTime: "10:00",
-      endTime: "11:00",
-      isActive: true,
-    });
+    const [schResult] = await app.db.insert(schedules).values(
+      tenantValues(TEMPLO_CTX, {
+        activityId,
+        branchId,
+        dayOfWeek: 3, // Wednesday
+        startTime: "10:00",
+        endTime: "11:00",
+        isActive: true,
+      }),
+    );
     const scheduleId = Number(schResult.insertId);
 
     // Create booking for the faked today (2026-03-11)
-    const [bkResult] = await app.db.insert(bookings).values({
-      memberId,
-      scheduleId,
-      branchId,
-      bookingDate: "2026-03-11",
-      status: "reservado",
-    });
+    const [bkResult] = await app.db.insert(bookings).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        scheduleId,
+        branchId,
+        bookingDate: "2026-03-11",
+        status: "reservado",
+      }),
+    );
     const bookingId = Number(bkResult.insertId);
 
     return { activityId, scheduleId, bookingId };
@@ -721,7 +725,12 @@ describe("Attendance API", () => {
       await app.db
         .update(subscriptions)
         .set({ classesRemaining: 0 })
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       const qrToken = generateQrToken(testBranchId);
 
@@ -749,7 +758,12 @@ describe("Attendance API", () => {
       const [before] = await app.db
         .select({ classesRemaining: subscriptions.classesRemaining })
         .from(subscriptions)
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       expect(before.classesRemaining).toBeGreaterThan(0);
 
@@ -767,7 +781,12 @@ describe("Attendance API", () => {
       const [after] = await app.db
         .select({ classesRemaining: subscriptions.classesRemaining })
         .from(subscriptions)
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       expect(after.classesRemaining).toBe(
         (before.classesRemaining as number) - 1,
@@ -784,7 +803,12 @@ describe("Attendance API", () => {
       await app.db
         .update(subscriptions)
         .set({ classesRemaining: 0 })
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       // Force check-in as admin
       const res = await app.inject({

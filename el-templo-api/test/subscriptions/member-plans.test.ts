@@ -286,8 +286,8 @@ describe("Pricing preview — referral discount parity", () => {
           VALUES (1, ${referrer.id}, ${referred.id}, 'qualified', 'assisted', NOW())`,
     );
     await app.db.execute(
-      sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-          VALUES (${referred.id}, ${plan.id}, 1, 'active', ${todayStr()}, ${dateOffsetStr(30)}, 10000, 'ARS', 'regular')`,
+      sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+          VALUES (1, ${referred.id}, ${plan.id}, 1, 'active', ${todayStr()}, ${dateOffsetStr(30)}, 10000, 'ARS', 'regular')`,
     );
 
     const pv = await preview(referrer.id, plan.id as number);

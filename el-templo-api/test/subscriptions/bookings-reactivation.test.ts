@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
@@ -32,6 +32,7 @@ import {
   todayStr,
   dateOffsetStr,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 describe("Subscriptions API — bookings reactivation (cancelado → reservado)", () => {
   let app: FastifyInstance;
@@ -70,6 +71,7 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
       const startTime = `${String(startHour).padStart(2, "0")}:00`;
       const endTime = `${String(startHour + 1).padStart(2, "0")}:00`;
       const result = await app.db.insert(schedules).values({
+        tenantId: TENANT_TEMPLO,
         branchId,
         activityId,
         dayOfWeek,
@@ -91,7 +93,8 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
       .select({ c: sql<number>`COUNT(*)` })
       .from(bookings)
       .where(
-        sql`${bookings.memberId} = ${memberId}
+        sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+            AND ${bookings.memberId} = ${memberId}
             AND ${bookings.scheduleId} IN (${sql.join(
               scheduleIds.map((id) => sql`${id}`),
               sql`, `,
@@ -207,7 +210,12 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
     await app.db
       .update(subscriptions)
       .set({ endDate: todayStr() })
-      .where(eq(subscriptions.id, oldSubId));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, oldSubId),
+        ),
+      );
 
     const renewRes = await app.inject({
       method: "POST",
@@ -318,7 +326,16 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
     );
 
     async function runMigration() {
-      await app.db.execute(sql.raw(migrationSql));
+      // El sentinel ve la 0122 corriendo sobre bookings/subscriptions (strict) sin
+      // tenant_id. Es correcto y a propósito: 0122 es un fix de datos histórico
+      // pre-tenant que corre verbatim sobre TODAS las filas; este test es
+      // single-tenant (nunca siembra un 2º gimnasio). Se exime en el SQL en vez de
+      // scopear para no alterar el contrato de la migración real bajo prueba.
+      await app.db.execute(
+        sql.raw(
+          `/* tenant-safe: migración 0122 verbatim (backfill global pre-tenant), test single-tenant */\n${migrationSql}`,
+        ),
+      );
     }
 
     it("reactiva cancelado futuro cuando subscription_schedules y sub activa lo respaldan", async () => {
@@ -346,7 +363,8 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
         .update(bookings)
         .set({ status: "cancelado", cancelledAt: new Date() })
         .where(
-          sql`${bookings.memberId} = ${member.id}
+          sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+              AND ${bookings.memberId} = ${member.id}
               AND ${bookings.scheduleId} IN (${sql.join(
                 slots.map((id) => sql`${id}`),
                 sql`, `,
@@ -403,13 +421,15 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
         .update(bookings)
         .set({ status: "cancelado", cancelledAt: new Date() })
         .where(
-          sql`${bookings.memberId} = ${member.id}
+          sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+              AND ${bookings.memberId} = ${member.id}
               AND ${bookings.scheduleId} = ${originalSlots[0]}
               AND ${bookings.bookingDate} > CURDATE()
               AND ${bookings.status} = 'reservado'`,
         );
       await app.db.delete(subscriptionSchedules).where(
-        sql`${subscriptionSchedules.subscriptionId} = ${subId}
+        sql`${subscriptionSchedules.tenantId} = ${TENANT_TEMPLO}
+              AND ${subscriptionSchedules.subscriptionId} = ${subId}
               AND ${subscriptionSchedules.scheduleId} = ${originalSlots[0]}`,
       );
 
@@ -458,7 +478,8 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
         .update(bookings)
         .set({ status: "cancelado", cancelledAt: new Date() })
         .where(
-          sql`${bookings.memberId} = ${member.id}
+          sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+              AND ${bookings.memberId} = ${member.id}
               AND ${bookings.scheduleId} IN (${sql.join(
                 slots.map((id) => sql`${id}`),
                 sql`, `,
@@ -471,7 +492,12 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
       await app.db
         .update(subscriptions)
         .set({ status: "paused" })
-        .where(eq(subscriptions.id, subId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, subId),
+          ),
+        );
 
       const cancelledBefore = await futureBookingCount(
         member.id,
@@ -517,7 +543,8 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
         .update(bookings)
         .set({ status: "cancelado", cancelledAt: new Date() })
         .where(
-          sql`${bookings.memberId} = ${member.id}
+          sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+              AND ${bookings.memberId} = ${member.id}
               AND ${bookings.scheduleId} IN (${sql.join(
                 slots.map((id) => sql`${id}`),
                 sql`, `,
@@ -530,7 +557,12 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
       await app.db
         .update(schedules)
         .set({ isActive: false })
-        .where(eq(schedules.id, slots[0]));
+        .where(
+          and(
+            eq(schedules.tenantId, TENANT_TEMPLO),
+            eq(schedules.id, slots[0]),
+          ),
+        );
 
       await runMigration();
 
@@ -563,6 +595,7 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
       // — usa primer slot, hace dos días atrás para evitar colisión de UNIQUE
       // con cualquier fila ya generada.
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: slots[0],
         bookingDate: dateOffsetStr(-2),
@@ -576,7 +609,8 @@ describe("Subscriptions API — bookings reactivation (cancelado → reservado)"
         .select({ id: bookings.id, status: bookings.status })
         .from(bookings)
         .where(
-          sql`${bookings.memberId} = ${member.id}
+          sql`${bookings.tenantId} = ${TENANT_TEMPLO}
+              AND ${bookings.memberId} = ${member.id}
               AND ${bookings.scheduleId} = ${slots[0]}
               AND ${bookings.bookingDate} = ${dateOffsetStr(-2)}`,
         );

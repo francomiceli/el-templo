@@ -49,8 +49,19 @@ export interface PdfBlockPage {
   isStretching?: boolean;
 }
 
+/**
+ * Training type of a day — the explicit discriminator the PDF/PNG builders use
+ * to decide how to lay out the page. Mirrors the API's `sessionMode` union
+ * (persisted in `sessions.session_mode`). Extensible: add a new value here and
+ * a matching branch in `buildDayContent` — no more inferring the day's shape
+ * from incidental block flags (isRom/isStretching).
+ */
+export type PdfDayType = 'regular' | 'rom' | 'combos' | 'tecnica';
+
 export interface PdfDaySession {
   dayName: string; // e.g., "LUNES", "MARTES"
   week: number;
+  /** Explicit training type, resolved from the session's `sessionMode`. */
+  dayType: PdfDayType;
   blocks: PdfBlockPage[];
 }

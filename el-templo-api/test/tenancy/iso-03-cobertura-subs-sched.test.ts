@@ -172,7 +172,7 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
  * contra un manifiesto vacío y todo pasaría en verde por vacuidad. Este
  * conteo es lo que hace que 0 rutas cubiertas se ponga tan rojo como 61.
  */
-const CASOS_BASELINE = 62;
+const CASOS_BASELINE = 63;
 
 /** Los cuatro archivos de la batería ISO-03 de subs+scheduling. */
 const ARCHIVOS_BATERIA = [

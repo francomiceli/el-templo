@@ -276,7 +276,12 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     const subs = await app.db
       .select()
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, member.id));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, member.id),
+        ),
+      );
     expect(subs).toHaveLength(0);
 
     const planCharges = await app.db
@@ -329,7 +334,12 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     const subs = await app.db
       .select()
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, other.id));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, other.id),
+        ),
+      );
     expect(subs).toHaveLength(0);
   });
 
@@ -354,7 +364,12 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     const subs = await app.db
       .select()
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, member.id));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, member.id),
+        ),
+      );
     expect(subs).toHaveLength(0);
   });
 
@@ -430,7 +445,12 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
     const subs = await app.db
       .select()
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, member.id));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, member.id),
+        ),
+      );
     expect(subs).toHaveLength(0);
 
     const planCharges = await app.db

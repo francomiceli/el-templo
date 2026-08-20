@@ -109,7 +109,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const [subRow] = await app.db
       .select({ id: subscriptions.id })
       .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
+      .where(
+        and(
+          tenantWhere(subscriptions, TEMPLO_CTX),
+          eq(subscriptions.userId, userId),
+        ),
+      )
       .limit(1);
     return { userId, subId: subRow.id, planId: plan.id };
   }
@@ -163,7 +168,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const [row] = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.id, body.enrollmentId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.id, body.enrollmentId),
+        ),
+      );
     expect(row.userId).toBe(userId);
     expect(row.programId).toBe(programId);
     expect(row.source).toBe("admin_addon");
@@ -212,7 +222,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const [planRow] = await app.db
       .select({ currency: subscriptionPlans.currency })
       .from(subscriptionPlans)
-      .where(eq(subscriptionPlans.id, planId));
+      .where(
+        and(
+          tenantWhere(subscriptionPlans, TEMPLO_CTX),
+          eq(subscriptionPlans.id, planId),
+        ),
+      );
 
     const txRows = await app.db
       .select()
@@ -315,7 +330,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const [row] = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.id, enrollmentId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.id, enrollmentId),
+        ),
+      );
     expect(row.pricePaid).toBeNull();
   });
 
@@ -400,7 +420,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const [enrollAfter] = await app.db
       .select({ status: programEnrollments.status })
       .from(programEnrollments)
-      .where(eq(programEnrollments.id, enrollmentId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.id, enrollmentId),
+        ),
+      );
     expect(enrollAfter.status).toBe("cancelled");
 
     const auditRows = await app.db
@@ -500,7 +525,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const enrollBefore = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, userId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, userId),
+        ),
+      );
 
     // Use a guaranteed-nonexistent programId to trigger NotFoundError BEFORE
     // the insert. Verifies no orphan row leaks via the early-validation path
@@ -516,7 +546,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const enrollAfter = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, userId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, userId),
+        ),
+      );
     expect(Number(enrollAfter[0].count)).toBe(Number(enrollBefore[0].count));
   });
 
@@ -535,6 +570,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const userId = (member.user as { id: number }).id;
 
     const planResult = await app.db.insert(subscriptionPlans).values({
+      tenantId: TENANT_TEMPLO,
       name: `EUR Plan ${Date.now()}`,
       description: "EUR test plan",
       planTier: "flex",
@@ -551,6 +587,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const planId = Number(planResult[0].insertId);
 
     const subResult = await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId,
       planId,
       branchId: 1,

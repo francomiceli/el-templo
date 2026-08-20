@@ -75,7 +75,12 @@ async function readSub(subId: number): Promise<{
       boardingPassUsed: schema.subscriptions.boardingPassUsed,
     })
     .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.id, subId))
+    .where(
+      and(
+        eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+        eq(schema.subscriptions.id, subId),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }

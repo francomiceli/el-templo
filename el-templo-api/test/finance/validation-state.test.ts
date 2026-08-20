@@ -73,6 +73,7 @@ async function seedSubscription(): Promise<number> {
   const [res] = await app.db
     .insert(schema.subscriptions)
     .values({
+      tenantId: TENANT_TEMPLO,
       userId: memberId,
       planId,
       branchId,
@@ -205,6 +206,7 @@ beforeAll(async () => {
   const [planRes] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Validation Test Plan",
       planTier: "flex",
       bookingMode: "flexible",
@@ -444,7 +446,12 @@ describe("validation state machine", () => {
     const [sub] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subscriptionId))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, subscriptionId),
+        ),
+      )
       .limit(1);
     expect(sub.status).toBe("active");
   });
@@ -459,7 +466,12 @@ describe("validation state machine", () => {
     const [sub] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subscriptionId))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, subscriptionId),
+        ),
+      )
       .limit(1);
     expect(sub.status).toBe("cancelled");
 

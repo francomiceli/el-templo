@@ -26,6 +26,7 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 // Archivo single-tenant (solo El Templo, sin segundo gimnasio): filtro
 // preciso, no exencion.
@@ -107,6 +108,7 @@ describe("cron recategorización multisucursal", () => {
   }): Promise<number> {
     seq += 1;
     const res = await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `rmb-${seq}-${Date.now()}@test.com`,
       passwordHash: "x",
       firstName: "Test",
@@ -126,6 +128,7 @@ describe("cron recategorización multisucursal", () => {
     status: "active" | "paused" = "active",
   ): Promise<void> {
     await app.db.insert(schema.subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId,
       planId,
       branchId,
@@ -182,7 +185,12 @@ describe("cron recategorización multisucursal", () => {
     const [sub] = await app.db
       .select({ branchId: schema.subscriptions.branchId })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, m));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, m),
+        ),
+      );
     expect(sub.branchId).toBe(branchB);
   });
 

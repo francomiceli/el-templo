@@ -113,7 +113,12 @@ async function readSubPriceType(subId: number): Promise<string | null> {
   const [row] = await app.db
     .select({ priceTypeApplied: schema.subscriptions.priceTypeApplied })
     .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.id, subId))
+    .where(
+      and(
+        eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+        eq(schema.subscriptions.id, subId),
+      ),
+    )
     .limit(1);
   return row?.priceTypeApplied ?? null;
 }
@@ -226,10 +231,17 @@ beforeEach(async () => {
     await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
       TENANT_TEMPLO,
     ]);
-    await conn.query("DELETE FROM `bookings`");
-    await conn.query("DELETE FROM `subscription_schedules`");
+    await conn.query("DELETE FROM `bookings` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `subscription_schedules` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
     await conn.query("DELETE FROM `program_enrollments`");
-    await conn.query("DELETE FROM `subscriptions`");
+    await conn.query("DELETE FROM `subscriptions` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("DELETE FROM `system_settings`");
     await conn.query("SET FOREIGN_KEY_CHECKS=1");
   } finally {

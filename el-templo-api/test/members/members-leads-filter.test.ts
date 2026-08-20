@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import argon2 from "argon2";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -26,6 +26,7 @@ import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => {
   let app: FastifyInstance;
@@ -57,6 +58,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
     const [planRow] = await app.db
       .insert(subscriptionPlans)
       .values({
+        tenantId: TENANT_TEMPLO,
         name: "Leads Test Plan",
         planTier: "foundation",
         bookingMode: "flexible",
@@ -78,6 +80,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
     const [schRow] = await app.db
       .insert(schedules)
       .values({
+        tenantId: TENANT_TEMPLO,
         activityId,
         branchId,
         dayOfWeek: 3,
@@ -142,6 +145,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
 
     // L1: one trial booking.
     await app.db.insert(bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: userL1,
       scheduleId,
       bookingDate: dateOffsetStr(-7),
@@ -151,6 +155,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
 
     // L2: one trial booking + active subscription (converted lead).
     await app.db.insert(bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: userL2,
       scheduleId,
       bookingDate: dateOffsetStr(-30),
@@ -159,6 +164,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
     });
     const futureEnd = dateOffsetStr(30);
     await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: userL2,
       planId,
       branchId,
@@ -171,6 +177,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
 
     // A1: one regular (non-trial) booking + active subscription.
     await app.db.insert(bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: userA1,
       scheduleId,
       bookingDate: dateOffsetStr(-7),
@@ -178,6 +185,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
       isTrial: false,
     });
     await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: userA1,
       planId,
       branchId,
@@ -256,7 +264,12 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
     await app.db
       .update(bookings)
       .set({ status: "cancelado", cancelledAt: new Date() })
-      .where(eq(bookings.memberId, userL1));
+      .where(
+        and(
+          eq(bookings.tenantId, TENANT_TEMPLO),
+          eq(bookings.memberId, userL1),
+        ),
+      );
 
     // Profile: hasUsedTrial resets to false.
     const profileRes = await app.inject({

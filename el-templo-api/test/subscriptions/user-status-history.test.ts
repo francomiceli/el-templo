@@ -95,6 +95,7 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     const [{ id }] = await app.db
       .insert(schema.users)
       .values({
+        tenantId: TENANT_TEMPLO,
         email: `ush-${unique}@test.com`,
         passwordHash,
         firstName: "Status",
@@ -231,7 +232,12 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     const subs = await app.db
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, userId));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, userId),
+        ),
+      );
     expect(subs).toHaveLength(0);
 
     // … and so did the history row.

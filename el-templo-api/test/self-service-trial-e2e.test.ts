@@ -34,6 +34,7 @@ import {
 } from "./helpers";
 import * as schema from "../src/db/schema";
 import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
 
 // El gimnasio de los fixtures (El Templo = tenant 1).
 const CTX = { tenantId: 1 };
@@ -264,7 +265,12 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
         status: schema.bookings.status,
       })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      )
       .limit(1);
     expect(booking.isTrial).toBe(true);
     expect(booking.source, "atribución self-service en el booking").toBe(
@@ -299,6 +305,7 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const [plan] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: TENANT_TEMPLO,
         name: "E2E Guard Plan",
         planTier: "foundation",
         bookingMode: "flexible",
@@ -309,6 +316,7 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
       })
       .$returningId();
     await app.db.insert(schema.subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: id,
       planId: plan.id,
       branchId: physicalBranchId,
@@ -363,7 +371,12 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const [booking] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      )
       .limit(1);
     expect(booking.status).toBe("cancelado");
     const [user] = await app.db
@@ -395,7 +408,12 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const bookings = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      );
     expect(bookings).toHaveLength(0);
   });
 
@@ -471,7 +489,12 @@ describe("E2E self-service trial funnel (Fase 165-05, SELF-01)", () => {
     const bookings = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      );
     expect(bookings).toHaveLength(0);
   });
 });

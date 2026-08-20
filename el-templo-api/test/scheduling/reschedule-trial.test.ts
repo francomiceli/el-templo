@@ -167,6 +167,7 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
     const [row] = await app.db
       .insert(bookings)
       .values({
+        tenantId: CTX.tenantId,
         memberId: userId,
         scheduleId,
         bookingDate: date,
@@ -191,7 +192,7 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
         bookingDate: bookings.bookingDate,
       })
       .from(bookings)
-      .where(eq(bookings.id, bookingId));
+      .where(and(tenantWhere(bookings, CTX), eq(bookings.id, bookingId)));
     return { ...row, isTrial: Boolean(row.isTrial) };
   }
 
