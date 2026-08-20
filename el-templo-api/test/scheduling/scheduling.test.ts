@@ -627,7 +627,9 @@ describe("Scheduling API", () => {
           cancelledAt: bookings.cancelledAt,
         })
         .from(bookings)
-        .where(eq(bookings.id, bookingId));
+        .where(
+          and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.id, bookingId)),
+        );
       expect(bookingRow.status).toBe("cancelado");
       expect(bookingRow.cancelledAt).not.toBeNull();
     });
@@ -679,7 +681,9 @@ describe("Scheduling API", () => {
           cancelledAt: bookings.cancelledAt,
         })
         .from(bookings)
-        .where(eq(bookings.id, bookingId));
+        .where(
+          and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.id, bookingId)),
+        );
       expect(bookingRow.status).toBe("reservado");
       expect(bookingRow.cancelledAt).toBeNull();
     });
@@ -736,7 +740,9 @@ describe("Scheduling API", () => {
       const [bookingRow] = await app.db
         .select({ status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.id, bookingId));
+        .where(
+          and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.id, bookingId)),
+        );
       expect(bookingRow.status).toBe("cancelado");
     });
   });
@@ -764,14 +770,16 @@ describe("Scheduling API", () => {
       const act = await createActivity("DelPreviewAct");
       const [slotRow] = await app.db
         .insert(schedules)
-        .values({
-          branchId: testBranchId,
-          activityId: act.id,
-          dayOfWeek: 1,
-          startTime: "08:00",
-          endTime: "09:00",
-          isActive: true,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            branchId: testBranchId,
+            activityId: act.id,
+            dayOfWeek: 1,
+            startTime: "08:00",
+            endTime: "09:00",
+            isActive: true,
+          }),
+        )
         .$returningId();
 
       const assignRes = await app.inject({
@@ -815,7 +823,12 @@ describe("Scheduling API", () => {
           bookingDate: bookings.bookingDate,
         })
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
       const futureActiveAfterPreview = allBookings.filter(
         (b) => b.bookingDate >= fromDate && b.status === "reservado",
       ).length;
@@ -840,14 +853,16 @@ describe("Scheduling API", () => {
       const act = await createActivity("DelExecAct");
       const [slotRow] = await app.db
         .insert(schedules)
-        .values({
-          branchId: testBranchId,
-          activityId: act.id,
-          dayOfWeek: 1,
-          startTime: "08:00",
-          endTime: "09:00",
-          isActive: true,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            branchId: testBranchId,
+            activityId: act.id,
+            dayOfWeek: 1,
+            startTime: "08:00",
+            endTime: "09:00",
+            isActive: true,
+          }),
+        )
         .$returningId();
 
       const assignRes = await app.inject({
@@ -876,7 +891,12 @@ describe("Scheduling API", () => {
           status: bookings.status,
         })
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
       const fromDate = dateOffsetStr(0);
       const expectedCancelled = bookingsBefore.filter(
         (b) => b.bookingDate >= fromDate && b.status === "reservado",
@@ -902,7 +922,12 @@ describe("Scheduling API", () => {
       const futureBookings = await app.db
         .select({ status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
       const cancelledNow = futureBookings.filter(
         (b) => b.status === "cancelado",
       ).length;
@@ -924,7 +949,12 @@ describe("Scheduling API", () => {
       const [subRow] = await app.db
         .select({ replacementCredits: subscriptions.replacementCredits })
         .from(subscriptions)
-        .where(eq(subscriptions.id, subscription.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id),
+          ),
+        );
       expect(subRow.replacementCredits).toBeGreaterThanOrEqual(
         expectedCancelled,
       );
@@ -936,7 +966,12 @@ describe("Scheduling API", () => {
           inactiveReason: schedules.inactiveReason,
         })
         .from(schedules)
-        .where(eq(schedules.id, slotRow.id));
+        .where(
+          and(
+            tenantWhere(schedules, TEMPLO_CTX),
+            eq(schedules.id, slotRow.id),
+          ),
+        );
       expect(scheduleRow.isActive).toBe(false);
       expect(scheduleRow.inactiveReason).toContain(fromDate);
     });
@@ -980,7 +1015,12 @@ describe("Scheduling API", () => {
       const [subRow] = await app.db
         .select({ replacementCredits: subscriptions.replacementCredits })
         .from(subscriptions)
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
       expect(subRow.replacementCredits ?? 0).toBe(0);
     });
 
@@ -1257,7 +1297,12 @@ describe("Scheduling API", () => {
           waitlistPosition: bookings.waitlistPosition,
         })
         .from(bookings)
-        .where(eq(bookings.id, booking2.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.id, booking2.id),
+          ),
+        );
 
       expect(promotedBooking.status).toBe("reservado");
       expect(promotedBooking.waitlistPosition).toBeNull();
@@ -1318,7 +1363,8 @@ describe("Scheduling API", () => {
       // Seed the waitlist_promoted template so queueNotification can find it.
       // In production this runs on cron startup; tests don't boot the cron.
       const notifSvc = new NotificationService(app.db, app.log);
-      await notifSvc.seedTemplates();
+      // T-175-03: seedTemplates siembra por tenant, exige ctx real.
+      await notifSvc.seedTemplates({ tenantId: TENANT_TEMPLO });
 
       // Capacity 1 forces the second booking onto the waitlist.
       await app.db
@@ -1379,13 +1425,23 @@ describe("Scheduling API", () => {
       const [template] = await app.db
         .select({ id: notificationTemplates.id })
         .from(notificationTemplates)
-        .where(eq(notificationTemplates.templateKey, "waitlist_promoted"));
+        .where(
+          and(
+            tenantWhere(notificationTemplates, TEMPLO_CTX),
+            eq(notificationTemplates.templateKey, "waitlist_promoted"),
+          ),
+        );
       expect(template).toBeTruthy();
 
       const queued = await app.db
         .select()
         .from(pendingNotifications)
-        .where(eq(pendingNotifications.userId, member2.id));
+        .where(
+          and(
+            tenantWhere(pendingNotifications, TEMPLO_CTX),
+            eq(pendingNotifications.userId, member2.id),
+          ),
+        );
       expect(queued.length).toBe(1);
       expect(queued[0].templateId).toBe(template.id);
       expect(queued[0].status).toBe("pending");
@@ -1494,7 +1550,12 @@ describe("Scheduling API", () => {
       const [promotedBooking] = await app.db
         .select({ status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.id, booking2.booking.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.id, booking2.booking.id),
+          ),
+        );
       expect(promotedBooking.status).toBe("reservado");
 
       // Reset capacity
@@ -1553,7 +1614,12 @@ describe("Scheduling API", () => {
       await app.db
         .update(subscriptions)
         .set({ classesRemaining: 5, classesBudget: 10 })
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       // Seed a booking in the past with status='reservado' (bypass API —
       // booking window doesn't allow past dates).
@@ -1564,6 +1630,7 @@ describe("Scheduling API", () => {
       const yesterdayStr = yesterday.toISOString().split("T")[0];
 
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id as number,
         scheduleId: slot.id as number,
         bookingDate: yesterdayStr,
@@ -1579,14 +1646,24 @@ describe("Scheduling API", () => {
       const [updatedBooking] = await app.db
         .select()
         .from(bookings)
-        .where(eq(bookings.memberId, member.id as number));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id as number),
+          ),
+        );
       expect(updatedBooking.status).toBe("no_show");
 
       // classesRemaining decremented
       const [updatedSub] = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
       expect(updatedSub.classesRemaining).toBe(4);
     });
 
@@ -1600,7 +1677,12 @@ describe("Scheduling API", () => {
       await app.db
         .update(subscriptions)
         .set({ classesRemaining: 0 })
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       const activity = await createActivity("NoShowZeroActivity");
       const slot = await createScheduleSlot(activity.id, 1, "09:00", "10:00");
@@ -1609,6 +1691,7 @@ describe("Scheduling API", () => {
       const yesterdayStr = yesterday.toISOString().split("T")[0];
 
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id as number,
         scheduleId: slot.id as number,
         bookingDate: yesterdayStr,
@@ -1622,7 +1705,12 @@ describe("Scheduling API", () => {
       const [updatedSub] = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
       expect(updatedSub.classesRemaining).toBe(0);
     });
   });
@@ -1785,7 +1873,12 @@ describe("Scheduling API", () => {
       const member = await app.db
         .select()
         .from(bookings)
-        .where(eq(bookings.scheduleId, fixedSlotId));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.scheduleId, fixedSlotId),
+          ),
+        );
       expect(member.length).toBeGreaterThanOrEqual(1);
       const bookingToCancel = member[0];
 
@@ -1793,7 +1886,12 @@ describe("Scheduling API", () => {
       await app.db
         .update(bookings)
         .set({ status: "cancelado", cancelledAt: new Date() })
-        .where(eq(bookings.id, bookingToCancel.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.id, bookingToCancel.id),
+          ),
+        );
 
       // Now re-reserve the same fixed slot on the same date via the member endpoint
       // Need the date to be within the booking window (today to today+2)
@@ -1885,7 +1983,12 @@ describe("Scheduling API", () => {
       const [cancelledBooking] = await app.db
         .select({ status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.id, booking.booking.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.id, booking.booking.id),
+          ),
+        );
       expect(cancelledBooking.status).toBe("cancelado");
     });
 
@@ -2350,7 +2453,12 @@ describe("Scheduling API", () => {
       await app.db
         .update(subscriptions)
         .set({ classesRemaining: 0 })
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       // Create a future schedule slot
       const activity = await createActivity("Budget Test Activity");
@@ -2402,25 +2510,29 @@ describe("Scheduling API", () => {
       const act = await createActivity("BulkTest");
       const [monResult] = await app.db
         .insert(schedules)
-        .values({
-          branchId: testBranchId,
-          activityId: act.id,
-          dayOfWeek: 1,
-          startTime: "08:00",
-          endTime: "09:00",
-          isActive: true,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            branchId: testBranchId,
+            activityId: act.id,
+            dayOfWeek: 1,
+            startTime: "08:00",
+            endTime: "09:00",
+            isActive: true,
+          }),
+        )
         .$returningId();
       const [wedResult] = await app.db
         .insert(schedules)
-        .values({
-          branchId: testBranchId,
-          activityId: act.id,
-          dayOfWeek: 3,
-          startTime: "10:00",
-          endTime: "11:00",
-          isActive: true,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            branchId: testBranchId,
+            activityId: act.id,
+            dayOfWeek: 3,
+            startTime: "10:00",
+            endTime: "11:00",
+            isActive: true,
+          }),
+        )
         .$returningId();
 
       const slotIds = [monResult.id, wedResult.id];
@@ -2449,7 +2561,12 @@ describe("Scheduling API", () => {
       const bookingRows = await app.db
         .select()
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
 
       // 14 days from April 13 -> end April 27 inclusive
       // Mon: April 13, 20, 27; Wed: April 15, 22 = 5 bookings
@@ -2483,14 +2600,16 @@ describe("Scheduling API", () => {
       const act = await createActivity("HolidayTest");
       const [monResult] = await app.db
         .insert(schedules)
-        .values({
-          branchId: testBranchId,
-          activityId: act.id,
-          dayOfWeek: 1,
-          startTime: "08:00",
-          endTime: "09:00",
-          isActive: true,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            branchId: testBranchId,
+            activityId: act.id,
+            dayOfWeek: 1,
+            startTime: "08:00",
+            endTime: "09:00",
+            isActive: true,
+          }),
+        )
         .$returningId();
 
       const assignRes = await app.inject({
@@ -2514,7 +2633,12 @@ describe("Scheduling API", () => {
       const bookingRows = await app.db
         .select()
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
 
       expect(bookingRows.length).toBe(2);
       const dates = bookingRows.map((b) => b.bookingDate).sort();
@@ -2540,14 +2664,16 @@ describe("Scheduling API", () => {
       const act = await createActivity("CancelTest");
       const [monResult] = await app.db
         .insert(schedules)
-        .values({
-          branchId: testBranchId,
-          activityId: act.id,
-          dayOfWeek: 1,
-          startTime: "08:00",
-          endTime: "09:00",
-          isActive: true,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            branchId: testBranchId,
+            activityId: act.id,
+            dayOfWeek: 1,
+            startTime: "08:00",
+            endTime: "09:00",
+            isActive: true,
+          }),
+        )
         .$returningId();
 
       // Assign subscription starting in the past so some bookings are past.
@@ -2574,7 +2700,12 @@ describe("Scheduling API", () => {
       const beforeBookings = await app.db
         .select()
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
       const totalBefore = beforeBookings.length;
       expect(totalBefore).toBeGreaterThan(0);
 
@@ -2591,7 +2722,12 @@ describe("Scheduling API", () => {
       const afterBookings = await app.db
         .select()
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
 
       const today = new Date().toISOString().split("T")[0];
       const pastBookings = afterBookings.filter(
@@ -2791,7 +2927,12 @@ describe("Scheduling API", () => {
       const [book] = await app.db
         .select({ id: bookings.id, status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
       expect(book).toBeTruthy();
       expect(book.status).toBe("confirmado");
     });
@@ -2813,6 +2954,7 @@ describe("Scheduling API", () => {
 
       // Pre-existing cancelled booking
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: slot.id,
         bookingDate: futureSlot.date,
@@ -2834,7 +2976,12 @@ describe("Scheduling API", () => {
           cancelledAt: bookings.cancelledAt,
         })
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
       expect(allBookings).toHaveLength(1);
       expect(allBookings[0].status).toBe("confirmado");
       expect(allBookings[0].cancelledAt).toBeNull();
@@ -2856,6 +3003,7 @@ describe("Scheduling API", () => {
       );
 
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: slot.id,
         bookingDate: futureSlot.date,
@@ -2873,7 +3021,12 @@ describe("Scheduling API", () => {
       const allBookings = await app.db
         .select({ status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
       expect(allBookings).toHaveLength(1);
       expect(allBookings[0].status).toBe("confirmado");
     });

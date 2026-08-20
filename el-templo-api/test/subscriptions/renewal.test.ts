@@ -80,7 +80,12 @@ describe("Subscriptions API — Renewal", () => {
     const oldSubRows = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.id, oldSubId as number));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, oldSubId as number),
+        ),
+      );
     expect(oldSubRows[0].status).toBe("active");
 
     const currentRes = await app.inject({
@@ -324,7 +329,12 @@ describe("Subscriptions API — Renewal", () => {
     const newSubRows = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.id, newSub.id as number));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, newSub.id as number),
+        ),
+      );
     expect(newSubRows[0].priceOverrideAmount).toBe(6000);
     expect(newSubRows[0].priceOverrideReason).toBe("Promo renovación");
 
@@ -402,6 +412,7 @@ describe("Subscriptions API — Renewal", () => {
     // Simula la sub histórica importada: expirada, período pasado, pero con
     // created_at más nuevo que el de la activa (artefacto del import).
     await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: member.id,
       planId: plan.id,
       branchId: 1,
@@ -435,7 +446,12 @@ describe("Subscriptions API — Renewal", () => {
     const allSubs = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, member.id));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.userId, member.id),
+        ),
+      );
     const actives = allSubs.filter((s) => s.status === "active");
     expect(actives).toHaveLength(1);
     expect(actives[0].id).toBe(activeSubId);
@@ -460,6 +476,7 @@ describe("Subscriptions API — Renewal", () => {
     // Sub previa 'active' con tarjeta (estado heredado de cuando la regla
     // estaba ON). cleanAllTestData dejó system_settings vacío ⇒ regla OFF.
     await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: member.id,
       planId: plan.id,
       branchId: 1,
@@ -485,7 +502,12 @@ describe("Subscriptions API — Renewal", () => {
     const rows = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.id, newSub.id as number));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, newSub.id as number),
+        ),
+      );
     expect(rows[0].priceTypeApplied).toBe("regular");
   });
 
@@ -508,6 +530,7 @@ describe("Subscriptions API — Renewal", () => {
     const member = await createMember(app);
 
     await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: member.id,
       planId: plan.id,
       branchId: 1,
@@ -533,7 +556,12 @@ describe("Subscriptions API — Renewal", () => {
     const rows = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.id, newSub.id as number));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, newSub.id as number),
+        ),
+      );
     expect(rows[0].priceTypeApplied).toBe("credit_card");
   });
 
@@ -690,7 +718,12 @@ describe("Subscriptions API — Renewal", () => {
     await app.db
       .update(subscriptions)
       .set({ endDate: dateOffsetStr(-1) })
-      .where(eq(subscriptions.id, oldSubId));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, oldSubId),
+        ),
+      );
 
     // Un read dispara autoExpireSubscriptions.
     await app.inject({
@@ -702,7 +735,12 @@ describe("Subscriptions API — Renewal", () => {
     const rows = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, member.id));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.userId, member.id),
+        ),
+      );
     const oldRow = rows.find((r) => r.id === oldSubId);
     const succRow = rows.find((r) => r.id === successorId);
     // Sin successor elegible (startDate futuro), la anterior expira (no se
@@ -740,11 +778,21 @@ describe("Subscriptions API — Renewal", () => {
     await app.db
       .update(subscriptions)
       .set({ endDate: dateOffsetStr(-1) })
-      .where(eq(subscriptions.id, oldSubId));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, oldSubId),
+        ),
+      );
     await app.db
       .update(subscriptions)
       .set({ startDate: dateOffsetStr(-1) })
-      .where(eq(subscriptions.id, successorId));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, successorId),
+        ),
+      );
 
     await app.inject({
       method: "GET",
@@ -755,7 +803,12 @@ describe("Subscriptions API — Renewal", () => {
     const rows = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, member.id));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.userId, member.id),
+        ),
+      );
     const oldRow = rows.find((r) => r.id === oldSubId);
     const succRow = rows.find((r) => r.id === successorId);
     expect(oldRow!.status).toBe("completed");

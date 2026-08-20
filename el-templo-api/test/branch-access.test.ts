@@ -40,6 +40,7 @@ import {
 import { NotificationService } from "../src/modules/notifications/service";
 import { dowInTz, addDays } from "../src/modules/shared/date-utils";
 import { tenantWhere, type TenantContext } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
 
 /**
  * El gimnasio de los fixtures (El Templo = tenant 1). Fase 173 (plan 173-07):
@@ -138,6 +139,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     const passwordHash = await argon2.hash("test1234");
 
     await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `owner-${u}@test.local`,
       passwordHash,
       role: "owner",
@@ -146,6 +148,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     });
 
     await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `ar-admin-${u}@test.local`,
       passwordHash,
       role: "admin",
@@ -154,6 +157,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     });
 
     await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `es-admin-${u}@test.local`,
       passwordHash,
       role: "admin",
@@ -162,6 +166,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     });
 
     await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `ar-gestion-${u}@test.local`,
       passwordHash,
       role: "gestion",
@@ -172,6 +177,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     const [coach] = await app.db
       .insert(schema.users)
       .values({
+        tenantId: TENANT_TEMPLO,
         email: `coach-${u}@test.local`,
         passwordHash,
         role: "coach",
@@ -184,13 +190,14 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     // Coach operational branches: arBranchId + virtualBranchId.
     // (NOT arBranchSecondId — coach should be 403 there.)
     await app.db.insert(schema.userBranches).values([
-      { userId: coachId, branchId: arBranchId },
-      { userId: coachId, branchId: virtualBranchId },
+      { tenantId: TENANT_TEMPLO, userId: coachId, branchId: arBranchId },
+      { tenantId: TENANT_TEMPLO, userId: coachId, branchId: virtualBranchId },
     ]);
 
     const [member] = await app.db
       .insert(schema.users)
       .values({
+        tenantId: TENANT_TEMPLO,
         email: `member-${u}@test.local`,
         passwordHash,
         role: "member",
@@ -683,6 +690,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const [scheduleOther] = await app.db
         .insert(schema.schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: svcBranchOtherId,
           activityId: svcActivityId,
           dayOfWeek: tomorrowDow,
@@ -698,6 +706,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const [m] = await app.db
         .insert(schema.users)
         .values({
+          tenantId: TENANT_TEMPLO,
           email: `req8-member-${u}@test.local`,
           passwordHash,
           role: "member",
@@ -711,6 +720,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const [c] = await app.db
         .insert(schema.users)
         .values({
+          tenantId: TENANT_TEMPLO,
           email: `req8-coach-${u}@test.local`,
           passwordHash,
           role: "coach",
@@ -726,6 +736,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const today = todayStr();
       const endDate = addDays(today, 30);
       await app.db.insert(schema.subscriptions).values({
+        tenantId: TENANT_TEMPLO,
         userId: svcMemberId,
         planId: svcPlanId,
         branchId: svcBranchPrimaryId,
@@ -742,6 +753,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       // The coach's active sub is on the PRIMARY branch; the test verifies
       // they can still reserve on the OTHER branch without plan.multiBranch.
       await app.db.insert(schema.subscriptions).values({
+        tenantId: TENANT_TEMPLO,
         userId: svcCoachId,
         planId: svcPlanId,
         branchId: svcBranchPrimaryId,
@@ -801,7 +813,12 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const rows = await app.db
         .select({ id: schema.bookings.id, status: schema.bookings.status })
         .from(schema.bookings)
-        .where(eq(schema.bookings.memberId, svcCoachId));
+        .where(
+          and(
+            eq(schema.bookings.tenantId, TENANT_TEMPLO),
+            eq(schema.bookings.memberId, svcCoachId),
+          ),
+        );
       expect(rows.length).toBeGreaterThan(0);
     });
 

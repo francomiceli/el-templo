@@ -127,6 +127,7 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
     const [planRow] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: TENANT_TEMPLO,
         name: "Reconcile Test Plan",
         planTier: "foundation",
         bookingMode: "flexible",
@@ -180,10 +181,12 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         [TENANT_TEMPLO],
       );
       await conn.query(
-        `DELETE FROM program_enrollments WHERE id = ${ENROLLMENT_ID}`,
+        `DELETE FROM program_enrollments WHERE id = ${ENROLLMENT_ID} AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       await conn.query(
-        `DELETE FROM subscriptions WHERE id IN (${SUB_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_2_ID}, ${SUB_ACTIVE_ID})`,
+        `DELETE FROM subscriptions WHERE id IN (${SUB_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_2_ID}, ${SUB_ACTIVE_ID}) AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       await conn.query(
         `DELETE FROM users WHERE id IN (${DELETED_USER_ID}, ${ACTIVE_USER_ID}) AND tenant_id = ?`,
@@ -227,10 +230,12 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         [TENANT_TEMPLO],
       );
       await conn.query(
-        `DELETE FROM program_enrollments WHERE id = ${ENROLLMENT_ID}`,
+        `DELETE FROM program_enrollments WHERE id = ${ENROLLMENT_ID} AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       await conn.query(
-        `DELETE FROM subscriptions WHERE id IN (${SUB_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_2_ID}, ${SUB_ACTIVE_ID})`,
+        `DELETE FROM subscriptions WHERE id IN (${SUB_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_ID}, ${SUB_OTHER_CANCELLED_2_ID}, ${SUB_ACTIVE_ID}) AND tenant_id = ?`,
+        [TENANT_TEMPLO],
       );
       await conn.query(
         `DELETE FROM users WHERE id IN (${DELETED_USER_ID}, ${ACTIVE_USER_ID}) AND tenant_id = ?`,
@@ -318,10 +323,11 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         { id: SUB_ACTIVE_ID, status: "scheduled", userId: ACTIVE_USER_ID },
       ]) {
         await conn.query(
-          `INSERT INTO subscriptions (id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 65000, 'ARS', 'regular')`,
+          `INSERT INTO subscriptions (id, tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 65000, 'ARS', 'regular')`,
           [
             subRow.id,
+            TENANT_TEMPLO,
             subRow.userId,
             testPlanId,
             testBranchId,
@@ -387,9 +393,9 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
 
       // Program enrollment dangling under the deleted user.
       await conn.query(
-        `INSERT INTO program_enrollments (id, user_id, program_id, status)
-         VALUES (?, ?, ?, 'active')`,
-        [ENROLLMENT_ID, DELETED_USER_ID, testProgramId],
+        `INSERT INTO program_enrollments (id, tenant_id, user_id, program_id, status)
+         VALUES (?, ?, ?, ?, 'active')`,
+        [ENROLLMENT_ID, TENANT_TEMPLO, DELETED_USER_ID, testProgramId],
       );
 
       // Owner-fallback fixture: temporarily downgrade any owner-role users so
@@ -504,10 +510,11 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         { id: SUB_ACTIVE_ID, status: "scheduled", userId: ACTIVE_USER_ID },
       ]) {
         await conn.query(
-          `INSERT INTO subscriptions (id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 65000, 'ARS', 'regular')`,
+          `INSERT INTO subscriptions (id, tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 65000, 'ARS', 'regular')`,
           [
             subRow.id,
+            TENANT_TEMPLO,
             subRow.userId,
             testPlanId,
             testBranchId,
@@ -550,9 +557,9 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
 
       // Enrollment already cancelled.
       await conn.query(
-        `INSERT INTO program_enrollments (id, user_id, program_id, status, cancelled_at)
-         VALUES (?, ?, ?, 'cancelled', NOW())`,
-        [ENROLLMENT_ID, DELETED_USER_ID, testProgramId],
+        `INSERT INTO program_enrollments (id, tenant_id, user_id, program_id, status, cancelled_at)
+         VALUES (?, ?, ?, ?, 'cancelled', NOW())`,
+        [ENROLLMENT_ID, TENANT_TEMPLO, DELETED_USER_ID, testProgramId],
       );
 
       // Optionally pre-insert the audit_log reconciliation row so the
@@ -678,7 +685,12 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
         cancelledAt: schema.programEnrollments.cancelledAt,
       })
       .from(schema.programEnrollments)
-      .where(eq(schema.programEnrollments.id, ENROLLMENT_ID))) as Array<{
+      .where(
+        and(
+          tenantWhere(schema.programEnrollments, TEMPLO_CTX),
+          eq(schema.programEnrollments.id, ENROLLMENT_ID),
+        ),
+      )) as Array<{
       status: string;
       cancelledAt: Date | null;
     }>;
@@ -785,7 +797,10 @@ describe("Migration 0109 — reconcile Soledad Mailland", () => {
       })
       .from(schema.programEnrollments)
       .where(
-        eq(schema.programEnrollments.id, ENROLLMENT_ID),
+        and(
+          tenantWhere(schema.programEnrollments, TEMPLO_CTX),
+          eq(schema.programEnrollments.id, ENROLLMENT_ID),
+        ),
       )) as Array<EnrollmentRow>;
     expect(enr.status).toBe("cancelled");
     expect(enr.cancelledAt).not.toBeNull();

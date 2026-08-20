@@ -95,6 +95,7 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
     durationDays: number;
   }): Promise<number> {
     const [p] = await app.db.insert(subscriptionPlans).values({
+      tenantId: TENANT_TEMPLO,
       name: opts.name,
       country: opts.country,
       priceRegular: 15000,
@@ -152,7 +153,8 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
         name: subscriptionPlans.name,
         durationDays: subscriptionPlans.durationDays,
       })
-      .from(subscriptionPlans);
+      .from(subscriptionPlans)
+      .where(tenantWhere(subscriptionPlans, TEMPLO_CTX));
 
     const tiers = new Map<string, string | null>();
     for (const r of rows) {
@@ -181,6 +183,7 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
         count: sql<number>`COUNT(*)`,
       })
       .from(subscriptionPlans)
+      .where(tenantWhere(subscriptionPlans, TEMPLO_CTX))
       .groupBy(...groupKeys);
 
     // Build the per-segment keys the way a real block would.

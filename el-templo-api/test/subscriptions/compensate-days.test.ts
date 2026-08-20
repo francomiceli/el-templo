@@ -141,7 +141,12 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
     const [sub] = await app.db
       .select({ endDate: schema.subscriptions.endDate })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subId));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, subId),
+        ),
+      );
     expect(sub.endDate).toBe(endDate);
   });
 
@@ -222,6 +227,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
     const actRows = await app.db.select({ id: activities.id }).from(activities);
     const activityId = actRows[actRows.length - 1].id;
     const slotResult = await app.db.insert(schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId: 1,
       activityId,
       dayOfWeek: 1,
@@ -241,7 +247,11 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
         .select({ c: sql<number>`COUNT(*)` })
         .from(bookings)
         .where(
-          and(eq(bookings.memberId, memberId), gt(bookings.bookingDate, date)),
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, memberId),
+            gt(bookings.bookingDate, date),
+          ),
         );
       return Number(rows[0].c);
     };
@@ -270,6 +280,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
     const actRows = await app.db.select({ id: activities.id }).from(activities);
     const activityId = actRows[actRows.length - 1].id;
     const slotResult = await app.db.insert(schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId: 1,
       activityId,
       dayOfWeek: 1,
@@ -299,6 +310,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
         .from(bookings)
         .where(
           and(
+            tenantWhere(bookings, TEMPLO_CTX),
             eq(bookings.memberId, memberId),
             sql`${bookings.bookingDate} >= ${fromDate}`,
             sql`${bookings.bookingDate} <= ${toDate}`,
@@ -331,6 +343,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
       .from(bookings)
       .where(
         and(
+          tenantWhere(bookings, TEMPLO_CTX),
           eq(bookings.memberId, memberId),
           gt(bookings.bookingDate, toDate),
           sql`${bookings.status} = 'reservado'`,

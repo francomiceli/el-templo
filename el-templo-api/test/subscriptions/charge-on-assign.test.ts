@@ -299,7 +299,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const subs = await app.db
         .select()
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, member.id),
+          ),
+        );
       expect(subs).toHaveLength(0);
 
       const txs = await app.db
@@ -341,7 +346,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const subs = await app.db
         .select()
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, member.id),
+          ),
+        );
       expect(subs).toHaveLength(0);
     });
   });
@@ -360,7 +370,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const preSubs = await app.db
         .select()
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, member.id),
+          ),
+        );
       expect(preSubs).toHaveLength(0);
 
       // Estrategia B: instanciamos SubscriptionService directamente con un
@@ -418,7 +433,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const subs = await app.db
         .select()
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, member.id),
+          ),
+        );
       expect(subs).toHaveLength(0);
 
       // Invariante 2: NO hay financial_transaction persistida.
@@ -480,7 +500,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       await app.db
         .update(schema.subscriptions)
         .set({ classesRemaining: 6 })
-        .where(eq(schema.subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, member.id),
+          ),
+        );
 
       const netAmount = 8800;
       const partial = netAmount - 5000; // 3800
@@ -560,7 +585,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       await app.db
         .update(schema.subscriptions)
         .set({ classesRemaining: 6 })
-        .where(eq(schema.subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, member.id),
+          ),
+        );
 
       const netAmount = 8800;
 
@@ -585,7 +615,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const subs = await app.db
         .select()
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, member.id),
+          ),
+        );
       expect(subs).toHaveLength(1);
       expect(subs[0].id).toBe(oldSubId);
       expect(subs[0].planId).toBe(planA.id);
@@ -729,7 +764,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const subs = await app.db
         .select()
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, member.id),
+          ),
+        );
       expect(subs).toHaveLength(1);
       expect(subs[0].id).toBe(oldSubId);
       expect(subs[0].status).toBe("active");
@@ -844,7 +884,12 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const subs = await app.db
         .select()
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, member.id),
+          ),
+        );
       expect(subs).toHaveLength(1);
       expect(subs[0].id).toBe(oldSubId);
       expect(subs[0].status).toBe("active");

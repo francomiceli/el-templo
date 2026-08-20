@@ -505,7 +505,12 @@ describe("Reports API", () => {
       await app.db
         .update(subscriptions)
         .set({ status: "expired" })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",
@@ -543,16 +548,18 @@ describe("Reports API", () => {
       startDate: string;
       endDate: string;
     }): Promise<void> {
-      await app.db.insert(subscriptions).values({
-        userId: opts.userId,
-        planId: opts.planId,
-        branchId: testBranchId,
-        status: opts.status,
-        startDate: opts.startDate,
-        endDate: opts.endDate,
-        pricePaid: 10000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: opts.userId,
+          planId: opts.planId,
+          branchId: testBranchId,
+          status: opts.status,
+          startDate: opts.startDate,
+          endDate: opts.endDate,
+          pricePaid: 10000,
+          priceTypeApplied: "regular",
+        }),
+      );
     }
 
     it("hides members who already renewed (future same-category coverage) by default", async () => {
@@ -664,6 +671,7 @@ describe("Reports API", () => {
       // extra validation to online categories that the presencial defaults
       // don't satisfy; we only need a plan of a different category here.
       const [insertedOnline] = await app.db.insert(subscriptionPlans).values({
+        tenantId: TENANT_TEMPLO,
         name: "Plan Online XCat",
         planTier: "other",
         bookingMode: "flexible",

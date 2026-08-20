@@ -27,6 +27,7 @@ import {
 } from "./helpers";
 import * as schema from "../src/db/schema";
 import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
 
 // El gimnasio de los fixtures (El Templo = tenant 1).
 const CTX = { tenantId: 1 };
@@ -144,7 +145,12 @@ describe("POST /api/members/scheduling/cancel-trial (Phase 119)", () => {
     const [booking] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, bookingId));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.id, bookingId),
+        ),
+      );
     expect(booking.status).toBe("cancelado");
 
     // User back to freemium, with a prueba→freemium history row.
@@ -191,6 +197,7 @@ describe("POST /api/members/scheduling/cancel-trial (Phase 119)", () => {
       .from(schema.bookings)
       .where(
         and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
           eq(schema.bookings.memberId, id),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),

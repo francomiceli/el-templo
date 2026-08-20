@@ -202,6 +202,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const [plan] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: CTX_TEMPLO.tenantId,
         name: "Test 3 Plan",
         planTier: "foundation",
         bookingMode: "flexible",
@@ -236,6 +237,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const [sub] = await app.db
       .insert(schema.subscriptions)
       .values({
+        tenantId: CTX_TEMPLO.tenantId,
         userId: user.id,
         planId: plan.id,
         branchId: presentialBranchId,
@@ -250,6 +252,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const [enr] = await app.db
       .insert(schema.programEnrollments)
       .values({
+        tenantId: CTX_TEMPLO.tenantId,
         userId: user.id,
         programId: program.id,
         source: "plan_linked",
@@ -259,13 +262,13 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
 
     // Verify pre-state: subscription_id is null.
     const preRows = (await app.db.execute(
-      sql`SELECT subscription_id AS subId FROM program_enrollments WHERE id = ${enr.id}`,
+      sql`/* tenant-safe: test de migración 0111 single-tenant, lectura por PK propia */ SELECT subscription_id AS subId FROM program_enrollments WHERE id = ${enr.id}`,
     )) as unknown as [Array<{ subId: number | null }>];
     const preList = Array.isArray(preRows) ? preRows[0] : preRows;
     expect(preList[0].subId).toBeNull();
 
     // Run Step 4 SQL (the unique-match plan_linked subscription_id backfill).
-    await app.db.execute(sql`
+    await app.db.execute(sql`/* tenant-safe: test de migración 0111 single-tenant — replica la SQL global de la migración sobre program_enrollments */
       UPDATE program_enrollments pe
       INNER JOIN (
         SELECT pe2.id AS enrollment_id, MIN(s.id) AS sub_id, COUNT(s.id) AS n
@@ -276,6 +279,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
           AND sp.linked_program_id = pe2.program_id
           AND s.start_date <= DATE(pe2.enrolled_at)
           AND (s.end_date IS NULL OR s.end_date >= DATE(pe2.enrolled_at))
+          AND s.tenant_id = ${CTX_TEMPLO.tenantId}
         GROUP BY pe2.id
       ) m ON m.enrollment_id = pe.id
       SET pe.subscription_id = m.sub_id
@@ -284,7 +288,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     `);
 
     const postRows = (await app.db.execute(
-      sql`SELECT subscription_id AS subId FROM program_enrollments WHERE id = ${enr.id}`,
+      sql`/* tenant-safe: test de migración 0111 single-tenant, lectura por PK propia */ SELECT subscription_id AS subId FROM program_enrollments WHERE id = ${enr.id}`,
     )) as unknown as [Array<{ subId: number | null }>];
     const postList = Array.isArray(postRows) ? postRows[0] : postRows;
     expect(postList[0].subId).toBe(sub.id);
@@ -304,6 +308,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const [plan] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: CTX_TEMPLO.tenantId,
         name: "Test 4 Bundle Plan",
         planTier: "foundation",
         bookingMode: "flexible",
@@ -338,6 +343,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const [sub] = await app.db
       .insert(schema.subscriptions)
       .values({
+        tenantId: CTX_TEMPLO.tenantId,
         userId: user.id,
         planId: plan.id,
         branchId: presentialBranchId,
@@ -352,6 +358,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const [enr] = await app.db
       .insert(schema.programEnrollments)
       .values({
+        tenantId: CTX_TEMPLO.tenantId,
         userId: user.id,
         programId: program.id,
         source: "plan_bundle",
@@ -359,7 +366,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
       })
       .$returningId();
 
-    await app.db.execute(sql`
+    await app.db.execute(sql`/* tenant-safe: test de migración 0111 single-tenant — replica la SQL global de la migración sobre program_enrollments */
       UPDATE program_enrollments pe
       INNER JOIN (
         SELECT pe2.id AS enrollment_id, MIN(s.id) AS sub_id, COUNT(s.id) AS n
@@ -370,6 +377,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
           AND sp.grants_all_programs = 1
           AND s.start_date <= DATE(pe2.enrolled_at)
           AND (s.end_date IS NULL OR s.end_date >= DATE(pe2.enrolled_at))
+          AND s.tenant_id = ${CTX_TEMPLO.tenantId}
         GROUP BY pe2.id
       ) m ON m.enrollment_id = pe.id
       SET pe.subscription_id = m.sub_id
@@ -378,7 +386,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     `);
 
     const rows = (await app.db.execute(
-      sql`SELECT subscription_id AS subId FROM program_enrollments WHERE id = ${enr.id}`,
+      sql`/* tenant-safe: test de migración 0111 single-tenant, lectura por PK propia */ SELECT subscription_id AS subId FROM program_enrollments WHERE id = ${enr.id}`,
     )) as unknown as [Array<{ subId: number | null }>];
     const list = Array.isArray(rows) ? rows[0] : rows;
     expect(list[0].subId).toBe(sub.id);
@@ -398,6 +406,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const [plan] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: CTX_TEMPLO.tenantId,
         name: "Test 5 Plan",
         planTier: "foundation",
         bookingMode: "flexible",
@@ -433,6 +442,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     // ambiguity case the COUNT(*)=1 guard is meant to catch.
     await app.db.insert(schema.subscriptions).values([
       {
+        tenantId: CTX_TEMPLO.tenantId,
         userId: user.id,
         planId: plan.id,
         branchId: presentialBranchId,
@@ -443,6 +453,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
         priceTypeApplied: "regular",
       },
       {
+        tenantId: CTX_TEMPLO.tenantId,
         userId: user.id,
         planId: plan.id,
         branchId: presentialBranchId,
@@ -457,6 +468,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     const [enr] = await app.db
       .insert(schema.programEnrollments)
       .values({
+        tenantId: CTX_TEMPLO.tenantId,
         userId: user.id,
         programId: program.id,
         source: "plan_linked",
@@ -464,7 +476,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
       })
       .$returningId();
 
-    await app.db.execute(sql`
+    await app.db.execute(sql`/* tenant-safe: test de migración 0111 single-tenant — replica la SQL global de la migración sobre program_enrollments */
       UPDATE program_enrollments pe
       INNER JOIN (
         SELECT pe2.id AS enrollment_id, MIN(s.id) AS sub_id, COUNT(s.id) AS n
@@ -475,6 +487,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
           AND sp.linked_program_id = pe2.program_id
           AND s.start_date <= DATE(pe2.enrolled_at)
           AND (s.end_date IS NULL OR s.end_date >= DATE(pe2.enrolled_at))
+          AND s.tenant_id = ${CTX_TEMPLO.tenantId}
         GROUP BY pe2.id
       ) m ON m.enrollment_id = pe.id
       SET pe.subscription_id = m.sub_id
@@ -483,7 +496,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     `);
 
     const rows = (await app.db.execute(
-      sql`SELECT subscription_id AS subId FROM program_enrollments WHERE id = ${enr.id}`,
+      sql`/* tenant-safe: test de migración 0111 single-tenant, lectura por PK propia */ SELECT subscription_id AS subId FROM program_enrollments WHERE id = ${enr.id}`,
     )) as unknown as [Array<{ subId: number | null }>];
     const list = Array.isArray(rows) ? rows[0] : rows;
     expect(list[0].subId).toBeNull();
@@ -497,7 +510,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     // are tolerated here by try/catch. The backfill UPDATEs are guarded by
     // WHERE source IS NULL so they affect 0 rows.
     const beforeCountRows = (await app.db.execute(
-      sql`SELECT COUNT(*) AS n FROM program_enrollments`,
+      sql`/* tenant-safe: test de migración 0111 single-tenant, conteo global de idempotencia */ SELECT COUNT(*) AS n FROM program_enrollments`,
     )) as unknown as [Array<{ n: number }>];
     const beforeList = Array.isArray(beforeCountRows)
       ? beforeCountRows[0]
@@ -514,7 +527,11 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     // duplicate detection must inspect cause.code / cause.sqlMessage.
     for (const stmt of migrationStatements) {
       try {
-        await app.db.execute(sql.raw(stmt));
+        // tenant-safe: replay verbatim de los statements de la migración 0111
+        // (SQL global de migración), test single-tenant.
+        await app.db.execute(
+          sql.raw(`/* tenant-safe: migración 0111 verbatim */\n${stmt}`),
+        );
       } catch (err: unknown) {
         const wrapperMsg = err instanceof Error ? err.message : String(err);
         const cause =
@@ -551,7 +568,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     }
 
     const afterCountRows = (await app.db.execute(
-      sql`SELECT COUNT(*) AS n FROM program_enrollments`,
+      sql`/* tenant-safe: test de migración 0111 single-tenant, conteo global de idempotencia */ SELECT COUNT(*) AS n FROM program_enrollments`,
     )) as unknown as [Array<{ n: number }>];
     const afterList = Array.isArray(afterCountRows)
       ? afterCountRows[0]
@@ -564,7 +581,7 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     // source (NOT NULL invariant preserved) and the status enum still includes
     // paused (Step 5 of replay would have re-run MODIFY but is tolerated).
     const nullSourceRows = (await app.db.execute(
-      sql`SELECT COUNT(*) AS n FROM program_enrollments WHERE source IS NULL`,
+      sql`/* tenant-safe: test de migración 0111 single-tenant, conteo global de idempotencia */ SELECT COUNT(*) AS n FROM program_enrollments WHERE source IS NULL`,
     )) as unknown as [Array<{ n: number }>];
     const nullList = Array.isArray(nullSourceRows)
       ? nullSourceRows[0]

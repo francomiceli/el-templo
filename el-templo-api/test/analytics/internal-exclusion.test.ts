@@ -20,7 +20,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   createTestApp,
@@ -98,6 +98,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
   async function insertMember(): Promise<number> {
     __seq += 1;
     const [u] = await app.db.insert(users).values({
+      tenantId: TENANT_TEMPLO,
       email: `int-m${__seq}-${Date.now()}@test.com`,
       passwordHash: "x",
       firstName: "In",
@@ -117,6 +118,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
     pricePaid?: number;
   }): Promise<number> {
     const [r] = await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: opts.userId,
       planId,
       branchId: branchA,
@@ -140,7 +142,12 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
         membershipKind: subscriptions.membershipKind,
       })
       .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.userId, userId),
+        ),
+      )
       .orderBy(desc(subscriptions.id))
       .limit(1);
     return row;
@@ -310,7 +317,12 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
     await app.db
       .update(subscriptions)
       .set({ membershipKind: "staff" })
-      .where(eq(subscriptions.id, sub.id));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, sub.id),
+        ),
+      );
 
     const renew = await app.inject({
       method: "POST",

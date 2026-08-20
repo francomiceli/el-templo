@@ -269,7 +269,12 @@ describe("Analytics API", () => {
       await app.db
         .update(subscriptions)
         .set({ startDate: pastStart, endDate: past, status: "expired" })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       await app.db
         .update(users)
         .set({ status: "activo" })
@@ -466,11 +471,21 @@ describe("Analytics API", () => {
       await app.db
         .update(subscriptions)
         .set({ status: "expired" })
-        .where(eq(subscriptions.userId, member1.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member1.id),
+          ),
+        );
       await app.db
         .update(subscriptions)
         .set({ status: "expired" })
-        .where(eq(subscriptions.userId, member2.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member2.id),
+          ),
+        );
 
       // Member 1 renews — assign a new active sub starting today
       const today = new Date().toISOString().split("T")[0];
@@ -582,16 +597,18 @@ describe("Analytics API", () => {
       const start = new Date();
       start.setDate(start.getDate() - daysAgo - 30);
       const startStr = start.toISOString().split("T")[0];
-      await app.db.insert(subscriptions).values({
-        userId: memberId,
-        planId,
-        branchId: testBranchId,
-        status: "expired",
-        startDate: startStr,
-        endDate: endStr,
-        pricePaid: 15000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: memberId,
+          planId,
+          branchId: testBranchId,
+          status: "expired",
+          startDate: startStr,
+          endDate: endStr,
+          pricePaid: 15000,
+          priceTypeApplied: "regular",
+        }),
+      );
     }
 
     async function setSegment(
@@ -766,16 +783,18 @@ describe("Analytics API", () => {
       const future = new Date(Date.now() + 86400000 * 30)
         .toISOString()
         .split("T")[0];
-      await app.db.insert(subscriptions).values({
-        userId: renewed.id,
-        planId: plan.id,
-        branchId: testBranchId,
-        status: "active",
-        startDate: today,
-        endDate: future,
-        pricePaid: 15000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: renewed.id,
+          planId: plan.id,
+          branchId: testBranchId,
+          status: "active",
+          startDate: today,
+          endDate: future,
+          pricePaid: 15000,
+          priceTypeApplied: "regular",
+        }),
+      );
       // Member who expired 5 days ago and did NOT renew.
       const lapsed = await createMember({
         email: "lapsed@test.com",
@@ -830,16 +849,18 @@ describe("Analytics API", () => {
       end.setDate(end.getDate() - 6);
       const start = new Date();
       start.setDate(start.getDate() - 36);
-      await app.db.insert(subscriptions).values({
-        userId: member.id,
-        planId: plan.id,
-        branchId: testBranchId,
-        status: "expired",
-        startDate: start.toISOString().split("T")[0],
-        endDate: end.toISOString().split("T")[0],
-        pricePaid: 15000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: member.id,
+          planId: plan.id,
+          branchId: testBranchId,
+          status: "expired",
+          startDate: start.toISOString().split("T")[0],
+          endDate: end.toISOString().split("T")[0],
+          pricePaid: 15000,
+          priceTypeApplied: "regular",
+        }),
+      );
       await app.db
         .insert(memberProfiles)
         .values({ userId: member.id, segment: "alerta" })
@@ -1202,13 +1223,15 @@ describe("Analytics API", () => {
         branchId: testBranchId,
       });
       const activityId = (act as { insertId: number }).insertId;
-      const [sch] = await app.db.insert(schedules).values({
-        branchId: testBranchId,
-        activityId,
-        dayOfWeek: 1,
-        startTime: "10:00",
-        endTime: "11:00",
-      });
+      const [sch] = await app.db.insert(schedules).values(
+        tenantValues(TEMPLO_CTX, {
+          branchId: testBranchId,
+          activityId,
+          dayOfWeek: 1,
+          startTime: "10:00",
+          endTime: "11:00",
+        }),
+      );
       return (sch as { insertId: number }).insertId;
     }
 
@@ -1223,12 +1246,12 @@ describe("Analytics API", () => {
 
       // 3 attended ('confirmado') + 1 no_show => 25% no-show.
       await app.db.insert(bookings).values([
-        {
+        tenantValues(TEMPLO_CTX, {
           memberId: member.id,
           scheduleId,
           bookingDate: today,
           status: "confirmado",
-        },
+        }),
       ]);
       const m2 = await createMember({
         email: "ns-m2@test.com",
@@ -1243,24 +1266,24 @@ describe("Analytics API", () => {
         dni: "90002004",
       });
       await app.db.insert(bookings).values([
-        {
+        tenantValues(TEMPLO_CTX, {
           memberId: m2.id,
           scheduleId,
           bookingDate: today,
           status: "confirmado",
-        },
-        {
+        }),
+        tenantValues(TEMPLO_CTX, {
           memberId: m3.id,
           scheduleId,
           bookingDate: today,
           status: "confirmado",
-        },
-        {
+        }),
+        tenantValues(TEMPLO_CTX, {
           memberId: m4.id,
           scheduleId,
           bookingDate: today,
           status: "no_show",
-        },
+        }),
       ]);
 
       const res = await app.inject({
@@ -1455,23 +1478,30 @@ describe("Analytics API", () => {
         [mES, planES],
         [mArch, archived],
       ] as const) {
-        await app.db.insert(subscriptions).values({
-          userId: m.id,
-          planId: p.id as number,
-          branchId: testBranchId,
-          status: "active",
-          startDate: today,
-          endDate: future,
-          pricePaid: 15000,
-          priceTypeApplied: "regular",
-        });
+        await app.db.insert(subscriptions).values(
+          tenantValues(TEMPLO_CTX, {
+            userId: m.id,
+            planId: p.id as number,
+            branchId: testBranchId,
+            status: "active",
+            startDate: today,
+            endDate: future,
+            pricePaid: 15000,
+            priceTypeApplied: "regular",
+          }),
+        );
       }
 
       // Archive the third plan after subscription creation.
       await app.db
         .update(subscriptionPlans)
         .set({ isArchived: true })
-        .where(eq(subscriptionPlans.id, archived.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptionPlans, TEMPLO_CTX),
+            eq(subscriptionPlans.id, archived.id as number),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",

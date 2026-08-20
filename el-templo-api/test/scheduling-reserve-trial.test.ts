@@ -30,6 +30,7 @@ import {
 } from "./helpers";
 import * as schema from "../src/db/schema";
 import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
 
 // El gimnasio de los fixtures (El Templo = tenant 1).
 const CTX = { tenantId: 1 };
@@ -192,7 +193,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
         status: schema.bookings.status,
       })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      )
       .limit(1);
     expect(booking.isTrial).toBe(true);
     expect(booking.source).toBe("self_service"); // D-18 attribution
@@ -210,7 +216,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [slot] = await app.db
       .select({ isTrial: schema.bookings.isTrial })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      )
       .limit(1);
     expect(slot.isTrial).toBe(true);
   });
@@ -242,7 +253,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [booking] = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      )
       .limit(1);
 
     const cancelRes = await app.inject({
@@ -256,7 +272,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [after] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, booking.id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.id, booking.id),
+        ),
+      )
       .limit(1);
     expect(after.status).toBe("reservado");
   });
@@ -321,7 +342,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const bookings = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      );
     expect(bookings).toHaveLength(0);
   });
 
@@ -343,6 +369,7 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [plan] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: TENANT_TEMPLO,
         name: "Trial Guard Plan",
         planTier: "foundation",
         bookingMode: "flexible",
@@ -354,6 +381,7 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
       .$returningId();
 
     await app.db.insert(schema.subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: id,
       planId: plan.id,
       branchId: physicalBranchId,
@@ -392,7 +420,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const bookings = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      );
     expect(bookings).toHaveLength(0);
   });
 
@@ -441,7 +474,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const bookings = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      );
     expect(bookings).toHaveLength(0);
   });
 });

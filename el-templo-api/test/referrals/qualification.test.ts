@@ -21,6 +21,7 @@ import {
   createMember,
   assignPlan,
 } from "../subscriptions/_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -68,8 +69,8 @@ async function giveCoverage(
   endDate: string,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-        VALUES (${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
+    sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+        VALUES (${TENANT_TEMPLO}, ${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
   );
 }
 
@@ -88,7 +89,7 @@ async function readSubscription(
 ): Promise<{ price_paid: number; referral_discount_amount: number | null }> {
   const rows = await app.db.execute(
     sql`SELECT price_paid, referral_discount_amount FROM subscriptions
-        WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`,
+        WHERE user_id = ${userId} AND tenant_id = ${TENANT_TEMPLO} ORDER BY id DESC LIMIT 1`,
   );
   return (
     rows[0] as Array<{

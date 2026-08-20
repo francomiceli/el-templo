@@ -31,6 +31,7 @@ import {
   SUBSCRIPTIONS_URL,
 } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -84,8 +85,8 @@ async function giveCoverage(
   endDate: string,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-        VALUES (${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
+    sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+        VALUES (${TENANT_TEMPLO}, ${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
   );
 }
 
@@ -102,14 +103,14 @@ async function readReferralCredit(
   userId: number,
 ): Promise<{ percent: number; amount: number } | undefined> {
   const rows = await app.db.execute(
-    sql`SELECT percent, amount FROM referral_credits WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`,
+    sql`SELECT percent, amount FROM referral_credits WHERE user_id = ${userId} AND tenant_id = ${TENANT_TEMPLO} ORDER BY id DESC LIMIT 1`,
   );
   return (rows[0] as Array<{ percent: number; amount: number }>)[0];
 }
 
 async function countReferralCredits(userId: number): Promise<number> {
   const rows = await app.db.execute(
-    sql`SELECT COUNT(*) AS n FROM referral_credits WHERE user_id = ${userId}`,
+    sql`SELECT COUNT(*) AS n FROM referral_credits WHERE user_id = ${userId} AND tenant_id = ${TENANT_TEMPLO}`,
   );
   return Number((rows[0] as Array<{ n: number }>)[0].n);
 }
@@ -118,14 +119,14 @@ async function readReferralCreditForSub(
   subscriptionId: number,
 ): Promise<{ percent: number; amount: number } | undefined> {
   const rows = await app.db.execute(
-    sql`SELECT percent, amount FROM referral_credits WHERE subscription_id = ${subscriptionId} LIMIT 1`,
+    sql`SELECT percent, amount FROM referral_credits WHERE subscription_id = ${subscriptionId} AND tenant_id = ${TENANT_TEMPLO} LIMIT 1`,
   );
   return (rows[0] as Array<{ percent: number; amount: number }>)[0];
 }
 
 async function readReferralAuraAmount(userId: number): Promise<number | null> {
   const rows = await app.db.execute(
-    sql`SELECT amount FROM aura_transactions WHERE user_id = ${userId} AND source_type = 'referral' ORDER BY id DESC LIMIT 1`,
+    sql`SELECT amount FROM aura_transactions WHERE user_id = ${userId} AND source_type = 'referral' AND tenant_id = ${TENANT_TEMPLO} ORDER BY id DESC LIMIT 1`,
   );
   const row = (rows[0] as Array<{ amount: number }>)[0];
   return row?.amount ?? null;
@@ -136,7 +137,7 @@ async function readSubReferralColumns(
 ): Promise<{ percent: number | null; amount: number | null }> {
   const rows = await app.db.execute(
     sql`SELECT referral_discount_percent AS percent, referral_discount_amount AS amount
-        FROM subscriptions WHERE id = ${subscriptionId} LIMIT 1`,
+        FROM subscriptions WHERE id = ${subscriptionId} AND tenant_id = ${TENANT_TEMPLO} LIMIT 1`,
   );
   return (
     rows[0] as Array<{ percent: number | null; amount: number | null }>
@@ -145,13 +146,14 @@ async function readSubReferralColumns(
 
 async function readSubPricePaid(subscriptionId: number): Promise<number> {
   const rows = await app.db.execute(
-    sql`SELECT price_paid AS pricePaid FROM subscriptions WHERE id = ${subscriptionId} LIMIT 1`,
+    sql`SELECT price_paid AS pricePaid FROM subscriptions WHERE id = ${subscriptionId} AND tenant_id = ${TENANT_TEMPLO} LIMIT 1`,
   );
   return (rows[0] as Array<{ pricePaid: number }>)[0].pricePaid;
 }
 
 async function createEspecialPlan(priceRegular: number): Promise<number> {
   const res = await app.db.insert(schema.subscriptionPlans).values({
+    tenantId: TENANT_TEMPLO,
     name: "Pase Especial Cambio",
     planTier: "other",
     bookingMode: "flexible",
@@ -288,15 +290,15 @@ describe("Referral discount · scheduled plan change (after_current)", () => {
 
     // La contraparte pierde cobertura DESPUÉS de agendar pero ANTES de activar.
     await app.db.execute(
-      sql`UPDATE subscriptions SET subscription_status = 'cancelled' WHERE user_id = ${referred.id}`,
+      sql`UPDATE subscriptions SET subscription_status = 'cancelled' WHERE user_id = ${referred.id} AND tenant_id = ${TENANT_TEMPLO}`,
     );
 
     // Backdate old + successor y disparar auto-expire (cron) vía GET.
     await app.db.execute(
-      sql`UPDATE subscriptions SET end_date = ${dateOffsetStr(-1)} WHERE id = ${oldSubId}`,
+      sql`UPDATE subscriptions SET end_date = ${dateOffsetStr(-1)} WHERE id = ${oldSubId} AND tenant_id = ${TENANT_TEMPLO}`,
     );
     await app.db.execute(
-      sql`UPDATE subscriptions SET start_date = ${dateOffsetStr(-1)} WHERE id = ${scheduledId}`,
+      sql`UPDATE subscriptions SET start_date = ${dateOffsetStr(-1)} WHERE id = ${scheduledId} AND tenant_id = ${TENANT_TEMPLO}`,
     );
     await app.inject({
       method: "GET",
@@ -306,7 +308,7 @@ describe("Referral discount · scheduled plan change (after_current)", () => {
 
     // La activación NO recomputa: precio congelado + un único credit (el de agendar).
     const rows = await app.db.execute(
-      sql`SELECT subscription_status AS status FROM subscriptions WHERE id = ${scheduledId} LIMIT 1`,
+      sql`SELECT subscription_status AS status FROM subscriptions WHERE id = ${scheduledId} AND tenant_id = ${TENANT_TEMPLO} LIMIT 1`,
     );
     expect((rows[0] as Array<{ status: string }>)[0].status).toBe("active");
     expect(await readSubPricePaid(scheduledId)).toBe(10800);

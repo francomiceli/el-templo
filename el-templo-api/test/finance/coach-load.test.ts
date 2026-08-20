@@ -116,6 +116,7 @@ async function seedCurrentSubscription(): Promise<number> {
   const [res] = await app.db
     .insert(schema.subscriptions)
     .values({
+      tenantId: TENANT_TEMPLO,
       userId: memberId,
       planId,
       branchId,
@@ -161,6 +162,7 @@ async function seedRenewableSubscription(): Promise<number> {
   const [res] = await app.db
     .insert(schema.subscriptions)
     .values({
+      tenantId: TENANT_TEMPLO,
       userId: memberId,
       planId,
       branchId,
@@ -206,6 +208,7 @@ beforeAll(async () => {
   const [planRes] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Coach Load Plan",
       planTier: "flex",
       bookingMode: "flexible",
@@ -251,9 +254,13 @@ beforeEach(async () => {
     await conn.query("DELETE FROM `audit_log` WHERE tenant_id = ?", [
       TENANT_TEMPLO,
     ]);
-    await conn.query("DELETE FROM `bookings`");
+    await conn.query("DELETE FROM `bookings` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("DELETE FROM `program_enrollments`");
-    await conn.query("DELETE FROM `subscriptions`");
+    await conn.query("DELETE FROM `subscriptions` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("SET FOREIGN_KEY_CHECKS=1");
   } finally {
     conn.release();
@@ -371,6 +378,7 @@ describe("coach-load renew", () => {
       .from(schema.subscriptions)
       .where(
         and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
           eq(schema.subscriptions.userId, memberId),
           eq(schema.subscriptions.status, "active"),
         ),
@@ -469,7 +477,12 @@ describe("coach-load pay-plan settle debt", () => {
     const subs = await app.db
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, memberId));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, memberId),
+        ),
+      );
     expect(subs.length).toBe(1);
   });
 
@@ -1000,6 +1013,7 @@ describe("coach-load caja del cobro por sede del socio (CR-CAJA)", () => {
     const [sub] = await app.db
       .insert(schema.subscriptions)
       .values({
+        tenantId: TENANT_TEMPLO,
         userId: memberB,
         planId,
         branchId: branchB,
@@ -1048,6 +1062,7 @@ describe("coach-load caja del cobro por sede del socio (CR-CAJA)", () => {
       .toISOString()
       .split("T")[0];
     await app.db.insert(schema.subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: memberB,
       planId,
       branchId: branchB,

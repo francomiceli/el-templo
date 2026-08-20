@@ -29,6 +29,7 @@ import {
   SUBSCRIPTIONS_URL,
 } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -82,8 +83,8 @@ async function giveCoverage(
   endDate: string,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-        VALUES (${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
+    sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+        VALUES (${TENANT_TEMPLO}, ${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
   );
 }
 
@@ -101,6 +102,7 @@ async function getPricingPreview(
 
 async function createEspecialPlan(priceRegular: number): Promise<number> {
   const res = await app.db.insert(schema.subscriptionPlans).values({
+    tenantId: TENANT_TEMPLO,
     name: "Pase Especial Preview",
     planTier: "other",
     bookingMode: "flexible",
@@ -273,7 +275,7 @@ describe("Referral discount preview parity", () => {
     // La contraparte pierde cobertura → el descuento del ciclo nuevo es 0 y la
     // base heredada vuelve a ser la pre-descuento (15000), no la descontada.
     await app.db.execute(
-      sql`UPDATE subscriptions SET subscription_status = 'cancelled' WHERE user_id = ${referred.id}`,
+      sql`UPDATE subscriptions SET subscription_status = 'cancelled' WHERE user_id = ${referred.id} AND tenant_id = ${TENANT_TEMPLO}`,
     );
 
     const renew = await app.inject({

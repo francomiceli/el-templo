@@ -139,6 +139,7 @@ describe("EnrollmentService lifecycle hooks (Phase 112 Plan 03)", () => {
       .from(subscriptions)
       .where(
         and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
           eq(subscriptions.userId, userId),
           inArray(subscriptions.status, ["active", "paused"]),
         ),
@@ -524,7 +525,12 @@ describe("EnrollmentService lifecycle hooks (Phase 112 Plan 03)", () => {
     await app.db
       .update(subscriptions)
       .set({ startDate: dateOffsetStr(-10), endDate: dateOffsetStr(-5) })
-      .where(eq(subscriptions.id, subId));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, subId),
+        ),
+      );
 
     // Trigger autoExpireSubscriptions via the GET endpoint.
     const readRes = await app.inject({

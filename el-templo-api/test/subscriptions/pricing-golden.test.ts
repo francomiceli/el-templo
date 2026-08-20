@@ -46,6 +46,7 @@ import {
   todayStr,
   dateOffsetStr,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
   let app: FastifyInstance;
@@ -102,8 +103,8 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
           VALUES (1, ${referrerId}, ${referredId}, 'qualified', 'assisted', NOW())`,
     );
     await app.db.execute(
-      sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-          VALUES (${referredId}, ${referredPlanId}, 1, 'active', ${todayStr()}, ${dateOffsetStr(30)}, 10000, 'ARS', 'regular')`,
+      sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+          VALUES (${TENANT_TEMPLO}, ${referredId}, ${referredPlanId}, 1, 'active', ${todayStr()}, ${dateOffsetStr(30)}, 10000, 'ARS', 'regular')`,
     );
   }
 

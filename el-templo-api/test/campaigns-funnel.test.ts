@@ -213,7 +213,12 @@ describe("campaign funnel (Phase 119)", () => {
     await app.db
       .update(schema.bookings)
       .set({ bookedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) })
-      .where(eq(schema.bookings.id, bk.id));
+      .where(
+        and(
+          eq(schema.bookings.id, bk.id),
+          eq(schema.bookings.tenantId, CTX.tenantId),
+        ),
+      );
 
     const funnel = await makeService().funnel(CTX, campaignId);
     expect(funnel.reservo).toBe(0);

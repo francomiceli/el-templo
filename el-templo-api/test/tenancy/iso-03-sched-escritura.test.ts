@@ -568,13 +568,13 @@ describe("crear horario — POST /api/admin/scheduling/schedules", () => {
 describe("sembrar horarios default — POST /api/admin/scheduling/schedules/seed", () => {
   const RUTA = "POST /api/admin/scheduling/schedules/seed";
 
-  it("aislamiento (unicidad por tenant): la actividad 'Calistenia' que crea el seed no choca con la de El Templo", async () => {
-    // Precondicion: El Templo YA tiene una actividad 'Calistenia' (sembrada a
+  it("aislamiento (unicidad por tenant): la actividad 'General' que crea el seed no choca con la de El Templo", async () => {
+    // Precondicion: El Templo YA tiene una actividad 'General' (sembrada a
     // mano aca, simulando que otro seed/alta la creo antes). Si el lookup de
     // "existe o crea" del seed no filtrara por gimnasio, esta 2da creacion
     // reusaria la fila ajena en vez de crear la propia del gimnasio 2.
     await app.db.insert(schema.activities).values(
-      tenantValues(CTX_TEMPLO, { name: "Calistenia", isActive: true }),
+      tenantValues(CTX_TEMPLO, { name: "General", isActive: true }),
     );
 
     const res = await comoAdminGimnasioDos("POST", "/schedules/seed", {
@@ -588,13 +588,13 @@ describe("sembrar horarios default — POST /api/admin/scheduling/schedules/seed
       .where(
         and(
           tenantWhere(schema.activities, CTX_DOS),
-          eq(schema.activities.name, "Calistenia"),
+          eq(schema.activities.name, "General"),
         ),
       )
       .limit(1);
     expect(
       propia,
-      `${RUTA}: el seed no creo su PROPIA actividad 'Calistenia' para el gimnasio ${TENANT_DOS} — ` +
+      `${RUTA}: el seed no creo su PROPIA actividad 'General' para el gimnasio ${TENANT_DOS} — ` +
         "probablemente reuso la de El Templo (el lookup de existencia no filtra por gimnasio).",
     ).toBeDefined();
   });

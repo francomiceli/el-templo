@@ -184,6 +184,7 @@ async function createScheduleSlots(
     const startTime = `${String(startHour).padStart(2, "0")}:00`;
     const endTime = `${String(startHour + 1).padStart(2, "0")}:00`;
     const result = await app.db.insert(schema.schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId: branch,
       activityId: act.id,
       dayOfWeek,
@@ -227,6 +228,7 @@ beforeAll(async () => {
   const [flexRes] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Alta Flex Plan",
       planTier: "flex",
       bookingMode: "flexible",
@@ -245,6 +247,7 @@ beforeAll(async () => {
   const [fixedRes] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Alta Fixed Plan",
       planTier: "flex",
       bookingMode: "fixed",
@@ -266,6 +269,7 @@ beforeAll(async () => {
   const [onlineRes] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Alta Online Plan",
       planTier: "flex",
       bookingMode: "flexible",
@@ -307,10 +311,17 @@ beforeEach(async () => {
     await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
       TENANT_TEMPLO,
     ]);
-    await conn.query("DELETE FROM `bookings`");
-    await conn.query("DELETE FROM `subscription_schedules`");
+    await conn.query("DELETE FROM `bookings` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `subscription_schedules` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
     await conn.query("DELETE FROM `program_enrollments`");
-    await conn.query("DELETE FROM `subscriptions`");
+    await conn.query("DELETE FROM `subscriptions` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
     await conn.query("SET FOREIGN_KEY_CHECKS=1");
   } finally {
     conn.release();
@@ -361,7 +372,12 @@ describe("alta crear-nuevo", () => {
     const [sub] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, body.subscription.id))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, body.subscription.id),
+        ),
+      )
       .limit(1);
     expect(sub.status).toBe("active");
 
@@ -414,7 +430,12 @@ describe("alta dedup-contra-existente", () => {
     const [sub] = await app.db
       .select({ userId: schema.subscriptions.userId })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, body.subscription.id))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, body.subscription.id),
+        ),
+      )
       .limit(1);
     expect(sub.userId).toBe(existingId);
 
@@ -482,7 +503,13 @@ describe("alta fixed-con-scheduleIds", () => {
       .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
       .from(schema.subscriptionSchedules)
       .where(
-        eq(schema.subscriptionSchedules.subscriptionId, body.subscription.id),
+        and(
+          eq(schema.subscriptionSchedules.tenantId, TENANT_TEMPLO),
+          eq(
+            schema.subscriptionSchedules.subscriptionId,
+            body.subscription.id,
+          ),
+        ),
       );
     expect(schedRows.map((r) => r.scheduleId).sort()).toEqual(
       [...slots].sort(),
@@ -492,7 +519,12 @@ describe("alta fixed-con-scheduleIds", () => {
     const [bk] = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, body.createdMemberId));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, body.createdMemberId),
+        ),
+      );
     expect(Number(bk.count)).toBeGreaterThan(0);
   });
 
@@ -567,7 +599,12 @@ describe("alta void→cascade", () => {
     const [sub] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subId))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, subId),
+        ),
+      )
       .limit(1);
     expect(sub.status).toBe("cancelled");
 
@@ -644,7 +681,12 @@ describe("alta void→cascade", () => {
     const [onlineSub] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, onlineSubId))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, onlineSubId),
+        ),
+      )
       .limit(1);
     expect(onlineSub.status).toBe("active");
 

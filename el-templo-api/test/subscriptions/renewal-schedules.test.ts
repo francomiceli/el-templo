@@ -15,6 +15,7 @@ import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { bookings } from "../../src/db/schema/bookings";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import {
   SUBSCRIPTIONS_URL,
   createPlan,
@@ -64,6 +65,7 @@ describe("Subscriptions API — Renewal with scheduleIds", () => {
     const [slotRow] = await app.db
       .insert(schedules)
       .values({
+        tenantId: TENANT_TEMPLO,
         branchId: 1,
         activityId: act.id,
         dayOfWeek,
@@ -92,7 +94,12 @@ describe("Subscriptions API — Renewal with scheduleIds", () => {
     const rows = await app.db
       .select({ scheduleId: subscriptionSchedules.scheduleId })
       .from(subscriptionSchedules)
-      .where(eq(subscriptionSchedules.subscriptionId, subscriptionId));
+      .where(
+        and(
+          eq(subscriptionSchedules.tenantId, TENANT_TEMPLO),
+          eq(subscriptionSchedules.subscriptionId, subscriptionId),
+        ),
+      );
     return rows.map((r) => r.scheduleId).sort((a, b) => a - b);
   }
 
@@ -140,6 +147,7 @@ describe("Subscriptions API — Renewal with scheduleIds", () => {
       .from(bookings)
       .where(
         and(
+          eq(bookings.tenantId, TENANT_TEMPLO),
           eq(bookings.memberId, member.id),
           inArray(bookings.scheduleId, [slotA, slotB]),
           gte(bookings.bookingDate, newStart),

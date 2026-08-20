@@ -508,6 +508,39 @@ describe("preview de cambio de plan — GET /api/admin/subscriptions/members/:us
   });
 });
 
+describe("preview de prorrateo de alta — GET /api/admin/subscriptions/members/:userId/subscription/assign-proration-preview", () => {
+  const RUTA =
+    "GET /api/admin/subscriptions/members/:userId/subscription/assign-proration-preview";
+
+  it("aislamiento: con un plan de El Templo da 404 (no prorratea sobre el plan ajeno)", async () => {
+    // getAssignProrationPreview aisla SOLO por planId (getPlanById con ctx);
+    // el userId del path no lo usa el service. Plan de El Templo => 404.
+    const res = await getAdminComoGimnasioDos(
+      `/members/${gym2.socios[0].id}/subscription/assign-proration-preview?planId=${fx.templo.planId}&startDate=2026-01-15&priceType=regular`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaLectura(RUTA, fx.templo.planId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+  });
+
+  it("control: con un plan propio del gimnasio 2 SI calcula el prorrateo real", async () => {
+    const res = await getAdminComoGimnasioDos(
+      `/members/${gym2.socios[0].id}/subscription/assign-proration-preview?planId=${gym2.planId}&startDate=2026-01-15&priceType=regular`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, gym2.planId) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const body = JSON.parse(res.body) as {
+      daysInMonth: number;
+      currency: string;
+    };
+    expect(body.daysInMonth).toBeGreaterThan(0);
+    expect(body.currency).toBeTruthy();
+  });
+});
+
 describe("preview de pricing — GET /api/admin/subscriptions/members/:userId/subscription/pricing-preview", () => {
   const RUTA =
     "GET /api/admin/subscriptions/members/:userId/subscription/pricing-preview";

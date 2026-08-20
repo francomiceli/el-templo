@@ -208,6 +208,7 @@ async function seedRolesAndPlans(
   const [planAr] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Plan AR Mensual",
       planTier: "flex",
       bookingMode: "flexible",
@@ -224,6 +225,7 @@ async function seedRolesAndPlans(
   const [planEs] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Plan ES Mensual",
       planTier: "flex",
       bookingMode: "flexible",
@@ -283,6 +285,7 @@ async function seedSubscriptionWithBalance(
   const [sub] = await opts.app.db
     .insert(schema.subscriptions)
     .values({
+      tenantId: TENANT_TEMPLO,
       userId: memberId,
       planId: opts.planId,
       branchId: opts.branchId,
@@ -1098,6 +1101,7 @@ describe("Reports API — GET /outstanding-balances (Phase 109-02)", () => {
     const [zeroSub] = await app.db
       .insert(schema.subscriptions)
       .values({
+        tenantId: TENANT_TEMPLO,
         userId: memberZeroId,
         planId: ctx.planArId,
         branchId: ctx.arBranchId,

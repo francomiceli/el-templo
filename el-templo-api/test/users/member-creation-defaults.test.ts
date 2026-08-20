@@ -146,6 +146,7 @@ describe("Phase 103-03 — Member creation status defaults (R7)", () => {
     const promoCode = `PROMO-${uniqueSuffix()}`.toUpperCase();
     const now = new Date();
     await app.db.insert(schema.promoPlans).values({
+      tenantId: TENANT_TEMPLO,
       name: "103-03 Test Promo",
       promoCode,
       planDurationDays: 30,
@@ -185,7 +186,12 @@ describe("Phase 103-03 — Member creation status defaults (R7)", () => {
     const subs = await app.db
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, body.user.id));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, body.user.id),
+        ),
+      );
     expect(subs.length).toBeGreaterThan(0);
   });
 

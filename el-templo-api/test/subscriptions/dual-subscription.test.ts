@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { subscriptions } from "../../src/db/schema/subscriptions";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { programs } from "../../src/db/schema/micro-programs";
 import { programEnrollments } from "../../src/db/schema/program-enrollments";
 import {
@@ -72,7 +73,12 @@ describe("Subscriptions API — Dual subscription + auto-enrollment", () => {
     const activeSubs = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, member.id as number));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.userId, member.id as number),
+        ),
+      );
     const activeCount = activeSubs.filter((s) => s.status === "active").length;
     expect(activeCount).toBe(2);
   });
@@ -272,7 +278,12 @@ describe("Subscriptions API — Dual subscription + auto-enrollment", () => {
       const subs = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id as number));
+        .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.userId, member.id as number),
+        ),
+      );
       expect(subs.filter((s) => s.status === "active")).toHaveLength(1);
       expect(subs.filter((s) => s.status === "scheduled")).toHaveLength(1);
     });

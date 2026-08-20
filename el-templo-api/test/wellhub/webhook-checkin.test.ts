@@ -40,6 +40,7 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const WEBHOOK_URL = "/api/webhooks/wellhub";
 const SECRET = "test-wellhub-secret";
@@ -327,7 +328,12 @@ describe("Wellhub webhook — check-in", () => {
     const subs = await app.db
       .select()
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, visitor.id));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, visitor.id),
+        ),
+      );
     expect(subs).toHaveLength(0);
 
     const aura = await app.db

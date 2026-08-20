@@ -25,6 +25,7 @@ import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { programs } from "../../src/db/schema/micro-programs";
 import { programEnrollments } from "../../src/db/schema/program-enrollments";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import {
   SUBSCRIPTIONS_URL,
   createPlan,
@@ -357,6 +358,7 @@ describe("Multi-program access via list (Phase 156-03 PLAN-03 / D-07)", () => {
       programIds: [p1, p2, p3],
     });
     const targetSubInsert = await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: member.id as number,
       planId: targetPlan.id,
       branchId: 1,
@@ -420,7 +422,12 @@ describe("Multi-program access via list (Phase 156-03 PLAN-03 / D-07)", () => {
     const [targetSub] = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.id, targetSubId));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, targetSubId),
+        ),
+      );
     expect(targetSub.status).toBe("expired");
   });
 

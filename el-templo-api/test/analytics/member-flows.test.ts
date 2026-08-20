@@ -80,6 +80,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
   beforeEach(async () => {
     await cleanAllTestData(app);
     const [p] = await app.db.insert(subscriptionPlans).values({
+      tenantId: CTX.tenantId,
       name: "Flows AR Mensual",
       country: "AR",
       currency: "ARS",
@@ -114,6 +115,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     legacy?: boolean;
   }): Promise<void> {
     const [r] = await app.db.insert(subscriptions).values({
+      tenantId: CTX.tenantId,
       userId: opts.userId,
       planId,
       branchId: branchA,
@@ -130,7 +132,12 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       await app.db
         .update(subscriptions)
         .set({ createdAt: sql`'2026-03-01 12:00:00'` })
-        .where(eq(subscriptions.id, (r as { insertId: number }).insertId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, CTX.tenantId),
+            eq(subscriptions.id, (r as { insertId: number }).insertId),
+          ),
+        );
     }
   }
 

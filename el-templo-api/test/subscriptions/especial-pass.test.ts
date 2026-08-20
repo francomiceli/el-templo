@@ -38,6 +38,7 @@ import {
   assignPlan,
   SUBSCRIPTIONS_URL,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -79,6 +80,7 @@ async function seedEspecialPlan(
   priceRegular = requiresPresencial ? 10000 : 20000,
 ): Promise<number> {
   const res = await app.db.insert(schema.subscriptionPlans).values({
+    tenantId: TENANT_TEMPLO,
     name,
     planTier: "other",
     bookingMode: "flexible",
@@ -111,7 +113,7 @@ async function renew(
 async function countActiveSubs(userId: number): Promise<number> {
   const rows = await app.db.execute(
     sql`SELECT COUNT(*) AS c FROM subscriptions
-        WHERE user_id = ${userId} AND subscription_status = 'active'`,
+        WHERE user_id = ${userId} AND subscription_status = 'active' AND tenant_id = ${TENANT_TEMPLO}`,
   );
   return Number((rows[0] as Array<{ c: number }>)[0].c);
 }
@@ -143,8 +145,8 @@ async function giveCoverage(
   endDate: string,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-        VALUES (${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
+    sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+        VALUES (${TENANT_TEMPLO}, ${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
   );
 }
 
@@ -160,7 +162,7 @@ async function readReferralCredit(
   userId: number,
 ): Promise<{ percent: number; amount: number } | undefined> {
   const rows = await app.db.execute(
-    sql`SELECT percent, amount FROM referral_credits WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`,
+    sql`SELECT percent, amount FROM referral_credits WHERE user_id = ${userId} AND tenant_id = ${TENANT_TEMPLO} ORDER BY id DESC LIMIT 1`,
   );
   return (rows[0] as Array<{ percent: number; amount: number }>)[0];
 }

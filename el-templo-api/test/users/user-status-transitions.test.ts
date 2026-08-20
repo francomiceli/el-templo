@@ -93,6 +93,7 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [{ id }] = await app.db
       .insert(schema.users)
       .values({
+        tenantId: TENANT_TEMPLO,
         email: `status-tx-${unique}@test.com`,
         passwordHash,
         firstName: "Status",
@@ -183,6 +184,7 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [planA] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: TENANT_TEMPLO,
         name: "Test Plan Presencial",
         planTier: "flex",
         bookingMode: "flexible",
@@ -200,6 +202,7 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [planB] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: TENANT_TEMPLO,
         name: "Test Plan Online",
         planTier: "flex",
         bookingMode: "flexible",
@@ -280,7 +283,12 @@ describe("Phase 103 — User status auto-transitions", () => {
       const subs = await app.db
         .select({ id: schema.subscriptions.id })
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, userId));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, userId),
+          ),
+        );
       expect(subs).toHaveLength(2);
 
       // Cancel one through the service (it cancels the latest active sub).
@@ -328,6 +336,7 @@ describe("Phase 103 — User status auto-transitions", () => {
       const [sched] = await app.db
         .insert(schema.schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: presentialBranchId,
           activityId: activity.id,
           dayOfWeek: 1,
@@ -337,6 +346,7 @@ describe("Phase 103 — User status auto-transitions", () => {
         })
         .$returningId();
       await app.db.insert(schema.bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: userId,
         scheduleId: sched.id,
         bookingDate: todayStr(),
@@ -409,7 +419,12 @@ describe("Phase 103 — User status auto-transitions", () => {
       const subs = await app.db
         .select({ id: schema.subscriptions.id })
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, userId));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, userId),
+          ),
+        );
       expect(subs).toHaveLength(0);
 
       // user.status must remain unchanged

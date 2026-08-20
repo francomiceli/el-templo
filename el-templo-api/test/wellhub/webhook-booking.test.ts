@@ -200,6 +200,7 @@ describe("Wellhub — reservas y sincronización", () => {
   }> {
     const wellhubClassId = nextWellhubId++;
     const insertedClass = await app.db.insert(schema.wellhubClasses).values({
+      tenantId: TENANT_TEMPLO,
       branchId,
       activityId,
       wellhubClassId,
@@ -209,6 +210,7 @@ describe("Wellhub — reservas y sincronización", () => {
 
     const wellhubSlotId = nextWellhubId++;
     const insertedSlot = await app.db.insert(schema.wellhubSlots).values({
+      tenantId: TENANT_TEMPLO,
       wellhubClassRowId: classRowId,
       scheduleId,
       sessionDate: tomorrow,
@@ -303,6 +305,7 @@ describe("Wellhub — reservas y sincronización", () => {
     const utcDow = new Date(`${tomorrow}T12:00:00Z`).getUTCDay();
     const isoDow = utcDow === 0 ? 7 : utcDow;
     const insertedSchedule = await app.db.insert(schema.schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId,
       activityId,
       dayOfWeek: isoDow,
@@ -358,7 +361,12 @@ describe("Wellhub — reservas y sincronización", () => {
     const bookings = await app.db
       .select()
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, visitor.id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, visitor.id),
+        ),
+      );
     expect(bookings).toHaveLength(1);
     expect(bookings[0].status).toBe("reservado");
     expect(bookings[0].source).toBe("wellhub");
@@ -383,6 +391,7 @@ describe("Wellhub — reservas y sincronización", () => {
     for (let i = 0; i < 2; i++) {
       const fillerId = await insertBareUser();
       await app.db.insert(schema.bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: fillerId,
         scheduleId,
         bookingDate: tomorrow,
@@ -489,6 +498,7 @@ describe("Wellhub — reservas y sincronización", () => {
     // Otro usuario en lista de espera.
     const waiterId = await insertBareUser();
     await app.db.insert(schema.bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: waiterId,
       scheduleId,
       bookingDate: tomorrow,
@@ -520,14 +530,24 @@ describe("Wellhub — reservas y sincronización", () => {
     const [cancelled] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, wb.bookingId as number));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.id, wb.bookingId as number),
+        ),
+      );
     expect(cancelled.status).toBe("cancelado");
 
     // La lista de espera se promovió.
     const [promoted] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, waiterId));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, waiterId),
+        ),
+      );
     expect(promoted.status).toBe("reservado");
 
     // Y la ocupación (1: el promovido) se empujó al slot.
@@ -590,6 +610,7 @@ describe("Wellhub — reservas y sincronización", () => {
     });
     const utcDow = new Date(`${todayAr}T12:00:00Z`).getUTCDay();
     const insertedSchedule = await app.db.insert(schema.schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId,
       activityId,
       dayOfWeek: utcDow === 0 ? 7 : utcDow,
@@ -616,6 +637,7 @@ describe("Wellhub — reservas y sincronización", () => {
       .then((r) => Number(r[0].insertId));
 
     const insertedBooking = await app.db.insert(schema.bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: visitorId,
       scheduleId: todayScheduleId,
       bookingDate: todayAr,
@@ -640,7 +662,12 @@ describe("Wellhub — reservas y sincronización", () => {
     const [booking] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, bookingId));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.id, bookingId),
+        ),
+      );
     expect(booking.status).toBe("confirmado");
 
     const [att] = await app.db
@@ -765,6 +792,7 @@ describe("Wellhub — reservas y sincronización", () => {
 
     // 3. Excepción de fecha → despublica.
     await app.db.insert(schema.scheduleExceptions).values({
+      tenantId: TENANT_TEMPLO,
       scheduleId,
       exceptionDate: tomorrow,
       reason: "test",
@@ -871,6 +899,7 @@ describe("Wellhub — reservas y sincronización", () => {
     const visitorId = await insertBareUser("wellhub");
 
     const insertedBooking = await app.db.insert(schema.bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: visitorId,
       scheduleId,
       bookingDate: tomorrow,
@@ -907,7 +936,12 @@ describe("Wellhub — reservas y sincronización", () => {
     const [booking] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, bookingId));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.id, bookingId),
+        ),
+      );
     expect(booking.status).toBe("cancelado");
   });
 });

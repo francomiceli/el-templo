@@ -282,19 +282,26 @@ describe("Members Management Routes", () => {
       await app.db
         .update(subscriptions)
         .set({ endDate: activeEnd })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       // Y ya renovó: sub 'scheduled' que arranca cuando termina la activa.
-      await app.db.insert(subscriptions).values({
-        userId: member.id,
-        planId: testPlanId,
-        branchId: 1,
-        status: "scheduled",
-        startDate: activeEnd,
-        endDate: scheduledEnd,
-        pricePaid: 10000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: member.id,
+          planId: testPlanId,
+          branchId: 1,
+          status: "scheduled",
+          startDate: activeEnd,
+          endDate: scheduledEnd,
+          pricePaid: 10000,
+          priceTypeApplied: "regular",
+        }),
+      );
 
       const res = await app.inject({
         method: "GET",
@@ -620,6 +627,7 @@ describe("Members Management Routes", () => {
       const [schedIns] = await app.db
         .insert(schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: 1,
           activityId: actIns.id,
           dayOfWeek: 1,
@@ -632,6 +640,7 @@ describe("Members Management Routes", () => {
         .toISOString()
         .split("T")[0];
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: schedIns.id,
         bookingDate: futureDate,
@@ -666,6 +675,7 @@ describe("Members Management Routes", () => {
       const [schedIns] = await app.db
         .insert(schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: 1,
           activityId: actIns.id,
           dayOfWeek: 1,
@@ -678,6 +688,7 @@ describe("Members Management Routes", () => {
         .toISOString()
         .split("T")[0];
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: schedIns.id,
         bookingDate: pastDate,
@@ -709,6 +720,7 @@ describe("Members Management Routes", () => {
       const [schedIns] = await app.db
         .insert(schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: 1,
           activityId: actIns.id,
           dayOfWeek: 1,
@@ -721,6 +733,7 @@ describe("Members Management Routes", () => {
         .toISOString()
         .split("T")[0];
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: schedIns.id,
         bookingDate: pastDate,
@@ -1028,6 +1041,7 @@ describe("Members Management Routes", () => {
       const [schedIns] = await app.db
         .insert(schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: 1,
           activityId: actIns.id,
           dayOfWeek: 1,
@@ -1040,6 +1054,7 @@ describe("Members Management Routes", () => {
         .toISOString()
         .split("T")[0];
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: schedIns.id,
         bookingDate: tomorrow,
@@ -1058,7 +1073,12 @@ describe("Members Management Routes", () => {
       const subs = await app.db
         .select({ status: subscriptions.status })
         .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       expect(subs.length).toBeGreaterThan(0);
       for (const s of subs) expect(s.status).toBe("cancelled");
 
@@ -1066,7 +1086,12 @@ describe("Members Management Routes", () => {
       const [book] = await app.db
         .select({ status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
       expect(book.status).toBe("cancelado");
     });
 
@@ -1084,7 +1109,12 @@ describe("Members Management Routes", () => {
       const [sub] = await app.db
         .select({ id: subscriptions.id })
         .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       expect(sub).toBeDefined();
 
       // Find admin user id for recordedBy
