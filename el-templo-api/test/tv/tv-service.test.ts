@@ -153,7 +153,6 @@ async function writeState(opts: {
   screen?: string;
   timerStatus?: string;
   timerStartedAt?: Date | null;
-  showAlternative?: boolean;
 }): Promise<void> {
   await app.db.insert(schema.tvClassState).values({
     branchId: opts.branchId,
@@ -164,7 +163,6 @@ async function writeState(opts: {
     screen: opts.screen ?? "class",
     timerStatus: opts.timerStatus ?? "idle",
     timerStartedAt: opts.timerStartedAt ?? null,
-    showAlternative: opts.showAlternative ?? false,
   });
 }
 
@@ -259,7 +257,6 @@ describe("TvService.clampState — el nivel nunca rompe el bloque (Pitfall 1)", 
     pausedAt: null,
     pausedAccumMs: 0,
     soundEnabled: false,
-    showAlternative: false,
   };
 
   it("un rol que ya no esta en el roster cae al primer bloque", async () => {
@@ -505,8 +502,9 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     }
   });
 
-  it("BLOCKER: toggle showAlternative swapea columnas y título del alt sin tocar el timer, visualBlockIndex estable (combos)", async () => {
-    // Día combos de un solo nivel, con el 5º bloque alt generado (fase 178).
+  it("el alt es un bloque navegable propio: título/columnas propias, y comparte visualBlockIndex con el II (combos)", async () => {
+    // Día combos de un solo nivel, con el 5º bloque alt generado. El alt YA
+    // NO es un toggle: es un rol mas del roster, con su propia entrada.
     await seedSession({
       level: "alfa",
       roles: [
@@ -525,42 +523,44 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       level: "alfa",
       timerStatus: "running",
       timerStartedAt: new Date("2026-02-24T14:58:00.000Z"),
-      showAlternative: false,
     });
 
-    const off = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
-      .class!;
-    expect(off.blockRole).toBe("COMBOS_II");
-    expect(off.title).toContain("COMBOS II");
-    expect(off.title).not.toContain("ALT");
-    expect(off.title).not.toBe("");
+    const enII = (
+      await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC)
+    ).class!;
+    expect(enII.blockRole).toBe("COMBOS_II");
+    expect(enII.title).toContain("COMBOS II");
+    expect(enII.title).not.toContain("ALT");
+    // El alt ya esta en el roster real (boton navegable propio).
+    expect(enII.blocks.map((b) => b.role)).toContain("COMBOS_II_ALT");
 
-    // El profe prende "Ver alternativo": el bloque persistido NO se toca, solo
-    // el toggle (equivalente a lo que hace TvService.writeState).
+    // El profe navega al alt: TvService.writeState escribe blockRole=ALT
+    // directo (probado en integracion, tv-control.test.ts). Acá se simula el
+    // estado ya persistido para verificar el armado del payload solo.
     await app.db
       .update(schema.tvClassState)
-      .set({ showAlternative: true })
+      .set({ blockRole: "COMBOS_II_ALT" })
       .where(eq(schema.tvClassState.branchId, branchArId));
 
-    const on = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
-      .class!;
-    expect(on.blockRole).toBe("COMBOS_II_ALT");
-    expect(on.title).toContain("COMBOS II ALT");
-    expect(on.title).not.toBe("");
-    // El alt no está en el roster real (sibling visual, no navegable): el
-    // roster crudo sigue siendo el canónico, sin la entrada _ALT.
-    expect(on.blocks.map((b) => b.role)).not.toContain("COMBOS_II_ALT");
+    const enAlt = (
+      await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC)
+    ).class!;
+    expect(enAlt.blockRole).toBe("COMBOS_II_ALT");
+    expect(enAlt.title).toContain("COMBOS II ALT");
+    expect(enAlt.blocks.map((b) => b.role)).toContain("COMBOS_II_ALT");
 
-    // El TIMER no cambia con el toggle: spec y sello sobre el bloque
-    // persistido (COMBOS_II), estable en las dos lecturas.
-    expect(on.timer.spec).toEqual(off.timer.spec);
-    expect(on.timer.startedAt).toBe(off.timer.startedAt);
-    expect(on.timer.status).toBe(off.timer.status);
+    // El sello del timer viaja tal cual esta persistido (acá no cambio: solo
+    // se toco blockRole a mano, sin pasar por applyBlockRole).
+    expect(enAlt.timer.startedAt).toBe(enII.timer.startedAt);
+    expect(enAlt.timer.status).toBe(enII.timer.status);
+    expect(enAlt.timer.spec).toEqual(enII.timer.spec);
 
-    // El bloque visual sigue siendo el mismo grupo (el II): el toggle no mueve
-    // los puntitos "BLOQUE n / M".
-    expect(on.visualBlockIndex).toBe(off.visualBlockIndex);
-    expect(on.visualBlockCount).toBe(off.visualBlockCount);
+    // El bloque visual sigue siendo el mismo grupo (el II): comparten los
+    // puntitos "BLOQUE n / M".
+    expect(enAlt.visualBlockIndex).toBe(enII.visualBlockIndex);
+    expect(enAlt.visualBlockCount).toBe(enII.visualBlockCount);
+    // blockIndex SI distingue las dos entradas de roster.
+    expect(enAlt.blockIndex).not.toBe(enII.blockIndex);
   });
 
   it("desde DEUTEROS_1 el indice visual es el mismo que desde DEUTEROS_2 (mismo grupo)", async () => {

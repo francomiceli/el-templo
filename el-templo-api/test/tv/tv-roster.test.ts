@@ -330,7 +330,9 @@ describe("TV roster — dias combos/tecnica (fase 160, SEM-15)", () => {
     expect(titles[3].startsWith("KINESIS ")).toBe(true);
   });
 
-  it("arma el roster de un dia tecnica con los 4 bloques y labels acentuadas", () => {
+  it("arma el roster de un dia tecnica SIN el bloque alt generado: quedan los 4 bloques de siempre", () => {
+    // El alt es OPCIONAL en el roster real (buildRoster omite roles ausentes):
+    // una sesion vieja/sin alt generado no rompe nada, sigue en 4.
     const day = dayWithMode("tecnica", [
       {
         memberLevel: "alfa",
@@ -344,9 +346,35 @@ describe("TV roster — dias combos/tecnica (fase 160, SEM-15)", () => {
     ]);
 
     const roster = buildRoster(day);
-    expect(roster.map((b) => b.role)).toEqual([...TECNICA_ROLES]);
+    expect(roster.map((b) => b.role)).toEqual([
+      "INITIUM",
+      "TECNICA_I",
+      "TECNICA_II",
+      "STRETCHING",
+    ]);
     expect(roster[1].title.startsWith("TÉCNICA I ")).toBe(true);
     expect(roster[2].title.startsWith("TÉCNICA II ")).toBe(true);
+  });
+
+  it("con el bloque alt generado, TECNICA_II_ALT aparece como paso propio del roster (rehecho: navegable, ya no toggle)", () => {
+    const day = dayWithMode("tecnica", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("INITIUM"),
+          block("TECNICA_I"),
+          block("TECNICA_II"),
+          block("TECNICA_II_ALT"),
+          block("STRETCHING"),
+        ],
+      },
+    ]);
+
+    const roster = buildRoster(day);
+    // TECNICA_ROLES completo, en orden canonico: el alt es el 4º paso.
+    expect(roster.map((b) => b.role)).toEqual([...TECNICA_ROLES]);
+    const alt = roster.find((b) => b.role === "TECNICA_II_ALT")!;
+    expect(alt.title.startsWith("TÉCNICA II ALT ")).toBe(true);
   });
 
   it("NO colapsa COMBOS_I/COMBOS_II ni TECNICA_I/TECNICA_II (a diferencia de DEUTEROS)", () => {
@@ -354,6 +382,11 @@ describe("TV roster — dias combos/tecnica (fase 160, SEM-15)", () => {
     expect(visualGroupOf("COMBOS_II")).toBe("COMBOS_II");
     expect(visualGroupOf("TECNICA_I")).toBe("TECNICA_I");
     expect(visualGroupOf("TECNICA_II")).toBe("TECNICA_II");
+  });
+
+  it("SI colapsa COMBOS_II_ALT/TECNICA_II_ALT a su II (mismo bloque visual, dos juegos de ejercicios)", () => {
+    expect(visualGroupOf("COMBOS_II_ALT")).toBe("COMBOS_II");
+    expect(visualGroupOf("TECNICA_II_ALT")).toBe("TECNICA_II");
   });
 
   it("regresion: un dia regular y un dia rom siguen usando su roster propio sin cambios", () => {
