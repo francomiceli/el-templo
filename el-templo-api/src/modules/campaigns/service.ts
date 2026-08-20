@@ -42,6 +42,17 @@ const TRIAL_DEEP_LINK_BASE = "https://app.eltemplo.org/r/trial";
 const TRACKING_API_BASE =
   process.env.PUBLIC_API_BASE_URL ?? "https://api.eltemplo.org";
 
+/** Pre-filled message so the WhatsApp CTA is one tap away from a real inquiry. */
+const WHATSAPP_MESSAGE = encodeURIComponent(
+  "¡Hola! Quiero coordinar mi clase de prueba gratis",
+);
+
+/** WhatsApp CTA per campaign country scope; global (NULL) campaigns use AR. */
+const WHATSAPP_URLS: Record<"AR" | "ES", string> = {
+  AR: `https://wa.me/5492235820521?text=${WHATSAPP_MESSAGE}`,
+  ES: `https://wa.me/34680774331?text=${WHATSAPP_MESSAGE}`,
+};
+
 export class CampaignService {
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -340,7 +351,7 @@ export class CampaignService {
           campaignId,
           sendId: send.id,
         });
-        const vars = this.buildTemplateVars(campaign, token, sedes);
+        const vars = this.buildTemplateVars(campaign, token, sedes, scopeCountry);
         const html = await trialCampaignHtml(vars);
         messages.push({ to: send.email, subject: campaign.subject, html });
       }
@@ -433,7 +444,7 @@ export class CampaignService {
     const sedes = await this.loadSedes(scopeCountry);
 
     const token = signCampaignToken({ userId: 0, campaignId, sendId: 0 });
-    const vars = this.buildTemplateVars(campaign, token, sedes);
+    const vars = this.buildTemplateVars(campaign, token, sedes, scopeCountry);
     const html = await trialCampaignHtml(vars);
 
     try {
@@ -672,6 +683,7 @@ export class CampaignService {
     },
     token: string,
     sedes: BranchAddress[],
+    scopeCountry: "AR" | "ES" | null,
   ): TrialCampaignVars {
     const encoded = encodeURIComponent(token);
     return {
@@ -685,7 +697,7 @@ export class CampaignService {
       // Click is tracked server-side; the redirect target is derived from an
       // allowlist (app.eltemplo.org), never echoed from query input (D-25).
       ctaAppUrl: `${TRACKING_API_BASE}/api/campaigns/track/click?t=${encoded}`,
-      whatsappUrl: "https://wa.me/5492234567890",
+      whatsappUrl: WHATSAPP_URLS[scopeCountry ?? "AR"],
       sedes,
       unsubscribeUrl: `${TRACKING_API_BASE}/api/campaigns/unsubscribe?t=${encoded}`,
     };
