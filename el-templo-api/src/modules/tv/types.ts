@@ -255,13 +255,6 @@ export interface TvControlState {
   pausedAt: number | null;
   pausedAccumMs: number;
   soundEnabled: boolean;
-  /**
-   * Toggle "Ver alternativo" del 2º bloque en técnica/combos (fase 178):
-   * cuando está prendido y el bloque activo es el II, la pantalla swapea al
-   * bloque alt (`COMBOS_II_ALT`/`TECNICA_II_ALT`) sin tocar el timer.
-   * Arranca en false. Reemplaza a la vieja rotación automática de deuteros.
-   */
-  showAlternative: boolean;
 }
 
 /**
@@ -300,5 +293,4 @@ export interface TvStateWrite {
   exerciseIndex?: number;
   timer?: "start" | "pause" | "resume" | "reset";
   soundEnabled?: boolean;
-  showAlternative?: boolean;
 }

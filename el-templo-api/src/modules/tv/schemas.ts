@@ -246,8 +246,6 @@ export const tvControlStateSchema = {
       // "idle" NO se acepta: volver a reposo es `end-class`, no una pantalla.
       screen: { type: "string", enum: ["class", "closing"] },
       soundEnabled: { type: "boolean" },
-      // Toggle "Ver alternativo" del 2º bloque en técnica/combos (fase 178).
-      showAlternative: { type: "boolean" },
     },
   },
 };
