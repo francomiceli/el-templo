@@ -470,6 +470,50 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
         `cableado — el flag correcto no protege la ruta correcta.`,
     ).toEqual([]);
   });
+
+  /**
+   * Fase 176 Plan 05 (MOD-01): el lado de CONTENCIÓN. No es opcional — sin
+   * este test, un guard mal encapsulado (Pitfall 3: un `addHook` colgado
+   * DENTRO de un `fp(...)`, que `fastify-plugin` desencapsula hasta la raíz)
+   * pasaría el test de arriba en verde igual, porque ese test solo mira las
+   * 141 rutas `templo-module`. Un guard derramado a la raíz devuelve 404 en
+   * TODA la API en cuanto alguien apague un módulo — el modo de falla más
+   * caro de la fase 176. Demostrado con una prueba negativa manual
+   * (documentada en el SUMMARY del plan 176-05, no en este archivo): envolver
+   * temporalmente `checkInRosterRoutes` con `moduleScope` en `app.ts` pone
+   * este test ROJO nombrando `GET /api/admin/check-ins/roster`.
+   */
+  it("ninguna ruta NO-templo lleva requireModule (el guard no se derrama)", () => {
+    const derramadas: string[] = [];
+
+    for (const [clave, entrada] of Object.entries(TENANT_MANIFEST)) {
+      if (entrada.categoria === "templo-module") continue;
+      const guard = guardsPorRuta.get(clave);
+      if (guard) {
+        derramadas.push(
+          `${clave} (guard=${guard}, categoria=${entrada.categoria})`,
+        );
+      }
+    }
+
+    expect(
+      derramadas,
+      `Rutas NO "templo-module" que sin embargo llevan un guard requireModule: ` +
+        `${derramadas.join(", ")}. ` +
+        `QUÉ HACER: revisá el moduleScope más cercano en src/app.ts o ` +
+        `src/modules-boot.ts. Sospechoso #1: un addHook colgado dentro del ` +
+        `cuerpo de un fp(...) — fastify-plugin desencapsula ese hook hasta la ` +
+        `raíz de la app, así que cualquier ruta registrada después queda ` +
+        `marcada. Sospechoso #2: envolver checkInRosterRoutes (tenant-scoped) ` +
+        `junto con checkInAdminRoutes (templo-training) porque comparten el ` +
+        `prefijo /api/admin/check-ins — son DOS registros distintos, solo el ` +
+        `segundo va con moduleScope. ` +
+        `POR QUÉ IMPORTA: un guard derramado devuelve 404 en TODA la API en ` +
+        `cuanto un tenant apaga cualquier módulo, y el test de cobertura de ` +
+        `arriba pasaría igual en verde — este es el lado del gate que caza el ` +
+        `modo de falla más caro de la fase 176.`,
+    ).toEqual([]);
+  });
 });
 
 /**

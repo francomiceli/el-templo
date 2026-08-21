@@ -612,9 +612,6 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/users": { categoria: "tenant-scoped" },
   "PATCH /api/admin/users/:userId/status": { categoria: "tenant-scoped" },
   "POST /api/admin/users": { categoria: "tenant-scoped" },
-  "POST /api/admin/users/:userId/program-addons": {
-    categoria: "tenant-scoped",
-  },
   "PUT /api/admin/users/:userId": { categoria: "tenant-scoped" },
 
   // ── /api/app ──────────────────────────────────────────────────────────────
@@ -1077,6 +1074,27 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "POST /api/admin/programs/:programId/deactivate": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  // Fase 176 Plan 05 (MOD-01): reclasificada de `tenant-scoped` a
+  // `templo-module`/`templo-training`. Vivía bajo la sección alfabética
+  // "/api/admin/users" desde el volcado original de la fase 171 — un desliz de
+  // clasificación manual (D-01: 370 entradas a mano, ninguna regla de prefijo),
+  // NO una recategorización de producto. Se descubrió con el gate de
+  // CONTENCIÓN de esta fase (`iso-01-manifiesto.test.ts`, test 7): el registro
+  // real es `programRoutes` (src/modules/programs/routes.ts), la MISMA fábrica
+  // de plugin que registra los otros 15 endpoints de este bloque —
+  // `moduleScope(app, "templo-training", programRoutes, ...)` los cubre a
+  // TODOS por igual (176-03), así que el guard ya corría acá desde esa fase; lo
+  // que estaba desactualizado era el manifiesto. El endpoint asigna un
+  // "program add-on" (`EnrollmentService.enrollAddon`, Fase 112 D-10) — es
+  // inscripción a un PROGRAMA de entrenamiento, el mismo concepto que
+  // `/api/members/me/current-program` de abajo, cuyo veredicto D-04 (caso 9,
+  // checkpoint 171-06) ya cita el doc 04 §2.1: "programs" es templo-training.
+  // Recategorización, no ruta nueva: ENTRADAS_BASELINE (370) no se mueve —
+  // ver el header del archivo, "recategorizar una ruta no lo pone rojo".
+  "POST /api/admin/users/:userId/program-addons": {
     categoria: "templo-module",
     modulo: "templo-training",
   },
