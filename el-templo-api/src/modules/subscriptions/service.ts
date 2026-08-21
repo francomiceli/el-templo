@@ -4363,7 +4363,8 @@ export class SubscriptionService {
       );
     }
 
-    // Load member for boarding pass eligibility
+    // Validate member exists (boarding pass eligibility now lives in
+    // pricingAdjustHandler, fase 176 Plan 09).
     const [member] = await this.db
       .select({
         id: schema.users.id,
@@ -4375,74 +4376,42 @@ export class SubscriptionService {
       throw new NotFoundError("Miembro no encontrado");
     }
 
-    // Pricing: override → boarding → AURA → plan price by type
-    let pricePaid: number;
-    // D-04/ALUM-03: gate the card surcharge server-side (see resolvePriceType).
-    let priceTypeApplied = await this.resolvePriceType(input.priceTypeApplied);
-    let auraDiscount: number | null = null;
-    let auraDiscountPercent: number | null = null;
+    // Pricing: override → boarding → AURA → plan price by type.
+    // Fase 176 Plan 09 (MOD-02): boarding pass y AURA son MÓDULO
+    // (`templo-gamification`) — resolvePlanPrice dispara el filter
+    // `pricing.adjust`, que las aplica leyendo `moduleInput` (poblado por
+    // routes.ts desde el body validado). El core ya no nombra ninguna de las
+    // dos acá. Simétrico a assignPlan (176-08): sin prorrateo en este método.
+    const resolved = await resolvePlanPrice({
+      hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
+      userId,
+      planId: input.planId,
+      planCategory: targetPlan.planCategory,
+      callSite: "change-after-current",
+      commit: true,
+      supports: { exclusiveBenefits: true, discounts: true },
+      priceTypeRequested: input.priceTypeApplied,
+      resolvePriceType: (t) => this.resolvePriceType(t),
+      basePriceFor: (t) => this.getBasePrice(targetPlan, t),
+      moduleInput: input.moduleInput ?? {},
+      override:
+        input.priceOverrideAmount !== undefined &&
+        input.priceOverrideAmount >= 0
+          ? {
+              amount: input.priceOverrideAmount,
+              reason: input.priceOverrideReason,
+            }
+          : undefined,
+    });
+
+    let pricePaid = resolved.price;
+    const priceTypeApplied = resolved.priceType;
+    const { auraDiscount, auraDiscountPercent, boardingPassUsed } =
+      readModuleColumns(resolved);
+    const priceOverrideAmount = resolved.priceOverrideAmount;
+    const priceOverrideReason = resolved.priceOverrideReason;
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
-    let boardingPassUsed = false;
-    let priceOverrideAmount: number | null = null;
-    let priceOverrideReason: string | null = null;
-
-    if (
-      input.priceOverrideAmount !== undefined &&
-      input.priceOverrideAmount >= 0
-    ) {
-      if (!input.priceOverrideReason) {
-        throw new BadRequestError(
-          "Se requiere una razon para el precio personalizado",
-        );
-      }
-      pricePaid = input.priceOverrideAmount;
-      priceOverrideAmount = input.priceOverrideAmount;
-      priceOverrideReason = input.priceOverrideReason;
-    } else if (input.boardingPass) {
-      // Boarding pass — regalo one-shot que aplica el precio Zero. Con la regla
-      // Zero OFF (white-label / 156 D-04) el tipo se rutea por resolvePriceType
-      // y normaliza a 'regular'; pricePaid se recalcula con getBasePrice para no
-      // persistir un tipo con un monto inconsistente. Simétrico a assignPlan
-      // (CR-01): antes hardcodeaba 'zero' + priceZero bypaseando el gate.
-      if (member.boardingPassUsed) {
-        throw new ConflictError("El boarding pass ya fue utilizado");
-      }
-      priceTypeApplied = await this.resolvePriceType("zero");
-      pricePaid = this.getBasePrice(targetPlan, priceTypeApplied);
-      boardingPassUsed = true;
-
-      await this.db
-        .update(schema.users)
-        .set({ boardingPassUsed: true })
-        .where(
-          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
-        );
-    } else {
-      const basePrice = this.getBasePrice(targetPlan, priceTypeApplied);
-      pricePaid = basePrice;
-
-      if (input.auraSpend && input.auraSpend > 0) {
-        const tier = AURA_DISCOUNT_TIERS.find(
-          (t) => t.spend === input.auraSpend,
-        );
-        if (!tier) {
-          throw new BadRequestError(
-            `Monto de AURA invalido. Opciones: ${AURA_DISCOUNT_TIERS.map((t) => t.spend).join(", ")}`,
-          );
-        }
-        await this.auraService.spend({
-          userId,
-          amount: tier.spend,
-          description: `Descuento de suscripcion: ${tier.percent}% off`,
-          referenceType: "subscription",
-        });
-        auraDiscount = tier.spend;
-        auraDiscountPercent = tier.percent;
-        const discountAmount = Math.floor(basePrice * (tier.percent / 100));
-        pricePaid = basePrice - discountAmount;
-      }
-    }
 
     // ── Referidos (fase 157, D-20/D-21) ──
     // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
