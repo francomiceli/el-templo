@@ -12,12 +12,16 @@
  * Todos los números `toBe(N)` son la cifra REAL que produce el código de HOY
  * — no una re-derivación de la fórmula. Combos cubiertos por método:
  *   - assignPlan: base, priceOverride, boardingPass, AURA (los 4 tiers),
- *     referral, combo boardingPass+auraSpend(ignorado)+referral.
+ *     referral, combo boardingPass+auraSpend(ignorado)+referral, y un
+ *     describe aparte para el camino ES/EUR (base + AURA/referral
+ *     compuestos — 176-02, hueco 1: `getBasePrice` es hoy independiente
+ *     del país).
  *   - changePlanNow: NO soporta auraSpend (confirmado leyendo el código —
  *     override > boardingPass > prorrateo plano, sin branch de AURA). Cubre
  *     base (prorrateo), boardingPass (prorrateo), referral (prorrateo).
- *   - changePlanAfterCurrent: base, boardingPass, AURA (1 tier
- *     representativo), referral, combo boardingPass+referral.
+ *   - changePlanAfterCurrent: base, boardingPass, AURA (los 4 tiers —
+ *     176-02, hueco 2: antes cubría 1 solo tier representativo), referral,
+ *     combo boardingPass+referral.
  *   - renewSubscription: base (precio heredado), AURA heredado (asignado con
  *     AURA, luego renovado), referral evaluado fresco en la renovación.
  *   - getChangePlanPreview: parity contra changePlanNow (base, referral).
@@ -543,16 +547,57 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.body.pricePaid).toBe(6000);
     });
 
-    it("AURA tier spend=1000 (10%) sobre el plan destino", async () => {
+    // 176-02 hueco 2: los 4 tiers de AURA_DISCOUNT_TIERS, no solo el
+    // representativo (spend=1000/10%) que cubría este describe antes. El
+    // punto exacto de riesgo es `Math.floor(basePrice * (tier.percent /
+    // 100))` (service.ts ~4463) — el off-by-one exacto que se rompería si
+    // el refactor mueve la fórmula al handler del módulo
+    // `templo-gamification` con un redondeo distinto.
+    it("AURA tier spend=500 (5%) sobre el plan destino", async () => {
       const planA = await createPlan(app, adminToken, {
-        name: "Golden CAC AURA A",
+        name: "Golden CAC AURA A 500",
         classesPerWeek: undefined,
         durationDays: 30,
         priceRegular: 8000,
         priceZero: 4000,
       });
       const planB = await createPlan(app, adminToken, {
-        name: "Golden CAC AURA B",
+        name: "Golden CAC AURA B 500",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 6000,
+      });
+      const member = await createMember(app, {
+        email: "gold-cac-aura-500@test.com",
+      });
+      await assignPlan(app, adminToken, member.id, {
+        planId: planA.id,
+        startDate: todayStr(),
+      });
+      await seedAuraBalance(app, member.id, 500);
+
+      const res = await changeAfterCurrent(member.id as number, {
+        planId: planB.id,
+        auraSpend: 500,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.auraDiscount).toBe(500);
+      expect(res.body.auraDiscountPercent).toBe(5);
+      expect(res.body.pricePaid).toBe(11400);
+    });
+
+    it("AURA tier spend=1000 (10%) sobre el plan destino", async () => {
+      const planA = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA A 1000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA B 1000",
         classesPerWeek: undefined,
         durationDays: 30,
         priceRegular: 12000,
@@ -574,6 +619,76 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.body.auraDiscount).toBe(1000);
       expect(res.body.auraDiscountPercent).toBe(10);
       expect(res.body.pricePaid).toBe(10800);
+    });
+
+    it("AURA tier spend=2000 (20%) sobre el plan destino", async () => {
+      const planA = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA A 2000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA B 2000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 6000,
+      });
+      const member = await createMember(app, {
+        email: "gold-cac-aura-2000@test.com",
+      });
+      await assignPlan(app, adminToken, member.id, {
+        planId: planA.id,
+        startDate: todayStr(),
+      });
+      await seedAuraBalance(app, member.id, 2000);
+
+      const res = await changeAfterCurrent(member.id as number, {
+        planId: planB.id,
+        auraSpend: 2000,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.auraDiscount).toBe(2000);
+      expect(res.body.auraDiscountPercent).toBe(20);
+      expect(res.body.pricePaid).toBe(9600);
+    });
+
+    it("AURA tier spend=5000 (30%) sobre el plan destino", async () => {
+      const planA = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA A 5000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA B 5000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 6000,
+      });
+      const member = await createMember(app, {
+        email: "gold-cac-aura-5000@test.com",
+      });
+      await assignPlan(app, adminToken, member.id, {
+        planId: planA.id,
+        startDate: todayStr(),
+      });
+      await seedAuraBalance(app, member.id, 5000);
+
+      const res = await changeAfterCurrent(member.id as number, {
+        planId: planB.id,
+        auraSpend: 5000,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.auraDiscount).toBe(5000);
+      expect(res.body.auraDiscountPercent).toBe(30);
+      expect(res.body.pricePaid).toBe(8400);
     });
 
     it("referral — descuento simétrico sobre precio de lista destino", async () => {
