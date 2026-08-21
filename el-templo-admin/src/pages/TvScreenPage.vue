@@ -736,6 +736,8 @@ onUnmounted(() => {
    `.cabInfo` para que funcionen ahí. */
 #tvScreenRoot .bloqueNum {
   display: inline-flex;
+  /* Puntitos DEBAJO del texto "BLOQUE n / M", no a su derecha. */
+  flex-direction: column;
   align-items: center;
   font-weight: 700;
   letter-spacing: 0.2em;
@@ -744,7 +746,8 @@ onUnmounted(() => {
 }
 #tvScreenRoot .bloqueNum .dots {
   display: inline-flex;
-  margin-left: 0.5rem;
+  margin-left: 0;
+  margin-top: 0.35rem;
 }
 #tvScreenRoot .bloqueNum .dot {
   width: 0.7rem;
@@ -783,9 +786,12 @@ onUnmounted(() => {
 #tvScreenRoot .stage[data-cols='4'] {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  /* Dos filas que reparten TODO el alto del stage (sin hueco al final del main);
+     el aire dentro de cada celda se reparte entre los ejercicios (ver `.caja`),
+     no se acumula al pie. */
   grid-auto-rows: 1fr;
-  gap: 0.9rem 1.3rem;
-  padding: 0.4rem 1.6rem 1rem;
+  gap: 0.5rem 1.3rem;
+  padding: 0.3rem 1.6rem 0.5rem;
 }
 #tvScreenRoot .col {
   display: flex;
@@ -919,6 +925,21 @@ onUnmounted(() => {
 #tvScreenRoot .lista-col:nth-child(2n) .columnaDorica__brillo::after {
   /* Arranca cuando la 1ra barra termina de cruzar (25% de 12s = 3s): consecutivas. */
   animation-delay: 3s;
+}
+/* En el 2×2 hay cuatro dóricas: con la regla `2n` de arriba brillarían de a dos
+   (1+3 y 2+4). Escalono los delays 0/3/6/9 s (cada barrido cruza en 3 s) para que
+   barran DE A UNA, secuenciales, en todo el ciclo de 12 s. */
+#tvScreenRoot .stage[data-cols='4'] .lista-col:nth-child(1) .columnaDorica__fuste::after {
+  animation-delay: 0s;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col:nth-child(2) .columnaDorica__fuste::after {
+  animation-delay: 3s;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col:nth-child(3) .columnaDorica__fuste::after {
+  animation-delay: 6s;
+}
+#tvScreenRoot .stage[data-cols='4'] .lista-col:nth-child(4) .columnaDorica__fuste::after {
+  animation-delay: 9s;
 }
 /* Barrido del brillo: solo la banda de luz (1ra capa) se desplaza; la imagen
    (2da capa) queda fija en center. */
@@ -1067,28 +1088,150 @@ onUnmounted(() => {
    del ancho y aprox. la mitad del alto (2 filas) — la tipografía baja en
    bloque para que las cuatro entren legibles sin desbordar la grilla. */
 #tvScreenRoot .stage[data-cols='4'] .lista-col .item {
-  margin: 0.2rem 0.15rem;
-  padding-left: 0.55rem;
+  margin: 0.1rem 0.15rem;
+  /* Como en las otras pantallas: aire del badge al borde de la banda + gap
+     badge↔nombre, para que las filas se vean homogéneas. */
+  padding-left: 0.8rem;
+  gap: 0.8rem;
+  /* No comprimir: así la medición de auto-fit (scrollHeight vs alto de la caja)
+     refleja el alto real del contenido. */
+  flex-shrink: 0;
 }
 #tvScreenRoot .stage[data-cols='4'] .lista-col .item.actual .ej-nombre::after {
   font-size: 3rem;
   margin-left: 0.6rem;
 }
 #tvScreenRoot .stage[data-cols='4'] .lista-col .item .ej-nombre {
-  font-size: 1.5rem;
-  line-height: 1.15;
+  /* Tamaño común a TODAS las listas del 2×2: lo fija render.ts (auto-fit) al
+     mayor valor que hace entrar hasta el nombre más largo, sin recortar. */
+  font-size: var(--ej-fs, 2.6rem);
+  line-height: 1.08;
+}
+/* La lista llena el alto de su celda y REPARTE los ejercicios (space-evenly)
+   en vez de apilarlos arriba con hueco abajo: así el aire queda entre los
+   ejercicios y las listas ocupan toda la celda. */
+#tvScreenRoot .stage[data-cols='4'] .lista-col .caja {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  /* Los ejercicios reparten toda la altura de la celda (llena). El auto-fit
+     (render.ts) mide el alto REAL sumando los ítems —independiente de esta
+     distribución— así que space-between ya no distorsiona la medición. */
+  justify-content: space-between;
 }
 #tvScreenRoot .stage[data-cols='4'] .lista-col .caja.compacta .item .ej-nombre {
   font-size: 1.2rem;
   line-height: 1.1;
 }
 #tvScreenRoot .stage[data-cols='4'] .lista-col .item .badge {
-  font-size: 1.05rem;
-  min-width: 2.6rem;
+  /* Misma proporción que el badge base (min-width/font ≈ 2.5) para que las tres
+     siglas ocupen EXACTAMENTE lo mismo y los nombres arranquen alineados —
+     igual que en las otras pantallas. Ancho generoso: ninguna sigla lo excede. */
+  font-size: 1.25rem;
+  min-width: 3.1rem;
 }
 #tvScreenRoot .stage[data-cols='4'] .lista-col .item .dosis {
-  font-size: 1.6rem;
+  font-size: 2.1rem;
   padding: 0.08em 0.45em 0.08em 1.3em;
+}
+/* El número de repes se descentraba: `inline-block` + `scale` amplifica el
+   hueco de baseline del inline-block. Como bloque con line-height 1 queda
+   centrado por el flex de la placa. */
+#tvScreenRoot .stage[data-cols='4'] .lista-col .item .dosis .dosis-num {
+  display: block;
+  line-height: 1;
+}
+
+/* ── 2×2 de deuteros (rediseño): cabecera compacta y PARTIDA por deutero
+   (DEUTEROS I izq / DEUTEROS II der), para que las celdas ganen alto y entren
+   los 3 ejercicios. El marcador `data-cols` viaja también al root (render.ts)
+   porque la cabecera —título · cronómetro · formato— vive fuera de `.stage`. ── */
+#tvScreenRoot[data-cols='4'] .cabecera {
+  grid-template-columns: 1fr 15rem 1fr;
+  gap: 1rem;
+  padding: 0.1rem 2rem 0.3rem;
+}
+/* Cada lado: etiqueta del deutero (grande, oro) arriba y el formato del bloque
+   (chico, navy) debajo. Izquierda pegada a la izq, derecha pegada a la der. */
+#tvScreenRoot .cabecera .cabTitulo.cabDeu,
+#tvScreenRoot .cabecera .cabFormato.cabDeu {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
+#tvScreenRoot .cabecera .cabFormato.cabDeu {
+  align-items: flex-end;
+}
+#tvScreenRoot .cabecera .cabDeu .cabDeuLabel {
+  font-size: 2.3rem;
+  color: var(--gold);
+  /* Mismo tallado dorado que `.cabTitulo` para AMBOS deuteros: sin esto el II
+     (que vive en `.cabFormato`) heredaba el contorno navy y se veía distinto. */
+  text-shadow:
+    0.018em 0 0.01em rgba(226, 190, 120, 0.58),
+    -0.018em 0 0.01em rgba(226, 190, 120, 0.58),
+    0 0.018em 0.01em rgba(226, 190, 120, 0.58),
+    0 -0.018em 0.01em rgba(226, 190, 120, 0.58),
+    0 0 0.5em rgba(232, 205, 150, 0.35),
+    0 0.07em 0.18em rgba(20, 32, 46, 0.4);
+}
+#tvScreenRoot .cabecera .cabDeu .cabDeuFormato {
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: var(--navy);
+  /* Contorno navy explícito: del lado de DEUTEROS I el formato heredaba el
+     tallado dorado de `.cabTitulo` — se lo forzamos navy en ambos lados. */
+  text-shadow:
+    0.014em 0 0.01em rgba(20, 32, 46, 0.4),
+    -0.014em 0 0.01em rgba(20, 32, 46, 0.4),
+    0 0.014em 0.01em rgba(20, 32, 46, 0.4),
+    0 -0.014em 0.01em rgba(20, 32, 46, 0.4),
+    0 0.07em 0.18em rgba(20, 32, 46, 0.42);
+}
+/* Cronómetro y su barra, más chicos en el 2×2 (dan aire a las listas). */
+#tvScreenRoot[data-cols='4'] .cronometro {
+  padding: 0.15rem 0.5rem;
+}
+#tvScreenRoot[data-cols='4'] .cronometro .digitos {
+  font-size: 7rem;
+}
+/* El clon del envión (arranque del timer) está fijo en 10rem: en el 2×2 lo
+   igualamos al número (7rem) para que el efecto no quede sobredimensionado. El
+   resto del envión usa `em`, así que escala solo. */
+#tvScreenRoot[data-cols='4'] .cronometro .digitos-ghost {
+  font-size: 7rem;
+}
+/* En el 2×2 se saca la columna/barra de debajo del cronómetro: ese alto se lo
+   queda el número, que va algo más grande. */
+#tvScreenRoot[data-cols='4'] .cronometro .barra {
+  display: none;
+}
+/* Dóricas separadoras más finas: con 4 celdas, la columna tumbada baja de
+   tamaño para no comerse el alto de las listas. */
+#tvScreenRoot .stage[data-cols='4'] .columnaDorica {
+  height: 0.8rem;
+  margin: 0.1rem 0.3rem 0.35rem;
+}
+/* Pie del 2×2: dos movilidades (una por deutero), alineadas izq/der con las
+   columnas. Cada una en su banda sand; la de arriba (`.movBar`) aporta la
+   itálica y el navy. */
+#tvScreenRoot .movBar.movBar--deuteros {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.3rem;
+  background: transparent;
+  padding: 0;
+  margin: 0.1rem 1.6rem 0.45rem;
+}
+#tvScreenRoot .movBar--deuteros .movBarCol {
+  font-size: 1.55rem;
+  /* Padding vertical apretado para agrandar el texto sin robar alto al stage. */
+  padding: 0.15rem 0.8rem;
+  border-radius: 0.5rem;
+  background: rgba(219, 202, 180, 0.35);
+}
+#tvScreenRoot .movBar--deuteros .movBarCol:empty {
+  visibility: hidden;
 }
 
 /* ── Cronómetro: al centro de la cabecera, sin recuadro. Sin etiqueta de fase: el estado

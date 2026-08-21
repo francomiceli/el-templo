@@ -55,6 +55,13 @@ export interface TvLevelColumn {
   exercises: TvExercise[];
 }
 
+/** Un deutero del 2×2: etiqueta ("DEUTEROS I"/"II") y su única movilidad
+ *  canónica. Se pinta en la cabecera (izq/der) y al pie. Ver el API. */
+export interface TvDeuterosGroup {
+  label: string;
+  mobilityLine: string | null;
+}
+
 /** Estado del timer publicado al TV. D-19: `soundEnabled` arranca en false. */
 export interface TvTimerState extends TimerClock {
   spec: TimerSpec;
@@ -77,6 +84,9 @@ export interface TvClassPayload {
   title: string;
   mobilityLine: string | null;
   columns: TvLevelColumn[];
+  /** Sólo en el 2×2 de deuteros: los dos deuteros con etiqueta y movilidad
+   *  única; `null` en el resto de los layouts. */
+  deuteros: TvDeuterosGroup[] | null;
   exerciseIndex: number;
   timer: TvTimerState;
 }

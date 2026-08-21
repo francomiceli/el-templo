@@ -201,6 +201,12 @@ export const listMembersSchema = {
         type: "string",
         enum: ["todos", "freemium", "prueba", "activo", "inactivo"],
       },
+      // Corte por tipo de membresía de la sub vigente (desglose del KPI de
+      // activos en Analíticas). Fastify rechaza valores fuera del enum con 400.
+      membershipKind: {
+        type: "string",
+        enum: ["paga", "bonificada", "staff"],
+      },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },

@@ -457,6 +457,46 @@ function buildItem(ex: TvExercise): HTMLElement {
  * niveles lado a lado). Cada columna trae su propio header (que puede llevar
  * simbolos de nivel, de ahi `paintGlyphText`) y su propia lista.
  */
+/**
+ * Auto-fit del 2×2: todas las listas comparten UN tamaño de nombre de ejercicio
+ * (`--ej-fs`), el mayor que hace entrar hasta el nombre más largo sin que
+ * ninguna caja recorte (scrollHeight > alto visible). Corre sólo al reconstruir
+ * la lista (no cada frame). Fuera del 2×2 limpia la variable (el CSS usa su
+ * default). Medir fuerza reflow; el barrido de ~13 pasos es barato y puntual.
+ */
+function fitDeuterosFont(n: Nodes): void {
+  const stage = n.stage;
+  if (stage.getAttribute('data-cols') !== '4') {
+    stage.style.removeProperty('--ej-fs');
+    return;
+  }
+  const cajas = Array.from(stage.querySelectorAll('.caja')) as HTMLElement[];
+  // Arranca alto y baja hasta el mayor tamaño con el que TODAS las listas entran
+  // sin recortar: nombres cortos → grande; una lista con un nombre a dos líneas
+  // baja el tamaño de todas por igual.
+  const MAX = 2.5;
+  const MIN = 1.4;
+  const STEP = 0.1;
+  // Alto REAL del contenido = suma de los ítems + sus márgenes verticales. No se
+  // usa scrollHeight de la caja porque con space-between el último ítem pega al
+  // borde y la medición se vuelve ambigua.
+  const contentOverflows = (caja: HTMLElement): boolean => {
+    const items = Array.from(caja.children) as HTMLElement[];
+    if (items.length === 0) return false;
+    const cs = getComputedStyle(items[0]);
+    const vMargin = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+    let total = 0;
+    for (const it of items) total += it.offsetHeight + vMargin;
+    return total > caja.clientHeight + 1;
+  };
+  let fs = MAX;
+  stage.style.setProperty('--ej-fs', fs + 'rem');
+  while (fs > MIN && cajas.some(contentOverflows)) {
+    fs = Math.round((fs - STEP) * 10) / 10;
+    stage.style.setProperty('--ej-fs', fs + 'rem');
+  }
+}
+
 function paintList(n: Nodes, c: TvClassPayload): void {
   let key = c.blockRole + '|' + c.level + '|' + c.columns.length;
   for (let ci = 0; ci < c.columns.length; ci++) {
@@ -474,8 +514,11 @@ function paintList(n: Nodes, c: TvClassPayload): void {
   lastMarkerKey = null;
   clear(n.stage);
   // Marca el layout según la cantidad de columnas (fase 178): con 4 (deuteros
-  // regular, I+II × par de niveles) el CSS pasa de fila flex a grilla 2×2.
+  // regular, I+II × par de niveles) el CSS pasa de fila flex a grilla 2×2. El
+  // mismo marcador va en el root para poder achicar la cabecera (título /
+  // cronómetro / formato) solo en el 2×2, que está fuera de `.stage`.
   n.stage.setAttribute('data-cols', String(c.columns.length));
+  n.stage.closest('#tvScreenRoot')?.setAttribute('data-cols', String(c.columns.length));
 
   for (let ci = 0; ci < c.columns.length; ci++) {
     const col = c.columns[ci];
@@ -535,6 +578,10 @@ function paintList(n: Nodes, c: TvClassPayload): void {
 
     n.stage.appendChild(colEl);
   }
+
+  // Con todas las listas ya en el DOM, ajustar el tamaño común de los nombres
+  // para que la más cargada entre sin recortar (2×2 de deuteros).
+  fitDeuterosFont(n);
 }
 
 /**
@@ -558,6 +605,46 @@ function paintMovilidad(host: HTMLElement, line: string | null): void {
   label.textContent = line.slice(0, i);
   host.appendChild(label);
   host.appendChild(document.createTextNode(line.slice(i)));
+}
+
+/**
+ * Cabecera de un lado del 2×2 de deuteros: la etiqueta del deutero ("DEUTEROS
+ * I"/"II") arriba y el formato del bloque debajo. Reemplaza al título/formato
+ * globales cuando el bloque activo es deuteros (uno a cada lado del timer).
+ * La etiqueta llega en `payload.deuteros[n].label` — el header de cada celda
+ * NO la repite (sólo NIVEL | RUTA %).
+ */
+function paintDeuHeader(host: HTMLElement, label: string, formato: string): void {
+  clear(host);
+  const lab = document.createElement('span');
+  lab.className = 'cabDeuLabel';
+  lab.textContent = label;
+  host.appendChild(lab);
+  if (formato) {
+    const fmt = document.createElement('span');
+    fmt.className = 'cabDeuFormato';
+    fmt.textContent = formato;
+    host.appendChild(fmt);
+  }
+}
+
+/**
+ * Pie del 2×2: DOS movilidades (una por deutero), izquierda = DEUTEROS I,
+ * derecha = DEUTEROS II — alineadas con las columnas de arriba.
+ */
+function paintDeuMovilidad(
+  host: HTMLElement,
+  movI: string | null,
+  movII: string | null,
+): void {
+  clear(host);
+  const iz = document.createElement('div');
+  iz.className = 'movBarCol';
+  paintMovilidad(iz, movI);
+  const de = document.createElement('div');
+  de.className = 'movBarCol';
+  paintMovilidad(de, movII);
+  host.append(iz, de);
 }
 
 /**
@@ -602,9 +689,33 @@ export function renderState(payload: TvPollResponse): void {
   // formato en la fila de abajo (INITIUM y demás customTitle no traen separador).
   const sepTitulo = ' · ';
   const iSep = c.title.indexOf(sepTitulo);
-  setText(n.titulo, iSep >= 0 ? c.title.slice(0, iSep) : c.title);
-  paintFormato(n.formato, iSep >= 0 ? c.title.slice(iSep + sepTitulo.length) : '');
-  paintMovilidad(n.movilidad, c.mobilityLine);
+  const nombre = iSep >= 0 ? c.title.slice(0, iSep) : c.title;
+  const formato = iSep >= 0 ? c.title.slice(iSep + sepTitulo.length) : '';
+
+  if (c.deuteros && c.deuteros.length > 0 && c.columns.length === 4) {
+    // 2×2 de deuteros: la cabecera se parte en DEUTEROS I (izq, sobre sus dos
+    // celdas) y DEUTEROS II (der), cada uno con el formato debajo; el pie lleva
+    // las dos movilidades (una por deutero). El título/formato globales no se
+    // usan acá.
+    const gI = c.deuteros[0];
+    const gII = c.deuteros[1] ?? c.deuteros[0];
+    n.titulo.className = 'cabTitulo cabDeu';
+    n.formato.className = 'cabFormato cabDeu';
+    paintDeuHeader(n.titulo, gI.label, formato);
+    paintDeuHeader(n.formato, gII.label, formato);
+    // Invalidar el guard de paintFormato: al volver a un bloque normal debe
+    // re-pintar n.formato aunque el string de formato coincida.
+    lastFormatoRaw = null;
+    n.movilidad.className = 'movBar movBar--deuteros';
+    paintDeuMovilidad(n.movilidad, gI.mobilityLine, gII.mobilityLine);
+  } else {
+    n.titulo.className = 'cabTitulo';
+    n.formato.className = 'cabFormato';
+    setText(n.titulo, nombre);
+    paintFormato(n.formato, formato);
+    n.movilidad.className = 'movBar';
+    paintMovilidad(n.movilidad, c.mobilityLine);
+  }
   // Bloque VISUAL (colapsa DEUTEROS_1/DEUTEROS_2 en uno solo), no la entrada cruda del roster.
   setText(n.bloqueNum, 'BLOQUE ' + (c.visualBlockIndex + 1) + ' / ' + c.visualBlockCount);
   paintDots(n, c);

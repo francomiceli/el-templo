@@ -137,6 +137,83 @@
             <div class="row items-center no-wrap q-mb-xs">
               <q-icon :name="kpi.icon" size="24px" class="q-mr-sm" color="primary" />
               <span class="text-caption text-grey-7">{{ kpi.label }}</span>
+              <!-- Desglose clickeable: solo la card de activos lo tiene -->
+              <template v-if="kpi.key === 'activeMembers' && activeBreakdown">
+                <q-space />
+                <q-icon
+                  name="info"
+                  size="18px"
+                  color="grey-6"
+                  class="cursor-pointer"
+                >
+                  <q-menu anchor="bottom right" self="top right">
+                    <div class="q-pa-md" style="min-width: 260px">
+                      <div class="text-subtitle2 q-mb-xs">Desglose de activos</div>
+                      <q-list dense>
+                        <q-item>
+                          <q-item-section>Con membresía paga</q-item-section>
+                          <q-item-section side class="text-weight-bold">
+                            {{ activeBreakdown.paying }}
+                          </q-item-section>
+                        </q-item>
+                        <q-separator spaced />
+                        <q-item-label header class="q-py-none">
+                          No contados en esta métrica
+                        </q-item-label>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click="drillToMembers({ status: 'activo', membershipKind: 'staff' })"
+                        >
+                          <q-item-section>Staff</q-item-section>
+                          <q-item-section side>
+                            {{ activeBreakdown.staff }}
+                            <q-icon name="chevron_right" size="16px" />
+                          </q-item-section>
+                        </q-item>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click="
+                            drillToMembers({ status: 'activo', membershipKind: 'bonificada' })
+                          "
+                        >
+                          <q-item-section>Bonificadas</q-item-section>
+                          <q-item-section side>
+                            {{ activeBreakdown.bonificada }}
+                            <q-icon name="chevron_right" size="16px" />
+                          </q-item-section>
+                        </q-item>
+                        <q-item>
+                          <q-item-section>
+                            Solo pase Aura
+                            <q-item-label caption>externos sin membresía</q-item-label>
+                          </q-item-section>
+                          <q-item-section side>{{ activeBreakdown.onlyEspecial }}</q-item-section>
+                        </q-item>
+                        <q-separator spaced />
+                        <q-item
+                          clickable
+                          v-close-popup
+                          @click="drillToMembers({ status: 'activo' })"
+                        >
+                          <q-item-section class="text-weight-medium">
+                            Con membresía vigente
+                            <q-item-label caption>como el listado de Miembros</q-item-label>
+                          </q-item-section>
+                          <q-item-section side class="text-weight-bold">
+                            {{ activeBreakdown.totalActive }}
+                            <q-icon name="chevron_right" size="16px" />
+                          </q-item-section>
+                        </q-item>
+                      </q-list>
+                      <div class="text-caption text-grey-6 q-mt-sm">
+                        No considera deuda · los pausados cuentan
+                      </div>
+                    </div>
+                  </q-menu>
+                </q-icon>
+              </template>
             </div>
             <div class="text-h5 q-mb-xs">{{ kpi.formattedValue }}</div>
             <div class="row items-center no-wrap">
@@ -210,6 +287,7 @@
           :data="memberData"
           :loading="loadingMembers"
           :branch-id="selectedBranchId"
+          :country="currentFilters.country"
           :date-from="dateFrom"
           :date-to="dateTo"
         />
@@ -302,6 +380,8 @@
         <EspecialesTab
           :data="especialesData"
           :loading="loadingEspeciales"
+          :branch-id="selectedBranchId"
+          :country="currentFilters.country"
           v-model:month="especialesMonth"
           @change="fetchEspeciales"
         />
@@ -312,6 +392,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAnalyticsApi } from 'src/composables/useAnalyticsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
@@ -350,6 +431,7 @@ import type { ProgramAnalytics } from 'src/types/program';
 
 // -- Setup ---------------------------------------------------------------
 
+const router = useRouter();
 const log = createLogger('AnaliticasPage');
 const analyticsApi = useAnalyticsApi();
 const membersApi = useMembersApi();
@@ -606,13 +688,29 @@ function formatCurrency(value: number): string {
   return formatPrice(value, displayCurrency.value);
 }
 
+// -- Desglose clickeable del KPI de activos ------------------------------
+// El número grande (activos "pagos, no especiales") es menor que el "vigentes"
+// del listado de Miembros. El popover explica la diferencia y deja drillear al
+// listado ya filtrado, arrastrando el mismo scope (sede + país) para que el
+// número del listado coincida con el balde clickeado.
+
+const activeBreakdown = computed(() => kpis.value?.activeMembers.breakdown ?? null);
+
+/** Navega al listado de Miembros con el scope actual + un corte extra. */
+function drillToMembers(extra: Record<string, string | number>): void {
+  const query: Record<string, string | number> = { ...extra };
+  if (selectedBranchId.value !== undefined) query.branchId = selectedBranchId.value;
+  if (currentFilters.value.country) query.country = currentFilters.value.country;
+  void router.push({ path: '/alumnos', query });
+}
+
 const kpiCards = computed<KpiCard[]>(() => {
   if (!kpis.value) return [];
   const k = kpis.value;
   return [
     {
       key: 'activeMembers',
-      label: 'Activos',
+      label: 'Activos hoy',
       icon: 'people',
       formattedValue: String(k.activeMembers.value),
       trend: k.activeMembers.trend,
@@ -814,7 +912,10 @@ async function fetchReferralAb() {
 async function fetchEspeciales() {
   loadingEspeciales.value = true;
   try {
-    especialesData.value = await analyticsApi.getEspecialesReport(especialesMonth.value);
+    especialesData.value = await analyticsApi.getEspecialesReport(especialesMonth.value, {
+      branchId: selectedBranchId.value,
+      country: currentFilters.value.country,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error fetching especiales report', { error: message });

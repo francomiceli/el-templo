@@ -82,6 +82,14 @@ const tvLevelColumnSchema = {
   },
 };
 
+const tvDeuterosGroupSchema = {
+  type: "object",
+  properties: {
+    label: { type: "string" },
+    mobilityLine: { type: ["string", "null"] },
+  },
+};
+
 /** El bloque en vivo. `null` en el payload siempre que `screen !== "class"`. */
 const tvClassPayloadSchema = {
   type: "object",
@@ -110,6 +118,10 @@ const tvClassPayloadSchema = {
     title: { type: "string" },
     mobilityLine: { type: ["string", "null"] },
     columns: { type: "array", items: tvLevelColumnSchema },
+    deuteros: {
+      type: ["array", "null"],
+      items: tvDeuterosGroupSchema,
+    },
     exerciseIndex: { type: "integer" },
     timer: tvTimerStateSchema,
   },

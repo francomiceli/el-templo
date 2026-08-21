@@ -25,6 +25,7 @@ import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
 import {
   activeMemberExists,
   activePayingNonEspecialMemberExists,
+  activeSubOfKindExists,
 } from "../shared/active-member";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
@@ -35,6 +36,7 @@ import { inclusiveRangeConditions } from "./cohorts";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   KpiStats,
+  ActiveMembersBreakdown,
   MonetaryKpiByCurrency,
   MemberAnalytics,
   PlanDistributionRow,
@@ -242,8 +244,20 @@ export class AnalyticsService {
     dateTo: string,
     priorFrom: string,
     priorTo: string,
-  ): Promise<{ value: number; trend: Trend }> {
-    const currentCount = await this.countActiveMembers(ctx, branchId, country);
+  ): Promise<{
+    value: number;
+    trend: Trend;
+    breakdown: ActiveMembersBreakdown;
+  }> {
+    const breakdown = await this.countActiveMembersBreakdown(
+      ctx,
+      branchId,
+      country,
+    );
+    // `paying` es EXACTAMENTE el conteo del KPI (activePayingNonEspecial):
+    // reusar la misma cifra evita una 2ª query y garantiza que el número
+    // grande y el desglose nunca se contradigan.
+    const currentCount = breakdown.paying;
     // For trend: estimate prior period active members by subtracting
     // new members added during current period and adding back churned ones
     const newInPeriod = await this.countNewMembers(
@@ -265,6 +279,80 @@ export class AnalyticsService {
     return {
       value: currentCount,
       trend: this.computeTrend(currentCount, priorCount),
+      breakdown,
+    };
+  }
+
+  /**
+   * Desglose del conteo de "activos" para explicar en pantalla por qué el KPI
+   * (`activePayingNonEspecialMemberExists`) es menor que el "vigentes" del
+   * listado de Miembros (`activeMemberExists` plano). Particiona el universo de
+   * miembros con ≥1 sub vigente en 4 baldes MUTUAMENTE EXCLUYENTES por
+   * prioridad, de modo que `paying + staff + bonificada + onlyEspecial ===
+   * totalActive` SIEMPRE:
+   *   - paging  → tiene una sub paga no-especial vigente (= valor del KPI)
+   *   - staff   → de los excluidos, tiene una sub 'staff' vigente
+   *   - bonificada → de los excluidos restantes, una sub 'bonificada' vigente
+   *   - onlyEspecial → el resto: solo le quedan pases 'especial' vigentes
+   * La prioridad resuelve el caso (raro) de un miembro con varias subs de
+   * distinto tipo sin doble conteo. `totalActive` es el conteo plano
+   * (lo que ve el admin en el listado de Miembros filtrando por "Activos").
+   */
+  private async countActiveMembersBreakdown(
+    ctx: TenantContext,
+    branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
+  ): Promise<ActiveMembersBreakdown> {
+    const uid = schema.users.id;
+    // `ctx` se threadea a cada predicado para que cada EXISTS correlacionado
+    // sume su propio `tenant_id` (cinturón-y-tirantes con el tenantWhere del
+    // `.where(...)`), igual que countActiveMembers.
+    const categoryExpr = sql<string>`CASE
+      WHEN ${activePayingNonEspecialMemberExists(uid, ctx)} THEN 'paying'
+      WHEN ${activeSubOfKindExists(uid, "staff", ctx)} THEN 'staff'
+      WHEN ${activeSubOfKindExists(uid, "bonificada", ctx)} THEN 'bonificada'
+      ELSE 'especial'
+    END`;
+
+    const conditions: SQL[] = [
+      eq(schema.users.role, "member") as unknown as SQL,
+      // Universo: cualquier miembro con al menos una sub vigente (predicado
+      // plano, el mismo que usa el listado de Miembros).
+      activeMemberExists(uid, ctx),
+    ];
+    if (branchId !== undefined) {
+      conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
+    }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country) as unknown as SQL);
+    }
+
+    // Fase 173 (D-02): `tenantWhere` INLINE en el `and(...)` — el gimnasio se
+    // nombra ACÁ, donde el sentinel lint lo busca.
+    const rows = await this.db
+      .select({
+        category: categoryExpr,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(and(tenantWhere(schema.users, ctx), ...conditions))
+      .groupBy(categoryExpr);
+
+    const byCategory = new Map(
+      rows.map((r) => [String(r.category), Number(r.count)]),
+    );
+    const paying = byCategory.get("paying") ?? 0;
+    const staff = byCategory.get("staff") ?? 0;
+    const bonificada = byCategory.get("bonificada") ?? 0;
+    const onlyEspecial = byCategory.get("especial") ?? 0;
+
+    return {
+      paying,
+      staff,
+      bonificada,
+      onlyEspecial,
+      totalActive: paying + staff + bonificada + onlyEspecial,
     };
   }
 

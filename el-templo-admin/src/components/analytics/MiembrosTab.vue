@@ -310,6 +310,7 @@ const props = defineProps<{
   loading: boolean;
   /** Page-level filters: the flows/bajas fetches this tab owns follow them. */
   branchId?: number;
+  country?: 'AR' | 'ES';
   dateFrom: string;
   dateTo: string;
 }>();
@@ -351,6 +352,7 @@ async function loadFlows() {
       // Chart: fixed last-12-months window, independent of the page period.
       analyticsApi.getMemberFlows({
         branchId: props.branchId,
+        country: props.country,
         dateFrom: monthStart(11),
         dateTo: nextMonthStart(),
       }),
@@ -358,6 +360,7 @@ async function loadFlows() {
       // matching every other analytics endpoint's half-open range).
       analyticsApi.getMemberFlows({
         branchId: props.branchId,
+        country: props.country,
         dateFrom: props.dateFrom,
         dateTo: props.dateTo,
       }),
@@ -463,6 +466,7 @@ async function loadChurnedMembers() {
     const range = monthRange(churnedMonth.value);
     const result = await analyticsApi.getChurnedMembers({
       branchId: props.branchId,
+      country: props.country,
       ...range,
     });
     churnedMembers.value = result.members;
@@ -480,6 +484,7 @@ async function onExportChurned() {
     const range = monthRange(churnedMonth.value);
     const blob = await analyticsApi.exportChurnedMembers({
       branchId: props.branchId,
+      country: props.country,
       ...range,
     });
     const url = URL.createObjectURL(blob);
@@ -545,7 +550,7 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.branchId, props.dateFrom, props.dateTo],
+  () => [props.branchId, props.country, props.dateFrom, props.dateTo],
   () => {
     void loadFlows();
     void loadChurnedMembers();

@@ -125,6 +125,9 @@ const props = defineProps<{
   loading: boolean;
   /** Mes seleccionado, formato YYYY-MM. Manejado por el padre (v-model:month). */
   month: string;
+  /** Page-level filters: el export debe pedir el mismo scope que el reporte. */
+  branchId?: number;
+  country?: 'AR' | 'ES';
 }>();
 
 const emit = defineEmits<{
@@ -221,7 +224,10 @@ function onMonthChange(value: string) {
 async function onExport() {
   exporting.value = true;
   try {
-    const blob = await analyticsApi.exportEspeciales(props.month);
+    const blob = await analyticsApi.exportEspeciales(props.month, {
+      branchId: props.branchId,
+      country: props.country,
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

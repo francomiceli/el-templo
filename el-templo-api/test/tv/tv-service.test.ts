@@ -434,7 +434,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     expect(cls.visualBlockIndex).toBe(2);
   });
 
-  it("deuteros con AMBOS presentes: el payload trae 4 columnas (2×2), distinguibles por deutero y nivel", async () => {
+  it("deuteros con AMBOS presentes: el payload trae 4 columnas (2×2 level-major) y el panel distingue los dos deuteros", async () => {
     await seedSession({
       level: "alfa",
       roles: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "DEUTEROS_2", "EPIKOS"],
@@ -453,17 +453,23 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
       .class!;
 
-    // El par de alfa es [alfa, delta] y ambos están presentes hoy en los dos
-    // deuteros → 2 deuteros × 2 niveles = 4 columnas, en el orden
-    // [D1·alfa, D1·delta, D2·alfa, D2·delta].
+    // El par de alfa es [alfa, delta], ambos presentes en los dos deuteros →
+    // 2 niveles × 2 deuteros = 4 columnas. Orden level-major de la grilla 2×2
+    // (fila = nivel, columna = deutero): [α·D1, α·D2, Δ·D1, Δ·D2].
     expect(cls.columns).toHaveLength(4);
     const headers = cls.columns.map((c) => c.header);
-    expect(headers[0]).toMatch(/^DEUTEROS I NIVEL α \|/);
-    expect(headers[1]).toMatch(/^DEUTEROS I NIVEL Δ \|/);
-    expect(headers[2]).toMatch(/^DEUTEROS II NIVEL α \|/);
-    expect(headers[3]).toMatch(/^DEUTEROS II NIVEL Δ \|/);
-    // Las 4 son distinguibles entre sí — nada de headers duplicados.
-    expect(new Set(headers).size).toBe(4);
+    expect(headers[0]).toMatch(/^NIVEL α \|/);
+    expect(headers[1]).toMatch(/^NIVEL α \|/);
+    expect(headers[2]).toMatch(/^NIVEL Δ \|/);
+    expect(headers[3]).toMatch(/^NIVEL Δ \|/);
+    // El rótulo del deutero YA NO va en el header de la celda (sólo NIVEL |
+    // RUTA %): la identidad DEUTEROS I/II la trae `payload.deuteros`, que el
+    // kiosco pinta como cabecera izquierda/derecha del 2×2, en orden I → II.
+    for (const h of headers) expect(h).not.toContain("DEUTEROS");
+    expect(cls.deuteros?.map((g) => g.label)).toEqual([
+      "DEUTEROS I",
+      "DEUTEROS II",
+    ]);
     for (const col of cls.columns) {
       expect(col.exercises.length).toBeGreaterThan(0);
     }
@@ -492,14 +498,20 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
 
     // Ni el roster real trae DEUTEROS_2 (findCanonicalBlock no lo encuentra)...
     expect(cls.blocks.map((b) => b.role)).not.toContain("DEUTEROS_2");
-    // ...ni las columnas: 2 (D1 × par), ninguna vacía ni con header de un
-    // DEUTEROS_2 inexistente.
+    // ...ni las columnas: 2 (D1 × par de niveles), ninguna vacía ni con una
+    // celda de un DEUTEROS_2 inexistente. El header de la celda es sólo
+    // NIVEL | RUTA % — el rótulo del deutero vive en el panel.
     expect(cls.columns).toHaveLength(2);
+    expect(cls.columns.map((c) => c.header)).toEqual([
+      expect.stringMatching(/^NIVEL α \|/),
+      expect.stringMatching(/^NIVEL Δ \|/),
+    ]);
     for (const col of cls.columns) {
-      expect(col.header).toMatch(/^DEUTEROS I /);
-      expect(col.header).not.toContain("DEUTEROS II");
+      expect(col.header).not.toContain("DEUTEROS");
       expect(col.exercises.length).toBeGreaterThan(0);
     }
+    // El panel trae UN solo deutero (I) — no inventa el II ausente.
+    expect(cls.deuteros?.map((g) => g.label)).toEqual(["DEUTEROS I"]);
   });
 
   it("el alt es un bloque navegable propio: título/columnas propias, y comparte visualBlockIndex con el II (combos)", async () => {

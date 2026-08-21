@@ -161,6 +161,42 @@ export function activePayingNonEspecialMemberExists(
 }
 
 /**
+ * ¿El miembro tiene al menos una sub VIGENTE de un `membership_kind` dado?
+ * (mismo criterio de vigencia que `activeMemberExists`: active/paused, ya
+ * arrancada, no vencida). Se usa para DESGLOSAR el conteo de activos en el KPI
+ * (cuántos de los "vigentes" quedan fuera de la métrica por ser staff /
+ * bonificada) y para el filtro `membershipKind` del listado de Miembros. NO
+ * es un predicado de métrica: no excluye 'especial'.
+ */
+export function activeSubOfKindExists(
+  userIdColumn: AnyColumn,
+  kind: "paga" | "bonificada" | "staff",
+  ctx?: TenantContext,
+): SQL {
+  /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
+     ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
+     tenantWhere-scoped. Con `ctx` real suma su propio `tenant_id` explícito. */
+  return ctx
+    ? sql`EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.user_id = ${userIdColumn}
+      AND s.subscription_status IN ('active','paused')
+      AND s.start_date <= CURDATE()
+      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND s.membership_kind = ${kind}
+      AND s.tenant_id = ${ctx.tenantId}
+  )`
+    : sql`EXISTS (
+    SELECT 1 FROM subscriptions s
+    WHERE s.user_id = ${userIdColumn}
+      AND s.subscription_status IN ('active','paused')
+      AND s.start_date <= CURDATE()
+      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND s.membership_kind = ${kind}
+  )`;
+}
+
+/**
  * Variante para el denominador del ARPU (advanced-finance): excluye membresías
  * internas pero NO los pases 'especial' — la plata del pase sí es ingreso real
  * y su comprador cuenta como miembro activo ahí (D-11).
