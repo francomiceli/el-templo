@@ -33,6 +33,7 @@ import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
 import { generateQrToken as generateQr } from "../../src/modules/shared/qr-token";
+import { appBranchName } from "../../src/modules/shared/app-branch-name";
 
 const ADMIN_ATTENDANCE_URL = "/api/admin/attendance";
 const MEMBER_ATTENDANCE_URL = "/api/members/attendance";
@@ -312,7 +313,8 @@ describe("Attendance API", () => {
       expect(body.status).toBe("confirmado");
       expect(body.source).toBe("qr");
       expect(body.memberName).toBeTruthy();
-      expect(body.branchName).toBe(testBranchName);
+      // Compat app: el check-in member reconstruye "El Templo X" (shim).
+      expect(body.branchName).toBe(appBranchName(testBranchName));
 
       // Verify AURA was awarded immediately
       const auraRows = await app.db
