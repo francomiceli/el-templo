@@ -288,10 +288,28 @@ export interface AssignPlanInput {
    * the picker. Keyed by scheduleId (string from JSON), value is YYYY-MM-DD.
    */
   scheduleStartDates?: Record<string, string>;
+  /**
+   * @deprecated Fase 176 Plan 08 (MOD-02): reemplazado por `moduleInput.auraSpend`.
+   * Se borra en el plan 176-10 cuando ya no queden lectores. `assignPlan` NO lo
+   * lee más — lo puebla `routes.ts` en `moduleInput` para que el handler del
+   * módulo `templo-gamification` lo interprete (doc 04 §4.2).
+   */
   auraSpend?: number;
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
+  /**
+   * @deprecated Fase 176 Plan 08 (MOD-02): reemplazado por `moduleInput.boardingPass`.
+   * Se borra en el plan 176-10 cuando ya no queden lectores. Ver `auraSpend` arriba.
+   */
   boardingPass?: boolean;
+  /**
+   * Sobre opaco de los campos que interpreta el/los módulo(s) Templo en la
+   * cadena de pricing (`pricing.adjust`, doc 04 §4.2) — hoy `auraSpend` y
+   * `boardingPass`, poblado por `routes.ts` desde el body validado.
+   * `assignPlan` lo pasa tal cual a `resolvePlanPrice`, sin interpretarlo
+   * (T-176-16: el core nunca le hace `as`).
+   */
+  moduleInput?: Record<string, unknown>;
   /**
    * Alta prorrateada hasta fin de mes. Cuando es true, la vigencia termina el
    * último día del mes calendario del `startDate` (en vez de

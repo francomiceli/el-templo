@@ -52,6 +52,7 @@ import type {
   UpdatePromoInput,
 } from "./types";
 import { AURA_DISCOUNT_TIERS, isOnlinePlan, categoryGroup } from "./types";
+import { resolvePlanPrice, readModuleColumns } from "./pricing";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
 import type { PaymentMethod } from "../finance/types";
@@ -1727,114 +1728,92 @@ export class SubscriptionService {
       input.startDate > today ? "scheduled" : "active";
 
     // Determine price
-    let pricePaid: number;
     // D-04/ALUM-03: normalize credit_card→regular when the surcharge rule is
     // OFF, at the single point of truth, so the amount AND the persisted
     // priceTypeApplied stay consistent (covers admin assign + coach PoS 148).
-    let priceTypeApplied = await this.resolvePriceType(input.priceTypeApplied);
-    let auraDiscount: number | null = null;
-    let auraDiscountPercent: number | null = null;
-    let referralDiscountPercent: number | null = null;
-    let referralDiscountAmount: number | null = null;
-    let boardingPassUsed = false;
-    let priceOverrideAmount: number | null = null;
-    let priceOverrideReason: string | null = null;
+    // Se usa acá SOLO para calcular el proporcional del prorrateo (abajo);
+    // el priceType final que se persiste sale de `resolved.priceType`
+    // (fase 176 Plan 08, MOD-02).
+    const priceTypeForProration = await this.resolvePriceType(
+      input.priceTypeApplied,
+    );
 
     // Alta prorrateada hasta fin de mes — máxima prioridad. El precio es el
     // proporcional de los días restantes (día del alta incluido); el staff puede
     // editar el sugerido y lo recibimos por priceOverrideAmount. El proporcional
     // ES el precio final: sin razón obligatoria y sin AURA/referidos/boarding
-    // pass encima (ramas excluyentes). Cap defensivo: no puede superar el mes
-    // completo. No se persiste como override (priceOverrideAmount queda null); el
-    // endDate a fin de mes + pricePaid ya cuentan la historia.
-    if (input.prorateToMonthEnd) {
-      if (input.boardingPass) {
-        throw new BadRequestError(
-          "No se puede combinar el prorrateo hasta fin de mes con el boarding pass",
-        );
-      }
-      if (input.auraSpend && input.auraSpend > 0) {
-        throw new BadRequestError(
-          "No se puede combinar el prorrateo hasta fin de mes con un descuento AURA",
-        );
-      }
-      const basePrice = this.getBasePrice(plan, priceTypeApplied);
-      pricePaid =
-        input.priceOverrideAmount !== undefined
-          ? input.priceOverrideAmount
-          : computeProratedPrice(basePrice, input.startDate);
-      if (pricePaid > basePrice) {
-        throw new BadRequestError(
-          "El precio prorrateado no puede superar el precio del mes completo",
-        );
-      }
-    }
-    // Price override takes highest priority
-    else if (
+    // pass encima (ramas excluyentes — la exclusión con boarding/AURA la tira
+    // el módulo dentro de resolvePlanPrice, ver pricing.ts). Cap defensivo: no
+    // puede superar el mes completo. No se persiste como override
+    // (priceOverrideAmount queda null); el endDate a fin de mes + pricePaid ya
+    // cuentan la historia.
+    //
+    // Fase 176 Plan 08 (MOD-02): orden canónico preservado —
+    // [prorrateo | override | filter(boarding) | base+filter(AURA)] → referidos.
+    // Acá abajo se calcula el prorrateo puro (no tira), se llama
+    // resolvePlanPrice (que dispara las exclusiones del módulo boarding/AURA)
+    // y RECIÉN DESPUÉS corre el chequeo de tope, para que el orden de errores
+    // sea el mismo que antes del refactor.
+    const prorate = input.prorateToMonthEnd
+      ? {
+          computed:
+            input.priceOverrideAmount !== undefined
+              ? input.priceOverrideAmount
+              : computeProratedPrice(
+                  this.getBasePrice(plan, priceTypeForProration),
+                  input.startDate,
+                ),
+        }
+      : undefined;
+
+    // Price override takes highest priority (salvo prorrateo, mutuamente
+    // excluyente por construcción: solo uno de los dos llega a resolvePlanPrice).
+    const override =
+      !input.prorateToMonthEnd &&
       input.priceOverrideAmount !== undefined &&
       input.priceOverrideAmount >= 0
-    ) {
-      if (!input.priceOverrideReason) {
-        throw new BadRequestError(
-          "Se requiere una razon para el precio personalizado",
-        );
-      }
-      pricePaid = input.priceOverrideAmount;
-      priceOverrideAmount = input.priceOverrideAmount;
-      priceOverrideReason = input.priceOverrideReason;
+        ? {
+            amount: input.priceOverrideAmount,
+            reason: input.priceOverrideReason,
+          }
+        : undefined;
+
+    // Boarding pass (precio Zero) y descuento AURA son MÓDULO
+    // (`templo-gamification`) — resolvePlanPrice dispara el filter
+    // `pricing.adjust`, que las aplica leyendo `moduleInput` (poblado por
+    // routes.ts desde el body validado). El core ya no nombra ninguna de las
+    // dos acá.
+    const resolved = await resolvePlanPrice({
+      hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
+      userId,
+      planId: input.planId,
+      planCategory: plan.planCategory,
+      callSite: "assign",
+      commit: true,
+      supports: { exclusiveBenefits: true, discounts: true },
+      priceTypeRequested: input.priceTypeApplied,
+      resolvePriceType: (t) => this.resolvePriceType(t),
+      basePriceFor: (t) => this.getBasePrice(plan, t),
+      moduleInput: input.moduleInput ?? {},
+      override,
+      prorate,
+    });
+
+    // Chequeo de tope, DESPUÉS del filter (orden canónico de arriba).
+    if (input.prorateToMonthEnd && resolved.price > resolved.basePrice) {
+      throw new BadRequestError(
+        "El precio prorrateado no puede superar el precio del mes completo",
+      );
     }
-    // Boarding pass — un regalo one-shot que aplica el precio Zero. Con la regla
-    // Zero OFF (white-label / 156 D-04) el tipo se rutea por resolvePriceType
-    // (segundo pase) y normaliza a 'regular'; pricePaid se recalcula con
-    // getBasePrice para no persistir un tipo con un monto inconsistente (el drift
-    // que PATTERNS previene). Con la regla ON el resultado sigue siendo 'zero' +
-    // priceZero, idéntico al comportamiento actual de prod (T-156-03).
-    else if (input.boardingPass) {
-      if (member.boardingPassUsed) {
-        throw new ConflictError("El boarding pass ya fue utilizado");
-      }
-      priceTypeApplied = await this.resolvePriceType("zero");
-      pricePaid = this.getBasePrice(plan, priceTypeApplied);
-      boardingPassUsed = true;
 
-      // Mark boarding pass as used on the user
-      await this.db
-        .update(schema.users)
-        .set({ boardingPassUsed: true })
-        .where(
-          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
-        );
-    }
-    // Normal price calculation
-    else {
-      const basePrice = this.getBasePrice(plan, priceTypeApplied);
-      pricePaid = basePrice;
-
-      // Apply AURA discount if requested
-      if (input.auraSpend && input.auraSpend > 0) {
-        const tier = AURA_DISCOUNT_TIERS.find(
-          (t) => t.spend === input.auraSpend,
-        );
-        if (!tier) {
-          throw new BadRequestError(
-            `Monto de AURA invalido. Opciones: ${AURA_DISCOUNT_TIERS.map((t) => t.spend).join(", ")}`,
-          );
-        }
-
-        // Spend AURA (throws InsufficientBalanceError if not enough)
-        await this.auraService.spend({
-          userId,
-          amount: tier.spend,
-          description: `Descuento de suscripcion: ${tier.percent}% off`,
-          referenceType: "subscription",
-        });
-
-        auraDiscount = tier.spend;
-        auraDiscountPercent = tier.percent;
-        const discountAmount = Math.floor(basePrice * (tier.percent / 100));
-        pricePaid = basePrice - discountAmount;
-      }
-    }
+    let pricePaid = resolved.price;
+    const priceTypeApplied = resolved.priceType;
+    const { auraDiscount, auraDiscountPercent, boardingPassUsed } =
+      readModuleColumns(resolved);
+    const priceOverrideAmount = resolved.priceOverrideAmount;
+    const priceOverrideReason = resolved.priceOverrideReason;
+    let referralDiscountPercent: number | null = null;
+    let referralDiscountAmount: number | null = null;
 
     // ── Referidos (fase 157, D-20/D-21) ──
     // Orden canónico: (1) el precio ya está resuelto (incl. auraSpend); (2) si

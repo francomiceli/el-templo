@@ -63,6 +63,22 @@ import {
 import { SUBSCRIPTION_ROLES, PLANES_WRITE_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 
+/**
+ * Fase 176 Plan 08 (MOD-02): arma el sobre opaco `moduleInput` que
+ * `assignPlan`/`changePlan` reenvían tal cual a `resolvePlanPrice` para el
+ * filter `pricing.adjust`. Solo las claves del body YA VALIDADO por el
+ * schema JSON (`schemas.ts`, sin tocar) que vengan definidas — el contrato
+ * HTTP queda byte-idéntico, esto es puro armado del envelope server-side.
+ */
+function pricingModuleInput(body: AssignPlanInput): Record<string, unknown> {
+  const moduleInput: Record<string, unknown> = {};
+  if (body.auraSpend !== undefined) moduleInput.auraSpend = body.auraSpend;
+  if (body.boardingPass !== undefined) {
+    moduleInput.boardingPass = body.boardingPass;
+  }
+  return moduleInput;
+}
+
 export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
   const balanceService = new BalanceService(fastify.db, fastify.log);
@@ -340,7 +356,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         const subscription = await subscriptionService.assignPlan(
           assertTenant(request.scope, "subscriptions.assign"),
           request.params.userId,
-          request.body,
+          { ...request.body, moduleInput: pricingModuleInput(request.body) },
           request.user.userId,
         );
         return reply.code(201).send(subscription);
@@ -385,7 +401,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         const subscription = await subscriptionService.changePlan(
           assertTenant(request.scope, "subscriptions.changePlan"),
           request.params.userId,
-          request.body,
+          { ...request.body, moduleInput: pricingModuleInput(request.body) },
           request.user.userId,
         );
         return reply.code(201).send(subscription);
