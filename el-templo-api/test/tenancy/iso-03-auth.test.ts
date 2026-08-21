@@ -52,6 +52,7 @@ import {
   type TenantContext,
 } from "../../src/modules/shared/tenant";
 import { createTestApp, cleanAllTestData, createTestMember } from "../helpers";
+import { appBranchName } from "../../src/modules/shared/app-branch-name";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -247,7 +248,9 @@ describe("perfil propio — GET /api/auth/me", () => {
     expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
     const body = JSON.parse(res.body) as { id: number; branchName: string };
     expect(body.id).toBe(templo.id);
-    expect(body.branchName).toBe(sedeTemploName);
+    // Compat app: /me de un socio de El Templo reconstruye "El Templo X" para
+    // el regex baked del front (shim member-facing).
+    expect(body.branchName).toBe(appBranchName(sedeTemploName));
   });
 });
 

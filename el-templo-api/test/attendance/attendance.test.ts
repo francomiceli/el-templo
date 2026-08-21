@@ -22,6 +22,7 @@ import { financialTransactions } from "../../src/db/schema/financial-transaction
 import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { appBranchName } from "../../src/modules/shared/app-branch-name";
 
 /**
  * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`. El seed de cobro de
@@ -331,7 +332,8 @@ describe("Attendance API", () => {
       expect(body.status).toBe("confirmado");
       expect(body.source).toBe("qr");
       expect(body.memberName).toBeTruthy();
-      expect(body.branchName).toBe(testBranchName);
+      // Compat app: el check-in member reconstruye "El Templo X" (shim).
+      expect(body.branchName).toBe(appBranchName(testBranchName));
 
       // Verify AURA was awarded immediately
       const auraRows = await app.db

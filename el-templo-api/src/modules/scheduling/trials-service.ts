@@ -526,7 +526,7 @@ export class TrialService {
           startTime: booking.startTime,
           branchId: booking.branchId,
           // Compat app: getTrialEligibility es member-only, se transforma acá.
-          branchName: appBranchName(booking.branchName),
+          branchName: appBranchName(booking.branchName, ctx.tenantId),
           branchAddress: booking.branchAddress,
           canModify: this.isOutsideCancelWindow(
             booking.date,

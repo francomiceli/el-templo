@@ -481,7 +481,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchId,
           // Compat app: reconstruye "El Templo X" para que el regex baked del
           // front muestre "Sede X" sin build (registro es member-only).
-          branchName: appBranchName(branchRow?.name ?? ""),
+          branchName: appBranchName(branchRow?.name ?? "", branchTenantId),
           branchIsVirtual: branchRow?.isVirtual ?? false,
           branchCountry: branchRow?.country ?? "AR",
         },
@@ -637,9 +637,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: user.role,
           level: user.level,
           branchId: user.branchId,
-          // Compat app: solo para socios (login es compartido con el admin).
+          // Compat app: solo para socios de El Templo (login es compartido con
+          // el admin y multi-tenant).
           branchName:
-            user.role === "member" ? appBranchName(branchName) : branchName,
+            user.role === "member"
+              ? appBranchName(branchName, user.tenantId)
+              : branchName,
           branchIsVirtual,
           branchCountry,
           gender: user.gender,
@@ -887,9 +890,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         role: user.role,
         level: user.level,
         branchId: user.branchId,
-        // Compat app: solo para socios (me es compartido con el admin).
+        // Compat app: solo para socios de El Templo (me es compartido con el
+        // admin y multi-tenant).
         branchName:
-          user.role === "member" ? appBranchName(branchName) : branchName,
+          user.role === "member"
+            ? appBranchName(branchName, ctx.tenantId)
+            : branchName,
         branchIsVirtual,
         branchCountry,
         gender: user.gender,

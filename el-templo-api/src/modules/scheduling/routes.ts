@@ -915,7 +915,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         // largo se arma solo acá, en el handler member.
         slots: result.slots.map((s) => ({
           ...s,
-          branchName: appBranchName(s.branchName),
+          branchName: appBranchName(s.branchName, ctx.tenantId),
         })),
         holidays: result.holidays,
         myBookings,
@@ -1132,7 +1132,10 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       .orderBy(schema.branches.name);
     // Compat app: ruta member-only -> nombre largo para el regex del front.
     return {
-      branches: rows.map((r) => ({ ...r, name: appBranchName(r.name) })),
+      branches: rows.map((r) => ({
+        ...r,
+        name: appBranchName(r.name, ctx.tenantId),
+      })),
     };
   });
 };

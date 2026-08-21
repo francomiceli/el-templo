@@ -233,7 +233,10 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
         // member; el service es compartido con force/coach check-in del admin).
         return reply
           .code(201)
-          .send({ ...record, branchName: appBranchName(record.branchName) });
+          .send({
+            ...record,
+            branchName: appBranchName(record.branchName, ctx.tenantId),
+          });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member check-in");
       }
@@ -259,7 +262,7 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
         ...result,
         records: result.records.map((r) => ({
           ...r,
-          branchName: appBranchName(r.branchName),
+          branchName: appBranchName(r.branchName, ctx.tenantId),
         })),
         page,
         limit,
