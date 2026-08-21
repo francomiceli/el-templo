@@ -27,6 +27,7 @@ export const planCategoryEnum = mysqlEnum("plan_category", [
   "online_goal",
   "online_coach",
   "especial", // Fase 161 (PASE-01, D-12): pase "Actividades con Aura". Append-last, byte-for-byte con 0179.
+  "paquete", // Fase 177 (D-01): paquete de clases corto plazo. Append-last, byte-for-byte con 0205.
 ]);
 
 export const subscriptionPlans = mysqlTable(

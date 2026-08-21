@@ -78,7 +78,8 @@ export type PlanCategory =
   | 'online_regular'
   | 'online_goal'
   | 'online_coach'
-  | 'especial';
+  | 'especial'
+  | 'paquete'; // Fase 177 (D-01, D-12): paquete de clases corto plazo.
 
 export const PLAN_CATEGORY_LABELS: Record<PlanCategory, string> = {
   presencial: 'Presencial',
@@ -86,6 +87,7 @@ export const PLAN_CATEGORY_LABELS: Record<PlanCategory, string> = {
   online_goal: 'Por Objetivos',
   online_coach: 'Personalizado',
   especial: 'Especial',
+  paquete: 'Paquete de clases',
 };
 
 export const PLAN_CATEGORY_COLORS: Record<PlanCategory, string> = {
@@ -94,8 +96,14 @@ export const PLAN_CATEGORY_COLORS: Record<PlanCategory, string> = {
   online_goal: 'amber-8',
   online_coach: 'deep-purple',
   especial: 'pink-8',
+  paquete: 'brown-6',
 };
 
+// Fase 177 (D-01): `paquete` queda OCULTO de este listado a propósito — las 36
+// filas nacen por migración (177-01), no se crean a mano desde
+// PlanFormDialog, y el picker normal de alta (177-03/04) no debe listarlas
+// como una categoría más para elegir. Ver 177-03-PLAN.md must_have "Las 18
+// filas paquete NO aparecen en los tabs presencial/online/especial".
 export const PLAN_CATEGORY_OPTIONS = [
   { label: 'Presencial', value: 'presencial' },
   { label: 'Online Regular', value: 'online_regular' },

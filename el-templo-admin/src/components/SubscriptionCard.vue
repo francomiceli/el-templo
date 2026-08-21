@@ -149,7 +149,7 @@
           @click="emit('change-turnos')"
         />
         <q-btn
-          v-if="isPresencial"
+          v-if="canChangePlan"
           flat
           icon="swap_horiz"
           label="Cambiar Plan"
@@ -184,7 +184,7 @@
           @click="emit('change-turnos')"
         />
         <q-btn
-          v-if="isPresencial"
+          v-if="canChangePlan"
           flat
           icon="swap_horiz"
           label="Cambiar Plan"
@@ -257,6 +257,16 @@ const emit = defineEmits<{
 }>();
 
 const isPresencial = computed(() => props.subscription.planCategory === 'presencial');
+
+// Gap-fix 177 (D-11): paquete es presencial-flexible (categoryGroup ===
+// 'presencial') pero NUNCA tiene turnos, pausa ni compensación de días — solo
+// necesita reabrir el selector de plan (mode='change' en AssignPlanDialog)
+// para D-11 ("al vencer, la renovación reabre el selector de paquete").
+// isPresencial se deja intacto (turnos/pausa/compensar siguen exclusivos de
+// presencial); este predicado separado solo habilita "Cambiar Plan".
+const canChangePlan = computed(
+  () => isPresencial.value || props.subscription.planCategory === 'paquete'
+);
 
 const canChangeTurnos = computed(() => {
   if (!isPresencial.value) return false;

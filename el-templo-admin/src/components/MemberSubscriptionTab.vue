@@ -35,7 +35,7 @@
         :class-usage="classUsage"
         label="Suscripción Presencial"
         @renew="openRenewal(presencialSub!)"
-        @change="showChangeDialog = true"
+        @change="openChangeDialog(presencialSub!)"
         @change-turnos="openChangeTurnos"
         @edit-start-date="openEditStartDate(presencialSub!)"
         @pause="confirmPause"
@@ -142,6 +142,24 @@
       </q-card>
 
       <!-- ========================================== -->
+      <!-- Paquete de Clases (Fase 177, gap-fix D-02/D-11) -->
+      <!-- Card propio: paquete es presencial-flexible, no online (D-02). Sin
+           "vender paquete" alterno acá — el alta inicial de un paquete se
+           hace desde "Gestionar Plan" (solo visible sin presencial activa),
+           que ya expone el toggle de paquete (Tarea 2). -->
+      <!-- ========================================== -->
+      <SubscriptionCard
+        v-if="paqueteSub"
+        :subscription="paqueteSub"
+        label="Paquete de clases"
+        show-category-badge
+        @renew="openRenewal(paqueteSub!)"
+        @change="openChangeDialog(paqueteSub!)"
+        @edit-start-date="openEditStartDate(paqueteSub!)"
+        @cancel="confirmCancelPaquete"
+      />
+
+      <!-- ========================================== -->
       <!-- Subscription History -->
       <!-- ========================================== -->
       <q-card flat bordered class="q-mb-md">
@@ -212,16 +230,22 @@
       @member-edited="emit('member-edited')"
     />
 
-    <!-- Change Plan Dialog (presencial — reuses AssignPlanDialog in change mode) -->
+    <!-- Change Plan Dialog (presencial O paquete — reuses AssignPlanDialog in
+         change mode, gap-fix 177 D-11: generalizado a changeTarget en vez de
+         hardcodear presencialSub para que también sirva a un paquete
+         existente). -->
     <AssignPlanDialog
       v-model="showChangeDialog"
       :userId="userId"
       :memberBranchId="memberBranchId"
       :memberBranchName="memberBranchName"
       :boardingPassUsed="memberBoardingPassUsed"
-      :currentSubEndDate="presencialSub?.endDate ?? null"
-      :currentPlanId="presencialSub?.planId ?? null"
-      :currentScheduleIds="classUsage?.scheduleIds ?? []"
+      :currentSubEndDate="changeTarget?.endDate ?? null"
+      :currentPlanId="changeTarget?.planId ?? null"
+      :currentPlanCategory="changeTarget?.planCategory ?? null"
+      :currentScheduleIds="
+        changeTarget?.planCategory === 'presencial' ? (classUsage?.scheduleIds ?? []) : []
+      "
       :memberBranchIsVirtual="memberBranchIsVirtual ?? false"
       :member="member ?? null"
       :branches="branches ?? []"
@@ -718,6 +742,11 @@ const actionLoading = ref(false);
 const showAssignDialog = ref(false);
 const showAssignProgramDialog = ref(false);
 const showChangeDialog = ref(false);
+// Gap-fix 177 (D-11): la sub que el admin está cambiando/renovando via
+// AssignPlanDialog mode='change' — generalizado desde el hardcode a
+// presencialSub para que el mismo diálogo sirva tanto a la presencial como
+// a la paquete (D-11: "la renovación reabre el selector de paquete").
+const changeTarget = ref<SubscriptionDetail | null>(null);
 const showChangeTurnosDialog = ref(false);
 const scheduleChanges = ref<SubscriptionScheduleChangeEntry[]>([]);
 const loadingScheduleChanges = ref(false);
@@ -825,11 +854,32 @@ const multiBranchOptions = computed(() =>
   (props.branches ?? []).filter((b) => !b.isVirtual).map((b) => ({ id: b.id, name: b.name }))
 );
 
+// Gap-fix 177 (D-02/D-11): paquete queda excluido acá — cae en su propio
+// card (paqueteSub abajo), NO en "Suscripción Online" (paquete es
+// presencial-flexible, no online).
 const programaSub = computed(
   () =>
     allSubscriptions.value.find(
-      (s) => s.planCategory && s.planCategory !== 'presencial' && s.planCategory !== 'especial'
+      (s) =>
+        s.planCategory &&
+        s.planCategory !== 'presencial' &&
+        s.planCategory !== 'especial' &&
+        s.planCategory !== 'paquete'
     ) ?? null
+);
+
+// Gap-fix 177 (D-02/D-11): paquete de clases corto plazo. Corre en paralelo
+// a la presencial (el overlap-conflict gap conocido en service.ts permite
+// que coexistan hoy — ver types.ts categoryGroup NOTA); se muestra en su
+// propio card y se renueva/cambia por subscriptionId, mismo patrón que
+// especialSub. Preferimos active/paused; si no hay, la scheduled.
+const paqueteSub = computed(
+  () =>
+    allSubscriptions.value.find(
+      (s) => s.planCategory === 'paquete' && (s.status === 'active' || s.status === 'paused')
+    ) ??
+    allSubscriptions.value.find((s) => s.planCategory === 'paquete' && s.status === 'scheduled') ??
+    null
 );
 
 // Pase de actividades especiales (Plan 161). Corre en paralelo a la presencial
@@ -1684,6 +1734,58 @@ function confirmCancelEspecial() {
   });
 }
 
+// Gap-fix 177 (D-11): cancelación del paquete, mismo patrón que
+// confirmCancelEspecial — subscriptionId explícito porque el paquete puede
+// correr en paralelo a otras subs.
+function confirmCancelPaquete() {
+  const sub = paqueteSub.value;
+  if (!sub) return;
+  $q.dialog({
+    title: 'Cancelar paquete de clases',
+    message: 'Cancelar el paquete? Esta accion no se puede deshacer.',
+    prompt: {
+      model: '',
+      type: 'textarea',
+      label: 'Notas (opcional)',
+    },
+    cancel: { flat: true, label: 'Volver' },
+    ok: { color: 'negative', label: 'Cancelar paquete' },
+  }).onOk(async (notes: string) => {
+    actionLoading.value = true;
+    try {
+      await subsApi.cancelSubscription(props.userId, notes.trim() || undefined, sub.id);
+      $q.notify({ type: 'positive', message: 'Paquete cancelado' });
+      emit('subscription-changed');
+      refreshAll();
+    } catch (err: unknown) {
+      const block = parseActiveTransactionsBlock(err, 'cancelar');
+      if (block) {
+        log.warn('Cancel paquete blocked: active transactions', {
+          userId: props.userId,
+          count: block.count,
+        });
+        $q.notify({
+          type: 'warning',
+          message: block.message,
+          timeout: 8000,
+          multiLine: true,
+          actions: [{ label: 'Entendido', color: 'white' }],
+        });
+        return;
+      }
+      const message = extractError(err, 'Error cancelando paquete');
+      if (isExpectedClientError(err)) {
+        log.warn('Cancel paquete rejected', { error: message });
+      } else {
+        log.error('Error cancelling paquete subscription', { error: message });
+      }
+      $q.notify({ type: 'negative', message });
+    } finally {
+      actionLoading.value = false;
+    }
+  });
+}
+
 // =========================================================================
 // Assign dialog callback
 // =========================================================================
@@ -1695,6 +1797,14 @@ function onAssigned() {
 
 function openChangeTurnos() {
   showChangeTurnosDialog.value = true;
+}
+
+// Gap-fix 177 (D-11): abre el diálogo de cambio de plan apuntando a la sub
+// que corresponda (presencial o paquete) — reemplaza el hardcode anterior a
+// presencialSub.
+function openChangeDialog(sub: SubscriptionDetail) {
+  changeTarget.value = sub;
+  showChangeDialog.value = true;
 }
 
 async function onTurnosChanged() {
