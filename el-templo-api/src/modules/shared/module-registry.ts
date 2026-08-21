@@ -117,7 +117,7 @@
 // importa por ruta directa, igual que `country-scope.ts`, `tenant.ts`,
 // `module-flags.ts` y `permissions.ts`.
 
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type {
   FastifyInstance,
@@ -195,12 +195,37 @@ async function resolveTenantForGuard(
 
   // (2) Autenticado pero sin scope todavía: SELECT mínimo del ancla. NO se
   // llama al helper de scope de país/tenant — ver docblock del archivo.
+  //
+  // Pitfall 7 (descubierto ejecutando este plan): `users` es tabla STRICT
+  // (`TENANT_STRICT_MODULES` en `src/db/tenant-tables.ts`, módulo `members`)
+  // — el sentinel de tenancy (CON-05, `src/db/sentinel/install.ts`) hace
+  // THROW en test/dev sobre cualquier query a una tabla strict cuyo texto SQL
+  // no mencione `tenant_id` en la zona de predicado. Esta query es,
+  // estructuralmente, la que DESCUBRE el tenant — no puede filtrar por algo
+  // que todavía no conoce (mismo motivo por el que el helper de scope de
+  // país/tenant, `country-scope.ts`, resuelve su fila ancla sin filtro de
+  // tenant). Por eso
+  // usa `db.execute(sql\`...\`)` con la anotación `tenant-safe:` embebida EN
+  // EL SQL (no alcanza un comentario TS: el canal del sentinel es el texto
+  // que llega al pool, no la fuente — ver el docblock de
+  // `src/db/sentinel/analyze.ts` §"LOS DOS CANALES DE EXENCIÓN"), en vez del
+  // query builder fluido que usa el resto del archivo.
   if (typeof request.user?.userId === "number") {
-    const [row] = await db
-      .select({ tenantId: schema.users.tenantId })
-      .from(schema.users)
-      .where(eq(schema.users.id, request.user.userId))
-      .limit(1);
+    // `db.execute()` del driver mysql2 (drizzle-orm 0.45.1) está tipado para
+    // devolver `[ResultSetHeader, FieldPacket[]]` SIEMPRE — el genérico `T`
+    // no afecta ese tipo (pensado para DML, no para un SELECT crudo). Y en
+    // RUNTIME, para un `sql\`...\`` SIN `fields`/`customResultMapper`
+    // (exactamente este caso: un raw query, no el query builder), `execute`
+    // de `MySql2PreparedQuery` (`drizzle-orm/mysql2/session.js`) devuelve el
+    // TUPLE crudo de mysql2 tal cual — `[filas, metadataDeColumnas]` — sin
+    // desenvolver el primer elemento (ese desenvuelto es solo el camino con
+    // `fields`, el que usa el query builder). El cast de abajo documenta esa
+    // forma real — no es un `any` — y el doble destructuring (`[[row]]`) la
+    // respeta: el primer nivel es el tuple, el segundo es la fila.
+    const [rows] = (await db.execute(
+      sql`/* tenant-safe: resuelve el tenant de un usuario recién autenticado ANTES de que exista scope — es la query que DESCUBRE el tenant, no puede filtrar por él (mismo motivo estructural que el lookup inicial del helper de scope de país/tenant, country-scope.ts) */ SELECT tenant_id AS tenantId FROM users WHERE id = ${request.user.userId} LIMIT 1`,
+    )) as unknown as [Array<{ tenantId: number | null }>, unknown];
+    const [row] = rows;
     if (row?.tenantId != null) return row.tenantId;
   }
 
