@@ -406,12 +406,15 @@ export function useAnalyticsApi() {
 
   // Reporte de reparto "Actividades con Aura" (REP-01, Phase 162-06). Asistencias
   // del mes por actividad especial separadas socio/externo + KPIs D-05, SIN montos.
-  async function getEspecialesReport(month: string): Promise<EspecialesReport> {
+  async function getEspecialesReport(
+    month: string,
+    filters: AnalyticsFilters = {}
+  ): Promise<EspecialesReport> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await api.get<EspecialesReport>('/admin/analytics/especiales', {
-        params: { month },
+        params: { month, ...buildParams(filters) },
       });
       return data;
     } catch (err: unknown) {
@@ -422,12 +425,12 @@ export function useAnalyticsApi() {
     }
   }
 
-  async function exportEspeciales(month: string): Promise<Blob> {
+  async function exportEspeciales(month: string, filters: AnalyticsFilters = {}): Promise<Blob> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await api.get('/admin/analytics/especiales/export', {
-        params: { month },
+        params: { month, ...buildParams(filters) },
         responseType: 'blob',
       });
       return data as Blob;

@@ -210,6 +210,7 @@
           :data="memberData"
           :loading="loadingMembers"
           :branch-id="selectedBranchId"
+          :country="currentFilters.country"
           :date-from="dateFrom"
           :date-to="dateTo"
         />
@@ -302,6 +303,8 @@
         <EspecialesTab
           :data="especialesData"
           :loading="loadingEspeciales"
+          :branch-id="selectedBranchId"
+          :country="currentFilters.country"
           v-model:month="especialesMonth"
           @change="fetchEspeciales"
         />
@@ -612,7 +615,7 @@ const kpiCards = computed<KpiCard[]>(() => {
   return [
     {
       key: 'activeMembers',
-      label: 'Activos',
+      label: 'Activos hoy',
       icon: 'people',
       formattedValue: String(k.activeMembers.value),
       trend: k.activeMembers.trend,
@@ -814,7 +817,10 @@ async function fetchReferralAb() {
 async function fetchEspeciales() {
   loadingEspeciales.value = true;
   try {
-    especialesData.value = await analyticsApi.getEspecialesReport(especialesMonth.value);
+    especialesData.value = await analyticsApi.getEspecialesReport(especialesMonth.value, {
+      branchId: selectedBranchId.value,
+      country: currentFilters.value.country,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error fetching especiales report', { error: message });
