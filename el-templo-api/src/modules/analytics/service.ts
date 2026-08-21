@@ -304,56 +304,58 @@ export class AnalyticsService {
     country: "AR" | "ES" | undefined,
   ): Promise<ActiveMembersBreakdown> {
     const uid = schema.users.id;
-    // `ctx` se threadea a cada predicado para que cada EXISTS correlacionado
-    // sume su propio `tenant_id` (cinturón-y-tirantes con el tenantWhere del
-    // `.where(...)`), igual que countActiveMembers.
-    const categoryExpr = sql<string>`CASE
-      WHEN ${activePayingNonEspecialMemberExists(uid, ctx)} THEN 'paying'
-      WHEN ${activeSubOfKindExists(uid, "staff", ctx)} THEN 'staff'
-      WHEN ${activeSubOfKindExists(uid, "bonificada", ctx)} THEN 'bonificada'
-      ELSE 'especial'
-    END`;
 
-    const conditions: SQL[] = [
-      eq(schema.users.role, "member") as unknown as SQL,
-      // Universo: cualquier miembro con al menos una sub vigente (predicado
-      // plano, el mismo que usa el listado de Miembros).
-      activeMemberExists(uid, ctx),
-    ];
-    if (branchId !== undefined) {
-      conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
-    }
-    if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country) as unknown as SQL);
-    }
-
-    // Fase 173 (D-02): `tenantWhere` INLINE en el `and(...)` — el gimnasio se
-    // nombra ACÁ, donde el sentinel lint lo busca.
-    const rows = await this.db
-      .select({
-        category: categoryExpr,
-        count: sql<number>`COUNT(*)`,
-      })
-      .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(tenantWhere(schema.users, ctx), ...conditions))
-      .groupBy(categoryExpr);
-
-    const byCategory = new Map(
-      rows.map((r) => [String(r.category), Number(r.count)]),
-    );
-    const paying = byCategory.get("paying") ?? 0;
-    const staff = byCategory.get("staff") ?? 0;
-    const bonificada = byCategory.get("bonificada") ?? 0;
-    const onlyEspecial = byCategory.get("especial") ?? 0;
-
-    return {
-      paying,
-      staff,
-      bonificada,
-      onlyEspecial,
-      totalActive: paying + staff + bonificada + onlyEspecial,
+    // COUNTs independientes con EXISTS en el WHERE (mismo patrón probado de
+    // countActiveMembers). NO usamos `GROUP BY` sobre un CASE con subqueries
+    // correlacionadas: Drizzle re-inlina esa expresión en el GROUP BY y rompe
+    // (gotcha tipo FA-01) — mejor 4 COUNTs y derivar el 5º.
+    const countWhere = (extra: SQL[]): Promise<number> => {
+      const conditions: SQL[] = [
+        eq(schema.users.role, "member") as unknown as SQL,
+        ...extra,
+      ];
+      if (branchId !== undefined) {
+        conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
+      }
+      if (country !== undefined) {
+        conditions.push(eq(schema.branches.country, country) as unknown as SQL);
+      }
+      // Fase 173 (D-02): `tenantWhere` INLINE en el `and(...)`, donde el
+      // sentinel lint nombra el gimnasio.
+      return this.db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(schema.users)
+        .innerJoin(
+          schema.branches,
+          eq(schema.branches.id, schema.users.branchId),
+        )
+        .where(and(tenantWhere(schema.users, ctx), ...conditions))
+        .then(([r]) => Number(r?.count ?? 0));
     };
+
+    // Baldes por PRIORIDAD (staff > bonificada > especial) sobre el universo
+    // de excluidos = vigente PERO no-paga-no-especial. `onlyEspecial` se deriva
+    // por resta, garantizando paying+staff+bonificada+onlyEspecial=totalActive.
+    const notPaying = sql`NOT ${activePayingNonEspecialMemberExists(uid, ctx)}`;
+    const notStaff = sql`NOT ${activeSubOfKindExists(uid, "staff", ctx)}`;
+    const [paying, totalActive, staff, bonificada] = await Promise.all([
+      countWhere([activePayingNonEspecialMemberExists(uid, ctx)]),
+      countWhere([activeMemberExists(uid, ctx)]),
+      countWhere([
+        activeMemberExists(uid, ctx),
+        notPaying,
+        activeSubOfKindExists(uid, "staff", ctx),
+      ]),
+      countWhere([
+        activeMemberExists(uid, ctx),
+        notPaying,
+        notStaff,
+        activeSubOfKindExists(uid, "bonificada", ctx),
+      ]),
+    ]);
+    const onlyEspecial = totalActive - paying - staff - bonificada;
+
+    return { paying, staff, bonificada, onlyEspecial, totalActive };
   }
 
   private async countActiveMembers(
