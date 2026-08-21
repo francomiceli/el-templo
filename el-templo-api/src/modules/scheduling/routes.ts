@@ -31,6 +31,7 @@ import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
+import { appBranchName } from "../shared/app-branch-name";
 import {
   ConflictError,
   CoverageExpiredError,
@@ -910,7 +911,12 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       ]);
 
       return {
-        slots: result.slots,
+        // Compat app: getWeeklyGrid es compartido con el admin -> el nombre
+        // largo se arma solo acá, en el handler member.
+        slots: result.slots.map((s) => ({
+          ...s,
+          branchName: appBranchName(s.branchName),
+        })),
         holidays: result.holidays,
         myBookings,
         myAttendance,
@@ -1124,6 +1130,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       .from(schema.branches)
       .where(where)
       .orderBy(schema.branches.name);
-    return { branches: rows };
+    // Compat app: ruta member-only -> nombre largo para el regex del front.
+    return {
+      branches: rows.map((r) => ({ ...r, name: appBranchName(r.name) })),
+    };
   });
 };

@@ -33,6 +33,7 @@ import {
   PhoneRequiredError,
 } from "../shared/errors";
 import { sanitizePhoneForStorage } from "../shared/phone";
+import { appBranchName } from "../shared/app-branch-name";
 import type { CountryCode } from "../shared/country-scope";
 import { buildClassDateTime, todayInTz } from "../shared/date-utils";
 import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
@@ -524,7 +525,8 @@ export class TrialService {
           date: booking.date,
           startTime: booking.startTime,
           branchId: booking.branchId,
-          branchName: booking.branchName,
+          // Compat app: getTrialEligibility es member-only, se transforma acá.
+          branchName: appBranchName(booking.branchName),
           branchAddress: booking.branchAddress,
           canModify: this.isOutsideCancelWindow(
             booking.date,
