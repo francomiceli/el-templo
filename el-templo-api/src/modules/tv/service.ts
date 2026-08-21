@@ -48,6 +48,7 @@ import type {
   TvControlState,
   TvExercise,
   TvLevelColumn,
+  TvDeuterosGroup,
   TvPollResponse,
   TvScreen,
   TvStateWrite,
@@ -751,6 +752,21 @@ export class TvService {
     return block.prescriptions.filter((p) => p.exerciseType === "main");
   }
 
+  /**
+   * Línea de movilidad de un bloque puntual (`MOVILIDAD · …`) o `null` si no
+   * trae. Se usa para la movilidad POR columna del 2×2 de deuteros; la versión
+   * global del payload (`buildClassPayload`) sale del bloque canónico y sirve
+   * para el resto de los layouts.
+   */
+  private mobilityLineOf(block: ClassDayBlock | undefined): string | null {
+    const mobility = block?.prescriptions.filter(
+      (p) => p.exerciseType === "mobility",
+    );
+    return mobility && mobility.length > 0
+      ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`
+      : null;
+  }
+
   private levelLabel(
     classDay: ClassDay,
     level: string,
@@ -862,9 +878,13 @@ export class TvService {
     const levels = pairLevels.length > 0 ? pairLevels : [state.level];
 
     if (visualGroupOf(state.blockRole) === "DEUTEROS") {
+      // Orden de las 4 celdas (grilla 2×2, row-major en el CSS): recorremos
+      // primero el nivel y adentro los dos deuteros, así cada FILA es un nivel
+      // del par y cada COLUMNA es un deutero — DEUTEROS I a la izquierda,
+      // DEUTEROS II a la derecha (pedido de diseño).
       const columns: TvLevelColumn[] = [];
-      for (const deuterosRole of ["DEUTEROS_1", "DEUTEROS_2"]) {
-        for (const level of levels) {
+      for (const level of levels) {
+        for (const deuterosRole of ["DEUTEROS_1", "DEUTEROS_2"]) {
           const levelBlock = this.resolveBlock(classDay, deuterosRole, level);
           // Guard: un dia regular puede no tener DEUTEROS_2 (o un nivel
           // puntual del par sin bloque) — se omite, nunca una columna rota.
@@ -873,9 +893,10 @@ export class TvService {
             !!levelBlock.formatParams &&
             FORMAT_DICTATED_TYPES.has(levelBlock.formatParams.type);
           const label = this.levelLabel(classDay, level, false);
-          const deuterosLabel = ROLE_LABELS[deuterosRole] ?? deuterosRole;
+          // El rótulo del deutero (DEUTEROS I/II) vive en la cabecera (izq/der),
+          // NO al lado del nivel: el header de la celda es sólo NIVEL | RUTA %.
           columns.push({
-            header: `${deuterosLabel} ${label} | ${getRouteLabel(levelBlock.route)} ${levelBlock.intensity}%`,
+            header: `${label} | ${getRouteLabel(levelBlock.route)} ${levelBlock.intensity}%`,
             exercises: this.mainPrescriptions(levelBlock).map((p) =>
               this.toExercise(p, dictated),
             ),
@@ -898,6 +919,29 @@ export class TvService {
         ),
       };
     });
+  }
+
+  /**
+   * Los dos deuteros del 2×2 (día regular con DEUTEROS_1/2): etiqueta + UNA
+   * movilidad por deutero, tomada del bloque canónico (kairos-first) como el
+   * PDF/editor — no una por nivel. `null` cuando el bloque activo no es
+   * deuteros. La cabecera (izq/der) y el pie del 2×2 se pintan desde acá.
+   */
+  private buildDeuterosPanel(
+    classDay: ClassDay,
+    state: TvControlState,
+  ): TvDeuterosGroup[] | null {
+    if (visualGroupOf(state.blockRole) !== "DEUTEROS") return null;
+    const groups: TvDeuterosGroup[] = [];
+    for (const role of ["DEUTEROS_1", "DEUTEROS_2"]) {
+      const canonical = this.resolveCanonicalBlock(classDay, role);
+      if (!canonical) continue;
+      groups.push({
+        label: ROLE_LABELS[role] ?? role,
+        mobilityLine: this.mobilityLineOf(canonical),
+      });
+    }
+    return groups.length > 0 ? groups : null;
   }
 
   private buildClassPayload(
@@ -966,6 +1010,7 @@ export class TvService {
           ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`
           : null,
       columns: this.buildColumns(classDay, state, shared, block, formatDictated),
+      deuteros: this.buildDeuterosPanel(classDay, state),
       exerciseIndex: state.exerciseIndex,
       timer: {
         // `mainPrescriptions(block).length` = estaciones del circuito: interval

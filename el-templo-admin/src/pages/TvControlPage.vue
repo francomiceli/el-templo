@@ -106,7 +106,7 @@
               label="ANTERIOR"
               color="primary"
               outline
-              :disable="!canControl || blockIndex <= 0"
+              :disable="!canControl || buttonIndex <= 0"
               @click="onBlockStep(-1)"
             />
           </div>
@@ -117,19 +117,19 @@
               label="SIGUIENTE"
               color="primary"
               outline
-              :disable="!canControl || blockIndex < 0 || blockIndex >= context.blocks.length - 1"
+              :disable="!canControl || buttonIndex < 0 || buttonIndex >= blockButtons.length - 1"
               @click="onBlockStep(1)"
             />
           </div>
-          <div v-for="block in context.blocks" :key="block.role" class="col-6">
+          <div v-for="button in blockButtons" :key="button.role" class="col-6">
             <q-btn
               class="tv-btn full-width"
-              :color="block.role === currentBlockRole ? 'primary' : 'grey-7'"
-              :outline="block.role !== currentBlockRole"
-              :unelevated="block.role === currentBlockRole"
-              :label="blockName(block)"
+              :color="isActiveButton(button.role) ? 'primary' : 'grey-7'"
+              :outline="!isActiveButton(button.role)"
+              :unelevated="isActiveButton(button.role)"
+              :label="button.label"
               :disable="!canControl"
-              @click="onSelectBlock(block.role)"
+              @click="onSelectBlock(button.role)"
             />
           </div>
         </div>
@@ -633,6 +633,41 @@ const blockIndex = computed(() =>
 const currentBlock = computed(() =>
   blockIndex.value >= 0 ? (context.value?.blocks[blockIndex.value] ?? null) : null
 );
+
+/**
+ * Botones de bloque del control. El roster real trae DEUTEROS_1 y DEUTEROS_2 por
+ * separado, pero en pantalla entran juntos (grilla 2×2), así que se colapsan en
+ * UN solo botón "DEUTEROS" (representa a DEUTEROS_1). El resto de los bloques
+ * —incluido el alternativo navegable de combos/técnica— conserva su botón propio.
+ */
+const blockButtons = computed<{ role: string; label: string }[]>(() => {
+  const blocks = context.value?.blocks ?? [];
+  const out: { role: string; label: string }[] = [];
+  let deuterosDone = false;
+  for (const b of blocks) {
+    if (b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS_2') {
+      if (deuterosDone) continue;
+      deuterosDone = true;
+      out.push({ role: 'DEUTEROS_1', label: 'DEUTEROS' });
+    } else {
+      out.push({ role: b.role, label: blockName(b) });
+    }
+  }
+  return out;
+});
+
+/** El botón está activo si es el bloque en curso; el botón DEUTEROS (colapsado)
+ *  queda activo con cualquiera de sus dos caminos (DEUTEROS_1/DEUTEROS_2). */
+function isActiveButton(role: string): boolean {
+  const cur = currentBlockRole.value;
+  if (role === cur) return true;
+  return role === 'DEUTEROS_1' && (cur === 'DEUTEROS_1' || cur === 'DEUTEROS_2');
+}
+
+/** Índice del bloque en curso dentro de la botonera colapsada (para prev/next). */
+const buttonIndex = computed(() =>
+  blockButtons.value.findIndex((btn) => isActiveButton(btn.role))
+);
 const currentBlockTitle = computed(() => currentBlock.value?.title ?? 'Este bloque');
 /** INITIUM/PYROS es lista compartida: no hay nivel que elegir. */
 const levelsDisabled = computed(() => currentBlock.value?.shared === true);
@@ -802,8 +837,7 @@ function onStartClass(): void {
 
 /** Los dos triángulos mandan el ROL destino, calculado acá sobre el roster. */
 function onBlockStep(delta: number): void {
-  const blocks = context.value?.blocks ?? [];
-  const target = blocks[blockIndex.value + delta];
+  const target = blockButtons.value[buttonIndex.value + delta];
   if (!target) return;
   requestBlockChange(target.role);
 }

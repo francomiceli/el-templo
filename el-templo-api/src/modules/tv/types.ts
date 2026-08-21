@@ -153,6 +153,17 @@ export interface TvLevelColumn {
 }
 
 /**
+ * Un deutero del 2×2 (día regular con DEUTEROS_1/DEUTEROS_2): su etiqueta
+ * ("DEUTEROS I"/"DEUTEROS II") y UNA movilidad (la del nivel canónico
+ * kairos-first, como el PDF/editor) — no una por nivel. El 2×2 las muestra en
+ * la cabecera (izq/der) y al pie (dos líneas). `null` fuera del 2×2.
+ */
+export interface TvDeuterosGroup {
+  label: string;
+  mobilityLine: string | null;
+}
+
+/**
  * Timer state as published to the TV.
  *
  * `startedAt` is an epoch-ms stamp, never a countdown (UI-SPEC point 4).
@@ -203,6 +214,10 @@ export interface TvClassPayload {
   /** 1 entrada (bloque shared, o un solo nivel del par presente hoy) o 2
    *  (ambos niveles del par presentes) — nunca más. Ver `TvLevelColumn`. */
   columns: TvLevelColumn[];
+  /** Sólo en el 2×2 de deuteros (día regular, DEUTEROS_1/2 × par de niveles):
+   *  los dos deuteros con su etiqueta y su única movilidad canónica. `null` en
+   *  el resto de los layouts. */
+  deuteros: TvDeuterosGroup[] | null;
   exerciseIndex: number;
   timer: TvTimerState;
 }
