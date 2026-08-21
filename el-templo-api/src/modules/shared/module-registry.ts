@@ -133,6 +133,19 @@ import { DEFAULT_PUBLIC_TENANT_ID, type ModuleName } from "./modules";
 type DbInstance = MySql2Database<typeof schema>;
 
 /**
+ * Símbolos GLOBALES (`Symbol.for`, mismo símbolo que usa `fastify` y
+ * `fastify-plugin` internamente — no un import de sus módulos internos) que
+ * `moduleScope` necesita para el fix de Pitfall 6, documentado ahí mismo.
+ */
+const PLUGIN_META_SYMBOL = Symbol.for("plugin-meta");
+const REGISTERED_PLUGINS_SYMBOL = Symbol.for("registered-plugin");
+
+/** Forma mínima de lo que `fastify-plugin` cuelga en `Symbol.for("plugin-meta")`. */
+interface FastifyPluginMetaLike {
+  name?: string;
+}
+
+/**
  * Marca que el gate de cobertura (`moduleGuardOf`) lee. Va en la MISMA
  * función que Fastify ejecuta como hook `onRequest` — así no puede
  * desincronizarse de la realidad (por eso NO se usa `config` por-ruta como
@@ -205,6 +218,28 @@ async function resolveTenantForGuard(
  * El `scoped.register(plugin, opts)` interno es lo que garantiza la
  * encapsulación incluso cuando `plugin` es un `fp(...)` — ver §"PITFALL 3"
  * del docblock del archivo.
+ *
+ * PITFALL 6 (descubierto ejecutando este plan, no anticipado por el
+ * RESEARCH): dos de los 7 `fp` de training declaran una dependencia
+ * NOMBRADA entre sí (`sessions-plugin` requiere `spom-plugin`,
+ * `src/plugins/sessions.ts`). Antes de este plan, ambos se registraban
+ * directo sobre `app` y avvio resolvía la dependencia sin problema porque
+ * los dos empujaban su nombre al MISMO array de "plugins registrados" de
+ * `app`. `moduleScope` envuelve cada uno en su PROPIO scope encapsulado
+ * (necesario para no derramar el guard, Pitfall 3) — y ESE scope clona el
+ * array de `app` al crearse (`Object.create`, mecanismo interno de avvio),
+ * así que el nombre que un `fp` registra queda solo en la copia de SU
+ * propio scope, invisible para el próximo `moduleScope(...)` (que clona
+ * `app` de nuevo, sin el nombre del anterior). Sin el propagate de abajo,
+ * envolver `sessions-plugin` revienta el boot con "the dependency
+ * 'spom-plugin' is not registered", verificado empíricamente contra este
+ * mismo build. El fix reenvía el nombre del plugin recién registrado (si lo
+ * tiene — no todos los `plugin` de este archivo son `fp` con nombre, p.ej.
+ * `adminRoutes`) al array REAL de `app`, para que el próximo `moduleScope`
+ * lo herede exactamente como heredaría cualquier plugin registrado directo.
+ * Usa `Symbol.for` (registro global de símbolos de JS), no un import del
+ * código interno de `fastify`/`fastify-plugin` — es la misma referencia que
+ * esas librerías usan para leer/escribir este estado.
  */
 export async function moduleScope(
   app: FastifyInstance,
@@ -227,6 +262,18 @@ export async function moduleScope(
       ] as RouteOptions["onRequest"];
     });
     await scoped.register(plugin, opts);
+
+    // Pitfall 6 (ver docblock arriba): propaga el nombre del `fp(...)` recién
+    // registrado al array real de `app`, para que el próximo `moduleScope`
+    // pueda resolver una dependencia nombrada hacia este plugin.
+    const meta = (plugin as unknown as Record<symbol, FastifyPluginMetaLike>)[
+      PLUGIN_META_SYMBOL
+    ];
+    if (meta?.name) {
+      (app as unknown as Record<symbol, string[]>)[
+        REGISTERED_PLUGINS_SYMBOL
+      ].push(meta.name);
+    }
   });
 }
 

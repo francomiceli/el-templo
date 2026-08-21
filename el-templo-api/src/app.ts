@@ -63,6 +63,7 @@ import { campaignRoutes } from "./modules/campaigns/routes";
 import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
 import { tvControlRoutes } from "./modules/tv";
+import { moduleScope } from "./modules/shared/module-registry";
 
 /**
  * Opciones de `buildApp`. Hoy tiene un solo campo y es a propósito: la
@@ -164,36 +165,49 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // Auth plugin (decorates fastify.jwt and fastify.authenticate)
   await app.register(authPlugin);
 
+  // Fase 176 Plan 03 (MOD-01, D-04): los 12 registros de rutas de
+  // `templo-training` quedan IN-PLACE acá (no migran al formato `ModuleDef`
+  // en esta fase) pero envueltos con `moduleScope`, que appendea el guard
+  // `requireModule` a cada ruta que registren. Son 12, no 7: los 7 `fp` de
+  // abajo cubren 25 de las 102 rutas de training — las otras 77 vienen de
+  // los 5 registros directos (adminRoutes, goalPlanRoutes, programRoutes,
+  // checkInRoutes, checkInAdminRoutes) envueltos más abajo. Ver
+  // 176-RESEARCH.md §"Mapeo completo" para el detalle ruta por ruta.
+
   // SPOM plugin (SPOM data access endpoints)
-  await app.register(spomPlugin);
+  await moduleScope(app, "templo-training", spomPlugin);
 
   // Sessions plugin (session generation and retrieval)
-  await app.register(sessionsPlugin);
+  await moduleScope(app, "templo-training", sessionsPlugin);
 
   // Progression plugin (member stats and evaluation requests)
-  await app.register(progressionPlugin);
+  await moduleScope(app, "templo-training", progressionPlugin);
 
   // Tree-progress plugin (member skill-tree % advancement — Phase 127)
-  await app.register(treeProgressPlugin);
+  await moduleScope(app, "templo-training", treeProgressPlugin);
 
   // Tree-editor plugin (admin/coach skill-tree editor — Phase 128)
-  await app.register(treeEditorPlugin);
+  await moduleScope(app, "templo-training", treeEditorPlugin);
 
   // Exercise-adjustments plugin (in-session difficulty adjustment — Phase 131)
-  await app.register(exerciseAdjustmentsPlugin);
+  await moduleScope(app, "templo-training", exerciseAdjustmentsPlugin);
 
   // Exercise-adjustments coach plugin (coach/owner read of a member's
   // dominado/bajado log — Phase 131 Plan 02)
-  await app.register(exerciseAdjustmentsCoachPlugin);
+  await moduleScope(app, "templo-training", exerciseAdjustmentsCoachPlugin);
 
   // Routes
   await app.register(authRoutes, { prefix: "/api/auth" });
 
   // Admin routes (session management for coaches/admins)
-  await app.register(adminRoutes, { prefix: "/api/admin" });
+  await moduleScope(app, "templo-training", adminRoutes, {
+    prefix: "/api/admin",
+  });
 
   // Goal plan routes (member goal plan lifecycle + admin goal plan management)
-  await app.register(goalPlanRoutes, { prefix: "/api" });
+  await moduleScope(app, "templo-training", goalPlanRoutes, {
+    prefix: "/api",
+  });
 
   // Franchise routes (public franchise application form)
   await app.register(franchiseRoutes, { prefix: "/api/franchise" });
@@ -339,14 +353,21 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await app.register(barChallengeRoutes, { prefix: "/api/bar-challenge" });
 
   // Check-in routes (daily energy/soreness/sleep check-ins)
-  await app.register(checkInRoutes, { prefix: "/api/check-ins" });
+  await moduleScope(app, "templo-training", checkInRoutes, {
+    prefix: "/api/check-ins",
+  });
   // Vista admin del Registro del día (tab de Feedback, ADMIN_ROLES).
-  await app.register(checkInAdminRoutes, { prefix: "/api/admin/check-ins" });
-  // Roster de registros del día para Horarios (coach + admin/dueño).
+  await moduleScope(app, "templo-training", checkInAdminRoutes, {
+    prefix: "/api/admin/check-ins",
+  });
+  // Roster de registros del día para Horarios (coach + admin/dueño). NO se
+  // envuelve con moduleScope (176-03, D-04): comparte prefijo con
+  // checkInAdminRoutes de arriba pero está clasificado `tenant-scoped` en el
+  // manifiesto — es un registro distinto, no una ruta de templo-training.
   await app.register(checkInRosterRoutes, { prefix: "/api/admin/check-ins" });
 
   // Program management routes (admin CRUD + member catalog/progress)
-  await app.register(programRoutes, { prefix: "/api" });
+  await moduleScope(app, "templo-training", programRoutes, { prefix: "/api" });
 
   // Notification routes (push notifications, preferences, admin templates)
   await app.register(notificationRoutes, { prefix: "/api/notifications" });
