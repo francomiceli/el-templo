@@ -289,9 +289,6 @@ export interface MemberListParams {
   // Phase 103 (R8): first-class users.status filter (replaces Phase 102's
   // 'leads'/'alumnos' derived values). 'todos' is a no-op default.
   status?: 'todos' | UserStatus;
-  // Corte por tipo de membresía de la sub vigente (paga/bonificada/staff).
-  // Alimenta el desglose clickeable del KPI de activos en Analíticas.
-  membershipKind?: 'paga' | 'bonificada' | 'staff';
   // Phase 154 (ALUM-05): gatea la columna Nivel del export Excel por la superficie
   // Templo de niveles griegos. Default en el backend true → columna presente.
   includeGreekLevel?: boolean;

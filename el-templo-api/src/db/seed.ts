@@ -37,12 +37,12 @@ async function seed() {
   // Insert branches
   console.log("Creating branches...");
   const branchesData = [
-    { name: "El Templo Moreno", code: "MORENO" },
-    { name: "El Templo Alem", code: "ALEM" },
-    { name: "El Templo Constitución", code: "CONST" },
-    { name: "El Templo Jujuy", code: "JUJUY" },
-    { name: "El Templo Mogotes", code: "MOGOTES" },
-    { name: "El Templo Park", code: "PARK" },
+    { name: "Moreno", code: "MORENO" },
+    { name: "Alem", code: "ALEM" },
+    { name: "Constitucion", code: "CONST" },
+    { name: "Jujuy", code: "JUJUY" },
+    { name: "Sur", code: "MOGOTES" },
+    { name: "Park", code: "PARK" },
   ];
 
   await db.insert(branches).values(branchesData);

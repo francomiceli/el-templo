@@ -287,39 +287,6 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
   });
 
   // ═══════════════════════════════════════════════════════════════════════
-  // (1c) Filtro membershipKind del listado de Miembros (destino del drill-down)
-  // ═══════════════════════════════════════════════════════════════════════
-
-  it("listado de Miembros: filtro membershipKind=staff devuelve solo el staff vigente", async () => {
-    const active = {
-      startDate: dateOffsetStr(-10),
-      endDate: dateOffsetStr(20),
-    };
-
-    await insertSub({ userId: await insertMember(), ...active }); // pagante
-    const staff = await insertMember();
-    await insertSub({
-      userId: staff,
-      membershipKind: "staff",
-      pricePaid: 0,
-      ...active,
-    });
-
-    const res = await app.inject({
-      method: "GET",
-      url: `/api/admin/members?branchId=${branchA}&status=activo&membershipKind=staff`,
-      headers: { authorization: `Bearer ${adminToken}` },
-    });
-    expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body) as {
-      members: Array<{ id: number }>;
-      total: number;
-    };
-    expect(body.total).toBe(1);
-    expect(body.members[0].id).toBe(staff);
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════
   // (2) Altas — MemberFlowsService
   // ═══════════════════════════════════════════════════════════════════════
 

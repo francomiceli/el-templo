@@ -539,11 +539,15 @@ export function useMembersApi() {
    * AlumnosPage, AlumnoDetailPage, HorariosPage, UsuariosPage all consume
    * this composable / endpoint and rely on the backend scope).
    */
-  async function getBranches(): Promise<BranchOption[]> {
+  async function getBranches(opts?: { country?: 'AR' | 'ES' }): Promise<BranchOption[]> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<{ branches: BranchOption[] }>('/admin/members/branches');
+      const params: Record<string, unknown> = {};
+      if (opts?.country !== undefined) params.country = opts.country;
+      const { data } = await api.get<{ branches: BranchOption[] }>('/admin/members/branches', {
+        params,
+      });
       return data.branches;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando sucursales');
