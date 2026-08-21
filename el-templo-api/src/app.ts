@@ -17,11 +17,6 @@ import exerciseAdjustmentsCoachPlugin from "./plugins/exercise-adjustments-coach
 import { authRoutes } from "./modules/auth";
 import { adminRoutes } from "./modules/admin";
 import { goalPlanRoutes } from "./modules/goal-plans";
-import { franchiseRoutes } from "./modules/franchise";
-import { gladiusRoutes } from "./modules/gladius";
-import { blogRoutes } from "./modules/blog";
-import { academyRoutes } from "./modules/academy";
-import { appLandingRoutes } from "./modules/app-landing";
 import { memberRoutes } from "./modules/members";
 import { leadsRoutes } from "./modules/members/leads-routes";
 import {
@@ -48,8 +43,6 @@ import {
 import { financeRoutes, coachLoadRoutes } from "./modules/finance";
 import { userRoutes } from "./modules/users";
 import { settingsRoutes } from "./modules/settings";
-import { onboardingRoutes } from "./modules/onboarding";
-import { barChallengeRoutes } from "./modules/bar-challenge/routes";
 import {
   checkInRoutes,
   checkInAdminRoutes,
@@ -64,6 +57,7 @@ import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
 import { tvControlRoutes } from "./modules/tv";
 import { moduleScope } from "./modules/shared/module-registry";
+import { registerModules } from "./modules-boot";
 
 /**
  * Opciones de `buildApp`. Hoy tiene un solo campo y es a propósito: la
@@ -209,21 +203,6 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     prefix: "/api",
   });
 
-  // Franchise routes (public franchise application form)
-  await app.register(franchiseRoutes, { prefix: "/api/franchise" });
-
-  // Gladius routes (product catalog + inquiry form)
-  await app.register(gladiusRoutes, { prefix: "/api/gladius" });
-
-  // Blog routes (public blog + admin CRUD + image upload)
-  await app.register(blogRoutes, { prefix: "/api/blog" });
-
-  // Academy routes (enrollment inquiry form)
-  await app.register(academyRoutes, { prefix: "/api/academy" });
-
-  // App landing routes (waitlist + Labs inquiry forms)
-  await app.register(appLandingRoutes, { prefix: "/api/app" });
-
   // Wellhub webhook (público, autenticado por firma HMAC — una sola URL para
   // todos los eventos de check-in y reservas de la plataforma Wellhub)
   await app.register(wellhubWebhookRoutes, { prefix: "/api/webhooks/wellhub" });
@@ -346,12 +325,6 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     prefix: "/api/admin/settings",
   });
 
-  // Onboarding routes (member quiz completion + profile retrieval + analytics)
-  await app.register(onboardingRoutes, { prefix: "/api/onboarding" });
-
-  // Phase 115 bar challenge result endpoint (single-attempt, member-only).
-  await app.register(barChallengeRoutes, { prefix: "/api/bar-challenge" });
-
   // Check-in routes (daily energy/soreness/sleep check-ins)
   await moduleScope(app, "templo-training", checkInRoutes, {
     prefix: "/api/check-ins",
@@ -375,6 +348,10 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // Campaign routes (Phase 119): public tracking (open/click/unsubscribe) +
   // admin campaign create/list/send/funnel/eligible-count.
   await app.register(campaignRoutes, { prefix: "/api/campaigns" });
+
+  // Composition root de módulos Templo (marketing, onboarding, gamification).
+  // Ver `src/modules-boot.ts` para el detalle de qué registra y por qué.
+  await registerModules(app);
 
   // Health check endpoint
   app.get("/health", async () => {
