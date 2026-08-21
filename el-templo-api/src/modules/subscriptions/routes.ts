@@ -666,7 +666,9 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           request.params.userId,
           request.query.planId,
           request.query.priceType,
-          request.query.auraSpend,
+          request.query.auraSpend !== undefined
+            ? { auraSpend: request.query.auraSpend }
+            : {},
         );
         return preview;
       } catch (err: unknown) {

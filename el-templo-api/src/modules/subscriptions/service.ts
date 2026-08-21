@@ -51,7 +51,7 @@ import type {
   CreatePromoInput,
   UpdatePromoInput,
 } from "./types";
-import { AURA_DISCOUNT_TIERS, isOnlinePlan, categoryGroup } from "./types";
+import { isOnlinePlan, categoryGroup } from "./types";
 import { resolvePlanPrice, readModuleColumns } from "./pricing";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
@@ -5372,14 +5372,11 @@ export class SubscriptionService {
     userId: number,
     planId: number,
     priceType: PriceType,
-    auraSpend?: number,
+    moduleInput?: Record<string, unknown>,
   ): Promise<PricingPreview> {
     // Validate member
     const [member] = await this.db
-      .select({
-        id: schema.users.id,
-        boardingPassUsed: schema.users.boardingPassUsed,
-      })
+      .select({ id: schema.users.id })
       .from(schema.users)
       .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
 
@@ -5389,35 +5386,62 @@ export class SubscriptionService {
     const plan = await this.getPlanById(ctx, planId);
     if (!plan) throw new NotFoundError("Plan no encontrado");
 
-    // Route the preview through the single server-side gate (WR-01, D-04): with
-    // the card-surcharge rule OFF, a `credit_card` request must resolve to
-    // `regular` so the preview matches what assignPlan will actually charge.
-    // Otherwise the preview shows priceCreditCard while the charge lands at
-    // priceRegular (stale/cached UI, direct call, or the toggle-off race).
-    const resolvedPriceType = await this.resolvePriceType(priceType);
-    const basePrice = this.getBasePrice(plan, resolvedPriceType);
-    const auraBalance = await this.auraService.getBalance(userId);
-    const boardingPassEligible = !member.boardingPassUsed;
+    // Fase 176 Plan 10 (MOD-02): boarding pass/AURA son MÓDULO
+    // (`templo-gamification`) — resolvePlanPrice dispara el filter
+    // `pricing.adjust` con `commit: false` (preview: NO gasta ni marca).
+    // `resolvePriceType`/`getBasePrice` viajan igual que antes (WR-01, D-04:
+    // con la sobretasa de tarjeta OFF, credit_card normaliza a regular para
+    // que el preview matchee lo que assignPlan efectivamente cobra).
+    // `exclusiveBenefits: false`: el preview NO tiene rama de precio de
+    // boarding pass, solo reporta `boardingPassEligible` (Pitfall 5).
+    const resolved = await resolvePlanPrice({
+      hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
+      userId,
+      planId,
+      planCategory: plan.planCategory,
+      callSite: "preview",
+      commit: false,
+      supports: { exclusiveBenefits: false, discounts: true },
+      priceTypeRequested: priceType,
+      resolvePriceType: (t) => this.resolvePriceType(t),
+      basePriceFor: (t) => this.getBasePrice(plan, t),
+      moduleInput: moduleInput ?? {},
+    });
 
-    // Filter available tiers by user balance
-    const availableTiers = AURA_DISCOUNT_TIERS.filter(
-      (t) => t.spend <= auraBalance,
-    );
+    const basePrice = resolved.basePrice;
+    let finalPrice = resolved.price;
 
-    let discountType: PricingPreview["discountType"] = "none";
-    let discountAmount = 0;
-    let finalPrice = basePrice;
-    let auraToSpend = 0;
-
-    if (auraSpend && auraSpend > 0) {
-      const tier = AURA_DISCOUNT_TIERS.find((t) => t.spend === auraSpend);
-      if (tier && auraSpend <= auraBalance) {
-        discountType = "aura";
-        discountAmount = Math.floor(basePrice * (tier.percent / 100));
-        finalPrice = basePrice - discountAmount;
-        auraToSpend = tier.spend;
-      }
-    }
+    // Campos de módulo: `moduleOutput` es opaco para el core (T-176-16), se
+    // narrowea por `typeof`/comparación literal, NUNCA con `as`. Con el
+    // módulo apagado el filter no corre y `moduleOutput` queda `{}` — los
+    // defaults son NEUTROS (Pitfall 5: `PricingPreview` no puede exponer
+    // `undefined`, el PoS del admin no está typechequeado por CI).
+    const { moduleOutput } = resolved;
+    const auraBalance =
+      typeof moduleOutput.auraBalance === "number"
+        ? moduleOutput.auraBalance
+        : 0;
+    const boardingPassEligible = moduleOutput.boardingPassEligible === true;
+    const availableTiers: PricingPreview["availableTiers"] = Array.isArray(
+      moduleOutput.availableTiers,
+    )
+      ? moduleOutput.availableTiers
+      : [];
+    const rawDiscountType = moduleOutput.discountType;
+    const discountType: PricingPreview["discountType"] =
+      rawDiscountType === "boarding_pass" ||
+      rawDiscountType === "aura" ||
+      rawDiscountType === "override"
+        ? rawDiscountType
+        : "none";
+    const discountAmount =
+      typeof moduleOutput.discountAmount === "number"
+        ? moduleOutput.discountAmount
+        : 0;
+    const auraToSpend =
+      typeof moduleOutput.auraToSpend === "number"
+        ? moduleOutput.auraToSpend
+        : 0;
 
     // ── Referidos (fase 157, Pitfall 4): preview parity ──
     // computeReferralDiscountPercent es SOLO LECTURA: NO flippea cualificación
