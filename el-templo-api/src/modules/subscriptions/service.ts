@@ -21,7 +21,6 @@ import {
 } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { AuraService, InsufficientBalanceError } from "../aura";
 import {
   ConflictError,
   NotFoundError,
@@ -319,7 +318,6 @@ export class SubscriptionService {
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
-    private auraService: AuraService,
     private transactionService?: TransactionService,
     private enrollmentService?: EnrollmentService,
   ) {}
