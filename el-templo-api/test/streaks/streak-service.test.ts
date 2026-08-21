@@ -9,7 +9,15 @@
  * - AURA is awarded on session completion
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterAll,
+  afterEach,
+} from "vitest";
 import type { FastifyInstance } from "fastify";
 import { and, eq, sql } from "drizzle-orm";
 import {
@@ -23,6 +31,10 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../../src/modules/shared/tenant";
+import { hookRegistry } from "../../src/modules/shared/hooks";
+import { streakMilestoneRewardHandler } from "../../src/modules/aura/streak-reward";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { setModuleFlag, restoreTemploFlags } from "../fixtures/module-flags";
 
 // Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
 const CTX_TEMPLO: TenantContext = { tenantId: 1 };
@@ -222,5 +234,117 @@ describe("Streak Service Integration", () => {
 
     expect(balance).toBeDefined();
     expect(balance.balance).toBeGreaterThanOrEqual(10);
+  });
+
+  /**
+   * Fase 176 Plan 07 (MOD-02): prueba end-to-end, sobre el camino real
+   * (POST /api/sessions/complete -> StreakService.updateStreak ->
+   * hookRegistry.emit("streak.milestone", ...) -> streakMilestoneRewardHandler),
+   * las dos semanticas que `test/tenancy/mod-02-hooks.test.ts` ya prueba en
+   * aislamiento contra un HookRegistry de prueba: best-effort (un handler
+   * que explota no rompe el registro de la sesion) y gating por modulo (con
+   * `templo-gamification` apagado no se otorga AURA por racha).
+   */
+  describe("streak.milestone — event del módulo", () => {
+    // 7 dayIds distintos (mismo nivel "alfa", parseDayId no valida que el
+    // dia/semana existan de verdad) para completar 7 sesiones el mismo dia
+    // y llegar al milestone de racha 7 sin depender del calendario real.
+    const SEVEN_DAY_IDS = [
+      "W1-lunes-alfa",
+      "W1-martes-alfa",
+      "W1-miercoles-alfa",
+      "W1-jueves-alfa",
+      "W1-viernes-alfa",
+      "W1-sabado-alfa",
+      "W2-lunes-alfa",
+    ];
+
+    afterEach(async () => {
+      // Idempotente por (modulo, key): esto deja el registry de proceso
+      // exactamente como estaba antes del test (critico: `isolate: false`
+      // comparte el singleton entre archivos de test del mismo worker).
+      hookRegistry.setEvent(
+        "templo-gamification",
+        "streak.milestone",
+        streakMilestoneRewardHandler,
+      );
+      await restoreTemploFlags(app);
+    });
+
+    it("best-effort: un handler que explota no rompe el registro de la sesión ni otorga AURA", async () => {
+      hookRegistry.setEvent(
+        "templo-gamification",
+        "streak.milestone",
+        async () => {
+          throw new Error("boom");
+        },
+      );
+
+      const today = new Date().toISOString().split("T")[0];
+      let lastRes;
+      for (const dayId of SEVEN_DAY_IDS) {
+        lastRes = await completeSession(dayId, today);
+      }
+
+      // La operacion principal (registro de sesion + update de racha) sucede
+      // igual, aunque el handler de la recompensa haya explotado.
+      expect(lastRes!.statusCode).toBe(200);
+
+      const [profile] = await app.db
+        .select({ currentStreak: schema.memberProfiles.currentStreak })
+        .from(schema.memberProfiles)
+        .where(
+          and(
+            tenantWhere(schema.memberProfiles, CTX_TEMPLO),
+            eq(schema.memberProfiles.userId, memberId),
+          ),
+        );
+      expect(profile.currentStreak).toBe(7);
+
+      const bonusTxs = await app.db
+        .select({ id: schema.auraTransactions.id })
+        .from(schema.auraTransactions)
+        .where(
+          and(
+            eq(schema.auraTransactions.userId, memberId),
+            eq(schema.auraTransactions.sourceType, "streak_bonus"),
+          ),
+        );
+      expect(bonusTxs).toHaveLength(0);
+    });
+
+    it("módulo apagado: no se otorga AURA por racha, pero la racha se actualiza igual", async () => {
+      await setModuleFlag(app, TENANT_TEMPLO, "templo-gamification", false);
+
+      const today = new Date().toISOString().split("T")[0];
+      let lastRes;
+      for (const dayId of SEVEN_DAY_IDS) {
+        lastRes = await completeSession(dayId, today);
+      }
+
+      expect(lastRes!.statusCode).toBe(200);
+
+      const [profile] = await app.db
+        .select({ currentStreak: schema.memberProfiles.currentStreak })
+        .from(schema.memberProfiles)
+        .where(
+          and(
+            tenantWhere(schema.memberProfiles, CTX_TEMPLO),
+            eq(schema.memberProfiles.userId, memberId),
+          ),
+        );
+      expect(profile.currentStreak).toBe(7);
+
+      const bonusTxs = await app.db
+        .select({ id: schema.auraTransactions.id })
+        .from(schema.auraTransactions)
+        .where(
+          and(
+            eq(schema.auraTransactions.userId, memberId),
+            eq(schema.auraTransactions.sourceType, "streak_bonus"),
+          ),
+        );
+      expect(bonusTxs).toHaveLength(0);
+    });
   });
 });
