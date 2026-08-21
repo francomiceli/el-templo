@@ -125,11 +125,24 @@
 // ----------------------
 // No es runtime de producción: nada en `src/` lo importa ni puede importarlo.
 // Vive en `test/` a propósito, y por eso el lint de tenancy de la fase 170 —que
-// solo mira `src/`— no lo analiza. Tampoco tiene dependencias: es TypeScript
-// puro sin un solo import, lo que permite typechequearlo suelto con `tsc`
-// (`tsconfig.json` incluye solo `src/**`, así que CI no typechequea `test/` —
-// esa es la única red que tiene, junto con las validaciones de forma que el
-// gate corre en runtime).
+// solo mira `src/`— no lo analiza.
+//
+// Fase 176 Plan 05 (MOD-01): hasta acá, este archivo declaraba su propia lista
+// `MODULOS_TEMPLO` — duplicada, sin exportar, y sin ninguna garantía de que
+// coincidiera con la que el guard `requireModule` usa en runtime. Ahora
+// IMPORTA `MODULE_NAMES` de `src/modules/shared/modules.ts`, la fuente única
+// (176-01): un typo en el nombre de un módulo deja de ser posible, porque hay
+// UN solo lugar del repo donde ese nombre se escribe. Precedente de `test/`
+// importando de `src/` sin problema: `test/helpers.ts` importa
+// `../src/modules/shared/tenant`. El único costo real es que `tsc` suelto
+// sobre este archivo ahora arrastra el grafo de tipos de `modules.ts` (que no
+// tiene dependencias propias, así que el costo es mínimo) — sigue sin
+// necesitar MySQL ni ningún runtime de Fastify, que es la propiedad que de
+// verdad importaba (`tsconfig.json` incluye solo `src/**`, así que CI no
+// typechequea `test/` de todos modos; la validación de forma real corre en
+// runtime, ver `iso-01-manifiesto.test.ts`).
+
+import { MODULE_NAMES } from "../src/modules/shared/modules";
 
 /** Las tres categorías posibles. No hay una cuarta, y agregarla es una decisión de diseño. */
 const CATEGORIAS = ["tenant-scoped", "global", "templo-module"] as const;
@@ -145,13 +158,13 @@ const CATEGORIAS = ["tenant-scoped", "global", "templo-module"] as const;
  */
 export type Categoria = (typeof CATEGORIAS)[number];
 
-/** Módulos Templo del doc `.docs/saas-multitenancy/04-mecanismo-modulos.md`. */
-const MODULOS_TEMPLO = [
-  "templo-training",
-  "templo-gamification",
-  "templo-marketing",
-  "templo-onboarding",
-] as const;
+/**
+ * Alias local de la fuente única (`src/modules/shared/modules.ts`, 176-01).
+ * Do NOT re-declare esta lista: importa de acá, que a su vez importa de `src/`.
+ * El nombre `MODULOS_TEMPLO` se conserva para no tocar el resto del archivo
+ * (`MODULOS_VALIDOS` más abajo lo consume tal cual).
+ */
+const MODULOS_TEMPLO = MODULE_NAMES;
 
 export type ModuloTemplo = (typeof MODULOS_TEMPLO)[number];
 
