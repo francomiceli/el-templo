@@ -13,6 +13,7 @@ import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
+import { appBranchName } from "../shared/app-branch-name";
 import {
   memberAttendanceHistorySchema,
   memberCheckInSchema,
@@ -210,7 +211,11 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.userId,
           request.body.qrToken,
         );
-        return reply.code(201).send(record);
+        // Compat app: nombre largo para el regex baked del front (handler
+        // member; el service es compartido con force/coach check-in del admin).
+        return reply
+          .code(201)
+          .send({ ...record, branchName: appBranchName(record.branchName) });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member check-in");
       }
@@ -228,7 +233,17 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
         page,
         limit,
       );
-      return { ...result, page, limit };
+      // Compat app: nombre largo por registro (getMemberAttendance es
+      // compartido con el admin -- se transforma solo en este handler member).
+      return {
+        ...result,
+        records: result.records.map((r) => ({
+          ...r,
+          branchName: appBranchName(r.branchName),
+        })),
+        page,
+        limit,
+      };
     },
   );
 };

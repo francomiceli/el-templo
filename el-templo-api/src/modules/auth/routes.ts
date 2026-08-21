@@ -9,6 +9,7 @@ import { referrals } from "../../db/schema/referrals";
 import { ReferralService } from "../referrals/service";
 import { referralCopyVariant } from "../referrals/ab-variant";
 import { registerSchema, loginSchema } from "./schemas";
+import { appBranchName } from "../shared/app-branch-name";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
@@ -373,7 +374,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           // Phase 130 (KAIROS-04, D-01): echo must match the row written above.
           level: "kairos",
           branchId,
-          branchName: branchRow?.name ?? "",
+          // Compat app: reconstruye "El Templo X" para el regex baked del
+          // front (registro es member-only).
+          branchName: appBranchName(branchRow?.name ?? ""),
           branchIsVirtual: branchRow?.isVirtual ?? false,
           branchCountry: branchRow?.country ?? "AR",
         },
@@ -502,7 +505,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: user.role,
           level: user.level,
           branchId: user.branchId,
-          branchName,
+          // Compat app: solo para socios (login es compartido con el admin).
+          branchName:
+            user.role === "member" ? appBranchName(branchName) : branchName,
           branchIsVirtual,
           branchCountry,
           gender: user.gender,
@@ -716,7 +721,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         role: user.role,
         level: user.level,
         branchId: user.branchId,
-        branchName,
+        // Compat app: solo para socios (me es compartido con el admin).
+        branchName:
+          user.role === "member" ? appBranchName(branchName) : branchName,
         branchIsVirtual,
         branchCountry,
         gender: user.gender,
