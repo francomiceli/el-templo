@@ -38,7 +38,6 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     undefined,
     enrollmentService,
   );
@@ -193,7 +192,6 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     undefined,
     enrollmentService,
   );

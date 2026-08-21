@@ -42,7 +42,6 @@ import { tenantWhere } from "../../src/modules/shared/tenant";
  */
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
-import { AuraService } from "../../src/modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -63,7 +62,6 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
   }
 
   function buildService(): SubscriptionService {
-    const aura = new AuraService(app.db);
     const balances = new BalanceService(app.db, app.log);
     const cashRegisters = new CashRegisterService(app.db, app.log);
     const txns = new TransactionService(
@@ -76,7 +74,6 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     const subs = new SubscriptionService(
       app.db,
       app.log,
-      aura,
       txns,
       enrollments,
     );

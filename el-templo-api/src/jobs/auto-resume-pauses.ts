@@ -16,7 +16,6 @@ import pino from "pino";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../db/schema";
 import { SubscriptionService } from "../modules/subscriptions/service";
-import { AuraService } from "../modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -81,11 +80,10 @@ async function runAutoResumePausesForTenant(
 ): Promise<{ resumed: number; activated: number; expired: number }> {
   const tenantId = ctx.tenantId;
 
-  // Los seis services se construyen DENTRO del cuerpo por tenant (antes vivían
+  // Los cinco services se construyen DENTRO del cuerpo por tenant (antes vivían
   // en la función de scheduling) para que cada vuelta del barrido arranque
   // limpia, y para que el día que sus firmas reciban el `ctx` (172-175) el
   // cambio quede local a esta función.
-  const auraService = new AuraService(db);
   const balanceService = new BalanceService(db, log);
   const cashRegisterService = new CashRegisterService(db, log);
   const transactionService = new TransactionService(
@@ -98,7 +96,6 @@ async function runAutoResumePausesForTenant(
   const subscriptionService = new SubscriptionService(
     db,
     log,
-    auraService,
     transactionService,
     enrollmentService,
   );

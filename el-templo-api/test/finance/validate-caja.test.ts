@@ -24,7 +24,6 @@ import { TransactionService } from "../../src/modules/finance/transaction-servic
 import { BalanceService } from "../../src/modules/finance/balance-service";
 import { CashRegisterService } from "../../src/modules/finance/cash-register-service";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
-import { AuraService } from "../../src/modules/aura/service";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
 import { BadRequestError } from "../../src/modules/shared/errors";
 import * as schema from "../../src/db/schema";
@@ -181,12 +180,10 @@ beforeAll(async () => {
     balanceService,
     new CashRegisterService(app.db, app.log),
   );
-  const auraService = new AuraService(app.db);
   const enrollmentService = new EnrollmentService(app.db, app.log);
   const subService = new SubscriptionService(
     app.db,
     app.log,
-    auraService,
     txService,
     enrollmentService,
   );

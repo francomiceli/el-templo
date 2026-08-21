@@ -22,7 +22,6 @@ import {
   MovementService,
 } from ".";
 import { SubscriptionService } from "../subscriptions/service";
-import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
 import {
@@ -102,12 +101,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // atomically via _cancelSubscription(tx, ...). Mirrors the DI assembled in
   // subscriptions/routes.ts; the back-edge is set post-construction to break
   // the circular dependency (SubscriptionService → TransactionService).
-  const auraService = new AuraService(fastify.db);
   const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     transactionService,
     enrollmentService,
   );

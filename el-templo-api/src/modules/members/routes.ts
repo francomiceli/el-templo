@@ -22,7 +22,6 @@ import {
 import { MemberService } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
 import { ReferralService } from "../referrals/service";
-import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
 import {
@@ -704,7 +703,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         // card, override + reason).
         if (request.body.planId !== undefined) {
           try {
-            const auraService = new AuraService(fastify.db);
             const enrollmentService = new EnrollmentService(
               fastify.db,
               fastify.log,
@@ -712,7 +710,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             const subscriptionService = new SubscriptionService(
               fastify.db,
               fastify.log,
-              auraService,
               undefined,
               enrollmentService,
             );
@@ -1025,7 +1022,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           // sub (typical freemium), we force status='inactivo' ourselves —
           // recomputeUserStatus is a no-op when transitioning out of
           // freemium, so the manual write is required.
-          const auraService = new AuraService(fastify.db);
           const enrollmentService = new EnrollmentService(
             fastify.db,
             request.log,
@@ -1033,7 +1029,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           const subscriptionService = new SubscriptionService(
             fastify.db,
             request.log,
-            auraService,
             undefined,
             enrollmentService,
           );
@@ -1309,12 +1304,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       // owns. cancelSubscription also nukes the scheduled successor (if any)
       // and calls BookingService.cancelFutureBookings for fixed-plan subs
       // — so this one call covers subscription-tied bookings.
-      const auraService = new AuraService(fastify.db);
       const enrollmentService = new EnrollmentService(fastify.db, request.log);
       const subscriptionService = new SubscriptionService(
         fastify.db,
         request.log,
-        auraService,
         undefined,
         enrollmentService,
       );

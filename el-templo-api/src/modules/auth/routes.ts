@@ -11,7 +11,6 @@ import { referralCopyVariant } from "../referrals/ab-variant";
 import { registerSchema, loginSchema } from "./schemas";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
-import { AuraService } from "../aura/service";
 import {
   TransactionService,
   BalanceService,
@@ -306,7 +305,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               // NOTE: Cross-module service instantiation is consistent with existing
               // pattern in this file (SegmentationService is already instantiated
               // the same way in /me). All three services export their classes.
-              const auraService = new AuraService(fastify.db);
               const balanceService = new BalanceService(
                 fastify.db,
                 fastify.log,
@@ -328,7 +326,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               const subscriptionService = new SubscriptionService(
                 fastify.db,
                 request.log,
-                auraService,
                 transactionService,
                 enrollmentService,
               );

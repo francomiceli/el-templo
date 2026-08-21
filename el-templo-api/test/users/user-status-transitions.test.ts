@@ -30,7 +30,6 @@ import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 // 2, docblock de `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
 import { tenantWhere } from "../../src/modules/shared/tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
-import { AuraService } from "../../src/modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -55,7 +54,6 @@ describe("Phase 103 — User status auto-transitions", () => {
   }
 
   function buildService(): SubscriptionService {
-    const aura = new AuraService(app.db);
     const balances = new BalanceService(app.db, app.log);
     const cashRegisters = new CashRegisterService(app.db, app.log);
     const txns = new TransactionService(
@@ -70,7 +68,6 @@ describe("Phase 103 — User status auto-transitions", () => {
     const subs = new SubscriptionService(
       app.db,
       app.log,
-      aura,
       txns,
       enrollments,
     );

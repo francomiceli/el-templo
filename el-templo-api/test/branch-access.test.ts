@@ -31,7 +31,6 @@ import {
 } from "../src/modules/shared/branch-access";
 import { BookingService } from "../src/modules/scheduling/booking-service";
 import { SubscriptionService } from "../src/modules/subscriptions/service";
-import { AuraService } from "../src/modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -767,7 +766,6 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
 
       // Build BookingService directly — same idiom as
       // test/users/user-status-transitions.test.ts.
-      const aura = new AuraService(app.db);
       const balances = new BalanceService(app.db, app.log);
       const cashRegisters = new CashRegisterService(app.db, app.log);
       const txns = new TransactionService(
@@ -776,7 +774,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
         balances,
         cashRegisters,
       );
-      const subs = new SubscriptionService(app.db, app.log, aura, txns);
+      const subs = new SubscriptionService(app.db, app.log, txns);
       const notifs = new NotificationService(app.db, app.log);
       bookings = new BookingService(app.db, app.log, subs, notifs);
       subs.setBookingService(bookings);

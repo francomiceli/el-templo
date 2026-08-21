@@ -15,7 +15,6 @@ import cron from "node-cron";
 import pino from "pino";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../db/schema";
-import { AuraService } from "../modules/aura";
 import { EnrollmentService } from "../modules/programs/enrollment-service";
 import { NotificationService } from "../modules/notifications/service";
 import { SubscriptionService } from "../modules/subscriptions/service";
@@ -50,7 +49,7 @@ const log = pino({ name: "wellhub-sync" });
  * API de Wellhub devuelve 5xx para sus sedes), se loguea con `tenantId`
  * estructurado y el barrido SIGUE con el siguiente.
  *
- * D-02: el `ctx` NO baja a los services. Los 6 que se construyen en el cuerpo
+ * D-02: el `ctx` NO baja a los services. Los 5 que se construyen en el cuerpo
  * MANTIENEN su firma actual hasta su fase de adopción (172-175); el contexto
  * llega hasta el cuerpo del job, se loguea y queda disponible. Con un solo
  * tenant activo el resultado es IDÉNTICO al de hoy.
@@ -87,12 +86,10 @@ async function runWellhubSyncForTenant(
   ctx: TenantContext,
   config: WellhubConfig,
 ): Promise<WellhubSyncSummary> {
-  const auraService = new AuraService(db);
   const enrollmentService = new EnrollmentService(db, log);
   const subscriptionService = new SubscriptionService(
     db,
     log,
-    auraService,
     undefined,
     enrollmentService,
   );

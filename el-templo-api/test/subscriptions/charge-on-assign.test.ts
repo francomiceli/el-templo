@@ -17,7 +17,7 @@
  * inject a failing BalanceService. `app.balanceService` is NOT decorated on
  * the FastifyInstance (verified — no `decorate` call in `src/app.ts`); the
  * canonical pattern is the one in `test/users/user-status-transitions.test.ts`
- * (svc = new SubscriptionService(app.db, app.log, aura, txns); +
+ * (svc = new SubscriptionService(app.db, app.log, txns); +
  * subs.setBookingService(bookings)).
  */
 
@@ -36,7 +36,6 @@ import {
 import * as schema from "../../src/db/schema";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
-import { AuraService } from "../../src/modules/aura";
 import {
   BalanceService,
   TransactionService,
@@ -393,8 +392,7 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
         failingBalance,
         cashRegisterSvc,
       );
-      const auraSvc = new AuraService(app.db);
-      const subSvc = new SubscriptionService(app.db, app.log, auraSvc, txSvc);
+      const subSvc = new SubscriptionService(app.db, app.log, txSvc);
       const notifSvc = new NotificationService(app.db, app.log);
       const bookings = new BookingService(app.db, app.log, subSvc, notifSvc);
       subSvc.setBookingService(bookings);
