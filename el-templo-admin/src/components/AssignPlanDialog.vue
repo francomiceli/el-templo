@@ -51,43 +51,115 @@
           </div>
 
           <template v-else>
-            <div v-for="tier in plansByTier" :key="tier.tier" class="q-mb-md">
-              <div class="text-subtitle2 text-weight-bold q-mb-xs">
-                <q-badge :color="tierColor(tier.tier)" :label="tierLabel(tier.tier)" />
-              </div>
-              <q-list bordered separator class="rounded-borders">
-                <q-item
-                  v-for="plan in tier.plans"
-                  :key="plan.id"
-                  clickable
-                  v-ripple
-                  @click="selectPlan(plan)"
-                >
-                  <q-item-section>
-                    <q-item-label>{{ plan.name }}</q-item-label>
-                    <q-item-label caption>
-                      {{ plan.durationDays }} dias
-                      <template v-if="plan.classesPerWeek">
-                        · {{ plan.classesPerWeek }} clases/sem
-                      </template>
-                      <template v-else> · Ilimitado </template>
-                    </q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <div class="text-weight-medium">
-                      {{ formatPrice(plan.priceRegular, plan.currency ?? 'ARS') }}
-                    </div>
-                  </q-item-section>
-                </q-item>
-              </q-list>
+            <!-- Fase 177 (D-01/D-11): toggle "Paquete de clases" — sólo para
+                 el catálogo presencial (alta o cambio/renovación) y sedes
+                 físicas. Reemplaza la grilla por tier con 2 selectores que
+                 resuelven el planId real (watch en el script). -->
+            <div v-if="showPaqueteToggle" class="q-mb-md">
+              <q-btn-toggle
+                v-model="paqueteMode"
+                :options="[
+                  { label: 'Plan normal', value: false },
+                  { label: 'Paquete de clases', value: true },
+                ]"
+                no-caps
+                unelevated
+                spread
+                toggle-color="primary"
+                color="grey-3"
+                text-color="grey-8"
+                class="rounded-borders"
+              />
             </div>
 
-            <div
-              v-if="plansByTier.length === 0"
-              class="text-center text-grey-5 text-italic q-pa-lg"
-            >
-              No hay planes activos disponibles
-            </div>
+            <template v-if="paqueteMode">
+              <div class="row q-col-gutter-sm q-mb-sm">
+                <div class="col-6">
+                  <q-select
+                    v-model="paqueteSemanas"
+                    :options="PAQUETE_SEMANAS_OPTIONS"
+                    option-value="value"
+                    option-label="label"
+                    emit-value
+                    map-options
+                    outlined
+                    dense
+                    label="Semanas"
+                  />
+                </div>
+                <div class="col-6">
+                  <q-select
+                    v-model="paqueteFrecuencia"
+                    :options="PAQUETE_FRECUENCIA_OPTIONS"
+                    option-value="value"
+                    option-label="label"
+                    emit-value
+                    map-options
+                    outlined
+                    dense
+                    label="Clases/semana"
+                  />
+                </div>
+              </div>
+              <q-card
+                v-if="resolvedPaquetePlan"
+                bordered
+                flat
+                class="q-pa-md bg-primary text-white"
+              >
+                <div class="text-subtitle1 text-weight-bold">{{ resolvedPaquetePlan.name }}</div>
+                <div class="text-caption">
+                  {{ paqueteSemanas }} sem · {{ paqueteFrecuencia }}/sem ·
+                  {{ paqueteTotalClases }} clases en total
+                </div>
+                <div class="text-h6 q-mt-xs">
+                  {{ formatPrice(resolvedPaquetePlan.priceRegular, resolvedPaquetePlan.currency) }}
+                </div>
+              </q-card>
+              <div v-else class="text-negative text-italic q-pa-md text-center">
+                No hay un paquete configurado para esa combinación en esta sede.
+              </div>
+            </template>
+
+            <template v-else>
+              <div v-for="tier in plansByTier" :key="tier.tier" class="q-mb-md">
+                <div class="text-subtitle2 text-weight-bold q-mb-xs">
+                  <q-badge :color="tierColor(tier.tier)" :label="tierLabel(tier.tier)" />
+                </div>
+                <q-list bordered separator class="rounded-borders">
+                  <q-item
+                    v-for="plan in tier.plans"
+                    :key="plan.id"
+                    clickable
+                    v-ripple
+                    @click="selectPlan(plan)"
+                  >
+                    <q-item-section>
+                      <q-item-label>{{ plan.name }}</q-item-label>
+                      <q-item-label caption>
+                        {{ plan.durationDays }} dias
+                        <template v-if="plan.classesPerWeek">
+                          · {{ plan.classesPerWeek }} clases/sem
+                        </template>
+                        <template v-else> · Ilimitado </template>
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <div class="text-weight-medium">
+                        {{ formatPrice(plan.priceRegular, plan.currency ?? 'ARS') }}
+                      </div>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </div>
+
+              <div
+                v-if="plansByTier.length === 0"
+                class="text-center text-grey-5 text-italic q-pa-lg"
+              >
+                No hay planes activos disponibles
+              </div>
+            </template>
           </template>
         </q-step>
 
@@ -991,6 +1063,7 @@ import {
   type AssignProrationPreview,
   type AssignPlanInput,
   type ChangePlanPreview,
+  type PlanCategory,
 } from 'src/types/subscription';
 import {
   PAYMENT_METHOD_LABELS,
@@ -1069,6 +1142,13 @@ const props = withDefaults(
     /** Plan ID of the member's current subscription. In change mode it's filtered out of the list (no point changing to the same plan). */
     currentPlanId?: number | null;
     /**
+     * Gap-fix 177 (D-11): categoría del plan que se está cambiando. Cuando es
+     * 'paquete', el dialog arranca directo en paqueteMode (el "selector de
+     * paquete" que D-11 pide reabrir) en vez del catálogo normal — sin esto,
+     * el admin tendría que saber que debe tocar el toggle a mano.
+     */
+    currentPlanCategory?: PlanCategory | null;
+    /**
      * Current sub's fixed-schedule IDs. In change mode the schedule step
      * pre-populates with these so admins can keep/edit the alumno's existing
      * turnos instead of starting blank — prevents accidental loss of fijos
@@ -1093,6 +1173,7 @@ const props = withDefaults(
     categoryFilter: undefined,
     currentSubEndDate: null,
     currentPlanId: null,
+    currentPlanCategory: null,
     currentScheduleIds: () => [],
     memberBranchIsVirtual: false,
     member: null,
@@ -1275,8 +1356,14 @@ const dialogTitle = computed(() => {
   return 'Gestionar Plan';
 });
 
+// Fase 177 (D-01/D-11): 'paquete' es presencial-flexible (bookingMode
+// 'flexible', igual que un flex actual) — tratarlo como "online" acá
+// ocultaría el schedule step y el branch picker que sí le corresponden.
 const isOnlinePlan = computed(() =>
-  selectedPlan.value ? selectedPlan.value.planCategory !== 'presencial' : false
+  selectedPlan.value
+    ? selectedPlan.value.planCategory !== 'presencial' &&
+      selectedPlan.value.planCategory !== 'paquete'
+    : false
 );
 
 const isFixedMode = computed(
@@ -1293,6 +1380,12 @@ const multiBranchPickerOptions = computed(() =>
 
 const showScheduleStep = computed(() => {
   if (isOnlinePlan.value) return false;
+  // Gap-fix 177 (CR-01, decisión de Franco 2026-08-14): paquete es
+  // FLEXIBLE-PURO — nunca ofrece anclas de turno fijo, ni siquiera
+  // parciales. El backend (assertScheduleSelectionForPlan) rechaza
+  // cualquier scheduleId no-vacío para paquete; el paso de anclas debe
+  // quedar oculto para que el admin nunca llegue a ese estado.
+  if (selectedPlan.value?.planCategory === 'paquete') return false;
   if (!selectedPlan.value?.classesPerWeek) return false;
   if (selectedPlan.value.bookingMode === 'fixed') return true;
   // Flexible: shown for both assign AND change modes. In change mode the
@@ -1346,6 +1439,11 @@ const scheduleStepValid = computed(() => {
 
 const filteredPlans = computed(() => {
   let list = plans.value;
+  // Fase 177 (D-01): las 18 filas 'paquete' (por país) nunca aparecen en la
+  // grilla por tier ni en ningún filtro de categoría de este picker — se
+  // ofrecen SOLO por el modo paquete (2 selectores, más abajo), que resuelve
+  // el planId directamente desde `plans.value` sin pasar por este filtro.
+  list = list.filter((p) => p.planCategory !== 'paquete');
   // Change mode: drop the current plan — there's no point "changing" to the
   // same plan the member already has.
   if (props.mode === 'change' && props.currentPlanId != null) {
@@ -1367,8 +1465,15 @@ const filteredPlans = computed(() => {
     return list.filter((p) => p.planCategory === 'especial');
   }
   // 'online' filter: show all non-presencial categories EXCEPT especial (el pase
-  // se vende por su propio filtro, no mezclado con los programas online).
-  return list.filter((p) => p.planCategory !== 'presencial' && p.planCategory !== 'especial');
+  // se vende por su propio filtro, no mezclado con los programas online) y
+  // EXCEPT paquete (ya excluido arriba — 'paquete' es presencial-flexible,
+  // no un programa online; nunca debería colar acá, pero se deja explícito).
+  return list.filter(
+    (p) =>
+      p.planCategory !== 'presencial' &&
+      p.planCategory !== 'especial' &&
+      p.planCategory !== 'paquete'
+  );
 });
 
 const plansByTier = computed((): TierGroup[] => {
@@ -1850,6 +1955,88 @@ async function selectPlan(plan: PlanListItem) {
   loadPricingPreview();
 }
 
+// =========================================================================
+// Fase 177 (D-01/D-11): modo "Paquete de clases" — 2 selectores (semanas
+// 1-3, clases/semana 1-6) que resuelven el planId real de la matriz de 36
+// filas (migración 0205) en vez de listar las 18 filas del país en la
+// grilla por tier. Disponible en alta (mode='assign') Y en cambio/renovación
+// (mode='change', D-11): activar el toggle reabre los selectores y, al
+// elegir una combinación, dispara el mismo `selectPlan()` que un click en
+// la grilla normal (assignForm reset, preview de cambio si corresponde,
+// avance al step de precio). Mismo patrón que CobrosPage (177-03) — el
+// precio NUNCA se calcula acá, sale de `resolvedPaquetePlan.priceRegular`.
+// =========================================================================
+
+const paqueteMode = ref(false);
+const paqueteSemanas = ref(1);
+const paqueteFrecuencia = ref(1);
+
+const PAQUETE_SEMANAS_OPTIONS = [1, 2, 3].map((n) => ({ label: `${n} sem`, value: n }));
+const PAQUETE_FRECUENCIA_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({
+  label: `${n}/sem`,
+  value: n,
+}));
+
+// Sólo tiene sentido para el catálogo presencial: paquete es
+// presencial-flexible (D-01), no se vende en online/especial ni a socios de
+// sede virtual (Phase 111 REQ-2 — no pueden recibir planes presenciales).
+// El `.some(...)` es defensivo: si la sede no tuviera filas paquete para su
+// país, el toggle no aparece en vez de mostrar un modo siempre vacío.
+const showPaqueteToggle = computed(
+  () =>
+    (props.categoryFilter === undefined || props.categoryFilter === 'presencial') &&
+    !props.memberBranchIsVirtual &&
+    plans.value.some((p) => p.planCategory === 'paquete')
+);
+
+// Busca en `plans.value` (crudo) en vez de `filteredPlans` (que excluye
+// paquete siempre, ver arriba) — `getPlans` ya acota el catálogo al país de
+// la sede, así que semanas+frecuencia es unívoco entre las 18 filas.
+const resolvedPaquetePlan = computed<PlanListItem | null>(() => {
+  const durationDays = paqueteSemanas.value * 7;
+  return (
+    plans.value.find(
+      (p) =>
+        p.planCategory === 'paquete' &&
+        p.durationDays === durationDays &&
+        p.classesPerWeek === paqueteFrecuencia.value
+    ) ?? null
+  );
+});
+
+const paqueteTotalClases = computed(() => paqueteSemanas.value * paqueteFrecuencia.value);
+
+// Gap-fix 177 (WR-01): activar paqueteMode (click en el toggle, o el
+// auto-activate de D-11 al reabrir un cambio/renovación) ya NO pisa en
+// silencio una selección de OTRA categoría — sólo autoselecciona el default
+// (1 sem × 1/sem) si no había nada elegido antes, o si lo elegido ya era un
+// paquete. Antes este watch reaccionaba a `paqueteMode` como dependencia
+// directa junto con `resolvedPaquetePlan`, así que el simple hecho de tocar
+// el toggle "para mirar el precio" reseteaba assignForm/turnos y (en modo
+// change) disparaba el preview de red contra el plan default, reemplazando
+// sin aviso lo que el admin ya había elegido en la grilla normal.
+watch(paqueteMode, (active) => {
+  if (!active) return;
+  if (selectedPlan.value && selectedPlan.value.planCategory !== 'paquete') return;
+  if (resolvedPaquetePlan.value) void selectPlan(resolvedPaquetePlan.value);
+});
+
+// Cambiar semanas/frecuencia mientras el modo paquete está activo es una
+// acción explícita del admin — SIEMPRE empuja el nuevo planId resuelto por
+// el mismo camino que un click en la grilla (`selectPlan`). Si no hay fila
+// para la combinación (no debería pasar con las 18 pre-generadas), limpia
+// selectedPlan — el guard existente que exige selectedPlan para avanzar de
+// paso deshabilita el submit sin lógica de validación nueva.
+watch(resolvedPaquetePlan, (plan) => {
+  if (!paqueteMode.value) return;
+  if (plan) {
+    void selectPlan(plan);
+  } else {
+    selectedPlan.value = null;
+    selectedScheduleIds.value = [];
+  }
+});
+
 // 'mantener vencimiento': the difference to charge = new plan price (at the
 // selected price type) − amount already paid for the current plan. Re-run
 // whenever the price type changes or the keep option is (re)selected.
@@ -2048,6 +2235,15 @@ watch(
       changeMode.value = 'now_reset';
       keepExpiryDate.value = '';
       keepDiffAmount.value = null;
+      // Fase 177 + gap-fix D-11: reset del modo paquete al reabrir el
+      // dialog — arranca en el catálogo normal, EXCEPTO cuando se está
+      // cambiando/renovando una sub que YA es un paquete (D-11: "la
+      // renovación reabre el selector de paquete"), donde arranca directo
+      // en paqueteMode. Los selectores (semanas/frecuencia) siempre vuelven
+      // a sus defaults — D-11 permite re-elegir valores distintos.
+      paqueteMode.value = props.mode === 'change' && props.currentPlanCategory === 'paquete';
+      paqueteSemanas.value = 1;
+      paqueteFrecuencia.value = 1;
       // Phase 107 D-02: reset del cobro al reabrir el dialog. Se pre-llena
       // automáticamente al entrar al step Confirmar mediante el watch debajo.
       amountReceived.value = null;
