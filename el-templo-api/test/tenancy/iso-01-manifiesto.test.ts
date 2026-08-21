@@ -44,6 +44,20 @@
  *    alcanza con los tipos: `tsconfig.json` incluye solo `src/**`, así que el
  *    `tsc --noEmit` de CI NO mira `test/` y Vitest usa esbuild (borra tipos sin
  *    chequearlos). `test/` es tierra sin tipos verificados.
+ * 6. Fase 176 (MOD-01), lado de COBERTURA: toda ruta `templo-module` del
+ *    manifiesto lleva el guard `requireModule` de SU módulo (`sinGuard` = [],
+ *    `moduloCruzado` = []). La lectura es sobre `moduleGuardOf`, importado de
+ *    `src/modules/shared/module-registry.ts` — la MISMA función que Fastify
+ *    ejecuta como hook, no una re-implementación local de la lectura de la
+ *    marca. Sin este test, una ruta nueva de un módulo nace sin guard y nadie
+ *    se entera.
+ * 7. Fase 176 (MOD-01), lado de CONTENCIÓN: ninguna ruta NO-templo lleva
+ *    `requireModule` (`derramadas` = []). Es el recíproco del punto 6 y NO es
+ *    opcional: un guard mal encapsulado (Pitfall 3 — un `addHook` colgado
+ *    dentro de un `fp(...)`) se derrama a la raíz y devuelve 404 en TODA la
+ *    API en cuanto se apaga un módulo — y el test 6 pasaría en verde igual,
+ *    porque solo mira las rutas `templo-module`. Es el modo de falla más caro
+ *    de la fase 176.
  *
  * QUÉ NO ES ESTE ARCHIVO
  * ----------------------
@@ -99,9 +113,11 @@
  */
 
 import { afterAll, beforeAll, describe, it, expect } from "vitest";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, RouteOptions } from "fastify";
 
 import { createTestApp } from "../helpers";
+import { moduleGuardOf } from "../../src/modules/shared/module-registry";
+import type { ModuleName } from "../../src/modules/shared/modules";
 import {
   TENANT_MANIFEST,
   clavesDeEvento,
@@ -174,20 +190,43 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
   let particion: Particion;
   let discrepancias: Discrepancias;
+  /**
+   * Fase 176 Plan 05 (MOD-01): clave de manifiesto → módulo del guard que la
+   * ruta lleva, si tiene uno. Se llena DESPUÉS de `createTestApp()` (ver más
+   * abajo el porqué) y lo leen los tests 6 y 7.
+   */
+  let guardsPorRuta: Map<string, ModuleName>;
 
   /**
-   * UN solo `beforeAll` para los cinco tests: cada `buildApp()` registra ~35
+   * UN solo `beforeAll` para los siete tests: cada `buildApp()` registra ~35
    * plugins y consulta la base, así que construir el app por test multiplicaría
    * el costo sin agregar una sola afirmación.
    */
   beforeAll(async () => {
     const observadas: string[] = [];
     const getsSinHeadSintetico: string[] = [];
+    /**
+     * Fase 176 Plan 05: pares clave(s)-de-evento + REFERENCIA al `RouteOptions`
+     * observado por este mismo `onRoute`. Guardar la referencia (no serializar
+     * en el acto) es lo que permite leer el guard más abajo: el hook `onRoute`
+     * de la RAÍZ (este, el seam `BuildAppOptions`) corre ANTES que el `onRoute`
+     * de scope que `moduleScope` cuelga para appendear el guard a
+     * `route.onRequest` — así que en el momento en que ESTE callback corre, el
+     * guard todavía no está ahí. Pero `route` es el MISMO objeto por
+     * referencia en los dos hooks (verificado empíricamente en el RESEARCH,
+     * §"Pattern 1"): leyéndolo recién DESPUÉS de que `createTestApp()` resolvió
+     * (que ya hizo `ready()`, momento en el que todos los `onRoute` de scope ya
+     * corrieron) sí se ve la mutación.
+     */
+    const referenciasDeRuta: Array<{ claves: string[]; route: RouteOptions }> =
+      [];
     app = await createTestApp({
       onRoute: (route) => {
-        for (const clave of clavesDeEvento(route.method, route.url)) {
+        const claves = clavesDeEvento(route.method, route.url);
+        for (const clave of claves) {
           observadas.push(clave);
         }
+        referenciasDeRuta.push({ claves, route });
         // WR-03: un GET registrado con `exposeHeadRoute: false` NO genera HEAD
         // sintético — es la única forma que Fastify acepta de convivir con un
         // HEAD declarado a mano en la misma url. Registrar estas urls es lo que
@@ -205,6 +244,19 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     });
     particion = particionarObservadas(observadas, getsSinHeadSintetico);
     discrepancias = compararManifiesto(particion.rutas);
+
+    // Post-ready() (ver el comentario de `referenciasDeRuta` arriba): recién
+    // acá el guard que `moduleScope` appendeó a `route.onRequest` es visible.
+    // `moduleGuardOf` lee la MISMA función que Fastify ejecuta — no una
+    // re-implementación local de la lectura de la marca de módulo.
+    guardsPorRuta = new Map();
+    for (const { claves, route } of referenciasDeRuta) {
+      const guard = moduleGuardOf(route);
+      if (!guard) continue;
+      for (const clave of claves) {
+        guardsPorRuta.set(clave, guard);
+      }
+    }
   });
 
   afterAll(async () => {
@@ -347,7 +399,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
         `QUÉ HACER: declarale a cada una su \`modulo\` con uno de los cuatro ` +
         `valores de MODULOS_TEMPLO (un typo en el nombre del módulo también cae ` +
         `acá). ` +
-        `POR QUÉ IMPORTA: la fase 176 va a LEER esa etiqueta para exigir ` +
+        `POR QUÉ IMPORTA: la fase 176 LEE esa etiqueta para exigir ` +
         `requireModule en la ruta; una entrada sin módulo es una ruta que queda ` +
         `fuera del enforcement sin que nadie lo note.`,
     ).toEqual([]);
@@ -363,6 +415,59 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
         `Vitest borra tipos con esbuild), así que esta validación de runtime es ` +
         `la ÚNICA red contra una categoría mal escrita que dejaría la ruta ` +
         `clasificada "en algo" que ningún consumidor entiende.`,
+    ).toEqual([]);
+  });
+
+  /**
+   * Fase 176 Plan 05 (MOD-01): el lado de COBERTURA del gate bidireccional del
+   * mecanismo de módulos. D-07 etiquetó estas 141 rutas desde la fase 171
+   * anunciando que la fase 176 iba a LEER esa etiqueta; este test es esa
+   * lectura, ya en presente. El recíproco
+   * (contención, ninguna ruta NO-templo con guard) es el test siguiente — los
+   * dos son obligatorios: éste afirma cobertura, el otro afirma que el guard no
+   * se derramó.
+   */
+  it("toda ruta templo-module del manifiesto lleva requireModule de SU módulo", () => {
+    const sinGuard: string[] = [];
+    const moduloCruzado: string[] = [];
+
+    for (const [clave, entrada] of Object.entries(TENANT_MANIFEST)) {
+      if (entrada.categoria !== "templo-module") continue;
+      const guard = guardsPorRuta.get(clave);
+      if (!guard) {
+        sinGuard.push(clave);
+      } else if (guard !== entrada.modulo) {
+        moduloCruzado.push(
+          `${clave} (guard=${guard}, manifiesto=${entrada.modulo})`,
+        );
+      }
+    }
+
+    expect(
+      sinGuard,
+      `Rutas "templo-module" del manifiesto SIN el guard requireModule: ` +
+        `${sinGuard.join(", ")}. ` +
+        `QUÉ HACER: envolvé el registro de esa ruta con ` +
+        `moduleScope(app, "<módulo>", ...) en src/app.ts, o agregala al ` +
+        `ModuleDef correspondiente de src/modules-boot.ts si su módulo ya ` +
+        `migró a ese formato (marketing/onboarding/gamification). ` +
+        `POR QUÉ IMPORTA: una ruta "templo-module" sin guard queda FUERA del ` +
+        `enforcement — un tenant nuevo (default OFF, D-06) la ve prendida ` +
+        `igual, exactamente el escenario que el mecanismo de módulos existe ` +
+        `para impedir.`,
+    ).toEqual([]);
+
+    expect(
+      moduloCruzado,
+      `Rutas "templo-module" cuyo guard es de OTRO módulo distinto del que ` +
+        `declara el manifiesto: ${moduloCruzado.join(", ")}. ` +
+        `QUÉ HACER: revisá con qué nombre se llamó moduleScope/requireModule ` +
+        `para ese registro en src/app.ts o src/modules-boot.ts — tiene que ` +
+        `coincidir exactamente con el \`modulo\` de la entrada en ` +
+        `test/tenant-manifest.ts. ` +
+        `POR QUÉ IMPORTA: un tenant que apagó el módulo A pero tiene el B ` +
+        `prendido seguiría viendo una ruta de A si el guard quedó mal ` +
+        `cableado — el flag correcto no protege la ruta correcta.`,
     ).toEqual([]);
   });
 });
@@ -513,7 +618,7 @@ describe("manifiesto de rutas — motor con fixtures sintéticos (criterio 2, de
       sinModulo,
       `La entrada "templo-module" sin módulo declarado tiene que salir en ` +
         `sinModulo y el comparador reportó: ${sinModulo.join(", ")}. La ` +
-        `etiqueta de módulo no es decorativa: es lo que la fase 176 va a LEER ` +
+        `etiqueta de módulo no es decorativa: es lo que la fase 176 LEE ` +
         `para exigir requireModule en la ruta. Una entrada "templo-module" sin ` +
         `módulo es una ruta que quedó fuera del enforcement sin que nadie lo ` +
         `note, y —igual que D-02— se valida en runtime porque nadie typechequea ` +
