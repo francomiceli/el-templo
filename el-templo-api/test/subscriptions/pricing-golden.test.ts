@@ -419,6 +419,46 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.body.pricePaid).toBe(3000);
     });
 
+    // Fase 176 Plan 09 (T-176-25): el golden previo NO afirmaba el texto de
+    // `priceOverrideReason` para ningún caso de changePlanNow — este caso lo
+    // agrega. El string se persiste en la columna y su forma exacta (con el
+    // benefit "boarding pass" entre paréntesis) es el contrato que el
+    // refactor de 176-09 no puede romper (razón derivada de `resolved.applied`
+    // en vez de una re-lectura de `moduleInput`).
+    it("boardingPass — razón persistida byte a byte con '(boarding pass)'", async () => {
+      const planA = await createPlan(app, adminToken, {
+        name: "Golden CN Boarding Reason A",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const planB = await createPlan(app, adminToken, {
+        name: "Golden CN Boarding Reason B",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 15000,
+        priceZero: 8000,
+      });
+      const member = await createMember(app, {
+        email: "gold-cn-boarding-reason@test.com",
+      });
+      await assignPlan(app, adminToken, member.id, {
+        planId: planA.id,
+        startDate: dateOffsetStr(-15),
+      });
+
+      const res = await changeNow(member.id as number, {
+        planId: planB.id,
+        boardingPass: true,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.priceOverrideReason).toBe(
+        "Cambio de plan (boarding pass): credito $5000 (15/30 dias)",
+      );
+    });
+
     it("referral — descuento simétrico sobre el neto post-prorrateo", async () => {
       const planA = await createPlan(app, adminToken, {
         name: "Golden CN Referral A",

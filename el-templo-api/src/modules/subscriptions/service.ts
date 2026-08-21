@@ -3768,8 +3768,9 @@ export class SubscriptionService {
     const [memberForCountry] = await this.db
       .select({
         branchCountry: schema.branches.country,
-        // WR-06: boarding pass es un one-shot; lo necesitamos para validar/consumir
-        // en el branch de boarding más abajo (simétrico a changePlanAfterCurrent).
+        // La validación/consumo del pase ahora vive en pricingAdjustHandler
+        // (fase 176 Plan 09) — se deja seleccionada por paridad con el patrón
+        // de assignPlan (176-08), aunque ya no se lee acá.
         boardingPassUsed: schema.users.boardingPassUsed,
       })
       .from(schema.users)
@@ -3814,61 +3815,72 @@ export class SubscriptionService {
     // and priceTypeApplied (regular/zero/credit_card) before falling back
     // to priceRegular. Without this, the UI's price-type and override
     // selectors silently no-op for "Cambiar ahora".
+    //
+    // Fase 176 Plan 09 (MOD-02): boarding pass es MÓDULO (`templo-gamification`)
+    // — resolvePlanPrice dispara el filter `pricing.adjust`, que consume/marca
+    // el pase (T-176-20: una sola escritura de `boardingPassUsed`, la del
+    // handler). AURA NO: `changePlanNow` nunca la soportó
+    // (`supports.discounts: false`) y eso no cambia — es la razón de ser del
+    // campo `supports` (T-176-24). El neto contra el crédito remanente de la
+    // sub vigente se queda ACÁ, DESPUÉS del filter — comportamiento actual,
+    // no se toca.
+    const resolved = await resolvePlanPrice({
+      hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
+      userId,
+      planId: input.planId,
+      planCategory: targetPlan.planCategory,
+      callSite: "change-now",
+      commit: true,
+      supports: { exclusiveBenefits: true, discounts: false },
+      priceTypeRequested: input.priceTypeApplied,
+      resolvePriceType: (t) => this.resolvePriceType(t),
+      basePriceFor: (t) => this.getBasePrice(targetPlan, t),
+      moduleInput: input.moduleInput ?? {},
+      override:
+        input.priceOverrideAmount !== undefined &&
+        input.priceOverrideAmount >= 0
+          ? {
+              amount: input.priceOverrideAmount,
+              reason: input.priceOverrideReason,
+            }
+          : undefined,
+    });
+
     let netAmount: number;
-    // D-04/ALUM-03: gate the card surcharge server-side (see resolvePriceType).
-    let resolvedPriceType: PriceType = await this.resolvePriceType(
-      input.priceTypeApplied,
-    );
-    let resolvedOverrideAmount: number | null = null;
-    let resolvedOverrideReason: string | null = null;
-    // WR-06: consumo del boarding pass en el cambio inmediato. Antes changePlanNow
-    // no tenía branch de boarding → el pase quedaba sin marcar y era reutilizable
-    // (agujero vivo con la regla Zero ON). Simétrico a assignPlan/changePlanAfterCurrent.
-    let boardingPassUsed = false;
+    const resolvedPriceType: PriceType = resolved.priceType;
+    let resolvedOverrideAmount: number | null;
+    let resolvedOverrideReason: string | null;
+
+    if (resolved.priceOverrideAmount !== null) {
+      // Override CORE: gana en silencio — el módulo corta con
+      // `priceLocked === "override"` (pricing-benefits.ts) y boarding queda
+      // ignorado. El override NO se netea contra el crédito remanente: es el
+      // comportamiento actual de las tres ramas de hoy, no se toca.
+      netAmount = resolved.price;
+      resolvedOverrideAmount = resolved.priceOverrideAmount;
+      resolvedOverrideReason = resolved.priceOverrideReason;
+    } else {
+      netAmount = Math.max(0, resolved.price - proration.remainingValue);
+      resolvedOverrideAmount = netAmount;
+      // T-176-25: el texto persistido debe quedar byte a byte. El core arma
+      // la razón acá (es quien conoce `proration.remainingValue`/`remainingDetail`
+      // — el módulo no los ve) leyendo `resolved.exclusive`/`resolved.applied`
+      // en vez de `moduleInput`: si el filter aplicó un beneficio exclusivo
+      // (hoy, únicamente boarding pass), el string lleva su nombre entre
+      // paréntesis; si no, va sin él. Con `benefit === "boarding pass"` el
+      // resultado es idéntico al string hardcodeado de antes del refactor.
+      const exclusiveBenefit = resolved.exclusive
+        ? resolved.applied[0]?.benefit
+        : undefined;
+      resolvedOverrideReason = exclusiveBenefit
+        ? `Cambio de plan (${exclusiveBenefit}): credito $${proration.remainingValue} (${proration.remainingDetail})`
+        : `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
+    }
+
+    const { boardingPassUsed } = readModuleColumns(resolved);
     // Referidos (fase 157): materialización del descuento en columnas nuevas.
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
-
-    if (
-      input.priceOverrideAmount !== undefined &&
-      input.priceOverrideAmount >= 0
-    ) {
-      if (!input.priceOverrideReason) {
-        throw new BadRequestError(
-          "Se requiere una razon para el precio personalizado",
-        );
-      }
-      netAmount = input.priceOverrideAmount;
-      resolvedOverrideAmount = input.priceOverrideAmount;
-      resolvedOverrideReason = input.priceOverrideReason;
-    } else if (input.boardingPass) {
-      // Boarding pass — regalo one-shot que aplica el precio Zero. Con la regla Zero
-      // OFF (156 D-04) el tipo se rutea por resolvePriceType y normaliza a 'regular'.
-      // A diferencia de assignPlan/changePlanAfterCurrent (sin prorrateo), acá el
-      // cambio es inmediato → se descuenta el crédito remanente de la sub actual,
-      // igual que el else de abajo. Validamos y marcamos el pase ANTES de mutar la sub.
-      if (memberForCountry.boardingPassUsed) {
-        throw new ConflictError("El boarding pass ya fue utilizado");
-      }
-      resolvedPriceType = await this.resolvePriceType("zero");
-      const basePrice = this.getBasePrice(targetPlan, resolvedPriceType);
-      netAmount = Math.max(0, basePrice - proration.remainingValue);
-      resolvedOverrideAmount = netAmount;
-      resolvedOverrideReason = `Cambio de plan (boarding pass): credito $${proration.remainingValue} (${proration.remainingDetail})`;
-      boardingPassUsed = true;
-
-      await this.db
-        .update(schema.users)
-        .set({ boardingPassUsed: true })
-        .where(
-          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
-        );
-    } else {
-      const basePrice = this.getBasePrice(targetPlan, resolvedPriceType);
-      netAmount = Math.max(0, basePrice - proration.remainingValue);
-      resolvedOverrideAmount = netAmount;
-      resolvedOverrideReason = `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
-    }
 
     // ── Referidos (fase 157, D-20/D-21) ──
     // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
