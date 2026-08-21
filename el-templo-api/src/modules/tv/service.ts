@@ -895,6 +895,8 @@ export class TvService {
           const label = this.levelLabel(classDay, level, false);
           // El rótulo del deutero (DEUTEROS I/II) vive en la cabecera (izq/der),
           // NO al lado del nivel: el header de la celda es sólo NIVEL | RUTA %.
+          // La identidad DEUTEROS I/II la trae `payload.deuteros` (buildDeuterosPanel),
+          // que es lo que verifica el contrato en tv-service.test.ts.
           columns.push({
             header: `${label} | ${getRouteLabel(levelBlock.route)} ${levelBlock.intensity}%`,
             exercises: this.mainPrescriptions(levelBlock).map((p) =>

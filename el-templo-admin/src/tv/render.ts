@@ -611,6 +611,8 @@ function paintMovilidad(host: HTMLElement, line: string | null): void {
  * Cabecera de un lado del 2×2 de deuteros: la etiqueta del deutero ("DEUTEROS
  * I"/"II") arriba y el formato del bloque debajo. Reemplaza al título/formato
  * globales cuando el bloque activo es deuteros (uno a cada lado del timer).
+ * La etiqueta llega en `payload.deuteros[n].label` — el header de cada celda
+ * NO la repite (sólo NIVEL | RUTA %).
  */
 function paintDeuHeader(host: HTMLElement, label: string, formato: string): void {
   clear(host);
