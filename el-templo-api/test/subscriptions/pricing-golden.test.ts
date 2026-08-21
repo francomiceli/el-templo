@@ -34,7 +34,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { sql } from "drizzle-orm";
-import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
+import {
+  createTestApp,
+  getAuthToken,
+  cleanAllTestData,
+  ensureEfectivoCaja,
+} from "../helpers";
 import * as schema from "../../src/db/schema";
 import { PRICING_SETTINGS_KEYS } from "../../src/modules/settings/keys";
 import {
@@ -241,6 +246,91 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.body.referralDiscountPercent).toBe(10);
       expect(res.body.referralDiscountAmount).toBe(500);
       expect(res.body.pricePaid).toBe(4500);
+    });
+  });
+
+  // ── assignPlan — país ES / EUR ───────────────────────────────────────────
+  // `getBasePrice` es hoy independiente del país (recibe (plan, priceType),
+  // nunca `plan.country`). Este describe es la red que detecta si el
+  // refactor de la fase 176 introduce una condicional por país o una
+  // confusión de moneda al mover la fórmula al handler del módulo. Rama ES
+  // sembrada a mano (receta de test/country-scope.test.ts:50-170: sucursal
+  // con country:"ES", plan con country:"ES" — el server deriva
+  // currency:"EUR" en service.ts:917 — y socio en esa sucursal). Se reusa
+  // adminToken (owner): assignPlan valida plan.country contra
+  // member.branchCountry directamente (service.ts:1558), no contra
+  // scope.country, así que el owner no necesita `?country=ES`.
+  describe("assignPlan — país ES / EUR", () => {
+    let esBranchId: number;
+
+    beforeAll(async () => {
+      const inserted = await app.db
+        .insert(schema.branches)
+        .values({
+          name: "BCN Golden Test",
+          code: "BCN-GOLD",
+          country: "ES",
+        })
+        .$returningId();
+      esBranchId = inserted[0].id;
+      // Cash charges resuelven la caja efectivo por sucursal+moneda
+      // (finance/cash-register-service.ts) — una sucursal creada en runtime
+      // no trae caja (Phase 138 helper).
+      await ensureEfectivoCaja(app, esBranchId, "EUR");
+    });
+
+    it("base ES — priceType regular, sin descuentos", async () => {
+      const plan = await createPlan(app, adminToken, {
+        country: "ES",
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember(app, {
+        email: "gold-es-base@test.com",
+        branchId: esBranchId,
+      });
+
+      const res = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        branchId: esBranchId,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.pricePaid).toBe(10000);
+      expect(res.body.priceTypeApplied).toBe("regular");
+      expect(res.body.auraDiscountPercent).toBe(null);
+      expect(res.body.referralDiscountPercent).toBe(null);
+    });
+
+    it("ES — auraSpend + referral componen sobre el precio ES", async () => {
+      const plan = await createPlan(app, adminToken, {
+        country: "ES",
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const referrer = await createMember(app, {
+        email: "gold-es-combo-referrer@test.com",
+        branchId: esBranchId,
+      });
+      const referred = await createMember(app, {
+        email: "gold-es-combo-referred@test.com",
+        branchId: esBranchId,
+      });
+      await seedAuraBalance(app, referrer.id, 1000);
+      await seedQualifiedReferral(referrer.id, referred.id, plan.id as number);
+
+      const res = await assignPlan(app, adminToken, referrer.id, {
+        planId: plan.id,
+        branchId: esBranchId,
+        auraSpend: 1000,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.auraDiscount).toBe(1000);
+      expect(res.body.auraDiscountPercent).toBe(10);
+      expect(res.body.referralDiscountPercent).toBe(10);
+      expect(res.body.referralDiscountAmount).toBe(900);
+      expect(res.body.pricePaid).toBe(8100);
     });
   });
 
