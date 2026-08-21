@@ -31,8 +31,26 @@ export interface MonetaryKpiByCurrency {
   EUR: { value: number; trend: Trend };
 }
 
+/**
+ * Desglose del conteo de activos. `paying` = valor del KPI (activePaying no
+ * especial). `staff` + `bonificada` + `onlyEspecial` son los "vigentes" que la
+ * métrica NO cuenta. Los 4 baldes suman `totalActive` (= lo que el admin ve en
+ * el listado de Miembros filtrando "Activos").
+ */
+export interface ActiveMembersBreakdown {
+  paying: number;
+  staff: number;
+  bonificada: number;
+  onlyEspecial: number;
+  totalActive: number;
+}
+
 export interface KpiStats {
-  activeMembers: { value: number; trend: Trend };
+  activeMembers: {
+    value: number;
+    trend: Trend;
+    breakdown: ActiveMembersBreakdown;
+  };
   /**
    * Monthly revenue per currency (D-05). Replaces the former single
    * `{ value, trend }` that silently summed ARS+EUR in the owner view.

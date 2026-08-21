@@ -39,6 +39,26 @@ const kpiValueSchema = {
   },
 } as const;
 
+// KPI de activos con desglose (paga vs staff/bonificada/solo-pase). Los 4
+// baldes suman `totalActive` (= "Activos" del listado de Miembros).
+const activeMembersKpiSchema = {
+  type: "object",
+  properties: {
+    value: { type: "number" },
+    trend: trendSchema,
+    breakdown: {
+      type: "object",
+      properties: {
+        paying: { type: "integer" },
+        staff: { type: "integer" },
+        bonificada: { type: "integer" },
+        onlyEspecial: { type: "integer" },
+        totalActive: { type: "integer" },
+      },
+    },
+  },
+} as const;
+
 // Phase 117 D-05: monetary KPI split per currency (ARS/EUR never summed).
 const monetaryKpiByCurrencySchema = {
   type: "object",
@@ -67,7 +87,7 @@ export const kpiSchema = {
     200: {
       type: "object",
       properties: {
-        activeMembers: kpiValueSchema,
+        activeMembers: activeMembersKpiSchema,
         monthlyRevenue: monetaryKpiByCurrencySchema,
         dailyAttendanceAvg: kpiValueSchema,
       },

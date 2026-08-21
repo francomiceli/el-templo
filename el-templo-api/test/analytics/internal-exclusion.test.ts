@@ -197,6 +197,129 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  // (1b) Desglose clickeable del KPI de activos (breakdown)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("desglose: paga + staff + bonificada + soloEspecial suman totalActive; paying = value", async () => {
+    const active = {
+      startDate: dateOffsetStr(-10),
+      endDate: dateOffsetStr(20),
+    };
+
+    // Plan 'especial' (pase Aura): su comprador solo-pase queda fuera del KPI.
+    const [ep] = await app.db.insert(subscriptionPlans).values({
+      name: "Pase Aura AR",
+      planTier: "flex",
+      bookingMode: "flexible",
+      planCategory: "especial",
+      country: "AR",
+      currency: "ARS",
+      priceRegular: 8000,
+      priceZero: 0,
+      durationDays: 30,
+      classesPerWeek: 2,
+    });
+    const especialPlanId = (ep as { insertId: number }).insertId;
+
+    // 2 pagantes normales
+    for (let i = 0; i < 2; i++) {
+      await insertSub({ userId: await insertMember(), ...active });
+    }
+    // 1 staff, 1 bonificada
+    await insertSub({
+      userId: await insertMember(),
+      membershipKind: "staff",
+      pricePaid: 0,
+      ...active,
+    });
+    await insertSub({
+      userId: await insertMember(),
+      membershipKind: "bonificada",
+      pricePaid: 0,
+      ...active,
+    });
+    // 1 solo-pase-especial (paga, pero plan_category='especial')
+    const soloPase = await insertMember();
+    await app.db.insert(subscriptions).values({
+      userId: soloPase,
+      planId: especialPlanId,
+      branchId: branchA,
+      status: "active",
+      startDate: active.startDate,
+      endDate: active.endDate,
+      pricePaid: 8000,
+      currency: "ARS",
+      priceTypeApplied: "regular",
+      membershipKind: "paga",
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${ANALYTICS_URL}?branchId=${branchA}&dateFrom=${dateOffsetStr(
+        -30,
+      )}&dateTo=${todayStr()}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      activeMembers: {
+        value: number;
+        breakdown: {
+          paying: number;
+          staff: number;
+          bonificada: number;
+          onlyEspecial: number;
+          totalActive: number;
+        };
+      };
+    };
+
+    const b = body.activeMembers.breakdown;
+    expect(b.paying).toBe(2);
+    expect(b.staff).toBe(1);
+    expect(b.bonificada).toBe(1);
+    expect(b.onlyEspecial).toBe(1);
+    expect(b.totalActive).toBe(5);
+    // Invariante: el número grande del KPI == balde 'paying'.
+    expect(body.activeMembers.value).toBe(b.paying);
+    // Invariante: los 4 baldes suman el total plano.
+    expect(b.paying + b.staff + b.bonificada + b.onlyEspecial).toBe(b.totalActive);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // (1c) Filtro membershipKind del listado de Miembros (destino del drill-down)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("listado de Miembros: filtro membershipKind=staff devuelve solo el staff vigente", async () => {
+    const active = {
+      startDate: dateOffsetStr(-10),
+      endDate: dateOffsetStr(20),
+    };
+
+    await insertSub({ userId: await insertMember(), ...active }); // pagante
+    const staff = await insertMember();
+    await insertSub({
+      userId: staff,
+      membershipKind: "staff",
+      pricePaid: 0,
+      ...active,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/admin/members?branchId=${branchA}&status=activo&membershipKind=staff`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      members: Array<{ id: number }>;
+      total: number;
+    };
+    expect(body.total).toBe(1);
+    expect(body.members[0].id).toBe(staff);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   // (2) Altas — MemberFlowsService
   // ═══════════════════════════════════════════════════════════════════════
 
