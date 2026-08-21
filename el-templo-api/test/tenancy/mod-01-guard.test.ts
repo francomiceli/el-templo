@@ -166,3 +166,99 @@ describe("requireModule — comportamiento del guard sobre templo-training (MOD-
     // fallara — es responsabilidad de vitest, no de este test.
   });
 });
+
+describe("requireModule — templo-onboarding (176-04, ModuleDef vía modules-boot.ts)", () => {
+  const RUTA_ONBOARDING = "/api/onboarding/profile";
+
+  function getOnboardingComo(token?: string) {
+    return app.inject({
+      method: "GET",
+      url: RUTA_ONBOARDING,
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+  }
+
+  it("OFF: un socio del gimnasio 2 (sin flags) recibe el 404 exacto del guard", async () => {
+    const res = await getOnboardingComo(gym2.socios[0].token);
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual(BODY_404_DEL_GUARD);
+  });
+
+  it("contraste: prender el flag del gimnasio 2 hace desaparecer ESE 404 exacto", async () => {
+    await setModuleFlag(app, TENANT_DOS, "templo-onboarding", true);
+
+    const res = await getOnboardingComo(gym2.socios[0].token);
+
+    // GET /profile del handler solo devuelve 200/204 — nunca 404 propio
+    // (ver `src/modules/onboarding/routes.ts`). Con el flag prendido, YA NO
+    // puede ser 404: si lo fuera, sería el guard todavía cortando.
+    expect(res.statusCode).not.toBe(404);
+  });
+});
+
+describe("requireModule — templo-gamification (176-04, ModuleDef en modules/aura/module.ts)", () => {
+  const RUTA_GAMIFICATION = "/api/bar-challenge/result";
+
+  function postBarChallengeComo(token?: string) {
+    return app.inject({
+      method: "POST",
+      url: RUTA_GAMIFICATION,
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      payload: { secondsHeld: 30 },
+    });
+  }
+
+  it("OFF: un socio del gimnasio 2 (sin flags) recibe el 404 exacto del guard", async () => {
+    const res = await postBarChallengeComo(gym2.socios[0].token);
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual(BODY_404_DEL_GUARD);
+  });
+
+  it("contraste: prender el flag del gimnasio 2 hace desaparecer ESE 404 exacto", async () => {
+    await setModuleFlag(app, TENANT_DOS, "templo-gamification", true);
+
+    const res = await postBarChallengeComo(gym2.socios[0].token);
+
+    // El handler de bar-challenge nunca devuelve 404 propio (200 en éxito,
+    // 400 por schema, 401 sin token) — un 404 acá solo puede ser el guard.
+    expect(res.statusCode).not.toBe(404);
+  });
+});
+
+describe("requireModule — templo-marketing (176-04, ruta pública, D-06)", () => {
+  const RUTA_MARKETING = "/api/blog/posts";
+
+  function getBlogPublico() {
+    return app.inject({ method: "GET", url: RUTA_MARKETING });
+  }
+
+  // `GET /api/blog/posts` es pública (sin `request.user`): el guard cae
+  // SIEMPRE en la rama (3) de `resolveTenantForGuard` y resuelve
+  // `DEFAULT_PUBLIC_TENANT_ID` (= tenant 1, El Templo) — deuda consciente de
+  // D-06, no un descuido. Por eso el caso se arma AL REVÉS que los otros dos
+  // módulos: con los flags de El Templo sembrados en ON (estado por defecto
+  // que deja `restoreTemploFlags`) la ruta responde normal, y recién con el
+  // flag de El Templo apagado aparece el 404 del guard. No hay forma de
+  // probar esta ruta "OFF para el gimnasio 2": una ruta pública no tiene
+  // tenant propio, siempre mira el flag del tenant 1.
+  it("ON (default de El Templo): la ruta pública responde normal, sin 404 del guard", async () => {
+    const res = await getBlogPublico();
+
+    // GET /posts (lista paginada) nunca devuelve 404 propio — ver
+    // `src/modules/blog/routes.ts`.
+    expect(res.statusCode).not.toBe(404);
+  });
+
+  it("OFF: apagar templo-marketing para El Templo (tenant 1) corta la ruta pública con el 404 exacto", async () => {
+    await setModuleFlag(app, TENANT_TEMPLO, "templo-marketing", false);
+
+    const res = await getBlogPublico();
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual(BODY_404_DEL_GUARD);
+    // El afterEach de este archivo restaura los 4 flags de El Templo a ON
+    // (`restoreTemploFlags`) — imprescindible acá: sin restaurar, el próximo
+    // archivo del mismo worker (`isolate: false`) heredaría marketing
+    // apagado para El Templo (Pitfall 4).
+  });
+});
