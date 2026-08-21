@@ -28,10 +28,12 @@
 // `registerModule(app, temploGamificationModule)`.
 import type { ModuleDef } from "../../modules-boot";
 import { barChallengeRoutes } from "../bar-challenge/routes";
+import { streakMilestoneRewardHandler } from "./streak-reward";
 
 export const temploGamificationModule: ModuleDef = {
   name: "templo-gamification",
   routes: [{ plugin: barChallengeRoutes, prefix: "/api/bar-challenge" }],
-  // `filters`/`events` se agregan en los planes 176-07 y 176-08 (pricing
-  // benefits + streak.milestone reward) — no adelantados en esta fase.
+  // `filters` (pricing.adjust) se agrega en el plan 176-08 — no adelantado
+  // en esta fase.
+  events: { "streak.milestone": streakMilestoneRewardHandler },
 };
