@@ -29,11 +29,14 @@
 import type { ModuleDef } from "../../modules-boot";
 import { barChallengeRoutes } from "../bar-challenge/routes";
 import { streakMilestoneRewardHandler } from "./streak-reward";
+import { pricingAdjustHandler } from "./pricing-benefits";
 
 export const temploGamificationModule: ModuleDef = {
   name: "templo-gamification",
   routes: [{ plugin: barChallengeRoutes, prefix: "/api/bar-challenge" }],
-  // `filters` (pricing.adjust) se agrega en el plan 176-08 — no adelantado
-  // en esta fase.
+  // `filters` (pricing.adjust, plan 176-08): boarding pass + descuento AURA
+  // de la cadena de pricing de subscriptions — ver docblock de
+  // `pricing-benefits.ts`.
+  filters: { "pricing.adjust": pricingAdjustHandler },
   events: { "streak.milestone": streakMilestoneRewardHandler },
 };
