@@ -172,21 +172,6 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <!-- Tipo de membresía (paga/bonificada/staff): filtro de gestión, mismo
-           alcance que la "Deuda total". Es el destino del desglose clickeable
-           del KPI de activos en Analíticas. -->
-      <div v-if="canSeeTotalDebt" class="col-6 col-sm-3 col-md-2">
-        <q-select
-          v-model="filters.membershipKind"
-          :options="membershipKindFilterOptions"
-          label="Membresía"
-          dense
-          outlined
-          emit-value
-          map-options
-          @update:model-value="onFilterChange"
-        />
-      </div>
     </div>
 
     <!-- Total debt banner — owner/admin only (financial data), and only when
@@ -361,7 +346,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
@@ -391,7 +376,6 @@ const greekLevelsEnabled = TEMPLO_GREEK_LEVELS;
 const log = createLogger('AlumnosPage');
 const $q = useQuasar();
 const router = useRouter();
-const route = useRoute();
 const membersApi = useMembersApi();
 const authStore = useAuthStore();
 const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
@@ -477,7 +461,6 @@ const filters = reactive({
   status: null as UserStatus | null,
   segment: null as MemberSegment | null,
   avatarType: null as string | null,
-  membershipKind: null as 'paga' | 'bonificada' | 'staff' | null,
   debtorOnly: false as boolean,
 });
 
@@ -533,16 +516,6 @@ const statusFilterOptions: Array<{ label: string; value: UserStatus | null }> = 
   { label: 'En Prueba', value: 'prueba' },
   { label: 'Activos', value: 'activo' },
   { label: 'Inactivos', value: 'inactivo' },
-];
-
-const membershipKindFilterOptions: Array<{
-  label: string;
-  value: 'paga' | 'bonificada' | 'staff' | null;
-}> = [
-  { label: 'Todas', value: null },
-  { label: 'Pagas', value: 'paga' },
-  { label: 'Bonificadas', value: 'bonificada' },
-  { label: 'Staff', value: 'staff' },
 ];
 
 const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }> = [
@@ -754,7 +727,9 @@ function vencBadge(row: MemberListItem) {
 
 async function loadBranches() {
   try {
-    branches.value = await membersApi.getBranches();
+    branches.value = await membersApi.getBranches({
+      country: isOwner.value ? selectedCountry.value : undefined,
+    });
     branchFilterOptions.value = [
       { label: 'Todas', value: null },
       { label: 'Multisucursal', value: 'multi' },
@@ -817,7 +792,6 @@ async function loadMembers() {
       status: filters.status ?? undefined,
       segment: filters.segment ?? undefined,
       avatarType: filters.avatarType ?? undefined,
-      membershipKind: filters.membershipKind ?? undefined,
       debtorOnly: filters.debtorOnly || undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
       page: tablePagination.value.page,
@@ -1013,42 +987,7 @@ function onPostCreateAssignDialog(open: boolean) {
 // Lifecycle
 // =========================================================================
 
-/**
- * Pre-carga filtros desde la query de la URL (drill-down desde el KPI de
- * activos en Analíticas: `/alumnos?status=activo&membershipKind=staff`). Solo
- * acepta valores válidos; ignora basura. `country` no se toma de la URL: el
- * selector de país es del owner y ya se resuelve en el server por scope.
- */
-function applyFiltersFromQuery(): void {
-  const q = route.query;
-  const status = Array.isArray(q.status) ? q.status[0] : q.status;
-  if (
-    status === 'freemium' ||
-    status === 'prueba' ||
-    status === 'activo' ||
-    status === 'inactivo'
-  ) {
-    filters.status = status;
-  }
-  const kind = Array.isArray(q.membershipKind) ? q.membershipKind[0] : q.membershipKind;
-  if (kind === 'paga' || kind === 'bonificada' || kind === 'staff') {
-    filters.membershipKind = kind;
-  }
-  // País: solo lo respeta el owner (para el resto el server lo fija por scope).
-  const country = Array.isArray(q.country) ? q.country[0] : q.country;
-  if (isOwner.value && (country === 'AR' || country === 'ES')) {
-    selectedCountry.value = country;
-  }
-  // Sede: para que el conteo del listado coincida con el balde clickeado.
-  const branchId = Array.isArray(q.branchId) ? q.branchId[0] : q.branchId;
-  const branchNum = branchId != null ? Number(branchId) : NaN;
-  if (Number.isInteger(branchNum) && branchNum > 0) {
-    filters.branchId = branchNum;
-  }
-}
-
 onMounted(() => {
-  applyFiltersFromQuery();
   loadBranches();
   loadPlans();
   loadMembers();

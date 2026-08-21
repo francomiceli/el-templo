@@ -137,7 +137,7 @@
             <div class="row items-center no-wrap q-mb-xs">
               <q-icon :name="kpi.icon" size="24px" class="q-mr-sm" color="primary" />
               <span class="text-caption text-grey-7">{{ kpi.label }}</span>
-              <!-- Desglose clickeable: solo la card de activos lo tiene -->
+              <!-- Desglose (solo informativo): solo la card de activos lo tiene -->
               <template v-if="kpi.key === 'activeMembers' && activeBreakdown">
                 <q-space />
                 <q-icon
@@ -160,29 +160,13 @@
                         <q-item-label header class="q-py-none">
                           No contados en esta métrica
                         </q-item-label>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click="drillToMembers({ status: 'activo', membershipKind: 'staff' })"
-                        >
+                        <q-item>
                           <q-item-section>Staff</q-item-section>
-                          <q-item-section side>
-                            {{ activeBreakdown.staff }}
-                            <q-icon name="chevron_right" size="16px" />
-                          </q-item-section>
+                          <q-item-section side>{{ activeBreakdown.staff }}</q-item-section>
                         </q-item>
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click="
-                            drillToMembers({ status: 'activo', membershipKind: 'bonificada' })
-                          "
-                        >
+                        <q-item>
                           <q-item-section>Bonificadas</q-item-section>
-                          <q-item-section side>
-                            {{ activeBreakdown.bonificada }}
-                            <q-icon name="chevron_right" size="16px" />
-                          </q-item-section>
+                          <q-item-section side>{{ activeBreakdown.bonificada }}</q-item-section>
                         </q-item>
                         <q-item>
                           <q-item-section>
@@ -192,18 +176,12 @@
                           <q-item-section side>{{ activeBreakdown.onlyEspecial }}</q-item-section>
                         </q-item>
                         <q-separator spaced />
-                        <q-item
-                          clickable
-                          v-close-popup
-                          @click="drillToMembers({ status: 'activo' })"
-                        >
+                        <q-item>
                           <q-item-section class="text-weight-medium">
                             Con membresía vigente
-                            <q-item-label caption>como el listado de Miembros</q-item-label>
                           </q-item-section>
                           <q-item-section side class="text-weight-bold">
                             {{ activeBreakdown.totalActive }}
-                            <q-icon name="chevron_right" size="16px" />
                           </q-item-section>
                         </q-item>
                       </q-list>
@@ -392,7 +370,6 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { useAnalyticsApi } from 'src/composables/useAnalyticsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
@@ -431,7 +408,6 @@ import type { ProgramAnalytics } from 'src/types/program';
 
 // -- Setup ---------------------------------------------------------------
 
-const router = useRouter();
 const log = createLogger('AnaliticasPage');
 const analyticsApi = useAnalyticsApi();
 const membersApi = useMembersApi();
@@ -466,11 +442,20 @@ const loadingBranches = ref(false);
 async function fetchBranches() {
   loadingBranches.value = true;
   try {
-    const branches = await membersApi.getBranches();
+    const branches = await membersApi.getBranches({
+      country: isOwner.value ? selectedCountry.value : undefined,
+    });
     branchOptions.value = [
       { label: 'Todas las sedes', value: undefined },
       ...branches.map((b: BranchOption) => ({ label: b.name, value: b.id })),
     ];
+    // Si la sede elegida quedó fuera del país seleccionado, volver a "Todas".
+    if (
+      selectedBranchId.value !== undefined &&
+      !branchOptions.value.some((o) => o.value === selectedBranchId.value)
+    ) {
+      selectedBranchId.value = undefined;
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error fetching branches', { error: message });
@@ -688,23 +673,13 @@ function formatCurrency(value: number): string {
   return formatPrice(value, displayCurrency.value);
 }
 
-// -- Desglose clickeable del KPI de activos ------------------------------
+// -- Desglose informativo del KPI de activos -----------------------------
 // El número grande (activos "pagos, no especiales") es menor que el "vigentes"
-// del listado de Miembros. El popover explica la diferencia y deja drillear al
-// listado ya filtrado, arrastrando el mismo scope (sede + país) para que el
-// número del listado coincida con el balde clickeado.
-// Se ve en el ícono ⓘ junto a "Activos hoy" (owner/admin) → filas Staff /
-// Bonificadas / vigentes navegan a /alumnos.
+// del listado de Miembros. El popover (ícono ⓘ junto a "Activos hoy") solo
+// CUENTA los baldes que la métrica no incluye (staff, bonificadas, solo pase);
+// no navega al listado — esos socios no se exponen en la lista de Alumnos.
 
 const activeBreakdown = computed(() => kpis.value?.activeMembers.breakdown ?? null);
-
-/** Navega al listado de Miembros con el scope actual + un corte extra. */
-function drillToMembers(extra: Record<string, string | number>): void {
-  const query: Record<string, string | number> = { ...extra };
-  if (selectedBranchId.value !== undefined) query.branchId = selectedBranchId.value;
-  if (currentFilters.value.country) query.country = currentFilters.value.country;
-  void router.push({ path: '/alumnos', query });
-}
 
 const kpiCards = computed<KpiCard[]>(() => {
   if (!kpis.value) return [];
@@ -975,7 +950,9 @@ async function onFilterChange() {
 // Country / branch changes also re-scope the plan list (D-09). Refetch plans
 // first (which drops a now-out-of-scope plan selection), then the metrics.
 async function onScopeChange() {
-  await fetchPlans();
+  // Al cambiar país/sede se re-scopea también el combo de sedes (país → solo
+  // sus sedes) y la lista de planes; luego se refrescan las métricas.
+  await Promise.all([fetchBranches(), fetchPlans()]);
   await onFilterChange();
 }
 

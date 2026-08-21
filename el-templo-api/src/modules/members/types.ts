@@ -53,14 +53,6 @@ export interface MemberListParams {
    * that keeps the column in sync with sub create/cancel transitions.
    */
   status?: "todos" | UserStatus;
-  /**
-   * Filtro por tipo de membresía de la sub vigente (paga/bonificada/staff).
-   * Alimenta el desglose clickeable del KPI de activos en Analíticas: al tocar
-   * "Staff" o "Bonificadas" en el popover se navega acá con este filtro. Se
-   * matchea contra una sub VIGENTE con ese `membership_kind` (no excluye
-   * 'especial' — es un corte por tipo, no la métrica). Ausente = sin filtro.
-   */
-  membershipKind?: "paga" | "bonificada" | "staff";
   page: number;
   limit: number;
 }

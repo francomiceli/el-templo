@@ -42,37 +42,37 @@ async function seedProduction() {
 
     const branchesData = [
       {
-        name: "El Templo Alem",
+        name: "Alem",
         code: "ALEM",
         maxCapacity: 12,
         isVirtual: false,
       },
       {
-        name: "El Templo Constitucion",
+        name: "Constitucion",
         code: "CONST",
         maxCapacity: 22,
         isVirtual: false,
       },
       {
-        name: "El Templo Jujuy",
+        name: "Jujuy",
         code: "JUJUY",
         maxCapacity: 12,
         isVirtual: false,
       },
       {
-        name: "El Templo Mogotes",
+        name: "Sur",
         code: "MOGOTES",
         maxCapacity: 22,
         isVirtual: false,
       },
       {
-        name: "El Templo Moreno",
+        name: "Moreno",
         code: "MORENO",
         maxCapacity: 22,
         isVirtual: false,
       },
       {
-        name: "Templo Online",
+        name: "Online",
         code: "ONLINE",
         maxCapacity: 999,
         isVirtual: true,

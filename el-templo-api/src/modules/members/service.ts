@@ -63,10 +63,7 @@ import { isDuplicateKeyError } from "../shared/sql-errors";
 import { ReferralService } from "../referrals/service";
 import { referralCopyVariant } from "../referrals/ab-variant";
 import { isValidIban, normalizeIban } from "../shared/iban";
-import {
-  activeMemberExists,
-  activeSubOfKindExists,
-} from "../shared/active-member";
+import { activeMemberExists } from "../shared/active-member";
 import { memberCoveredUntilSql } from "../shared/covered-until";
 import {
   tenantValues,
@@ -129,7 +126,6 @@ export class MemberService {
       debtorOnly,
       includeTotalDebt,
       status,
-      membershipKind,
       page,
       limit,
     } = params;
@@ -305,18 +301,6 @@ export class MemberService {
       conditions.push(sql`${effectiveStatusExpr} = ${status}`);
     }
     // status === "todos" or undefined → no-op
-
-    // Corte por tipo de membresía de la sub vigente — alimenta el desglose
-    // clickeable del KPI de activos (Analíticas → "Staff"/"Bonificadas").
-    if (
-      membershipKind === "paga" ||
-      membershipKind === "bonificada" ||
-      membershipKind === "staff"
-    ) {
-      conditions.push(
-        activeSubOfKindExists(schema.users.id, membershipKind, ctx),
-      );
-    }
 
     const whereClause = and(...conditions);
 
