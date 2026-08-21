@@ -33,22 +33,28 @@
 // - NO migra los 12 registros de `templo-training` que quedan in-place en
 //   `app.ts` con `moduleScope` directo (D-04, decisión híbrida del plan 03).
 //   Esos migran al manifest en fases futuras, módulo a módulo.
-// - NO tiene el parámetro `hooks: HookRegistry` ni los campos
-//   `filters`/`events` del `ModuleDef` — eso es 176-06. La firma de esta fase
-//   es deliberadamente `registerModules(app: FastifyInstance): Promise<void>`.
+// - Desde 176-06: `ModuleDef` YA tiene `filters?`/`events?` y `registerModules`
+//   YA acepta un segundo parámetro `hooks: HookRegistry` (default:
+//   `hookRegistry`, el singleton de proceso de `modules/shared/hooks.ts`) —
+//   pero NINGÚN módulo declara todavía filters ni events. Eso es 176-07
+//   (event `streak.milestone`) y 176-08 (filter `pricing.adjust`).
 //
 // ORDEN DE REGISTRO (doc 04 §4.4)
 // ---------------------------------
 // El orden en que `registerModules` llama `registerModule` es el orden de
-// ejecución de los hooks de cada módulo cuando existan (176-06). Con un solo
-// módulo por hook hoy no hay contención real, pero el orden es EXPLÍCITO
+// ejecución de los hooks de cada módulo cuando existan. Con un solo módulo
+// por hook hoy no hay contención real, pero el orden es EXPLÍCITO
 // (gamification, marketing, onboarding) y no accidental — no reordenar sin
 // releer el doc 04 §4.4.
 //
 // QUIÉN LO CONSUME
 // -----------------
 // `src/app.ts`: `await registerModules(app)`, una sola llamada, después de
-// los registros core y ANTES de `/health` y del hook de Sentry.
+// los registros core y ANTES de `/health` y del hook de Sentry. `app.ts` NO
+// pasa el segundo parámetro `hooks` — usa el default (`hookRegistry`, la
+// instancia de proceso). El parámetro existe para que los tests puedan
+// inyectar un `HookRegistry` limpio (`new HookRegistry()`) sin tocar el
+// singleton compartido entre archivos del mismo worker (`isolate: false`).
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import { temploGamificationModule } from "./modules/aura/module";
 import { academyRoutes } from "./modules/academy";
@@ -57,17 +63,25 @@ import { blogRoutes } from "./modules/blog";
 import { franchiseRoutes } from "./modules/franchise";
 import { gladiusRoutes } from "./modules/gladius";
 import { onboardingRoutes } from "./modules/onboarding";
+import {
+  hookRegistry,
+  HookRegistry,
+  type EventMap,
+  type FilterMap,
+} from "./modules/shared/hooks";
 import { moduleScope } from "./modules/shared/module-registry";
 import type { ModuleName } from "./modules/shared/modules";
 
 /**
- * Manifest mínimo de un módulo Templo: sus rutas HTTP. Los campos
- * `filters`/`events` (pricing benefits, streak.milestone) se agregan en el
- * plan 176-06 — no adelantados acá.
+ * Manifest mínimo de un módulo Templo: sus rutas HTTP y sus hooks (176-06).
+ * `filters`/`events` son opcionales — hoy (176-06) ningún `ModuleDef` los
+ * declara todavía; 176-07/08 los agregan a `temploGamificationModule`.
  */
 export interface ModuleDef {
   name: ModuleName;
   routes?: Array<{ plugin: FastifyPluginAsync; prefix?: string }>;
+  filters?: Partial<FilterMap>;
+  events?: Partial<EventMap>;
 }
 
 /**
@@ -104,24 +118,41 @@ export const temploOnboardingModule: ModuleDef = {
 };
 
 /**
- * Aplica `moduleScope` (176-03) a cada ruta declarada en `def.routes`.
+ * Aplica `moduleScope` (176-03) a cada ruta declarada en `def.routes`, y
+ * cuelga cada `def.filters`/`def.events` (176-06) del `hooks` recibido.
  * Privada: `app.ts` no llama esto directo, solo `registerModules`.
  */
 async function registerModule(
   app: FastifyInstance,
+  hooks: HookRegistry,
   def: ModuleDef,
 ): Promise<void> {
   for (const { plugin, prefix } of def.routes ?? []) {
     await moduleScope(app, def.name, plugin, { prefix });
+  }
+  for (const key of Object.keys(def.filters ?? {}) as Array<
+    keyof FilterMap
+  >) {
+    const handler = def.filters?.[key];
+    if (handler) hooks.setFilter(def.name, key, handler);
+  }
+  for (const key of Object.keys(def.events ?? {}) as Array<keyof EventMap>) {
+    const handler = def.events?.[key];
+    if (handler) hooks.setEvent(def.name, key, handler);
   }
 }
 
 /**
  * Punto de entrada único que `app.ts` llama una vez. Orden EXPLÍCITO (ver
  * docblock §"ORDEN DE REGISTRO"): gamification, marketing, onboarding.
+ * `hooks` default a la instancia de proceso (`hookRegistry`); el parámetro
+ * existe para que los tests inyecten un `HookRegistry` limpio.
  */
-export async function registerModules(app: FastifyInstance): Promise<void> {
-  await registerModule(app, temploGamificationModule);
-  await registerModule(app, temploMarketingModule);
-  await registerModule(app, temploOnboardingModule);
+export async function registerModules(
+  app: FastifyInstance,
+  hooks: HookRegistry = hookRegistry,
+): Promise<void> {
+  await registerModule(app, hooks, temploGamificationModule);
+  await registerModule(app, hooks, temploMarketingModule);
+  await registerModule(app, hooks, temploOnboardingModule);
 }
