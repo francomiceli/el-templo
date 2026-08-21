@@ -693,6 +693,8 @@ function formatCurrency(value: number): string {
 // del listado de Miembros. El popover explica la diferencia y deja drillear al
 // listado ya filtrado, arrastrando el mismo scope (sede + país) para que el
 // número del listado coincida con el balde clickeado.
+// Se ve en el ícono ⓘ junto a "Activos hoy" (owner/admin) → filas Staff /
+// Bonificadas / vigentes navegan a /alumnos.
 
 const activeBreakdown = computed(() => kpis.value?.activeMembers.breakdown ?? null);
 
