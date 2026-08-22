@@ -29,6 +29,7 @@ import {
   RefreshTokenService,
   RefreshTokenError,
 } from "./refresh-token-service";
+import { enabledModulesFor } from "../shared/module-flags";
 
 interface RegisterBody {
   email: string;
@@ -871,6 +872,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const onboardingCompleted =
         profileRows.length > 0 && profileRows[0].completedAt !== null;
 
+      // Fase 176 (D-08, MOD-01/MOD-02): campo aditivo, ordenado
+      // alfabéticamente para que la respuesta sea determinística (el `Set`
+      // que devuelve `enabledModulesFor` no garantiza orden). Nadie lo
+      // consume todavía en los frontends — ver D-08 en el plan 176-11.
+      const enabledModules = Array.from(
+        await enabledModulesFor(ctx.tenantId, fastify.db),
+      ).sort();
+
       return {
         id: user.id,
         email: user.email,
@@ -895,6 +904,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         // el app. Para importados legacy es la fecha de import, igual que en
         // analytics (los legacy cuentan por createdAt).
         memberSince: user.createdAt.toISOString(),
+        enabledModules,
       };
     },
   );
