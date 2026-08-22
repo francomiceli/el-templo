@@ -1,7 +1,17 @@
 /**
- * Fase 173 Plan 28 (ISO-03) — AISLAMIENTO + ADO-07 de las 11 rutas de
- * ESCRITURA: altas/edición/baja de socios, el PATCH de leads, y las 5 rutas
- * de staff (`/api/admin/users`).
+ * Fase 173 Plan 28 (ISO-03) — AISLAMIENTO + ADO-07 de las 10 rutas de
+ * ESCRITURA: altas/edición/baja de socios, el PATCH de leads, y las 4 rutas
+ * `tenant-scoped` de staff (`/api/admin/users`).
+ *
+ * ACTUALIZACIÓN (fase 176 plan 11): originalmente eran 11 rutas — incluía
+ * `POST /api/admin/users/:userId/program-addons`. El plan 176-05 reclasificó
+ * esa ruta de `tenant-scoped` a `templo-module`/`templo-training`
+ * (`moduleScope` ya la gateaba en runtime; lo desactualizado era el
+ * manifiesto), así que dejó de pertenecer a esta batería. Su caso de
+ * aislamiento + control positivo se reubicó a
+ * test/tenancy/iso-03-programs-modulo.test.ts, sembrando el flag del
+ * gimnasio 2 — sin pérdida de cobertura. Ver la nota en el lugar donde
+ * vivía el describe, más abajo en este archivo.
  *
  * POR QUE EXISTE ESTE ARCHIVO
  * ---------------------------
@@ -13,7 +23,7 @@
  * literalmente lo que el ancla autodestructiva de la fase 172 decía que NO se
  * podía escribir hasta que esta fase arreglara D-13.
  *
- * QUE RUTAS CUBRE (11 de las 30 de members/users/leads del manifiesto)
+ * QUE RUTAS CUBRE (10 de las 29 de members/users/leads del manifiesto)
  * ----------------------------------------------------------------------
  *   POST   /api/admin/members
  *   POST   /api/admin/members/trial
@@ -25,7 +35,9 @@
  *   POST   /api/admin/users
  *   PUT    /api/admin/users/:userId
  *   PATCH  /api/admin/users/:userId/status
- *   POST   /api/admin/users/:userId/program-addons
+ *
+ * (`POST /api/admin/users/:userId/program-addons` YA NO está acá — ver la
+ * "ACTUALIZACIÓN (fase 176 plan 11)" más arriba.)
  *
  * EL CONTRATO QUE SE AFIRMA (D-06 del CONTEXT — vale para TODO el milestone)
  * ---------------------------------------------------------------------------
@@ -78,7 +90,10 @@
  * en sí sigue sin `tenantValues` en su INSERT (bug PREEXISTENTE, adyacente,
  * fuera del alcance de D-02 — pertenece a la adopción de `programs`/
  * `subscriptions` en 174/175): documentado en `deferred-items.md`, NO
- * arreglado acá.
+ * arreglado acá. El fix de código sigue vigente en
+ * `src/modules/programs/routes.ts`; el CASO de test que lo ejercitaba se
+ * reubicó en fase 176 plan 11 (ver la "ACTUALIZACIÓN" al inicio de este
+ * archivo) porque la ruta pasó a ser `templo-module`.
  *
  * CADA CASO DE AISLAMIENTO LLEVA SU CONTROL POSITIVO (D-08 del piloto)
  * ---------------------------------------------------------------------
@@ -97,8 +112,7 @@
  *
  * EL ACTOR (D-10 del piloto)
  * ---------------------------
- * `gym2.adminToken` (rol `admin`) para las rutas de `members`/`leads` y para
- * `program-addons` (que acepta `FINANCE_WRITE_ROLES`, incluye admin). Las 4
+ * `gym2.adminToken` (rol `admin`) para las rutas de `members`/`leads`. Las 4
  * rutas de `/api/admin/users` exigen `OWNER_ROLES = ["owner"]` A SECAS — el
  * único actor que `admin` no sirve para nada acá — así que se reusa el
  * `dos.sepa.ownerToken` que sembró el fixture 173-26 (creado originalmente
@@ -123,12 +137,8 @@ import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
   cleanAllTestData,
-  getAuthToken,
   createStaffUser,
-  dateOffsetStr,
-  ensureEfectivoCaja,
 } from "../helpers";
-import { createPlan, assignPlan } from "../subscriptions/_helpers";
 import { normalizePhone } from "../../src/modules/shared/phone";
 import * as schema from "../../src/db/schema";
 import {
@@ -216,7 +226,7 @@ afterAll(async () => {
 
 // ─── Utilidades HTTP ─────────────────────────────────────────────────────────
 
-/** Como staff del gimnasio 2, rol `admin` (members/leads/program-addons). */
+/** Como staff del gimnasio 2, rol `admin` (members/leads). */
 async function comoGimnasioDos(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   url: string,
@@ -1148,119 +1158,13 @@ describe("cambiar estado de staff — PATCH /api/admin/users/:userId/status", ()
   });
 });
 
-describe("add-on de programa — POST /api/admin/users/:userId/program-addons", () => {
-  const RUTA = "POST /api/admin/users/:userId/program-addons";
-
-  /** Programa GLOBAL (catalogo compartido, sin tenant_id propio en el negocio hoy) + suscripcion activa. */
-  async function prepararSocioConSuscripcion(
-    ownerToken: string,
-    ctx: TenantContext,
-    branchId: number,
-    userId: number,
-  ): Promise<{ programId: number }> {
-    const suf = sufijo();
-    // `assignPlan` con `paymentMethod: "cash"` (default) exige una caja
-    // efectivo para la sucursal — `second-tenant.ts` NO la siembra (D-05 de
-    // ese fixture: es opt-in por archivo). El Templo la tiene desde
-    // `test/setup.ts`, pero el gimnasio 2 no.
-    await ensureEfectivoCaja(app, branchId, "ARS", ctx.tenantId);
-    const plan = await createPlan(app, ownerToken, {
-      name: `Plan addon ${suf}`,
-      planTier: "flex",
-      bookingMode: "flexible",
-    });
-    const asignacion = await assignPlan(app, ownerToken, userId, {
-      planId: plan.id,
-      branchId,
-      startDate: dateOffsetStr(-1),
-    });
-    expect(
-      asignacion.statusCode,
-      `No se pudo sembrar la suscripcion previa para este test: ${JSON.stringify(asignacion.body)}`,
-    ).toBe(201);
-    const [programResult] = await app.db.insert(schema.programs).values({
-      name: `Programa addon ${suf}`,
-      description: "programa de prueba",
-      durationWeeks: 4,
-      sessionsPerWeekToAdvance: 3,
-      isActive: true,
-      goalPlanType: "tren_superior",
-    });
-    const programId = Number(
-      (programResult as unknown as { insertId: number }).insertId,
-    );
-    return { programId };
-  }
-
-  /** Cuenta inscripciones de programa para un userId, sin filtrar por gimnasio. */
-  async function contarInscripciones(userId: number): Promise<number> {
-    const filas = await consultar<{ c: number }>(
-      sql`SELECT /* tenant-safe: contar program_enrollments de un userId (sin filtro de gimnasio) es la asercion de "cero filas nuevas" — filtrar la volveria tautologica */ COUNT(*) AS c FROM program_enrollments WHERE user_id = ${userId}`,
-    );
-    return Number(filas[0]?.c ?? 0);
-  }
-
-  it("aislamiento (T-173-28-08, fix de este plan): inscribir a un socio de El Templo se rechaza, y CERO filas nuevas en program_enrollments", async () => {
-    const ownerTemplo = await getAuthToken(
-      app,
-      "admin@test.com",
-      "adminpass123",
-    );
-    const { programId } = await prepararSocioConSuscripcion(
-      ownerTemplo,
-      CTX_TEMPLO,
-      templo.branchId,
-      templo.userId,
-    );
-    const antes = await contarInscripciones(templo.userId);
-    const res = await comoGimnasioDos(
-      "POST",
-      `${USERS_BASE}/${templo.userId}/program-addons`,
-      {
-        programId,
-      },
-    );
-    expect(
-      res.statusCode,
-      porQueImporta(RUTA, templo.userId) + ` Respuesta: ${res.body}`,
-    ).toBe(404);
-    const despues = await contarInscripciones(templo.userId);
-    expect(
-      despues,
-      `${RUTA}: el rechazo no puede dejar una fila nueva en program_enrollments para el socio de ` +
-        `El Templo (antes de este plan, esto SI escribia — ver el hallazgo del docblock).`,
-    ).toBe(antes);
-  });
-
-  it("control: inscribir a un socio propio del gimnasio 2 SI funciona", async () => {
-    const { programId } = await prepararSocioConSuscripcion(
-      gym2.adminToken,
-      CTX_DOS,
-      gym2.branchId,
-      dos.userId,
-    );
-    const antes = await contarInscripciones(dos.userId);
-    const res = await comoGimnasioDos(
-      "POST",
-      `${USERS_BASE}/${dos.userId}/program-addons`,
-      {
-        programId,
-      },
-    );
-    expect(
-      res.statusCode,
-      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
-    ).toBe(200);
-    const despues = await contarInscripciones(dos.userId);
-    expect(
-      despues,
-      `${RUTA}: la inscripcion propia tiene que crear exactamente una fila nueva.`,
-    ).toBe(antes + 1);
-    // NO se afirma el tenant_id de la fila de program_enrollments: el INSERT
-    // de EnrollmentService.enrollAddon no usa tenantValues (bug PREEXISTENTE
-    // y adyacente, fuera del alcance de D-02 — documentado en
-    // deferred-items.md, pertenece a la adopcion de programs/subscriptions en
-    // 174/175). Afirmarlo aca daria un falso rojo sobre algo que esta fase no
-    // arregla.
-  });
-});
+// NOTA (fase 176 plan 11): el describe de
+// `POST /api/admin/users/:userId/program-addons` que vivía acá se removió.
+// La ruta se reclasificó de `tenant-scoped` a `templo-module`/
+// `templo-training` en el plan 176-05 (moduleScope ya la gateaba en
+// runtime — lo desactualizado era el manifiesto), así que dejó de
+// pertenecer a la batería ISO-03 de members. Su aislamiento + control
+// positivo se reubicó, sembrando el flag `templo-training` del gimnasio 2,
+// en test/tenancy/iso-03-programs-modulo.test.ts — sin pérdida de
+// cobertura. Ver también el ajuste de baseline en
+// iso-03-cobertura-members.test.ts (30 → 29).

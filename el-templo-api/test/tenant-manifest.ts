@@ -125,11 +125,24 @@
 // ----------------------
 // No es runtime de producción: nada en `src/` lo importa ni puede importarlo.
 // Vive en `test/` a propósito, y por eso el lint de tenancy de la fase 170 —que
-// solo mira `src/`— no lo analiza. Tampoco tiene dependencias: es TypeScript
-// puro sin un solo import, lo que permite typechequearlo suelto con `tsc`
-// (`tsconfig.json` incluye solo `src/**`, así que CI no typechequea `test/` —
-// esa es la única red que tiene, junto con las validaciones de forma que el
-// gate corre en runtime).
+// solo mira `src/`— no lo analiza.
+//
+// Fase 176 Plan 05 (MOD-01): hasta acá, este archivo declaraba su propia lista
+// `MODULOS_TEMPLO` — duplicada, sin exportar, y sin ninguna garantía de que
+// coincidiera con la que el guard `requireModule` usa en runtime. Ahora
+// IMPORTA `MODULE_NAMES` de `src/modules/shared/modules.ts`, la fuente única
+// (176-01): un typo en el nombre de un módulo deja de ser posible, porque hay
+// UN solo lugar del repo donde ese nombre se escribe. Precedente de `test/`
+// importando de `src/` sin problema: `test/helpers.ts` importa
+// `../src/modules/shared/tenant`. El único costo real es que `tsc` suelto
+// sobre este archivo ahora arrastra el grafo de tipos de `modules.ts` (que no
+// tiene dependencias propias, así que el costo es mínimo) — sigue sin
+// necesitar MySQL ni ningún runtime de Fastify, que es la propiedad que de
+// verdad importaba (`tsconfig.json` incluye solo `src/**`, así que CI no
+// typechequea `test/` de todos modos; la validación de forma real corre en
+// runtime, ver `iso-01-manifiesto.test.ts`).
+
+import { MODULE_NAMES } from "../src/modules/shared/modules";
 
 /** Las tres categorías posibles. No hay una cuarta, y agregarla es una decisión de diseño. */
 const CATEGORIAS = ["tenant-scoped", "global", "templo-module"] as const;
@@ -145,13 +158,13 @@ const CATEGORIAS = ["tenant-scoped", "global", "templo-module"] as const;
  */
 export type Categoria = (typeof CATEGORIAS)[number];
 
-/** Módulos Templo del doc `.docs/saas-multitenancy/04-mecanismo-modulos.md`. */
-const MODULOS_TEMPLO = [
-  "templo-training",
-  "templo-gamification",
-  "templo-marketing",
-  "templo-onboarding",
-] as const;
+/**
+ * Alias local de la fuente única (`src/modules/shared/modules.ts`, 176-01).
+ * Do NOT re-declare esta lista: importa de acá, que a su vez importa de `src/`.
+ * El nombre `MODULOS_TEMPLO` se conserva para no tocar el resto del archivo
+ * (`MODULOS_VALIDOS` más abajo lo consume tal cual).
+ */
+const MODULOS_TEMPLO = MODULE_NAMES;
 
 export type ModuloTemplo = (typeof MODULOS_TEMPLO)[number];
 
@@ -599,9 +612,6 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/users": { categoria: "tenant-scoped" },
   "PATCH /api/admin/users/:userId/status": { categoria: "tenant-scoped" },
   "POST /api/admin/users": { categoria: "tenant-scoped" },
-  "POST /api/admin/users/:userId/program-addons": {
-    categoria: "tenant-scoped",
-  },
   "PUT /api/admin/users/:userId": { categoria: "tenant-scoped" },
 
   // ── /api/app ──────────────────────────────────────────────────────────────
@@ -1064,6 +1074,27 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "POST /api/admin/programs/:programId/deactivate": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  // Fase 176 Plan 05 (MOD-01): reclasificada de `tenant-scoped` a
+  // `templo-module`/`templo-training`. Vivía bajo la sección alfabética
+  // "/api/admin/users" desde el volcado original de la fase 171 — un desliz de
+  // clasificación manual (D-01: 370 entradas a mano, ninguna regla de prefijo),
+  // NO una recategorización de producto. Se descubrió con el gate de
+  // CONTENCIÓN de esta fase (`iso-01-manifiesto.test.ts`, test 7): el registro
+  // real es `programRoutes` (src/modules/programs/routes.ts), la MISMA fábrica
+  // de plugin que registra los otros 15 endpoints de este bloque —
+  // `moduleScope(app, "templo-training", programRoutes, ...)` los cubre a
+  // TODOS por igual (176-03), así que el guard ya corría acá desde esa fase; lo
+  // que estaba desactualizado era el manifiesto. El endpoint asigna un
+  // "program add-on" (`EnrollmentService.enrollAddon`, Fase 112 D-10) — es
+  // inscripción a un PROGRAMA de entrenamiento, el mismo concepto que
+  // `/api/members/me/current-program` de abajo, cuyo veredicto D-04 (caso 9,
+  // checkpoint 171-06) ya cita el doc 04 §2.1: "programs" es templo-training.
+  // Recategorización, no ruta nueva: ENTRADAS_BASELINE (370) no se mueve —
+  // ver el header del archivo, "recategorizar una ruta no lo pone rojo".
+  "POST /api/admin/users/:userId/program-addons": {
     categoria: "templo-module",
     modulo: "templo-training",
   },

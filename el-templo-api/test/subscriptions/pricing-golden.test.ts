@@ -12,12 +12,16 @@
  * Todos los números `toBe(N)` son la cifra REAL que produce el código de HOY
  * — no una re-derivación de la fórmula. Combos cubiertos por método:
  *   - assignPlan: base, priceOverride, boardingPass, AURA (los 4 tiers),
- *     referral, combo boardingPass+auraSpend(ignorado)+referral.
+ *     referral, combo boardingPass+auraSpend(ignorado)+referral, y un
+ *     describe aparte para el camino ES/EUR (base + AURA/referral
+ *     compuestos — 176-02, hueco 1: `getBasePrice` es hoy independiente
+ *     del país).
  *   - changePlanNow: NO soporta auraSpend (confirmado leyendo el código —
  *     override > boardingPass > prorrateo plano, sin branch de AURA). Cubre
  *     base (prorrateo), boardingPass (prorrateo), referral (prorrateo).
- *   - changePlanAfterCurrent: base, boardingPass, AURA (1 tier
- *     representativo), referral, combo boardingPass+referral.
+ *   - changePlanAfterCurrent: base, boardingPass, AURA (los 4 tiers —
+ *     176-02, hueco 2: antes cubría 1 solo tier representativo), referral,
+ *     combo boardingPass+referral.
  *   - renewSubscription: base (precio heredado), AURA heredado (asignado con
  *     AURA, luego renovado), referral evaluado fresco en la renovación.
  *   - getChangePlanPreview: parity contra changePlanNow (base, referral).
@@ -34,7 +38,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { sql } from "drizzle-orm";
-import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
+import {
+  createTestApp,
+  getAuthToken,
+  cleanAllTestData,
+  ensureEfectivoCaja,
+} from "../helpers";
 import * as schema from "../../src/db/schema";
 import { PRICING_SETTINGS_KEYS } from "../../src/modules/settings/keys";
 import {
@@ -244,6 +253,91 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
     });
   });
 
+  // ── assignPlan — país ES / EUR ───────────────────────────────────────────
+  // `getBasePrice` es hoy independiente del país (recibe (plan, priceType),
+  // nunca `plan.country`). Este describe es la red que detecta si el
+  // refactor de la fase 176 introduce una condicional por país o una
+  // confusión de moneda al mover la fórmula al handler del módulo. Rama ES
+  // sembrada a mano (receta de test/country-scope.test.ts:50-170: sucursal
+  // con country:"ES", plan con country:"ES" — el server deriva
+  // currency:"EUR" en service.ts:917 — y socio en esa sucursal). Se reusa
+  // adminToken (owner): assignPlan valida plan.country contra
+  // member.branchCountry directamente (service.ts:1558), no contra
+  // scope.country, así que el owner no necesita `?country=ES`.
+  describe("assignPlan — país ES / EUR", () => {
+    let esBranchId: number;
+
+    beforeAll(async () => {
+      const inserted = await app.db
+        .insert(schema.branches)
+        .values({
+          name: "BCN Golden Test",
+          code: "BCN-GOLD",
+          country: "ES",
+        })
+        .$returningId();
+      esBranchId = inserted[0].id;
+      // Cash charges resuelven la caja efectivo por sucursal+moneda
+      // (finance/cash-register-service.ts) — una sucursal creada en runtime
+      // no trae caja (Phase 138 helper).
+      await ensureEfectivoCaja(app, esBranchId, "EUR");
+    });
+
+    it("base ES — priceType regular, sin descuentos", async () => {
+      const plan = await createPlan(app, adminToken, {
+        country: "ES",
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember(app, {
+        email: "gold-es-base@test.com",
+        branchId: esBranchId,
+      });
+
+      const res = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        branchId: esBranchId,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.pricePaid).toBe(10000);
+      expect(res.body.priceTypeApplied).toBe("regular");
+      expect(res.body.auraDiscountPercent).toBe(null);
+      expect(res.body.referralDiscountPercent).toBe(null);
+    });
+
+    it("ES — auraSpend + referral componen sobre el precio ES", async () => {
+      const plan = await createPlan(app, adminToken, {
+        country: "ES",
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const referrer = await createMember(app, {
+        email: "gold-es-combo-referrer@test.com",
+        branchId: esBranchId,
+      });
+      const referred = await createMember(app, {
+        email: "gold-es-combo-referred@test.com",
+        branchId: esBranchId,
+      });
+      await seedAuraBalance(app, referrer.id, 1000);
+      await seedQualifiedReferral(referrer.id, referred.id, plan.id as number);
+
+      const res = await assignPlan(app, adminToken, referrer.id, {
+        planId: plan.id,
+        branchId: esBranchId,
+        auraSpend: 1000,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.auraDiscount).toBe(1000);
+      expect(res.body.auraDiscountPercent).toBe(10);
+      expect(res.body.referralDiscountPercent).toBe(10);
+      expect(res.body.referralDiscountAmount).toBe(900);
+      expect(res.body.pricePaid).toBe(8100);
+    });
+  });
+
   // ── changePlanNow (startMode "now", prorrateo) ──────────────────────────
   describe("changePlanNow", () => {
     async function changeNow(
@@ -323,6 +417,46 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.statusCode).toBe(201);
       expect(res.body.boardingPassUsed).toBe(true);
       expect(res.body.pricePaid).toBe(3000);
+    });
+
+    // Fase 176 Plan 09 (T-176-25): el golden previo NO afirmaba el texto de
+    // `priceOverrideReason` para ningún caso de changePlanNow — este caso lo
+    // agrega. El string se persiste en la columna y su forma exacta (con el
+    // benefit "boarding pass" entre paréntesis) es el contrato que el
+    // refactor de 176-09 no puede romper (razón derivada de `resolved.applied`
+    // en vez de una re-lectura de `moduleInput`).
+    it("boardingPass — razón persistida byte a byte con '(boarding pass)'", async () => {
+      const planA = await createPlan(app, adminToken, {
+        name: "Golden CN Boarding Reason A",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const planB = await createPlan(app, adminToken, {
+        name: "Golden CN Boarding Reason B",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 15000,
+        priceZero: 8000,
+      });
+      const member = await createMember(app, {
+        email: "gold-cn-boarding-reason@test.com",
+      });
+      await assignPlan(app, adminToken, member.id, {
+        planId: planA.id,
+        startDate: dateOffsetStr(-15),
+      });
+
+      const res = await changeNow(member.id as number, {
+        planId: planB.id,
+        boardingPass: true,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.priceOverrideReason).toBe(
+        "Cambio de plan (boarding pass): credito $5000 (15/30 dias)",
+      );
     });
 
     it("referral — descuento simétrico sobre el neto post-prorrateo", async () => {
@@ -453,16 +587,57 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.body.pricePaid).toBe(6000);
     });
 
-    it("AURA tier spend=1000 (10%) sobre el plan destino", async () => {
+    // 176-02 hueco 2: los 4 tiers de AURA_DISCOUNT_TIERS, no solo el
+    // representativo (spend=1000/10%) que cubría este describe antes. El
+    // punto exacto de riesgo es `Math.floor(basePrice * (tier.percent /
+    // 100))` (service.ts ~4463) — el off-by-one exacto que se rompería si
+    // el refactor mueve la fórmula al handler del módulo
+    // `templo-gamification` con un redondeo distinto.
+    it("AURA tier spend=500 (5%) sobre el plan destino", async () => {
       const planA = await createPlan(app, adminToken, {
-        name: "Golden CAC AURA A",
+        name: "Golden CAC AURA A 500",
         classesPerWeek: undefined,
         durationDays: 30,
         priceRegular: 8000,
         priceZero: 4000,
       });
       const planB = await createPlan(app, adminToken, {
-        name: "Golden CAC AURA B",
+        name: "Golden CAC AURA B 500",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 6000,
+      });
+      const member = await createMember(app, {
+        email: "gold-cac-aura-500@test.com",
+      });
+      await assignPlan(app, adminToken, member.id, {
+        planId: planA.id,
+        startDate: todayStr(),
+      });
+      await seedAuraBalance(app, member.id, 500);
+
+      const res = await changeAfterCurrent(member.id as number, {
+        planId: planB.id,
+        auraSpend: 500,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.auraDiscount).toBe(500);
+      expect(res.body.auraDiscountPercent).toBe(5);
+      expect(res.body.pricePaid).toBe(11400);
+    });
+
+    it("AURA tier spend=1000 (10%) sobre el plan destino", async () => {
+      const planA = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA A 1000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA B 1000",
         classesPerWeek: undefined,
         durationDays: 30,
         priceRegular: 12000,
@@ -484,6 +659,76 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.body.auraDiscount).toBe(1000);
       expect(res.body.auraDiscountPercent).toBe(10);
       expect(res.body.pricePaid).toBe(10800);
+    });
+
+    it("AURA tier spend=2000 (20%) sobre el plan destino", async () => {
+      const planA = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA A 2000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA B 2000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 6000,
+      });
+      const member = await createMember(app, {
+        email: "gold-cac-aura-2000@test.com",
+      });
+      await assignPlan(app, adminToken, member.id, {
+        planId: planA.id,
+        startDate: todayStr(),
+      });
+      await seedAuraBalance(app, member.id, 2000);
+
+      const res = await changeAfterCurrent(member.id as number, {
+        planId: planB.id,
+        auraSpend: 2000,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.auraDiscount).toBe(2000);
+      expect(res.body.auraDiscountPercent).toBe(20);
+      expect(res.body.pricePaid).toBe(9600);
+    });
+
+    it("AURA tier spend=5000 (30%) sobre el plan destino", async () => {
+      const planA = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA A 5000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan(app, adminToken, {
+        name: "Golden CAC AURA B 5000",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 6000,
+      });
+      const member = await createMember(app, {
+        email: "gold-cac-aura-5000@test.com",
+      });
+      await assignPlan(app, adminToken, member.id, {
+        planId: planA.id,
+        startDate: todayStr(),
+      });
+      await seedAuraBalance(app, member.id, 5000);
+
+      const res = await changeAfterCurrent(member.id as number, {
+        planId: planB.id,
+        auraSpend: 5000,
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.auraDiscount).toBe(5000);
+      expect(res.body.auraDiscountPercent).toBe(30);
+      expect(res.body.pricePaid).toBe(8400);
     });
 
     it("referral — descuento simétrico sobre precio de lista destino", async () => {

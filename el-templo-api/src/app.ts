@@ -17,11 +17,6 @@ import exerciseAdjustmentsCoachPlugin from "./plugins/exercise-adjustments-coach
 import { authRoutes } from "./modules/auth";
 import { adminRoutes } from "./modules/admin";
 import { goalPlanRoutes } from "./modules/goal-plans";
-import { franchiseRoutes } from "./modules/franchise";
-import { gladiusRoutes } from "./modules/gladius";
-import { blogRoutes } from "./modules/blog";
-import { academyRoutes } from "./modules/academy";
-import { appLandingRoutes } from "./modules/app-landing";
 import { memberRoutes } from "./modules/members";
 import { leadsRoutes } from "./modules/members/leads-routes";
 import {
@@ -48,8 +43,6 @@ import {
 import { financeRoutes, coachLoadRoutes } from "./modules/finance";
 import { userRoutes } from "./modules/users";
 import { settingsRoutes } from "./modules/settings";
-import { onboardingRoutes } from "./modules/onboarding";
-import { barChallengeRoutes } from "./modules/bar-challenge/routes";
 import {
   checkInRoutes,
   checkInAdminRoutes,
@@ -63,6 +56,8 @@ import { campaignRoutes } from "./modules/campaigns/routes";
 import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
 import { tvControlRoutes } from "./modules/tv";
+import { moduleScope } from "./modules/shared/module-registry";
+import { registerModules } from "./modules-boot";
 
 /**
  * Opciones de `buildApp`. Hoy tiene un solo campo y es a propósito: la
@@ -164,51 +159,49 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // Auth plugin (decorates fastify.jwt and fastify.authenticate)
   await app.register(authPlugin);
 
+  // Fase 176 Plan 03 (MOD-01, D-04): los 12 registros de rutas de
+  // `templo-training` quedan IN-PLACE acá (no migran al formato `ModuleDef`
+  // en esta fase) pero envueltos con `moduleScope`, que appendea el guard
+  // `requireModule` a cada ruta que registren. Son 12, no 7: los 7 `fp` de
+  // abajo cubren 25 de las 102 rutas de training — las otras 77 vienen de
+  // los 5 registros directos (adminRoutes, goalPlanRoutes, programRoutes,
+  // checkInRoutes, checkInAdminRoutes) envueltos más abajo. Ver
+  // 176-RESEARCH.md §"Mapeo completo" para el detalle ruta por ruta.
+
   // SPOM plugin (SPOM data access endpoints)
-  await app.register(spomPlugin);
+  await moduleScope(app, "templo-training", spomPlugin);
 
   // Sessions plugin (session generation and retrieval)
-  await app.register(sessionsPlugin);
+  await moduleScope(app, "templo-training", sessionsPlugin);
 
   // Progression plugin (member stats and evaluation requests)
-  await app.register(progressionPlugin);
+  await moduleScope(app, "templo-training", progressionPlugin);
 
   // Tree-progress plugin (member skill-tree % advancement — Phase 127)
-  await app.register(treeProgressPlugin);
+  await moduleScope(app, "templo-training", treeProgressPlugin);
 
   // Tree-editor plugin (admin/coach skill-tree editor — Phase 128)
-  await app.register(treeEditorPlugin);
+  await moduleScope(app, "templo-training", treeEditorPlugin);
 
   // Exercise-adjustments plugin (in-session difficulty adjustment — Phase 131)
-  await app.register(exerciseAdjustmentsPlugin);
+  await moduleScope(app, "templo-training", exerciseAdjustmentsPlugin);
 
   // Exercise-adjustments coach plugin (coach/owner read of a member's
   // dominado/bajado log — Phase 131 Plan 02)
-  await app.register(exerciseAdjustmentsCoachPlugin);
+  await moduleScope(app, "templo-training", exerciseAdjustmentsCoachPlugin);
 
   // Routes
   await app.register(authRoutes, { prefix: "/api/auth" });
 
   // Admin routes (session management for coaches/admins)
-  await app.register(adminRoutes, { prefix: "/api/admin" });
+  await moduleScope(app, "templo-training", adminRoutes, {
+    prefix: "/api/admin",
+  });
 
   // Goal plan routes (member goal plan lifecycle + admin goal plan management)
-  await app.register(goalPlanRoutes, { prefix: "/api" });
-
-  // Franchise routes (public franchise application form)
-  await app.register(franchiseRoutes, { prefix: "/api/franchise" });
-
-  // Gladius routes (product catalog + inquiry form)
-  await app.register(gladiusRoutes, { prefix: "/api/gladius" });
-
-  // Blog routes (public blog + admin CRUD + image upload)
-  await app.register(blogRoutes, { prefix: "/api/blog" });
-
-  // Academy routes (enrollment inquiry form)
-  await app.register(academyRoutes, { prefix: "/api/academy" });
-
-  // App landing routes (waitlist + Labs inquiry forms)
-  await app.register(appLandingRoutes, { prefix: "/api/app" });
+  await moduleScope(app, "templo-training", goalPlanRoutes, {
+    prefix: "/api",
+  });
 
   // Wellhub webhook (público, autenticado por firma HMAC — una sola URL para
   // todos los eventos de check-in y reservas de la plataforma Wellhub)
@@ -332,21 +325,22 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     prefix: "/api/admin/settings",
   });
 
-  // Onboarding routes (member quiz completion + profile retrieval + analytics)
-  await app.register(onboardingRoutes, { prefix: "/api/onboarding" });
-
-  // Phase 115 bar challenge result endpoint (single-attempt, member-only).
-  await app.register(barChallengeRoutes, { prefix: "/api/bar-challenge" });
-
   // Check-in routes (daily energy/soreness/sleep check-ins)
-  await app.register(checkInRoutes, { prefix: "/api/check-ins" });
+  await moduleScope(app, "templo-training", checkInRoutes, {
+    prefix: "/api/check-ins",
+  });
   // Vista admin del Registro del día (tab de Feedback, ADMIN_ROLES).
-  await app.register(checkInAdminRoutes, { prefix: "/api/admin/check-ins" });
-  // Roster de registros del día para Horarios (coach + admin/dueño).
+  await moduleScope(app, "templo-training", checkInAdminRoutes, {
+    prefix: "/api/admin/check-ins",
+  });
+  // Roster de registros del día para Horarios (coach + admin/dueño). NO se
+  // envuelve con moduleScope (176-03, D-04): comparte prefijo con
+  // checkInAdminRoutes de arriba pero está clasificado `tenant-scoped` en el
+  // manifiesto — es un registro distinto, no una ruta de templo-training.
   await app.register(checkInRosterRoutes, { prefix: "/api/admin/check-ins" });
 
   // Program management routes (admin CRUD + member catalog/progress)
-  await app.register(programRoutes, { prefix: "/api" });
+  await moduleScope(app, "templo-training", programRoutes, { prefix: "/api" });
 
   // Notification routes (push notifications, preferences, admin templates)
   await app.register(notificationRoutes, { prefix: "/api/notifications" });
@@ -354,6 +348,10 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // Campaign routes (Phase 119): public tracking (open/click/unsubscribe) +
   // admin campaign create/list/send/funnel/eligible-count.
   await app.register(campaignRoutes, { prefix: "/api/campaigns" });
+
+  // Composition root de módulos Templo (marketing, onboarding, gamification).
+  // Ver `src/modules-boot.ts` para el detalle de qué registra y por qué.
+  await registerModules(app);
 
   // Health check endpoint
   app.get("/health", async () => {

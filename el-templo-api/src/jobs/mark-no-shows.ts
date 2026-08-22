@@ -15,7 +15,6 @@ import * as schema from "../db/schema";
 import { bookings } from "../db/schema/bookings";
 import { todayInTz } from "../modules/shared/date-utils";
 import { SubscriptionService } from "../modules/subscriptions/service";
-import { AuraService } from "../modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -39,7 +38,6 @@ const log = pino({ name: "mark-no-shows" });
 function buildSubscriptionService(
   db: MySql2Database<typeof schema>,
 ): SubscriptionService {
-  const auraService = new AuraService(db);
   const balanceService = new BalanceService(db, log);
   const cashRegisterService = new CashRegisterService(db, log);
   const transactionService = new TransactionService(
@@ -52,7 +50,6 @@ function buildSubscriptionService(
   return new SubscriptionService(
     db,
     log,
-    auraService,
     transactionService,
     enrollmentService,
   );

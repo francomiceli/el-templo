@@ -32,7 +32,6 @@ import { TransactionService, BalanceService, CashRegisterService } from ".";
 import { SubscriptionService } from "../subscriptions/service";
 import type { PriceType } from "../subscriptions/types";
 import { MemberService } from "../members/service";
-import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
@@ -243,12 +242,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     balanceService,
     cashRegisterService,
   );
-  const auraService = new AuraService(fastify.db);
   const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     transactionService,
     enrollmentService,
   );

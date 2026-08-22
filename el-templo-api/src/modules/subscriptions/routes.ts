@@ -9,7 +9,6 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { SubscriptionService } from "./service";
-import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
 import {
@@ -63,8 +62,38 @@ import {
 import { SUBSCRIPTION_ROLES, PLANES_WRITE_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 
+/**
+ * Fase 176 Plan 10 (MOD-02): forma HTTP del body de assign/change-plan.
+ * `schemas.ts` sigue validando `auraSpend`/`boardingPass` en el JSON schema
+ * (no se toca) — el tipo CORE `AssignPlanInput` ya no los declara (borrados
+ * en este plan, T-176-28). Este tipo es la frontera HTTP: existe únicamente
+ * para que `pricingModuleInput` pueda leerlos del body crudo antes de
+ * empaquetarlos en `moduleInput`.
+ */
+type AssignPlanRequestBody = AssignPlanInput & {
+  auraSpend?: number;
+  boardingPass?: boolean;
+};
+
+/**
+ * Fase 176 Plan 08 (MOD-02): arma el sobre opaco `moduleInput` que
+ * `assignPlan`/`changePlan` reenvían tal cual a `resolvePlanPrice` para el
+ * filter `pricing.adjust`. Solo las claves del body YA VALIDADO por el
+ * schema JSON (`schemas.ts`, sin tocar) que vengan definidas — el contrato
+ * HTTP queda byte-idéntico, esto es puro armado del envelope server-side.
+ */
+function pricingModuleInput(
+  body: AssignPlanRequestBody,
+): Record<string, unknown> {
+  const moduleInput: Record<string, unknown> = {};
+  if (body.auraSpend !== undefined) moduleInput.auraSpend = body.auraSpend;
+  if (body.boardingPass !== undefined) {
+    moduleInput.boardingPass = body.boardingPass;
+  }
+  return moduleInput;
+}
+
 export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
-  const auraService = new AuraService(fastify.db);
   const balanceService = new BalanceService(fastify.db, fastify.log);
   const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
   const transactionService = new TransactionService(
@@ -77,7 +106,6 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     transactionService,
     enrollmentService,
   );
@@ -332,7 +360,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /members/:userId/subscription/assign — Assign plan to member
-  fastify.post<{ Params: { userId: number }; Body: AssignPlanInput }>(
+  fastify.post<{ Params: { userId: number }; Body: AssignPlanRequestBody }>(
     "/members/:userId/subscription/assign",
     { schema: assignPlanSchema },
     async (request, reply) => {
@@ -340,7 +368,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         const subscription = await subscriptionService.assignPlan(
           assertTenant(request.scope, "subscriptions.assign"),
           request.params.userId,
-          request.body,
+          { ...request.body, moduleInput: pricingModuleInput(request.body) },
           request.user.userId,
         );
         return reply.code(201).send(subscription);
@@ -377,7 +405,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /members/:userId/subscription/change-plan — Change to a different plan
-  fastify.post<{ Params: { userId: number }; Body: AssignPlanInput }>(
+  fastify.post<{ Params: { userId: number }; Body: AssignPlanRequestBody }>(
     "/members/:userId/subscription/change-plan",
     { schema: changePlanSchema },
     async (request, reply) => {
@@ -385,7 +413,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         const subscription = await subscriptionService.changePlan(
           assertTenant(request.scope, "subscriptions.changePlan"),
           request.params.userId,
-          request.body,
+          { ...request.body, moduleInput: pricingModuleInput(request.body) },
           request.user.userId,
         );
         return reply.code(201).send(subscription);
@@ -650,7 +678,9 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           request.params.userId,
           request.query.planId,
           request.query.priceType,
-          request.query.auraSpend,
+          request.query.auraSpend !== undefined
+            ? { auraSpend: request.query.auraSpend }
+            : {},
         );
         return preview;
       } catch (err: unknown) {

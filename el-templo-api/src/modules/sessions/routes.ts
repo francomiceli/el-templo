@@ -377,7 +377,7 @@ async function resolveSessionView(
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const sessionService = new SessionGeneratorService(fastify.db);
   const auraService = new AuraService(fastify.db);
-  const streakService = new StreakService(fastify.db, auraService, fastify.log);
+  const streakService = new StreakService(fastify.db, fastify.log);
   const programsService = new ProgramsService(fastify.db, fastify.log);
   const notificationService = new NotificationService(fastify.db, fastify.log);
 

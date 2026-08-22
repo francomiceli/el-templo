@@ -11,7 +11,6 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { SubscriptionService } from "../subscriptions/service";
@@ -25,12 +24,10 @@ export const wellhubOccupancyListener: FastifyPluginAsync = async (fastify) => {
   const config = getWellhubConfig();
   if (!config) return;
 
-  const auraService = new AuraService(fastify.db);
   const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     undefined,
     enrollmentService,
   );

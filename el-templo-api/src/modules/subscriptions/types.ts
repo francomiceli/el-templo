@@ -288,10 +288,16 @@ export interface AssignPlanInput {
    * the picker. Keyed by scheduleId (string from JSON), value is YYYY-MM-DD.
    */
   scheduleStartDates?: Record<string, string>;
-  auraSpend?: number;
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
-  boardingPass?: boolean;
+  /**
+   * Sobre opaco de los campos que interpreta el/los módulo(s) Templo en la
+   * cadena de pricing (`pricing.adjust`, doc 04 §4.2) — hoy `auraSpend` y
+   * `boardingPass`, poblado por `routes.ts` desde el body validado.
+   * `assignPlan` lo pasa tal cual a `resolvePlanPrice`, sin interpretarlo
+   * (T-176-16: el core nunca le hace `as`).
+   */
+  moduleInput?: Record<string, unknown>;
   /**
    * Alta prorrateada hasta fin de mes. Cuando es true, la vigencia termina el
    * último día del mes calendario del `startDate` (en vez de

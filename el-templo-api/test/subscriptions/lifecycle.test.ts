@@ -364,12 +364,10 @@ describe("Subscriptions API — Lifecycle", () => {
       // Run the bulk expire the daily cron invokes — no per-member read.
       const { SubscriptionService } =
         await import("../../src/modules/subscriptions/service");
-      const { AuraService } = await import("../../src/modules/aura");
       const { TransactionService, BalanceService, CashRegisterService } =
         await import("../../src/modules/finance");
       const { EnrollmentService } =
         await import("../../src/modules/programs/enrollment-service");
-      const aura = new AuraService(app.db);
       const balances = new BalanceService(app.db, app.log);
       const cashRegisters = new CashRegisterService(app.db, app.log);
       const txns = new TransactionService(
@@ -382,7 +380,6 @@ describe("Subscriptions API — Lifecycle", () => {
       const svc = new SubscriptionService(
         app.db,
         app.log,
-        aura,
         txns,
         enrollments,
       );
@@ -469,10 +466,8 @@ describe("Subscriptions API — Lifecycle", () => {
       // Run auto-resume directly via the service
       const { SubscriptionService } =
         await import("../../src/modules/subscriptions/service");
-      const { AuraService } = await import("../../src/modules/aura");
       const { TransactionService, BalanceService, CashRegisterService } =
         await import("../../src/modules/finance");
-      const aura = new AuraService(app.db);
       const balances = new BalanceService(app.db, app.log);
       const cashRegisters = new CashRegisterService(app.db, app.log);
       const txns = new TransactionService(
@@ -481,7 +476,7 @@ describe("Subscriptions API — Lifecycle", () => {
         balances,
         cashRegisters,
       );
-      const svc = new SubscriptionService(app.db, app.log, aura, txns);
+      const svc = new SubscriptionService(app.db, app.log, txns);
       const resumed = await svc.autoResumeDuePauses(TEMPLO_CTX);
       expect(resumed).toBe(1);
 

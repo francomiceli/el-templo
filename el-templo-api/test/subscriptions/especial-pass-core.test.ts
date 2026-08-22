@@ -14,7 +14,6 @@ import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { createPlan, createMember, assignPlan } from "./_helpers";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
-import { AuraService } from "../../src/modules/aura";
 import { categoryGroup } from "../../src/modules/subscriptions/types";
 import {
   PassRequiredError,
@@ -64,8 +63,7 @@ describe("Phase 161-01 — contratos del pase especial", () => {
 
   describe("pickSubscriptionForActivity", () => {
     function makeService(): SubscriptionService {
-      const aura = new AuraService(app.db);
-      return new SubscriptionService(app.db, app.log, aura);
+      return new SubscriptionService(app.db, app.log);
     }
 
     it("rutea la sub especial cuando isSpecialActivity=true y la no-especial cuando false", async () => {

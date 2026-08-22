@@ -12,7 +12,6 @@ import { registerSchema, loginSchema } from "./schemas";
 import { appBranchName } from "../shared/app-branch-name";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
-import { AuraService } from "../aura/service";
 import {
   TransactionService,
   BalanceService,
@@ -31,6 +30,7 @@ import {
   RefreshTokenService,
   RefreshTokenError,
 } from "./refresh-token-service";
+import { enabledModulesFor } from "../shared/module-flags";
 
 interface RegisterBody {
   email: string;
@@ -307,7 +307,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               // NOTE: Cross-module service instantiation is consistent with existing
               // pattern in this file (SegmentationService is already instantiated
               // the same way in /me). All three services export their classes.
-              const auraService = new AuraService(fastify.db);
               const balanceService = new BalanceService(
                 fastify.db,
                 fastify.log,
@@ -329,7 +328,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               const subscriptionService = new SubscriptionService(
                 fastify.db,
                 request.log,
-                auraService,
                 transactionService,
                 enrollmentService,
               );
@@ -882,6 +880,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const onboardingCompleted =
         profileRows.length > 0 && profileRows[0].completedAt !== null;
 
+      // Fase 176 (D-08, MOD-01/MOD-02): campo aditivo, ordenado
+      // alfabéticamente para que la respuesta sea determinística (el `Set`
+      // que devuelve `enabledModulesFor` no garantiza orden). Nadie lo
+      // consume todavía en los frontends — ver D-08 en el plan 176-11.
+      const enabledModules = Array.from(
+        await enabledModulesFor(ctx.tenantId, fastify.db),
+      ).sort();
+
       return {
         id: user.id,
         email: user.email,
@@ -911,6 +917,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         // el app. Para importados legacy es la fecha de import, igual que en
         // analytics (los legacy cuentan por createdAt).
         memberSince: user.createdAt.toISOString(),
+        enabledModules,
       };
     },
   );

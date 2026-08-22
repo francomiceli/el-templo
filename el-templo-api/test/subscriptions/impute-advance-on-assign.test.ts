@@ -41,7 +41,6 @@ import {
 import * as schema from "../../src/db/schema";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
-import { AuraService } from "../../src/modules/aura";
 import {
   BalanceService,
   TransactionService,
@@ -405,8 +404,7 @@ describe("Phase 146 — Imputar cobro suelto al asignar plan (COBRO-03/04)", () 
       failingBalance,
       cashRegisterSvc,
     );
-    const auraSvc = new AuraService(app.db);
-    const subSvc = new SubscriptionService(app.db, app.log, auraSvc, txSvc);
+    const subSvc = new SubscriptionService(app.db, app.log, txSvc);
     const notifSvc = new NotificationService(app.db, app.log);
     const bookings = new BookingService(app.db, app.log, subSvc, notifSvc);
     subSvc.setBookingService(bookings);
