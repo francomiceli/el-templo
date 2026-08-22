@@ -22,7 +22,7 @@
  *      (ver más abajo, "POR QUÉ EL CRITERIO NO ES UN startsWith A SECAS").
  *   2. Son TRES prefijos (`/api/admin/members`, `/api/admin/users`,
  *      `/api/admin/leads`), no uno.
- *   3. `CASOS_BASELINE = 30` y `ARCHIVOS_BATERIA` apunta a los 3 archivos de esta
+ *   3. `CASOS_BASELINE = 29` y `ARCHIVOS_BATERIA` apunta a los 3 archivos de esta
  *      batería.
  *
  * Requisito: **ISO-03** / **ADO-02**. Receta de adopción:
@@ -76,8 +76,8 @@
  *
  * LOS TRES PREFIJOS
  * -----------------
- * `/api/admin/members` (24 rutas) + `/api/admin/users` (5 rutas) +
- * `/api/admin/leads` (1 ruta) = **30** rutas `tenant-scoped`. Verificado sin
+ * `/api/admin/members` (24 rutas) + `/api/admin/users` (4 rutas) +
+ * `/api/admin/leads` (1 ruta) = **29** rutas `tenant-scoped`. Verificado sin
  * colisiones: no existe `/api/admin/member-*`, `/api/admin/users-*` ni
  * `/api/admin/leads-*` en el manifiesto, y las rutas member-facing de la app
  * (`/api/members/*`) no matchean ninguno de los tres porque el ancla de los
@@ -135,7 +135,7 @@ function esRutaDelModulo(url: string): boolean {
 
 /**
  * Rutas que un lector razonable esperaría en esta batería y que están AFUERA a
- * propósito, cada una con el motivo escrito. Hoy está VACÍA: las 30 rutas
+ * propósito, cada una con el motivo escrito. Hoy está VACÍA: las 29 rutas
  * `tenant-scoped` de los 3 prefijos están cubiertas directamente por los 3
  * archivos de la batería (173-26/27/28), sin necesidad de excluir ninguna. Se
  * deja la forma (y su gate, el cuarto `it` de abajo) para cuando una fase
@@ -148,6 +148,16 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
 /**
  * Las rutas de los 3 prefijos que la batería tenía cubiertas cuando este gate
  * se escribió (2026-08-09, planes 173-26/27/28): **30**.
+ *
+ * BAJÓ DE 30 A 29 (fase 176 plan 11, 2026-08-22) — DECISIÓN DE DISEÑO, NO UN
+ * AJUSTE PARA CI: `POST /api/admin/users/:userId/program-addons` migró de
+ * `tenant-scoped` a `templo-module`/`templo-training` en el plan 176-05.
+ * `moduleScope` ya la gateaba en runtime desde 176-03 — lo que estaba
+ * desactualizado era `test/tenant-manifest.ts`, que 176-05 corrigió. Esa ruta
+ * dejó de pertenecer al set `tenant-scoped` de members (no dejó de existir en
+ * el API), así que el baseline de ESTA batería baja de 30 a 29 — la ruta
+ * sigue existiendo y sigue probada, pero como ruta de módulo, con su
+ * aislamiento reubicado a test/tenancy/iso-03-programs-modulo.test.ts.
  *
  * MOVER ESTE NÚMERO ES UNA DECISIÓN DE DISEÑO, NO UN AJUSTE.
  *
@@ -168,13 +178,13 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
  * manifiesto vacío y todo pasaría en verde por vacuidad. Este conteo es lo que
  * hace que 0 rutas cubiertas se ponga tan rojo como 29.
  */
-const CASOS_BASELINE = 30;
+const CASOS_BASELINE = 29;
 
 /** Los tres archivos de la batería ISO-03 de members. */
 const ARCHIVOS_BATERIA = [
   "iso-03-members-listados.test.ts", // plan 173-26 — 9 rutas (listado/export)
   "iso-03-members-ficha.test.ts", // plan 173-27 — 10 rutas (ficha del socio)
-  "iso-03-members-altas-y-staff.test.ts", // plan 173-28 — 11 rutas (escritura)
+  "iso-03-members-altas-y-staff.test.ts", // plan 173-28 — 10 rutas (escritura) — 11 originalmente, bajó a 10 en 176-11 (program-addons se mudó)
 ] as const;
 
 /**
@@ -186,7 +196,7 @@ const METODOS = "GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS";
 
 /**
  * Borra comentarios de bloque y de línea completa. Ver el docblock de arriba:
- * sin esto el gate mediría los headers de los archivos, que listan las 30
+ * sin esto el gate mediría los headers de los archivos, que listan las 29
  * rutas, en vez de los tests.
  *
  * No pretende ser un parser de TypeScript: no toca comentarios al final de una
@@ -311,7 +321,7 @@ describe("cobertura de la batería ISO-03 de members — contra el manifiesto re
     ).toEqual([]);
   });
 
-  it("la batería cubre exactamente las 30 rutas de members/users/leads del baseline", () => {
+  it("la batería cubre exactamente las 29 rutas de members/users/leads del baseline", () => {
     expect(
       RUTAS_MEMBERS.length,
       `El manifiesto tiene ${RUTAS_MEMBERS.length} rutas de members/users/leads ` +
@@ -343,7 +353,7 @@ describe("cobertura de la batería ISO-03 de members — contra el manifiesto re
         claves.length,
         `${archivo} no declaró ni una sola ruta en sus describe. O el archivo ` +
           `se vació, o se renombró, o sus describe perdieron la clave del ` +
-          `manifiesto. Los tres archivos aportan (9 + 10 + 11 = ` +
+          `manifiesto. Los tres archivos aportan (9 + 10 + 10 = ` +
           `${CASOS_BASELINE}), así que un 0 acá es una lectura rota, no una ` +
           `decisión.`,
       ).toBeGreaterThan(0);
@@ -428,7 +438,7 @@ describe("cobertura ISO-03 de members — motor con fixtures sintéticos", () =>
       clavesDeLosDescribe(fuente),
       `El motor contó una ruta que solo aparece en el docblock y en un ` +
         `comentario de línea. Es el modo de falla que más importa de este ` +
-        `archivo: los tres archivos de la batería listan sus 30 rutas en sus ` +
+        `archivo: los tres archivos de la batería listan sus 29 rutas en sus ` +
         `headers, así que un motor que no borre comentarios da el gate entero ` +
         `en verde aunque no exista un solo it.`,
     ).toEqual([]);
