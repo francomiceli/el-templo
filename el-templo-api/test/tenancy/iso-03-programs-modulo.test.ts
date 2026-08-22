@@ -110,7 +110,7 @@ beforeEach(async () => {
   templo = await sembrarSocioTemplo(app);
   dos = await sembrarSociosGimnasioDos(app, gym2);
 
-  // El Templo con los 4 flags ON (estado de la mig 0207) y el gimnasio 2 con
+  // El Templo con los 4 flags ON (estado de la mig 0209) y el gimnasio 2 con
   // templo-training prendido: sin esto, TODO caso de acá pegaría contra el
   // 404 del guard en vez de contra el aislamiento de tenant que este archivo
   // existe para probar.

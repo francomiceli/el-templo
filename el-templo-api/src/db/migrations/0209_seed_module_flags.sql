@@ -1,4 +1,4 @@
--- 0207_seed_module_flags.sql
+-- 0209_seed_module_flags.sql
 -- Fase 176 (MOD-01): siembra los 4 flags `module.<nombre>.enabled` en ON para
 -- la instalación de El Templo (tenant_id = 1), sobre la tabla EXISTENTE
 -- `tenant_settings` (NO tabla nueva). Escrita a mano porque `db:generate`

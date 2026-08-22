@@ -76,7 +76,7 @@ export async function clearModuleFlags(
 
 /**
  * Deja los 4 flags del tenant 1 (El Templo) en ON — el estado que produce la
- * migración 0207. Llamar en `afterEach` de todo test que mute flags, para no
+ * migración 0209. Llamar en `afterEach` de todo test que mute flags, para no
  * filtrar un módulo apagado al siguiente archivo del mismo worker
  * (`isolate: false`).
  */

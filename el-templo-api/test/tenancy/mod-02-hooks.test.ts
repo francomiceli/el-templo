@@ -25,7 +25,7 @@
  * QUÉ MÓDULO SE USA PARA "ON"/"OFF"
  * -------------------------------------
  * `"templo-gamification"` para el caso ON (se prende explícito con
- * `setModuleFlag`, no se asume el default de la migración 0207) y
+ * `setModuleFlag`, no se asume el default de la migración 0209) y
  * `TENANT_DOS` (sin flags sembrados, fail-closed) para el caso OFF — el
  * mismo patrón que `mod-01-flags.test.ts`.
  *

@@ -1,19 +1,19 @@
 /**
  * Fase 176 Plan 01 (MOD-01) — gate de comportamiento del resolver de flags
- * `module.*.enabled` + idempotencia de la migración 0207.
+ * `module.*.enabled` + idempotencia de la migración 0209.
  *
  * POR QUÉ EXISTE ESTE ARCHIVO
  * ----------------------------
  * `module-flags.ts` es el cimiento de toda la fase: el guard `requireModule`
  * y el registry de hooks (planes siguientes) confían en que
- * `enabledModulesFor` fail-closed y en que la migración 0207 sea
+ * `enabledModulesFor` fail-closed y en que la migración 0209 sea
  * verdaderamente idempotente. Sin este gate, un bug acá se cuela silencioso
  * hasta que un módulo apagado en prod sigue respondiendo (o al revés).
  *
  * LO QUE SE AFIRMA
  * -----------------
  *   1. Las 4 filas `module.*.enabled = 'true'` existen para TENANT_TEMPLO
- *      (SELECT directo, confirma que la migración 0207 corrió en la DB de
+ *      (SELECT directo, confirma que la migración 0209 corrió en la DB de
  *      test — `test/setup.ts` aplica todas las migraciones committeadas).
  *   2. `enabledModulesFor(TENANT_TEMPLO, app.db)` devuelve los 4 nombres.
  *   3. `enabledModulesFor(TENANT_DOS, app.db)` (sin flags sembrados) devuelve
@@ -21,12 +21,12 @@
  *   4. `setModuleFlag(..., false)` apaga un módulo en el acto
  *      (`invalidateModuleFlags` corta el cache sin esperar el TTL), y
  *      `restoreTemploFlags` lo repone.
- *   5. Re-ejecutar los statements de la migración 0207 es no-op: el COUNT de
+ *   5. Re-ejecutar los statements de la migración 0209 es no-op: el COUNT de
  *      filas `module.%` del tenant 1 sigue siendo exactamente 4 (T-176-09).
  *
  * QUÉ HACER CUANDO SE CAIGA
  * --------------------------
- * Caso 1/2 rojo → la migración 0207 no corrió o el seed tiene un typo de key.
+ * Caso 1/2 rojo → la migración 0209 no corrió o el seed tiene un typo de key.
  * Caso 3 rojo → alguien rompió fail-closed en `enabledModulesFor` (hueco de
  * seguridad T-176-06, tratar como bloqueante).
  * Caso 4 rojo → revisar `invalidateModuleFlags` o el TTL de
@@ -88,7 +88,7 @@ describe("MOD-01 — flags module.*.enabled", () => {
       rows.length,
       `Se esperaban 4 filas module.*.enabled para el tenant ${TENANT_TEMPLO} ` +
         `y se encontraron ${rows.length}. QUÉ HACER: verificar que la ` +
-        `migración 0207 corrió (test/setup.ts la aplica automáticamente). ` +
+        `migración 0209 corrió (test/setup.ts la aplica automáticamente). ` +
         `POR QUÉ IMPORTA: sin el seed, El Templo arranca con los 4 módulos ` +
         `apagados (fail-closed) — regresión de comportamiento en prod.`,
     ).toBe(4);
@@ -141,10 +141,10 @@ describe("MOD-01 — flags module.*.enabled", () => {
     ).toBe(true);
   });
 
-  it("re-aplicar la migración 0207 es no-op: COUNT sigue siendo 4", async () => {
+  it("re-aplicar la migración 0209 es no-op: COUNT sigue siendo 4", async () => {
     const migrationPath = path.join(
       __dirname,
-      "../../src/db/migrations/0207_seed_module_flags.sql",
+      "../../src/db/migrations/0209_seed_module_flags.sql",
     );
     const rawSql = fs.readFileSync(migrationPath, "utf-8");
     const statements = splitSqlStatements(rawSql);
@@ -171,11 +171,11 @@ describe("MOD-01 — flags module.*.enabled", () => {
 
     expect(
       rows.length,
-      `Re-ejecutar los statements de 0207 produjo ${rows.length} filas ` +
+      `Re-ejecutar los statements de 0209 produjo ${rows.length} filas ` +
         `module.% para el tenant ${TENANT_TEMPLO}, se esperaban 4. QUÉ ` +
         `HACER: revisar el WHERE NOT EXISTS de cada bloque INSERT — un re-run ` +
         `no debe duplicar filas. POR QUÉ IMPORTA (T-176-09): el pipeline de ` +
-        `deploy corre las migraciones committeadas en cada release; si 0207 ` +
+        `deploy corre las migraciones committeadas en cada release; si 0209 ` +
         `no es idempotente, un segundo deploy duplica o pisa un flag que un ` +
         `admin apagó a mano.`,
     ).toBe(4);

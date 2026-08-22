@@ -94,7 +94,7 @@ describe("MOD-02 — pricing con templo-gamification apagado", () => {
   });
 
   // Cada test que apaga/prende el flag es responsable de restaurarlo — deja
-  // los 4 módulos de El Templo en ON (estado de la migración 0207) para no
+  // los 4 módulos de El Templo en ON (estado de la mig 0209) para no
   // filtrar al siguiente archivo del mismo worker (isolate: false).
   afterEach(async () => {
     await restoreTemploFlags(app);
