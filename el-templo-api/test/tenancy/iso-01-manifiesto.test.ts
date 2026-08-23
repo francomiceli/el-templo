@@ -158,7 +158,15 @@ import {
  * arranca en 369 en master (no en 375: los bumps de referrals/proration de la
  * narrativa de arriba son de staging), así que en master 369 → 370.
  *
- * El reparto por categoría vigente es 226 `tenant-scoped` · 8 `global` · 141
+ * **Movido a 374 el 2026-08-23**, 4 rutas nuevas y no un merge (fase 179, plan
+ * 03): CRUD admin de partners de comercio/marca — `GET /api/admin/referral-partners`,
+ * `GET /api/admin/referral-partners/:id`, `POST /api/admin/referral-partners`,
+ * `PATCH /api/admin/referral-partners/:id`. Las 4 **tenant-scoped**: leen/escriben
+ * `referral_partners`, gym-owned, y el gimnasio sale de
+ * `assertTenant(request.scope, …)` en cada ruta, jamás del body. Caso normal de
+ * D-02. Worktree `et-179`, rama `feat/179-referidos-partners`.
+ *
+ * El reparto por categoría vigente es 230 `tenant-scoped` · 8 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
  * por categoría a propósito, y
@@ -168,7 +176,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 370;
+const ENTRADAS_BASELINE = 374;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -275,7 +283,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 370 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 374 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

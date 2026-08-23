@@ -387,6 +387,15 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/ratings/roster/coach-today": { categoria: "tenant-scoped" },
   "POST /api/admin/ratings/roster": { categoria: "tenant-scoped" },
 
+  // ── /api/admin/referral-partners ──────────────────────────────────────────
+  // Fase 179 (D-20): CRUD de partners de comercio/marca. tenant-scoped: lee/
+  // escribe en `referral_partners`, que es gym-owned — el gimnasio sale de
+  // `assertTenant(request.scope)` en las 4 rutas, nunca del body.
+  "GET /api/admin/referral-partners": { categoria: "tenant-scoped" },
+  "GET /api/admin/referral-partners/:id": { categoria: "tenant-scoped" },
+  "POST /api/admin/referral-partners": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/referral-partners/:id": { categoria: "tenant-scoped" },
+
   // ── /api/admin/referrals ──────────────────────────────────────────────────
   "GET /api/admin/referrals/ab-results": { categoria: "tenant-scoped" },
 
