@@ -566,6 +566,14 @@ export interface PricingPreview {
   // Compone sobre el descuento auraSpend. 0 cuando no hay vínculos activos.
   referralDiscountPercent: number;
   referralDiscountAmount: number;
+  // Partners (fase 179, D-09/D-10/D-20): descuento de partner ya aplicado en
+  // finalPrice cuando gana la comparación "gana el mayor" contra AURA (empate
+  // a favor del partner). `null` cuando no hay candidato o perdió contra AURA
+  // — en ese caso discountType/discountAmount/auraToSpend siguen reflejando
+  // el descuento AURA como siempre. Paridad exacta con las 4 charge-paths
+  // (test/referrals/preview-parity.test.ts existe justamente por esto).
+  partnerDiscountPercent: number | null;
+  partnerDiscountAmount: number | null;
 }
 
 // ─── Promo Plan Types ────────────────────────────────────────────────────────

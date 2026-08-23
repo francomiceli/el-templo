@@ -5325,6 +5325,10 @@ export class SubscriptionService {
       .select({
         id: schema.users.id,
         boardingPassUsed: schema.users.boardingPassUsed,
+        // Fase 179: sin branchId en la firma del preview (a diferencia de
+        // assignPlan/changePlanNow), el tenant del candidato de partner se
+        // deriva de la sede DEL SOCIO, no de una sede de cobro elegida.
+        branchId: schema.users.branchId,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId));
@@ -5355,18 +5359,68 @@ export class SubscriptionService {
     let finalPrice = basePrice;
     let auraToSpend = 0;
 
+    // ── Partners (fase 179, D-09/D-10/D-20): paridad preview↔cobro ──
+    // Existe test/referrals/preview-parity.test.ts justamente porque una
+    // divergencia entre preview y cobro ya pasó en producción — este bloque
+    // calca EXACTO la secuencia de decisión de las charge-paths
+    // (assignPlan/changePlanNow/changePlanAfterCurrent/renewSubscription),
+    // pero es SOLO LECTURA: no llama `consumePartnerBenefitOnCharge` ni
+    // `qualifyAndCommission`, así que consultarlo dos veces nunca cambia
+    // `benefit_status` ni crea comisiones.
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
+    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
+      null;
+    if (typeof member.branchId === "number") {
+      const [previewChargeTenant] = await this.db
+        .select({ tenantId: schema.branches.tenantId })
+        .from(schema.branches)
+        .where(eq(schema.branches.id, member.branchId))
+        .limit(1);
+      if (typeof previewChargeTenant?.tenantId === "number") {
+        // Sin `prorateToMonthEnd` en la firma del preview: siempre `undefined`
+        // (el guard D-17 del helper solo excluye cuando es `true`).
+        partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+          userId,
+          plan.planCategory,
+          undefined,
+          previewChargeTenant.tenantId,
+        );
+      }
+    }
+
     // Fase 177 (D-13): el preview no cobra, así que a diferencia de
     // assignPlan/changePlanAfterCurrent NO lanza — simplemente no computa el
     // descuento AURA para un plan paquete (el front no debería ofrecer la
     // opción, pero si llega un auraSpend igual queda sin efecto acá).
+    let auraTier: AuraDiscountTier | undefined;
     if (auraSpend && auraSpend > 0 && !excludedFromAura(plan.planCategory)) {
       const tier = AURA_DISCOUNT_TIERS.find((t) => t.spend === auraSpend);
       if (tier && auraSpend <= auraBalance) {
-        discountType = "aura";
-        discountAmount = Math.floor(basePrice * (tier.percent / 100));
-        finalPrice = basePrice - discountAmount;
-        auraToSpend = tier.spend;
+        auraTier = tier;
       }
+    }
+
+    // D-10/D-20: gana el mayor, empate a favor del partner — misma fórmula
+    // que las 4 charge-paths. Si gana el partner, el bloque AURA NUNCA se
+    // aplica: discountType/discountAmount/auraToSpend quedan en 'none'/0/0,
+    // tal como lo haría el cobro real (no gastaría los puntos del socio).
+    const partnerBenefitWon =
+      partnerBenefitCandidate !== null &&
+      partnerBenefitCandidate.percent >= (auraTier?.percent ?? 0);
+
+    if (partnerBenefitWon && partnerBenefitCandidate) {
+      const amount = Math.floor(
+        basePrice * (partnerBenefitCandidate.percent / 100),
+      );
+      partnerDiscountPercent = partnerBenefitCandidate.percent;
+      partnerDiscountAmount = amount;
+      finalPrice = basePrice - amount;
+    } else if (auraTier) {
+      discountType = "aura";
+      discountAmount = Math.floor(basePrice * (auraTier.percent / 100));
+      finalPrice = basePrice - discountAmount;
+      auraToSpend = auraTier.spend;
     }
 
     // ── Referidos (fase 157, Pitfall 4): preview parity ──
@@ -5410,6 +5464,8 @@ export class SubscriptionService {
       availableTiers,
       referralDiscountPercent,
       referralDiscountAmount,
+      partnerDiscountPercent,
+      partnerDiscountAmount,
     };
   }
 
