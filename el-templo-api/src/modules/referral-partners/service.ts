@@ -909,7 +909,7 @@ export class PartnerReferralService {
    * cualquier llamada posterior devuelve `false` sin pisar los valores ya
    * grabados por la primera.
    *
-   * Dos motivos posibles, ambos legítimos (D-09/D-10/D-20):
+   * Tres motivos posibles, todos legítimos (D-06/D-09/D-10/D-20):
    *  - `"aplicado"`: el descuento de partner efectivamente ganó y redujo el
    *    precio del cargo.
    *  - `"perdio_vs_aura"`: el beneficio se consume IGUAL — la primera cuota
@@ -918,6 +918,10 @@ export class PartnerReferralService {
    *    pierde puntos AURA por esto (quien llama nunca gastó AURA para el
    *    candidato perdedor), pero el beneficio de partner no vuelve a estar
    *    disponible: es "la primera cuota", y ya pasó.
+   *  - `"semana_activada"` (fase 179-08, D-06): el beneficio es `free_pass`,
+   *    no `discount_percent` — se consume cuando `partner-week-service.ts`
+   *    activa la semana de regalo junto con la primera reserva.
+   *    `percent`/`amount` van en 0 (no es un descuento monetario).
    *
    * Devuelve `true` sólo si hubo una fila afectada (`affectedRows`).
    */
@@ -928,7 +932,7 @@ export class PartnerReferralService {
     applied: {
       percent: number;
       amount: number;
-      reason: "aplicado" | "perdio_vs_aura";
+      reason: "aplicado" | "perdio_vs_aura" | "semana_activada";
     },
   ): Promise<boolean> {
     const result = await this.db
