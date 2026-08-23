@@ -1,5 +1,6 @@
 /**
- * Settings Routes — pricing rules (Phase 154, ALUM-03)
+ * Settings Routes — pricing rules (Phase 154, ALUM-03) + store URLs (Phase
+ * 179-12, D-20)
  *
  * Registered at /api/admin/settings.
  *
@@ -7,7 +8,9 @@
  * card-surcharge value is needed by the coach PoS / admin pricing UI to compute
  * the price at the point of sale, so it is NOT owner-gated at the plugin level.
  * The WRITE (PUT) is owner-only via a per-route preHandler (OWNER_ROLES → 403):
- * only the propietario can change a pricing rule.
+ * only the propietario can change a pricing rule. The store-urls pair below
+ * follows the exact same access model (T-179-49: a bad URL becomes hundreds
+ * of useless printed cards).
  */
 
 import { FastifyPluginAsync } from "fastify";
