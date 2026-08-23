@@ -113,6 +113,15 @@ export const CAJA_SALDOS_ROLES: AdminRole[] = ['admin', 'owner'];
 export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner'];
 
 /**
+ * Partners (fase 179, D-20): comercios/marcas con código de referido propio.
+ * Espeja MEMBER_LIFECYCLE_ROLES del API (owner/admin/gestion — mismo set que
+ * referidos: gestión administra, coach/recepción no). La liquidación de
+ * comisiones (179-13) tiene un gate MÁS ESTRICTO del lado del servidor
+ * (FINANCE_VOID_ROLES) — este set solo cubre el CRUD/listado.
+ */
+export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
+
+/**
  * Televisores de sucursal (fase 164): Dueño + coach (D-01). Mirrors
  * TV_CONTROL_ROLES of the API (`shared/permissions.ts`), que es el gate REAL de
  * `/api/admin/tv` — este set solo decide qué se ve (nav + `meta.allowedRoles`).
@@ -223,6 +232,15 @@ export const NAV_MODEL: NavCategory[] = [
     items: [
       { path: '/planes', label: 'Planes', icon: 'card_membership', roles: PLANES_READ_ROLES },
       { path: '/programas', label: 'Rutinas', icon: 'school', roles: DUENO_ROLES, routines: true },
+      {
+        // Partners (fase 179, D-20): comercios/marcas con código de
+        // referido propio. Mismo grupo que Planes/Rutinas — es una
+        // superficie de gestión comercial, no de entrenamiento.
+        path: '/partners',
+        label: 'Partners',
+        icon: 'handshake',
+        roles: PARTNERS_ROLES,
+      },
     ],
   },
   {
