@@ -71,6 +71,7 @@ import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
 import { ReferralService } from "../referrals/service";
 import { NotificationService } from "../notifications/service";
+import { PartnerReferralService } from "../referral-partners/service";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -565,6 +566,62 @@ export class SubscriptionService {
       percent,
       amount,
     );
+  }
+
+  // ── Partners (fase 179) ────────────────────────────────────────────────
+  // Helper GEMELO del bloque de Referidos de arriba, deliberadamente
+  // separado: el CONTEXT de la fase prohíbe reusar o modificar
+  // qualifyReferralOnCharge/computePriceWithReferralDiscount/
+  // recordReferralCreditOnCharge. Este bloque cuelga la cualificación del
+  // vínculo `partner_referrals` y el alta de la comisión (D-11) del mismo
+  // punto "membresía confirmada" que usan los referidos, pero con sus
+  // propias reglas (D-17): dispara con `pricePaid>0` de CUALQUIER categoría
+  // de plan (sin `excludedFromReferrals`) y sin excluir el alta prorrateada
+  // (`prorateToMonthEnd`) — un alta prorrateada sigue siendo una venta real.
+
+  /**
+   * Cualifica el vínculo de partner del payer y da de alta su comisión
+   * (D-11), cuando el cargo efectivamente cobra (`pricePaid>0` — mismo
+   * umbral que referidos: un mes 100% bonificado no es una venta). Best-
+   * effort: la comisión es contabilidad de negocio, nunca puede romper un
+   * cobro ya efectuado (T-179-23).
+   */
+  private async qualifyPartnerOnCharge(
+    payerUserId: number,
+    pricePaid: number,
+    subscriptionId: number,
+  ): Promise<void> {
+    if (pricePaid <= 0) return;
+    try {
+      /* tenant-safe: lectura por PK de la fila recién escrita para derivar
+       * el tenant del cobro, no es un listado cross-tenant */
+      const [sub] = await this.db
+        .select({ tenantId: schema.subscriptions.tenantId })
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.id, subscriptionId))
+        .limit(1);
+      if (typeof sub?.tenantId !== "number") {
+        this.log.warn(
+          { subscriptionId, payerUserId },
+          "partner: no se pudo derivar el tenant del cobro (DENY, no se asume tenant 1)",
+        );
+        return;
+      }
+      await new PartnerReferralService(this.db, this.log).qualifyAndCommission(
+        { tenantId: sub.tenantId },
+        payerUserId,
+        subscriptionId,
+      );
+    } catch (err: unknown) {
+      this.log.warn(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          payerUserId,
+          subscriptionId,
+        },
+        "partner: cualificación/comisión falló (best-effort, el cobro no se revierte)",
+      );
+    }
   }
 
   private async recordAssignmentCharge(
@@ -2009,6 +2066,12 @@ export class SubscriptionService {
       referralDiscountPercent ?? 0,
       referralDiscountAmount ?? 0,
     );
+
+    // Partners (D-11/D-17): a diferencia del bloque de referidos de arriba,
+    // dispara con pricePaid>0 de CUALQUIER categoría (paquete/especial
+    // incluidos) y NO excluye el alta prorrateada — un alta prorrateada
+    // sigue siendo una venta real.
+    await this.qualifyPartnerOnCharge(userId, pricePaid, subscriptionId);
 
     this.log.info(
       {
@@ -3719,6 +3782,11 @@ export class SubscriptionService {
         referralDiscountAmount ?? 0,
       );
 
+      // Partners (D-11/D-17): dispara con netAmount>0 de CUALQUIER categoría
+      // y NO excluye el alta prorrateada — un cambio de plan cobrado ahora
+      // sigue siendo una venta real.
+      await this.qualifyPartnerOnCharge(userId, netAmount, newSubscriptionId);
+
       // Auto-migrate member from virtual branch to subscription's physical branch
       const [memberForMigration] = await this.db
         .select({ branchId: schema.users.branchId })
@@ -4132,6 +4200,10 @@ export class SubscriptionService {
       referralDiscountPercent ?? 0,
       referralDiscountAmount ?? 0,
     );
+
+    // Partners (D-11/D-17): dispara con pricePaid>0 de CUALQUIER categoría —
+    // sin el guard excludedFromReferrals que sí aplica al bloque de arriba.
+    await this.qualifyPartnerOnCharge(userId, pricePaid, newSubscriptionId);
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {
@@ -4714,6 +4786,12 @@ export class SubscriptionService {
       referralDiscountPercent ?? 0,
       referralDiscountAmount ?? 0,
     );
+
+    // Partners (D-11/D-17): dispara con renewalPrice>0 de CUALQUIER
+    // categoría (pases especiales incluidos) y sin la exclusión de
+    // prorateToMonthEnd que sí aplica al bloque de referidos de arriba — una
+    // renovación prorrateada sigue siendo una venta real.
+    await this.qualifyPartnerOnCharge(userId, renewalPrice, newSubscriptionId);
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {
