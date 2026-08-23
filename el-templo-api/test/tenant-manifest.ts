@@ -652,12 +652,22 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/members/scheduling/bonus-usage": { categoria: "tenant-scoped" },
   "GET /api/members/scheduling/branches": { categoria: "tenant-scoped" },
   "GET /api/members/scheduling/my-bookings": { categoria: "tenant-scoped" },
+  // Fase 179-08 (D-06): elegibilidad de la semana de regalo de partner — lee
+  // partner_referrals + subscriptions del socio.
+  "GET /api/members/scheduling/partner-benefit": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/members/scheduling/trial-eligibility": {
     categoria: "tenant-scoped",
   },
   "GET /api/members/scheduling/weekly": { categoria: "tenant-scoped" },
   "POST /api/members/scheduling/cancel-trial": { categoria: "tenant-scoped" },
   "POST /api/members/scheduling/reserve": { categoria: "tenant-scoped" },
+  // Fase 179-08 (D-05/D-06): activa la semana de regalo (subscriptions) y
+  // consume el beneficio (partner_referrals) en el mismo request.
+  "POST /api/members/scheduling/reserve-partner-week": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/members/scheduling/reserve-trial": { categoria: "tenant-scoped" },
 
   // ── /api/members/subscription ─────────────────────────────────────────────

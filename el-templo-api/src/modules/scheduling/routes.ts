@@ -22,6 +22,7 @@ import { ActivityService } from "./activity-service";
 import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
 import { TrialService } from "./trials-service";
+import { PartnerWeekService } from "./partner-week-service";
 import { attachCountryScope } from "../shared/country-scope";
 import { requireBranchAccess } from "../shared/branch-access";
 import type { TrialShift } from "./trials-service";
@@ -67,6 +68,8 @@ import {
   reserveTrialSchema,
   cancelTrialSchema,
   trialEligibilitySchema,
+  partnerBenefitSchema,
+  reservePartnerWeekSchema,
 } from "./schemas";
 import type { DayOfWeek, AffectedScheduleRef } from "./types";
 
@@ -789,6 +792,17 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     bookingService,
   );
 
+  // Fase 179-08 (D-05/D-06): semana de regalo de partner. Reusa
+  // subscriptionService/bookingService — activateAndReserve llama a
+  // assignPlan y a bookingService.reserve() (ver el docblock del servicio
+  // para la decisión de transaccionalidad).
+  const partnerWeekService = new PartnerWeekService(
+    fastify.db,
+    fastify.log,
+    subscriptionService,
+    bookingService,
+  );
+
   /**
    * Guard: require authentication (any role) on all routes in this plugin.
    */
@@ -950,6 +964,45 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member trial eligibility");
+      }
+    },
+  );
+
+  // GET /partner-benefit — fase 179-08 (D-06): ¿puede el socio activar su
+  // semana de regalo de partner? Consumido por 179-16 para dibujar la
+  // grilla igual que trial-eligibility.
+  fastify.get(
+    "/partner-benefit",
+    { schema: partnerBenefitSchema },
+    async (request, reply) => {
+      try {
+        const result = await partnerWeekService.getPartnerWeekEligibility(
+          request.user.userId,
+        );
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member partner benefit");
+      }
+    },
+  );
+
+  // POST /reserve-partner-week — fase 179-08 (D-05/D-06): activa la semana
+  // de regalo Y reserva la primera clase en un solo request. Eligibilidad
+  // revalidada server-side (nunca confiada del cliente).
+  fastify.post<{
+    Body: { scheduleId: number; date: string; branchId: number };
+  }>(
+    "/reserve-partner-week",
+    { schema: reservePartnerWeekSchema },
+    async (request, reply) => {
+      try {
+        const result = await partnerWeekService.activateAndReserve(
+          request.user.userId,
+          request.body,
+        );
+        return reply.code(201).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member reserve partner week");
       }
     },
   );

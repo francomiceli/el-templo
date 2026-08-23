@@ -938,6 +938,71 @@ export const trialEligibilitySchema = {
 } as const;
 
 /**
+ * Fase 179-08 (D-06/D-07): partnerBenefitSchema
+ *
+ * GET /api/members/scheduling/partner-benefit
+ * Devuelve si el socio puede activar su semana de regalo de partner.
+ * `eligible: true` trae `partnerName`/`expiresAt`; `eligible: false` trae
+ * `reason` (`sin_beneficio` | `expirado` | `consumido` | `con_plan_activo`).
+ * Mismo shape base que `trialEligibilitySchema` (unión discriminada por
+ * `eligible`), consumido por la app en el plan 179-16.
+ */
+export const partnerBenefitSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["eligible"],
+      properties: {
+        eligible: { type: "boolean" },
+        partnerName: { type: "string" },
+        expiresAt: { type: "string" },
+        reason: {
+          type: "string",
+          enum: ["sin_beneficio", "expirado", "consumido", "con_plan_activo"],
+        },
+      },
+    },
+  },
+} as const;
+
+/**
+ * Fase 179-08 (D-05/D-06/D-19): reservePartnerWeekSchema
+ *
+ * POST /api/members/scheduling/reserve-partner-week
+ * Activa la semana de regalo (7 días, 3 clases, precio 0) Y reserva la
+ * primera clase en un solo request. `additionalProperties: false` rechaza
+ * campos extra (T-179-32: el `planId` NUNCA viaja en el body, se resuelve
+ * server-side).
+ */
+export const reservePartnerWeekSchema = {
+  body: {
+    type: "object",
+    required: ["scheduleId", "date", "branchId"],
+    properties: {
+      scheduleId: { type: "integer", minimum: 1 },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      branchId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    201: {
+      type: "object",
+      required: ["subscriptionId", "bookingId"],
+      properties: {
+        subscriptionId: { type: "integer" },
+        bookingId: { type: "integer" },
+        endDate: { type: ["string", "null"] },
+        classesRemaining: { type: ["integer", "null"] },
+      },
+    },
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+} as const;
+
+/**
  * Phase 119 (D-03 revised): POST /cancel-trial — no body; the caller is
  * identified by the member JWT. Reverts prueba→freemium when outside 24h.
  */

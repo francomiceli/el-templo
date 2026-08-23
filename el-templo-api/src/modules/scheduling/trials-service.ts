@@ -49,8 +49,12 @@ const TRIAL_CANCEL_CUTOFF_HOURS = 24;
  * Subscription statuses that disqualify a user from booking a trial: an
  * active/paused/scheduled sub means they are (or are about to be) a member,
  * not a freemium lead. Mirrors the campaign-audience predicate (D-08/D-20).
+ *
+ * Exportada (fase 179, D-06): `partner-week-service.ts` reusa el MISMO
+ * criterio para su propio guard de "plan activo" — mismo valor, no una copia
+ * que pueda divergir.
  */
-const BLOCKING_SUBSCRIPTION_STATUSES = [
+export const BLOCKING_SUBSCRIPTION_STATUSES = [
   "active",
   "paused",
   "scheduled",
@@ -418,6 +422,7 @@ export class TrialService {
         status: schema.users.status,
         deletedAt: schema.users.deletedAt,
         phone: schema.users.phone,
+        tenantId: schema.users.tenantId,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
@@ -450,6 +455,33 @@ export class TrialService {
       )
       .limit(1);
     if (blockingSub) {
+      return { eligible: false, alreadyBooked: false, phoneRequired };
+    }
+
+    // Fase 179 (D-18): "sin doble gratis" — quien canjea un código de partner
+    // (semana gratis, `free_pass`) deja de ser elegible a la sesión de prueba
+    // freemium, sea que el beneficio siga `pending` (todavía no reservó la
+    // semana) o ya esté `consumed` (la reservó). Misma forma que el guard de
+    // `blockingSub` de arriba, y corre junto a él por el mismo motivo: un
+    // socio con beneficio de partner es, a todos los efectos, alguien que ya
+    // tiene "su gratis" — no dos. `/* tenant-safe: derivado del propio userId
+    // por PK del usuario que llama, no hay request.scope en esta ruta member */`
+    const [partnerBenefit] = await this.db
+      .select({ id: schema.partnerReferrals.id })
+      .from(schema.partnerReferrals)
+      .where(
+        and(
+          eq(schema.partnerReferrals.tenantId, user.tenantId),
+          eq(schema.partnerReferrals.referredId, userId),
+          eq(schema.partnerReferrals.benefitType, "free_pass"),
+          inArray(schema.partnerReferrals.benefitStatus, [
+            "pending",
+            "consumed",
+          ]),
+        ),
+      )
+      .limit(1);
+    if (partnerBenefit) {
       return { eligible: false, alreadyBooked: false, phoneRequired };
     }
 

@@ -186,7 +186,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 378;
+const ENTRADAS_BASELINE = 380;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -293,7 +293,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 378 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 380 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
