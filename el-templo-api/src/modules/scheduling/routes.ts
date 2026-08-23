@@ -104,7 +104,14 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // Wire circular dependency: SubscriptionService needs BookingService for fixed-plan booking generation
   subscriptionService.setBookingService(bookingService);
   // Phase 102: TrialService — atomic lead+booking creation.
-  const trialService = new TrialService(fastify.db, fastify.log);
+  // Fase 180 (D-20/D-24): notificationService inyectado para que
+  // rescheduleTrial (admin) limpie/reencole el recordatorio de la prueba.
+  const trialService = new TrialService(
+    fastify.db,
+    fastify.log,
+    undefined,
+    notificationService,
+  );
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
@@ -838,10 +845,13 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Phase 119: self-service trial. BookingService is injected so the trial
   // path reuses the 30-day window + dayOfWeek/holiday validation (D-05).
+  // Fase 180 (D-20/D-24): notificationService inyectado para encolar/limpiar
+  // el recordatorio ~24h antes de la clase (reserva/cancelación self-service).
   const trialService = new TrialService(
     fastify.db,
     fastify.log,
     bookingService,
+    notificationService,
   );
 
   /**
