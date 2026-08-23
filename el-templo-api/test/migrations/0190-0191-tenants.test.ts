@@ -253,7 +253,7 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
   });
 
   // ─── 3. Seed del tenant 1 ───────────────────────────────────────────────
-  it("Test 3: existe exactamente un tenant (id=1, el-templo, El Templo, active) y tenant_settings nace vacía", async () => {
+  it("Test 3: existe exactamente un tenant (id=1, el-templo, El Templo, active) y tenant_settings solo contiene flags de módulos (0209)", async () => {
     const total = await countRows(app, sql`SELECT COUNT(*) AS n FROM tenants`);
     expect(total).toBe(1);
 
@@ -269,11 +269,16 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
 
     // D-05: el KV por tenant nace vacío (coexistencia gradual con
     // system_settings, que no recibe tenant_id en todo el milestone).
-    const settings = await countRows(
+    // Fase 176 (MOD-01): la 0209 siembra los flags `module.<nombre>.enabled` —
+    // únicas keys admitidas desde entonces. No se assertan sus valores ni
+    // cuántas filas hay: los tests de MOD-01/MOD-02 los mutan de forma
+    // concurrente (workers paralelos sobre la misma DB, fixtures
+    // `module-flags.ts`). Lo estable es que ninguna OTRA key exista.
+    const extras = await countRows(
       app,
-      sql`SELECT COUNT(*) AS n FROM tenant_settings`,
+      sql`SELECT COUNT(*) AS n FROM tenant_settings WHERE setting_key NOT LIKE 'module.%.enabled'`,
     );
-    expect(settings).toBe(0);
+    expect(extras).toBe(0);
   });
 
   // ─── 4. Anclas: users y branches (FUND-02) ──────────────────────────────
