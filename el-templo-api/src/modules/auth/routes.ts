@@ -15,6 +15,7 @@ import type {
   PartnerBenefitType,
   PartnerSignupResult,
 } from "../referral-partners/types";
+import { tenantWhere } from "../shared/tenant";
 import { registerSchema, loginSchema } from "./schemas";
 import { appBranchName } from "../shared/app-branch-name";
 import { SegmentationService } from "../segmentation/service";
@@ -402,10 +403,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
             benefitValue: partnerAttributionInput.benefitValue,
           });
           if (attribution) {
+            // `tenantWhere` con el tenant YA derivado de la fila del partner
+            // (resolveSignupCode) — no un default ni el body (CON-06/lint de
+            // tenancy). Solo lectura del nombre para el shape de respuesta.
             const [partnerRow] = await fastify.db
               .select({ name: referralPartners.name })
               .from(referralPartners)
-              .where(eq(referralPartners.id, partnerAttributionInput.partnerId))
+              .where(
+                and(
+                  tenantWhere(referralPartners, {
+                    tenantId: partnerAttributionInput.tenantId,
+                  }),
+                  eq(referralPartners.id, partnerAttributionInput.partnerId),
+                ),
+              )
               .limit(1);
             partnerBenefit = {
               partnerName: partnerRow?.name ?? "",
