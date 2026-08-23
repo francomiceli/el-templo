@@ -1180,9 +1180,10 @@ export class PartnerReferralService {
 
   /**
    * Reporte "beneficios de partner sin conversión" (D-08 reescrita, plan
-   * 179-10): para seguimiento manual de la sede — NO escribe
-   * `users.lead_status` ni toca el pipeline de leads v5.8 (ver el docblock
-   * de `BenefitWithoutConversionRow` en `types.ts` para el porqué:
+   * 179-10): para seguimiento manual de la sede — es de SOLO LECTURA sobre
+   * `partner_referrals`/`referral_partners`/`users`, no escribe ninguna
+   * columna de estado del funnel de leads v5.8 ni toca ese pipeline (ver el
+   * docblock de `BenefitWithoutConversionRow` en `types.ts` para el porqué:
    * `expire-lost-leads.ts` exige `status='prueba'` + booking `is_trial`,
    * incompatible con el consumidor de semana de partner).
    *
