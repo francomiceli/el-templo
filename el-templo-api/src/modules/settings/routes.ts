@@ -179,4 +179,86 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // GET /store-urls — readable by any authenticated staff (needed to generate
+  // the partner QR PNGs from the admin, phase 179-12 / D-20).
+  fastify.get(
+    "/store-urls",
+    {
+      schema: {
+        response: {
+          200: {
+            type: "object",
+            required: ["android", "ios"],
+            properties: {
+              android: { type: ["string", "null"] },
+              ios: { type: ["string", "null"] },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        return await settingsService.getStoreUrls();
+      } catch (err: unknown) {
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get store urls setting",
+        );
+      }
+    },
+  );
+
+  // PUT /store-urls — owner-only write, same guard as the other write routes
+  // of this plugin (T-179-49 mitigation: a bad URL becomes hundreds of
+  // useless printed cards, so only the propietario changes it).
+  fastify.put<{ Body: { android?: string; ios?: string } }>(
+    "/store-urls",
+    {
+      preHandler: async (request, reply) => {
+        if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo el propietario puede cambiar las URLs de tienda",
+          });
+        }
+      },
+      schema: {
+        body: {
+          type: "object",
+          properties: {
+            android: { type: "string", minLength: 1 },
+            ios: { type: "string", minLength: 1 },
+          },
+          additionalProperties: false,
+        },
+        response: {
+          200: {
+            type: "object",
+            required: ["android", "ios"],
+            properties: {
+              android: { type: ["string", "null"] },
+              ios: { type: ["string", "null"] },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        await settingsService.setStoreUrls(request.body);
+        return await settingsService.getStoreUrls();
+      } catch (err: unknown) {
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "set store urls setting",
+        );
+      }
+    },
+  );
 };

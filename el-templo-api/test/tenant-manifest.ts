@@ -483,6 +483,23 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "PUT /api/admin/settings/pricing/zero-price": { categoria: "tenant-scoped" },
+  // Fase 179-12 (D-20): `system_settings` es una de las 4 `TENANT_EXEMPT_TABLES`
+  // (src/db/tenant-tables.ts) — config global heredada SIN tenant_id, a
+  // diferencia de las claves de pricing de arriba (etiquetadas tenant-scoped
+  // por precedente de fase 154/156, no reabierto acá). Las URLs de tienda son
+  // un valor único de instalación (una sola app El Templo en las stores, no
+  // una por gimnasio), así que la clasificación correcta según la propia
+  // definición de este archivo es `global`.
+  "GET /api/admin/settings/store-urls": {
+    categoria: "global",
+    motivo:
+      "Lee `system_settings` (TENANT_EXEMPT_TABLES): las URLs de Play/App Store son un valor único de instalación, no por gimnasio — no hay tenant que aislar.",
+  },
+  "PUT /api/admin/settings/store-urls": {
+    categoria: "global",
+    motivo:
+      "Escribe `system_settings` (TENANT_EXEMPT_TABLES): mismo motivo que el GET hermano — valor único de instalación, gateado owner-only server-side.",
+  },
 
   // ── /api/admin/subscriptions ──────────────────────────────────────────────
   "GET /api/admin/subscriptions/members/:userId/class-usage": {

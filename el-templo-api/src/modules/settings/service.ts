@@ -15,7 +15,12 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
 import { systemSettings } from "../../db/schema";
-import { PRICING_SETTINGS_KEYS, LEADS_SETTINGS_KEYS } from "./keys";
+import { BadRequestError } from "../shared/errors";
+import {
+  PRICING_SETTINGS_KEYS,
+  LEADS_SETTINGS_KEYS,
+  APP_STORE_SETTINGS_KEYS,
+} from "./keys";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -103,5 +108,71 @@ export class SettingsService {
 
     const n = Number(row?.settingValue);
     return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 14;
+  }
+
+  /**
+   * Read a raw string value from system_settings. Same shape as `getFlag` but
+   * without the `on`/`off` serialization — used for free-form values like the
+   * store URLs (phase 179-12, D-20). Returns `null` when the key is absent:
+   * silently deriving a value (e.g. the Play Store URL from the known
+   * `com.eltemplo.app` appId) would hide the fact that nobody configured it.
+   */
+  private async getStringValue(key: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ settingValue: systemSettings.settingValue })
+      .from(systemSettings)
+      .where(eq(systemSettings.settingKey, key))
+      .limit(1);
+
+    return row?.settingValue ?? null;
+  }
+
+  /** Upsert a raw string value. Same insert/onDuplicateKeyUpdate shape as `setFlag`. */
+  private async setStringValue(key: string, value: string): Promise<void> {
+    await this.db
+      .insert(systemSettings)
+      .values({ settingKey: key, settingValue: value })
+      .onDuplicateKeyUpdate({ set: { settingValue: value } });
+
+    this.log.info({ settingKey: key }, "store url setting updated");
+  }
+
+  /**
+   * Phase 179-12 (D-01/D-04/D-20): las dos URLs de tienda que codifican los
+   * QRs de la tarjeta física de partners. `null` cuando la fila falta —
+   * ninguna se deriva en silencio.
+   */
+  async getStoreUrls(): Promise<{ android: string | null; ios: string | null }> {
+    const [android, ios] = await Promise.all([
+      this.getStringValue(APP_STORE_SETTINGS_KEYS.android),
+      this.getStringValue(APP_STORE_SETTINGS_KEYS.ios),
+    ]);
+    return { android, ios };
+  }
+
+  /**
+   * Upsert de una o ambas URLs de tienda. Valida `https://` (T-179-49: una URL
+   * mal cargada se convierte en cientos de tarjetas inútiles) — el resto del
+   * contenido no se valida más allá de eso, la verificación humana del
+   * escaneo real es el checkpoint 179-17.
+   */
+  async setStoreUrls(input: { android?: string; ios?: string }): Promise<void> {
+    if (input.android !== undefined && !input.android.startsWith("https://")) {
+      throw new BadRequestError(
+        "La URL de Play Store debe empezar con https://",
+      );
+    }
+    if (input.ios !== undefined && !input.ios.startsWith("https://")) {
+      throw new BadRequestError(
+        "La URL de App Store debe empezar con https://",
+      );
+    }
+
+    if (input.android !== undefined) {
+      await this.setStringValue(APP_STORE_SETTINGS_KEYS.android, input.android);
+    }
+    if (input.ios !== undefined) {
+      await this.setStringValue(APP_STORE_SETTINGS_KEYS.ios, input.ios);
+    }
   }
 }
