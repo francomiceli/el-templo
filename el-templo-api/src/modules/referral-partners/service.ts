@@ -14,7 +14,7 @@
 // partners CALCA lo que necesita, no lo importa (salvo `ReferralService`,
 // consumida solo desde `code-resolver.ts` para la rama `member`).
 
-import { and, eq, gt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, ne, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -26,9 +26,11 @@ import {
   partnerReferrals,
   partnerCommissions,
   referrals,
+  subscriptions,
 } from "../../db/schema";
 import { BadRequestError, ConflictError, NotFoundError } from "../shared/errors";
 import { tenantValues, tenantWhere } from "../shared/tenant";
+import type { TxHandle } from "../finance/balance-service";
 import type {
   CreatePartnerInput,
   PartnerBenefitType,
@@ -593,6 +595,268 @@ export class PartnerReferralService {
     );
 
     return { linkId: pending.linkId, commissionId };
+  }
+
+  /**
+   * Void en cascada de las comisiones `pending` de UN cargo puntual (D-14):
+   * cierra el ciclo de vida que abre `qualifyAndCommission`. Llamado desde
+   * `TransactionService._void` (finance/transaction-service.ts), **dentro de
+   * la misma transacción del void del cobro** — por eso el primer parámetro
+   * es un `runner` (el `db` normal o un `TxHandle` de una tx ajena en curso),
+   * no `this.db` fijo: si el void del cobro hace rollback, el void de la
+   * comisión tiene que rollear con él.
+   *
+   * El `WHERE status = 'pending'` es la mitad que importa de este método:
+   * las comisiones `settled` (ya liquidadas al partner, D-16) son histórico y
+   * JAMÁS se tocan por la anulación de un cobro — mismo espíritu que
+   * `firm-money.ts`/`movement-service.ts`, donde lo firme no se revierte por
+   * un evento posterior. Y es un UPDATE, no un DELETE: `voided_at` +
+   * `void_reason` dejan rastro de que hubo una comisión y de por qué se cayó
+   * (nada se borra, D-14).
+   *
+   * Devuelve la cantidad de filas afectadas (0 si el cargo no tenía comisión
+   * pendiente — ej. `commissionType='none'`, o ya estaba `settled`/`void`).
+   */
+  async voidPendingCommissionsForSubscription(
+    runner: DbInstance | TxHandle,
+    ctx: TenantCtx,
+    subscriptionId: number,
+    reason: string,
+  ): Promise<number> {
+    const result = await runner
+      .update(partnerCommissions)
+      .set({
+        status: "void",
+        voidedAt: new Date(),
+        voidReason: reason,
+      })
+      .where(
+        and(
+          tenantWhere(partnerCommissions, ctx),
+          eq(partnerCommissions.subscriptionId, subscriptionId),
+          eq(partnerCommissions.status, "pending"),
+        ),
+      );
+
+    const affected = result[0].affectedRows;
+    this.log.info(
+      { subscriptionId, reason, affected },
+      "partner: comisiones pendientes voideadas por anulación de cobro",
+    );
+    return affected;
+  }
+
+  /**
+   * Revoca el vínculo socio↔partner (D-14, baja manual: el socio se va o el
+   * acuerdo con el partner se corta) y voidea en cascada TODAS sus comisiones
+   * `pending` — no solo la de un cargo puntual, a diferencia de
+   * `voidPendingCommissionsForSubscription`, que se filtra por
+   * `subscription_id`: acá se filtra por `partner_referral_id`, porque el
+   * vínculo entero deja de tener vigencia, no un cargo en particular.
+   *
+   * `NotFoundError` si el socio no tiene vínculo de partner en el tenant. Las
+   * comisiones `settled` quedan intactas (mismo motivo que arriba, D-14).
+   */
+  async revokePartnerLink(
+    ctx: TenantCtx,
+    referredId: number,
+    revokedBy: number,
+  ): Promise<{ voidedCommissions: number }> {
+    const [link] = await this.db
+      .select({ id: partnerReferrals.id })
+      .from(partnerReferrals)
+      .where(
+        and(
+          tenantWhere(partnerReferrals, ctx),
+          eq(partnerReferrals.referredId, referredId),
+        ),
+      )
+      .limit(1);
+    if (!link) {
+      throw new NotFoundError("El socio no tiene un vínculo de partner");
+    }
+
+    await this.db
+      .update(partnerReferrals)
+      .set({ status: "revoked" })
+      .where(
+        and(
+          tenantWhere(partnerReferrals, ctx),
+          eq(partnerReferrals.id, link.id),
+        ),
+      );
+
+    const result = await this.db
+      .update(partnerCommissions)
+      .set({
+        status: "void",
+        voidedAt: new Date(),
+        voidReason: "Vínculo con el partner revocado",
+      })
+      .where(
+        and(
+          tenantWhere(partnerCommissions, ctx),
+          eq(partnerCommissions.partnerReferralId, link.id),
+          eq(partnerCommissions.status, "pending"),
+        ),
+      );
+    const voidedCommissions = result[0].affectedRows;
+
+    this.log.info(
+      { referredId, linkId: link.id, revokedBy, voidedCommissions },
+      "referral-partners: vínculo revocado y comisiones pendientes voideadas",
+    );
+
+    return { voidedCommissions };
+  }
+
+  /**
+   * Asignación RETROACTIVA de partner desde la ficha del alumno (D-15) —
+   * espejo estructural de `assignReferrerToMember`
+   * (`referrals/service.ts:434-519`), pero sin degradar en silencio: a
+   * diferencia del alta (`attributePartnerAtSignup`), acá la atribución ES la
+   * operación, así que un partner inválido o un doble origen tienen que
+   * fallar visible (404/409), nunca devolver `null`.
+   *
+   * Orden:
+   *  1. `NotFoundError` si el partner no existe, está inactivo o es de otro
+   *     tenant (misma respuesta para los tres casos — no filtrar cuál).
+   *  2. `ConflictError` (D-12) si `findOriginForMember` ya tiene un origen
+   *     — el mensaje distingue socio vs. partner.
+   *  3. Mismo umbral que el cobro (`pricePaid > 0` acotado al tenant): si el
+   *     socio ya pagó, nace `qualified` con `qualifiedAt = ahora` (NUNCA la
+   *     fecha del pago viejo — fechar hacia atrás mentiría sobre cuándo
+   *     empezó a correr el beneficio, mismo razonamiento que la 173).
+   *  4. Si nació `qualified`, genera la comisión sobre la suscripción pagada
+   *     más reciente del socio, con el mismo INSERT idempotente
+   *     (`onDuplicateKeyUpdate` por `subscription_id`) que
+   *     `qualifyAndCommission`.
+   *  5. Carrera contra el UNIQUE de `referred_id` (dos admins en dos
+   *     pestañas, documentada como real en la 173) → `ConflictError`.
+   */
+  async assignPartnerToMember(params: {
+    tenantId: number;
+    referredId: number;
+    partnerId: number;
+    createdBy: number;
+  }): Promise<{
+    status: "pending" | "qualified";
+    partnerId: number;
+    referredId: number;
+    commissionId: number | null;
+  }> {
+    const { tenantId, referredId, partnerId, createdBy } = params;
+    const ctx: TenantCtx = { tenantId };
+
+    const [partner] = await this.db
+      .select({
+        id: referralPartners.id,
+        isActive: referralPartners.isActive,
+        benefitType: referralPartners.benefitType,
+        benefitValue: referralPartners.benefitValue,
+        commissionType: referralPartners.commissionType,
+        commissionValue: referralPartners.commissionValue,
+        currency: referralPartners.currency,
+      })
+      .from(referralPartners)
+      .where(
+        and(
+          tenantWhere(referralPartners, ctx),
+          eq(referralPartners.id, partnerId),
+        ),
+      )
+      .limit(1);
+    if (!partner || !partner.isActive) {
+      throw new NotFoundError("El partner no existe");
+    }
+
+    const existingOrigin = await this.findOriginForMember(ctx, referredId);
+    if (existingOrigin) {
+      throw new ConflictError(
+        existingOrigin.kind === "member"
+          ? "Este socio ya tiene un referidor de socio asignado"
+          : "Este socio ya tiene un partner asignado",
+      );
+    }
+
+    // D-15: ¿ya pagó algún plan? Mismo umbral que qualifyAndCommission
+    // (`pricePaid > 0`) — un mes 100% bonificado no cualifica. Acotado al
+    // gimnasio del scope. La comisión (si nace qualified) se arma sobre el
+    // cargo pagado MÁS RECIENTE.
+    const [paid] = await this.db
+      .select({ subscriptionId: subscriptions.id })
+      .from(subscriptions)
+      .where(
+        and(
+          tenantWhere(subscriptions, ctx),
+          eq(subscriptions.userId, referredId),
+          gt(subscriptions.pricePaid, 0),
+        ),
+      )
+      .orderBy(desc(subscriptions.createdAt))
+      .limit(1);
+    const status: "pending" | "qualified" = paid ? "qualified" : "pending";
+    const benefitExpiresAt = new Date(
+      Date.now() + PARTNER_BENEFIT_TTL_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    let linkId: number;
+    try {
+      const result = await this.db.insert(partnerReferrals).values(
+        tenantValues(ctx, {
+          partnerId,
+          referredId,
+          status,
+          attributionChannel: "assisted" as const,
+          benefitType: partner.benefitType,
+          benefitValue: partner.benefitValue,
+          benefitStatus: "pending" as const,
+          benefitExpiresAt,
+          createdBy,
+          qualifiedAt: status === "qualified" ? new Date() : null,
+        }),
+      );
+      linkId = Number(result[0].insertId);
+    } catch (err: unknown) {
+      // Carrera contra el UNIQUE de referred_id (D-12): otro admin ganó entre
+      // el chequeo de arriba y este INSERT.
+      if (isDuplicateKeyError(err)) {
+        throw new ConflictError("Este socio ya tiene un partner asignado");
+      }
+      throw err;
+    }
+
+    let commissionId: number | null = null;
+    if (
+      status === "qualified" &&
+      paid &&
+      partner.commissionType !== "none" &&
+      partner.commissionValue > 0
+    ) {
+      const commissionResult = await this.db
+        .insert(partnerCommissions)
+        .values(
+          tenantValues(ctx, {
+            partnerId,
+            partnerReferralId: linkId,
+            userId: referredId,
+            subscriptionId: paid.subscriptionId,
+            amount: partner.commissionValue,
+            currency: partner.currency as PartnerCurrency,
+            status: "pending" as const,
+          }),
+        )
+        // Mismo no-op canónico que qualifyAndCommission/recordReferralCredit.
+        .onDuplicateKeyUpdate({ set: { subscriptionId: paid.subscriptionId } });
+      commissionId = Number(commissionResult[0].insertId);
+    }
+
+    this.log.info(
+      { partnerId, referredId, status, createdBy, commissionId },
+      "referral-partners: atribución retroactiva creada desde la ficha",
+    );
+
+    return { status, partnerId, referredId, commissionId };
   }
 
   /**
