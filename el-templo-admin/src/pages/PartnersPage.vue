@@ -38,7 +38,7 @@
     </div>
 
     <!-- ================================================================== -->
-    <!-- Tabs: Partners, Conversiones (Liquidación llega en 179-13 Task 3) -->
+    <!-- Tabs: Partners, Conversiones, Liquidación -->
     <!-- ================================================================== -->
     <q-tabs
       v-model="activeTab"
@@ -50,6 +50,7 @@
     >
       <q-tab name="partners" label="Partners" />
       <q-tab name="conversiones" label="Conversiones" />
+      <q-tab name="liquidacion" label="Liquidación" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -193,6 +194,54 @@
           </template>
         </q-table>
       </q-tab-panel>
+
+      <!-- ================================================================ -->
+      <!-- Tab: Liquidación (D-16) -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="liquidacion">
+        <div class="text-caption text-grey-7 q-mb-md">
+          Un clic marca todas las comisiones pendientes de un partner como liquidadas, en un acto.
+          No mueve plata: registra que el pago al comercio ya se hizo fuera del sistema.
+        </div>
+
+        <q-table
+          :rows="partnersWithPendingCommissions"
+          :columns="liquidacionColumns"
+          row-key="id"
+          :loading="partnersApi.loading.value"
+          :pagination="{ rowsPerPage: 50 }"
+          :rows-per-page-options="[20, 50, 100]"
+          flat
+          bordered
+        >
+          <template #no-data>
+            <div class="full-width text-center text-grey-7 q-pa-md">
+              No hay comisiones pendientes de liquidar.
+            </div>
+          </template>
+
+          <template #body-cell-total="props">
+            <q-td :props="props">
+              {{ formatPrice(props.row.montoPendiente, props.row.currency) }}
+            </q-td>
+          </template>
+
+          <template #body-cell-acciones="props">
+            <q-td :props="props">
+              <q-btn
+                color="primary"
+                label="Liquidar"
+                icon="task_alt"
+                unelevated
+                dense
+                @click="openSettleDialog(props.row)"
+              />
+            </q-td>
+          </template>
+        </q-table>
+
+        <PartnerSettleDialog v-model="showSettleDialog" :partner="settlingPartner" @settled="onSettled" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -213,6 +262,7 @@ import type { BranchOption } from 'src/types/member';
 import PartnerFormDialog from 'src/components/partners/PartnerFormDialog.vue';
 import PartnerQrDialog from 'src/components/partners/PartnerQrDialog.vue';
 import PartnerConversionsTable from 'src/components/partners/PartnerConversionsTable.vue';
+import PartnerSettleDialog from 'src/components/partners/PartnerSettleDialog.vue';
 
 const log = createLogger('PartnersPage');
 const $q = useQuasar();
@@ -292,6 +342,44 @@ function whatsappUrl(phone: string): string {
   const digits = phone.replace(/[^0-9]/g, '');
   const intl = digits.length === 10 ? `549${digits}` : digits;
   return `https://wa.me/${intl}`;
+}
+
+// =========================================================================
+// Liquidación (D-16) — reusa `partners`/`loadPartners` de la tabla CRUD:
+// no hay un endpoint aparte, `comisionesPendientes`/`montoPendiente` ya
+// vienen en PartnerListItem (agregados server-side). Tras liquidar se
+// recarga desde el server (no se muta el estado local).
+// =========================================================================
+
+const showSettleDialog = ref(false);
+const settlingPartner = ref<PartnerListItem | null>(null);
+
+const partnersWithPendingCommissions = computed(() =>
+  filteredPartners.value.filter((p) => p.comisionesPendientes > 0)
+);
+
+const liquidacionColumns: QTableProps['columns'] = [
+  { name: 'name', label: 'Partner', field: 'name', align: 'left', sortable: true },
+  {
+    name: 'comisionesPendientes',
+    label: 'Comisiones pendientes',
+    field: 'comisionesPendientes',
+    align: 'center',
+    sortable: true,
+  },
+  { name: 'total', label: 'Total', field: 'montoPendiente', align: 'right', sortable: true },
+  { name: 'acciones', label: 'Acciones', field: 'id', align: 'center' },
+];
+
+function openSettleDialog(partner: PartnerListItem) {
+  settlingPartner.value = partner;
+  showSettleDialog.value = true;
+}
+
+function onSettled() {
+  // Fuente de verdad = server: recargar en vez de mutar `comisionesPendientes`
+  // localmente (evita desincronía si otro admin liquidó en paralelo).
+  loadPartners();
 }
 
 async function loadBenefitsWithoutConversion() {
