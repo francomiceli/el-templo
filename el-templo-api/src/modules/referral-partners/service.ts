@@ -35,6 +35,7 @@ import type {
   BenefitWithoutConversionRow,
   ConversionRow,
   CreatePartnerInput,
+  MemberPartnerLink,
   PartnerBenefitType,
   PartnerCurrency,
   PartnerListItem,
@@ -1015,6 +1016,51 @@ export class PartnerReferralService {
     }
 
     return null;
+  }
+
+  /**
+   * Vínculo de partner de un socio con el detalle que la ficha del alumno
+   * necesita mostrar (D-15, plan 179-14: sección "Partner" de
+   * `MemberReferralsTab.vue`). `null` cuando el socio no tiene vínculo —
+   * distinto de `findOriginForMember`, que solo informa CUÁL es el origen
+   * (member/partner/null) sin nombre/código/estado. Mismo join que
+   * `listConversions`, recortado a un socio y sin datos de comisión.
+   */
+  async getMemberPartnerLink(
+    ctx: TenantCtx,
+    referredId: number,
+  ): Promise<MemberPartnerLink | null> {
+    const [row] = await this.db
+      .select({
+        linkId: partnerReferrals.id,
+        partnerId: partnerReferrals.partnerId,
+        partnerName: referralPartners.name,
+        partnerCode: referralPartners.code,
+        status: partnerReferrals.status,
+        benefitType: partnerReferrals.benefitType,
+        benefitStatus: partnerReferrals.benefitStatus,
+        createdAt: partnerReferrals.createdAt,
+      })
+      .from(partnerReferrals)
+      .innerJoin(
+        referralPartners,
+        eq(referralPartners.id, partnerReferrals.partnerId),
+      )
+      .where(
+        and(
+          tenantWhere(partnerReferrals, ctx),
+          eq(partnerReferrals.referredId, referredId),
+        ),
+      )
+      .limit(1);
+
+    if (!row) return null;
+    return {
+      ...row,
+      status: row.status as MemberPartnerLink["status"],
+      benefitType: row.benefitType as PartnerBenefitType,
+      benefitStatus: row.benefitStatus as MemberPartnerLink["benefitStatus"],
+    };
   }
 
   /**

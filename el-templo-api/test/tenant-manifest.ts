@@ -352,6 +352,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/members/:userId/outstanding-concepts": {
     categoria: "tenant-scoped",
   },
+  // Vínculo de partner de la ficha del alumno (fase 179 plan 14, D-15):
+  // lectura, mismo motivo que el par POST/DELETE de más abajo.
+  "GET /api/admin/members/:userId/partner-referral": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/members/:userId/referrals": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId/session-levels": {
     categoria: "tenant-scoped",

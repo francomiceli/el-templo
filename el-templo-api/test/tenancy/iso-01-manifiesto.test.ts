@@ -187,7 +187,17 @@ import {
  * `assertTenant(request.scope, …)` en cada ruta, jamás del body. Caso normal
  * de D-02. Worktree `et-179`, rama `feat/179-referidos-partners`.
  *
- * El reparto por categoría vigente es 230 `tenant-scoped` · 8 `global` · 141
+ * **Movido a 384 el 2026-08-23**, 1 ruta nueva y no un merge (fase 179, plan
+ * 14, D-15): `GET /api/admin/members/:userId/partner-referral` — detalle del
+ * vínculo de partner para la sección "Partner" de `MemberReferralsTab.vue`
+ * (nombre/código, fecha, estado del vínculo y del beneficio; `null` sin
+ * vínculo). **tenant-scoped**: lee `partner_referrals`/`referral_partners`,
+ * gym-owned, con `assertTenant(request.scope, …)`, jamás del body. Caso
+ * normal de D-02. Deviation (Rule 2) del plan 179-14: sin este GET la
+ * sección "Con vínculo" del must_have D-15 no tiene de dónde leer el estado.
+ * Worktree `et-179`, rama `feat/179-referidos-partners`.
+ *
+ * El reparto por categoría vigente es 231 `tenant-scoped` · 8 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
  * por categoría a propósito, y
@@ -197,7 +207,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 383;
+const ENTRADAS_BASELINE = 384;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -304,7 +314,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 383 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 384 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

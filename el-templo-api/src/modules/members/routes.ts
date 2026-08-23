@@ -1766,6 +1766,37 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // GET /admin/members/:userId/partner-referral — Vínculo de partner de la
+  // ficha del alumno (fase 179, plan 14, D-15): detalle para la sección
+  // "Partner" (nombre/código, fecha, estado del vínculo y del beneficio).
+  // `null` si el socio no tiene vínculo. Mismo guard que el GET de
+  // /referrals de arriba, sin schema de respuesta explícito (evita el
+  // Pitfall 4 de fast-json-stringify descartando campos en silencio — mismo
+  // criterio que ese GET).
+  fastify.get<{ Params: { userId: number } }>(
+    "/:userId/partner-referral",
+    async (request, reply) => {
+      try {
+        const targetId = await assertReferralTargetInScope(request);
+        const partnerService = new PartnerReferralService(
+          fastify.db,
+          fastify.log,
+        );
+        return await partnerService.getMemberPartnerLink(
+          {
+            tenantId: assertTenant(
+              request.scope,
+              "referralPartners.getMemberLink",
+            ).tenantId,
+          },
+          targetId,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get member partner link");
+      }
+    },
+  );
+
   // POST /admin/members/:userId/partner-referral — Asignación RETROACTIVA de
   // partner sobre un socio ya creado (fase 179, D-15). Calcado íntegro de
   // POST /:userId/referrals de arriba: mismo guard (assertReferralTargetInScope,

@@ -32,6 +32,7 @@ import * as schema from "../../src/db/schema";
 import {
   insertBranch,
   insertPartner,
+  insertPartnerLink,
   partnerLinkRow,
   partnerCommissionRows,
 } from "./_helpers";
@@ -307,5 +308,93 @@ describe("POST /api/admin/members/:userId/partner-referral — asignación retro
     const codes = [resA.statusCode, resB.statusCode].sort();
     expect(codes).toEqual([201, 409]);
     expect(await countPartnerLinks(target.id)).toBe(1);
+  });
+});
+
+/**
+ * `GET /api/admin/members/:userId/partner-referral` (fase 179, plan 14,
+ * D-15) — deviation (Rule 2) del plan 179-14: la sección "Con vínculo" de
+ * `MemberReferralsTab.vue` necesita leer nombre/código/estado del partner
+ * de un socio, y ninguna ruta existente lo devolvía. Mismo guard que el
+ * POST/DELETE de arriba (assertReferralTargetInScope, MEMBER_LIFECYCLE_ROLES).
+ */
+describe("GET /api/admin/members/:userId/partner-referral — vínculo de la ficha (D-15)", () => {
+  async function getLink(
+    targetId: number,
+    token = adminToken,
+  ): Promise<{ statusCode: number; body: string }> {
+    const res = await app.inject({
+      method: "GET",
+      url: url(targetId),
+      headers: { authorization: `Bearer ${token}` },
+    });
+    return { statusCode: res.statusCode, body: res.body };
+  }
+
+  it("(1) socio sin vínculo: 200 con body null", async () => {
+    const target = await createMember(app, { email: email("get-nolink") });
+    const res = await getLink(target.id);
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toBeNull();
+  });
+
+  it("(2) socio con vínculo qualified: 200 con nombre/código/estado del partner", async () => {
+    const partner = await insertPartner(app, {
+      name: "Cafe Central",
+      benefitType: "discount_percent",
+    });
+    const target = await createMember(app, { email: email("get-haslink") });
+    await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: target.id,
+      status: "qualified",
+      benefitStatus: "consumed",
+      qualifiedAt: new Date(),
+    });
+
+    const res = await getLink(target.id);
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      partnerId: number;
+      partnerName: string;
+      partnerCode: string;
+      status: string;
+      benefitType: string;
+      benefitStatus: string;
+      createdAt: string;
+    };
+    expect(body.partnerId).toBe(partner.id);
+    expect(body.partnerName).toBe("Cafe Central");
+    expect(body.partnerCode).toBe(partner.code);
+    expect(body.status).toBe("qualified");
+    expect(body.benefitType).toBe("discount_percent");
+    expect(body.benefitStatus).toBe("consumed");
+    expect(body.createdAt).toBeTruthy();
+  });
+
+  it("(3) socio de otro país con admin no-owner: 404 (country scope)", async () => {
+    const target = await createMember(app, { email: email("get-xcountry") });
+    await createStaffUser(app, {
+      email: `aap-get-admin-es-${seq}@test.local`,
+      password: MEMBER_PASSWORD,
+      firstName: "Admin",
+      lastName: "ES",
+      role: "admin",
+      branchId: esBranchId,
+    });
+    const esToken = await getAuthToken(
+      app,
+      `aap-get-admin-es-${seq}@test.local`,
+      MEMBER_PASSWORD,
+    );
+
+    const res = await getLink(target.id, esToken);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("(4) sin token: 401", async () => {
+    const target = await createMember(app, { email: email("get-notoken") });
+    const res = await app.inject({ method: "GET", url: url(target.id) });
+    expect(res.statusCode).toBe(401);
   });
 });

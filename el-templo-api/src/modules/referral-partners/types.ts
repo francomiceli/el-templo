@@ -105,6 +105,26 @@ export type PartnerOrigin =
   | null;
 
 /**
+ * Vínculo socio↔partner con el detalle que la ficha del alumno necesita
+ * mostrar (D-15, plan 179-14: sección "Partner" de `MemberReferralsTab.vue`
+ * en el admin — asignación retroactiva + revocación). Devuelto por
+ * `getMemberPartnerLink`, `null` cuando el socio no tiene vínculo. Mismo
+ * recorte de columnas que `ConversionRow` (nombre/código del partner, fecha,
+ * estado del vínculo y del beneficio), sin los campos de comisión — la ficha
+ * del alumno no gestiona liquidación, solo atribución de origen.
+ */
+export interface MemberPartnerLink {
+  linkId: number;
+  partnerId: number;
+  partnerName: string;
+  partnerCode: string;
+  status: "pending" | "qualified" | "revoked";
+  benefitType: PartnerBenefitType;
+  benefitStatus: "pending" | "consumed" | "expired";
+  createdAt: Date;
+}
+
+/**
  * Shape del beneficio de partner que consume la respuesta de `POST
  * /api/auth/register` (`partnerBenefit`, plan 179-04) y que la app usa para
  * el badge/mensaje de éxito (plan 179-14). `null` cuando no hubo atribución
