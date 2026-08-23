@@ -134,6 +134,38 @@ export interface SettleCommissionsResult {
   currency: PartnerCurrency;
 }
 
+// =========================================================================
+// Vínculo de partner de la ficha del alumno (fase 179-14, D-15). Espeja
+// `MemberPartnerLink` del API (el-templo-api/src/modules/referral-partners/
+// types.ts) — consumido por MemberReferralsTab.vue (sección "Partner":
+// asignación retroactiva + revocación).
+// =========================================================================
+
+/** Espeja MemberPartnerLink del API. `null` cuando el socio no tiene vínculo. */
+export interface MemberPartnerLink {
+  linkId: number;
+  partnerId: number;
+  partnerName: string;
+  partnerCode: string;
+  status: PartnerLinkStatus;
+  benefitType: PartnerBenefitType;
+  benefitStatus: PartnerBenefitStatus;
+  createdAt: string;
+}
+
+/** Respuesta de POST /admin/members/:userId/partner-referral (D-15). */
+export interface AssignPartnerToMemberResult {
+  status: 'pending' | 'qualified';
+  partnerId: number;
+  referredId: number;
+  commissionId: number | null;
+}
+
+/** Respuesta de DELETE /admin/members/:userId/partner-referral (D-14). */
+export interface RevokePartnerLinkResult {
+  voidedCommissions: number;
+}
+
 /**
  * Payload de creación. `currency` NO forma parte del input: el server la
  * deriva de `branches.country` (D-13). `code` se normaliza server-side.
@@ -327,6 +359,74 @@ export function usePartnersApi() {
     }
   }
 
+  // =========================================================================
+  // Vínculo de partner de la ficha del alumno (fase 179-14, D-15). Mismo
+  // patrón de loading/error/throw que el resto del composable.
+  // =========================================================================
+
+  /** GET /admin/members/:userId/partner-referral — `null` sin vínculo. */
+  async function getMemberPartnerLink(userId: number): Promise<MemberPartnerLink | null> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<MemberPartnerLink | null>(
+        `/admin/members/${userId}/partner-referral`
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando el vínculo con el partner');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * POST /admin/members/:userId/partner-referral — asignación retroactiva
+   * (D-15). 404 si el partner no existe/está inactivo/es de otro tenant;
+   * 409 (D-12) si el socio ya tiene un origen (socio o partner) asignado.
+   */
+  async function assignPartnerToMember(
+    userId: number,
+    partnerId: number
+  ): Promise<AssignPartnerToMemberResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<AssignPartnerToMemberResult>(
+        `/admin/members/${userId}/partner-referral`,
+        { partnerId }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error asignando el partner');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * DELETE /admin/members/:userId/partner-referral — revoca el vínculo
+   * (D-14): void en cascada de las comisiones `pending` (las `settled` no
+   * se tocan). 404 si el socio no tiene vínculo.
+   */
+  async function revokePartnerFromMember(userId: number): Promise<RevokePartnerLinkResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.delete<RevokePartnerLinkResult>(
+        `/admin/members/${userId}/partner-referral`
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error revocando el vínculo con el partner');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     // No subscriptions or timers to clean up
   }
@@ -343,6 +443,9 @@ export function usePartnersApi() {
     settleCommissions,
     getStoreUrls,
     updateStoreUrls,
+    getMemberPartnerLink,
+    assignPartnerToMember,
+    revokePartnerFromMember,
     cleanup,
   };
 }
