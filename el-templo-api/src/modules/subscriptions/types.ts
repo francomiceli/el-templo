@@ -27,7 +27,8 @@ export type PlanCategory =
   | "online_regular"
   | "online_goal"
   | "online_coach"
-  | "especial"; // Fase 161 (PASE-01): pase "Actividades con Aura".
+  | "especial" // Fase 161 (PASE-01): pase "Actividades con Aura".
+  | "paquete"; // Fase 177 (D-01): paquete de clases corto plazo, presencial-flexible.
 
 /**
  * Fase 161: grupo de categoría de 3 valores. El binario `isOnlinePlan` colapsa
@@ -36,28 +37,83 @@ export type PlanCategory =
  * por grupo (presencial / online / especial) — el pase es una categoría paralela.
  */
 export type CategoryGroup = "presencial" | "online" | "especial";
+/**
+ * Fase 177 (D-02): `paquete` se resuelve al grupo 'presencial'. Es
+ * presencial-flexible — se reserva y asiste en sede como un mensual
+ * presencial, así que debe conflictuar con un presencial activo (mismo grupo,
+ * D-02: "un paquete conflictúa con un presencial mensual") y coexistir con un
+ * online activo (grupo distinto), igual que hoy conviven presencial+especial u
+ * online+especial.
+ *
+ * El chequeo de solapamiento en `SubscriptionService.assignPlan` (service.ts,
+ * sección "category GROUP") compara por GRUPO usando `inArray(['presencial',
+ * 'paquete'])` para la rama presencial y excluye 'paquete' de la rama online,
+ * de modo que detecta los solapamientos presencial↔paquete y paquete↔paquete
+ * que D-02 pide bloquear. (Corregido con sign-off explícito de Franco
+ * 2026-08-21; antes usaba el literal `eq(planCategory, 'presencial')`, que no
+ * detectaba presencial→paquete existente ni paquete→paquete existente.)
+ */
 export function categoryGroup(c: PlanCategory): CategoryGroup {
-  if (c === "presencial") return "presencial";
+  if (c === "presencial" || c === "paquete") return "presencial";
   if (c === "especial") return "especial";
   return "online";
 }
 
 /**
- * NOTA PARA EL PLAN 02: `isOnlinePlan` NO se refina acá a propósito. Callsites a
- * migrar al criterio `categoryGroup` cuando el Plan 02 reescriba el conflicto de
- * assign: member-routes.ts:194-195, service.ts:251 y service.ts:1249. Hoy
- * `isOnlinePlan('especial') === true` (especial lumpeado con online) — aceptable
- * como estado transitorio porque no hay planes especiales asignables por el flujo
- * de conflicto hasta que el Plan 02 lo separe.
+ * NOTA PARA EL PLAN 02: `isOnlinePlan` NO se refina acá a propósito para
+ * especial. Callsites a migrar al criterio `categoryGroup` cuando el Plan 02
+ * reescriba el conflicto de assign: member-routes.ts, service.ts. Hoy
+ * `isOnlinePlan('especial') === true` (especial lumpeado con online) —
+ * aceptable como estado transitorio porque no hay planes especiales
+ * asignables por el flujo de conflicto hasta que el Plan 02 lo separe.
+ *
+ * Fase 177 (D-02): `paquete` SÍ se refina acá — debe devolver `false` (no es
+ * online, es presencial-flexible). A diferencia de especial, no hay conflicto
+ * histórico de callsites que dependan de que paquete sea "online": es una
+ * categoría nueva, así que se resuelve correctamente desde el día 1 en vez de
+ * quedar como deuda transitoria.
  */
 export function isOnlinePlan(category: PlanCategory): boolean {
-  return category !== "presencial";
+  return category !== "presencial" && category !== "paquete";
 }
 export function isGoalPlan(category: PlanCategory): boolean {
   return category === "online_goal";
 }
 export function isCoachPlan(category: PlanCategory): boolean {
   return category === "online_coach";
+}
+
+/**
+ * Fase 177 (D-13): predicados DRY de elegibilidad de descuento por categoría,
+ * centralizando el criterio hoy repetido inline en ~6 callsites de
+ * service.ts (referidos) y 3 (AURA). Guardrail de no-canibalización: un
+ * descuento sobre un producto ya de fórmula cerrada (paquete) o sobre un pase
+ * que no es una cuota de membresía (especial) rompe el precio ancla.
+ *
+ * `excludedFromReferrals`: 'especial' (precedente D-09/fase 161, T-161-05) +
+ * 'paquete' (D-13) quedan fuera de referidos — ni cualifican vínculos ni
+ * reciben el descuento simétrico.
+ *
+ * `excludedFromAura`: SOLO 'paquete' (D-13). 'especial' NO se toca acá — sigue
+ * pudiendo recibir descuento AURA como hoy (el guard de especial es
+ * específico de referidos, no de AURA).
+ */
+export function excludedFromReferrals(c: PlanCategory): boolean {
+  return c === "especial" || c === "paquete";
+}
+export function excludedFromAura(c: PlanCategory): boolean {
+  return c === "paquete";
+}
+
+/**
+ * Gap-fix 177 (WR-03, post-verification 2026-08-14): el boarding pass es un
+ * regalo one-shot (`users.boardingPassUsed`, nunca se resetea) que aplica el
+ * precio Zero. Para `paquete`, D-14 fija `priceZero = priceRegular` en las 36
+ * filas de la migración — aplicarlo quemaría el pase de por vida del socio
+ * sin ningún descuento real. Mismo idioma que `excludedFromAura`.
+ */
+export function excludedFromBoardingPass(c: PlanCategory): boolean {
+  return c === "paquete";
 }
 
 // ─── AURA Discount Tiers ────────────────────────────────────────────────────

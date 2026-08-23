@@ -395,87 +395,150 @@
                       text-color="grey-8"
                       class="q-mb-sm rounded-borders"
                     />
-                    <div
-                      v-if="plansByTier.length === 0"
-                      class="text-grey-5 text-italic q-pa-md text-center"
-                    >
-                      No hay planes de este tipo para esta sede.
-                    </div>
-                    <div v-for="tier in plansByTier" :key="tier.tier" class="q-mb-sm">
-                      <q-badge
-                        :color="tierColor(tier.tier)"
-                        :label="tierLabel(tier.tier)"
-                        class="q-mb-xs"
-                      />
-                      <q-list bordered separator class="rounded-borders">
-                        <q-item
-                          v-for="plan in tier.plans"
-                          :key="plan.id"
-                          clickable
-                          v-ripple
-                          class="q-py-md"
-                          :active="selectedPlan?.id === plan.id"
-                          active-class="bg-primary text-white"
-                          @click="selectPlan(plan)"
-                        >
-                          <q-item-section>
-                            <q-item-label>{{ plan.name }}</q-item-label>
-                            <div
-                              class="text-subtitle2 text-weight-regular"
-                              :class="selectedPlan?.id === plan.id ? 'text-white' : 'text-grey-7'"
-                            >
-                              {{ plan.durationDays }} días
-                              <template v-if="plan.classesPerWeek">
-                                · {{ plan.classesPerWeek }} clases/sem
-                              </template>
-                              <template v-else> · Ilimitado </template>
-                            </div>
-                          </q-item-section>
-                          <q-item-section side>
-                            <div
-                              class="text-weight-bold"
-                              :class="selectedPlan?.id === plan.id ? 'text-white' : ''"
-                            >
-                              {{ formatPrice(plan.priceRegular, plan.currency) }}
-                            </div>
-                          </q-item-section>
-                        </q-item>
-                      </q-list>
-                    </div>
-
-                    <q-toggle
-                      v-if="zeroPriceEnabled && !prorateToMonthEnd"
-                      v-model="zeroPrice"
-                      :label="ZERO_PRICE_LABEL"
-                      color="positive"
-                      class="q-mt-sm"
-                    />
-
-                    <!-- Prorrateo hasta fin de mes (alta): vigencia al último día
-                         del mes y precio proporcional editable. Excluyente con Zero. -->
-                    <div v-if="selectedPlan">
-                      <q-toggle
-                        v-model="prorateToMonthEnd"
-                        label="Prorratear hasta fin de mes"
-                        color="primary"
-                        class="q-mt-sm"
-                        @update:model-value="onProrateToggleAlta"
-                      />
-                      <div v-if="prorateToMonthEnd" class="q-mt-sm" style="max-width: 240px">
-                        <q-input
-                          v-model.number="proratedPrice"
-                          label="Precio prorrateado"
-                          type="number"
-                          dense
-                          outlined
-                          hint="Sugerido según los días restantes. Editable."
-                        />
-                        <div class="text-caption text-grey-7 q-mt-xs">
-                          Cobra {{ prorationDays.daysCharged }} de {{ prorationDays.daysInMonth }}
-                          días · vence fin de mes
+                    <!-- Fase 177 (D-01/D-02): tab paquete = 2 selectores, NO
+                         la grilla cruda de 18 filas. Elegir semanas+frecuencia
+                         resuelve el planId real (watcher en el script) y el
+                         precio se lee en vivo de ese plan — nunca se calcula
+                         acá. -->
+                    <template v-if="planGroupFilter === 'paquete'">
+                      <div class="row q-col-gutter-sm q-mb-sm">
+                        <div class="col-6">
+                          <q-select
+                            v-model="paqueteSemanas"
+                            :options="PAQUETE_SEMANAS_OPTIONS"
+                            option-value="value"
+                            option-label="label"
+                            emit-value
+                            map-options
+                            outlined
+                            label="Semanas"
+                          />
+                        </div>
+                        <div class="col-6">
+                          <q-select
+                            v-model="paqueteFrecuencia"
+                            :options="PAQUETE_FRECUENCIA_OPTIONS"
+                            option-value="value"
+                            option-label="label"
+                            emit-value
+                            map-options
+                            outlined
+                            label="Clases/semana"
+                          />
                         </div>
                       </div>
-                    </div>
+                      <q-card
+                        v-if="resolvedPaquetePlan"
+                        bordered
+                        flat
+                        class="q-pa-md bg-primary text-white"
+                      >
+                        <div class="text-subtitle1 text-weight-bold">
+                          {{ resolvedPaquetePlan.name }}
+                        </div>
+                        <div class="text-caption">
+                          {{ paqueteSemanas }} sem · {{ paqueteFrecuencia }}/sem ·
+                          {{ paqueteTotalClases }} clases en total
+                        </div>
+                        <div class="text-h6 q-mt-xs">
+                          {{
+                            formatPrice(
+                              resolvedPaquetePlan.priceRegular,
+                              resolvedPaquetePlan.currency
+                            )
+                          }}
+                        </div>
+                      </q-card>
+                      <div v-else class="text-negative text-italic q-pa-md text-center">
+                        No hay un paquete configurado para esa combinación en esta sede.
+                      </div>
+                    </template>
+
+                    <template v-else>
+                      <div
+                        v-if="plansByTier.length === 0"
+                        class="text-grey-5 text-italic q-pa-md text-center"
+                      >
+                        No hay planes de este tipo para esta sede.
+                      </div>
+                      <div v-for="tier in plansByTier" :key="tier.tier" class="q-mb-sm">
+                        <q-badge
+                          :color="tierColor(tier.tier)"
+                          :label="tierLabel(tier.tier)"
+                          class="q-mb-xs"
+                        />
+                        <q-list bordered separator class="rounded-borders">
+                          <q-item
+                            v-for="plan in tier.plans"
+                            :key="plan.id"
+                            clickable
+                            v-ripple
+                            class="q-py-md"
+                            :active="selectedPlan?.id === plan.id"
+                            active-class="bg-primary text-white"
+                            @click="selectPlan(plan)"
+                          >
+                            <q-item-section>
+                              <q-item-label>{{ plan.name }}</q-item-label>
+                              <div
+                                class="text-subtitle2 text-weight-regular"
+                                :class="selectedPlan?.id === plan.id ? 'text-white' : 'text-grey-7'"
+                              >
+                                {{ plan.durationDays }} días
+                                <template v-if="plan.classesPerWeek">
+                                  · {{ plan.classesPerWeek }} clases/sem
+                                </template>
+                                <template v-else> · Ilimitado </template>
+                              </div>
+                            </q-item-section>
+                            <q-item-section side>
+                              <div
+                                class="text-weight-bold"
+                                :class="selectedPlan?.id === plan.id ? 'text-white' : ''"
+                              >
+                                {{ formatPrice(plan.priceRegular, plan.currency) }}
+                              </div>
+                            </q-item-section>
+                          </q-item>
+                        </q-list>
+                      </div>
+
+                      <q-toggle
+                        v-if="zeroPriceEnabled && !prorateToMonthEnd"
+                        v-model="zeroPrice"
+                        :label="ZERO_PRICE_LABEL"
+                        color="positive"
+                        class="q-mt-sm"
+                      />
+
+                      <!-- Prorrateo hasta fin de mes (alta): vigencia al último día
+                           del mes y precio proporcional editable. Excluyente con Zero.
+                           Solo en el flujo normal (no-paquete): el paquete es corto
+                           plazo con precio fijo, no se prorratea. -->
+                      <div v-if="selectedPlan">
+                        <q-toggle
+                          v-model="prorateToMonthEnd"
+                          label="Prorratear hasta fin de mes"
+                          color="primary"
+                          class="q-mt-sm"
+                          @update:model-value="onProrateToggleAlta"
+                        />
+                        <div v-if="prorateToMonthEnd" class="q-mt-sm" style="max-width: 240px">
+                          <q-input
+                            v-model.number="proratedPrice"
+                            label="Precio prorrateado"
+                            type="number"
+                            dense
+                            outlined
+                            hint="Sugerido según los días restantes. Editable."
+                          />
+                          <div class="text-caption text-grey-7 q-mt-xs">
+                            Cobra {{ prorationDays.daysCharged }} de {{ prorationDays.daysInMonth }}
+                            días · vence fin de mes
+                          </div>
+                        </div>
+                      </div>
+                    </template>
                   </template>
 
                   <!-- Turnos: estructurado SOLO para planes fixed -->
@@ -1462,9 +1525,13 @@ interface TierGroup {
 // grupo que el operador está cobrando. 'presencial' arranca preseleccionado
 // porque es el caso dominante en el mostrador; las pestañas sin planes no se
 // muestran, así que una sede sólo-presencial no ve ruido.
-type PlanGroupFilter = 'presencial' | 'online' | 'especial';
+// Fase 177 (D-01): 'paquete' es un grupo propio (NO cae en 'presencial' ni en
+// el fallback 'online') porque su tab (Task 2) reemplaza la grilla cruda por
+// 2 selectores — las 18 filas por sede nunca deben listarse una por una acá.
+type PlanGroupFilter = 'presencial' | 'online' | 'especial' | 'paquete';
 
 function planGroupOf(p: PlanListItem): PlanGroupFilter {
+  if (p.planCategory === 'paquete') return 'paquete';
   if (p.planCategory === 'presencial') return 'presencial';
   if (p.planCategory === 'especial') return 'especial';
   return 'online';
@@ -1474,15 +1541,28 @@ const PLAN_GROUP_LABELS: Record<PlanGroupFilter, string> = {
   presencial: 'Presencial',
   online: 'Online',
   especial: 'Especiales',
+  paquete: 'Paquete de clases',
 };
 
 const planGroupFilter = ref<PlanGroupFilter>('presencial');
 
+// Gap-fix 177 (WR-02): la sede del COBRO (sucursalId, CR-CAJA — puede diferir
+// de la sede del socio, el operador la edita en el select). `getPlans` no
+// filtra presencial/paquete por virtualidad (solo por país) — el gate vive
+// acá, mismo criterio que `showPaqueteToggle` en AssignPlanDialog
+// (!memberBranchIsVirtual). Nota: `presencial` NO tiene este mismo gate en
+// este archivo (gap pre-existente, fuera del alcance de este cierre — el
+// backend igual rechaza el alta, ver Tarea 1a).
+const sucursalIsVirtual = computed(
+  () => branchOptions.value.find((b) => b.id === sucursalId.value)?.isVirtual === true
+);
+
 /** Grupos con al menos un plan, en orden fijo. Vacío mientras cargan. */
 const planGroupTabs = computed<Array<{ value: PlanGroupFilter; label: string }>>(() => {
-  const order: PlanGroupFilter[] = ['presencial', 'online', 'especial'];
+  const order: PlanGroupFilter[] = ['presencial', 'online', 'especial', 'paquete'];
   return order
     .filter((g) => plans.value.some((p) => planGroupOf(p) === g))
+    .filter((g) => g !== 'paquete' || !sucursalIsVirtual.value)
     .map((g) => ({ value: g, label: PLAN_GROUP_LABELS[g] }));
 });
 
@@ -1595,6 +1675,68 @@ function selectPlan(plan: PlanListItem) {
   // un reintento tras un éxito perdido no sea no-op contra el plan anterior.
   currentIdempotencyKey.value = null;
 }
+
+// Fase 177 (D-01/D-02): el tab 'paquete' reemplaza la grilla cruda de 18
+// filas por 2 selectores (semanas 1-3, clases/semana 1-6). `getPlans` ya
+// filtra por branchId → `plans.value` sólo trae las filas del país de la
+// sede, así que no hace falta filtrar por país acá (robustez adicional
+// innecesaria — las 18 filas del país correcto son las únicas candidatas).
+const paqueteSemanas = ref(1);
+const paqueteFrecuencia = ref(1);
+
+const PAQUETE_SEMANAS_OPTIONS = [1, 2, 3].map((n) => ({ label: `${n} sem`, value: n }));
+const PAQUETE_FRECUENCIA_OPTIONS = [1, 2, 3, 4, 5, 6].map((n) => ({
+  label: `${n}/sem`,
+  value: n,
+}));
+
+const resolvedPaquetePlan = computed<PlanListItem | null>(() => {
+  const durationDays = paqueteSemanas.value * 7;
+  return (
+    plans.value.find(
+      (p) =>
+        p.planCategory === 'paquete' &&
+        p.durationDays === durationDays &&
+        p.classesPerWeek === paqueteFrecuencia.value
+    ) ?? null
+  );
+});
+
+const paqueteTotalClases = computed(() => paqueteSemanas.value * paqueteFrecuencia.value);
+
+// Gap-fix 177 (WR-01): entrar al tab paquete (click en el tab) ya NO pisa
+// en silencio una selección de OTRA categoría — sólo autoselecciona el
+// default (1 sem × 1/sem) si no había nada elegido antes, o si lo elegido
+// ya era un paquete. Antes este watch reaccionaba a `planGroupFilter` como
+// dependencia directa junto con `resolvedPaquetePlan`, así que el simple
+// hecho de clickear el tab "para mirar el precio" reseteaba scheduleIds/
+// idempotencyKey y reemplazaba sin aviso una tile ya elegida en otro tab.
+watch(planGroupFilter, (group) => {
+  if (group !== 'paquete') return;
+  if (selectedPlan.value && selectedPlan.value.planCategory !== 'paquete') return;
+  if (resolvedPaquetePlan.value) selectPlan(resolvedPaquetePlan.value);
+});
+
+// El precio NUNCA se calcula acá — sale de `resolvedPaquetePlan.priceRegular`
+// (la matriz de la migración 0205 ya trae el precio). Cambiar cualquier
+// selector mientras el tab paquete está activo es una acción explícita del
+// admin — SIEMPRE empuja el plan resuelto por el mismo camino que un click
+// en la grilla normal (`selectPlan`), así que el resto del flujo de alta
+// (monto autocalculado vía `altaPrice`, submit con `planId`) funciona sin
+// tocarlo. Si no hay fila para la combinación (no debería pasar con las 18),
+// `resolvedPaquetePlan` da null → `selectedPlan` se limpia y el submit queda
+// deshabilitado por el mismo guard que hoy exige `selectedPlan` (línea
+// ~1148/1182), con el aviso mostrado en el template.
+watch(resolvedPaquetePlan, (plan) => {
+  if (planGroupFilter.value !== 'paquete') return;
+  if (plan) {
+    selectPlan(plan);
+  } else {
+    selectedPlan.value = null;
+    scheduleIds.value = [];
+    currentIdempotencyKey.value = null;
+  }
+});
 
 async function loadAltaPlans() {
   if (sucursalId.value == null) {

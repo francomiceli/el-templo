@@ -50,7 +50,7 @@ import type {
   CreatePromoInput,
   UpdatePromoInput,
 } from "./types";
-import { isOnlinePlan, categoryGroup } from "./types";
+import { isOnlinePlan, categoryGroup, excludedFromReferrals } from "./types";
 import { resolvePlanPrice, readModuleColumns } from "./pricing";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
@@ -1562,9 +1562,10 @@ export class SubscriptionService {
 
     // REQ-1 (Phase 111): Reject presencial plan on a virtual branch.
     // Admin must convert the member to a physical branch first (edit alumno
-    // → cambiar sede). The check is `=== "presencial"` exactly — only this
-    // category requires a physical sede; online_* categories live on the
-    // virtual branch by design (T-111-10 in the threat register).
+    // → cambiar sede). The check is by categoryGroup(...) === "presencial" —
+    // the presencial GROUP (presencial + paquete, Fase 177 D-02: paquete es
+    // presencial-flexible) requires a physical sede; online_* categories live
+    // on the virtual branch by design (T-111-10 in the threat register).
     const [memberBranch] = await this.db
       .select({ isVirtual: schema.branches.isVirtual })
       .from(schema.branches)
@@ -1575,7 +1576,7 @@ export class SubscriptionService {
         ),
       );
     if (
-      plan.planCategory === "presencial" &&
+      categoryGroup(plan.planCategory) === "presencial" &&
       memberBranch?.isVirtual === true
     ) {
       throw new BadRequestError(
@@ -1643,12 +1644,21 @@ export class SubscriptionService {
     const planGroup = categoryGroup(plan.planCategory);
     const sameGroupCategoryCondition =
       planGroup === "presencial"
-        ? eq(schema.subscriptionPlans.planCategory, "presencial")
+        ? // Fase 177 (D-02): el grupo presencial incluye 'paquete'. Comparar por
+          // grupo (no por el literal 'presencial') para detectar los solapamientos
+          // presencial↔paquete y paquete↔paquete que categoryGroup ya define.
+          inArray(schema.subscriptionPlans.planCategory, [
+            "presencial",
+            "paquete",
+          ])
         : planGroup === "especial"
           ? eq(schema.subscriptionPlans.planCategory, "especial")
           : and(
               ne(schema.subscriptionPlans.planCategory, "presencial"),
               ne(schema.subscriptionPlans.planCategory, "especial"),
+              // Excluir 'paquete' del grupo online: pertenece al grupo presencial,
+              // no debe contar como solapamiento al asignar un plan online.
+              ne(schema.subscriptionPlans.planCategory, "paquete"),
             );
     const existingInSameGroup = await this.db
       .select({ id: schema.subscriptions.id })
@@ -1821,11 +1831,12 @@ export class SubscriptionService {
     // (recordReferralCredit) va tras el cargo, con el subscriptionId conocido.
     // D-09: los pases especiales quedan FUERA del sistema de referidos — no
     // cualifican vínculos ni reciben el descuento simétrico (el descuento es de
-    // cuotas de membresía, no del pase). Guard por categoría (T-161-05).
+    // cuotas de membresía, no del pase). Fase 177 (D-13): paquete se suma a la
+    // misma exclusión. Guard por categoría (T-161-05 + excludedFromReferrals).
     // Alta prorrateada: el proporcional es el precio final, sin descuento de
     // referido encima; el vínculo se cualifica en la primera renovación de mes
     // completo (que sí corre esta lógica).
-    if (plan.planCategory !== "especial" && !input.prorateToMonthEnd) {
+    if (!excludedFromReferrals(plan.planCategory) && !input.prorateToMonthEnd) {
       await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
       const referral = await this.computePriceWithReferralDiscount(
         ctx,
@@ -3662,13 +3673,14 @@ export class SubscriptionService {
 
     // ── Referidos: preview parity con changePlanNow ──
     // El cobro real descuenta referidos sobre el neto post-prorrateo (D-20/D-21,
-    // guard de categoría D-09/T-161-05) — el preview debe mostrar y precargar
-    // ese mismo neto, si no el admin manda un amountReceived que el backend
-    // rechaza por exceder el monto real. simulatePendingQualification refleja
-    // el flip que qualifyReferralOnCharge hará dentro del cobro.
+    // guard de categoría D-09/T-161-05, + D-13 paquete) — el preview debe
+    // mostrar y precargar ese mismo neto, si no el admin manda un
+    // amountReceived que el backend rechaza por exceder el monto real.
+    // simulatePendingQualification refleja el flip que qualifyReferralOnCharge
+    // hará dentro del cobro.
     let referralDiscountPercent = 0;
     let referralDiscountAmount = 0;
-    if (targetPlan.planCategory !== "especial" && netAmount > 0) {
+    if (!excludedFromReferrals(targetPlan.planCategory) && netAmount > 0) {
       const referralPct = await new ReferralService(
         this.db,
         this.log,
@@ -3886,7 +3898,7 @@ export class SubscriptionService {
     // el descuento de referido reduce el pricePaid efectivo (columnas nuevas).
     // D-09: cambiar HACIA un plan especial no cualifica ni descuenta referidos
     // (T-161-05). Guard por la categoría del plan destino.
-    if (targetPlan.planCategory !== "especial") {
+    if (!excludedFromReferrals(targetPlan.planCategory)) {
       await this.qualifyReferralOnCharge(ctx, userId, netAmount);
       const referral = await this.computePriceWithReferralDiscount(
         ctx,
@@ -4428,7 +4440,7 @@ export class SubscriptionService {
     // precio ya resuelto (incl. auraSpend). Columnas nuevas referralDiscount*.
     // D-09: cambiar HACIA un plan especial (after_current) tampoco toca referidos
     // (T-161-05). Guard por la categoría del plan destino.
-    if (targetPlan.planCategory !== "especial") {
+    if (!excludedFromReferrals(targetPlan.planCategory)) {
       await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
       const referral = await this.computePriceWithReferralDiscount(
         ctx,
@@ -4892,12 +4904,13 @@ export class SubscriptionService {
     // precio de renovación ya resuelto. Se aplica ANTES de resolver
     // renewBranchId/caja (que gatean por renewalPrice>0) para que vean el neto.
     // D-09: los pases especiales quedan FUERA de referidos también en la
-    // renovación — no cualifican vínculos ni descuentan (T-161-05). Guard por
-    // categoría del plan de la sub renovada.
+    // renovación — no cualifican vínculos ni descuentan (T-161-05). Fase 177
+    // (D-13): un paquete renovado tampoco. Guard por categoría del plan de la
+    // sub renovada.
     // Renovación prorrateada: el proporcional es el precio final, sin descuento
     // de referido encima (excluyente, igual que el alta); el vínculo se cualifica
     // en la primera renovación de mes completo (que sí corre esta lógica).
-    if (plan.planCategory !== "especial" && !input.prorateToMonthEnd) {
+    if (!excludedFromReferrals(plan.planCategory) && !input.prorateToMonthEnd) {
       await this.qualifyReferralOnCharge(ctx, userId, renewalPrice);
       const referral = await this.computePriceWithReferralDiscount(
         ctx,
@@ -5447,9 +5460,9 @@ export class SubscriptionService {
     // Compone sobre el precio ya reducido por auraSpend, exactamente como la
     // charge-path, para que el PoS muestre el precio que efectivamente se cobra.
     // Paridad completa con la charge-path:
-    //   - Guard de categoría (D-09/T-161-05): los pases especiales quedan FUERA
-    //     del sistema de referidos — sin el guard el preview mostraba un
-    //     descuento que el cobro jamás aplicaba.
+    //   - Guard de categoría (D-09/T-161-05 + D-13): los pases especiales y los
+    //     paquetes quedan FUERA del sistema de referidos — sin el guard el
+    //     preview mostraba un descuento que el cobro jamás aplicaba.
     //   - simulatePendingQualification: el cobro real flippea el vínculo
     //     pending del payer ANTES de computar (D-21), así que el preview del
     //     primer pago debe contarlo también — si no, el admin ve el precio
@@ -5457,7 +5470,7 @@ export class SubscriptionService {
     //     rechaza el cobro por exceder el monto real.
     let referralDiscountPercent = 0;
     let referralDiscountAmount = 0;
-    if (plan.planCategory !== "especial" && finalPrice > 0) {
+    if (!excludedFromReferrals(plan.planCategory) && finalPrice > 0) {
       const referralPct = await new ReferralService(
         this.db,
         this.log,
@@ -6561,9 +6574,7 @@ export class SubscriptionService {
     }
     if (scheduleIds.length === 0) return;
     if (plan.planCategory !== "presencial") {
-      throw new BadRequestError(
-        "Los planes online no pueden tener turnos fijos",
-      );
+      throw new BadRequestError("Este plan no admite turnos fijos");
     }
     if (
       plan.classesPerWeek !== null &&

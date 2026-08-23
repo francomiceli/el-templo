@@ -60,13 +60,13 @@ import type {
   PricingCallSite,
   PricingSupports,
 } from "../shared/hooks";
-import type { PriceType } from "./types";
+import type { PlanCategory, PriceType } from "./types";
 
 export interface ResolvePlanPriceParams {
   hook: HookCallCtx;
   userId: number;
   planId: number;
-  planCategory: string;
+  planCategory: PlanCategory;
   callSite: PricingCallSite;
   supports: PricingSupports;
   /** false = preview: calcular sin gastar ni marcar (se propaga al ctx). */

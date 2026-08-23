@@ -43,6 +43,7 @@ import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
 import { generateQrToken as generateQr } from "../../src/modules/shared/qr-token";
+import { appBranchName } from "../../src/modules/shared/app-branch-name";
 
 const ADMIN_ATTENDANCE_URL = "/api/admin/attendance";
 const MEMBER_ATTENDANCE_URL = "/api/members/attendance";

@@ -44,7 +44,11 @@ import * as schema from "../../db/schema";
 import { BadRequestError, ConflictError } from "../shared/errors";
 import { tenantWhere } from "../shared/tenant";
 import type { FilterMap } from "../shared/hooks";
-import { AURA_DISCOUNT_TIERS } from "../subscriptions/types";
+import {
+  AURA_DISCOUNT_TIERS,
+  excludedFromAura,
+  excludedFromBoardingPass,
+} from "../subscriptions/types";
 import { AuraService } from "./service";
 
 export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
@@ -110,6 +114,13 @@ export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
   // 176-09 arma con él la razón "Cambio de plan (boarding pass): credito $..."
   // byte a byte como hoy.
   if (boardingPass && ctx.supports.exclusiveBenefits) {
+    // Gap-fix 177 (WR-03): paquete tiene priceZero === priceRegular (D-14) —
+    // aplicar el boarding pass quemaría el pase one-shot sin descuento real.
+    if (excludedFromBoardingPass(ctx.planCategory)) {
+      throw new BadRequestError(
+        "Los paquetes de clases no aceptan boarding pass",
+      );
+    }
     const [userRow] = await hook.db
       .select({ boardingPassUsed: schema.users.boardingPassUsed })
       .from(schema.users)
@@ -149,6 +160,15 @@ export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
     let applyDiscount: boolean;
 
     if (ctx.commit) {
+      // Fase 177 (D-13/T-177-04): los paquetes de clases no participan del
+      // descuento AURA (guardrail de no-canibalización — ya son fórmula
+      // cerrada). El front no ofrece la opción, pero el payload es untrusted:
+      // rechazar explícito en vez de aplicar en silencio.
+      if (excludedFromAura(ctx.planCategory)) {
+        throw new BadRequestError(
+          "Los paquetes de clases no aceptan descuento AURA",
+        );
+      }
       if (!tier) {
         throw new BadRequestError(
           `Monto de AURA invalido. Opciones: ${AURA_DISCOUNT_TIERS.map((t) => t.spend).join(", ")}`,
@@ -164,9 +184,13 @@ export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
       applyDiscount = true;
     } else {
       // Preview: TOLERANTE — sin tier o sin saldo, no aplica y NO tira
-      // (paridad con getPricingPreview de hoy).
+      // (paridad con getPricingPreview de hoy). Fase 177 (D-13): para un plan
+      // paquete tampoco computa (sin lanzar — el preview no cobra).
       const balance = auraBalance ?? (await auraService.getBalance(ctx.userId));
-      applyDiscount = tier !== undefined && auraSpend <= balance;
+      applyDiscount =
+        tier !== undefined &&
+        auraSpend <= balance &&
+        !excludedFromAura(ctx.planCategory);
     }
 
     if (applyDiscount && tier) {

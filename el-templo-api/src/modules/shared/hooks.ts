@@ -94,7 +94,7 @@
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
-import type { PriceType } from "../subscriptions/types";
+import type { PlanCategory, PriceType } from "../subscriptions/types";
 import { isModuleEnabled } from "./module-flags";
 import type { ModuleName } from "./modules";
 
@@ -155,7 +155,7 @@ export interface PricingAdjustCtx {
   callSite: PricingCallSite;
   userId: number;
   planId: number;
-  planCategory: string;
+  planCategory: PlanCategory;
   /** MUTABLE — el handler puede pisarlo (p.ej. a "zero"). */
   priceType: PriceType;
   /** MUTABLE. */
