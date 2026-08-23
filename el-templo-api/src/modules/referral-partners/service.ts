@@ -480,6 +480,122 @@ export class PartnerReferralService {
   }
 
   /**
+   * "El hook de la plata" (D-11): cualifica el vínculo `pending` del payer y
+   * da de alta la comisión del partner. Llamado desde el helper gemelo
+   * `qualifyPartnerOnCharge` en las 4 charge-paths de
+   * `subscriptions/service.ts`, calcado en estructura de
+   * `qualifyFirstPayment` + `recordReferralCredit`
+   * (`referrals/service.ts:367-404` y `:529-553`).
+   *
+   * Por qué el UPDATE guardado (misma cláusula WHERE que el SELECT previo) es
+   * preferible a "leer y después escribir": bajo carrera real (dos cobros
+   * concurrentes del mismo socio, o un reintento del webhook de pago) hay una
+   * ventana entre el read y un write condicionado en JS donde otro proceso
+   * puede flippear primero — el UPDATE con `status='pending'` en su propia
+   * cláusula es atómico a nivel de fila en MySQL: si dos llamadas
+   * concurrentes lo corren, como mucho UNA afecta una fila. Es el mismo
+   * precedente que la fase 157 (`qualifyFirstPayment`) ya resolvió para
+   * `referrals`.
+   *
+   * Por qué la idempotencia de `partner_commissions` va por `subscription_id`
+   * y no por `partner_referral_id`: el flip del vínculo ocurre una sola vez
+   * en su ciclo de vida (pending → qualified), pero lo que hay que blindar es
+   * "un cargo concreto no genera dos comisiones aunque el cobro se
+   * reintente" (D-11) — exactamente la misma garantía que
+   * `unique_referral_credit_sub` da para `referral_credits`. Bajo la carrera
+   * descripta arriba, ambas llamadas pueden pasar el SELECT-previo viendo
+   * `pending` y llegar las dos al INSERT: el UNIQUE de `subscription_id` +
+   * `onDuplicateKeyUpdate` es lo que garantiza 1 sola fila, no el UPDATE del
+   * flip.
+   *
+   * Devuelve `null` si no había vínculo `pending` (re-cobro sobre un socio ya
+   * `qualified`, o sin vínculo — nunca comisiona dos veces por el mismo
+   * flip). Devuelve `commissionId: null` cuando el partner tiene
+   * `commissionType='none'` o `commissionValue <= 0`: el flip igual ocurrió,
+   * pero no hay comisión que armar.
+   */
+  async qualifyAndCommission(
+    ctx: TenantCtx,
+    payerUserId: number,
+    subscriptionId: number,
+  ): Promise<{ linkId: number; commissionId: number | null } | null> {
+    // SELECT previo del vínculo pending del payer, con el commissionType/
+    // commissionValue/currency del partner — ANTES del UPDATE: es lo que
+    // permite saber si hubo flip real.
+    const [pending] = await this.db
+      .select({
+        linkId: partnerReferrals.id,
+        partnerId: partnerReferrals.partnerId,
+        commissionType: referralPartners.commissionType,
+        commissionValue: referralPartners.commissionValue,
+        currency: referralPartners.currency,
+      })
+      .from(partnerReferrals)
+      .innerJoin(
+        referralPartners,
+        eq(referralPartners.id, partnerReferrals.partnerId),
+      )
+      .where(
+        and(
+          tenantWhere(partnerReferrals, ctx),
+          eq(partnerReferrals.referredId, payerUserId),
+          eq(partnerReferrals.status, "pending"),
+        ),
+      )
+      .limit(1);
+
+    await this.db
+      .update(partnerReferrals)
+      .set({ status: "qualified", qualifiedAt: new Date() })
+      .where(
+        and(
+          tenantWhere(partnerReferrals, ctx),
+          eq(partnerReferrals.referredId, payerUserId),
+          eq(partnerReferrals.status, "pending"),
+        ),
+      );
+
+    if (!pending) {
+      return null;
+    }
+
+    if (pending.commissionType === "none" || pending.commissionValue <= 0) {
+      return { linkId: pending.linkId, commissionId: null };
+    }
+
+    const result = await this.db
+      .insert(partnerCommissions)
+      .values(
+        tenantValues(ctx, {
+          partnerId: pending.partnerId,
+          partnerReferralId: pending.linkId,
+          userId: payerUserId,
+          subscriptionId,
+          amount: pending.commissionValue,
+          currency: pending.currency as PartnerCurrency,
+          status: "pending" as const,
+        }),
+      )
+      // Duplicado por re-cobro del mismo cargo → no-op (re-escribe el mismo
+      // id). Calcado de recordReferralCredit.
+      .onDuplicateKeyUpdate({ set: { subscriptionId } });
+
+    const commissionId = Number(result[0].insertId);
+    this.log.info(
+      {
+        partnerId: pending.partnerId,
+        referredId: payerUserId,
+        subscriptionId,
+        amount: pending.commissionValue,
+        currency: pending.currency,
+      },
+      "partner: comisión generada",
+    );
+
+    return { linkId: pending.linkId, commissionId };
+  }
+
+  /**
    * Devuelve el origen actual de un socio (D-12: exclusividad — `referrals`
    * XOR `partner_referrals`), o `null` si no tiene ninguno todavía. Reusado
    * por `attributePartnerAtSignup` (esta clase) y por la asignación
