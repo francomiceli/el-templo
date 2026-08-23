@@ -544,9 +544,14 @@ export interface ChangePlanPreview {
   };
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null; // null if not allowed
-  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus referral discount (parity with changePlanNow)
+  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus partner/referral discount (parity with changePlanNow)
   referralDiscountPercent: number; // 0 if none — % de referido que el cobro real va a aplicar
   referralDiscountAmount: number; // 0 if none — monto ya restado de netAmount
+  // Fase 179 (D-09/D-10/D-20), deviation Rule 2 del plan 179-14: mismo
+  // criterio que referralDiscount* — % y monto de partner que el cobro real
+  // (changePlanNow) va a aplicar, ya restado de netAmount. 0 si no aplica.
+  partnerDiscountPercent: number;
+  partnerDiscountAmount: number;
   expiryDate?: string; // current subscription endDate (always set; used to pre-fill "mantener vencimiento")
 }
 

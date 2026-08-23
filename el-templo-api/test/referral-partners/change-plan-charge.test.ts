@@ -243,6 +243,69 @@ describe("changePlanNow — descuento de partner (sin bloque AURA propio)", () =
   });
 });
 
+/**
+ * GET /change-plan-preview — paridad con changePlanNow (deviation Rule 2 del
+ * plan 179-14). Existe test/referral-partners/preview-parity.test.ts para
+ * getPricingPreview (usado por assignPlan) por el mismo motivo: este preview
+ * es el que consume el bloque "Cambio ahora, reinicia vencimiento" de
+ * AssignPlanDialog.vue — sin partnerDiscount* ahí, el admin veía un neto sin
+ * descuento que el cobro real (changePlanNow) sí aplicaba.
+ */
+function changePlanPreview(
+  userId: number,
+  targetPlanId: number,
+): Promise<{ statusCode: number; body: Record<string, unknown> }> {
+  return app
+    .inject({
+      method: "GET",
+      url: `${SUBSCRIPTIONS_URL}/members/${userId}/subscription/change-plan-preview?targetPlanId=${targetPlanId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    })
+    .then((res) => ({
+      statusCode: res.statusCode,
+      body: JSON.parse(res.body) as Record<string, unknown>,
+    }));
+}
+
+describe("GET change-plan-preview — descuento de partner (paridad con changePlanNow)", () => {
+  it("(1) vínculo pending 25%: el preview muestra el mismo neto que el cobro real, y consultarlo no consume el vínculo", async () => {
+    const planA = await createPlan(app, adminToken, { priceRegular: 8000 });
+    const planB = await createPlan(app, adminToken, {
+      name: `Preview-partner B ${seq}`,
+      priceRegular: 20000,
+    });
+    const member = await createMember(app, {
+      email: email("preview-apply"),
+      branchId: AR_BRANCH_ID,
+    });
+    await assignPlan(app, adminToken, member.id, {
+      planId: planA.id,
+      startDate: todayStr(),
+    });
+    const partner = await insertPartner(app, { benefitValue: 25 });
+    await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: member.id,
+      benefitType: "discount_percent",
+      benefitValue: 25,
+      benefitStatus: "pending",
+    });
+
+    // Solo lectura: dos consultas seguidas al preview no consumen el vínculo.
+    const preview1 = await changePlanPreview(member.id, planB.id);
+    const preview2 = await changePlanPreview(member.id, planB.id);
+    expect(preview1.statusCode).toBe(200);
+    expect(preview1.body.partnerDiscountPercent).toBe(25);
+    expect(preview1.body.netAmount).toBe(preview2.body.netAmount);
+    expect((await fullLinkRow(member.id))?.benefit_status).toBe("pending");
+
+    // Paridad EXACTA con el cobro real.
+    const res = await changePlan(member.id, planB.id, "now");
+    expect(res.statusCode).toBe(201);
+    expect(res.body.pricePaid).toBe(preview1.body.netAmount);
+  });
+});
+
 describe("changePlanAfterCurrent — descuento de partner (con bloque AURA, gana el mayor)", () => {
   it("(1) vínculo pending 20% sin auraSpend → se aplica directo, consume el vínculo", async () => {
     const planA = await createPlan(app, adminToken, { priceRegular: 8000 });

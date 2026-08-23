@@ -3499,6 +3499,8 @@ export class SubscriptionService {
         netAmount: null,
         referralDiscountPercent: 0,
         referralDiscountAmount: 0,
+        partnerDiscountPercent: 0,
+        partnerDiscountAmount: 0,
         expiryDate: sub.endDate ?? undefined,
       };
     }
@@ -3509,6 +3511,42 @@ export class SubscriptionService {
       0,
       targetPlan.priceRegular - proration.remainingValue,
     );
+
+    // ── Partners (fase 179, D-09/D-10/D-17/D-20): preview parity con
+    // changePlanNow ──
+    // Deviation (Rule 2) del plan 179-14: este preview (usado por el bloque
+    // "Cambio ahora, reinicia vencimiento" de AssignPlanDialog.vue) no tenía
+    // el descuento de partner — el guard de las 4 charge-paths + getPricingPreview
+    // (179-06/179-07) no lo cubría, así que el admin veía un neto sin
+    // descuento que el cobro real sí aplicaba. changePlanNow NO tiene bloque
+    // AURA propio: el candidato se aplica DIRECTO sobre el neto post-prorrateo,
+    // mismo punto donde referidos aplica el suyo más abajo (orden idéntico al
+    // de changePlanNow: partner primero, referido sobre el remanente).
+    let partnerDiscountPercent = 0;
+    let partnerDiscountAmount = 0;
+    if (typeof sub.branchId === "number") {
+      const [previewChangeTenant] = await this.db
+        .select({ tenantId: schema.branches.tenantId })
+        .from(schema.branches)
+        .where(eq(schema.branches.id, sub.branchId))
+        .limit(1);
+      if (typeof previewChangeTenant?.tenantId === "number") {
+        const partnerCandidate = await this.resolvePartnerDiscountCandidate(
+          userId,
+          targetPlan.planCategory,
+          undefined,
+          previewChangeTenant.tenantId,
+        );
+        if (partnerCandidate) {
+          const amount = Math.floor(
+            netAmount * (partnerCandidate.percent / 100),
+          );
+          partnerDiscountPercent = partnerCandidate.percent;
+          partnerDiscountAmount = amount;
+          netAmount -= amount;
+        }
+      }
+    }
 
     // ── Referidos: preview parity con changePlanNow ──
     // El cobro real descuenta referidos sobre el neto post-prorrateo (D-20/D-21,
@@ -3541,6 +3579,8 @@ export class SubscriptionService {
       netAmount,
       referralDiscountPercent,
       referralDiscountAmount,
+      partnerDiscountPercent,
+      partnerDiscountAmount,
       // Surfaced so the admin UI can pre-fill the "mantener vencimiento" option
       // (new plan inherits this expiry) without a second round-trip.
       expiryDate: sub.endDate ?? undefined,

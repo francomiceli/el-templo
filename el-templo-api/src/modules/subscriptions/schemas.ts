@@ -723,6 +723,12 @@ export const changePlanPreviewSchema = {
         netAmount: { type: ["integer", "null"] },
         referralDiscountPercent: { type: "integer" },
         referralDiscountAmount: { type: "integer" },
+        // Fase 179 (D-09/D-10/D-20), deviation Rule 2 del plan 179-14: sin
+        // estas 2 líneas fast-json-stringify las descarta en silencio del
+        // body HTTP aunque el service las calcule (mismo Pitfall 4 ya
+        // atrapado una vez en pricingPreviewResponseSchema, plan 179-07).
+        partnerDiscountPercent: { type: "integer" },
+        partnerDiscountAmount: { type: "integer" },
         expiryDate: { type: "string" },
       },
     },
