@@ -524,7 +524,10 @@ export class TransactionService {
     // SIEMPRE que haya un subLink de suscripción, INDEPENDIENTEMENTE de
     // keepMembershipActive: la membresía puede seguir activa (anulación por
     // corrección de medio de pago, p.ej.), pero ese cobro puntual ya no es
-    // el que confirmó la venta.
+    // el que confirmó la venta. `voidPendingCommissionsForSubscription`
+    // (referral-partners/service.ts) hace el UPDATE guardado sobre la tabla
+    // `partnerCommissions` (status='pending' -> 'void'), corriendo con este
+    // MISMO `tx`.
     //
     // A propósito SIN try/catch acá, a diferencia del best-effort de
     // qualifyPartnerOnCharge (subscriptions/service.ts): esta llamada
