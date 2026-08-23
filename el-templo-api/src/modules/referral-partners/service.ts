@@ -207,31 +207,47 @@ export class PartnerReferralService {
       );
     }
 
+    const fields = {
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.benefitType !== undefined && {
+        benefitType: input.benefitType,
+      }),
+      ...(input.benefitValue !== undefined && {
+        benefitValue: input.benefitValue,
+      }),
+      ...(input.commissionType !== undefined && {
+        commissionType: input.commissionType,
+      }),
+      ...(input.commissionValue !== undefined && {
+        commissionValue: input.commissionValue,
+      }),
+      ...(input.contactName !== undefined && {
+        contactName: input.contactName,
+      }),
+      ...(input.contactPhone !== undefined && {
+        contactPhone: input.contactPhone,
+      }),
+      ...(input.notes !== undefined && { notes: input.notes }),
+      ...(input.isActive !== undefined && { isActive: input.isActive }),
+    };
+
+    // Ningún campo editable presente. Pasa esto SIEMPRE que el único campo
+    // del body haya sido `code` (o `currency`): el schema Fastify no los
+    // lista en `properties`, así que Fastify los strippea en silencio
+    // (`removeAdditional: true` default, mismo comportamiento que
+    // `updateLeadSchema`/`createMemberSchema` documentan en
+    // `members/schemas.ts`) — un `.update().set({})` sin columnas genera un
+    // `UPDATE ... SET WHERE ...` inválido (error de sintaxis SQL, 500) en vez
+    // de comunicar la intención real del cliente. 400 explícito en su lugar.
+    if (Object.keys(fields).length === 0) {
+      throw new BadRequestError(
+        "No hay campos editables en la solicitud (el código y la moneda no se pueden modificar)",
+      );
+    }
+
     await this.db
       .update(referralPartners)
-      .set({
-        ...(input.name !== undefined && { name: input.name }),
-        ...(input.benefitType !== undefined && {
-          benefitType: input.benefitType,
-        }),
-        ...(input.benefitValue !== undefined && {
-          benefitValue: input.benefitValue,
-        }),
-        ...(input.commissionType !== undefined && {
-          commissionType: input.commissionType,
-        }),
-        ...(input.commissionValue !== undefined && {
-          commissionValue: input.commissionValue,
-        }),
-        ...(input.contactName !== undefined && {
-          contactName: input.contactName,
-        }),
-        ...(input.contactPhone !== undefined && {
-          contactPhone: input.contactPhone,
-        }),
-        ...(input.notes !== undefined && { notes: input.notes }),
-        ...(input.isActive !== undefined && { isActive: input.isActive }),
-      })
+      .set(fields)
       .where(and(tenantWhere(referralPartners, ctx), eq(referralPartners.id, id)));
 
     this.log.info(
