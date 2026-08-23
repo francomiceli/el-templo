@@ -25,18 +25,30 @@ import {
   promoPlans,
   partnerReferrals,
   partnerCommissions,
+  referrals,
 } from "../../db/schema";
 import { BadRequestError, ConflictError, NotFoundError } from "../shared/errors";
 import { tenantValues, tenantWhere } from "../shared/tenant";
 import type {
   CreatePartnerInput,
+  PartnerBenefitType,
   PartnerCurrency,
   PartnerListItem,
+  PartnerOrigin,
   TenantCtx,
   UpdatePartnerInput,
 } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
+
+/**
+ * Días de vida del beneficio pendiente desde el registro (D-07): si el
+ * referido no reserva/paga dentro de esta ventana, el beneficio vence (el
+ * vínculo sigue vivo para atribución de comisión si paga después — ver
+ * `attributePartnerAtSignup`). Reusada por 179-07 para el chequeo de
+ * vencimiento — constante nombrada, no un mágico repetido.
+ */
+export const PARTNER_BENEFIT_TTL_DAYS = 30;
 
 export class PartnerReferralService {
   constructor(
@@ -386,6 +398,130 @@ export class PartnerReferralService {
       comisionesPendientes: Number(row.comisionesPendientes),
       montoPendiente: Number(row.montoPendiente),
     }));
+  }
+
+  /**
+   * Crea el vínculo `partner_referrals` del alta (D-02/D-03) con el beneficio
+   * en estado `pending` y su vencimiento a `PARTNER_BENEFIT_TTL_DAYS` días
+   * (D-07). Llamado desde el cuarto bloque best-effort de `POST
+   * /api/auth/register` — NUNCA debe bloquear el registro, así que este
+   * método nunca lanza para los casos de negocio esperados (D-12, carrera del
+   * UNIQUE): devuelve `null` y loguea.
+   *
+   * Orden:
+   *  1. `findOriginForMember` — si el socio YA tiene origen (referrer o
+   *     partner), se DEGRADA EN SILENCIO devolviendo `null` (D-12: en el alta
+   *     no hay 409 visible; el 409 es solo para la asignación retroactiva del
+   *     plan 179-08).
+   *  2. Calcula `benefitExpiresAt` = ahora + `PARTNER_BENEFIT_TTL_DAYS`.
+   *  3. INSERT con `tenantValues({ tenantId }, ...)` — el `tenantId` viene de
+   *     la fila del partner (única fuente legítima en una ruta pública sin
+   *     `request.scope`, ver `code-resolver.ts`).
+   *  4. Carrera contra el UNIQUE de `referred_id`: otro intento ganó entre el
+   *     chequeo (1) y este INSERT → `isDuplicateKeyError` → `null`.
+   */
+  async attributePartnerAtSignup(params: {
+    partnerId: number;
+    tenantId: number;
+    referredId: number;
+    benefitType: PartnerBenefitType;
+    benefitValue: number;
+    createdBy?: number | null;
+  }): Promise<{
+    linkId: number;
+    benefitType: PartnerBenefitType;
+    benefitValue: number;
+  } | null> {
+    const { partnerId, tenantId, referredId, benefitType, benefitValue } =
+      params;
+    const ctx: TenantCtx = { tenantId };
+
+    const existingOrigin = await this.findOriginForMember(ctx, referredId);
+    if (existingOrigin) {
+      this.log.info(
+        { partnerId, referredId, origin: existingOrigin.kind },
+        "referral-partners: atribución en el alta omitida — el socio ya tiene origen (D-12)",
+      );
+      return null;
+    }
+
+    const benefitExpiresAt = new Date(
+      Date.now() + PARTNER_BENEFIT_TTL_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    try {
+      const result = await this.db.insert(partnerReferrals).values(
+        tenantValues(ctx, {
+          partnerId,
+          referredId,
+          status: "pending" as const,
+          attributionChannel: "self_service" as const,
+          benefitType,
+          benefitValue,
+          benefitStatus: "pending" as const,
+          benefitExpiresAt,
+          createdBy: params.createdBy ?? null,
+        }),
+      );
+      const linkId = Number(result[0].insertId);
+      this.log.info(
+        { partnerId, referredId, benefitType },
+        "partner: vínculo creado en el alta",
+      );
+      return { linkId, benefitType, benefitValue };
+    } catch (err: unknown) {
+      // Carrera contra el UNIQUE de referred_id (D-12): otro origen ganó
+      // entre el chequeo de arriba y este INSERT.
+      if (isDuplicateKeyError(err)) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Devuelve el origen actual de un socio (D-12: exclusividad — `referrals`
+   * XOR `partner_referrals`), o `null` si no tiene ninguno todavía. Reusado
+   * por `attributePartnerAtSignup` (esta clase) y por la asignación
+   * retroactiva (179-08).
+   *
+   * Lee `referrals` (tabla del módulo `referrals/`, ajeno a este): es una
+   * LECTURA, no una modificación — el CONTEXT de la fase prohíbe tocar
+   * `src/modules/referrals/**`, no prohíbe leer su tabla desde otro módulo
+   * para resolver la exclusividad de origen.
+   */
+  async findOriginForMember(
+    ctx: TenantCtx,
+    userId: number,
+  ): Promise<PartnerOrigin> {
+    const [memberOrigin] = await this.db
+      .select({ id: referrals.id })
+      .from(referrals)
+      .where(and(tenantWhere(referrals, ctx), eq(referrals.referredId, userId)))
+      .limit(1);
+    if (memberOrigin) {
+      return { kind: "member" };
+    }
+
+    const [partnerOrigin] = await this.db
+      .select({ id: partnerReferrals.id, partnerId: partnerReferrals.partnerId })
+      .from(partnerReferrals)
+      .where(
+        and(
+          tenantWhere(partnerReferrals, ctx),
+          eq(partnerReferrals.referredId, userId),
+        ),
+      )
+      .limit(1);
+    if (partnerOrigin) {
+      return {
+        kind: "partner",
+        partnerId: partnerOrigin.partnerId,
+        linkId: partnerOrigin.id,
+      };
+    }
+
+    return null;
   }
 }
 

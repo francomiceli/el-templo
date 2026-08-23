@@ -93,3 +93,25 @@ export interface PartnerListItem {
   /** Suma de `amount` de las comisiones `pending` (misma moneda del partner). */
   montoPendiente: number;
 }
+
+/**
+ * Origen actual de un socio (D-12: exclusividad de origen — `referrals` XOR
+ * `partner_referrals`). Devuelto por `findOriginForMember`: `null` cuando el
+ * socio todavía no tiene ningún origen.
+ */
+export type PartnerOrigin =
+  | { kind: "member" }
+  | { kind: "partner"; partnerId: number; linkId: number }
+  | null;
+
+/**
+ * Shape del beneficio de partner que consume la respuesta de `POST
+ * /api/auth/register` (`partnerBenefit`, plan 179-04) y que la app usa para
+ * el badge/mensaje de éxito (plan 179-14). `null` cuando no hubo atribución
+ * (código inválido/inactivo/ambiguo, o el socio ya tenía origen — D-12).
+ */
+export type PartnerSignupResult = {
+  partnerName: string;
+  benefitType: PartnerBenefitType;
+  benefitValue: number;
+} | null;
