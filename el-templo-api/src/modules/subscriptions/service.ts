@@ -3669,6 +3669,14 @@ export class SubscriptionService {
     // Referidos (fase 157): materialización del descuento en columnas nuevas.
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
+    // Fase 179 (D-09/D-10/D-20): candidato de descuento de partner.
+    // changePlanNow NO tiene bloque de descuento AURA propio (a diferencia
+    // de assignPlan/changePlanAfterCurrent) — sin competidor, el candidato
+    // se aplica directo sobre el neto si existe (ver bloque post-else abajo).
+    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
+      null;
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
 
     if (
       input.priceOverrideAmount !== undefined &&
@@ -3714,6 +3722,38 @@ export class SubscriptionService {
       netAmount = Math.max(0, basePrice - proration.remainingValue);
       resolvedOverrideAmount = netAmount;
       resolvedOverrideReason = `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
+    }
+
+    // ── Partners (fase 179, D-09/D-10/D-20) ──
+    // Sin bloque AURA en este método, el candidato se aplica DIRECTO sobre
+    // el neto post-prorrateo (mismo punto donde referidos aplica el suyo,
+    // ver bloque de abajo) — no hay ganador a decidir. Los guards D-17
+    // (excludedFromReferrals + prorateToMonthEnd) los aplica el helper.
+    const [chargeBranchTenantForPartner] = await this.db
+      .select({ tenantId: schema.branches.tenantId })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, input.branchId))
+      .limit(1);
+    if (typeof chargeBranchTenantForPartner?.tenantId === "number") {
+      partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+        userId,
+        targetPlan.planCategory,
+        input.prorateToMonthEnd,
+        chargeBranchTenantForPartner.tenantId,
+      );
+    } else {
+      this.log.warn(
+        { userId, branchId: input.branchId },
+        "partner: no se pudo derivar el tenant de la sede del cobro (sin candidato de descuento, DENY)",
+      );
+    }
+    if (partnerBenefitCandidate) {
+      const partnerDiscountAmountCalc = Math.floor(
+        netAmount * (partnerBenefitCandidate.percent / 100),
+      );
+      netAmount -= partnerDiscountAmountCalc;
+      partnerDiscountPercent = partnerBenefitCandidate.percent;
+      partnerDiscountAmount = partnerDiscountAmountCalc;
     }
 
     // ── Referidos (fase 157, D-20/D-21) ──
@@ -3850,6 +3890,10 @@ export class SubscriptionService {
             input.priceOverrideAmount === 0 ? "bonificada" : "paga",
           referralDiscountPercent,
           referralDiscountAmount,
+          // Fase 179 (D-09): descuento de partner materializado (ver bloque
+          // de arriba — sin bloque AURA en este método, se aplica directo).
+          partnerDiscountPercent,
+          partnerDiscountAmount,
           boardingPassUsed,
           classesRemaining,
           classesBudget: classesRemaining,
@@ -3980,6 +4024,18 @@ export class SubscriptionService {
       // y NO excluye el alta prorrateada — un cambio de plan cobrado ahora
       // sigue siendo una venta real.
       await this.qualifyPartnerOnCharge(userId, netAmount, newSubscriptionId);
+
+      // Partners (D-09/D-10/D-20): consume el beneficio de descuento (sin
+      // bloque AURA en este método, `won` es simplemente "había candidato").
+      await this.consumePartnerBenefitAfterCharge({
+        userId,
+        subscriptionId: newSubscriptionId,
+        pricePaid: netAmount,
+        candidate: partnerBenefitCandidate,
+        won: partnerBenefitCandidate !== null,
+        wonPercent: partnerDiscountPercent,
+        wonAmount: partnerDiscountAmount,
+      });
 
       // Auto-migrate member from virtual branch to subscription's physical branch
       const [memberForMigration] = await this.db
@@ -4180,6 +4236,16 @@ export class SubscriptionService {
     let boardingPassUsed = false;
     let priceOverrideAmount: number | null = null;
     let priceOverrideReason: string | null = null;
+    // Fase 179 (D-09/D-10/D-20): candidato de descuento de partner resuelto
+    // ANTES del bloque AURA (lectura pura, Pitfall 6) y si efectivamente
+    // ganó — usados después del INSERT para decidir el consumo del
+    // beneficio (`consumePartnerBenefitOnCharge`, "aplicado" vs
+    // "perdio_vs_aura").
+    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
+      null;
+    let partnerBenefitWon = false;
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
 
     if (
       input.priceOverrideAmount !== undefined &&
@@ -4221,6 +4287,32 @@ export class SubscriptionService {
       const basePrice = this.getBasePrice(targetPlan, priceTypeApplied);
       pricePaid = basePrice;
 
+      // ── Partners (fase 179, D-09/D-10/D-20) — candidato ANTES de AURA ──
+      // Lectura pura (Pitfall 6): todavía no sabemos si el partner gana.
+      const [chargeBranchTenant] = await this.db
+        .select({ tenantId: schema.branches.tenantId })
+        .from(schema.branches)
+        .where(eq(schema.branches.id, input.branchId))
+        .limit(1);
+      if (typeof chargeBranchTenant?.tenantId === "number") {
+        partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+          userId,
+          targetPlan.planCategory,
+          input.prorateToMonthEnd,
+          chargeBranchTenant.tenantId,
+        );
+      } else {
+        this.log.warn(
+          { userId, branchId: input.branchId },
+          "partner: no se pudo derivar el tenant de la sede del cobro (sin candidato de descuento, DENY)",
+        );
+      }
+
+      // Las validaciones de auraSpend corren SIEMPRE que se pida, gane quien
+      // gane (D-10/D-20): una categoría excluida o un tier inexistente
+      // siguen siendo 400 aunque el partner termine ganando y
+      // `auraService.spend()` nunca se llegue a invocar.
+      let auraTier: AuraDiscountTier | undefined;
       if (input.auraSpend && input.auraSpend > 0) {
         // Fase 177 (D-13/T-177-04): ver rationale en assignPlan — paquete
         // rechaza explícito en vez de aplicar en silencio.
@@ -4229,23 +4321,49 @@ export class SubscriptionService {
             "Los paquetes de clases no aceptan descuento AURA",
           );
         }
-        const tier = AURA_DISCOUNT_TIERS.find(
+        auraTier = AURA_DISCOUNT_TIERS.find(
           (t) => t.spend === input.auraSpend,
         );
-        if (!tier) {
+        if (!auraTier) {
           throw new BadRequestError(
             `Monto de AURA invalido. Opciones: ${AURA_DISCOUNT_TIERS.map((t) => t.spend).join(", ")}`,
           );
         }
+      }
+
+      // D-10/D-20: gana el mayor. Empate a favor del partner.
+      partnerBenefitWon =
+        partnerBenefitCandidate !== null &&
+        partnerBenefitCandidate.percent >= (auraTier?.percent ?? 0);
+
+      if (partnerBenefitWon && partnerBenefitCandidate) {
+        const discountAmount = Math.floor(
+          basePrice * (partnerBenefitCandidate.percent / 100),
+        );
+        pricePaid = basePrice - discountAmount;
+        partnerDiscountPercent = partnerBenefitCandidate.percent;
+        partnerDiscountAmount = discountAmount;
+        this.log.info(
+          {
+            userId,
+            partnerLinkId: partnerBenefitCandidate.linkId,
+            partnerPercent: partnerBenefitCandidate.percent,
+            auraTierPercent: auraTier?.percent ?? null,
+          },
+          "partner: descuento de partner ganó (o AURA no estaba en juego) — no se gastaron puntos AURA (D-10/D-20)",
+        );
+      } else if (auraTier) {
         await this.auraService.spend({
           userId,
-          amount: tier.spend,
-          description: `Descuento de suscripcion: ${tier.percent}% off`,
+          amount: auraTier.spend,
+          description: `Descuento de suscripcion: ${auraTier.percent}% off`,
           referenceType: "subscription",
         });
-        auraDiscount = tier.spend;
-        auraDiscountPercent = tier.percent;
-        const discountAmount = Math.floor(basePrice * (tier.percent / 100));
+        auraDiscount = auraTier.spend;
+        auraDiscountPercent = auraTier.percent;
+        const discountAmount = Math.floor(
+          basePrice * (auraTier.percent / 100),
+        );
         pricePaid = basePrice - discountAmount;
       }
     }
@@ -4311,6 +4429,10 @@ export class SubscriptionService {
         auraDiscountPercent,
         referralDiscountPercent,
         referralDiscountAmount,
+        // Fase 179 (D-09): descuento de partner materializado, null cuando
+        // no aplicó (no había candidato, o AURA ganó la comparación D-10).
+        partnerDiscountPercent,
+        partnerDiscountAmount,
         boardingPassUsed,
         priceOverrideAmount,
         priceOverrideReason,
@@ -4398,6 +4520,18 @@ export class SubscriptionService {
     // Partners (D-11/D-17): dispara con pricePaid>0 de CUALQUIER categoría —
     // sin el guard excludedFromReferrals que sí aplica al bloque de arriba.
     await this.qualifyPartnerOnCharge(userId, pricePaid, newSubscriptionId);
+
+    // Partners (D-09/D-10/D-20): consume el beneficio de descuento, con el
+    // candidato/ganador ya resueltos ANTES del bloque AURA.
+    await this.consumePartnerBenefitAfterCharge({
+      userId,
+      subscriptionId: newSubscriptionId,
+      pricePaid,
+      candidate: partnerBenefitCandidate,
+      won: partnerBenefitWon,
+      wonPercent: partnerDiscountPercent,
+      wonAmount: partnerDiscountAmount,
+    });
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {
@@ -4631,6 +4765,15 @@ export class SubscriptionService {
     // Referidos (fase 157): materialización del descuento en columnas nuevas.
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
+    // Fase 179 (D-09/D-10/D-20): candidato de descuento de partner.
+    // renewSubscription NO tiene bloque de descuento AURA propio (a
+    // diferencia de assignPlan/changePlanAfterCurrent) — sin competidor, el
+    // candidato se aplica directo sobre el precio de renovación ya resuelto
+    // (ver bloque justo antes de referidos, más abajo).
+    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
+      null;
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
 
     // priceType de la renovación (heredado por default). Se declara acá arriba
     // porque el prorrateo también lo resuelve; el bloque WR-04 de más abajo lo
@@ -4690,6 +4833,40 @@ export class SubscriptionService {
         // vigente del plan (no perpetuar el recargo heredado en pricePaid).
         renewalPrice = this.getBasePrice(plan, renewalPriceType);
       }
+    }
+
+    // ── Partners (fase 179, D-09/D-10/D-20) ──
+    // Sin bloque AURA en este método, el candidato se aplica DIRECTO sobre
+    // el precio de renovación ya resuelto (heredado/override/prorrateado).
+    // El tenant sale de `currentSub.branchId` (conocido desde el arranque,
+    // a diferencia de `renewBranchId` que recién se resuelve más abajo).
+    // `resolvePartnerDiscountCandidate` ya aplica los guards D-17
+    // (excludedFromReferrals + prorateToMonthEnd) internamente.
+    const [renewalChargeTenant] = await this.db
+      .select({ tenantId: schema.branches.tenantId })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, currentSub.branchId))
+      .limit(1);
+    if (typeof renewalChargeTenant?.tenantId === "number") {
+      partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+        userId,
+        plan.planCategory,
+        input.prorateToMonthEnd,
+        renewalChargeTenant.tenantId,
+      );
+    } else {
+      this.log.warn(
+        { userId, branchId: currentSub.branchId },
+        "partner: no se pudo derivar el tenant de la sede de la renovacion (sin candidato de descuento, DENY)",
+      );
+    }
+    if (partnerBenefitCandidate) {
+      const partnerDiscountAmountCalc = Math.floor(
+        renewalPrice * (partnerBenefitCandidate.percent / 100),
+      );
+      renewalPrice -= partnerDiscountAmountCalc;
+      partnerDiscountPercent = partnerBenefitCandidate.percent;
+      partnerDiscountAmount = partnerDiscountAmountCalc;
     }
 
     // ── Referidos (fase 157, D-20/D-21) ──
@@ -4827,6 +5004,10 @@ export class SubscriptionService {
               : "paga",
         referralDiscountPercent,
         referralDiscountAmount,
+        // Fase 179 (D-09): descuento de partner materializado (ver bloque
+        // de arriba — sin bloque AURA en este método, se aplica directo).
+        partnerDiscountPercent,
+        partnerDiscountAmount,
         classesRemaining: periodBudget,
         classesBudget: periodBudget,
         previousSubscriptionId: currentSub.id,
@@ -4986,6 +5167,18 @@ export class SubscriptionService {
     // prorateToMonthEnd que sí aplica al bloque de referidos de arriba — una
     // renovación prorrateada sigue siendo una venta real.
     await this.qualifyPartnerOnCharge(userId, renewalPrice, newSubscriptionId);
+
+    // Partners (D-09/D-10/D-20): consume el beneficio de descuento (sin
+    // bloque AURA en este método, `won` es simplemente "había candidato").
+    await this.consumePartnerBenefitAfterCharge({
+      userId,
+      subscriptionId: newSubscriptionId,
+      pricePaid: renewalPrice,
+      candidate: partnerBenefitCandidate,
+      won: partnerBenefitCandidate !== null,
+      wonPercent: partnerDiscountPercent,
+      wonAmount: partnerDiscountAmount,
+    });
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {
