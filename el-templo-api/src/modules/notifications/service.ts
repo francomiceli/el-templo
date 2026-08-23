@@ -368,7 +368,13 @@ export class NotificationService {
     // Skip enqueueing for users without a device token. Without one, the
     // queue processor would only mark the row 'failed' with
     // "No device tokens registered" — pure noise that drowns real FCM errors.
-    if (!(await this.userHasDeviceToken(userId, ctx))) {
+    // Fase 180 (D-20/D-24): `allowWithoutDeviceToken` opts out of this guard
+    // for callers that have a guaranteed alternate channel (processQueue's
+    // email fallback) — see the docblock on QueueNotificationInput.
+    if (
+      !input.allowWithoutDeviceToken &&
+      !(await this.userHasDeviceToken(userId, ctx))
+    ) {
       this.log.info(
         { userId, templateKey },
         "User has no device tokens — skipping",
