@@ -31,6 +31,7 @@ import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
 import { appBranchName } from "../shared/app-branch-name";
+import { buildMapsUrl } from "../shared/maps";
 import {
   ConflictError,
   CoverageExpiredError,
@@ -1121,6 +1122,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       .select({
         id: schema.branches.id,
         name: schema.branches.name,
+        address: schema.branches.address,
       })
       .from(schema.branches)
       .where(where)
@@ -1130,6 +1132,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       branches: rows.map((r) => ({
         ...r,
         name: appBranchName(r.name, ctx.tenantId),
+        // D-17: link "Cómo llegar" derivado server-side (fuente única en
+        // shared/maps.ts); null cuando la sede no tiene dirección cargada.
+        mapsUrl: buildMapsUrl(r.address),
       })),
     };
   });
