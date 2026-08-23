@@ -457,6 +457,14 @@
                         -{{ formatPrice(pricingDisplay.referralAmount, displayCurrency) }}
                       </div>
                     </div>
+                    <div v-if="pricingDisplay.partnerAmount > 0">
+                      <div class="text-caption text-grey-7">
+                        Descuento partner ({{ pricingDisplay.partnerPercent }}%)
+                      </div>
+                      <div class="text-positive">
+                        -{{ formatPrice(pricingDisplay.partnerAmount, displayCurrency) }}
+                      </div>
+                    </div>
                     <div>
                       <div class="text-caption text-grey-7">Precio final</div>
                       <div class="text-h6 text-weight-bold">
@@ -643,6 +651,16 @@
                       }}
                     </q-item-section>
                   </q-item>
+                  <q-item v-if="changePlanPreviewData.partnerDiscountAmount > 0">
+                    <q-item-section>
+                      Descuento partner ({{ changePlanPreviewData.partnerDiscountPercent }}%)
+                    </q-item-section>
+                    <q-item-section side class="text-positive">
+                      -{{
+                        formatPrice(changePlanPreviewData.partnerDiscountAmount, displayCurrency)
+                      }}
+                    </q-item-section>
+                  </q-item>
                   <q-item>
                     <q-item-section>Inicio</q-item-section>
                     <q-item-section side>{{ formatDate(assignForm.startDate) }}</q-item-section>
@@ -782,6 +800,14 @@
                       -{{ formatPrice(pricingDisplay.referralAmount, displayCurrency) }}
                     </q-item-section>
                   </q-item>
+                  <q-item v-if="pricingDisplay.partnerAmount > 0">
+                    <q-item-section>
+                      Descuento partner ({{ pricingDisplay.partnerPercent }}%)
+                    </q-item-section>
+                    <q-item-section side class="text-positive">
+                      -{{ formatPrice(pricingDisplay.partnerAmount, displayCurrency) }}
+                    </q-item-section>
+                  </q-item>
                   <q-separator spaced />
                   <q-item class="bg-blue-1 rounded-borders q-pa-sm">
                     <q-item-section class="text-weight-bold text-h6"
@@ -832,6 +858,14 @@
                     </q-item-section>
                     <q-item-section side class="text-positive">
                       -{{ formatPrice(pricingDisplay.referralAmount, displayCurrency) }}
+                    </q-item-section>
+                  </q-item>
+                  <q-item v-if="pricingDisplay.partnerAmount > 0">
+                    <q-item-section>
+                      Descuento partner ({{ pricingDisplay.partnerPercent }}%)
+                    </q-item-section>
+                    <q-item-section side class="text-positive">
+                      -{{ formatPrice(pricingDisplay.partnerAmount, displayCurrency) }}
                     </q-item-section>
                   </q-item>
                   <q-item v-if="showScheduleStep && selectedScheduleIds.length > 0">
@@ -1525,6 +1559,13 @@ const pricingDisplay = computed(() => {
   // precios personalizados, así que el override lo refleja igual — si no, el
   // "monto recibido" precargado excede el cobro real y el backend lo rechaza.
   const referralPercent = pricingPreview.value?.referralDiscountPercent ?? 0;
+  // Fase 179 (D-09/D-10/D-20, DESC-05): partnerPercent/partnerAmount salen
+  // DIRECTO del preview, sin ninguna price-math nueva en el front — el
+  // backend ya resolvió "gana el mayor" contra AURA. A diferencia de
+  // referralAmount (que SÍ se recalcula en la rama de precio personalizado,
+  // patrón preexistente), el override no repite esa multiplicación para
+  // partner: mostrar 0/0 ahí es preferible a inventar price-math nueva.
+  const partnerPercent = pricingPreview.value?.partnerDiscountPercent ?? 0;
   // Alta prorrateada: el precio base es el del mes completo (del preview) y el
   // final es el proporcional editable; sin descuentos automáticos.
   if (assignForm.value.prorateToMonthEnd) {
@@ -1535,6 +1576,8 @@ const pricingDisplay = computed(() => {
       discountAmount: Math.max(0, base - final),
       referralPercent: 0,
       referralAmount: 0,
+      partnerPercent: 0,
+      partnerAmount: 0,
       finalPrice: final,
     };
   }
@@ -1548,6 +1591,10 @@ const pricingDisplay = computed(() => {
       discountAmount: base - override,
       referralPercent,
       referralAmount,
+      // Sin descuento de partner en precio personalizado (ver comentario de
+      // partnerPercent arriba): 0/0, no una multiplicación nueva.
+      partnerPercent: 0,
+      partnerAmount: 0,
       finalPrice: override - referralAmount,
     };
   }
@@ -1557,6 +1604,8 @@ const pricingDisplay = computed(() => {
       discountAmount: pricingPreview.value.discountAmount,
       referralPercent,
       referralAmount: pricingPreview.value.referralDiscountAmount,
+      partnerPercent,
+      partnerAmount: pricingPreview.value.partnerDiscountAmount,
       finalPrice: pricingPreview.value.finalPrice,
     };
   }
@@ -1566,6 +1615,8 @@ const pricingDisplay = computed(() => {
     discountAmount: 0,
     referralPercent: 0,
     referralAmount: 0,
+    partnerPercent: 0,
+    partnerAmount: 0,
     finalPrice: base,
   };
 });
