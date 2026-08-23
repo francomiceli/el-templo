@@ -90,3 +90,18 @@ export const listPartnersQuerySchema = {
     additionalProperties: false,
   },
 };
+
+// Fase 179 plan 09 (D-15): asignación retroactiva de partner desde la ficha
+// del alumno. Espejo de `assignReferrerSchema` (members/schemas.ts) —
+// `additionalProperties: false` rechaza mass-assignment antes de llegar al
+// service (mismo motivo que el resto de este archivo).
+export const assignPartnerToMemberBodySchema = {
+  body: {
+    type: "object",
+    required: ["partnerId"],
+    properties: {
+      partnerId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+};

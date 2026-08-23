@@ -36,6 +36,7 @@ import type { PaginatedResult } from "../shared/types";
 import { auditLog } from "../shared/audit-log";
 import { BalanceService, type TxHandle } from "./balance-service";
 import { CashRegisterService } from "./cash-register-service";
+import { PartnerReferralService } from "../referral-partners/service";
 // Phase 149 (D-13, Opción A): el umbral de pendientes queda hardcodeado en la
 // constante OVERDUE_DAYS. Se eliminó el servicio de config de caja (perilla de
 // la 142) — el read-path lee la constante directo, sin system_settings.
@@ -517,12 +518,54 @@ export class TransactionService {
     // create-time effect on the cache exactly.
     await this.balanceService.applyDelta(tx, existing, linkRows, -1);
 
+    // Fase 179 (D-14/T-179-36): un cobro que generó una comisión de partner
+    // (D-11) deja de justificarla si se anula — el gimnasio no le debe
+    // comisión al partner por una venta que no existió. El void corre
+    // SIEMPRE que haya un subLink de suscripción, INDEPENDIENTEMENTE de
+    // keepMembershipActive: la membresía puede seguir activa (anulación por
+    // corrección de medio de pago, p.ej.), pero ese cobro puntual ya no es
+    // el que confirmó la venta.
+    //
+    // A propósito SIN try/catch acá, a diferencia del best-effort de
+    // qualifyPartnerOnCharge (subscriptions/service.ts): esta llamada
+    // corre DENTRO de la tx del void (mismo patrón que el resto de _void —
+    // applyDelta/_cancelSubscription/auditLog.write tampoco atrapan) para
+    // que un fallo haga rollback de TODO el void junto, no que deje el
+    // cobro anulado con una comisión viva colgando (exactamente lo que
+    // T-179-36 mitiga: comisión viva sobre un cobro anulado).
+    const subLink = linkRows.find((l) => l.targetKind === "subscription");
+    if (subLink) {
+      // tenant-safe: lectura por PK de la fila de la suscripción (dentro de
+      // la MISMA tx) para derivar el tenant del cobro anulado — no es un
+      // listado cross-tenant. Mismo patrón que qualifyPartnerOnCharge
+      // (subscriptions/service.ts). DENY (no voidea nada) si no resuelve.
+      const [sub] = await tx
+        .select({ tenantId: schema.subscriptions.tenantId })
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.id, subLink.targetId));
+      if (typeof sub?.tenantId === "number") {
+        await new PartnerReferralService(
+          this.db,
+          this.log,
+        ).voidPendingCommissionsForSubscription(
+          tx,
+          { tenantId: sub.tenantId },
+          subLink.targetId,
+          `Anulación del cobro #${id}`,
+        );
+      } else {
+        this.log.warn(
+          { transactionId: id, subscriptionId: subLink.targetId },
+          "partner: no se pudo derivar el tenant del cobro anulado (DENY, no se asume tenant 1)",
+        );
+      }
+    }
+
     // VAL-06 / D-10: optionally cancel the linked subscription. Only the
     // explicit keepMembershipActive=false triggers this — default true (and
     // undefined) leaves the sub active. Runs in THIS tx so the cancel rolls
     // back together with the soft-void if anything later throws.
     if (input.keepMembershipActive === false) {
-      const subLink = linkRows.find((l) => l.targetKind === "subscription");
       if (subLink) {
         if (!this.subscriptionCanceller) {
           throw new Error(

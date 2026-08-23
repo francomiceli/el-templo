@@ -22,6 +22,8 @@ import {
 import { MemberService } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
 import { ReferralService } from "../referrals/service";
+import { PartnerReferralService } from "../referral-partners/service";
+import { assignPartnerToMemberBodySchema } from "../referral-partners/schemas";
 import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
@@ -1760,6 +1762,70 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(201).send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "assign member referrer");
+      }
+    },
+  );
+
+  // POST /admin/members/:userId/partner-referral — Asignación RETROACTIVA de
+  // partner sobre un socio ya creado (fase 179, D-15). Calcado íntegro de
+  // POST /:userId/referrals de arriba: mismo guard (assertReferralTargetInScope,
+  // MEMBER_LIFECYCLE_ROLES, country-scope), mismo `handleServiceError`. A
+  // diferencia del alta (que degrada en silencio, D-12), acá la atribución ES
+  // la operación: un partner inválido (404) o un socio con origen ya asignado
+  // (409) fallan visible.
+  fastify.post<{ Params: { userId: number }; Body: { partnerId: number } }>(
+    "/:userId/partner-referral",
+    { schema: assignPartnerToMemberBodySchema },
+    async (request, reply) => {
+      try {
+        const targetId = await assertReferralTargetInScope(request);
+        const partnerService = new PartnerReferralService(
+          fastify.db,
+          fastify.log,
+        );
+        const result = await partnerService.assignPartnerToMember({
+          referredId: targetId,
+          partnerId: request.body.partnerId,
+          createdBy: request.user.userId,
+          // El gimnasio SIEMPRE sale del scope del request, nunca del body
+          // (mass-assignment, T-169-02). Un scope no resoluble es DENY.
+          tenantId: assertTenant(
+            request.scope,
+            "referralPartners.assignPartner",
+          ).tenantId,
+        });
+        return reply.code(201).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "assign member partner");
+      }
+    },
+  );
+
+  // DELETE /admin/members/:userId/partner-referral — Revoca el vínculo de
+  // partner del socio (D-14): void en cascada de sus comisiones `pending`.
+  // Mismo guard que las dos rutas de arriba.
+  fastify.delete<{ Params: { userId: number } }>(
+    "/:userId/partner-referral",
+    async (request, reply) => {
+      try {
+        const targetId = await assertReferralTargetInScope(request);
+        const partnerService = new PartnerReferralService(
+          fastify.db,
+          fastify.log,
+        );
+        const result = await partnerService.revokePartnerLink(
+          {
+            tenantId: assertTenant(
+              request.scope,
+              "referralPartners.revokeLink",
+            ).tenantId,
+          },
+          targetId,
+          request.user.userId,
+        );
+        return reply.code(200).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "revoke member partner link");
       }
     },
   );

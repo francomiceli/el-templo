@@ -337,6 +337,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "DELETE /api/admin/members/:userId/notes/:noteId": {
     categoria: "tenant-scoped",
   },
+  // Revoca el vínculo de partner del socio (fase 179 plan 09, D-14): void en
+  // cascada de las comisiones `pending`. tenant-scoped, ver el par POST más
+  // abajo (mismo motivo).
+  "DELETE /api/admin/members/:userId/partner-referral": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/members": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId/financial-history": {
@@ -365,6 +371,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // `referrals`, que es gym-owned — el INSERT toma el gimnasio de
   // `assertTenant(request.scope)`, nunca del body.
   "POST /api/admin/members/:userId/referrals": { categoria: "tenant-scoped" },
+  // Asignación retroactiva de partner (fase 179 plan 09, D-15). tenant-scoped:
+  // escribe en `partner_referrals`/`partner_commissions`, gym-owned — el
+  // gimnasio sale de `assertTenant(request.scope, …)`, nunca del body. Caso
+  // normal de D-02.
+  "POST /api/admin/members/:userId/partner-referral": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/admin/members/:userId/photo/upload-url": {
     categoria: "tenant-scoped",
   },
