@@ -105,3 +105,43 @@ export const assignPartnerToMemberBodySchema = {
     additionalProperties: false,
   },
 };
+
+// Fase 179 plan 10 (D-20): reporte de conversiones por partner.
+export const listConversionsQuerySchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      partnerId: { type: "integer", minimum: 1 },
+      status: { type: "string", enum: ["pending", "qualified", "revoked"] },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      branchId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+};
+
+// Fase 179 plan 10 (D-08 reescrita): reporte de beneficios de partner sin
+// conversión, para seguimiento manual de la sede.
+export const listBenefitsWithoutConversionQuerySchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      partnerId: { type: "integer", minimum: 1 },
+      branchId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+};
+
+// Fase 179 plan 10 (D-16): liquidación batch. Mismo shape que
+// `getPartnerParamsSchema` (solo `id` en params, sin body) — schema propio
+// para que el endpoint de liquidación tenga su propia entrada auditable en
+// este archivo, aunque el contrato de params coincida.
+export const settlePartnerCommissionsParamsSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+};

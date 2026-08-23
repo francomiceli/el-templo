@@ -408,6 +408,19 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/referral-partners/:id": { categoria: "tenant-scoped" },
   "POST /api/admin/referral-partners": { categoria: "tenant-scoped" },
   "PATCH /api/admin/referral-partners/:id": { categoria: "tenant-scoped" },
+  // Fase 179 plan 10 (D-08 reescrita/D-16/D-20): liquidación batch de
+  // comisiones y los dos reportes de negocio. Las 3 tenant-scoped: leen/
+  // escriben `partner_referrals`/`partner_commissions`, gym-owned, y el
+  // gimnasio sale de `assertTenant(request.scope)`, nunca del body.
+  "GET /api/admin/referral-partners/conversions": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/referral-partners/benefits-without-conversion": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/referral-partners/:id/settle": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/admin/referrals ──────────────────────────────────────────────────
   "GET /api/admin/referrals/ab-results": { categoria: "tenant-scoped" },
