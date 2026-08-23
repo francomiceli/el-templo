@@ -14,7 +14,7 @@
 // partners CALCA lo que necesita, no lo importa (salvo `ReferralService`,
 // consumida solo desde `code-resolver.ts` para la rama `member`).
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gt, ne, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -593,6 +593,104 @@ export class PartnerReferralService {
     );
 
     return { linkId: pending.linkId, commissionId };
+  }
+
+  /**
+   * Candidato de descuento de partner sobre un cargo — LECTURA PURA, sin
+   * efectos secundarios (Pitfall 6 del RESEARCH). Se llama ANTES de resolver
+   * "gana el mayor" contra AURA (D-10/D-20): en ese punto quien llama todavía
+   * no sabe si el partner va a ganar, así que este método NUNCA escribe —
+   * llamarlo dos veces (o cero) nunca cambia una fila. La decisión de
+   * consumir el beneficio (ganó o perdió contra AURA) vive en
+   * `consumePartnerBenefitOnCharge`, después de resuelto el ganador.
+   *
+   * Devuelve `null` cuando no hay un beneficio `discount_percent` consumible:
+   * sin vínculo, `benefit_status` ya `consumed`/`expired`, vencido
+   * (`benefit_expires_at` en el pasado — D-07, el vencimiento se evalúa en
+   * lectura, no por un cron que lo materialice) o el vínculo está `revoked`.
+   * El `percent` devuelto es el snapshot `benefit_value` congelado en el
+   * vínculo al momento de la atribución (D-09), no el `benefit_value` actual
+   * del partner (que puede haber cambiado desde entonces).
+   */
+  async computePartnerDiscountCandidate(
+    ctx: TenantCtx,
+    userId: number,
+  ): Promise<{ linkId: number; percent: number } | null> {
+    const [row] = await this.db
+      .select({
+        linkId: partnerReferrals.id,
+        percent: partnerReferrals.benefitValue,
+      })
+      .from(partnerReferrals)
+      .where(
+        and(
+          tenantWhere(partnerReferrals, ctx),
+          eq(partnerReferrals.referredId, userId),
+          eq(partnerReferrals.benefitType, "discount_percent"),
+          eq(partnerReferrals.benefitStatus, "pending"),
+          ne(partnerReferrals.status, "revoked"),
+          gt(partnerReferrals.benefitExpiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Consume el beneficio de partner sobre un cargo concreto — one-shot
+   * (D-09). `UPDATE` guardado con `benefit_status='pending'` en la MISMA
+   * cláusula WHERE que filtra el vínculo (mismo patrón que
+   * `qualifyAndCommission`): un doble consumo concurrente es imposible, la
+   * primera llamada que gana la carrera es la única que afecta una fila —
+   * cualquier llamada posterior devuelve `false` sin pisar los valores ya
+   * grabados por la primera.
+   *
+   * Dos motivos posibles, ambos legítimos (D-09/D-10/D-20):
+   *  - `"aplicado"`: el descuento de partner efectivamente ganó y redujo el
+   *    precio del cargo.
+   *  - `"perdio_vs_aura"`: el beneficio se consume IGUAL — la primera cuota
+   *    ya pasó — aunque no haya reducido el precio, porque AURA dio un
+   *    descuento mayor (`applied_percent=0`, `applied_amount=0`). El socio no
+   *    pierde puntos AURA por esto (quien llama nunca gastó AURA para el
+   *    candidato perdedor), pero el beneficio de partner no vuelve a estar
+   *    disponible: es "la primera cuota", y ya pasó.
+   *
+   * Devuelve `true` sólo si hubo una fila afectada (`affectedRows`).
+   */
+  async consumePartnerBenefitOnCharge(
+    ctx: TenantCtx,
+    userId: number,
+    subscriptionId: number,
+    applied: {
+      percent: number;
+      amount: number;
+      reason: "aplicado" | "perdio_vs_aura";
+    },
+  ): Promise<boolean> {
+    const result = await this.db
+      .update(partnerReferrals)
+      .set({
+        benefitStatus: "consumed",
+        benefitConsumedAt: new Date(),
+        appliedPercent: applied.percent,
+        appliedAmount: applied.amount,
+        appliedSubscriptionId: subscriptionId,
+        appliedReason: applied.reason,
+      })
+      .where(
+        and(
+          tenantWhere(partnerReferrals, ctx),
+          eq(partnerReferrals.referredId, userId),
+          eq(partnerReferrals.benefitStatus, "pending"),
+        ),
+      );
+
+    const consumed = result[0].affectedRows > 0;
+    this.log.info(
+      { userId, subscriptionId, reason: applied.reason, consumed },
+      "partner: beneficio de descuento consumido en el cobro",
+    );
+    return consumed;
   }
 
   /**
