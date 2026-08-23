@@ -105,8 +105,17 @@ export async function resolveSignupCode(
       return promoResult;
     }
 
+    // Rama socio: a diferencia de partner/promo, el código de socio
+    // (`generateReferralCode`, `referrals/service.ts`) tiene formato
+    // `PREFIJO-XXXX` — el GUION es parte del código, no un separador
+    // cosmético a stripear. `normalized` (via `normalizeCode`, que arranca
+    // todo lo no-alfanumérico) nunca matchearía un `users.referral_code`
+    // real. Se preserva el guion: solo trim + upper (mismo criterio de
+    // tolerancia a mayúsculas/espacios que las otras 2 ramas, sin tocar
+    // `resolveReferralCode`, prohibido de editar por el CONTEXT).
+    const memberCode = code.trim().toUpperCase();
     const referrerId = await new ReferralService(db, log).resolveReferralCode(
-      normalized,
+      memberCode,
     );
     if (referrerId !== null) {
       return { kind: "member", referrerId };

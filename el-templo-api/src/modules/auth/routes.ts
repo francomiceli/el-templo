@@ -6,8 +6,15 @@ import { branches } from "../../db/schema/branches";
 import { memberProfiles } from "../../db/schema/member-profiles";
 import { promoPlans } from "../../db/schema/promo-plans";
 import { referrals } from "../../db/schema/referrals";
+import { referralPartners } from "../../db/schema/referral-partners";
 import { ReferralService } from "../referrals/service";
 import { referralCopyVariant } from "../referrals/ab-variant";
+import { PartnerReferralService, normalizeCode } from "../referral-partners/service";
+import { resolveSignupCode } from "../referral-partners/code-resolver";
+import type {
+  PartnerBenefitType,
+  PartnerSignupResult,
+} from "../referral-partners/types";
 import { registerSchema, loginSchema } from "./schemas";
 import { appBranchName } from "../shared/app-branch-name";
 import { SegmentationService } from "../segmentation/service";
@@ -37,6 +44,12 @@ interface RegisterBody {
   promoCode?: string;
   // Phase 157-03 (REF-02, D-08): self-service referral code from ?ref=CODE.
   ref?: string;
+  // Phase 179-04 (D-02/D-03): campo MANUAL unificado del registro — acepta
+  // los 3 espacios de nombres (partner/promo/socio), resuelto server-side por
+  // `resolveSignupCode`. `ref`/`promoCode` se CONSERVAN: las builds nativas
+  // publicadas los siguen mandando por meses (Pitfall 9) y este campo es
+  // aditivo, no un reemplazo forzado.
+  code?: string;
 }
 
 interface LoginBody {
@@ -61,6 +74,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         gender,
         promoCode,
         ref,
+        code,
       } = request.body;
 
       // Reject if email already exists
@@ -201,15 +215,56 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       const userId = Number(result[0].insertId);
 
+      // Phase 179-04 (D-02/D-03): resuelve UNA sola vez el campo unificado
+      // `code` (si vino) y deriva las variables efectivas que alimentan los
+      // 3 bloques siguientes — SIN cambiar la lógica interna de esos bloques,
+      // solo de qué variable se alimentan. Sin `code` en el body,
+      // comportamiento intacto: `effectivePromoCode`/`effectiveRef` quedan
+      // igual a `promoCode`/`ref` del body (back-compat total con las builds
+      // nativas viejas, Pitfall 9).
+      let effectivePromoCode = promoCode;
+      let effectiveRef = ref;
+      let partnerAttributionInput: {
+        partnerId: number;
+        tenantId: number;
+        benefitType: PartnerBenefitType;
+        benefitValue: number;
+      } | null = null;
+
+      if (code) {
+        const resolved = await resolveSignupCode(fastify.db, request.log, code, {
+          branchId,
+        });
+        // `code` es el campo unificado: cuando viene, GANA sobre `promoCode`/
+        // `ref` sueltos del body para ese código (D-03, los 3 espacios son
+        // disjuntos por construcción — createPartner valida la unicidad
+        // cruzada). `kind === "unknown"` degrada a "ningún bloque corre para
+        // este código", igual que hoy un `?ref`/`promoCode` inválido.
+        effectivePromoCode = undefined;
+        effectiveRef = undefined;
+        if (resolved.kind === "promo") {
+          effectivePromoCode = normalizeCode(code);
+        } else if (resolved.kind === "member") {
+          effectiveRef = code.trim().toUpperCase();
+        } else if (resolved.kind === "partner") {
+          partnerAttributionInput = {
+            partnerId: resolved.partnerId,
+            tenantId: resolved.tenantId,
+            benefitType: resolved.benefitType,
+            benefitValue: resolved.benefitValue,
+          };
+        }
+      }
+
       // Promo code auto-assignment (per D-09, D-10)
       let promoApplied = false;
-      if (promoCode) {
+      if (effectivePromoCode) {
         try {
           // Look up promo plan
           const [promo] = await fastify.db
             .select()
             .from(promoPlans)
-            .where(eq(promoPlans.promoCode, promoCode))
+            .where(eq(promoPlans.promoCode, effectivePromoCode))
             .limit(1);
 
           if (promo && promo.isActive) {
@@ -276,7 +331,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           request.log.error(
             {
               err: err instanceof Error ? err.message : String(err),
-              promoCode,
+              promoCode: effectivePromoCode,
             },
             "Promo code assignment failed (graceful degradation)",
           );
@@ -293,9 +348,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // V4/T-157-08). Auto-referral (referrerId===userId, D-13) and a second
       // claim on an already-referred user (UNIQUE referred_id, D-14) are both
       // silently skipped/swallowed: the registration still succeeds.
-      if (ref) {
+      if (effectiveRef) {
         try {
-          const referrerId = await referralService.resolveReferralCode(ref);
+          const referrerId =
+            await referralService.resolveReferralCode(effectiveRef);
           if (referrerId !== null && referrerId !== userId) {
             await fastify.db
               .update(users)
@@ -316,10 +372,55 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           request.log.warn(
             {
               err: err instanceof Error ? err.message : String(err),
-              ref,
+              ref: effectiveRef,
               userId,
             },
             "Referral attribution failed (graceful degradation)",
+          );
+        }
+      }
+
+      // (3) Partner attribution (D-02/D-03/D-07/D-12, fase 179-04). Cuarto
+      // bloque best-effort, calcado en forma del bloque (1): try/catch propio,
+      // log.warn con {err, code, userId} y CERO re-throw — la atribución de
+      // partner NUNCA puede bloquear el alta (T-179-17). El vínculo nace
+      // pending con vencimiento a PARTNER_BENEFIT_TTL_DAYS (D-07); D-12
+      // (exclusividad de origen) y la carrera del UNIQUE se resuelven adentro
+      // del service (degradación silenciosa: `attributePartnerAtSignup`
+      // devuelve `null`, nunca lanza para esos casos de negocio).
+      let partnerBenefit: PartnerSignupResult = null;
+      if (partnerAttributionInput) {
+        try {
+          const attribution = await new PartnerReferralService(
+            fastify.db,
+            request.log,
+          ).attributePartnerAtSignup({
+            partnerId: partnerAttributionInput.partnerId,
+            tenantId: partnerAttributionInput.tenantId,
+            referredId: userId,
+            benefitType: partnerAttributionInput.benefitType,
+            benefitValue: partnerAttributionInput.benefitValue,
+          });
+          if (attribution) {
+            const [partnerRow] = await fastify.db
+              .select({ name: referralPartners.name })
+              .from(referralPartners)
+              .where(eq(referralPartners.id, partnerAttributionInput.partnerId))
+              .limit(1);
+            partnerBenefit = {
+              partnerName: partnerRow?.name ?? "",
+              benefitType: attribution.benefitType,
+              benefitValue: attribution.benefitValue,
+            };
+          }
+        } catch (err: unknown) {
+          request.log.warn(
+            {
+              err: err instanceof Error ? err.message : String(err),
+              code,
+              userId,
+            },
+            "Partner attribution failed (graceful degradation)",
           );
         }
       }
@@ -381,6 +482,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchCountry: branchRow?.country ?? "AR",
         },
         promoApplied,
+        partnerBenefit,
       };
     },
   );
