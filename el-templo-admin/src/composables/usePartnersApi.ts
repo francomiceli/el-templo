@@ -54,6 +54,12 @@ export interface PartnerListFilters {
   isActive?: boolean;
 }
 
+/** Espeja la respuesta de GET/PUT /admin/settings/store-urls (fase 179-12, D-20). */
+export interface StoreUrls {
+  android: string | null;
+  ios: string | null;
+}
+
 /**
  * Payload de creación. `currency` NO forma parte del input: el server la
  * deriva de `branches.country` (D-13). `code` se normaliza server-side.
@@ -149,9 +155,53 @@ export function usePartnersApi() {
     }
   }
 
+  // =========================================================================
+  // URLs de tienda (fase 179-12, D-01/D-04/D-20). Fuente que consume
+  // PartnerQrDialog.vue antes de generar los PNG — el endpoint vive en el
+  // módulo settings del API, no en referral-partners.
+  // =========================================================================
+
+  async function getStoreUrls(): Promise<StoreUrls> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<StoreUrls>('/admin/settings/store-urls');
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando las URLs de tienda');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function updateStoreUrls(input: { android?: string; ios?: string }): Promise<StoreUrls> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.put<StoreUrls>('/admin/settings/store-urls', input);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error actualizando las URLs de tienda');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     // No subscriptions or timers to clean up
   }
 
-  return { loading, error, listPartners, getPartner, createPartner, updatePartner, cleanup };
+  return {
+    loading,
+    error,
+    listPartners,
+    getPartner,
+    createPartner,
+    updatePartner,
+    getStoreUrls,
+    updateStoreUrls,
+    cleanup,
+  };
 }
