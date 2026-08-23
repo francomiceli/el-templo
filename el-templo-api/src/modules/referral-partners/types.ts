@@ -115,3 +115,69 @@ export type PartnerSignupResult = {
   benefitType: PartnerBenefitType;
   benefitValue: number;
 } | null;
+
+/**
+ * Fila del reporte "conversiones por partner" (D-20, plan 179-10): una fila
+ * por vínculo `partner_referrals`, con el nombre del socio, el partner de
+ * origen, el estado del vínculo/beneficio y el estado+monto de la comisión
+ * asociada (si existe). `commission*` es `null` cuando el vínculo todavía no
+ * generó comisión (pending sin cualificar, o partner con `commissionType
+ * === "none"`).
+ *
+ * Asume 0-o-1 comisión por vínculo: el flip `pending → qualified` ocurre una
+ * sola vez en la vida de un vínculo (`qualifyAndCommission` /
+ * `assignPartnerToMember`), y la comisión que genera ese flip es idempotente
+ * por `subscription_id` (`unique_partner_commission_sub`). Si esa garantía de
+ * negocio cambiara (varias comisiones por vínculo), este reporte tendría que
+ * pre-agregar por `partner_referral_id` como hace `queryPartners` — hoy no
+ * hace falta.
+ */
+export interface ConversionRow {
+  linkId: number;
+  referredId: number;
+  referredName: string;
+  partnerId: number;
+  partnerName: string;
+  partnerCode: string;
+  status: "pending" | "qualified" | "revoked";
+  benefitType: PartnerBenefitType;
+  benefitStatus: "pending" | "consumed" | "expired";
+  qualifiedAt: Date | null;
+  createdAt: Date;
+  commissionId: number | null;
+  commissionStatus: "pending" | "settled" | "void" | null;
+  commissionAmount: number | null;
+  commissionCurrency: PartnerCurrency | null;
+}
+
+/**
+ * Fila del reporte "beneficios de partner sin conversión" (D-08 reescrita,
+ * plan 179-10): seguimiento manual de la sede para socios que canjearon un
+ * beneficio de partner y no convirtieron. Dos `motivo` mutuamente
+ * excluyentes (ver `listBenefitsWithoutConversion` en `service.ts` para el
+ * predicado exacto de cada uno):
+ *  - `"semana_sin_conversion"`: activó la semana gratis (`free_pass`,
+ *    `benefitStatus="consumed"`) hace más de 7 días y el vínculo nunca llegó
+ *    a `qualified`.
+ *  - `"beneficio_vencido_sin_uso"`: el beneficio (de cualquier tipo) quedó
+ *    `pending` y su `benefitExpiresAt` ya pasó (D-07).
+ *
+ * Este reporte reemplaza la idea original de mandar al funnel de leads
+ * (D-08 original): el funnel de leads exige `users.status='prueba'` +
+ * booking `is_trial` (`expire-lost-leads.ts`), incompatible con el
+ * consumidor de semana de partner, que después de consumirla queda
+ * `inactivo`/`freemium` según el resultado de la reserva, nunca `prueba`.
+ */
+export interface BenefitWithoutConversionRow {
+  linkId: number;
+  referredId: number;
+  referredName: string;
+  referredPhone: string | null;
+  partnerId: number;
+  partnerName: string;
+  benefitType: PartnerBenefitType;
+  benefitStatus: "pending" | "consumed" | "expired";
+  motivo: "semana_sin_conversion" | "beneficio_vencido_sin_uso";
+  /** Fecha relevante: consumo (`semana_sin_conversion`) o vencimiento (`beneficio_vencido_sin_uso`). */
+  fechaRelevante: Date;
+}

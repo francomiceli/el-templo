@@ -14,7 +14,7 @@
 // partners CALCA lo que necesita, no lo importa (salvo `ReferralService`,
 // consumida solo desde `code-resolver.ts` para la rama `member`).
 
-import { and, desc, eq, gt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, lte, ne, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -32,6 +32,8 @@ import { BadRequestError, ConflictError, NotFoundError } from "../shared/errors"
 import { tenantValues, tenantWhere } from "../shared/tenant";
 import type { TxHandle } from "../finance/balance-service";
 import type {
+  BenefitWithoutConversionRow,
+  ConversionRow,
   CreatePartnerInput,
   PartnerBenefitType,
   PartnerCurrency,
@@ -51,6 +53,15 @@ type DbInstance = MySql2Database<typeof schema>;
  * vencimiento — constante nombrada, no un mágico repetido.
  */
 export const PARTNER_BENEFIT_TTL_DAYS = 30;
+
+/**
+ * Ventana de gracia del reporte "beneficios sin conversión" (D-08 reescrita,
+ * plan 179-10): un `free_pass` consumido (semana activada) hace menos de
+ * esta cantidad de días todavía puede convertir — recién después de este
+ * plazo entra al reporte de seguimiento manual. Constante nombrada, no un
+ * mágico repetido en `listBenefitsWithoutConversion`.
+ */
+export const BENEFIT_WITHOUT_CONVERSION_GRACE_DAYS = 7;
 
 export class PartnerReferralService {
   constructor(
@@ -1004,6 +1015,262 @@ export class PartnerReferralService {
     }
 
     return null;
+  }
+
+  /**
+   * Liquidación batch de un partner (D-16, plan 179-10): marca TODAS las
+   * comisiones `pending` de ese partner como `settled`, en un acto, con
+   * fecha (`settledAt`) y usuario (`settledBy`). v1 NO tiene corte por fecha
+   * ni selección por ítem — es todo o nada por partner, tal como pide el
+   * botón "Liquidar" de la página de Partners. La liquidación NO mueve
+   * plata: `settled` significa "el partner cobró fuera del sistema" (el
+   * gimnasio le pagó por otro medio); el detalle queda auditable ítem por
+   * ítem en `partner_commissions` (cada fila conserva su `amount`/`currency`
+   * originales, solo cambia `status`+`settledAt`+`settledBy`).
+   *
+   * Orden:
+   *  1. `NotFoundError` si el partner no existe o es de otro tenant.
+   *  2. Lee primero el TOTAL (`SUM(amount)`) de las comisiones `pending` de
+   *     ese partner — es el único momento en que esa suma es observable:
+   *     después del UPDATE, esas filas ya no matchean `status='pending'`.
+   *  3. `UPDATE ... SET status='settled', settledAt=NOW(), settledBy=?
+   *     WHERE tenantWhere AND partner_id=? AND status='pending'` — el mismo
+   *     patrón de UPDATE guardado que `qualifyAndCommission`/
+   *     `voidPendingCommissionsForSubscription`: `affectedRows` es el
+   *     `count` real, no una lectura previa que podría desincronizarse bajo
+   *     carrera. `partner_id` + `status='pending'` en el WHERE (T-179-43)
+   *     garantiza que NUNCA toca comisiones de otro partner, ni `void`, ni
+   *     `settled` previas.
+   *
+   * Idempotente por construcción: una segunda llamada no encuentra filas
+   * `pending` que liquidar (`count: 0`, `totalAmount: 0`) y no modifica
+   * ninguna fila — no hay estado intermedio que "reintentar" rompa.
+   */
+  async settlePendingCommissions(
+    ctx: TenantCtx,
+    partnerId: number,
+    settledBy: number,
+  ): Promise<{ count: number; totalAmount: number; currency: PartnerCurrency }> {
+    const [partner] = await this.db
+      .select({ id: referralPartners.id, currency: referralPartners.currency })
+      .from(referralPartners)
+      .where(
+        and(tenantWhere(referralPartners, ctx), eq(referralPartners.id, partnerId)),
+      )
+      .limit(1);
+    if (!partner) {
+      throw new NotFoundError("El partner no existe");
+    }
+
+    const [totals] = await this.db
+      .select({
+        totalAmount: sql<number>`COALESCE(SUM(${partnerCommissions.amount}), 0)`,
+      })
+      .from(partnerCommissions)
+      .where(
+        and(
+          tenantWhere(partnerCommissions, ctx),
+          eq(partnerCommissions.partnerId, partnerId),
+          eq(partnerCommissions.status, "pending"),
+        ),
+      );
+    const totalAmount = Number(totals?.totalAmount ?? 0);
+
+    const result = await this.db
+      .update(partnerCommissions)
+      .set({ status: "settled", settledAt: new Date(), settledBy })
+      .where(
+        and(
+          tenantWhere(partnerCommissions, ctx),
+          eq(partnerCommissions.partnerId, partnerId),
+          eq(partnerCommissions.status, "pending"),
+        ),
+      );
+    const count = result[0].affectedRows;
+
+    this.log.info(
+      { partnerId, tenantId: ctx.tenantId, count, totalAmount, settledBy },
+      "referral-partners: liquidación batch ejecutada (D-16)",
+    );
+
+    return { count, totalAmount, currency: partner.currency as PartnerCurrency };
+  }
+
+  /**
+   * Reporte "conversiones por partner" (D-20, plan 179-10): una fila por
+   * vínculo, con el nombre del socio, el partner de origen, el estado del
+   * vínculo/beneficio y el estado+monto de su comisión (si la generó). Una
+   * sola query con JOINs — prohibido el patrón "una query por partner" (sin
+   * N+1), ver el docblock de `ConversionRow` en `types.ts` para el supuesto
+   * de cardinalidad 0-o-1 comisión por vínculo.
+   */
+  async listConversions(
+    ctx: TenantCtx,
+    filters: {
+      partnerId?: number;
+      status?: "pending" | "qualified" | "revoked";
+      dateFrom?: string;
+      dateTo?: string;
+      branchId?: number;
+    },
+  ): Promise<ConversionRow[]> {
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (filters.partnerId !== undefined) {
+      conditions.push(eq(partnerReferrals.partnerId, filters.partnerId));
+    }
+    if (filters.status !== undefined) {
+      conditions.push(eq(partnerReferrals.status, filters.status));
+    }
+    if (filters.branchId !== undefined) {
+      conditions.push(eq(referralPartners.branchId, filters.branchId));
+    }
+    if (filters.dateFrom !== undefined) {
+      conditions.push(
+        gte(partnerReferrals.createdAt, new Date(`${filters.dateFrom}T00:00:00`)),
+      );
+    }
+    if (filters.dateTo !== undefined) {
+      conditions.push(
+        lte(partnerReferrals.createdAt, new Date(`${filters.dateTo}T23:59:59`)),
+      );
+    }
+
+    const rows = await this.db
+      .select({
+        linkId: partnerReferrals.id,
+        referredId: partnerReferrals.referredId,
+        referredName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+        partnerId: partnerReferrals.partnerId,
+        partnerName: referralPartners.name,
+        partnerCode: referralPartners.code,
+        status: partnerReferrals.status,
+        benefitType: partnerReferrals.benefitType,
+        benefitStatus: partnerReferrals.benefitStatus,
+        qualifiedAt: partnerReferrals.qualifiedAt,
+        createdAt: partnerReferrals.createdAt,
+        commissionId: partnerCommissions.id,
+        commissionStatus: partnerCommissions.status,
+        commissionAmount: partnerCommissions.amount,
+        commissionCurrency: partnerCommissions.currency,
+      })
+      .from(partnerReferrals)
+      .innerJoin(
+        referralPartners,
+        eq(referralPartners.id, partnerReferrals.partnerId),
+      )
+      .innerJoin(users, eq(users.id, partnerReferrals.referredId))
+      .leftJoin(
+        partnerCommissions,
+        eq(partnerCommissions.partnerReferralId, partnerReferrals.id),
+      )
+      .where(and(tenantWhere(partnerReferrals, ctx), ...conditions))
+      .orderBy(desc(partnerReferrals.createdAt));
+
+    return rows.map((row) => ({
+      ...row,
+      status: row.status as ConversionRow["status"],
+      benefitType: row.benefitType as PartnerBenefitType,
+      benefitStatus: row.benefitStatus as ConversionRow["benefitStatus"],
+      commissionStatus:
+        (row.commissionStatus as ConversionRow["commissionStatus"]) ?? null,
+      commissionCurrency:
+        (row.commissionCurrency as PartnerCurrency | null) ?? null,
+    }));
+  }
+
+  /**
+   * Reporte "beneficios de partner sin conversión" (D-08 reescrita, plan
+   * 179-10): para seguimiento manual de la sede — NO escribe
+   * `users.lead_status` ni toca el pipeline de leads v5.8 (ver el docblock
+   * de `BenefitWithoutConversionRow` en `types.ts` para el porqué:
+   * `expire-lost-leads.ts` exige `status='prueba'` + booking `is_trial`,
+   * incompatible con el consumidor de semana de partner).
+   *
+   * Dos motivos, mutuamente excluyentes por construcción (uno exige
+   * `benefitStatus='consumed'`, el otro `benefitStatus='pending'` — un
+   * vínculo no puede estar en los dos estados a la vez), lo que permite un
+   * `ELSE` simple en el `CASE` del `motivo` sin duplicar el predicado
+   * completo en el SELECT:
+   *  - `semana_sin_conversion`: `free_pass` consumido (`benefitConsumedAt`)
+   *    hace más de `BENEFIT_WITHOUT_CONVERSION_GRACE_DAYS` días y el vínculo
+   *    nunca llegó a `qualified`.
+   *  - `beneficio_vencido_sin_uso`: beneficio `pending` cuyo
+   *    `benefitExpiresAt` ya pasó (D-07).
+   *
+   * Una sola query con JOINs — sin N+1.
+   */
+  async listBenefitsWithoutConversion(
+    ctx: TenantCtx,
+    filters: { partnerId?: number; branchId?: number },
+  ): Promise<BenefitWithoutConversionRow[]> {
+    const graceCutoff = new Date(
+      Date.now() - BENEFIT_WITHOUT_CONVERSION_GRACE_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const now = new Date();
+
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (filters.partnerId !== undefined) {
+      conditions.push(eq(partnerReferrals.partnerId, filters.partnerId));
+    }
+    if (filters.branchId !== undefined) {
+      conditions.push(eq(referralPartners.branchId, filters.branchId));
+    }
+
+    const semanaSinConversion = and(
+      eq(partnerReferrals.benefitType, "free_pass"),
+      eq(partnerReferrals.benefitStatus, "consumed"),
+      lte(partnerReferrals.benefitConsumedAt, graceCutoff),
+      ne(partnerReferrals.status, "qualified"),
+    );
+    const beneficioVencidoSinUso = and(
+      eq(partnerReferrals.benefitStatus, "pending"),
+      lte(partnerReferrals.benefitExpiresAt, now),
+    );
+
+    const rows = await this.db
+      .select({
+        linkId: partnerReferrals.id,
+        referredId: partnerReferrals.referredId,
+        referredName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+        referredPhone: users.phone,
+        partnerId: partnerReferrals.partnerId,
+        partnerName: referralPartners.name,
+        benefitType: partnerReferrals.benefitType,
+        benefitStatus: partnerReferrals.benefitStatus,
+        benefitConsumedAt: partnerReferrals.benefitConsumedAt,
+        benefitExpiresAt: partnerReferrals.benefitExpiresAt,
+        // Ver docblock del método: los dos motivos son mutuamente
+        // excluyentes por el WHERE de abajo, así que un ELSE alcanza.
+        motivo: sql<string>`
+          CASE
+            WHEN ${partnerReferrals.benefitType} = 'free_pass'
+              AND ${partnerReferrals.benefitStatus} = 'consumed'
+            THEN 'semana_sin_conversion'
+            ELSE 'beneficio_vencido_sin_uso'
+          END
+        `,
+      })
+      .from(partnerReferrals)
+      .innerJoin(
+        referralPartners,
+        eq(referralPartners.id, partnerReferrals.partnerId),
+      )
+      .innerJoin(users, eq(users.id, partnerReferrals.referredId))
+      .where(
+        and(
+          tenantWhere(partnerReferrals, ctx),
+          ...conditions,
+          or(semanaSinConversion, beneficioVencidoSinUso),
+        ),
+      );
+
+    return rows.map((row) => ({
+      ...row,
+      benefitType: row.benefitType as PartnerBenefitType,
+      benefitStatus: row.benefitStatus as BenefitWithoutConversionRow["benefitStatus"],
+      motivo: row.motivo as BenefitWithoutConversionRow["motivo"],
+      fechaRelevante: row.benefitConsumedAt ?? row.benefitExpiresAt,
+    }));
   }
 }
 
