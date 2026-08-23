@@ -38,7 +38,7 @@
     </div>
 
     <!-- ================================================================== -->
-    <!-- Tabs: Partners (Conversiones y Liquidación llegan en 179-13) -->
+    <!-- Tabs: Partners, Conversiones (Liquidación llega en 179-13 Task 3) -->
     <!-- ================================================================== -->
     <q-tabs
       v-model="activeTab"
@@ -49,6 +49,7 @@
       indicator-color="primary"
     >
       <q-tab name="partners" label="Partners" />
+      <q-tab name="conversiones" label="Conversiones" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -139,6 +140,59 @@
         <PartnerFormDialog v-model="showFormDialog" :partner="editingPartner" @saved="onPartnerSaved" />
         <PartnerQrDialog v-model="showQrDialog" :partner="qrPartner" />
       </q-tab-panel>
+
+      <!-- ================================================================ -->
+      <!-- Tab: Conversiones (D-20) + Beneficios sin conversión (D-08) -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="conversiones">
+        <PartnerConversionsTable />
+
+        <div class="text-h6 q-mt-lg q-mb-xs">Beneficios sin conversión</div>
+        <div class="text-caption text-grey-7 q-mb-md">
+          Socios que canjearon un beneficio de partner y no convirtieron — para seguimiento manual
+          de la sede (llamada, WhatsApp). No forma parte del embudo de leads.
+        </div>
+
+        <q-table
+          :rows="benefitsWithoutConversion"
+          :columns="benefitsWithoutConversionColumns"
+          row-key="linkId"
+          :loading="loadingBenefitsWithoutConversion"
+          :pagination="{ rowsPerPage: 50 }"
+          :rows-per-page-options="[20, 50, 100]"
+          flat
+          bordered
+        >
+          <template #no-data>
+            <div class="full-width text-center text-grey-7 q-pa-md">
+              No hay beneficios sin conversión.
+            </div>
+          </template>
+
+          <template #body-cell-phone="props">
+            <q-td :props="props">
+              <a
+                v-if="props.row.referredPhone"
+                :href="whatsappUrl(props.row.referredPhone)"
+                target="_blank"
+                rel="noopener"
+                class="text-primary no-underline"
+              >
+                {{ props.row.referredPhone }}
+              </a>
+              <span v-else class="text-grey-5">—</span>
+            </q-td>
+          </template>
+
+          <template #body-cell-motivo="props">
+            <q-td :props="props"> {{ motivoLabel(props.row.motivo) }} </q-td>
+          </template>
+
+          <template #body-cell-fecha="props">
+            <q-td :props="props"> {{ formatDateEs(props.row.fechaRelevante) }} </q-td>
+          </template>
+        </q-table>
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -147,13 +201,18 @@
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar, type QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
-import { usePartnersApi, type PartnerListItem } from 'src/composables/usePartnersApi';
+import {
+  usePartnersApi,
+  type PartnerListItem,
+  type BenefitWithoutConversionRow,
+} from 'src/composables/usePartnersApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { formatPrice } from 'src/utils/format-price';
 import type { BranchOption } from 'src/types/member';
 import PartnerFormDialog from 'src/components/partners/PartnerFormDialog.vue';
 import PartnerQrDialog from 'src/components/partners/PartnerQrDialog.vue';
+import PartnerConversionsTable from 'src/components/partners/PartnerConversionsTable.vue';
 
 const log = createLogger('PartnersPage');
 const $q = useQuasar();
@@ -200,6 +259,56 @@ const editingPartner = ref<PartnerListItem | null>(null);
 const showQrDialog = ref(false);
 const qrPartner = ref<PartnerListItem | null>(null);
 
+// =========================================================================
+// Beneficios sin conversión (D-08 reescrita) — reporte de seguimiento
+// manual de la sede, propio del tab Conversiones.
+// =========================================================================
+
+const benefitsWithoutConversion = ref<BenefitWithoutConversionRow[]>([]);
+const loadingBenefitsWithoutConversion = ref(false);
+
+const benefitsWithoutConversionColumns: QTableProps['columns'] = [
+  { name: 'referredName', label: 'Socio', field: 'referredName', align: 'left', sortable: true },
+  { name: 'phone', label: 'Teléfono', field: 'referredPhone', align: 'left' },
+  { name: 'partnerName', label: 'Partner', field: 'partnerName', align: 'left', sortable: true },
+  { name: 'motivo', label: 'Motivo', field: 'motivo', align: 'left' },
+  { name: 'fecha', label: 'Fecha', field: 'fechaRelevante', align: 'left', sortable: true },
+];
+
+function motivoLabel(motivo: BenefitWithoutConversionRow['motivo']): string {
+  return motivo === 'semana_sin_conversion'
+    ? 'Usó la semana y no compró'
+    : 'Beneficio vencido sin usar';
+}
+
+function formatDateEs(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-AR');
+}
+
+// Phase 165-03 (D-06) + WR-01: link wa.me a partir del teléfono del socio.
+// Espeja TrialSessionsReport.vue (digits-only + prefijo AR para móviles de
+// 10 dígitos sin país).
+function whatsappUrl(phone: string): string {
+  const digits = phone.replace(/[^0-9]/g, '');
+  const intl = digits.length === 10 ? `549${digits}` : digits;
+  return `https://wa.me/${intl}`;
+}
+
+async function loadBenefitsWithoutConversion() {
+  loadingBenefitsWithoutConversion.value = true;
+  try {
+    benefitsWithoutConversion.value = await partnersApi.listBenefitsWithoutConversion({
+      branchId: selectedBranchId.value,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading benefits without conversion', { error: message });
+    $q.notify({ type: 'negative', message: 'Error cargando los beneficios sin conversión' });
+  } finally {
+    loadingBenefitsWithoutConversion.value = false;
+  }
+}
+
 const filteredPartners = computed(() =>
   isOwner.value ? partners.value.filter((p) => p.country === selectedCountry.value) : partners.value
 );
@@ -237,6 +346,7 @@ async function fetchBranches() {
 
 function onBranchChange() {
   loadPartners();
+  loadBenefitsWithoutConversion();
 }
 
 // =========================================================================
@@ -319,5 +429,6 @@ function onPartnerSaved() {
 onMounted(() => {
   fetchBranches();
   loadPartners();
+  loadBenefitsWithoutConversion();
 });
 </script>
