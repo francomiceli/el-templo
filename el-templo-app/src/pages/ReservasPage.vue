@@ -51,6 +51,190 @@
       </q-btn>
     </div>
 
+    <!-- State 4a — partner free-week benefit pending (Phase 179, D-05/D-06): the
+         beneficiary sees the grid the same way a trial-eligible freemium does,
+         even without an active plan. D-18 (backend) guarantees this never
+         overlaps with trialEligible, so no cross-condition is needed here —
+         only the chain order relative to the blocked state below. -->
+    <template v-else-if="partnerBenefitEligible">
+      <div class="trial-banner q-mb-md">
+        <q-icon name="redeem" size="20px" class="trial-banner__icon" />
+        <div class="trial-banner__text">
+          <p class="trial-banner__heading">Tu semana de regalo</p>
+          <p class="trial-banner__body">
+            Cortesía de {{ partnerBenefit?.eligible ? partnerBenefit.partnerName : '' }}. Elegí un
+            horario: al reservar tu primera clase arranca tu semana (3 clases). Vencimiento del
+            beneficio: {{ partnerBenefitExpiresLabel }}.
+          </p>
+        </div>
+      </div>
+
+      <!-- Branch selector — required before the grid shows, same as trial mode. -->
+      <div class="q-mb-md flex justify-center">
+        <q-select
+          v-model="trialBranchId"
+          :options="branchOptions"
+          dense
+          rounded
+          outlined
+          emit-value
+          map-options
+          class="branch-select"
+          :display-value="trialBranchId ? undefined : 'Elegí una sede para ver los horarios'"
+        >
+          <template #prepend>
+            <q-icon name="location_on" size="18px" color="primary" />
+          </template>
+          <template #append>
+            <q-icon name="unfold_more" size="16px" color="grey-6" />
+          </template>
+        </q-select>
+      </div>
+
+      <div v-if="!trialBranchId" class="day-slots__empty">
+        <q-icon name="event_busy" size="40px" color="grey-4" />
+        <p>Elegí una sede para ver los horarios disponibles.</p>
+      </div>
+
+      <template v-else>
+        <div class="day-strip q-mb-md">
+          <div class="day-strip__nav">
+            <q-btn flat dense round icon="chevron_left" size="sm" @click="changeWeek(-1)" />
+            <q-btn flat dense no-caps class="day-strip__week-label" @click="goToCurrentWeek">
+              {{ weekLabel }}
+            </q-btn>
+            <q-btn flat dense round icon="chevron_right" size="sm" @click="changeWeek(1)" />
+          </div>
+          <div class="day-strip__days">
+            <button
+              v-for="day in visibleDays"
+              :key="day"
+              class="day-pill"
+              :class="{
+                'day-pill--selected': selectedDay === day,
+                'day-pill--today': isToday(day),
+                'day-pill--past': isDayPast(day),
+              }"
+              @click="selectedDay = day"
+            >
+              <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
+              <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="day-slots">
+          <div v-if="selectedDayHoliday" class="day-slots__holiday">
+            <q-icon name="celebration" size="20px" />
+            <span>{{ selectedDayHoliday }}</span>
+          </div>
+
+          <template v-if="morningSlots.length > 0">
+            <p v-if="afternoonSlots.length > 0" class="day-slots__period">Turno Mañana</p>
+            <div
+              v-for="slot in morningSlots"
+              :key="slot.id"
+              class="slot-card"
+              :class="slotCardClass(slot)"
+              @click="onPartnerSlotTap(slot)"
+            >
+              <div class="slot-card__time">
+                <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
+                <span class="slot-card__activity">{{ slot.activityName }}</span>
+              </div>
+              <div class="slot-card__right">
+                <template v-if="isSlotHoliday(slot)">
+                  <q-badge color="accent" label="Feriado" />
+                </template>
+                <template v-else-if="slot.isFull">
+                  <span class="slot-card__avail slot-card__avail--full">Completo</span>
+                </template>
+                <template v-else-if="isSlotPast(slot)"></template>
+                <template v-else>
+                  <span
+                    class="slot-card__avail"
+                    :class="`slot-card__avail--${availabilityLevel(slot)}`"
+                    >{{ availabilityText(slot) }}</span
+                  >
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    label="Reservar"
+                    class="slot-card__action"
+                    @click.stop="onPartnerSlotTap(slot)"
+                  />
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <template v-if="afternoonSlots.length > 0">
+            <p v-if="morningSlots.length > 0" class="day-slots__period">Turno Tarde</p>
+            <div
+              v-for="slot in afternoonSlots"
+              :key="slot.id"
+              class="slot-card"
+              :class="slotCardClass(slot)"
+              @click="onPartnerSlotTap(slot)"
+            >
+              <div class="slot-card__time">
+                <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
+                <span class="slot-card__activity">{{ slot.activityName }}</span>
+              </div>
+              <div class="slot-card__right">
+                <template v-if="isSlotHoliday(slot)">
+                  <q-badge color="accent" label="Feriado" />
+                </template>
+                <template v-else-if="slot.isFull">
+                  <span class="slot-card__avail slot-card__avail--full">Completo</span>
+                </template>
+                <template v-else-if="isSlotPast(slot)"></template>
+                <template v-else>
+                  <span
+                    class="slot-card__avail"
+                    :class="`slot-card__avail--${availabilityLevel(slot)}`"
+                    >{{ availabilityText(slot) }}</span
+                  >
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    label="Reservar"
+                    class="slot-card__action"
+                    @click.stop="onPartnerSlotTap(slot)"
+                  />
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </template>
+
+    <!-- State 4b — partner free-week benefit expired (Phase 179, D-07): the
+         benefit lapsed 30 days after signup without a first reservation. No
+         grid, no reserve — same visual language as the blocked muro below. -->
+    <div v-else-if="partnerBenefitExpired" class="reservas__empty">
+      <q-icon name="event_busy" size="64px" color="grey-5" />
+      <h2 class="reservas__empty-title">Tu semana de regalo venció</h2>
+      <p class="reservas__empty-text">
+        El beneficio de tu semana gratis venció porque no llegaste a reservar a tiempo. Consultá
+        por nuestros planes para seguir entrenando.
+      </p>
+      <q-btn no-caps rounded color="positive" class="q-mt-md" @click="openWhatsApp">
+        <q-icon
+          name="img:/icons/whatsapp.svg"
+          size="20px"
+          class="q-mr-sm"
+          style="filter: brightness(0) invert(1)"
+        />
+        Ver planes
+      </q-btn>
+    </div>
+
     <!-- Blocked state — user has no presencial plan and is NOT a trial-eligible freemium.
          Phase 162 (D-06): el externo-solo-pase (hasEspecialPass) pasa el gate y entra a
          la grilla filtrada a especiales (E5); usar canAccessGrid, no canReservePresencial. -->
@@ -694,6 +878,28 @@
       </q-card>
     </q-dialog>
 
+    <!-- Partner free-week reserve confirmation dialog (Phase 179, D-05/D-06) -->
+    <q-dialog v-model="partnerDialog.show" persistent>
+      <q-card style="min-width: 300px">
+        <q-card-section>
+          <div class="text-h6">Arrancar tu semana de regalo</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          {{ partnerDialog.message }}
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="grey" v-close-popup :disable="partnerDialog.loading" />
+          <q-btn
+            flat
+            label="Confirmar"
+            color="primary"
+            :loading="partnerDialog.loading"
+            @click="confirmPartnerReserve"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- Cancel confirmation dialog -->
     <q-dialog v-model="cancelDialog.show" persistent>
       <q-card style="min-width: 300px">
@@ -786,7 +992,7 @@ import axios from 'axios'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
-import type { TrialEligibility } from 'src/composables/useSchedulingApi'
+import type { TrialEligibility, PartnerBenefitEligibility } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
@@ -813,6 +1019,8 @@ const {
   getTrialEligibility,
   reserveTrial,
   cancelTrial,
+  getPartnerBenefit,
+  reservePartnerWeek,
   cleanup,
 } = useSchedulingApi()
 const bonusUsage = ref<{
@@ -944,6 +1152,39 @@ function openTrialWhatsApp(): void {
   window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 
+// ─── Partner free-week mode (Phase 179, D-05/D-06/D-07) ──────────────
+// Eligibility comes from the backend ONLY, same principle as trial (D-21
+// equivalent). D-18 (backend, 179-08) guarantees a socio never has
+// trialEligible AND a pending/consumed partner benefit at the same time, so
+// this block never needs to branch on trial state — only the template's
+// v-else-if ORDER coordinates the two (D-05/D-06/D-07/D-19 truths).
+const partnerBenefit = ref<PartnerBenefitEligibility | null>(null)
+
+const partnerBenefitEligible = computed(() => partnerBenefit.value?.eligible === true)
+const partnerBenefitExpired = computed(
+  () => partnerBenefit.value?.eligible === false && partnerBenefit.value.reason === 'expirado',
+)
+// Reuses trialBranchId as the sede selector for the grid (safe under D-18:
+// never both active at once) — the freemium and partner-pending flows share
+// the exact same "pick a sede, then a slot" grid mechanics.
+const isPartnerWeekMode = computed(() => partnerBenefitEligible.value)
+
+const partnerBenefitExpiresLabel = computed(() =>
+  partnerBenefit.value?.eligible ? formatDateLabel(partnerBenefit.value.expiresAt) : '',
+)
+
+async function loadPartnerBenefit() {
+  try {
+    partnerBenefit.value = await getPartnerBenefit()
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'CanceledError') return
+    // Non-critical — if eligibility can't be resolved, fall back to the
+    // existing presencial/muro/trial branching (partnerBenefitEligible stays false).
+    partnerBenefit.value = null
+    log.warn('Failed to load partner benefit', { error: extractError(err, 'unknown') })
+  }
+}
+
 // ─── Dialogs ────────────────────────────────────────────────────────
 const reserveDialog = ref({
   show: false,
@@ -978,6 +1219,17 @@ const cancelDialog = ref({
   message: '',
   loading: false,
   bookingId: 0,
+})
+
+// Partner free-week reserve dialog (Phase 179, D-05/D-06) — no phone capture,
+// unlike trialDialog: the socio already has a phone on file by the time they
+// have a partner benefit (it comes from a real registration, not a lead).
+const partnerDialog = ref({
+  show: false,
+  message: '',
+  loading: false,
+  scheduleId: 0,
+  date: '',
 })
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -1046,6 +1298,12 @@ function formatTime(time: string): string {
 function formatBonusPeriodEnd(isoDate: string): string {
   const d = new Date(isoDate + 'T12:00:00')
   return `${d.getDate()}/${d.getMonth() + 1}`
+}
+
+/** "22 Sep" — used for the partner benefit expiry date and the free-week end date. */
+function formatDateLabel(isoDate: string): string {
+  const d = new Date(isoDate.slice(0, 10) + 'T12:00:00')
+  return `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
 }
 
 function isToday(day: DayOfWeek): boolean {
@@ -1600,6 +1858,72 @@ async function confirmTrialCancel() {
   }
 }
 
+// ─── Partner free-week reserve flow (Phase 179, D-05/D-06) ─────────
+
+function onPartnerSlotTap(slot: WeeklySlotView) {
+  if (isSlotHoliday(slot)) return
+  if (isSlotPast(slot)) return
+  if (slot.isFull) return
+
+  const date = dateForDay(slot.dayOfWeek as DayOfWeek)
+  const dayLabel = DAY_LABELS_FULL[slot.dayOfWeek as DayOfWeek]
+  const timeStr = formatTime(slot.startTime)
+  const sede =
+    branchOptions.value.find((o) => o.value === trialBranchId.value)?.label ?? 'la sede elegida'
+
+  partnerDialog.value = {
+    show: true,
+    message: `¿Reservar ${slot.activityName} el ${dayLabel} ${formatDateLabel(date)} a las ${timeStr} en ${sede}? Al confirmar arranca tu semana de regalo (3 clases).`,
+    loading: false,
+    scheduleId: slot.id,
+    date,
+  }
+}
+
+async function confirmPartnerReserve() {
+  if (!trialBranchId.value) return
+  partnerDialog.value.loading = true
+  try {
+    const result = await reservePartnerWeek({
+      scheduleId: partnerDialog.value.scheduleId,
+      date: partnerDialog.value.date,
+      branchId: trialBranchId.value,
+    })
+    partnerDialog.value.show = false
+    const endLabel = result.endDate ? formatDateLabel(result.endDate) : null
+    $q.notify({
+      type: 'positive',
+      message: endLabel
+        ? `¡Listo! Tu semana arrancó hoy y tenés 3 clases para usar hasta el ${endLabel}.`
+        : '¡Listo! Tu semana arrancó hoy y tenés 3 clases para usar.',
+    })
+    // La fuente de verdad es el server (D-06): recargar beneficio + suscripción
+    // para que canAccessGrid pase a true y la página caiga a la grilla normal
+    // con la reserva recién creada.
+    selectedBranchId.value = trialBranchId.value
+    await Promise.all([loadPartnerBenefit(), userStore.loadSubscription()])
+    await loadGrid()
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response?.status === 409) {
+      const message = extractError(
+        err,
+        'Tu semana de regalo ya no está disponible. Actualizamos tu estado.',
+      )
+      $q.notify({ type: 'warning', message })
+      await loadPartnerBenefit()
+    } else {
+      const message = extractError(
+        err,
+        'No pudimos activar tu semana. Probá de nuevo o escribinos por WhatsApp.',
+      )
+      $q.notify({ type: 'negative', message })
+      log.error('Partner week reserve failed', { error: message })
+    }
+  } finally {
+    partnerDialog.value.loading = false
+  }
+}
+
 function promptCancelBooking(booking: BookingRecord) {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
   cancelDialog.value = {
@@ -1669,11 +1993,12 @@ async function loadTrialEligibility() {
 
 async function loadGrid() {
   try {
-    const branchId = isTrialMode.value
-      ? (trialBranchId.value ?? undefined)
-      : isMultiBranch.value
-        ? (selectedBranchId.value ?? undefined)
-        : undefined
+    const branchId =
+      isTrialMode.value || isPartnerWeekMode.value
+        ? (trialBranchId.value ?? undefined)
+        : isMultiBranch.value
+          ? (selectedBranchId.value ?? undefined)
+          : undefined
     const data = await getWeeklyGrid(formatWeekStart(weekStart.value), branchId)
 
     // Adopt the viewing branch's timezone. If this is the first load or
@@ -1706,8 +2031,10 @@ watch(selectedBranchId, () => loadGrid())
 
 // Trial mode: reloading the grid for the chosen physical sede (D-06). Reset the
 // week to "today" so the 30-day window starts from the current week.
+// Also covers partner free-week mode (Phase 179, D-06): same "pick a sede,
+// then reload" mechanics, shared ref under the D-18 mutual-exclusion guarantee.
 watch(trialBranchId, () => {
-  if (!trialEligible.value) return
+  if (!trialEligible.value && !isPartnerWeekMode.value) return
   weekStart.value = getMondayInTz(branchTimezone.value)
   selectedDay.value = getTodayDow(branchTimezone.value)
   loadGrid()
@@ -1723,8 +2050,11 @@ onMounted(async () => {
   // del muro y para que el chip x/2 tenga el saldo correcto al primer render.
   await userStore.loadEspecialPass()
 
-  // Resolve trial eligibility first — it gates the 3 ReservasPage states (D-22).
-  await loadTrialEligibility()
+  // Resolve trial eligibility and partner free-week benefit together, at the
+  // same point in the lifecycle (Phase 179 plan): they gate mutually
+  // exclusive states (D-18, backend-guaranteed) that together decide which
+  // of the ReservasPage states renders.
+  await Promise.all([loadTrialEligibility(), loadPartnerBenefit()])
 
   if (trialEligible.value) {
     // Trial mode: load the physical-branch options for the sede selector (D-06).
@@ -1740,6 +2070,24 @@ onMounted(async () => {
 
   if (trialBooking.value) {
     // Already-booked confirmation card (state 3) needs no grid.
+    loading.value = false
+    return
+  }
+
+  if (partnerBenefitEligible.value) {
+    // Partner free-week pending (Phase 179, D-06): same sede-selector-first
+    // pattern as trial mode. The grid stays empty until the user picks a sede.
+    try {
+      branches.value = await getBranches()
+    } catch {
+      // fall through — selector simply renders empty
+    }
+    loading.value = false
+    return
+  }
+
+  if (partnerBenefitExpired.value) {
+    // Expired benefit (D-07): no grid, no sede selector needed.
     loading.value = false
     return
   }
