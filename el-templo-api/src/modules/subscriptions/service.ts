@@ -50,6 +50,7 @@ import type {
   PromoListItem,
   CreatePromoInput,
   UpdatePromoInput,
+  AuraDiscountTier,
 } from "./types";
 import {
   AURA_DISCOUNT_TIERS,
@@ -580,12 +581,120 @@ export class SubscriptionService {
   // (`prorateToMonthEnd`) — un alta prorrateada sigue siendo una venta real.
 
   /**
+   * Candidato de descuento de partner para `assignPlan` (D-09/D-10/D-17) —
+   * envoltorio de `computePartnerDiscountCandidate` (lectura pura,
+   * `referral-partners/service.ts`) que aplica las exclusiones propias del
+   * DESCUENTO (a diferencia de la comisión de `qualifyPartnerOnCharge`, que
+   * NO las lleva — D-17): `excludedFromReferrals(planCategory)` ('especial'
+   * + 'paquete') y `prorateToMonthEnd` (el proporcional de fin de mes ya ES
+   * el precio final, sin descuento encima — mismo criterio que el bloque de
+   * referidos). `null` en cualquiera de los dos casos, sin llegar a
+   * consultar la tabla.
+   */
+  private async resolvePartnerDiscountCandidate(
+    userId: number,
+    planCategory: PlanCategory,
+    prorateToMonthEnd: boolean | undefined,
+    tenantId: number,
+  ): Promise<{ linkId: number; percent: number } | null> {
+    if (excludedFromReferrals(planCategory) || prorateToMonthEnd === true) {
+      return null;
+    }
+    return new PartnerReferralService(
+      this.db,
+      this.log,
+    ).computePartnerDiscountCandidate({ tenantId }, userId);
+  }
+
+  /**
    * Cualifica el vínculo de partner del payer y da de alta su comisión
    * (D-11), cuando el cargo efectivamente cobra (`pricePaid>0` — mismo
    * umbral que referidos: un mes 100% bonificado no es una venta). Best-
    * effort: la comisión es contabilidad de negocio, nunca puede romper un
    * cobro ya efectuado (T-179-23).
    */
+  /**
+   * Consume el beneficio de descuento de partner tras el cargo, con el
+   * candidato/ganador ya resueltos ANTES del bloque AURA por
+   * `resolvePartnerDiscountCandidate` (D-09/D-10/D-20). Best-effort: el
+   * cobro ya ocurrió, un fallo acá jamás lo revierte (T-179-23, mismo
+   * criterio que `qualifyPartnerOnCharge`).
+   *
+   * - `won=true`: el descuento de partner efectivamente redujo `pricePaid`
+   *   → `applied_reason='aplicado'` con el `percent`/`amount` ganadores.
+   * - `won=false` pero el cargo cobró (`pricePaid>0`): el beneficio se
+   *   consume IGUAL — la primera cuota ya pasó, aunque haya sido AURA quien
+   *   dio el descuento mayor → `applied_reason='perdio_vs_aura'`,
+   *   `applied_percent=0` (D-20).
+   * - `won=false` y `pricePaid<=0`: no se consume — un cargo 100%
+   *   bonificado no gasta "la primera cuota" real del socio (mismo umbral
+   *   que referidos/comisión).
+   * - Sin candidato (`candidate === null`): no-op, nada que consumir.
+   */
+  private async consumePartnerBenefitAfterCharge(params: {
+    userId: number;
+    subscriptionId: number;
+    pricePaid: number;
+    candidate: { linkId: number; percent: number } | null;
+    won: boolean;
+    wonPercent: number | null;
+    wonAmount: number | null;
+  }): Promise<void> {
+    const {
+      userId,
+      subscriptionId,
+      pricePaid,
+      candidate,
+      won,
+      wonPercent,
+      wonAmount,
+    } = params;
+    if (!candidate) return;
+    if (!won && pricePaid <= 0) return;
+
+    try {
+      /* tenant-safe: lectura por PK de la fila recién escrita para derivar
+       * el tenant del cobro, no es un listado cross-tenant (mismo patrón
+       * que qualifyPartnerOnCharge) */
+      const [sub] = await this.db
+        .select({ tenantId: schema.subscriptions.tenantId })
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.id, subscriptionId))
+        .limit(1);
+      if (typeof sub?.tenantId !== "number") {
+        this.log.warn(
+          { subscriptionId, userId },
+          "partner: no se pudo derivar el tenant para consumir el beneficio de descuento (DENY, no se asume tenant 1)",
+        );
+        return;
+      }
+      await new PartnerReferralService(
+        this.db,
+        this.log,
+      ).consumePartnerBenefitOnCharge(
+        { tenantId: sub.tenantId },
+        userId,
+        subscriptionId,
+        won
+          ? {
+              percent: wonPercent ?? 0,
+              amount: wonAmount ?? 0,
+              reason: "aplicado" as const,
+            }
+          : { percent: 0, amount: 0, reason: "perdio_vs_aura" as const },
+      );
+    } catch (err: unknown) {
+      this.log.warn(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          userId,
+          subscriptionId,
+        },
+        "partner: consumo del beneficio de descuento falló (best-effort, el cobro no se revierte)",
+      );
+    }
+  }
+
   private async qualifyPartnerOnCharge(
     payerUserId: number,
     pricePaid: number,
@@ -1578,6 +1687,16 @@ export class SubscriptionService {
     let auraDiscountPercent: number | null = null;
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
+    // Fase 179 (D-09/D-10/D-20): candidato de descuento de partner resuelto
+    // ANTES del bloque AURA (lectura pura, Pitfall 6) y si efectivamente
+    // ganó — usados después del INSERT para decidir el consumo del
+    // beneficio (`consumePartnerBenefitOnCharge`, "aplicado" vs
+    // "perdio_vs_aura").
+    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
+      null;
+    let partnerBenefitWon = false;
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
     let boardingPassUsed = false;
     let priceOverrideAmount: number | null = null;
     let priceOverrideReason: string | null = null;
@@ -1657,7 +1776,35 @@ export class SubscriptionService {
       const basePrice = this.getBasePrice(plan, priceTypeApplied);
       pricePaid = basePrice;
 
-      // Apply AURA discount if requested
+      // ── Partners (fase 179, D-09/D-10/D-20) — candidato ANTES de AURA ──
+      // Lectura pura (Pitfall 6 del RESEARCH): en este punto todavía no
+      // sabemos si el partner gana. El tenantId se deriva de la sede del
+      // cobro (input.branchId) — a diferencia de qualifyPartnerOnCharge, acá
+      // todavía no existe la fila de suscripción para leer su tenant por PK.
+      const [chargeBranchTenant] = await this.db
+        .select({ tenantId: schema.branches.tenantId })
+        .from(schema.branches)
+        .where(eq(schema.branches.id, input.branchId))
+        .limit(1);
+      if (typeof chargeBranchTenant?.tenantId === "number") {
+        partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+          userId,
+          plan.planCategory,
+          input.prorateToMonthEnd,
+          chargeBranchTenant.tenantId,
+        );
+      } else {
+        this.log.warn(
+          { userId, branchId: input.branchId },
+          "partner: no se pudo derivar el tenant de la sede del cobro (sin candidato de descuento, DENY)",
+        );
+      }
+
+      // Apply AURA discount if requested — las validaciones corren SIEMPRE
+      // que se pida auraSpend, gane quien gane (D-10/D-20): una categoría
+      // excluida o un tier inexistente siguen siendo 400 aunque el partner
+      // termine ganando y `auraService.spend()` nunca se llegue a invocar.
+      let auraTier: AuraDiscountTier | undefined;
       if (input.auraSpend && input.auraSpend > 0) {
         // Fase 177 (D-13/T-177-04): los paquetes de clases no participan de
         // descuento AURA (guardrail de no-canibalización — ya son fórmula
@@ -1669,26 +1816,54 @@ export class SubscriptionService {
             "Los paquetes de clases no aceptan descuento AURA",
           );
         }
-        const tier = AURA_DISCOUNT_TIERS.find(
+        auraTier = AURA_DISCOUNT_TIERS.find(
           (t) => t.spend === input.auraSpend,
         );
-        if (!tier) {
+        if (!auraTier) {
           throw new BadRequestError(
             `Monto de AURA invalido. Opciones: ${AURA_DISCOUNT_TIERS.map((t) => t.spend).join(", ")}`,
           );
         }
+      }
 
+      // D-10/D-20: gana el mayor. El empate lo gana el partner — con el
+      // mismo % de descuento, el socio conserva sus puntos AURA en vez de
+      // gastarlos para llegar al mismo precio final. Sin AURA en juego
+      // (auraTier undefined), cualquier candidato con percent>0 gana solo.
+      partnerBenefitWon =
+        partnerBenefitCandidate !== null &&
+        partnerBenefitCandidate.percent >= (auraTier?.percent ?? 0);
+
+      if (partnerBenefitWon && partnerBenefitCandidate) {
+        const discountAmount = Math.floor(
+          basePrice * (partnerBenefitCandidate.percent / 100),
+        );
+        pricePaid = basePrice - discountAmount;
+        partnerDiscountPercent = partnerBenefitCandidate.percent;
+        partnerDiscountAmount = discountAmount;
+        this.log.info(
+          {
+            userId,
+            partnerLinkId: partnerBenefitCandidate.linkId,
+            partnerPercent: partnerBenefitCandidate.percent,
+            auraTierPercent: auraTier?.percent ?? null,
+          },
+          "partner: descuento de partner ganó (o AURA no estaba en juego) — no se gastaron puntos AURA (D-10/D-20)",
+        );
+      } else if (auraTier) {
         // Spend AURA (throws InsufficientBalanceError if not enough)
         await this.auraService.spend({
           userId,
-          amount: tier.spend,
-          description: `Descuento de suscripcion: ${tier.percent}% off`,
+          amount: auraTier.spend,
+          description: `Descuento de suscripcion: ${auraTier.percent}% off`,
           referenceType: "subscription",
         });
 
-        auraDiscount = tier.spend;
-        auraDiscountPercent = tier.percent;
-        const discountAmount = Math.floor(basePrice * (tier.percent / 100));
+        auraDiscount = auraTier.spend;
+        auraDiscountPercent = auraTier.percent;
+        const discountAmount = Math.floor(
+          basePrice * (auraTier.percent / 100),
+        );
         pricePaid = basePrice - discountAmount;
       }
     }
@@ -1778,6 +1953,10 @@ export class SubscriptionService {
           auraDiscountPercent,
           referralDiscountPercent,
           referralDiscountAmount,
+          // Fase 179 (D-09): descuento de partner materializado, null cuando
+          // no aplicó (no había candidato, o AURA ganó la comparación D-10).
+          partnerDiscountPercent,
+          partnerDiscountAmount,
           boardingPassUsed,
           priceOverrideAmount,
           priceOverrideReason,
@@ -2072,6 +2251,21 @@ export class SubscriptionService {
     // incluidos) y NO excluye el alta prorrateada — un alta prorrateada
     // sigue siendo una venta real.
     await this.qualifyPartnerOnCharge(userId, pricePaid, subscriptionId);
+
+    // Partners (D-09/D-10/D-20): consume el beneficio de descuento, con el
+    // candidato/ganador ya resueltos ANTES del bloque AURA. No-op si no
+    // hubo candidato (`resolvePartnerDiscountCandidate` corrió solo en la
+    // rama de cálculo normal de precio, con las mismas exclusiones D-17 que
+    // referidos).
+    await this.consumePartnerBenefitAfterCharge({
+      userId,
+      subscriptionId,
+      pricePaid,
+      candidate: partnerBenefitCandidate,
+      won: partnerBenefitWon,
+      wonPercent: partnerDiscountPercent,
+      wonAmount: partnerDiscountAmount,
+    });
 
     this.log.info(
       {
