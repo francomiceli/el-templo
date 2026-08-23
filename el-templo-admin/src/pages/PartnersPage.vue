@@ -122,11 +122,22 @@
               >
                 <q-tooltip>Editar</q-tooltip>
               </q-btn>
+              <q-btn
+                flat
+                dense
+                round
+                icon="qr_code"
+                color="primary"
+                @click="openQrDialog(props.row)"
+              >
+                <q-tooltip>QR</q-tooltip>
+              </q-btn>
             </q-td>
           </template>
         </q-table>
 
         <PartnerFormDialog v-model="showFormDialog" :partner="editingPartner" @saved="onPartnerSaved" />
+        <PartnerQrDialog v-model="showQrDialog" :partner="qrPartner" />
       </q-tab-panel>
     </q-tab-panels>
   </q-page>
@@ -142,6 +153,7 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { formatPrice } from 'src/utils/format-price';
 import type { BranchOption } from 'src/types/member';
 import PartnerFormDialog from 'src/components/partners/PartnerFormDialog.vue';
+import PartnerQrDialog from 'src/components/partners/PartnerQrDialog.vue';
 
 const log = createLogger('PartnersPage');
 const $q = useQuasar();
@@ -185,6 +197,8 @@ const activeTab = ref('partners');
 const partners = ref<PartnerListItem[]>([]);
 const showFormDialog = ref(false);
 const editingPartner = ref<PartnerListItem | null>(null);
+const showQrDialog = ref(false);
+const qrPartner = ref<PartnerListItem | null>(null);
 
 const filteredPartners = computed(() =>
   isOwner.value ? partners.value.filter((p) => p.country === selectedCountry.value) : partners.value
@@ -286,6 +300,11 @@ function openCreateDialog() {
 function openEditDialog(partner: PartnerListItem) {
   editingPartner.value = partner;
   showFormDialog.value = true;
+}
+
+function openQrDialog(partner: PartnerListItem) {
+  qrPartner.value = partner;
+  showQrDialog.value = true;
 }
 
 function onPartnerSaved() {
