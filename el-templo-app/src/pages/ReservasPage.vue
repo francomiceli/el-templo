@@ -71,6 +71,14 @@
 
     <!-- State 2 — modo reservar prueba (freemium elegible, D-20/D-22) -->
     <template v-else-if="trialEligible">
+      <!-- Popup de elección de sede (D-07/D-08): setea el MISMO trialBranchId
+           que alimenta el q-select de abajo — no hay un segundo estado de sede (D-09). -->
+      <BranchPickerDialog
+        v-model="showBranchPicker"
+        :branches="branches"
+        @select="onBranchPickerSelect"
+      />
+
       <!-- Trial banner -->
       <div class="trial-banner q-mb-md">
         <q-icon name="card_giftcard" size="20px" class="trial-banner__icon" />
@@ -81,7 +89,7 @@
       </div>
 
       <!-- Branch selector — ALWAYS shown for trial mode (D-06): freemium must pick a physical sede -->
-      <div class="q-mb-md flex justify-center">
+      <div class="q-mb-md flex justify-center items-center">
         <q-select
           v-model="trialBranchId"
           :options="branchOptions"
@@ -99,7 +107,27 @@
           <template #append>
             <q-icon name="unfold_more" size="16px" color="grey-6" />
           </template>
+          <template #option="scope">
+            <q-item v-bind="scope.itemProps">
+              <q-item-section>
+                <q-item-label>{{ scope.opt.label }}</q-item-label>
+                <q-item-label caption>{{ scope.opt.address ?? 'Dirección no disponible' }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </template>
         </q-select>
+        <!-- D-17: link "Cómo llegar" junto al selector cuando ya hay sede elegida -->
+        <q-btn
+          v-if="mapsUrlForBranch(trialBranchId)"
+          flat
+          dense
+          no-caps
+          size="sm"
+          color="primary"
+          label="Cómo llegar"
+          class="q-ml-sm"
+          @click="openBranchMaps(mapsUrlForBranch(trialBranchId)!)"
+        />
       </div>
 
       <!-- Grid hidden until a sede is chosen -->
@@ -251,7 +279,10 @@
 
     <template v-else>
       <!-- Branch selector -->
-      <div v-if="isMultiBranch && branches.length > 1" class="q-mb-md flex justify-center">
+      <div
+        v-if="isMultiBranch && branches.length > 1"
+        class="q-mb-md flex justify-center items-center"
+      >
         <q-select
           v-model="selectedBranchId"
           :options="branchOptions"
@@ -268,7 +299,27 @@
           <template #append>
             <q-icon name="unfold_more" size="16px" color="grey-6" />
           </template>
+          <template #option="scope">
+            <q-item v-bind="scope.itemProps">
+              <q-item-section>
+                <q-item-label>{{ scope.opt.label }}</q-item-label>
+                <q-item-label caption>{{ scope.opt.address ?? 'Dirección no disponible' }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </template>
         </q-select>
+        <!-- D-17: link "Cómo llegar" junto al selector cuando ya hay sede elegida -->
+        <q-btn
+          v-if="mapsUrlForBranch(selectedBranchId)"
+          flat
+          dense
+          no-caps
+          size="sm"
+          color="primary"
+          label="Cómo llegar"
+          class="q-ml-sm"
+          @click="openBranchMaps(mapsUrlForBranch(selectedBranchId)!)"
+        />
       </div>
       <p v-else class="branch-label">
         <q-icon name="location_on" size="14px" class="q-mr-xs" />
@@ -785,6 +836,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import axios from 'axios'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
 import type { TrialEligibility, BranchOption } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
@@ -907,6 +959,26 @@ const trialBooking = computed(() =>
   trialEligibility.value?.alreadyBooked ? (trialEligibility.value.booking ?? null) : null,
 )
 const isTrialMode = computed(() => trialEligible.value)
+
+// Popup de elección de sede (D-07/D-08/D-09, plan 180-05): se abre UNA vez al
+// entrar a Reservas en modo prueba sin sede elegida y con sedes ya cargadas
+// (ver onMounted). Elegir o descartar lo cierra y no se reabre solo — el
+// q-select existente queda como la única vía para cambiar de sede después.
+const showBranchPicker = ref(false)
+
+function onBranchPickerSelect(id: number): void {
+  trialBranchId.value = id
+}
+
+/** Link "Cómo llegar" (D-17) de la sede actualmente elegida en un selector. */
+function mapsUrlForBranch(branchId: number | null): string | null {
+  return branchOptions.value.find((o) => o.value === branchId)?.mapsUrl ?? null
+}
+
+function openBranchMaps(mapsUrl: string): void {
+  log.info('Cómo llegar (selector) → abre Maps', { mapsUrl })
+  window.open(mapsUrl, '_blank', 'noopener')
+}
 
 const trialConfirmationBody = computed(() => {
   const b = trialBooking.value
@@ -1740,6 +1812,11 @@ onMounted(async () => {
       branches.value = await getBranches()
     } catch {
       // fall through — selector simply renders empty
+    }
+    // Gate del popup (D-08): modo prueba (isTrialMode) sin sede elegida
+    // (trialBranchId === null) y con sedes efectivamente disponibles.
+    if (isTrialMode.value && trialBranchId.value === null && branches.value.length > 0) {
+      showBranchPicker.value = true
     }
     loading.value = false
     return
