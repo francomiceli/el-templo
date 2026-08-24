@@ -128,9 +128,20 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       const payload = validateCampaignToken(request.query.t);
       // The redirect host is fixed to the web app; we re-sign nothing and never
       // echo a caller-supplied URL.
-      const destination = CampaignService.trialDeepLink(request.query.t);
+      //
+      // Phase 180 (D-13): the destination is derived from the CAMPAIGN'S
+      // PERSISTED SEGMENT (via `deepLinkForToken`, which reads `campaignId`
+      // off the already-validated `payload`, never from raw query input) —
+      // a 'bajas' campaign's click must land on 'volver', not the freemium
+      // 'reservas-prueba'. An invalid/garbage `t` (no `payload`) falls back
+      // to the pre-Phase-180 freemium default so an unparseable token still
+      // redirects somewhere sane.
+      const destination = payload
+        ? await service.deepLinkForToken(payload.campaignId, request.query.t)
+        : CampaignService.trialDeepLink(request.query.t);
       // Defense-in-depth: the derived destination MUST be on the allowlisted
-      // host (D-25). This can only fail if trialDeepLink regresses — fail closed.
+      // host (D-25). This can only fail if trialDeepLink/deepLinkForToken
+      // regress — fail closed.
       if (new URL(destination).host !== CLICK_REDIRECT_ALLOWLIST_HOST) {
         request.log.error(
           { destination },

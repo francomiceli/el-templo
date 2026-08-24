@@ -296,7 +296,24 @@ export class CampaignService {
         ? campaign.country
         : null;
 
-    const eligible = await this.listEligible(ctx, scopeCountry);
+    // Phase 180 (D-11/D-14, Pitfall 8): the audience is resolved from the
+    // campaign's PERSISTED segment (never a stale form value), and recomputed
+    // HERE at send time, not read off the admin's earlier preview — the
+    // preview (`eligible-count`) is only an estimate, `recipientCount` below
+    // is the verdad del envío. `campaign.segment` came back from the full-row
+    // select above; it's cast because Drizzle types the varchar column as
+    // `string`, but `AudienceService.resolveAudience`'s closed dispatcher
+    // (T-180-14) throws `BadRequestError` before running any query if this
+    // ever holds a value outside `CAMPAIGN_SEGMENTS` — every writer of this
+    // column (`create()`) is already scoped to that same enum via
+    // `createCampaignSchema`, so this narrows a validated value, it doesn't
+    // widen trust.
+    const segment = campaign.segment as CampaignSegment;
+    const eligible = await this.audienceService.resolveAudience(
+      ctx,
+      segment,
+      scopeCountry,
+    );
 
     // ── Enroll audience idempotently ──────────────────────────────────────
     let newlyEnrolled = 0;
@@ -347,10 +364,16 @@ export class CampaignService {
 
       const messages: { to: string; subject: string; html: string }[] = [];
       for (const send of chunk) {
+        // Phase 180 (D-01/D-02): every send-pipeline token carries
+        // `purpose: 'login'` — additionally canjeable (7d, `loginExp`) via
+        // `POST /api/campaigns/exchange`, on top of continuing to identify
+        // this send for tracking (30d, `exp`), byte-for-byte the same TTL as
+        // before Phase 180.
         const token = signCampaignToken({
           userId: send.userId,
           campaignId,
           sendId: send.id,
+          purpose: "login",
         });
         const vars = this.buildTemplateVars(campaign, token, sedes, scopeCountry);
         const html = await trialCampaignHtml(vars);
@@ -766,8 +789,46 @@ export class CampaignService {
    * Phase 180 (D-13): delegates to `deepLinkForSegment('freemium_elegibles',
    * token)` — the freemium trial campaign is exactly the `freemium_elegibles`
    * segment, so this stays byte-for-byte the same URL as before Phase 180.
+   *
+   * Used ONLY as the fallback in `deepLinkForToken` below, for a `t` that
+   * failed HMAC validation (garbage/tampered token, no `campaignId` to look
+   * up) — the real, segment-aware resolution for a VALID token is
+   * `deepLinkForToken`.
    */
   static trialDeepLink(token: string): string {
     return deepLinkForSegment("freemium_elegibles", token);
+  }
+
+  /**
+   * Resolve the `/track/click` redirect destination for an ALREADY-VALIDATED
+   * token, deriving it from the CAMPAIGN'S PERSISTED SEGMENT (Phase 180,
+   * D-13) instead of the hardcoded `freemium_elegibles` that `trialDeepLink`
+   * uses — a 'bajas' campaign's click must land on 'volver', not
+   * 'reservas-prueba' (see `<behavior>` of Task 2, 180-08-PLAN.md).
+   *
+   * Pre-scope read (same idiom as `tracking-service.ts#getSendEmail`,
+   * T-175-02): `/track/click` is a PUBLIC route with no `ctx` — `campaignId`
+   * comes from the SIGNED token payload (HMAC-checked by the caller before
+   * this runs), never from raw query input. Falls back to
+   * 'freemium_elegibles' when the campaign row no longer resolves (deleted /
+   * never existed), so a token for a vanished campaign still redirects
+   * somewhere sane instead of throwing on a public, unauthenticated route.
+   */
+  async deepLinkForToken(campaignId: number, token: string): Promise<string> {
+    // T-175-02 / T-180-23: lookup PRE-SCOPE por `campaignId` — no hay ctx
+    // posible en esta ruta pública. Exención `tenant-safe` DUPLICADA:
+    // comentario TS (LINT) + embebida en el SQL (SENTINEL, mismo idioma que
+    // `magic-link-service.ts#exchange`).
+    /* tenant-safe: campaignId del token firmado y ya validado por el caller (D-21), resuelve el segmento antes de tener ctx — pre-scope, no hay actor en esta ruta publica (T-175-02/T-180-23) */
+    const [row] = await this.db
+      .select({ segment: schema.campaigns.segment })
+      .from(schema.campaigns)
+      .where(
+        sql`/* tenant-safe: campaignId del token firmado y ya validado por el caller (D-21), resuelve el segmento antes de tener ctx — pre-scope, no hay actor en esta ruta publica (T-175-02/T-180-23) */ ${schema.campaigns.id} = ${campaignId}`,
+      )
+      .limit(1);
+    const segment: CampaignSegment =
+      (row?.segment as CampaignSegment | undefined) ?? "freemium_elegibles";
+    return deepLinkForSegment(segment, token);
   }
 }
