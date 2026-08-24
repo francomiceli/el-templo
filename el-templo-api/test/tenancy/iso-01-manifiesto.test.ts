@@ -183,6 +183,14 @@ import {
  * D-02, jamás `global`. Este bump corre sobre el worktree `et-180` (base tren
  * v6.0, commit `8d0feea7`), que hereda el 370 de master descrito arriba.
  *
+ * **Movido a 373 el 2026-08-23**, dos rutas nuevas y no un merge:
+ * `GET /api/admin/scheduling/class-label-descriptions` y
+ * `PUT /api/admin/scheduling/class-label-descriptions` (copy editable de las
+ * etiquetas derivadas Combos/Técnica, fase 180 Plan 10, RES-05/D-23).
+ * **tenant-scoped**: leen/escriben `tenant_settings` con
+ * `tenantWhere`/`tenantValues`, datos de un solo gimnasio — el caso normal de
+ * D-02. Mismo worktree `et-180` que el bump anterior.
+ *
  * El reparto por categoría vigente es 226 `tenant-scoped` · 8 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
@@ -193,7 +201,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 371;
+const ENTRADAS_BASELINE = 373;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -336,7 +344,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 371 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 373 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
@@ -353,7 +361,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
         `rompiera —alguien "limpia" BuildAppOptions, o el hook se cuelga después ` +
         `del primer register— las listas quedarían vacías contra un manifiesto ` +
         `vacío y todo pasaría en verde por vacuidad. Este conteo es lo que hace ` +
-        `que 0 rutas observadas se ponga tan rojo como 372.`,
+        `que 0 rutas observadas se ponga tan rojo como 374.`,
     ).toBe(ENTRADAS_BASELINE);
 
     // El baseline también tiene que coincidir con lo que el app registra hoy:

@@ -485,6 +485,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "GET /api/admin/scheduling/activities": { categoria: "tenant-scoped" },
+  "GET /api/admin/scheduling/class-label-descriptions": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/scheduling/holidays": { categoria: "tenant-scoped" },
   "GET /api/admin/scheduling/schedules/:scheduleId/deletion-preview": {
     categoria: "tenant-scoped",
@@ -517,6 +520,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "PUT /api/admin/scheduling/activities/:activityId": {
+    categoria: "tenant-scoped",
+  },
+  "PUT /api/admin/scheduling/class-label-descriptions": {
     categoria: "tenant-scoped",
   },
   "PUT /api/admin/scheduling/schedules/:scheduleId/toggle": {

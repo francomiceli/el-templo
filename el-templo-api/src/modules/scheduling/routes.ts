@@ -68,10 +68,17 @@ import {
   reserveTrialSchema,
   cancelTrialSchema,
   trialEligibilitySchema,
+  classLabelDescriptionsSchema,
+  updateClassLabelDescriptionSchema,
 } from "./schemas";
 import type { DayOfWeek, AffectedScheduleRef } from "./types";
 
 import { ALL_STAFF_ROLES } from "../shared/permissions";
+import {
+  getDerivedLabelDescriptions,
+  setDerivedLabelDescription,
+  type DerivedLabelMode,
+} from "./label-descriptions";
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/scheduling)
@@ -219,6 +226,74 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         handleServiceError(err, reply, request.log, "update activity");
+      }
+    },
+  );
+
+  // ─── Class label descriptions (Fase 180 Plan 10, RES-05, D-23) ──────────
+  //
+  // Descripciones editables de las etiquetas derivadas (Combos/Técnica) —
+  // ver label-descriptions.ts para el porqué: la descripción que ve el
+  // socio sigue a la etiqueta MOSTRADA, no a `activities.description` de la
+  // fila real "General" (Pitfall 9 del research). Mismo guard admin/coach y
+  // `assertTenant` que el resto de este bloque.
+
+  // GET /class-label-descriptions — descripciones actuales por modo
+  fastify.get(
+    "/class-label-descriptions",
+    { schema: classLabelDescriptionsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.getClassLabelDescriptions",
+        );
+        const descriptions = await getDerivedLabelDescriptions(
+          fastify.db,
+          ctx,
+        );
+        return { descriptions };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get class label descriptions",
+        );
+      }
+    },
+  );
+
+  // PUT /class-label-descriptions — upsert de la descripción de un modo
+  fastify.put<{
+    Body: { mode: DerivedLabelMode; description: string };
+  }>(
+    "/class-label-descriptions",
+    { schema: updateClassLabelDescriptionSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.updateClassLabelDescription",
+        );
+        await setDerivedLabelDescription(
+          fastify.db,
+          ctx,
+          request.body.mode,
+          request.body.description,
+        );
+        const descriptions = await getDerivedLabelDescriptions(
+          fastify.db,
+          ctx,
+        );
+        return { descriptions };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "update class label description",
+        );
       }
     },
   );
