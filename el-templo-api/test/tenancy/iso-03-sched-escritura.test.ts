@@ -132,6 +132,10 @@ import {
   tenantDeLaFila,
   type SubsSchedFixture,
 } from "../fixtures/subs-sched-gimnasio-dos";
+import {
+  setDerivedLabelDescription,
+  DERIVED_LABEL_DESCRIPTION_KEYS,
+} from "../../src/modules/scheduling/label-descriptions";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -1410,5 +1414,88 @@ describe("cancelar reserva propia (socio) — DELETE /api/members/scheduling/boo
     ).toBe(200);
     const despues = await fotoDeBooking(fx.dos.bookingId);
     expect([despues.tenantId, despues.status]).toEqual([TENANT_DOS, "cancelado"]);
+  });
+});
+
+// ─── Fase 180: descripciones de etiqueta derivada (KV por-tenant) ────────────
+//
+// `PUT /class-label-descriptions` no tiene `:id` en el path: edita por `mode`
+// en el body, haciendo upsert sobre `tenant_settings` bajo `setting_key =
+// class_label_description.<mode>` con `tenantValues(ctx, …)`. El recurso ajeno
+// no es una fila con id (no hay 404 posible), sino la fila de El Templo del
+// MISMO modo. El contrato de aislamiento es: la escritura del gimnasio 2 crea/
+// pisa SU fila (tenant_id propio) y no toca ni expone la de El Templo.
+
+/** La descripcion persistida (valor + tenant_id) de un modo para un tenant,
+ * leida de `tenant_settings` por (tenant_id, setting_key). Leer el tenant_id de
+ * la fila ES la asercion — misma exencion que `fotoDeBooking`/`fotoDeActivity`. */
+async function fotoDeLabelDescription(
+  tenantId: number,
+  mode: "combos" | "tecnica",
+): Promise<{ value: string; tenantId: number } | null> {
+  const [row] = await app.db
+    .select({
+      value: schema.tenantSettings.settingValue,
+      tenantId: schema.tenantSettings.tenantId,
+    })
+    .from(schema.tenantSettings)
+    .where(
+      and(
+        eq(schema.tenantSettings.tenantId, tenantId),
+        eq(
+          schema.tenantSettings.settingKey,
+          DERIVED_LABEL_DESCRIPTION_KEYS[mode],
+        ),
+      ),
+    );
+  return row ?? null;
+}
+
+describe("descripciones de etiqueta derivada — PUT /api/admin/scheduling/class-label-descriptions", () => {
+  const RUTA = "PUT /api/admin/scheduling/class-label-descriptions";
+
+  it("aislamiento: escribir un modo como gimnasio 2 no pisa ni expone la fila de El Templo del mismo modo", async () => {
+    const valorTemplo = `TEMPLO combos ${sufijo()}`;
+    await setDerivedLabelDescription(app.db, CTX_TEMPLO, "combos", valorTemplo);
+
+    const valorDos = `DOS combos ${sufijo()}`;
+    const res = await comoAdminGimnasioDos("PUT", "/class-label-descriptions", {
+      mode: "combos",
+      description: valorDos,
+    });
+    expect(
+      res.statusCode,
+      porQueImporta(RUTA, TENANT_TEMPLO) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+
+    // La fila de El Templo para "combos" quedo intacta (valor y tenant_id): la
+    // upsert del gimnasio 2 no la piso (habria pasado si el `where` de la
+    // onDuplicateKey no llevara tenant_id, o si la unique fuera solo por key).
+    const templo = await fotoDeLabelDescription(TENANT_TEMPLO, "combos");
+    expect(
+      [templo?.value, templo?.tenantId],
+      `${RUTA}: la escritura del gimnasio ${TENANT_DOS} piso o borro la descripcion "combos" de El Templo.`,
+    ).toEqual([valorTemplo, TENANT_TEMPLO]);
+
+    // La respuesta que recibe el gimnasio 2 es su propio KV, sin el valor ajeno.
+    const body = JSON.parse(res.body) as {
+      descriptions: Record<string, string | null>;
+    };
+    expect(body.descriptions.combos).toBe(valorDos);
+    expect(body.descriptions.combos).not.toBe(valorTemplo);
+  });
+
+  it("control: escribir la descripcion propia del gimnasio 2 SI funciona y crea su fila con su tenant_id", async () => {
+    const valorDos = `DOS tecnica ${sufijo()}`;
+    const res = await comoAdminGimnasioDos("PUT", "/class-label-descriptions", {
+      mode: "tecnica",
+      description: valorDos,
+    });
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, TENANT_DOS) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const dos = await fotoDeLabelDescription(TENANT_DOS, "tecnica");
+    expect([dos?.value, dos?.tenantId]).toEqual([valorDos, TENANT_DOS]);
   });
 });

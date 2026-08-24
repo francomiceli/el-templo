@@ -129,6 +129,7 @@ import {
   campoDeLaFila,
   type SubsSchedFixture,
 } from "../fixtures/subs-sched-gimnasio-dos";
+import { setDerivedLabelDescription } from "../../src/modules/scheduling/label-descriptions";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -1041,5 +1042,54 @@ describe("sedes disponibles — GET /api/members/scheduling/branches", () => {
       .from(schema.branches)
       .where(eq(schema.branches.id, gym2.branchId));
     expect(propia?.name).toBe(filaReal?.name);
+  });
+});
+
+// ─── Fase 180: descripciones de etiqueta derivada (KV por-tenant) ────────────
+//
+// `GET /class-label-descriptions` no tiene id de recurso: devuelve el KV
+// completo del tenant (`{ descriptions: { combos, tecnica } }`), leido de
+// `tenant_settings` con `tenantWhere(tenantSettings, ctx)` y `ctx` de
+// `assertTenant(request.scope, …)`. El recurso ajeno no es una fila con id sino
+// el `setting_value` de El Templo bajo la misma `setting_key`; la fuga se ve si
+// el gimnasio 2 recibe ese valor en vez de su propio `null`/su propia fila.
+
+describe("descripciones de etiqueta derivada — GET /api/admin/scheduling/class-label-descriptions", () => {
+  const RUTA = "GET /api/admin/scheduling/class-label-descriptions";
+
+  it("aislamiento: no expone la descripcion de El Templo cuando el gimnasio 2 no cargo la suya (recibe null, no el valor ajeno)", async () => {
+    const valorTemplo = `TEMPLO combos ${sufijo()}`;
+    await setDerivedLabelDescription(app.db, CTX_TEMPLO, "combos", valorTemplo);
+
+    const res = await getAdminComoGimnasioDos("/class-label-descriptions");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      descriptions: Record<string, string | null>;
+    };
+    expect(
+      body.descriptions.combos,
+      `${RUTA} le devolvio al staff del gimnasio ${TENANT_DOS} la descripcion "combos" de El ` +
+        `Templo (${TENANT_TEMPLO}). Es una fuga de KV entre gimnasios: el listado perdio su ` +
+        `\`tenantWhere(tenantSettings, ctx)\`, o el \`ctx\` no salio de \`assertTenant(request.scope, …)\`.`,
+    ).toBeNull();
+  });
+
+  it("control: el KV SI trae la descripcion propia del gimnasio 2, aislada de la de El Templo con el mismo modo", async () => {
+    const valorTemplo = `TEMPLO combos ${sufijo()}`;
+    const valorDos = `DOS combos ${sufijo()}`;
+    await setDerivedLabelDescription(app.db, CTX_TEMPLO, "combos", valorTemplo);
+    await setDerivedLabelDescription(app.db, CTX_DOS, "combos", valorDos);
+
+    const res = await getAdminComoGimnasioDos("/class-label-descriptions");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      descriptions: Record<string, string | null>;
+    };
+    expect(
+      body.descriptions.combos,
+      `${RUTA} NO le devolvio al staff del gimnasio ${TENANT_DOS} su PROPIA descripcion "combos". ` +
+        `Sin este control, el caso de aislamiento de al lado pasaria en verde por la razon equivocada.`,
+    ).toBe(valorDos);
+    expect(body.descriptions.combos).not.toBe(valorTemplo);
   });
 });

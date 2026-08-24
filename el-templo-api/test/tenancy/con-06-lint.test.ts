@@ -479,20 +479,25 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
-    // `src/modules/campaigns/service.ts` es la evidencia viva del punto ciego
-    // que cerró el plan 09: `listEligible()` liga las tablas a variables
-    // locales (`const u = schema.users; const br = schema.branches; …`) y
-    // después las usa en `.from(u)`, en `.innerJoin(br, …)` y adentro de
-    // interpolaciones `sql\`… FROM ${s} …\``. Ninguna de esas formas resolvía,
-    // así que los cuatro accesos —todos SIN tenant_id— eran invisibles al
-    // gate: no figuraban como violación, no entraron al baseline one-shot de
-    // D-16 y un acceso nuevo escrito así NO ponía el build en rojo.
+    // `src/modules/campaigns/audience-service.ts` es la evidencia viva del
+    // punto ciego que cerró el plan 09: `resolveAudience()`/`countAudience()`
+    // ligan las tablas a variables locales (`const u = schema.users; const br =
+    // schema.branches; …`) y después las usan en `.from(u)`, en
+    // `.innerJoin(br, …)` y adentro de interpolaciones `sql\`… FROM ${s} …\``.
+    // Ninguna de esas formas resolvía, así que los cuatro accesos —todos SIN
+    // tenant_id— eran invisibles al gate: no figuraban como violación, no
+    // entraron al baseline one-shot de D-16 y un acceso nuevo escrito así NO
+    // ponía el build en rojo.
+    //
+    // (Fase 180: el patrón se movió intacto de `campaigns/service.ts:listEligible()`
+    // a `audience-service.ts` cuando `listEligible` pasó a delegar en
+    // `resolveAudience`. El anchor lo sigue.)
     //
     // `users` y `branches` son además las dos tablas ancla de la fase 166. Si
     // alguna de las cuatro desaparece de acá, el motor volvió a quedar ciego.
     // El arreglo es `bindings.locals` + los joins en TABLE_METHODS, nunca
     // bajar esta aserción.
-    const archivo = `${API}/src/modules/campaigns/service.ts`;
+    const archivo = `${API}/src/modules/campaigns/audience-service.ts`;
     const tablas = new Set(
       REAL_RESULT.accesses
         .filter((access) => access.file === archivo)
