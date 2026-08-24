@@ -30,6 +30,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { CampaignService } from "./service";
 import { CampaignTrackingService } from "./tracking-service";
 import { MagicLinkService } from "./magic-link-service";
+import { AudienceService } from "./audience-service";
 import { EmailService } from "../email/service";
 import { validateCampaignToken } from "./token-service";
 import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
@@ -44,7 +45,7 @@ import {
   eligibleCountSchema,
   exchangeSchema,
 } from "./schemas";
-import type { CreateCampaignInput } from "./types";
+import type { CreateCampaignInput, CampaignSegment } from "./types";
 
 /**
  * Allowlisted redirect host for /track/click (D-25, anti open-redirect).
@@ -91,6 +92,7 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.jwt,
     fastify.accessTokenExpiresIn,
   );
+  const audience = new AudienceService(fastify.db, fastify.log);
 
   // ===========================================================================
   // Public tracking routes (NO auth — D-15 / D-18)
@@ -328,8 +330,13 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // GET /admin/eligible-count — current eligible audience size (D-08/09/10).
-  fastify.get<{ Querystring: { country?: "AR" | "ES" } }>(
+  // GET /admin/eligible-count — current eligible audience size per segment
+  // (D-08/09/10, Phase 180 D-11/D-14). `segment` optional query param,
+  // default 'freemium_elegibles' so the pre-existing caller (never sends it)
+  // keeps counting the same audience as before this plan.
+  fastify.get<{
+    Querystring: { country?: "AR" | "ES"; segment?: CampaignSegment };
+  }>(
     "/admin/eligible-count",
     { preHandler: [fastify.authenticate], schema: eligibleCountSchema },
     async (request, reply) => {
@@ -341,8 +348,11 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       const country = request.scope.isOwner
         ? (request.query.country ?? null)
         : scopeCountry(request);
-      const eligible = await service.listEligible(ctx, country);
-      return { count: eligible.length };
+      const segment = request.query.segment ?? "freemium_elegibles";
+      // T-180-17 / Pitfall 8: COUNT(*) en SQL, nunca trae la audiencia entera
+      // solo para devolver un número — "bajas" puede ser miles de filas.
+      const count = await audience.countAudience(ctx, segment, country);
+      return { count };
     },
   );
 };
