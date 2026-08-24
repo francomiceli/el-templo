@@ -96,6 +96,12 @@ export interface CreateCampaignInput {
   subject: string;
   /** Optional country scope ('AR' | 'ES'); null/undefined = global. */
   country?: "AR" | "ES" | null;
+  /**
+   * Optional audience segment (Phase 180, D-11/D-14). When omitted, the
+   * service does NOT write the column — the DB `DEFAULT 'freemium_elegibles'`
+   * applies, preserving the pre-Phase-180 campaigns byte-for-byte.
+   */
+  segment?: CampaignSegment;
   /** Optional self-hosted hero image URL (D-27). */
   heroImageUrl?: string;
   /** Per-section copy for the template. */
@@ -110,6 +116,13 @@ export interface CampaignRecord {
   status: string;
   createdBy: number;
   country: string | null;
+  /**
+   * Persisted audience segment (Phase 180, D-11/D-14) — soft-enum, same
+   * convention as `status` (typed `string`, validated at the trust boundary
+   * by `createCampaignSchema`'s enum + `AudienceService`'s closed dispatcher,
+   * never in this type).
+   */
+  segment: string;
   /** Persisted email copy (CR-02); null on legacy/blank campaigns. */
   headline: string | null;
   subheadline: string | null;

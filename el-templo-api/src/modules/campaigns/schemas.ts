@@ -4,7 +4,12 @@
  * Public tracking querystrings (token `t`) + admin campaign create/list/send/
  * funnel/eligible-count. `createCampaignSchema` uses additionalProperties:false
  * (T-119-04-09) so unknown body fields are rejected at the trust boundary.
+ *
+ * Phase 180 (T-180-34): `segment`'s `enum` is DERIVED from `CAMPAIGN_SEGMENTS`
+ * (campaigns/types.ts) — never hand-copied — so the schema and the closed
+ * dispatcher in `audience-service.ts` can never drift apart.
  */
+import { CAMPAIGN_SEGMENTS } from "./types";
 
 /** Public tracking endpoints share a single querystring: `?t=<token>`. */
 export const trackingQuerySchema = {
@@ -27,6 +32,7 @@ export const createCampaignSchema = {
       name: { type: "string", minLength: 1, maxLength: 255 },
       subject: { type: "string", minLength: 1, maxLength: 255 },
       country: { type: "string", enum: ["AR", "ES"], nullable: true },
+      segment: { type: "string", enum: [...CAMPAIGN_SEGMENTS] },
       heroImageUrl: { type: "string", maxLength: 500 },
       copySlots: {
         type: "object",
@@ -87,12 +93,18 @@ export const testCampaignSchema = {
   },
 } as const;
 
-/** GET /admin/eligible-count — optional country filter. */
+/**
+ * GET /admin/eligible-count — optional country filter + optional segment
+ * (Phase 180, D-11/D-14). `segment` default is `'freemium_elegibles'`
+ * (applied by the route handler, not here) so the pre-existing caller that
+ * never sends `segment` keeps counting the same audience as before.
+ */
 export const eligibleCountSchema = {
   querystring: {
     type: "object",
     properties: {
       country: { type: "string", enum: ["AR", "ES"] },
+      segment: { type: "string", enum: [...CAMPAIGN_SEGMENTS] },
     },
     additionalProperties: false,
   },

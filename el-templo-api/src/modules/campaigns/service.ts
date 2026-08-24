@@ -29,6 +29,7 @@ import type { BranchAddress, TrialCampaignVars } from "./types";
 import type {
   CampaignListItem,
   CampaignRecord,
+  CampaignSegment,
   CreateCampaignInput,
   EligibleUser,
   FunnelStages,
@@ -157,6 +158,10 @@ export class CampaignService {
           subheadline,
           body,
           heroImageUrl,
+          // Phase 180 (D-11/D-14): only write `segment` when the admin picked
+          // one — omitting the key lets the DB `DEFAULT 'freemium_elegibles'`
+          // apply, which is byte-for-byte what pre-Phase-180 campaigns get.
+          ...(input.segment ? { segment: input.segment } : {}),
         }),
       )
       .$returningId();
@@ -200,6 +205,10 @@ export class CampaignService {
         status: c.status,
         createdBy: c.createdBy,
         country: c.country,
+        // Phase 180 (D-11/D-14): the admin's preview must read the segment
+        // the campaign actually PERSISTED, never the form's unsaved value
+        // (Pitfall 8).
+        segment: c.segment,
         createdAt: c.createdAt,
         sentAt: c.sentAt,
         recipientCount: sql<number>`(
@@ -662,6 +671,7 @@ export class CampaignService {
     status: string;
     createdBy: number;
     country: string | null;
+    segment?: string;
     headline?: string | null;
     subheadline?: string | null;
     body?: string | null;
@@ -676,6 +686,10 @@ export class CampaignService {
       status: row.status,
       createdBy: row.createdBy,
       country: row.country,
+      // `segment` is NOT NULL DEFAULT 'freemium_elegibles' at the DB — the
+      // `?? "freemium_elegibles"` fallback only covers callers (e.g.
+      // `funnel()`'s narrower select) that don't fetch the column at all.
+      segment: row.segment ?? "freemium_elegibles",
       headline: row.headline ?? null,
       subheadline: row.subheadline ?? null,
       body: row.body ?? null,
