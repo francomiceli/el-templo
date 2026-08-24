@@ -70,6 +70,13 @@ export interface WeeklySlotView extends ScheduleSlot {
   unconfirmedAttendance: number;
   /** Phase 162 (APP-01): actividad especial (activities.is_special) — el app pinta el badge. */
   isSpecial: boolean;
+  /**
+   * Fase 180 Plan 10 (RES-05, D-23): descripción que corresponde a la
+   * etiqueta MOSTRADA (`activityName`), no necesariamente a
+   * `activities.description` de la fila real — ver label-descriptions.ts.
+   * `null` = sin copy cargado (el cliente no muestra el affordance de tap).
+   */
+  activityDescription: string | null;
 }
 
 export interface BookingRecord {

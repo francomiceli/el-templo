@@ -70,6 +70,9 @@ const weeklySlotViewSchema = {
     // Phase 162-01 (APP-01): declared here or fast-json-stringify strips it
     // and the member badge never reaches the client.
     isSpecial: { type: "boolean" },
+    // Fase 180 Plan 10 (RES-05, D-23): declarado aquí o fast-json-stringify
+    // lo strippea y el bottom sheet de actividad nunca recibe el copy.
+    activityDescription: { type: ["string", "null"] },
   },
 } as const;
 

@@ -18,6 +18,10 @@
  * - scheduling/booking-service.ts::getMyBookings (reservas del socio, 160-06)
  * - scheduling/booking-service.ts::getMyWeeklyAttendance (asistencia del
  *   socio, 160-06 — segunda fuente de ReservasPage, linea "Asististe")
+ * - scheduling/service.ts::getWeeklyGrid, junto con label-descriptions.ts
+ *   (180-10, D-23): el resultado de esta función decide si `activityDescription`
+ *   del slot viene del modo derivado o de `activities.description` real —
+ *   ver Pitfall 9 del research de la fase 180.
  */
 export const DERIVED_CLASS_LABEL: Record<string, string> = {
   combos: "Combos",
