@@ -57,6 +57,14 @@ export const campaigns = mysqlTable("campaigns", {
   body: text("body"),
   // Self-hosted hero image URL (D-27); stored as-is, never fetched.
   heroImageUrl: varchar("hero_image_url", { length: 500 }),
+  // Fase 180 (D-11/D-14): a qué segmento le habla esta campaña. Soft-enum
+  // varchar (misma convención que status/country) — valores válidos son los 5
+  // de D-12: 'freemium_elegibles' | 'bajas' | 'prueba_no_convertida' |
+  // 'alerta_ausente' | 'referidos_pendientes'. Default preserva sin backfill
+  // las campañas creadas antes de este cambio (todas eran freemium).
+  segment: varchar("segment", { length: 32 })
+    .notNull()
+    .default("freemium_elegibles"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   sentAt: timestamp("sent_at"),
 });
