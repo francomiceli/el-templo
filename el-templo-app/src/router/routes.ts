@@ -12,6 +12,14 @@ const routes: RouteRecordRaw[] = [
     name: 'register',
     component: () => import('pages/RegisterPage.vue'),
   },
+  // Magic-link landing (Phase 180, D-03). Path EXACTO: los `.well-known`
+  // (assetlinks + AASA) de la fase 119 ya lo cubren — cambiarlo rompe el
+  // deep link nativo.
+  {
+    path: '/r/trial',
+    name: 'magic-link',
+    component: () => import('pages/MagicLinkPage.vue'),
+  },
 
   // Protected routes (with MainLayout)
   {
