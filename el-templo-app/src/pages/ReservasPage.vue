@@ -786,7 +786,7 @@ import axios from 'axios'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
-import type { TrialEligibility } from 'src/composables/useSchedulingApi'
+import type { TrialEligibility, BranchOption } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
@@ -836,7 +836,7 @@ const weekStart = ref<Date>(getMondayInTz(branchTimezone.value))
 const selectedDay = ref<DayOfWeek>(getTodayDow(branchTimezone.value))
 
 // ─── Multi-branch ───────────────────────────────────────────────────
-const branches = ref<{ id: number; name: string }[]>([])
+const branches = ref<BranchOption[]>([])
 const selectedBranchId = ref<number | null>(null)
 const hasActiveButNotPresencial = computed(
   () => userStore.hasActiveSubscription && !userStore.hasPresencialPlan,
@@ -879,10 +879,17 @@ function openWhatsApp(): void {
   window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 const isMultiBranch = computed(() => userStore.subscription?.multiBranch ?? false)
+// El nombre de sede ya viene normalizado desde el server (`appBranchName`,
+// shared/app-branch-name.ts): el helper prefija la marca del tenant cuando
+// corresponde. Se elimina el replace() que hacía este mismo trabajo del lado
+// del front para no tener dos normalizadores del mismo nombre (plan 180-05,
+// Task 1).
 const branchOptions = computed(() =>
   branches.value.map((b) => ({
-    label: b.name.replace(/^El Templo\s+/i, 'Sede '),
+    label: b.name,
     value: b.id,
+    address: b.address,
+    mapsUrl: b.mapsUrl,
   })),
 )
 

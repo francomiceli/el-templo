@@ -23,9 +23,11 @@ interface MyBookingsResponse {
   bookings: BookingRecord[]
 }
 
-interface BranchOption {
+export interface BranchOption {
   id: number
   name: string
+  address: string | null
+  mapsUrl: string | null
 }
 
 /**
