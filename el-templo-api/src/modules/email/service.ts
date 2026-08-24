@@ -8,7 +8,11 @@
 
 import { Resend } from "resend";
 import type { FastifyBaseLogger } from "fastify";
-import { passwordSetEmailHtml, PASSWORD_SET_SUBJECT } from "./templates";
+import {
+  passwordSetEmailHtml,
+  PASSWORD_SET_SUBJECT,
+  trialReminderEmailHtml,
+} from "./templates";
 
 const EMAIL_FROM = "El Templo <noreply@eltemplo.org>";
 
@@ -51,6 +55,38 @@ export class EmailService {
     });
 
     this.log.info({ to }, "Password-set email sent");
+  }
+
+  /**
+   * Fase 180 (D-24): fallback por email del recordatorio de sesión de
+   * prueba, para el freemium sin device token registrado (el caso típico
+   * del que llegó por email de campaña y nunca instaló la app).
+   * Mismo guard que los hermanos: sin RESEND_API_KEY, no-op logueado.
+   */
+  async sendTrialReminderEmail(
+    to: string,
+    subject: string,
+    body: string,
+  ): Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY;
+
+    if (!apiKey) {
+      this.log.info(
+        "RESEND_API_KEY not configured, skipping trial reminder email",
+      );
+      return;
+    }
+
+    const resend = new Resend(apiKey);
+
+    await resend.emails.send({
+      from: EMAIL_FROM,
+      to,
+      subject,
+      html: trialReminderEmailHtml(body),
+    });
+
+    this.log.info({ to }, "Trial reminder email sent");
   }
 
   /**

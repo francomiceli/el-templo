@@ -22,6 +22,10 @@ import {
   tenantValues,
   type TenantContext,
 } from "../shared/tenant";
+import type { EmailService } from "../email/service";
+
+/** Fase 180 (D-20/D-24): template key del recordatorio de sesión de prueba. */
+const TRIAL_REMINDER_TEMPLATE_KEY = "trial_session_reminder";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -54,6 +58,12 @@ export class NotificationService {
     private readonly db: DbInstance,
     private readonly log: FastifyBaseLogger,
     dryRun?: boolean,
+    // Fase 180 (D-24): opcional — de los ~18 call sites de NotificationService,
+    // solo el que corre processQueue (notification-cron.ts) necesita el
+    // fallback por email; sin este dependency el fallback simplemente no se
+    // intenta y processQueue conserva su comportamiento actual (falla con
+    // "No device tokens registered", igual que hoy).
+    private readonly emailService?: EmailService,
   ) {
     this.dryRun = dryRun ?? process.env.DRY_RUN === "true";
   }
@@ -533,6 +543,27 @@ export class NotificationService {
         );
 
       if (tokens.length === 0) {
+        // Fase 180 (D-24): la única excepción al "failed sin device tokens"
+        // — el recordatorio de sesión de prueba tiene un canal alternativo
+        // garantizado (email). Cualquier otro templateKey conserva el
+        // comportamiento de siempre (T-180-10/T-180-12/T-180-13 acotan el
+        // alcance de esta rama a ESE template).
+        if (await this.sendTrialReminderEmailFallback(notification)) {
+          /* tenant-safe: update por PK de una fila ya resuelta por el barrido de arriba — ver docblock de processQueue (T-175-03) */
+          await this.db
+            .update(schema.pendingNotifications)
+            .set({
+              status: "sent",
+              sentAt: new Date(),
+            })
+            .where(
+              sql`/* tenant-safe: update por PK de una fila ya resuelta por el barrido de arriba — ver docblock de processQueue (T-175-03) */ ${schema.pendingNotifications.id} = ${notification.id}`,
+            );
+
+          sent++;
+          continue;
+        }
+
         /* tenant-safe: update por PK de una fila ya resuelta por el barrido de arriba — ver docblock de processQueue (T-175-03) */
         await this.db
           .update(schema.pendingNotifications)
@@ -803,6 +834,59 @@ export class NotificationService {
   }
 
   // ── Private Helpers ─────────────────────────────────────────────────────
+
+  /**
+   * Fase 180 (D-24): fallback por email para la única notificación con canal
+   * alternativo garantizado — `trial_session_reminder`. Devuelve `true` si el
+   * email salió (la fila debe marcarse 'sent'), `false` en cualquier otro
+   * caso (otro template, sin `emailService` inyectado, usuario sin email, o
+   * el envío mismo falla) — el llamador conserva el 'failed' de siempre.
+   *
+   * T-180-10: resuelve el destinatario por el `userId` de la fila ya
+   * tenant-correcta del barrido de `processQueue` (mismo criterio que el
+   * resto del método, T-175-03) — nunca cruza el email de OTRO usuario.
+   */
+  private async sendTrialReminderEmailFallback(
+    notification: typeof schema.pendingNotifications.$inferSelect,
+  ): Promise<boolean> {
+    if (!this.emailService || !notification.templateId) return false;
+
+    /* tenant-safe: lookup por PK de templateId ya resuelto desde la fila pending_notifications del barrido cross-tenant — anchor derivado, mismo criterio que el update de sent_count de processQueue (T-175-03) */
+    const [template] = await this.db
+      .select({ templateKey: schema.notificationTemplates.templateKey })
+      .from(schema.notificationTemplates)
+      .where(
+        sql`/* tenant-safe: lookup por PK de templateId ya resuelto desde la fila pending_notifications del barrido cross-tenant — anchor derivado (T-175-03) */ ${schema.notificationTemplates.id} = ${notification.templateId}`,
+      )
+      .limit(1);
+    if (template?.templateKey !== TRIAL_REMINDER_TEMPLATE_KEY) return false;
+
+    /* tenant-safe: lookup por PK de userId ya resuelto desde la fila pending_notifications del barrido cross-tenant (T-175-03, T-180-10) */
+    const [user] = await this.db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(
+        sql`/* tenant-safe: lookup por PK de userId ya resuelto desde la fila pending_notifications del barrido cross-tenant (T-175-03, T-180-10) */ ${schema.users.id} = ${notification.userId}`,
+      )
+      .limit(1);
+    if (!user?.email) return false; // nunca se inventa destinatario
+
+    try {
+      await this.emailService.sendTrialReminderEmail(
+        user.email,
+        notification.title,
+        notification.body,
+      );
+      return true;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      this.log.error(
+        { err: message, notificationId: notification.id },
+        "Trial reminder email fallback failed",
+      );
+      return false;
+    }
+  }
 
   /**
    * Check whether the user has at least one registered device token.
