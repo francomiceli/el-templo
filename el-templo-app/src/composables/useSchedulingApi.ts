@@ -51,6 +51,14 @@ export interface TrialEligibility {
     branchId: number
     branchName: string
     branchAddress: string | null
+    // Link "Cómo llegar" (plan 180-07), MISMA fuente que BranchOption.mapsUrl
+    // (buildMapsUrl server-side) — nunca reconstruir esta URL en el front.
+    mapsUrl: string | null
+    // IANA timezone de la sede reservada (plan 180-07). Necesaria para armar
+    // el link de "Agregar al calendario" con la hora correcta — el ref de
+    // página `branchTimezone` no sirve acá porque este estado nunca corre
+    // loadGrid() y se queda en el default AR.
+    branchTimezone: string
     // True while the class is still >24h away — show cancel/change affordances.
     canModify: boolean
   }

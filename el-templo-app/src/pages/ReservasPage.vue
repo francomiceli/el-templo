@@ -14,8 +14,39 @@
         <div class="next-class-card__info">
           <p class="next-class-card__activity">Tu sesión de prueba está reservada</p>
           <p class="next-class-card__time">{{ trialConfirmationBody }}</p>
+          <p v-if="trialBooking.branchAddress" class="next-class-card__address">
+            {{ trialBooking.branchAddress }}
+          </p>
         </div>
       </div>
+
+      <!-- D-19: "Cómo llegar" secundario, reusa mapsUrlForBranch/openBranchMaps
+           (D-17) — mapsUrl viaja pre-armado desde el backend (buildMapsUrl,
+           fuente única), nunca una segunda construcción acá. -->
+      <q-btn
+        v-if="trialBooking.mapsUrl"
+        flat
+        dense
+        no-caps
+        color="primary"
+        icon="directions"
+        label="Cómo llegar"
+        class="q-mt-sm"
+        @click="openBranchMaps(trialBooking.mapsUrl)"
+      />
+
+      <!-- D-20: botón PRIMARIO de calendario — para el freemium sin la app, es
+           el mecanismo anti no-show de primera línea (no un link chiquito). -->
+      <q-btn
+        unelevated
+        no-caps
+        rounded
+        color="primary"
+        icon="event"
+        label="Agregar al calendario"
+        class="q-mt-md trial-calendar-btn"
+        @click="onAddTrialToCalendar"
+      />
 
       <!-- D-16: qué esperar (mismo copy que en modo prueba, ver FIRST_TIMER_ITEMS) -->
       <q-expansion-item
@@ -889,6 +920,7 @@ import type {
 import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/scheduling'
 import { todayInTz, dowInTz, zonedWallClockToUtc, isWallClockPast } from 'src/utils/tz'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
+import { buildGoogleCalendarUrl } from 'src/utils/calendar-link'
 
 const $q = useQuasar()
 const log = createLogger('ReservasV2')
@@ -1026,8 +1058,9 @@ function mapsUrlForBranch(branchId: number | null): string | null {
   return branchOptions.value.find((o) => o.value === branchId)?.mapsUrl ?? null
 }
 
+/** Abre un link de Maps (selector de sede o "Cómo llegar" de la confirmación de prueba). */
 function openBranchMaps(mapsUrl: string): void {
-  log.info('Cómo llegar (selector) → abre Maps', { mapsUrl })
+  log.info('Cómo llegar → abre Maps', { mapsUrl })
   window.open(mapsUrl, '_blank', 'noopener')
 }
 
@@ -1041,6 +1074,23 @@ const trialConfirmationBody = computed(() => {
   const sede = b.branchAddress ? `${b.branchName} (${b.branchAddress})` : b.branchName
   return `Te esperamos el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}. ¡Llegá unos minutos antes!`
 })
+
+// D-20: botón primario "Agregar al calendario" de la confirmación de prueba
+// (estado "prueba reservada"). Usa branchTimezone del booking (la SEDE, no un
+// default de página — T-180-33): este estado nunca corre loadGrid().
+function onAddTrialToCalendar(): void {
+  const b = trialBooking.value
+  if (!b) return
+  const url = buildGoogleCalendarUrl({
+    date: b.date,
+    startTime: b.startTime,
+    timezone: b.branchTimezone,
+    branchName: b.branchName,
+    branchAddress: b.branchAddress,
+  })
+  log.info('Agregar al calendario (prueba)', { url })
+  window.open(url, '_blank', 'noopener')
+}
 
 // 30-day forward bound for the trial grid (D-05): disable navigating past a week
 // whose Monday is already beyond today+30d.
@@ -2240,6 +2290,22 @@ onBeforeUnmount(() => cleanup())
   font-size: 13px;
   color: $grey-7;
   margin: 0;
+}
+
+.next-class-card__address {
+  font-size: 12px;
+  color: #8a8472; // Olive Stone, igual que .trial-banner__body
+  margin: 4px 0 0;
+}
+
+// D-20: CTA primario del calendario en la confirmación de prueba.
+.trial-calendar-btn {
+  background: linear-gradient(135deg, $primary 0%, #ad6540 100%) !important;
+  color: white !important;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 10px 24px;
 }
 
 .next-class-card__activity-empty {

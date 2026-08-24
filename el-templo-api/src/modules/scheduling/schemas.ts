@@ -929,6 +929,14 @@ export const trialEligibilitySchema = {
             branchId: { type: "integer" },
             branchName: { type: "string" },
             branchAddress: { type: ["string", "null"] },
+            // Fase 180-07: mismo buildMapsUrl (shared/maps.ts) que ya usa GET /branches.
+            mapsUrl: { type: ["string", "null"] },
+            // Fase 180-07: IANA timezone de la sede reservada (schema.branches.timezone),
+            // ya se consultaba internamente para canModify — se expone para que el
+            // botón "Agregar al calendario" no dependa del ref de página branchTimezone
+            // (que queda en su default AR cuando el estado "prueba reservada" nunca
+            // corre loadGrid — bug real, no un edge case: cualquier sede fuera de AR).
+            branchTimezone: { type: "string" },
             canModify: { type: "boolean" },
           },
         },

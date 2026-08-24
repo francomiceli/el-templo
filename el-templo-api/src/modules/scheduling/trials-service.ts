@@ -34,6 +34,7 @@ import {
 } from "../shared/errors";
 import { sanitizePhoneForStorage } from "../shared/phone";
 import { appBranchName } from "../shared/app-branch-name";
+import { buildMapsUrl } from "../shared/maps";
 import type { CountryCode } from "../shared/country-scope";
 import { buildClassDateTime, todayInTz } from "../shared/date-utils";
 import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
@@ -108,6 +109,15 @@ export interface TrialEligibility {
     branchId: number;
     branchName: string;
     branchAddress: string | null;
+    // Fase 180-07: link "Cómo llegar" vía buildMapsUrl (shared/maps.ts, la MISMA
+    // fuente única que ya usa GET /branches) — evita que la app reconstruya la
+    // URL de Maps por su cuenta (única construcción en todo el repo, doc en
+    // shared/maps.ts).
+    mapsUrl: string | null;
+    // Fase 180-07: IANA timezone de la sede (schema.branches.timezone). Ya se
+    // consultaba para canModify — se expone para que el "Agregar al calendario"
+    // de la app use la timezone real de la sede, no un default de página.
+    branchTimezone: string;
     // True while the class is still >24h away — the app shows cancel/change.
     canModify: boolean;
   };
@@ -682,6 +692,8 @@ export class TrialService {
           // Compat app: getTrialEligibility es member-only, se transforma acá.
           branchName: appBranchName(booking.branchName, ctx.tenantId),
           branchAddress: booking.branchAddress,
+          mapsUrl: buildMapsUrl(booking.branchAddress),
+          branchTimezone: booking.branchTimezone,
           canModify: this.isOutsideCancelWindow(
             booking.date,
             booking.startTime,

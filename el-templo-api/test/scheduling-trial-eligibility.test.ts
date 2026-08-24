@@ -179,6 +179,13 @@ describe("GET /api/members/scheduling/trial-eligibility (Phase 119)", () => {
   });
 
   it("D-20: alreadyBooked=true (+ booking payload) once a trial is booked", async () => {
+    // Fase 180-07: la sede fixture 'TEST' no trae address seedeada (setup.ts
+    // solo inserta name+code) — la seteamos para poder afirmar mapsUrl abajo.
+    await app.db
+      .update(schema.branches)
+      .set({ address: "Av. Test 1234, CABA" })
+      .where(eq(schema.branches.id, physicalBranchId));
+
     const { token } = await freemiumToken();
     const reserveRes = await app.inject({
       method: "POST",
@@ -199,6 +206,13 @@ describe("GET /api/members/scheduling/trial-eligibility (Phase 119)", () => {
     expect(booking).toBeDefined();
     expect(booking?.date).toBe(thursdayOffset());
     expect(typeof booking?.branchName).toBe("string");
+    // Fase 180-07: la app arma el link "Agregar al calendario" con la timezone
+    // de la SEDE, no con un default de página — debe viajar en el payload.
+    expect(booking?.branchTimezone).toBe("America/Argentina/Buenos_Aires");
+    // Fase 180-07: mapsUrl viaja pre-armado (buildMapsUrl, fuente única) para
+    // que la app no reconstruya la URL de Maps por su cuenta.
+    expect(typeof booking?.mapsUrl).toBe("string");
+    expect(booking?.mapsUrl as string).toContain("google.com/maps/search");
   });
 
   it("D-20: eligible=false for a non-freemium status", async () => {
