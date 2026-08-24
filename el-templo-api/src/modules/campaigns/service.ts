@@ -24,6 +24,7 @@ import { EmailService } from "../email/service";
 import { signCampaignToken } from "./token-service";
 import { trialCampaignHtml } from "./templates";
 import { AudienceService } from "./audience-service";
+import { deepLinkForSegment } from "./segment-destinations";
 import type { BranchAddress, TrialCampaignVars } from "./types";
 import type {
   CampaignListItem,
@@ -37,8 +38,12 @@ import type {
 /** Resend hard limit: ≤100 messages per batch request. */
 const BATCH_SIZE = 100;
 
-/** The web-app host the click redirect targets (D-25, anti open-redirect). */
-const TRIAL_DEEP_LINK_BASE = "https://app.eltemplo.org/r/trial";
+/**
+ * The web-app host the click redirect targets (D-25, anti open-redirect).
+ * Exported (Phase 180) so `segment-destinations.ts` (D-13) can compose the
+ * per-segment login deep link over the SAME host/path — never a new literal.
+ */
+export const TRIAL_DEEP_LINK_BASE = "https://app.eltemplo.org/r/trial";
 
 /** Public API base for the tracking endpoints (open/click/unsubscribe). */
 const TRACKING_API_BASE =
@@ -742,8 +747,13 @@ export class CampaignService {
     };
   }
 
-  /** The allowlisted deep-link the click redirect resolves to (D-25). */
+  /**
+   * The allowlisted deep-link the click redirect resolves to (D-25).
+   * Phase 180 (D-13): delegates to `deepLinkForSegment('freemium_elegibles',
+   * token)` — the freemium trial campaign is exactly the `freemium_elegibles`
+   * segment, so this stays byte-for-byte the same URL as before Phase 180.
+   */
   static trialDeepLink(token: string): string {
-    return `${TRIAL_DEEP_LINK_BASE}?t=${encodeURIComponent(token)}`;
+    return deepLinkForSegment("freemium_elegibles", token);
   }
 }
