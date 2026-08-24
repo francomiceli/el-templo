@@ -23,6 +23,7 @@ import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant"
 import { EmailService } from "../email/service";
 import { signCampaignToken } from "./token-service";
 import { trialCampaignHtml } from "./templates";
+import { AudienceService } from "./audience-service";
 import type { BranchAddress, TrialCampaignVars } from "./types";
 import type {
   CampaignListItem,
@@ -55,106 +56,44 @@ const WHATSAPP_URLS: Record<"AR" | "ES", string> = {
 };
 
 export class CampaignService {
+  private audienceService: AudienceService;
+
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private email: EmailService,
-  ) {}
+  ) {
+    this.audienceService = new AudienceService(db, log);
+  }
 
   /**
-   * Audience query (D-08/09/10). Returns freemium users that:
-   *   - have status='freemium'
-   *   - have a non-null email
-   *   - registered more than 3 days ago (D-10 freshness guard)
-   *   - have NO active/paused/scheduled subscription
-   *   - have NO non-cancelled is_trial booking (already used / pending a trial)
-   *   - are NOT on the marketing suppression list (by email, D-15)
+   * Audience query (D-08/09/10). Facade sobre `AudienceService.resolveAudience`
+   * (Phase 180, D-11/D-12) fijada al segmento 'freemium_elegibles' — se
+   * conserva este método para no romper a los llamadores existentes.
    *
-   * Ghosts / inactives are intentionally included — there is no activity filter
-   * (D-09). An optional country scope filters by the user's branch country.
+   * Criterio EXACTO del segmento (movido a `audience-service.ts`,
+   * `freemiumElegiblesConditions`, sin cambiar un solo criterio respecto de
+   * la fase 119): status='freemium', email no nulo, registrado hace más de 3
+   * días (D-10), sin suscripción activa/pausada/agendada, sin booking
+   * `is_trial` no cancelado, y no suprimido por unsubscribe (D-15). Ghosts /
+   * inactivos quedan incluidos a propósito — no hay filtro de actividad
+   * (D-09). El país opcional filtra por la sede del usuario.
    *
-   * T-173-08: `ctx` PRIMERO (D-01/D-02) — la audiencia de una campaña NUNCA
+   * T-173-08 (tenancy): `ctx` PRIMERO — la audiencia de una campaña NUNCA
    * puede incluir socios de otro gimnasio, es el peor caso práctico de una
    * fuga de tenancy (sale un email/push a un destinatario ajeno, sin 404 que
-   * lo mitigue después). El `tenantWhere` va INLINE en el `and(...)` final,
-   * no en el array `conditions` de arriba (el lint juzga por STATEMENT: el
-   * array se construye en statements separados del `.from(u)...where(...)`).
+   * lo mitigue después). Ver `audience-service.ts` para el detalle de cómo
+   * se compone `tenantWhere` y la mina M3 del unsubscribe.
    */
   async listEligible(
     ctx: TenantContext,
     country?: "AR" | "ES" | null,
   ): Promise<EligibleUser[]> {
-    const u = schema.users;
-    const s = schema.subscriptions;
-    const b = schema.bookings;
-    const unsub = schema.campaignUnsubscribes;
-    const br = schema.branches;
-
-    // T-173-08: los `sql` de abajo referencian `${u.id}` / `${u.email}` como
-    // VALOR de una subconsulta correlacionada contra OTRA tabla (subscriptions
-    // / bookings / campaign_unsubscribes) — ninguno hace `FROM users`, así que
-    // no hay tabla `users` que filtrar ahí adentro. El acceso real a `users`
-    // de este método es el `.from(u)` de más abajo, ya scopeado con
-    // `tenantWhere(u, ctx)` en su propio `.where(...)`.
-    /* tenant-safe: sql correlacionado que solo referencia users.id/email como valor, no hace FROM users (D-02) */
-    const conditions = [
-      eq(u.status, "freemium"),
-      sql`${u.email} IS NOT NULL`,
-      // D-10: registered strictly more than 3 days ago.
-      sql`${u.createdAt} < (NOW() - INTERVAL 3 DAY)`,
-      // No active/paused/scheduled subscription.
-      sql`NOT EXISTS (
-        SELECT 1 FROM ${s}
-        WHERE ${s.userId} = ${u.id}
-          AND ${s.status} IN ('active', 'paused', 'scheduled')
-      )`,
-      // No non-cancelled is_trial booking (already used or pending a trial).
-      sql`NOT EXISTS (
-        SELECT 1 FROM ${b}
-        WHERE ${b.memberId} = ${u.id}
-          AND ${b.isTrial} = TRUE
-          AND ${b.status} <> 'cancelado'
-      )`,
-      // Not on the marketing suppression list (D-15).
-      //
-      // T-175-02 (mina M3): a diferencia de subscriptions/bookings de arriba
-      // —correlacionados por ${u.id}, ya blindados por el tenantWhere(u, ctx)
-      // externo, porque users.id es una FK única global—, este WHERE
-      // correlaciona por ${u.email}, y el email NO es único global (fase 168:
-      // la unique es (tenant_id, email)). Sin filtrar `unsub` por su PROPIO
-      // tenant, un opt-out del gimnasio A suprimiría la audiencia del
-      // gimnasio B para el mismo email. `tenant_id = ${ctx.tenantId}` sigue
-      // el idioma documentado en shared/tenant.ts para un `sql` crudo.
-      sql`NOT EXISTS (
-        SELECT 1 FROM ${unsub}
-        WHERE ${unsub.email} = ${u.email} AND ${unsub.tenantId} = ${ctx.tenantId}
-      )`,
-    ];
-
-    if (country === "AR" || country === "ES") {
-      conditions.push(eq(br.country, country));
-    }
-
-    const rows = await this.db
-      .select({
-        userId: u.id,
-        email: u.email,
-        branchId: u.branchId,
-        country: br.country,
-      })
-      .from(u)
-      .innerJoin(br, eq(br.id, u.branchId))
-      .where(and(tenantWhere(u, ctx), ...conditions));
-
-    // email IS NOT NULL is enforced in SQL; narrow the nullable column here.
-    return rows
-      .filter((r): r is typeof r & { email: string } => r.email !== null)
-      .map((r) => ({
-        userId: r.userId,
-        email: r.email,
-        branchId: r.branchId,
-        country: r.country,
-      }));
+    return this.audienceService.resolveAudience(
+      ctx,
+      "freemium_elegibles",
+      country,
+    );
   }
 
   /**

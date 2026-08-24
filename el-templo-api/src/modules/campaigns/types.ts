@@ -3,6 +3,23 @@
  */
 
 /**
+ * The 5 predefined campaign audience segments (Phase 180, D-11/D-12).
+ * Resolved by `AudienceService` (audience-service.ts). This is a CLOSED list
+ * on purpose (T-180-14): a segment is a key into a `Record`, never
+ * interpolated into raw SQL — an unknown value throws `BadRequestError`
+ * before any query runs.
+ */
+export const CAMPAIGN_SEGMENTS = [
+  "freemium_elegibles",
+  "bajas",
+  "prueba_no_convertida",
+  "alerta_ausente",
+  "referidos_pendientes",
+] as const;
+
+export type CampaignSegment = (typeof CAMPAIGN_SEGMENTS)[number];
+
+/**
  * A physical branch row as rendered in the campaign email's "sedes" table.
  * Sourced from `branches.address` (D-24); canonical values live in
  * `el-templo-web/data/sedes.ts`.
