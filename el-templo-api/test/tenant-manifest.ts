@@ -636,9 +636,15 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // clasificación de hoy: "queda por verificar si campaigns está realmente
   // preparado para que cada tenant lo use (armando su propia campaña con su
   // propio mail saliente, etc.) — es material de la fase 175 (adopción)".
+  //
+  // Fase 180 Plan 06 (D-01/D-02): `POST /exchange` es pública por el MISMO
+  // motivo — se resuelve por token, sin `request.scope` — así que sigue el
+  // precedente de arriba: `tenant-scoped`, NO `global`. El tenant sale de
+  // `campaign_sends` (T-180-23), nunca del payload del token.
   "GET /api/campaigns/track/click": { categoria: "tenant-scoped" },
   "GET /api/campaigns/track/open": { categoria: "tenant-scoped" },
   "GET /api/campaigns/unsubscribe": { categoria: "tenant-scoped" },
+  "POST /api/campaigns/exchange": { categoria: "tenant-scoped" },
 
   // ── /api/members/attendance ───────────────────────────────────────────────
   "GET /api/members/attendance/history": { categoria: "tenant-scoped" },

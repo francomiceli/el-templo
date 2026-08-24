@@ -174,6 +174,15 @@ import {
  * arranca en 369 en master (no en 375: los bumps de referrals/proration de la
  * narrativa de arriba son de staging), así que en master 369 → 370.
  *
+ * **Movido a 371 el 2026-08-23**, ruta nueva y no un merge: `POST
+ * /api/campaigns/exchange` (canje de magic-link por sesión, fase 180 Plan 06,
+ * D-01/D-02). **tenant-scoped**, mismo precedente que las 3 rutas públicas de
+ * `/api/campaigns` de arriba (`track/click`, `track/open`, `unsubscribe`): se
+ * resuelve por token sin `request.scope`, pero el `tenant_id` que estampa/lee
+ * sale de `campaign_sends` (T-180-23), nunca del payload — el caso normal de
+ * D-02, jamás `global`. Este bump corre sobre el worktree `et-180` (base tren
+ * v6.0, commit `8d0feea7`), que hereda el 370 de master descrito arriba.
+ *
  * El reparto por categoría vigente es 226 `tenant-scoped` · 8 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
@@ -184,7 +193,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 370;
+const ENTRADAS_BASELINE = 371;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -327,7 +336,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 370 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 371 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
@@ -344,7 +353,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
         `rompiera —alguien "limpia" BuildAppOptions, o el hook se cuelga después ` +
         `del primer register— las listas quedarían vacías contra un manifiesto ` +
         `vacío y todo pasaría en verde por vacuidad. Este conteo es lo que hace ` +
-        `que 0 rutas observadas se ponga tan rojo como 371.`,
+        `que 0 rutas observadas se ponga tan rojo como 372.`,
     ).toBe(ENTRADAS_BASELINE);
 
     // El baseline también tiene que coincidir con lo que el app registra hoy:

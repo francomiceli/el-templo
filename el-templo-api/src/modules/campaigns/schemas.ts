@@ -97,3 +97,19 @@ export const eligibleCountSchema = {
     additionalProperties: false,
   },
 } as const;
+
+/**
+ * POST /exchange — magic-link login canje (Phase 180, D-01).
+ * additionalProperties queda en false (trust boundary): el body solo puede
+ * llevar el token, nada mas se cuela al handler.
+ */
+export const exchangeSchema = {
+  body: {
+    type: "object",
+    required: ["token"],
+    properties: {
+      token: { type: "string", minLength: 1, maxLength: 2048 },
+    },
+    additionalProperties: false,
+  },
+} as const;

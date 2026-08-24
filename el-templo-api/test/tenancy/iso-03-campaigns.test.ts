@@ -1,19 +1,25 @@
 /**
- * Fase 175.1 Plan 03 (ISO-03) — batería de AISLAMIENTO de las 10 rutas
- * `tenant-scoped` de `/api/campaigns` (derivadas de `test/tenant-manifest.ts`,
- * transcritas abajo y en el SUMMARY): 7 admin + 3 públicas por token.
+ * Fase 175.1 Plan 03 (ISO-03), extendida por la fase 180 Plan 06 — batería de
+ * AISLAMIENTO de las 11 rutas `tenant-scoped` de `/api/campaigns` (derivadas
+ * de `test/tenant-manifest.ts`, transcritas abajo y en el SUMMARY): 7 admin +
+ * 3 públicas por token (tracking) + 1 pública por token (login, D-01/D-02).
  *
- * EL CASO ESPECIAL: LAS 3 RUTAS PÚBLICAS RESUELVEN EL TENANT POR TOKEN (MINA M3)
+ * EL CASO ESPECIAL: LAS 4 RUTAS PÚBLICAS RESUELVEN EL TENANT POR TOKEN (MINA M3)
  * -----------------------------------------------------------------------
- * `GET /track/open`, `GET /track/click` y `GET /unsubscribe` no tienen sesión
- * — el token HMAC (`t=`) solo IDENTIFICA un `sendId` (D-21), nunca autoriza ni
- * carga un `tenantId`. El tenant se resuelve SERVER-SIDE leyendo la fila
- * `campaign_sends` que ese `sendId` referencia (T-175-02, `tracking-service.ts`
- * `getSendEmail`) — la mina M3 (doc 06 §8-Q5) es exactamente que un opt-out o
- * un evento de UN gimnasio termine escrito o resuelto contra OTRO. 175-02 ya
- * cerró esto en código; este archivo lo PRUEBA: un token firmado sobre el send
- * del gimnasio 2 escribe SIEMPRE `tenant_id = TENANT_DOS` en la fila que
- * produce, leída de la base (nunca del payload del token, que ni lo carga).
+ * `GET /track/open`, `GET /track/click`, `GET /unsubscribe` y (desde la fase
+ * 180) `POST /exchange` no tienen sesión — el token HMAC (`t=`/body `token`)
+ * IDENTIFICA un `sendId` para las tres primeras (D-21, NUNCA autoriza) y,
+ * SOLO para `/exchange` con `purpose:'login'` (D-01), ADEMÁS autoriza el
+ * canje por sesión hasta `loginExp` (7 días, D-02) — nunca carga un
+ * `tenantId` en ninguno de los dos casos. El tenant se resuelve SIEMPRE
+ * SERVER-SIDE leyendo la fila `campaign_sends` que ese `sendId` referencia
+ * (T-175-02 para las 3 de tracking, `tracking-service.ts#getSendEmail`;
+ * T-180-23 para `/exchange`, `magic-link-service.ts`) — la mina M3 (doc 06
+ * §8-Q5) es exactamente que un opt-out, un evento o AHORA una sesión de UN
+ * gimnasio termine escrito/resuelto/emitido contra OTRO. 175-02 y 180-06 ya
+ * cerraron esto en código; este archivo lo PRUEBA: un token firmado sobre el
+ * send del gimnasio 2 escribe/resuelve SIEMPRE `tenant_id = TENANT_DOS`
+ * (leído de la base, nunca del payload del token, que ni lo carga).
  *
  * Ninguna de las 3 rutas devuelve el id de la fila que escribe (un GIF, un
  * 302, una página HTML genérica anti-enumeración — D-15), así que la evidencia
@@ -47,6 +53,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, getAuthToken } from "../helpers";
+import { signCampaignToken } from "../../src/modules/campaigns/token-service";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -161,9 +168,9 @@ async function contarFilas(
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("precondiciones de la batería", () => {
-  it("las 10 rutas del manifiesto para /api/campaigns coinciden con las 10 de este archivo", async () => {
-    // Transcrito a mano desde test/tenant-manifest.ts (líneas 606-626). El
-    // SUMMARY vuelve a transcribir esta lista con el conteo derivado.
+  it("las 11 rutas del manifiesto para /api/campaigns coinciden con las 11 de este archivo", async () => {
+    // Transcrito a mano desde test/tenant-manifest.ts (bloque /api/campaigns).
+    // El SUMMARY vuelve a transcribir esta lista con el conteo derivado.
     const RUTAS_MANIFIESTO = [
       "GET /api/campaigns/admin",
       "GET /api/campaigns/admin/:id/funnel",
@@ -175,9 +182,10 @@ describe("precondiciones de la batería", () => {
       "GET /api/campaigns/track/click",
       "GET /api/campaigns/track/open",
       "GET /api/campaigns/unsubscribe",
+      "POST /api/campaigns/exchange",
     ];
-    expect(RUTAS_MANIFIESTO.length).toBe(10);
-    expect(new Set(RUTAS_MANIFIESTO).size).toBe(10);
+    expect(RUTAS_MANIFIESTO.length).toBe(11);
+    expect(new Set(RUTAS_MANIFIESTO).size).toBe(11);
   });
 });
 
@@ -559,5 +567,86 @@ describe("baja de marketing — GET /api/campaigns/unsubscribe", () => {
       despues,
       "un token invalido NUNCA debe insertar una fila de baja — degrada en silencio (D-21)",
     ).toBe(antes);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /exchange — canje de magic-link (público, por token — Fase 180 D-01/D-02)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("canje de magic-link — POST /api/campaigns/exchange", () => {
+  const RUTA = "POST /api/campaigns/exchange";
+
+  it("aislamiento: un token de login firmado sobre el send del gimnasio 2 resuelve tenant_id=TENANT_DOS y devuelve la sesión de SU PROPIO socio, nunca del socio de El Templo", async () => {
+    const tokenLoginDos = signCampaignToken({
+      userId: dos.sendUserId,
+      campaignId: dos.campaignId,
+      sendId: dos.sendId,
+      purpose: "login",
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: `${BASE}/exchange`,
+      payload: { token: tokenLoginDos },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      user: { email: string; branchId: number };
+    };
+    expect(
+      body.user.email,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el canje del token del gimnasio ${TENANT_DOS} devolvió el email ${body.user.email}`,
+      ),
+    ).toBe(dos.sendEmail);
+    expect(
+      body.user.email,
+      porQueImportaElAislamiento(
+        RUTA,
+        "el canje devolvió el email del socio de El Templo en vez del propio",
+      ),
+    ).not.toBe(templo.sendEmail);
+    expect(
+      body.user.branchId,
+      porQueImportaElAislamiento(RUTA, "la sede devuelta no es la del gimnasio 2"),
+    ).toBe(gym2.branchId);
+  });
+
+  it("control: un token de login firmado sobre el send de El Templo devuelve la sesión de su propio socio", async () => {
+    const tokenLoginTemplo = signCampaignToken({
+      userId: templo.sendUserId,
+      campaignId: templo.campaignId,
+      sendId: templo.sendId,
+      purpose: "login",
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: `${BASE}/exchange`,
+      payload: { token: tokenLoginTemplo },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      user: { email: string; branchId: number };
+    };
+    expect(body.user.email).toBe(templo.sendEmail);
+    expect(body.user.branchId).toBe(templo.branchId);
+  });
+
+  it("un token de TRACKING (sin purpose:'login') sobre un send real NUNCA emite sesión: 401 genérico", async () => {
+    // dos.sendToken (sembrado por el fixture) es un token de tracking puro —
+    // D-01 revisa D-21 SOLO para purpose:'login'; este sigue sin autorizar.
+    const res = await app.inject({
+      method: "POST",
+      url: `${BASE}/exchange`,
+      payload: { token: dos.sendToken },
+    });
+    expect(
+      res.statusCode,
+      porQueImportaElAislamiento(
+        RUTA,
+        `esperaba 401 para un token de tracking, recibió ${res.statusCode}`,
+      ),
+    ).toBe(401);
   });
 });
