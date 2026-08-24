@@ -2281,6 +2281,7 @@ watch(
         useOverride: false,
         priceOverrideAmount: null,
         priceOverrideReason: '',
+        prorateToMonthEnd: false,
         notes: '',
       };
       changeMode.value = 'now_reset';

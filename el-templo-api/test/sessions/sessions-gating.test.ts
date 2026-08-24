@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import {
   createTestApp,
@@ -8,6 +8,13 @@ import {
   createTestMember,
   todayStr,
 } from "../helpers";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 /**
  * Phase 104 Plan 03: gating + view resolution tests for /api/sessions/*.
@@ -129,7 +136,9 @@ async function setCurrentProgramEnrollment(
   await app.db
     .update(schema.users)
     .set({ currentProgramEnrollmentId: enrollmentId })
-    .where(eq(schema.users.id, userId));
+    .where(
+      and(tenantWhere(schema.users, CTX_TEMPLO), eq(schema.users.id, userId)),
+    );
 }
 
 // Helper: insert a minimal approved session (just enough for getSessionByDayId
@@ -228,7 +237,12 @@ describe("Sessions gating (Phase 104 R7 + R8)", () => {
     await app.db
       .update(schema.users)
       .set({ level: "alfa" })
-      .where(eq(schema.users.id, member.id));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.id, member.id),
+        ),
+      );
     const presencial = await insertPlan(app, {
       name: "Presencial Test",
       planCategory: "presencial",
@@ -261,7 +275,12 @@ describe("Sessions gating (Phase 104 R7 + R8)", () => {
     await app.db
       .update(schema.users)
       .set({ level: "alfa" })
-      .where(eq(schema.users.id, member.id));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.id, member.id),
+        ),
+      );
     const program = await insertProgram(app, {
       name: "Piernas y Gluteos",
       goalPlanType: "piernas_gluteos",

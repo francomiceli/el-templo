@@ -43,6 +43,8 @@ import { and, eq, ne, inArray, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { metricShape } from "./metric-shape";
 import { deriveDurationTier } from "./duration-tier";
 import { breakdownSegmentKey, type BreakdownAxis } from "./breakdowns";
@@ -173,7 +175,14 @@ function pctVariacion(current: number, prior: number): number | null {
  * — the caller skips the join when the predicate is null).
  */
 function turnoHourCondition(turno: TrialTurno): SQL | null {
-  const hour = sql`CAST(LEFT(${schema.schedules.startTime}, 2) AS UNSIGNED)`;
+  // Fase 174.1-03 (D-02): prefijo LITERAL `schedules.start_time` (no
+  // `${schema.schedules.startTime}` interpolado) — mismo idioma que
+  // `especial-exclusion.ts`. Este helper NO hace FROM/JOIN propio (el join a
+  // `schedules`, con su `tenantWhere`, lo hace el ÚNICO caller,
+  // `visitCountsForWindow`); interpolar el objeto de columna acá registraría
+  // un acceso propio a `schedules` en ESTE statement, que ningún `tenantWhere`
+  // del caller puede cubrir (son statements de JS distintos).
+  const hour = sql`CAST(LEFT(schedules.start_time, 2) AS UNSIGNED)`;
   if (turno === "manana") {
     return sql`${hour} >= ${TURNO_MANANA_START_HOUR} AND ${hour} < ${TURNO_MANANA_END_HOUR}`;
   }
@@ -223,19 +232,27 @@ export class FrequencyService {
    * population, the per-member current/prior visits/week (normalized), the band
    * distribution (incl. active-0-visits → Inactivo), the cooling-down list, the
    * reused check-in adoption, and the 4-axis breakdowns over the active cohort.
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO. Única query de este método sobre `users`:
+   * `activeMemberPopulation` (la población, join a `users` para PII/cohorte).
+   * `visitCountsForWindow` (sobre `attendance`) y `checkInAdoptionByBranch`
+   * quedan afuera, de otra fase.
    */
-  async getFrequency(filters: AnalyticsFilters): Promise<FrequencyAnalytics> {
+  async getFrequency(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<FrequencyAnalytics> {
     const now = new Date();
 
     // Active member population (the distribution denominator). Scoped on the
     // subscription branch (D-123-04 "active" = has active/paused subscription).
-    const activeMembers = await this.activeMemberPopulation(filters, now);
+    const activeMembers = await this.activeMemberPopulation(ctx, filters, now);
 
     // Per-member visit counts for the current [now-28d, now) and prior
     // [now-56d, now-28d) windows, scoped on the attendance branch.
     const [currentCounts, priorCounts] = await Promise.all([
-      this.visitCountsForWindow(filters, now, 0),
-      this.visitCountsForWindow(filters, now, FREQUENCY_WINDOW_DAYS),
+      this.visitCountsForWindow(ctx, filters, now, 0),
+      this.visitCountsForWindow(ctx, filters, now, FREQUENCY_WINDOW_DAYS),
     ]);
 
     const memberBands = this.computeBands(
@@ -254,7 +271,7 @@ export class FrequencyService {
       await new AttendanceMetricsService(
         this.db,
         this.log,
-      ).checkInAdoptionByBranch(filters);
+      ).checkInAdoptionByBranch(ctx, filters);
 
     return { distribution, coolingDown, checkInAdoption, breakdowns };
   }
@@ -266,8 +283,13 @@ export class FrequencyService {
    * per sub — the band fold dedups by userId on the LAST seen row, which is
    * acceptable since the band only depends on the member's visits, not the sub).
    * Scoped on `subscriptions.branchId`; country filter joins `branches`.
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO, `tenantWhere(schema.users, ctx)` en el ON
+   * del INNER JOIN a `users` (mismo idioma que un LEFT, para que el próximo
+   * join no tenga que elegir).
    */
   private async activeMemberPopulation(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     _now: Date,
   ): Promise<ActiveMemberRow[]> {
@@ -313,7 +335,10 @@ export class FrequencyService {
       .from(schema.subscriptions)
       .innerJoin(
         schema.users,
-        sql`${schema.users.id} = ${schema.subscriptions.userId}`,
+        and(
+          tenantWhere(schema.users, ctx),
+          sql`${schema.users.id} = ${schema.subscriptions.userId}`,
+        ),
       )
       .innerJoin(
         schema.branches,
@@ -321,7 +346,11 @@ export class FrequencyService {
       )
       .innerJoin(
         schema.subscriptionPlans,
-        sql`${schema.subscriptionPlans.id} = ${schema.subscriptions.planId}`,
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
+          sql`${schema.subscriptionPlans.id} = ${schema.subscriptions.planId}`,
+        ),
       )
       .where(and(...populationConditions));
 
@@ -357,6 +386,7 @@ export class FrequencyService {
    * (121/122 lesson — else 500).
    */
   private async visitCountsForWindow(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     now: Date,
     offsetDays: number,
@@ -376,6 +406,7 @@ export class FrequencyService {
       branchColumn: schema.attendance.branchId,
     });
 
+    /* tenant-safe: solo el filtro de rango de fecha + sede/país — el tenantWhere(schema.attendance, ctx) real se aplica más abajo en el .where() del build de la query, ver T-175.1-01-03 */
     const conditions: SQL[] = [
       sql`${schema.attendance.checkedInAt} >= ${lower}`,
       sql`${schema.attendance.checkedInAt} < ${upperExclusive}`,
@@ -393,28 +424,37 @@ export class FrequencyService {
       conditions.push(turnoCondition);
     }
 
+    // T-175.1-01-03 (D-04, hallazgo del gap-fix): `attendance` NO estaba
+    // scopeado por tenant en este path cuando `turnoCondition === null` (el
+    // JOIN a `schedules`, que sí trae `tenantWhere`, es CONDICIONAL). Se
+    // agrega `tenantWhere(schema.attendance, ctx)` explícito e inline (D-02:
+    // `.where(...)` va ANTES de `.$dynamic()`, mismo statement que `.from(...)`,
+    // así el lint ve el literal `tenantWhere(` en ESTE statement).
     let query = this.db
       .select({
         memberId: schema.attendance.memberId,
         visits: sql<number>`COUNT(*)`,
       })
       .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
       .$dynamic();
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/sede de una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       query = query.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.attendance.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/sede de una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
       );
     }
     if (turnoCondition !== null) {
       query = query.innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.attendance.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.attendance.scheduleId),
+        ),
       );
     }
-    const rows = await query
-      .where(and(...conditions))
-      .groupBy(schema.attendance.memberId);
+    const rows = await query.groupBy(schema.attendance.memberId);
 
     const map = new Map<number, number>();
     for (const r of rows) {
@@ -577,22 +617,33 @@ export class FrequencyService {
    * prior band rank vs the immediately-preceding window of equal length). This
    * is the single batched query — the cron MUST NOT duplicate the window math.
    *
-   * Scope-UNAWARE on purpose (the nightly batch is global): no branch/country
-   * filter is applied. Reuses the same normalization + band logic as
-   * `getFrequency` so the signal is consistent.
+   * Scope-UNAWARE on purpose for BRANCH/COUNTRY (the nightly batch is global
+   * within a gimnasio): no branch/country filter is applied. Reuses the same
+   * normalization + band logic as `getFrequency` so the signal is consistent.
    *
+   * Fase 173 (D-02): `ctx` PRIMERO. "Scope-unaware" nunca significó
+   * cross-tenant — la ausencia de filtro era sobre sede/país, y esta query
+   * quedaba directamente SIN el gimnasio (escrita antes de la 169). El futuro
+   * cron que la consuma la va a llamar una vez por gimnasio activo
+   * (`forEachActiveTenant`), como cualquier otro job de la fase 169.
+   *
+   * @param ctx el gimnasio (sale de `forEachActiveTenant` cuando se conecte a
+   *   un cron; hoy la construye a mano quien la invoque).
    * @param windowDays the rolling window length in days (defaults to the
    *   28-day frequency window when not provided / non-positive).
    * @returns the set of golden-case user IDs.
    */
-  async coolingOrInactiveUserIds(windowDays: number): Promise<Set<number>> {
+  async coolingOrInactiveUserIds(
+    ctx: TenantContext,
+    windowDays: number,
+  ): Promise<Set<number>> {
     const now = new Date();
     const window =
       Number.isFinite(windowDays) && windowDays > 0
         ? Math.floor(windowDays)
         : FREQUENCY_WINDOW_DAYS;
 
-    // Global active population (scope-unaware).
+    // Active population of ESTE gimnasio (scope-unaware solo para sede/país).
     const activeRows = await this.db
       .select({
         userId: schema.subscriptions.userId,
@@ -601,9 +652,17 @@ export class FrequencyService {
       .from(schema.subscriptions)
       .innerJoin(
         schema.users,
-        sql`${schema.users.id} = ${schema.subscriptions.userId}`,
+        and(
+          tenantWhere(schema.users, ctx),
+          sql`${schema.users.id} = ${schema.subscriptions.userId}`,
+        ),
       )
-      .where(inArray(schema.subscriptions.status, ["active", "paused"]));
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          inArray(schema.subscriptions.status, ["active", "paused"]),
+        ),
+      );
 
     const createdAtByUser = new Map<number, Date>();
     for (const r of activeRows) {
@@ -650,6 +709,7 @@ export class FrequencyService {
       new Date(now.getTime() - (offsetDays + windowDays) * 86_400_000),
     );
 
+    /* tenant-safe: deliberadamente global (D-123-01, ver docblock de coolingOrInactiveUserIds) — agrupa por memberId, clave globalmente única por persona; el único consumidor filtra el resultado contra userIds ya tenant-scopeados de activeRows, las filas de otros gimnasios en este Map nunca se leen, no expone datos cross-gym al caller */
     const rows = await this.db
       .select({
         memberId: schema.attendance.memberId,
@@ -658,7 +718,7 @@ export class FrequencyService {
       .from(schema.attendance)
       .where(
         and(
-          sql`${schema.attendance.checkedInAt} >= ${lower}`,
+          sql`/* tenant-safe: deliberadamente global (D-123-01) — agrupa por memberId (clave globalmente única por persona); el único consumidor filtra el resultado contra userIds ya tenant-scopeados, no expone datos cross-gym */ ${schema.attendance.checkedInAt} >= ${lower}`,
           sql`${schema.attendance.checkedInAt} < ${upperExclusive}`,
         ),
       )

@@ -38,6 +38,7 @@ import {
   assignPlan,
   SUBSCRIPTIONS_URL,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -79,6 +80,7 @@ async function seedEspecialPlan(
   priceRegular = requiresPresencial ? 10000 : 20000,
 ): Promise<number> {
   const res = await app.db.insert(schema.subscriptionPlans).values({
+    tenantId: TENANT_TEMPLO,
     name,
     planTier: "other",
     bookingMode: "flexible",
@@ -111,7 +113,7 @@ async function renew(
 async function countActiveSubs(userId: number): Promise<number> {
   const rows = await app.db.execute(
     sql`SELECT COUNT(*) AS c FROM subscriptions
-        WHERE user_id = ${userId} AND subscription_status = 'active'`,
+        WHERE user_id = ${userId} AND subscription_status = 'active' AND tenant_id = ${TENANT_TEMPLO}`,
   );
   return Number((rows[0] as Array<{ c: number }>)[0].c);
 }
@@ -122,8 +124,8 @@ async function linkQualified(
   referredId: number,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at)
-        VALUES (${referrerId}, ${referredId}, 'qualified', 'assisted', NOW())`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel, qualified_at)
+        VALUES (1, ${referrerId}, ${referredId}, 'qualified', 'assisted', NOW())`,
   );
 }
 
@@ -132,8 +134,8 @@ async function linkPending(
   referredId: number,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel)
-        VALUES (${referrerId}, ${referredId}, 'pending', 'assisted')`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+        VALUES (1, ${referrerId}, ${referredId}, 'pending', 'assisted')`,
   );
 }
 
@@ -143,14 +145,14 @@ async function giveCoverage(
   endDate: string,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-        VALUES (${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
+    sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+        VALUES (${TENANT_TEMPLO}, ${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
   );
 }
 
 async function readReferralStatus(referredId: number): Promise<string | null> {
   const rows = await app.db.execute(
-    sql`SELECT status FROM referrals WHERE referred_id = ${referredId} LIMIT 1`,
+    sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ SELECT status FROM referrals WHERE referred_id = ${referredId} LIMIT 1`,
   );
   const row = (rows[0] as Array<{ status: string }>)[0];
   return row?.status ?? null;
@@ -160,7 +162,7 @@ async function readReferralCredit(
   userId: number,
 ): Promise<{ percent: number; amount: number } | undefined> {
   const rows = await app.db.execute(
-    sql`SELECT percent, amount FROM referral_credits WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`,
+    sql`SELECT percent, amount FROM referral_credits WHERE user_id = ${userId} AND tenant_id = ${TENANT_TEMPLO} ORDER BY id DESC LIMIT 1`,
   );
   return (rows[0] as Array<{ percent: number; amount: number }>)[0];
 }

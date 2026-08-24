@@ -39,6 +39,8 @@ import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   AnalyticsFilters,
   FunnelAnalytics,
@@ -108,8 +110,16 @@ export class FunnelService {
    * per user as the historical `activo` approximation (D-01). For each cohort it
    * returns the size, % reaching `prueba`, % reaching `activo`, and the median
    * days per stage. Guards: cohort with no converters → 0% and `null` median.
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO. Dos consultas de este método tocan tablas
+   * del módulo — la de `users` (cohorte) y la de `user_status_history`
+   * (transiciones) — cada una con su propio `tenantWhere` inline. `subRows`
+   * (sobre `subscriptions`) NO se toca (D-02: otra fase).
    */
-  async getFunnel(filters: AnalyticsFilters): Promise<FunnelAnalytics> {
+  async getFunnel(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<FunnelAnalytics> {
     // Entry-origin segment (funnel follow-up). `all` = classic 3-stage funnel
     // over the whole cohort; `directo`/`freemium` restrict the cohort to trials
     // of that origin (the `from_status` of the earliest `prueba` transition) and
@@ -122,9 +132,13 @@ export class FunnelService {
       branchColumn: schema.users.branchId,
     });
 
-    const conditions: SQL[] = [...scopeConditions];
-
     // ── Users in scope → cohort by month of created_at (D-03) ──────────────
+    // `tenantWhere` INLINE y el `.where(...)` va ANTES del `.innerJoin`
+    // condicional (Drizzle arma el SQL por config acumulada, no por orden de
+    // llamada): así el `.from(schema.users)` y el `tenantWhere` quedan en el
+    // MISMO statement de JS — si el filtro viviera en un `.where(...)` después
+    // del `if`, sería otro statement y el lint marcaría `.from(schema.users)`
+    // como sin filtrar aunque la query sí filtre.
     let usersQuery = this.db
       .select({
         userId: schema.users.id,
@@ -132,18 +146,18 @@ export class FunnelService {
         createdAt: sql<string>`${schema.users.createdAt}`,
       })
       .from(schema.users)
+      .where(and(tenantWhere(schema.users, ctx), ...scopeConditions))
       .$dynamic();
 
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       usersQuery = usersQuery.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.users.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.users.branchId}`,
       );
     }
 
-    const userRows: UserRow[] = await usersQuery.where(
-      conditions.length > 0 ? and(...conditions) : undefined,
-    );
+    const userRows: UserRow[] = await usersQuery;
 
     if (userRows.length === 0) {
       return { cohorts: [], entryOrigin };
@@ -167,6 +181,10 @@ export class FunnelService {
       .from(schema.userStatusHistory)
       .where(
         and(
+          // Fase 173 (D-02): tabla propia del módulo, `tenantWhere` propio —
+          // aunque `users` ya filtró arriba, esta tabla lleva el suyo (D-02
+          // acceptance: dos tablas del módulo en el mismo método, dos filtros).
+          tenantWhere(schema.userStatusHistory, ctx),
           sql`${schema.userStatusHistory.toStatus} IN ('prueba','activo')`,
           // Restrict to the in-scope users (avoids reading the whole table).
           sql`${schema.userStatusHistory.userId} IN (${sql.join(
@@ -207,6 +225,9 @@ export class FunnelService {
     }
 
     // ── activo historical approximation: MIN(subscriptions.created_at) ─────
+    // Fase 174.1-03 (D-02): `subscriptions` es tabla del boundary de subs —
+    // `tenantWhere` explícito, aunque `userIds` ya venga de una query de
+    // `users` scopeada (D-01 del plan: presencia por-tabla, no correctitud).
     const subRows = await this.db
       .select({
         userId: schema.subscriptions.userId,
@@ -214,10 +235,13 @@ export class FunnelService {
       })
       .from(schema.subscriptions)
       .where(
-        sql`${schema.subscriptions.userId} IN (${sql.join(
-          userIds.map((id) => sql`${id}`),
-          sql`, `,
-        )})`,
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          sql`${schema.subscriptions.userId} IN (${sql.join(
+            userIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        ),
       )
       .groupBy(schema.subscriptions.userId);
 

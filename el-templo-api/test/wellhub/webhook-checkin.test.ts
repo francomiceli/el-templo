@@ -33,12 +33,21 @@ import {
 } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createHmac } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createTestApp, cleanAllTestData, registerUser } from "../helpers";
 import * as schema from "../../src/db/schema";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const WEBHOOK_URL = "/api/webhooks/wellhub";
 const SECRET = "test-wellhub-secret";
+// Este archivo es single-tenant (solo El Templo): no siembra un segundo
+// gimnasio. El filtro es preciso, no una exencion — cada `gympass_id` es
+// unico por test, pero `users` ya es tabla strict (173-25).
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 function uniqueGymId(): number {
   return 500_000 + Math.floor(Math.random() * 400_000);
@@ -184,7 +193,12 @@ describe("Wellhub webhook — check-in", () => {
     expect(firmaAjena.statusCode).toBe(401);
 
     // Nada quedó registrado.
-    const events = await app.db.select().from(schema.wellhubEvents);
+    const events = await app.db
+      .select()
+      .from(schema.wellhubEvents)
+      .where(
+        sql`/* tenant-safe: aserción de vacío sobre la corrida de este test, sin fixture de 2do tenant */ 1 = 1`,
+      );
     expect(events).toHaveLength(0);
   });
 
@@ -288,7 +302,12 @@ describe("Wellhub webhook — check-in", () => {
     const [visitor] = await app.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.gympassId, token));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.gympassId, token),
+        ),
+      );
     expect(visitor).toBeDefined();
     expect(visitor.status).toBe("wellhub");
     expect(visitor.role).toBe("member");
@@ -309,7 +328,12 @@ describe("Wellhub webhook — check-in", () => {
     const subs = await app.db
       .select()
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, visitor.id));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, visitor.id),
+        ),
+      );
     expect(subs).toHaveLength(0);
 
     const aura = await app.db
@@ -322,7 +346,9 @@ describe("Wellhub webhook — check-in", () => {
     const [event] = await app.db
       .select()
       .from(schema.wellhubEvents)
-      .where(eq(schema.wellhubEvents.eventType, "checkin"));
+      .where(
+        sql`/* tenant-safe: aserción sobre datos propios de este test, sin fixture de 2do tenant */ ${schema.wellhubEvents.eventType} = 'checkin'`,
+      );
     expect(event.status).toBe("processed");
   });
 
@@ -350,7 +376,12 @@ describe("Wellhub webhook — check-in", () => {
     const [visitor] = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.gympassId, token));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.gympassId, token),
+        ),
+      );
     const rows = await app.db
       .select()
       .from(schema.attendance)
@@ -371,7 +402,12 @@ describe("Wellhub webhook — check-in", () => {
     const visitors = await app.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.gympassId, token));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.gympassId, token),
+        ),
+      );
     expect(visitors).toHaveLength(0);
   });
 
@@ -387,7 +423,12 @@ describe("Wellhub webhook — check-in", () => {
     const [visitor] = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.gympassId, token));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.gympassId, token),
+        ),
+      );
     // El visitante se crea igual (identidad), pero SIN attendance.
     expect(visitor).toBeDefined();
     const rows = await app.db
@@ -409,7 +450,9 @@ describe("Wellhub webhook — check-in", () => {
     const [event] = await app.db
       .select()
       .from(schema.wellhubEvents)
-      .where(eq(schema.wellhubEvents.eventType, "checkin"));
+      .where(
+        sql`/* tenant-safe: aserción sobre datos propios de este test, sin fixture de 2do tenant */ ${schema.wellhubEvents.eventType} = 'checkin'`,
+      );
     expect(event.status).toBe("error");
 
     // Reintento de Wellhub con el mismo payload, ahora la API responde bien.
@@ -421,7 +464,12 @@ describe("Wellhub webhook — check-in", () => {
     const [visitor] = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.gympassId, token));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.gympassId, token),
+        ),
+      );
     const rows = await app.db
       .select()
       .from(schema.attendance)
@@ -454,7 +502,12 @@ describe("Wellhub webhook — check-in", () => {
     const [linked] = await app.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.gympassId, token));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.gympassId, token),
+        ),
+      );
     expect(linked.id).toBe(socioId);
     // No cambió su status por la vinculación.
     expect(linked.status).not.toBe("wellhub");

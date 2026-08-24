@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -206,7 +206,9 @@ describe("Promo Plans API", () => {
       const [updated] = await app.db
         .select()
         .from(promoPlans)
-        .where(eq(promoPlans.id, promoResult.id));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (promoResult.id), fila creada por este mismo test */ ${promoPlans.id} = ${promoResult.id}`,
+        );
       expect(updated.isActive).toBe(false);
     });
 

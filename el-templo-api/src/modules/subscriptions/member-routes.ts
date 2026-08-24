@@ -7,10 +7,9 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "./service";
-import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { GOAL_PLAN_METADATA } from "../goal-plans/constants";
 import {
@@ -20,6 +19,7 @@ import {
   type PlanCategory,
 } from "./types";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 import { todayInTz } from "../shared/date-utils";
 import { especialPassSchema } from "./schemas";
 
@@ -39,12 +39,10 @@ function wholeDaysUntil(target: string): number {
 }
 
 export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
-  const auraService = new AuraService(fastify.db);
   const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     undefined,
     enrollmentService,
   );
@@ -60,7 +58,12 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /me/subscription — Get the authenticated member's current subscription
   fastify.get("/me/subscription", async (request, reply) => {
+    // Fase 173 (D-13, cascada mecánica): assertTenant ya resuelve el ctx acá
+    // (attachCountryScope corre en el onRequest hook del plugin) — el compilador
+    // nombró este call site cuando getMemberSubscription pasó a exigir ctx.
+    const ctx = assertTenant(request.scope, "subscriptions.me");
     const sub = await subscriptionService.getMemberSubscription(
+      ctx,
       request.user.userId,
     );
 
@@ -78,6 +81,10 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // Get plan info + linked program's goalPlanType
+    //
+    // Fase 174 (D-01/D-02, ADO-03): `tenantWhere` — este read directo en la
+    // ruta (no en el service) estaba en el allowlist de `subscription_plans`
+    // y `programs` de este archivo (174-PATTERNS.md).
     const [plan] = await fastify.db
       .select({
         planCategory: schema.subscriptionPlans.planCategory,
@@ -85,7 +92,12 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         multiBranch: schema.subscriptionPlans.multiBranch,
       })
       .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, sub.planId))
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, sub.planId),
+        ),
+      )
       .limit(1);
 
     // Resolve goalPlanType from linked program if present
@@ -94,7 +106,12 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       const [program] = await fastify.db
         .select({ goalPlanType: schema.programs.goalPlanType })
         .from(schema.programs)
-        .where(eq(schema.programs.id, plan.linkedProgramId))
+        .where(
+          and(
+            tenantWhere(schema.programs, ctx),
+            eq(schema.programs.id, plan.linkedProgramId),
+          ),
+        )
         .limit(1);
       goalPlanType = program?.goalPlanType ?? null;
     }
@@ -130,6 +147,11 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   // >= 0 lower bound; already-expired members are handled by the day-of push
   // and the booking block, not this endpoint.
   fastify.get("/coverage", async (request) => {
+    // Fase 174 (Task 3, D-01): resuelve el actor acá aunque `getCoveredUntil`
+    // (→ `deriveCoveredUntil`, compartida con `referrals`/`notification-cron`,
+    // fuera del alcance de este plan) todavía no lo exija — deja el punto de
+    // entrada establecido para cuando esa función se migre.
+    assertTenant(request.scope, "subscriptions.coverage");
     const coveredUntil = await subscriptionService.getCoveredUntil(
       request.user.userId,
     );
@@ -157,7 +179,11 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/me/especial-pass",
     { schema: especialPassSchema },
     async (request) => {
+      // Fase 174-02: `getPlanById` ya exige ctx (D-06 golden). Fase 174-06
+      // (D-07, saldada): `getMemberSubscriptions` ahora también recibe ctx real.
+      const ctx = assertTenant(request.scope, "subscriptions.especialPass");
       const subs = await subscriptionService.getMemberSubscriptions(
+        ctx,
         request.user.userId,
       );
 
@@ -171,7 +197,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         return { hasPass: false };
       }
 
-      const plan = await subscriptionService.getPlanById(pass.planId);
+      const plan = await subscriptionService.getPlanById(ctx, pass.planId);
 
       return {
         hasPass: true,
@@ -193,7 +219,8 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   // request.scope.country (populated by attachCountryScope). No query
   // parameter is accepted from members.
   fastify.get("/plans", async (request) => {
-    const allPlans = await subscriptionService.listPlans({
+    const ctx = assertTenant(request.scope, "subscriptions.availablePlans");
+    const allPlans = await subscriptionService.listPlans(ctx, {
       isActive: true,
       includeArchived: false,
       country: request.scope.country ?? undefined,
@@ -208,10 +235,11 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     // surfaced so the member can keep seeing their own plan — this is narrower
     // than exposing the full other-country catalog.
     const sub = await subscriptionService.getMemberSubscription(
+      ctx,
       request.user.userId,
     );
     if (sub && !planIds.has(sub.planId)) {
-      const legacyPlan = await subscriptionService.getPlanById(sub.planId);
+      const legacyPlan = await subscriptionService.getPlanById(ctx, sub.planId);
       if (legacyPlan) {
         plans.push(legacyPlan);
       }

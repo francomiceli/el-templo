@@ -65,6 +65,12 @@ import { referralCopyVariant } from "../referrals/ab-variant";
 import { isValidIban, normalizeIban } from "../shared/iban";
 import { activeMemberExists } from "../shared/active-member";
 import { memberCoveredUntilSql } from "../shared/covered-until";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
+import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -79,8 +85,31 @@ export class MemberService {
   /**
    * List members with search, filters, and pagination.
    * Search matches against firstName, lastName, email, and dni.
+   *
+   * Fase 172 (ADO-01): `ctx` es el PRIMER parámetro y llega desde
+   * `assertTenant(request.scope, "members.list")`.
+   *
+   * Fase 173-19 (ADO-02): el listado queda completamente scopeado. `users` (la
+   * tabla ancla) se filtra en `conditions` (primer push, cubre las tres
+   * queries — `countPromise`/`rowsPromise`/`totalDebtPromise` — porque las
+   * tres arman su `WHERE` con `whereClause = and(...conditions)`, y el
+   * agregado de deuda además repite el filtro en su propio `and()`, ya que es
+   * una query con `FROM balances` distinta). El `innerJoin(schema.branches)`
+   * de las tres lleva su propio `tenantWhere` en el `ON` (INNER, así que
+   * cambia poco en la práctica, pero es el idioma que usa todo el resto del
+   * módulo). Las subqueries correlacionadas (`subscriptions`/
+   * `subscription_plans` del filtro `multiBranch`/`planId` y de
+   * `planNameSubquery`; `member_profiles` de `segment`/`avatarType`;
+   * `bookings` de `hasUsedTrialSubquery`) llevan el gimnasio INLINE, en el
+   * mismo `sql` crudo que nombra la tabla — no hay forma de que un
+   * `tenantWhere` de afuera alcance un `FROM` propio. `buildMemberNameSearchCondition`
+   * y `memberCoveredUntilSql` (173-05/173-17) ya scopean puertas adentro; este
+   * método no les duplica el filtro.
    */
-  async listMembers(params: MemberListParams): Promise<{
+  async listMembers(
+    ctx: TenantContext,
+    params: MemberListParams,
+  ): Promise<{
     members: MemberListItem[];
     total: number;
     totalDebtByCurrency: TotalDebtRow[];
@@ -104,23 +133,32 @@ export class MemberService {
 
     const conditions: ReturnType<typeof eq>[] = [];
 
+    // Fase 173-19 (ADO-02, T-173-19-03): PRIMER elemento del array — `users`
+    // es la tabla ancla del listado y hasta acá no tenía NINGÚN filtro propio
+    // (solo lo tenían `balances` y, puertas adentro, la búsqueda por nombre).
+    // Sin esto, un socio de otro gimnasio aparecía en el listado, en el
+    // `total` y en el `totalDebtByCurrency` de CUALQUIER staff.
+    conditions.push(tenantWhere(schema.users, ctx));
     // Only show actual members (not coaches/admins)
     conditions.push(eq(schema.users.role, "member"));
     // Hide soft-deleted rows from the admin list.
     conditions.push(isNull(schema.users.deletedAt));
 
     if (search) {
-      const condition = buildMemberNameSearchCondition(search);
+      const condition = buildMemberNameSearchCondition(ctx, search);
       if (condition) conditions.push(condition);
     }
 
     if (multiBranch === true) {
-      // Filter members whose active subscription is on a multi-branch plan
+      // Filter members whose active subscription is on a multi-branch plan.
+      // Fase 173-19: `sub`/`sp` tienen su propio FROM/JOIN — el gimnasio va
+      // INLINE, uno por tabla (doc 07 §4(d)).
       conditions.push(
         sql`EXISTS (
           SELECT 1 FROM subscriptions sub
-          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id
+          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id AND sp.tenant_id = ${ctx.tenantId}
           WHERE sub.user_id = ${schema.users.id}
+            AND sub.tenant_id = ${ctx.tenantId}
             AND sp.multi_branch = 1
             AND (sub.subscription_status = 'active' OR sub.end_date >= CURDATE())
         )`,
@@ -155,11 +193,12 @@ export class MemberService {
     // planId>0 means filter by specific plan
     if (planId !== undefined) {
       if (planId === 0) {
-        // Members with NO active/paused subscription
+        // Members with NO active/paused subscription. Fase 173-19: `s.tenant_id`
+        // inline — subquery con FROM propio.
         conditions.push(
           sql`NOT EXISTS (
             SELECT 1 FROM subscriptions s
-            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+            WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
           )`,
         );
       } else {
@@ -167,7 +206,7 @@ export class MemberService {
         conditions.push(
           sql`EXISTS (
             SELECT 1 FROM subscriptions s
-            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
+            WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
           )`,
         );
       }
@@ -175,12 +214,13 @@ export class MemberService {
 
     // Segment filter (Phase 136): filter by the Attendance label stored in
     // member_profiles.member_segment. The query param is validated against the
-    // 4-band enum in schemas.ts before reaching here.
+    // 4-band enum in schemas.ts before reaching here. Fase 173-19: `mp.tenant_id`
+    // inline — `member_profiles` es tabla propia del módulo (TENANT_STRICT_MODULES.members).
     if (segment !== undefined) {
       conditions.push(
         sql`EXISTS (
           SELECT 1 FROM member_profiles mp
-          WHERE mp.user_id = users.id AND mp.member_segment = ${segment}
+          WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.member_segment = ${segment}
         )`,
       );
     }
@@ -192,14 +232,14 @@ export class MemberService {
         conditions.push(
           sql`NOT EXISTS (
             SELECT 1 FROM member_profiles mp
-            WHERE mp.user_id = users.id AND mp.avatar_type IS NOT NULL
+            WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.avatar_type IS NOT NULL
           )`,
         );
       } else {
         conditions.push(
           sql`EXISTS (
             SELECT 1 FROM member_profiles mp
-            WHERE mp.user_id = users.id AND mp.avatar_type = ${avatarType}
+            WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.avatar_type = ${avatarType}
           )`,
         );
       }
@@ -211,10 +251,17 @@ export class MemberService {
     // (Plan 01) backs this lookup. Replaces the previous EXISTS against
     // the dropped `debts` table.
     if (debtorOnly === true) {
+      // `b.tenant_id` PRIMERO en el WHERE de la subconsulta, antes de la
+      // correlación (convención de `shared/tenant.ts:20`). Sin él, el filtro
+      // "sólo deudores" marcaría como deudor a un socio que debe plata en OTRO
+      // gimnasio: la subconsulta tiene su propio FROM, así que el WHERE externo
+      // no la alcanza.
       conditions.push(
         sql`EXISTS (
           SELECT 1 FROM balances b
-          WHERE b.member_id = users.id AND b.amount > 0
+          WHERE b.tenant_id = ${ctx.tenantId}
+            AND b.member_id = users.id
+            AND b.amount > 0
         )`,
       );
     }
@@ -227,11 +274,13 @@ export class MemberService {
     // here mirrors recomputeUserStatus's CASE exactly so the list (and its
     // status filter) is always correct, independent of cache freshness.
     // 'freemium'/'prueba' are not derivable from subs, so they pass through.
+    // Fase 173-19: `s.tenant_id` inline.
     const effectiveStatusExpr = sql<UserStatus>`(
       CASE
         WHEN EXISTS (
           SELECT 1 FROM subscriptions s
           WHERE s.user_id = users.id
+            AND s.tenant_id = ${ctx.tenantId}
             AND s.subscription_status IN ('active','paused')
             AND s.start_date <= CURDATE()
             AND (s.end_date IS NULL OR s.end_date >= CURDATE())
@@ -255,43 +304,47 @@ export class MemberService {
 
     const whereClause = and(...conditions);
 
-    // Subquery: active subscription plan name (most recent if multiple)
+    // Subquery: active subscription plan name (most recent if multiple).
+    // Fase 173-19: `sp.tenant_id` en el ON del JOIN, `s.tenant_id` en el WHERE
+    // — dos tablas del módulo en el mismo statement, dos filtros.
     const planNameSubquery = sql<string | null>`(
       SELECT sp.name FROM subscriptions s
-      JOIN subscription_plans sp ON sp.id = s.plan_id
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
     // Subquery: Attendance label (Phase 136) from member_profiles. Reads the
     // physical column `member_segment` (name unchanged); the value is now one
     // of the 4 Attendance bands or NULL (<1 month / no active plan, D-07/D-08).
+    // Fase 173-19: `mp.tenant_id` inline.
     const segmentSubquery = sql<MemberSegment | null>`(
       SELECT mp.member_segment FROM member_profiles mp
-      WHERE mp.user_id = users.id LIMIT 1
+      WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} LIMIT 1
     )`;
 
-    // Subquery: avatar type from member_profiles
+    // Subquery: avatar type from member_profiles. Fase 173-19: `mp.tenant_id` inline.
     const avatarTypeSubquery = sql<string | null>`(
       SELECT mp.avatar_type FROM member_profiles mp
-      WHERE mp.user_id = users.id LIMIT 1
+      WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} LIMIT 1
     )`;
 
     // Fecha de cobertura para el pill "Venc" (YYYY-MM-DD); null si el socio no
     // tiene ninguna sub con fecha. Implementación única compartida — ver
     // shared/covered-until.ts (incluye 'scheduled', así el ya renovado no
     // figura venciendo).
-    const endDateSubquery = memberCoveredUntilSql();
+    const endDateSubquery = memberCoveredUntilSql(ctx);
 
     // Phase 102 (R7): EXISTS projection for the trial-history boolean.
     // Returns 1/0 from MySQL; coerced to boolean in the mapper below.
     // Uses idx_bookings_member_date (member_id prefix) for the lookup.
     // Cancelled trials are excluded so that admin can cancel a trial booking
     // (from the slot dialog) to reset the chip back to 0/1 and re-schedule.
+    // Fase 173-19: `b.tenant_id` inline — subquery con FROM propio.
     const hasUsedTrialSubquery = sql<number>`(
       SELECT EXISTS (
         SELECT 1 FROM bookings b
-        WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
+        WHERE b.member_id = users.id AND b.tenant_id = ${ctx.tenantId} AND b.is_trial = 1 AND b.booking_status != 'cancelado'
       )
     )`;
 
@@ -305,7 +358,16 @@ export class MemberService {
     const countPromise = this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        // Fase 173-19: `branches` no es tabla strict del módulo, pero se
+        // scopea igual (doc 07 §0.3, criterio de archivo) — INNER, así que
+        // ON o WHERE dan lo mismo, pero el ON es el idioma del resto del módulo.
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
       .where(whereClause);
 
     const rowsPromise = this.db
@@ -333,7 +395,13 @@ export class MemberService {
         hasUsedTrial: hasUsedTrialSubquery,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
       .where(whereClause)
       .orderBy(schema.users.firstName, schema.users.lastName)
       .limit(limit)
@@ -358,13 +426,25 @@ export class MemberService {
           .from(schema.balances)
           .innerJoin(
             schema.users,
-            eq(schema.users.id, schema.balances.memberId),
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, schema.balances.memberId),
+            ),
           )
           .innerJoin(
             schema.branches,
-            eq(schema.branches.id, schema.users.branchId),
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, schema.users.branchId),
+            ),
           )
-          .where(and(sql`${schema.balances.amount} > 0`, whereClause))
+          .where(
+            and(
+              tenantWhere(schema.balances, ctx),
+              sql`${schema.balances.amount} > 0`,
+              whereClause,
+            ),
+          )
           .groupBy(schema.balances.currency)
       : Promise.resolve<TotalDebtRow[]>([]);
 
@@ -418,15 +498,34 @@ export class MemberService {
    * substring. This query projects only id/name/dni, so even though the
    * `LIKE '%token%'` is a full scan, materializing + ordering the matches is
    * cheap and the LIMIT keeps the result small.
+   *
+   * Fase 173-17 (T-173-05-01): `ctx` PRIMERO. Hasta acá, este método usaba
+   * `legacyUnscopedNameSearchCondition` — una copia LOCAL de la búsqueda por
+   * nombre, sin gimnasio, que 173-05 dejó a propósito (ver docblock que tenía
+   * arriba, ya borrado) por ser el call site de mayor prioridad de la fase:
+   * sirve `/api/admin/members/search`, la query que el piloto identificó como
+   * la más cara (un nombre común devuelve la fila del primer gimnasio que lo
+   * tenga, sin 403, sin error). Ahora que `searchMembers` recibe `ctx`, pasa a
+   * usar `buildMemberNameSearchCondition` (el helper ya scopeado de
+   * `shared/member-search.ts`) en vez de mantener una segunda copia de la
+   * misma lógica.
    */
-  async searchMembers(params: MemberSearchParams): Promise<MemberSearchItem[]> {
+  async searchMembers(
+    ctx: TenantContext,
+    params: MemberSearchParams,
+  ): Promise<MemberSearchItem[]> {
     const { search, country, limit } = params;
 
-    const searchCondition = buildMemberNameSearchCondition(search);
+    const searchCondition = buildMemberNameSearchCondition(ctx, search);
     // No meaningful tokens (e.g. only whitespace) → nothing to search for.
     if (!searchCondition) return [];
 
+    // Fase 173-19 (T-173-19-01): PRIMER elemento — `buildMemberNameSearchCondition`
+    // ya filtra `users` puertas adentro (173-05/173-17), pero el resto del
+    // statement (el `.from(schema.users)` de la query final) no tenía filtro
+    // propio. Inline y primero, mismo criterio que `listMembers`.
     const conditions: SQL[] = [
+      tenantWhere(schema.users, ctx),
       eq(schema.users.role, "member"),
       isNull(schema.users.deletedAt),
       searchCondition,
@@ -443,22 +542,25 @@ export class MemberService {
     }
 
     // Active subscription plan name — same subquery as listMembers, for the
-    // "Sin plan / Activa / Inactiva" badge in SlotAttendancePanel.
+    // "Sin plan / Activa / Inactiva" badge in SlotAttendancePanel. Fase 173-19:
+    // `sp.tenant_id`/`s.tenant_id` inline.
     const planNameSubquery = sql<string | null>`(
       SELECT sp.name FROM subscriptions s
-      JOIN subscription_plans sp ON sp.id = s.plan_id
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
     // Effective status computed live from subscriptions (mirrors listMembers'
     // effectiveStatusExpr) so a lapsed member reads 'inactivo' immediately,
     // without waiting for the auto-expire cron to refresh users.status.
+    // Fase 173-19: `s.tenant_id` inline.
     const effectiveStatusExpr = sql<UserStatus>`(
       CASE
         WHEN EXISTS (
           SELECT 1 FROM subscriptions s
           WHERE s.user_id = users.id
+            AND s.tenant_id = ${ctx.tenantId}
             AND s.subscription_status IN ('active','paused')
             AND s.start_date <= CURDATE()
             AND (s.end_date IS NULL OR s.end_date >= CURDATE())
@@ -478,7 +580,13 @@ export class MemberService {
         status: effectiveStatusExpr,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
       .where(and(...conditions))
       .orderBy(schema.users.firstName, schema.users.lastName)
       .limit(limit);
@@ -486,17 +594,26 @@ export class MemberService {
 
   /**
    * Get full member profile by ID. Returns null if not found.
+   *
+   * Fase 173-19 (ADO-02): las tres queries (ficha, trial, SEPA) quedan
+   * scopeadas. Los LEFT JOIN (`creator`, `subscriptionPlans`, `attendance`)
+   * llevan el filtro en el `ON` — en el `WHERE` convertirían el LEFT en
+   * INNER y borrarían en silencio socios sin creador/plan/asistencia.
    */
-  async getMemberById(id: number): Promise<MemberProfile | null> {
+  async getMemberById(
+    ctx: TenantContext,
+    id: number,
+  ): Promise<MemberProfile | null> {
     // Phase 103 (R10): users.status is the source of truth — direct
     // projection (no derived subquery).
 
     // Phase 102 (R7): same EXISTS predicate as the list endpoint — single
     // source of truth for hasUsedTrial semantics. Cancelled trials excluded.
+    // Fase 173-19: `b.tenant_id` inline — subquery con FROM propio.
     const hasUsedTrialSubquery = sql<number>`(
       SELECT EXISTS (
         SELECT 1 FROM bookings b
-        WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
+        WHERE b.member_id = users.id AND b.tenant_id = ${ctx.tenantId} AND b.is_trial = 1 AND b.booking_status != 'cancelado'
       )
     )`;
 
@@ -539,13 +656,34 @@ export class MemberService {
         creatorLastName: creator.lastName,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .leftJoin(creator, eq(creator.id, schema.users.createdBy))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
+      // Fase 173-19 (T-173-19-04): LEFT JOIN — el filtro va en el ON, JAMÁS
+      // en el WHERE (ahí convertiría el LEFT en INNER y borraría en silencio
+      // a los socios sin creador o sin plan comprado).
+      .leftJoin(
+        creator,
+        and(tenantWhere(creator, ctx), eq(creator.id, schema.users.createdBy)),
+      )
       .leftJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+        ),
       )
-      .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)));
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, id),
+          isNull(schema.users.deletedAt),
+        ),
+      );
 
     if (!row) return null;
 
@@ -564,15 +702,25 @@ export class MemberService {
       .from(schema.bookings)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.bookings.scheduleId),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.bookings.scheduleId),
+        ),
       )
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.schedules.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.schedules.branchId),
+        ),
       )
+      // Fase 173-19 (T-173-19-04): LEFT JOIN — filtro en el ON. En el WHERE
+      // convertiría el LEFT en INNER y un trial sin asistencia confirmada
+      // desaparecería de la ficha en vez de mostrar "no asistió".
       .leftJoin(
         schema.attendance,
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, schema.bookings.memberId),
           eq(schema.attendance.scheduleId, schema.bookings.scheduleId),
           eq(schema.attendance.sessionDate, schema.bookings.bookingDate),
@@ -581,6 +729,7 @@ export class MemberService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, id),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -603,7 +752,12 @@ export class MemberService {
         iban: schema.userSepaDetails.iban,
       })
       .from(schema.userSepaDetails)
-      .where(eq(schema.userSepaDetails.userId, id))
+      .where(
+        and(
+          tenantWhere(schema.userSepaDetails, ctx),
+          eq(schema.userSepaDetails.userId, id),
+        ),
+      )
       .limit(1);
 
     let latestTrial: MemberProfile["latestTrial"] = null;
@@ -673,6 +827,7 @@ export class MemberService {
    * Throws on duplicate email or DNI.
    */
   async createMember(
+    ctx: TenantContext,
     input: CreateMemberServiceInput,
   ): Promise<{ member: MemberProfile; tempPassword: string }> {
     const tempPassword = MEMBER_TEMP_PASSWORD;
@@ -688,54 +843,70 @@ export class MemberService {
     // single tx so the 'prueba' transition is recorded atomically. New alta →
     // fromStatus=null, toStatus='prueba', source='admin' (staff-initiated).
     const userId = await this.db.transaction(async (tx) => {
-      const result = await tx.insert(schema.users).values({
-        email: input.email,
-        passwordHash,
-        firstName: input.firstName.trim(),
-        lastName: input.lastName.trim(),
-        phone: input.phone,
-        dni: input.dni,
-        documentType: (input.documentType as DocType) || null,
-        address: input.address || null,
-        branchId: input.branchId,
-        // Recategorización (0185): el alta fija la sede elegida → 'manual' para
-        // que el cron mensual respete la ventana de protección.
-        branchUpdatedAt: new Date(),
-        branchSource: "manual" as const,
-        // Phase 130 (KAIROS-04, D-01): new members default to kairos when no
-        // explicit level is supplied. An explicit input.level (e.g. 'delta') is
-        // still honored — the default only applies when the field is omitted.
-        level: (input.level as Level) || "kairos",
-        dateOfBirth: input.dateOfBirth || null,
-        gender: (input.gender as Gender) || null,
-        emergencyContactName: input.emergencyContactName || null,
-        emergencyContactPhone: input.emergencyContactPhone || null,
-        emergencyContactRelationship:
-          input.emergencyContactRelationship || null,
-        role: "member",
-        // Phase 157-03 (REF-03, D-08): canal asistido. referredBy ya viene
-        // validado del route (socio real o undefined). Se persiste en el mismo
-        // insert; el vínculo referrals(pending, assisted) se crea abajo.
-        referredBy: input.referredBy ?? null,
-        // Phase 103-04 (R7, D-12, BLOCKER 3): admin enrolling someone who walked
-        // into a sede starts as 'prueba'. If planId is also provided, the
-        // route handler calls subscriptionService.assignPlan which triggers
-        // Plan 02's recomputeUserStatus → flips status to 'activo' inside
-        // the same transaction. Single-owner edit per the wave-conflict
-        // resolution.
-        status: "prueba" as const,
-      });
+      // Fase 173 (D-05/T-173-18-02): `input.branchId` sale del payload del
+      // formulario de alta y nadie verificaba de qué gimnasio era esa sede.
+      // `assertBranchDelGimnasio` resuelve DENTRO de esta misma tx (404 "Sede
+      // no encontrada" — jamás un código de acceso denegado, D-06 — si la
+      // sede es ajena o no existe) y se escribe `branch.id` (la fila YA
+      // resuelta), nunca el número crudo del payload.
+      const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
+      // Fase 173 (T-173-18-01): `tenantValues` estampa el gimnasio DESPUÉS
+      // del spread — un `tenantId` que viniera adentro del objeto no gana.
+      const result = await tx.insert(schema.users).values(
+        tenantValues(ctx, {
+          email: input.email,
+          passwordHash,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+          phone: input.phone,
+          dni: input.dni,
+          documentType: (input.documentType as DocType) || null,
+          address: input.address || null,
+          branchId: branch.id,
+          // Recategorización (0185): el alta fija la sede elegida → 'manual' para
+          // que el cron mensual respete la ventana de protección.
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
+          // Phase 130 (KAIROS-04, D-01): new members default to kairos when no
+          // explicit level is supplied. An explicit input.level (e.g. 'delta') is
+          // still honored — the default only applies when the field is omitted.
+          level: (input.level as Level) || "kairos",
+          dateOfBirth: input.dateOfBirth || null,
+          gender: (input.gender as Gender) || null,
+          emergencyContactName: input.emergencyContactName || null,
+          emergencyContactPhone: input.emergencyContactPhone || null,
+          emergencyContactRelationship:
+            input.emergencyContactRelationship || null,
+          role: "member",
+          // Phase 157-03 (REF-03, D-08): canal asistido. referredBy ya viene
+          // validado del route (socio real o undefined). Se persiste en el mismo
+          // insert; el vínculo referrals(pending, assisted) se crea abajo.
+          referredBy: input.referredBy ?? null,
+          // Phase 103-04 (R7, D-12, BLOCKER 3): admin enrolling someone who walked
+          // into a sede starts as 'prueba'. If planId is also provided, the
+          // route handler calls subscriptionService.assignPlan which triggers
+          // Plan 02's recomputeUserStatus → flips status to 'activo' inside
+          // the same transaction. Single-owner edit per the wave-conflict
+          // resolution.
+          status: "prueba" as const,
+        }),
+      );
 
       const newUserId = Number(result[0].insertId);
 
       // Phase 118-01 (D-02): record the freemium-less alta → 'prueba'
       // transition. No prior status on a brand-new row, so fromStatus=null.
-      await tx.insert(schema.userStatusHistory).values({
-        userId: newUserId,
-        fromStatus: null,
-        toStatus: "prueba",
-        source: "admin",
-      });
+      // Fase 173 (T-173-18-01): `tenantValues` acá también — user_status_history
+      // es tabla propia del módulo (TENANT_STRICT_MODULES.members).
+      await tx.insert(schema.userStatusHistory).values(
+        tenantValues(ctx, {
+          userId: newUserId,
+          fromStatus: null,
+          toStatus: "prueba",
+          source: "admin",
+        }),
+      );
       this.log.info(
         { userId: newUserId, fromStatus: null, toStatus: "prueba" },
         "user status transition recorded",
@@ -757,17 +928,22 @@ export class MemberService {
     // same referred_id (UNIQUE, D-14) throws and is swallowed here.
     if (input.referredBy != null && input.referredBy !== userId) {
       try {
-        await this.db.insert(schema.referrals).values({
-          referrerId: input.referredBy,
-          referredId: userId,
-          status: "pending",
-          attributionChannel: "assisted",
-          createdBy: input.createdBy ?? null,
-          // A/B copy test: variante del referidor (derivada de su id). Aunque el
-          // alta asistida no pasa por la card, se estampa igual para no perder la
-          // conversión en el denominador del reporte por variante.
-          copyVariant: referralCopyVariant(input.referredBy),
-        });
+        // Fase 173-19 (T-173-19-01): `tenantValues` — sin esto, el vínculo de
+        // referido nacía sin gimnasio (DEFAULT 1) sin importar de qué
+        // gimnasio fuera el alta.
+        await this.db.insert(schema.referrals).values(
+          tenantValues(ctx, {
+            referrerId: input.referredBy,
+            referredId: userId,
+            status: "pending",
+            attributionChannel: "assisted",
+            createdBy: input.createdBy ?? null,
+            // A/B copy test: variante del referidor (derivada de su id). Aunque el
+            // alta asistida no pasa por la card, se estampa igual para no perder la
+            // conversión en el denominador del reporte por variante.
+            copyVariant: referralCopyVariant(input.referredBy),
+          }),
+        );
       } catch (err: unknown) {
         this.log.warn(
           {
@@ -784,7 +960,7 @@ export class MemberService {
     // independent of referredBy. An irrecoverable UNIQUE collision leaves
     // referral_code NULL (the backfill covers it) and NEVER blocks the alta.
     try {
-      await referralService.generateReferralCode(userId);
+      await referralService.generateReferralCode(ctx, userId);
     } catch (err: unknown) {
       this.log.warn(
         { err: err instanceof Error ? err.message : String(err), userId },
@@ -792,7 +968,7 @@ export class MemberService {
       );
     }
 
-    const member = await this.getMemberById(userId);
+    const member = await this.getMemberById(ctx, userId);
 
     if (!member) {
       throw new Error("Failed to retrieve newly created member");
@@ -821,6 +997,7 @@ export class MemberService {
    *     same person book a second trial via a different user row.
    */
   async createTrialMember(
+    ctx: TenantContext,
     input: CreateTrialMemberServiceInput,
   ): Promise<{ member: MemberProfile; tempPassword: string }> {
     const normalizedPhone = normalizePhone(input.phone);
@@ -828,6 +1005,9 @@ export class MemberService {
       throw new ConflictError("El teléfono ingresado no es válido");
     }
 
+    // Fase 173 (D-06/T-173-18-04): `tenantWhere` inline — sin él, un teléfono
+    // repetido en OTRO gimnasio bloquearía esta alta con un 409 que además
+    // delataría que ese socio existe (trampa (a) del piloto).
     const [existing] = await this.db
       .select({
         id: schema.users.id,
@@ -837,6 +1017,7 @@ export class MemberService {
       .from(schema.users)
       .where(
         and(
+          tenantWhere(schema.users, ctx),
           eq(schema.users.phone, normalizedPhone),
           isNull(schema.users.deletedAt),
         ),
@@ -859,36 +1040,44 @@ export class MemberService {
     // new lead's 'prueba' transition is recorded atomically (fromStatus=null,
     // source='admin' — receptionist-initiated trial registration).
     const userId = await this.db.transaction(async (tx) => {
-      const result = await tx.insert(schema.users).values({
-        passwordHash,
-        firstName: input.firstName.trim(),
-        lastName: input.lastName.trim(),
-        phone: normalizedPhone,
-        branchId: input.branchId,
-        // Recategorización (0185): el alta fija la sede elegida → 'manual'.
-        branchUpdatedAt: new Date(),
-        branchSource: "manual" as const,
-        role: "member",
-        // Phase 130 (KAIROS-04, D-01): admin-created trial/lead members are
-        // born kairos like every other new member.
-        level: "kairos",
-        status: "prueba" as const,
-        // Phase 114 D-31: lead lifecycle starts here. lead_status='en_seguimiento'
-        // is the only valid initial value for an admin-created trial. created_by
-        // is the JWT-authenticated admin from the route layer.
-        leadStatus: "en_seguimiento" as const,
-        leadStatusSource: "auto" as const, // Phase 163 (D-07): alta = automatismo
-        createdBy: input.createdBy,
-      });
+      // Fase 173 (D-05/T-173-18-02): resolver DENTRO de la tx, escribir
+      // `branch.id` (la fila YA resuelta), nunca el número crudo del payload.
+      const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
+      const result = await tx.insert(schema.users).values(
+        tenantValues(ctx, {
+          passwordHash,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+          phone: normalizedPhone,
+          branchId: branch.id,
+          // Recategorización (0185): el alta fija la sede elegida → 'manual'.
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
+          role: "member",
+          // Phase 130 (KAIROS-04, D-01): admin-created trial/lead members are
+          // born kairos like every other new member.
+          level: "kairos",
+          status: "prueba" as const,
+          // Phase 114 D-31: lead lifecycle starts here. lead_status='en_seguimiento'
+          // is the only valid initial value for an admin-created trial. created_by
+          // is the JWT-authenticated admin from the route layer.
+          leadStatus: "en_seguimiento" as const,
+          leadStatusSource: "auto" as const, // Phase 163 (D-07): alta = automatismo
+          createdBy: input.createdBy,
+        }),
+      );
 
       const newUserId = Number(result[0].insertId);
 
-      await tx.insert(schema.userStatusHistory).values({
-        userId: newUserId,
-        fromStatus: null,
-        toStatus: "prueba",
-        source: "admin",
-      });
+      await tx.insert(schema.userStatusHistory).values(
+        tenantValues(ctx, {
+          userId: newUserId,
+          fromStatus: null,
+          toStatus: "prueba",
+          source: "admin",
+        }),
+      );
       this.log.info(
         { userId: newUserId, fromStatus: null, toStatus: "prueba" },
         "user status transition recorded",
@@ -897,7 +1086,7 @@ export class MemberService {
       return newUserId;
     });
 
-    const member = await this.getMemberById(userId);
+    const member = await this.getMemberById(ctx, userId);
 
     if (!member) {
       throw new Error("Failed to retrieve newly created trial member");
@@ -925,6 +1114,7 @@ export class MemberService {
    * never surfacing an uncontrolled 500 nor creating a duplicate.
    */
   async createMinimalMember(
+    ctx: TenantContext,
     input: CreateMinimalMemberServiceInput,
   ): Promise<number> {
     const dni = input.dni.trim();
@@ -939,35 +1129,43 @@ export class MemberService {
       // 'prueba' transition is recorded atomically (fromStatus=null,
       // source='admin' — staff/profe-initiated PoS alta).
       const userId = await this.db.transaction(async (tx) => {
-        const result = await tx.insert(schema.users).values({
-          passwordHash,
-          firstName: input.firstName.trim(),
-          lastName: input.lastName.trim(),
-          dni,
-          // email/phone intencionalmente null: el walk-in que paga en mostrador
-          // no los aporta; gestión los completa al validar (CONTEXT L70-74).
-          email: null,
-          branchId: input.branchId,
-          // Recategorización (0185): el alta fija la sede elegida → 'manual'.
-          branchUpdatedAt: new Date(),
-          branchSource: "manual" as const,
-          role: "member",
-          // Phase 130 (KAIROS-04, D-01): nuevos miembros nacen kairos.
-          level: "kairos",
-          status: "prueba" as const,
-          // Phase 148 (D-31): created_by es el usuario autenticado por JWT,
-          // resuelto en la ruta orquestadora — nunca del body crudo.
-          createdBy: input.createdBy,
-        });
+        // Fase 173 (D-05/T-173-18-02): resolver DENTRO de la tx, escribir
+        // `branch.id` (la fila YA resuelta), nunca el número crudo del payload.
+        const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+
+        const result = await tx.insert(schema.users).values(
+          tenantValues(ctx, {
+            passwordHash,
+            firstName: input.firstName.trim(),
+            lastName: input.lastName.trim(),
+            dni,
+            // email/phone intencionalmente null: el walk-in que paga en mostrador
+            // no los aporta; gestión los completa al validar (CONTEXT L70-74).
+            email: null,
+            branchId: branch.id,
+            // Recategorización (0185): el alta fija la sede elegida → 'manual'.
+            branchUpdatedAt: new Date(),
+            branchSource: "manual" as const,
+            role: "member",
+            // Phase 130 (KAIROS-04, D-01): nuevos miembros nacen kairos.
+            level: "kairos",
+            status: "prueba" as const,
+            // Phase 148 (D-31): created_by es el usuario autenticado por JWT,
+            // resuelto en la ruta orquestadora — nunca del body crudo.
+            createdBy: input.createdBy,
+          }),
+        );
 
         const newUserId = Number(result[0].insertId);
 
-        await tx.insert(schema.userStatusHistory).values({
-          userId: newUserId,
-          fromStatus: null,
-          toStatus: "prueba",
-          source: "admin",
-        });
+        await tx.insert(schema.userStatusHistory).values(
+          tenantValues(ctx, {
+            userId: newUserId,
+            fromStatus: null,
+            toStatus: "prueba",
+            source: "admin",
+          }),
+        );
         this.log.info(
           { userId: newUserId, fromStatus: null, toStatus: "prueba" },
           "user status transition recorded",
@@ -981,7 +1179,7 @@ export class MemberService {
       // T-148-02: carrera contra el UNIQUE de dni. Re-dedup y devolver el
       // existente (backstop del dedup previo del orquestador 148-02).
       if (isDuplicateKeyError(err).isDuplicate) {
-        const { matches } = await this.checkDuplicates({ dni });
+        const { matches } = await this.checkDuplicates(ctx, { dni });
         const existing = matches.find((m) => m.matchedField === "dni");
         if (existing) return existing.id;
       }
@@ -1021,9 +1219,12 @@ export class MemberService {
    *   - 409 if the target branch is virtual (a trial session must be presencial).
    */
   async convertFreemiumToTrial(
+    ctx: TenantContext,
     userId: number,
     input: ConvertFreemiumToTrialServiceInput,
   ): Promise<MemberProfile> {
+    // Fase 173 (T-173-18-04): `tenantWhere` inline — un `userId` de otro
+    // gimnasio tiene que verse EXACTO igual que uno inexistente (D-06).
     const [user] = await this.db
       .select({
         id: schema.users.id,
@@ -1032,7 +1233,7 @@ export class MemberService {
         phone: schema.users.phone,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     if (!user || user.deletedAt) {
@@ -1062,24 +1263,6 @@ export class MemberService {
     }
     const phone = !user.phone ? phoneFromBody : undefined;
 
-    const [branch] = await this.db
-      .select({
-        id: schema.branches.id,
-        isVirtual: schema.branches.isVirtual,
-      })
-      .from(schema.branches)
-      .where(eq(schema.branches.id, input.branchId))
-      .limit(1);
-
-    if (!branch) {
-      throw new NotFoundError("Sede no encontrada");
-    }
-    if (branch.isVirtual) {
-      throw new ConflictError(
-        "La sesión de prueba debe asignarse a una sede física",
-      );
-    }
-
     // Phase 118-01 (D-02): the 409 guard above already restricts this path to
     // freemium → prueba, so the transition always changes the status — no
     // dedupe branch is needed here (TS narrows user.status to 'freemium', which
@@ -1087,6 +1270,18 @@ export class MemberService {
     // same tx → rolls back together. source='admin' (admin-initiated convert).
     const statusBefore = user.status;
     await this.db.transaction(async (tx) => {
+      // Fase 173 (D-05/T-173-18-02): `input.branchId` sale del payload del
+      // staff; se resuelve DENTRO de esta misma tx con `assertBranchDelGimnasio`
+      // (404 "Sede no encontrada" — mismo mensaje que ya usaba este método, D-06:
+      // jamás un código de acceso denegado) y se escribe `branch.id` (la fila YA
+      // resuelta), nunca el número crudo del payload.
+      const branch = await assertBranchDelGimnasio(ctx, input.branchId, tx);
+      if (branch.isVirtual) {
+        throw new ConflictError(
+          "La sesión de prueba debe asignarse a una sede física",
+        );
+      }
+
       await tx
         .update(schema.users)
         .set({
@@ -1094,24 +1289,28 @@ export class MemberService {
           leadStatus: "en_seguimiento" as const,
           leadStatusSource: "auto" as const, // Phase 163 (D-07): alta = automatismo
           createdBy: input.createdBy,
-          branchId: input.branchId,
+          branchId: branch.id,
           ...(phone ? { phone } : {}),
         })
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
-      await tx.insert(schema.userStatusHistory).values({
-        userId,
-        fromStatus: statusBefore,
-        toStatus: "prueba",
-        source: "admin",
-      });
+      await tx.insert(schema.userStatusHistory).values(
+        tenantValues(ctx, {
+          userId,
+          fromStatus: statusBefore,
+          toStatus: "prueba",
+          source: "admin",
+        }),
+      );
       this.log.info(
         { userId, fromStatus: statusBefore, toStatus: "prueba" },
         "user status transition recorded",
       );
     });
 
-    const member = await this.getMemberById(userId);
+    const member = await this.getMemberById(ctx, userId);
     if (!member) {
       throw new Error("Failed to retrieve converted trial member");
     }
@@ -1139,19 +1338,25 @@ export class MemberService {
    * un booking is_trial no cancelado. Los campos de lead ya escritos
    * (converted_at / lead_status) cortan la consulta antes en el caso común.
    */
-  private async wasEverLead(user: {
-    id: number;
-    convertedAt: Date | null;
-    leadStatus: string | null;
-  }): Promise<boolean> {
+  private async wasEverLead(
+    ctx: TenantContext,
+    user: {
+      id: number;
+      convertedAt: Date | null;
+      leadStatus: string | null;
+    },
+  ): Promise<boolean> {
     if (user.convertedAt !== null || user.leadStatus !== null) {
       return true;
     }
+    // Fase 173 (T-173-18): `ctx` ya llegaba en la firma pero no filtraba nada
+    // (trampa (a)) — `tenantWhere` inline, primer término del `and(...)`.
     const [trial] = await this.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, user.id),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -1162,9 +1367,12 @@ export class MemberService {
   }
 
   async updateLead(
+    ctx: TenantContext,
     userId: number,
     input: UpdateLeadInput,
   ): Promise<LeadSnapshot> {
+    // Fase 173 (D-06): `tenantWhere` inline — un `userId` de otro gimnasio
+    // tiene que verse EXACTO igual que uno inexistente.
     const [user] = await this.db
       .select({
         id: schema.users.id,
@@ -1175,7 +1383,7 @@ export class MemberService {
         convertedAt: schema.users.convertedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     if (!user || user.deletedAt) {
@@ -1186,17 +1394,24 @@ export class MemberService {
     // (status pasa a 'activo'/'inactivo'). Exigir status='prueba' hacía que
     // toda edición sobre esas filas muriera en 409 (154 de 601 filas en prod).
     // El gate ahora rechaza solo a quien NUNCA fue lead.
-    if (user.status !== "prueba" && !(await this.wasEverLead(user))) {
+    if (user.status !== "prueba" && !(await this.wasEverLead(ctx, user))) {
       throw new ConflictError(
         "El usuario nunca fue un lead (no tiene sesión de prueba registrada)",
       );
     }
 
     if (input.purchasedPlanId !== undefined && input.purchasedPlanId !== null) {
+      // Fase 173 (D-06): un plan de otro gimnasio tiene que rechazarse igual
+      // que uno inexistente — `tenantWhere` inline.
       const [plan] = await this.db
         .select({ id: schema.subscriptionPlans.id })
         .from(schema.subscriptionPlans)
-        .where(eq(schema.subscriptionPlans.id, input.purchasedPlanId))
+        .where(
+          and(
+            tenantWhere(schema.subscriptionPlans, ctx),
+            eq(schema.subscriptionPlans.id, input.purchasedPlanId),
+          ),
+        )
         .limit(1);
       if (!plan) {
         throw new BadRequestError("El plan indicado no existe");
@@ -1247,11 +1462,18 @@ export class MemberService {
       await this.db
         .update(schema.users)
         .set(updateData)
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
     }
 
     // Re-fetch with the createdBy admin JOIN so the response payload renders
     // "Gestiona: <name>" without a second round-trip.
+    //
+    // Fase 173: el filtro de una tabla joineada va en el ON, también en un
+    // LEFT JOIN (mordió 4x en el piloto) — ponerlo en el WHERE convertiría el
+    // LEFT en INNER en silencio y perdería la fila cuando createdBy/purchasedPlanId
+    // son NULL.
     const creator = alias(schema.users, "creator");
     const [snapshot] = await this.db
       .select({
@@ -1266,12 +1488,18 @@ export class MemberService {
         creatorLastName: creator.lastName,
       })
       .from(schema.users)
-      .leftJoin(creator, eq(creator.id, schema.users.createdBy))
+      .leftJoin(
+        creator,
+        and(tenantWhere(creator, ctx), eq(creator.id, schema.users.createdBy)),
+      )
       .leftJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.users.purchasedPlanId),
+        ),
       )
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     return {
@@ -1300,14 +1528,17 @@ export class MemberService {
    * the user does not exist or is soft-deleted. The route handler converts
    * null → 404 before reaching updateLead.
    */
-  async getLeadBranchId(userId: number): Promise<number | null> {
+  async getLeadBranchId(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<number | null> {
     const [row] = await this.db
       .select({
         branchId: schema.users.branchId,
         deletedAt: schema.users.deletedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
     if (!row || row.deletedAt) return null;
     return row.branchId;
@@ -1320,10 +1551,24 @@ export class MemberService {
    * file stays immutable since it's the member's app login identity.
    */
   async updateMember(
+    ctx: TenantContext,
     id: number,
     input: UpdateMemberInput,
   ): Promise<MemberProfile | null> {
-    const existing = await this.getMemberById(id);
+    // Fase 173 (D-06/T-173-18-05): `getMemberById` (fuera del alcance de este
+    // plan — ver 173-19/20) TODAVÍA NO filtra por gimnasio, así que sin esta
+    // guarda un `id` de otro gimnasio pasaría el check de "existe" de abajo y
+    // las cascadas de sedes (subscriptions/bookings/subscription_schedules)
+    // más adelante en este método tocarían filas ajenas. Socio ajeno tiene que
+    // verse EXACTO igual que inexistente.
+    const [ownRow] = await this.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)))
+      .limit(1);
+    if (!ownRow) return null;
+
+    const existing = await this.getMemberById(ctx, id);
     if (!existing) return null;
 
     // Domiciliación (SEPA): validar el IBAN ANTES de tocar users, así un 400
@@ -1368,7 +1613,9 @@ export class MemberService {
     if (input.emergencyContactRelationship !== undefined)
       updateData.emergencyContactRelationship =
         input.emergencyContactRelationship;
-    if (input.branchId !== undefined) updateData.branchId = input.branchId;
+    // Fase 173 (D-05/T-173-18-02): `input.branchId` NO se copia acá — se
+    // resuelve más abajo con `assertBranchDelGimnasio` DENTRO de la tx y se
+    // escribe la fila YA resuelta (ver `branchChanged`).
     if (input.level !== undefined) {
       const newLevel = input.level as
         | "kairos"
@@ -1400,11 +1647,15 @@ export class MemberService {
       (existing.email === null || existing.email === "")
     ) {
       const email = input.email.trim();
+      // Fase 173 (D-06/T-173-18-04): `tenantWhere` inline — un email repetido
+      // en OTRO gimnasio no puede bloquear esta edición ni delatar que ese
+      // socio existe.
       const [emailClash] = await this.db
         .select({ id: schema.users.id })
         .from(schema.users)
         .where(
           and(
+            tenantWhere(schema.users, ctx),
             eq(schema.users.email, email),
             ne(schema.users.id, id),
             isNull(schema.users.deletedAt),
@@ -1417,7 +1668,15 @@ export class MemberService {
       updateData.email = email;
     }
 
-    if (Object.keys(updateData).length > 0) {
+    // Fase 173 (T-173-18-02): calculado ACÁ (antes del gate de abajo) porque
+    // `updateData.branchId` ya no se puebla fuera de la tx (se resuelve con
+    // `assertBranchDelGimnasio` recién dentro) — si el ÚNICO campo que cambia
+    // es la sede, `updateData` de los campos de arriba queda vacío y el gate
+    // tiene que entrar igual.
+    const branchChanged =
+      input.branchId !== undefined && input.branchId !== existing.branchId;
+
+    if (Object.keys(updateData).length > 0 || branchChanged) {
       // When the member's sede changes, cascade the destructive cleanup the
       // admin opted in to via the MemberFormDialog confirmation:
       //   1. Sync subscriptions.branch_id so the fixed-schedule editor
@@ -1437,25 +1696,41 @@ export class MemberService {
       // reserve in any sede — cancelling future bookings or dropping fixed
       // schedules would be wrong. In that case we only sync sub.branch_id
       // (step 1) and leave bookings + schedules alone.
-      const branchChanged =
-        input.branchId !== undefined && input.branchId !== existing.branchId;
-      if (branchChanged) {
-        // Recategorización multisucursal (migración 0185): marcar el cambio de
-        // sede como MANUAL para que el cron mensual respete la ventana de
-        // protección de 45 días y no lo pise. Solo cuando la sede realmente
-        // cambia (editar otro campo no debe proteger la sede del cron).
-        updateData.branchUpdatedAt = new Date();
-        updateData.branchSource = "manual";
-      }
       await this.db.transaction(async (tx) => {
+        if (branchChanged) {
+          // Fase 173 (D-05/T-173-18-02, sitio de ancla): `input.branchId` sale
+          // del payload de la edición de ficha; se resuelve DENTRO de esta
+          // misma tx con `assertBranchDelGimnasio` (404 "Sede no encontrada" —
+          // jamás un código de acceso denegado, D-06) y se escribe `branch.id`
+          // (la fila YA resuelta), nunca el número crudo del payload.
+          const branch = await assertBranchDelGimnasio(
+            ctx,
+            input.branchId ?? null,
+            tx,
+          );
+          updateData.branchId = branch.id;
+          // Recategorización multisucursal (migración 0185): marcar el cambio de
+          // sede como MANUAL para que el cron mensual respete la ventana de
+          // protección de 45 días y no lo pise. Solo cuando la sede realmente
+          // cambia (editar otro campo no debe proteger la sede del cron).
+          updateData.branchUpdatedAt = new Date();
+          updateData.branchSource = "manual";
+        }
+
         await tx
           .update(schema.users)
           .set(updateData)
-          .where(eq(schema.users.id, id));
+          .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
         if (branchChanged) {
+          const resolvedBranchId = updateData.branchId as number;
           // Detect whether any live sub is multi_branch — that disables the
           // destructive cleanup and keeps the member's bookings/schedules
           // intact across sedes.
+          //
+          // Fase 173: el filtro de `subscriptionPlans` (tabla joineada) va en
+          // el ON — también en un INNER JOIN, mismo idioma que
+          // cash-register-service.ts (mordió 4x en el piloto si se pone en el
+          // WHERE de un LEFT).
           const liveSubs = await tx
             .select({
               id: schema.subscriptions.id,
@@ -1464,10 +1739,14 @@ export class MemberService {
             .from(schema.subscriptions)
             .innerJoin(
               schema.subscriptionPlans,
-              eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+              and(
+                tenantWhere(schema.subscriptionPlans, ctx),
+                eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+              ),
             )
             .where(
               and(
+                tenantWhere(schema.subscriptions, ctx),
                 eq(schema.subscriptions.userId, id),
                 inArray(schema.subscriptions.status, [
                   "active",
@@ -1482,9 +1761,10 @@ export class MemberService {
           //    multi-branch). The "principal" sede follows the member.
           await tx
             .update(schema.subscriptions)
-            .set({ branchId: input.branchId as number })
+            .set({ branchId: resolvedBranchId })
             .where(
               and(
+                tenantWhere(schema.subscriptions, ctx),
                 eq(schema.subscriptions.userId, id),
                 inArray(schema.subscriptions.status, [
                   "active",
@@ -1506,6 +1786,7 @@ export class MemberService {
               })
               .where(
                 and(
+                  tenantWhere(schema.bookings, ctx),
                   eq(schema.bookings.memberId, id),
                   inArray(schema.bookings.status, ["reservado", "confirmado"]),
                   gte(schema.bookings.bookingDate, todayStr),
@@ -1516,9 +1797,12 @@ export class MemberService {
             //    the admin can reassign them in the new sede.
             if (liveSubs.length > 0) {
               await tx.delete(schema.subscriptionSchedules).where(
-                inArray(
-                  schema.subscriptionSchedules.subscriptionId,
-                  liveSubs.map((r) => r.id),
+                and(
+                  tenantWhere(schema.subscriptionSchedules, ctx),
+                  inArray(
+                    schema.subscriptionSchedules.subscriptionId,
+                    liveSubs.map((r) => r.id),
+                  ),
                 ),
               );
             }
@@ -1545,13 +1829,16 @@ export class MemberService {
         nif: normalize(sepa.nif)?.toUpperCase() ?? null,
         iban: sepa.iban ? normalizeIban(sepa.iban) : null,
       };
+      // Fase 173 (T-173-18-01): `tenantValues` — `id` ya se verificó del
+      // propio gimnasio arriba (guarda de tenant al inicio del método), pero
+      // el insert igual estampa el tenant server-side, nunca del payload.
       await this.db
         .insert(schema.userSepaDetails)
-        .values({ userId: id, ...sepaData })
+        .values(tenantValues(ctx, { userId: id, ...sepaData }))
         .onDuplicateKeyUpdate({ set: sepaData });
     }
 
-    return this.getMemberById(id);
+    return this.getMemberById(ctx, id);
   }
 
   /**
@@ -1576,11 +1863,14 @@ export class MemberService {
    *   - { ok: false, reason: "already_deleted" }
    */
   async softDeleteMember(
+    ctx: TenantContext,
     id: number,
   ): Promise<
     | { ok: true }
     | { ok: false; reason: "not_found" | "not_member" | "already_deleted" }
   > {
+    // Fase 173 (D-06/T-173-18-05): `tenantWhere` inline — un `id` de otro
+    // gimnasio tiene que verse EXACTO igual que uno inexistente.
     const [existing] = await this.db
       .select({
         id: schema.users.id,
@@ -1588,7 +1878,7 @@ export class MemberService {
         deletedAt: schema.users.deletedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)))
       .limit(1);
 
     if (!existing) return { ok: false, reason: "not_found" };
@@ -1605,7 +1895,7 @@ export class MemberService {
         email: scrubbedEmail,
         dni: null,
       })
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
 
     return { ok: true };
   }
@@ -1621,10 +1911,14 @@ export class MemberService {
    *   - { ok: false, reason: "deleted" }    — refuses soft-deleted rows
    */
   async resetMemberPassword(
+    ctx: TenantContext,
     id: number,
   ): Promise<
     { ok: true } | { ok: false; reason: "not_found" | "not_member" | "deleted" }
   > {
+    // Fase 173 (T-173-18-03, EoP más grave del plan): `tenantWhere` inline —
+    // sin él, un `id` de OTRO gimnasio permite tomar control de esa cuenta
+    // reseteando su password.
     const [existing] = await this.db
       .select({
         id: schema.users.id,
@@ -1632,7 +1926,7 @@ export class MemberService {
         deletedAt: schema.users.deletedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)))
       .limit(1);
 
     if (!existing) return { ok: false, reason: "not_found" };
@@ -1644,7 +1938,7 @@ export class MemberService {
     await this.db
       .update(schema.users)
       .set({ passwordHash })
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, id)));
 
     return { ok: true };
   }
@@ -1654,10 +1948,17 @@ export class MemberService {
    * Optionally excludes a specific user (for edit scenarios).
    */
   async checkDniUniqueness(
+    ctx: TenantContext,
     dni: string,
     excludeUserId?: number,
   ): Promise<DniCheckResult> {
-    const conditions = [eq(schema.users.dni, dni)];
+    // Fase 173-19 (T-173-19-05): `tenantWhere` PRIMERO — un DNI repetido en
+    // OTRO gimnasio no puede dar conflicto ni delatar que existe (mismo
+    // contrato que el resto de los checks de unicidad, D-06).
+    const conditions = [
+      tenantWhere(schema.users, ctx),
+      eq(schema.users.dni, dni),
+    ];
 
     if (excludeUserId !== undefined) {
       conditions.push(ne(schema.users.id, excludeUserId));
@@ -1670,7 +1971,12 @@ export class MemberService {
         lastName: schema.users.lastName,
       })
       .from(schema.users)
-      .where(and(...conditions))
+      // `tenantWhere` ya es `conditions[0]`; se repite acá porque el lint de
+      // tenancy (CON-06) razona por STATEMENT: el `.from(schema.users)` de
+      // esta query es un statement DISTINTO del `const conditions = [...]`
+      // de arriba, así que necesita el gimnasio en el sitio exacto donde
+      // nombra la tabla (mismo criterio que `buildMemberNameSearchCondition`).
+      .where(and(tenantWhere(schema.users, ctx), ...conditions))
       .limit(1);
 
     if (existing) {
@@ -1696,7 +2002,10 @@ export class MemberService {
    * `matchedField='dni'` is preferred so the admin sees the stronger
    * identifier first.
    */
-  async checkDuplicates(opts: { dni?: string; phone?: string }): Promise<{
+  async checkDuplicates(
+    ctx: TenantContext,
+    opts: { dni?: string; phone?: string },
+  ): Promise<{
     matches: Array<{
       id: number;
       firstName: string | null;
@@ -1718,8 +2027,13 @@ export class MemberService {
     const orParts: SQL[] = [];
     if (dniInput) orParts.push(eq(schema.users.dni, dniInput));
     if (phoneNormalized && phoneNormalized.length > 0) {
+      // El `tenantWhere` de acá es redundante con el de la query final (ya
+      // ANDeado afuera) — se repite en ESTE statement porque el lint de
+      // tenancy razona por STATEMENT (mismo criterio que
+      // `buildMemberNameSearchCondition`): el `.push(sql...)` de arriba es
+      // su propio statement, distinto del `.where()` de la query final.
       orParts.push(
-        sql`RIGHT(REGEXP_REPLACE(${schema.users.phone}, '[^0-9]', ''), 10) = ${phoneNormalized}`,
+        sql`(${tenantWhere(schema.users, ctx)} AND RIGHT(REGEXP_REPLACE(${schema.users.phone}, '[^0-9]', ''), 10) = ${phoneNormalized})`,
       );
     }
     if (orParts.length === 0) return { matches: [] };
@@ -1738,8 +2052,24 @@ export class MemberService {
         phone: schema.users.phone,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.users.branchId, schema.branches.id))
-      .where(and(or(...orParts), isNull(schema.users.deletedAt)));
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.users.branchId, schema.branches.id),
+        ),
+      )
+      .where(
+        and(
+          // Fase 173-19 (T-173-19-01): `tenantWhere` PRIMERO — un DNI o
+          // teléfono repetido en OTRO gimnasio no puede figurar como
+          // duplicado (mismo criterio que `searchMembers`: el dato que más
+          // caro salió en el piloto).
+          tenantWhere(schema.users, ctx),
+          or(...orParts),
+          isNull(schema.users.deletedAt),
+        ),
+      );
 
     // Deduplicate by user id; prefer dni when both criteria match the row.
     const seen = new Map<number, (typeof rows)[number]>();
@@ -1769,11 +2099,17 @@ export class MemberService {
   /**
    * Update just the photo_url column for a given user.
    */
-  async updatePhoto(userId: number, photoUrl: string): Promise<void> {
+  async updatePhoto(
+    ctx: TenantContext,
+    userId: number,
+    photoUrl: string,
+  ): Promise<void> {
+    // Fase 173 (T-173-18-05): `tenantWhere` inline — un `userId` ajeno deja
+    // de matchear.
     await this.db
       .update(schema.users)
       .set({ photoUrl })
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
   }
 
   // ─── Export ──────────────────────────────────────────────────────────
@@ -1781,8 +2117,19 @@ export class MemberService {
   /**
    * Export all members matching filters (no pagination) as rows for Excel export.
    * Reuses the same filter logic as listMembers but without offset/limit.
+   *
+   * Fase 173-17 (T-173-05-01): `ctx` PRIMERO, prioridad sobre el resto de las
+   * 23 firmas del archivo — mismo motivo que `searchMembers`. Pasa a usar
+   * `buildMemberNameSearchCondition`/`memberCoveredUntilSql` (helpers ya
+   * scopeados) en vez de la copia local `legacyUnscopedNameSearchCondition` /
+   * la subquery de `endDate` sin filtro que 173-05 dejó a propósito.
+   *
+   * Fase 173-19 (ADO-02): resto del filtro scopeado — mismo criterio que
+   * `listMembers` (T-173-19-02: el export entrega el padrón completo de una
+   * vez, es la ruta que más datos filtra de golpe).
    */
   async exportMembers(
+    ctx: TenantContext,
     params: Omit<MemberListParams, "page" | "limit">,
   ): Promise<MemberExportRow[]> {
     const {
@@ -1798,21 +2145,25 @@ export class MemberService {
 
     const conditions: ReturnType<typeof eq>[] = [];
 
+    // Fase 173-19: PRIMER elemento — mismo motivo que `listMembers`.
+    conditions.push(tenantWhere(schema.users, ctx));
     conditions.push(eq(schema.users.role, "member"));
     // Hide soft-deleted rows from exports (mirrors listMembers).
     conditions.push(isNull(schema.users.deletedAt));
 
     if (search) {
-      const condition = buildMemberNameSearchCondition(search);
+      const condition = buildMemberNameSearchCondition(ctx, search);
       if (condition) conditions.push(condition);
     }
 
     if (multiBranch === true) {
+      // Fase 173-19: `sub.tenant_id`/`sp.tenant_id` inline.
       conditions.push(
         sql`EXISTS (
           SELECT 1 FROM subscriptions sub
-          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id
+          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id AND sp.tenant_id = ${ctx.tenantId}
           WHERE sub.user_id = ${schema.users.id}
+            AND sub.tenant_id = ${ctx.tenantId}
             AND sp.multi_branch = 1
             AND (sub.subscription_status = 'active' OR sub.end_date >= CURDATE())
         )`,
@@ -1856,36 +2207,38 @@ export class MemberService {
 
     if (planId !== undefined) {
       if (planId === 0) {
+        // Fase 173-19: `s.tenant_id` inline.
         conditions.push(
           sql`NOT EXISTS (
             SELECT 1 FROM subscriptions s
-            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+            WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
           )`,
         );
       } else {
         conditions.push(
           sql`EXISTS (
             SELECT 1 FROM subscriptions s
-            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
+            WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
           )`,
         );
       }
     }
 
-    // Avatar type filter: filter by avatar type from member_profiles
+    // Avatar type filter: filter by avatar type from member_profiles. Fase
+    // 173-19: `mp.tenant_id` inline.
     if (avatarType !== undefined) {
       if (avatarType === "none") {
         conditions.push(
           sql`NOT EXISTS (
             SELECT 1 FROM member_profiles mp
-            WHERE mp.user_id = users.id AND mp.avatar_type IS NOT NULL
+            WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.avatar_type IS NOT NULL
           )`,
         );
       } else {
         conditions.push(
           sql`EXISTS (
             SELECT 1 FROM member_profiles mp
-            WHERE mp.user_id = users.id AND mp.avatar_type = ${avatarType}
+            WHERE mp.user_id = users.id AND mp.tenant_id = ${ctx.tenantId} AND mp.avatar_type = ${avatarType}
           )`,
         );
       }
@@ -1893,18 +2246,20 @@ export class MemberService {
 
     const whereClause = and(...conditions);
 
-    // Subquery: active subscription plan name
+    // Subquery: active subscription plan name. Fase 173-19: `sp.tenant_id`/
+    // `s.tenant_id` inline.
     const planNameSubquery = sql<string | null>`(
       SELECT sp.name FROM subscriptions s
-      JOIN subscription_plans sp ON sp.id = s.plan_id
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
     // Fecha de cobertura para la columna 'Vencimiento suscripción' del export.
-    // Misma implementación que el pill del listado (shared/covered-until.ts):
-    // el export de un socio ya renovado mostraba la fecha vieja.
-    const endDateSubquery = memberCoveredUntilSql();
+    // Misma implementación que el pill del listado — fuente única compartida,
+    // `shared/covered-until.ts` (173-17: reemplaza la copia local sin gimnasio
+    // que 173-05 dejó a propósito).
+    const endDateSubquery = memberCoveredUntilSql(ctx);
 
     const rows = await this.db
       .select({
@@ -1924,7 +2279,13 @@ export class MemberService {
         address: schema.users.address,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
       .where(whereClause)
       .orderBy(schema.users.lastName, schema.users.firstName);
 
@@ -1961,12 +2322,25 @@ export class MemberService {
    * subscriptions), NO con users.status — la columna driftea (fantasmas
    * 2026-05-26) y un socio dado de baja no puede colarse en el débito
    * bancario del mes.
+   *
+   * Fase 173-19 (ADO-02, T-173-19-02): `users`/`branches`/`user_sepa_details`
+   * (los IBANs, el dato más sensible del export) quedan scopeados. NOTA:
+   * `activeMemberExists` (`shared/active-member.ts`) es un helper compartido
+   * con reports/advanced-finance que NO recibe `ctx` — su `EXISTS` correlaciona
+   * por `s.user_id = users.id` (un id de usuario es de UN solo gimnasio), así
+   * que no hay fuga cross-tenant real, pero tampoco nombra el gimnasio. Darle
+   * `ctx` es un cambio de firma que toca módulos fuera de `members` (D-02,
+   * cirugía mínima) — queda documentado, no arreglado acá.
    */
-  async exportSepaMembers(params: {
-    branchId?: number;
-    status?: "activo" | "todos";
-  }): Promise<SepaExportRow[]> {
+  async exportSepaMembers(
+    ctx: TenantContext,
+    params: {
+      branchId?: number;
+      status?: "activo" | "todos";
+    },
+  ): Promise<SepaExportRow[]> {
     const conditions: SQL[] = [
+      tenantWhere(schema.users, ctx),
       eq(schema.users.role, "member"),
       isNull(schema.users.deletedAt),
       eq(schema.branches.country, "ES"),
@@ -1979,13 +2353,14 @@ export class MemberService {
     // Default 'activo': el archivo del banco es solo de socios con cuota
     // vigente. 'todos' queda para control/auditoría de datos cargados.
     if (params.status !== "todos") {
-      conditions.push(activeMemberExists(schema.users.id));
+      conditions.push(activeMemberExists(schema.users.id, ctx));
     }
 
+    // Fase 173-19: `sp.tenant_id`/`s.tenant_id` inline.
     const planNameSubquery = sql<string | null>`(
       SELECT sp.name FROM subscriptions s
-      JOIN subscription_plans sp ON sp.id = s.plan_id
-      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
@@ -2005,10 +2380,22 @@ export class MemberService {
         country: schema.userSepaDetails.country,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
+      // Fase 173-19 (T-173-19-04): LEFT JOIN — filtro en el ON. En el WHERE
+      // convertiría el LEFT en INNER y un socio sin domiciliación cargada
+      // desaparecería del export en vez de figurar con los campos SEPA vacíos.
       .leftJoin(
         schema.userSepaDetails,
-        eq(schema.userSepaDetails.userId, schema.users.id),
+        and(
+          tenantWhere(schema.userSepaDetails, ctx),
+          eq(schema.userSepaDetails.userId, schema.users.id),
+        ),
       )
       .where(and(...conditions))
       .orderBy(schema.users.lastName, schema.users.firstName);
@@ -2033,8 +2420,11 @@ export class MemberService {
   /**
    * List notes for a user, ordered by most recent first.
    * Joins author info for display.
+   *
+   * Fase 173-19 (T-173-19-01): `tenantWhere` inline — una nota de otro
+   * gimnasio (o su autor) tiene que verse EXACTO igual que si no existiera.
    */
-  async getNotes(userId: number): Promise<MemberNote[]> {
+  async getNotes(ctx: TenantContext, userId: number): Promise<MemberNote[]> {
     // Alias for author table
     const authorUsers = schema.users;
 
@@ -2050,9 +2440,26 @@ export class MemberService {
         updatedAt: schema.memberNotes.updatedAt,
       })
       .from(schema.memberNotes)
-      .innerJoin(authorUsers, eq(authorUsers.id, schema.memberNotes.authorId))
-      .where(eq(schema.memberNotes.userId, userId))
-      .orderBy(desc(schema.memberNotes.createdAt));
+      .innerJoin(
+        authorUsers,
+        and(
+          tenantWhere(authorUsers, ctx),
+          eq(authorUsers.id, schema.memberNotes.authorId),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.userId, userId),
+        ),
+      )
+      // Fase 173-19 (Rule 1): `id` DESC como desempate — `created_at` es un
+      // `timestamp` sin fracción de segundo, así que dos notas creadas en el
+      // mismo segundo empatan y el orden entre ellas dejaba de ser el de
+      // inserción en cuanto el JOIN cambiaba de forma (el INNER JOIN scopeado
+      // de 173-19 alteró el plan y expuso el empate). `id` autoincremental
+      // hace el "más reciente primero" determinístico sin depender del plan.
+      .orderBy(desc(schema.memberNotes.createdAt), desc(schema.memberNotes.id));
 
     return rows.map((r) => ({
       id: r.id,
@@ -2071,17 +2478,35 @@ export class MemberService {
    * Create a note on a member profile.
    */
   async createNote(
+    ctx: TenantContext,
     authorId: number,
     input: CreateNoteInput,
   ): Promise<MemberNote> {
-    const result = await this.db.insert(schema.memberNotes).values({
-      userId: input.userId,
-      authorId,
-      content: input.content,
-    });
+    // Fase 173 (T-173-18-06): verificar que el socio sea del gimnasio ANTES
+    // de escribirle una nota — sin esto, una nota puede quedar colgando de un
+    // socio ajeno. Mismo contrato de rechazo que el resto (D-06): socio ajeno
+    // = socio inexistente.
+    const [ownMember] = await this.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, input.userId)),
+      )
+      .limit(1);
+    if (!ownMember) {
+      throw new NotFoundError("Alumno no encontrado");
+    }
+
+    const result = await this.db.insert(schema.memberNotes).values(
+      tenantValues(ctx, {
+        userId: input.userId,
+        authorId,
+        content: input.content,
+      }),
+    );
 
     const noteId = Number(result[0].insertId);
-    const notes = await this.getNotes(input.userId);
+    const notes = await this.getNotes(ctx, input.userId);
     const note = notes.find((n) => n.id === noteId);
 
     if (!note) {
@@ -2095,42 +2520,67 @@ export class MemberService {
    * Update note content.
    */
   async updateNote(
+    ctx: TenantContext,
     noteId: number,
     input: UpdateNoteInput,
   ): Promise<MemberNote | null> {
+    // Fase 173 (T-173-18-06): `tenantWhere` inline — una nota de otro
+    // gimnasio tiene que verse EXACTO igual que una inexistente.
     const [existing] = await this.db
       .select({
         id: schema.memberNotes.id,
         userId: schema.memberNotes.userId,
       })
       .from(schema.memberNotes)
-      .where(eq(schema.memberNotes.id, noteId));
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.id, noteId),
+        ),
+      );
 
     if (!existing) return null;
 
     await this.db
       .update(schema.memberNotes)
       .set({ content: input.content })
-      .where(eq(schema.memberNotes.id, noteId));
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.id, noteId),
+        ),
+      );
 
-    const notes = await this.getNotes(existing.userId);
+    const notes = await this.getNotes(ctx, existing.userId);
     return notes.find((n) => n.id === noteId) ?? null;
   }
 
   /**
    * Delete a note.
    */
-  async deleteNote(noteId: number): Promise<boolean> {
+  async deleteNote(ctx: TenantContext, noteId: number): Promise<boolean> {
+    // Fase 173 (T-173-18-06): `tenantWhere` inline — mismo criterio que
+    // updateNote.
     const [existing] = await this.db
       .select({ id: schema.memberNotes.id })
       .from(schema.memberNotes)
-      .where(eq(schema.memberNotes.id, noteId));
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.id, noteId),
+        ),
+      );
 
     if (!existing) return false;
 
     await this.db
       .delete(schema.memberNotes)
-      .where(eq(schema.memberNotes.id, noteId));
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          eq(schema.memberNotes.id, noteId),
+        ),
+      );
 
     return true;
   }
@@ -2150,8 +2600,12 @@ export class MemberService {
    * Return per-level session completion counts for a member over the last
    * `days` days. Only levels with count > 0 are returned. Order is not
    * guaranteed and is not asserted by the client.
+   *
+   * Fase 173-19 (T-173-19-01): `tenantWhere` inline — es un agregado sobre
+   * una sola tabla del módulo, un filtro alcanza.
    */
   async getSessionLevelCounts(
+    ctx: TenantContext,
     userId: number,
     days: number,
   ): Promise<Array<{ level: TrainingLevel; count: number }>> {
@@ -2167,6 +2621,7 @@ export class MemberService {
       .from(schema.completedSessions)
       .where(
         and(
+          tenantWhere(schema.completedSessions, ctx),
           eq(schema.completedSessions.userId, userId),
           gte(schema.completedSessions.date, since),
         ),

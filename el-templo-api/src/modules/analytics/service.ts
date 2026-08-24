@@ -7,7 +7,18 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, ne, and, sql, isNull, inArray, gt, type SQL } from "drizzle-orm";
+import {
+  eq,
+  ne,
+  and,
+  sql,
+  isNull,
+  inArray,
+  gt,
+  gte,
+  lte,
+  type SQL,
+} from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
@@ -19,6 +30,10 @@ import {
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import { applyScope } from "./scope";
+import { inclusiveRangeConditions } from "./cohorts";
+// Path directo, NUNCA por el barrel `shared/index.ts`: el módulo `tenant` no se
+// exporta desde ahí a propósito (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   KpiStats,
   ActiveMembersBreakdown,
@@ -56,8 +71,20 @@ export class AnalyticsService {
 
   /**
    * Get high-level KPI stats with trend vs prior period.
+   *
+   * `ctx` va PRIMERO en la firma a propósito (regla 169-06): agregarlo al final
+   * habría dejado que un call site viejo compilara con los argumentos corridos.
+   * Fase 172 (D-01): el gimnasio sale de `assertTenant(request.scope, …)` en el
+   * handler y llega hasta `sumRevenue` (la query de plata). Fase 173 (D-02):
+   * también llega hasta `countActiveMembers`/`countNewMembers` vía
+   * `getActiveMembersKpi` — las dos únicas queries de este camino sobre
+   * `users`. `countChurnedMembers`/`computeDailyAvg` quedan afuera (leen
+   * `subscriptions`/`attendance`, de otra fase).
    */
-  async getKpis(filters: AnalyticsFilters): Promise<KpiStats> {
+  async getKpis(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<KpiStats> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
     const { priorFrom, priorTo } = this.computePriorPeriod(dateFrom, dateTo);
     const branchId = filters.branchId;
@@ -66,6 +93,7 @@ export class AnalyticsService {
     const [activeMembers, monthlyRevenue, dailyAttendanceAvg] =
       await Promise.all([
         this.getActiveMembersKpi(
+          ctx,
           branchId,
           country,
           dateFrom,
@@ -74,6 +102,7 @@ export class AnalyticsService {
           priorTo,
         ),
         this.getMonthlyRevenueKpi(
+          ctx,
           branchId,
           country,
           dateFrom,
@@ -82,6 +111,7 @@ export class AnalyticsService {
           priorTo,
         ),
         this.getDailyAttendanceKpi(
+          ctx,
           branchId,
           country,
           dateFrom,
@@ -96,7 +126,15 @@ export class AnalyticsService {
 
   // ─── Member Analytics ──────────────────────────────────────────────────────
 
+  /**
+   * Fase 172 (D-01): recibe `ctx` por `getAttentionList`, cuyo flag `yaPago`
+   * lee `financial_transactions`. Fase 173 (D-02): también por `countNewMembers`
+   * (única query de este bloque sobre `users`). `countChurnedMembers`,
+   * `computeRetentionRate`, `getPlanDistribution` y `getRenewalRate` quedan
+   * afuera — leen `subscriptions`, de otra fase.
+   */
   async getMemberAnalytics(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<MemberAnalytics> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
@@ -111,12 +149,12 @@ export class AnalyticsService {
       attentionList,
       renewalRate,
     ] = await Promise.all([
-      this.countNewMembers(branchId, country, dateFrom, dateTo),
-      this.countChurnedMembers(branchId, country, dateFrom, dateTo),
-      this.computeRetentionRate(branchId, country, dateFrom, dateTo),
-      this.getPlanDistribution(branchId, country),
-      this.getAttentionList(branchId, country),
-      this.getRenewalRate(branchId, country),
+      this.countNewMembers(ctx, branchId, country, dateFrom, dateTo),
+      this.countChurnedMembers(ctx, branchId, country, dateFrom, dateTo),
+      this.computeRetentionRate(ctx, branchId, country, dateFrom, dateTo),
+      this.getPlanDistribution(ctx, branchId, country),
+      this.getAttentionList(ctx, branchId, country),
+      this.getRenewalRate(ctx, branchId, country),
     ]);
 
     return {
@@ -131,7 +169,17 @@ export class AnalyticsService {
 
   // ─── Attendance Analytics ──────────────────────────────────────────────────
 
+  /**
+   * T-175.1-01-03 (D-04, hallazgo del gap-fix): `getDailyCheckins`/
+   * `getPeakHoursHeatmap` NO recibían `ctx` (fase 174.1-03, D-02, las dejó
+   * documentalmente fuera del boundary de esa fase por leer solo
+   * `attendance`) — sin filtro de tenant, con `branchId`/`country` ambos
+   * `undefined` (vista "todas las sedes" del admin) leían `attendance` de
+   * TODOS los gimnasios mezclado. `ctx` ya estaba disponible en este call
+   * site; se threadea a las dos.
+   */
   async getAttendanceAnalytics(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<AttendanceAnalytics> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
@@ -140,10 +188,10 @@ export class AnalyticsService {
 
     const [dailyCheckins, peakHoursHeatmap, slotOccupancy, noShowRate] =
       await Promise.all([
-        this.getDailyCheckins(branchId, country, dateFrom, dateTo),
-        this.getPeakHoursHeatmap(branchId, country, dateFrom, dateTo),
-        this.getSlotOccupancy(branchId, country, dateFrom, dateTo),
-        this.getNoShowRate(branchId, country, dateFrom, dateTo),
+        this.getDailyCheckins(ctx, branchId, country, dateFrom, dateTo),
+        this.getPeakHoursHeatmap(ctx, branchId, country, dateFrom, dateTo),
+        this.getSlotOccupancy(ctx, branchId, country, dateFrom, dateTo),
+        this.getNoShowRate(ctx, branchId, country, dateFrom, dateTo),
       ]);
 
     return { dailyCheckins, peakHoursHeatmap, slotOccupancy, noShowRate };
@@ -151,7 +199,13 @@ export class AnalyticsService {
 
   // ─── Financial Analytics ───────────────────────────────────────────────────
 
+  /**
+   * Fase 172 (D-01): las CUATRO consultas de este bloque tocan tablas strict de
+   * `finance` (`financial_transactions` y `balances`), así que el `ctx` viaja a
+   * todas. Los joins contra `users` y `branches` NO se tocan (D-07).
+   */
   async getFinancialAnalytics(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<FinancialAnalytics> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
@@ -164,10 +218,10 @@ export class AnalyticsService {
       revenueByBranch,
       outstandingByCurrency,
     ] = await Promise.all([
-      this.getRevenueTrend(branchId, country, dateFrom, dateTo),
-      this.getRevenueByMethod(branchId, country, dateFrom, dateTo),
-      this.getRevenueByBranch(branchId, country, dateFrom, dateTo),
-      this.getOutstandingByCurrency(branchId, country),
+      this.getRevenueTrend(ctx, branchId, country, dateFrom, dateTo),
+      this.getRevenueByMethod(ctx, branchId, country, dateFrom, dateTo),
+      this.getRevenueByBranch(ctx, branchId, country, dateFrom, dateTo),
+      this.getOutstandingByCurrency(ctx, branchId, country),
     ]);
 
     return {
@@ -183,6 +237,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async getActiveMembersKpi(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -194,7 +249,11 @@ export class AnalyticsService {
     trend: Trend;
     breakdown: ActiveMembersBreakdown;
   }> {
-    const breakdown = await this.countActiveMembersBreakdown(branchId, country);
+    const breakdown = await this.countActiveMembersBreakdown(
+      ctx,
+      branchId,
+      country,
+    );
     // `paying` es EXACTAMENTE el conteo del KPI (activePayingNonEspecial):
     // reusar la misma cifra evita una 2ª query y garantiza que el número
     // grande y el desglose nunca se contradigan.
@@ -202,12 +261,14 @@ export class AnalyticsService {
     // For trend: estimate prior period active members by subtracting
     // new members added during current period and adding back churned ones
     const newInPeriod = await this.countNewMembers(
+      ctx,
       branchId,
       country,
       dateFrom,
       dateTo,
     );
     const churnedInPeriod = await this.countChurnedMembers(
+      ctx,
       branchId,
       country,
       dateFrom,
@@ -238,6 +299,7 @@ export class AnalyticsService {
    * (lo que ve el admin en el listado de Miembros filtrando por "Activos").
    */
   private async countActiveMembersBreakdown(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<ActiveMembersBreakdown> {
@@ -258,6 +320,8 @@ export class AnalyticsService {
       if (country !== undefined) {
         conditions.push(eq(schema.branches.country, country) as unknown as SQL);
       }
+      // Fase 173 (D-02): `tenantWhere` INLINE en el `and(...)`, donde el
+      // sentinel lint nombra el gimnasio.
       return this.db
         .select({ count: sql<number>`COUNT(*)` })
         .from(schema.users)
@@ -265,28 +329,28 @@ export class AnalyticsService {
           schema.branches,
           eq(schema.branches.id, schema.users.branchId),
         )
-        .where(and(...conditions))
+        .where(and(tenantWhere(schema.users, ctx), ...conditions))
         .then(([r]) => Number(r?.count ?? 0));
     };
 
     // Baldes por PRIORIDAD (staff > bonificada > especial) sobre el universo
     // de excluidos = vigente PERO no-paga-no-especial. `onlyEspecial` se deriva
     // por resta, garantizando paying+staff+bonificada+onlyEspecial=totalActive.
-    const notPaying = sql`NOT ${activePayingNonEspecialMemberExists(uid)}`;
-    const notStaff = sql`NOT ${activeSubOfKindExists(uid, "staff")}`;
+    const notPaying = sql`NOT ${activePayingNonEspecialMemberExists(uid, ctx)}`;
+    const notStaff = sql`NOT ${activeSubOfKindExists(uid, "staff", ctx)}`;
     const [paying, totalActive, staff, bonificada] = await Promise.all([
-      countWhere([activePayingNonEspecialMemberExists(uid)]),
-      countWhere([activeMemberExists(uid)]),
+      countWhere([activePayingNonEspecialMemberExists(uid, ctx)]),
+      countWhere([activeMemberExists(uid, ctx)]),
       countWhere([
-        activeMemberExists(uid),
+        activeMemberExists(uid, ctx),
         notPaying,
-        activeSubOfKindExists(uid, "staff"),
+        activeSubOfKindExists(uid, "staff", ctx),
       ]),
       countWhere([
-        activeMemberExists(uid),
+        activeMemberExists(uid, ctx),
         notPaying,
         notStaff,
-        activeSubOfKindExists(uid, "bonificada"),
+        activeSubOfKindExists(uid, "bonificada", ctx),
       ]),
     ]);
     const onlyEspecial = totalActive - paying - staff - bonificada;
@@ -295,6 +359,7 @@ export class AnalyticsService {
   }
 
   private async countActiveMembers(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<number> {
@@ -309,7 +374,7 @@ export class AnalyticsService {
       // cuenta (su presencial satisface el EXISTS). La plata del pase igual entra
       // por caja/cobros/advanced-finance, que NO se tocan.
       // Membresías internas (staff/bonificadas) tampoco cuentan (2026-08-07).
-      activePayingNonEspecialMemberExists(schema.users.id),
+      activePayingNonEspecialMemberExists(schema.users.id, ctx),
     ];
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId) as unknown as SQL);
@@ -318,11 +383,14 @@ export class AnalyticsService {
       conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
+    // Fase 173 (D-02): `tenantWhere` INLINE en el `and(...)` de este statement
+    // — `conditions` se arma arriba pero el gimnasio se nombra ACÁ, donde el
+    // lint lo busca (170-INVENTORY trampa "gimnasio inline").
     const query = this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions));
+      .where(and(tenantWhere(schema.users, ctx), ...conditions));
 
     const [result] = await query;
 
@@ -330,6 +398,7 @@ export class AnalyticsService {
   }
 
   private async getMonthlyRevenueKpi(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -339,8 +408,20 @@ export class AnalyticsService {
   ): Promise<MonetaryKpiByCurrency> {
     // Phase 117 D-05 / D-17: per-currency KPI with an independent trend for
     // each currency vs the prior period — ARS and EUR are never summed.
-    const current = await this.sumRevenue(branchId, country, dateFrom, dateTo);
-    const prior = await this.sumRevenue(branchId, country, priorFrom, priorTo);
+    const current = await this.sumRevenue(
+      ctx,
+      branchId,
+      country,
+      dateFrom,
+      dateTo,
+    );
+    const prior = await this.sumRevenue(
+      ctx,
+      branchId,
+      country,
+      priorFrom,
+      priorTo,
+    );
 
     return {
       ARS: {
@@ -355,6 +436,7 @@ export class AnalyticsService {
   }
 
   private async getDailyAttendanceKpi(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -363,12 +445,14 @@ export class AnalyticsService {
     priorTo: string,
   ): Promise<{ value: number; trend: Trend }> {
     const currentAvg = await this.computeDailyAvg(
+      ctx,
       branchId,
       country,
       dateFrom,
       dateTo,
     );
     const priorAvg = await this.computeDailyAvg(
+      ctx,
       branchId,
       country,
       priorFrom,
@@ -386,6 +470,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async countNewMembers(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -397,13 +482,18 @@ export class AnalyticsService {
     // estimate circular. Phase 117 D-08: half-open [dateFrom, dateTo+1) range so
     // the createdAt index is usable (no DATE() wrapper).
     const conditions: SQL[] = [
+      // Fase 173 (D-02): redundante con el `tenantWhere` del `.where(...)` de
+      // abajo, pero ESTE array se construye en su propio statement de JS
+      // (con dos `sql\`...\`` sobre `users.createdAt`), que el lint mira
+      // aparte del statement final.
+      tenantWhere(schema.users, ctx),
       eq(schema.users.role, "member") as unknown as SQL,
       // D-11: miembros activos / altas de membresía NO cuentan al que tiene solo
       // el pase especial (externo-solo-pase). Un socio con presencial + pase SÍ
       // cuenta (su presencial satisface el EXISTS). La plata del pase igual entra
       // por caja/cobros/advanced-finance, que NO se tocan.
       // Membresías internas (staff/bonificadas) tampoco cuentan (2026-08-07).
-      activePayingNonEspecialMemberExists(schema.users.id),
+      activePayingNonEspecialMemberExists(schema.users.id, ctx),
       sql`${schema.users.createdAt} >= ${dateFrom}`,
       sql`${schema.users.createdAt} < ${nextDay(dateTo)}`,
     ];
@@ -415,11 +505,12 @@ export class AnalyticsService {
       conditions.push(eq(schema.branches.country, country) as unknown as SQL);
     }
 
+    // Fase 173 (D-02): `tenantWhere` INLINE, mismo tratamiento que countActiveMembers.
     const [result] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions));
+      .where(and(tenantWhere(schema.users, ctx), ...conditions));
 
     return Number(result?.count ?? 0);
   }
@@ -436,15 +527,21 @@ export class AnalyticsService {
    */
   // @deprecated Phase 121 D-09: use ChurnService / GET /churn
   private async countChurnedMembers(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
-    const conditions: ReturnType<typeof eq>[] = [
+    // Fase 174.1-03 (D-02): prefijo LITERAL `subscriptions.updated_at` (no
+    // `${schema.subscriptions.updatedAt}` interpolado) — mismo idioma que
+    // `especial-exclusion.ts`: un fragmento `sql` con columna interpolada
+    // cuenta como acceso propio para el lint, en un statement que el
+    // `tenantWhere` del `.where(...)` de abajo no puede cubrir.
+    const conditions: SQL[] = [
       eq(schema.subscriptions.status, "cancelled"),
-      sql`DATE(${schema.subscriptions.updatedAt}) >= ${dateFrom}`,
-      sql`DATE(${schema.subscriptions.updatedAt}) <= ${dateTo}`,
+      sql`DATE(subscriptions.updated_at) >= ${dateFrom}`,
+      sql`DATE(subscriptions.updated_at) <= ${dateTo}`,
     ];
 
     if (branchId !== undefined) {
@@ -461,7 +558,7 @@ export class AnalyticsService {
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .where(and(...conditions));
+      .where(and(tenantWhere(schema.subscriptions, ctx), ...conditions));
 
     return Number(result?.count ?? 0);
   }
@@ -478,15 +575,19 @@ export class AnalyticsService {
    */
   // @deprecated Phase 121 D-09: use ChurnService / GET /churn
   private async computeRetentionRate(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
     // Count members whose subscription ended in the period
-    const endingConditions: ReturnType<typeof eq>[] = [
-      sql`${schema.subscriptions.endDate} >= ${dateFrom}`,
-      sql`${schema.subscriptions.endDate} <= ${dateTo}`,
+    // Fase 174.1-03 (D-02): `gte`/`lte` tipados en vez de `sql` crudo — evita
+    // el falso positivo de columna interpolada que el `tenantWhere` del
+    // `.where(...)` de abajo no puede cubrir (statement propio).
+    const endingConditions: SQL[] = [
+      gte(schema.subscriptions.endDate, dateFrom),
+      lte(schema.subscriptions.endDate, dateTo),
     ];
 
     if (branchId !== undefined) {
@@ -505,18 +606,21 @@ export class AnalyticsService {
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .where(and(...endingConditions));
+      .where(and(tenantWhere(schema.subscriptions, ctx), ...endingConditions));
 
     const totalEnding = Number(endingResult?.count ?? 0);
     if (totalEnding === 0) return 100;
 
     // Count those who have an active/paused subscription (renewed)
+    // Fase 174.1-03 (D-02): `s2` es `subscriptions` (self-join, boundary) —
+    // `ctx` disponible, filtro explícito por `tenant_id`.
     const renewedConditions: ReturnType<typeof eq>[] = [
       sql`${schema.subscriptions.endDate} >= ${dateFrom}`,
       sql`${schema.subscriptions.endDate} <= ${dateTo}`,
       sql`EXISTS (
         SELECT 1 FROM subscriptions s2
         WHERE s2.user_id = subscriptions.user_id
+        AND s2.tenant_id = ${ctx.tenantId}
         AND s2.subscription_status IN ('active', 'paused')
         AND s2.id != subscriptions.id
       )`,
@@ -538,7 +642,7 @@ export class AnalyticsService {
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .where(and(...renewedConditions));
+      .where(and(tenantWhere(schema.subscriptions, ctx), ...renewedConditions));
 
     const totalRenewed = Number(renewedResult?.count ?? 0);
 
@@ -546,14 +650,18 @@ export class AnalyticsService {
   }
 
   private async getPlanDistribution(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<PlanDistributionRow[]> {
     // Phase 117 D-07: exclude archived plans and group by (name, country) so
     // homonymous plans across countries — e.g. "Flex" AR (id 1) vs "Flex" ES
     // (id 105) — are reported as two separate rows instead of being summed.
+    // Fase 174.1-03 (D-02): `inArray` tipado en vez de `sql` crudo — evita el
+    // falso positivo de columna interpolada (statement propio, sin el
+    // `tenantWhere` del join de abajo).
     const conditions: SQL[] = [
-      sql`${schema.subscriptions.status} IN ('active', 'paused')`,
+      inArray(schema.subscriptions.status, ["active", "paused"]) as unknown as SQL,
       eq(schema.subscriptionPlans.isArchived, false) as unknown as SQL,
       // D-11: el pase especial tiene su propia línea en analíticas ("Especiales");
       // no se mezcla en la distribución de planes de membresía.
@@ -578,7 +686,11 @@ export class AnalyticsService {
       .from(schema.subscriptions)
       .innerJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        ),
       )
       .innerJoin(
         schema.branches,
@@ -627,6 +739,7 @@ export class AnalyticsService {
    * (phone) of members outside their authorized branches/country.
    */
   private async getAttentionList(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<AttentionMember[]> {
@@ -637,9 +750,14 @@ export class AnalyticsService {
     });
 
     // yaPago: derived EXISTS over recent non-voided plan_charge inflows (D-16).
+    // Fase 172 (D-01): `financial_transactions` es tabla strict de `finance`, y
+    // en un `sql` crudo la convención lockeada es el literal
+    // `tenant_id = ${ctx.tenantId}` (shared/tenant.ts:20). Va PRIMERO, antes de
+    // la correlación, por el mismo motivo que `tenantWhere` abre todo `and(...)`.
     const yaPagoExpr = sql<number>`EXISTS (
       SELECT 1 FROM financial_transactions ft
-      WHERE ft.member_id = ${schema.subscriptions.userId}
+      WHERE ft.tenant_id = ${ctx.tenantId}
+        AND ft.member_id = ${schema.subscriptions.userId}
         AND ft.kind = 'plan_charge'
         AND ft.direction = 'inflow'
         AND ${sql.raw(firmMoneySqlFor("ft"))}
@@ -649,10 +767,14 @@ export class AnalyticsService {
     )`;
 
     // ── Expiring: active subs ending in the next 7 days ──────────────────────
+    // Fase 174.1-03 (D-02): prefijo LITERAL `subscriptions.<col>` (no
+    // `${schema.subscriptions.<col>}` interpolado) — mismo idioma que
+    // `especial-exclusion.ts`, evita el falso positivo de columna
+    // interpolada (CURDATE()/DATE_ADD no son parametrizables via gte/lte).
     const expiringConditions: SQL[] = [
-      sql`${schema.subscriptions.status} = 'active'`,
-      sql`${schema.subscriptions.endDate} >= CURDATE()`,
-      sql`${schema.subscriptions.endDate} <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)`,
+      sql`subscriptions.subscription_status = 'active'`,
+      sql`subscriptions.end_date >= CURDATE()`,
+      sql`subscriptions.end_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)`,
       ...scope.conditions,
     ];
 
@@ -668,18 +790,36 @@ export class AnalyticsService {
         segment: schema.memberProfiles.segment,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.users,
+        // Fase 173 (D-02): INNER JOIN, pero igual va en el ON (mismo idioma que
+        // el LEFT de abajo, para que el próximo join no tenga que elegir).
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
       .innerJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        ),
       )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+        // Fase 173 (D-02): LEFT JOIN — el filtro va en el ON, JAMÁS en el
+        // WHERE: en el WHERE, `NULL = ctx.tenantId` es falso para un socio sin
+        // perfil y el LEFT se vuelve INNER, borrando la fila en silencio.
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+        ),
       )
       .where(and(...expiringConditions))
       .limit(50);
@@ -707,12 +847,18 @@ export class AnalyticsService {
     });
 
     // ── Overdue: end_date 1..30 days past AND member NOT active (no renewal) ──
+    // Fase 174.1-03 (D-02): prefijo LITERAL `subscriptions.<col>` — mismo
+    // idioma que expiringConditions arriba. `tenantWhere` inline (redundante
+    // con el del `.where(...)` de abajo) porque `activeMemberExists(...)`
+    // sigue interpolando `schema.subscriptions.userId` como argumento — este
+    // ARRAY es su propio statement y necesita su propio marcador.
     const overdueConditions: SQL[] = [
-      sql`${schema.subscriptions.endDate} < CURDATE()`,
-      sql`${schema.subscriptions.endDate} >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`,
+      tenantWhere(schema.subscriptions, ctx),
+      sql`subscriptions.end_date < CURDATE()`,
+      sql`subscriptions.end_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`,
       // "vencido sin renovar": negate the canonical active predicate so a member
       // who renewed (has an in-effect sub) drops out of the overdue worklist.
-      sql`NOT ${activeMemberExists(schema.subscriptions.userId)}`,
+      sql`NOT ${activeMemberExists(schema.subscriptions.userId, ctx)}`,
       ...scope.conditions,
     ];
 
@@ -728,18 +874,31 @@ export class AnalyticsService {
         segment: schema.memberProfiles.segment,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
       .innerJoin(
         schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+        ),
       )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.subscriptions.userId),
+        ),
       )
       .where(and(...overdueConditions))
       .limit(50);
@@ -808,6 +967,7 @@ export class AnalyticsService {
    */
   // @deprecated Phase 121 D-09: use RenewalService / GET /renewal
   private async getRenewalRate(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<{ last7: number; last14: number; last30: number }> {
@@ -818,9 +978,10 @@ export class AnalyticsService {
         branchColumn: schema.subscriptions.branchId,
       });
 
+      // Fase 174.1-03 (D-02): prefijo LITERAL `subscriptions.end_date`.
       const endingConditions: SQL[] = [
-        sql`${schema.subscriptions.endDate} < CURDATE()`,
-        sql`${schema.subscriptions.endDate} >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(
+        sql`subscriptions.end_date < CURDATE()`,
+        sql`subscriptions.end_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(
           String(days),
         )} DAY)`,
         ...scope.conditions,
@@ -831,6 +992,7 @@ export class AnalyticsService {
           ending: sql<number>`COUNT(DISTINCT ${schema.subscriptions.userId})`,
           renewed: sql<number>`COUNT(DISTINCT CASE WHEN ${activeMemberExists(
             schema.subscriptions.userId,
+            ctx,
           )} THEN ${schema.subscriptions.userId} END)`,
         })
         .from(schema.subscriptions)
@@ -838,7 +1000,7 @@ export class AnalyticsService {
           schema.branches,
           eq(schema.branches.id, schema.subscriptions.branchId),
         )
-        .where(and(...endingConditions));
+        .where(and(tenantWhere(schema.subscriptions, ctx), ...endingConditions));
 
       const ending = Number(endingResult?.ending ?? 0);
       if (ending === 0) return 0;
@@ -859,6 +1021,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async getDailyCheckins(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -866,7 +1029,8 @@ export class AnalyticsService {
   ): Promise<Array<{ date: string; count: number }>> {
     // Phase 117 D-08: half-open [dateFrom, dateTo+1) on the raw column keeps the
     // checkedInAt index usable (DATE(col) wrapped the column and forced a scan).
-    const conditions: ReturnType<typeof eq>[] = [
+    /* tenant-safe: solo el filtro de rango de fecha/sede/país — el tenantWhere(schema.attendance, ctx) real se aplica más abajo en el .where() del build de la query, ver T-175.1-01-03 */
+    const conditions: SQL[] = [
       sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
       sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
     ];
@@ -878,27 +1042,32 @@ export class AnalyticsService {
       conditions.push(eq(schema.branches.country, country));
     }
 
-    const base = this.db
+    // T-175.1-01-03 (D-04): `tenantWhere` INLINE y `.where(...)` va ANTES del
+    // `.innerJoin` condicional a `branches` (D-02, `$dynamic()` — el orden de
+    // encadenado no cambia el SQL, Drizzle arma por config acumulada). Así
+    // `.from(schema.attendance)` y el `tenantWhere` quedan en el MISMO
+    // statement de JS.
+    let query = this.db
       .select({
         date: sql<string>`DATE(${schema.attendance.checkedInAt})`,
         count: sql<number>`COUNT(*)`,
       })
-      .from(schema.attendance);
+      .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
+      .$dynamic();
 
-    const rows =
-      country !== undefined
-        ? await base
-            .innerJoin(
-              schema.branches,
-              eq(schema.branches.id, schema.attendance.branchId),
-            )
-            .where(and(...conditions))
-            .groupBy(sql`DATE(${schema.attendance.checkedInAt})`)
-            .orderBy(sql`DATE(${schema.attendance.checkedInAt})`)
-        : await base
-            .where(and(...conditions))
-            .groupBy(sql`DATE(${schema.attendance.checkedInAt})`)
-            .orderBy(sql`DATE(${schema.attendance.checkedInAt})`);
+    if (country !== undefined) {
+      /* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
+      query = query.innerJoin(
+        schema.branches,
+        sql`/* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
+      );
+    }
+
+    /* tenant-safe: mismo `query` ya scopeado por tenantWhere(schema.attendance, ctx) arriba en el .where() del build, ver T-175.1-01-03 */
+    const rows = await query
+      .groupBy(sql`DATE(${schema.attendance.checkedInAt})`)
+      .orderBy(sql`DATE(${schema.attendance.checkedInAt})`);
 
     return rows.map((r) => ({
       date: String(r.date),
@@ -907,6 +1076,7 @@ export class AnalyticsService {
   }
 
   private async getPeakHoursHeatmap(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -915,7 +1085,8 @@ export class AnalyticsService {
     // Phase 117 D-08: half-open [dateFrom, dateTo+1) on the raw column keeps the
     // checkedInAt index usable. (The DAYOFWEEK/HOUR projections below still need
     // the raw timestamp — only the range filter is de-wrapped.)
-    const conditions: ReturnType<typeof eq>[] = [
+    /* tenant-safe: solo el filtro de rango de fecha/sede/país — el tenantWhere(schema.attendance, ctx) real se aplica más abajo en el .where() del build de la query, ver T-175.1-01-03 */
+    const conditions: SQL[] = [
       sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
       sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
     ];
@@ -945,41 +1116,45 @@ export class AnalyticsService {
     // that franja; that's a heatmap-shaped change out of scope here. The
     // per-slot fix (WR-03) lands in getSlotOccupancy below; this stays
     // normalized by the branch cap until a follow-up phase revisits it.
+    // T-175.1-01-03 (D-04): `tenantWhere(schema.branches, ctx)` explícito —
+    // `branchId` es input del caller; sin el filtro, un `branchId` de OTRO
+    // gimnasio filtraba su `maxCapacity` igual.
     let maxCapacity = 22; // default
     if (branchId !== undefined) {
       const [branch] = await this.db
         .select({ maxCapacity: schema.branches.maxCapacity })
         .from(schema.branches)
-        .where(eq(schema.branches.id, branchId));
+        .where(
+          and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        );
       if (branch) maxCapacity = branch.maxCapacity;
     }
 
-    const base = this.db
+    // T-175.1-01-03 (D-04): `tenantWhere` INLINE, mismo statement que
+    // `.from(schema.attendance)` (D-02, `$dynamic()`).
+    let query = this.db
       .select({
         dayOfWeek: sql<number>`DAYOFWEEK(${schema.attendance.checkedInAt})`,
         hour: sql<number>`HOUR(${schema.attendance.checkedInAt})`,
         total: sql<number>`COUNT(*)`,
       })
-      .from(schema.attendance);
+      .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
+      .$dynamic();
 
-    const rows =
-      country !== undefined
-        ? await base
-            .innerJoin(
-              schema.branches,
-              eq(schema.branches.id, schema.attendance.branchId),
-            )
-            .where(and(...conditions))
-            .groupBy(
-              sql`DAYOFWEEK(${schema.attendance.checkedInAt})`,
-              sql`HOUR(${schema.attendance.checkedInAt})`,
-            )
-        : await base
-            .where(and(...conditions))
-            .groupBy(
-              sql`DAYOFWEEK(${schema.attendance.checkedInAt})`,
-              sql`HOUR(${schema.attendance.checkedInAt})`,
-            );
+    if (country !== undefined) {
+      /* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
+      query = query.innerJoin(
+        schema.branches,
+        sql`/* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
+      );
+    }
+
+    /* tenant-safe: mismo `query` ya scopeado por tenantWhere(schema.attendance, ctx) arriba en el .where() del build, ver T-175.1-01-03 */
+    const rows = await query.groupBy(
+      sql`DAYOFWEEK(${schema.attendance.checkedInAt})`,
+      sql`HOUR(${schema.attendance.checkedInAt})`,
+    );
 
     return rows.map((r) => {
       // MySQL DAYOFWEEK: 1=Sunday, 2=Monday...7=Saturday
@@ -1001,16 +1176,23 @@ export class AnalyticsService {
   }
 
   private async getSlotOccupancy(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<SlotOccupancy[]> {
-    const conditions: ReturnType<typeof eq>[] = [
+    // Fase 174.1-03 (D-02): helpers tipados (`gte`/`lte`/`inArray`) en vez de
+    // `sql` crudo — evita el falso positivo de columna interpolada.
+    const conditions: SQL[] = [
       eq(schema.schedules.isActive, true),
-      sql`${schema.bookings.bookingDate} >= ${dateFrom}`,
-      sql`${schema.bookings.bookingDate} <= ${dateTo}`,
-      sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
+      gte(schema.bookings.bookingDate, dateFrom),
+      lte(schema.bookings.bookingDate, dateTo),
+      inArray(schema.bookings.status, [
+        "reservado",
+        "qr_escaneado",
+        "confirmado",
+      ]),
     ];
 
     if (branchId !== undefined) {
@@ -1031,12 +1213,17 @@ export class AnalyticsService {
     const weeksInPeriod = Math.max(1, totalDays / 7);
 
     // Get branch capacity
+    // T-175.1-01-03 (D-04): `tenantWhere(schema.branches, ctx)` explícito —
+    // `branchId` es input del caller; sin el filtro, un `branchId` de OTRO
+    // gimnasio filtraba su `maxCapacity` igual.
     let maxCapacity = 22;
     if (branchId !== undefined) {
       const [branch] = await this.db
         .select({ maxCapacity: schema.branches.maxCapacity })
         .from(schema.branches)
-        .where(eq(schema.branches.id, branchId));
+        .where(
+          and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        );
       if (branch) maxCapacity = branch.maxCapacity;
     }
 
@@ -1055,7 +1242,11 @@ export class AnalyticsService {
       .from(schema.bookings)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.bookings.scheduleId),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.bookings.scheduleId),
+        ),
       )
       .innerJoin(
         schema.activities,
@@ -1098,6 +1289,7 @@ export class AnalyticsService {
   }
 
   private async getNoShowRate(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1109,10 +1301,11 @@ export class AnalyticsService {
     // no_show rows and the rate read ~100% (or 0% when none) — never the real
     // proportion. This bug survived because there was no test seeding real
     // 'confirmado' rows (D-18).
-    const conditions: ReturnType<typeof eq>[] = [
-      sql`${schema.bookings.bookingDate} >= ${dateFrom}`,
-      sql`${schema.bookings.bookingDate} <= ${dateTo}`,
-      sql`${schema.bookings.status} IN ('confirmado', 'no_show')`,
+    // Fase 174.1-03 (D-02): helpers tipados en vez de `sql` crudo.
+    const conditions: SQL[] = [
+      gte(schema.bookings.bookingDate, dateFrom),
+      lte(schema.bookings.bookingDate, dateTo),
+      inArray(schema.bookings.status, ["confirmado", "no_show"]),
     ];
 
     if (branchId !== undefined) {
@@ -1130,15 +1323,20 @@ export class AnalyticsService {
       .from(schema.bookings)
       .innerJoin(
         schema.schedules,
-        eq(schema.schedules.id, schema.bookings.scheduleId),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, schema.bookings.scheduleId),
+        ),
       );
 
+    /* tenant-safe: branches joineado por FK para resolver country de una fila de schedules ya scopeada por tenantWhere en `base` arriba, no expone datos cross-gym (D4) */
     const [result] =
       country !== undefined
         ? await base
             .innerJoin(
               schema.branches,
-              eq(schema.branches.id, schema.schedules.branchId),
+              sql`/* tenant-safe: branches joineado por FK para resolver country de una fila de schedules ya scopeada por tenantWhere en \`base\` arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.schedules.branchId}`,
             )
             .where(and(...conditions))
         : await base.where(and(...conditions));
@@ -1155,6 +1353,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async getRevenueTrend(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1175,8 +1374,13 @@ export class AnalyticsService {
         "debt_settlement",
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
-      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
-      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
+      // Rango CERRADO [dateFrom, dateTo], idéntico al `>= / <=` que estaba
+      // escrito acá antes de la fase 172 (ver `inclusiveRangeConditions`).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        dateFrom,
+        dateTo,
+      ),
     ];
 
     if (branchId !== undefined) {
@@ -1198,7 +1402,7 @@ export class AnalyticsService {
         eq(schema.users.id, schema.financialTransactions.memberId),
       )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(
         sql`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
         schema.financialTransactions.currency,
@@ -1226,6 +1430,7 @@ export class AnalyticsService {
   }
 
   private async getRevenueByMethod(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1256,8 +1461,12 @@ export class AnalyticsService {
         "debt_settlement",
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
-      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
-      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
+      // Rango CERRADO [dateFrom, dateTo] (ver `inclusiveRangeConditions`).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        dateFrom,
+        dateTo,
+      ),
     ];
 
     if (branchId !== undefined) {
@@ -1279,7 +1488,7 @@ export class AnalyticsService {
         eq(schema.users.id, schema.financialTransactions.memberId),
       )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(
         schema.financialTransactions.paymentMethod,
         schema.financialTransactions.currency,
@@ -1309,6 +1518,7 @@ export class AnalyticsService {
   }
 
   private async getRevenueByBranch(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1330,8 +1540,12 @@ export class AnalyticsService {
         "debt_settlement",
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
-      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
-      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
+      // Rango CERRADO [dateFrom, dateTo] (ver `inclusiveRangeConditions`).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        dateFrom,
+        dateTo,
+      ),
     ];
 
     if (branchId !== undefined) {
@@ -1355,7 +1569,7 @@ export class AnalyticsService {
         schema.branches,
         eq(schema.branches.id, schema.financialTransactions.branchId),
       )
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(
         schema.financialTransactions.branchId,
         schema.branches.name,
@@ -1401,6 +1615,7 @@ export class AnalyticsService {
    * summed across.
    */
   private async getOutstandingByCurrency(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<OutstandingByCurrency> {
@@ -1421,7 +1636,12 @@ export class AnalyticsService {
       .from(schema.balances)
       .leftJoin(
         schema.subscriptions,
+        // Fase 174.1-03 (D-02): `subscriptions` entra al boundary de subs —
+        // `tenantWhere` va en el ON (nunca en el WHERE): un LEFT JOIN con el
+        // filtro en el WHERE se vuelve INNER para las filas `debt_balance`
+        // sin sub (D-02, mismo idioma que engagement-service.ts).
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.balances.targetKind, "subscription"),
           eq(schema.subscriptions.id, schema.balances.targetId),
         ),
@@ -1430,7 +1650,9 @@ export class AnalyticsService {
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .where(and(...conditions))
+      // `balances` es la OTRA tabla strict de este archivo: el filtro va sobre
+      // ella, no sobre las tablas del LEFT JOIN (D-07).
+      .where(and(tenantWhere(schema.balances, ctx), ...conditions))
       .groupBy(schema.balances.currency);
 
     const result: OutstandingByCurrency = { ARS: 0, EUR: 0 };
@@ -1447,6 +1669,7 @@ export class AnalyticsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async sumRevenue(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1465,8 +1688,12 @@ export class AnalyticsService {
         "debt_settlement",
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
-      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
-      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
+      // Rango CERRADO [dateFrom, dateTo] (ver `inclusiveRangeConditions`).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        dateFrom,
+        dateTo,
+      ),
     ];
 
     if (branchId !== undefined) {
@@ -1487,7 +1714,7 @@ export class AnalyticsService {
         eq(schema.users.id, schema.financialTransactions.memberId),
       )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(schema.financialTransactions.currency);
 
     const result: RevenueByCurrency = { ARS: 0, EUR: 0 };
@@ -1500,6 +1727,7 @@ export class AnalyticsService {
   }
 
   private async computeDailyAvg(
+    ctx: TenantContext,
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
     dateFrom: string,
@@ -1507,7 +1735,13 @@ export class AnalyticsService {
   ): Promise<number> {
     // Phase 117 D-08: half-open [dateFrom, dateTo+1) keeps the checkedInAt index
     // usable instead of wrapping the column in DATE().
-    const conditions: ReturnType<typeof eq>[] = [
+    // T-175.1-01-03 (D-04, hallazgo del gap-fix): `computeDailyAvg` NO recibía
+    // `ctx` (mismo gap documentado en `getDailyCheckins`/`getPeakHoursHeatmap`
+    // arriba) — sin filtro de tenant, con branchId/country ambos undefined
+    // leía `attendance` de TODOS los gimnasios. `ctx` ya estaba disponible en
+    // `getDailyAttendanceKpi`; se threadea.
+    /* tenant-safe: solo el filtro de rango de fecha/sede/país — el tenantWhere(schema.attendance, ctx) real se aplica más abajo en el .where() del build de la query, ver T-175.1-01-03 */
+    const conditions: SQL[] = [
       sql`${schema.attendance.checkedInAt} >= ${dateFrom}`,
       sql`${schema.attendance.checkedInAt} < ${nextDay(dateTo)}`,
     ];
@@ -1519,19 +1753,21 @@ export class AnalyticsService {
       conditions.push(eq(schema.branches.country, country));
     }
 
-    const base = this.db
+    let query = this.db
       .select({ count: sql<number>`COUNT(*)` })
-      .from(schema.attendance);
+      .from(schema.attendance)
+      .where(and(tenantWhere(schema.attendance, ctx), ...conditions))
+      .$dynamic();
 
-    const [result] =
-      country !== undefined
-        ? await base
-            .innerJoin(
-              schema.branches,
-              eq(schema.branches.id, schema.attendance.branchId),
-            )
-            .where(and(...conditions))
-        : await base.where(and(...conditions));
+    if (country !== undefined) {
+      /* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
+      query = query.innerJoin(
+        schema.branches,
+        sql`/* tenant-safe: branches joineado por FK para filtrar por country una fila de attendance ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.attendance.branchId}`,
+      );
+    }
+
+    const [result] = await query;
 
     const total = Number(result?.count ?? 0);
 

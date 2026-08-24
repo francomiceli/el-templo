@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -28,6 +28,15 @@ import { memberProfiles } from "../../src/db/schema/member-profiles";
 import type { MemberSegment } from "../../src/modules/segmentation/types";
 import { sql } from "drizzle-orm";
 import { activeMemberExists } from "../../src/modules/shared/active-member";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`, asi que todo INSERT de
+ * este archivo sobre `financial_transactions` / `transaction_links` estampa el
+ * gimnasio explicito en vez de depender del `DEFAULT 1` de la columna.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const ANALYTICS_URL = "/api/admin/analytics";
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
@@ -67,7 +76,9 @@ describe("Analytics API", () => {
     const [adminUser] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
     adminUserId = adminUser.id;
 
     const [branch] = await app.db
@@ -171,25 +182,29 @@ describe("Analytics API", () => {
     const today = new Date().toISOString().split("T")[0];
     const paymentMethod =
       (overrides.paymentMethod as "cash" | "transfer" | "card") ?? "cash";
-    const [inserted] = await app.db.insert(financialTransactions).values({
-      memberId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount,
-      currency: "ARS",
-      paymentMethod,
-      transactionDate: today,
-      effectiveDate: today,
-      branchId: testBranchId,
-      recordedBy: adminUserId,
-    });
+    const [inserted] = await app.db.insert(financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount,
+        currency: "ARS",
+        paymentMethod,
+        transactionDate: today,
+        effectiveDate: today,
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: subId,
-      allocatedAmount: amount,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription",
+        targetId: subId,
+        allocatedAmount: amount,
+      }),
+    );
     return { id: txnId, amount, paymentMethod, subscriptionId: subId };
   }
 
@@ -212,7 +227,12 @@ describe("Analytics API", () => {
       const [row] = await app.db
         .select({ count: sql<number>`COUNT(*)` })
         .from(users)
-        .where(sql`${users.role} = 'member' AND ${predicate}`);
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            sql`${users.role} = 'member' AND ${predicate}`,
+          ),
+        );
       return Number(row?.count ?? 0);
     }
 
@@ -249,11 +269,16 @@ describe("Analytics API", () => {
       await app.db
         .update(subscriptions)
         .set({ startDate: pastStart, endDate: past, status: "expired" })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       await app.db
         .update(users)
         .set({ status: "activo" })
-        .where(eq(users.id, member.id));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id)));
 
       const count = await countActiveViaHelper();
       expect(count).toBe(0);
@@ -446,11 +471,21 @@ describe("Analytics API", () => {
       await app.db
         .update(subscriptions)
         .set({ status: "expired" })
-        .where(eq(subscriptions.userId, member1.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member1.id),
+          ),
+        );
       await app.db
         .update(subscriptions)
         .set({ status: "expired" })
-        .where(eq(subscriptions.userId, member2.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member2.id),
+          ),
+        );
 
       // Member 1 renews — assign a new active sub starting today
       const today = new Date().toISOString().split("T")[0];
@@ -562,16 +597,18 @@ describe("Analytics API", () => {
       const start = new Date();
       start.setDate(start.getDate() - daysAgo - 30);
       const startStr = start.toISOString().split("T")[0];
-      await app.db.insert(subscriptions).values({
-        userId: memberId,
-        planId,
-        branchId: testBranchId,
-        status: "expired",
-        startDate: startStr,
-        endDate: endStr,
-        pricePaid: 15000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: memberId,
+          planId,
+          branchId: testBranchId,
+          status: "expired",
+          startDate: startStr,
+          endDate: endStr,
+          pricePaid: 15000,
+          priceTypeApplied: "regular",
+        }),
+      );
     }
 
     async function setSegment(
@@ -650,18 +687,20 @@ describe("Analytics API", () => {
 
       // The "paid" member has a recent non-voided plan_charge inflow.
       const today = new Date().toISOString().split("T")[0];
-      await app.db.insert(financialTransactions).values({
-        memberId: paid.id,
-        kind: "plan_charge",
-        direction: "inflow",
-        amount: 15000,
-        currency: "ARS",
-        paymentMethod: "cash",
-        transactionDate: today,
-        effectiveDate: today,
-        branchId: testBranchId,
-        recordedBy: adminUserId,
-      });
+      await app.db.insert(financialTransactions).values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: paid.id,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount: 15000,
+          currency: "ARS",
+          paymentMethod: "cash",
+          transactionDate: today,
+          effectiveDate: today,
+          branchId: testBranchId,
+          recordedBy: adminUserId,
+        }),
+      );
 
       const res = await app.inject({
         method: "GET",
@@ -744,16 +783,18 @@ describe("Analytics API", () => {
       const future = new Date(Date.now() + 86400000 * 30)
         .toISOString()
         .split("T")[0];
-      await app.db.insert(subscriptions).values({
-        userId: renewed.id,
-        planId: plan.id,
-        branchId: testBranchId,
-        status: "active",
-        startDate: today,
-        endDate: future,
-        pricePaid: 15000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: renewed.id,
+          planId: plan.id,
+          branchId: testBranchId,
+          status: "active",
+          startDate: today,
+          endDate: future,
+          pricePaid: 15000,
+          priceTypeApplied: "regular",
+        }),
+      );
       // Member who expired 5 days ago and did NOT renew.
       const lapsed = await createMember({
         email: "lapsed@test.com",
@@ -808,16 +849,18 @@ describe("Analytics API", () => {
       end.setDate(end.getDate() - 6);
       const start = new Date();
       start.setDate(start.getDate() - 36);
-      await app.db.insert(subscriptions).values({
-        userId: member.id,
-        planId: plan.id,
-        branchId: testBranchId,
-        status: "expired",
-        startDate: start.toISOString().split("T")[0],
-        endDate: end.toISOString().split("T")[0],
-        pricePaid: 15000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: member.id,
+          planId: plan.id,
+          branchId: testBranchId,
+          status: "expired",
+          startDate: start.toISOString().split("T")[0],
+          endDate: end.toISOString().split("T")[0],
+          pricePaid: 15000,
+          priceTypeApplied: "regular",
+        }),
+      );
       await app.db
         .insert(memberProfiles)
         .values({ userId: member.id, segment: "alerta" })
@@ -1180,13 +1223,15 @@ describe("Analytics API", () => {
         branchId: testBranchId,
       });
       const activityId = (act as { insertId: number }).insertId;
-      const [sch] = await app.db.insert(schedules).values({
-        branchId: testBranchId,
-        activityId,
-        dayOfWeek: 1,
-        startTime: "10:00",
-        endTime: "11:00",
-      });
+      const [sch] = await app.db.insert(schedules).values(
+        tenantValues(TEMPLO_CTX, {
+          branchId: testBranchId,
+          activityId,
+          dayOfWeek: 1,
+          startTime: "10:00",
+          endTime: "11:00",
+        }),
+      );
       return (sch as { insertId: number }).insertId;
     }
 
@@ -1201,12 +1246,12 @@ describe("Analytics API", () => {
 
       // 3 attended ('confirmado') + 1 no_show => 25% no-show.
       await app.db.insert(bookings).values([
-        {
+        tenantValues(TEMPLO_CTX, {
           memberId: member.id,
           scheduleId,
           bookingDate: today,
           status: "confirmado",
-        },
+        }),
       ]);
       const m2 = await createMember({
         email: "ns-m2@test.com",
@@ -1221,24 +1266,24 @@ describe("Analytics API", () => {
         dni: "90002004",
       });
       await app.db.insert(bookings).values([
-        {
+        tenantValues(TEMPLO_CTX, {
           memberId: m2.id,
           scheduleId,
           bookingDate: today,
           status: "confirmado",
-        },
-        {
+        }),
+        tenantValues(TEMPLO_CTX, {
           memberId: m3.id,
           scheduleId,
           bookingDate: today,
           status: "confirmado",
-        },
-        {
+        }),
+        tenantValues(TEMPLO_CTX, {
           memberId: m4.id,
           scheduleId,
           bookingDate: today,
           status: "no_show",
-        },
+        }),
       ]);
 
       const res = await app.inject({
@@ -1265,24 +1310,28 @@ describe("Analytics API", () => {
 
       // One ARS inflow and one EUR inflow, both plan_charge.
       for (const currency of ["ARS", "EUR"] as const) {
-        const [tx] = await app.db.insert(financialTransactions).values({
-          memberId: member.id,
-          kind: "plan_charge",
-          direction: "inflow",
-          amount: currency === "ARS" ? 10000 : 200,
-          currency,
-          paymentMethod: "cash",
-          transactionDate: today,
-          effectiveDate: today,
-          branchId: testBranchId,
-          recordedBy: adminUserId,
-        });
-        await app.db.insert(transactionLinks).values({
-          transactionId: (tx as { insertId: number }).insertId,
-          targetKind: "subscription",
-          targetId: sub.id as number,
-          allocatedAmount: currency === "ARS" ? 10000 : 200,
-        });
+        const [tx] = await app.db.insert(financialTransactions).values(
+          tenantValues(TEMPLO_CTX, {
+            memberId: member.id,
+            kind: "plan_charge",
+            direction: "inflow",
+            amount: currency === "ARS" ? 10000 : 200,
+            currency,
+            paymentMethod: "cash",
+            transactionDate: today,
+            effectiveDate: today,
+            branchId: testBranchId,
+            recordedBy: adminUserId,
+          }),
+        );
+        await app.db.insert(transactionLinks).values(
+          tenantValues(TEMPLO_CTX, {
+            transactionId: (tx as { insertId: number }).insertId,
+            targetKind: "subscription",
+            targetId: sub.id as number,
+            allocatedAmount: currency === "ARS" ? 10000 : 200,
+          }),
+        );
       }
 
       const firstOfMonth = today.substring(0, 8) + "01";
@@ -1324,24 +1373,28 @@ describe("Analytics API", () => {
       const sub = await assignSubscription(member.id, plan.id);
       const today = new Date().toISOString().split("T")[0];
 
-      const [tx] = await app.db.insert(financialTransactions).values({
-        memberId: member.id,
-        kind: "plan_charge",
-        direction: "inflow",
-        amount: 500,
-        currency: "EUR",
-        paymentMethod: "cash",
-        transactionDate: today,
-        effectiveDate: today,
-        branchId: testBranchId,
-        recordedBy: adminUserId,
-      });
-      await app.db.insert(transactionLinks).values({
-        transactionId: (tx as { insertId: number }).insertId,
-        targetKind: "subscription",
-        targetId: sub.id as number,
-        allocatedAmount: 500,
-      });
+      const [tx] = await app.db.insert(financialTransactions).values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: member.id,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount: 500,
+          currency: "EUR",
+          paymentMethod: "cash",
+          transactionDate: today,
+          effectiveDate: today,
+          branchId: testBranchId,
+          recordedBy: adminUserId,
+        }),
+      );
+      await app.db.insert(transactionLinks).values(
+        tenantValues(TEMPLO_CTX, {
+          transactionId: (tx as { insertId: number }).insertId,
+          targetKind: "subscription",
+          targetId: sub.id as number,
+          allocatedAmount: 500,
+        }),
+      );
 
       const today2 = new Date().toISOString().split("T")[0];
       const firstOfMonth = today2.substring(0, 8) + "01";
@@ -1425,23 +1478,30 @@ describe("Analytics API", () => {
         [mES, planES],
         [mArch, archived],
       ] as const) {
-        await app.db.insert(subscriptions).values({
-          userId: m.id,
-          planId: p.id as number,
-          branchId: testBranchId,
-          status: "active",
-          startDate: today,
-          endDate: future,
-          pricePaid: 15000,
-          priceTypeApplied: "regular",
-        });
+        await app.db.insert(subscriptions).values(
+          tenantValues(TEMPLO_CTX, {
+            userId: m.id,
+            planId: p.id as number,
+            branchId: testBranchId,
+            status: "active",
+            startDate: today,
+            endDate: future,
+            pricePaid: 15000,
+            priceTypeApplied: "regular",
+          }),
+        );
       }
 
       // Archive the third plan after subscription creation.
       await app.db
         .update(subscriptionPlans)
         .set({ isArchived: true })
-        .where(eq(subscriptionPlans.id, archived.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptionPlans, TEMPLO_CTX),
+            eq(subscriptionPlans.id, archived.id as number),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",

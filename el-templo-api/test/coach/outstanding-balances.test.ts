@@ -23,6 +23,16 @@ import {
   registerUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const URL = "/api/admin/coach/outstanding-balances";
 
@@ -166,36 +176,44 @@ async function seedFixtures(app: FastifyInstance): Promise<SeededContext> {
     .$returningId();
 
   // Alfa: two AR debts on the same currency → must aggregate to 8000
-  await app.db.insert(schema.balances).values({
-    memberId: memberAlfaId,
-    targetKind: "subscription",
-    targetId: subAlfa.id,
-    currency: "ARS",
-    amount: "3000.00",
-  });
-  await app.db.insert(schema.balances).values({
-    memberId: memberAlfaId,
-    targetKind: "debt_balance",
-    targetId: 0,
-    currency: "ARS",
-    amount: "5000.00",
-  });
+  await app.db.insert(schema.balances).values(
+    tenantValues(TEMPLO_CTX, {
+      memberId: memberAlfaId,
+      targetKind: "subscription",
+      targetId: subAlfa.id,
+      currency: "ARS",
+      amount: "3000.00",
+    }),
+  );
+  await app.db.insert(schema.balances).values(
+    tenantValues(TEMPLO_CTX, {
+      memberId: memberAlfaId,
+      targetKind: "debt_balance",
+      targetId: 0,
+      currency: "ARS",
+      amount: "5000.00",
+    }),
+  );
   // Beta: one AR debt of 2000
-  await app.db.insert(schema.balances).values({
-    memberId: memberBetaId,
-    targetKind: "subscription",
-    targetId: subBeta.id,
-    currency: "ARS",
-    amount: "2000.00",
-  });
+  await app.db.insert(schema.balances).values(
+    tenantValues(TEMPLO_CTX, {
+      memberId: memberBetaId,
+      targetKind: "subscription",
+      targetId: subBeta.id,
+      currency: "ARS",
+      amount: "2000.00",
+    }),
+  );
   // ES member: 9000 EUR — must NOT be visible to AR coach
-  await app.db.insert(schema.balances).values({
-    memberId: memberEsId,
-    targetKind: "subscription",
-    targetId: subEs.id,
-    currency: "EUR",
-    amount: "9000.00",
-  });
+  await app.db.insert(schema.balances).values(
+    tenantValues(TEMPLO_CTX, {
+      memberId: memberEsId,
+      targetKind: "subscription",
+      targetId: subEs.id,
+      currency: "EUR",
+      amount: "9000.00",
+    }),
+  );
 
   return {
     arBranchId: ar.id,
@@ -223,7 +241,9 @@ describe("GET /api/admin/coach/outstanding-balances", () => {
 
   beforeEach(async () => {
     await cleanAllTestData(app);
-    await app.db.delete(schema.balances);
+    await app.db
+      .delete(schema.balances)
+      .where(tenantWhere(schema.balances, TEMPLO_CTX));
     ctx = await seedFixtures(app);
   });
 

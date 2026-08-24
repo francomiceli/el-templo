@@ -47,7 +47,10 @@ import { and, eq, sql, isNull, inArray, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
+import { inclusiveRangeConditions } from "./cohorts";
 import { activePayingMemberExists } from "../shared/active-member";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type {
   AnalyticsFilters,
   AdvancedFinanceAnalytics,
@@ -116,16 +119,23 @@ export class AdvancedFinanceService {
    * Caja + Devengado + ARPU, all per currency (D-07/D-08). Reads the canonical
    * cash trend, the accrual proration over effective windows, and the active
    * member denominator, then assembles the three monthly series.
+   *
+   * `ctx` PRIMERO (regla 169-06). Fase 172 (D-01): `cashTrend` toca una tabla
+   * strict de `finance`. Fase 173 (D-02): el denominador de ARPU
+   * (`activeMemberCount`) toca `users` — recibe `ctx`. Fase 174.1-03 (D-02):
+   * `accruedTrend` (sobre `subscriptions`, tabla del boundary subs/sched)
+   * también recibe `ctx` y filtra con `tenantWhere`.
    */
   async getAdvancedFinance(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<AdvancedFinanceAnalytics> {
     const [cashMap, accrual] = await Promise.all([
-      this.cashTrend(filters),
-      this.accruedTrend(filters),
+      this.cashTrend(ctx, filters),
+      this.accruedTrend(ctx, filters),
     ]);
 
-    const activeMembers = await this.activeMemberCount(filters);
+    const activeMembers = await this.activeMemberCount(ctx, filters);
 
     // Union of months present in caja or devengado, sorted ascending.
     const months = new Set<string>([...cashMap.keys(), ...accrual.map.keys()]);
@@ -176,7 +186,10 @@ export class AdvancedFinanceService {
    * the `branches` join is unconditional here — flavor A). Returns a Map keyed by
    * `YYYY-MM`.
    */
-  private async cashTrend(filters: AnalyticsFilters): Promise<CurrencyMap> {
+  private async cashTrend(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<CurrencyMap> {
     const { conditions: scopeConditions } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
@@ -196,17 +209,15 @@ export class AdvancedFinanceService {
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
       ...scopeConditions,
+      // Rango CERRADO [dateFrom, dateTo] con los dos bordes opcionales —
+      // exactamente el mismo par de `if` que estaba escrito acá antes de la
+      // fase 172, ahora en `inclusiveRangeConditions` (ver su docblock).
+      ...inclusiveRangeConditions(
+        schema.financialTransactions.transactionDate,
+        filters.dateFrom,
+        filters.dateTo,
+      ),
     ];
-    if (filters.dateFrom !== undefined) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
-      );
-    }
-    if (filters.dateTo !== undefined) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
-      );
-    }
 
     const rows = await this.db
       .select({
@@ -221,7 +232,7 @@ export class AdvancedFinanceService {
       )
       // Flavor A: branches always joined (country filter needs branches.country).
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(
         sql`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
         schema.financialTransactions.currency,
@@ -247,6 +258,7 @@ export class AdvancedFinanceService {
    * per-currency map and the count of subs excluded for an invalid window.
    */
   private async accruedTrend(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<{ map: CurrencyMap; excludedInvalidWindow: number }> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
@@ -255,8 +267,15 @@ export class AdvancedFinanceService {
       branchColumn: schema.subscriptions.branchId,
     });
 
-    const conditions: SQL[] = [...scopeConditions];
+    const conditions: SQL[] = [
+      tenantWhere(schema.subscriptions, ctx),
+      ...scopeConditions,
+    ];
 
+    // `.where(...)` va ANTES de `.$dynamic()` (mismo statement que
+    // `.from(...)`, D-02 fase 174.1-03): si el `tenantWhere` quedara en un
+    // `.where(...)` posterior a un `if` intermedio, sería otro statement y el
+    // lint marcaría `.from(...)` como sin filtrar aunque la query sí filtre.
     let query = this.db
       .select({
         startDate: schema.subscriptions.startDate,
@@ -266,18 +285,21 @@ export class AdvancedFinanceService {
         currency: schema.subscriptions.currency,
       })
       .from(schema.subscriptions)
+      // `tenantWhere` inline (no solo en `conditions`, D-02): `conditions` es
+      // una variable — el lint busca el literal `tenantWhere(` en ESTE
+      // statement.
+      .where(and(tenantWhere(schema.subscriptions, ctx), ...conditions))
       .$dynamic();
 
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de subscriptions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       query = query.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.subscriptions.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de subscriptions ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.subscriptions.branchId}`,
       );
     }
 
-    const rows: AccrualSubRow[] = await query.where(
-      conditions.length > 0 ? and(...conditions) : undefined,
-    );
+    const rows: AccrualSubRow[] = await query;
 
     const map: CurrencyMap = new Map();
     let excludedInvalidWindow = 0;
@@ -367,8 +389,20 @@ export class AdvancedFinanceService {
    * snapshot reused as the denominator for every month's ARPU — the canonical
    * predicate is "active right now", so ARPU is the per-active-member accrued
    * revenue of each month relative to the current active base.
+   *
+   * Fase 173 (D-02): `ctx` PRIMERO. `tenantWhere` INLINE en el `.where(...)`,
+   * y el `.where(...)` va ANTES del `.innerJoin` condicional (no después):
+   * Drizzle arma el SQL final por config acumulada, no por orden de llamada,
+   * así que el orden no cambia el resultado — y este orden deja el
+   * `.from(schema.users)` y el `tenantWhere` en el MISMO statement de JS, que
+   * es lo que el lint mira (si el `tenantWhere` quedara en un `.where(...)`
+   * posterior a un `if` intermedio, sería otro statement y el lint marcaría
+   * `.from(schema.users)` como sin filtrar aunque la query sí filtre).
    */
-  private async activeMemberCount(filters: AnalyticsFilters): Promise<number> {
+  private async activeMemberCount(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<number> {
     const { conditions: scopeConditions, needsBranchJoin } = applyScope({
       branchId: filters.branchId,
       country: filters.country,
@@ -378,23 +412,25 @@ export class AdvancedFinanceService {
     const conditions: SQL[] = [
       // Membresías internas (staff/bonificadas) fuera del denominador del ARPU
       // (2026-08-07). Los pases 'especial' SÍ cuentan acá (su plata es real).
-      activePayingMemberExists(schema.users.id),
+      activePayingMemberExists(schema.users.id, ctx),
       ...scopeConditions,
     ];
 
     let query = this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
+      .where(and(tenantWhere(schema.users, ctx), ...conditions))
       .$dynamic();
 
     if (needsBranchJoin) {
+      /* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */
       query = query.innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.users.branchId),
+        sql`/* tenant-safe: branches joineado por FK para resolver country/nombre de una fila de users ya scopeada por tenantWhere arriba, no expone datos cross-gym (D4) */ ${schema.branches.id} = ${schema.users.branchId}`,
       );
     }
 
-    const [row] = await query.where(and(...conditions));
+    const [row] = await query;
     return Number(row?.count ?? 0);
   }
 }

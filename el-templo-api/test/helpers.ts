@@ -6,6 +6,43 @@
  * and a shared cleanup function for inter-file test isolation.
  */
 
+/**
+ * Fase 173 (ADO-02) — LA REGLA DE DECISIÓN de este archivo frente al sentinel de
+ * pool (doc 07 §4(d)): `app.dbPool` está envuelto por el sentinel de tenancy
+ * (fase 170), que ve TODO lo que pasa por las tres puertas del pool —también
+ * los `beforeEach` de este archivo, no solo `src/`. Toda query de acá sobre una
+ * tabla gym-owned cae en una de estas CUATRO categorías, y la categoría decide
+ * qué se hace, no al revés:
+ *
+ *   1. LIMPIEZA GLOBAL A PROPÓSITO → EXENCIÓN `/* tenant-safe: <motivo> * /`
+ *      embebida en el propio SQL, entre el verbo y el `FROM` — el único canal
+ *      que el sentinel lee (`src/db/sentinel/analyze.ts`, etapa 2). Ejemplo: el
+ *      loop de `TABLES_TO_CLEAN` y el `DELETE FROM users` de
+ *      `cleanAllTestData` — vacían la base de TODOS los gimnasios a propósito,
+ *      porque `isolate: false` hace que los archivos de un mismo worker
+ *      compartan base y filtrar por El Templo dejaría vivas las filas del
+ *      gimnasio 2 entre archivos.
+ *   2. CONVENIENCIA ACOTABLE SIN CAMBIAR LO QUE EL TEST PRUEBA → FILTRO
+ *      `WHERE tenant_id = ?` parametrizado (o `tenantWhere`/`tenantValues` si
+ *      es Drizzle). Ejemplo: el `UPDATE users … WHERE email = 'admin@test.com'`
+ *      de `cleanAllTestData` — apunta a UNA fila fija de El Templo, así que
+ *      acotarla no cambia el comportamiento, solo lo hace explícito en vez de
+ *      depender de que el email sea globalmente único.
+ *   3. LECTURA DE EVIDENCIA → EXENCIÓN. Leer el `tenant_id` de una fila ES la
+ *      aserción (p. ej. un helper que confirma en qué gimnasio quedó sembrado
+ *      un recurso). Acotar esa lectura cambiaría lo que el test prueba.
+ *   4. TABLA TODAVÍA NO STRICT → NO SE ANOTA. Anotar "por las dudas" apaga el
+ *      tripwire de quien migre ese módulo después: la decisión la tiene que
+ *      tomar quien migre la tabla, no encontrarla ya tomada (precedente: fase
+ *      172, este mismo archivo, con los dos statements de `users` que hoy
+ *      migra esta fase).
+ *
+ * Las 8 tablas de esta fase (`audit_log`, `member_logins`, `member_notes`,
+ * `member_profiles`, `user_branches`, `user_sepa_details`, `user_status_history`,
+ * `users`) ya pasaron por esta clasificación acá; el detalle de cada una vive en
+ * el docblock de `cleanAllTestData` y en cada helper que las toca directamente.
+ */
+
 import { buildApp } from "../src/app";
 import type { BuildAppOptions } from "../src/app";
 import { sql, getTableName, eq, and } from "drizzle-orm";
@@ -16,7 +53,10 @@ import type { FastifyInstance } from "fastify";
 // tabla gym-owned. Se importa por path DIRECTO a propósito: `shared/tenant.ts`
 // no está en el barrel `src/modules/shared/index.ts` y sus 22+ call sites de
 // producción también lo importan así.
-import { tenantValues } from "../src/modules/shared/tenant";
+// Fase 172 (ADO-01): `tenantWhere` entra por el mismo path directo — con
+// `finance` en `TENANT_STRICT_MODULES` una lectura de `cash_registers` sin
+// filtro hace throw en el pool antes de llegar a MySQL.
+import { tenantValues, tenantWhere } from "../src/modules/shared/tenant";
 
 /**
  * Create a Fastify test app instance connected to the per-worker test
@@ -259,12 +299,66 @@ const TABLES_TO_CLEAN = [
   schema.weeklyRotator,
 ];
 
+/**
+ * Fase 172 (ADO-01): POR QUÉ ESTE DELETE LLEVA UNA EXENCIÓN `tenant-safe` Y NO
+ * UN FILTRO DE GIMNASIO.
+ *
+ * `app.dbPool` está envuelto por el sentinel de tenancy (fase 170,
+ * `src/db/sentinel/install.ts`), que inspecciona el SQL de las TRES puertas del
+ * pool — `pool.query`, `pool.execute` y las conexiones de `getConnection()`, que
+ * es justo la que usa esta función. Con `finance` adentro de
+ * `TENANT_STRICT_MODULES`, un `DELETE FROM …` sin `tenant_id` sobre
+ * `financial_transactions`, `transaction_links` o `balances` (las tres tablas
+ * strict que están en `TABLES_TO_CLEAN`) hace THROW, y como esta función corre
+ * en el `beforeEach` de decenas de archivos, se caería la suite ENTERA.
+ *
+ * El borrado global es DELIBERADO: esto vacía la base de test, de todos los
+ * gimnasios, y filtrarlo por El Templo dejaría vivas las filas del gimnasio 2
+ * entre archivos (`isolate: false` ⇒ misma base por worker) — o sea, cambiaría
+ * el comportamiento del helper para hacer feliz a un vigilante. Por eso la
+ * salida correcta es DECLARAR la exención, no esquivarla.
+ *
+ * POR QUÉ NO SE RESUELVE CON LA ALLOWLIST DEL LINT. Son dos canales distintos y
+ * ninguno de los dos sustituye al otro (D-17 de la fase 170): el canal del LINT
+ * es el código fuente y `tenant-lint-allowlist.json` solo cubre `src/` — no mira
+ * `test/`; el canal del SENTINEL es el TEXTO SQL que ve el pool en runtime. Una
+ * entrada de allowlist no calla un throw del sentinel, y sumar entradas está
+ * además explícitamente prohibido como salida (172-PATTERNS §"Exención
+ * tenant-safe"). La única anotación que el sentinel lee es un comentario de
+ * BLOQUE `tenant-safe: <motivo>` con motivo no vacío, embebido en el SQL mismo
+ * (`src/db/sentinel/analyze.ts`, etapa 2).
+ *
+ * ALCANCE DE LA EXENCIÓN (actualizado fase 173, ADO-02 — el día que el párrafo
+ * de arriba anunciaba). Con `users` strict desde esta fase (D-01), los DOS
+ * statements sobre `users` de más abajo YA TOMARON esa decisión, cada uno según
+ * su categoría (regla completa en la cabecera del archivo):
+ *   - El `DELETE FROM users WHERE NOT (...)` → EXENCIÓN. Es limpieza global a
+ *     propósito: borra TODO socio/staff de TODOS los gimnasios (incluidos los
+ *     del gimnasio 2 que siembran `test/fixtures/second-tenant.ts` y las
+ *     baterías iso-03), preservando únicamente `admin@test.com`. Filtrarlo por
+ *     El Templo dejaría vivas las filas del gimnasio 2 entre archivos del mismo
+ *     worker (`isolate: false`) — mismo motivo que el loop de arriba.
+ *   - El `UPDATE users SET boarding_pass_used = 0 ...` → FILTRO, no exención:
+ *     NO lleva `tenant-safe` porque no es un acceso global a propósito, es un
+ *     acceso acotable sin cambiar lo que el statement hace. Apunta a UNA fila
+ *     fija y ya única (`admin@test.com`, sembrada por `test/setup.ts` siempre
+ *     en El Templo): agregar `tenant_id = 1` no cambia qué fila toca, solo lo
+ *     vuelve explícito en vez de depender de que el email sea irrepetible.
+ *
+ * Si alguna vez alguien agrega acá un `tenant-safe` sobre un statement que SÍ
+ * se podría acotar con un `WHERE tenant_id = ?`, está eligiendo la categoría
+ * equivocada de la regla de la cabecera: exención donde correspondía filtro.
+ */
 export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   const conn = await app.dbPool.getConnection();
   try {
     await conn.query("SET FOREIGN_KEY_CHECKS=0");
     for (const t of TABLES_TO_CLEAN) {
-      await conn.query(`DELETE FROM \`${getTableName(t)}\``);
+      // El comentario va DENTRO del SQL (entre el verbo y el FROM) porque el
+      // sentinel lee el texto del statement, no el fuente TypeScript.
+      await conn.query(
+        `DELETE /* tenant-safe: limpieza global de la base de test (todos los gimnasios) */ FROM \`${getTableName(t)}\``,
+      );
     }
     // NULL-safe inequality: `email != 'admin@test.com'` returns NULL (not TRUE)
     // for rows with email IS NULL — Phase 102 trial users have null emails and
@@ -273,10 +367,10 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
     // `<=>` operator returns FALSE instead of NULL, so `NOT (email <=> ...)`
     // correctly catches both null and non-admin emails.
     await conn.query(
-      "DELETE FROM `users` WHERE NOT (email <=> 'admin@test.com')",
+      "DELETE /* tenant-safe: limpieza global de la base de test (todos los gimnasios): borra todo socio/staff salvo admin@test.com, que sobrevive entre archivos del mismo worker */ FROM `users` WHERE NOT (email <=> 'admin@test.com')",
     );
     await conn.query(
-      "UPDATE `users` SET boarding_pass_used = 0 WHERE email = 'admin@test.com'",
+      "UPDATE `users` SET boarding_pass_used = 0 WHERE email = 'admin@test.com' AND tenant_id = 1",
     );
     await conn.query("SET FOREIGN_KEY_CHECKS=1");
   } finally {
@@ -322,6 +416,14 @@ export const DEFAULT_TEST_PLAN = {
  * `ensureEfectivoCaja(app, gym2.branchId, "ARS", TENANT_DOS)` — y acordate de
  * que `limpiarSegundoGimnasio` ya borra las cajas del gimnasio 2 en su orden
  * de FKs.
+ *
+ * Fase 172 (ADO-01): el default `tenantId = 1` SIGUE siendo el default (los ~40
+ * call sites de El Templo no cambian), pero para una sede que no sea de El
+ * Templo el 4º argumento es OBLIGATORIO EN LA PRÁCTICA — omitirlo no falla, hace
+ * algo peor: siembra la caja en el gimnasio equivocado en silencio, y desde que
+ * `cash_registers` es strict, la sonda de idempotencia de acá abajo (que ahora
+ * filtra por gimnasio) tampoco la vería, así que cada llamada crearía una caja
+ * nueva. Regla simple: si el `branchId` no es de El Templo, pasá su `tenantId`.
  */
 export async function ensureEfectivoCaja(
   app: FastifyInstance,
@@ -334,6 +436,10 @@ export async function ensureEfectivoCaja(
     .from(schema.cashRegisters)
     .where(
       and(
+        // Fase 172: `cash_registers` es strict. Sin este filtro el SELECT hace
+        // throw con el sentinel encendido — y además la sonda de idempotencia
+        // miraba las cajas de TODOS los gimnasios.
+        tenantWhere(schema.cashRegisters, { tenantId }),
         eq(schema.cashRegisters.type, "efectivo"),
         eq(schema.cashRegisters.branchId, branchId),
       ),
@@ -747,6 +853,14 @@ export async function createStaffUser(
  * Inserts the user directly (bypasses /register, which forces freemium + a
  * fresh created_at) so the test can pin an old created_at. Returns the user id
  * and the email snapshot used by campaign_sends.
+ *
+ * Fase 173 (ADO-02): `overrides.tenantId` con DEFAULT 1 = El Templo, mismo
+ * criterio de retrocompatibilidad que `createStaffUser`/`createTestMember`.
+ * `users` es strict desde esta fase: este INSERT ya pasaba por `app.db` (el
+ * pool que envuelve el sentinel), así que sin `tenantValues` haría throw en
+ * cuanto el switch (173-30) prenda `members`. Los ~23 call sites actuales son
+ * todos de El Templo, así que el default preserva el comportamiento byte por
+ * byte.
  */
 export async function createEligibleFreemium(
   app: FastifyInstance,
@@ -757,6 +871,8 @@ export async function createEligibleFreemium(
     // Fase 165 (D-04): seed a phone when the test needs an already-phoned lead.
     // Default undefined → phone stays null (leads with no phone still exist).
     phone?: string | null;
+    /** Fase 173 (ADO-02). Default 1 = El Templo: los call sites previos no cambian. */
+    tenantId?: number;
   } = {},
 ): Promise<{ id: number; email: string }> {
   const uniqueSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -768,17 +884,22 @@ export async function createEligibleFreemium(
 
   const [result] = await app.db
     .insert(schema.users)
-    .values({
-      email,
-      passwordHash,
-      firstName: "Free",
-      lastName: "Mium",
-      role: "member",
-      branchId: overrides.branchId ?? 1,
-      status: "freemium",
-      createdAt,
-      phone: overrides.phone ?? null,
-    })
+    .values(
+      tenantValues(
+        { tenantId: overrides.tenantId ?? 1 },
+        {
+          email,
+          passwordHash,
+          firstName: "Free",
+          lastName: "Mium",
+          role: "member",
+          branchId: overrides.branchId ?? 1,
+          status: "freemium",
+          createdAt,
+          phone: overrides.phone ?? null,
+        },
+      ),
+    )
     .$returningId();
 
   return { id: result.id, email };

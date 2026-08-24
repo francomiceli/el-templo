@@ -21,9 +21,16 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por id de este archivo se acotan con `tenantWhere` (categoría
+// 2, docblock de `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const REGISTER_URL = "/api/auth/register";
 const TRIALS_URL = "/api/admin/scheduling/trials";
@@ -124,7 +131,12 @@ describe("Phase 103-03 — Member creation status defaults (R7)", () => {
     const [row] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, body.user.id));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, body.user.id),
+        ),
+      );
     expect(row.status).toBe("freemium");
   });
 
@@ -134,6 +146,7 @@ describe("Phase 103-03 — Member creation status defaults (R7)", () => {
     const promoCode = `PROMO-${uniqueSuffix()}`.toUpperCase();
     const now = new Date();
     await app.db.insert(schema.promoPlans).values({
+      tenantId: TENANT_TEMPLO,
       name: "103-03 Test Promo",
       promoCode,
       planDurationDays: 30,
@@ -161,14 +174,24 @@ describe("Phase 103-03 — Member creation status defaults (R7)", () => {
     const [row] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, body.user.id));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, body.user.id),
+        ),
+      );
     expect(row.status).toBe("activo");
 
     // Belt-and-braces: a subscription row exists.
     const subs = await app.db
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, body.user.id));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, body.user.id),
+        ),
+      );
     expect(subs.length).toBeGreaterThan(0);
   });
 

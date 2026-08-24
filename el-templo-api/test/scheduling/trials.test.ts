@@ -36,6 +36,11 @@ import {
 import { bookings } from "../../src/db/schema/bookings";
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 const ADMIN_URL = "/api/admin/scheduling";
 const MEMBER_URL = "/api/members/scheduling";
@@ -219,7 +224,12 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
         isTrial: bookings.isTrial,
       })
       .from(bookings)
-      .where(eq(bookings.id, body.bookingId));
+      .where(
+        and(
+          eq(bookings.tenantId, TENANT_TEMPLO),
+          eq(bookings.id, body.bookingId),
+        ),
+      );
     expect(bookingRow).toBeTruthy();
     expect(bookingRow.memberId).toBe(userId);
     expect(bookingRow.scheduleId).toBe(slot.id);
@@ -295,6 +305,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
         .from(bookings)
         .where(
           and(
+            eq(bookings.tenantId, TENANT_TEMPLO),
             eq(bookings.scheduleId, slot.id),
             eq(bookings.bookingDate, futureSlot.date),
             eq(bookings.isTrial, false),
@@ -326,6 +337,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
         .from(bookings)
         .where(
           and(
+            eq(bookings.tenantId, TENANT_TEMPLO),
             eq(bookings.scheduleId, slot.id),
             eq(bookings.bookingDate, futureSlot.date),
             eq(bookings.isTrial, false),
@@ -602,7 +614,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     await app.db
       .update(users)
       .set({ phone: null })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, userId)));
 
     const res = await app.inject({
       method: "POST",
@@ -621,7 +633,12 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const rows = await app.db
       .select({ id: bookings.id })
       .from(bookings)
-      .where(eq(bookings.memberId, userId));
+      .where(
+        and(
+          eq(bookings.tenantId, TENANT_TEMPLO),
+          eq(bookings.memberId, userId),
+        ),
+      );
     expect(rows).toHaveLength(0);
   });
 
@@ -810,6 +827,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     // nothing closed it. Inserted directly since the API only books future
     // dates. Before the fix this hid the alumno from the picker forever.
     await app.db.insert(bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: userId,
       scheduleId: slot.id,
       bookingDate: "2026-03-05", // past (pinned now = 2026-03-11)
@@ -844,6 +862,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const [stale] = await app.db
       .insert(bookings)
       .values({
+        tenantId: TENANT_TEMPLO,
         memberId: userId,
         scheduleId: slot.id,
         bookingDate: "2026-03-05",
@@ -864,7 +883,12 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const [staleRow] = await app.db
       .select({ status: bookings.status })
       .from(bookings)
-      .where(eq(bookings.id, stale.id));
+      .where(
+        and(
+          eq(bookings.tenantId, TENANT_TEMPLO),
+          eq(bookings.id, stale.id),
+        ),
+      );
     expect(staleRow.status).toBe("no_show");
 
     // Exactly one active trial remains — the freshly booked future one.
@@ -872,7 +896,13 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
       await app.db
         .select({ status: bookings.status, date: bookings.bookingDate })
         .from(bookings)
-        .where(and(eq(bookings.memberId, userId), eq(bookings.isTrial, true)))
+        .where(
+          and(
+            eq(bookings.tenantId, TENANT_TEMPLO),
+            eq(bookings.memberId, userId),
+            eq(bookings.isTrial, true),
+          ),
+        )
     ).filter((r) => r.status === "reservado");
     expect(active).toHaveLength(1);
     expect(active[0].date).toBe(futureSlot.date);
@@ -998,7 +1028,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const [beforeRow] = await app.db
       .select({ convertedAt: users.convertedAt })
       .from(users)
-      .where(eq(users.id, leadUserId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, leadUserId)));
     expect(beforeRow.convertedAt).toBeNull();
 
     const planRes = await app.inject({
@@ -1039,7 +1069,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const [afterRow] = await app.db
       .select({ convertedAt: users.convertedAt })
       .from(users)
-      .where(eq(users.id, leadUserId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, leadUserId)));
     expect(afterRow.convertedAt).not.toBeNull();
   });
 
@@ -1178,7 +1208,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const [row] = await app.db
       .select({ convertedAt: users.convertedAt })
       .from(users)
-      .where(eq(users.id, memberId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, memberId)));
     expect(row.convertedAt).toBeNull();
   });
 
@@ -1287,7 +1317,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     await app.db
       .update(bookings)
       .set({ status: "no_show" })
-      .where(eq(bookings.id, bookingId));
+      .where(and(tenantWhere(bookings, CTX), eq(bookings.id, bookingId)));
 
     // 3) Admin removes the booking.
     const delRes = await app.inject({
@@ -1301,7 +1331,7 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
     const [row] = await app.db
       .select({ status: bookings.status })
       .from(bookings)
-      .where(eq(bookings.id, bookingId));
+      .where(and(tenantWhere(bookings, CTX), eq(bookings.id, bookingId)));
     expect(row.status).toBe("cancelado");
 
     // 5) The alumno is now eligible for a new trial (priorTrial guard

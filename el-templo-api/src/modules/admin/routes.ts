@@ -54,6 +54,8 @@ import {
 
 import { handleServiceError } from "../shared/error-handler";
 import { canAccessTraining } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const adminService = new AdminSessionService(fastify.db);
@@ -146,7 +148,9 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /admin/sessions - List sessions with filters
   fastify.get("/sessions", { schema: getSessionsSchema }, async (request) => {
     const filter = request.query as SessionFilter;
-    return adminService.getSessions(filter);
+    await attachCountryScope(request, fastify.db);
+    const ctx = assertTenant(request.scope, "admin.sessions.list");
+    return adminService.getSessions(ctx, filter);
   });
 
   // GET /admin/sessions/pending-count - Get pending session count

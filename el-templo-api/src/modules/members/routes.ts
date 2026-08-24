@@ -24,7 +24,6 @@ import { SubscriptionService } from "../subscriptions/service";
 import { ReferralService } from "../referrals/service";
 import { PartnerReferralService } from "../referral-partners/service";
 import { assignPartnerToMemberBodySchema } from "../referral-partners/schemas";
-import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
 import {
@@ -34,7 +33,12 @@ import {
   NotFoundError,
   ValidationError,
 } from "../shared/errors";
-import { assertTenant } from "../shared/tenant";
+import {
+  assertTenant,
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
 import { EmailService } from "../email";
 import type {
   CreateMemberInput,
@@ -132,6 +136,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // (REQ-12). `timezone` backs the per-row "today" of the Vencimiento pill in the
   // all-branches Alumnos list.
   fastify.get("/branches", async (request) => {
+    // 173-20 (T-173-20-01): `tenantWhere` inline. Esta query alimenta el
+    // selector de sedes de TODA la UI de socios — sin filtro, el staff de un
+    // gimnasio ve (y puede elegir) sedes del otro, la puerta de entrada
+    // directa a la divergencia de anclas que ADO-07 protege.
+    const ctx = assertTenant(request.scope, "members.branches");
     const allRows = await fastify.db
       .select({
         id: schema.branches.id,
@@ -141,7 +150,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         timezone: schema.branches.timezone,
       })
       .from(schema.branches)
-      .where(eq(schema.branches.isActive, true))
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.isActive, true),
+        ),
+      )
       .orderBy(schema.branches.name);
 
     const { isOwner, country, branchIds, role } = request.scope;
@@ -195,8 +209,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: { dni: string; excludeUserId?: number };
   }>("/check-dni", { schema: checkDniSchema }, async (request) => {
+    const ctx = assertTenant(request.scope, "members.checkDni");
     const { dni, excludeUserId } = request.query;
-    return memberService.checkDniUniqueness(dni, excludeUserId);
+    return memberService.checkDniUniqueness(ctx, dni, excludeUserId);
   });
 
   // GET /admin/members/check-duplicates?dni=X&phone=Y
@@ -213,6 +228,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/check-duplicates",
     { schema: checkDuplicatesSchema },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.checkDuplicates");
       const { dni, phone } = request.query;
       if (!dni && !phone) {
         return reply.code(400).send({
@@ -221,7 +237,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           code: "MISSING_QUERY",
         });
       }
-      return memberService.checkDuplicates({ dni, phone });
+      return memberService.checkDuplicates(ctx, { dni, phone });
     },
   );
 
@@ -253,11 +269,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       ],
     },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.export");
       // Country scope (Phase 98): always pass request.scope.country into the
       // service so /export mirrors the list endpoint. Non-owners cannot
       // override this (preHandler ignores their ?country=); owners get the
       // country they selected via the admin dropdown.
-      const rows = await memberService.exportMembers({
+      const rows = await memberService.exportMembers(ctx, {
         search: request.query.search,
         branchId: request.query.branchId,
         multiBranch: request.query.multiBranch,
@@ -347,6 +364,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       ],
     },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.exportSepa");
       if (
         !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(
           request.user.role,
@@ -364,7 +382,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const rows = await memberService.exportSepaMembers({
+      const rows = await memberService.exportSepaMembers(ctx, {
         branchId: request.query.branchId,
         status: request.query.status,
       });
@@ -489,7 +507,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         limit,
       };
 
-      const result = await memberService.listMembers(params);
+      const result = await memberService.listMembers(
+        assertTenant(request.scope, "members.list"),
+        params,
+      );
       return { ...result, page, limit };
     },
   );
@@ -504,8 +525,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       limit?: number;
     };
   }>("/search", { schema: searchMembersSchema }, async (request) => {
+    const ctx = assertTenant(request.scope, "members.search");
     const { search, limit = 10 } = request.query;
-    const members = await memberService.searchMembers({
+    const members = await memberService.searchMembers(ctx, {
       search,
       country: request.scope.country ?? undefined,
       limit,
@@ -518,7 +540,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId",
     { schema: getMemberSchema },
     async (request, reply) => {
-      const member = await memberService.getMemberById(request.params.userId);
+      const ctx = assertTenant(request.scope, "members.get");
+      const member = await memberService.getMemberById(
+        ctx,
+        request.params.userId,
+      );
       if (!member) {
         return reply
           .code(404)
@@ -547,7 +573,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             isVirtual: schema.branches.isVirtual,
           })
           .from(schema.branches)
-          .where(eq(schema.branches.id, member.branchId))
+          .where(
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, member.branchId),
+            ),
+          )
           .limit(1);
         if (
           memberBranch &&
@@ -572,6 +603,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Fetch segment + onboarding + avatar data from member_profiles
+      // (member_profiles es tabla strict del módulo — tenantWhere inline).
       const [profile] = await fastify.db
         .select({
           segment: memberProfiles.segment,
@@ -584,7 +616,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           onboardingCompletedAt: memberProfiles.onboardingCompletedAt,
         })
         .from(memberProfiles)
-        .where(eq(memberProfiles.userId, request.params.userId))
+        .where(
+          and(
+            tenantWhere(memberProfiles, ctx),
+            eq(memberProfiles.userId, request.params.userId),
+          ),
+        )
         .limit(1);
 
       const onboardingProfile = profile?.onboardingCompletedAt
@@ -625,6 +662,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [requireBranchAccess({ from: "body.branchId" })],
     },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.create");
       try {
         // Phase 157-03 (REF-03, D-08): validate the assisted-channel referrer
         // server-side — never trust the raw body id (Security V4/T-157-08). A
@@ -639,6 +677,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             .from(schema.users)
             .where(
               and(
+                tenantWhere(schema.users, ctx),
                 eq(schema.users.id, referredBy),
                 isNull(schema.users.deletedAt),
               ),
@@ -653,7 +692,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        const { member, tempPassword } = await memberService.createMember({
+        const { member, tempPassword } = await memberService.createMember(ctx, {
           ...request.body,
           // createdBy from the JWT admin; referredBy is the validated value.
           createdBy: request.user.userId,
@@ -666,7 +705,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         // card, override + reason).
         if (request.body.planId !== undefined) {
           try {
-            const auraService = new AuraService(fastify.db);
             const enrollmentService = new EnrollmentService(
               fastify.db,
               fastify.log,
@@ -674,13 +712,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             const subscriptionService = new SubscriptionService(
               fastify.db,
               fastify.log,
-              auraService,
               undefined,
               enrollmentService,
             );
 
             const today = new Date().toISOString().split("T")[0];
             await subscriptionService.assignPlan(
+              ctx,
               member.id,
               {
                 planId: request.body.planId,
@@ -723,7 +761,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         // by the subscription created above (Plan 02 recomputeUserStatus
         // flips 'prueba' → 'activo' inside assignPlan's transaction).
         const freshMember =
-          (await memberService.getMemberById(member.id)) ?? member;
+          (await memberService.getMemberById(ctx, member.id)) ?? member;
         return reply.code(201).send(freshMember);
       } catch (err: unknown) {
         const { isDuplicate, detail } = isDuplicateKeyError(err);
@@ -766,9 +804,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [requireBranchAccess({ from: "body.branchId" })],
     },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.createTrial");
       try {
         // Phase 114 D-31: createdBy comes from the JWT, never the request body.
-        const { member } = await memberService.createTrialMember({
+        const { member } = await memberService.createTrialMember(ctx, {
           ...request.body,
           createdBy: request.user.userId,
         });
@@ -808,8 +847,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [requireBranchAccess({ from: "body.branchId" })],
     },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.convertToTrial");
       try {
         const member = await memberService.convertFreemiumToTrial(
+          ctx,
           request.params.userId,
           {
             branchId: request.body.branchId,
@@ -872,6 +913,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       ],
     },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.update");
       try {
         // Read current state up front. Needed by both the virtual→presencial
         // conversion detection AND the SP→legajo auto-promotion, so we hoist
@@ -889,9 +931,18 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .from(schema.users)
           .innerJoin(
             schema.branches,
-            eq(schema.branches.id, schema.users.branchId),
+            // El filtro de la tabla joineada va en el ON, también en el INNER.
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, schema.users.branchId),
+            ),
           )
-          .where(eq(schema.users.id, request.params.userId))
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, request.params.userId),
+            ),
+          )
           .limit(1);
 
         if (!current) {
@@ -912,7 +963,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           const [target] = await fastify.db
             .select({ isVirtual: schema.branches.isVirtual })
             .from(schema.branches)
-            .where(eq(schema.branches.id, request.body.branchId))
+            .where(
+              and(
+                tenantWhere(schema.branches, ctx),
+                eq(schema.branches.id, request.body.branchId),
+              ),
+            )
             .limit(1);
 
           if (target && !target.isVirtual) {
@@ -951,6 +1007,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const member = await memberService.updateMember(
+          ctx,
           request.params.userId,
           request.body,
         );
@@ -967,7 +1024,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           // sub (typical freemium), we force status='inactivo' ourselves —
           // recomputeUserStatus is a no-op when transitioning out of
           // freemium, so the manual write is required.
-          const auraService = new AuraService(fastify.db);
           const enrollmentService = new EnrollmentService(
             fastify.db,
             request.log,
@@ -975,7 +1031,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           const subscriptionService = new SubscriptionService(
             fastify.db,
             request.log,
-            auraService,
             undefined,
             enrollmentService,
           );
@@ -997,6 +1052,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             // authenticated admin's userId so the audit_log row records the
             // real principal who triggered the conversion.
             await subscriptionService.cancelSubscription(
+              ctx,
               request.params.userId,
               request.user.userId,
               "Conversión a presencial",
@@ -1016,15 +1072,22 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
               await tx
                 .update(schema.users)
                 .set({ status: "inactivo" })
-                .where(eq(schema.users.id, request.params.userId));
+                .where(
+                  and(
+                    tenantWhere(schema.users, ctx),
+                    eq(schema.users.id, request.params.userId),
+                  ),
+                );
 
               if (statusBefore !== "inactivo") {
-                await tx.insert(schema.userStatusHistory).values({
-                  userId: request.params.userId,
-                  fromStatus: statusBefore,
-                  toStatus: "inactivo",
-                  source: "admin",
-                });
+                await tx.insert(schema.userStatusHistory).values(
+                  tenantValues(ctx, {
+                    userId: request.params.userId,
+                    fromStatus: statusBefore,
+                    toStatus: "inactivo",
+                    source: "admin",
+                  }),
+                );
                 request.log.info(
                   {
                     userId: request.params.userId,
@@ -1049,6 +1112,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           // Re-read so the response reflects status='inactivo' and any
           // side-effects from cancelSubscription.
           const refreshed = await memberService.getMemberById(
+            ctx,
             request.params.userId,
           );
           if (refreshed) return refreshed;
@@ -1089,14 +1153,21 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
               await tx
                 .update(schema.users)
                 .set({ status: "inactivo" })
-                .where(eq(schema.users.id, request.params.userId));
+                .where(
+                  and(
+                    tenantWhere(schema.users, ctx),
+                    eq(schema.users.id, request.params.userId),
+                  ),
+                );
 
-              await tx.insert(schema.userStatusHistory).values({
-                userId: request.params.userId,
-                fromStatus: statusBefore,
-                toStatus: "inactivo",
-                source: "admin",
-              });
+              await tx.insert(schema.userStatusHistory).values(
+                tenantValues(ctx, {
+                  userId: request.params.userId,
+                  fromStatus: statusBefore,
+                  toStatus: "inactivo",
+                  source: "admin",
+                }),
+              );
               request.log.info(
                 {
                   userId: request.params.userId,
@@ -1116,6 +1187,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
             );
 
             const refreshed = await memberService.getMemberById(
+              ctx,
               request.params.userId,
             );
             if (refreshed) return refreshed;
@@ -1173,6 +1245,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId",
     { schema: deleteMemberSchema },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.delete");
       if (
         !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(
           request.user.role,
@@ -1199,9 +1272,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         .from(schema.users)
         .innerJoin(
           schema.branches,
-          eq(schema.branches.id, schema.users.branchId),
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, schema.users.branchId),
+          ),
         )
-        .where(eq(schema.users.id, request.params.userId))
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, request.params.userId),
+          ),
+        )
         .limit(1);
 
       if (!target || target.deletedAt) {
@@ -1225,12 +1306,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       // owns. cancelSubscription also nukes the scheduled successor (if any)
       // and calls BookingService.cancelFutureBookings for fixed-plan subs
       // — so this one call covers subscription-tied bookings.
-      const auraService = new AuraService(fastify.db);
       const enrollmentService = new EnrollmentService(fastify.db, request.log);
       const subscriptionService = new SubscriptionService(
         fastify.db,
         request.log,
-        auraService,
         undefined,
         enrollmentService,
       );
@@ -1251,6 +1330,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         // authenticated principal so the audit_log row records who triggered
         // the soft-delete cascade (T-111-15 mitigation).
         await subscriptionService.cancelSubscription(
+          ctx,
           request.params.userId,
           request.user.userId,
           "Cancelado por eliminación del alumno",
@@ -1312,6 +1392,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         })
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, request.params.userId),
             sql`${schema.bookings.bookingDate} >= ${today}`,
             inArray(schema.bookings.status, ["reservado", "lista_espera"]),
@@ -1319,6 +1400,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         );
 
       const result = await memberService.softDeleteMember(
+        ctx,
         request.params.userId,
       );
 
@@ -1357,6 +1439,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/password",
     { schema: resetMemberPasswordSchema },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.password");
       if (
         !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(
           request.user.role,
@@ -1381,9 +1464,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         .from(schema.users)
         .innerJoin(
           schema.branches,
-          eq(schema.branches.id, schema.users.branchId),
+          and(
+            tenantWhere(schema.branches, ctx),
+            eq(schema.branches.id, schema.users.branchId),
+          ),
         )
-        .where(eq(schema.users.id, request.params.userId))
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, request.params.userId),
+          ),
+        )
         .limit(1);
 
       if (!target || target.deletedAt) {
@@ -1404,6 +1495,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const result = await memberService.resetMemberPassword(
+        ctx,
         request.params.userId,
       );
 
@@ -1437,6 +1529,35 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/photo/upload-url",
     { schema: uploadPhotoUrlSchema },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.photo");
+
+      // Fase 173-27 (T-173-27-06, D-06): sin este chequeo, la ruta generaba
+      // una URL prefirmada de R2 para CUALQUIER userId, incluido uno de otro
+      // gimnasio — `updatePhoto` ya filtraba el UPDATE con `tenantWhere`
+      // (no-op para un socio ajeno), pero la URL en sí se generaba igual.
+      // Mismo contrato que el resto de la ficha: socio ajeno = inexistente.
+      //
+      // La existencia/tenancy se resuelve ANTES que la disponibilidad del
+      // storage: un socio ajeno debe dar 404 (indistinguible de inexistente)
+      // aunque R2 no esté configurado. Si el 503 fuera primero, el recurso
+      // ajeno se filtraría como "existe pero sin storage".
+      const [target] = await fastify.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, request.params.userId),
+            isNull(schema.users.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!target) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
       if (!fastify.r2) {
         return reply.code(503).send({
           error: "Servicio no disponible",
@@ -1469,7 +1590,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       const publicUrl = `${process.env.R2_PUBLIC_URL || ""}/${key}`;
 
       // Save publicUrl to DB immediately
-      await memberService.updatePhoto(request.params.userId, publicUrl);
+      await memberService.updatePhoto(ctx, request.params.userId, publicUrl);
 
       request.log.info(
         { userId: request.params.userId, key },
@@ -1492,10 +1613,15 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/session-levels",
     { schema: getMemberSessionLevelsSchema },
     async (request) => {
+      const ctx = assertTenant(request.scope, "members.sessionLevels");
       const { userId } = request.params;
       // Defense-in-depth clamp (schema already validates [1, 365] with default 30)
       const days = Math.max(1, Math.min(365, request.query.days ?? 30));
-      const counts = await memberService.getSessionLevelCounts(userId, days);
+      const counts = await memberService.getSessionLevelCounts(
+        ctx,
+        userId,
+        days,
+      );
       return { counts };
     },
   );
@@ -1514,6 +1640,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/financial-history",
     { schema: financialHistorySchema },
     async (request, reply) => {
+      // Hoisteado (antes vivía inline recién al llamar al service): esta
+      // misma query directa de abajo (target) también necesita ctx.
+      const ctx = assertTenant(request.scope, "members.financial-history");
       try {
         // D-04 privacy override (FINANCE_READ_ROLES is stricter than
         // MEMBER_ROLES: it excludes 'coach'). The module-level hook admits
@@ -1542,9 +1671,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .from(schema.users)
           .innerJoin(
             schema.branches,
-            eq(schema.branches.id, schema.users.branchId),
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, schema.users.branchId),
+            ),
           )
-          .where(eq(schema.users.id, request.params.userId))
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, request.params.userId),
+            ),
+          )
           .limit(1);
 
         if (!target || target.deletedAt) {
@@ -1567,6 +1704,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         return await transactionService.getFinancialHistory(
+          ctx,
           request.params.userId,
           {
             page: request.query.page,
@@ -1588,6 +1726,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/outstanding-concepts",
     { schema: outstandingConceptsSchema },
     async (request, reply) => {
+      // Hoisteado por la misma razón que financial-history: el target de
+      // abajo también necesita ctx.
+      const ctx = assertTenant(request.scope, "members.outstanding-concepts");
       try {
         // D-04 privacy override (FINANCE_READ_ROLES es más estricto que
         // MEMBER_ROLES — excluye 'coach'). El módulo-level hook admite coach
@@ -1614,9 +1755,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .from(schema.users)
           .innerJoin(
             schema.branches,
-            eq(schema.branches.id, schema.users.branchId),
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, schema.users.branchId),
+            ),
           )
-          .where(eq(schema.users.id, request.params.userId))
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, request.params.userId),
+            ),
+          )
           .limit(1);
 
         if (!target || target.deletedAt) {
@@ -1640,6 +1789,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
         // D-03: cuando no hay saldos abiertos, retornar { concepts: [] }.
         const concepts = await transactionService.getOutstandingConcepts(
+          ctx,
           request.params.userId,
         );
         return { concepts };
@@ -1658,7 +1808,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/notes",
     { schema: listNotesSchema },
     async (request) => {
-      const notes = await memberService.getNotes(request.params.userId);
+      const ctx = assertTenant(request.scope, "members.notes");
+      const notes = await memberService.getNotes(ctx, request.params.userId);
       return { notes };
     },
   );
@@ -1674,8 +1825,14 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
    *
    * El cross-country responde 404 y no 403 a propósito (mirror del patrón de
    * DELETE /:userId): un 403 confirmaría que el id existe en otro país.
+   *
+   * 173-20 (trampa (c)): esta closure vive en el cuerpo del plugin y no tiene
+   * `request.scope` resuelto a `TenantContext` por sí sola — recibe `ctx`
+   * como PRIMER parámetro, y cada call site le pasa el que su handler ya
+   * resolvió con `assertTenant`.
    */
   async function assertReferralTargetInScope(
+    ctx: TenantContext,
     request: FastifyRequest<{ Params: { userId: number } }>,
   ): Promise<number> {
     const { role } = request.user;
@@ -1697,8 +1854,14 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         branchIsVirtual: schema.branches.isVirtual,
       })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(eq(schema.users.id, targetId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, targetId)))
       .limit(1);
 
     if (!target || target.deletedAt) {
@@ -1720,10 +1883,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { userId: number } }>(
     "/:userId/referrals",
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.referrals");
       try {
-        const targetId = await assertReferralTargetInScope(request);
+        const targetId = await assertReferralTargetInScope(ctx, request);
         const referralService = new ReferralService(fastify.db, fastify.log);
-        return await referralService.getReferralOverview(targetId);
+        return await referralService.getReferralOverview(ctx, targetId);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get member referrals");
       }
@@ -1747,8 +1911,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/referrals",
     { schema: assignReferrerSchema },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.referrals");
       try {
-        const targetId = await assertReferralTargetInScope(request);
+        const targetId = await assertReferralTargetInScope(ctx, request);
         const referralService = new ReferralService(fastify.db, fastify.log);
         const result = await referralService.assignReferrerToMember({
           referredId: targetId,
@@ -1756,8 +1921,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           createdBy: request.user.userId,
           // El gimnasio SIEMPRE sale del scope del request, nunca del body
           // (mass-assignment, T-169-02). Un scope no resoluble es DENY.
-          tenantId: assertTenant(request.scope, "referrals.assignReferrer")
-            .tenantId,
+          tenantId: ctx.tenantId,
         });
         return reply.code(201).send(result);
       } catch (err: unknown) {
@@ -1776,21 +1940,15 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: { userId: number } }>(
     "/:userId/partner-referral",
     async (request, reply) => {
+      // El gimnasio SIEMPRE sale del scope del request (T-169-02).
+      const ctx = assertTenant(request.scope, "referralPartners.getMemberLink");
       try {
-        const targetId = await assertReferralTargetInScope(request);
+        const targetId = await assertReferralTargetInScope(ctx, request);
         const partnerService = new PartnerReferralService(
           fastify.db,
           fastify.log,
         );
-        return await partnerService.getMemberPartnerLink(
-          {
-            tenantId: assertTenant(
-              request.scope,
-              "referralPartners.getMemberLink",
-            ).tenantId,
-          },
-          targetId,
-        );
+        return await partnerService.getMemberPartnerLink(ctx, targetId);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get member partner link");
       }
@@ -1808,8 +1966,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/partner-referral",
     { schema: assignPartnerToMemberBodySchema },
     async (request, reply) => {
+      // El gimnasio SIEMPRE sale del scope del request, nunca del body
+      // (mass-assignment, T-169-02). Un scope no resoluble es DENY.
+      const ctx = assertTenant(request.scope, "referralPartners.assignPartner");
       try {
-        const targetId = await assertReferralTargetInScope(request);
+        const targetId = await assertReferralTargetInScope(ctx, request);
         const partnerService = new PartnerReferralService(
           fastify.db,
           fastify.log,
@@ -1818,12 +1979,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           referredId: targetId,
           partnerId: request.body.partnerId,
           createdBy: request.user.userId,
-          // El gimnasio SIEMPRE sale del scope del request, nunca del body
-          // (mass-assignment, T-169-02). Un scope no resoluble es DENY.
-          tenantId: assertTenant(
-            request.scope,
-            "referralPartners.assignPartner",
-          ).tenantId,
+          tenantId: ctx.tenantId,
         });
         return reply.code(201).send(result);
       } catch (err: unknown) {
@@ -1838,19 +1994,16 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete<{ Params: { userId: number } }>(
     "/:userId/partner-referral",
     async (request, reply) => {
+      // El gimnasio SIEMPRE sale del scope del request (T-169-02).
+      const ctx = assertTenant(request.scope, "referralPartners.revokeLink");
       try {
-        const targetId = await assertReferralTargetInScope(request);
+        const targetId = await assertReferralTargetInScope(ctx, request);
         const partnerService = new PartnerReferralService(
           fastify.db,
           fastify.log,
         );
         const result = await partnerService.revokePartnerLink(
-          {
-            tenantId: assertTenant(
-              request.scope,
-              "referralPartners.revokeLink",
-            ).tenantId,
-          },
+          ctx,
           targetId,
           request.user.userId,
         );
@@ -1866,7 +2019,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/notes",
     { schema: createNoteSchema },
     async (request, reply) => {
-      const note = await memberService.createNote(request.user.userId, {
+      const ctx = assertTenant(request.scope, "members.notes");
+      const note = await memberService.createNote(ctx, request.user.userId, {
         userId: request.params.userId,
         content: request.body.content,
       });
@@ -1882,10 +2036,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/notes/:noteId",
     { schema: updateNoteSchema },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.notes");
       const { noteId } = request.params;
 
       // Fetch note to check authorization
-      const notes = await memberService.getNotes(request.params.userId);
+      const notes = await memberService.getNotes(ctx, request.params.userId);
       const existingNote = notes.find((n) => n.id === noteId);
 
       if (!existingNote) {
@@ -1907,7 +2062,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const updated = await memberService.updateNote(noteId, {
+      const updated = await memberService.updateNote(ctx, noteId, {
         content: request.body.content,
       });
       if (!updated) {
@@ -1924,10 +2079,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     "/:userId/notes/:noteId",
     { schema: deleteNoteSchema },
     async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.notes");
       const { noteId } = request.params;
 
       // Fetch note to check authorization
-      const notes = await memberService.getNotes(request.params.userId);
+      const notes = await memberService.getNotes(ctx, request.params.userId);
       const existingNote = notes.find((n) => n.id === noteId);
 
       if (!existingNote) {
@@ -1949,7 +2105,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      await memberService.deleteNote(noteId);
+      await memberService.deleteNote(ctx, noteId);
       return { success: true };
     },
   );

@@ -43,6 +43,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { backboneNodeConditions } from "../exercises/backbone-scope";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   LEVEL_LINEAR_MIN,
   toContentLevel,
@@ -371,13 +372,16 @@ function buildPrereqMap(
  */
 export async function buildMemberTree(
   db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
   userId: number,
   log: TreeLogger,
 ): Promise<MemberTree> {
+  // T-173-09-01: `users` es tabla strict. El ctx llega ya resuelto desde el
+  // borde del handler (tree-progress/routes.ts, D-09).
   const [user] = await db
     .select({ level: schema.users.level })
     .from(schema.users)
-    .where(eq(schema.users.id, userId))
+    .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
     .limit(1);
 
   // Default to the lowest level if (defensively) the row is missing a level.

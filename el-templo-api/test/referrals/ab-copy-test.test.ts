@@ -14,13 +14,25 @@
  * "expuestos" (socios activos) arrancan en 0 y los conteos son determinísticos.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
 import { referralCopyVariant } from "../../src/modules/referrals/ab-variant";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de la escritura DIRECTA de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES un UPDATE crudo sin
+ * `tenant_id` en el predicado hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
+/** El `referrer` de la sección self-service nace en el tenant 1 (branchId
+ * default de `createMember`, no override) — `generateReferralCode` (T-175-04)
+ * recibe `ctx` primero. */
+const CTX = { tenantId: 1 };
 
 const CTA_URL = "/api/members/referrals/cta-click";
 const AB_URL = "/api/admin/referrals/ab-results";
@@ -58,13 +70,13 @@ beforeEach(async () => {
 
 async function setActivo(userId: number): Promise<void> {
   await app.db.execute(
-    sql`UPDATE users SET status='activo' WHERE id=${userId}`,
+    sql`UPDATE users SET status='activo' WHERE id=${userId} AND tenant_id = ${TEMPLO_CTX.tenantId}`,
   );
 }
 
 async function insertClick(userId: number, variant: "A" | "B"): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referral_cta_clicks (user_id, variant) VALUES (${userId}, ${variant})`,
+    sql`INSERT INTO referral_cta_clicks (tenant_id, user_id, variant) VALUES (1, ${userId}, ${variant})`,
   );
 }
 
@@ -75,8 +87,8 @@ async function linkWithVariant(
   variant: "A" | "B",
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at, copy_variant)
-        VALUES (${referrerId}, ${referredId}, ${status}, 'assisted', NOW(), ${variant})`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel, qualified_at, copy_variant)
+        VALUES (1, ${referrerId}, ${referredId}, ${status}, 'assisted', NOW(), ${variant})`,
   );
 }
 
@@ -100,7 +112,9 @@ describe("POST /api/members/referrals/cta-click", () => {
     const clicks = await app.db
       .select()
       .from(schema.referralCtaClicks)
-      .where(eq(schema.referralCtaClicks.userId, m.id));
+      .where(
+        sql`/* tenant-safe: filtro por userId propio (users.id, globalmente único) */ ${schema.referralCtaClicks.userId} = ${m.id}`,
+      );
     expect(clicks).toHaveLength(1);
     // Server-derived: la variante NO viene del cliente, se calcula del id.
     expect(clicks[0].variant).toBe(referralCopyVariant(m.id));
@@ -117,7 +131,9 @@ describe("POST /api/members/referrals/cta-click", () => {
     const clicks = await app.db
       .select()
       .from(schema.referralCtaClicks)
-      .where(eq(schema.referralCtaClicks.userId, m.id));
+      .where(
+        sql`/* tenant-safe: filtro por userId propio (users.id, globalmente único) */ ${schema.referralCtaClicks.userId} = ${m.id}`,
+      );
     expect(clicks).toHaveLength(2);
   });
 });
@@ -126,7 +142,7 @@ describe("copy_variant se estampa al crear el vínculo (self-service ?ref)", () 
   it("estampa referralCopyVariant(referrerId) en el vínculo del referido", async () => {
     const referrer = await createMember(app, { email: "ss-referrer@test.com" });
     const service = new ReferralService(app.db, app.log);
-    const code = await service.generateReferralCode(referrer.id);
+    const code = await service.generateReferralCode(CTX, referrer.id);
 
     // Alta self-service del referido con ?ref=CODE (payload directo: registerUser
     // no expone `ref`). Datos únicos para no chocar con constraints.
@@ -152,7 +168,9 @@ describe("copy_variant se estampa al crear el vínculo (self-service ?ref)", () 
     const rows = await app.db
       .select()
       .from(schema.referrals)
-      .where(eq(schema.referrals.referredId, referredId));
+      .where(
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${schema.referrals.referredId} = ${referredId}`,
+      );
     expect(rows).toHaveLength(1);
     expect(rows[0].copyVariant).toBe(referralCopyVariant(referrer.id));
   });

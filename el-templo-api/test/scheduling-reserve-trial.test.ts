@@ -21,7 +21,7 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -29,6 +29,11 @@ import {
   cleanAllTestData,
 } from "./helpers";
 import * as schema from "../src/db/schema";
+import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 const ADMIN_URL = "/api/admin/scheduling";
 const RESERVE_TRIAL_URL = "/api/members/scheduling/reserve-trial";
@@ -156,7 +161,7 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
         branchId: schema.users.branchId,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status).toBe("prueba");
     expect(user.leadStatus).toBe("en_seguimiento");
@@ -170,7 +175,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
         source: schema.userStatusHistory.source,
       })
       .from(schema.userStatusHistory)
-      .where(eq(schema.userStatusHistory.userId, id));
+      .where(
+        and(
+          tenantWhere(schema.userStatusHistory, CTX),
+          eq(schema.userStatusHistory.userId, id),
+        ),
+      );
     expect(history).toHaveLength(1);
     expect(history[0].fromStatus).toBe("freemium");
     expect(history[0].toStatus).toBe("prueba");
@@ -183,7 +193,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
         status: schema.bookings.status,
       })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      )
       .limit(1);
     expect(booking.isTrial).toBe(true);
     expect(booking.source).toBe("self_service"); // D-18 attribution
@@ -201,7 +216,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [slot] = await app.db
       .select({ isTrial: schema.bookings.isTrial })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      )
       .limit(1);
     expect(slot.isTrial).toBe(true);
   });
@@ -233,7 +253,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [booking] = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      )
       .limit(1);
 
     const cancelRes = await app.inject({
@@ -247,7 +272,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [after] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, booking.id))
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.id, booking.id),
+        ),
+      )
       .limit(1);
     expect(after.status).toBe("reservado");
   });
@@ -299,7 +329,7 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     await app.db
       .update(schema.users)
       .set({ status: "activo" })
-      .where(eq(schema.users.id, id));
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)));
 
     const { statusCode } = await reserve(token, {
       scheduleId,
@@ -312,7 +342,12 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const bookings = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      );
     expect(bookings).toHaveLength(0);
   });
 
@@ -334,6 +369,7 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [plan] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: TENANT_TEMPLO,
         name: "Trial Guard Plan",
         planTier: "foundation",
         bookingMode: "flexible",
@@ -345,6 +381,7 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
       .$returningId();
 
     await app.db.insert(schema.subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: id,
       planId: plan.id,
       branchId: physicalBranchId,
@@ -376,14 +413,19 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status).toBe("freemium");
     expect(user.phone).toBeNull();
     const bookings = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      );
     expect(bookings).toHaveLength(0);
   });
 
@@ -402,7 +444,7 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status).toBe("prueba");
     // WR-02: full number with country code → wa.me-resolvable (was "1122334455").
@@ -425,14 +467,19 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     const [user] = await app.db
       .select({ status: schema.users.status, phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, id))
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, id)))
       .limit(1);
     expect(user.status).toBe("freemium");
     expect(user.phone).toBeNull();
     const bookings = await app.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, id),
+        ),
+      );
     expect(bookings).toHaveLength(0);
   });
 });

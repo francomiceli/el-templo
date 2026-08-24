@@ -24,7 +24,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -192,7 +192,9 @@ describe("improvement-proposals", () => {
       const rows = await app.db
         .select()
         .from(schema.improvementProposals)
-        .where(eq(schema.improvementProposals.memberId, ctx.memberArId));
+        .where(
+          sql`/* tenant-safe: filtro por member_id (users.id, globalmente único) — acota a las filas de un solo socio sin ambigüedad */ ${schema.improvementProposals.memberId} = ${ctx.memberArId}`,
+        );
       expect(rows).toHaveLength(1);
       expect(rows[0].branchId).toBe(ctx.arBranchId);
       expect(rows[0].proposal).toBe("Más barras paralelas por favor");

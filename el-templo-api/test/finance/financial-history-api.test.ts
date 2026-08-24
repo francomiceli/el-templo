@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -27,6 +27,15 @@ import {
   ensureEfectivoCaja,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de las queries DIRECTAS de este archivo. Con
+ * `members` en TENANT_STRICT_MODULES una lectura/escritura de `users` sin
+ * estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const TODAY = "2026-04-28";
 
@@ -118,7 +127,12 @@ async function seedUsersAndPlan(
   const [ownerRow] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   ctx.ownerId = ownerRow.id;
 
@@ -631,7 +645,12 @@ describe("GET /admin/members/:userId/financial-history", () => {
     await app.db
       .update(schema.users)
       .set({ deletedAt: new Date() })
-      .where(eq(schema.users.id, ctx.memberArId));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, ctx.memberArId),
+        ),
+      );
 
     const res = await app.inject({
       method: "GET",

@@ -15,8 +15,13 @@ import {
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/** Fase 174.1-03 (D-02): `getRetention` ahora recibe `ctx`. */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 118 Plan 02 — RetentionService (D-04 / D-05 / D-06 / D-11 / D-12).
@@ -152,7 +157,7 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         endDate: "2026-04-01",
       });
 
-      const res = await svc.getRetention({});
+      const res = await svc.getRetention(CTX, {});
       const cohort = res.cohorts.find((c) => c.cohort === "2026-01");
       expect(cohort).toBeDefined();
       expect(cohort!.size).toBe(1);
@@ -176,7 +181,7 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         endDate: "2026-04-02",
       });
 
-      const res = await svc.getRetention({});
+      const res = await svc.getRetention(CTX, {});
       const cohort = res.cohorts.find((c) => c.cohort === "2026-01");
       expect(cohort).toBeDefined();
       expect(cohort!.size).toBe(1);
@@ -199,7 +204,7 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         endDate: "2026-03-22",
       });
 
-      const res = await svc.getRetention({});
+      const res = await svc.getRetention(CTX, {});
       const cohort = res.cohorts.find((c) => c.cohort === "2026-02");
       expect(cohort).toBeDefined();
       expect(cohort!.size).toBe(2);
@@ -219,7 +224,7 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         endDate: "2026-05-31",
       });
 
-      const res = await svc.getRetention({});
+      const res = await svc.getRetention(CTX, {});
       const jan = res.cohorts.find((c) => c.cohort === "2026-01");
       expect(jan).toBeDefined();
       expect(jan!.size).toBe(1);
@@ -282,7 +287,7 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         status: "active",
       });
 
-      const res = await svc.getRetention({});
+      const res = await svc.getRetention(CTX, {});
       expect(res.cycleDistribution.ciclo3plus).toBe(1); // active3 only
       expect(res.cycleDistribution.ciclo1).toBe(1); // active1
       expect(res.cycleDistribution.ciclo2).toBe(0);
@@ -311,15 +316,15 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         planId: onlinePlan,
       });
 
-      const all = await svc.getRetention({});
+      const all = await svc.getRetention(CTX, {});
       expect(all.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(2);
 
-      const presOnly = await svc.getRetention({ planId: presencialPlan });
+      const presOnly = await svc.getRetention(CTX, { planId: presencialPlan });
       expect(presOnly.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(
         1,
       );
 
-      const onlOnly = await svc.getRetention({ planId: onlinePlan });
+      const onlOnly = await svc.getRetention(CTX, { planId: onlinePlan });
       expect(onlOnly.cohorts.find((c) => c.cohort === "2026-01")!.size).toBe(1);
     });
 
@@ -350,7 +355,7 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         planId: longPlan, // 240d
       });
 
-      const res = await svc.getRetention({});
+      const res = await svc.getRetention(CTX, {});
       // Only plans with subs in scope; sorted by duration asc (30 before 240).
       expect(res.availablePlans.map((p) => p.id)).toEqual([
         presencialPlan,
@@ -360,7 +365,7 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
       expect(res.availablePlans[0].name).toContain("RetPresencial");
 
       // ignores the plan filter itself → full list even when filtered.
-      const filtered = await svc.getRetention({ planId: presencialPlan });
+      const filtered = await svc.getRetention(CTX, { planId: presencialPlan });
       expect(filtered.availablePlans.map((p) => p.id)).toEqual([
         presencialPlan,
         longPlan,
@@ -389,7 +394,7 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         branchId: branchES,
       });
 
-      const onlyA = await svc.getRetention({ branchId: branchA });
+      const onlyA = await svc.getRetention(CTX, { branchId: branchA });
       const jan = onlyA.cohorts.find((c) => c.cohort === "2026-01");
       expect(jan!.size).toBe(1);
     });
@@ -417,7 +422,7 @@ describe("RetentionService (Phase 118 Plan 02)", () => {
         endDate: "2026-03-01",
       });
 
-      const res = await svc.getRetention({});
+      const res = await svc.getRetention(CTX, {});
       expect(res.invalidWindowSubs).toBe(2);
       const jan = res.cohorts.find((c) => c.cohort === "2026-01");
       expect(jan!.size).toBe(1);

@@ -38,6 +38,16 @@ import {
   ensureEfectivoCaja,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (172-14): gimnasio de las queries DIRECTAS de este archivo. Sale del
+ * fixture, nunca de un `1` a mano. Con `finance` en `TENANT_STRICT_MODULES` el
+ * sentinel hace throw sobre cualquier acceso a `financial_transactions` /
+ * `balances` sin gimnasio en el predicado — incluidos los `sql` crudos.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const COACH_LOAD_URL = "/api/admin/finance/coach-load";
 const FINANCE_URL = "/api/admin/finance";
@@ -104,7 +114,12 @@ async function readChargeByKey(key: string): Promise<{
       voidedAt: schema.financialTransactions.voidedAt,
     })
     .from(schema.financialTransactions)
-    .where(eq(schema.financialTransactions.idempotencyKey, key))
+    .where(
+      and(
+        eq(schema.financialTransactions.idempotencyKey, key),
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }
@@ -116,7 +131,7 @@ async function readUser(
   const [row] = await app.db
     .select({ status: schema.users.status, email: schema.users.email })
     .from(schema.users)
-    .where(eq(schema.users.id, id))
+    .where(and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, id)))
     .limit(1);
   return row ?? null;
 }
@@ -126,7 +141,9 @@ async function countUsersByDni(dni: string): Promise<number> {
   const [row] = await app.db
     .select({ count: sql<number>`COUNT(*)` })
     .from(schema.users)
-    .where(eq(schema.users.dni, dni));
+    .where(
+      and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.dni, dni)),
+    );
   return Number(row?.count ?? 0);
 }
 
@@ -143,6 +160,7 @@ async function readSubBalance(
         eq(schema.balances.memberId, memberId),
         eq(schema.balances.targetKind, "subscription"),
         eq(schema.balances.targetId, subscriptionId),
+        tenantWhere(schema.balances, TEMPLO_CTX),
       ),
     )
     .limit(1);
@@ -166,6 +184,7 @@ async function createScheduleSlots(
     const startTime = `${String(startHour).padStart(2, "0")}:00`;
     const endTime = `${String(startHour + 1).padStart(2, "0")}:00`;
     const result = await app.db.insert(schema.schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId: branch,
       activityId: act.id,
       dayOfWeek,
@@ -184,7 +203,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id, branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   branchId = admin.branchId ?? 1;
   adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
@@ -204,6 +228,7 @@ beforeAll(async () => {
   const [flexRes] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Alta Flex Plan",
       planTier: "flex",
       bookingMode: "flexible",
@@ -222,6 +247,7 @@ beforeAll(async () => {
   const [fixedRes] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Alta Fixed Plan",
       planTier: "flex",
       bookingMode: "fixed",
@@ -243,6 +269,7 @@ beforeAll(async () => {
   const [onlineRes] = await app.db
     .insert(schema.subscriptionPlans)
     .values({
+      tenantId: TENANT_TEMPLO,
       name: "Alta Online Plan",
       planTier: "flex",
       bookingMode: "flexible",
@@ -262,15 +289,43 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  // Limpiar el estado finance + suscripciones entre tests (FK checks off vía la
-  // conexión raw es innecesario acá; el orden cubre las FKs). Los users creados
-  // por /alta persisten pero usan DNIs únicos → no interfieren.
-  await app.db.execute(sql`DELETE FROM transaction_links`);
-  await app.db.execute(sql`DELETE FROM financial_transactions`);
-  await app.db.execute(sql`DELETE FROM balances`);
-  await app.db.execute(sql`DELETE FROM bookings`);
-  await app.db.execute(sql`DELETE FROM subscription_schedules`);
-  await app.db.execute(sql`DELETE FROM subscriptions`);
+  // Limpiar el estado finance + suscripciones en UNA conexion del pool con FK
+  // checks off (mismo patron que coach-load.test.ts): "el orden cubre las FKs"
+  // era falso en cuanto otro archivo del mismo worker (isolate=false) deja
+  // program_enrollments referenciando subscriptions — ER_ROW_IS_REFERENCED_2.
+  // Los users creados por /alta persisten pero usan DNIs únicos → no interfieren.
+  // 172-14: los 3 DELETE sobre tablas strict se ACOTAN al gimnasio en vez de
+  // llevar exencion `tenant-safe`. El borrado global aca era comodidad, no
+  // diseno: este archivo no siembra en otro gimnasio. La conexion cruda del
+  // pool es una de las puertas que el sentinel intercepta: sin filtro, throw.
+  const conn = await app.dbPool.getConnection();
+  try {
+    await conn.query("SET FOREIGN_KEY_CHECKS=0");
+    await conn.query("DELETE FROM `transaction_links` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `financial_transactions` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
+    await conn.query("DELETE FROM `balances` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query("DELETE FROM `bookings` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query(
+      "DELETE FROM `subscription_schedules` WHERE tenant_id = ?",
+      [TENANT_TEMPLO],
+    );
+    await conn.query("DELETE FROM `program_enrollments`");
+    await conn.query("DELETE FROM `subscriptions` WHERE tenant_id = ?", [
+      TENANT_TEMPLO,
+    ]);
+    await conn.query("SET FOREIGN_KEY_CHECKS=1");
+  } finally {
+    conn.release();
+  }
 });
 
 // ─── 1. crear-nuevo ──────────────────────────────────────────────────────────
@@ -305,6 +360,7 @@ describe("alta crear-nuevo", () => {
       .from(schema.userStatusHistory)
       .where(
         and(
+          tenantWhere(schema.userStatusHistory, TEMPLO_CTX),
           eq(schema.userStatusHistory.userId, body.createdMemberId),
           eq(schema.userStatusHistory.toStatus, "prueba"),
         ),
@@ -316,7 +372,12 @@ describe("alta crear-nuevo", () => {
     const [sub] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, body.subscription.id))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, body.subscription.id),
+        ),
+      )
       .limit(1);
     expect(sub.status).toBe("active");
 
@@ -369,7 +430,12 @@ describe("alta dedup-contra-existente", () => {
     const [sub] = await app.db
       .select({ userId: schema.subscriptions.userId })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, body.subscription.id))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, body.subscription.id),
+        ),
+      )
       .limit(1);
     expect(sub.userId).toBe(existingId);
 
@@ -437,7 +503,13 @@ describe("alta fixed-con-scheduleIds", () => {
       .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
       .from(schema.subscriptionSchedules)
       .where(
-        eq(schema.subscriptionSchedules.subscriptionId, body.subscription.id),
+        and(
+          eq(schema.subscriptionSchedules.tenantId, TENANT_TEMPLO),
+          eq(
+            schema.subscriptionSchedules.subscriptionId,
+            body.subscription.id,
+          ),
+        ),
       );
     expect(schedRows.map((r) => r.scheduleId).sort()).toEqual(
       [...slots].sort(),
@@ -447,7 +519,12 @@ describe("alta fixed-con-scheduleIds", () => {
     const [bk] = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, body.createdMemberId));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, body.createdMemberId),
+        ),
+      );
     expect(Number(bk.count)).toBeGreaterThan(0);
   });
 
@@ -522,7 +599,12 @@ describe("alta void→cascade", () => {
     const [sub] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subId))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, subId),
+        ),
+      )
       .limit(1);
     expect(sub.status).toBe("cancelled");
 
@@ -537,6 +619,7 @@ describe("alta void→cascade", () => {
       .from(schema.userStatusHistory)
       .where(
         and(
+          tenantWhere(schema.userStatusHistory, TEMPLO_CTX),
           eq(schema.userStatusHistory.userId, createdMemberId),
           eq(schema.userStatusHistory.toStatus, "inactivo"),
         ),
@@ -598,7 +681,12 @@ describe("alta void→cascade", () => {
     const [onlineSub] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, onlineSubId))
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, onlineSubId),
+        ),
+      )
       .limit(1);
     expect(onlineSub.status).toBe("active");
 
@@ -608,6 +696,7 @@ describe("alta void→cascade", () => {
       .from(schema.userStatusHistory)
       .where(
         and(
+          tenantWhere(schema.userStatusHistory, TEMPLO_CTX),
           eq(schema.userStatusHistory.userId, existingId),
           eq(schema.userStatusHistory.toStatus, "inactivo"),
         ),
@@ -691,7 +780,12 @@ describe("alta idempotencia", () => {
     const rows = await app.db
       .select({ id: schema.financialTransactions.id })
       .from(schema.financialTransactions)
-      .where(eq(schema.financialTransactions.idempotencyKey, key));
+      .where(
+        and(
+          eq(schema.financialTransactions.idempotencyKey, key),
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        ),
+      );
     expect(rows.length).toBe(1);
   });
 });

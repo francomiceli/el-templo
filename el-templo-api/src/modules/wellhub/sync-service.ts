@@ -35,6 +35,7 @@ import * as schema from "../../db/schema";
 import { addDays, buildClassDateTime, todayInTz } from "../shared/date-utils";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import type { BookingService } from "../scheduling/booking-service";
+import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
 import { WellhubApiError } from "./client";
 import type { WellhubClient } from "./client";
 import type { WellhubSlot, WellhubSlotPayload } from "./types";
@@ -68,6 +69,12 @@ interface SyncBranch {
   timezone: string;
   country: string;
   maxCapacity: number;
+  // Fase 174.1-05 (D-02): tenant de la sede, resuelto en `syncAllBranches` y
+  // threadeado por toda la sincronización — `schedules`/`scheduleExceptions`/
+  // `holidays` (las 3 tablas del boundary que este servicio toca) se acotan
+  // con `tenantWhere(..., { tenantId: branch.tenantId })`, no con una
+  // exención: la sede ya tiene tenant resuelto en cada paso del sync.
+  tenantId: number;
 }
 
 export class WellhubSyncService {
@@ -97,6 +104,12 @@ export class WellhubSyncService {
       pendingsExpired: 0,
     };
 
+    // Fase 174.1-05 / 175-05 (D-02): barrido cron genuinamente cross-tenant —
+    // este cron corre para TODOS los gimnasios con Wellhub mapeado en una sola
+    // pasada (no hay tenant en contexto todavía, es la fuente que lo resuelve
+    // por FILA). `branch.tenantId` sale de la columna y se threadea a
+    // `syncBranch`/`syncSlots`/`ensureClasses`, que sí acotan con `tenantWhere`.
+    /* tenant-safe: barrido cron genuinamente cross-tenant — resuelve el tenant POR FILA (branch.tenantId) y lo threadea al resto del sync, mismo criterio que forEachActiveTenant */
     const branches = await this.db
       .select({
         id: schema.branches.id,
@@ -104,6 +117,7 @@ export class WellhubSyncService {
         timezone: schema.branches.timezone,
         country: schema.branches.country,
         maxCapacity: schema.branches.maxCapacity,
+        tenantId: schema.branches.tenantId,
       })
       .from(schema.branches)
       .where(
@@ -124,6 +138,7 @@ export class WellhubSyncService {
           timezone: branch.timezone,
           country: branch.country,
           maxCapacity: branch.maxCapacity,
+          tenantId: branch.tenantId,
         });
         summary.branches += 1;
         summary.classesCreated += result.classesCreated;
@@ -176,8 +191,9 @@ export class WellhubSyncService {
 
   /** Actividades activas no especiales con al menos un horario activo en la sede. */
   private async listPublishableActivities(
-    branchId: number,
+    branch: SyncBranch,
   ): Promise<Array<{ id: number; name: string; description: string | null }>> {
+    const ctx: TenantContext = { tenantId: branch.tenantId };
     return await this.db
       .selectDistinct({
         id: schema.activities.id,
@@ -191,7 +207,8 @@ export class WellhubSyncService {
       )
       .where(
         and(
-          eq(schema.schedules.branchId, branchId),
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.branchId, branch.id),
           eq(schema.schedules.isActive, true),
           eq(schema.activities.isActive, true),
           eq(schema.activities.isSpecial, false),
@@ -203,13 +220,19 @@ export class WellhubSyncService {
     branch: SyncBranch,
     productId: number,
   ): Promise<number> {
-    const activities = await this.listPublishableActivities(branch.id);
+    const ctx: TenantContext = { tenantId: branch.tenantId };
+    const activities = await this.listPublishableActivities(branch);
     if (activities.length === 0) return 0;
 
     const existing = await this.db
       .select({ activityId: schema.wellhubClasses.activityId })
       .from(schema.wellhubClasses)
-      .where(eq(schema.wellhubClasses.branchId, branch.id));
+      .where(
+        and(
+          tenantWhere(schema.wellhubClasses, ctx),
+          eq(schema.wellhubClasses.branchId, branch.id),
+        ),
+      );
     const existingActivityIds = new Set(existing.map((c) => c.activityId));
 
     let created = 0;
@@ -233,12 +256,14 @@ export class WellhubSyncService {
         );
       }
 
-      await this.db.insert(schema.wellhubClasses).values({
-        branchId: branch.id,
-        activityId: activity.id,
-        wellhubClassId: wellhubClass.id,
-        wellhubProductId: productId,
-      });
+      await this.db.insert(schema.wellhubClasses).values(
+        tenantValues(ctx, {
+          branchId: branch.id,
+          activityId: activity.id,
+          wellhubClassId: wellhubClass.id,
+          wellhubProductId: productId,
+        }),
+      );
       created += 1;
       this.log.info(
         {
@@ -266,6 +291,7 @@ export class WellhubSyncService {
     const horizon = this.horizonDays();
     const endDate = addDays(today, horizon);
     const now = new Date();
+    const ctx: TenantContext = { tenantId: branch.tenantId };
 
     // Mapeo class por actividad (para armar paths de la API).
     const classes = await this.db
@@ -275,7 +301,12 @@ export class WellhubSyncService {
         wellhubClassId: schema.wellhubClasses.wellhubClassId,
       })
       .from(schema.wellhubClasses)
-      .where(eq(schema.wellhubClasses.branchId, branch.id));
+      .where(
+        and(
+          tenantWhere(schema.wellhubClasses, ctx),
+          eq(schema.wellhubClasses.branchId, branch.id),
+        ),
+      );
     const classByActivity = new Map(classes.map((c) => [c.activityId, c]));
 
     // Horarios activos publicables de la sede.
@@ -297,6 +328,7 @@ export class WellhubSyncService {
       )
       .where(
         and(
+          tenantWhere(schema.schedules, ctx),
           eq(schema.schedules.branchId, branch.id),
           eq(schema.schedules.isActive, true),
           eq(schema.activities.isActive, true),
@@ -315,6 +347,7 @@ export class WellhubSyncService {
           .from(schema.scheduleExceptions)
           .where(
             and(
+              tenantWhere(schema.scheduleExceptions, ctx),
               inArray(schema.scheduleExceptions.scheduleId, scheduleIds),
               gte(schema.scheduleExceptions.exceptionDate, today),
               lte(schema.scheduleExceptions.exceptionDate, endDate),
@@ -330,6 +363,7 @@ export class WellhubSyncService {
       .from(schema.holidays)
       .where(
         and(
+          tenantWhere(schema.holidays, ctx),
           eq(schema.holidays.country, branch.country),
           gte(schema.holidays.date, today),
           lte(schema.holidays.date, endDate),
@@ -357,6 +391,7 @@ export class WellhubSyncService {
       )
       .where(
         and(
+          tenantWhere(schema.wellhubSlots, ctx),
           eq(schema.wellhubClasses.branchId, branch.id),
           gte(schema.wellhubSlots.sessionDate, today),
           lte(schema.wellhubSlots.sessionDate, endDate),
@@ -431,14 +466,16 @@ export class WellhubSyncService {
               `Wellhub no devolvió id al crear slot (schedule ${sched.id} ${date})`,
             );
           }
-          await this.db.insert(schema.wellhubSlots).values({
-            wellhubClassRowId: wellhubClass.rowId,
-            scheduleId: sched.id,
-            sessionDate: date,
-            wellhubSlotId: created.id,
-            totalCapacity: capacity,
-            totalBooked: booked,
-          });
+          await this.db.insert(schema.wellhubSlots).values(
+            tenantValues(ctx, {
+              wellhubClassRowId: wellhubClass.rowId,
+              scheduleId: sched.id,
+              sessionDate: date,
+              wellhubSlotId: created.id,
+              totalCapacity: capacity,
+              totalBooked: booked,
+            }),
+          );
           slotsCreated += 1;
         } else if (
           existing.totalCapacity !== capacity ||
@@ -453,7 +490,12 @@ export class WellhubSyncService {
           await this.db
             .update(schema.wellhubSlots)
             .set({ totalCapacity: capacity, totalBooked: booked })
-            .where(eq(schema.wellhubSlots.id, existing.id));
+            .where(
+              and(
+                tenantWhere(schema.wellhubSlots, ctx),
+                eq(schema.wellhubSlots.id, existing.id),
+              ),
+            );
           slotsPatched += 1;
         }
       }
@@ -477,7 +519,12 @@ export class WellhubSyncService {
       );
       await this.db
         .delete(schema.wellhubSlots)
-        .where(eq(schema.wellhubSlots.id, published.id));
+        .where(
+          and(
+            tenantWhere(schema.wellhubSlots, ctx),
+            eq(schema.wellhubSlots.id, published.id),
+          ),
+        );
       slotsDeleted += 1;
       this.log.info(
         {
@@ -547,6 +594,14 @@ export class WellhubSyncService {
    * los handlers de webhooks de reservas.
    */
   async pushSlotOccupancy(scheduleId: number, date: string): Promise<void> {
+    // Sin `ctx`: este método lo dispara el bus de occupancy-events (D-02) y no
+    // hay actor/request en ese call path. `scheduleId` es la PK de `schedules`
+    // (única globalmente, no por tenant) y compone junto con `sessionDate` el
+    // unique index de `wellhub_slots` (`idx_wellhub_slots_schedule_date`) — no
+    // hay ambigüedad cross-tenant posible en este lookup aunque no filtre por
+    // tenant explícitamente. El JOIN a `branches` deriva el tenant real de la
+    // fila, que se usa para el UPDATE de abajo (mismo criterio "anchor
+    // derivado" que `handleBookingCanceled` en `service.ts`).
     const [slot] = await this.db
       .select({
         id: schema.wellhubSlots.id,
@@ -555,6 +610,7 @@ export class WellhubSyncService {
         totalBooked: schema.wellhubSlots.totalBooked,
         totalCapacity: schema.wellhubSlots.totalCapacity,
         gymId: schema.branches.wellhubGymId,
+        tenantId: schema.branches.tenantId,
       })
       .from(schema.wellhubSlots)
       .innerJoin(
@@ -567,6 +623,7 @@ export class WellhubSyncService {
       )
       .where(
         and(
+          sql`/* tenant-safe: scheduleId+sessionDate componen un unique index propio, sin ambiguedad cross-tenant; el tenant se deriva de la fila (branches.tenantId) para el UPDATE que sigue */ 1 = 1`,
           eq(schema.wellhubSlots.scheduleId, scheduleId),
           eq(schema.wellhubSlots.sessionDate, date),
         ),
@@ -574,6 +631,7 @@ export class WellhubSyncService {
       .limit(1);
 
     if (!slot || slot.gymId === null) return;
+    const ctx: TenantContext = { tenantId: slot.tenantId };
 
     const booked = await this.bookingService.countActiveBookings(
       scheduleId,
@@ -593,7 +651,12 @@ export class WellhubSyncService {
     await this.db
       .update(schema.wellhubSlots)
       .set({ totalBooked: booked })
-      .where(eq(schema.wellhubSlots.id, slot.id));
+      .where(
+        and(
+          tenantWhere(schema.wellhubSlots, ctx),
+          eq(schema.wellhubSlots.id, slot.id),
+        ),
+      );
 
     this.log.info(
       { scheduleId, date, booked },
@@ -607,9 +670,24 @@ export class WellhubSyncService {
    * Solicitudes de reserva que quedaron 'pending' (la confirmación a Wellhub
    * nunca salió bien) con más de PENDING_EXPIRY_MINUTES: Wellhub ya las
    * auto-rechazó a los 15 min, así que el booking local libera el cupo.
+   *
+   * Fase 174.1-05 (D-02): este barrido corre UNA VEZ por `syncAllBranches`,
+   * ANTES del loop por sede (línea de arriba), sobre TODOS los
+   * `wellhub_bookings` pending de TODOS los gimnasios a la vez — es
+   * genuinamente cross-tenant (el scope no vive en una query por sede, vive
+   * en el hecho de que "pending hace más de 20 minutos" no depende del
+   * gimnasio). Exención `tenant-safe`, molde `autoExpireDueSubscriptions`
+   * (174-06). Con un solo tenant activo el resultado es IDÉNTICO.
    */
   private async expireDeadPendings(): Promise<number> {
     const cutoff = new Date(Date.now() - PENDING_EXPIRY_MINUTES * 60 * 1000);
+    // El comentario TS de acá exime al LINT (ancla AST); el MISMO tag se repite
+    // EMBEBIDO en cada fragmento `sql` de abajo porque el sentinel de runtime
+    // solo lee el texto del SQL final, nunca comentarios de fuente (convención
+    // 174-06, `subscriptions/service.ts#autoExpireDueSubscriptions`) —
+    // `bookings` ya es una tabla STRICT y el sentinel throwea en test/dev si el
+    // SQL no trae el tag.
+    /* tenant-safe: barrido cross-tenant genuino — reconciliación de pendings Wellhub vencidos corre para TODOS los gimnasios en una sola query antes del loop por sede, no hay tenant en contexto acá */
     const dead = await this.db
       .select({
         id: schema.wellhubBookings.id,
@@ -618,7 +696,7 @@ export class WellhubSyncService {
       .from(schema.wellhubBookings)
       .where(
         and(
-          eq(schema.wellhubBookings.status, "pending"),
+          sql`/* tenant-safe: barrido cross-tenant genuino — reconciliación de pendings Wellhub vencidos, ver docblock de expireDeadPendings */ ${eq(schema.wellhubBookings.status, "pending")}`,
           sql`${schema.wellhubBookings.createdAt} < ${cutoff}`,
         ),
       );
@@ -626,6 +704,7 @@ export class WellhubSyncService {
     let expired = 0;
     for (const row of dead) {
       if (row.bookingId !== null) {
+        /* tenant-safe: barrido cross-tenant genuino — ver el comentario de la query de `dead` más arriba, el booking liberado hereda el mismo alcance */
         const [booking] = await this.db
           .select({
             id: schema.bookings.id,
@@ -634,24 +713,32 @@ export class WellhubSyncService {
             bookingDate: schema.bookings.bookingDate,
           })
           .from(schema.bookings)
-          .where(eq(schema.bookings.id, row.bookingId))
+          .where(
+            sql`/* tenant-safe: barrido cross-tenant genuino — ver el comentario de la query de \`dead\` más arriba, el booking liberado hereda el mismo alcance */ ${eq(schema.bookings.id, row.bookingId)}`,
+          )
           .limit(1);
 
         if (booking && booking.status !== "cancelado") {
+          /* tenant-safe: barrido cross-tenant genuino — ver el comentario de la query de `dead` más arriba */
           await this.db
             .update(schema.bookings)
             .set({ status: "cancelado", cancelledAt: new Date() })
-            .where(eq(schema.bookings.id, booking.id));
+            .where(
+              sql`/* tenant-safe: barrido cross-tenant genuino — ver el comentario de la query de \`dead\` más arriba */ ${eq(schema.bookings.id, booking.id)}`,
+            );
           await this.bookingService.promoteWaitlist(
             booking.scheduleId,
             booking.bookingDate,
           );
         }
       }
+      /* tenant-safe: barrido cross-tenant genuino — ver el comentario de la query de `dead` más arriba, row.id ya viene de esa misma pasada */
       await this.db
         .update(schema.wellhubBookings)
         .set({ status: "expired" })
-        .where(eq(schema.wellhubBookings.id, row.id));
+        .where(
+          sql`/* tenant-safe: barrido cross-tenant genuino — ver el comentario de la query de \`dead\` más arriba, row.id ya viene de esa misma pasada */ ${eq(schema.wellhubBookings.id, row.id)}`,
+        );
       expired += 1;
     }
 

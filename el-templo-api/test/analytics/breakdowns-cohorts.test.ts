@@ -19,6 +19,16 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172: `financial_transactions` entra en `TENANT_STRICT_MODULES`, asi que
+ * las queries inline de este archivo llevan el gimnasio explicito. Las lecturas
+ * ya corrian sobre una base recien limpiada, asi que el filtro no cambia lo que
+ * miden — solo lo hace explicito.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 120 Plan 03 — breakdowns + cohorts primitives (FUND-03 / FUND-04 / FUND-05).
@@ -65,7 +75,9 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
     const [admin] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
     recorderId = admin.id;
   });
 
@@ -83,6 +95,7 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
     durationDays: number;
   }): Promise<number> {
     const [p] = await app.db.insert(subscriptionPlans).values({
+      tenantId: TENANT_TEMPLO,
       name: opts.name,
       country: opts.country,
       priceRegular: 15000,
@@ -115,18 +128,20 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
     date: string;
     branchId: number;
   }): Promise<void> {
-    await app.db.insert(financialTransactions).values({
-      memberId: opts.memberId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: opts.amount,
-      currency: opts.currency,
-      paymentMethod: "cash",
-      transactionDate: opts.date,
-      effectiveDate: opts.date,
-      branchId: opts.branchId,
-      recordedBy: recorderId,
-    });
+    await app.db.insert(financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: opts.memberId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: opts.amount,
+        currency: opts.currency,
+        paymentMethod: "cash",
+        transactionDate: opts.date,
+        effectiveDate: opts.date,
+        branchId: opts.branchId,
+        recordedBy: recorderId,
+      }),
+    );
   }
 
   it("buckets durationDays 30 → monthly and 120 → long_term via the breakdowns mapping", async () => {
@@ -138,7 +153,8 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
         name: subscriptionPlans.name,
         durationDays: subscriptionPlans.durationDays,
       })
-      .from(subscriptionPlans);
+      .from(subscriptionPlans)
+      .where(tenantWhere(subscriptionPlans, TEMPLO_CTX));
 
     const tiers = new Map<string, string | null>();
     for (const r of rows) {
@@ -167,6 +183,7 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
         count: sql<number>`COUNT(*)`,
       })
       .from(subscriptionPlans)
+      .where(tenantWhere(subscriptionPlans, TEMPLO_CTX))
       .groupBy(...groupKeys);
 
     // Build the per-segment keys the way a real block would.
@@ -224,6 +241,7 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
       })
       .from(financialTransactions)
       .innerJoin(branches, eq(branches.id, financialTransactions.branchId))
+      .where(tenantWhere(financialTransactions, TEMPLO_CTX))
       .groupBy(branches.country, financialTransactions.currency);
 
     const map: CurrencyMap = new Map();
@@ -279,7 +297,9 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
     const rows = await app.db
       .select({ date: financialTransactions.transactionDate })
       .from(financialTransactions)
-      .where(and(...conditions));
+      .where(
+        and(tenantWhere(financialTransactions, TEMPLO_CTX), ...conditions),
+      );
 
     const matchedDates = rows.map((r) => String(r.date));
     expect(matchedDates).toContain(from); // lower bound inclusive
@@ -301,12 +321,14 @@ describe("breakdowns + cohorts primitives (Phase 120 Plan 03)", () => {
       .select({
         key: bucketExpr(financialTransactions.transactionDate, "monthly"),
       })
-      .from(financialTransactions);
+      .from(financialTransactions)
+      .where(tenantWhere(financialTransactions, TEMPLO_CTX));
     const [weekly] = await app.db
       .select({
         key: bucketExpr(financialTransactions.transactionDate, "weekly"),
       })
-      .from(financialTransactions);
+      .from(financialTransactions)
+      .where(tenantWhere(financialTransactions, TEMPLO_CTX));
 
     expect(monthly.key).toBe("2026-06");
     expect(weekly.key).toMatch(/^2026-W\d{2}$/);

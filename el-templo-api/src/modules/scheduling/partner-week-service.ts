@@ -280,6 +280,7 @@ export class PartnerWeekService {
 
     const startDate = todayInTz(branch.timezone);
     const subscription = await this.subscriptionService.assignPlan(
+      ctx,
       userId,
       {
         planId: plan.id,
@@ -296,6 +297,7 @@ export class PartnerWeekService {
     let bookingId: number;
     try {
       const booking = await this.bookingService.reserve(
+        ctx,
         userId,
         input.scheduleId,
         input.date,

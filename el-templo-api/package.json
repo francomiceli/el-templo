@@ -14,6 +14,7 @@
     "db:verify-tenant": "tsx src/db/scripts/verify-tenant-backfill.ts",
     "db:verify-uniques": "tsx src/db/scripts/verify-tenant-uniques.ts",
     "lint:tenant": "tsx src/db/scripts/lint-tenant.ts",
+    "typecheck:tests": "tsx src/db/scripts/test-check.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",

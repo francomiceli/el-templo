@@ -21,7 +21,7 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -29,10 +29,14 @@ import {
 } from "./helpers";
 import { CampaignService } from "../src/modules/campaigns/service";
 import { EmailService } from "../src/modules/email/service";
+import { tenantWhere, type TenantContext } from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
 
 let app: FastifyInstance;
 let ownerId: number;
+
+// T-173-08: `send()` recibe `ctx` primero (audiencia scopeada por gimnasio).
+const CTX: TenantContext = { tenantId: 1 };
 
 beforeAll(async () => {
   app = await createTestApp();
@@ -47,7 +51,12 @@ beforeEach(async () => {
   const [owner] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   ownerId = owner.id;
 });
@@ -64,6 +73,7 @@ describe("campaign create (Phase 119)", () => {
   it("D-12: create persists a draft campaign and returns it", async () => {
     const service = makeService();
     const campaign = await service.create(
+      CTX,
       {
         name: "Sesión de prueba",
         subject: "Tu primera sesión es gratis",
@@ -79,7 +89,9 @@ describe("campaign create (Phase 119)", () => {
     const [row] = await app.db
       .select()
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, campaign.id));
+      .where(
+        sql`/* tenant-safe: lectura por PK propia (campaign.id), fila creada por este mismo test */ ${schema.campaigns.id} = ${campaign.id}`,
+      );
     expect(row.status).toBe("draft");
   });
 
@@ -87,6 +99,7 @@ describe("campaign create (Phase 119)", () => {
     const service = makeService();
     await expect(
       service.create(
+        CTX,
         {
           name: "  ",
           subject: "x",
@@ -104,6 +117,7 @@ describe("campaign send pipeline (Phase 119)", () => {
     const { id: u2 } = await createEligibleFreemium(app);
     const service = makeService();
     const campaign = await service.create(
+      CTX,
       {
         name: "Send Test",
         subject: "S",
@@ -112,13 +126,15 @@ describe("campaign send pipeline (Phase 119)", () => {
       ownerId,
     );
 
-    const result = await service.send(campaign.id);
+    const result = await service.send(CTX, campaign.id);
     expect(result.recipientCount).toBe(2);
 
     const sends = await app.db
       .select()
       .from(schema.campaignSends)
-      .where(eq(schema.campaignSends.campaignId, campaign.id));
+      .where(
+        sql`/* tenant-safe: lectura por FK propia (campaign.id), campaña creada por este mismo test */ ${schema.campaignSends.campaignId} = ${campaign.id}`,
+      );
     const userIds = sends.map((s) => s.userId).sort();
     expect(userIds).toEqual([u1, u2].sort());
     // D-11/D-12: with no RESEND_API_KEY the batch no-ops but sends are recorded.
@@ -129,6 +145,7 @@ describe("campaign send pipeline (Phase 119)", () => {
     await createEligibleFreemium(app);
     const service = makeService();
     const campaign = await service.create(
+      CTX,
       {
         name: "Idem",
         subject: "S",
@@ -137,19 +154,23 @@ describe("campaign send pipeline (Phase 119)", () => {
       ownerId,
     );
 
-    const first = await service.send(campaign.id);
+    const first = await service.send(CTX, campaign.id);
     expect(first.recipientCount).toBe(1);
 
     // The atomic status gate makes the mass-send single-shot: a second send on
     // an already-'sent' campaign is rejected, so the audience is never
     // re-enrolled (duplicate delivery prevented at the source, not just via
     // Resend's idempotency window).
-    await expect(service.send(campaign.id)).rejects.toThrow(/ya fue enviada/i);
+    await expect(service.send(CTX, campaign.id)).rejects.toThrow(
+      /ya fue enviada/i,
+    );
 
     const sends = await app.db
       .select()
       .from(schema.campaignSends)
-      .where(eq(schema.campaignSends.campaignId, campaign.id));
+      .where(
+        sql`/* tenant-safe: lectura por FK propia (campaign.id), campaña creada por este mismo test */ ${schema.campaignSends.campaignId} = ${campaign.id}`,
+      );
     expect(sends).toHaveLength(1);
   });
 
@@ -161,6 +182,7 @@ describe("campaign send pipeline (Phase 119)", () => {
       .mockResolvedValue(undefined);
     const service = makeService(email);
     const campaign = await service.create(
+      CTX,
       {
         name: "Batch",
         subject: "S",
@@ -169,7 +191,7 @@ describe("campaign send pipeline (Phase 119)", () => {
       ownerId,
     );
 
-    await service.send(campaign.id);
+    await service.send(CTX, campaign.id);
 
     expect(spy).toHaveBeenCalledTimes(1);
     const [messages, idempotencyKey] = spy.mock.calls[0];
@@ -189,6 +211,7 @@ describe("campaign send pipeline (Phase 119)", () => {
     await createEligibleFreemium(app);
     const service = makeService();
     const campaign = await service.create(
+      CTX,
       {
         name: "Degrade",
         subject: "S",
@@ -197,12 +220,14 @@ describe("campaign send pipeline (Phase 119)", () => {
       ownerId,
     );
 
-    await expect(service.send(campaign.id)).resolves.toBeDefined();
+    await expect(service.send(CTX, campaign.id)).resolves.toBeDefined();
 
     const [campaignRow] = await app.db
       .select()
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, campaign.id));
+      .where(
+        sql`/* tenant-safe: lectura por PK propia (campaign.id), fila creada por este mismo test */ ${schema.campaigns.id} = ${campaign.id}`,
+      );
     expect(campaignRow.status).toBe("sent");
     expect(campaignRow.sentAt).not.toBeNull();
   });
@@ -218,6 +243,7 @@ describe("campaign test send (Phase 119)", () => {
       .mockResolvedValue(undefined);
     const service = makeService(email);
     const campaign = await service.create(
+      CTX,
       {
         name: "Preview",
         subject: "Tu sesión de prueba",
@@ -227,6 +253,7 @@ describe("campaign test send (Phase 119)", () => {
     );
 
     const result = await service.sendTest(
+      CTX,
       campaign.id,
       "comunidad@eltemplo.org",
     );
@@ -243,12 +270,16 @@ describe("campaign test send (Phase 119)", () => {
     const sends = await app.db
       .select()
       .from(schema.campaignSends)
-      .where(eq(schema.campaignSends.campaignId, campaign.id));
+      .where(
+        sql`/* tenant-safe: lectura por FK propia (campaign.id), campaña creada por este mismo test */ ${schema.campaignSends.campaignId} = ${campaign.id}`,
+      );
     expect(sends).toHaveLength(0);
     const [row] = await app.db
       .select()
       .from(schema.campaigns)
-      .where(eq(schema.campaigns.id, campaign.id));
+      .where(
+        sql`/* tenant-safe: lectura por PK propia (campaign.id), fila creada por este mismo test */ ${schema.campaigns.id} = ${campaign.id}`,
+      );
     expect(row.status).toBe("draft");
 
     spy.mockRestore();
@@ -261,6 +292,7 @@ describe("campaign test send (Phase 119)", () => {
     );
     const service = makeService(email);
     const campaign = await service.create(
+      CTX,
       {
         name: "Preview Fail",
         subject: "S",
@@ -270,7 +302,7 @@ describe("campaign test send (Phase 119)", () => {
     );
 
     await expect(
-      service.sendTest(campaign.id, "alguien@gmail.com"),
+      service.sendTest(CTX, campaign.id, "alguien@gmail.com"),
     ).rejects.toThrow(/No se pudo enviar la prueba/i);
   });
 });

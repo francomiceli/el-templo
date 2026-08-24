@@ -47,7 +47,9 @@ import { and, eq, ne, sql, isNull, inArray, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
-import { dayDiff } from "./cohorts";
+import { dayDiff, rangeConditions } from "./cohorts";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { deriveDurationTier } from "./duration-tier";
 import { breakdownSegmentKey, type BreakdownAxis } from "./breakdowns";
 import {
@@ -161,15 +163,22 @@ export class LtvService {
    * (`filters.window ?? RENOVATION_WINDOW_DEFAULT_DAYS`), then fans out: the churn
    * headline (reused from ChurnService), the survival cohort (KM median + per-life
    * classification), the per-customer real-payment sums, and the 3-axis breakdowns.
+   *
+   * `ctx` PRIMERO (regla 169-06). Fase 172 (D-01): de las cuatro ramas, la única
+   * que toca una tabla strict de `finance` es `realPaymentsByMember`; el churn,
+   * la cohorte y los ejes leen `subscriptions` y se migran en su propia fase (D-07).
    */
-  async getLtv(filters: AnalyticsFilters): Promise<LtvAnalytics> {
+  async getLtv(
+    ctx: TenantContext,
+    filters: AnalyticsFilters,
+  ): Promise<LtvAnalytics> {
     const window = filters.window ?? RENOVATION_WINDOW_DEFAULT_DAYS;
 
     const [churn, lives, paymentsByMember, breakdowns] = await Promise.all([
-      this.churnService.getChurn(filters),
-      this.cohortLives(filters, window),
-      this.realPaymentsByMember(filters),
-      this.allBreakdowns(filters, window),
+      this.churnService.getChurn(ctx, filters),
+      this.cohortLives(ctx, filters, window),
+      this.realPaymentsByMember(ctx, filters),
+      this.allBreakdowns(ctx, filters, window),
     ]);
 
     // Headline (LTV-01 / D-122-03): 1 ÷ churn mensual, reusing ChurnService.
@@ -207,6 +216,7 @@ export class LtvService {
    * so the life span stays inside the active scope (consistent with the cohort engine).
    */
   private async cohortLives(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<CohortLifeRow[]> {
@@ -220,13 +230,16 @@ export class LtvService {
       .select({
         userId: schema.subscriptions.userId,
         currency: schema.subscriptions.currency,
+        // Fase 174.1-03 (D-02): `s_life` es `subscriptions` (self-join,
+        // boundary) — filtro explícito por `tenant_id`, y el `NOT IN` sobre
+        // `subscription_plans` (otra tabla del boundary) también.
         firstStart: sql<
           string | null
-        >`(SELECT MIN(s_life.start_date) FROM subscriptions s_life WHERE s_life.user_id = ${schema.subscriptions.userId} AND s_life.branch_id = ${schema.subscriptions.branchId} AND s_life.subscription_status <> 'paused' AND s_life.plan_id NOT IN (SELECT id FROM subscription_plans WHERE plan_category = 'especial'))`,
+        >`(SELECT MIN(s_life.start_date) FROM subscriptions s_life WHERE s_life.user_id = ${schema.subscriptions.userId} AND s_life.tenant_id = ${ctx.tenantId} AND s_life.branch_id = ${schema.subscriptions.branchId} AND s_life.subscription_status <> 'paused' AND s_life.plan_id NOT IN (SELECT id FROM subscription_plans WHERE plan_category = 'especial' AND tenant_id = ${ctx.tenantId}))`,
         lastEnd: schema.subscriptions.endDate,
         today: sql<string>`DATE_FORMAT(CURDATE(), '%Y-%m-%d')`,
         matured: maturedExpr(window),
-        retained: retainedExpr(window),
+        retained: retainedExpr(ctx, window),
         branchName: schema.branches.name,
         country: schema.subscriptionPlans.country,
         planName: schema.subscriptionPlans.name,
@@ -243,8 +256,10 @@ export class LtvService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
+          tenantWhere(schema.subscriptionPlans, ctx),
           ...expiryCohortConditions(filters.dateFrom, filters.dateTo),
-          lastExpiryPerPersonExpr(filters.dateFrom, filters.dateTo),
+          lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
           // D-11: el pase especial no cuenta en el LTV de membresía (la plata
           // igual cuenta en caja/cobros/advanced-finance, que no se tocan).
           ne(schema.subscriptionPlans.planCategory, "especial"),
@@ -277,6 +292,7 @@ export class LtvService {
    * so per-customer real revenue is summed by the customer link (`memberId`).
    */
   private async realPaymentsByMember(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
   ): Promise<Map<number, { currency: Currency; total: number }>> {
     const { conditions: scopeConditions } = applyScope({
@@ -298,18 +314,18 @@ export class LtvService {
       ]) as unknown as SQL,
       eq(schema.financialTransactions.direction, "inflow") as unknown as SQL,
       ...scopeConditions,
+      // Ventana SEMIABIERTA [dateFrom, dateTo) — borde superior EXCLUSIVO,
+      // consistente con la cohorte. Es exactamente el contrato de
+      // `rangeConditions`, que reemplaza al par de `if` escrito acá antes de la
+      // fase 172 (la columna viaja como parámetro, así que el único statement
+      // que nombra `financial_transactions` es la query, y ahí el gimnasio se
+      // nombra una sola vez).
+      ...rangeConditions(
+        schema.financialTransactions.transactionDate,
+        filters.dateFrom,
+        filters.dateTo,
+      ),
     ];
-    if (filters.dateFrom !== undefined) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
-      );
-    }
-    if (filters.dateTo !== undefined) {
-      // EXCLUSIVE upper bound — consistent with the half-open cohort window.
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} < ${filters.dateTo}`,
-      );
-    }
 
     const rows = await this.db
       .select({
@@ -324,7 +340,7 @@ export class LtvService {
       )
       // Flavor A: branches always joined (country filter needs branches.country).
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(...conditions))
+      .where(and(tenantWhere(schema.financialTransactions, ctx), ...conditions))
       .groupBy(
         schema.financialTransactions.memberId,
         schema.financialTransactions.currency,
@@ -401,11 +417,12 @@ export class LtvService {
 
   /** Run the LTV breakdown axes (LTV-05) in parallel and flatten. */
   private async allBreakdowns(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     window: number,
   ): Promise<LtvSegmentRow[]> {
     const perAxis = await Promise.all(
-      LTV_AXES.map((axis) => this.breakdownByAxis(filters, axis, window)),
+      LTV_AXES.map((axis) => this.breakdownByAxis(ctx, filters, axis, window)),
     );
     return perAxis.flat();
   }
@@ -419,13 +436,14 @@ export class LtvService {
    * access filters (scope stays in `applyScope`).
    */
   private async breakdownByAxis(
+    ctx: TenantContext,
     filters: AnalyticsFilters,
     axis: ChurnRenewalAxis,
     window: number,
   ): Promise<LtvSegmentRow[]> {
     const [lives, paymentsByMember] = await Promise.all([
-      this.cohortLives(filters, window),
-      this.realPaymentsByMember(filters),
+      this.cohortLives(ctx, filters, window),
+      this.realPaymentsByMember(ctx, filters),
     ]);
 
     // Group the classified lives by this axis's segment key.

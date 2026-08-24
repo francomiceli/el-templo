@@ -35,6 +35,10 @@ import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { bookings } from "../../src/db/schema/bookings";
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 const ADMIN_URL = "/api/admin/scheduling";
 const TRIALS_URL = `${ADMIN_URL}/trials`;
@@ -163,6 +167,7 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
     const [row] = await app.db
       .insert(bookings)
       .values({
+        tenantId: CTX.tenantId,
         memberId: userId,
         scheduleId,
         bookingDate: date,
@@ -187,7 +192,7 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
         bookingDate: bookings.bookingDate,
       })
       .from(bookings)
-      .where(eq(bookings.id, bookingId));
+      .where(and(tenantWhere(bookings, CTX), eq(bookings.id, bookingId)));
     return { ...row, isTrial: Boolean(row.isTrial) };
   }
 
@@ -200,8 +205,11 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
         leadStatusSource: users.leadStatusSource,
       })
       .from(users)
-      .where(eq(users.id, userId));
-    return { leadStatus: row.leadStatus, leadStatusSource: row.leadStatusSource };
+      .where(and(tenantWhere(users, CTX), eq(users.id, userId)));
+    return {
+      leadStatus: row.leadStatus,
+      leadStatusSource: row.leadStatusSource,
+    };
   }
 
   async function setLead(
@@ -212,7 +220,7 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
     await app.db
       .update(users)
       .set({ leadStatus, leadStatusSource })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, userId)));
   }
 
   // ─── Case 1: atomic move (old cancelled + new active) ────────────────────
@@ -388,7 +396,7 @@ describe("Reschedule Trial API (Fase 164-01, REPRO-01)", () => {
         leadStatus: "ganado",
         leadStatusSource: "manual",
       })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, CTX), eq(users.id, userId)));
 
     const res = await app.inject({
       method: "POST",

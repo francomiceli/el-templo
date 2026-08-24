@@ -10,16 +10,10 @@ import {
   schedules,
   subscriptionPlans,
   completedSessions,
-  systemSettings,
 } from "../../db/schema";
-import type { AuraService } from "../aura/service";
-import {
-  STREAK_SETTINGS_KEYS,
-  STREAK_DEFAULTS,
-  STREAK_MILESTONES,
-  MILESTONE_TO_CONFIG_KEY,
-  type StreakMilestoneConfig,
-} from "./types";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { hookRegistry } from "../shared/hooks";
+import { STREAK_MILESTONES } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -38,7 +32,6 @@ interface StreakUpdateResult {
 export class StreakService {
   constructor(
     private readonly db: DbInstance,
-    private readonly auraService: AuraService,
     private readonly log: FastifyBaseLogger,
   ) {}
 
@@ -51,13 +44,17 @@ export class StreakService {
    * 2. Plan's classesPerWeek (distribute evenly Mon-Sat)
    * 3. Default: every day Mon-Sat
    */
-  async getExpectedTrainingDays(userId: number): Promise<number[]> {
+  async getExpectedTrainingDays(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<number[]> {
     // Find active subscription
     const activeSubs = await this.db
       .select({ id: subscriptions.id, planId: subscriptions.planId })
       .from(subscriptions)
       .where(
         and(
+          tenantWhere(subscriptions, ctx),
           eq(subscriptions.userId, userId),
           inArray(subscriptions.status, ["active", "paused"]),
         ),
@@ -75,8 +72,19 @@ export class StreakService {
     const scheduleSlots = await this.db
       .select({ dayOfWeek: schedules.dayOfWeek })
       .from(subscriptionSchedules)
-      .innerJoin(schedules, eq(subscriptionSchedules.scheduleId, schedules.id))
-      .where(eq(subscriptionSchedules.subscriptionId, sub.id));
+      .innerJoin(
+        schedules,
+        and(
+          tenantWhere(schedules, ctx),
+          eq(subscriptionSchedules.scheduleId, schedules.id),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(subscriptionSchedules, ctx),
+          eq(subscriptionSchedules.subscriptionId, sub.id),
+        ),
+      );
 
     if (scheduleSlots.length > 0) {
       // Unique day-of-week values from schedule slots
@@ -88,7 +96,12 @@ export class StreakService {
     const [plan] = await this.db
       .select({ classesPerWeek: subscriptionPlans.classesPerWeek })
       .from(subscriptionPlans)
-      .where(eq(subscriptionPlans.id, sub.planId));
+      .where(
+        and(
+          tenantWhere(subscriptionPlans, ctx),
+          eq(subscriptionPlans.id, sub.planId),
+        ),
+      );
 
     if (plan?.classesPerWeek) {
       return this.distributeTrainingDays(plan.classesPerWeek);
@@ -126,13 +139,18 @@ export class StreakService {
    * 5. Update longestStreak if needed
    * 6. Check for milestone AURA bonus
    */
-  async updateStreak(userId: number): Promise<StreakUpdateResult> {
+  async updateStreak(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<StreakUpdateResult> {
     const noStreakResult: StreakUpdateResult = {
       currentStreak: 0,
       longestStreak: 0,
       milestoneReached: null,
     };
 
+    // T-173-09-01: `member_profiles` es tabla strict. El ctx llega ya
+    // resuelto desde el borde del handler (sessions/routes.ts, D-09).
     // Get or create member profile
     const profiles = await this.db
       .select({
@@ -141,11 +159,19 @@ export class StreakService {
         streakUpdatedAt: memberProfiles.streakUpdatedAt,
       })
       .from(memberProfiles)
-      .where(eq(memberProfiles.userId, userId));
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, userId),
+        ),
+      );
 
     if (profiles.length === 0) {
       // No profile row — onboarding creates this. Skip streak update.
-      this.log.debug({ userId }, "No member_profiles row — skipping streak update");
+      this.log.debug(
+        { userId },
+        "No member_profiles row — skipping streak update",
+      );
       return noStreakResult;
     }
 
@@ -155,7 +181,7 @@ export class StreakService {
     const lastUpdated = profile.streakUpdatedAt;
 
     // Get expected training days for this member
-    const expectedDays = await this.getExpectedTrainingDays(userId);
+    const expectedDays = await this.getExpectedTrainingDays(ctx, userId);
 
     // Check for missed planned training days since last streak update
     const today = new Date();
@@ -229,90 +255,31 @@ export class StreakService {
         longestStreak,
         streakUpdatedAt: new Date(),
       })
-      .where(eq(memberProfiles.userId, userId));
+      .where(
+        and(
+          tenantWhere(memberProfiles, ctx),
+          eq(memberProfiles.userId, userId),
+        ),
+      );
 
-    // Check for milestone AURA bonus
+    // Check for milestone AURA bonus. El core solo detecta y anuncia el
+    // milestone (núcleo de racha); la recompensa AURA y su configuración
+    // viven en el módulo `templo-gamification` (doc 04 §4.3,
+    // `aura/streak-reward.ts`). El aislamiento best-effort (un handler que
+    // explota no rompe el registro de la sesión) vive dentro de
+    // `HookRegistry.emit` — por eso el `emit` de acá va SIN `try/catch`.
     let milestoneReached: number | null = null;
     if ((STREAK_MILESTONES as readonly number[]).includes(currentStreak)) {
       milestoneReached = currentStreak;
-      try {
-        const config = await this.getStreakMilestoneConfig();
-        const configKey = MILESTONE_TO_CONFIG_KEY[currentStreak];
-        const bonusAmount = configKey ? config[configKey] : 0;
-
-        if (bonusAmount > 0) {
-          await this.auraService.award({
-            userId,
-            sourceType: "streak_bonus",
-            referenceType: "streak_milestone",
-            referenceId: currentStreak,
-            amount: bonusAmount,
-            description: `Racha de ${currentStreak} dias`,
-          });
-          this.log.info(
-            { userId, milestone: currentStreak, bonusAmount },
-            "Streak milestone AURA bonus awarded",
-          );
-        }
-      } catch (auraErr: unknown) {
-        this.log.warn(
-          { err: auraErr, userId, milestone: currentStreak },
-          "Failed to award streak milestone AURA bonus",
-        );
-        // Graceful degradation: streak update succeeds even if AURA fails
-      }
+      const hook = { tenantId: ctx.tenantId, db: this.db, log: this.log };
+      const evt = {
+        userId,
+        milestone: currentStreak,
+        streakDays: currentStreak,
+      };
+      await hookRegistry.emit("streak.milestone", hook, evt);
     }
 
     return { currentStreak, longestStreak, milestoneReached };
-  }
-
-  /**
-   * Read streak milestone AURA configuration from system_settings.
-   * Falls back to STREAK_DEFAULTS if settings are not configured.
-   */
-  async getStreakMilestoneConfig(): Promise<StreakMilestoneConfig> {
-    const keys = Object.values(STREAK_SETTINGS_KEYS);
-
-    const rows = await this.db
-      .select({
-        settingKey: systemSettings.settingKey,
-        settingValue: systemSettings.settingValue,
-      })
-      .from(systemSettings)
-      .where(inArray(systemSettings.settingKey, [...keys]));
-
-    const settingsMap = new Map(
-      rows.map((r) => [r.settingKey, r.settingValue]),
-    );
-
-    const parseOrDefault = (key: string, defaultVal: number): number => {
-      const val = settingsMap.get(key);
-      if (val === undefined) return defaultVal;
-      const parsed = parseInt(val, 10);
-      return isNaN(parsed) ? defaultVal : parsed;
-    };
-
-    return {
-      milestone7Aura: parseOrDefault(
-        STREAK_SETTINGS_KEYS.MILESTONE_7_AURA,
-        STREAK_DEFAULTS.MILESTONE_7_AURA,
-      ),
-      milestone14Aura: parseOrDefault(
-        STREAK_SETTINGS_KEYS.MILESTONE_14_AURA,
-        STREAK_DEFAULTS.MILESTONE_14_AURA,
-      ),
-      milestone30Aura: parseOrDefault(
-        STREAK_SETTINGS_KEYS.MILESTONE_30_AURA,
-        STREAK_DEFAULTS.MILESTONE_30_AURA,
-      ),
-      milestone60Aura: parseOrDefault(
-        STREAK_SETTINGS_KEYS.MILESTONE_60_AURA,
-        STREAK_DEFAULTS.MILESTONE_60_AURA,
-      ),
-      milestone100Aura: parseOrDefault(
-        STREAK_SETTINGS_KEYS.MILESTONE_100_AURA,
-        STREAK_DEFAULTS.MILESTONE_100_AURA,
-      ),
-    };
   }
 }

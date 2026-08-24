@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -24,6 +24,16 @@ import { memberProfiles } from "../../src/db/schema/member-profiles";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { balances } from "../../src/db/schema/balances";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Members Management Routes", () => {
   let app: FastifyInstance;
@@ -272,19 +282,26 @@ describe("Members Management Routes", () => {
       await app.db
         .update(subscriptions)
         .set({ endDate: activeEnd })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       // Y ya renovó: sub 'scheduled' que arranca cuando termina la activa.
-      await app.db.insert(subscriptions).values({
-        userId: member.id,
-        planId: testPlanId,
-        branchId: 1,
-        status: "scheduled",
-        startDate: activeEnd,
-        endDate: scheduledEnd,
-        pricePaid: 10000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: member.id,
+          planId: testPlanId,
+          branchId: 1,
+          status: "scheduled",
+          startDate: activeEnd,
+          endDate: scheduledEnd,
+          pricePaid: 10000,
+          priceTypeApplied: "regular",
+        }),
+      );
 
       const res = await app.inject({
         method: "GET",
@@ -366,13 +383,15 @@ describe("Members Management Routes", () => {
         password: "password123",
         branchId: 1,
       });
-      await app.db.insert(balances).values({
-        memberId: user.id as number,
-        targetKind: "subscription",
-        targetId: 999999,
-        currency: "ARS",
-        amount: 5000,
-      });
+      await app.db.insert(balances).values(
+        tenantValues(TEMPLO_CTX, {
+          memberId: user.id as number,
+          targetKind: "subscription",
+          targetId: 999999,
+          currency: "ARS",
+          amount: 5000,
+        }),
+      );
 
       // owner/admin: sees the financial aggregate.
       const adminRes = await app.inject({
@@ -528,7 +547,7 @@ describe("Members Management Routes", () => {
           lastName: users.lastName,
         })
         .from(users)
-        .where(eq(users.id, body.id));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, body.id)));
       expect(row?.firstName).toBe("Soledad");
       expect(row?.lastName).toBe("Mailland");
     });
@@ -608,6 +627,7 @@ describe("Members Management Routes", () => {
       const [schedIns] = await app.db
         .insert(schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: 1,
           activityId: actIns.id,
           dayOfWeek: 1,
@@ -620,6 +640,7 @@ describe("Members Management Routes", () => {
         .toISOString()
         .split("T")[0];
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: schedIns.id,
         bookingDate: futureDate,
@@ -654,6 +675,7 @@ describe("Members Management Routes", () => {
       const [schedIns] = await app.db
         .insert(schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: 1,
           activityId: actIns.id,
           dayOfWeek: 1,
@@ -666,6 +688,7 @@ describe("Members Management Routes", () => {
         .toISOString()
         .split("T")[0];
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: schedIns.id,
         bookingDate: pastDate,
@@ -697,6 +720,7 @@ describe("Members Management Routes", () => {
       const [schedIns] = await app.db
         .insert(schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: 1,
           activityId: actIns.id,
           dayOfWeek: 1,
@@ -709,6 +733,7 @@ describe("Members Management Routes", () => {
         .toISOString()
         .split("T")[0];
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: schedIns.id,
         bookingDate: pastDate,
@@ -804,7 +829,12 @@ describe("Members Management Routes", () => {
           lastName: users.lastName,
         })
         .from(users)
-        .where(eq(users.id, member.id as number));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.id, member.id as number),
+          ),
+        );
       expect(row?.firstName).toBe("Updated");
       expect(row?.lastName).toBe("Mailland");
     });
@@ -837,7 +867,9 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ email: users.email })
         .from(users)
-        .where(eq(users.id, trial.id as number));
+        .where(
+          and(tenantWhere(users, TEMPLO_CTX), eq(users.id, trial.id as number)),
+        );
       expect(row?.email).toBe("nuevo-alumno@test.com");
     });
 
@@ -857,7 +889,12 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ email: users.email })
         .from(users)
-        .where(eq(users.id, member.id as number));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.id, member.id as number),
+          ),
+        );
       expect(row?.email).toBe(getBaseMember().email);
     });
 
@@ -888,7 +925,9 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ email: users.email })
         .from(users)
-        .where(eq(users.id, trial.id as number));
+        .where(
+          and(tenantWhere(users, TEMPLO_CTX), eq(users.id, trial.id as number)),
+        );
       expect(row?.email).toBeNull();
       void member;
     });
@@ -1002,6 +1041,7 @@ describe("Members Management Routes", () => {
       const [schedIns] = await app.db
         .insert(schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: 1,
           activityId: actIns.id,
           dayOfWeek: 1,
@@ -1014,6 +1054,7 @@ describe("Members Management Routes", () => {
         .toISOString()
         .split("T")[0];
       await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: member.id,
         scheduleId: schedIns.id,
         bookingDate: tomorrow,
@@ -1032,7 +1073,12 @@ describe("Members Management Routes", () => {
       const subs = await app.db
         .select({ status: subscriptions.status })
         .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       expect(subs.length).toBeGreaterThan(0);
       for (const s of subs) expect(s.status).toBe("cancelled");
 
@@ -1040,7 +1086,12 @@ describe("Members Management Routes", () => {
       const [book] = await app.db
         .select({ status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, member.id),
+          ),
+        );
       expect(book.status).toBe("cancelado");
     });
 
@@ -1058,38 +1109,52 @@ describe("Members Management Routes", () => {
       const [sub] = await app.db
         .select({ id: subscriptions.id })
         .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       expect(sub).toBeDefined();
 
       // Find admin user id for recordedBy
       const [admin] = await app.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.email, "admin@test.com"));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.email, "admin@test.com"),
+          ),
+        );
 
       // Insert a non-voided charge transaction linked to the sub
       const today = new Date().toISOString().split("T")[0];
       const [txIns] = await app.db
         .insert(financialTransactions)
-        .values({
-          memberId: member.id,
-          kind: "plan_charge",
-          direction: "inflow",
-          amount: 65000,
-          currency: "ARS",
-          paymentMethod: "cash",
-          transactionDate: today,
-          effectiveDate: today,
-          branchId: 1,
-          recordedBy: admin.id,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            memberId: member.id,
+            kind: "plan_charge",
+            direction: "inflow",
+            amount: 65000,
+            currency: "ARS",
+            paymentMethod: "cash",
+            transactionDate: today,
+            effectiveDate: today,
+            branchId: 1,
+            recordedBy: admin.id,
+          }),
+        )
         .$returningId();
-      await app.db.insert(transactionLinks).values({
-        transactionId: txIns.id,
-        targetKind: "subscription",
-        targetId: sub.id,
-        allocatedAmount: 65000,
-      });
+      await app.db.insert(transactionLinks).values(
+        tenantValues(TEMPLO_CTX, {
+          transactionId: txIns.id,
+          targetKind: "subscription",
+          targetId: sub.id,
+          allocatedAmount: 65000,
+        }),
+      );
 
       const delRes = await app.inject({
         method: "DELETE",
@@ -1167,7 +1232,12 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.email, "protected-coach@test.com"));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.email, "protected-coach@test.com"),
+          ),
+        );
 
       const res = await app.inject({
         method: "DELETE",
@@ -1967,7 +2037,7 @@ describe("Members Management Routes", () => {
       await app.db
         .update(users)
         .set({ passwordHash: otherHash })
-        .where(eq(users.id, member.id));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id)));
 
       const res = await app.inject({
         method: "PUT",
@@ -2081,7 +2151,12 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.email, "protected-coach-pwd@test.com"));
+        .where(
+          and(
+            tenantWhere(users, TEMPLO_CTX),
+            eq(users.email, "protected-coach-pwd@test.com"),
+          ),
+        );
 
       const res = await app.inject({
         method: "PUT",
@@ -2154,7 +2229,7 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ branchId: users.branchId, status: users.status })
         .from(users)
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
       expect(row.branchId).not.toBe(1);
       expect(row.status).toBe("freemium");
     });
@@ -2200,7 +2275,7 @@ describe("Members Management Routes", () => {
           emergencyContactPhone: "+5491100009999",
           emergencyContactRelationship: "Madre",
         })
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
 
       const res = await app.inject({
         method: "PUT",
@@ -2230,7 +2305,7 @@ describe("Members Management Routes", () => {
       const beforeRow = await app.db
         .select({ status: users.status })
         .from(users)
-        .where(eq(users.id, member.id))
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id)))
         .limit(1);
       const statusBefore = beforeRow[0]?.status;
 
@@ -2311,7 +2386,7 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ status: users.status, dni: users.dni })
         .from(users)
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
       expect(row?.status).toBe("inactivo");
       expect(row?.dni).toBe("39111222");
     });
@@ -2339,7 +2414,7 @@ describe("Members Management Routes", () => {
       const [row] = await app.db
         .select({ status: users.status, dni: users.dni })
         .from(users)
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
       expect(row?.status).toBe("prueba");
       expect(row?.dni).toBe("39333444"); // personal data still persisted
     });
@@ -2356,13 +2431,13 @@ describe("Members Management Routes", () => {
           dni: "39555666",
           documentType: "DNI",
         })
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
 
       // Sanity: still in 'prueba' because no PUT has triggered the flip yet.
       const [pre] = await app.db
         .select({ status: users.status })
         .from(users)
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
       expect(pre?.status).toBe("prueba");
 
       const res = await app.inject({

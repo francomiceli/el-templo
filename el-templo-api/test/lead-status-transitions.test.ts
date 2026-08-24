@@ -22,7 +22,7 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -30,6 +30,14 @@ import {
   cleanAllTestData,
 } from "./helpers";
 import * as schema from "../src/db/schema";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas/
+// escrituras de conveniencia por id de este archivo se acotan con
+// `tenantWhere` (categoría 2, docblock de `test/helpers.ts`); este archivo
+// no siembra en el gimnasio 2.
+import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const ADMIN_SCHED_URL = "/api/admin/scheduling";
 const MEMBER_SCHED_URL = "/api/members/scheduling";
@@ -143,7 +151,9 @@ describe("lead_status_source transitions (Fase 163-03)", () => {
     await app.db
       .update(schema.users)
       .set({ leadStatus, leadStatusSource })
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
   }
 
   async function readLead(
@@ -155,8 +165,13 @@ describe("lead_status_source transitions (Fase 163-03)", () => {
         leadStatusSource: schema.users.leadStatusSource,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
-    return { leadStatus: row.leadStatus, leadStatusSource: row.leadStatusSource };
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
+    return {
+      leadStatus: row.leadStatus,
+      leadStatusSource: row.leadStatusSource,
+    };
   }
 
   // ─── Caso 1: reset vía bookTrial (admin) ─────────────────────────────────

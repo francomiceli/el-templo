@@ -28,6 +28,7 @@ import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
 import type { MemberSegment } from "../modules/segmentation/types";
 import {
   forEachActiveTenant,
+  tenantWhere,
   type TenantContext,
 } from "../modules/shared/tenant";
 
@@ -178,10 +179,14 @@ async function runMorningEnergyForTenantTz(
   const eligibleMembers = await db
     .select({ userId: s.memberProfiles.userId })
     .from(s.memberProfiles)
-    .innerJoin(s.users, eq(s.users.id, s.memberProfiles.userId))
+    .innerJoin(
+      s.users,
+      and(tenantWhere(s.users, ctx), eq(s.users.id, s.memberProfiles.userId)),
+    )
     .innerJoin(s.branches, eq(s.branches.id, s.users.branchId))
     .where(
       and(
+        tenantWhere(s.memberProfiles, ctx),
         isNotNull(s.memberProfiles.onboardingCompletedAt),
         eq(s.branches.timezone, tz),
         sql`${s.memberProfiles.userId} NOT IN (
@@ -255,10 +260,14 @@ async function runWeeklySummaryForTenantTz(
   const members = await db
     .select({ userId: s.memberProfiles.userId })
     .from(s.memberProfiles)
-    .innerJoin(s.users, eq(s.users.id, s.memberProfiles.userId))
+    .innerJoin(
+      s.users,
+      and(tenantWhere(s.users, ctx), eq(s.users.id, s.memberProfiles.userId)),
+    )
     .innerJoin(s.branches, eq(s.branches.id, s.users.branchId))
     .where(
       and(
+        tenantWhere(s.memberProfiles, ctx),
         isNotNull(s.memberProfiles.onboardingCompletedAt),
         eq(s.branches.timezone, tz),
       ),
@@ -314,6 +323,7 @@ const PLAN_RENEWAL_THRESHOLDS = [
 export async function runPlanRenewalWarnings(
   db: MySql2Database<typeof schema>,
   notificationService: NotificationService,
+  ctx: TenantContext,
 ): Promise<number> {
   let totalQueued = 0;
 
@@ -321,6 +331,11 @@ export async function runPlanRenewalWarnings(
     // Candidate subscriptions whose end_date is exactly CURDATE() + days. Use a
     // SQL DATE comparison (never JS Date math) so we stay in the AR-local DATE
     // domain that matches `subscriptions.end_date`.
+    //
+    // Fase 174.1-05 (D-02): `ctx` llega ahora desde el cuerpo por-tenant de
+    // `runBatchSegmentRecalculationForTenant` (única llamadora) — antes esta
+    // función no lo recibía y la query de `subscriptions` quedaba sin
+    // `tenantWhere`. Con un solo tenant activo el resultado es IDÉNTICO.
     const candidates = await db
       .selectDistinct({
         userId: s.subscriptions.userId,
@@ -329,6 +344,7 @@ export async function runPlanRenewalWarnings(
       .from(s.subscriptions)
       .where(
         and(
+          tenantWhere(s.subscriptions, ctx),
           inArray(s.subscriptions.status, ["active", "scheduled"]),
           sql`${s.subscriptions.endDate} = DATE_ADD(CURDATE(), INTERVAL ${days} DAY)`,
         ),
@@ -339,7 +355,7 @@ export async function runPlanRenewalWarnings(
         // D-05 suppression: enqueue ONLY when the chain's covered-until equals
         // the threshold date. A scheduled successor pushes covered-until past
         // the threshold → !== target → skip (the member already renewed).
-        const coveredUntil = await deriveCoveredUntil(db, candidate.userId);
+        const coveredUntil = await deriveCoveredUntil(db, candidate.userId, ctx);
         if (coveredUntil !== candidate.target) {
           continue;
         }
@@ -453,7 +469,12 @@ async function runBatchSegmentRecalculationForTenant(
       lastGhostReattemptAt: s.memberProfiles.lastGhostReattemptAt,
     })
     .from(s.memberProfiles)
-    .where(isNotNull(s.memberProfiles.onboardingCompletedAt));
+    .where(
+      and(
+        tenantWhere(s.memberProfiles, ctx),
+        isNotNull(s.memberProfiles.onboardingCompletedAt),
+      ),
+    );
 
   let transitionsFound = 0;
   let notificationsQueued = 0;
@@ -478,7 +499,12 @@ async function runBatchSegmentRecalculationForTenant(
           segment: newSegment,
           segmentUpdatedAt: new Date(),
         })
-        .where(eq(s.memberProfiles.userId, profile.userId));
+        .where(
+          and(
+            tenantWhere(s.memberProfiles, ctx),
+            eq(s.memberProfiles.userId, profile.userId),
+          ),
+        );
 
       // Check for transition
       if (oldSegment !== newSegment) {
@@ -532,7 +558,12 @@ async function runBatchSegmentRecalculationForTenant(
                 ghostReattemptCount: reattemptCount + 1,
                 lastGhostReattemptAt: new Date(),
               })
-              .where(eq(s.memberProfiles.userId, profile.userId));
+              .where(
+                and(
+                  tenantWhere(s.memberProfiles, ctx),
+                  eq(s.memberProfiles.userId, profile.userId),
+                ),
+              );
 
             ghostReattempts++;
           } catch (ghostErr: unknown) {
@@ -624,7 +655,7 @@ async function runBatchSegmentRecalculationForTenant(
   // su propio `forEachActiveTenant`. Agregarle uno anidaría dos barridos
   // y la haría correr N² veces.
   try {
-    await runPlanRenewalWarnings(db, notificationService);
+    await runPlanRenewalWarnings(db, notificationService, ctx);
   } catch (planErr: unknown) {
     const pMsg = planErr instanceof Error ? planErr.message : "Unknown error";
     log.error({ err: pMsg, tenantId }, "Plan renewal warning check failed");
@@ -742,17 +773,16 @@ export async function startNotificationJobs(
 
   // ── 5. Auto-seed templates on startup ────────────────────────────────
   //
-  // ÚNICA EXCEPCIÓN al barrido por tenant de este archivo (fase 169, D-01/D-02).
-  // `notification_templates` es gym-owned (CON-01) y su unique ya es COMPUESTA
-  // `(tenant_id, template_key)` desde la 168, pero `seedTemplates()` sigue
-  // insertando GLOBAL: no recibe contexto y estampa el DEFAULT 1. Envolverlo en
-  // `forEachActiveTenant` no sembraría los templates de cada gimnasio — correría
-  // el MISMO insert global una vez por gimnasio activo, DUPLICANDO las filas del
-  // tenant 1. Por eso queda deliberadamente fuera del sweep hasta que el service
-  // reciba el `TenantContext` en la adopción del módulo notifications (fase 175).
+  // T-175-03: `seedTemplates` ahora recibe un `TenantContext` real y siembra
+  // POR TENANT (antes insertaba GLOBAL con el DEFAULT 1 — ver el historial de
+  // este comentario, dejado deliberadamente en la fase 169 hasta la adopción
+  // de `notifications`). Barrido estándar vía `forEachActiveTenant`, igual
+  // que los otros 4 schedules de este archivo — con un solo tenant activo el
+  // resultado es idéntico al insert global previo.
   const seedService = new NotificationService(db, log);
-  /* tenant-safe: seed de templates global hasta la adopción de notifications (fase 175) */
-  seedService.seedTemplates().catch((err: unknown) => {
+  forEachActiveTenant(db, log, "seed-templates", async (ctx) => {
+    await seedService.seedTemplates(ctx);
+  }).catch((err: unknown) => {
     const message = err instanceof Error ? err.message : "Unknown error";
     log.error({ err: message }, "Template seed failed");
   });

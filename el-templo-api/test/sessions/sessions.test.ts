@@ -3,6 +3,13 @@ import type { FastifyInstance } from "fastify";
 import { and, eq } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 describe("Session Routes", () => {
   let app: FastifyInstance;
@@ -246,7 +253,12 @@ describe("Session Routes", () => {
       const [userRow] = await app.db
         .select({ id: schema.users.id })
         .from(schema.users)
-        .where(eq(schema.users.email, "stamp-own-level@test.com"));
+        .where(
+          and(
+            tenantWhere(schema.users, CTX_TEMPLO),
+            eq(schema.users.email, "stamp-own-level@test.com"),
+          ),
+        );
       const [completion] = await app.db
         .select({
           sessionLevel: schema.completedSessions.sessionLevel,
@@ -291,7 +303,12 @@ describe("Session Routes", () => {
       const [userRow] = await app.db
         .select({ id: schema.users.id, level: schema.users.level })
         .from(schema.users)
-        .where(eq(schema.users.email, "stamp-other-level@test.com"));
+        .where(
+          and(
+            tenantWhere(schema.users, CTX_TEMPLO),
+            eq(schema.users.email, "stamp-other-level@test.com"),
+          ),
+        );
       expect(userRow!.level).toBe("kairos");
 
       const [completion] = await app.db
@@ -442,7 +459,12 @@ describe("Session Routes", () => {
       await app.db
         .update(schema.users)
         .set({ level: "kairos" })
-        .where(eq(schema.users.email, "session-member@test.com"));
+        .where(
+          and(
+            tenantWhere(schema.users, CTX_TEMPLO),
+            eq(schema.users.email, "session-member@test.com"),
+          ),
+        );
     });
 
     // 2026-02-24 is a Tuesday (normal, non-ROM day) in Week 1 (anchor 2026-02-23).

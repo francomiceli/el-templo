@@ -45,9 +45,11 @@
  *
  * No DB access, no logging, no `any`.
  */
-import { eq, sql, type SQL } from "drizzle-orm";
+import { eq, ne, sql, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { rangeConditions } from "./cohorts";
+// Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
+import type { TenantContext } from "../shared/tenant";
 
 /**
  * The single configurable "ventana de renovación", default 15 days (D-07). Unifies
@@ -94,7 +96,10 @@ export function expiryCohortConditions(
   return [
     ...rangeConditions(schema.subscriptions.endDate, from, to),
     // D-03 / CHURN-04: a paused membership did not truly expire — exclude it.
-    sql`${schema.subscriptions.status} <> 'paused'`,
+    // Fase 174.1-03 (D-02): `ne` tipado en vez de `sql` crudo — un fragmento
+    // `sql` con columna interpolada cuenta como acceso propio para el lint,
+    // en un statement que ningún caller puede "cubrir" con su `tenantWhere`.
+    ne(schema.subscriptions.status, "paused"),
   ];
 }
 
@@ -131,11 +136,14 @@ export function subscriptionPlanFilter(planId: number | undefined): SQL[] {
  * Spread the result alongside `expiryCohortConditions(from, to)` so the surviving
  * rows are exactly "one per person, their last expiry in range".
  *
+ * @param ctx tenant context (fase 174.1-03, D-02) — filtra explícito `s2.tenant_id`
+ *   en la subquery correlacionada (tabla del boundary de subs).
  * @param from inclusive lower bound (`YYYY-MM-DD`) of the cohort window.
  * @param to EXCLUSIVE upper bound (`YYYY-MM-DD`) of the cohort window.
  * @returns a single SQL fragment to add to the query's `and(...)`.
  */
 export function lastExpiryPerPersonExpr(
+  ctx: TenantContext,
   from: string | undefined,
   to: string | undefined,
 ): SQL {
@@ -154,9 +162,12 @@ export function lastExpiryPerPersonExpr(
   // outer query joins `branches`/`subscriptionPlans` (the breakdown queries) → 500.
   // The explicit `subscriptions.` qualifier is unambiguous in every consumer because
   // all three query builders keep the outer table unaliased.
+  // Fase 174.1-03 (D-02): `s2` es `subscriptions` (self-join, boundary) — `ctx`
+  // disponible en TODOS los callers, filtro explícito por `tenant_id`.
   return sql`NOT EXISTS (
     SELECT 1 FROM subscriptions s2
     WHERE s2.user_id = subscriptions.user_id
+      AND s2.tenant_id = ${ctx.tenantId}
       AND s2.id <> subscriptions.id
       AND s2.subscription_status <> 'paused'
       AND s2.branch_id = subscriptions.branch_id
@@ -192,10 +203,12 @@ export function lastExpiryPerPersonExpr(
  * through `sql.raw(String(windowDays))` (never user input — mirrors
  * getRenewalRate at service.ts:689). All other references are bound columns.
  *
+ * @param ctx tenant context (fase 174.1-03, D-02) — filtra explícito
+ *   `s_next.tenant_id` en la subquery correlacionada (tabla del boundary).
  * @param windowDays the renovación window in whole days (SERVICE-controlled integer).
  * @returns a boolean SQL expression (usable in SELECT CASE / WHERE / HAVING).
  */
-export function retainedExpr(windowDays: number): SQL {
+export function retainedExpr(ctx: TenantContext, windowDays: number): SQL {
   const n = sql.raw(String(windowDays));
   // Outer-row references use the LITERAL `subscriptions.` prefix, NOT
   // `${schema.subscriptions.col}` — this predicate lives in `.select()`, where
@@ -206,9 +219,12 @@ export function retainedExpr(windowDays: number): SQL {
   // self-comparison — `retainedExpr` would NEVER match, mislabelling every renewal
   // as churn. With a join (breakdown queries) the bare `id` is also AMBIGUOUS → 500.
   // Explicit `subscriptions.` qualification is unambiguous (outer table is unaliased).
+  // Fase 174.1-03 (D-02): `s_next` es `subscriptions` (self-join, boundary) —
+  // `ctx` disponible en TODOS los callers, filtro explícito por `tenant_id`.
   return sql`EXISTS (
     SELECT 1 FROM subscriptions s_next
     WHERE s_next.user_id = subscriptions.user_id
+      AND s_next.tenant_id = ${ctx.tenantId}
       AND s_next.id <> subscriptions.id
       AND s_next.subscription_status <> 'paused'
       AND s_next.branch_id = subscriptions.branch_id

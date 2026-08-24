@@ -29,6 +29,16 @@ import { financialTransactions } from "../../src/db/schema/financial-transaction
 import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { auditLog } from "../../src/db/schema/audit-log";
 import { createPlan, assignPlan } from "../subscriptions/_helpers";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
   let app: FastifyInstance;
@@ -99,7 +109,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const [subRow] = await app.db
       .select({ id: subscriptions.id })
       .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
+      .where(
+        and(
+          tenantWhere(subscriptions, TEMPLO_CTX),
+          eq(subscriptions.userId, userId),
+        ),
+      )
       .limit(1);
     return { userId, subId: subRow.id, planId: plan.id };
   }
@@ -153,7 +168,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const [row] = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.id, body.enrollmentId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.id, body.enrollmentId),
+        ),
+      );
     expect(row.userId).toBe(userId);
     expect(row.programId).toBe(programId);
     expect(row.source).toBe("admin_addon");
@@ -202,13 +222,19 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const [planRow] = await app.db
       .select({ currency: subscriptionPlans.currency })
       .from(subscriptionPlans)
-      .where(eq(subscriptionPlans.id, planId));
+      .where(
+        and(
+          tenantWhere(subscriptionPlans, TEMPLO_CTX),
+          eq(subscriptionPlans.id, planId),
+        ),
+      );
 
     const txRows = await app.db
       .select()
       .from(financialTransactions)
       .where(
         and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
           eq(financialTransactions.memberId, userId),
           eq(financialTransactions.kind, "plan_charge"),
         ),
@@ -224,7 +250,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const links = await app.db
       .select()
       .from(transactionLinks)
-      .where(eq(transactionLinks.transactionId, addonTx.id));
+      .where(
+        and(
+          tenantWhere(transactionLinks, TEMPLO_CTX),
+          eq(transactionLinks.transactionId, addonTx.id),
+        ),
+      );
     expect(links).toHaveLength(1);
     expect(links[0].targetKind).toBe("enrollment");
     expect(links[0].targetId).toBe(enrollmentId);
@@ -240,7 +271,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const ftBefore = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(financialTransactions)
-      .where(eq(financialTransactions.memberId, userId));
+      .where(
+        and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
+          eq(financialTransactions.memberId, userId),
+        ),
+      );
 
     const res = await postAddon(ownerToken, userId, {
       programId,
@@ -251,7 +287,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const ftAfter = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(financialTransactions)
-      .where(eq(financialTransactions.memberId, userId));
+      .where(
+        and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
+          eq(financialTransactions.memberId, userId),
+        ),
+      );
     expect(Number(ftAfter[0].count)).toBe(Number(ftBefore[0].count));
   });
 
@@ -264,7 +305,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const ftBefore = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(financialTransactions)
-      .where(eq(financialTransactions.memberId, userId));
+      .where(
+        and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
+          eq(financialTransactions.memberId, userId),
+        ),
+      );
 
     const res = await postAddon(ownerToken, userId, { programId });
     expect(res.statusCode).toBe(200);
@@ -272,14 +318,24 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const ftAfter = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(financialTransactions)
-      .where(eq(financialTransactions.memberId, userId));
+      .where(
+        and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
+          eq(financialTransactions.memberId, userId),
+        ),
+      );
     expect(Number(ftAfter[0].count)).toBe(Number(ftBefore[0].count));
 
     const { enrollmentId } = JSON.parse(res.body) as { enrollmentId: number };
     const [row] = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.id, enrollmentId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.id, enrollmentId),
+        ),
+      );
     expect(row.pricePaid).toBeNull();
   });
 
@@ -364,7 +420,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const [enrollAfter] = await app.db
       .select({ status: programEnrollments.status })
       .from(programEnrollments)
-      .where(eq(programEnrollments.id, enrollmentId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.id, enrollmentId),
+        ),
+      );
     expect(enrollAfter.status).toBe("cancelled");
 
     const auditRows = await app.db
@@ -372,6 +433,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
       .from(auditLog)
       .where(
         and(
+          tenantWhere(auditLog, TEMPLO_CTX),
           eq(auditLog.action, "plan_assigned"),
           eq(auditLog.targetKind, "member"),
           eq(auditLog.targetId, userId),
@@ -434,6 +496,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
       .from(auditLog)
       .where(
         and(
+          tenantWhere(auditLog, TEMPLO_CTX),
           eq(auditLog.action, "plan_assigned"),
           eq(auditLog.targetKind, "member"),
           eq(auditLog.targetId, userId),
@@ -462,7 +525,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const enrollBefore = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, userId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, userId),
+        ),
+      );
 
     // Use a guaranteed-nonexistent programId to trigger NotFoundError BEFORE
     // the insert. Verifies no orphan row leaks via the early-validation path
@@ -478,7 +546,12 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const enrollAfter = await app.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, userId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, userId),
+        ),
+      );
     expect(Number(enrollAfter[0].count)).toBe(Number(enrollBefore[0].count));
   });
 
@@ -497,6 +570,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const userId = (member.user as { id: number }).id;
 
     const planResult = await app.db.insert(subscriptionPlans).values({
+      tenantId: TENANT_TEMPLO,
       name: `EUR Plan ${Date.now()}`,
       description: "EUR test plan",
       planTier: "flex",
@@ -513,6 +587,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
     const planId = Number(planResult[0].insertId);
 
     const subResult = await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId,
       planId,
       branchId: 1,
@@ -545,6 +620,7 @@ describe("Admin add-on assignment endpoint (Phase 112 Plan 04)", () => {
       .from(financialTransactions)
       .where(
         and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
           eq(financialTransactions.memberId, userId),
           eq(financialTransactions.kind, "plan_charge"),
         ),

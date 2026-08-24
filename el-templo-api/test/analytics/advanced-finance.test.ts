@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -9,6 +9,11 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { AdvancedFinanceService } from "../../src/modules/analytics/advanced-finance-service";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
@@ -16,6 +21,16 @@ import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/**
+ * El gimnasio de los fixtures. Fase 172: `getAdvancedFinance` recibe el
+ * `TenantContext` como PRIMER argumento (en producción sale de
+ * `assertTenant(request.scope, …)`); acá se construye a mano porque el service
+ * se invoca sin request. El Templo es el tenant 1 — mismo literal que usan
+ * `test/tv/tv-pairing-tenant.test.ts` y `test/tenancy/con-01-*`.
+ */
+const TENANT_TEMPLO = 1;
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 118 Plan 03 — AdvancedFinanceService (D-07 / D-08 / D-09 / D-11 / D-12).
@@ -59,7 +74,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
     const [admin] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(and(tenantWhere(users, CTX), eq(users.email, "admin@test.com")));
     recorderId = admin.id;
   });
 
@@ -154,19 +169,21 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
     branchId?: number;
     voided?: boolean;
   }): Promise<void> {
-    await app.db.insert(financialTransactions).values({
-      memberId: opts.memberId,
-      kind: opts.kind ?? "plan_charge",
-      direction: opts.direction ?? "inflow",
-      amount: opts.amount,
-      currency: opts.currency ?? "ARS",
-      paymentMethod: "cash",
-      transactionDate: opts.date,
-      effectiveDate: opts.date,
-      branchId: opts.branchId ?? branchA,
-      recordedBy: recorderId,
-      voidedAt: opts.voided ? new Date() : null,
-    });
+    await app.db.insert(financialTransactions).values(
+      tenantValues(CTX, {
+        memberId: opts.memberId,
+        kind: opts.kind ?? "plan_charge",
+        direction: opts.direction ?? "inflow",
+        amount: opts.amount,
+        currency: opts.currency ?? "ARS",
+        paymentMethod: "cash",
+        transactionDate: opts.date,
+        effectiveDate: opts.date,
+        branchId: opts.branchId ?? branchA,
+        recordedBy: recorderId,
+        voidedAt: opts.voided ? new Date() : null,
+      }),
+    );
   }
 
   async function insertSub(opts: {
@@ -233,7 +250,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
         date: "2026-03-22",
       });
 
-      const res = await svc.getAdvancedFinance({});
+      const res = await svc.getAdvancedFinance(CTX, {});
       const march = res.cashTrend.find((r) => r.month === "2026-03");
       expect(march).toBeDefined();
       expect(march?.ARS).toBe(20000);
@@ -257,7 +274,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
         branchId: branchES,
       });
 
-      const res = await svc.getAdvancedFinance({});
+      const res = await svc.getAdvancedFinance(CTX, {});
       const april = res.cashTrend.find((r) => r.month === "2026-04");
       expect(april).toBeDefined();
       expect(april?.ARS).toBe(10000);
@@ -282,7 +299,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
       // Caja: full amount in the month of payment.
       await insertTx({ memberId: m, amount: 240000, date: "2026-03-15" });
 
-      const res = await svc.getAdvancedFinance({});
+      const res = await svc.getAdvancedFinance(CTX, {});
 
       // Caja concentrated in March.
       const cajaMarch = res.cashTrend.find((r) => r.month === "2026-03");
@@ -312,7 +329,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
         cancelledAt: new Date("2026-02-28T12:00:00Z"),
       });
 
-      const res = await svc.getAdvancedFinance({});
+      const res = await svc.getAdvancedFinance(CTX, {});
 
       // Months after cancellation (March onward) get NO accrual from this sub.
       const march = res.accruedTrend.find((r) => r.month === "2026-03");
@@ -337,7 +354,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
         pricePaid: 50000,
       });
 
-      const res = await svc.getAdvancedFinance({});
+      const res = await svc.getAdvancedFinance(CTX, {});
       expect(res.excludedInvalidWindow).toBe(1);
       // No NaN anywhere in the accrued series.
       for (const r of res.accruedTrend) {
@@ -355,7 +372,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
         pricePaid: 50000,
       });
 
-      const res = await svc.getAdvancedFinance({});
+      const res = await svc.getAdvancedFinance(CTX, {});
       expect(res.excludedInvalidWindow).toBe(1);
     });
 
@@ -380,7 +397,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
         branchId: branchES,
       });
 
-      const res = await svc.getAdvancedFinance({});
+      const res = await svc.getAdvancedFinance(CTX, {});
       const july = res.accruedTrend.find((r) => r.month === "2026-07");
       expect(july).toBeDefined();
       expect(july?.ARS).toBe(31000);
@@ -412,7 +429,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
         currency: "ARS",
       });
 
-      const res = await svc.getAdvancedFinance({});
+      const res = await svc.getAdvancedFinance(CTX, {});
       const target = res.arpu.find((r) => r.month === month);
       expect(target).toBeDefined();
       // active count is 2 (the two makeActive members; billed sub is in the
@@ -437,7 +454,7 @@ describe("AdvancedFinanceService (Phase 118 Plan 03)", () => {
         status: "expired",
       });
 
-      const res = await svc.getAdvancedFinance({});
+      const res = await svc.getAdvancedFinance(CTX, {});
       const feb = res.arpu.find((r) => r.month === "2026-02");
       const febAccrued = res.accruedTrend.find((r) => r.month === "2026-02");
       expect(febAccrued?.ARS).toBe(28000);

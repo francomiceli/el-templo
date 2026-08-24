@@ -11,18 +11,29 @@
  *   - Removes first-pass subscriptions that are superseded by vigentes data
  *   - Determines active/inactive status from subscription end dates
  *
+ * `--tenant=<id>` es OBLIGATORIO (fase 169 D-06, retrofit fase 173 D-03): este
+ * script lee y escribe `users` en batch sin request y sin JWT, así que el
+ * gimnasio sólo puede venir del flag — se valida ANTES de mirar `--data-dir`,
+ * y con un id inexistente también corta antes de tocar la base.
+ *
  * Usage:
- *   pnpm tsx src/db/import-vigentes.ts --data-dir /path/to/csvs [--execute]
+ *   pnpm tsx src/db/import-vigentes.ts --tenant=<id> --data-dir /path/to/csvs [--execute]
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { users } from "./schema/users.js";
 import { branches } from "./schema/branches.js";
 import { subscriptionPlans } from "./schema/subscription-plans.js";
 import { subscriptions } from "./schema/subscriptions.js";
+import {
+  failTenantArg,
+  queryFnFromConnection,
+  requireTenant,
+} from "./scripts/require-tenant.js";
+import { tenantValues, tenantWhere } from "../modules/shared/tenant.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -213,14 +224,6 @@ interface VigentesReport {
 async function main(): Promise<void> {
   // ── Parse CLI args ──────────────────────────────────────────────
   const args = process.argv.slice(2);
-  const dataDirIdx = args.indexOf("--data-dir");
-  if (dataDirIdx === -1 || !args[dataDirIdx + 1]) {
-    console.error(
-      "Usage: pnpm tsx src/db/import-vigentes.ts --data-dir /path/to/csvs [--execute]",
-    );
-    process.exit(1);
-  }
-  const dataDir = args[dataDirIdx + 1];
   const executeMode = args.includes("--execute");
 
   // ── Safety gate ─────────────────────────────────────────────────
@@ -247,8 +250,23 @@ async function main(): Promise<void> {
   const { db, connection } = await createSingleConnection();
 
   try {
+    // Gimnasio: ANTES de cualquier otra validación de uso (fase 169 D-06,
+    // retrofit 173 D-03). Corta con exit 2 antes de mirar `--data-dir` y sin
+    // haber tocado la base.
+    const ctx = await requireTenant(queryFnFromConnection(connection), args);
+
+    const dataDirIdx = args.indexOf("--data-dir");
+    if (dataDirIdx === -1 || !args[dataDirIdx + 1]) {
+      console.error(
+        "Usage: pnpm tsx src/db/import-vigentes.ts --tenant=<id> --data-dir /path/to/csvs [--execute]",
+      );
+      process.exit(1);
+    }
+    const dataDir = args[dataDirIdx + 1];
+
     console.log(`\nSocios Vigentes Import (Second Pass)`);
     console.log(`Mode: ${executeMode ? "EXECUTE" : "DRY-RUN"}`);
+    console.log(`Tenant: ${ctx.tenantId}`);
     console.log(`Data dir: ${dataDir}\n`);
 
     // ── Step 1: Parse CSVs ────────────────────────────────────────
@@ -274,7 +292,8 @@ async function main(): Promise<void> {
 
     const dbPlans = await db
       .select({ id: subscriptionPlans.id, name: subscriptionPlans.name })
-      .from(subscriptionPlans);
+      .from(subscriptionPlans)
+      .where(tenantWhere(subscriptionPlans, ctx));
 
     const existingUsers: Array<{
       id: number;
@@ -286,7 +305,8 @@ async function main(): Promise<void> {
         email: users.email,
         createdAt: users.createdAt,
       })
-      .from(users);
+      .from(users)
+      .where(tenantWhere(users, ctx));
 
     const userByEmail = new Map<
       string,
@@ -349,7 +369,12 @@ async function main(): Promise<void> {
               notes: subscriptions.notes,
             })
             .from(subscriptions)
-            .where(inArray(subscriptions.userId, vigentesUserIds))
+            .where(
+              and(
+                tenantWhere(subscriptions, ctx),
+                inArray(subscriptions.userId, vigentesUserIds),
+              ),
+            )
         : [];
 
     // Index existing subs by "userId:planId:endDate"
@@ -477,22 +502,29 @@ async function main(): Promise<void> {
                   branchId: rowBranchId,
                   notes: "Importado desde CSV (vigentes)",
                 })
-                .where(eq(subscriptions.id, existing.id));
+                .where(
+                  and(
+                    tenantWhere(subscriptions, ctx),
+                    eq(subscriptions.id, existing.id),
+                  ),
+                );
               subscriptionsUpdated++;
             }
           } else {
             // Create new subscription
-            await db.insert(subscriptions).values({
-              userId: user.id,
-              planId,
-              branchId: rowBranchId,
-              status,
-              startDate: row.startDate,
-              endDate: row.endDate,
-              pricePaid: 0,
-              priceTypeApplied: priceType,
-              notes: "Importado desde CSV (vigentes)",
-            });
+            await db.insert(subscriptions).values(
+              tenantValues(ctx, {
+                userId: user.id,
+                planId,
+                branchId: rowBranchId,
+                status,
+                startDate: row.startDate,
+                endDate: row.endDate,
+                pricePaid: 0,
+                priceTypeApplied: priceType,
+                notes: "Importado desde CSV (vigentes)",
+              }),
+            );
             subscriptionsCreated++;
           }
         }
@@ -515,7 +547,7 @@ async function main(): Promise<void> {
           await db
             .update(users)
             .set({ createdAt: oldestDate })
-            .where(eq(users.id, user.id));
+            .where(and(tenantWhere(users, ctx), eq(users.id, user.id)));
           usersUpdatedIngreso++;
         }
 
@@ -541,10 +573,11 @@ async function main(): Promise<void> {
             WHEN u.status IN ('activo','inactivo') THEN 'inactivo'
             ELSE u.status
           END
-          WHERE u.id IN (${sql.join(
-            Array.from(touchedUserIds).map((id) => sql`${id}`),
-            sql`,`,
-          )})
+          WHERE u.tenant_id = ${ctx.tenantId}
+            AND u.id IN (${sql.join(
+              Array.from(touchedUserIds).map((id) => sql`${id}`),
+              sql`,`,
+            )})
         `);
         usersStatusRecomputed =
           (recomputeResult as unknown as [{ affectedRows: number }])[0]
@@ -585,10 +618,6 @@ async function main(): Promise<void> {
 
 main()
   .then(() => process.exit(0))
-  .catch((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("Import failed:", message);
-    process.exit(1);
-  });
+  .catch((err: unknown) => failTenantArg(err, "import-vigentes"));
 
 export { main };

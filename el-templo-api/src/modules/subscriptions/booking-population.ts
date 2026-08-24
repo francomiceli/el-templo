@@ -22,6 +22,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, gte, inArray, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 
 /** Add `days` calendar days to a YYYY-MM-DD string. Returns YYYY-MM-DD. */
 function addDays(yyyymmdd: string, days: number): string {
@@ -87,6 +88,7 @@ export interface PopulateOptions {
  * Returns the number of bookings actually inserted.
  */
 export async function populateBookings(
+  ctx: TenantContext,
   db: MySql2Database<typeof schema>,
   log: FastifyBaseLogger,
   subId: number,
@@ -106,17 +108,34 @@ export async function populateBookings(
     .from(schema.subscriptionSchedules)
     .innerJoin(
       schema.subscriptions,
-      eq(schema.subscriptions.id, schema.subscriptionSchedules.subscriptionId),
+      and(
+        tenantWhere(schema.subscriptions, ctx),
+        eq(
+          schema.subscriptions.id,
+          schema.subscriptionSchedules.subscriptionId,
+        ),
+      ),
     )
     .innerJoin(
       schema.schedules,
-      eq(schema.schedules.id, schema.subscriptionSchedules.scheduleId),
+      and(
+        tenantWhere(schema.schedules, ctx),
+        eq(schema.schedules.id, schema.subscriptionSchedules.scheduleId),
+      ),
     )
     .innerJoin(
       schema.branches,
-      eq(schema.branches.id, schema.subscriptions.branchId),
+      and(
+        tenantWhere(schema.branches, ctx),
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      ),
     )
-    .where(eq(schema.subscriptionSchedules.subscriptionId, subId));
+    .where(
+      and(
+        tenantWhere(schema.subscriptionSchedules, ctx),
+        eq(schema.subscriptionSchedules.subscriptionId, subId),
+      ),
+    );
 
   if (rows.length === 0) return 0;
 
@@ -142,11 +161,16 @@ export async function populateBookings(
   }
 
   // Load holidays for the branch's country in range.
+  //
+  // D-02 (fase 174): `holidays` es tenant-scoped desde la 167 pero hasta acá
+  // filtraba SOLO por country — `tenantWhere` va PRIMERO, junto al filtro de
+  // país/fecha que ya tenía.
   const hols = await db
     .select({ date: schema.holidays.date })
     .from(schema.holidays)
     .where(
       and(
+        tenantWhere(schema.holidays, ctx),
         eq(schema.holidays.country, firstRow.branchCountry),
         gte(schema.holidays.date, fromDate),
       ),
@@ -204,13 +228,19 @@ export async function populateBookings(
   let affected = 0;
   for (let i = 0; i < toInsert.length; i += BATCH) {
     const slice = toInsert.slice(i, i + BATCH);
-    const placeholders = slice.map(() => "(?, ?, ?, 'reservado')").join(", ");
+    // Fase 174 (T-174-01-T, Pattern B sobre SQL crudo): `tenant_id` va como
+    // placeholder EXPLÍCITO desde `ctx.tenantId` — este INSERT usa el cliente
+    // mysql2 crudo (no `db.insert()`), así que `tenantValues` no aplica acá;
+    // sin la columna, la fila nace con el DEFAULT 1 de la columna.
+    const placeholders = slice
+      .map(() => "(?, ?, ?, 'reservado', ?)")
+      .join(", ");
     const params: Array<number | string> = [];
     for (const v of slice) {
-      params.push(v.memberId, v.scheduleId, v.bookingDate);
+      params.push(v.memberId, v.scheduleId, v.bookingDate, ctx.tenantId);
     }
     const [result] = await rawConn.query(
-      `INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status) VALUES ${placeholders}
+      `INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, tenant_id) VALUES ${placeholders}
        ON DUPLICATE KEY UPDATE
          cancelled_at = IF(booking_status = 'cancelado', NULL, cancelled_at),
          waitlist_position = IF(booking_status = 'cancelado', NULL, waitlist_position),
@@ -235,6 +265,7 @@ export async function populateBookings(
  * Returns rows deleted.
  */
 export async function clearFutureBookings(
+  ctx: TenantContext,
   db: MySql2Database<typeof schema>,
   log: FastifyBaseLogger,
   subId: number,
@@ -243,7 +274,12 @@ export async function clearFutureBookings(
   const [sub] = await db
     .select({ userId: schema.subscriptions.userId })
     .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.id, subId));
+    .where(
+      and(
+        tenantWhere(schema.subscriptions, ctx),
+        eq(schema.subscriptions.id, subId),
+      ),
+    );
   if (!sub) return 0;
 
   const fromDate = opts.fromDate ?? today();
@@ -256,7 +292,12 @@ export async function clearFutureBookings(
     const rows = await db
       .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
       .from(schema.subscriptionSchedules)
-      .where(eq(schema.subscriptionSchedules.subscriptionId, subId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionSchedules, ctx),
+          eq(schema.subscriptionSchedules.subscriptionId, subId),
+        ),
+      );
     scheduleIds = rows.map((r) => r.scheduleId);
   }
 
@@ -266,6 +307,7 @@ export async function clearFutureBookings(
     .delete(schema.bookings)
     .where(
       and(
+        tenantWhere(schema.bookings, ctx),
         eq(schema.bookings.memberId, sub.userId),
         inArray(schema.bookings.scheduleId, scheduleIds),
         gte(schema.bookings.bookingDate, fromDate),
@@ -296,6 +338,7 @@ export async function clearFutureBookings(
  * Returns rows cancelled.
  */
 export async function cancelBookingsInRange(
+  ctx: TenantContext,
   db: MySql2Database<typeof schema>,
   log: FastifyBaseLogger,
   subId: number,
@@ -305,13 +348,23 @@ export async function cancelBookingsInRange(
   const [sub] = await db
     .select({ userId: schema.subscriptions.userId })
     .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.id, subId));
+    .where(
+      and(
+        tenantWhere(schema.subscriptions, ctx),
+        eq(schema.subscriptions.id, subId),
+      ),
+    );
   if (!sub) return 0;
 
   const scheduleRows = await db
     .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
     .from(schema.subscriptionSchedules)
-    .where(eq(schema.subscriptionSchedules.subscriptionId, subId));
+    .where(
+      and(
+        tenantWhere(schema.subscriptionSchedules, ctx),
+        eq(schema.subscriptionSchedules.subscriptionId, subId),
+      ),
+    );
   if (scheduleRows.length === 0) return 0;
 
   const result = await db
@@ -323,6 +376,7 @@ export async function cancelBookingsInRange(
     })
     .where(
       and(
+        tenantWhere(schema.bookings, ctx),
         eq(schema.bookings.memberId, sub.userId),
         inArray(
           schema.bookings.scheduleId,
@@ -348,6 +402,7 @@ export async function cancelBookingsInRange(
  * to warn before pause/cancel.
  */
 export async function countFutureBookings(
+  ctx: TenantContext,
   db: MySql2Database<typeof schema>,
   subId: number,
   fromDate?: string,
@@ -355,13 +410,23 @@ export async function countFutureBookings(
   const [sub] = await db
     .select({ userId: schema.subscriptions.userId })
     .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.id, subId));
+    .where(
+      and(
+        tenantWhere(schema.subscriptions, ctx),
+        eq(schema.subscriptions.id, subId),
+      ),
+    );
   if (!sub) return 0;
 
   const scheduleRows = await db
     .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
     .from(schema.subscriptionSchedules)
-    .where(eq(schema.subscriptionSchedules.subscriptionId, subId));
+    .where(
+      and(
+        tenantWhere(schema.subscriptionSchedules, ctx),
+        eq(schema.subscriptionSchedules.subscriptionId, subId),
+      ),
+    );
   if (scheduleRows.length === 0) return 0;
 
   const cutoff = fromDate ?? today();
@@ -371,6 +436,7 @@ export async function countFutureBookings(
     .from(schema.bookings)
     .where(
       and(
+        tenantWhere(schema.bookings, ctx),
         eq(schema.bookings.memberId, sub.userId),
         inArray(
           schema.bookings.scheduleId,

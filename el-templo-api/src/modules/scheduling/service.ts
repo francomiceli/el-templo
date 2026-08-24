@@ -26,6 +26,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays, computeSeniority, todayInTz } from "../shared/date-utils";
 import { memberCoveredUntilSql } from "../shared/covered-until";
+import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
 import { dateToWeekNumber } from "../shared/week-dates";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
 import { deriveActivityLabel } from "./derived-label";
@@ -64,8 +65,12 @@ export class SchedulingService {
   /**
    * Create a schedule slot.
    * Validates branch (not virtual), activity, and prevents duplicates.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO, filtra branch/activity y
+   * estampa `tenantId` en el insert.
    */
   async createSchedule(
+    ctx: TenantContext,
     branchId: number,
     activityId: number,
     dayOfWeek: DayOfWeek,
@@ -80,7 +85,9 @@ export class SchedulingService {
         isVirtual: schema.branches.isVirtual,
       })
       .from(schema.branches)
-      .where(eq(schema.branches.id, branchId));
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+      );
 
     if (!branch) throw new NotFoundError("Sede no encontrada");
     if (branch.isVirtual) {
@@ -93,7 +100,12 @@ export class SchedulingService {
     const [activity] = await this.db
       .select({ id: schema.activities.id, name: schema.activities.name })
       .from(schema.activities)
-      .where(eq(schema.activities.id, activityId));
+      .where(
+        and(
+          tenantWhere(schema.activities, ctx),
+          eq(schema.activities.id, activityId),
+        ),
+      );
 
     if (!activity) throw new NotFoundError("Actividad no encontrada");
 
@@ -114,7 +126,7 @@ export class SchedulingService {
     // slots of DIFFERENT activities can coexist in the same branch/day/hour
     // (musculacion convive con actividades especiales); only two slots of the
     // SAME activity overlapping remain a conflict.
-    const overlapping = await this.findOverlappingSchedule({
+    const overlapping = await this.findOverlappingSchedule(ctx, {
       branchId,
       dayOfWeek,
       activityId,
@@ -128,16 +140,18 @@ export class SchedulingService {
       );
     }
 
-    const result = await this.db.insert(schema.schedules).values({
-      branchId,
-      activityId,
-      dayOfWeek,
-      startTime,
-      endTime,
-    });
+    const result = await this.db.insert(schema.schedules).values(
+      tenantValues(ctx, {
+        branchId,
+        activityId,
+        dayOfWeek,
+        startTime,
+        endTime,
+      }),
+    );
 
     const id = Number(result[0].insertId);
-    const slot = await this.getScheduleSlot(id);
+    const slot = await this.getScheduleSlot(ctx, id);
     if (!slot) throw new Error("Failed to retrieve newly created schedule");
     return slot;
   }
@@ -145,8 +159,12 @@ export class SchedulingService {
   /**
    * Get the weekly grid for a branch with booking counts and holiday info.
    * weekStartDate is a Monday ISO date (YYYY-MM-DD).
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO, filtra branch/schedules/
+   * exceptions/bookings y se propaga a `holidayService.getHolidaysForWeek`.
    */
   async getWeeklyGrid(
+    ctx: TenantContext,
     branchId: number,
     weekStartDate: string,
     includeInactive = false,
@@ -164,7 +182,9 @@ export class SchedulingService {
         timezone: schema.branches.timezone,
       })
       .from(schema.branches)
-      .where(eq(schema.branches.id, branchId));
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+      );
 
     if (!branch) throw new NotFoundError("Sede no encontrada");
 
@@ -174,8 +194,9 @@ export class SchedulingService {
     // would surface classes they can't book). Admins pass includeInactive=true
     // so they can see deactivated slots and reactivate them from the same UI.
     const scheduleFilter = includeInactive
-      ? eq(schema.schedules.branchId, branchId)
+      ? and(tenantWhere(schema.schedules, ctx), eq(schema.schedules.branchId, branchId))
       : and(
+          tenantWhere(schema.schedules, ctx),
           eq(schema.schedules.branchId, branchId),
           eq(schema.schedules.isActive, true),
         );
@@ -201,11 +222,17 @@ export class SchedulingService {
       .from(schema.schedules)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.schedules.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.schedules.branchId),
+        ),
       )
       .innerJoin(
         schema.activities,
-        eq(schema.activities.id, schema.schedules.activityId),
+        and(
+          tenantWhere(schema.activities, ctx),
+          eq(schema.activities.id, schema.schedules.activityId),
+        ),
       )
       .where(scheduleFilter)
       .orderBy(schema.schedules.dayOfWeek, schema.schedules.startTime);
@@ -215,6 +242,7 @@ export class SchedulingService {
     // start since it computes its own range internally.
     const weekRangeEnd = addDays(weekStartDate, 6); // Sunday inclusive
     const holidaysInWeek = await this.holidayService.getHolidaysForWeek(
+      ctx,
       branch.country,
       weekStartDate,
     );
@@ -275,6 +303,7 @@ export class SchedulingService {
         .from(schema.scheduleExceptions)
         .where(
           and(
+            tenantWhere(schema.scheduleExceptions, ctx),
             inArray(schema.scheduleExceptions.scheduleId, scheduleIds),
             gte(schema.scheduleExceptions.exceptionDate, weekStartDate),
             lte(schema.scheduleExceptions.exceptionDate, weekRangeEnd),
@@ -298,6 +327,7 @@ export class SchedulingService {
         .from(schema.bookings)
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             inArray(schema.bookings.scheduleId, scheduleIds),
             gte(schema.bookings.bookingDate, weekStartDate),
             lte(schema.bookings.bookingDate, weekRangeEnd),
@@ -385,12 +415,20 @@ export class SchedulingService {
 
   /**
    * Get slot detail with all bookings for a specific date.
+   *
+   * Fase 173 (D-02): `ctx` es el PRIMER parámetro y llega desde
+   * `assertTenant(request.scope, "scheduling.slotDetail")`. Plan 173-07: los
+   * joins a `users` y `member_profiles` de este método ya llevan
+   * `tenantWhere` inline en el `ON` (INNER y LEFT respectivamente), además de
+   * la lectura de `subscriptions` que hace `memberCoveredUntilSql`.
+   * Fase 174 (plan 174-04): `bookings` y `attendance` cierran su deuda cruda.
    */
   async getSlotDetail(
+    ctx: TenantContext,
     scheduleId: number,
     date: string,
   ): Promise<SlotDetailView> {
-    const slot = await this.getScheduleSlot(scheduleId);
+    const slot = await this.getScheduleSlot(ctx, scheduleId);
     if (!slot) throw new NotFoundError("Horario no encontrado");
 
     // Phase 155 (D-06/D-07, WR-02): effective per-slot capacity resolved via
@@ -405,14 +443,14 @@ export class SchedulingService {
     // the admin dialog can list the bookings that a restore would bring back
     // (cancelledAt >= exceptionCreatedAt), mirroring pendingRestoration for
     // whole-slot deactivations.
-    const exception = await getScheduleException(this.db, scheduleId, date);
+    const exception = await getScheduleException(ctx, scheduleId, date, this.db);
 
     // Get all bookings (not cancelled) for this slot + date.
     // Phase 102: trials are returned alongside regular bookings — the admin
     // UI splits them visually using `isTrial`. This is NOT a capacity query.
     // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
     // Implementación única compartida — ver shared/covered-until.ts.
-    const endDateExpr = memberCoveredUntilSql();
+    const endDateExpr = memberCoveredUntilSql(ctx);
 
     const bookingRows = await this.db
       .select({
@@ -432,13 +470,23 @@ export class SchedulingService {
         endDate: endDateExpr,
       })
       .from(schema.bookings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.bookings.memberId),
+        ),
+      )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.bookings.memberId),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.bookings.memberId),
+        ),
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, date),
         ),
@@ -478,9 +526,16 @@ export class SchedulingService {
         status: schema.attendance.status,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.branchId, slot.branchId),
           sql`DATE(${schema.attendance.checkedInAt}) = ${date}`,
         ),
@@ -565,13 +620,16 @@ export class SchedulingService {
    *
    * The exception is created BEFORE bookings are cancelled so its createdAt
    * lower-bounds their cancelledAt — restoreScheduleDate uses it as cutoff.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO.
    */
   async cancelScheduleDate(
+    ctx: TenantContext,
     scheduleId: number,
     date: string,
     reason?: string | null,
   ): Promise<ScheduleExceptionRow> {
-    const slot = await this.getScheduleSlot(scheduleId);
+    const slot = await this.getScheduleSlot(ctx, scheduleId);
     if (!slot) throw new NotFoundError("Horario no encontrado");
     if (!slot.isActive) {
       throw new BadRequestError(
@@ -592,7 +650,9 @@ export class SchedulingService {
     const [branch] = await this.db
       .select({ timezone: schema.branches.timezone })
       .from(schema.branches)
-      .where(eq(schema.branches.id, slot.branchId));
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, slot.branchId)),
+      );
     const today = todayInTz(
       branch?.timezone ?? "America/Argentina/Buenos_Aires",
     );
@@ -600,7 +660,7 @@ export class SchedulingService {
       throw new BadRequestError("No se puede cancelar una fecha pasada");
     }
 
-    const existing = await getScheduleException(this.db, scheduleId, date);
+    const existing = await getScheduleException(ctx, scheduleId, date, this.db);
     if (existing) {
       throw new ConflictError("Esta fecha ya esta cancelada");
     }
@@ -608,14 +668,16 @@ export class SchedulingService {
     // createdAt is stamped app-side (not left to the DB default) so it and
     // the bookings' cancelledAt come from the SAME clock — the restore
     // cutoff (cancelledAt >= createdAt) must never straddle two clocks.
-    await this.db.insert(schema.scheduleExceptions).values({
-      scheduleId,
-      exceptionDate: date,
-      reason: reason?.trim() || null,
-      createdAt: new Date(),
-    });
+    await this.db.insert(schema.scheduleExceptions).values(
+      tenantValues(ctx, {
+        scheduleId,
+        exceptionDate: date,
+        reason: reason?.trim() || null,
+        createdAt: new Date(),
+      }),
+    );
 
-    const created = await getScheduleException(this.db, scheduleId, date);
+    const created = await getScheduleException(ctx, scheduleId, date, this.db);
     if (!created) throw new Error("Failed to retrieve created exception");
 
     this.log.info(
@@ -629,19 +691,27 @@ export class SchedulingService {
    * Undo a per-date cancellation. Deletes the exception and returns it so
    * the route handler can restore the bookings it auto-cancelled
    * (cancelledAt >= createdAt, same window logic as slot reactivation).
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO.
    */
   async restoreScheduleDate(
+    ctx: TenantContext,
     scheduleId: number,
     date: string,
   ): Promise<ScheduleExceptionRow> {
-    const exception = await getScheduleException(this.db, scheduleId, date);
+    const exception = await getScheduleException(ctx, scheduleId, date, this.db);
     if (!exception) {
       throw new NotFoundError("Esta fecha no esta cancelada");
     }
 
     await this.db
       .delete(schema.scheduleExceptions)
-      .where(eq(schema.scheduleExceptions.id, exception.id));
+      .where(
+        and(
+          tenantWhere(schema.scheduleExceptions, ctx),
+          eq(schema.scheduleExceptions.id, exception.id),
+        ),
+      );
 
     this.log.info(
       { scheduleId, date },
@@ -660,13 +730,16 @@ export class SchedulingService {
    * before flipping isActive=true so it can restore bookings cancelled
    * during the deactivation window without resurrecting member-initiated
    * cancellations from before the close.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO.
    */
   async toggleSchedule(
+    ctx: TenantContext,
     scheduleId: number,
     isActive: boolean,
     inactiveReason?: string | null,
   ): Promise<ScheduleSlot> {
-    const existing = await this.getScheduleSlot(scheduleId);
+    const existing = await this.getScheduleSlot(ctx, scheduleId);
     if (!existing) throw new NotFoundError("Horario no encontrado");
 
     // Phase 155 (WR-01, D-01): reactivation must re-run the activity-scoped
@@ -677,7 +750,7 @@ export class SchedulingService {
     // violating the invariant createSchedule/updateScheduleActivity enforce.
     // Deactivation needs no check.
     if (isActive && !existing.isActive) {
-      const overlapping = await this.findOverlappingSchedule({
+      const overlapping = await this.findOverlappingSchedule(ctx, {
         branchId: existing.branchId,
         dayOfWeek: existing.dayOfWeek,
         activityId: existing.activityId,
@@ -703,9 +776,14 @@ export class SchedulingService {
         inactiveReason: reasonValue,
         deactivatedAt: isActive ? null : new Date(),
       })
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
 
-    const updated = await this.getScheduleSlot(scheduleId);
+    const updated = await this.getScheduleSlot(ctx, scheduleId);
     if (!updated) throw new Error("Failed to retrieve updated schedule");
     return updated;
   }
@@ -714,12 +792,19 @@ export class SchedulingService {
    * Read the timestamp of when this schedule was last deactivated.
    * The route handler reads this BEFORE calling toggleSchedule(true) so it
    * can pass the cutoff to BookingService.restoreCancelledBookingsForSchedule.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO.
    */
-  async getDeactivatedAt(scheduleId: number): Promise<Date | null> {
+  async getDeactivatedAt(
+    ctx: TenantContext,
+    scheduleId: number,
+  ): Promise<Date | null> {
     const [row] = await this.db
       .select({ deactivatedAt: schema.schedules.deactivatedAt })
       .from(schema.schedules)
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(tenantWhere(schema.schedules, ctx), eq(schema.schedules.id, scheduleId)),
+      );
     return row?.deactivatedAt ?? null;
   }
 
@@ -730,12 +815,15 @@ export class SchedulingService {
    * admin intent is to rebrand the recurring slot, not kick members out.
    * Members see the new activity name on their next view via the join
    * to activities in read queries.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO.
    */
   async updateScheduleActivity(
+    ctx: TenantContext,
     scheduleId: number,
     activityId: number,
   ): Promise<ScheduleSlot> {
-    const existing = await this.getScheduleSlot(scheduleId);
+    const existing = await this.getScheduleSlot(ctx, scheduleId);
     if (!existing) throw new NotFoundError("Horario no encontrado");
 
     const [activity] = await this.db
@@ -745,7 +833,12 @@ export class SchedulingService {
         isActive: schema.activities.isActive,
       })
       .from(schema.activities)
-      .where(eq(schema.activities.id, activityId));
+      .where(
+        and(
+          tenantWhere(schema.activities, ctx),
+          eq(schema.activities.id, activityId),
+        ),
+      );
     if (!activity) throw new NotFoundError("Actividad no encontrada");
     if (!activity.isActive) {
       throw new BadRequestError("La actividad esta desactivada");
@@ -756,7 +849,7 @@ export class SchedulingService {
     // overlap (this path historically had NO overlap check). Re-run the same
     // re-scoped check against the DESTINATION activity, excluding this very slot,
     // reusing the slot's own time window.
-    const overlapping = await this.findOverlappingSchedule({
+    const overlapping = await this.findOverlappingSchedule(ctx, {
       branchId: existing.branchId,
       dayOfWeek: existing.dayOfWeek,
       activityId,
@@ -774,23 +867,30 @@ export class SchedulingService {
     await this.db
       .update(schema.schedules)
       .set({ activityId })
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
 
     this.log.info(
       { scheduleId, activityId },
       "Schedule activity updated (bookings retained)",
     );
 
-    const updated = await this.getScheduleSlot(scheduleId);
+    const updated = await this.getScheduleSlot(ctx, scheduleId);
     if (!updated) throw new Error("Failed to retrieve updated schedule");
     return updated;
   }
 
   /**
    * Delete a schedule slot. Fails if it has confirmed bookings.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO.
    */
-  async deleteSchedule(scheduleId: number): Promise<void> {
-    const slot = await this.getScheduleSlot(scheduleId);
+  async deleteSchedule(ctx: TenantContext, scheduleId: number): Promise<void> {
+    const slot = await this.getScheduleSlot(ctx, scheduleId);
     if (!slot) throw new NotFoundError("Horario no encontrado");
 
     // Check for active bookings
@@ -799,6 +899,7 @@ export class SchedulingService {
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.scheduleId, scheduleId),
           sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
         ),
@@ -811,10 +912,14 @@ export class SchedulingService {
 
     await this.db
       .delete(schema.bookings)
-      .where(eq(schema.bookings.scheduleId, scheduleId));
+      .where(
+        and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.scheduleId, scheduleId)),
+      );
     await this.db
       .delete(schema.schedules)
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(tenantWhere(schema.schedules, ctx), eq(schema.schedules.id, scheduleId)),
+      );
 
     this.log.info({ scheduleId }, "Schedule deleted");
   }
@@ -823,8 +928,13 @@ export class SchedulingService {
    * Seed default schedules for a branch.
    * Creates 8 weekday slots (7-10, 17-20) for regular class
    * + 2 Saturday ROM slots (8, 9) if romEnabled.
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO.
    */
-  async seedDefaultSchedules(branchId: number): Promise<number> {
+  async seedDefaultSchedules(
+    ctx: TenantContext,
+    branchId: number,
+  ): Promise<number> {
     // Validate branch
     const [branch] = await this.db
       .select({
@@ -833,7 +943,9 @@ export class SchedulingService {
         romEnabled: schema.branches.romEnabled,
       })
       .from(schema.branches)
-      .where(eq(schema.branches.id, branchId));
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+      );
 
     if (!branch) throw new NotFoundError("Sede no encontrada");
     if (branch.isVirtual) {
@@ -848,14 +960,21 @@ export class SchedulingService {
     let [regularActivity] = await this.db
       .select({ id: schema.activities.id })
       .from(schema.activities)
-      .where(eq(schema.activities.name, "General"))
+      .where(
+        and(
+          tenantWhere(schema.activities, ctx),
+          eq(schema.activities.name, "General"),
+        ),
+      )
       .limit(1);
 
     if (!regularActivity) {
-      const result = await this.db.insert(schema.activities).values({
-        name: "General",
-        description: "Clase grupal de entrenamiento funcional",
-      });
+      const result = await this.db.insert(schema.activities).values(
+        tenantValues(ctx, {
+          name: "General",
+          description: "Clase grupal de entrenamiento funcional",
+        }),
+      );
       regularActivity = { id: Number(result[0].insertId) };
     }
 
@@ -886,6 +1005,7 @@ export class SchedulingService {
           .from(schema.schedules)
           .where(
             and(
+              tenantWhere(schema.schedules, ctx),
               eq(schema.schedules.branchId, branchId),
               eq(schema.schedules.dayOfWeek, day),
               eq(schema.schedules.startTime, startTime),
@@ -894,13 +1014,15 @@ export class SchedulingService {
           .limit(1);
 
         if (!existing) {
-          await this.db.insert(schema.schedules).values({
-            branchId,
-            activityId: regularActivity.id,
-            dayOfWeek: day,
-            startTime,
-            endTime,
-          });
+          await this.db.insert(schema.schedules).values(
+            tenantValues(ctx, {
+              branchId,
+              activityId: regularActivity.id,
+              dayOfWeek: day,
+              startTime,
+              endTime,
+            }),
+          );
           created++;
         }
       }
@@ -911,14 +1033,21 @@ export class SchedulingService {
       let [romActivity] = await this.db
         .select({ id: schema.activities.id })
         .from(schema.activities)
-        .where(eq(schema.activities.name, "ROM"))
+        .where(
+          and(
+            tenantWhere(schema.activities, ctx),
+            eq(schema.activities.name, "ROM"),
+          ),
+        )
         .limit(1);
 
       if (!romActivity) {
-        const result = await this.db.insert(schema.activities).values({
-          name: "ROM",
-          description: "Range of Movement - Movilidad y flexibilidad",
-        });
+        const result = await this.db.insert(schema.activities).values(
+          tenantValues(ctx, {
+            name: "ROM",
+            description: "Range of Movement - Movilidad y flexibilidad",
+          }),
+        );
         romActivity = { id: Number(result[0].insertId) };
       }
 
@@ -934,6 +1063,7 @@ export class SchedulingService {
           .from(schema.schedules)
           .where(
             and(
+              tenantWhere(schema.schedules, ctx),
               eq(schema.schedules.branchId, branchId),
               eq(schema.schedules.dayOfWeek, 6),
               eq(schema.schedules.startTime, startTime),
@@ -942,13 +1072,15 @@ export class SchedulingService {
           .limit(1);
 
         if (!existing) {
-          await this.db.insert(schema.schedules).values({
-            branchId,
-            activityId: romActivity.id,
-            dayOfWeek: 6,
-            startTime,
-            endTime,
-          });
+          await this.db.insert(schema.schedules).values(
+            tenantValues(ctx, {
+              branchId,
+              activityId: romActivity.id,
+              dayOfWeek: 6,
+              startTime,
+              endTime,
+            }),
+          );
           created++;
         }
       }
@@ -969,16 +1101,22 @@ export class SchedulingService {
    * endTime) in the given branch/day, or null. Back-to-back windows do NOT
    * overlap (strict `lt`/`gt`). `excludeScheduleId` skips a slot when re-checking
    * an existing one (updateScheduleActivity).
+   *
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO.
    */
-  private async findOverlappingSchedule(params: {
-    branchId: number;
-    dayOfWeek: number;
-    activityId: number;
-    startTime: string;
-    endTime: string;
-    excludeScheduleId?: number;
-  }): Promise<{ id: number; startTime: string; endTime: string } | null> {
+  private async findOverlappingSchedule(
+    ctx: TenantContext,
+    params: {
+      branchId: number;
+      dayOfWeek: number;
+      activityId: number;
+      startTime: string;
+      endTime: string;
+      excludeScheduleId?: number;
+    },
+  ): Promise<{ id: number; startTime: string; endTime: string } | null> {
     const conditions = [
+      tenantWhere(schema.schedules, ctx),
       eq(schema.schedules.branchId, params.branchId),
       eq(schema.schedules.dayOfWeek, params.dayOfWeek),
       eq(schema.schedules.activityId, params.activityId),
@@ -997,13 +1135,18 @@ export class SchedulingService {
         endTime: schema.schedules.endTime,
       })
       .from(schema.schedules)
-      .where(and(...conditions))
+      // Fase 174.1-05b: `tenantWhere` INLINE, redundante con el de `conditions`
+      // arriba (D-02 del PATTERNS) — ESTE statement es el que el lint mira.
+      .where(and(tenantWhere(schema.schedules, ctx), ...conditions))
       .limit(1);
 
     return overlap ?? null;
   }
 
   /**
+   * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO, filtra `schedules` en el
+   * WHERE y `branches`/`activities` en el ON de sus joins.
+   *
    * Phase 159-06: NO se le aplica la etiqueta derivada (D-15). Este lookup
    * es por scheduleId sin fecha/semana asociada -- lo usan createSchedule/
    * updateScheduleActivity/deleteSchedule para confirmar el slot recien
@@ -1014,6 +1157,7 @@ export class SchedulingService {
    * primario para el socio.
    */
   private async getScheduleSlot(
+    ctx: TenantContext,
     scheduleId: number,
   ): Promise<ScheduleSlot | null> {
     const [row] = await this.db
@@ -1034,13 +1178,21 @@ export class SchedulingService {
       .from(schema.schedules)
       .innerJoin(
         schema.branches,
-        eq(schema.branches.id, schema.schedules.branchId),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.schedules.branchId),
+        ),
       )
       .innerJoin(
         schema.activities,
-        eq(schema.activities.id, schema.schedules.activityId),
+        and(
+          tenantWhere(schema.activities, ctx),
+          eq(schema.activities.id, schema.schedules.activityId),
+        ),
       )
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(tenantWhere(schema.schedules, ctx), eq(schema.schedules.id, scheduleId)),
+      );
 
     if (!row) return null;
     return {

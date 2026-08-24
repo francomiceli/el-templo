@@ -16,6 +16,7 @@ import { handleServiceError } from "../shared/error-handler";
 import { coachOutstandingBalancesSchema } from "./schemas";
 import { COACH_DEBTS_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import type { CoachOutstandingBalancesFilters } from "./types";
 
 export const coachRoutes: FastifyPluginAsync = async (fastify) => {
@@ -40,7 +41,8 @@ export const coachRoutes: FastifyPluginAsync = async (fastify) => {
         const filters: CoachOutstandingBalancesFilters = {
           search: request.query.search,
         };
-        return await coachService.getOutstandingBalances(filters, {
+        const ctx = assertTenant(request.scope, "coach.outstanding-balances");
+        return await coachService.getOutstandingBalances(ctx, filters, {
           role: request.scope.role,
           isOwner: request.scope.isOwner,
           country: request.scope.country,

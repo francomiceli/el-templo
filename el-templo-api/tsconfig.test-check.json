@@ -1,0 +1,9 @@
+{
+  "//": "Typecheck de VERIFICACION (no de build): chequea src/ + test/ + scripts/ juntos. Existe porque tsconfig.json tiene include ['src/**/*'] y rootDir './src', asi que 'tsc --noEmit' a secas NO mira test/ y un call site de test desactualizado no da rojo hasta que el test corre. rootDir es '.' —y no el './src' heredado— porque con el rootDir de src el compilador tira un TS6059 ('is not under rootDir') por CADA archivo de test, los expulsa del programa y devuelve un 'TS2554: 0' FALSO: verde por no haber mirado. Medido en la fase 173: mismo include con el rootDir heredado da 246 x TS6059 y 0 x TS2554. Usar asi: pnpm exec tsc -p tsconfig.test-check.json --noEmit. No emite nada y no reemplaza al build.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": ["src/**/*", "test/**/*", "scripts/**/*"]
+}

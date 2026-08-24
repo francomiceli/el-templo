@@ -14,6 +14,11 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/** Fase 174.1-03 (D-02): `lastExpiryPerPersonExpr`/`retainedExpr` ahora reciben `ctx`. */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 121 Plan 01 — expiry-cohort engine primitives (CHURN-01/04, RENOV-01).
@@ -70,6 +75,7 @@ describe("expiry-cohort engine primitives (Phase 121 Plan 01)", () => {
     durationDays: number,
   ): Promise<number> {
     const [p] = await app.db.insert(subscriptionPlans).values({
+      tenantId: CTX.tenantId,
       name,
       country: "AR",
       priceRegular: 15000,
@@ -112,6 +118,7 @@ describe("expiry-cohort engine primitives (Phase 121 Plan 01)", () => {
     endDate: string;
   }): Promise<number> {
     const [s] = await app.db.insert(subscriptions).values({
+      tenantId: CTX.tenantId,
       userId: opts.userId,
       planId: opts.planId ?? monthlyPlanId,
       branchId: branchA,
@@ -164,7 +171,12 @@ describe("expiry-cohort engine primitives (Phase 121 Plan 01)", () => {
     const rows = await app.db
       .select({ userId: subscriptions.userId })
       .from(subscriptions)
-      .where(and(...expiryCohortConditions(from, to)));
+      .where(
+        and(
+          eq(subscriptions.tenantId, CTX.tenantId),
+          ...expiryCohortConditions(from, to),
+        ),
+      );
 
     const ids = rows.map((r) => r.userId);
     expect(ids).toContain(inRange);
@@ -203,7 +215,12 @@ describe("expiry-cohort engine primitives (Phase 121 Plan 01)", () => {
     const rows = await app.db
       .select({ userId: subscriptions.userId })
       .from(subscriptions)
-      .where(and(...expiryCohortConditions(from, to)));
+      .where(
+        and(
+          eq(subscriptions.tenantId, CTX.tenantId),
+          ...expiryCohortConditions(from, to),
+        ),
+      );
 
     const ids = rows.map((r) => r.userId);
     expect(ids).not.toContain(pausedOnly);
@@ -233,8 +250,9 @@ describe("expiry-cohort engine primitives (Phase 121 Plan 01)", () => {
       .from(subscriptions)
       .where(
         and(
+          eq(subscriptions.tenantId, CTX.tenantId),
           ...expiryCohortConditions(from, to),
-          lastExpiryPerPersonExpr(from, to),
+          lastExpiryPerPersonExpr(CTX, from, to),
         ),
       );
 
@@ -294,11 +312,14 @@ describe("expiry-cohort engine primitives (Phase 121 Plan 01)", () => {
     const rows = await app.db
       .select({
         id: subscriptions.id,
-        retained: sql<number>`CASE WHEN ${retainedExpr(window)} THEN 1 ELSE 0 END`,
+        retained: sql<number>`CASE WHEN ${retainedExpr(CTX, window)} THEN 1 ELSE 0 END`,
       })
       .from(subscriptions)
       .where(
-        sql`${subscriptions.id} IN (${aExpired}, ${bExpired}, ${cExpired})`,
+        and(
+          eq(subscriptions.tenantId, CTX.tenantId),
+          sql`${subscriptions.id} IN (${aExpired}, ${bExpired}, ${cExpired})`,
+        ),
       );
 
     const byId = new Map(rows.map((r) => [r.id, Number(r.retained)]));
@@ -335,7 +356,12 @@ describe("expiry-cohort engine primitives (Phase 121 Plan 01)", () => {
         matured: sql<number>`CASE WHEN ${maturedExpr(window)} THEN 1 ELSE 0 END`,
       })
       .from(subscriptions)
-      .where(sql`${subscriptions.id} IN (${maturedSub}, ${graceSub})`);
+      .where(
+        and(
+          eq(subscriptions.tenantId, CTX.tenantId),
+          sql`${subscriptions.id} IN (${maturedSub}, ${graceSub})`,
+        ),
+      );
 
     const byId = new Map(rows.map((r) => [r.id, Number(r.matured)]));
     expect(byId.get(maturedSub)).toBe(1); // window+5 days old → matured

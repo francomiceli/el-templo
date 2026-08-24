@@ -22,6 +22,20 @@ import { CashRegisterService } from "../../src/modules/finance/cash-register-ser
 import { TransactionService } from "../../src/modules/finance/transaction-service";
 import { BalanceService } from "../../src/modules/finance/balance-service";
 import { MovementService } from "../../src/modules/finance/movement-service";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172 (ADO-01 / T-172-08-04): gimnasio de los call sites DIRECTOS al
+ * service. Sale del fixture, nunca de un `1` a mano. Una sola constante y no
+ * el objeto literal repetido en cada llamada: el dia que un caso ejercite
+ * dos gimnasios, el segundo se agrega al lado y se ve la diferencia.
+ *
+ * 172-14: la MISMA constante scopea ahora las queries DIRECTAS de fixture y de
+ * asercion. Con `finance` en `TENANT_STRICT_MODULES` el sentinel hace throw
+ * sobre cualquier acceso a las 6 tablas strict sin gimnasio.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let cashRegisterService: CashRegisterService;
@@ -42,14 +56,16 @@ async function newCaja(
   currency = "ARS",
   branchId: number | null = arsBranchId,
 ): Promise<number> {
-  const [caja] = await app.db.insert(schema.cashRegisters).values({
-    name: `MOV-Test ${Date.now()}-${Math.random()}`,
-    type: "efectivo",
-    branchId,
-    currency,
-    openingBalance: opening,
-    cutoffDate: CUTOFF,
-  });
+  const [caja] = await app.db.insert(schema.cashRegisters).values(
+    tenantValues(TEMPLO_CTX, {
+      name: `MOV-Test ${Date.now()}-${Math.random()}`,
+      type: "efectivo" as const,
+      branchId,
+      currency,
+      openingBalance: opening,
+      cutoffDate: CUTOFF,
+    }),
+  );
   const id = Number(caja.insertId);
   seededCajaIds.push(id);
   return id;
@@ -80,7 +96,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, TEMPLO_CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   if (!admin) {
     throw new Error(
@@ -98,6 +119,7 @@ beforeAll(async () => {
       and(
         eq(schema.costCenters.country, "AR"),
         eq(schema.costCenters.isActive, true),
+        tenantWhere(schema.costCenters, TEMPLO_CTX),
       ),
     )
     .limit(1);
@@ -106,7 +128,7 @@ beforeAll(async () => {
   } else {
     const [created] = await app.db
       .insert(schema.costCenters)
-      .values({ name: "Varios", country: "AR" });
+      .values(tenantValues(TEMPLO_CTX, { name: "Varios", country: "AR" }));
     costCenterId = Number(created.insertId);
   }
 });
@@ -120,20 +142,38 @@ afterAll(async () => {
       .select({ id: schema.financialTransactions.id })
       .from(schema.financialTransactions)
       .where(
-        inArray(schema.financialTransactions.cashRegisterId, seededCajaIds),
+        and(
+          inArray(schema.financialTransactions.cashRegisterId, seededCajaIds),
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        ),
       );
     const txIds = txRows.map((r) => r.id);
     if (txIds.length > 0) {
       await app.db
         .delete(schema.transactionLinks)
-        .where(inArray(schema.transactionLinks.transactionId, txIds));
+        .where(
+          and(
+            inArray(schema.transactionLinks.transactionId, txIds),
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+          ),
+        );
       await app.db
         .delete(schema.financialTransactions)
-        .where(inArray(schema.financialTransactions.id, txIds));
+        .where(
+          and(
+            inArray(schema.financialTransactions.id, txIds),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
+        );
     }
     await app.db
       .delete(schema.cashRegisters)
-      .where(inArray(schema.cashRegisters.id, seededCajaIds));
+      .where(
+        and(
+          inArray(schema.cashRegisters.id, seededCajaIds),
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+        ),
+      );
   }
   await app.close();
 });
@@ -146,10 +186,13 @@ describe("MovementService", () => {
       const destinoId = await newCaja(500);
 
       const before =
-        (await cashRegisterService.getBalance(origenId)).firmeBalance +
-        (await cashRegisterService.getBalance(destinoId)).firmeBalance;
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance +
+        (await cashRegisterService.getBalance(TEMPLO_CTX, destinoId))
+          .firmeBalance;
 
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         { origenCajaId: origenId, destinoCajaId: destinoId, amount: 250 },
         adminId,
       );
@@ -158,11 +201,21 @@ describe("MovementService", () => {
       const [outflow] = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, detail.outflowTxId));
+        .where(
+          and(
+            eq(schema.financialTransactions.id, detail.outflowTxId),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
+        );
       const [inflow] = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, detail.inflowTxId));
+        .where(
+          and(
+            eq(schema.financialTransactions.id, detail.inflowTxId),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
+        );
 
       expect(outflow.kind).toBe("cash_transfer");
       expect(outflow.direction).toBe("outflow");
@@ -178,24 +231,31 @@ describe("MovementService", () => {
         .select()
         .from(schema.transactionLinks)
         .where(
-          inArray(schema.transactionLinks.transactionId, [
-            detail.outflowTxId,
-            detail.inflowTxId,
-          ]),
+          and(
+            inArray(schema.transactionLinks.transactionId, [
+              detail.outflowTxId,
+              detail.inflowTxId,
+            ]),
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+          ),
         );
       expect(links.length).toBe(2);
       expect(links.every((l) => l.targetKind === "transaction")).toBe(true);
 
       // Net 0: the sum of both cajas' firmeBalance is unchanged; money moved.
       const after =
-        (await cashRegisterService.getBalance(origenId)).firmeBalance +
-        (await cashRegisterService.getBalance(destinoId)).firmeBalance;
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance +
+        (await cashRegisterService.getBalance(TEMPLO_CTX, destinoId))
+          .firmeBalance;
       expect(after).toBe(before);
       expect(
-        (await cashRegisterService.getBalance(origenId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance,
       ).toBe(750);
       expect(
-        (await cashRegisterService.getBalance(destinoId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, destinoId))
+          .firmeBalance,
       ).toBe(750);
     });
 
@@ -205,6 +265,7 @@ describe("MovementService", () => {
       const centralId = await newCaja(0, "ARS", null);
 
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         { origenCajaId: origenId, destinoCajaId: centralId, amount: 100 },
         adminId,
       );
@@ -212,7 +273,12 @@ describe("MovementService", () => {
       const [inflow] = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, detail.inflowTxId));
+        .where(
+          and(
+            eq(schema.financialTransactions.id, detail.inflowTxId),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
+        );
       // destino is branch-less → branch_id NULL (Plan 01 made it nullable).
       expect(inflow.branchId).toBeNull();
       expect(inflow.cashRegisterId).toBe(centralId);
@@ -227,15 +293,19 @@ describe("MovementService", () => {
           .select({ id: schema.financialTransactions.id })
           .from(schema.financialTransactions)
           .where(
-            inArray(schema.financialTransactions.cashRegisterId, [
-              arsId,
-              eurId,
-            ]),
+            and(
+              inArray(schema.financialTransactions.cashRegisterId, [
+                arsId,
+                eurId,
+              ]),
+              tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            ),
           )
       ).length;
 
       await expect(
         movementService.registerMovement(
+          TEMPLO_CTX,
           { origenCajaId: arsId, destinoCajaId: eurId, amount: 100 },
           adminId,
         ),
@@ -247,10 +317,13 @@ describe("MovementService", () => {
           .select({ id: schema.financialTransactions.id })
           .from(schema.financialTransactions)
           .where(
-            inArray(schema.financialTransactions.cashRegisterId, [
-              arsId,
-              eurId,
-            ]),
+            and(
+              inArray(schema.financialTransactions.cashRegisterId, [
+                arsId,
+                eurId,
+              ]),
+              tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            ),
           )
       ).length;
       expect(afterCount).toBe(beforeCount);
@@ -265,6 +338,7 @@ describe("MovementService", () => {
 
       // expected saldo of origen = 1000. Physical count is 900 (100 short).
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         {
           origenCajaId: origenId,
           destinoCajaId: destinoId,
@@ -283,7 +357,13 @@ describe("MovementService", () => {
         .select()
         .from(schema.financialTransactions)
         .where(
-          eq(schema.financialTransactions.id, detail.adjustmentTxId as number),
+          and(
+            eq(
+              schema.financialTransactions.id,
+              detail.adjustmentTxId as number,
+            ),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
         );
       expect(adj.kind).toBe("adjustment");
       expect(adj.direction).toBe("outflow");
@@ -293,7 +373,8 @@ describe("MovementService", () => {
       // origen firmeBalance now reflects the physical count minus the movement:
       // 1000 (opening) − 200 (movement out) − 100 (adjustment) = 700 = counted(900) − 200.
       expect(
-        (await cashRegisterService.getBalance(origenId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance,
       ).toBe(700);
 
       // A 'reconciliation' audit row exists for this movement.
@@ -302,6 +383,7 @@ describe("MovementService", () => {
         .from(schema.auditLog)
         .where(
           and(
+            tenantWhere(schema.auditLog, TEMPLO_CTX),
             eq(schema.auditLog.action, "reconciliation"),
             eq(schema.auditLog.targetId, detail.outflowTxId),
           ),
@@ -318,6 +400,7 @@ describe("MovementService", () => {
       const destinoId = await newCaja(0);
 
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         {
           origenCajaId: origenId,
           destinoCajaId: destinoId,
@@ -332,7 +415,12 @@ describe("MovementService", () => {
       const origenRows = await app.db
         .select({ kind: schema.financialTransactions.kind })
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.cashRegisterId, origenId));
+        .where(
+          and(
+            eq(schema.financialTransactions.cashRegisterId, origenId),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
+        );
       expect(origenRows.some((r) => r.kind === "adjustment")).toBe(false);
 
       // The 'reconciliation' audit row is still written (cheap clean trail).
@@ -341,6 +429,7 @@ describe("MovementService", () => {
         .from(schema.auditLog)
         .where(
           and(
+            tenantWhere(schema.auditLog, TEMPLO_CTX),
             eq(schema.auditLog.action, "reconciliation"),
             eq(schema.auditLog.targetId, detail.outflowTxId),
           ),
@@ -355,6 +444,7 @@ describe("MovementService", () => {
       const cajaId = await newCaja(1000);
 
       const { expenseTxId } = await movementService.registerExpense(
+        TEMPLO_CTX,
         { cajaId, amount: 333, costCenterId, notes: "Compra de agua" },
         adminId,
       );
@@ -362,7 +452,12 @@ describe("MovementService", () => {
       const [row] = await app.db
         .select()
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, expenseTxId));
+        .where(
+          and(
+            eq(schema.financialTransactions.id, expenseTxId),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
+        );
       expect(row.kind).toBe("expense");
       expect(row.direction).toBe("outflow");
       expect(row.memberId).toBeNull();
@@ -371,32 +466,45 @@ describe("MovementService", () => {
       const links = await app.db
         .select()
         .from(schema.transactionLinks)
-        .where(eq(schema.transactionLinks.transactionId, expenseTxId));
+        .where(
+          and(
+            eq(schema.transactionLinks.transactionId, expenseTxId),
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+          ),
+        );
       expect(links.length).toBe(0);
 
-      expect((await cashRegisterService.getBalance(cajaId)).firmeBalance).toBe(
-        1000 - 333,
-      );
+      expect(
+        (await cashRegisterService.getBalance(TEMPLO_CTX, cajaId)).firmeBalance,
+      ).toBe(1000 - 333);
     });
 
     it("(D-07) registering a movement + an expense does NOT change the balances table", async () => {
       const beforeCount = (
-        await app.db.select({ id: schema.balances.id }).from(schema.balances)
+        await app.db
+          .select({ id: schema.balances.id })
+          .from(schema.balances)
+          .where(tenantWhere(schema.balances, TEMPLO_CTX))
       ).length;
 
       const origenId = await newCaja(1000);
       const destinoId = await newCaja(0);
       await movementService.registerMovement(
+        TEMPLO_CTX,
         { origenCajaId: origenId, destinoCajaId: destinoId, amount: 150 },
         adminId,
       );
       await movementService.registerExpense(
+        TEMPLO_CTX,
         { cajaId: origenId, amount: 50, costCenterId },
         adminId,
       );
 
       const afterCount = (
-        await app.db.select({ id: schema.balances.id }).from(schema.balances)
+        await app.db
+          .select({ id: schema.balances.id })
+          .from(schema.balances)
+          .where(tenantWhere(schema.balances, TEMPLO_CTX))
       ).length;
       // applyDelta no-op: a movimiento/egreso never touches member balances.
       expect(afterCount).toBe(beforeCount);
@@ -410,6 +518,7 @@ describe("MovementService", () => {
       const destinoId = await newCaja(500);
 
       const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
         {
           origenCajaId: origenId,
           destinoCajaId: destinoId,
@@ -422,6 +531,7 @@ describe("MovementService", () => {
 
       // Void via EITHER leg id — voidMovement discovers the sibling + adjustment.
       await movementService.voidMovement(
+        TEMPLO_CTX,
         detail.outflowTxId,
         adminId,
         "Movimiento equivocado",
@@ -435,35 +545,42 @@ describe("MovementService", () => {
         })
         .from(schema.financialTransactions)
         .where(
-          inArray(schema.financialTransactions.id, [
-            detail.outflowTxId,
-            detail.inflowTxId,
-            detail.adjustmentTxId as number,
-          ]),
+          and(
+            inArray(schema.financialTransactions.id, [
+              detail.outflowTxId,
+              detail.inflowTxId,
+              detail.adjustmentTxId as number,
+            ]),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
         );
       expect(rows.length).toBe(3);
       expect(rows.every((r) => r.voidedAt !== null)).toBe(true);
 
       // Saldos restored to pre-movement values (void reverses the effect).
       expect(
-        (await cashRegisterService.getBalance(origenId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, origenId))
+          .firmeBalance,
       ).toBe(1000);
       expect(
-        (await cashRegisterService.getBalance(destinoId)).firmeBalance,
+        (await cashRegisterService.getBalance(TEMPLO_CTX, destinoId))
+          .firmeBalance,
       ).toBe(500);
     });
 
     it("voidExpense voids the single row and restores the caja saldo", async () => {
       const cajaId = await newCaja(1000);
       const { expenseTxId } = await movementService.registerExpense(
+        TEMPLO_CTX,
         { cajaId, amount: 400, costCenterId },
         adminId,
       );
-      expect((await cashRegisterService.getBalance(cajaId)).firmeBalance).toBe(
-        600,
-      );
+      expect(
+        (await cashRegisterService.getBalance(TEMPLO_CTX, cajaId)).firmeBalance,
+      ).toBe(600);
 
       await movementService.voidExpense(
+        TEMPLO_CTX,
         expenseTxId,
         adminId,
         "Egreso mal cargado",
@@ -472,12 +589,17 @@ describe("MovementService", () => {
       const [row] = await app.db
         .select({ voidedAt: schema.financialTransactions.voidedAt })
         .from(schema.financialTransactions)
-        .where(eq(schema.financialTransactions.id, expenseTxId));
+        .where(
+          and(
+            eq(schema.financialTransactions.id, expenseTxId),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
+        );
       expect(row.voidedAt).not.toBeNull();
       // Saldo restored.
-      expect((await cashRegisterService.getBalance(cajaId)).firmeBalance).toBe(
-        1000,
-      );
+      expect(
+        (await cashRegisterService.getBalance(TEMPLO_CTX, cajaId)).firmeBalance,
+      ).toBe(1000);
     });
   });
 
@@ -524,10 +646,13 @@ describe("MovementService", () => {
         .select({ id: schema.financialTransactions.id })
         .from(schema.financialTransactions)
         .where(
-          inArray(schema.financialTransactions.cashRegisterId, [
-            origenId,
-            destinoId,
-          ]),
+          and(
+            inArray(schema.financialTransactions.cashRegisterId, [
+              origenId,
+              destinoId,
+            ]),
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          ),
         );
       expect(rows.length).toBe(0);
     });

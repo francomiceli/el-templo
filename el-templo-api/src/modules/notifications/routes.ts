@@ -10,10 +10,12 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { NotificationService } from "./service";
 import { NOTIFICATION_CATEGORIES, type NotificationCategory } from "./types";
 import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 import * as schema from "../../db/schema";
 // Attendance label values (4 bands) — single source of truth (D-01).
 import type { MemberSegment } from "../segmentation/types";
@@ -254,6 +256,9 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /api/notifications/admin/templates — List all notification templates (per D-14).
    * Returns template data with computed openRate.
+   *
+   * T-175-03: scopeado por tenant — antes listaba los templates de TODOS los
+   * gimnasios (leak cross-tenant, T-175-03-I).
    */
   fastify.get(
     "/admin/templates",
@@ -264,9 +269,13 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "notifications.listTemplates");
+
       const rows = await fastify.db
         .select()
         .from(schema.notificationTemplates)
+        .where(tenantWhere(schema.notificationTemplates, ctx))
         .orderBy(schema.notificationTemplates.category);
 
       const templates = rows.map((row) => ({
@@ -294,6 +303,11 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * PUT /api/notifications/admin/templates/:id — Update template (per D-13).
    * Admin can edit title, body, route, and enable/disable.
+   *
+   * T-175-03: scopeado por tenant — antes leía/actualizaba por PK cruda, así
+   * que un admin de un gimnasio podía editar el template de OTRO (tampering
+   * cross-tenant, T-175-03-E). Ahora un `id` ajeno da 404, nunca "acceso
+   * denegado" (D-06).
    */
   fastify.put<{
     Params: { id: number };
@@ -320,6 +334,9 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "notifications.updateTemplate");
+
       const { id } = request.params;
       const updates: Record<string, unknown> = {};
 
@@ -343,7 +360,12 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       const [existing] = await fastify.db
         .select({ id: schema.notificationTemplates.id })
         .from(schema.notificationTemplates)
-        .where(eq(schema.notificationTemplates.id, id))
+        .where(
+          and(
+            tenantWhere(schema.notificationTemplates, ctx),
+            eq(schema.notificationTemplates.id, id),
+          ),
+        )
         .limit(1);
 
       if (!existing) {
@@ -355,13 +377,23 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.db
         .update(schema.notificationTemplates)
         .set(updates)
-        .where(eq(schema.notificationTemplates.id, id));
+        .where(
+          and(
+            tenantWhere(schema.notificationTemplates, ctx),
+            eq(schema.notificationTemplates.id, id),
+          ),
+        );
 
       // Return updated template
       const [updated] = await fastify.db
         .select()
         .from(schema.notificationTemplates)
-        .where(eq(schema.notificationTemplates.id, id))
+        .where(
+          and(
+            tenantWhere(schema.notificationTemplates, ctx),
+            eq(schema.notificationTemplates.id, id),
+          ),
+        )
         .limit(1);
 
       return {
@@ -410,6 +442,12 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
+      // T-173-08: `member_profiles` y `users` son tablas strict — el
+      // gimnasio del staff que envía el segmento acota la audiencia (una
+      // campaña de push nunca puede alcanzar a un socio de otro gimnasio).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "notifications.sendSegment");
+
       const { title, body, segmentIds, route, titleFemale, bodyFemale } =
         request.body;
 
@@ -422,9 +460,17 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         .from(schema.memberProfiles)
         .innerJoin(
           schema.users,
-          eq(schema.memberProfiles.userId, schema.users.id),
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.memberProfiles.userId, schema.users.id),
+          ),
         )
-        .where(inArray(schema.memberProfiles.segment, segmentIds));
+        .where(
+          and(
+            tenantWhere(schema.memberProfiles, ctx),
+            inArray(schema.memberProfiles.segment, segmentIds),
+          ),
+        );
 
       let queued = 0;
 
@@ -432,13 +478,16 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         // Per D-12: female gets female copy, all others get default
         const useFemale =
           member.gender === "female" && !!titleFemale && !!bodyFemale;
-        const result = await service.queueAdHocNotification({
-          userId: member.userId,
-          title: useFemale ? titleFemale : title,
-          body: useFemale ? bodyFemale : body,
-          category: "anuncios",
-          route: route ?? "/mi-templo",
-        });
+        const result = await service.queueAdHocNotification(
+          {
+            userId: member.userId,
+            title: useFemale ? titleFemale : title,
+            body: useFemale ? bodyFemale : body,
+            category: "anuncios",
+            route: route ?? "/mi-templo",
+          },
+          ctx,
+        );
 
         if (result !== -1) {
           queued++;
@@ -457,6 +506,9 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * POST /api/notifications/admin/seed-templates — Seed initial templates.
    * Owner-only for safety. Uses INSERT IGNORE to skip existing keys.
+   *
+   * T-175-03: siembra el catálogo del gimnasio del owner que dispara la
+   * acción (antes insertaba GLOBAL con el DEFAULT 1).
    */
   fastify.post(
     "/admin/seed-templates",
@@ -467,7 +519,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
-      await service.seedTemplates();
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "notifications.seedTemplates");
+
+      await service.seedTemplates(ctx);
       return { success: true };
     },
   );

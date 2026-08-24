@@ -23,6 +23,11 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import type {
   BalanceRow,
   FinancialTransactionRow,
@@ -43,6 +48,22 @@ type DbInstance = MySql2Database<typeof schema>;
  */
 export type TxHandle = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
+/**
+ * Fase 172 (tenancy). Los 5 métodos de esta clase reciben `ctx: TenantContext`
+ * como PRIMER parámetro — en `applyDelta` incluso ANTES del `tx`. El motivo es
+ * la regla 169-06: agregar el parámetro al final habría dejado que un call site
+ * viejo compilara con los argumentos corridos; así `tsc` obliga a mirar cada uno.
+ *
+ * El `ctx` NO se narrowea nunca con un non-null assertion sobre el `tenantId`
+ * ni con un default numérico al gimnasio 1: `assertTenant` es el único puente
+ * permitido entre `number | null` y `number` (`shared/tenant.ts`).
+ *
+ * `tenantWhere` / `tenantValues` son ORTOGONALES al handle de transacción: se
+ * aplican igual sobre el handle de la transacción que sobre el de la conexión.
+ * Que `applyDelta` corra dentro de la transacción del cobro no relaja el filtro:
+ * un saldo escrito en el gimnasio equivocado queda commiteado junto al cobro y
+ * la corrupción es contable y silenciosa.
+ */
 export class BalanceService {
   constructor(
     private readonly db: DbInstance,
@@ -56,6 +77,9 @@ export class BalanceService {
    * nunca `this.db`. Si un caller envuelve `applyDelta` en una `db.transaction`
    * externa (ej. `subscriptions/service.ts` en Phase 107), `tx` ES la conexión
    * externa y `this.db` rompería el rollback unificado. Ver SPEC §7-§8.
+   *
+   * El `ctx` viene del cobro (lo resolvió `assertTenant` en la ruta), NUNCA del
+   * payload: `transaction.tenantId` no se usa para decidir dónde escribir.
    *
    * Apply the cache effect of a freshly-inserted (sign=+1) or freshly-voided
    * (sign=-1) financial transaction onto the `balances` table.
@@ -79,6 +103,7 @@ export class BalanceService {
    * INCREASES it (refund/new charge). Multiplied by `sign` (+1 create, -1 void).
    */
   async applyDelta(
+    ctx: TenantContext,
     tx: TxHandle,
     transaction: FinancialTransactionRow,
     links: TransactionLinkRow[],
@@ -113,11 +138,14 @@ export class BalanceService {
       const delta = sign * baseDelta;
 
       // Look up existing row by the UNIQUE composite key.
+      // Fase 172: la unique de `balances` lleva `tenant_id` (fase 168), así que
+      // la clave compuesta sin gimnasio ya no identifica una fila sola.
       const existing = await tx
         .select()
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, ctx),
             eq(schema.balances.memberId, transaction.memberId),
             eq(schema.balances.targetKind, link.targetKind),
             eq(schema.balances.targetId, link.targetId),
@@ -136,7 +164,14 @@ export class BalanceService {
             amount: sql`${schema.balances.amount} + ${delta}`,
             lastRecomputedAt: sql`NOW()`,
           })
-          .where(eq(schema.balances.id, row.id));
+          // El WHERE de una escritura no se apoya en el SELECT de arriba: el
+          // UPDATE lleva su propio filtro de gimnasio (patrón 172-06).
+          .where(
+            and(
+              tenantWhere(schema.balances, ctx),
+              eq(schema.balances.id, row.id),
+            ),
+          );
 
         // Gestión de deudas (brief §2.4/§5.4): si la deuda tiene gestión
         // (fila en debt_management), sincronizar su estado con el saldo —
@@ -151,6 +186,7 @@ export class BalanceService {
             .set({ status: "cobrada" })
             .where(
               and(
+                tenantWhere(schema.debtManagement, ctx),
                 eq(schema.debtManagement.balanceId, row.id),
                 ne(schema.debtManagement.status, "cobrada"),
               ),
@@ -161,6 +197,7 @@ export class BalanceService {
             .set({ status: "activa" })
             .where(
               and(
+                tenantWhere(schema.debtManagement, ctx),
                 eq(schema.debtManagement.balanceId, row.id),
                 eq(schema.debtManagement.status, "cobrada"),
               ),
@@ -188,7 +225,16 @@ export class BalanceService {
             currency: schema.subscriptions.currency,
           })
           .from(schema.subscriptions)
-          .where(eq(schema.subscriptions.id, link.targetId))
+          // D-06: `subscriptions` no es tabla strict de finance, pero este
+          // archivo tiene que quedar SIN entradas de allowlist — y sembrar un
+          // saldo con el `pricePaid` de la suscripción de otro gimnasio sería
+          // exactamente la corrupción que este plan cierra.
+          .where(
+            and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.id, link.targetId),
+            ),
+          )
           .limit(1);
         if (!sub) {
           throw new BadRequestError(
@@ -206,14 +252,19 @@ export class BalanceService {
       // have seeded the row already if it represents a positive obligation.
 
       const finalAmount = seedAmount + delta;
-      await tx.insert(schema.balances).values({
-        memberId: transaction.memberId,
-        targetKind: link.targetKind,
-        targetId: link.targetId,
-        currency: transaction.currency,
-        amount: finalAmount,
-        lastRecomputedAt: new Date(),
-      });
+      // El gimnasio se estampa DESPUÉS del literal: `tenantValues` gana sobre
+      // cualquier `tenantId` que viniera del objeto, y la fila nueva nace en el
+      // gimnasio del cobro y no en el DEFAULT de la columna.
+      await tx.insert(schema.balances).values(
+        tenantValues(ctx, {
+          memberId: transaction.memberId,
+          targetKind: link.targetKind,
+          targetId: link.targetId,
+          currency: transaction.currency,
+          amount: finalAmount,
+          lastRecomputedAt: new Date(),
+        }),
+      );
       this.log.info(
         {
           memberId: transaction.memberId,
@@ -235,21 +286,41 @@ export class BalanceService {
    * scoped to a list of branches via JOIN with users.
    */
   async getOutstandingTotalsByCurrency(
+    ctx: TenantContext,
     branchIds?: number[],
   ): Promise<Array<{ currency: string; amount: number }>> {
-    const conditions = [sql`${schema.balances.amount} > 0`];
-    if (branchIds !== undefined && branchIds.length > 0) {
-      conditions.push(sql`${schema.users.branchId} IN ${branchIds}`);
-    }
-
     const rows = await this.db
       .select({
         currency: schema.balances.currency,
         amount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
       })
       .from(schema.balances)
-      .innerJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
-      .where(and(...conditions))
+      .innerJoin(
+        schema.users,
+        // El filtro de `users` va en el ON, al lado de su join (patrón 172-06).
+        // Es INNER, así que ON y WHERE son equivalentes acá — pero la forma se
+        // mantiene para que nadie la copie a un LEFT JOIN poniéndolo en el WHERE.
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.balances.memberId),
+        ),
+      )
+      .where(
+        // Los DOS fragmentos `sql` van INLINE en el statement de la query, no
+        // en un `const` de arriba: el lint mide por STATEMENT, y un `sql` que
+        // nombra la tabla FUERA de la cadena de la query cuenta como un acceso
+        // propio y sin filtro (desviación 2 del 172-06, cuarta forma de la
+        // misma trampa — acá mordió dos veces: primero por el array
+        // `conditions` y después por un `const` con el ternario). El filtro
+        // opcional de sucursales devuelve `undefined` y `and()` lo saltea.
+        and(
+          tenantWhere(schema.balances, ctx),
+          sql`${schema.balances.amount} > 0`,
+          branchIds !== undefined && branchIds.length > 0
+            ? sql`${schema.users.branchId} IN ${branchIds}`
+            : undefined,
+        ),
+      )
       .groupBy(schema.balances.currency);
 
     return rows.map((r) => ({
@@ -261,12 +332,16 @@ export class BalanceService {
   /**
    * Whether the given member has any row in `balances` with amount > 0.
    */
-  async hasOutstandingForUser(memberId: number): Promise<boolean> {
+  async hasOutstandingForUser(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<boolean> {
     const rows = await this.db
       .select({ id: schema.balances.id })
       .from(schema.balances)
       .where(
         and(
+          tenantWhere(schema.balances, ctx),
           eq(schema.balances.memberId, memberId),
           sql`${schema.balances.amount} > 0`,
         ),
@@ -281,6 +356,7 @@ export class BalanceService {
    * to inspect the cache without going through TransactionService.
    */
   async getRow(
+    ctx: TenantContext,
     memberId: number,
     targetKind: BalanceRow["targetKind"],
     targetId: number,
@@ -291,6 +367,7 @@ export class BalanceService {
       .from(schema.balances)
       .where(
         and(
+          tenantWhere(schema.balances, ctx),
           eq(schema.balances.memberId, memberId),
           eq(schema.balances.targetKind, targetKind),
           eq(schema.balances.targetId, targetId),
@@ -310,7 +387,10 @@ export class BalanceService {
    * Matches balances rows by (memberId, currency, targetKind, targetId)
    * which mirrors the composite key applyDelta writes against.
    */
-  async getRowsForTransaction(transactionId: number): Promise<BalanceRow[]> {
+  async getRowsForTransaction(
+    ctx: TenantContext,
+    transactionId: number,
+  ): Promise<BalanceRow[]> {
     const rows = await this.db
       .select({
         id: schema.balances.id,
@@ -327,9 +407,13 @@ export class BalanceService {
         createdAt: schema.balances.createdAt,
       })
       .from(schema.balances)
+      // Las TRES tablas del statement son strict y las tres nombran el gimnasio:
+      // el join de `balances` con `transaction_links` es por (targetKind,
+      // targetId), un par que NO es único entre gimnasios.
       .innerJoin(
         schema.transactionLinks,
         and(
+          tenantWhere(schema.transactionLinks, ctx),
           eq(schema.transactionLinks.targetKind, schema.balances.targetKind),
           eq(schema.transactionLinks.targetId, schema.balances.targetId),
         ),
@@ -337,6 +421,7 @@ export class BalanceService {
       .innerJoin(
         schema.financialTransactions,
         and(
+          tenantWhere(schema.financialTransactions, ctx),
           eq(
             schema.financialTransactions.id,
             schema.transactionLinks.transactionId,
@@ -347,6 +432,7 @@ export class BalanceService {
       )
       .where(
         and(
+          tenantWhere(schema.balances, ctx),
           eq(schema.transactionLinks.transactionId, transactionId),
           ne(schema.transactionLinks.targetKind, "transaction"),
         ),

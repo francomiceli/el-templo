@@ -24,7 +24,7 @@
 
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
-import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import {
   BadRequestError,
@@ -36,6 +36,7 @@ import { sanitizePhoneForStorage } from "../shared/phone";
 import { appBranchName } from "../shared/app-branch-name";
 import type { CountryCode } from "../shared/country-scope";
 import { buildClassDateTime, todayInTz } from "../shared/date-utils";
+import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
 import type { BookingService } from "./booking-service";
 
 /**
@@ -212,8 +213,14 @@ export class TrialService {
    *   - the date is validated against the 30-day window + dayOfWeek/holiday/
    *     not-past checks via BookingService (D-05), but NOT the subscription
    *     check (a freemium has none).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` es el PRIMER parámetro y llega desde
+   * `assertTenant(request.scope, "scheduling.reserveTrial")`. Filtra las
+   * lecturas/escrituras de `users` y `user_status_history`; `bookings` y
+   * `subscriptions` no se tocan (D-02, fase 174).
    */
   async reserveTrialSelfService(
+    ctx: TenantContext,
     userId: number,
     input: ReserveTrialSelfServiceInput,
   ): Promise<ReserveTrialSelfServiceResult> {
@@ -233,7 +240,7 @@ export class TrialService {
         phone: schema.users.phone,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
     if (!user || user.deletedAt)
       throw new NotFoundError("Alumno no encontrado");
@@ -268,7 +275,9 @@ export class TrialService {
         isVirtual: schema.branches.isVirtual,
       })
       .from(schema.branches)
-      .where(eq(schema.branches.id, input.branchId))
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, input.branchId)),
+      )
       .limit(1);
     if (!branch) throw new NotFoundError("Sede no encontrada");
     if (branch.isVirtual) {
@@ -283,6 +292,7 @@ export class TrialService {
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, userId),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -302,6 +312,7 @@ export class TrialService {
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           inArray(schema.subscriptions.status, [
             ...BLOCKING_SUBSCRIPTION_STATUSES,
@@ -319,6 +330,7 @@ export class TrialService {
     //    Skips the subscription check (freemium has none) by going through the
     //    dedicated trial validator instead of BookingService.reserve.
     const scheduleBranchId = await this.bookingService.validateTrialBookingDate(
+      ctx,
       input.scheduleId,
       input.date,
     );
@@ -347,14 +359,18 @@ export class TrialService {
           branchId: input.branchId, // D-06: chosen physical branch
           ...(phoneToPersist ? { phone: phoneToPersist } : {}), // Fase 165 (D-04)
         })
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
-      await tx.insert(schema.userStatusHistory).values({
-        userId,
-        fromStatus: statusBefore,
-        toStatus: "prueba",
-        source: "self_service", // D-02 (varchar(16), fits)
-      });
+      await tx.insert(schema.userStatusHistory).values(
+        tenantValues(ctx, {
+          userId,
+          fromStatus: statusBefore,
+          toStatus: "prueba",
+          source: "self_service", // D-02 (varchar(16), fits)
+        }),
+      );
 
       // Reactivate a previously-cancelled exact slot+date row if present to
       // avoid a unique-constraint 500 on (member_id, schedule_id, booking_date).
@@ -363,6 +379,7 @@ export class TrialService {
         .from(schema.bookings)
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, userId),
             eq(schema.bookings.scheduleId, input.scheduleId),
             eq(schema.bookings.bookingDate, input.date),
@@ -380,18 +397,25 @@ export class TrialService {
             cancelledAt: null,
             waitlistPosition: null,
           })
-          .where(eq(schema.bookings.id, existing.id));
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.id, existing.id),
+            ),
+          );
         return existing.id;
       }
 
-      const inserted = await tx.insert(schema.bookings).values({
-        memberId: userId,
-        scheduleId: input.scheduleId,
-        bookingDate: input.date,
-        status: "reservado",
-        isTrial: true,
-        source: "self_service", // D-18 attribution
-      });
+      const inserted = await tx.insert(schema.bookings).values(
+        tenantValues(ctx, {
+          memberId: userId,
+          scheduleId: input.scheduleId,
+          bookingDate: input.date,
+          status: "reservado",
+          isTrial: true,
+          source: "self_service", // D-18 attribution
+        }),
+      );
       return Number(inserted[0].insertId);
     });
 
@@ -415,8 +439,13 @@ export class TrialService {
    * Eligibility = same predicate as reserveTrialSelfService's guards:
    *   status==='freemium' + no active/paused/scheduled sub + no non-cancelled
    *   is_trial booking. The token never participates (D-21).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra la lectura de `users`.
    */
-  async getTrialEligibility(userId: number): Promise<TrialEligibility> {
+  async getTrialEligibility(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<TrialEligibility> {
     const [user] = await this.db
       .select({
         status: schema.users.status,
@@ -425,7 +454,7 @@ export class TrialService {
         tenantId: schema.users.tenantId,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     if (!user || user.deletedAt) {
@@ -447,6 +476,7 @@ export class TrialService {
       .from(schema.subscriptions)
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           inArray(schema.subscriptions.status, [
             ...BLOCKING_SUBSCRIPTION_STATUSES,
@@ -508,6 +538,7 @@ export class TrialService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, userId),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -527,7 +558,7 @@ export class TrialService {
           startTime: booking.startTime,
           branchId: booking.branchId,
           // Compat app: getTrialEligibility es member-only, se transforma acá.
-          branchName: appBranchName(booking.branchName),
+          branchName: appBranchName(booking.branchName, ctx.tenantId),
           branchAddress: booking.branchAddress,
           canModify: this.isOutsideCancelWindow(
             booking.date,
@@ -577,8 +608,13 @@ export class TrialService {
    *   - 409 if the user has no non-cancelled trial booking.
    *   - 400 if the class starts within TRIAL_CANCEL_CUTOFF_HOURS (same-day /
    *     <24h reservations are locked — mirrors the reserve-time copy).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `users`.
    */
-  async cancelTrialSelfService(userId: number): Promise<{ cancelled: true }> {
+  async cancelTrialSelfService(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<{ cancelled: true }> {
     const [row] = await this.db
       .select({
         bookingId: schema.bookings.id,
@@ -597,6 +633,7 @@ export class TrialService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, userId),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
@@ -619,7 +656,12 @@ export class TrialService {
       await tx
         .update(schema.bookings)
         .set({ status: "cancelado", cancelledAt: new Date() })
-        .where(eq(schema.bookings.id, row.bookingId));
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, row.bookingId),
+          ),
+        );
 
       // Only revert if still 'prueba' (defensive: never clobber a user who
       // became a member out-of-band). Record the history row only when we win.
@@ -627,17 +669,23 @@ export class TrialService {
         .update(schema.users)
         .set({ status: "freemium" as const })
         .where(
-          and(eq(schema.users.id, userId), eq(schema.users.status, "prueba")),
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, userId),
+            eq(schema.users.status, "prueba"),
+          ),
         );
       const flipped = (upd as unknown as [{ affectedRows?: number }])[0]
         ?.affectedRows;
       if (flipped === 1) {
-        await tx.insert(schema.userStatusHistory).values({
-          userId,
-          fromStatus: "prueba",
-          toStatus: "freemium",
-          source: "self_service",
-        });
+        await tx.insert(schema.userStatusHistory).values(
+          tenantValues(ctx, {
+            userId,
+            fromStatus: "prueba",
+            toStatus: "freemium",
+            source: "self_service",
+          }),
+        );
       }
     });
 
@@ -664,8 +712,13 @@ export class TrialService {
    *   - user has no non-cancelled is_trial=true booking yet (one per
    *     lifetime — admin can cancel an existing trial booking to free up
    *     the slot, mirroring the Phase 102-06 cancellation contract)
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `users`.
    */
-  async bookTrial(input: BookTrialInput): Promise<BookTrialResult> {
+  async bookTrial(
+    ctx: TenantContext,
+    input: BookTrialInput,
+  ): Promise<BookTrialResult> {
     // 1. Validate schedule exists. Pull the branch timezone too so "today" is
     //    computed in the sede's wall-clock (not the DB server's), matching how
     //    booking dates are chosen and keeping the past/future split correct.
@@ -680,7 +733,12 @@ export class TrialService {
         schema.branches,
         eq(schema.branches.id, schema.schedules.branchId),
       )
-      .where(eq(schema.schedules.id, input.scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, input.scheduleId),
+        ),
+      );
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
 
     // 2. Validate user exists and is in 'prueba' state.
@@ -692,7 +750,9 @@ export class TrialService {
         phone: schema.users.phone,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, input.userId));
+      .where(
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, input.userId)),
+      );
     if (!userRow) throw new NotFoundError("Alumno no encontrado");
     if (userRow.status !== "prueba") {
       throw new ConflictError(
@@ -727,6 +787,7 @@ export class TrialService {
       .from(schema.bookings)
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, input.userId),
           eq(schema.bookings.isTrial, true),
           inArray(schema.bookings.status, [...ACTIVE_TRIAL_STATUSES]),
@@ -755,6 +816,7 @@ export class TrialService {
         .set({ status: "no_show" })
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, input.userId),
             eq(schema.bookings.isTrial, true),
             inArray(schema.bookings.status, [...ACTIVE_TRIAL_STATUSES]),
@@ -772,13 +834,19 @@ export class TrialService {
           leadStatus: "en_seguimiento" as const,
           leadStatusSource: "auto" as const,
         })
-        .where(eq(schema.users.id, input.userId));
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, input.userId),
+          ),
+        );
 
       const [existing] = await tx
         .select({ id: schema.bookings.id })
         .from(schema.bookings)
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, input.userId),
             eq(schema.bookings.scheduleId, input.scheduleId),
             eq(schema.bookings.bookingDate, input.bookingDate),
@@ -795,17 +863,24 @@ export class TrialService {
             cancelledAt: null,
             waitlistPosition: null,
           })
-          .where(eq(schema.bookings.id, existing.id));
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.id, existing.id),
+            ),
+          );
         return existing.id;
       }
 
-      const bookingInsert = await tx.insert(schema.bookings).values({
-        memberId: input.userId,
-        scheduleId: input.scheduleId,
-        bookingDate: input.bookingDate,
-        status: "reservado",
-        isTrial: true,
-      });
+      const bookingInsert = await tx.insert(schema.bookings).values(
+        tenantValues(ctx, {
+          memberId: input.userId,
+          scheduleId: input.scheduleId,
+          bookingDate: input.bookingDate,
+          status: "reservado",
+          isTrial: true,
+        }),
+      );
       return Number(bookingInsert[0].insertId);
     });
 
@@ -843,8 +918,11 @@ export class TrialService {
    * (is_trial=1, see header) so a cancelled trial never occupied a slot, making
    * promotion a no-op — this keeps the whole operation in a single tx (PATTERNS
    * §trials-service option (a)).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `users`.
    */
   async rescheduleTrial(
+    ctx: TenantContext,
     input: RescheduleTrialInput,
   ): Promise<{ bookingId: number }> {
     // 1. Load the old trial booking → member. 404 if it doesn't exist; 409 if
@@ -856,7 +934,12 @@ export class TrialService {
         isTrial: schema.bookings.isTrial,
       })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, input.bookingId));
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.id, input.bookingId),
+        ),
+      );
     if (!oldBooking) throw new NotFoundError("Reserva no encontrada");
     if (!oldBooking.isTrial) {
       throw new ConflictError("La reserva no es una sesión de prueba");
@@ -877,7 +960,12 @@ export class TrialService {
         schema.branches,
         eq(schema.branches.id, schema.schedules.branchId),
       )
-      .where(eq(schema.schedules.id, input.scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, input.scheduleId),
+        ),
+      );
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
 
     // 3. Validate the alumno still exists, is in 'prueba' state, and pull its
@@ -896,7 +984,7 @@ export class TrialService {
         branchId: schema.users.branchId,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
     if (!userRow) throw new NotFoundError("Alumno no encontrado");
     if (userRow.status !== "prueba") {
       throw new ConflictError(
@@ -948,7 +1036,12 @@ export class TrialService {
           cancelledAt: new Date(),
           waitlistPosition: null,
         })
-        .where(eq(schema.bookings.id, input.bookingId));
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, input.bookingId),
+          ),
+        );
 
       // (b) Phase 163 (D-03/D-07) reset — reused verbatim from bookTrial (D-02).
       await tx
@@ -957,7 +1050,9 @@ export class TrialService {
           leadStatus: "en_seguimiento" as const,
           leadStatusSource: "auto" as const,
         })
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
       // (c) Create the new booking. Reactivate an existing exact slot+date row
       //     if present to avoid a UNIQUE (member_id, schedule_id, booking_date)
@@ -970,6 +1065,7 @@ export class TrialService {
         .from(schema.bookings)
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, userId),
             eq(schema.bookings.scheduleId, input.scheduleId),
             eq(schema.bookings.bookingDate, input.date),
@@ -987,17 +1083,24 @@ export class TrialService {
             cancelledAt: null,
             waitlistPosition: null,
           })
-          .where(eq(schema.bookings.id, existing.id));
+          .where(
+            and(
+              tenantWhere(schema.bookings, ctx),
+              eq(schema.bookings.id, existing.id),
+            ),
+          );
         return existing.id;
       }
 
-      const inserted = await tx.insert(schema.bookings).values({
-        memberId: userId,
-        scheduleId: input.scheduleId,
-        bookingDate: input.date,
-        status: "reservado",
-        isTrial: true,
-      });
+      const inserted = await tx.insert(schema.bookings).values(
+        tenantValues(ctx, {
+          memberId: userId,
+          scheduleId: input.scheduleId,
+          bookingDate: input.date,
+          status: "reservado",
+          isTrial: true,
+        }),
+      );
       return Number(inserted[0].insertId);
     });
 
@@ -1027,8 +1130,11 @@ export class TrialService {
    * a trial booking to an existing prueba alumno without re-creating one.
    * Sorted by created_at DESC so the most recently-created alumno (the
    * common case — admin just created them via /alumnos) appears first.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `users`.
    */
   async listEligibleTrials(
+    ctx: TenantContext,
     branchId: number,
   ): Promise<ListEligibleTrialsResult> {
     // "Today" in the sede's wall-clock so the past/future split matches how
@@ -1036,7 +1142,9 @@ export class TrialService {
     const [branchRow] = await this.db
       .select({ tz: schema.branches.timezone })
       .from(schema.branches)
-      .where(eq(schema.branches.id, branchId))
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+      )
       .limit(1);
     const today = todayInTz(branchRow?.tz ?? "America/Argentina/Buenos_Aires");
 
@@ -1051,6 +1159,7 @@ export class TrialService {
       .from(schema.users)
       .where(
         and(
+          tenantWhere(schema.users, ctx),
           eq(schema.users.status, "prueba"),
           eq(schema.users.branchId, branchId),
           // Exclude only alumnos with a still-PENDING trial (an active-status
@@ -1088,8 +1197,13 @@ export class TrialService {
    * Country scope: mirrors the members-list pattern — physical branches
    * in the caller's country plus virtual branches (which are cross-country).
    * Excludes cancelled trials so the coach shift-briefing matches reality.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
    */
-  async listTrials(input: ListTrialsInput): Promise<ListTrialsResult> {
+  async listTrials(
+    ctx: TenantContext,
+    input: ListTrialsInput,
+  ): Promise<ListTrialsResult> {
     const conditions = [
       eq(schema.bookings.isTrial, true),
       eq(schema.bookings.bookingDate, input.date),
@@ -1110,10 +1224,23 @@ export class TrialService {
 
     // Shift: split at 13:00 local. The schedules.start_time is stored as
     // "HH:MM" / "HH:MM:SS" so a lexicographic compare works.
+    // Fase 174.1-05b: `tenantWhere(schedules, ctx)` AND-eado — redundante con
+    // el `tenantWhere(users, ctx)` del innerJoin de abajo (D-02 del PATTERNS),
+    // pero ESTE `conditions.push(...)` es su propio statement.
     if (input.shift === "TM") {
-      conditions.push(sql`${schema.schedules.startTime} < '13:00'`);
+      conditions.push(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          sql`${schema.schedules.startTime} < '13:00'`,
+        ) as SQL,
+      );
     } else if (input.shift === "TT") {
-      conditions.push(sql`${schema.schedules.startTime} >= '13:00'`);
+      conditions.push(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          sql`${schema.schedules.startTime} >= '13:00'`,
+        ) as SQL,
+      );
     }
 
     const rows = await this.db
@@ -1132,7 +1259,13 @@ export class TrialService {
         branchName: schema.branches.name,
       })
       .from(schema.bookings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.bookings.memberId),
+        ),
+      )
       .innerJoin(
         schema.schedules,
         eq(schema.schedules.id, schema.bookings.scheduleId),

@@ -8,6 +8,7 @@ import {
   date,
   index,
   uniqueIndex,
+  foreignKey,
   text,
   type AnyMySqlColumn,
 } from "drizzle-orm/mysql-core";
@@ -284,6 +285,35 @@ export const users = mysqlTable(
     index("idx_users_email").on(table.email),
     index("idx_users_dni").on(table.dni),
     index("idx_users_referral_code").on(table.referralCode),
+    // Fase 173 (ADO-07, D-05b/D-18): índice compuesto que respalda la FK de
+    // abajo — sin él, MySQL igual crea uno automático para la FK, pero lo
+    // declaramos explícito para que el schema Drizzle documente la intención
+    // y el índice tenga el nombre que el resto del repo espera.
+    index("idx_users_tenant_id_branch_id").on(table.tenantId, table.branchId),
+    // Fase 173 (ADO-07, D-05b/D-18): la mina M10 — el par de anclas
+    // (`users.tenant_id`, `users.branch_id`) podía divergir de la sede si
+    // algún camino escribía `branch_id` sin validar el gimnasio (SQL crudo,
+    // script, backfill). Esta FK compuesta hace que la base rechace esa fila,
+    // sin depender de que la app se acuerde de filtrar.
+    // - Semántica MATCH SIMPLE (el default de MySQL, no configurable): una
+    //   FK compuesta pasa si CUALQUIERA de las columnas referenciantes es
+    //   NULL. Hoy es inalcanzable en la práctica porque `branch_id` es
+    //   NOT NULL para TODOS los roles (REQ-4, ver comentario arriba) — nunca
+    //   existe una fila de `users` con `branch_id IS NULL` para ejercer esa
+    //   rama. Se documenta igual porque es el comportamiento que ESTA FK
+    //   tendría si esa invariante cambiara, y porque `ON DELETE`/`ON UPDATE`
+    //   están declarados pensando en ese contrato, no en el actual.
+    // - `ON DELETE RESTRICT` / `ON UPDATE RESTRICT`: el default seguro. Un
+    //   `CASCADE` sobre `tenant_id` borraría en cascada TODOS los usuarios de
+    //   un gimnasio si alguna vez se borra su fila de `tenants` — un blast
+    //   radius que ningún flujo de este sistema necesita ni espera.
+    foreignKey({
+      name: "fk_users_tenant_branch",
+      columns: [table.tenantId, table.branchId],
+      foreignColumns: [branches.tenantId, branches.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("restrict"),
   ],
 );
 

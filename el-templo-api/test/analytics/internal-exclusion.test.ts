@@ -20,7 +20,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import {
   createTestApp,
@@ -37,8 +37,18 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/**
+ * Fase 173 (D-02): `getMonthlyFlows` recibe `TenantContext` como PRIMER
+ * argumento (en producción sale de `assertTenant(request.scope, …)`); acá se
+ * construye a mano porque el service se invoca sin request. El Templo es el
+ * tenant 1.
+ */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 describe("membresías internas — exclusión de métricas de membresía", () => {
   let app: FastifyInstance;
@@ -88,6 +98,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
   async function insertMember(): Promise<number> {
     __seq += 1;
     const [u] = await app.db.insert(users).values({
+      tenantId: TENANT_TEMPLO,
       email: `int-m${__seq}-${Date.now()}@test.com`,
       passwordHash: "x",
       firstName: "In",
@@ -107,6 +118,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
     pricePaid?: number;
   }): Promise<number> {
     const [r] = await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: opts.userId,
       planId,
       branchId: branchA,
@@ -130,7 +142,12 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
         membershipKind: subscriptions.membershipKind,
       })
       .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.userId, userId),
+        ),
+      )
       .orderBy(desc(subscriptions.id))
       .limit(1);
     return row;
@@ -143,12 +160,10 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
       days >= 0
         ? sql`DATE_ADD(CURDATE(), INTERVAL ${interval} DAY)`
         : sql`DATE_SUB(CURDATE(), INTERVAL ${interval} DAY)`;
-    const result = await app.db.execute(
+    const result = (await app.db.execute(
       sql`SELECT DATE_FORMAT(${dateExpr}, '%Y-%m-%d') AS d`,
-    );
-    const rows = (Array.isArray(result) ? result[0] : result) as Array<{
-      d: string;
-    }>;
+    )) as unknown as [Array<{ d: string }>];
+    const rows = Array.isArray(result) ? result[0] : result;
     return String(rows[0].d);
   }
 
@@ -241,6 +256,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
     // 1 solo-pase-especial (paga, pero plan_category='especial')
     const soloPase = await insertMember();
     await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: soloPase,
       planId: especialPlanId,
       branchId: branchA,
@@ -306,7 +322,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
       endDate: end,
     });
 
-    const res = await flowsSvc.getMonthlyFlows({
+    const res = await flowsSvc.getMonthlyFlows(CTX, {
       dateFrom: dateOffsetStr(-40),
       dateTo: dateOffsetStr(1),
     });
@@ -340,7 +356,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
       endDate: await dateOffset(-40),
     });
 
-    const res = await churnSvc.getChurn({
+    const res = await churnSvc.getChurn(CTX, {
       dateFrom: await dateOffset(-90),
       dateTo: await dateOffset(1),
     });
@@ -392,7 +408,12 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
     await app.db
       .update(subscriptions)
       .set({ membershipKind: "staff" })
-      .where(eq(subscriptions.id, sub.id));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, sub.id),
+        ),
+      );
 
     const renew = await app.inject({
       method: "POST",

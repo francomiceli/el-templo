@@ -7,7 +7,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, desc, inArray, lt } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, lt, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
@@ -21,9 +21,11 @@ import {
 import { validateQrToken } from "../shared/qr-token";
 import { memberCoveredUntilSql } from "../shared/covered-until";
 import {
-  milestoneInWindow,
-  toUtcDateStr,
-} from "../shared/tenure-milestones";
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
+import { milestoneInWindow, toUtcDateStr } from "../shared/tenure-milestones";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
@@ -53,7 +55,14 @@ export class AttendanceService {
    * and one-per-day constraint. Creates attendance with status "confirmado"
    * and awards AURA immediately.
    */
-  async checkIn(memberId: number, qrToken: string): Promise<AttendanceRecord> {
+  // Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra las 2 lecturas de
+  // `users` (rol del escaneador, sede del socio para el chequeo single-branch)
+  // y se propaga a `coachSelfScan`, `getRecordById` y `recordPresencialSession`.
+  async checkIn(
+    ctx: TenantContext,
+    memberId: number,
+    qrToken: string,
+  ): Promise<AttendanceRecord> {
     // Validate QR token
     const qrPayload = validateQrToken(qrToken);
     if (!qrPayload) {
@@ -66,7 +75,12 @@ export class AttendanceService {
     const [branchRow] = await this.db
       .select({ timezone: schema.branches.timezone })
       .from(schema.branches)
-      .where(eq(schema.branches.id, branchId));
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
+      );
 
     if (!branchRow) {
       throw new BadRequestError("Sede invalida");
@@ -85,10 +99,12 @@ export class AttendanceService {
     const [scanningUser] = await this.db
       .select({ role: schema.users.role })
       .from(schema.users)
-      .where(eq(schema.users.id, memberId));
+      .where(
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)),
+      );
 
     if (scanningUser?.role === "coach") {
-      return this.coachSelfScan(memberId, branchId, tz);
+      return this.coachSelfScan(ctx, memberId, branchId, tz);
     }
 
     // Compute tz-aware "today" for the booking lookup + one-per-day math.
@@ -122,6 +138,7 @@ export class AttendanceService {
       )
       .where(
         and(
+          tenantWhere(schema.bookings, ctx),
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.bookingDate, todayStr),
           eq(schema.bookings.status, "reservado"),
@@ -143,6 +160,7 @@ export class AttendanceService {
     // expired subs, returns null = hard block).
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx,
         memberId,
         isSpecialActivity,
       );
@@ -157,13 +175,20 @@ export class AttendanceService {
         classesPerWeek: schema.subscriptionPlans.classesPerWeek,
       })
       .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, subscription.planId));
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.id, subscription.planId),
+        ),
+      );
 
     if (planRow && !planRow.multiBranch) {
       const [memberRow] = await this.db
         .select({ branchId: schema.users.branchId })
         .from(schema.users)
-        .where(eq(schema.users.id, memberId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)),
+        );
 
       if (memberRow && memberRow.branchId !== branchId) {
         throw new BadRequestError(
@@ -181,7 +206,7 @@ export class AttendanceService {
       planRow?.classesPerWeek !== null &&
       planRow?.classesPerWeek !== undefined
     ) {
-      const weeklyCount = await this.countWeeklyAttendance(memberId);
+      const weeklyCount = await this.countWeeklyAttendance(ctx, memberId);
       if (weeklyCount >= planRow.classesPerWeek) {
         throw new BadRequestError(
           `Alcanzaste tu limite semanal (${weeklyCount}/${planRow.classesPerWeek})`,
@@ -215,6 +240,7 @@ export class AttendanceService {
       )
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, memberId),
           sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
           sql`COALESCE(${schema.activities.isSpecial}, false) = ${isSpecialActivity}`,
@@ -265,6 +291,7 @@ export class AttendanceService {
         )
         .where(
           and(
+            tenantWhere(schema.attendance, ctx),
             eq(schema.attendance.memberId, memberId),
             eq(schema.attendance.sessionDate, todayStr),
             sql`COALESCE(${schema.activities.isSpecial}, false) = ${isSpecialActivity}`,
@@ -277,15 +304,17 @@ export class AttendanceService {
       }
 
       // Insert attendance record
-      const result = await tx.insert(schema.attendance).values({
-        memberId,
-        branchId,
-        scheduleId: matchingBooking.scheduleId,
-        sessionDate: todayStr,
-        status: "confirmado",
-        source: "qr",
-        checkedInAt: now,
-      });
+      const result = await tx.insert(schema.attendance).values(
+        tenantValues(ctx, {
+          memberId,
+          branchId,
+          scheduleId: matchingBooking.scheduleId,
+          sessionDate: todayStr,
+          status: "confirmado",
+          source: "qr",
+          checkedInAt: now,
+        }),
+      );
 
       const id = Number(result[0].insertId);
 
@@ -301,6 +330,7 @@ export class AttendanceService {
           })
           .where(
             and(
+              tenantWhere(schema.subscriptions, ctx),
               eq(schema.subscriptions.id, subscription.id),
               sql`${schema.subscriptions.classesRemaining} > 0`,
             ),
@@ -311,7 +341,12 @@ export class AttendanceService {
       await tx
         .update(schema.bookings)
         .set({ status: "qr_escaneado" })
-        .where(eq(schema.bookings.id, matchingBooking.id));
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, matchingBooking.id),
+          ),
+        );
 
       return id;
     });
@@ -330,7 +365,7 @@ export class AttendanceService {
     // get credit for showing up — same way an online session completion does.
     // Marked with goal_plan_type='presencial' so it's distinguishable.
     // Outside the tx (mirrors AURA pattern): if it fails the check-in still wins.
-    await this.recordPresencialSession({
+    await this.recordPresencialSession(ctx, {
       memberId,
       branchId,
       checkedInAt: now,
@@ -346,7 +381,7 @@ export class AttendanceService {
       "Booking confirmed on QR check-in",
     );
 
-    return this.getRecordById(recordId);
+    return this.getRecordById(ctx, recordId);
   }
 
   /**
@@ -358,8 +393,12 @@ export class AttendanceService {
    * attendance for the coach, not member-program credit. Independent of rating
    * attribution (the roster owns that, D-Q1): does NOT touch coach_ratings or
    * class_coach_assignments. Keeps the one-per-day guard.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `user_branches` — es
+   * una de las dos anclas que ADO-07 protege.
    */
   private async coachSelfScan(
+    ctx: TenantContext,
     coachId: number,
     branchId: number,
     tz: string,
@@ -372,6 +411,7 @@ export class AttendanceService {
       .from(schema.userBranches)
       .where(
         and(
+          tenantWhere(schema.userBranches, ctx),
           eq(schema.userBranches.userId, coachId),
           eq(schema.userBranches.branchId, branchId),
         ),
@@ -393,6 +433,7 @@ export class AttendanceService {
         .from(schema.attendance)
         .where(
           and(
+            tenantWhere(schema.attendance, ctx),
             eq(schema.attendance.memberId, coachId),
             eq(schema.attendance.sessionDate, todayStr),
           ),
@@ -403,14 +444,16 @@ export class AttendanceService {
         throw new BadRequestError("Ya registraste asistencia hoy");
       }
 
-      const result = await tx.insert(schema.attendance).values({
-        memberId: coachId,
-        branchId,
-        sessionDate: todayStr,
-        status: "confirmado",
-        source: "qr",
-        checkedInAt: now,
-      });
+      const result = await tx.insert(schema.attendance).values(
+        tenantValues(ctx, {
+          memberId: coachId,
+          branchId,
+          sessionDate: todayStr,
+          status: "confirmado",
+          source: "qr",
+          checkedInAt: now,
+        }),
+      );
 
       return Number(result[0].insertId);
     });
@@ -420,7 +463,7 @@ export class AttendanceService {
       "Coach QR self-scan recorded",
     );
 
-    return this.getRecordById(recordId);
+    return this.getRecordById(ctx, recordId);
   }
 
   /**
@@ -429,8 +472,13 @@ export class AttendanceService {
    * Bypasses all enforcement (subscription, overdue, weekly, monthly).
    * Creates attendance with source="manual" and status="confirmado".
    * Awards 10 AURA immediately. Still decrements classesRemaining to keep budget accurate.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a
+   * `recordPresencialSession` y `getRecordById` (no hay lectura propia de
+   * `users` en este método).
    */
   async forceCheckIn(
+    ctx: TenantContext,
     input: ForceCheckInInput,
     adminId: number,
   ): Promise<AttendanceRecord> {
@@ -438,14 +486,16 @@ export class AttendanceService {
 
     // Insert attendance record
     const todayStr = new Date().toISOString().split("T")[0];
-    const result = await this.db.insert(schema.attendance).values({
-      memberId,
-      branchId,
-      scheduleId: null,
-      sessionDate: todayStr,
-      status: "confirmado",
-      source: "manual",
-    });
+    const result = await this.db.insert(schema.attendance).values(
+      tenantValues(ctx, {
+        memberId,
+        branchId,
+        scheduleId: null,
+        sessionDate: todayStr,
+        status: "confirmado",
+        source: "manual",
+      }),
+    );
 
     const recordId = Number(result[0].insertId);
 
@@ -466,6 +516,7 @@ export class AttendanceService {
     // socios sin pase).
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx,
         memberId,
         false,
       );
@@ -481,6 +532,7 @@ export class AttendanceService {
         })
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.id, subscription.id),
             sql`${schema.subscriptions.classesRemaining} > 0`,
           ),
@@ -488,7 +540,7 @@ export class AttendanceService {
     }
 
     // Mirror as completed_sessions (presencial). See checkIn() for rationale.
-    await this.recordPresencialSession({
+    await this.recordPresencialSession(ctx, {
       memberId,
       branchId,
       checkedInAt: new Date(),
@@ -500,7 +552,7 @@ export class AttendanceService {
       "Force check-in recorded",
     );
 
-    return this.getRecordById(recordId);
+    return this.getRecordById(ctx, recordId);
   }
 
   // ─── Slot Attendance Methods ──────────────────────────────────────────────
@@ -508,8 +560,15 @@ export class AttendanceService {
   /**
    * Get attendance for a specific schedule slot on a given date.
    * Returns members with booking + attendance status, including walk-in QR scans.
+   *
+   * Fase 173 (D-02): `ctx` es el PRIMER parámetro y llega desde
+   * `assertTenant(request.scope, "attendance.slotAttendance")`. Solo scopea
+   * la lectura de `subscriptions` que hace `memberCoveredUntilSql` — el resto
+   * de las tablas de este método (`bookings`, `attendance`, `users`,
+   * `member_profiles`, …) se migra en su propia fase (D-02, plan 173-14).
    */
   async getSlotAttendance(
+    ctx: TenantContext,
     scheduleId: number,
     date: string,
     opts: { includeCheckIns?: boolean } = {},
@@ -543,7 +602,7 @@ export class AttendanceService {
   }> {
     // Fecha de cobertura para el pill "Venc" (bug Joaquim Mas 2026-07-07).
     // Implementación única compartida — ver shared/covered-until.ts.
-    const endDateExpr = memberCoveredUntilSql();
+    const endDateExpr = memberCoveredUntilSql(ctx);
 
     // Get all bookings for this slot+date
     const bookingRows = await this.db
@@ -558,10 +617,19 @@ export class AttendanceService {
         endDate: endDateExpr,
       })
       .from(schema.bookings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.bookings.memberId),
+        ),
+      )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.bookings.memberId),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.bookings.memberId),
+        ),
       )
       .where(
         and(
@@ -585,10 +653,19 @@ export class AttendanceService {
         endDate: endDateExpr,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .leftJoin(
         schema.memberProfiles,
-        eq(schema.memberProfiles.userId, schema.attendance.memberId),
+        and(
+          tenantWhere(schema.memberProfiles, ctx),
+          eq(schema.memberProfiles.userId, schema.attendance.memberId),
+        ),
       )
       .where(
         and(
@@ -690,12 +767,15 @@ export class AttendanceService {
         .from(schema.attendance)
         .where(
           and(
+            tenantWhere(schema.attendance, ctx),
             inArray(schema.attendance.memberId, memberIds),
             lt(schema.attendance.sessionDate, date),
           ),
         )
         .groupBy(schema.attendance.memberId);
-      const prevByMember = new Map(prevRows.map((r) => [r.memberId, r.lastDate]));
+      const prevByMember = new Map(
+        prevRows.map((r) => [r.memberId, r.lastDate]),
+      );
 
       for (const [memberId, entry] of memberMap) {
         const createdAt = createdAtByMember.get(memberId);
@@ -729,8 +809,13 @@ export class AttendanceService {
    * Coach manual check-in from a schedule slot.
    * Validates membership and returns subscription status warnings alongside
    * the created attendance record. Always allows check-in (coach override).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a
+   * `recordPresencialSession` y `getRecordById` (no hay lectura propia de
+   * `users` en este método).
    */
   async coachCheckIn(
+    ctx: TenantContext,
     scheduleId: number,
     date: string,
     memberId: number,
@@ -753,7 +838,12 @@ export class AttendanceService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
-      .where(eq(schema.schedules.id, scheduleId));
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
 
     if (!schedule) {
       throw new BadRequestError("Horario no encontrado");
@@ -780,6 +870,7 @@ export class AttendanceService {
       )
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, memberId),
           eq(schema.attendance.sessionDate, date),
           sql`COALESCE(${schema.activities.isSpecial}, false) = ${schedule.isSpecial}`,
@@ -797,6 +888,7 @@ export class AttendanceService {
     // Fase 161 (GATE-02): rutea a la sub del pase si la actividad es especial.
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx,
         memberId,
         schedule.isSpecial,
       );
@@ -812,14 +904,16 @@ export class AttendanceService {
     }
 
     // Insert attendance record
-    const result = await this.db.insert(schema.attendance).values({
-      memberId,
-      branchId: schedule.branchId,
-      scheduleId,
-      sessionDate: date,
-      status: "confirmado",
-      source: "manual",
-    });
+    const result = await this.db.insert(schema.attendance).values(
+      tenantValues(ctx, {
+        memberId,
+        branchId: schedule.branchId,
+        scheduleId,
+        sessionDate: date,
+        status: "confirmado",
+        source: "manual",
+      }),
+    );
 
     const recordId = Number(result[0].insertId);
 
@@ -848,6 +942,7 @@ export class AttendanceService {
         })
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.id, subscription.id),
             sql`${schema.subscriptions.classesRemaining} > 0`,
           ),
@@ -860,9 +955,16 @@ export class AttendanceService {
     // bookings table. The unique index on (member_id, schedule_id,
     // booking_date) means at most one row exists per tuple, so ON
     // DUPLICATE KEY UPDATE handles every prior state atomically.
+    //
+    // Fase 174.1 (174.1-02, hallazgo con-06-lint): `tenant_id` va como columna
+    // EXPLÍCITA desde `ctx.tenantId` — mismo patrón que
+    // `subscriptions/booking-population.ts` (T-174-01-T). Este INSERT crudo
+    // vía `sql` template no pasa por `tenantValues`; sin la columna la fila
+    // nace en el DEFAULT 1 de la tabla. Solo afecta la rama INSERT: si la fila
+    // ya existe, ON DUPLICATE KEY UPDATE no toca `tenant_id`.
     await this.db.execute(sql`
-      INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status)
-      VALUES (${memberId}, ${scheduleId}, ${date}, 'confirmado')
+      INSERT INTO bookings (member_id, schedule_id, booking_date, booking_status, tenant_id)
+      VALUES (${memberId}, ${scheduleId}, ${date}, 'confirmado', ${ctx.tenantId})
       ON DUPLICATE KEY UPDATE
         cancelled_at = NULL,
         waitlist_position = NULL,
@@ -870,7 +972,7 @@ export class AttendanceService {
     `);
 
     // Mirror as completed_sessions (presencial). See checkIn() for rationale.
-    await this.recordPresencialSession({
+    await this.recordPresencialSession(ctx, {
       memberId,
       branchId: schedule.branchId,
       checkedInAt: new Date(),
@@ -882,15 +984,25 @@ export class AttendanceService {
       "Coach check-in recorded",
     );
 
-    const record = await this.getRecordById(recordId);
+    const record = await this.getRecordById(ctx, recordId);
     return { attendance: record, warnings };
   }
 
   /**
    * Remove a check-in (coach undo). Deletes the attendance record,
    * restores classesRemaining, reverses AURA, and reverts booking status.
+   *
+   * Fase 174.1 (174.1-02, D-04): `ctx` es REQUERIDO — su único caller
+   * (`attendance/routes.ts`, DELETE /:attendanceId) ahora deriva
+   * `assertTenant(request.scope, "attendance.removeCheckIn")` como el resto
+   * de las rutas del archivo. `isSpecialSchedule` (único caller de este
+   * método) queda con `ctx` opcional y su guard Pattern D — diferido a 175
+   * (D-05), fuera del alcance de este plan.
    */
-  async removeCheckIn(attendanceId: number): Promise<{ removed: boolean }> {
+  async removeCheckIn(
+    attendanceId: number,
+    ctx: TenantContext,
+  ): Promise<{ removed: boolean }> {
     // Get the attendance record
     const [attRecord] = await this.db
       .select({
@@ -900,7 +1012,12 @@ export class AttendanceService {
         checkedInAt: schema.attendance.checkedInAt,
       })
       .from(schema.attendance)
-      .where(eq(schema.attendance.id, attendanceId));
+      .where(
+        and(
+          tenantWhere(schema.attendance, ctx),
+          eq(schema.attendance.id, attendanceId),
+        ),
+      );
 
     if (!attRecord) {
       throw new BadRequestError("Registro de asistencia no encontrado");
@@ -915,10 +1032,12 @@ export class AttendanceService {
     // Fase 161 (GATE-02): restaurar la clase a la sub correcta según si la
     // actividad era especial. scheduleId null (force check-in) → regular.
     const isSpecialActivity = await this.isSpecialSchedule(
+      ctx,
       attRecord.scheduleId,
     );
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
+        ctx,
         attRecord.memberId,
         isSpecialActivity,
       );
@@ -928,7 +1047,12 @@ export class AttendanceService {
         .set({
           classesRemaining: sql`${schema.subscriptions.classesRemaining} + 1`,
         })
-        .where(eq(schema.subscriptions.id, subscription.id));
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, subscription.id),
+          ),
+        );
     }
 
     // Reverse AURA: spend 10 AURA as a reversal
@@ -961,6 +1085,7 @@ export class AttendanceService {
         .set({ status: "reservado" })
         .where(
           and(
+            tenantWhere(schema.bookings, ctx),
             eq(schema.bookings.memberId, attRecord.memberId),
             eq(schema.bookings.scheduleId, attRecord.scheduleId),
             eq(schema.bookings.bookingDate, dateStr),
@@ -992,8 +1117,14 @@ export class AttendanceService {
    * Fase 161 (GATE-02): resuelve si la actividad de un scheduleId es especial
    * (activities.is_special) para rutear el consumo a la sub correcta. Devuelve
    * false si scheduleId es null o el horario no existe (defensivo: regular).
+   *
+   * Fase 174 (174-05): `ctx` opcional (ver `removeCheckIn`, su único caller) —
+   * mismo guard provisorio Pattern D cuando no llega.
    */
-  private async isSpecialSchedule(scheduleId: number | null): Promise<boolean> {
+  private async isSpecialSchedule(
+    ctx: TenantContext | undefined,
+    scheduleId: number | null,
+  ): Promise<boolean> {
     if (scheduleId === null) return false;
     const [row] = await this.db
       .select({ isSpecial: schema.activities.isSpecial })
@@ -1002,7 +1133,17 @@ export class AttendanceService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
-      .where(eq(schema.schedules.id, scheduleId))
+      .where(
+        ctx
+          ? and(
+              tenantWhere(schema.schedules, ctx),
+              eq(schema.schedules.id, scheduleId),
+            )
+          : and(
+              isNotNull(schema.schedules.tenantId),
+              eq(schema.schedules.id, scheduleId),
+            ),
+      )
       .limit(1);
     return row?.isSpecial ?? false;
   }
@@ -1016,35 +1157,47 @@ export class AttendanceService {
    * No AURA is awarded here — the check-in path already grants 10 AURA via
    * sourceType='attendance', and we don't want presencial members to get
    * double credit.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra la lectura de `users`.
    */
-  private async recordPresencialSession(input: {
-    memberId: number;
-    branchId: number;
-    checkedInAt: Date;
-    dateStr: string;
-  }): Promise<void> {
+  private async recordPresencialSession(
+    ctx: TenantContext,
+    input: {
+      memberId: number;
+      branchId: number;
+      checkedInAt: Date;
+      dateStr: string;
+    },
+  ): Promise<void> {
     try {
       const [user] = await this.db
         .select({ level: schema.users.level })
         .from(schema.users)
-        .where(eq(schema.users.id, input.memberId));
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, input.memberId),
+          ),
+        );
       if (!user) return;
 
       // Presencial members do the full coached class — credit them with
       // every standard block. Deuteros defaults to DEUTEROS_1 only (not the
       // online DEUTEROS_1+DEUTEROS_2 split) since the coach picks one
       // accessory variant per session.
-      await this.db.insert(schema.completedSessions).values({
-        userId: input.memberId,
-        branchId: input.branchId,
-        dayId: `presencial-${input.dateStr}`,
-        sessionLevel: user.level,
-        date: input.dateStr,
-        startedAt: input.checkedInAt,
-        completedAt: input.checkedInAt,
-        blocksCompleted: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS"],
-        goalPlanType: "presencial",
-      });
+      await this.db.insert(schema.completedSessions).values(
+        tenantValues(ctx, {
+          userId: input.memberId,
+          branchId: input.branchId,
+          dayId: `presencial-${input.dateStr}`,
+          sessionLevel: user.level,
+          date: input.dateStr,
+          startedAt: input.checkedInAt,
+          completedAt: input.checkedInAt,
+          blocksCompleted: ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS"],
+          goalPlanType: "presencial",
+        }),
+      );
     } catch (err) {
       this.log.error(
         { err, memberId: input.memberId, dateStr: input.dateStr },
@@ -1057,15 +1210,20 @@ export class AttendanceService {
 
   /**
    * List attendance records with filters and pagination.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
    */
   async listAttendance(
+    ctx: TenantContext,
     params: AttendanceListParams,
   ): Promise<{ records: AttendanceRecord[]; total: number }> {
     const { branchId, date, dateFrom, dateTo, status, memberId, page, limit } =
       params;
     const offset = (page - 1) * limit;
 
-    const conditions: ReturnType<typeof eq>[] = [];
+    const conditions: ReturnType<typeof eq>[] = [
+      tenantWhere(schema.attendance, ctx),
+    ];
 
     if (branchId !== undefined) {
       conditions.push(eq(schema.attendance.branchId, branchId));
@@ -1117,7 +1275,13 @@ export class AttendanceService {
         source: schema.attendance.source,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.attendance.branchId),
@@ -1135,21 +1299,29 @@ export class AttendanceService {
 
   /**
    * Get a member's attendance history (paginated).
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, se propaga a `listAttendance`.
    */
   async getMemberAttendance(
+    ctx: TenantContext,
     memberId: number,
     page: number,
     limit: number,
   ): Promise<{ records: AttendanceRecord[]; total: number }> {
-    return this.listAttendance({ memberId, page, limit });
+    return this.listAttendance(ctx, { memberId, page, limit });
   }
 
   // ─── Private Helpers ───────────────────────────────────────────────────────
 
   /**
    * Get a single attendance record by ID with joins.
+   *
+   * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra el join a `users`.
    */
-  private async getRecordById(recordId: number): Promise<AttendanceRecord> {
+  private async getRecordById(
+    ctx: TenantContext,
+    recordId: number,
+  ): Promise<AttendanceRecord> {
     const [row] = await this.db
       .select({
         id: schema.attendance.id,
@@ -1163,7 +1335,13 @@ export class AttendanceService {
         source: schema.attendance.source,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.attendance.branchId),
@@ -1208,8 +1386,14 @@ export class AttendanceService {
   /**
    * Count this member's attendance records in the current Mon-Sat calendar week.
    * Uses getWeekRange (UTC-based) to match booking-service week boundaries.
+   *
+   * Fase 174 (174-05): `ctx` PRIMERO — único caller es `checkIn`, en este
+   * mismo archivo, que ya lo tiene.
    */
-  private async countWeeklyAttendance(memberId: number): Promise<number> {
+  private async countWeeklyAttendance(
+    ctx: TenantContext,
+    memberId: number,
+  ): Promise<number> {
     const { monday, saturday } = getWeekRange(new Date());
 
     // Solo asistencias a actividades regulares: las especiales (pase Aura)
@@ -1228,6 +1412,7 @@ export class AttendanceService {
       )
       .where(
         and(
+          tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, memberId),
           sql`DATE(${schema.attendance.checkedInAt}) >= ${monday}`,
           sql`DATE(${schema.attendance.checkedInAt}) <= ${saturday}`,

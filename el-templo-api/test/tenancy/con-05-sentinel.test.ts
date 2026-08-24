@@ -152,12 +152,16 @@ describe("sentinel — guards del cableado", () => {
 
       const antes = app.dbSentinel.snapshot().totalViolations;
       // Lectura sin filtro de tenant sobre una tabla gym-owned. Es SEGURA como
-      // test porque TENANT_STRICT_MODULES arranca vacía en esta fase: el
-      // sentinel la cuenta y se queda callado (D-08). El día que `bookings`
-      // entre a un módulo migrado, esta línea va a tirar
-      // TenantSentinelError — y lo correcto entonces es filtrarla con
-      // tenantWhere, no aflojar el guard.
-      await app.db.select().from(schema.bookings).limit(1);
+      // test porque `completed_sessions` (módulo attendance) sigue sin
+      // TENANT_STRICT_MODULES: el sentinel la cuenta y se queda callado
+      // (D-08). Tabla `completed_sessions` (no `bookings`, fase 174.1):
+      // `bookings` entró a `TENANT_STRICT_MODULES` con el switch de
+      // scheduling y esta línea empezó a tirar TenantSentinelError de
+      // verdad. El día que `completed_sessions` entre a un módulo migrado
+      // (fase 175, attendance), esta línea va a tirar TenantSentinelError —
+      // y lo correcto entonces es filtrarla con tenantWhere, no aflojar el
+      // guard.
+      await app.db.select().from(schema.completedSessions).limit(1);
       const despues = app.dbSentinel.snapshot().totalViolations;
 
       expect(

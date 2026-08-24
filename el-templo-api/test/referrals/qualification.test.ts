@@ -21,6 +21,7 @@ import {
   createMember,
   assignPlan,
 } from "../subscriptions/_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -56,8 +57,8 @@ async function link(
   status: "qualified" | "pending" = "pending",
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel)
-        VALUES (${referrerId}, ${referredId}, ${status}, 'assisted')`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+        VALUES (1, ${referrerId}, ${referredId}, ${status}, 'assisted')`,
   );
 }
 
@@ -68,8 +69,8 @@ async function giveCoverage(
   endDate: string,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-        VALUES (${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
+    sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+        VALUES (${TENANT_TEMPLO}, ${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
   );
 }
 
@@ -77,7 +78,7 @@ async function readLink(
   referredId: number,
 ): Promise<{ status: string; qualified_at: string | null } | undefined> {
   const rows = await app.db.execute(
-    sql`SELECT status, qualified_at FROM referrals WHERE referred_id = ${referredId} LIMIT 1`,
+    sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ SELECT status, qualified_at FROM referrals WHERE referred_id = ${referredId} LIMIT 1`,
   );
   return (rows[0] as Array<{ status: string; qualified_at: string | null }>)[0];
 }
@@ -88,7 +89,7 @@ async function readSubscription(
 ): Promise<{ price_paid: number; referral_discount_amount: number | null }> {
   const rows = await app.db.execute(
     sql`SELECT price_paid, referral_discount_amount FROM subscriptions
-        WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1`,
+        WHERE user_id = ${userId} AND tenant_id = ${TENANT_TEMPLO} ORDER BY id DESC LIMIT 1`,
   );
   return (
     rows[0] as Array<{
@@ -139,7 +140,7 @@ describe("Referral qualification on first payment (assignPlan)", () => {
     const referred = await createMember(app, { email: "qc-d@test.com" });
     await link(referrer.id, referred.id, "qualified");
     await app.db.execute(
-      sql`UPDATE referrals SET qualified_at = '2020-01-01 00:00:00' WHERE referred_id = ${referred.id}`,
+      sql`/* tenant-safe: update por referred_id, UNIQUE (D-14/REF-04) */ UPDATE referrals SET qualified_at = '2020-01-01 00:00:00' WHERE referred_id = ${referred.id}`,
     );
 
     const res = await assignPlan(app, adminToken, referred.id, {

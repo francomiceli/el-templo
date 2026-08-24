@@ -120,8 +120,12 @@ async function runForTenant(
   const hits = members
     .map((m) => ({ member: m, milestone: milestoneOnDate(m.createdAt, today) }))
     .filter(
-      (h): h is { member: (typeof members)[number]; milestone: NonNullable<typeof h.milestone> } =>
-        h.milestone !== null,
+      (
+        h,
+      ): h is {
+        member: (typeof members)[number];
+        milestone: NonNullable<typeof h.milestone>;
+      } => h.milestone !== null,
     );
   result.candidates = hits.length;
   if (hits.length === 0) return result;
@@ -186,12 +190,15 @@ async function runForTenant(
     // 2. Push de felicitación (best-effort: un fallo de la cola nunca deshace
     //    el Aura ya otorgado). Copy neutra en género (voseo) a propósito.
     try {
-      await notifications.queueAdHocNotification({
-        userId: member.id,
-        title: `🎉 ¡${milestone.label} en El Templo!`,
-        body: `Hoy cumplís ${milestone.label} entrenando con nosotros. ¡Gracias por bancar la barra! 💪`,
-        category: "motivacion",
-      });
+      await notifications.queueAdHocNotification(
+        {
+          userId: member.id,
+          title: `🎉 ¡${milestone.label} en El Templo!`,
+          body: `Hoy cumplís ${milestone.label} entrenando con nosotros. ¡Gracias por bancar la barra! 💪`,
+          category: "motivacion",
+        },
+        ctx,
+      );
     } catch (err: unknown) {
       log.error(
         { err, memberId: member.id, months: milestone.months },
@@ -235,5 +242,10 @@ export function startTenureMilestonesJob(
     { timezone: AR_TZ },
   );
 
-  log.info("Tenure-milestones cron scheduled daily at 09:00 (Argentina timezone)");
+  log.info(
+    "Tenure-milestones cron scheduled daily at 09:00 (Argentina timezone)",
+  );
 }
+// chore(staging): re-trigger de deploy (paths-filter/event.before) — solo staging.
+// reintento 2 tras incidente de GitHub Actions (2026-08-06).
+// reintento 3 (2026-08-07): GitHub Actions ya se recuperó, re-disparar CI+deploy de staging.

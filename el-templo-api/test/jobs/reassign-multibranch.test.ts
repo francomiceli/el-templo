@@ -18,10 +18,19 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { runReassignMultibranch } from "../../src/jobs/reassign-multibranch";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+// Archivo single-tenant (solo El Templo, sin segundo gimnasio): filtro
+// preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 // "Ahora" pinneado. Ventana de asistencias = [NOW-30d, NOW].
 const NOW = new Date("2026-06-15T12:00:00Z");
@@ -99,6 +108,7 @@ describe("cron recategorización multisucursal", () => {
   }): Promise<number> {
     seq += 1;
     const res = await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `rmb-${seq}-${Date.now()}@test.com`,
       passwordHash: "x",
       firstName: "Test",
@@ -118,6 +128,7 @@ describe("cron recategorización multisucursal", () => {
     status: "active" | "paused" = "active",
   ): Promise<void> {
     await app.db.insert(schema.subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId,
       planId,
       branchId,
@@ -148,7 +159,9 @@ describe("cron recategorización multisucursal", () => {
     const [row] = await app.db
       .select({ branchId: schema.users.branchId })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, CTX_TEMPLO), eq(schema.users.id, userId)),
+      );
     return row.branchId;
   }
 
@@ -172,7 +185,12 @@ describe("cron recategorización multisucursal", () => {
     const [sub] = await app.db
       .select({ branchId: schema.subscriptions.branchId })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, m));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, m),
+        ),
+      );
     expect(sub.branchId).toBe(branchB);
   });
 
@@ -226,7 +244,10 @@ describe("cron recategorización multisucursal", () => {
     await addAttendance(m, branchB, 6); // dominaría B, pero está protegido
 
     const res = await runReassignMultibranch(app.db);
-    expect(res.skipped).toContainEqual({ memberId: m, reason: "manual_recent" });
+    expect(res.skipped).toContainEqual({
+      memberId: m,
+      reason: "manual_recent",
+    });
     expect(await homeBranchOf(m)).toBe(branchA);
   });
 
@@ -251,7 +272,10 @@ describe("cron recategorización multisucursal", () => {
     await addAttendance(m, branchC, 6); // C es ES
 
     const res = await runReassignMultibranch(app.db);
-    expect(res.skipped).toContainEqual({ memberId: m, reason: "cross_country" });
+    expect(res.skipped).toContainEqual({
+      memberId: m,
+      reason: "cross_country",
+    });
     expect(await homeBranchOf(m)).toBe(branchA);
   });
 

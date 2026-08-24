@@ -23,17 +23,26 @@
  * Correlaciona contra `users.id`, así que solo sirve en queries cuyo FROM sea
  * `users`. La columna va interpolada vía `schema.users.id` (calificada) porque
  * una columna sin calificar rompe la correlación en Drizzle.
+ *
+ * Fase 173 (ADO-02): `ctx` es el ÚNICO parámetro. La subconsulta tiene su
+ * PROPIO `FROM subscriptions` — el `tenantWhere` de la query de AFUERA (sobre
+ * `users`) no alcanza estas filas (doc 07 §4(b), "subconsulta con FROM
+ * propio: el filtro va adentro"). Sin alias (`FROM subscriptions` pelado, no
+ * `AS s`) para poder nombrar la tabla por su nombre físico con
+ * `tenantWhere(schema.subscriptions, ctx)` sin chocar con un alias.
  */
 
 import { sql, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
+import { tenantWhere, type TenantContext } from "./tenant";
 
 /** Fecha de cobertura (YYYY-MM-DD) del socio de la fila, o null. */
-export function memberCoveredUntilSql(): SQL<string | null> {
+export function memberCoveredUntilSql(ctx: TenantContext): SQL<string | null> {
   return sql<string | null>`(
-      SELECT DATE_FORMAT(MAX(s.end_date), '%Y-%m-%d') FROM subscriptions s
-      WHERE s.user_id = ${schema.users.id}
-        AND s.subscription_status IN ('active','paused','scheduled')
-        AND s.end_date IS NOT NULL
+      SELECT DATE_FORMAT(MAX(subscriptions.end_date), '%Y-%m-%d') FROM subscriptions
+      WHERE subscriptions.user_id = ${schema.users.id}
+        AND ${tenantWhere(schema.subscriptions, ctx)}
+        AND subscriptions.subscription_status IN ('active','paused','scheduled')
+        AND subscriptions.end_date IS NOT NULL
     )`;
 }

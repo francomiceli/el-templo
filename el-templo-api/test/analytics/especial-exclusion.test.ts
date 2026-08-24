@@ -22,7 +22,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -32,12 +32,25 @@ import {
 } from "../helpers";
 import { MemberFlowsService } from "../../src/modules/analytics/member-flows-service";
 import { TicketService } from "../../src/modules/analytics/ticket-service";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+
+/**
+ * El gimnasio de los fixtures (El Templo = tenant 1). Fase 172: el service
+ * recibe el `TenantContext` como PRIMER argumento; en producción sale de
+ * `assertTenant(request.scope, …)`, acá se construye a mano porque el service se
+ * invoca sin request.
+ */
+const CTX: TenantContext = { tenantId: 1 };
 
 const ANALYTICS_URL = "/api/admin/analytics";
 
@@ -67,7 +80,7 @@ describe("D-11 — exclusión del pase especial de las métricas de membresía",
     const [admin] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(and(tenantWhere(users, CTX), eq(users.email, "admin@test.com")));
     recorderId = admin.id;
   });
 
@@ -154,25 +167,29 @@ describe("D-11 — exclusión del pase especial de las métricas de membresía",
     amount: number;
     date: string;
   }): Promise<void> {
-    const [ft] = await app.db.insert(financialTransactions).values({
-      memberId: opts.userId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: opts.amount,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: opts.date,
-      effectiveDate: opts.date,
-      branchId: branchA,
-      recordedBy: recorderId,
-    });
+    const [ft] = await app.db.insert(financialTransactions).values(
+      tenantValues(CTX, {
+        memberId: opts.userId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: opts.amount,
+        currency: "ARS",
+        paymentMethod: "cash",
+        transactionDate: opts.date,
+        effectiveDate: opts.date,
+        branchId: branchA,
+        recordedBy: recorderId,
+      }),
+    );
     const ftId = (ft as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: ftId,
-      targetKind: "subscription",
-      targetId: opts.subId,
-      allocatedAmount: opts.amount,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(CTX, {
+        transactionId: ftId,
+        targetKind: "subscription",
+        targetId: opts.subId,
+        allocatedAmount: opts.amount,
+      }),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -248,7 +265,7 @@ describe("D-11 — exclusión del pase especial de las métricas de membresía",
       endDate: end,
     });
 
-    const res = await flowsSvc.getMonthlyFlows({
+    const res = await flowsSvc.getMonthlyFlows(CTX, {
       dateFrom: dateOffsetStr(-40),
       dateTo: dateOffsetStr(1),
     });
@@ -299,7 +316,7 @@ describe("D-11 — exclusión del pase especial de las métricas de membresía",
       date: chargeDate,
     });
 
-    const res = await ticketSvc.getTicket({
+    const res = await ticketSvc.getTicket(CTX, {
       dateFrom: dateOffsetStr(-40),
       dateTo: dateOffsetStr(1),
     });

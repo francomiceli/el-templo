@@ -282,12 +282,12 @@ describe("Pricing preview — referral discount parity", () => {
     const referrer = await createMember(app, { email: "pv-r@test.com" });
     const referred = await createMember(app, { email: "pv-d@test.com" });
     await app.db.execute(
-      sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at)
-          VALUES (${referrer.id}, ${referred.id}, 'qualified', 'assisted', NOW())`,
+      sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel, qualified_at)
+          VALUES (1, ${referrer.id}, ${referred.id}, 'qualified', 'assisted', NOW())`,
     );
     await app.db.execute(
-      sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-          VALUES (${referred.id}, ${plan.id}, 1, 'active', ${todayStr()}, ${dateOffsetStr(30)}, 10000, 'ARS', 'regular')`,
+      sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+          VALUES (1, ${referred.id}, ${plan.id}, 1, 'active', ${todayStr()}, ${dateOffsetStr(30)}, 10000, 'ARS', 'regular')`,
     );
 
     const pv = await preview(referrer.id, plan.id as number);
@@ -319,14 +319,14 @@ describe("Pricing preview — referral discount parity", () => {
     const referrer = await createMember(app, { email: "pv-ro-r@test.com" });
     const referred = await createMember(app, { email: "pv-ro-d@test.com" });
     await app.db.execute(
-      sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel)
-          VALUES (${referrer.id}, ${referred.id}, 'pending', 'assisted')`,
+      sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+          VALUES (1, ${referrer.id}, ${referred.id}, 'pending', 'assisted')`,
     );
 
     await preview(referred.id, plan.id as number);
 
     const rows = await app.db.execute(
-      sql`SELECT status FROM referrals WHERE referred_id = ${referred.id}`,
+      sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ SELECT status FROM referrals WHERE referred_id = ${referred.id}`,
     );
     const statuses = (rows[0] as Array<{ status: string }>).map(
       (r) => r.status,

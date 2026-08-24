@@ -458,6 +458,17 @@ jobs:
           fi
           echo "Staging health check PASSED (HTTP $HTTP_CODE)"
 
+          # Fase 176 (T-176-05): /health es categoria `global` y responde 200
+          # aunque el seed de flags no haya corrido y los 4 modulos Templo
+          # queden apagados -- o sea, con 141 rutas en 404. Este es el unico
+          # modo de falla catastrofico de la fase 176 que /health no detecta.
+          MODULE_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${API_BASE}/api/blog/posts || echo "000")
+          if [ "$MODULE_HTTP_CODE" != "200" ]; then
+            echo "::error::Staging module route check FAILED (HTTP $MODULE_HTTP_CODE)"
+            exit 1
+          fi
+          echo "Staging module route check PASSED (HTTP $MODULE_HTTP_CODE)"
+
       - name: Web staging smoke test
         if: needs.build-web.result == 'success'
         run: |

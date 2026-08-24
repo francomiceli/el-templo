@@ -35,6 +35,16 @@ import { activities } from "../src/db/schema/activities";
 import { subscriptionPlans } from "../src/db/schema/subscription-plans";
 import { financialTransactions } from "../src/db/schema/financial-transactions";
 import { transactionLinks } from "../src/db/schema/transaction-links";
+import { tenantWhere } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const BRANCH_ID = 1; // seeded by test setup
 
@@ -189,7 +199,7 @@ describe("Phase 114-03 — subscription conversion hook (lead_status + lead_note
         status: users.status,
       })
       .from(users)
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
     if (!row) throw new Error(`user ${userId} not found`);
     return row as LeadColumns;
   }
@@ -235,7 +245,7 @@ describe("Phase 114-03 — subscription conversion hook (lead_status + lead_note
     await app.db
       .update(users)
       .set({ leadNotes: "manual: muy interesado" })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
 
     const assign = await assignPlanViaHttp(userId, proPlanId);
     expect(assign.statusCode).toBe(201);
@@ -260,7 +270,7 @@ describe("Phase 114-03 — subscription conversion hook (lead_status + lead_note
     await app.db
       .update(users)
       .set({ leadNotes: "" })
-      .where(eq(users.id, userId));
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, userId)));
 
     const assign = await assignPlanViaHttp(userId, basicPlanId);
     expect(assign.statusCode).toBe(201);
@@ -338,17 +348,23 @@ describe("Phase 114-03 — subscription conversion hook (lead_status + lead_note
     const [adminRow] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"))
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      )
       .limit(1);
     const linkedTxIds = await app.db
       .select({ id: financialTransactions.id })
       .from(transactionLinks)
       .innerJoin(
         financialTransactions,
-        eq(transactionLinks.transactionId, financialTransactions.id),
+        and(
+          tenantWhere(financialTransactions, TEMPLO_CTX),
+          eq(transactionLinks.transactionId, financialTransactions.id),
+        ),
       )
       .where(
         and(
+          tenantWhere(transactionLinks, TEMPLO_CTX),
           eq(transactionLinks.targetKind, "subscription"),
           eq(transactionLinks.targetId, subId),
         ),
@@ -361,7 +377,12 @@ describe("Phase 114-03 — subscription conversion hook (lead_status + lead_note
           voidedBy: adminRow?.id ?? null,
           voidReason: "test setup — pre-void for idempotence test",
         })
-        .where(eq(financialTransactions.id, t.id));
+        .where(
+          and(
+            tenantWhere(financialTransactions, TEMPLO_CTX),
+            eq(financialTransactions.id, t.id),
+          ),
+        );
     }
 
     const cancelRes = await app.inject({

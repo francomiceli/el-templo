@@ -28,12 +28,20 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../../src/db/schema";
 import { createTestApp, cleanAllTestData } from "../helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de las lecturas DIRECTAS de este archivo. Con
+ * `members` en TENANT_STRICT_MODULES una lectura de `users` /
+ * `user_status_history` sin estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
-import { AuraService } from "../../src/modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -54,7 +62,6 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
   }
 
   function buildService(): SubscriptionService {
-    const aura = new AuraService(app.db);
     const balances = new BalanceService(app.db, app.log);
     const cashRegisters = new CashRegisterService(app.db, app.log);
     const txns = new TransactionService(
@@ -67,7 +74,6 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     const subs = new SubscriptionService(
       app.db,
       app.log,
-      aura,
       txns,
       enrollments,
     );
@@ -86,6 +92,7 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     const [{ id }] = await app.db
       .insert(schema.users)
       .values({
+        tenantId: TENANT_TEMPLO,
         email: `ush-${unique}@test.com`,
         passwordHash,
         firstName: "Status",
@@ -102,6 +109,7 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
 
   async function assignDefaultPlan(userId: number): Promise<void> {
     await svc.assignPlan(
+      { tenantId: TENANT_TEMPLO },
       userId,
       {
         planId: testPlanId,
@@ -122,7 +130,12 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     return app.db
       .select()
       .from(schema.userStatusHistory)
-      .where(eq(schema.userStatusHistory.userId, userId));
+      .where(
+        and(
+          tenantWhere(schema.userStatusHistory, TEMPLO_CTX),
+          eq(schema.userStatusHistory.userId, userId),
+        ),
+      );
   }
 
   beforeAll(async () => {
@@ -184,9 +197,13 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     // forward-only no-op (from == to) → no second row.
     await (
       svc as unknown as {
-        recomputeUserStatus: (uid: number, tx: typeof app.db) => Promise<void>;
+        recomputeUserStatus: (
+          ctx: { tenantId: number } | null,
+          uid: number,
+          tx: typeof app.db,
+        ) => Promise<void>;
       }
-    ).recomputeUserStatus(userId, app.db);
+    ).recomputeUserStatus({ tenantId: TENANT_TEMPLO }, userId, app.db);
 
     expect(await getHistory(userId)).toHaveLength(1);
   });
@@ -212,7 +229,12 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     const subs = await app.db
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.userId, userId));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, userId),
+        ),
+      );
     expect(subs).toHaveLength(0);
 
     // … and so did the history row.
@@ -222,7 +244,9 @@ describe("Phase 117-02 — user_status_history forward-only hook", () => {
     const [u] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     expect(u?.status).toBe("freemium");
 
     spy.mockRestore();

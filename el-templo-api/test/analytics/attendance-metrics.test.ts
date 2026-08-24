@@ -14,6 +14,11 @@ import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { branches } from "../../src/db/schema/branches";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/** Fase 174.1-03 (D-02): `checkInAdoptionByBranch` ahora recibe `ctx`. */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 const ANALYTICS_URL = "/api/admin/analytics";
 
@@ -160,7 +165,7 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
         checkedInAt: daysAgo(40),
       });
 
-      const result = await svc.uniqueMembers({});
+      const result = await svc.uniqueMembers(CTX, {});
       expect(result.last7).toBe(2); // m1, m2
       expect(result.last14).toBe(2); // m1, m2 (m3 is at 20d)
       expect(result.last30).toBe(3); // m1, m2, m3 (the 40d row excluded)
@@ -185,16 +190,16 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
         },
       ]);
 
-      const onlyA = await svc.uniqueMembers({ branchId: branchA });
+      const onlyA = await svc.uniqueMembers(CTX, { branchId: branchA });
       expect(onlyA.last7).toBe(1);
       expect(onlyA.last30).toBe(1);
 
-      const both = await svc.uniqueMembers({});
+      const both = await svc.uniqueMembers(CTX, {});
       expect(both.last7).toBe(2);
     });
 
     it("returns zeros when there are no check-ins", async () => {
-      const result = await svc.uniqueMembers({});
+      const result = await svc.uniqueMembers(CTX, {});
       expect(result).toEqual({ last7: 0, last14: 0, last30: 0 });
     });
   });
@@ -256,7 +261,7 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
         });
       }
 
-      const rows = await svc.checkInAdoptionByBranch({});
+      const rows = await svc.checkInAdoptionByBranch(CTX, {});
       const rowA = rows.find((r) => r.branchId === branchA);
       const rowB = rows.find((r) => r.branchId === branchB);
 
@@ -289,7 +294,7 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
         });
       }
 
-      const rows = await svc.checkInAdoptionByBranch({});
+      const rows = await svc.checkInAdoptionByBranch(CTX, {});
       const row = rows.find((r) => r.branchId === branchA);
       expect(row).toBeDefined();
       expect(row!.confirmados).toBe(3);
@@ -327,7 +332,7 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
         checkedInAt: new Date(),
       });
 
-      const rows = await svc.checkInAdoptionByBranch({});
+      const rows = await svc.checkInAdoptionByBranch(CTX, {});
       const row = rows.find((r) => r.branchId === branchA);
       expect(row!.confirmados).toBe(1);
       expect(row!.conCheckin).toBe(1);
@@ -355,7 +360,7 @@ describe("AttendanceMetricsService (Phase 117 Plan 03)", () => {
         },
       ]);
 
-      const rows = await svc.checkInAdoptionByBranch({ branchId: branchA });
+      const rows = await svc.checkInAdoptionByBranch(CTX, { branchId: branchA });
       expect(rows.length).toBe(1);
       expect(rows[0].branchId).toBe(branchA);
     });

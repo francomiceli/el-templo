@@ -227,11 +227,20 @@
           {{ formatPrice(props.row.amount, props.row.currency) }}
         </q-td>
       </template>
-      <template #body-cell-bucket="props">
-        <q-td :props="props">
-          <q-badge :color="bucketColor(props.row.bucket)">
-            {{ BUCKET_LABELS_ES[props.row.bucket as DebtBucket] }}
-          </q-badge>
+      <!-- Antigüedad unificada: días con fondo del color del bucket (antes
+           eran dos columnas, días acá y el badge del bucket entre las
+           secundarias). El warning amarillo necesita texto oscuro. -->
+      <template #body-cell-antiguedad="props">
+        <q-td
+          :props="props"
+          :class="[
+            `bg-${bucketColor(props.row.bucket)}`,
+            bucketColor(props.row.bucket) === 'warning'
+              ? 'text-black'
+              : 'text-white',
+          ]"
+        >
+          {{ props.row.ageInDays }}
         </q-td>
       </template>
       <!-- Última asistencia (brief §2.3): fecha + "hace N días"; null = fantasma. -->
@@ -586,13 +595,6 @@ const columns = [
     label: 'Sucursal',
     field: (r: OutstandingBalanceRow) => r.branchName ?? '—',
     align: 'left' as const,
-    sortable: false,
-  },
-  {
-    name: 'bucket',
-    label: 'Antigüedad',
-    field: 'bucket',
-    align: 'center' as const,
     sortable: false,
   },
   {

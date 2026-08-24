@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import argon2 from "argon2";
 import {
   createTestApp,
@@ -31,7 +31,6 @@ import {
 } from "../src/modules/shared/branch-access";
 import { BookingService } from "../src/modules/scheduling/booking-service";
 import { SubscriptionService } from "../src/modules/subscriptions/service";
-import { AuraService } from "../src/modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -39,6 +38,16 @@ import {
 } from "../src/modules/finance";
 import { NotificationService } from "../src/modules/notifications/service";
 import { dowInTz, addDays } from "../src/modules/shared/date-utils";
+import { tenantWhere, type TenantContext } from "../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+
+/**
+ * El gimnasio de los fixtures (El Templo = tenant 1). Fase 173 (plan 173-07):
+ * `BookingService.reserve` recibe `ctx: TenantContext` como PRIMER argumento;
+ * en producción sale de `assertTenant(request.scope, …)`, acá se construye a
+ * mano porque el service se invoca directo (sin request).
+ */
+const CTX: TenantContext = { tenantId: 1 };
 
 describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", () => {
   let app: FastifyInstance;
@@ -129,6 +138,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     const passwordHash = await argon2.hash("test1234");
 
     await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `owner-${u}@test.local`,
       passwordHash,
       role: "owner",
@@ -137,6 +147,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     });
 
     await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `ar-admin-${u}@test.local`,
       passwordHash,
       role: "admin",
@@ -145,6 +156,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     });
 
     await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `es-admin-${u}@test.local`,
       passwordHash,
       role: "admin",
@@ -153,6 +165,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     });
 
     await app.db.insert(schema.users).values({
+      tenantId: TENANT_TEMPLO,
       email: `ar-gestion-${u}@test.local`,
       passwordHash,
       role: "gestion",
@@ -163,6 +176,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     const [coach] = await app.db
       .insert(schema.users)
       .values({
+        tenantId: TENANT_TEMPLO,
         email: `coach-${u}@test.local`,
         passwordHash,
         role: "coach",
@@ -175,13 +189,14 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     // Coach operational branches: arBranchId + virtualBranchId.
     // (NOT arBranchSecondId — coach should be 403 there.)
     await app.db.insert(schema.userBranches).values([
-      { userId: coachId, branchId: arBranchId },
-      { userId: coachId, branchId: virtualBranchId },
+      { tenantId: TENANT_TEMPLO, userId: coachId, branchId: arBranchId },
+      { tenantId: TENANT_TEMPLO, userId: coachId, branchId: virtualBranchId },
     ]);
 
     const [member] = await app.db
       .insert(schema.users)
       .values({
+        tenantId: TENANT_TEMPLO,
         email: `member-${u}@test.local`,
         passwordHash,
         role: "member",
@@ -227,10 +242,18 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
   // ============================================================
   // canAccessBranch — pure unit tests (REQ-5, REQ-6, REQ-10)
   // ============================================================
+  // Fase 173 (D-14, deferred-items.md hallazgo 173-20): `canAccessBranch`
+  // llama `assertTenant(scope, …)` internamente desde el plan 173-11 — un
+  // `CountryScope` sin `tenantId` hace que `assertTenant` lance, el `catch`
+  // interno lo convierte en `false`, y los 10 casos de este describe pasaban
+  // (o fallaban) por ESE motivo, no por la regla que dicen estar probando.
+  // `tenantId: 1` (El Templo, el gimnasio de los fixtures de este archivo)
+  // restaura la cobertura real del motor de reglas.
   describe("canAccessBranch — unit", () => {
     it("returns true for virtual branch (any role)", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -246,6 +269,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("returns true for owner regardless of country", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: true,
@@ -261,6 +285,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("admin/gestion: same country → true", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -276,6 +301,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("admin/gestion: cross country → false", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -291,6 +317,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("admin: scope.country=null (data-corruption fail-closed) → false (default-deny lateral)", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: null,
           branchIds: [],
           isOwner: false,
@@ -306,6 +333,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("coach: branchId in scope.branchIds → true", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [arBranchId],
           isOwner: false,
@@ -321,6 +349,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("coach: branchId NOT in scope.branchIds → false", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [arBranchId],
           isOwner: false,
@@ -336,6 +365,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("member: branchId === scope.userBranchId → true", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -351,6 +381,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("member: branchId !== scope.userBranchId → false", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: false,
@@ -366,6 +397,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
     it("branch not found → false", async () => {
       const ok = await canAccessBranch(
         {
+          tenantId: 1,
           country: "AR",
           branchIds: [],
           isOwner: true,
@@ -657,6 +689,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const [scheduleOther] = await app.db
         .insert(schema.schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: svcBranchOtherId,
           activityId: svcActivityId,
           dayOfWeek: tomorrowDow,
@@ -672,6 +705,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const [m] = await app.db
         .insert(schema.users)
         .values({
+          tenantId: TENANT_TEMPLO,
           email: `req8-member-${u}@test.local`,
           passwordHash,
           role: "member",
@@ -685,6 +719,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const [c] = await app.db
         .insert(schema.users)
         .values({
+          tenantId: TENANT_TEMPLO,
           email: `req8-coach-${u}@test.local`,
           passwordHash,
           role: "coach",
@@ -700,6 +735,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const today = todayStr();
       const endDate = addDays(today, 30);
       await app.db.insert(schema.subscriptions).values({
+        tenantId: TENANT_TEMPLO,
         userId: svcMemberId,
         planId: svcPlanId,
         branchId: svcBranchPrimaryId,
@@ -716,6 +752,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       // The coach's active sub is on the PRIMARY branch; the test verifies
       // they can still reserve on the OTHER branch without plan.multiBranch.
       await app.db.insert(schema.subscriptions).values({
+        tenantId: TENANT_TEMPLO,
         userId: svcCoachId,
         planId: svcPlanId,
         branchId: svcBranchPrimaryId,
@@ -729,7 +766,6 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
 
       // Build BookingService directly — same idiom as
       // test/users/user-status-transitions.test.ts.
-      const aura = new AuraService(app.db);
       const balances = new BalanceService(app.db, app.log);
       const cashRegisters = new CashRegisterService(app.db, app.log);
       const txns = new TransactionService(
@@ -738,7 +774,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
         balances,
         cashRegisters,
       );
-      const subs = new SubscriptionService(app.db, app.log, aura, txns);
+      const subs = new SubscriptionService(app.db, app.log, txns);
       const notifs = new NotificationService(app.db, app.log);
       bookings = new BookingService(app.db, app.log, subs, notifs);
       subs.setBookingService(bookings);
@@ -751,7 +787,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
         1,
       );
       await expect(
-        bookings.reserve(svcMemberId, svcScheduleOtherId, tomorrow),
+        bookings.reserve(CTX, svcMemberId, svcScheduleOtherId, tomorrow),
       ).rejects.toThrow(
         /No podes reservar clases bonus en otra sucursal con tu plan actual/i,
       );
@@ -764,6 +800,7 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
         1,
       );
       const booking = await bookings.reserve(
+        CTX,
         svcCoachId,
         svcScheduleOtherId,
         tomorrow,
@@ -774,7 +811,12 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const rows = await app.db
         .select({ id: schema.bookings.id, status: schema.bookings.status })
         .from(schema.bookings)
-        .where(eq(schema.bookings.memberId, svcCoachId));
+        .where(
+          and(
+            eq(schema.bookings.tenantId, TENANT_TEMPLO),
+            eq(schema.bookings.memberId, svcCoachId),
+          ),
+        );
       expect(rows.length).toBeGreaterThan(0);
     });
 
@@ -941,7 +983,12 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const ub = await app.db
         .select({ branchId: schema.userBranches.branchId })
         .from(schema.userBranches)
-        .where(eq(schema.userBranches.userId, body.id));
+        .where(
+          and(
+            tenantWhere(schema.userBranches, CTX),
+            eq(schema.userBranches.userId, body.id),
+          ),
+        );
       expect(ub.map((r) => r.branchId)).toContain(arBranchId);
     });
   });

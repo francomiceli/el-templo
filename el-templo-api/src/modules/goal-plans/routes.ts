@@ -12,7 +12,6 @@ import { GoalPlanService, SubscriptionRequiredError } from "./service";
 import { AuraService } from "../aura/service";
 import { GOAL_PLAN_METADATA, ALL_GOAL_PLAN_TYPES } from "./constants";
 import { assembleVideoUrl } from "../shared/video-url";
-import { buildMemberNameSearchCondition } from "../shared";
 import type { GoalPlanType } from "./types";
 import type { DaySession } from "../sessions/types";
 import {
@@ -34,6 +33,8 @@ import {
 import { TRAINING_ROLES, MEMBER_ROLES } from "../shared/permissions";
 import { parseDayId, isTrainingLevel } from "../shared/training-constants";
 import type { ExerciseLevel } from "../sessions/types";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 
 /**
  * Convert a goal plan DaySession to API response format.
@@ -126,7 +127,14 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getActiveGoalPlanSchema,
     },
     async (request) => {
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+      // fila del socio autenticado — D-09: esta ruta member-facing NO
+      // recibe su caso de aislamiento en esta fase (dueño: fase de
+      // goal-plans, ver SUMMARY).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "goal-plans.active");
       const goalPlan = await goalPlanService.getActiveGoalPlan(
+        ctx,
         request.user.userId,
       );
       return { goalPlan };
@@ -156,7 +164,16 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getGoalPlanStatsSchema,
     },
     async (request) => {
-      const stats = await goalPlanService.getCycleStats(request.user.userId);
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+      // fila del socio autenticado — D-09: esta ruta member-facing NO
+      // recibe su caso de aislamiento en esta fase (dueño: fase de
+      // goal-plans, ver SUMMARY).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "goal-plans.stats");
+      const stats = await goalPlanService.getCycleStats(
+        ctx,
+        request.user.userId,
+      );
       return { stats };
     },
   );
@@ -169,9 +186,18 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getGoalPlanSessionSchema,
     },
     async (request, reply) => {
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+      // fila del socio autenticado — D-09: esta ruta member-facing NO
+      // recibe su caso de aislamiento en esta fase (dueño: fase de
+      // goal-plans, ver SUMMARY).
+      // Fase 174.1-04 (D-02): resuelto ANTES de checkSubscription (que ahora
+      // requiere ctx real para su lectura de subscriptions/subscription_plans).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "goal-plans.session");
+
       // Subscription enforcement: require goal-plan-enabled plan
       try {
-        await goalPlanService.checkSubscription(request.user.userId);
+        await goalPlanService.checkSubscription(ctx, request.user.userId);
       } catch (err: unknown) {
         if (err instanceof SubscriptionRequiredError) {
           return reply.status(403).send({ error: err.message });
@@ -183,6 +209,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
 
       try {
         const session = await goalPlanService.getGoalPlanSession(
+          ctx,
           request.user.userId,
           week,
           day,
@@ -192,6 +219,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
         if (!session) {
           // Check if the issue is no active goal plan vs no session found
           const activeGoalPlan = await goalPlanService.getActiveGoalPlan(
+            ctx,
             request.user.userId,
           );
           if (!activeGoalPlan) {
@@ -231,9 +259,18 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { userId } = request.user;
 
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+      // fila del socio autenticado — D-09: esta ruta member-facing NO
+      // recibe su caso de aislamiento en esta fase (dueño: fase de
+      // goal-plans, ver SUMMARY).
+      // Fase 174.1-04 (D-02): resuelto ANTES de checkSubscription (que ahora
+      // requiere ctx real para su lectura de subscriptions/subscription_plans).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "goal-plans.complete");
+
       // Subscription enforcement: require goal-plan-enabled plan
       try {
-        await goalPlanService.checkSubscription(userId);
+        await goalPlanService.checkSubscription(ctx, userId);
       } catch (err: unknown) {
         if (err instanceof SubscriptionRequiredError) {
           return reply.status(403).send({ error: err.message });
@@ -263,14 +300,19 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       const [user] = await fastify.db
         .select({ branchId: schema.users.branchId })
         .from(schema.users)
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
       if (!user) {
         return reply.status(400).send({ error: "Usuario no encontrado" });
       }
 
       // Get active goal plan
-      const activeGoalPlan = await goalPlanService.getActiveGoalPlan(userId);
+      const activeGoalPlan = await goalPlanService.getActiveGoalPlan(
+        ctx,
+        userId,
+      );
       if (!activeGoalPlan) {
         return reply.status(400).send({
           error: "No tienes un plan por objetivos activo",
@@ -343,7 +385,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         // Return updated progress
-        const progress = await goalPlanService.getActiveGoalPlan(userId);
+        const progress = await goalPlanService.getActiveGoalPlan(ctx, userId);
         return { success: true, progress };
       } catch (err: unknown) {
         const message =
@@ -417,25 +459,57 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
 
+      // T-173-09-01: `users` es tabla strict. `goal-plans` no monta
+      // `attachCountryScope` en un hook (cada ruta lo resuelve per-ruta, como
+      // `programs/routes.ts`) — se resuelve acá antes de armar `conditions`.
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "goal-plans.adminMembers");
+
       const { search, goalPlanType, page = 1, limit = 20 } = request.query;
       const offset = (page - 1) * limit;
 
       try {
-        // Build base query: members with optional active goal plan via left join
+        // Build base query: members with optional active goal plan via left join.
+        // `tenantWhere` va INLINE en cada `.where()` de abajo (el lint juzga por
+        // statement, PATTERNS §2.6) — este array NO alcanza por sí solo. La
+        // búsqueda por nombre/email hereda igual el scope de gimnasio porque
+        // ambos `.where(and(tenantWhere(...), ...conditions))` la incluyen en el
+        // mismo AND (173-05 dejó la búsqueda sin gimnasio a propósito porque el
+        // módulo todavía no migraba; ahora sí).
         const conditions = [eq(schema.users.role, "member")];
 
         if (search) {
-          const condition = buildMemberNameSearchCondition(search, {
-            includeDni: false,
+          const searchTokens = search
+            .split(/\s+/)
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0);
+          const tokenConds = searchTokens.map((token) => {
+            const pattern = `%${token}%`;
+            /* tenant-safe: fragmento de condicion por nombre/email, NO ejecuta
+               query propia — siempre se agrega a `conditions` y viaja ANDed
+               con el `tenantWhere(schema.users, ctx)` inline de las dos queries
+               reales de abajo (countResult y members). El lint juzga por
+               statement y este `return` no ve ese AND en su propio texto. */
+            return sql`(${schema.users.firstName} LIKE ${pattern}
+              OR ${schema.users.lastName} LIKE ${pattern}
+              OR ${schema.users.email} LIKE ${pattern}
+              OR CONCAT_WS(' ', ${schema.users.firstName}, ${schema.users.lastName}) LIKE ${pattern})`;
           });
+          const condition =
+            tokenConds.length === 0
+              ? null
+              : tokenConds.length === 1
+                ? tokenConds[0]
+                : sql.join(tokenConds, sql` AND `);
           if (condition) conditions.push(condition);
         }
 
-        // Get total count
+        // Get total count. tenantWhere INLINE también acá (no alcanza con el
+        // array de arriba: el lint juzga por statement, PATTERNS §2.6).
         const [countResult] = await fastify.db
           .select({ count: sql<number>`COUNT(*)` })
           .from(schema.users)
-          .where(and(...conditions));
+          .where(and(tenantWhere(schema.users, ctx), ...conditions));
 
         const total = countResult?.count ?? 0;
 
@@ -470,7 +544,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
               sql`${schema.programs.goalPlanType} IS NOT NULL`,
             ),
           )
-          .where(and(...conditions))
+          .where(and(tenantWhere(schema.users, ctx), ...conditions))
           .limit(limit)
           .offset(offset)
           .orderBy(schema.users.firstName);
@@ -526,6 +600,12 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
 
+      // T-173-09-01: `users` es tabla strict. El `userId` llega por params:
+      // sin filtro un staff de OTRO gimnasio podía leer el detalle de un
+      // socio ajeno (contrato D-06: 404, nunca 403).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "goal-plans.adminMemberDetail");
+
       const { userId } = request.params;
 
       // Get user with branch info
@@ -542,7 +622,9 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
           schema.branches,
           eq(schema.branches.id, schema.users.branchId),
         )
-        .where(eq(schema.users.id, userId));
+        .where(
+          and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+        );
 
       if (!user) {
         return reply.status(404).send({ error: "Usuario no encontrado" });
@@ -550,7 +632,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
 
       try {
         // Get active goal plan
-        const active = await goalPlanService.getActiveGoalPlan(userId);
+        const active = await goalPlanService.getActiveGoalPlan(ctx, userId);
 
         // Get archived goal plans
         const archived = await goalPlanService.getArchivedGoalPlans(userId);

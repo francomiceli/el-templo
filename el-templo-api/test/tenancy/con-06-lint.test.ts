@@ -148,28 +148,32 @@ describe("lint-tenant — motor sobre fixtures", () => {
   it("clasifica las nueve formas de acceso de accesos.ts", () => {
     expect(resumir(deArchivo(FIXTURE_RESULT, "accesos.ts"))).toEqual([
       // selectSinFiltro: el olvido puro.
-      "accesos.ts bookings query-builder viola",
+      "accesos.ts completed_sessions query-builder viola",
       // selectConTenantWhere: la forma canónica premiada (fase 169).
-      "accesos.ts bookings query-builder cumple",
+      "accesos.ts completed_sessions query-builder cumple",
       // insertConTenantValues: el INSERT que estampa el gimnasio del scope.
-      "accesos.ts users query-builder cumple",
+      // Tabla `branches` (no `users`, fase 173-30): ver docblock en accesos.ts.
+      "accesos.ts branches query-builder cumple",
       // sqlCrudoSinTenant: el template crudo también se mira.
-      "accesos.ts bookings sql-template viola",
+      "accesos.ts completed_sessions sql-template viola",
       // sqlCrudoConTenant: el filtro escrito a mano cuenta como cumplimiento.
-      "accesos.ts bookings sql-template cumple",
+      "accesos.ts completed_sessions sql-template cumple",
       // selectPorAliasLocal: `const a = schema.attendance` (punto ciego CR-01).
       "accesos.ts attendance query-builder viola",
       // selectPorAliasDeDrizzle: `alias(...)` guardado en variable (CR-01).
-      "accesos.ts subscriptions query-builder viola",
+      // Tabla `activities` (no `subscriptions`, fase 174.1): ver docblock.
+      "accesos.ts activities query-builder viola",
       // joinSinFiltro: el JOIN genera su propio par (WR-01) y se visita ANTES
       // que el `.from()` interno, porque es el nodo más externo del encadenado.
-      "accesos.ts member_profiles query-builder viola",
+      // Tablas `day_modes`/`completed_sessions` (no `schedules`/`bookings`,
+      // fase 174.1; no `campaigns`, fase 175.1): ver docblock en accesos.ts.
+      "accesos.ts day_modes query-builder viola",
       // joinSinFiltro: …y el `from` sigue produciendo el suyo.
-      "accesos.ts bookings query-builder viola",
+      "accesos.ts completed_sessions query-builder viola",
       // joinConTenantWhere: el mismo join, con el gimnasio nombrado en el
       // statement. Sumar los joins no inventa rojos donde el sitio cumple.
-      "accesos.ts member_profiles query-builder cumple",
-      "accesos.ts bookings query-builder cumple",
+      "accesos.ts day_modes query-builder cumple",
+      "accesos.ts completed_sessions query-builder cumple",
     ]);
   });
 
@@ -187,7 +191,8 @@ describe("lint-tenant — motor sobre fixtures", () => {
       // conExencionValida: comentario de bloque, tag pegado a la apertura.
       "exenciones.ts bookings query-builder viola exento:site",
       // conMotivoVacio: la anotación pelada es indistinguible de un olvido.
-      "exenciones.ts users query-builder viola",
+      // Tabla `day_modes` (no `subscription_plans`, fase 174.1): ver docblock.
+      "exenciones.ts day_modes query-builder viola",
       // conComentarioDeLinea: el tag solo cuenta en un comentario de BLOQUE.
       "exenciones.ts attendance query-builder viola",
       // conExencionTrailing: la forma real de src/modules/tv/pairing.ts.
@@ -235,15 +240,15 @@ describe("lint-tenant — motor sobre fixtures", () => {
 
   it("el fixture tiene exactamente 8 violaciones y 4 accesos eximidos", () => {
     expect(resumir(FIXTURE_RESULT.violations)).toEqual([
-      "accesos.ts bookings query-builder viola",
-      "accesos.ts bookings sql-template viola",
+      "accesos.ts completed_sessions query-builder viola",
+      "accesos.ts completed_sessions sql-template viola",
       // Las cuatro que el motor no veía hasta el plan 09: alias de variable
       // local, `alias()` en variable y las dos del join sin filtro.
       "accesos.ts attendance query-builder viola",
-      "accesos.ts subscriptions query-builder viola",
-      "accesos.ts member_profiles query-builder viola",
-      "accesos.ts bookings query-builder viola",
-      "exenciones.ts users query-builder viola",
+      "accesos.ts activities query-builder viola",
+      "accesos.ts day_modes query-builder viola",
+      "accesos.ts completed_sessions query-builder viola",
+      "exenciones.ts day_modes query-builder viola",
       "exenciones.ts attendance query-builder viola",
     ]);
     expect(FIXTURE_RESULT.exemptions).toHaveLength(4);
@@ -277,9 +282,17 @@ describe("lint-tenant — motor sobre fixtures", () => {
 describe("lint-tenant — anclaje de exenciones contra los archivos reales", () => {
   const API = "el-templo-api";
 
+  // notification-cron.ts SALIÓ de esta lista en 175-03: era la exención de fase
+  // 169 del seed global de templates; la adopción de `notifications` la pagó
+  // (`seedTemplates` recibe `TenantContext` real y siembra por-tenant vía
+  // `forEachActiveTenant`), así que el archivo ya no tiene ninguna exención.
+  // Post back-merge del tren v6.0: dos entradas que traían las ramas quedaron
+  // stale y NO se agregan. (a) `tv/pairing.ts` lo borró el TV login de master
+  // (pairing/device-auth/device-routes retirados) → el archivo ya no existe.
+  // (b) `notification-cron.ts` salió en 175-03 (ver comentario arriba). La lista
+  // queda con las dos exenciones vivas de siempre.
   const ACEPTADOS = [
     `${API}/src/db/seed.ts`,
-    `${API}/src/jobs/notification-cron.ts`,
     `${API}/src/modules/wellhub/service.ts`,
   ];
 
@@ -372,12 +385,97 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
       ).toBeGreaterThan(0);
     }
 
+    // El número: la 170 lo dejó en 87 (todas las tablas gym-owned con deuda que
+    // el sentinel ve en runtime). La fase 172 adoptó `finance` y PAGÓ la deuda
+    // de sus 6 tablas —vengan del módulo o de analytics, reports, subscriptions,
+    // members, coach o el backfill—, así que la lente vio 81. La fase 173
+    // adoptó `members` y PAGÓ la deuda de sus 8 tablas: 7 (`member_profiles`,
+    // `user_status_history`, `user_branches`, `member_notes`,
+    // `user_sepa_details`, `member_logins`, `audit_log`) ya habían quedado sin
+    // un solo acceso vivo por el trabajo de los planes 173-01..29; la octava
+    // (`users`) traía dos accesos reales que ningún plan anterior había
+    // cerrado —`reports/service.ts:1530` (fragmento de búsqueda por nombre,
+    // resuelto con la MISMA exención que goal-plans/routes.ts:484: el AND con
+    // el `tenantWhere` del join real lo hace redundante) y
+    // `backfill-historical-payments.ts:386` (chequeo de pre-flight sin
+    // `tenantWhere`, bug real, cerrado acá)— así que la lente ve 73. Bajar el
+    // piso acá es legítimo SOLO porque la baja está contabilizada tabla por
+    // tabla: la aserción de abajo verifica que las 8 que faltan son
+    // exactamente las strict de `members`. Una baja sin esa contrapartida es
+    // el punto ciego volviendo, y el arreglo sigue siendo isSchemaModule(), no
+    // este número.
+    //
+    // Fase 174: sin declarar ningún módulo strict nuevo, la migración de las
+    // cadenas de pricing/scheduling/attendance (planes 174-01..06) tenant-izó el
+    // ÚLTIMO acceso sin gimnasio de `subscription_schedule_changes`
+    // (`subscriptions/service.ts`), así que esa tabla salió del set y la lente ve
+    // 72. Es reducción de deuda REAL, no ceguera: ese acceso figura entre las 29
+    // entradas `staleNoLongerViolating` que este mismo PR borró de la allowlist
+    // (D-14). El piso baja a 72 con la misma regla —la baja queda contabilizada
+    // tabla por tabla—: hay DOS formas legítimas de que caiga (una tabla que
+    // entra a TENANT_STRICT_MODULES, o un acceso migrado que sale como
+    // staleNoLongerViolating). Una baja NUEVA sin ninguna de las dos sigue siendo
+    // el punto ciego volviendo, y el arreglo sigue siendo isSchemaModule().
+    //
+    // Fase 174.1: el switch de `subscriptions`+`scheduling` a
+    // TENANT_STRICT_MODULES entra a strict las 8 tablas del boundary (todas
+    // ya sin accesos vivos gracias a los planes 174.1-01..09 y al plan de
+    // gap-closure 05b). De esas 8, `subscription_schedule_changes` YA había
+    // salido del set contado en el paso 174→72 (arriba), así que acá bajan
+    // 7 tablas más, contadas una por una: `subscriptions`, `subscription_plans`,
+    // `subscription_schedules` (subs) + `bookings`, `schedules`,
+    // `schedule_exceptions`, `holidays` (scheduling). El piso baja de 72 a
+    // 65 (72 − 7) con la misma regla de siempre —una tabla que entra a
+    // TENANT_STRICT_MODULES es una baja legítima y contabilizada—. Una baja
+    // NUEVA sin esa contrapartida tabla por tabla sigue siendo el punto ciego
+    // volviendo, y el arreglo sigue siendo isSchemaModule().
+    const tablasConDeuda = new Set(REAL_RESULT.violations.map((v) => v.table));
+
     expect(
-      new Set(REAL_RESULT.violations.map((v) => v.table)).size,
-      "con el punto ciego cerrado, la lente estática llega a las 85 tablas gym-owned con deuda que " +
-        "el sentinel ve en runtime (en master: el TV login borró pairing/device-auth/device-routes, " +
-        "únicos que importaban tv_pairings/tv_devices → 85 y no 87). Si baja MÁS, algún import quedó afuera.",
-    ).toBeGreaterThanOrEqual(85);
+      [...strictTablesSet()]
+        .filter((tabla) => tablasConDeuda.has(tabla))
+        .sort(),
+      "una tabla de un módulo declarado migrado (TENANT_STRICT_MODULES) no puede seguir teniendo " +
+        "accesos que violan: el sentinel hace THROW sobre ella en test/dev. Si esto se cae, la " +
+        "adopción de ese módulo quedó a medias y el lint y el sentinel se están contradiciendo.",
+    ).toEqual([]);
+
+    expect(
+      tablasConDeuda.size,
+      "con el punto ciego cerrado la lente estática veía 87 tablas gym-owned con deuda; la fase " +
+        "172 pagó la de las 6 de finance (81), la 173 la de las 8 de members (73), la 174 tenant-izó " +
+        "el último acceso de `subscription_schedule_changes` en la cadena de pricing (72) y la 174.1 " +
+        "metió a strict las 8 tablas del boundary de subs+scheduling —7 nuevas, `subscription_" +
+        "schedule_changes` ya contaba desde el paso anterior— (65), y la 175 (adopción de código del " +
+        "resto del core) migró los últimos accesos de las 4 tablas de campaigns —campaigns, " +
+        "campaign_sends, campaign_events, campaign_unsubscribes— vía los planes 175-01/175-02 (61), " +
+        "y el 175-03 migró los últimos accesos de las 4 tablas de notifications —device_tokens, " +
+        "notification_templates, pending_notifications, notification_preferences— (57), y el 175-04 " +
+        "migró los inserts/lecturas de referrals (referral_credits, referral_cta_clicks, aura_transactions), " +
+        "dejando 2 tablas más de referrals sin deuda (55), y el 175-05 migró los últimos accesos de " +
+        "las 4 tablas de wellhub —wellhub_bookings, wellhub_classes, wellhub_slots, wellhub_events— (51), " +
+        "y el 175-06 migró improvement_proposals + auth (promo_plans/refresh_tokens) + analytics " +
+        "(unique-members sobre attendance), dejando 2 tablas más sin deuda (49), " +
+        "y el 175.1-01 tenant-izó con tenantWhere real el UPDATE/SELECT de `referrals.qualifyFirstPayment` " +
+        "—la última tabla `referrals` con deuda (era la única del scope con 1 sola entrada en todo el repo)—, " +
+        "dejándola sin deuda (48). (En el mismo plan se arreglaron fugas reales cross-tenant en " +
+        "`coach_ratings` y `attendance` con tenantWhere real, pero esas tablas conservan deuda ajena fuera " +
+        "de scope 175.1 —ratings/reports/segmentation, fase 176— así que NO bajan este número.) " +
+        "El 175.1-07 (el switch de los 6 módulos restantes) tenant-izó `listPromoPlans` en " +
+        "`subscriptions/service.ts` —el `tenantWhere` se armaba en un array `conditions` en un statement " +
+        "separado del `.where()`, invisible al lint por-statement (mismo patrón que `reports/service.ts:1545`)— " +
+        "que era el ÚLTIMO acceso vivo de `promo_plans` en todo el repo, dejándola sin deuda (47). El switch " +
+        "EN SÍ (agregar las 6 entradas a TENANT_STRICT_MODULES) no baja este número: las 18 tablas del " +
+        "boundary ya tenían 0 deuda de allowlist desde la fase 175 — la única baja real de 175.1-07 es " +
+        "esta, y es previa al switch (commit `9c89312c`, antes del commit `9a43d624` que agrega las entradas). " +
+        "Post back-merge del tren v6.0 contra master: el TV login de master borró pairing/device-auth/" +
+        "device-routes —los únicos accesores de `tv_pairings` y `tv_devices`—, así que esas 2 tablas salen " +
+        "de la deuda (47 → 45), baja contabilizada tabla por tabla (accesos eliminados, no un import perdido). " +
+        "Si este número baja SIN que la " +
+        "baja quede contabilizada tabla por tabla (una tabla que entró a TENANT_STRICT_MODULES, o " +
+        "un acceso migrado que sale como staleNoLongerViolating de la allowlist), alguna forma de " +
+        "import volvió a quedar afuera del lint.",
+    ).toBeGreaterThanOrEqual(45);
   });
 
   it("ve los accesos escritos por ALIAS LOCAL de variable (punto ciego CR-01)", () => {
@@ -416,15 +514,26 @@ describe("lint-tenant — anclaje de exenciones contra los archivos reales", () 
     }
   });
 
-  it("no duplica la exención de notification-cron.ts (dedup por range.pos)", () => {
+  it("no duplica exenciones por posición (dedup Pitfall 7, guard durable)", () => {
     // El MISMO comentario aparece como leading del ExpressionStatement y como
     // leading del CallExpression interno, porque los dos arrancan en el mismo
     // token (Pitfall 7). Sin dedup el inventario mostraría dos exenciones donde
-    // hay una, y una exención de más es una autorización de más.
-    const entradas = REAL_RESULT.exemptionInventory.filter(
-      (entry) => entry.file === `${API}/src/jobs/notification-cron.ts`,
-    );
-    expect(entradas).toHaveLength(1);
+    // hay una, y una exención de más es una autorización de más. El lint dedupea
+    // por `range.pos` (lint-tenant.ts:820).
+    //
+    // Antes este guard se anclaba a notification-cron.ts (que tenía ese caso
+    // exacto), pero 175-03 pagó esa exención. Guard equivalente e independiente
+    // del archivo: NINGUNA (file,line) puede aparecer dos veces en el inventario
+    // — dos records en la misma posición serían el mismo comentario contado doble.
+    const porPosicion = new Map<string, number>();
+    for (const entry of REAL_RESULT.exemptionInventory) {
+      const key = `${entry.file}:${entry.line}`;
+      porPosicion.set(key, (porPosicion.get(key) ?? 0) + 1);
+    }
+    const duplicadas = [...porPosicion.entries()]
+      .filter(([, n]) => n > 1)
+      .map(([key]) => key);
+    expect(duplicadas).toEqual([]);
   });
 
   it("toda exención del inventario tiene motivo escrito y alcance declarado", () => {
@@ -488,17 +597,28 @@ function lintFixture(
 /**
  * Las 6 entradas que cubren exactamente las 8 violaciones del fixture.
  *
- * `exenciones.ts users` va ÚLTIMA a propósito: el test de `gainedEntries` usa
- * esta lista sin su último elemento como base, y así el mensaje del gate sigue
- * nombrando la misma entrada de siempre.
+ * `exenciones.ts day_modes` va ÚLTIMA a propósito: el test de
+ * `gainedEntries` usa esta lista sin su último elemento como base, y así el
+ * mensaje del gate sigue nombrando la misma entrada de siempre.
+ *
+ * Ni `member_profiles` ni `users` aparecen acá (fase 173-30), ni `bookings`,
+ * `schedules`, `subscriptions` o `subscription_plans` (fase 174.1), ni
+ * `campaigns` (fase 175.1 — el switch de `auth`/`campaigns`/
+ * `improvement-proposals`/`notifications`/`referrals`/`wellhub`, 175.1-07):
+ * las primeras dos entraron a `TENANT_STRICT_MODULES` con la adopción de
+ * `members`, las cuatro de subs+scheduling con ESE switch, y `campaigns` con
+ * el de 175.1-07, y este `describe` prueba los gates D-13/D-14 aislado de
+ * D-15 — `completed_sessions`, `day_modes` (×2, en `accesos.ts` reemplazando
+ * a `campaigns`, y en `exenciones.ts` reemplazando a `subscription_plans`,
+ * fase 174.1) y `activities` los reemplazan (ver docblocks de los fixtures).
  */
 const COBERTURA_COMPLETA: AllowlistEntry[] = [
-  { file: "accesos.ts", table: "bookings" },
+  { file: "accesos.ts", table: "completed_sessions" },
   { file: "accesos.ts", table: "attendance" },
-  { file: "accesos.ts", table: "subscriptions" },
-  { file: "accesos.ts", table: "member_profiles" },
+  { file: "accesos.ts", table: "activities" },
+  { file: "accesos.ts", table: "day_modes" },
   { file: "exenciones.ts", table: "attendance" },
-  { file: "exenciones.ts", table: "users" },
+  { file: "exenciones.ts", table: "day_modes" },
 ];
 
 describe("lint-tenant — los cuatro gates del ratchet", () => {
@@ -511,13 +631,13 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
       ),
       "las 8 violaciones del fixture no están toleradas por nadie: tienen que salir todas",
     ).toEqual([
-      "accesos.ts bookings",
-      "accesos.ts bookings",
+      "accesos.ts completed_sessions",
+      "accesos.ts completed_sessions",
       "accesos.ts attendance",
-      "accesos.ts subscriptions",
-      "accesos.ts member_profiles",
-      "accesos.ts bookings",
-      "exenciones.ts users",
+      "accesos.ts activities",
+      "accesos.ts day_modes",
+      "accesos.ts completed_sessions",
+      "exenciones.ts day_modes",
       "exenciones.ts attendance",
     ]);
     expect(report.discrepancies).toBe(8);
@@ -538,11 +658,11 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
   it("una entrada cuyo archivo ya no existe cae en staleMissingFile, y el reporte manda ACTUALIZAR LA RUTA (D-14)", () => {
     const report = lintFixture([
       ...COBERTURA_COMPLETA,
-      { file: "se-renombro.ts", table: "bookings" },
+      { file: "se-renombro.ts", table: "completed_sessions" },
     ]);
 
     expect(report.staleMissingFile).toEqual([
-      { file: "se-renombro.ts", table: "bookings" },
+      { file: "se-renombro.ts", table: "completed_sessions" },
     ]);
     expect(report.staleNoLongerViolating).toEqual([]);
     expect(report.discrepancies).toBe(1);
@@ -553,19 +673,19 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
       "los dos tipos de stale tienen mensajes DISTINTOS a propósito: acá el archivo se movió y " +
         "la entrada hay que reapuntarla, no borrarla (Open Question 4 del RESEARCH)",
     ).toContain("ACTUALIZA LA RUTA");
-    expect(texto).toContain("se-renombro.ts — bookings");
+    expect(texto).toContain("se-renombro.ts — completed_sessions");
   });
 
   it("una entrada cuyo archivo ya NO viola cae en staleNoLongerViolating, y el reporte manda BORRARLA (D-14)", () => {
-    // `accesos.ts` accede a `users` con `tenantValues`: cumple, así que esa
+    // `accesos.ts` accede a `branches` con `tenantValues`: cumple, así que esa
     // entrada ya no tolera nada. Es el gate que FUERZA el achique al migrar.
     const report = lintFixture([
       ...COBERTURA_COMPLETA,
-      { file: "accesos.ts", table: "users" },
+      { file: "accesos.ts", table: "branches" },
     ]);
 
     expect(report.staleNoLongerViolating).toEqual([
-      { file: "accesos.ts", table: "users" },
+      { file: "accesos.ts", table: "branches" },
     ]);
     expect(report.staleMissingFile).toEqual([]);
     expect(report.discrepancies).toBe(1);
@@ -580,20 +700,30 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
 
   it("una tabla de la lista strict con entradas vivas es discrepancia (D-15), con la lista inyectada por parámetro", () => {
     const report = lintFixture(COBERTURA_COMPLETA, {
-      strictTables: new Set(["bookings"]),
+      strictTables: new Set(["completed_sessions"]),
     });
 
     expect(report.strictWithAllowlist).toEqual([
-      { file: "accesos.ts", table: "bookings" },
+      { file: "accesos.ts", table: "completed_sessions" },
     ]);
     expect(report.discrepancies).toBe(1);
     expect(formatReport(report)).toContain("VACIA las entradas de esa tabla");
 
+    // El test inyecta la lista strict por parámetro (D-07) y NO la lee del
+    // registro real. Desde la fase 172 el registro dejó de estar vacío
+    // (`finance`), así que "size === 0" ya no sirve para probar la inyección:
+    // lo que la prueba es que `completed_sessions` —la tabla del fixture— NO
+    // está en la lista real. Si algún día completed_sessions entrara a un
+    // módulo migrado (fase 175, attendance), este fixture pasaría a coincidir
+    // con la realidad por casualidad y el `it` dejaría de distinguir la lista
+    // inyectada de la del registro: ahí hay que cambiar la tabla del fixture,
+    // no bajar la aserción.
     expect(
-      strictTablesSet().size,
-      "el test inyecta la lista strict por parámetro (D-07). Declarar migrado un módulo real acá " +
-        "sería mentir: en la fase 170 no hay ninguno, y TENANT_STRICT_MODULES tiene que seguir vacío",
-    ).toBe(0);
+      strictTablesSet().has("completed_sessions"),
+      "el fixture inyecta strictTables = {completed_sessions} para probar que el parámetro MANDA " +
+        "sobre el registro real (D-07). Si completed_sessions pasó a ser strict de verdad, el " +
+        "fixture dejó de probar eso: elegí otra tabla todavía no migrada",
+    ).toBe(false);
   });
 
   it("una entrada que la base NO tenía cae en gainedEntries (D-14)", () => {
@@ -601,7 +731,7 @@ describe("lint-tenant — los cuatro gates del ratchet", () => {
     const report = lintFixture(COBERTURA_COMPLETA, { baseAllowlist: base });
 
     expect(report.gainedEntries).toEqual([
-      { file: "exenciones.ts", table: "users" },
+      { file: "exenciones.ts", table: "day_modes" },
     ]);
     expect(report.discrepancies).toBe(1);
     expect(formatReport(report)).toContain("la allowlist CRECIO");

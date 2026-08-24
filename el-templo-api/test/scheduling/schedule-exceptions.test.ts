@@ -31,6 +31,15 @@ import { scheduleExceptions } from "../../src/db/schema/schedule-exceptions";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`. El seed de cobro de
+ * este archivo estampa el gimnasio explicito en vez de depender del `DEFAULT 1`
+ * de la columna `tenant_id`.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
 
@@ -75,7 +84,9 @@ describe("Schedule Exceptions (cancel single date)", () => {
     const [adminUser] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
     adminUserId = adminUser.id;
 
     const [branch] = await app.db
@@ -128,25 +139,29 @@ describe("Schedule Exceptions (cancel single date)", () => {
     userId: number,
     subscriptionId: number,
   ): Promise<void> {
-    const [inserted] = await app.db.insert(financialTransactions).values({
-      memberId: userId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: basePlan.priceRegular,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: "2026-03-10",
-      effectiveDate: "2026-03-10",
-      branchId: testBranchId,
-      recordedBy: adminUserId,
-    });
+    const [inserted] = await app.db.insert(financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: userId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: basePlan.priceRegular,
+        currency: "ARS",
+        paymentMethod: "cash",
+        transactionDate: "2026-03-10",
+        effectiveDate: "2026-03-10",
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: subscriptionId,
-      allocatedAmount: basePlan.priceRegular,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription",
+        targetId: subscriptionId,
+        allocatedAmount: basePlan.priceRegular,
+      }),
+    );
   }
 
   /** Flexible-plan member with paid active subscription + auth token. */
@@ -187,14 +202,16 @@ describe("Schedule Exceptions (cancel single date)", () => {
 
     const [slotRow] = await app.db
       .insert(schedules)
-      .values({
-        branchId: testBranchId,
-        activityId: activity.id,
-        dayOfWeek: FRIDAY,
-        startTime: "20:00",
-        endTime: "21:00",
-        isActive: true,
-      })
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          branchId: testBranchId,
+          activityId: activity.id,
+          dayOfWeek: FRIDAY,
+          startTime: "20:00",
+          endTime: "21:00",
+          isActive: true,
+        }),
+      )
       .$returningId();
     return slotRow.id;
   }
@@ -241,7 +258,9 @@ describe("Schedule Exceptions (cancel single date)", () => {
     const [bookingRow] = await app.db
       .select({ status: bookings.status })
       .from(bookings)
-      .where(eq(bookings.id, booking.id));
+      .where(
+        and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.id, booking.id)),
+      );
     expect(bookingRow.status).toBe("cancelado");
 
     // ...but the recurring template stays ACTIVE (this is the whole point —
@@ -249,7 +268,12 @@ describe("Schedule Exceptions (cancel single date)", () => {
     const [scheduleRow] = await app.db
       .select({ isActive: schedules.isActive })
       .from(schedules)
-      .where(eq(schedules.id, scheduleId));
+      .where(
+        and(
+          tenantWhere(schedules, TEMPLO_CTX),
+          eq(schedules.id, scheduleId),
+        ),
+      );
     expect(scheduleRow.isActive).toBe(true);
   });
 
@@ -390,7 +414,9 @@ describe("Schedule Exceptions (cancel single date)", () => {
     await app.db
       .update(schedules)
       .set({ isActive: false })
-      .where(eq(schedules.id, scheduleId));
+      .where(
+        and(tenantWhere(schedules, TEMPLO_CTX), eq(schedules.id, scheduleId)),
+      );
     expect((await cancelDate(scheduleId, NEXT_FRIDAY)).statusCode).toBe(400);
   });
 
@@ -428,7 +454,9 @@ describe("Schedule Exceptions (cancel single date)", () => {
     const [bookingRow] = await app.db
       .select({ status: bookings.status })
       .from(bookings)
-      .where(eq(bookings.id, booking.id));
+      .where(
+        and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.id, booking.id)),
+      );
     expect(bookingRow.status).toBe("reservado");
 
     // Exception row is gone; restoring again → 404.
@@ -437,6 +465,7 @@ describe("Schedule Exceptions (cancel single date)", () => {
       .from(scheduleExceptions)
       .where(
         and(
+          tenantWhere(scheduleExceptions, TEMPLO_CTX),
           eq(scheduleExceptions.scheduleId, scheduleId),
           eq(scheduleExceptions.exceptionDate, THIS_FRIDAY),
         ),
@@ -499,7 +528,9 @@ describe("Schedule Exceptions (cancel single date)", () => {
     const [bookingRow] = await app.db
       .select({ status: bookings.status })
       .from(bookings)
-      .where(eq(bookings.id, booking.id));
+      .where(
+        and(tenantWhere(bookings, TEMPLO_CTX), eq(bookings.id, booking.id)),
+      );
     expect(bookingRow.status).toBe("cancelado");
   });
 
@@ -537,7 +568,12 @@ describe("Schedule Exceptions (cancel single date)", () => {
     const before = await app.db
       .select({ bookingDate: bookings.bookingDate, status: bookings.status })
       .from(bookings)
-      .where(eq(bookings.memberId, member.id));
+      .where(
+        and(
+          tenantWhere(bookings, TEMPLO_CTX),
+          eq(bookings.memberId, member.id),
+        ),
+      );
     expect(
       before.some(
         (b) => b.bookingDate === THIS_FRIDAY && b.status === "reservado",
@@ -560,7 +596,12 @@ describe("Schedule Exceptions (cancel single date)", () => {
     const after = await app.db
       .select({ bookingDate: bookings.bookingDate, status: bookings.status })
       .from(bookings)
-      .where(eq(bookings.memberId, member.id));
+      .where(
+        and(
+          tenantWhere(bookings, TEMPLO_CTX),
+          eq(bookings.memberId, member.id),
+        ),
+      );
     expect(after.find((b) => b.bookingDate === THIS_FRIDAY)?.status).toBe(
       "cancelado",
     );
@@ -571,7 +612,12 @@ describe("Schedule Exceptions (cancel single date)", () => {
     const [subRow] = await app.db
       .select({ replacementCredits: subscriptions.replacementCredits })
       .from(subscriptions)
-      .where(eq(subscriptions.id, subscription.id));
+      .where(
+        and(
+          tenantWhere(subscriptions, TEMPLO_CTX),
+          eq(subscriptions.id, subscription.id),
+        ),
+      );
     expect(subRow.replacementCredits).toBe(1);
   });
 });

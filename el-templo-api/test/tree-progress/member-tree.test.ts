@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, registerUser, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 /**
  * Integration test for GET /api/tree-progress/me (TREE-06), reworked for
@@ -171,7 +178,9 @@ describe("GET /api/tree-progress/me", () => {
     await app.db
       .update(schema.users)
       .set({ level })
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, CTX_TEMPLO), eq(schema.users.id, userId)),
+      );
   }
 
   /**

@@ -16,7 +16,6 @@ import pino from "pino";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../db/schema";
 import { SubscriptionService } from "../modules/subscriptions/service";
-import { AuraService } from "../modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -38,10 +37,23 @@ const log = pino({ name: "auto-resume-pauses" });
  * debería exigir un restart de la API) y aísla los errores POR ITERACIÓN
  * (D-03) — un gimnasio roto no frena a los demás.
  *
- * D-02: el `ctx` NO baja a los services. Las seis firmas de service que se
- * construyen acá abajo cambian en su fase de adopción (172-175); en la 169 el
- * contexto llega hasta el CUERPO del job, se loguea y queda disponible. Con un
- * solo tenant activo el resultado es IDÉNTICO al de hoy.
+ * D-02 (169) / actualizado en la 173 (D-05/D-13, trampa (a)): el `ctx` NO
+ * bajaba a los services — quedaba disponible en el CUERPO del job sin
+ * usarse. Eso cambió acá: `activateDueScheduledSubs(ctx)` y
+ * `autoResumeDuePauses(ctx)` ya lo reciben y lo usan (la sede que escribe
+ * `activateScheduledSub` se valida contra el gimnasio; `resumeSubscription` y
+ * `recomputeUserStatus` filtran `users`/`user_status_history`).
+ * `autoExpireDueSubscriptions` SIGUE sin recibirlo: su `autoExpireSubscriptions`
+ * interno es un helper compartido por `getMemberSubscriptions`/
+ * `getMemberSubscriptionHistory`. Fase 174-06 (D-07): ese helper YA recibe
+ * `ctx` real por el camino member-facing (Task 1); acá recibe `null` a
+ * propósito — el barrido lee TODOS los gimnasios en una sola query porque
+ * itera tenants a nivel de LOOP acá, no de query. Fase 174-06 (Task 2)
+ * formalizó esto como la ÚNICA excepción `tenant-safe` del camino D-07 (tag
+ * embebido en el SQL del `where` de `autoExpireDueSubscriptions`,
+ * T-174-06-A, `subscriptions/service.ts`) — no es un agujero silencioso, es
+ * la exención registrada para que 174.1 pueda ir strict. Con un solo tenant
+ * activo el resultado es IDÉNTICO al de hoy en los tres barridos.
  *
  * VENCIMIENTO de esta forma intermedia: mientras el cuerpo siga siendo global,
  * más de un tenant activo repetiría el MISMO barrido N veces. Por eso el gate
@@ -68,11 +80,10 @@ async function runAutoResumePausesForTenant(
 ): Promise<{ resumed: number; activated: number; expired: number }> {
   const tenantId = ctx.tenantId;
 
-  // Los seis services se construyen DENTRO del cuerpo por tenant (antes vivían
+  // Los cinco services se construyen DENTRO del cuerpo por tenant (antes vivían
   // en la función de scheduling) para que cada vuelta del barrido arranque
   // limpia, y para que el día que sus firmas reciban el `ctx` (172-175) el
   // cambio quede local a esta función.
-  const auraService = new AuraService(db);
   const balanceService = new BalanceService(db, log);
   const cashRegisterService = new CashRegisterService(db, log);
   const transactionService = new TransactionService(
@@ -85,7 +96,6 @@ async function runAutoResumePausesForTenant(
   const subscriptionService = new SubscriptionService(
     db,
     log,
-    auraService,
     transactionService,
     enrollmentService,
   );
@@ -98,7 +108,7 @@ async function runAutoResumePausesForTenant(
   let expired = 0;
 
   try {
-    resumed = await subscriptionService.autoResumeDuePauses();
+    resumed = await subscriptionService.autoResumeDuePauses(ctx);
     if (resumed === 0) {
       log.info({ tenantId }, "No paused subscriptions due for resume");
     }
@@ -107,7 +117,7 @@ async function runAutoResumePausesForTenant(
   }
 
   try {
-    activated = await subscriptionService.activateDueScheduledSubs();
+    activated = await subscriptionService.activateDueScheduledSubs(ctx);
     if (activated === 0) {
       log.info({ tenantId }, "No scheduled subscriptions due for activation");
     } else {

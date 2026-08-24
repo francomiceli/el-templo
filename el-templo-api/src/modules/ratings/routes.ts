@@ -25,8 +25,8 @@ import {
 } from "./schemas";
 import { ALL_STAFF_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
-import { requireBranchAccess } from "../shared/branch-access";
 import { assertTenant } from "../shared/tenant";
+import { requireBranchAccess } from "../shared/branch-access";
 import type { ClassSlot, SubmitRatingInput } from "./types";
 
 /**
@@ -67,7 +67,11 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: coachesForBranchQuerySchema },
     async (request, reply) => {
       try {
-        return await ratingsService.getCoachesForBranch(request.query.branchId);
+        const ctx = assertTenant(request.scope, "ratings.coachesForBranch");
+        return await ratingsService.getCoachesForBranch(
+          ctx,
+          request.query.branchId,
+        );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get coaches for branch");
       }
@@ -80,7 +84,9 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: rosterWeekQuerySchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "ratings.rosterWeek");
         return await ratingsService.getRosterWeek(
+          ctx,
           request.query.branchId,
           request.query.weekStart,
         );
@@ -131,7 +137,8 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
             message: "Solo el owner puede asignar profes",
           });
         }
-        await ratingsService.upsertRosterAssignment(request.body);
+        const ctx = assertTenant(request.scope, "ratings.upsertRoster");
+        await ratingsService.upsertRosterAssignment(ctx, request.body);
         return reply.code(204).send();
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "upsert roster assignment");
@@ -160,7 +167,9 @@ export const ratingsAdminRoutes: FastifyPluginAsync = async (fastify) => {
           message: "Solo el owner puede ver las puntuaciones",
         });
       }
+      const ctx = assertTenant(request.scope, "ratings.ownerView");
       return await ratingsService.getOwnerRatings(
+        ctx,
         {
           role: request.scope.role,
           isOwner: request.scope.isOwner,
@@ -205,7 +214,12 @@ export const ratingsMemberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: pendingRatingSchema },
     async (request, reply) => {
       try {
+        // Fase 174.1-04 (D-02): `schedules` es tabla del boundary de
+        // scheduling. El ctx sale de la propia fila del socio autenticado.
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "ratings.pending");
         const result = await ratingsService.getPendingRating(
+          ctx,
           request.user.userId,
         );
         return reply.send(result);
@@ -221,7 +235,13 @@ export const ratingsMemberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: submitRatingBodySchema },
     async (request, reply) => {
       try {
-        await ratingsService.submitRating(request.user.userId, request.body);
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "ratings.submit");
+        await ratingsService.submitRating(
+          ctx,
+          request.user.userId,
+          request.body,
+        );
         return reply.code(201).send({ ok: true });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "submit rating");

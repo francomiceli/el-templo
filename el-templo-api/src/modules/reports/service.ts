@@ -23,6 +23,11 @@ import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { activeMemberExists } from "../shared/active-member";
 import { ForbiddenError, NotFoundError } from "../shared/errors";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { runReassignMultibranch } from "../../jobs/reassign-multibranch";
 // Atribución de profe por roster: misma regla que usan las puntuaciones.
 import {
@@ -352,13 +357,14 @@ export class ReportsService {
   // ─── Access Log ───────────────────────────────────────────────────────────
 
   async getAccessLog(
+    ctx: TenantContext,
     filters: AccessReportFilters,
   ): Promise<PaginatedResult<AccessReportRow>> {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 20;
     const offset = (page - 1) * limit;
 
-    const conditions = this.buildAccessConditions(filters);
+    const conditions = this.buildAccessConditions(ctx, filters);
 
     // Count total
     // NOTE: join on branches already present; buildAccessConditions may emit
@@ -366,7 +372,16 @@ export class ReportsService {
     const [countResult] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        // Fase 173 (D-08): el filtro de la tabla joineada va en el ON,
+        // también en INNER — el `tenantWhere` del array de `conditions` vive
+        // en OTRO statement (`buildAccessConditions`) y no cubre a ESTE.
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.attendance.branchId),
@@ -388,7 +403,13 @@ export class ReportsService {
         scheduleId: schema.attendance.scheduleId,
       })
       .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.attendance.memberId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.attendance.branchId),
@@ -419,10 +440,13 @@ export class ReportsService {
           eq(schema.activities.id, schema.schedules.activityId),
         )
         .where(
-          sql`${schema.schedules.id} IN (${sql.join(
-            uniqueIds.map((id) => sql`${id}`),
-            sql`, `,
-          )})`,
+          and(
+            tenantWhere(schema.schedules, ctx),
+            sql`${schema.schedules.id} IN (${sql.join(
+              uniqueIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          ),
         );
 
       for (const s of scheduleRows) {
@@ -449,6 +473,7 @@ export class ReportsService {
   // ─── Charge History ───────────────────────────────────────────────────────
 
   async getChargeHistory(
+    ctx: TenantContext,
     filters: ChargeReportFilters,
   ): Promise<PaginatedResult<ChargeReportRow>> {
     const page = filters.page ?? 1;
@@ -457,7 +482,10 @@ export class ReportsService {
 
     const memberAlias = schema.users;
 
-    const conditions = this.buildChargeConditions(filters);
+    // El filtro de gimnasio sobre financial_transactions viaja adentro de
+    // `conditions` (primer término del WHERE); transaction_links lleva el suyo
+    // en el ON del join de acá abajo.
+    const conditions = this.buildChargeConditions(ctx, filters);
 
     // Count total — join branches so country filter in buildChargeConditions
     // resolves without reference errors. Phase 105 D-01: revenue rows are
@@ -471,6 +499,7 @@ export class ReportsService {
       .innerJoin(
         schema.transactionLinks,
         and(
+          tenantWhere(schema.transactionLinks, ctx),
           eq(
             schema.transactionLinks.transactionId,
             schema.financialTransactions.id,
@@ -511,12 +540,14 @@ export class ReportsService {
       FROM financial_transactions ft
       INNER JOIN transaction_links tl
         ON tl.transaction_id = ft.id AND tl.target_kind = 'subscription'
+        AND tl.tenant_id = ${ctx.tenantId}
       INNER JOIN subscriptions s ON s.id = tl.target_id
       INNER JOIN users m ON m.id = ft.member_id
       INNER JOIN branches b ON b.id = m.branch_id
       INNER JOIN subscription_plans sp ON sp.id = s.plan_id
       INNER JOIN users r ON r.id = ft.recorded_by
-      WHERE ft.kind IN ('plan_charge', 'debt_settlement')
+      WHERE ft.tenant_id = ${ctx.tenantId}
+        AND ft.kind IN ('plan_charge', 'debt_settlement')
         AND ft.direction = 'inflow'
         AND ${sql.raw(firmMoneySqlFor("ft"))}
         AND ${this.buildChargeConditionsRaw(filters)}
@@ -535,9 +566,7 @@ export class ReportsService {
         planName: String(r.planName),
         amount: Number(r.amount),
         currency: r.currency ? String(r.currency) : "ARS",
-        paymentMethod: String(
-          r.paymentMethod,
-        ) as ChargeReportPaymentMethod,
+        paymentMethod: String(r.paymentMethod) as ChargeReportPaymentMethod,
         recorderName: String(r.recorderName).trim(),
         voidedAt: r.voidedAt ? String(r.voidedAt) : null,
       }),
@@ -548,7 +577,12 @@ export class ReportsService {
 
   // ─── Expiring Memberships ────────────────────────────────────────────────
 
+  // Fase 173 (ADO-02, D-02 acotado): `ctx` PRIMERO — deuda documentada por la
+  // 173-05 (`users`/`subscriptions` sin filtro en este método) que este plan
+  // cierra con cirugía mínima: único call site en routes.ts, sin tocar el
+  // resto del archivo (ver docblock previo del 173-05-SUMMARY).
   async getExpiringMemberships(
+    ctx: TenantContext,
     filters: ExpiringReportFilters,
   ): Promise<ExpiringReportRow[]> {
     const daysWindow = filters.daysWindow ?? 7;
@@ -580,7 +614,8 @@ export class ReportsService {
       SELECT 1
       FROM ${schema.subscriptions} sub2
       JOIN ${schema.subscriptionPlans} sp2 ON sp2.id = sub2.plan_id
-      WHERE sub2.user_id = ${schema.subscriptions.userId}
+      WHERE sub2.tenant_id = ${ctx.tenantId}
+        AND sub2.user_id = ${schema.subscriptions.userId}
         AND sub2.id <> ${schema.subscriptions.id}
         AND sub2.subscription_status IN ('active', 'paused', 'scheduled')
         AND sub2.end_date IS NOT NULL
@@ -588,43 +623,40 @@ export class ReportsService {
         AND (sp2.plan_category = 'presencial') = (${schema.subscriptionPlans.planCategory} = 'presencial')
     )`;
 
+    // Fase 174.1-04 (D-02): las condiciones quedan en UN solo array literal
+    // (spread condicional) en vez de `conditions.push(...)` en statements
+    // separados — el lint de tenancy juzga por STATEMENT, y varios `push`
+    // sueltos no ven el `tenantWhere(schema.subscriptions, ctx)` que va como
+    // primer elemento de este MISMO array. Cero cambio de comportamiento:
+    // mismo orden, mismos fragmentos, ahora construidos con spread.
     const conditions: ReturnType<typeof sql>[] = [
+      tenantWhere(schema.subscriptions, ctx),
       sql`${schema.subscriptions.status} IN (${sql.join(
         statusValues.map((s) => sql`${s}`),
         sql`, `,
       )})`,
       sql`${schema.subscriptions.endDate} IS NOT NULL`,
-    ];
-
-    if (useRange) {
-      conditions.push(
-        sql`${schema.subscriptions.endDate} >= ${filters.dateFrom}`,
-      );
-      conditions.push(
-        sql`${schema.subscriptions.endDate} <= ${filters.dateTo}`,
-      );
-    } else {
-      conditions.push(
-        sql`${schema.subscriptions.endDate} <= DATE_ADD(CURDATE(), INTERVAL ${daysWindow} DAY)`,
-      );
-      if (!includeExpired) {
-        // Only show those not yet expired
-        conditions.push(sql`${schema.subscriptions.endDate} >= CURDATE()`);
-      }
-    }
-
-    if (!includeRenewed) {
+      ...(useRange
+        ? [
+            sql`${schema.subscriptions.endDate} >= ${filters.dateFrom}`,
+            sql`${schema.subscriptions.endDate} <= ${filters.dateTo}`,
+          ]
+        : [
+            sql`${schema.subscriptions.endDate} <= DATE_ADD(CURDATE(), INTERVAL ${daysWindow} DAY)`,
+            // Only show those not yet expired
+            ...(!includeExpired
+              ? [sql`${schema.subscriptions.endDate} >= CURDATE()`]
+              : []),
+          ]),
       // Hide members who already renewed (have future same-category coverage).
-      conditions.push(sql`NOT ${coverageExists}`);
-    }
-
-    if (filters.branchId !== undefined) {
-      conditions.push(eq(schema.subscriptions.branchId, filters.branchId));
-    }
-
-    if (filters.country !== undefined) {
-      conditions.push(eq(schema.branches.country, filters.country));
-    }
+      ...(!includeRenewed ? [sql`NOT ${coverageExists}`] : []),
+      ...(filters.branchId !== undefined
+        ? [eq(schema.subscriptions.branchId, filters.branchId)]
+        : []),
+      ...(filters.country !== undefined
+        ? [eq(schema.branches.country, filters.country)]
+        : []),
+    ];
 
     const rows = await this.db
       .select({
@@ -641,7 +673,13 @@ export class ReportsService {
         hasFutureCoverage: sql<number>`${coverageExists}`,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
@@ -676,7 +714,12 @@ export class ReportsService {
 
   // ─── Inactive Members ────────────────────────────────────────────────────
 
+  // Fase 173 (ADO-02, D-02 acotado): `ctx` PRIMERO — deuda documentada por la
+  // 173-05 (`users`/`subscriptions` sin filtro en este método) que este plan
+  // cierra con cirugía mínima: único call site en routes.ts, sin tocar el
+  // resto del archivo (ver docblock previo del 173-05-SUMMARY).
   async getInactiveMembers(
+    ctx: TenantContext,
     filters: InactiveReportFilters,
   ): Promise<InactiveReportRow[]> {
     const daysThreshold = filters.daysThreshold ?? 14;
@@ -700,11 +743,12 @@ export class ReportsService {
         u.phone,
         s.start_date AS startDate
       FROM subscriptions s
-      INNER JOIN users u ON u.id = s.user_id
+      INNER JOIN users u ON u.id = s.user_id AND u.tenant_id = ${ctx.tenantId}
       INNER JOIN branches b ON b.id = s.branch_id
       INNER JOIN subscription_plans sp ON sp.id = s.plan_id
       LEFT JOIN attendance a ON a.member_id = s.user_id
       WHERE s.subscription_status IN ('active', 'paused')
+        AND s.tenant_id = ${ctx.tenantId}
         ${branchCondition}
         ${countryCondition}
       GROUP BY s.user_id, u.first_name, u.last_name, sp.name, u.phone, s.start_date
@@ -769,8 +813,16 @@ export class ReportsService {
    *
    * Shared by getOutstandingBalances + exportOutstandingBalances so the JSON
    * listing and the Excel export derive the same motivo/nota.
+   *
+   * Fase 172 — el `ctx` entra ACÁ y no en la query de afuera porque esto es una
+   * SUBCONSULTA con su propio FROM/JOIN: el WHERE del SELECT externo no alcanza
+   * a las filas de esta derivada. Sin el filtro adentro, un `debt_balance` de
+   * otro gimnasio con el mismo targetId podría aportar el motivo/nota de la
+   * deuda que se muestra. Es el ÚNICO helper de este archivo donde el filtro va
+   * dentro del fragmento — ver el docblock de `buildOutstandingScope` para el
+   * criterio general.
    */
-  private buildDebtOriginTxSubquery() {
+  private buildDebtOriginTxSubquery(ctx: TenantContext) {
     return this.db
       .select({
         targetId: schema.transactionLinks.targetId,
@@ -780,6 +832,7 @@ export class ReportsService {
       .innerJoin(
         schema.financialTransactions,
         and(
+          tenantWhere(schema.financialTransactions, ctx),
           eq(
             schema.financialTransactions.id,
             schema.transactionLinks.transactionId,
@@ -788,7 +841,12 @@ export class ReportsService {
           isNull(schema.financialTransactions.voidedAt),
         ),
       )
-      .where(eq(schema.transactionLinks.targetKind, "debt_balance"))
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          eq(schema.transactionLinks.targetKind, "debt_balance"),
+        ),
+      )
       .groupBy(schema.transactionLinks.targetId)
       .as("debt_origin_tx");
   }
@@ -813,11 +871,58 @@ export class ReportsService {
   }
 
   /**
+   * Fase 172 — el gimnasio del reporte Deudas, resuelto en UN SOLO statement.
+   *
+   * PLANTILLA PARA LAS FASES 173-175. Léase antes de migrar cualquier archivo
+   * con helpers que devuelven fragmentos `SQL` en vez de ejecutar la query.
+   *
+   * EL PROBLEMA. Cuatro helpers de este bloque (`buildOutstandingBaseConds`,
+   * `buildOutstandingStatusConds`, `buildOutstandingOrderBy` y
+   * `effectiveDebtStatusSQL`) no hacen la query: devuelven pedazos que se
+   * componen en OTRA. Un pedazo que nombra `balances` sin nombrar el gimnasio
+   * termina en una query que parece scopeada y no lo está, y —peor— el lint de
+   * tenancy razona por STATEMENT: cada `conds.push(sql\`… balances …\`)` es su
+   * propio statement, así que agregar el filtro al array NO los vuelve
+   * cumplidores. Duplicar `tenantWhere` en cada push tampoco: sale
+   * `tenant_id = 1 AND … AND tenant_id = 1` repetido diez veces.
+   *
+   * LA SALIDA (hallazgo 172-02). La columna viaja como PARÁMETRO. Este helper
+   * es el único statement del bloque que nombra `balances` y `debt_management`,
+   * y nombra el gimnasio con `tenantWhere`. Los helpers reciben este objeto y
+   * arman sus fragmentos con `cols.*`, sin importar el schema. Resultado: el
+   * filtro de gimnasio existe UNA vez (como primer elemento de las conditions,
+   * o sea primer término del WHERE) y no hay forma de escribir un fragmento
+   * nuevo que se olvide de él, porque las columnas no están a mano.
+   *
+   * Las tablas del JOIN (`debt_management`, `financial_transactions`) llevan su
+   * propio `tenantWhere` en la cláusula ON de cada query — NUNCA en el WHERE:
+   * son LEFT JOIN y un predicado sobre la tabla derecha en el WHERE convierte
+   * el LEFT en INNER, lo que borraría del reporte todas las deudas sin gestión.
+   */
+  private buildOutstandingScope(ctx: TenantContext) {
+    return {
+      /** Primer término del WHERE de las 4 queries del reporte. */
+      tenantFilter: tenantWhere(schema.balances, ctx),
+      amount: schema.balances.amount,
+      id: schema.balances.id,
+      currency: schema.balances.currency,
+      createdAt: schema.balances.createdAt,
+      dmStatus: schema.debtManagement.status,
+      dmPromisedPaymentDate: schema.debtManagement.promisedPaymentDate,
+    };
+  }
+
+  /**
    * Estado efectivo de gestión: una deuda sin fila en debt_management es
    * 'activa'. Compartido por conditions, statusTotals y projection.
+   *
+   * La columna llega por parámetro (ver `buildOutstandingScope`): es una
+   * proyección, no un predicado, así que no puede llevar el filtro adentro.
    */
-  private effectiveDebtStatusSQL(): SQL {
-    return sql`COALESCE(${schema.debtManagement.status}, 'activa')`;
+  private effectiveDebtStatusSQL(
+    statusColumn: typeof schema.debtManagement.status,
+  ): SQL {
+    return sql`COALESCE(${statusColumn}, 'activa')`;
   }
 
   /**
@@ -827,10 +932,37 @@ export class ReportsService {
    * incobrable) necesita el universo filtrado con TODOS los estados.
    */
   private buildOutstandingBaseConds(
+    ctx: TenantContext,
     filters: OutstandingBalancesFilters,
     lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>,
+    cols: ReturnType<ReportsService["buildOutstandingScope"]>,
   ): SQL[] {
-    const conds: SQL[] = [];
+    // El filtro de gimnasio es el PRIMER término del WHERE de toda query que
+    // componga estas conditions (convención lockeada, shared/tenant.ts:18-21).
+    // Fase 174.1-04 (D-02): los dos fragmentos `accruedFrom`/`accruedTo` van
+    // en este MISMO array literal (spread condicional) y no en un
+    // `conds.push(...)` de un `if` aparte — el lint de tenancy juzga por
+    // STATEMENT y un `push` suelto no ve el filtro de gimnasio que abre este
+    // array. Cero cambio de comportamiento.
+    const conds: SQL[] = [
+      cols.tenantFilter,
+      /* tenant-safe: fragmento de condicion por fecha de devengo, NO ejecuta
+         query propia — siempre viaja ANDed con `cols.tenantFilter`
+         (`tenantWhere(schema.balances, ctx)`, arriba) en la MISMA query
+         final. El lint juzga por statement y no ve ese AND en su propio
+         texto — mismo patron que la busqueda por nombre de mas abajo
+         (:1539) y goal-plans/routes.ts:484 (173-30, switch de members). */
+      ...(filters.accruedFrom !== undefined
+        ? [
+            sql`COALESCE(${schema.subscriptions.startDate}, DATE(${cols.createdAt})) >= ${filters.accruedFrom}`,
+          ]
+        : []),
+      ...(filters.accruedTo !== undefined
+        ? [
+            sql`COALESCE(${schema.subscriptions.startDate}, DATE(${cols.createdAt})) <= ${filters.accruedTo}`,
+          ]
+        : []),
+    ];
 
     if (filters.branchId !== undefined) {
       // Filter on subscriptions.branchId (LEFT JOIN). debt_balance rows have
@@ -841,10 +973,10 @@ export class ReportsService {
       conds.push(eq(schema.branches.country, filters.country));
     }
     if (filters.currency !== undefined) {
-      conds.push(eq(schema.balances.currency, filters.currency));
+      conds.push(eq(cols.currency, filters.currency));
     }
     if (filters.search !== undefined && filters.search.trim().length > 0) {
-      const searchCond = buildMemberNameSearchCondition(filters.search, {
+      const searchCond = buildMemberNameSearchCondition(ctx, filters.search, {
         includeDni: false,
       });
       if (searchCond !== null) {
@@ -856,37 +988,27 @@ export class ReportsService {
     // gestionadas (LEFT JOIN → columna NULL). 'vencida' es la cola de trabajo
     // de cobranzas: prometió una fecha ya pasada y la deuda no se cobró.
     if (filters.promise === "con") {
-      conds.push(isNotNull(schema.debtManagement.promisedPaymentDate));
+      conds.push(isNotNull(cols.dmPromisedPaymentDate));
     } else if (filters.promise === "sin") {
-      conds.push(isNull(schema.debtManagement.promisedPaymentDate));
+      conds.push(isNull(cols.dmPromisedPaymentDate));
     } else if (filters.promise === "vencida") {
-      conds.push(sql`${schema.debtManagement.promisedPaymentDate} < CURDATE()`);
-      conds.push(sql`${this.effectiveDebtStatusSQL()} <> 'cobrada'`);
+      conds.push(sql`${cols.dmPromisedPaymentDate} < CURDATE()`);
+      conds.push(
+        sql`${this.effectiveDebtStatusSQL(cols.dmStatus)} <> 'cobrada'`,
+      );
     }
 
     // Rangos de fecha (brief §4.2): registro = DATE(balances.createdAt);
     // devengo = COALESCE(subscriptions.startDate, registro) — el mismo
     // fallback que deriveEffectiveDateAndLabelOB usa para effectiveDate.
     if (filters.registeredFrom !== undefined) {
-      conds.push(
-        sql`DATE(${schema.balances.createdAt}) >= ${filters.registeredFrom}`,
-      );
+      conds.push(sql`DATE(${cols.createdAt}) >= ${filters.registeredFrom}`);
     }
     if (filters.registeredTo !== undefined) {
-      conds.push(
-        sql`DATE(${schema.balances.createdAt}) <= ${filters.registeredTo}`,
-      );
+      conds.push(sql`DATE(${cols.createdAt}) <= ${filters.registeredTo}`);
     }
-    if (filters.accruedFrom !== undefined) {
-      conds.push(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) >= ${filters.accruedFrom}`,
-      );
-    }
-    if (filters.accruedTo !== undefined) {
-      conds.push(
-        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) <= ${filters.accruedTo}`,
-      );
-    }
+    // accruedFrom/accruedTo ya van en el array literal inicial de `conds`
+    // (arriba, D-02 174.1-04).
 
     // "Sin asistir hace más de X días" (brief §4.4): detector de fantasmas.
     // NULL (nunca asistió) cuenta como fantasma — sin registro de asistencia
@@ -909,11 +1031,12 @@ export class ReportsService {
    */
   private buildOutstandingStatusConds(
     status: OutstandingBalancesFilters["status"],
+    cols: ReturnType<ReportsService["buildOutstandingScope"]>,
   ): SQL[] {
-    const effStatus = this.effectiveDebtStatusSQL();
+    const effStatus = this.effectiveDebtStatusSQL(cols.dmStatus);
     const effective = status ?? "activa";
     if (effective === "activa") {
-      return [gt(schema.balances.amount, 0), sql`${effStatus} = 'activa'`];
+      return [gt(cols.amount, 0), sql`${effStatus} = 'activa'`];
     }
     if (effective === "incobrable") {
       return [sql`${effStatus} = 'incobrable'`];
@@ -931,23 +1054,24 @@ export class ReportsService {
   private buildOutstandingOrderBy(
     filters: OutstandingBalancesFilters,
     lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>,
+    cols: ReturnType<ReportsService["buildOutstandingScope"]>,
   ): SQL {
     const sortBy = filters.sortBy ?? "age";
     const dir = filters.sortDir ?? "desc";
     if (sortBy === "amount") {
       return dir === "asc"
-        ? sql`${schema.balances.amount} ASC, ${schema.balances.id} ASC`
-        : sql`${schema.balances.amount} DESC, ${schema.balances.id} ASC`;
+        ? sql`${cols.amount} ASC, ${cols.id} ASC`
+        : sql`${cols.amount} DESC, ${cols.id} ASC`;
     }
     if (sortBy === "lastAttendance") {
       return dir === "asc"
-        ? sql`${lastAtt.lastCheckinAt} ASC, ${schema.balances.id} ASC`
-        : sql`${lastAtt.lastCheckinAt} DESC, ${schema.balances.id} ASC`;
+        ? sql`${lastAtt.lastCheckinAt} ASC, ${cols.id} ASC`
+        : sql`${lastAtt.lastCheckinAt} DESC, ${cols.id} ASC`;
     }
     // age (default): DESC = más vieja primero = createdAt ASC.
     return dir === "asc"
-      ? sql`${schema.balances.createdAt} DESC, ${schema.balances.id} DESC`
-      : sql`${schema.balances.createdAt} ASC, ${schema.balances.id} ASC`;
+      ? sql`${cols.createdAt} DESC, ${cols.id} DESC`
+      : sql`${cols.createdAt} ASC, ${cols.id} ASC`;
   }
 
   /**
@@ -956,6 +1080,7 @@ export class ReportsService {
    * nunca deriven (mismo contrato que ya cumplían por copia, ahora por DRY).
    */
   private async selectOutstandingRows(opts: {
+    ctx: TenantContext;
     lastAtt: ReturnType<ReportsService["buildLastAttendanceSubquery"]>;
     whereClause: SQL | undefined;
     orderBy: SQL;
@@ -964,7 +1089,7 @@ export class ReportsService {
   }): Promise<OutstandingBalanceRow[]> {
     // Phase 153 (DEUDA-02/D-11): resolve the origin advance_payment of each
     // debt_balance to derive the motivo (miscReason) + free-text note.
-    const debtOriginTx = this.buildDebtOriginTxSubquery();
+    const debtOriginTx = this.buildDebtOriginTxSubquery(opts.ctx);
 
     let query = this.db
       .select({
@@ -1007,9 +1132,15 @@ export class ReportsService {
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      // El filtro de gimnasio de las tablas LEFT JOINeadas va en el ON, jamás
+      // en el WHERE: en el WHERE convertiría el LEFT en INNER y desaparecerían
+      // del reporte las deudas sin fila de gestión (la mayoría).
       .leftJoin(
         schema.debtManagement,
-        eq(schema.debtManagement.balanceId, schema.balances.id),
+        and(
+          tenantWhere(schema.debtManagement, opts.ctx),
+          eq(schema.debtManagement.balanceId, schema.balances.id),
+        ),
       )
       .leftJoin(
         opts.lastAtt,
@@ -1024,7 +1155,10 @@ export class ReportsService {
       )
       .leftJoin(
         schema.financialTransactions,
-        eq(schema.financialTransactions.id, debtOriginTx.txId),
+        and(
+          tenantWhere(schema.financialTransactions, opts.ctx),
+          eq(schema.financialTransactions.id, debtOriginTx.txId),
+        ),
       )
       .where(opts.whereClause)
       .orderBy(opts.orderBy)
@@ -1127,6 +1261,7 @@ export class ReportsService {
    * Sort order: ageInDays DESC (oldest debts first).
    */
   async getOutstandingBalances(
+    ctx: TenantContext,
     filters: OutstandingBalancesFilters,
     scope: { isOwner: boolean },
   ): Promise<OutstandingBalancesResult> {
@@ -1138,10 +1273,16 @@ export class ReportsService {
     // Base (sucursal/país/moneda/búsqueda/promesa/fechas/asistencia) + corte
     // por estado (default 'activa'). La MISMA instancia de lastAtt se usa en
     // conditions, joins y orderBy (alias compartido del derived table).
+    const cols = this.buildOutstandingScope(ctx);
     const lastAtt = this.buildLastAttendanceSubquery();
-    const baseConds = this.buildOutstandingBaseConds(filters, lastAtt);
+    const baseConds = this.buildOutstandingBaseConds(
+      ctx,
+      filters,
+      lastAtt,
+      cols,
+    );
     const whereClause = and(
-      ...this.buildOutstandingStatusConds(filters.status),
+      ...this.buildOutstandingStatusConds(filters.status, cols),
       ...baseConds,
     );
 
@@ -1168,8 +1309,13 @@ export class ReportsService {
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .leftJoin(
+        // tenantWhere en el ON y no en el WHERE: el LEFT JOIN tiene que seguir
+        // devolviendo las deudas sin fila de gestión (ver buildOutstandingScope).
         schema.debtManagement,
-        eq(schema.debtManagement.balanceId, schema.balances.id),
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, schema.balances.id),
+        ),
       )
       .leftJoin(lastAtt, eq(lastAtt.memberId, schema.balances.memberId))
       .where(whereClause);
@@ -1181,9 +1327,10 @@ export class ReportsService {
     // selectOutstandingRows. El orden es determinista (tiebreaker balances.id)
     // así que la paginación LIMIT/OFFSET no duplica ni pierde filas.
     const mapped = await this.selectOutstandingRows({
+      ctx,
       lastAtt,
       whereClause,
-      orderBy: this.buildOutstandingOrderBy(filters, lastAtt),
+      orderBy: this.buildOutstandingOrderBy(filters, lastAtt, cols),
       limit,
       offset,
     });
@@ -1219,8 +1366,13 @@ export class ReportsService {
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .leftJoin(
+        // tenantWhere en el ON y no en el WHERE: el LEFT JOIN tiene que seguir
+        // devolviendo las deudas sin fila de gestión (ver buildOutstandingScope).
         schema.debtManagement,
-        eq(schema.debtManagement.balanceId, schema.balances.id),
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, schema.balances.id),
+        ),
       )
       .leftJoin(lastAtt, eq(lastAtt.memberId, schema.balances.memberId))
       .where(whereClause);
@@ -1256,9 +1408,10 @@ export class ReportsService {
     const statusTotalsRows = await this.db
       .select({
         currency: schema.balances.currency,
-        effStatus: sql<string>`${this.effectiveDebtStatusSQL()}`.as(
-          "eff_status",
-        ),
+        effStatus:
+          sql<string>`${this.effectiveDebtStatusSQL(cols.dmStatus)}`.as(
+            "eff_status",
+          ),
         totalAmount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
       })
       .from(schema.balances)
@@ -1275,8 +1428,13 @@ export class ReportsService {
       )
       .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .leftJoin(
+        // tenantWhere en el ON y no en el WHERE: el LEFT JOIN tiene que seguir
+        // devolviendo las deudas sin fila de gestión (ver buildOutstandingScope).
         schema.debtManagement,
-        eq(schema.debtManagement.balanceId, schema.balances.id),
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, schema.balances.id),
+        ),
       )
       .leftJoin(lastAtt, eq(lastAtt.memberId, schema.balances.memberId))
       .where(and(gt(schema.balances.amount, 0), ...baseConds))
@@ -1319,7 +1477,12 @@ export class ReportsService {
    * Dedup + pagination happen in JS (the 60-day cohort is small) so the total
    * counts distinct members, not sub rows.
    */
+  // Fase 173 (ADO-02, D-02 acotado): `ctx` PRIMERO — deuda documentada por la
+  // 173-05 (`users`/`subscriptions` sin filtro en este método, ver comentario
+  // más abajo en el bloque `search`) que este plan cierra con cirugía mínima:
+  // único call site en routes.ts, sin tocar el resto del archivo.
   async getExpiredMembers(
+    ctx: TenantContext,
     filters: ExpiredMembersFilters,
     scope: { isOwner: boolean },
   ): Promise<ExpiredMembersResult> {
@@ -1328,6 +1491,7 @@ export class ReportsService {
     const offset = (page - 1) * limit;
 
     const conds: SQL[] = [
+      tenantWhere(schema.subscriptions, ctx),
       sql`${schema.subscriptions.endDate} < CURDATE()`,
       sql`${schema.subscriptions.endDate} >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)`,
       // Discard the historical inverted-window dirty data (end < start, all
@@ -1336,7 +1500,7 @@ export class ReportsService {
       // "vencido sin renovar": negate the canonical active predicate so a member
       // who renewed (has an in-effect sub) drops out of the renewal worklist.
       // NEVER read users.status directly.
-      sql`NOT ${activeMemberExists(schema.subscriptions.userId)}`,
+      sql`NOT ${activeMemberExists(schema.subscriptions.userId, ctx)}`,
       // WR-01: also exclude members who already renewed with a FUTURE-dated
       // subscription (subscription_status='scheduled'). activeMemberExists only
       // matches active|paused with start_date <= CURDATE(), so a scheduled sub
@@ -1364,9 +1528,37 @@ export class ReportsService {
     }
 
     if (filters.search !== undefined && filters.search.trim().length > 0) {
-      const searchCond = buildMemberNameSearchCondition(filters.search, {
-        includeDni: false,
+      // Fase 173 (ADO-02): `getExpiredMembers` ya recibe `ctx` (deuda de la
+      // 173-05 cerrada por 173-23) — el gimnasio ya lo aporta `conds[0]`
+      // (`tenantWhere(subscriptions, ctx)`), así que esta condición de
+      // búsqueda por nombre no necesita su propio filtro. Se mantiene la
+      // MISMA lógica tokenizada LOCAL de `buildMemberNameSearchCondition`
+      // (sin DNI) en vez de importar el helper compartido — no es deuda de
+      // tenancy, es una decisión de shared/member-search.ts que queda fuera
+      // del alcance de este plan (D-02).
+      const searchTokens = filters.search
+        .split(/\s+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+      const tokenConds = searchTokens.map((token) => {
+        const pattern = `%${token}%`;
+        /* tenant-safe: fragmento de condicion por nombre/email, NO ejecuta
+           query propia — siempre se agrega a `conds` y viaja ANDed con el
+           `tenantWhere(schema.users, ctx)` del innerJoin de abajo (:1562) en
+           la MISMA query final (`.where(whereClause)`). El lint juzga por
+           statement y este `return` no ve ese AND en su propio texto — mismo
+           patron que goal-plans/routes.ts:484 (173-30, switch de members). */
+        return sql`(${schema.users.firstName} LIKE ${pattern}
+          OR ${schema.users.lastName} LIKE ${pattern}
+          OR ${schema.users.email} LIKE ${pattern}
+          OR CONCAT_WS(' ', ${schema.users.firstName}, ${schema.users.lastName}) LIKE ${pattern})`;
       });
+      const searchCond =
+        tokenConds.length === 0
+          ? null
+          : tokenConds.length === 1
+            ? tokenConds[0]
+            : sql.join(tokenConds, sql` AND `);
       if (searchCond !== null) {
         conds.push(searchCond);
       }
@@ -1385,7 +1577,13 @@ export class ReportsService {
         daysOverdue: sql<number>`DATEDIFF(CURDATE(), ${schema.subscriptions.endDate})`,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
+      )
       .innerJoin(
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
@@ -1444,6 +1642,7 @@ export class ReportsService {
    * the admin country-scope behaviour.
    */
   async getTrialConversionReport(
+    ctx: TenantContext,
     filters: TrialConversionFilters,
   ): Promise<TrialConversionReport> {
     // Subquery: each lead's first trial (one row per user with is_trial=1,
@@ -1462,11 +1661,13 @@ export class ReportsService {
             FROM bookings b2
             WHERE b2.member_id = b.member_id
               AND b2.is_trial = 1
+              AND b2.tenant_id = ${ctx.tenantId}
             ORDER BY b2.booking_date ASC, b2.id ASC
             LIMIT 1
           ) AS first_schedule_id
         FROM bookings b
         WHERE b.is_trial = 1
+          AND b.tenant_id = ${ctx.tenantId}
         GROUP BY b.member_id
       )
     `;
@@ -1498,13 +1699,14 @@ export class ReportsService {
         COALESCE((
           SELECT SUM(fx.amount)
           FROM financial_transactions fx
-          WHERE fx.member_id = ft.user_id
+          WHERE fx.tenant_id = ${ctx.tenantId}
+            AND fx.member_id = ft.user_id
             AND ${sql.raw(firmMoneySqlFor("fx"))}
             AND fx.direction = 'inflow'
             AND fx.kind IN ('plan_charge', 'debt_settlement')
         ), 0) AS revenue
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
@@ -1551,7 +1753,7 @@ export class ReportsService {
         COUNT(*) AS trials_count,
         SUM(CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END) AS converted_count
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
@@ -1590,7 +1792,7 @@ export class ReportsService {
         COUNT(*) AS trials_count,
         SUM(CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END) AS converted_count
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
@@ -1627,7 +1829,7 @@ export class ReportsService {
         COUNT(*) AS trials_count,
         SUM(CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END) AS converted_count
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
@@ -1675,7 +1877,7 @@ export class ReportsService {
         ft.trial_date,
         DATEDIFF(CURDATE(), ft.trial_date) AS days_since_trial
       FROM ${firstTrialSQL} AS ft
-      JOIN users u ON u.id = ft.user_id
+      JOIN users u ON u.id = ft.user_id AND u.tenant_id = ${ctx.tenantId}
       JOIN schedules s ON s.id = ft.first_schedule_id
       JOIN branches br ON br.id = s.branch_id
       WHERE ft.trial_date >= ${dateFrom}
@@ -1750,7 +1952,12 @@ export class ReportsService {
   // schema layer is the first defense (integer/enum enforcement); this is
   // defense-in-depth (T-114-05-04).
 
+  // Fase 173 (ADO-02, D-02 acotado): `ctx` PRIMERO — deuda documentada por la
+  // 173-05 (`users` sin filtro en este método, 2 alias `u`/`creator`) que
+  // este plan cierra con cirugía mínima: único call site en routes.ts, sin
+  // tocar el resto del archivo.
   async getTrialSessionsReport(
+    ctx: TenantContext,
     filters: TrialSessionsFilters,
   ): Promise<TrialSessionsReport> {
     const page = filters.page ?? 1;
@@ -1781,7 +1988,7 @@ export class ReportsService {
         GROUP BY b2.member_id
       ) AS lt
       JOIN ${schema.bookings} AS b      ON b.id = lt.booking_id
-      JOIN ${schema.users}    AS u      ON u.id = lt.member_id
+      JOIN ${schema.users}    AS u      ON u.id = lt.member_id AND u.tenant_id = ${ctx.tenantId}
       JOIN ${schema.schedules} AS s     ON s.id = b.schedule_id
       JOIN ${schema.branches}  AS br    ON br.id = s.branch_id
       LEFT JOIN ${schema.attendance} AS a
@@ -1789,7 +1996,7 @@ export class ReportsService {
        AND a.schedule_id = b.schedule_id
        AND a.session_date = b.booking_date
        AND a.attendance_status = 'confirmado'
-      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
+      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by AND creator.tenant_id = ${ctx.tenantId}
       WHERE u.deleted_at IS NULL
         ${conds}
     `);
@@ -1857,7 +2064,7 @@ export class ReportsService {
         GROUP BY b2.member_id
       ) AS lt
       JOIN ${schema.bookings}  AS b      ON b.id = lt.booking_id
-      JOIN ${schema.users}     AS u      ON u.id = lt.member_id
+      JOIN ${schema.users}     AS u      ON u.id = lt.member_id AND u.tenant_id = ${ctx.tenantId}
       JOIN ${schema.schedules} AS s      ON s.id = b.schedule_id
       JOIN ${schema.branches}  AS br     ON br.id = s.branch_id
       LEFT JOIN ${schema.attendance} AS a
@@ -1865,7 +2072,7 @@ export class ReportsService {
        AND a.schedule_id = b.schedule_id
        AND a.session_date = b.booking_date
        AND a.attendance_status = 'confirmado'
-      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by
+      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by AND creator.tenant_id = ${ctx.tenantId}
       LEFT JOIN ${schema.subscriptionPlans} AS pp ON pp.id = u.purchased_plan_id
       WHERE u.deleted_at IS NULL
         ${conds}
@@ -1926,16 +2133,19 @@ export class ReportsService {
    * cargado para ese día/turno en esa semana. Es una columna del export
    * únicamente: el listado JSON del reporte no lo devuelve.
    */
-  async exportTrialSessions(filters: TrialSessionsFilters): Promise<string> {
+  async exportTrialSessions(
+    ctx: TenantContext,
+    filters: TrialSessionsFilters,
+  ): Promise<string> {
     // D-26 / T-114-05-03 — hard cap. Override pagination, fetch the full set.
     const HARD_CAP = 10000;
-    const data = await this.getTrialSessionsReport({
+    const data = await this.getTrialSessionsReport(ctx, {
       ...filters,
       page: 1,
       limit: HARD_CAP,
     });
 
-    const rosterIndex = await this.loadRosterAttribution(data.rows);
+    const rosterIndex = await this.loadRosterAttribution(ctx, data.rows);
 
     const headers = [
       "Lead",
@@ -2011,6 +2221,7 @@ export class ReportsService {
    * change-point viejo, así que no se puede acotar por abajo).
    */
   private async loadRosterAttribution(
+    ctx: TenantContext,
     rows: TrialSessionsRow[],
   ): Promise<RosterAttributionIndex> {
     if (rows.length === 0) {
@@ -2035,7 +2246,10 @@ export class ReportsService {
       .from(schema.classCoachAssignments)
       .innerJoin(
         schema.users,
-        eq(schema.users.id, schema.classCoachAssignments.coachId),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.classCoachAssignments.coachId),
+        ),
       )
       .where(
         and(
@@ -2343,9 +2557,10 @@ export class ReportsService {
   // ─── Export Methods (no pagination) ───────────────────────────────────────
 
   async exportAccessLog(
+    ctx: TenantContext,
     filters: AccessReportFilters,
   ): Promise<AccessReportRow[]> {
-    const result = await this.getAccessLog({
+    const result = await this.getAccessLog(ctx, {
       ...filters,
       page: 1,
       limit: 100000,
@@ -2354,9 +2569,10 @@ export class ReportsService {
   }
 
   async exportChargeHistory(
+    ctx: TenantContext,
     filters: ChargeReportFilters,
   ): Promise<ChargeReportRow[]> {
-    const result = await this.getChargeHistory({
+    const result = await this.getChargeHistory(ctx, {
       ...filters,
       page: 1,
       limit: 100000,
@@ -2365,15 +2581,17 @@ export class ReportsService {
   }
 
   async exportExpiringMemberships(
+    ctx: TenantContext,
     filters: ExpiringReportFilters,
   ): Promise<ExpiringReportRow[]> {
-    return this.getExpiringMemberships(filters);
+    return this.getExpiringMemberships(ctx, filters);
   }
 
   async exportInactiveMembers(
+    ctx: TenantContext,
     filters: InactiveReportFilters,
   ): Promise<InactiveReportRow[]> {
-    return this.getInactiveMembers(filters);
+    return this.getInactiveMembers(ctx, filters);
   }
 
   /**
@@ -2389,17 +2607,20 @@ export class ReportsService {
    * exclude debt_balance rows (no branch/no geography).
    */
   async exportOutstandingBalances(
+    ctx: TenantContext,
     filters: OutstandingBalancesFilters,
   ): Promise<OutstandingBalanceRow[]> {
+    const cols = this.buildOutstandingScope(ctx);
     const lastAtt = this.buildLastAttendanceSubquery();
     const whereClause = and(
-      ...this.buildOutstandingStatusConds(filters.status),
-      ...this.buildOutstandingBaseConds(filters, lastAtt),
+      ...this.buildOutstandingStatusConds(filters.status, cols),
+      ...this.buildOutstandingBaseConds(ctx, filters, lastAtt, cols),
     );
     return this.selectOutstandingRows({
+      ctx,
       lastAtt,
       whereClause,
-      orderBy: this.buildOutstandingOrderBy(filters, lastAtt),
+      orderBy: this.buildOutstandingOrderBy(filters, lastAtt, cols),
     });
   }
 
@@ -2415,6 +2636,7 @@ export class ReportsService {
    * país. Fail-closed si el scope de país no resolvió.
    */
   async updateDebtManagement(
+    ctx: TenantContext,
     balanceId: number,
     input: DebtManagementUpdateInput,
     actor: { userId: number; isOwner: boolean; country: "AR" | "ES" | null },
@@ -2436,9 +2658,17 @@ export class ReportsService {
         schema.branches,
         eq(schema.branches.id, schema.subscriptions.branchId),
       )
-      .where(eq(schema.balances.id, balanceId))
+      .where(
+        and(
+          tenantWhere(schema.balances, ctx),
+          eq(schema.balances.id, balanceId),
+        ),
+      )
       .limit(1);
 
+    // Fail-closed cross-tenant: una deuda de otro gimnasio no matchea el
+    // SELECT y sale por acá con 404 — nunca 403, para no filtrar existencia
+    // (mismo idioma que enforceCajaScope en finance/routes.ts).
     if (!bal) {
       throw new NotFoundError("Deuda no encontrada");
     }
@@ -2452,13 +2682,18 @@ export class ReportsService {
     // ON DUPLICATE KEY UPDATE pisa SOLO los campos provistos (PATCH parcial).
     await this.db
       .insert(schema.debtManagement)
-      .values({
-        balanceId,
-        status: input.status ?? "activa",
-        promisedPaymentDate: input.promisedPaymentDate ?? null,
-        notes: input.notes ?? null,
-        updatedBy: actor.userId,
-      })
+      // tenantValues estampa el gimnasio DESPUÉS del objeto, así que el tenant
+      // sale del servidor aunque un día alguien spreadee el body acá adentro
+      // (mitigación de mass-assignment, 169-01).
+      .values(
+        tenantValues(ctx, {
+          balanceId,
+          status: input.status ?? "activa",
+          promisedPaymentDate: input.promisedPaymentDate ?? null,
+          notes: input.notes ?? null,
+          updatedBy: actor.userId,
+        }),
+      )
       .onDuplicateKeyUpdate({
         set: {
           updatedBy: actor.userId,
@@ -2477,7 +2712,12 @@ export class ReportsService {
         notes: schema.debtManagement.notes,
       })
       .from(schema.debtManagement)
-      .where(eq(schema.debtManagement.balanceId, balanceId))
+      .where(
+        and(
+          tenantWhere(schema.debtManagement, ctx),
+          eq(schema.debtManagement.balanceId, balanceId),
+        ),
+      )
       .limit(1);
 
     return {
@@ -2493,9 +2733,15 @@ export class ReportsService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   private buildAccessConditions(
+    ctx: TenantContext,
     filters: AccessReportFilters,
   ): ReturnType<typeof sql>[] {
-    const conditions: ReturnType<typeof sql>[] = [sql`1 = 1`];
+    // Fase 173 (ADO-02): `users` entra a `TENANT_STRICT_MODULES` en esta
+    // fase — el filtro de gimnasio va PRIMERO, mismo criterio que
+    // `buildChargeConditions` (línea de arriba en este archivo).
+    const conditions: ReturnType<typeof sql>[] = [
+      tenantWhere(schema.users, ctx),
+    ];
 
     if (filters.branchId !== undefined) {
       conditions.push(eq(schema.attendance.branchId, filters.branchId));
@@ -2523,8 +2769,11 @@ export class ReportsService {
 
     if (filters.search) {
       const searchTerm = `%${filters.search}%`;
+      // El `push` es un STATEMENT APARTE del array de arriba (el lint razona
+      // por statement, hallazgo 172-02/173): el `tenantWhere` del elemento
+      // [0] no lo cubre, así que va INLINE acá también.
       conditions.push(
-        sql`(CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm})`,
+        sql`(${tenantWhere(schema.users, ctx)} AND (CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm}))`,
       );
     }
 
@@ -2532,19 +2781,47 @@ export class ReportsService {
   }
 
   private buildChargeConditions(
+    ctx: TenantContext,
     filters: ChargeReportFilters,
   ): ReturnType<typeof sql>[] {
     // Phase 105 D-01: revenue == financial_transactions where kind is a real
     // cash inflow (plan_charge, debt_settlement) and the row is not voided.
     // direction='inflow' excludes refunds. These three conditions belong on
     // every charge-history listing.
+    //
+    // Fase 172 — TODA referencia a `financial_transactions` vive en ESTE
+    // statement, que es el que nombra el gimnasio. Los filtros opcionales que
+    // antes se agregaban con `conditions.push(...)` entran acá con spread
+    // condicional: un `push` es un statement aparte y un fragmento sobre una
+    // tabla del módulo migrado que no nombra el tenant es exactamente el
+    // agujero que este archivo viene a cerrar (mismo criterio que
+    // `buildOutstandingScope`). El orden dentro del AND es irrelevante.
     const conditions: ReturnType<typeof sql>[] = [
+      tenantWhere(schema.financialTransactions, ctx),
       sql`1 = 1`,
       sql`${schema.financialTransactions.kind} IN ('plan_charge', 'debt_settlement')`,
       eq(schema.financialTransactions.direction, "inflow"),
       isNull(schema.financialTransactions.voidedAt),
       // Phase 137 (VAL-05): firm money counts only validated rows.
       eq(schema.financialTransactions.validationStatus, "validado"),
+      ...(filters.dateFrom
+        ? [
+            sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
+          ]
+        : []),
+      ...(filters.dateTo
+        ? [
+            sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
+          ]
+        : []),
+      ...(filters.paymentMethod
+        ? [
+            eq(
+              schema.financialTransactions.paymentMethod,
+              filters.paymentMethod,
+            ),
+          ]
+        : []),
     ];
 
     if (filters.branchId !== undefined) {
@@ -2555,28 +2832,13 @@ export class ReportsService {
       conditions.push(eq(schema.branches.country, filters.country));
     }
 
-    if (filters.dateFrom) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
-      );
-    }
-
-    if (filters.dateTo) {
-      conditions.push(
-        sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
-      );
-    }
-
-    if (filters.paymentMethod) {
-      conditions.push(
-        eq(schema.financialTransactions.paymentMethod, filters.paymentMethod),
-      );
-    }
-
     if (filters.search) {
       const searchTerm = `%${filters.search}%`;
+      // El `push` es un STATEMENT APARTE (mismo hallazgo que
+      // `buildAccessConditions`, arriba): el `tenantWhere` de `financial_transactions`
+      // del elemento [0] no cubre a `users`, así que va INLINE acá también.
       conditions.push(
-        sql`(CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm})`,
+        sql`(${tenantWhere(schema.users, ctx)} AND (CONCAT(COALESCE(${schema.users.firstName}, ''), ' ', COALESCE(${schema.users.lastName}, '')) LIKE ${searchTerm} OR ${schema.users.dni} LIKE ${searchTerm}))`,
       );
     }
 

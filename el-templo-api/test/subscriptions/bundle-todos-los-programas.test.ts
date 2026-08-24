@@ -36,6 +36,15 @@ import {
   todayStr,
   dateOffsetStr,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de las queries DIRECTAS de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES una lectura/escritura sin
+ * estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
   let app: FastifyInstance;
@@ -65,6 +74,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     overrides: Partial<typeof subscriptionPlans.$inferInsert> = {},
   ): Promise<{ id: number }> {
     const result = await app.db.insert(subscriptionPlans).values({
+      tenantId: TENANT_TEMPLO,
       name: "Todos los Programas",
       description:
         "Acceso a todos los programas virtuales activos durante 30 dias.",
@@ -106,7 +116,12 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     const [row] = await app.db
       .select()
       .from(subscriptionPlans)
-      .where(eq(subscriptionPlans.id, bundle.id));
+      .where(
+        and(
+          tenantWhere(subscriptionPlans, TEMPLO_CTX),
+          eq(subscriptionPlans.id, bundle.id),
+        ),
+      );
 
     expect(row.grantsAllPrograms).toBe(true);
     expect(row.name).toBe("Todos los Programas");
@@ -166,6 +181,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -208,6 +224,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
 
     // Pre-create an active enrollment for p1
     const preInsert = await app.db.insert(programEnrollments).values({
+      tenantId: TENANT_TEMPLO,
       userId: member.id as number,
       programId: p1,
       status: "active",
@@ -219,7 +236,12 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     const [preRow] = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.id, preEnrollmentId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.id, preEnrollmentId),
+        ),
+      );
     const originalEnrolledAt = preRow.enrolledAt;
 
     // Assign the bundle
@@ -233,6 +255,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -248,7 +271,12 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     const [preserved] = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.id, preEnrollmentId));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.id, preEnrollmentId),
+        ),
+      );
     expect(preserved.status).toBe("active");
     expect(preserved.currentWeek).toBe(2);
     expect(preserved.sessionsCompletedThisWeek).toBe(1);
@@ -288,7 +316,12 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     const memberSubs = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, member.id as number));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.userId, member.id as number),
+        ),
+      );
     expect(memberSubs).toHaveLength(1);
     expect(memberSubs[0].planId).toBe(bundle1.id);
   });
@@ -327,6 +360,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -338,7 +372,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: pointerEnrollmentId })
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
 
     // Cancel via HTTP endpoint
     const cancelRes = await app.inject({
@@ -352,7 +388,12 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     const enrollmentsAfter = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, member.id as number));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, member.id as number),
+        ),
+      );
 
     expect(enrollmentsAfter).toHaveLength(3);
     for (const e of enrollmentsAfter) {
@@ -366,7 +407,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         currentProgramEnrollmentId: users.currentProgramEnrollmentId,
       })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(u.currentProgramEnrollmentId).toBeNull();
   });
 
@@ -424,6 +467,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     // expire it on the next read. This is how we trigger teardown without
     // depending on which sub getMemberSubscription/cancel happens to pick.
     const bundleSubInsert = await app.db.insert(subscriptions).values({
+      tenantId: TENANT_TEMPLO,
       userId: member.id as number,
       planId: bundle.id,
       branchId: 1,
@@ -441,6 +485,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     // the linked plan, so the bundle would skip it via idempotency).
     await app.db.insert(programEnrollments).values([
       {
+        tenantId: TENANT_TEMPLO,
         userId: member.id as number,
         programId: p2,
         status: "active",
@@ -449,6 +494,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         weekUnlockedAt: new Date(),
       },
       {
+        tenantId: TENANT_TEMPLO,
         userId: member.id as number,
         programId: p3,
         status: "active",
@@ -466,6 +512,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.programId, p1),
           eq(programEnrollments.status, "active"),
@@ -475,7 +522,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: p1Enrollment.id })
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
 
     // Trigger autoExpireSubscriptions by reading the member subscription.
     // The bundle has endDate=yesterday → marked expired → teardown invoked.
@@ -491,7 +540,12 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     const enrollmentsAfter = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, member.id as number));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, member.id as number),
+        ),
+      );
 
     const e1 = enrollmentsAfter.find((e) => e.programId === p1);
     const e2 = enrollmentsAfter.find((e) => e.programId === p2);
@@ -507,7 +561,12 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     const [bundleSub] = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.id, bundleSubId));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.id, bundleSubId),
+        ),
+      );
     expect(bundleSub.status).toBe("expired");
 
     // Pointer must STILL point at p1Enrollment (not in cancelled set)
@@ -516,7 +575,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         currentProgramEnrollmentId: users.currentProgramEnrollmentId,
       })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(u.currentProgramEnrollmentId).toBe(p1Enrollment.id);
   });
 
@@ -549,6 +610,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -559,14 +621,21 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: pointerEnrollmentId })
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
 
     // Force-expire by directly UPDATE-ing endDate to yesterday
     const yesterday = dateOffsetStr(-1);
     await app.db
       .update(subscriptions)
       .set({ endDate: yesterday })
-      .where(eq(subscriptions.userId, member.id as number));
+      .where(
+        and(
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+          eq(subscriptions.userId, member.id as number),
+        ),
+      );
 
     // Trigger autoExpireSubscriptions by reading the member's subscription
     const readRes = await app.inject({
@@ -580,7 +649,12 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     const enrollmentsAfter = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, member.id as number));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, member.id as number),
+        ),
+      );
 
     expect(enrollmentsAfter).toHaveLength(3);
     for (const e of enrollmentsAfter) {
@@ -592,7 +666,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         currentProgramEnrollmentId: users.currentProgramEnrollmentId,
       })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(u.currentProgramEnrollmentId).toBeNull();
   });
 
@@ -636,6 +712,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -646,7 +723,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     await app.db
       .update(users)
       .set({ currentProgramEnrollmentId: pointerEnrollmentId })
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
 
     // Change plan (default startMode = "now")
     const changeRes = await app.inject({
@@ -668,7 +747,12 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
     const enrollmentsAfter = await app.db
       .select()
       .from(programEnrollments)
-      .where(eq(programEnrollments.userId, member.id as number));
+      .where(
+        and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
+          eq(programEnrollments.userId, member.id as number),
+        ),
+      );
 
     const activeAfter = enrollmentsAfter.filter((e) => e.status === "active");
     const cancelledAfter = enrollmentsAfter.filter(
@@ -690,7 +774,9 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         currentProgramEnrollmentId: users.currentProgramEnrollmentId,
       })
       .from(users)
-      .where(eq(users.id, member.id as number));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id as number)),
+      );
     expect(u.currentProgramEnrollmentId).toBeNull();
   });
 
@@ -739,6 +825,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -767,6 +854,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.status, "active"),
         ),
@@ -792,6 +880,7 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
       .from(programEnrollments)
       .where(
         and(
+          tenantWhere(programEnrollments, TEMPLO_CTX),
           eq(programEnrollments.userId, member.id as number),
           eq(programEnrollments.programId, p1),
         ),

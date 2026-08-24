@@ -16,10 +16,19 @@
  * before the test suite started (test/setup.ts).
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq } from "drizzle-orm";
+import { and, sql, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): estampar/filtrar tenant_id
+// explicito.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 interface ColumnRow {
   COLUMN_NAME: string;
@@ -187,32 +196,36 @@ describe("Migration 0121 — users lead fields", () => {
     // Insert admin user (the lead creator) — no lead fields.
     const [adminRow] = await app.db
       .insert(schema.users)
-      .values({
-        email: `t4-admin-${Date.now()}@test.local`,
-        passwordHash,
-        firstName: "Admin",
-        lastName: "Tester",
-        role: "admin",
-        branchId: presentialBranchId,
-        level: "spartan",
-      })
+      .values(
+        tenantValues(CTX_TEMPLO, {
+          email: `t4-admin-${Date.now()}@test.local`,
+          passwordHash,
+          firstName: "Admin",
+          lastName: "Tester",
+          role: "admin",
+          branchId: presentialBranchId,
+          level: "spartan",
+        }),
+      )
       .$returningId();
 
     // Insert lead created by the admin above.
     const [leadRow] = await app.db
       .insert(schema.users)
-      .values({
-        email: `t4-lead-${Date.now()}@test.local`,
-        passwordHash,
-        firstName: "Lead",
-        lastName: "Tester",
-        role: "member",
-        branchId: presentialBranchId,
-        status: "prueba",
-        leadStatus: "en_seguimiento",
-        leadNotes: "test note",
-        createdBy: adminRow.id,
-      })
+      .values(
+        tenantValues(CTX_TEMPLO, {
+          email: `t4-lead-${Date.now()}@test.local`,
+          passwordHash,
+          firstName: "Lead",
+          lastName: "Tester",
+          role: "member",
+          branchId: presentialBranchId,
+          status: "prueba",
+          leadStatus: "en_seguimiento",
+          leadNotes: "test note",
+          createdBy: adminRow.id,
+        }),
+      )
       .$returningId();
 
     const [readBack] = await app.db
@@ -224,7 +237,12 @@ describe("Migration 0121 — users lead fields", () => {
         status: schema.users.status,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, leadRow.id))
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.id, leadRow.id),
+        ),
+      )
       .limit(1);
 
     expect(readBack).toBeDefined();
@@ -236,14 +254,16 @@ describe("Migration 0121 — users lead fields", () => {
     // Sanity: a user inserted without lead fields keeps them NULL.
     const [bareRow] = await app.db
       .insert(schema.users)
-      .values({
-        email: `t4-bare-${Date.now()}@test.local`,
-        passwordHash,
-        firstName: "Bare",
-        lastName: "User",
-        role: "member",
-        branchId: presentialBranchId,
-      })
+      .values(
+        tenantValues(CTX_TEMPLO, {
+          email: `t4-bare-${Date.now()}@test.local`,
+          passwordHash,
+          firstName: "Bare",
+          lastName: "User",
+          role: "member",
+          branchId: presentialBranchId,
+        }),
+      )
       .$returningId();
 
     const [bareReadBack] = await app.db
@@ -253,7 +273,12 @@ describe("Migration 0121 — users lead fields", () => {
         createdBy: schema.users.createdBy,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, bareRow.id))
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.id, bareRow.id),
+        ),
+      )
       .limit(1);
     expect(bareReadBack.leadStatus).toBeNull();
     expect(bareReadBack.leadNotes).toBeNull();

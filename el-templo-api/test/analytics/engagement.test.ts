@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -15,8 +15,21 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import type { MemberSegment } from "../../src/modules/segmentation/types";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/**
+ * Fase 173 (D-02): `countActiveBySegment`/`getEngagementNominalList` reciben
+ * `TenantContext` como PRIMER argumento (en producción sale de
+ * `assertTenant(request.scope, …)`); acá se construye a mano porque el
+ * service se invoca sin request. El Templo es el tenant 1.
+ */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 117 Plan 04 — EngagementService (D-12 / D-09 / D-17 / D-18).
@@ -140,7 +153,7 @@ describe("EngagementService (Phase 117 Plan 04)", () => {
       await setSegment(ausenteActive, "ausente");
       await setSegment(ausenteInactive, "ausente"); // must NOT be counted
 
-      const counts = await svc.countActiveBySegment({});
+      const counts = await svc.countActiveBySegment(CTX, {});
       expect(counts.optima).toBe(1);
       expect(counts.alerta).toBe(1);
       expect(counts.ausente).toBe(1); // only the active ausente
@@ -161,13 +174,13 @@ describe("EngagementService (Phase 117 Plan 04)", () => {
       await setSegment(nullSeg, null);
       // noProfile: no member_profiles row at all.
 
-      const counts = await svc.countActiveBySegment({});
+      const counts = await svc.countActiveBySegment(CTX, {});
       expect(counts.optima).toBe(1);
       expect(counts.sinSegmento).toBe(2); // nullSeg + noProfile
     });
 
     it("returns all-zero counts when there are no active members", async () => {
-      const counts = await svc.countActiveBySegment({});
+      const counts = await svc.countActiveBySegment(CTX, {});
       expect(counts).toEqual({
         optima: 0,
         regular: 0,
@@ -185,7 +198,7 @@ describe("EngagementService (Phase 117 Plan 04)", () => {
       await setSegment(mA, "optima");
       await setSegment(mES, "optima");
 
-      const onlyA = await svc.countActiveBySegment({ branchId: branchA });
+      const onlyA = await svc.countActiveBySegment(CTX, { branchId: branchA });
       expect(onlyA.optima).toBe(1);
     });
   });
@@ -211,7 +224,7 @@ describe("EngagementService (Phase 117 Plan 04)", () => {
       await setSegment(optima, "optima");
       await setSegment(ausenteInactive, "ausente");
 
-      const list = await svc.getEngagementNominalList({});
+      const list = await svc.getEngagementNominalList(CTX, {});
       const ids = list.map((m) => m.userId).sort();
       expect(ids).toEqual([alerta, ausente].sort());
 
@@ -239,16 +252,16 @@ describe("EngagementService (Phase 117 Plan 04)", () => {
       await app.db
         .update(usersTable)
         .set({ lastName: "Aaa" })
-        .where(eq(usersTable.id, alerta));
+        .where(and(tenantWhere(usersTable, CTX), eq(usersTable.id, alerta)));
       await app.db
         .update(usersTable)
         .set({ lastName: "Bbb" })
-        .where(eq(usersTable.id, ausente));
+        .where(and(tenantWhere(usersTable, CTX), eq(usersTable.id, ausente)));
 
       await setSegment(alerta, "alerta");
       await setSegment(ausente, "ausente");
 
-      const list = await svc.getEngagementNominalList({});
+      const list = await svc.getEngagementNominalList(CTX, {});
       const ordered = list.filter(
         (m) => m.userId === alerta || m.userId === ausente,
       );
@@ -264,12 +277,14 @@ describe("EngagementService (Phase 117 Plan 04)", () => {
       await setSegment(mA, "ausente");
       await setSegment(mES, "ausente");
 
-      const onlyA = await svc.getEngagementNominalList({ branchId: branchA });
+      const onlyA = await svc.getEngagementNominalList(CTX, {
+        branchId: branchA,
+      });
       expect(onlyA.map((m) => m.userId)).toEqual([mA]);
     });
 
     it("returns empty list when no alerta/ausente active members", async () => {
-      const list = await svc.getEngagementNominalList({});
+      const list = await svc.getEngagementNominalList(CTX, {});
       expect(list).toEqual([]);
     });
   });

@@ -19,6 +19,14 @@ import {
 } from "../helpers";
 import { createPlan, createMember } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de la escritura DIRECTA de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES un UPDATE crudo sin
+ * `tenant_id` en el predicado hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const MEMBER_PASSWORD = "pass123456";
 
@@ -92,8 +100,8 @@ async function link(
   status: "pending" | "qualified",
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO referrals (referrer_id, referred_id, status, attribution_channel, qualified_at)
-        VALUES (${referrerId}, ${referredId}, ${status}, 'assisted', NOW())`,
+    sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel, qualified_at)
+        VALUES (1, ${referrerId}, ${referredId}, ${status}, 'assisted', NOW())`,
   );
 }
 
@@ -103,8 +111,8 @@ async function giveCoverage(
   endDate: string,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
-        VALUES (${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
+    sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status, start_date, end_date, price_paid, currency, price_type_applied)
+        VALUES (${TENANT_TEMPLO}, ${userId}, ${planId}, 1, 'active', ${todayStr()}, ${endDate}, 10000, 'ARS', 'regular')`,
   );
 }
 
@@ -178,7 +186,7 @@ describe("GET /api/admin/members/:id/referrals — ficha admin", () => {
   it("404 para un miembro soft-deleted", async () => {
     const target = await createMember(app, { email: "a-deleted@test.com" });
     await app.db.execute(
-      sql`UPDATE users SET deleted_at = NOW() WHERE id = ${target.id}`,
+      sql`UPDATE users SET deleted_at = NOW() WHERE id = ${target.id} AND tenant_id = ${TEMPLO_CTX.tenantId}`,
     );
     const res = await app.inject({
       method: "GET",

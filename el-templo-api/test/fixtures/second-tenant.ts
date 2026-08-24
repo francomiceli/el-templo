@@ -376,6 +376,20 @@ async function tokenDe(
 export async function limpiarSegundoGimnasio(
   app: FastifyInstance,
 ): Promise<void> {
+  // 173-04: `audit_log` no esta en `TABLES_TO_CLEAN` (test/helpers.ts) y hasta
+  // ahora nunca hacia falta borrarla aca — el helper de auditoria no estampaba
+  // `tenant_id` (D-01), asi que sus filas caian todas en el DEFAULT 1 y jamas
+  // referenciaban al gimnasio 2. Migrado `shared/audit-log.ts` a
+  // `tenantValues(ctx, ...)`, un void/validate/observe/correct sobre un
+  // recurso del gimnasio 2 ahora escribe `tenant_id = TENANT_DOS` de verdad, y
+  // sin este DELETE el `DELETE FROM tenants` de mas abajo revienta con
+  // `ER_ROW_IS_REFERENCED_2` (`fk_audit_log_tenant`) — la misma bomba FK
+  // latente que el `cash_registers` de abajo (Pitfall 10), por otra tabla.
+  // Va PRIMERO: `audit_log.actor_id` tambien tiene FK a `users` (fk_audit_log_actor),
+  // asi que tiene que salir antes del `DELETE FROM users` de mas abajo tambien.
+  await app.db.execute(
+    sql`DELETE FROM audit_log WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM schedules WHERE tenant_id = ${TENANT_DOS}`,
   );
@@ -398,6 +412,16 @@ export async function limpiarSegundoGimnasio(
   // los demas archivos del worker (Pitfall 10 por otra puerta).
   await app.db.execute(
     sql`DELETE FROM cash_registers WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Defensivo (176-03): `tenant_settings` tampoco esta en `TABLES_TO_CLEAN`, y
+  // `setModuleFlag`/`clearModuleFlags` (test/fixtures/module-flags.ts, fase
+  // 176) pueden sembrar filas `module.*.enabled` para TENANT_DOS en cualquier
+  // bateria que pruebe el guard `requireModule` sobre el gimnasio 2. Sin este
+  // DELETE, el `DELETE FROM tenants` de abajo revienta con
+  // ER_ROW_IS_REFERENCED_2 (fk_tenant_settings_tenant) — la misma bomba FK
+  // latente que `cash_registers`/`audit_log` de arriba, por otra tabla.
+  await app.db.execute(
+    sql`DELETE FROM tenant_settings WHERE tenant_id = ${TENANT_DOS}`,
   );
   await app.db.execute(
     sql`DELETE FROM branches WHERE tenant_id = ${TENANT_DOS}`,

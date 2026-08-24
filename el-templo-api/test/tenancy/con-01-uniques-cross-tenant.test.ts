@@ -46,7 +46,7 @@
  * opina sobre cómo se resuelve el login. Ningún test de acá la bloquea.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq, type SQL } from "drizzle-orm";
+import { and, sql, eq, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
@@ -386,9 +386,13 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
           .values(usuario(TENANT_SEGUNDO, sedeSegundo, { email: EMAIL })),
       );
 
+      // T-173-22: `users` entra a TENANT_STRICT_MODULES en la fase 173. La
+      // pregunta de este test es justamente cuántas veces existe el email
+      // EN TODOS los gimnasios — filtrar por uno lo volvería tautológico
+      // (misma categoría "lectura de evidencia" que `tenantDeLaFila`).
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM users WHERE email = ${EMAIL}`,
+        sql`SELECT /* tenant-safe: la pregunta es cuantas veces existe el email en TODOS los gimnasios; filtrar por uno lo volveria tautologico */ COUNT(*) AS n FROM users WHERE email = ${EMAIL}`,
       );
       expect(
         enLosDos,
@@ -425,9 +429,11 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
         ),
       );
 
+      // T-173-22: idem nota del email arriba — leer cuántas veces existe el
+      // DNI en TODOS los gimnasios ES la aserción de este test.
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM users WHERE dni = ${DNI}`,
+        sql`SELECT /* tenant-safe: la pregunta es cuantas veces existe el DNI en TODOS los gimnasios; filtrar por uno lo volveria tautologico */ COUNT(*) AS n FROM users WHERE dni = ${DNI}`,
       );
       expect(enLosDos, "El mismo DNI, una vez por tenant").toBe(2);
 
@@ -465,9 +471,11 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
         ),
       );
 
+      // T-173-22: idem nota del email arriba — leer cuántas veces existe el
+      // código de referido en TODOS los gimnasios ES la aserción.
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM users WHERE referral_code = ${CODIGO}`,
+        sql`SELECT /* tenant-safe: la pregunta es cuantas veces existe el codigo de referido en TODOS los gimnasios; filtrar por uno lo volveria tautologico */ COUNT(*) AS n FROM users WHERE referral_code = ${CODIGO}`,
       );
       expect(enLosDos, "El mismo código de referido, una vez por tenant").toBe(
         2,
@@ -542,9 +550,15 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
             .values(centroDeCosto(TENANT_SEGUNDO, NOMBRE, "AR")),
         );
 
+        // Fase 172: `cost_centers` es strict, y este COUNT es global A
+        // PROPOSITO — contar las filas de LOS DOS gimnasios es exactamente lo
+        // que la asercion compra. Acotarlo por tenant lo volveria tautologico
+        // (contaria 1 por definicion), asi que la salida honesta es la exencion
+        // anotada, la misma regla que el 172-13 dejo escrita: global a
+        // proposito -> exencion; acotable -> filtro.
         const enLosDos = await contar(
           app,
-          sql`SELECT COUNT(*) AS n FROM cost_centers WHERE name = ${NOMBRE} AND country = 'AR'`,
+          sql`SELECT /* tenant-safe: la asercion cross-tenant necesita contar los dos gimnasios */ COUNT(*) AS n FROM cost_centers WHERE name = ${NOMBRE} AND country = 'AR'`,
         );
         expect(enLosDos, "El mismo centro de costo, una vez por tenant").toBe(
           2,
@@ -571,9 +585,20 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
       } finally {
         // `cost_centers` NO está en TABLES_TO_CLEAN (y además viene seedeada por
         // las migraciones 0161/0163/0165): se borran SOLO las filas de este test.
+        //
+        // Fase 172: el barrido es cross-tenant a proposito — este bloque sembro
+        // en El Templo (AR y ES) y en el gimnasio 2, y el nombre `NOMBRE` es de
+        // uso exclusivo de este test. Acotarlo por gimnasio dejaria filas vivas
+        // para los archivos vecinos del mismo worker (`isolate: false`), que es
+        // justo el bug que el `finally` existe para no tener.
         await app.db
           .delete(schema.costCenters)
-          .where(eq(schema.costCenters.name, NOMBRE));
+          .where(
+            and(
+              sql`/* tenant-safe: limpieza cross-tenant de las filas que sembro este mismo test */ 1 = 1`,
+              eq(schema.costCenters.name, NOMBRE),
+            ),
+          );
       }
     });
   });
@@ -604,7 +629,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM promo_plans WHERE promo_code = ${PROMO}`,
+        sql`/* tenant-safe: aserción deliberadamente cross-tenant — este test verifica que la unique es POR TENANT, no global (con-01) */ SELECT COUNT(*) AS n FROM promo_plans WHERE promo_code = ${PROMO}`,
       );
       expect(enLosDos, "El mismo código promo, una vez por tenant").toBe(2);
 
@@ -640,7 +665,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM campaign_unsubscribes WHERE email = ${EMAIL}`,
+        sql`/* tenant-safe: aserción deliberadamente cross-tenant — este test verifica que la unique es POR TENANT, no global (con-01, mina M3) */ SELECT COUNT(*) AS n FROM campaign_unsubscribes WHERE email = ${EMAIL}`,
       );
       expect(
         enLosDos,
@@ -667,7 +692,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const sinSocio = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM campaign_unsubscribes
+        sql`/* tenant-safe: aserción deliberadamente cross-tenant — este test verifica que la unique es POR TENANT, no global (con-01, mina M3) */ SELECT COUNT(*) AS n FROM campaign_unsubscribes
             WHERE email = ${SOLO_EMAIL} AND user_id IS NULL`,
       );
       expect(sinSocio, "La baja solo-email se guarda con user_id NULL").toBe(1);
@@ -709,7 +734,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM notification_templates WHERE template_key = ${CLAVE}`,
+        sql`/* tenant-safe: aserción deliberadamente cross-tenant — este test verifica que la unique es POR TENANT, no global (con-01) */ SELECT COUNT(*) AS n FROM notification_templates WHERE template_key = ${CLAVE}`,
       );
       expect(
         enLosDos,
@@ -783,7 +808,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM holidays WHERE country = 'AR' AND date = ${FECHA}`,
+        sql`SELECT /* tenant-safe: la asercion cross-tenant necesita contar los dos gimnasios */ COUNT(*) AS n FROM holidays WHERE country = 'AR' AND date = ${FECHA}`,
       );
       expect(enLosDos, "El mismo feriado, una vez por tenant").toBe(2);
 
@@ -865,7 +890,7 @@ describe("CON-01 — los contratos de unicidad por comportamiento (cross-tenant 
 
       const enLosDos = await contar(
         app,
-        sql`SELECT COUNT(*) AS n FROM subscription_plans WHERE name = ${NOMBRE} AND country = 'AR'`,
+        sql`SELECT /* tenant-safe: la asercion cross-tenant necesita contar los dos gimnasios */ COUNT(*) AS n FROM subscription_plans WHERE name = ${NOMBRE} AND country = 'AR'`,
       );
       expect(enLosDos, "El mismo plan, una vez por tenant").toBe(2);
 

@@ -9,7 +9,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   registerUser,
@@ -18,6 +18,10 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { SegmentationService } from "../../src/modules/segmentation/service";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+// El gimnasio de los fixtures (El Templo = tenant 1).
+const CTX = { tenantId: 1 };
 
 describe("Segmentation", () => {
   let app: FastifyInstance;
@@ -57,7 +61,7 @@ describe("Segmentation", () => {
     await app.db
       .update(schema.users)
       .set({ createdAt })
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, userId)));
 
     return userId;
   }
@@ -513,7 +517,12 @@ describe("Segmentation", () => {
       const logins = await app.db
         .select()
         .from(schema.memberLogins)
-        .where(eq(schema.memberLogins.userId, userId));
+        .where(
+          and(
+            tenantWhere(schema.memberLogins, CTX),
+            eq(schema.memberLogins.userId, userId),
+          ),
+        );
 
       expect(logins.length).toBeGreaterThanOrEqual(1);
     });
@@ -557,13 +566,23 @@ describe("Segmentation", () => {
       const [adminUser] = await app.db
         .select({ id: schema.users.id })
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+        .where(
+          and(
+            tenantWhere(schema.users, CTX),
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
         .limit(1);
 
       const logins = await app.db
         .select()
         .from(schema.memberLogins)
-        .where(eq(schema.memberLogins.userId, adminUser.id));
+        .where(
+          and(
+            tenantWhere(schema.memberLogins, CTX),
+            eq(schema.memberLogins.userId, adminUser.id),
+          ),
+        );
 
       expect(logins.length).toBe(0);
     });
@@ -592,12 +611,22 @@ describe("Segmentation", () => {
       await app.db
         .update(schema.memberProfiles)
         .set({ segment: "optima" })
-        .where(eq(schema.memberProfiles.userId, userA));
+        .where(
+          and(
+            tenantWhere(schema.memberProfiles, CTX),
+            eq(schema.memberProfiles.userId, userA),
+          ),
+        );
 
       await app.db
         .update(schema.memberProfiles)
         .set({ segment: "ausente" })
-        .where(eq(schema.memberProfiles.userId, userB));
+        .where(
+          and(
+            tenantWhere(schema.memberProfiles, CTX),
+            eq(schema.memberProfiles.userId, userB),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",
@@ -623,7 +652,12 @@ describe("Segmentation", () => {
       await app.db
         .update(schema.memberProfiles)
         .set({ segment: "alerta" })
-        .where(eq(schema.memberProfiles.userId, userId));
+        .where(
+          and(
+            tenantWhere(schema.memberProfiles, CTX),
+            eq(schema.memberProfiles.userId, userId),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",
@@ -653,7 +687,12 @@ describe("Segmentation", () => {
       await app.db
         .update(schema.memberProfiles)
         .set({ segment: "alerta", segmentUpdatedAt: now })
-        .where(eq(schema.memberProfiles.userId, userId));
+        .where(
+          and(
+            tenantWhere(schema.memberProfiles, CTX),
+            eq(schema.memberProfiles.userId, userId),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",

@@ -20,9 +20,10 @@
  * test/subscriptions/especial-pass.test.ts.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import {
   createTestApp,
   getAuthToken,
@@ -99,6 +100,7 @@ async function createActivityWithSchedule(
   });
   const activityId = Number(actRes[0].insertId);
   const schedRes = await app.db.insert(schema.schedules).values({
+    tenantId: TENANT_TEMPLO,
     branchId: 1,
     activityId,
     dayOfWeek: 6,
@@ -162,7 +164,12 @@ async function remaining(subId: number): Promise<number | null> {
   const [row] = await app.db
     .select({ cr: schema.subscriptions.classesRemaining })
     .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.id, subId));
+    .where(
+      and(
+        eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+        eq(schema.subscriptions.id, subId),
+      ),
+    );
   return row?.cr ?? null;
 }
 
@@ -229,6 +236,7 @@ describe("Consumo por actividad — especial vs presencial (fase 161-03, GATE-02
 
     // Reserva pasada sin asistir sobre la actividad especial → candidata a no-show.
     await app.db.insert(schema.bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: m.memberId,
       scheduleId: especialScheduleId,
       bookingDate: dateOffsetStr(-2),

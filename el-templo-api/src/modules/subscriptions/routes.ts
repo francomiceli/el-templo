@@ -9,7 +9,6 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { SubscriptionService } from "./service";
-import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
 import {
@@ -19,6 +18,7 @@ import {
 } from "../finance";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
+import { assertTenant } from "../shared/tenant";
 import { InsufficientBalanceError } from "../aura";
 import type {
   AssignPlanInput,
@@ -62,8 +62,38 @@ import {
 import { SUBSCRIPTION_ROLES, PLANES_WRITE_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 
+/**
+ * Fase 176 Plan 10 (MOD-02): forma HTTP del body de assign/change-plan.
+ * `schemas.ts` sigue validando `auraSpend`/`boardingPass` en el JSON schema
+ * (no se toca) — el tipo CORE `AssignPlanInput` ya no los declara (borrados
+ * en este plan, T-176-28). Este tipo es la frontera HTTP: existe únicamente
+ * para que `pricingModuleInput` pueda leerlos del body crudo antes de
+ * empaquetarlos en `moduleInput`.
+ */
+type AssignPlanRequestBody = AssignPlanInput & {
+  auraSpend?: number;
+  boardingPass?: boolean;
+};
+
+/**
+ * Fase 176 Plan 08 (MOD-02): arma el sobre opaco `moduleInput` que
+ * `assignPlan`/`changePlan` reenvían tal cual a `resolvePlanPrice` para el
+ * filter `pricing.adjust`. Solo las claves del body YA VALIDADO por el
+ * schema JSON (`schemas.ts`, sin tocar) que vengan definidas — el contrato
+ * HTTP queda byte-idéntico, esto es puro armado del envelope server-side.
+ */
+function pricingModuleInput(
+  body: AssignPlanRequestBody,
+): Record<string, unknown> {
+  const moduleInput: Record<string, unknown> = {};
+  if (body.auraSpend !== undefined) moduleInput.auraSpend = body.auraSpend;
+  if (body.boardingPass !== undefined) {
+    moduleInput.boardingPass = body.boardingPass;
+  }
+  return moduleInput;
+}
+
 export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
-  const auraService = new AuraService(fastify.db);
   const balanceService = new BalanceService(fastify.db, fastify.log);
   const cashRegisterService = new CashRegisterService(fastify.db, fastify.log);
   const transactionService = new TransactionService(
@@ -76,7 +106,6 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     transactionService,
     enrollmentService,
   );
@@ -126,12 +155,15 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       country?: "AR" | "ES";
     };
   }>("/plans", { schema: listPlansSchema }, async (request) => {
-    const plans = await subscriptionService.listPlans({
-      isActive: request.query.isActive,
-      includeArchived: request.query.includeArchived,
-      country: request.scope.country ?? undefined,
-      branchId: request.query.branchId,
-    });
+    const plans = await subscriptionService.listPlans(
+      assertTenant(request.scope, "subscriptions.listPlans"),
+      {
+        isActive: request.query.isActive,
+        includeArchived: request.query.includeArchived,
+        country: request.scope.country ?? undefined,
+        branchId: request.query.branchId,
+      },
+    );
     return { plans };
   });
 
@@ -140,7 +172,11 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     "/plans/:planId",
     { schema: getPlanSchema },
     async (request, reply) => {
-      const plan = await subscriptionService.getPlanById(request.params.planId);
+      const ctx = assertTenant(request.scope, "subscriptions.getPlanById");
+      const plan = await subscriptionService.getPlanById(
+        ctx,
+        request.params.planId,
+      );
       if (!plan) {
         return reply
           .code(404)
@@ -166,7 +202,10 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
       try {
-        const plan = await subscriptionService.createPlan(request.body);
+        const plan = await subscriptionService.createPlan(
+          assertTenant(request.scope, "subscriptions.createPlan"),
+          request.body,
+        );
         return reply.code(201).send(plan);
       } catch (err: unknown) {
         // Sin este catch, un ConflictError (nombre duplicado) caería al handler
@@ -191,6 +230,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const plan = await subscriptionService.updatePlan(
+          assertTenant(request.scope, "subscriptions.updatePlan"),
           request.params.planId,
           request.body,
         );
@@ -220,6 +260,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
       const plan = await subscriptionService.deactivatePlan(
+        assertTenant(request.scope, "subscriptions.deactivatePlan"),
         request.params.planId,
       );
       if (!plan) {
@@ -246,6 +287,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const result = await subscriptionService.bulkMigratePlan(
+          assertTenant(request.scope, "subscriptions.bulkMigrate"),
           request.body,
           request.user.userId,
         );
@@ -266,6 +308,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: getMemberSubscriptionSchema },
     async (request, reply) => {
       const sub = await subscriptionService.getMemberSubscription(
+        assertTenant(request.scope, "subscriptions.get"),
         request.params.userId,
       );
       if (!sub) {
@@ -279,11 +322,19 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // GET /members/:userId/subscriptions — Get ALL active/paused subscriptions (plural)
+  //
+  // Fase 174-06 (D-07, saldada): assertTenant + ctx real threadeado a
+  // getMemberSubscriptions.
   fastify.get<{ Params: { userId: number } }>(
     "/members/:userId/subscriptions",
     { schema: getMemberSubscriptionHistorySchema },
     async (request) => {
+      const ctx = assertTenant(
+        request.scope,
+        "subscriptions.memberSubscriptions",
+      );
       const subscriptions = await subscriptionService.getMemberSubscriptions(
+        ctx,
         request.params.userId,
       );
       return { subscriptions };
@@ -291,12 +342,17 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // GET /members/:userId/subscription/history — Get subscription history
+  //
+  // Fase 174-06 (D-07, saldada): assertTenant + ctx real threadeado a
+  // getMemberSubscriptionHistory.
   fastify.get<{ Params: { userId: number } }>(
     "/members/:userId/subscription/history",
     { schema: getMemberSubscriptionHistorySchema },
     async (request) => {
+      const ctx = assertTenant(request.scope, "subscriptions.memberHistory");
       const subscriptions =
         await subscriptionService.getMemberSubscriptionHistory(
+          ctx,
           request.params.userId,
         );
       return { subscriptions };
@@ -304,14 +360,15 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /members/:userId/subscription/assign — Assign plan to member
-  fastify.post<{ Params: { userId: number }; Body: AssignPlanInput }>(
+  fastify.post<{ Params: { userId: number }; Body: AssignPlanRequestBody }>(
     "/members/:userId/subscription/assign",
     { schema: assignPlanSchema },
     async (request, reply) => {
       try {
         const subscription = await subscriptionService.assignPlan(
+          assertTenant(request.scope, "subscriptions.assign"),
           request.params.userId,
-          request.body,
+          { ...request.body, moduleInput: pricingModuleInput(request.body) },
           request.user.userId,
         );
         return reply.code(201).send(subscription);
@@ -336,6 +393,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const preview = await subscriptionService.getChangePlanPreview(
+          assertTenant(request.scope, "subscriptions.changePlanPreview"),
           request.params.userId,
           request.query.targetPlanId,
         );
@@ -347,14 +405,15 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /members/:userId/subscription/change-plan — Change to a different plan
-  fastify.post<{ Params: { userId: number }; Body: AssignPlanInput }>(
+  fastify.post<{ Params: { userId: number }; Body: AssignPlanRequestBody }>(
     "/members/:userId/subscription/change-plan",
     { schema: changePlanSchema },
     async (request, reply) => {
       try {
         const subscription = await subscriptionService.changePlan(
+          assertTenant(request.scope, "subscriptions.changePlan"),
           request.params.userId,
-          request.body,
+          { ...request.body, moduleInput: pricingModuleInput(request.body) },
           request.user.userId,
         );
         return reply.code(201).send(subscription);
@@ -383,6 +442,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.changeFixedSchedules(
+          assertTenant(request.scope, "subscriptions.changeFixedSchedules"),
           request.params.subscriptionId,
           request.user.userId,
           request.body,
@@ -404,6 +464,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.editSubscriptionStartDate(
+          assertTenant(request.scope, "subscriptions.editStartDate"),
           request.params.subscriptionId,
           request.body.startDate,
           request.user.userId,
@@ -431,6 +492,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.compensateDays(
+          assertTenant(request.scope, "subscriptions.compensateDays"),
           request.params.subscriptionId,
           request.body,
           request.user.userId,
@@ -449,6 +511,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const changes = await subscriptionService.listScheduleChanges(
+          assertTenant(request.scope, "subscriptions.listScheduleChanges"),
           request.params.subscriptionId,
         );
         return { changes };
@@ -468,6 +531,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.pauseSubscription(
+          assertTenant(request.scope, "subscriptions.pause"),
           request.params.userId,
           request.body?.pauseEndDate,
         );
@@ -485,6 +549,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.resumeSubscription(
+          assertTenant(request.scope, "subscriptions.resume"),
           request.params.userId,
         );
         return sub;
@@ -504,6 +569,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.cancelSubscription(
+          assertTenant(request.scope, "subscriptions.cancel"),
           request.params.userId,
           request.user.userId,
           request.body.notes,
@@ -561,6 +627,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const sub = await subscriptionService.renewSubscription(
+          assertTenant(request.scope, "subscriptions.renew"),
           request.params.userId,
           request.body,
           request.user.userId,
@@ -578,10 +645,16 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: classUsageSchema },
     async (request, reply) => {
       try {
+        const classUsageCtx = assertTenant(
+          request.scope,
+          "subscriptions.classUsage",
+        );
         const usage = await subscriptionService.getClassUsageThisWeek(
+          classUsageCtx,
           request.params.userId,
         );
         const bonusUsage = await bookingService.getBonusUsage(
+          classUsageCtx,
           request.params.userId,
         );
         return { ...usage, bonusUsage };
@@ -601,10 +674,13 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const preview = await subscriptionService.getPricingPreview(
+          assertTenant(request.scope, "subscriptions.pricingPreview"),
           request.params.userId,
           request.query.planId,
           request.query.priceType,
-          request.query.auraSpend,
+          request.query.auraSpend !== undefined
+            ? { auraSpend: request.query.auraSpend }
+            : {},
         );
         return preview;
       } catch (err: unknown) {
@@ -625,6 +701,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const preview = await subscriptionService.getAssignProrationPreview(
+          assertTenant(request.scope, "subscriptions.getAssignProrationPreview"),
           request.query.planId,
           request.query.startDate,
           request.query.priceType,
@@ -642,9 +719,12 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /promo-plans — List all promo plans (scoped to request.scope.country)
   fastify.get("/promo-plans", { schema: listPromosSchema }, async (request) => {
-    return subscriptionService.listPromoPlans({
-      country: request.scope.country ?? undefined,
-    });
+    return subscriptionService.listPromoPlans(
+      assertTenant(request.scope, "subscriptions.listPromoPlans"),
+      {
+        country: request.scope.country ?? undefined,
+      },
+    );
   });
 
   // POST /promo-plans — Create a promo plan
@@ -661,7 +741,10 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
       try {
-        const promo = await subscriptionService.createPromo(request.body);
+        const promo = await subscriptionService.createPromo(
+          assertTenant(request.scope, "subscriptions.createPromo"),
+          request.body,
+        );
         return reply.code(201).send(promo);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "create promo");
@@ -684,6 +767,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const promo = await subscriptionService.updatePromo(
+          assertTenant(request.scope, "subscriptions.updatePromo"),
           request.params.promoId,
           request.body,
         );
@@ -708,7 +792,10 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
       try {
-        await subscriptionService.deactivatePromo(request.params.promoId);
+        await subscriptionService.deactivatePromo(
+          assertTenant(request.scope, "subscriptions.deactivatePromo"),
+          request.params.promoId,
+        );
         return { message: "Promo desactivada" };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "deactivate promo");

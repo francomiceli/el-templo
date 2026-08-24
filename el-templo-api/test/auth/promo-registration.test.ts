@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { promoPlans } from "../../src/db/schema/promo-plans";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
@@ -25,6 +25,7 @@ describe("Promo Registration Flow", () => {
     const [planResult] = await app.db
       .insert(subscriptionPlans)
       .values({
+        tenantId: 1,
         name: "Test Promo Plan",
         planTier: "other",
         bookingMode: "flexible",
@@ -49,6 +50,7 @@ describe("Promo Registration Flow", () => {
   ) {
     const now = new Date();
     const defaults = {
+      tenantId: 1,
       name: "Test Promo",
       promoCode: overrides.promoCode ?? "TESTPROMO",
       planDurationDays: 30,
@@ -95,15 +97,24 @@ describe("Promo Registration Flow", () => {
     const [sub] = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, body.user.id));
+      .where(
+        and(
+          eq(subscriptions.tenantId, 1),
+          eq(subscriptions.userId, body.user.id),
+        ),
+      );
     expect(sub).toBeDefined();
     expect(sub.status).toBe("active");
 
     // Verify redemption count incremented
+    // promo_code es UNIQUE POR TENANT (no global) — filtro real por tenant_id,
+    // no exención (este archivo es single-tenant, tenant 1 / El Templo).
     const [promo] = await app.db
       .select()
       .from(promoPlans)
-      .where(eq(promoPlans.promoCode, "VALIDCODE"));
+      .where(
+        and(eq(promoPlans.tenantId, 1), eq(promoPlans.promoCode, "VALIDCODE")),
+      );
     expect(promo.redemptionCount).toBe(1);
   });
 
@@ -131,7 +142,12 @@ describe("Promo Registration Flow", () => {
     const subs = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, body.user.id));
+      .where(
+        and(
+          eq(subscriptions.tenantId, 1),
+          eq(subscriptions.userId, body.user.id),
+        ),
+      );
     expect(subs).toHaveLength(0);
   });
 

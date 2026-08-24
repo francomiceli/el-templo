@@ -28,7 +28,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -40,8 +40,21 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/**
+ * Fase 173 (D-02): `getMonthlyFlows`/`getChurnedMembers` reciben
+ * `TenantContext` como PRIMER argumento (en producción sale de
+ * `assertTenant(request.scope, …)`); acá se construye a mano porque el
+ * service se invoca sin request. El Templo es el tenant 1.
+ */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 describe("MemberFlowsService (altas vs bajas + detalle)", () => {
   let app: FastifyInstance;
@@ -67,6 +80,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
   beforeEach(async () => {
     await cleanAllTestData(app);
     const [p] = await app.db.insert(subscriptionPlans).values({
+      tenantId: CTX.tenantId,
       name: "Flows AR Mensual",
       country: "AR",
       currency: "ARS",
@@ -101,6 +115,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     legacy?: boolean;
   }): Promise<void> {
     const [r] = await app.db.insert(subscriptions).values({
+      tenantId: CTX.tenantId,
       userId: opts.userId,
       planId,
       branchId: branchA,
@@ -117,7 +132,12 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       await app.db
         .update(subscriptions)
         .set({ createdAt: sql`'2026-03-01 12:00:00'` })
-        .where(eq(subscriptions.id, (r as { insertId: number }).insertId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, CTX.tenantId),
+            eq(subscriptions.id, (r as { insertId: number }).insertId),
+          ),
+        );
     }
   }
 
@@ -171,7 +191,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       endDate: await dateOffset(-40),
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     expect(res.windowDays).toBe(15);
     const t = totals(res.series);
     expect(t.altas).toBe(1);
@@ -192,7 +212,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       endDate: await dateOffset(-20),
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     // Una sola alta (la primera sub) — la renovación no arranca racha nueva.
     expect(t.altas).toBe(1);
@@ -217,7 +237,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.altas).toBe(2);
     // La baja del primer ciclo cuenta: el reingreso llegó fuera de la ventana.
@@ -232,7 +252,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       endDate: await dateOffset(-5), // dentro de la ventana de 15 días
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.bajas).toBe(0);
     expect(res.series.reduce((a, p) => a + p.bajasEnGracia, 0)).toBe(1);
@@ -249,7 +269,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     });
 
     // Rango que se extiende al futuro, como cuando el admin pide el mes entero.
-    const res = await svc.getMonthlyFlows({
+    const res = await svc.getMonthlyFlows(CTX, {
       dateFrom: await dateOffset(-120),
       dateTo: await dateOffset(40),
     });
@@ -274,7 +294,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.bajas).toBe(0);
     expect(res.series.reduce((a, p) => a + p.bajasEnGracia, 0)).toBe(0);
@@ -290,7 +310,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     await app.db
       .update(users)
       .set({ createdAt: sql`DATE_SUB(NOW(), INTERVAL 100 DAY)` })
-      .where(eq(users.id, imported));
+      .where(and(tenantWhere(users, CTX), eq(users.id, imported)));
     // Sub importada "invertida" como las de prod: startDate placeholder
     // reciente, endDate histórico real.
     await insertSub({
@@ -300,7 +320,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       legacy: true,
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.altas).toBe(1);
     // El alta cae en el mes de registro (-100d), no en el del placeholder (-40d).
@@ -318,7 +338,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     await app.db
       .update(users)
       .set({ createdAt: sql`DATE_SUB(NOW(), INTERVAL 300 DAY)` })
-      .where(eq(users.id, importedActive));
+      .where(and(tenantWhere(users, CTX), eq(users.id, importedActive)));
     // Período vigente al importar (fechas reales) + renovación encadenada
     // post-importación.
     await insertSub({
@@ -334,7 +354,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     // Ni alta por registro (fuera de rango) ni por la renovación encadenada.
     expect(t.altas).toBe(0);
@@ -346,7 +366,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     await app.db
       .update(users)
       .set({ createdAt: sql`DATE_SUB(NOW(), INTERVAL 300 DAY)` })
-      .where(eq(users.id, rejoiner));
+      .where(and(tenantWhere(users, CTX), eq(users.id, rejoiner)));
     // Último período del sistema viejo: venció hace 90 días.
     await insertSub({
       userId: rejoiner,
@@ -362,7 +382,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const res = await svc.getMonthlyFlows(await wideRange());
+    const res = await svc.getMonthlyFlows(CTX, await wideRange());
     const t = totals(res.series);
     expect(t.altas).toBe(1);
     const altaPoint = res.series.find((p) => p.altas > 0);
@@ -381,7 +401,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
     await app.db
       .update(users)
       .set({ createdAt: sql`DATE_SUB(NOW(), INTERVAL 400 DAY)` })
-      .where(eq(users.id, churner));
+      .where(and(tenantWhere(users, CTX), eq(users.id, churner)));
     await insertSub({
       userId: churner,
       startDate: await dateOffset(-100),
@@ -407,7 +427,7 @@ describe("MemberFlowsService (altas vs bajas + detalle)", () => {
       status: "active",
     });
 
-    const members = await svc.getChurnedMembers(await wideRange());
+    const members = await svc.getChurnedMembers(CTX, await wideRange());
     expect(members).toHaveLength(1);
     const row = members[0];
     expect(row.userId).toBe(churner);

@@ -13,6 +13,15 @@ import {
   assignPlan,
   dateOffsetStr,
 } from "./_helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de la lectura de evidencia de `audit_log` en
+ * este archivo. Con `members` en TENANT_STRICT_MODULES una lectura sin
+ * estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", () => {
   let app: FastifyInstance;
@@ -94,6 +103,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.action, "days_compensated"),
           eq(schema.auditLog.targetKind, "subscription"),
           eq(schema.auditLog.targetId, subId),
@@ -131,7 +141,12 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
     const [sub] = await app.db
       .select({ endDate: schema.subscriptions.endDate })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subId));
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, subId),
+        ),
+      );
     expect(sub.endDate).toBe(endDate);
   });
 
@@ -212,6 +227,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
     const actRows = await app.db.select({ id: activities.id }).from(activities);
     const activityId = actRows[actRows.length - 1].id;
     const slotResult = await app.db.insert(schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId: 1,
       activityId,
       dayOfWeek: 1,
@@ -231,7 +247,11 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
         .select({ c: sql<number>`COUNT(*)` })
         .from(bookings)
         .where(
-          and(eq(bookings.memberId, memberId), gt(bookings.bookingDate, date)),
+          and(
+            tenantWhere(bookings, TEMPLO_CTX),
+            eq(bookings.memberId, memberId),
+            gt(bookings.bookingDate, date),
+          ),
         );
       return Number(rows[0].c);
     };
@@ -260,6 +280,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
     const actRows = await app.db.select({ id: activities.id }).from(activities);
     const activityId = actRows[actRows.length - 1].id;
     const slotResult = await app.db.insert(schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId: 1,
       activityId,
       dayOfWeek: 1,
@@ -289,6 +310,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
         .from(bookings)
         .where(
           and(
+            tenantWhere(bookings, TEMPLO_CTX),
             eq(bookings.memberId, memberId),
             sql`${bookings.bookingDate} >= ${fromDate}`,
             sql`${bookings.bookingDate} <= ${toDate}`,
@@ -321,6 +343,7 @@ describe("Subscriptions API — POST /:id/compensate-days (pausa retroactiva)", 
       .from(bookings)
       .where(
         and(
+          tenantWhere(bookings, TEMPLO_CTX),
           eq(bookings.memberId, memberId),
           gt(bookings.bookingDate, toDate),
           sql`${bookings.status} = 'reservado'`,

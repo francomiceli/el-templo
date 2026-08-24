@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { activities } from "../../src/db/schema/activities";
 import { schedules } from "../../src/db/schema/schedules";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import {
   SUBSCRIPTIONS_URL,
   createPlan,
@@ -123,6 +127,7 @@ describe("Subscriptions API — Class tracking + fixed slots", () => {
         const startTime = `${String(8 + i).padStart(2, "0")}:00`;
         const endTime = `${String(9 + i).padStart(2, "0")}:00`;
         const result = await app.db.insert(schedules).values({
+          tenantId: TENANT_TEMPLO,
           branchId,
           activityId: activityRow.id,
           dayOfWeek,
@@ -160,7 +165,12 @@ describe("Subscriptions API — Class tracking + fixed slots", () => {
       const rows = await app.db
         .select()
         .from(subscriptionSchedules)
-        .where(eq(subscriptionSchedules.subscriptionId, body.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptionSchedules, TEMPLO_CTX),
+            eq(subscriptionSchedules.subscriptionId, body.id as number),
+          ),
+        );
       expect(rows).toHaveLength(3);
       expect(rows.map((r) => r.scheduleId).sort()).toEqual([...slotIds].sort());
     });
@@ -203,7 +213,12 @@ describe("Subscriptions API — Class tracking + fixed slots", () => {
       await app.db
         .update(schedules)
         .set({ isActive: false })
-        .where(eq(schedules.id, slotIds[0]));
+        .where(
+          and(
+            tenantWhere(schedules, TEMPLO_CTX),
+            eq(schedules.id, slotIds[0]),
+          ),
+        );
 
       const { statusCode, body } = await assignPlan(
         app,

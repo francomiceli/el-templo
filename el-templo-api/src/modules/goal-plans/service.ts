@@ -45,6 +45,7 @@ import type {
 } from "./types";
 import { GOAL_PLAN_ROUTE_MAP } from "./constants";
 import type { BlockPipelineOptions } from "../sessions/pipeline/index";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
 
 /**
  * Get block roles in execution order for a given week
@@ -105,7 +106,7 @@ export class GoalPlanService {
    * upstream) if the resolved enrollment lacks a goalPlanType.
    * Throws SubscriptionRequiredError if not.
    */
-  async checkSubscription(userId: number): Promise<void> {
+  async checkSubscription(ctx: TenantContext, userId: number): Promise<void> {
     const [sub] = await this.db
       .select({ id: schema.subscriptions.id })
       .from(schema.subscriptions)
@@ -115,6 +116,7 @@ export class GoalPlanService {
       )
       .where(
         and(
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
           or(
             eq(schema.subscriptions.status, "active"),
@@ -150,7 +152,10 @@ export class GoalPlanService {
    * Falls back to the first active enrollment with a goalPlanType for
    * single-program members and stale pointers.
    */
-  private async resolveActiveGoalPlanEnrollment(userId: number): Promise<{
+  private async resolveActiveGoalPlanEnrollment(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<{
     goalPlanType: GoalPlanType;
     durationWeeks: number | null;
     enrolledAt: Date;
@@ -168,12 +173,13 @@ export class GoalPlanService {
           eq(schema.programs.id, schema.programEnrollments.programId),
         );
 
+    // T-173-09-01: `users` es tabla strict.
     const [user] = await this.db
       .select({
         currentProgramEnrollmentId: schema.users.currentProgramEnrollmentId,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
 
     if (user?.currentProgramEnrollmentId != null) {
@@ -219,8 +225,11 @@ export class GoalPlanService {
    * Resolves via users.currentProgramEnrollmentId (bundle pointer) with
    * fallback to the first active enrollment.
    */
-  async getActiveGoalPlan(userId: number): Promise<GoalPlanProgress | null> {
-    const enrollment = await this.resolveActiveGoalPlanEnrollment(userId);
+  async getActiveGoalPlan(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<GoalPlanProgress | null> {
+    const enrollment = await this.resolveActiveGoalPlanEnrollment(ctx, userId);
     if (!enrollment) return null;
     return {
       goalPlanType: enrollment.goalPlanType,
@@ -270,10 +279,13 @@ export class GoalPlanService {
    * Get cycle stats for the member's active goal plan subscription.
    * Returns null if no active goal plan or no goal plan subscription.
    */
-  async getCycleStats(userId: number): Promise<CycleStats | null> {
+  async getCycleStats(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<CycleStats | null> {
     // Step 1: resolve the active enrollment via the bundle pointer with
     // fallback to first active (see resolveActiveGoalPlanEnrollment).
-    const enrollment = await this.resolveActiveGoalPlanEnrollment(userId);
+    const enrollment = await this.resolveActiveGoalPlanEnrollment(ctx, userId);
     if (!enrollment) return null;
 
     // Indefinite programs don't have cycle stats
@@ -696,20 +708,22 @@ export class GoalPlanService {
    * recent available week.
    */
   async getGoalPlanSession(
+    ctx: TenantContext,
     userId: number,
     week: number,
     day: string,
     levelOverride?: ExerciseLevel,
   ): Promise<DaySession | null> {
     // Get user's active goal plan and level
-    const goalPlan = await this.getActiveGoalPlan(userId);
+    const goalPlan = await this.getActiveGoalPlan(ctx, userId);
     if (!goalPlan) return null;
 
+    // T-173-09-01: `users` es tabla strict.
     // Get user's level
     const [user] = await this.db
       .select({ level: schema.users.level })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
     if (!user) return null;
 
     // Honor optional override — member can train at any level via the header

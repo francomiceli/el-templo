@@ -145,6 +145,10 @@ async function main(): Promise<void> {
     console.log(`Country (holidays): ${country}\n`);
 
     // Load holidays ≥ startDate
+    // Fase 174.1-05 (D-02): CLI global sin `--tenant` — recorre TODOS los
+    // gimnasios del país dado, no uno solo (el scope es `--country`, no
+    // tenant). Barrido cross-tenant genuino, molde `autoExpireDueSubscriptions`.
+    /* tenant-safe: script global sin --tenant — expande bookings futuras para TODOS los gimnasios del país dado, el scope vive en --country no en un tenant */
     const hols = await db
       .select({ date: holidays.date })
       .from(holidays)
@@ -153,6 +157,7 @@ async function main(): Promise<void> {
     console.log(`Holidays in range: ${holidayDates.size}`);
 
     // Pull every active/paused sub + its schedule rows
+    /* tenant-safe: script global sin --tenant — expande bookings futuras para TODOS los gimnasios, el scope vive en --country no en un tenant */
     const rows = await db
       .select({
         userId: subscriptions.userId,

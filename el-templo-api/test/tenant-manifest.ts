@@ -35,6 +35,45 @@
 // (las dos ya llamaban `assertTenant`). Ver el docblock de `ENTRADAS_BASELINE`
 // en `test/tenancy/iso-01-manifiesto.test.ts`.
 //
+// 2026-08-04 — **373 rutas** (224 `tenant-scoped`): `e1952606` agregó
+// `POST /api/admin/members/:userId/referrals` (asignar referidor desde la ficha
+// del alumno). Ese commit movió `ENTRADAS_BASELINE` a 373 en
+// `test/tenancy/iso-01-manifiesto.test.ts` y agregó la entrada al registro de
+// abajo, pero NO actualizó ESTE header ni el del `TENANT_MANIFEST`: los dos
+// siguieron declarando 372 / 223. La fase 173 (plan 173-02) los sincroniza.
+//
+// LA UNIDAD GANADA, CONTABILIZADA (regla del doc 07 §6: un número pelado que se
+// mueve está prohibido). +1 entra por `tenant-scoped` y por el TOTAL, y NADA
+// más se mueve:
+//
+//   tenant-scoped  223 → 224   (+1, la ruta nueva)
+//   templo-module  141 → 141   (sin cambio)
+//   global           8 →   8   (sin cambio)
+//   ─────────────────────────
+//   TOTAL          372 → 373   (+1)
+//
+// Es una ruta NUEVA, no una recategorización: por eso se mueven el total y una
+// sola categoría. (El caso del 2026-07-29 fue el opuesto — tres rutas cambiaron
+// de etiqueta, se movieron dos categorías y el total no.)
+//
+// 2026-08-07 — **374 rutas** (225 `tenant-scoped`): el merge de `origin/staging`
+// hacia esta fase trajo los aniversarios de permanencia con
+// `GET /api/admin/anniversaries`, ya clasificada `tenant-scoped` en staging
+// (commit `ced0fecf`, que también movió `ENTRADAS_BASELINE` a 374). Este header
+// se sincroniza en el mismo merge. La unidad ganada, contabilizada:
+//
+//   tenant-scoped  224 → 225   (+1, la ruta nueva)
+//   templo-module  141 → 141   (sin cambio)
+//   global           8 →   8   (sin cambio)
+//   ─────────────────────────
+//   TOTAL          373 → 374   (+1)
+//
+// ⚠️ 374 son las ENTRADAS del registro, y una de las 8 `global` es `OPTIONS *`,
+// el preflight de CORS, que no es una ruta de negocio. De ahí que un conteo de
+// "rutas" que la excluya dé 373 y uno que la incluya dé 374. `ENTRADAS_BASELINE`
+// cuenta ENTRADAS: es 374. Quien vuelva a medir esto: contá entradas del
+// `Record`, no rutas conceptuales, o vas a "corregir" un número que estaba bien.
+//
 // Ese reparto es el APROBADO en el checkpoint del plan 171-06 (Franco,
 // 2026-07-29). El volcado del plan 171-02 había propuesto 221 / 11 / 138; la
 // única diferencia son las 3 rutas de `labs-inquiries`, que pasaron de `global`
@@ -86,11 +125,24 @@
 // ----------------------
 // No es runtime de producción: nada en `src/` lo importa ni puede importarlo.
 // Vive en `test/` a propósito, y por eso el lint de tenancy de la fase 170 —que
-// solo mira `src/`— no lo analiza. Tampoco tiene dependencias: es TypeScript
-// puro sin un solo import, lo que permite typechequearlo suelto con `tsc`
-// (`tsconfig.json` incluye solo `src/**`, así que CI no typechequea `test/` —
-// esa es la única red que tiene, junto con las validaciones de forma que el
-// gate corre en runtime).
+// solo mira `src/`— no lo analiza.
+//
+// Fase 176 Plan 05 (MOD-01): hasta acá, este archivo declaraba su propia lista
+// `MODULOS_TEMPLO` — duplicada, sin exportar, y sin ninguna garantía de que
+// coincidiera con la que el guard `requireModule` usa en runtime. Ahora
+// IMPORTA `MODULE_NAMES` de `src/modules/shared/modules.ts`, la fuente única
+// (176-01): un typo en el nombre de un módulo deja de ser posible, porque hay
+// UN solo lugar del repo donde ese nombre se escribe. Precedente de `test/`
+// importando de `src/` sin problema: `test/helpers.ts` importa
+// `../src/modules/shared/tenant`. El único costo real es que `tsc` suelto
+// sobre este archivo ahora arrastra el grafo de tipos de `modules.ts` (que no
+// tiene dependencias propias, así que el costo es mínimo) — sigue sin
+// necesitar MySQL ni ningún runtime de Fastify, que es la propiedad que de
+// verdad importaba (`tsconfig.json` incluye solo `src/**`, así que CI no
+// typechequea `test/` de todos modos; la validación de forma real corre en
+// runtime, ver `iso-01-manifiesto.test.ts`).
+
+import { MODULE_NAMES } from "../src/modules/shared/modules";
 
 /** Las tres categorías posibles. No hay una cuarta, y agregarla es una decisión de diseño. */
 const CATEGORIAS = ["tenant-scoped", "global", "templo-module"] as const;
@@ -106,13 +158,13 @@ const CATEGORIAS = ["tenant-scoped", "global", "templo-module"] as const;
  */
 export type Categoria = (typeof CATEGORIAS)[number];
 
-/** Módulos Templo del doc `.docs/saas-multitenancy/04-mecanismo-modulos.md`. */
-const MODULOS_TEMPLO = [
-  "templo-training",
-  "templo-gamification",
-  "templo-marketing",
-  "templo-onboarding",
-] as const;
+/**
+ * Alias local de la fuente única (`src/modules/shared/modules.ts`, 176-01).
+ * Do NOT re-declare esta lista: importa de acá, que a su vez importa de `src/`.
+ * El nombre `MODULOS_TEMPLO` se conserva para no tocar el resto del archivo
+ * (`MODULOS_VALIDOS` más abajo lo consume tal cual).
+ */
+const MODULOS_TEMPLO = MODULE_NAMES;
 
 export type ModuloTemplo = (typeof MODULOS_TEMPLO)[number];
 
@@ -136,9 +188,15 @@ export interface EntradaManifiesto {
  * El manifiesto. La clave es `` `${MÉTODO} ${url}` `` con la url tal cual la
  * reporta el hook `onRoute` (ya viene con el prefijo compuesto del plugin).
  *
- * 372 entradas, una por ruta exacta (D-01). Orden: plataforma, auth, los
+ * **374 entradas**, una por ruta exacta (D-01). Orden: plataforma, auth, los
  * prefijos del API alfabéticamente, y al final los cuatro bloques `templo-*`.
- * Reparto: 223 `tenant-scoped` · 8 `global` · 141 `templo-module`.
+ * Reparto: **225 `tenant-scoped` · 8 `global` · 141 `templo-module`**.
+ *
+ * Este número es el mismo `ENTRADAS_BASELINE` de
+ * `test/tenancy/iso-01-manifiesto.test.ts`, que es el gate que lo hace cumplir.
+ * Si acá dice un número y allá otro, el que manda es el gate — y el header
+ * quedó stale, que es exactamente lo que pasó entre el `e1952606` y el plan
+ * 173-02 (ver el bloque "2026-08-04" del header del archivo).
  *
  * La clasificación está APROBADA por el dueño del producto: Franco revisó las
  * dos listas peligrosas (`global` entera y las fronteras de `templo-module`) y
@@ -611,9 +669,6 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/users": { categoria: "tenant-scoped" },
   "PATCH /api/admin/users/:userId/status": { categoria: "tenant-scoped" },
   "POST /api/admin/users": { categoria: "tenant-scoped" },
-  "POST /api/admin/users/:userId/program-addons": {
-    categoria: "tenant-scoped",
-  },
   "PUT /api/admin/users/:userId": { categoria: "tenant-scoped" },
 
   // ── /api/app ──────────────────────────────────────────────────────────────
@@ -1086,6 +1141,27 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "POST /api/admin/programs/:programId/deactivate": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  // Fase 176 Plan 05 (MOD-01): reclasificada de `tenant-scoped` a
+  // `templo-module`/`templo-training`. Vivía bajo la sección alfabética
+  // "/api/admin/users" desde el volcado original de la fase 171 — un desliz de
+  // clasificación manual (D-01: 370 entradas a mano, ninguna regla de prefijo),
+  // NO una recategorización de producto. Se descubrió con el gate de
+  // CONTENCIÓN de esta fase (`iso-01-manifiesto.test.ts`, test 7): el registro
+  // real es `programRoutes` (src/modules/programs/routes.ts), la MISMA fábrica
+  // de plugin que registra los otros 15 endpoints de este bloque —
+  // `moduleScope(app, "templo-training", programRoutes, ...)` los cubre a
+  // TODOS por igual (176-03), así que el guard ya corría acá desde esa fase; lo
+  // que estaba desactualizado era el manifiesto. El endpoint asigna un
+  // "program add-on" (`EnrollmentService.enrollAddon`, Fase 112 D-10) — es
+  // inscripción a un PROGRAMA de entrenamiento, el mismo concepto que
+  // `/api/members/me/current-program` de abajo, cuyo veredicto D-04 (caso 9,
+  // checkpoint 171-06) ya cita el doc 04 §2.1: "programs" es templo-training.
+  // Recategorización, no ruta nueva: ENTRADAS_BASELINE (370) no se mueve —
+  // ver el header del archivo, "recategorizar una ruta no lo pone rojo".
+  "POST /api/admin/users/:userId/program-addons": {
     categoria: "templo-module",
     modulo: "templo-training",
   },

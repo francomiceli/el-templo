@@ -1,0 +1,111 @@
+-- ADO-07 (fase 173, D-05b/D-18) -- el cinturon de base de datos del par de anclas.
+--
+-- QUE ARREGLA
+-- -----------
+-- La mina M10 (doc 05, lineas 339-343): el par de anclas de un socio
+-- (`users.tenant_id`, `users.branch_id`) puede DIVERGIR si algun camino escribe
+-- `branch_id` apuntando a una sede de OTRO gimnasio sin validar que sea del
+-- mismo tenant. El helper de la app (fase 173-11, `branch-consistency.ts`)
+-- protege los caminos que pasan por la aplicacion, pero NINGUN helper de
+-- aplicacion intercepta SQL crudo desde una consola, un script de operador ni
+-- un backfill corrido a mano. Esta migracion cierra esa puerta a nivel motor:
+-- la base rechaza la fila divergente, no importa por donde entre el UPDATE.
+--
+-- POR QUE UNA FK COMPUESTA Y NO DOS FKs SIMPLES
+-- ----------------------------------------------
+-- Una FK simple `users.branch_id -> branches.id` (la que ya existe,
+-- `users_branch_id_branches_id_fk` desde el schema original) solo garantiza que
+-- la sede EXISTE, nunca que sea del MISMO gimnasio que el usuario: un
+-- `branch_id` valido de otro tenant pasa esa FK sin problema. La unica forma de
+-- que el motor rechace la divergencia es que la FK compare AMBAS columnas a la
+-- vez contra un destino que tambien las tenga juntas -- de ahi la unique
+-- `(tenant_id, id)` en `branches` (paso 1) y la FK compuesta
+-- `(tenant_id, branch_id) -> branches(tenant_id, id)` en `users` (paso 2). La
+-- FK simple existente NO se toca ni se borra en esta migracion: queda
+-- conviviendo con la compuesta (es redundante pero inofensiva) y sigue siendo
+-- la arista que `src/db/scripts/verify-tenant-backfill.ts` usa para medir la
+-- divergencia del par de anclas hoy (una FK compuesta no se puede expresar
+-- como un join de dos columnas simples en ese script, y por eso queda afuera
+-- de su chequeo automatizado -- ver ese archivo, paso C, "FK compuesta no
+-- verificada").
+--
+-- ORDEN OBLIGATORIO DENTRO DE ESTE ARCHIVO
+-- -----------------------------------------
+-- El unique de `branches` (paso 1) tiene que existir ANTES que la FK compuesta
+-- de `users` (paso 2): una FK no puede apuntar a un par de columnas que todavia
+-- no tiene su propia unique key del lado referenciado. Van en el MISMO archivo
+-- (Claude's Discretion, D-18) en vez de en dos migraciones separadas porque son
+-- las dos mitades de un solo cambio semantico y no hay ningun escenario donde
+-- convenga aplicar una sin la otra.
+--
+-- VERIFICACION DE 0 DIVERGENCIAS ANTES DEL ALTER (D-18)
+-- -------------------------------------------------------
+-- Si esta migracion se aplicara sobre datos que YA divergen, el ALTER de abajo
+-- FALLA en el deploy (MySQL rechaza agregar una FK que alguna fila viola). Hoy
+-- es imposible que haya divergencia (todo el sistema es gimnasio 1), pero el
+-- dia que exista un segundo gimnasio esta consulta es la que hay que correr
+-- ANTES de este archivo -- y es la misma arista que ya vigila, en cada corrida
+-- de CI/deploy, `pnpm exec tsx src/db/scripts/verify-tenant-backfill.ts`
+-- (seccion "fkMismatches", arista `users.branch_id -> branches.id`). Copiable
+-- para correr a mano contra cualquier base:
+--
+--   SELECT COUNT(*) AS divergencias
+--     FROM users u
+--     JOIN branches b ON b.id = u.branch_id
+--    WHERE u.tenant_id <> b.tenant_id
+--
+-- Medido en la base de desarrollo local el dia de esta migracion: 0 filas.
+--
+-- ALCANCE (D-08)
+-- --------------
+-- Solo `users`. Las demas tablas con `branch_id` (reservas, asistencia,
+-- transacciones, horarios, TV) quedan protegidas por su propio `tenant_id` y
+-- por el aislamiento de su modulo en las fases 174/175 -- extenderles la misma
+-- guarda de FK compuesta es trabajo de esa fase, no de esta.
+--
+-- ON DELETE / ON UPDATE
+-- ----------------------
+-- RESTRICT en ambos, el default seguro. Un CASCADE sobre `tenant_id` borraria
+-- en cascada TODOS los usuarios de un gimnasio si alguna vez se borra su fila
+-- de `tenants` -- un blast radius que ningun flujo de este sistema necesita ni
+-- espera (T-173-12-04). Un SET NULL tampoco aplica: `branch_id` es NOT NULL
+-- para todos los roles (REQ-4, ver `src/db/schema/users.ts`), asi que no hay
+-- una alternativa "sin sede" que dejar en su lugar.
+--
+-- SEMANTICA MATCH SIMPLE Y `branch_id` NOT NULL
+-- ------------------------------------------------
+-- MySQL usa MATCH SIMPLE (no configurable) para las FKs compuestas: la
+-- constraint pasa si CUALQUIERA de las columnas referenciantes es NULL. Con
+-- `branch_id` NOT NULL para todos los roles (REQ-4), esa rama es hoy
+-- inalcanzable en la practica -- nunca existe una fila de `users` con
+-- `branch_id IS NULL` para ejercerla. Se documenta igual porque es el
+-- comportamiento que ESTA FK tendria si esa invariante cambiara alguna vez, y
+-- porque el test de este plan (`test/db/anclas-fk-compuesta.test.ts`) lo deja
+-- afirmado explicitamente para que nadie lo de por sentado.
+--
+-- Hand-written: db:generate sigue roto por el drift de goal_plan_type (mismo
+-- motivo que las migraciones 0197/0199). Formato copiado de
+-- 0197_payment_method_direct_debit.sql. Ni un caracter de punto y coma dentro
+-- de una linea de comentario (run-migrations.ts parte los statements por ese
+-- caracter ANTES de stripear comentarios).
+
+-- Paso 1 -- branches: unique compuesta (tenant_id, id). `id` ya es PK (por lo
+-- tanto ya unico), pero MySQL exige que el PAR completo tenga su propia unique
+-- key para poder ser el destino de una FK compuesta -- no alcanza con que una
+-- sola de las dos columnas ya sea unica por separado. Byte-for-byte con
+-- `uq_branches_tenant_id_id` de src/db/schema/branches.ts.
+ALTER TABLE `branches`
+  ADD UNIQUE KEY `uq_branches_tenant_id_id` (`tenant_id`, `id`);
+
+-- Paso 2 -- users: indice compuesto que respalda la FK del paso 3. Byte-for-byte
+-- con `idx_users_tenant_id_branch_id` de src/db/schema/users.ts.
+ALTER TABLE `users`
+  ADD INDEX `idx_users_tenant_id_branch_id` (`tenant_id`, `branch_id`);
+
+-- Paso 3 -- users: la FK compuesta que cierra la mina M10. RESTRICT en las dos
+-- acciones (ver POR QUE arriba). Byte-for-byte con `fk_users_tenant_branch` de
+-- src/db/schema/users.ts.
+ALTER TABLE `users`
+  ADD CONSTRAINT `fk_users_tenant_branch`
+  FOREIGN KEY (`tenant_id`, `branch_id`) REFERENCES `branches` (`tenant_id`, `id`)
+  ON DELETE RESTRICT ON UPDATE RESTRICT;

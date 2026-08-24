@@ -32,6 +32,7 @@ import type { TxHandle } from "../finance/balance-service";
 import type { TransactionService } from "../finance/transaction-service";
 import type { PaymentMethod } from "../finance/types";
 import { auditLog } from "../shared/audit-log";
+import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   BadRequestError,
   ConflictError,
@@ -317,6 +318,7 @@ export class EnrollmentService {
    * handleServiceError.
    */
   async enrollAddon(
+    ctx: TenantContext,
     userId: number,
     subscriptionId: number,
     input: EnrollAddonInput,
@@ -346,6 +348,7 @@ export class EnrollmentService {
         )
         .where(
           and(
+            tenantWhere(schema.subscriptions, ctx),
             eq(schema.subscriptions.userId, userId),
             eq(schema.subscriptions.id, subscriptionId),
             or(
@@ -402,21 +405,27 @@ export class EnrollmentService {
       }
 
       // Step 4 — insert the enrollment row.
+      //
+      // Fase 174-06 (D-02, one-liner): `tenantValues(ctx, {...})` — sin él,
+      // una inscripción legítima del gimnasio 2 nacía con `tenant_id` DEFAULT
+      // 1 (mass-assignment guard, `tenant.ts:163-166`).
       const insertResult = await txHandle
         .insert(schema.programEnrollments)
-        .values({
-          userId,
-          programId: input.programId,
-          status: "active",
-          currentWeek: 1,
-          sessionsCompletedThisWeek: 0,
-          weekUnlockedAt: new Date(),
-          source: "admin_addon",
-          subscriptionId,
-          pricePaid: input.pricePaid ?? null,
-          assignedBy: input.assignedBy,
-          notes: input.notes ?? null,
-        });
+        .values(
+          tenantValues(ctx, {
+            userId,
+            programId: input.programId,
+            status: "active",
+            currentWeek: 1,
+            sessionsCompletedThisWeek: 0,
+            weekUnlockedAt: new Date(),
+            source: "admin_addon",
+            subscriptionId,
+            pricePaid: input.pricePaid ?? null,
+            assignedBy: input.assignedBy,
+            notes: input.notes ?? null,
+          }),
+        );
       const enrollmentId = Number(
         (insertResult as unknown as Array<{ insertId: number }>)[0].insertId,
       );
@@ -431,6 +440,7 @@ export class EnrollmentService {
         const today = new Date().toISOString().split("T")[0];
         const amount = input.pricePaid as number;
         await this.transactionService.create(
+          ctx,
           {
             memberId: userId,
             kind: "plan_charge",
@@ -457,7 +467,7 @@ export class EnrollmentService {
 
       // Step 6 (D-24) — audit log row. Same tx as the rest, so a downstream
       // failure rolls everything back.
-      await auditLog.write(txHandle, {
+      await auditLog.write(ctx, txHandle, {
         actorId: input.assignedBy,
         action: "plan_assigned",
         targetKind: "member",
@@ -525,6 +535,7 @@ export class EnrollmentService {
    *      cancelled row (stale-pointer cleanup, mirrors phase 111 helpers).
    */
   async tearDownForSubscription(
+    ctx: TenantContext | null,
     subscriptionId: number,
     tx?: TxHandle,
     options?: {
@@ -548,7 +559,17 @@ export class EnrollmentService {
         schema.subscriptionPlans,
         eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
       )
-      .where(eq(schema.subscriptions.id, subscriptionId))
+      .where(
+        ctx
+          ? and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.id, subscriptionId),
+            )
+          : and(
+              isNotNull(schema.subscriptions.tenantId),
+              eq(schema.subscriptions.id, subscriptionId),
+            ),
+      )
       .limit(1);
 
     if (!sub) return;
@@ -568,14 +589,25 @@ export class EnrollmentService {
         eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
       )
       .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          or(
-            eq(schema.subscriptions.status, "active"),
-            eq(schema.subscriptions.status, "paused"),
-          ),
-          ne(schema.subscriptions.id, subscriptionId),
-        ),
+        ctx
+          ? and(
+              tenantWhere(schema.subscriptions, ctx),
+              eq(schema.subscriptions.userId, userId),
+              or(
+                eq(schema.subscriptions.status, "active"),
+                eq(schema.subscriptions.status, "paused"),
+              ),
+              ne(schema.subscriptions.id, subscriptionId),
+            )
+          : and(
+              isNotNull(schema.subscriptions.tenantId),
+              eq(schema.subscriptions.userId, userId),
+              or(
+                eq(schema.subscriptions.status, "active"),
+                eq(schema.subscriptions.status, "paused"),
+              ),
+              ne(schema.subscriptions.id, subscriptionId),
+            ),
       );
 
     const anyProtectorIsBundle = protectorRows.some(
@@ -721,11 +753,22 @@ export class EnrollmentService {
       .where(inArray(schema.programEnrollments.id, cancelIds));
 
     // Step 6 — clear stale current_program_enrollment_id pointer.
+    //
+    // T-173-09-01: `users` es tabla strict, pero este método NO recibe `ctx`
+    // — sus 4 call sites viven en subscriptions/service.ts (dueño: 173-04/
+    // 173-05/173-14, fuera de alcance D-02 de este plan) y ninguno propaga
+    // uno hoy. Threadear `ctx` habría forzado a tocar ese archivo ajeno,
+    // inflando el alcance en contra de D-02. Mismo guard que el 173-08 ya
+    // estableció para este caso (PK-scoped, sin ctx externo disponible):
+    // `isNotNull(users.tenantId)` — satisface el lint (marker `.tenantId`) y
+    // el sentinel (`tenant_id` en la zona de predicado del UPDATE) sin
+    // inventar una quinta fuente de `TenantContext` ni una lectura extra.
     await runner
       .update(schema.users)
       .set({ currentProgramEnrollmentId: null })
       .where(
         and(
+          isNotNull(schema.users.tenantId),
           eq(schema.users.id, userId),
           inArray(schema.users.currentProgramEnrollmentId, cancelIds),
         ),

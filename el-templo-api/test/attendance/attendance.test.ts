@@ -8,7 +8,7 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -20,6 +20,16 @@ import { attendance } from "../../src/db/schema/attendance";
 import { completedSessions } from "../../src/db/schema/completed-sessions";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { appBranchName } from "../../src/modules/shared/app-branch-name";
+
+/**
+ * Fase 172: `finance` entra en `TENANT_STRICT_MODULES`. El seed de cobro de
+ * este archivo estampa el gimnasio explicito en vez de depender del `DEFAULT 1`
+ * de la columna `tenant_id`.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { users } from "../../src/db/schema/users";
@@ -86,7 +96,9 @@ describe("Attendance API", () => {
     const [adminUser] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
     adminUserId = adminUser.id;
 
     // Get the first non-virtual branch (migration seeds Templo Online as virtual before test seed)
@@ -185,25 +197,29 @@ describe("Attendance API", () => {
     amount: number,
     subscriptionId: number,
   ): Promise<void> {
-    const [inserted] = await app.db.insert(financialTransactions).values({
-      memberId: userId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount,
-      currency: "ARS",
-      paymentMethod: "cash",
-      transactionDate: "2026-03-10",
-      effectiveDate: "2026-03-10",
-      branchId: testBranchId,
-      recordedBy: adminUserId,
-    });
+    const [inserted] = await app.db.insert(financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: userId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount,
+        currency: "ARS",
+        paymentMethod: "cash",
+        transactionDate: "2026-03-10",
+        effectiveDate: "2026-03-10",
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: subscriptionId,
-      allocatedAmount: amount,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription",
+        targetId: subscriptionId,
+        allocatedAmount: amount,
+      }),
+    );
   }
 
   /**
@@ -260,24 +276,28 @@ describe("Attendance API", () => {
     const activityId = Number(actResult.insertId);
 
     // Create schedule for Wednesday (day 3) at 10:00 (matches faked time)
-    const [schResult] = await app.db.insert(schedules).values({
-      activityId,
-      branchId,
-      dayOfWeek: 3, // Wednesday
-      startTime: "10:00",
-      endTime: "11:00",
-      isActive: true,
-    });
+    const [schResult] = await app.db.insert(schedules).values(
+      tenantValues(TEMPLO_CTX, {
+        activityId,
+        branchId,
+        dayOfWeek: 3, // Wednesday
+        startTime: "10:00",
+        endTime: "11:00",
+        isActive: true,
+      }),
+    );
     const scheduleId = Number(schResult.insertId);
 
     // Create booking for the faked today (2026-03-11)
-    const [bkResult] = await app.db.insert(bookings).values({
-      memberId,
-      scheduleId,
-      branchId,
-      bookingDate: "2026-03-11",
-      status: "reservado",
-    });
+    const [bkResult] = await app.db.insert(bookings).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId,
+        scheduleId,
+        branchId,
+        bookingDate: "2026-03-11",
+        status: "reservado",
+      }),
+    );
     const bookingId = Number(bkResult.insertId);
 
     return { activityId, scheduleId, bookingId };
@@ -708,7 +728,12 @@ describe("Attendance API", () => {
       await app.db
         .update(subscriptions)
         .set({ classesRemaining: 0 })
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       const qrToken = generateQrToken(testBranchId);
 
@@ -736,7 +761,12 @@ describe("Attendance API", () => {
       const [before] = await app.db
         .select({ classesRemaining: subscriptions.classesRemaining })
         .from(subscriptions)
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       expect(before.classesRemaining).toBeGreaterThan(0);
 
@@ -754,7 +784,12 @@ describe("Attendance API", () => {
       const [after] = await app.db
         .select({ classesRemaining: subscriptions.classesRemaining })
         .from(subscriptions)
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       expect(after.classesRemaining).toBe(
         (before.classesRemaining as number) - 1,
@@ -771,7 +806,12 @@ describe("Attendance API", () => {
       await app.db
         .update(subscriptions)
         .set({ classesRemaining: 0 })
-        .where(eq(subscriptions.id, subscription.id as number));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.id, subscription.id as number),
+          ),
+        );
 
       // Force check-in as admin
       const res = await app.inject({

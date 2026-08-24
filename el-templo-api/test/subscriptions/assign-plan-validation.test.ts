@@ -22,6 +22,8 @@ import {
   dateOffsetStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
 import {
   SUBSCRIPTIONS_URL,
   basePlan,
@@ -29,6 +31,13 @@ import {
   createMember,
   assignPlan,
 } from "./_helpers";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de las queries DIRECTAS de este archivo. Con
+ * `members` en TENANT_STRICT_MODULES una lectura de `users` o `audit_log` sin
+ * estampa hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Subscriptions API — assignPlan REQ-1 validation + REQ-7 audit", () => {
   let app: FastifyInstance;
@@ -44,7 +53,12 @@ describe("Subscriptions API — assignPlan REQ-1 validation + REQ-7 audit", () =
     const [admin] = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.email, "admin@test.com"))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.email, "admin@test.com"),
+        ),
+      )
       .limit(1);
     if (!admin) throw new Error("admin@test.com seed missing");
     adminId = admin.id;
@@ -69,8 +83,12 @@ describe("Subscriptions API — assignPlan REQ-1 validation + REQ-7 audit", () =
   beforeEach(async () => {
     await cleanAllTestData(app);
     // audit_log is not in TABLES_TO_CLEAN — clean explicitly to avoid
-    // stale rows from previous test files in the same worker.
-    await app.db.execute(sql`DELETE FROM audit_log`);
+    // stale rows from previous test files in the same worker. Fase 173:
+    // acotado al gimnasio (categoria 2, conveniencia): este archivo nunca
+    // siembra en el gimnasio 2.
+    await app.db.execute(
+      sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+    );
   });
 
   it("REQ-1: rejects presencial plan on virtual branch with the exact Spanish message", async () => {
@@ -177,6 +195,7 @@ describe("Subscriptions API — assignPlan REQ-1 validation + REQ-7 audit", () =
       .from(schema.auditLog)
       .where(
         and(
+          tenantWhere(schema.auditLog, TEMPLO_CTX),
           eq(schema.auditLog.action, "plan_assigned"),
           eq(schema.auditLog.targetId, subId),
         ),

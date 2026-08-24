@@ -41,6 +41,16 @@ import {
   dateOffsetStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 172: la sede de este archivo se crea sin `tenantId`, asi que cae en El
+ * Templo por el `DEFAULT 1` de la columna — igual que la caja que le siembra
+ * `ensureEfectivoCaja`. El DELETE de limpieza lo hace explicito para sobrevivir
+ * al throw del sentinel sobre `cash_registers`.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 import { runWellhubSync } from "../../src/jobs/wellhub-sync";
 
 const WEBHOOK_URL = "/api/webhooks/wellhub";
@@ -190,6 +200,7 @@ describe("Wellhub — reservas y sincronización", () => {
   }> {
     const wellhubClassId = nextWellhubId++;
     const insertedClass = await app.db.insert(schema.wellhubClasses).values({
+      tenantId: TENANT_TEMPLO,
       branchId,
       activityId,
       wellhubClassId,
@@ -199,6 +210,7 @@ describe("Wellhub — reservas y sincronización", () => {
 
     const wellhubSlotId = nextWellhubId++;
     const insertedSlot = await app.db.insert(schema.wellhubSlots).values({
+      tenantId: TENANT_TEMPLO,
       wellhubClassRowId: classRowId,
       scheduleId,
       sessionDate: tomorrow,
@@ -218,15 +230,17 @@ describe("Wellhub — reservas y sincronización", () => {
   async function insertBareUser(
     status: "wellhub" | null = null,
   ): Promise<number> {
-    const inserted = await app.db.insert(schema.users).values({
-      passwordHash: "x",
-      firstName: "Filler",
-      lastName: `U${Math.random().toString(36).slice(2, 7)}`,
-      role: "member",
-      branchId,
-      status,
-      gympassId: status === "wellhub" ? uniqueToken() : null,
-    });
+    const inserted = await app.db.insert(schema.users).values(
+      tenantValues(TEMPLO_CTX, {
+        passwordHash: "x",
+        firstName: "Filler",
+        lastName: `U${Math.random().toString(36).slice(2, 7)}`,
+        role: "member",
+        branchId,
+        status,
+        gympassId: status === "wellhub" ? uniqueToken() : null,
+      }),
+    );
     return Number(inserted[0].insertId);
   }
 
@@ -259,7 +273,12 @@ describe("Wellhub — reservas y sincronización", () => {
     await cleanAllTestData(app);
     await app.db
       .delete(schema.cashRegisters)
-      .where(eq(schema.cashRegisters.branchId, branchId));
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+          eq(schema.cashRegisters.branchId, branchId),
+        ),
+      );
     await app.db
       .delete(schema.branches)
       .where(eq(schema.branches.id, branchId));
@@ -286,6 +305,7 @@ describe("Wellhub — reservas y sincronización", () => {
     const utcDow = new Date(`${tomorrow}T12:00:00Z`).getUTCDay();
     const isoDow = utcDow === 0 ? 7 : utcDow;
     const insertedSchedule = await app.db.insert(schema.schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId,
       activityId,
       dayOfWeek: isoDow,
@@ -330,13 +350,23 @@ describe("Wellhub — reservas y sincronización", () => {
     const [visitor] = await app.db
       .select({ id: schema.users.id, status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.gympassId, token));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.gympassId, token),
+        ),
+      );
     expect(visitor.status).toBe("wellhub");
 
     const bookings = await app.db
       .select()
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, visitor.id));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, visitor.id),
+        ),
+      );
     expect(bookings).toHaveLength(1);
     expect(bookings[0].status).toBe("reservado");
     expect(bookings[0].source).toBe("wellhub");
@@ -346,7 +376,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select()
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("confirmed");
     expect(wb.bookingId).toBe(bookings[0].id);
   });
@@ -359,6 +391,7 @@ describe("Wellhub — reservas y sincronización", () => {
     for (let i = 0; i < 2; i++) {
       const fillerId = await insertBareUser();
       await app.db.insert(schema.bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: fillerId,
         scheduleId,
         bookingDate: tomorrow,
@@ -395,7 +428,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select()
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("rejected");
     expect(wb.bookingId).toBeNull();
 
@@ -463,6 +498,7 @@ describe("Wellhub — reservas y sincronización", () => {
     // Otro usuario en lista de espera.
     const waiterId = await insertBareUser();
     await app.db.insert(schema.bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: waiterId,
       scheduleId,
       bookingDate: tomorrow,
@@ -486,20 +522,32 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select()
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("canceled");
 
     const [cancelled] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, wb.bookingId as number));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.id, wb.bookingId as number),
+        ),
+      );
     expect(cancelled.status).toBe("cancelado");
 
     // La lista de espera se promovió.
     const [promoted] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.memberId, waiterId));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.memberId, waiterId),
+        ),
+      );
     expect(promoted.status).toBe("reservado");
 
     // Y la ocupación (1: el promovido) se empujó al slot.
@@ -545,7 +593,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select()
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("late_canceled");
   });
 
@@ -560,6 +610,7 @@ describe("Wellhub — reservas y sincronización", () => {
     });
     const utcDow = new Date(`${todayAr}T12:00:00Z`).getUTCDay();
     const insertedSchedule = await app.db.insert(schema.schedules).values({
+      tenantId: TENANT_TEMPLO,
       branchId,
       activityId,
       dayOfWeek: utcDow === 0 ? 7 : utcDow,
@@ -572,18 +623,21 @@ describe("Wellhub — reservas y sincronización", () => {
     const token = uniqueToken();
     const visitorId = await app.db
       .insert(schema.users)
-      .values({
-        passwordHash: "x",
-        firstName: "Visitor",
-        lastName: "ConReserva",
-        role: "member",
-        branchId,
-        status: "wellhub",
-        gympassId: token,
-      })
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          passwordHash: "x",
+          firstName: "Visitor",
+          lastName: "ConReserva",
+          role: "member",
+          branchId,
+          status: "wellhub",
+          gympassId: token,
+        }),
+      )
       .then((r) => Number(r[0].insertId));
 
     const insertedBooking = await app.db.insert(schema.bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: visitorId,
       scheduleId: todayScheduleId,
       bookingDate: todayAr,
@@ -608,7 +662,12 @@ describe("Wellhub — reservas y sincronización", () => {
     const [booking] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, bookingId));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.id, bookingId),
+        ),
+      );
     expect(booking.status).toBe("confirmado");
 
     const [att] = await app.db
@@ -668,7 +727,9 @@ describe("Wellhub — reservas y sincronización", () => {
       const [slotRow] = await app.db
         .select({ totalBooked: schema.wellhubSlots.totalBooked })
         .from(schema.wellhubSlots)
-        .where(eq(schema.wellhubSlots.id, slot.slotRowId));
+        .where(
+          sql`/* tenant-safe: lectura por PK propia (slot.slotRowId), fila creada por este mismo test */ ${schema.wellhubSlots.id} = ${slot.slotRowId}`,
+        );
       expect(slotRow.totalBooked).toBe(1);
     });
   });
@@ -688,6 +749,7 @@ describe("Wellhub — reservas y sincronización", () => {
       .from(schema.wellhubClasses)
       .where(
         and(
+          sql`/* tenant-safe: (branch_id, activity_id) es UNIQUE (idx_wellhub_classes_branch_activity), sin ambigüedad cross-tenant */ 1 = 1`,
           eq(schema.wellhubClasses.branchId, branchId),
           eq(schema.wellhubClasses.activityId, activityId),
         ),
@@ -698,7 +760,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const slots = await app.db
       .select()
       .from(schema.wellhubSlots)
-      .where(eq(schema.wellhubSlots.scheduleId, scheduleId));
+      .where(
+        sql`/* tenant-safe: aserción sobre datos propios de este test, scheduleId de la fixture local */ ${schema.wellhubSlots.scheduleId} = ${scheduleId}`,
+      );
     expect(slots.length).toBeGreaterThanOrEqual(1);
     const tomorrowSlot = slots.find((s) => s.sessionDate === tomorrow);
     expect(tomorrowSlot).toBeDefined();
@@ -721,11 +785,14 @@ describe("Wellhub — reservas y sincronización", () => {
     const [patched] = await app.db
       .select({ totalCapacity: schema.wellhubSlots.totalCapacity })
       .from(schema.wellhubSlots)
-      .where(eq(schema.wellhubSlots.id, tomorrowSlot?.id as number));
+      .where(
+        sql`/* tenant-safe: lectura por PK propia (tomorrowSlot.id), fila ya resuelta arriba en este mismo test */ ${schema.wellhubSlots.id} = ${tomorrowSlot?.id as number}`,
+      );
     expect(patched.totalCapacity).toBe(4);
 
     // 3. Excepción de fecha → despublica.
     await app.db.insert(schema.scheduleExceptions).values({
+      tenantId: TENANT_TEMPLO,
       scheduleId,
       exceptionDate: tomorrow,
       reason: "test",
@@ -737,6 +804,7 @@ describe("Wellhub — reservas y sincronización", () => {
       .from(schema.wellhubSlots)
       .where(
         and(
+          sql`/* tenant-safe: (schedule_id, session_date) es UNIQUE (idx_wellhub_slots_schedule_date) */ 1 = 1`,
           eq(schema.wellhubSlots.scheduleId, scheduleId),
           eq(schema.wellhubSlots.sessionDate, tomorrow),
         ),
@@ -810,7 +878,9 @@ describe("Wellhub — reservas y sincronización", () => {
     const slots = await app.db
       .select()
       .from(schema.wellhubSlots)
-      .where(eq(schema.wellhubSlots.scheduleId, scheduleId));
+      .where(
+        sql`/* tenant-safe: aserción sobre datos propios de este test, scheduleId de la fixture local */ ${schema.wellhubSlots.scheduleId} = ${scheduleId}`,
+      );
     expect(slots).toHaveLength(1);
     expect(slots[0].wellhubSlotId).toBe(ORPHAN_ID);
     expect(slots[0].totalCapacity).toBe(2);
@@ -829,6 +899,7 @@ describe("Wellhub — reservas y sincronización", () => {
     const visitorId = await insertBareUser("wellhub");
 
     const insertedBooking = await app.db.insert(schema.bookings).values({
+      tenantId: TENANT_TEMPLO,
       memberId: visitorId,
       scheduleId,
       bookingDate: tomorrow,
@@ -839,6 +910,7 @@ describe("Wellhub — reservas y sincronización", () => {
 
     const bookingNumber = `BK_DEAD${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
     await app.db.insert(schema.wellhubBookings).values({
+      tenantId: 1,
       bookingNumber,
       bookingId,
       userId: visitorId,
@@ -847,7 +919,7 @@ describe("Wellhub — reservas y sincronización", () => {
     });
     // Envejecer el pending más allá de la ventana de expiración.
     await app.db.execute(
-      sql`UPDATE wellhub_bookings SET created_at = DATE_SUB(NOW(), INTERVAL 30 MINUTE) WHERE booking_number = ${bookingNumber}`,
+      sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ UPDATE wellhub_bookings SET created_at = DATE_SUB(NOW(), INTERVAL 30 MINUTE) WHERE booking_number = ${bookingNumber}`,
     );
 
     const summary = await runWellhubSync(app.db);
@@ -856,13 +928,20 @@ describe("Wellhub — reservas y sincronización", () => {
     const [wb] = await app.db
       .select({ status: schema.wellhubBookings.status })
       .from(schema.wellhubBookings)
-      .where(eq(schema.wellhubBookings.bookingNumber, bookingNumber));
+      .where(
+        sql`/* tenant-safe: booking_number es UNIQUE global (M8) — idempotencia del lado de Wellhub */ ${schema.wellhubBookings.bookingNumber} = ${bookingNumber}`,
+      );
     expect(wb.status).toBe("expired");
 
     const [booking] = await app.db
       .select({ status: schema.bookings.status })
       .from(schema.bookings)
-      .where(eq(schema.bookings.id, bookingId));
+      .where(
+        and(
+          eq(schema.bookings.tenantId, TENANT_TEMPLO),
+          eq(schema.bookings.id, bookingId),
+        ),
+      );
     expect(booking.status).toBe("cancelado");
   });
 });

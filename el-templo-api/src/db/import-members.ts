@@ -4,8 +4,13 @@
  * Processes 5 branch CSV files, resolves cross-branch duplicates,
  * creates legacy plans as archived records, and upserts all member data.
  *
+ * `--tenant=<id>` es OBLIGATORIO (fase 169 D-06, retrofit fase 173 D-03): este
+ * script escribe `users` y `member_notes` en batch sin request y sin JWT, así
+ * que el gimnasio sólo puede venir del flag — se valida ANTES de mirar
+ * `--data-dir`, y con un id inexistente también corta antes de tocar la base.
+ *
  * Usage:
- *   pnpm tsx src/db/import-members.ts --data-dir /path/to/csvs [--execute]
+ *   pnpm tsx src/db/import-members.ts --tenant=<id> --data-dir /path/to/csvs [--execute]
  *
  * Pure functions are exported for unit testing.
  */
@@ -19,6 +24,12 @@ import { branches } from "./schema/branches.js";
 import { subscriptionPlans } from "./schema/subscription-plans.js";
 import { subscriptions } from "./schema/subscriptions.js";
 import { memberNotes } from "./schema/member-notes.js";
+import {
+  failTenantArg,
+  queryFnFromConnection,
+  requireTenant,
+} from "./scripts/require-tenant.js";
+import { tenantValues, tenantWhere } from "../modules/shared/tenant.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -411,14 +422,6 @@ interface ImportReport {
 async function main(): Promise<void> {
   // ── Parse CLI args ──────────────────────────────────────────────
   const args = process.argv.slice(2);
-  const dataDirIdx = args.indexOf("--data-dir");
-  if (dataDirIdx === -1 || !args[dataDirIdx + 1]) {
-    console.error(
-      "Usage: pnpm tsx src/db/import-members.ts --data-dir /path/to/csvs [--execute]",
-    );
-    process.exit(1);
-  }
-  const dataDir = args[dataDirIdx + 1];
   const executeMode = args.includes("--execute");
 
   // ── Safety gate ─────────────────────────────────────────────────
@@ -445,8 +448,23 @@ async function main(): Promise<void> {
   const { db, connection } = await createSingleConnection();
 
   try {
+    // Gimnasio: ANTES de cualquier otra validación de uso (fase 169 D-06,
+    // retrofit 173 D-03). Corta con exit 2 antes de mirar `--data-dir` y sin
+    // haber tocado la base.
+    const ctx = await requireTenant(queryFnFromConnection(connection), args);
+
+    const dataDirIdx = args.indexOf("--data-dir");
+    if (dataDirIdx === -1 || !args[dataDirIdx + 1]) {
+      console.error(
+        "Usage: pnpm tsx src/db/import-members.ts --tenant=<id> --data-dir /path/to/csvs [--execute]",
+      );
+      process.exit(1);
+    }
+    const dataDir = args[dataDirIdx + 1];
+
     console.log(`\nCSV Member Import`);
     console.log(`Mode: ${executeMode ? "EXECUTE" : "DRY-RUN"}`);
+    console.log(`Tenant: ${ctx.tenantId}`);
     console.log(`Data dir: ${dataDir}\n`);
 
     // ── Step 1: Load branch mapping from DB ─────────────────────
@@ -539,7 +557,8 @@ async function main(): Promise<void> {
           name: subscriptionPlans.name,
           isArchived: subscriptionPlans.isArchived,
         })
-        .from(subscriptionPlans);
+        .from(subscriptionPlans)
+        .where(tenantWhere(subscriptionPlans, ctx));
 
     const planMappings = new Map<
       string,
@@ -596,7 +615,8 @@ async function main(): Promise<void> {
         dni: users.dni,
         role: users.role,
       })
-      .from(users);
+      .from(users)
+      .where(tenantWhere(users, ctx));
 
     const existingByDni = new Map<string, { id: number; email: string }>();
     const existingByEmail = new Map<
@@ -731,17 +751,19 @@ async function main(): Promise<void> {
 
         const [result] = await db
           .insert(subscriptionPlans)
-          .values({
-            name: legacyName,
-            planCategory: "presencial",
-            planTier: "other",
-            bookingMode: "flexible",
-            priceRegular: 0,
-            priceZero: 0,
-            durationDays: 30,
-            isActive: false,
-            isArchived: true,
-          })
+          .values(
+            tenantValues(ctx, {
+              name: legacyName,
+              planCategory: "presencial",
+              planTier: "other",
+              bookingMode: "flexible",
+              priceRegular: 0,
+              priceZero: 0,
+              durationDays: 30,
+              isActive: false,
+              isArchived: true,
+            }),
+          )
           .$returningId();
 
         legacyPlanIdMap.set(legacyName, result.id);
@@ -752,13 +774,14 @@ async function main(): Promise<void> {
       // Rebuild full plan lookup (including newly created legacy plans)
       const allPlans: Array<{ id: number; name: string }> = await db
         .select({ id: subscriptionPlans.id, name: subscriptionPlans.name })
-        .from(subscriptionPlans);
+        .from(subscriptionPlans)
+        .where(tenantWhere(subscriptionPlans, ctx));
 
       // 2. Find owner for note authorId
       const [ownerUser] = await db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.role, "owner"))
+        .where(and(tenantWhere(users, ctx), eq(users.role, "owner")))
         .limit(1);
       const noteAuthorId = ownerUser?.id ?? 1;
 
@@ -819,7 +842,9 @@ async function main(): Promise<void> {
           try {
             const [result] = await db
               .insert(users)
-              .values(insertValues as typeof users.$inferInsert)
+              .values(
+                tenantValues(ctx, insertValues) as typeof users.$inferInsert,
+              )
               .$returningId();
 
             userId = result.id;
@@ -845,7 +870,7 @@ async function main(): Promise<void> {
               const [existing] = await db
                 .select({ id: users.id })
                 .from(users)
-                .where(eq(users.email, m.email));
+                .where(and(tenantWhere(users, ctx), eq(users.email, m.email)));
               if (existing) {
                 userId = existing.id;
                 // Update with new data (this person's real info)
@@ -867,7 +892,7 @@ async function main(): Promise<void> {
                     gender: m.gender || undefined,
                     branchId,
                   })
-                  .where(eq(users.id, userId));
+                  .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
                 usersUpdated++;
                 console.log(
                   `  Email conflict: ${m.email} (DNI ${m.dni}) — updated existing user ${userId}`,
@@ -899,7 +924,7 @@ async function main(): Promise<void> {
             await db
               .update(users)
               .set(updateFields)
-              .where(eq(users.id, userId));
+              .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
             usersUpdated++;
           } else {
             usersUnchanged++;
@@ -918,6 +943,7 @@ async function main(): Promise<void> {
             .from(memberNotes)
             .where(
               and(
+                tenantWhere(memberNotes, ctx),
                 eq(memberNotes.userId, userId),
                 eq(memberNotes.content, m.observaciones),
               ),
@@ -925,11 +951,13 @@ async function main(): Promise<void> {
             .limit(1);
 
           if (existingNote.length === 0) {
-            await db.insert(memberNotes).values({
-              userId,
-              authorId: noteAuthorId,
-              content: m.observaciones,
-            });
+            await db.insert(memberNotes).values(
+              tenantValues(ctx, {
+                userId,
+                authorId: noteAuthorId,
+                content: m.observaciones,
+              }),
+            );
             notesCreated++;
           }
         }
@@ -942,6 +970,7 @@ async function main(): Promise<void> {
             .from(memberNotes)
             .where(
               and(
+                tenantWhere(memberNotes, ctx),
                 eq(memberNotes.userId, userId),
                 eq(memberNotes.content, creadorContent),
               ),
@@ -949,11 +978,13 @@ async function main(): Promise<void> {
             .limit(1);
 
           if (existingCreadorNote.length === 0) {
-            await db.insert(memberNotes).values({
-              userId,
-              authorId: noteAuthorId,
-              content: creadorContent,
-            });
+            await db.insert(memberNotes).values(
+              tenantValues(ctx, {
+                userId,
+                authorId: noteAuthorId,
+                content: creadorContent,
+              }),
+            );
             notesCreated++;
           }
         }
@@ -993,6 +1024,7 @@ async function main(): Promise<void> {
               .set({ status: "cancelled" })
               .where(
                 and(
+                  tenantWhere(subscriptions, ctx),
                   eq(subscriptions.userId, userId),
                   ne(subscriptions.planId, planId),
                   ne(subscriptions.status, "cancelled"),
@@ -1009,6 +1041,7 @@ async function main(): Promise<void> {
               .from(subscriptions)
               .where(
                 and(
+                  tenantWhere(subscriptions, ctx),
                   eq(subscriptions.userId, userId),
                   eq(subscriptions.planId, planId),
                 ),
@@ -1018,17 +1051,19 @@ async function main(): Promise<void> {
             if (existingSub.length === 0) {
               const startDate =
                 m.fechaIngreso ?? new Date().toISOString().split("T")[0];
-              await db.insert(subscriptions).values({
-                userId,
-                planId,
-                branchId,
-                status,
-                startDate,
-                endDate: m.vencimiento,
-                pricePaid: 0,
-                priceTypeApplied: "regular",
-                notes: "Importado desde CSV",
-              });
+              await db.insert(subscriptions).values(
+                tenantValues(ctx, {
+                  userId,
+                  planId,
+                  branchId,
+                  status,
+                  startDate,
+                  endDate: m.vencimiento,
+                  pricePaid: 0,
+                  priceTypeApplied: "regular",
+                  notes: "Importado desde CSV",
+                }),
+              );
               subscriptionsCreated++;
             } else {
               const updateFields: Record<string, unknown> = {
@@ -1043,7 +1078,12 @@ async function main(): Promise<void> {
               await db
                 .update(subscriptions)
                 .set(updateFields)
-                .where(eq(subscriptions.id, existingSub[0].id));
+                .where(
+                  and(
+                    tenantWhere(subscriptions, ctx),
+                    eq(subscriptions.id, existingSub[0].id),
+                  ),
+                );
               subscriptionsUpdated++;
             }
           }
@@ -1054,6 +1094,7 @@ async function main(): Promise<void> {
             .set({ status: "cancelled" })
             .where(
               and(
+                tenantWhere(subscriptions, ctx),
                 eq(subscriptions.userId, userId),
                 ne(subscriptions.status, "cancelled"),
               ),
@@ -1083,10 +1124,11 @@ async function main(): Promise<void> {
             WHEN u.status IN ('activo','inactivo') THEN 'inactivo'
             ELSE u.status
           END
-          WHERE u.id IN (${sql.join(
-            Array.from(touchedUserIds).map((id) => sql`${id}`),
-            sql`,`,
-          )})
+          WHERE u.tenant_id = ${ctx.tenantId}
+            AND u.id IN (${sql.join(
+              Array.from(touchedUserIds).map((id) => sql`${id}`),
+              sql`,`,
+            )})
         `);
         usersStatusRecomputed =
           (recomputeResult as unknown as [{ affectedRows: number }])[0]
@@ -1135,11 +1177,7 @@ async function main(): Promise<void> {
 if (typeof require !== "undefined" && require.main === module) {
   main()
     .then(() => process.exit(0))
-    .catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error("Import failed:", message);
-      process.exit(1);
-    });
+    .catch((err: unknown) => failTenantArg(err, "import-members"));
 }
 
 export { main };

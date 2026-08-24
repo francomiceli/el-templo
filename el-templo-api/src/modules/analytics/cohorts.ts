@@ -119,6 +119,52 @@ export function rangeConditions(
 }
 
 /**
+ * Igual que {@link rangeConditions} pero con el borde superior INCLUSIVO
+ * (`<= to`): el rango cerrado `[from, to]` del filtro financiero legacy.
+ *
+ * Existe por dos motivos, y el segundo es el que la trajo acá (fase 172, D-01):
+ *
+ *   1. DRY. El par de fragmentos `>= dateFrom` / `<= dateTo` sobre
+ *      `financial_transactions.transaction_date` estaba escrito CINCO veces
+ *      (`getRevenueTrend`, `getRevenueByMethod`, `getRevenueByBranch`,
+ *      `sumRevenue` y `cashTrend`), y las cinco tienen que decir exactamente lo
+ *      mismo o los ingresos de una pantalla dejan de cuadrar con los de otra.
+ *
+ *   2. El lint de tenancy razona por STATEMENT (`lint-tenant.ts`,
+ *      `isCompliantText`). Un `sql` crudo que interpola una columna de una tabla
+ *      gym-owned cuenta como acceso al statement donde está escrito, así que un
+ *      arreglo de condiciones armado en su propio `const` exigía nombrar el
+ *      gimnasio DOS veces —una en el arreglo y otra en el `and(...)` de la
+ *      query— para quedar limpio. Con el rango acá adentro, la columna llega
+ *      como PARÁMETRO: el único statement que nombra la tabla es la query, y
+ *      ahí `tenantWhere(...)` va una sola vez y en primer término.
+ *
+ * NO reemplaza a `rangeConditions`: los dos bordes conviven a propósito porque
+ * las métricas de cohorte usan la ventana semiabierta y las de caja la cerrada.
+ * Elegir mal cambia la plata de un día entero, así que el nombre lo dice.
+ *
+ * @param dateColumn the date/datetime column to bound.
+ * @param from inclusive lower bound (`YYYY-MM-DD`), or `undefined` for no lower bound.
+ * @param to INCLUSIVE upper bound (`YYYY-MM-DD`), or `undefined` for no upper bound.
+ * @returns the WHERE fragments to spread into the query's `and(...)`.
+ */
+export function inclusiveRangeConditions(
+  dateColumn: AnyColumn,
+  from: string | undefined,
+  to: string | undefined,
+): SQL[] {
+  const conditions: SQL[] = [];
+  if (from !== undefined) {
+    conditions.push(sql`${dateColumn} >= ${from}`);
+  }
+  if (to !== undefined) {
+    // INCLUSIVE upper bound — `to` SÍ entra (rango cerrado [from, to]).
+    conditions.push(sql`${dateColumn} <= ${to}`);
+  }
+  return conditions;
+}
+
+/**
  * The SQL grouping expression that buckets `dateColumn` weekly or monthly.
  *
  *   - "monthly" → `DATE_FORMAT(col, '%Y-%m')` (e.g. `2026-06`).

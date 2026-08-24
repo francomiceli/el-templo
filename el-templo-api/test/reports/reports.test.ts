@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   getAuthToken,
@@ -14,6 +14,16 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 const REPORTS_URL = "/api/admin/reports";
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
@@ -32,7 +42,9 @@ describe("Reports API", () => {
     const [adminUser] = await app.db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, "admin@test.com"));
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+      );
     adminUserId = adminUser.id;
 
     const [branch] = await app.db
@@ -122,32 +134,36 @@ describe("Reports API", () => {
     date: string;
     voided?: boolean;
   }): Promise<void> {
-    const [inserted] = await app.db.insert(financialTransactions).values({
-      memberId: opts.memberId,
-      kind: "plan_charge",
-      direction: "inflow",
-      amount: opts.amount,
-      currency: "ARS",
-      paymentMethod: opts.paymentMethod,
-      transactionDate: opts.date,
-      effectiveDate: opts.date,
-      branchId: testBranchId,
-      recordedBy: adminUserId,
-      ...(opts.voided
-        ? {
-            voidedAt: new Date(),
-            voidedBy: adminUserId,
-            voidReason: "Error de carga",
-          }
-        : {}),
-    });
+    const [inserted] = await app.db.insert(financialTransactions).values(
+      tenantValues(TEMPLO_CTX, {
+        memberId: opts.memberId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount: opts.amount,
+        currency: "ARS",
+        paymentMethod: opts.paymentMethod,
+        transactionDate: opts.date,
+        effectiveDate: opts.date,
+        branchId: testBranchId,
+        recordedBy: adminUserId,
+        ...(opts.voided
+          ? {
+              voidedAt: new Date(),
+              voidedBy: adminUserId,
+              voidReason: "Error de carga",
+            }
+          : {}),
+      }),
+    );
     const txnId = (inserted as { insertId: number }).insertId;
-    await app.db.insert(transactionLinks).values({
-      transactionId: txnId,
-      targetKind: "subscription",
-      targetId: opts.subId,
-      allocatedAmount: opts.amount,
-    });
+    await app.db.insert(transactionLinks).values(
+      tenantValues(TEMPLO_CTX, {
+        transactionId: txnId,
+        targetKind: "subscription",
+        targetId: opts.subId,
+        allocatedAmount: opts.amount,
+      }),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -489,7 +505,12 @@ describe("Reports API", () => {
       await app.db
         .update(subscriptions)
         .set({ status: "expired" })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            tenantWhere(subscriptions, TEMPLO_CTX),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",
@@ -527,16 +548,18 @@ describe("Reports API", () => {
       startDate: string;
       endDate: string;
     }): Promise<void> {
-      await app.db.insert(subscriptions).values({
-        userId: opts.userId,
-        planId: opts.planId,
-        branchId: testBranchId,
-        status: opts.status,
-        startDate: opts.startDate,
-        endDate: opts.endDate,
-        pricePaid: 10000,
-        priceTypeApplied: "regular",
-      });
+      await app.db.insert(subscriptions).values(
+        tenantValues(TEMPLO_CTX, {
+          userId: opts.userId,
+          planId: opts.planId,
+          branchId: testBranchId,
+          status: opts.status,
+          startDate: opts.startDate,
+          endDate: opts.endDate,
+          pricePaid: 10000,
+          priceTypeApplied: "regular",
+        }),
+      );
     }
 
     it("hides members who already renewed (future same-category coverage) by default", async () => {
@@ -648,6 +671,7 @@ describe("Reports API", () => {
       // extra validation to online categories that the presencial defaults
       // don't satisfy; we only need a plan of a different category here.
       const [insertedOnline] = await app.db.insert(subscriptionPlans).values({
+        tenantId: TENANT_TEMPLO,
         name: "Plan Online XCat",
         planTier: "other",
         bookingMode: "flexible",

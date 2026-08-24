@@ -29,7 +29,12 @@ import {
 } from "../helpers";
 import { createPlan, createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
+import type { TenantContext } from "../../src/modules/shared/tenant";
 import * as schema from "../../src/db/schema";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+// T-173-08: `qualifyFirstPayment` recibe `ctx` primero.
+const CTX: TenantContext = { tenantId: 1 };
 
 const MEMBER_PASSWORD = "pass123456";
 
@@ -71,7 +76,8 @@ function nextSuffix(prefix: string): string {
 /** La fila cruda del vínculo — se afirma sobre el SQL, no sobre el DTO. */
 async function referralRow(referredId: number): Promise<ReferralRow | null> {
   const rows = await app.db.execute(
-    sql`SELECT referrer_id, referred_id, status, attribution_channel,
+    sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */
+        SELECT referrer_id, referred_id, status, attribution_channel,
                copy_variant, created_by, qualified_at, tenant_id
         FROM referrals WHERE referred_id = ${referredId}`,
   );
@@ -81,7 +87,7 @@ async function referralRow(referredId: number): Promise<ReferralRow | null> {
 
 async function referredByOf(userId: number): Promise<number | null> {
   const rows = await app.db.execute(
-    sql`SELECT referred_by FROM users WHERE id = ${userId}`,
+    sql`SELECT referred_by FROM users WHERE id = ${userId} AND tenant_id = ${CTX.tenantId}`,
   );
   const list = rows[0] as unknown as Array<{ referred_by: number | null }>;
   return list[0]?.referred_by ?? null;
@@ -94,9 +100,9 @@ async function givePaidSubscription(
   pricePaid: number,
 ): Promise<void> {
   await app.db.execute(
-    sql`INSERT INTO subscriptions (user_id, plan_id, branch_id, subscription_status,
+    sql`INSERT INTO subscriptions (tenant_id, user_id, plan_id, branch_id, subscription_status,
                                    start_date, end_date, price_paid, currency, price_type_applied)
-        VALUES (${userId}, ${planId}, 1, 'active', ${todayStr()},
+        VALUES (${TENANT_TEMPLO}, ${userId}, ${planId}, 1, 'active', ${todayStr()},
                 ${dateOffsetStr(30)}, ${pricePaid}, 'ARS', 'regular')`,
   );
 }
@@ -228,18 +234,18 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
     const service = new ReferralService(app.db, app.log);
 
     // Pending: todavía no aporta descuento a ninguno de los dos lados.
-    expect(await service.computeReferralDiscountPercent(referrer.id)).toBe(0);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(0);
 
     // El hook del cobro encuentra el vínculo y lo flippea, sin saber que se
     // creó retroactivamente.
-    const flipped = await service.qualifyFirstPayment(target.id);
+    const flipped = await service.qualifyFirstPayment(CTX, target.id);
     expect(flipped?.referrerId).toBe(referrer.id);
 
     // Con ambas partes cubiertas, el descuento simétrico corre para los dos.
     await givePaidSubscription(target.id, plan.id as number, 15000);
     await givePaidSubscription(referrer.id, plan.id as number, 15000);
-    expect(await service.computeReferralDiscountPercent(referrer.id)).toBe(10);
-    expect(await service.computeReferralDiscountPercent(target.id)).toBe(10);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(10);
+    expect(await service.computeReferralDiscountPercent(CTX, target.id)).toBe(10);
   });
 
   it("el gimnasio sale del scope del request, no del body (mass-assignment)", async () => {
@@ -296,7 +302,7 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
       const target = await createMember(app, { email: "ar-delr-t@test.com" });
       const referrer = await createMember(app, { email: "ar-delr-r@test.com" });
       await app.db.execute(
-        sql`UPDATE users SET deleted_at = NOW() WHERE id = ${referrer.id}`,
+        sql`UPDATE users SET deleted_at = NOW() WHERE id = ${referrer.id} AND tenant_id = ${CTX.tenantId}`,
       );
       expect((await assign(target.id, referrer.id)).statusCode).toBe(404);
       expect(await referralRow(target.id)).toBeNull();
@@ -324,7 +330,7 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
       const target = await createMember(app, { email: "ar-gdel-t@test.com" });
       const referrer = await createMember(app, { email: "ar-gdel-r@test.com" });
       await app.db.execute(
-        sql`UPDATE users SET deleted_at = NOW() WHERE id = ${target.id}`,
+        sql`UPDATE users SET deleted_at = NOW() WHERE id = ${target.id} AND tenant_id = ${CTX.tenantId}`,
       );
       expect((await assign(target.id, referrer.id)).statusCode).toBe(404);
     });

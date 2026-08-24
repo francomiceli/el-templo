@@ -67,6 +67,13 @@ export const branches = mysqlTable(
     // branches es un catálogo de decenas de filas. Índice byte-for-byte con la
     // migración 0196.
     uniqueIndex("uq_branches_tenant_code").on(table.tenantId, table.code),
+    // Fase 173 (ADO-07, D-05b/D-18): la FK compuesta de `users` necesita una
+    // unique compuesta del lado referenciado. `id` ya es PK (y por lo tanto
+    // único), pero MySQL exige que el par completo `(tenant_id, id)` tenga su
+    // propia unique key para poder ser el destino de una FK compuesta — no
+    // alcanza con que una de las dos columnas ya sea única por separado.
+    // Byte-for-byte con la migración 0200.
+    uniqueIndex("uq_branches_tenant_id_id").on(table.tenantId, table.id),
   ],
 );
 

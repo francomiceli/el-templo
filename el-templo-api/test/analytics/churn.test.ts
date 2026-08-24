@@ -12,8 +12,13 @@ import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { branches } from "../../src/db/schema/branches";
 import { users } from "../../src/db/schema/users";
+import { type TenantContext } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const ANALYTICS_URL = "/api/admin/analytics";
+
+/** Fase 174.1-03 (D-02): `getChurn` ahora recibe `ctx`. */
+const CTX: TenantContext = { tenantId: TENANT_TEMPLO };
 
 /**
  * Phase 121 Plan 02 — ChurnService (Block 1, CHURN-01..06).
@@ -177,7 +182,7 @@ describe("ChurnService (Phase 121 Plan 02)", () => {
       endDate: await dateOffset(-40),
     });
 
-    const res = await svc.getChurn(await wideRange());
+    const res = await svc.getChurn(CTX, await wideRange());
     expect(res.window.windowDays).toBe(15);
     expect(res.window.churn.nominal).toBe(1);
     expect(res.window.churn.n).toBe(1);
@@ -199,7 +204,7 @@ describe("ChurnService (Phase 121 Plan 02)", () => {
       endDate: await dateOffset(-40),
     });
 
-    const res = await svc.getChurn(await wideRange());
+    const res = await svc.getChurn(CTX, await wideRange());
     // One distinct person; their LAST expiry has no later continuation → churned.
     expect(res.window.churn.n).toBe(1);
     expect(res.window.churn.nominal).toBe(1);
@@ -218,7 +223,7 @@ describe("ChurnService (Phase 121 Plan 02)", () => {
     });
 
     const range = await wideRange();
-    const res = await svc.getChurn({ ...range, window: 10 });
+    const res = await svc.getChurn(CTX, { ...range, window: 10 });
     expect(res.window.windowDays).toBe(10);
     expect(res.comparison.map((c) => c.windowDays)).toEqual([5, 10, 15]);
   });
@@ -243,7 +248,7 @@ describe("ChurnService (Phase 121 Plan 02)", () => {
       endDate: await dateOffset(-5),
     });
 
-    const res = await svc.getChurn(await wideRange());
+    const res = await svc.getChurn(CTX, await wideRange());
     // Denominator excludes the in-grace person.
     expect(res.window.churn.n).toBe(1);
     expect(res.window.churn.nominal).toBe(1);
@@ -272,7 +277,7 @@ describe("ChurnService (Phase 121 Plan 02)", () => {
       endDate: await dateOffset(82),
     });
 
-    const res = await svc.getChurn(await wideRange());
+    const res = await svc.getChurn(CTX, await wideRange());
     expect(res.window.churn.n).toBe(1); // matured cohort
     expect(res.window.churn.nominal).toBe(0); // retained → not churned
   });
@@ -295,7 +300,7 @@ describe("ChurnService (Phase 121 Plan 02)", () => {
       endDate: await dateOffset(40), // future end → not a past expiry in range
     });
 
-    const res = await svc.getChurn(await wideRange());
+    const res = await svc.getChurn(CTX, await wideRange());
     // The -40 expiry is the only matured cohort row; the early-renewal continuation
     // satisfies retainedExpr → the person is retained, NOT churned.
     expect(res.window.churn.n).toBe(1);
@@ -311,7 +316,7 @@ describe("ChurnService (Phase 121 Plan 02)", () => {
       endDate: await dateOffset(-40),
     });
 
-    const res = await svc.getChurn(await wideRange());
+    const res = await svc.getChurn(CTX, await wideRange());
     // The only sub is paused → cohort is empty → no churn, no denominator.
     expect(res.window.churn.n).toBe(0);
     expect(res.window.churn.nominal).toBe(0);
@@ -338,7 +343,7 @@ describe("ChurnService (Phase 121 Plan 02)", () => {
       endDate: await dateOffset(-3),
     });
 
-    const res = await svc.getChurn(await wideRange());
+    const res = await svc.getChurn(CTX, await wideRange());
     const olderBucket = (await dateOffset(-70)).slice(0, 7); // YYYY-MM
     const recentBucket = (await dateOffset(-3)).slice(0, 7);
 
@@ -363,7 +368,7 @@ describe("ChurnService (Phase 121 Plan 02)", () => {
       endDate: await dateOffset(-40),
     });
 
-    const res = await svc.getChurn(await wideRange());
+    const res = await svc.getChurn(CTX, await wideRange());
     const axes = new Set(res.breakdowns.map((b) => b.axis));
     expect(axes.has("branch")).toBe(true);
     expect(axes.has("country")).toBe(true);

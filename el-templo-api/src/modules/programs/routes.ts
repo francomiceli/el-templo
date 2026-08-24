@@ -22,6 +22,8 @@ import {
 } from "../finance";
 import type { PaymentMethod } from "../finance/types";
 import { handleServiceError } from "../shared/error-handler";
+import { assertTenant, tenantWhere } from "../shared/tenant";
+import { attachCountryScope } from "../shared/country-scope";
 import { auditLog } from "../shared/audit-log";
 import {
   PROGRAMAS_ROLES,
@@ -279,7 +281,15 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
+        // T-173-09-01: `users` es tabla strict. `programs` no monta
+        // `attachCountryScope` en un hook (cada ruta lo resuelve per-ruta,
+        // mismo patrón que enrollAddon/:451 y cancel-enrollment/:535). El
+        // `userId` llega por params: sin filtro un staff de OTRO gimnasio
+        // podía leer inscripciones de un socio ajeno.
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.enrollmentsByUser");
         const enrollments = await service.getEnrollmentsByUser(
+          ctx,
           request.params.userId,
         );
         return { enrollments };
@@ -439,6 +449,47 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
+        // 172-15: el modulo `programs` NO monta `attachCountryScope` en un hook
+        // (cada ruta se registra con `onRequest: [fastify.authenticate]` a
+        // secas), asi que `request.scope` llega `undefined` y el
+        // `assertTenant` de abajo tiraba un TypeError en vez de su 403 —
+        // `handleServiceError` lo mapeaba a 500 y la ruta quedaba caida para
+        // todo request con suscripcion activa. Se resuelve el scope aca, que
+        // es el mismo patron per-ruta de `campaigns/routes.ts:181`.
+        await attachCountryScope(request, fastify.db);
+
+        // Fase 173 (D-02, T-173-28-08, cirugia minima sobre `users` — tabla
+        // strict de esta fase): esta ruta vive en el modulo `programs`
+        // (fuera del alcance de 173-176/175) pero su `:userId` es un socio,
+        // asi que el ancla `users.tenant_id` SI aplica. Antes de este fix, ni
+        // el lookup de `activeSub` de aca abajo NI `enrollAddon` (que solo
+        // valida userId+subscriptionId, ambos SIN tenantWhere) chequeaban de
+        // que gimnasio era el socio — un staff de OTRO gimnasio podia
+        // inscribir a un socio ajeno en un addon `pricePaid=0` (el path que
+        // NO pasa por `transactionService.create`, que si es strict desde la
+        // fase 172 y hubiera bloqueado el caso con pricePaid>0). Verificado
+        // en vivo antes de este fix: 200 + fila real en `program_enrollments`
+        // con el socio de El Templo, actuando como staff del gimnasio 2.
+        const ctxAddon = assertTenant(
+          request.scope,
+          "programs.enroll-addon.guard",
+        );
+        const [socioPropio] = await fastify.db
+          .select({ id: schema.users.id })
+          .from(schema.users)
+          .where(
+            and(
+              tenantWhere(schema.users, ctxAddon),
+              eq(schema.users.id, request.params.userId),
+            ),
+          )
+          .limit(1);
+        if (!socioPropio) {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Miembro no encontrado" });
+        }
+
         // Resolve the user's active|paused sub id BEFORE delegating to
         // EnrollmentService — duplicates the D-11 check on purpose so the
         // structured 4xx body is emitted consistently regardless of whether
@@ -448,6 +499,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
           .from(schema.subscriptions)
           .where(
             and(
+              tenantWhere(schema.subscriptions, ctxAddon),
               eq(schema.subscriptions.userId, request.params.userId),
               or(
                 eq(schema.subscriptions.status, "active"),
@@ -465,6 +517,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const result = await enrollmentService.enrollAddon(
+          ctxAddon,
           request.params.userId,
           activeSub.id,
           {
@@ -517,6 +570,12 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
+        // 173-04: mismo patrón que enrollAddon (:451) — el módulo `programs`
+        // no monta `attachCountryScope` en un hook, así que se resuelve acá
+        // antes de que `auditLog.write` (ya migrado, D-01) lo necesite.
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.enrollment.cancel");
+
         // Resolve enrollment metadata BEFORE cancel (cancelEnrollment opens
         // its own write, so we read first to know whether the audit branch
         // applies). Fetched outside the audit tx for read simplicity; the
@@ -537,7 +596,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
         await fastify.db.transaction(async (tx) => {
           await service.cancelEnrollment(request.params.enrollmentId);
           if (enrollmentRow && enrollmentRow.source === "admin_addon") {
-            await auditLog.write(tx, {
+            await auditLog.write(ctx, tx, {
               actorId: request.user.userId,
               action: "plan_assigned",
               targetKind: "member",
@@ -612,7 +671,16 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       try {
-        const progress = await service.getMemberProgress(request.user.userId);
+        // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+        // fila del socio autenticado — D-09: esta ruta member-facing NO
+        // recibe su caso de aislamiento en esta fase (dueño: fase de
+        // programs, ver SUMMARY).
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.myProgress");
+        const progress = await service.getMemberProgress(
+          ctx,
+          request.user.userId,
+        );
 
         if (!progress) {
           return reply.code(204).send();
@@ -664,7 +732,16 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       try {
-        const result = await service.getCurrentProgram(request.user.userId);
+        // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+        // fila del socio autenticado — D-09: esta ruta member-facing NO
+        // recibe su caso de aislamiento en esta fase (dueño: fase de
+        // programs, ver SUMMARY).
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.currentProgram.get");
+        const result = await service.getCurrentProgram(
+          ctx,
+          request.user.userId,
+        );
         return reply.code(200).send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "getCurrentProgram");
@@ -721,7 +798,14 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // T-173-09-01: `users` es tabla strict. El ctx sale de la propia
+        // fila del socio autenticado — D-09: esta ruta member-facing NO
+        // recibe su caso de aislamiento en esta fase (dueño: fase de
+        // programs, ver SUMMARY).
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "programs.currentProgram.set");
         const result = await service.setCurrentProgram(
+          ctx,
           request.user.userId,
           request.body.enrollmentId,
         );

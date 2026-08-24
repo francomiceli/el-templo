@@ -3,6 +3,10 @@ import type { FastifyInstance } from "fastify";
 import { and, eq } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+import {
   createTestApp,
   getAuthToken,
   registerUser,
@@ -12,6 +16,8 @@ import {
 } from "../helpers";
 
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 describe("Goal Plan Routes", () => {
   let app: FastifyInstance;
@@ -885,7 +891,9 @@ describe("Goal Plan Routes", () => {
       await app.db
         .update(schema.users)
         .set({ level: "sigma" })
-        .where(eq(schema.users.id, mId));
+        .where(
+          and(tenantWhere(schema.users, CTX_TEMPLO), eq(schema.users.id, mId)),
+        );
 
       // Assign the goal-plan subscription (auto-creates program enrollment)
       const assignRes = await app.inject({

@@ -26,6 +26,7 @@ import {
 
 import { ATTENDANCE_ROLES, CHECKIN_ROSTER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
 
 // =============================================================================
@@ -38,7 +39,6 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     undefined,
     enrollmentService,
   );
@@ -75,8 +75,10 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     "/member/:userId",
     { schema: memberAttendanceHistorySchema },
     async (request) => {
+      const ctx = assertTenant(request.scope, "attendance.memberHistory");
       const { page = 1, limit = 20 } = request.query;
       const result = await attendanceService.getMemberAttendance(
+        ctx,
         request.params.userId,
         page,
         limit,
@@ -96,7 +98,9 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.forceCheckIn");
         const record = await attendanceService.forceCheckIn(
+          ctx,
           request.body,
           request.user.userId,
         );
@@ -115,12 +119,14 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: slotAttendanceSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.slotAttendance");
         // El registro del día es dato de salud: sólo coach + admin/dueño lo ven.
         // El resto de ATTENDANCE_ROLES (gestión/recepción) recibe checkIn: null.
         const includeCheckIns = (
           CHECKIN_ROSTER_ROLES as readonly string[]
         ).includes(request.user.role);
         const result = await attendanceService.getSlotAttendance(
+          ctx,
           request.params.scheduleId,
           request.params.date,
           { includeCheckIns },
@@ -141,7 +147,9 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: slotCheckInSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.coachCheckIn");
         const result = await attendanceService.coachCheckIn(
+          ctx,
           request.params.scheduleId,
           request.params.date,
           request.body.memberId,
@@ -162,8 +170,10 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: removeCheckInSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.removeCheckIn");
         const result = await attendanceService.removeCheckIn(
           request.params.attendanceId,
+          ctx,
         );
         return result;
       } catch (err: unknown) {
@@ -183,7 +193,6 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     undefined,
     enrollmentService,
   );
@@ -196,9 +205,14 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * Guard: require authentication (any role) on all routes in this plugin.
+   *
+   * Fase 173 (D-02, plan 173-07): `attachCountryScope` resuelve `request.scope`
+   * (incluido `tenantId`) para el check-in y el historial propios del socio —
+   * sin esto `assertTenant(request.scope, …)` explotaría contra `undefined`.
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
+    await attachCountryScope(request, fastify.db);
   });
 
   // POST /check-in — Member QR check-in
@@ -207,7 +221,9 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: memberCheckInSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "attendance.memberCheckIn");
         const record = await attendanceService.checkIn(
+          ctx,
           request.user.userId,
           request.body.qrToken,
         );
@@ -215,7 +231,10 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
         // member; el service es compartido con force/coach check-in del admin).
         return reply
           .code(201)
-          .send({ ...record, branchName: appBranchName(record.branchName) });
+          .send({
+            ...record,
+            branchName: appBranchName(record.branchName, ctx.tenantId),
+          });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member check-in");
       }
@@ -227,8 +246,10 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
     "/history",
     { schema: memberHistorySchema },
     async (request) => {
+      const ctx = assertTenant(request.scope, "attendance.memberOwnHistory");
       const { page = 1, limit = 20 } = request.query;
       const result = await attendanceService.getMemberAttendance(
+        ctx,
         request.user.userId,
         page,
         limit,
@@ -239,7 +260,7 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
         ...result,
         records: result.records.map((r) => ({
           ...r,
-          branchName: appBranchName(r.branchName),
+          branchName: appBranchName(r.branchName, ctx.tenantId),
         })),
         page,
         limit,

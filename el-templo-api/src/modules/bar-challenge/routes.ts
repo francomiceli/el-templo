@@ -11,6 +11,8 @@
  */
 import type { FastifyPluginAsync } from "fastify";
 import { BarChallengeService } from "./service";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
 
 interface SubmitResultBody {
   secondsHeld: number;
@@ -49,8 +51,15 @@ export const barChallengeRoutes: FastifyPluginAsync = async (fastify) => {
       const { userId } = request.user;
       const { secondsHeld } = request.body;
 
+      // T-173-09-01: `users` es tabla strict. El ctx sale de la propia fila
+      // del socio autenticado (attachCountryScope + assertTenant) — D-09:
+      // esta ruta member-facing NO recibe su caso de aislamiento en esta
+      // fase (dueño: fase de bar-challenge, ver SUMMARY).
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "bar-challenge.submit");
+
       const service = new BarChallengeService(fastify.db, request.log);
-      const result = await service.submitResult(userId, secondsHeld);
+      const result = await service.submitResult(ctx, userId, secondsHeld);
 
       return reply.code(200).send({
         completed: result.completed,

@@ -19,6 +19,8 @@
  * provisiona la DB por worker) porque así está configurado vitest para todos
  * los archivos — no requiere `createTestApp()`.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { is, getTableName } from "drizzle-orm";
 import { MySqlTable } from "drizzle-orm/mysql-core";
@@ -324,16 +326,21 @@ describe("tenant-tables — registros de uniques globales (fase 168)", () => {
 
 /**
  * Fase 170 Plan 01 (CON-05, CON-06): gate de forma del TERCER registro de este
- * archivo, `TENANT_STRICT_MODULES` (D-05/D-06).
+ * archivo, `TENANT_STRICT_MODULES` (D-05/D-06). Reescrito por la fase 172 Plan
+ * 21, que escribió la PRIMERA entrada del milestone (`finance`).
  *
  * QUÉ PRUEBA
  * ----------
- * 1. Que la lista arranca vacía en la 170 (conteo exacto como decisión de diseño).
+ * 1. Que el registro tiene EXACTAMENTE los módulos declarados migrados y, cada
+ *    uno, EXACTAMENTE sus tablas (conteo cerrado como decisión de diseño).
  * 2. Que toda tabla listada existe de verdad en `GYM_OWNED_TABLES`.
  * 3. Que ninguna tabla la reclaman dos módulos.
  * 4. Que las claves son nombres de módulo, no frases.
  * 5. Que `isStrictTable` y `strictTablesSet` dicen exactamente lo que dice el
  *    registro.
+ * 6. Que ninguna tabla strict tiene entradas vivas en
+ *    `tenant-lint-allowlist.json` (D-15, el mismo gate que corre el lint, acá
+ *    escrito como test para que no dependa de que alguien corra el CLI).
  *
  * POR QUÉ NO ALCANZA CON EL LINT NI CON EL SENTINEL
  * -------------------------------------------------
@@ -353,19 +360,107 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     TENANT_STRICT_MODULES,
   ).flatMap(([modulo, tablas]) => tablas.map((tabla) => ({ modulo, tabla })));
 
-  it("arranca vacía en la fase 170 (ningún módulo migrado todavía)", () => {
+  /**
+   * Los módulos declarados migrados, escritos a mano acá. Esta constante es la
+   * SEGUNDA copia a propósito: el gate compara el registro real contra ella, así
+   * que tocar `src/db/tenant-tables.ts` sin tocar este archivo es rojo. Es lo
+   * que convierte "sumar un módulo" en una decisión visible en el diff.
+   *
+   * Las 6 de `finance` son las del ROADMAP del milestone (D-05).
+   * Las 8 de `members` son el ancla `users`/`user_branches` + sus 6 tablas
+   * propias (D-01 de la fase 173): `audit_log`, `member_logins`,
+   * `member_notes`, `member_profiles`, `user_branches`, `user_sepa_details`,
+   * `user_status_history`, `users`.
+   * Las 4 de `subscriptions` y las 4 de `scheduling` son las 8 tablas del
+   * boundary de la fase 174.1 (174.1-10), migradas juntas en el mismo switch:
+   * `subscription_plans`, `subscription_schedule_changes`,
+   * `subscription_schedules`, `subscriptions`, `bookings`, `holidays`,
+   * `schedule_exceptions`, `schedules`.
+   * Las 18 de `auth`/`campaigns`/`improvement-proposals`/`notifications`/
+   * `referrals`/`wellhub` son el boundary de la fase 175.1 (175.1-07),
+   * migradas juntas en el mismo switch: `promo_plans`, `refresh_tokens`;
+   * `campaign_events`, `campaign_sends`, `campaign_unsubscribes`,
+   * `campaigns`; `improvement_proposals`; `device_tokens`,
+   * `notification_preferences`, `notification_templates`,
+   * `pending_notifications`; `referral_credits`, `referral_cta_clicks`,
+   * `referrals`; `wellhub_bookings`, `wellhub_classes`, `wellhub_events`,
+   * `wellhub_slots`. `analytics` NO está: no posee ninguna tabla propia
+   * (D-01, fase 175.1) — ver el docblock de `TENANT_STRICT_MODULES`.
+   * `aura_balances` / `aura_transactions` NO están: las escribe gamification y
+   * su throw llega con la adopción de ESE módulo.
+   */
+  const MODULOS_DECLARADOS: Record<string, readonly string[]> = {
+    finance: [
+      "balances",
+      "cash_registers",
+      "cost_centers",
+      "debt_management",
+      "financial_transactions",
+      "transaction_links",
+    ],
+    members: [
+      "audit_log",
+      "member_logins",
+      "member_notes",
+      "member_profiles",
+      "user_branches",
+      "user_sepa_details",
+      "user_status_history",
+      "users",
+    ],
+    subscriptions: [
+      "subscription_plans",
+      "subscription_schedule_changes",
+      "subscription_schedules",
+      "subscriptions",
+    ],
+    scheduling: ["bookings", "holidays", "schedule_exceptions", "schedules"],
+    auth: ["promo_plans", "refresh_tokens"],
+    campaigns: [
+      "campaign_events",
+      "campaign_sends",
+      "campaign_unsubscribes",
+      "campaigns",
+    ],
+    "improvement-proposals": ["improvement_proposals"],
+    notifications: [
+      "device_tokens",
+      "notification_preferences",
+      "notification_templates",
+      "pending_notifications",
+    ],
+    referrals: ["referral_credits", "referral_cta_clicks", "referrals"],
+    wellhub: [
+      "wellhub_bookings",
+      "wellhub_classes",
+      "wellhub_events",
+      "wellhub_slots",
+    ],
+  };
+
+  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub)", () => {
+    const normalizar = (registro: Record<string, readonly string[]>) =>
+      Object.fromEntries(
+        Object.entries(registro).map(([modulo, tablas]) => [
+          modulo,
+          [...tablas].sort(),
+        ]),
+      );
+
     expect(
-      modulos.length,
-      `TENANT_STRICT_MODULES tiene ${modulos.length} entradas, esperadas 0. La fase 170 ` +
-        `construye los dos vigilantes (sentinel de pool + lint de CI), NO migra ningún ` +
-        `módulo: por eso la lista arranca vacía. Agregar la primera entrada es una DECISIÓN ` +
-        `DE DISEÑO de una fase de adopción (172+), no un detalle de implementación, y tiene ` +
-        `dos consecuencias que van juntas o no van: (1) el sentinel pasa a hacer THROW en ` +
-        `test/dev sobre las tablas de ese módulo — afirmás que TODAS sus lecturas y ` +
-        `escrituras usan tenantWhere/tenantValues; (2) OBLIGA a vaciar las entradas de esas ` +
-        `tablas en tenant-lint-allowlist.json, porque el lint deja el build rojo si conviven ` +
-        `(D-15). Si este test se cae y no estás migrando un módulo, la entrada sobra.`,
-    ).toBe(0);
+      normalizar(TENANT_STRICT_MODULES),
+      `TENANT_STRICT_MODULES no coincide con los módulos declarados adoptados. Agregar un ` +
+        `módulo —o una tabla a un módulo ya listado— es una DECISIÓN DE DISEÑO de la fase de ` +
+        `adopción de ESE módulo, no un detalle de implementación, y tiene dos consecuencias ` +
+        `que van juntas o no van: (1) el sentinel pasa a hacer THROW en test/dev sobre sus ` +
+        `tablas — estás afirmando que TODAS sus lecturas y TODAS sus escrituras, vengan del ` +
+        `directorio que vengan, usan tenantWhere/tenantValues; (2) OBLIGA a vaciar en el MISMO ` +
+        `PR las entradas de esas tablas en tenant-lint-allowlist.json, porque el lint deja el ` +
+        `build rojo si conviven (D-15) — y el it de coherencia de más abajo lo verifica acá ` +
+        `mismo. Si llegaste a este rojo SACANDO una tabla para apagar un throw: eso apaga el ` +
+        `gate de todo el módulo, que es exactamente lo que el mensaje del sentinel prohíbe. La ` +
+        `salida es migrar la query, no achicar la lista.`,
+    ).toEqual(normalizar(MODULOS_DECLARADOS));
   });
 
   it("toda tabla listada existe en GYM_OWNED_TABLES", () => {
@@ -441,7 +536,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     const desalineadas = entradas
       .filter(
         (entrada) =>
-          !isStrictTable(entrada.tabla) || !strictTablesSet().has(entrada.tabla),
+          !isStrictTable(entrada.tabla) ||
+          !strictTablesSet().has(entrada.tabla),
       )
       .map((entrada) => `${entrada.modulo}: ${entrada.tabla}`)
       .sort();
@@ -455,21 +551,60 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
         `una regresión silenciosa, que es el peor modo de falla posible acá.`,
     ).toEqual([]);
 
-    // `bookings` es una tabla gym-owned real y NO strict hoy: nada está migrado
-    // en la 170. Cuando la fase 172 migre `finance`, esta línea se ACTUALIZA con
-    // otro ejemplo todavía no migrado — no se borra el gate. Es la única
-    // aserción del archivo que prueba el lado negativo del helper, y sin ella un
+    // `activities` es una tabla gym-owned real y NO strict hoy (174.1-10: sigue
+    // sin migrar a propósito — CONTEXT.md la excluye explícitamente del
+    // boundary de subscriptions/scheduling, aunque "suene" a scheduling).
+    // Reemplazó a `bookings`, que pasó a strict en este mismo plan. Cuando un
+    // futuro plan migre `activities`, esta línea se ACTUALIZA con otro ejemplo
+    // todavía no migrado — no se borra el gate. Es la única aserción del
+    // archivo que prueba el lado negativo del helper, y sin ella un
     // `isStrictTable` que devolviera `true` siempre pasaría todo lo de arriba.
     expect(
-      isStrictTable("bookings"),
-      `isStrictTable("bookings") devolvió true. bookings es gym-owned pero NO pertenece a ` +
-        `ningún módulo migrado en la fase 170. Si llegaste acá migrando finance en la 172: ` +
-        `cambiá el ejemplo por una tabla que siga sin migrar, no borres la aserción — es la ` +
-        `que distingue un helper que funciona de uno que dice true a todo.`,
+      isStrictTable("activities"),
+      `isStrictTable("activities") devolvió true. activities es gym-owned pero NO pertenece a ` +
+        `ningún módulo migrado todavía (174.1-10 la excluye a propósito del boundary de ` +
+        `subscriptions/scheduling). Si llegaste acá migrando ese módulo: cambiá el ejemplo por ` +
+        `una tabla que siga sin migrar, no borres la aserción — es la que distingue un helper ` +
+        `que funciona de uno que dice true a todo.`,
     ).toBe(false);
     expect(
       strictTablesSet().has("no_existe"),
       "strictTablesSet no puede contener nombres que no salen del registro",
     ).toBe(false);
+  });
+
+  it("ninguna tabla strict tiene entradas vivas en tenant-lint-allowlist.json (D-15)", () => {
+    // El MISMO gate que corre `pnpm lint:tenant` (strictWithAllowlist), acá
+    // escrito como test. Duplicarlo no es redundancia: el lint es un CLI que
+    // alguien tiene que acordarse de correr, y el step de CI que lo corre está
+    // detrás del `paths-filter`. Este `it` viaja con la suite y se cae en el
+    // mismo commit que declara migrado un módulo sin vaciar su deuda perdonada.
+    //
+    // Declarar un módulo migrado y a la vez perdonarle accesos sin gimnasio es
+    // afirmar las dos mitades de una contradicción: "todo pasa por tenantWhere"
+    // y "estos accesos no pasan por tenantWhere, pero está bien". Migrar el
+    // módulo y achicar la allowlist son el mismo acto (D-14/D-15).
+    const rutaAllowlist = path.resolve(
+      __dirname,
+      "../../tenant-lint-allowlist.json",
+    );
+    const allowlist = JSON.parse(fs.readFileSync(rutaAllowlist, "utf8")) as {
+      entries: Array<{ file: string; table: string }>;
+    };
+
+    const convivencia = allowlist.entries
+      .filter((entrada) => isStrictTable(entrada.table))
+      .map((entrada) => `${entrada.file} — ${entrada.table}`)
+      .sort();
+
+    expect(
+      convivencia,
+      `Entradas de tenant-lint-allowlist.json sobre tablas de módulos declarados migrados: ` +
+        `${convivencia.join(" | ")}. Las salidas válidas son DOS y ninguna es tocar esta lista: ` +
+        `(a) migrar el acceso a tenantWhere/tenantValues y BORRAR la entrada, o (b) —si el ` +
+        `acceso es global a propósito— escribir la exención /* tenant-safe: <motivo> */ en el ` +
+        `sitio y BORRAR la entrada igual. Sacar la tabla de TENANT_STRICT_MODULES apaga el ` +
+        `throw de todo el módulo y NO es una salida.`,
+    ).toEqual([]);
   });
 });

@@ -1,8 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 /**
  * Goal-plan → Foundation session fallback.
@@ -45,7 +52,12 @@ describe("Goal-plan → Foundation session fallback", () => {
     await app.db
       .update(schema.users)
       .set({ level: "alfa" })
-      .where(eq(schema.users.id, memberId));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.id, memberId),
+        ),
+      );
 
     // A goal-plan program (goalPlanType != null) — mirrors "Desafío 30 Días".
     const [program] = await app.db
@@ -74,7 +86,12 @@ describe("Goal-plan → Foundation session fallback", () => {
     await app.db
       .update(schema.users)
       .set({ currentProgramEnrollmentId: enrollment.id })
-      .where(eq(schema.users.id, memberId));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.id, memberId),
+        ),
+      );
   });
 
   afterAll(async () => {

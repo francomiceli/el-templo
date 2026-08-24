@@ -10,11 +10,20 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, registerUser } from "../helpers";
 import { auditLog } from "../../src/modules/shared/audit-log";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import * as schema from "../../src/db/schema";
+
+// 173-04 (D-01): `auditLog.write` ahora pide `ctx` PRIMERO. El gimnasio 1 es
+// el unico tenant de este archivo — cero fixtures de segundo gimnasio, la
+// prueba de aislamiento por tenant vive en la bateria ISO-03, no aca.
+const CTX: TenantContext = { tenantId: 1 };
 
 let app: FastifyInstance;
 let actorId: number;
@@ -29,7 +38,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id, branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   if (!admin) {
     throw new Error(
@@ -55,13 +69,18 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await app.db.execute(sql`DELETE FROM audit_log`);
+  // Fase 173 (ADO-02): `audit_log` entra a TENANT_STRICT_MODULES — el DELETE
+  // de conveniencia se acota por gimnasio (categoría 2, docblock de
+  // `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
+  await app.db.execute(
+    sql`DELETE FROM audit_log WHERE tenant_id = ${CTX.tenantId}`,
+  );
 });
 
 describe("auditLog.write — atomicity contract", () => {
   it("Test 1: happy path — row is persisted after transaction commits", async () => {
     await app.db.transaction(async (tx) => {
-      await auditLog.write(tx, {
+      await auditLog.write(CTX, tx, {
         actorId,
         action: "subscription_cancelled",
         targetKind: "subscription",
@@ -81,7 +100,12 @@ describe("auditLog.write — atomicity contract", () => {
     const rows = await app.db
       .select()
       .from(schema.auditLog)
-      .where(eq(schema.auditLog.actorId, actorId));
+      .where(
+        and(
+          tenantWhere(schema.auditLog, CTX),
+          eq(schema.auditLog.actorId, actorId),
+        ),
+      );
     expect(rows).toHaveLength(1);
     expect(rows[0].action).toBe("subscription_cancelled");
     expect(rows[0].targetKind).toBe("subscription");
@@ -95,7 +119,7 @@ describe("auditLog.write — atomicity contract", () => {
 
     await expect(
       app.db.transaction(async (tx) => {
-        await auditLog.write(tx, {
+        await auditLog.write(CTX, tx, {
           actorId,
           action: "transaction_voided",
           targetKind: "transaction",
@@ -114,7 +138,7 @@ describe("auditLog.write — atomicity contract", () => {
 
   it("Test 3: reason omitted — DB row has reason IS NULL", async () => {
     await app.db.transaction(async (tx) => {
-      await auditLog.write(tx, {
+      await auditLog.write(CTX, tx, {
         actorId,
         action: "plan_assigned",
         targetKind: "subscription",
@@ -127,7 +151,12 @@ describe("auditLog.write — atomicity contract", () => {
     const rows = await app.db
       .select()
       .from(schema.auditLog)
-      .where(eq(schema.auditLog.targetId, 1234));
+      .where(
+        and(
+          tenantWhere(schema.auditLog, CTX),
+          eq(schema.auditLog.targetId, 1234),
+        ),
+      );
     expect(rows).toHaveLength(1);
     expect(rows[0].reason).toBeNull();
   });
@@ -141,7 +170,7 @@ describe("auditLog.write — atomicity contract", () => {
     };
 
     await app.db.transaction(async (tx) => {
-      await auditLog.write(tx, {
+      await auditLog.write(CTX, tx, {
         actorId,
         action: "reconciliation",
         targetKind: "member",
@@ -153,13 +182,21 @@ describe("auditLog.write — atomicity contract", () => {
     const rows = await app.db
       .select()
       .from(schema.auditLog)
-      .where(eq(schema.auditLog.targetId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.auditLog, CTX),
+          eq(schema.auditLog.targetId, memberId),
+        ),
+      );
     expect(rows).toHaveLength(1);
     expect(rows[0].payloadJson).toEqual(payload);
   });
 });
 
 async function countRows(): Promise<number> {
-  const rows = await app.db.select().from(schema.auditLog);
+  const rows = await app.db
+    .select()
+    .from(schema.auditLog)
+    .where(tenantWhere(schema.auditLog, CTX));
   return rows.length;
 }

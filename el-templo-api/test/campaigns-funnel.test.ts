@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -22,11 +22,15 @@ import {
 } from "./helpers";
 import { CampaignService } from "../src/modules/campaigns/service";
 import { EmailService } from "../src/modules/email/service";
+import { tenantWhere, type TenantContext } from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
 
 let app: FastifyInstance;
 let ownerId: number;
 let branchId: number;
+
+// T-173-08: `funnel()` recibe `ctx` primero (user_status_history es strict).
+const CTX: TenantContext = { tenantId: 1 };
 
 beforeAll(async () => {
   app = await createTestApp();
@@ -41,7 +45,12 @@ beforeEach(async () => {
   const [owner] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, CTX),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   ownerId = owner.id;
   const [branch] = await app.db
@@ -64,7 +73,9 @@ async function seedSentCampaign(): Promise<number> {
   await app.db
     .update(schema.campaigns)
     .set({ sentAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) })
-    .where(eq(schema.campaigns.id, campaignId));
+    .where(
+      sql`/* tenant-safe: update por PK propio (campaignId), fila creada por createTestCampaign en este mismo test */ ${schema.campaigns.id} = ${campaignId}`,
+    );
   return campaignId;
 }
 
@@ -106,7 +117,7 @@ describe("campaign funnel (Phase 119)", () => {
     await createTestSend(app, campaignId, u1, e1, { status: "sent" });
     await createTestSend(app, campaignId, u2, e2, { status: "pending" });
 
-    const funnel = await makeService().funnel(campaignId);
+    const funnel = await makeService().funnel(CTX, campaignId);
     expect(funnel.enviado).toBe(1);
     expect(funnel.aperturaAproximada).toBe(true);
   });
@@ -126,7 +137,7 @@ describe("campaign funnel (Phase 119)", () => {
       { sendId, type: "click" },
     ]);
 
-    const funnel = await makeService().funnel(campaignId);
+    const funnel = await makeService().funnel(CTX, campaignId);
     expect(funnel.abierto).toBe(1);
     expect(funnel.click).toBe(1);
   });
@@ -158,7 +169,7 @@ describe("campaign funnel (Phase 119)", () => {
       source: "admin",
     });
 
-    const funnel = await makeService().funnel(campaignId);
+    const funnel = await makeService().funnel(CTX, campaignId);
     expect(funnel.reservo).toBe(1);
     expect(funnel.asistio).toBe(1);
     expect(funnel.convirtio).toBe(1);
@@ -202,15 +213,20 @@ describe("campaign funnel (Phase 119)", () => {
     await app.db
       .update(schema.bookings)
       .set({ bookedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) })
-      .where(eq(schema.bookings.id, bk.id));
+      .where(
+        and(
+          eq(schema.bookings.id, bk.id),
+          eq(schema.bookings.tenantId, CTX.tenantId),
+        ),
+      );
 
-    const funnel = await makeService().funnel(campaignId);
+    const funnel = await makeService().funnel(CTX, campaignId);
     expect(funnel.reservo).toBe(0);
   });
 
   it("D-19: funnel returns all 6 stage counts for an empty campaign", async () => {
     const campaignId = await seedSentCampaign();
-    const funnel = await makeService().funnel(campaignId);
+    const funnel = await makeService().funnel(CTX, campaignId);
     expect(funnel).toMatchObject({
       enviado: 0,
       abierto: 0,

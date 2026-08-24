@@ -15,9 +15,13 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, registerUser, cleanAllTestData } from "./helpers";
 import * as schema from "../src/db/schema";
+import { tenantWhere, type TenantContext } from "../src/modules/shared/tenant";
+
+// Archivo single-tenant (solo El Templo): filtro preciso, no exencion.
+const CTX_TEMPLO: TenantContext = { tenantId: 1 };
 
 describe("POST /api/bar-challenge/result (Phase 115 R2 + R11)", () => {
   let app: FastifyInstance;
@@ -73,7 +77,9 @@ describe("POST /api/bar-challenge/result (Phase 115 R2 + R11)", () => {
         attemptedAt: schema.users.barChallengeAttemptedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(
+        and(tenantWhere(schema.users, CTX_TEMPLO), eq(schema.users.id, userId)),
+      )
       .limit(1);
 
     expect(row).toBeDefined();
@@ -103,7 +109,9 @@ describe("POST /api/bar-challenge/result (Phase 115 R2 + R11)", () => {
         attemptedAt: schema.users.barChallengeAttemptedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(
+        and(tenantWhere(schema.users, CTX_TEMPLO), eq(schema.users.id, userId)),
+      )
       .limit(1);
 
     expect(Boolean(row.completed)).toBe(false);
@@ -139,7 +147,9 @@ describe("POST /api/bar-challenge/result (Phase 115 R2 + R11)", () => {
         seconds: schema.users.barChallengeSeconds,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(
+        and(tenantWhere(schema.users, CTX_TEMPLO), eq(schema.users.id, userId)),
+      )
       .limit(1);
 
     expect(Boolean(row.completed)).toBe(false);

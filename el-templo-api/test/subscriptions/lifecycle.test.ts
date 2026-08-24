@@ -15,6 +15,16 @@ import {
   todayStr,
   dateOffsetStr,
 } from "./_helpers";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Subscriptions API — Lifecycle", () => {
   let app: FastifyInstance;
@@ -112,21 +122,34 @@ describe("Subscriptions API — Lifecycle", () => {
       const subId = first.body.id as number;
       const [admin] = await app.db
         .select({ id: schema.users.id })
+
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
+
         .limit(1);
       const linkedTxIds = await app.db
         .select({ id: schema.financialTransactions.id })
         .from(schema.transactionLinks)
         .innerJoin(
           schema.financialTransactions,
-          eq(
-            schema.transactionLinks.transactionId,
-            schema.financialTransactions.id,
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(
+              schema.transactionLinks.transactionId,
+              schema.financialTransactions.id,
+            ),
           ),
         )
         .where(
           and(
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
             eq(schema.transactionLinks.targetKind, "subscription"),
             eq(schema.transactionLinks.targetId, subId),
           ),
@@ -139,7 +162,12 @@ describe("Subscriptions API — Lifecycle", () => {
             voidedBy: admin?.id ?? null,
             voidReason: "test setup — pre-void",
           })
-          .where(eq(schema.financialTransactions.id, t.id));
+          .where(
+            and(
+              tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+              eq(schema.financialTransactions.id, t.id),
+            ),
+          );
       }
 
       // Cancel so we can attempt another assign
@@ -273,7 +301,12 @@ describe("Subscriptions API — Lifecycle", () => {
       await app.db
         .update(subscriptions)
         .set({ startDate: dateOffsetStr(-10), endDate: dateOffsetStr(-5) })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       const res = await app.inject({
         method: "GET",
@@ -308,23 +341,33 @@ describe("Subscriptions API — Lifecycle", () => {
       await app.db
         .update(subscriptions)
         .set({ startDate: dateOffsetStr(-10), endDate: dateOffsetStr(-5) })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       const [before] = await app.db
         .select({ status: schema.users.status })
+
         .from(schema.users)
-        .where(eq(schema.users.id, member.id));
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, member.id),
+          ),
+        );
       expect(before.status).toBe("activo");
 
       // Run the bulk expire the daily cron invokes — no per-member read.
       const { SubscriptionService } =
         await import("../../src/modules/subscriptions/service");
-      const { AuraService } = await import("../../src/modules/aura");
       const { TransactionService, BalanceService, CashRegisterService } =
         await import("../../src/modules/finance");
       const { EnrollmentService } =
         await import("../../src/modules/programs/enrollment-service");
-      const aura = new AuraService(app.db);
       const balances = new BalanceService(app.db, app.log);
       const cashRegisters = new CashRegisterService(app.db, app.log);
       const txns = new TransactionService(
@@ -337,7 +380,6 @@ describe("Subscriptions API — Lifecycle", () => {
       const svc = new SubscriptionService(
         app.db,
         app.log,
-        aura,
         txns,
         enrollments,
       );
@@ -348,13 +390,25 @@ describe("Subscriptions API — Lifecycle", () => {
       const [sub] = await app.db
         .select({ status: subscriptions.status })
         .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       expect(sub.status).toBe("expired");
 
       const [after] = await app.db
         .select({ status: schema.users.status })
+
         .from(schema.users)
-        .where(eq(schema.users.id, member.id));
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, member.id),
+          ),
+        );
       expect(after.status).toBe("inactivo");
     });
   });
@@ -402,15 +456,18 @@ describe("Subscriptions API — Lifecycle", () => {
       await app.db
         .update(subscriptions)
         .set({ pauseEndDate: dateOffsetStr(-1) })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       // Run auto-resume directly via the service
       const { SubscriptionService } =
         await import("../../src/modules/subscriptions/service");
-      const { AuraService } = await import("../../src/modules/aura");
       const { TransactionService, BalanceService, CashRegisterService } =
         await import("../../src/modules/finance");
-      const aura = new AuraService(app.db);
       const balances = new BalanceService(app.db, app.log);
       const cashRegisters = new CashRegisterService(app.db, app.log);
       const txns = new TransactionService(
@@ -419,14 +476,19 @@ describe("Subscriptions API — Lifecycle", () => {
         balances,
         cashRegisters,
       );
-      const svc = new SubscriptionService(app.db, app.log, aura, txns);
-      const resumed = await svc.autoResumeDuePauses();
+      const svc = new SubscriptionService(app.db, app.log, txns);
+      const resumed = await svc.autoResumeDuePauses(TEMPLO_CTX);
       expect(resumed).toBe(1);
 
       const [sub] = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
       expect(sub.status).toBe("active");
       expect(sub.pauseEndDate).toBeNull();
       expect(sub.pausedAt).toBeNull();
@@ -570,39 +632,54 @@ describe("Subscriptions API — Lifecycle", () => {
       const today = todayStr();
       const [admin] = await app.db
         .select({ id: schema.users.id })
+
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
+
         .limit(1);
       if (!admin) throw new Error("admin@test.com seed missing");
       const [txRes] = await app.db
         .insert(schema.financialTransactions)
-        .values({
-          memberId,
-          kind: "plan_charge",
-          direction: "inflow",
-          amount,
-          currency: "ARS",
-          paymentMethod: "cash",
-          transactionDate: today,
-          effectiveDate: today,
-          branchId,
-          recordedBy: admin.id,
-          voidedAt: voided ? new Date() : null,
-          voidedBy: voided ? admin.id : null,
-          voidReason: voided ? "test seed" : null,
-        })
+        .values(
+          tenantValues(TEMPLO_CTX, {
+            memberId,
+            kind: "plan_charge",
+            direction: "inflow",
+            amount,
+            currency: "ARS",
+            paymentMethod: "cash",
+            transactionDate: today,
+            effectiveDate: today,
+            branchId,
+            recordedBy: admin.id,
+            voidedAt: voided ? new Date() : null,
+            voidedBy: voided ? admin.id : null,
+            voidReason: voided ? "test seed" : null,
+          }),
+        )
         .$returningId();
-      await app.db.insert(schema.transactionLinks).values({
-        transactionId: txRes.id,
-        targetKind: "subscription",
-        targetId: subId,
-        allocatedAmount: amount,
-      });
+      await app.db.insert(schema.transactionLinks).values(
+        tenantValues(TEMPLO_CTX, {
+          transactionId: txRes.id,
+          targetKind: "subscription",
+          targetId: subId,
+          allocatedAmount: amount,
+        }),
+      );
       return txRes.id;
     }
 
     it("REQ-3: cancel returns 400 SUB_HAS_ACTIVE_TRANSACTIONS when a non-voided charge tx exists", async () => {
-      await app.db.execute(sql`DELETE FROM audit_log`);
+      await app.db.execute(
+        sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+      );
       const plan = await createPlan(app, adminToken);
       const member = await createMember(app);
       const assigned = await assignPlan(app, adminToken, member.id, {
@@ -648,6 +725,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.auditLog)
         .where(
           and(
+            tenantWhere(schema.auditLog, TEMPLO_CTX),
             eq(schema.auditLog.action, "subscription_cancelled"),
             eq(schema.auditLog.targetId, subId),
           ),
@@ -656,7 +734,9 @@ describe("Subscriptions API — Lifecycle", () => {
     });
 
     it("REQ-3: cancel succeeds (200) when all charge tx for the sub are voided", async () => {
-      await app.db.execute(sql`DELETE FROM audit_log`);
+      await app.db.execute(
+        sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+      );
       const plan = await createPlan(app, adminToken);
       const member = await createMember(app);
       const assigned = await assignPlan(app, adminToken, member.id, {
@@ -670,8 +750,17 @@ describe("Subscriptions API — Lifecycle", () => {
       // void route.
       const [admin] = await app.db
         .select({ id: schema.users.id })
+
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
+
         .limit(1);
       if (!admin) throw new Error("admin@test.com seed missing");
       const linkedTxIds = await app.db
@@ -679,13 +768,17 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.transactionLinks)
         .innerJoin(
           schema.financialTransactions,
-          eq(
-            schema.transactionLinks.transactionId,
-            schema.financialTransactions.id,
+          and(
+            tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+            eq(
+              schema.transactionLinks.transactionId,
+              schema.financialTransactions.id,
+            ),
           ),
         )
         .where(
           and(
+            tenantWhere(schema.transactionLinks, TEMPLO_CTX),
             eq(schema.transactionLinks.targetKind, "subscription"),
             eq(schema.transactionLinks.targetId, subId),
           ),
@@ -698,7 +791,12 @@ describe("Subscriptions API — Lifecycle", () => {
             voidedBy: admin.id,
             voidReason: "test setup — pre-void",
           })
-          .where(eq(schema.financialTransactions.id, t.id));
+          .where(
+            and(
+              tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+              eq(schema.financialTransactions.id, t.id),
+            ),
+          );
       }
 
       const res = await app.inject({
@@ -713,7 +811,9 @@ describe("Subscriptions API — Lifecycle", () => {
     });
 
     it("REQ-7: successful cancelSubscription writes one subscription_cancelled audit row", async () => {
-      await app.db.execute(sql`DELETE FROM audit_log`);
+      await app.db.execute(
+        sql`DELETE FROM audit_log WHERE tenant_id = ${TEMPLO_CTX.tenantId}`,
+      );
       const plan = await createPlan(app, adminToken);
       const member = await createMember(app);
       const assigned = await assignPlan(app, adminToken, member.id, {
@@ -729,8 +829,17 @@ describe("Subscriptions API — Lifecycle", () => {
       // Resolve admin id for actorId assertion
       const [admin] = await app.db
         .select({ id: schema.users.id })
+
         .from(schema.users)
-        .where(eq(schema.users.email, "admin@test.com"))
+
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+
+            eq(schema.users.email, "admin@test.com"),
+          ),
+        )
+
         .limit(1);
 
       const res = await app.inject({
@@ -746,6 +855,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.auditLog)
         .where(
           and(
+            tenantWhere(schema.auditLog, TEMPLO_CTX),
             eq(schema.auditLog.action, "subscription_cancelled"),
             eq(schema.auditLog.targetId, subId),
           ),
@@ -794,6 +904,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -816,6 +927,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -845,6 +957,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .set({ amount: -25000 })
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -864,6 +977,7 @@ describe("Subscriptions API — Lifecycle", () => {
         .from(schema.balances)
         .where(
           and(
+            tenantWhere(schema.balances, TEMPLO_CTX),
             eq(schema.balances.memberId, member.id),
             eq(schema.balances.targetKind, "subscription"),
             eq(schema.balances.targetId, subId),
@@ -920,7 +1034,12 @@ describe("Subscriptions API — Lifecycle", () => {
       const [activeRow] = await app.db
         .select()
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.id, activeId));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.id, activeId),
+          ),
+        );
       expect(activeRow.status).toBe("active");
     });
 

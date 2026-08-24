@@ -253,7 +253,7 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
   });
 
   // ─── 3. Seed del tenant 1 ───────────────────────────────────────────────
-  it("Test 3: existe exactamente un tenant (id=1, el-templo, El Templo, active) y tenant_settings nace vacía", async () => {
+  it("Test 3: existe exactamente un tenant (id=1, el-templo, El Templo, active) y tenant_settings solo contiene flags de módulos (0209)", async () => {
     const total = await countRows(app, sql`SELECT COUNT(*) AS n FROM tenants`);
     expect(total).toBe(1);
 
@@ -269,11 +269,16 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
 
     // D-05: el KV por tenant nace vacío (coexistencia gradual con
     // system_settings, que no recibe tenant_id en todo el milestone).
-    const settings = await countRows(
+    // Fase 176 (MOD-01): la 0209 siembra los flags `module.<nombre>.enabled` —
+    // únicas keys admitidas desde entonces. No se assertan sus valores ni
+    // cuántas filas hay: los tests de MOD-01/MOD-02 los mutan de forma
+    // concurrente (workers paralelos sobre la misma DB, fixtures
+    // `module-flags.ts`). Lo estable es que ninguna OTRA key exista.
+    const extras = await countRows(
       app,
-      sql`SELECT COUNT(*) AS n FROM tenant_settings`,
+      sql`SELECT COUNT(*) AS n FROM tenant_settings WHERE setting_key NOT LIKE 'module.%.enabled'`,
     );
-    expect(settings).toBe(0);
+    expect(extras).toBe(0);
   });
 
   // ─── 4. Anclas: users y branches (FUND-02) ──────────────────────────────
@@ -386,7 +391,9 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
     const [readBack] = await app.db
       .select({ id: schema.users.id, tenantId: schema.users.tenantId })
       .from(schema.users)
-      .where(eq(schema.users.id, inserted.id))
+      .where(
+        sql`/* tenant-safe: la pregunta es a que tenant resolvio el DEFAULT sin estampar; filtrar por tenant la volveria tautologica */ ${schema.users.id} = ${inserted.id}`,
+      )
       .limit(1);
 
     expect(readBack).toBeDefined();
@@ -394,7 +401,11 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
 
     // users SÍ se limpia en el beforeEach, pero borrar acá deja el archivo
     // autocontenido y no depende del orden de los tests.
-    await app.db.delete(schema.users).where(eq(schema.users.id, inserted.id));
+    await app.db
+      .delete(schema.users)
+      .where(
+        sql`/* tenant-safe: limpieza de la fila-sonda de este mismo test, ya verificada arriba */ ${schema.users.id} = ${inserted.id}`,
+      );
   });
 
   // ─── 6. Idempotencia ────────────────────────────────────────────────────

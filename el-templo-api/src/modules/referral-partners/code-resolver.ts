@@ -113,12 +113,20 @@ export async function resolveSignupCode(
     // real. Se preserva el guion: solo trim + upper (mismo criterio de
     // tolerancia a mayúsculas/espacios que las otras 2 ramas, sin tocar
     // `resolveReferralCode`, prohibido de editar por el CONTEXT).
-    const memberCode = code.trim().toUpperCase();
-    const referrerId = await new ReferralService(db, log).resolveReferralCode(
-      memberCode,
-    );
-    if (referrerId !== null) {
-      return { kind: "member", referrerId };
+    // T-173-08 (tren v6.0): `resolveReferralCode` exige `ctx` — el código de
+    // socio es UNIQUE compuesto con tenant_id (el mismo código puede existir
+    // en dos gimnasios). Sin sede elegida (tenant no derivable) la rama socio
+    // no puede resolverse de forma segura y se saltea — mismo criterio
+    // fail-closed que el resto del resolver.
+    if (tenantId !== null) {
+      const memberCode = code.trim().toUpperCase();
+      const referrerId = await new ReferralService(db, log).resolveReferralCode(
+        { tenantId },
+        memberCode,
+      );
+      if (referrerId !== null) {
+        return { kind: "member", referrerId };
+      }
     }
 
     return { kind: "unknown" };

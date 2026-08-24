@@ -775,6 +775,7 @@ export const uploadPhotoUrlSchema = {
         publicUrl: { type: "string" },
       },
     },
+    404: errorSchema,
     503: errorSchema,
   },
 };

@@ -24,10 +24,10 @@ import { HolidayService } from "./holiday-service";
 import { TrialService } from "./trials-service";
 import { PartnerWeekService } from "./partner-week-service";
 import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant, tenantWhere } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
 import type { TrialShift } from "./trials-service";
 import { SubscriptionService } from "../subscriptions/service";
-import { AuraService } from "../aura/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
@@ -89,12 +89,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     holidayService,
   );
 
-  const auraService = new AuraService(fastify.db);
   const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     undefined,
     enrollmentService,
   );
@@ -145,7 +143,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: createActivitySchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.createActivity");
         const activity = await activityService.createActivity(
+          ctx,
           request.body.name,
           request.body.description,
           request.body.maxCapacity,
@@ -159,10 +159,15 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // GET /activities — list activities
-  fastify.get("/activities", { schema: listActivitiesSchema }, async () => {
-    const activities = await activityService.listActivities();
-    return { activities };
-  });
+  fastify.get(
+    "/activities",
+    { schema: listActivitiesSchema },
+    async (request) => {
+      const ctx = assertTenant(request.scope, "scheduling.listActivities");
+      const activities = await activityService.listActivities(ctx);
+      return { activities };
+    },
+  );
 
   // PUT /activities/:activityId — update activity
   fastify.put<{
@@ -179,7 +184,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: updateActivitySchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.updateActivity");
         const activity = await activityService.updateActivity(
+          ctx,
           request.params.activityId,
           request.body,
         );
@@ -230,7 +237,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.createSchedule");
         const slot = await schedulingService.createSchedule(
+          ctx,
           request.body.branchId,
           request.body.activityId,
           request.body.dayOfWeek as DayOfWeek,
@@ -257,9 +266,11 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.weeklyGrid");
         // Admin grid includes deactivated slots so the cancelled cells stay
         // clickable and admins can reactivate from the same modal.
         const result = await schedulingService.getWeeklyGrid(
+          ctx,
           request.query.branchId,
           request.query.weekStart,
           true,
@@ -280,7 +291,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: slotDetailSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.slotDetail");
         const detail = await schedulingService.getSlotDetail(
+          ctx,
           request.params.scheduleId,
           request.query.date,
         );
@@ -306,12 +319,17 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: toggleScheduleSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.toggleSchedule");
         // Reactivation must read deactivatedAt BEFORE the toggle clears it.
         const previousDeactivatedAt = request.body.isActive
-          ? await schedulingService.getDeactivatedAt(request.params.scheduleId)
+          ? await schedulingService.getDeactivatedAt(
+              ctx,
+              request.params.scheduleId,
+            )
           : null;
 
         const slot = await schedulingService.toggleSchedule(
+          ctx,
           request.params.scheduleId,
           request.body.isActive,
           request.body.inactiveReason ?? null,
@@ -322,11 +340,13 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         if (!request.body.isActive) {
           cancelledBookings =
             await bookingService.cancelAllFutureBookingsForSchedule(
+              ctx,
               request.params.scheduleId,
             );
         } else if (previousDeactivatedAt) {
           restoredBookings =
             await bookingService.restoreCancelledBookingsForSchedule(
+              ctx,
               request.params.scheduleId,
               previousDeactivatedAt,
             );
@@ -353,10 +373,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: cancelScheduleDateSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.cancelScheduleDate");
         const { scheduleId } = request.params;
         const { date, reason } = request.body;
 
         const exception = await schedulingService.cancelScheduleDate(
+          ctx,
           scheduleId,
           date,
           reason ?? null,
@@ -364,6 +386,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
         const cancelResult =
           await bookingService.cancelBookingsFromDateAndGrantCredits(
+            ctx,
             scheduleId,
             date,
             date,
@@ -391,15 +414,18 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: restoreScheduleDateSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.restoreScheduleDate");
         const { scheduleId, date } = request.params;
 
         const exception = await schedulingService.restoreScheduleDate(
+          ctx,
           scheduleId,
           date,
         );
 
         const restoredBookings =
           await bookingService.restoreCancelledBookingsForDate(
+            ctx,
             scheduleId,
             date,
             exception.createdAt,
@@ -421,7 +447,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: previewScheduleDeletionSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.deletionPreview",
+        );
         const preview = await bookingService.previewScheduleDeletion(
+          ctx,
           request.params.scheduleId,
           request.query.fromDate,
         );
@@ -449,16 +480,19 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: deleteScheduleFromDateSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.deleteFromDate");
         const { scheduleId } = request.params;
         const { fromDate } = request.body;
 
         const cancelResult =
           await bookingService.cancelBookingsFromDateAndGrantCredits(
+            ctx,
             scheduleId,
             fromDate,
           );
 
         await schedulingService.toggleSchedule(
+          ctx,
           scheduleId,
           false,
           `Eliminado desde ${fromDate}`,
@@ -485,7 +519,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: updateScheduleActivitySchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.updateScheduleActivity",
+        );
         const slot = await schedulingService.updateScheduleActivity(
+          ctx,
           request.params.scheduleId,
           request.body.activityId,
         );
@@ -505,7 +544,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.seedSchedules");
         const created = await schedulingService.seedDefaultSchedules(
+          ctx,
           request.body.branchId,
         );
         return reply.code(201).send({ created });
@@ -550,7 +591,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.nextAvailable");
         const date = await bookingService.findNextAvailableDate(
+          ctx,
           request.params.scheduleId,
           request.query.from,
         );
@@ -568,7 +611,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { scheduleId: number; memberId: number; date: string };
   }>("/bookings", { schema: adminAddBookingSchema }, async (request, reply) => {
     try {
+      const ctx = assertTenant(request.scope, "scheduling.adminAddBooking");
       const result = await bookingService.adminAddBooking(
+        ctx,
         request.body.scheduleId,
         request.body.memberId,
         request.body.date,
@@ -585,7 +630,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: adminRemoveBookingSchema },
     async (request, reply) => {
       try {
-        await bookingService.adminRemoveBooking(request.params.bookingId);
+        const ctx = assertTenant(request.scope, "scheduling.adminRemoveBooking");
+        await bookingService.adminRemoveBooking(ctx, request.params.bookingId);
         return { cancelled: true };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "admin remove booking");
@@ -608,7 +654,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>("/trials", { schema: bookTrialSchema }, async (request, reply) => {
     try {
-      const result = await trialService.bookTrial(request.body);
+      const ctx = assertTenant(request.scope, "scheduling.bookTrial");
+      const result = await trialService.bookTrial(ctx, request.body);
       return reply.code(201).send(result);
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "book trial");
@@ -636,7 +683,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
-        const result = await trialService.rescheduleTrial({
+        const ctx = assertTenant(request.scope, "scheduling.rescheduleTrial");
+        const result = await trialService.rescheduleTrial(ctx, {
           bookingId: request.params.bookingId,
           ...request.body,
         });
@@ -660,7 +708,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.listEligibleTrials");
         const result = await trialService.listEligibleTrials(
+          ctx,
           request.query.branchId,
         );
         return result;
@@ -696,7 +746,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
             groups: [],
           };
         }
-        const result = await trialService.listTrials({
+        const ctx = assertTenant(request.scope, "scheduling.listTrials");
+        const result = await trialService.listTrials(ctx, {
           date: request.query.date,
           shift: request.query.shift ?? "all",
           country: request.scope.country,
@@ -716,7 +767,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { country: string; date: string; name: string };
   }>("/holidays", { schema: addHolidaySchema }, async (request, reply) => {
     try {
+      const ctx = assertTenant(request.scope, "scheduling.addHoliday");
       const holiday = await holidayService.addHoliday(
+        ctx,
         request.body.country,
         request.body.date,
         request.body.name,
@@ -733,7 +786,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: removeHolidaySchema },
     async (request, reply) => {
       try {
-        await holidayService.removeHoliday(request.params.holidayId);
+        const ctx = assertTenant(request.scope, "scheduling.removeHoliday");
+        await holidayService.removeHoliday(ctx, request.params.holidayId);
         return { deleted: true };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "remove holiday");
@@ -745,7 +799,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: { country?: string; year?: number };
   }>("/holidays", { schema: listHolidaysSchema }, async (request) => {
+    const ctx = assertTenant(request.scope, "scheduling.listHolidays");
     const holidays = await holidayService.listHolidays(
+      ctx,
       request.query.country,
       request.query.year,
     );
@@ -766,12 +822,10 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     holidayService,
   );
 
-  const auraService = new AuraService(fastify.db);
   const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
-    auraService,
     undefined,
     enrollmentService,
   );
@@ -805,9 +859,16 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * Guard: require authentication (any role) on all routes in this plugin.
+   *
+   * Fase 173 (D-02, plan 173-07): `attachCountryScope` resuelve `request.scope`
+   * (incluido `tenantId`) para TODA la superficie member-facing de este
+   * plugin — sin esto `assertTenant(request.scope, …)` explotaría contra
+   * `undefined`. `attachScope` ya soporta cualquier rol autenticado (incluido
+   * "member"), así que el agregado es puramente aditivo.
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
+    await attachCountryScope(request, fastify.db);
   });
 
   // GET /weekly — member weekly grid with own bookings overlay
@@ -815,6 +876,10 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     Querystring: { weekStart: string; branchId?: number };
   }>("/weekly", { schema: memberWeeklyGridSchema }, async (request, reply) => {
     try {
+      // Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra la resolución del
+      // socio (`users`) y se propaga a `getMyBookings`.
+      const ctx = assertTenant(request.scope, "scheduling.memberWeekly");
+
       // Get member's branchId from their user record
       let branchId = request.query.branchId;
 
@@ -822,7 +887,12 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         const [member] = await fastify.db
           .select({ branchId: schema.users.branchId })
           .from(schema.users)
-          .where(eq(schema.users.id, request.user.userId));
+          .where(
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, request.user.userId),
+            ),
+          );
 
         if (!member) {
           return reply.code(400).send({
@@ -836,12 +906,14 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       // Three independent queries — run in parallel so total latency is
       // max(q1,q2,q3) instead of the sum. Mitigates rare 504s under load.
       const [result, myBookings, myAttendance] = await Promise.all([
-        schedulingService.getWeeklyGrid(branchId, request.query.weekStart),
+        schedulingService.getWeeklyGrid(ctx, branchId, request.query.weekStart),
         bookingService.getMyBookings(
+          ctx,
           request.user.userId,
           request.query.weekStart,
         ),
         bookingService.getMyWeeklyAttendance(
+          ctx,
           request.user.userId,
           request.query.weekStart,
         ),
@@ -852,7 +924,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         // largo se arma solo acá, en el handler member.
         slots: result.slots.map((s) => ({
           ...s,
-          branchName: appBranchName(s.branchName),
+          branchName: appBranchName(s.branchName, ctx.tenantId),
         })),
         holidays: result.holidays,
         myBookings,
@@ -869,7 +941,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { scheduleId: number; date: string };
   }>("/reserve", { schema: reserveSchema }, async (request, reply) => {
     try {
+      const ctx = assertTenant(request.scope, "scheduling.reserve");
       const booking = await bookingService.reserve(
+        ctx,
         request.user.userId,
         request.body.scheduleId,
         request.body.date,
@@ -914,7 +988,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: reserveTrialSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.reserveTrial");
         const result = await trialService.reserveTrialSelfService(
+          ctx,
           request.user.userId,
           request.body,
         );
@@ -942,7 +1018,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: cancelTrialSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.cancelTrial");
         const result = await trialService.cancelTrialSelfService(
+          ctx,
           request.user.userId,
         );
         return result;
@@ -958,7 +1036,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: trialEligibilitySchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.trialEligibility");
         const result = await trialService.getTrialEligibility(
+          ctx,
           request.user.userId,
         );
         return result;
@@ -1010,7 +1090,10 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /bonus-usage — fixed-plan members' bonus-class counter
   fastify.get("/bonus-usage", async (request, reply) => {
     try {
-      const usage = await bookingService.getBonusUsage(request.user.userId);
+      const usage = await bookingService.getBonusUsage(
+        assertTenant(request.scope, "scheduling.bonusUsage"),
+        request.user.userId,
+      );
       return usage;
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "get bonus usage");
@@ -1023,7 +1106,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: cancelBookingSchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "scheduling.cancelBooking");
         const booking = await bookingService.cancel(
+          ctx,
           request.user.userId,
           request.params.bookingId,
         );
@@ -1038,7 +1123,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: { weekStart: string };
   }>("/my-bookings", { schema: myBookingsSchema }, async (request) => {
+    const ctx = assertTenant(request.scope, "scheduling.myBookings");
     const bookings = await bookingService.getMyBookings(
+      ctx,
       request.user.userId,
       request.query.weekStart,
     );
@@ -1051,20 +1138,34 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   // but filtering here keeps the selector free of sedes the member couldn't
   // book anyway (no UX dead ends).
   fastify.get("/branches", async (request) => {
+    // Fase 174 (D-02, plan 174-04): `ctx` filtra la resolución del socio
+    // (`users`) y la lectura de `branches` (cierra la deuda que 173-07 dejó
+    // explícitamente diferida a esta fase).
+    const ctx = assertTenant(request.scope, "scheduling.memberBranches");
     const [memberRow] = await fastify.db
       .select({ branchCountry: schema.branches.country })
       .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(eq(schema.users.id, request.user.userId))
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.users.branchId),
+        ),
+      )
+      .where(
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, request.user.userId)),
+      )
       .limit(1);
 
     const where = memberRow
       ? and(
+          tenantWhere(schema.branches, ctx),
           eq(schema.branches.isActive, true),
           eq(schema.branches.isVirtual, false),
           eq(schema.branches.country, memberRow.branchCountry),
         )
       : and(
+          tenantWhere(schema.branches, ctx),
           eq(schema.branches.isActive, true),
           eq(schema.branches.isVirtual, false),
         );
@@ -1079,7 +1180,10 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       .orderBy(schema.branches.name);
     // Compat app: ruta member-only -> nombre largo para el regex del front.
     return {
-      branches: rows.map((r) => ({ ...r, name: appBranchName(r.name) })),
+      branches: rows.map((r) => ({
+        ...r,
+        name: appBranchName(r.name, ctx.tenantId),
+      })),
     };
   });
 };

@@ -24,8 +24,12 @@ import { eq, and } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../../src/db/schema";
 import { createTestApp, cleanAllTestData } from "../helpers";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+// Fase 173 (ADO-02): `users` entra a TENANT_STRICT_MODULES — las lecturas de
+// conveniencia por id de este archivo se acotan con `tenantWhere` (categoría
+// 2, docblock de `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
+import { tenantWhere } from "../../src/modules/shared/tenant";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
-import { AuraService } from "../../src/modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -34,6 +38,8 @@ import {
 import { BookingService } from "../../src/modules/scheduling/booking-service";
 import { NotificationService } from "../../src/modules/notifications/service";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
+
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Phase 103 — User status auto-transitions", () => {
   let app: FastifyInstance;
@@ -48,7 +54,6 @@ describe("Phase 103 — User status auto-transitions", () => {
   }
 
   function buildService(): SubscriptionService {
-    const aura = new AuraService(app.db);
     const balances = new BalanceService(app.db, app.log);
     const cashRegisters = new CashRegisterService(app.db, app.log);
     const txns = new TransactionService(
@@ -63,7 +68,6 @@ describe("Phase 103 — User status auto-transitions", () => {
     const subs = new SubscriptionService(
       app.db,
       app.log,
-      aura,
       txns,
       enrollments,
     );
@@ -86,6 +90,7 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [{ id }] = await app.db
       .insert(schema.users)
       .values({
+        tenantId: TENANT_TEMPLO,
         email: `status-tx-${unique}@test.com`,
         passwordHash,
         firstName: "Status",
@@ -116,6 +121,7 @@ describe("Phase 103 — User status auto-transitions", () => {
     }> = {},
   ): Promise<void> {
     await svc.assignPlan(
+      { tenantId: TENANT_TEMPLO },
       userId,
       {
         planId: overrides.planId ?? testPlanId,
@@ -134,7 +140,9 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [u] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     return u?.status ?? null;
   }
 
@@ -142,7 +150,9 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [u] = await app.db
       .select({ convertedAt: schema.users.convertedAt })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(
+        and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)),
+      );
     return u?.convertedAt ?? null;
   }
 
@@ -171,6 +181,7 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [planA] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: TENANT_TEMPLO,
         name: "Test Plan Presencial",
         planTier: "flex",
         bookingMode: "flexible",
@@ -188,6 +199,7 @@ describe("Phase 103 — User status auto-transitions", () => {
     const [planB] = await app.db
       .insert(schema.subscriptionPlans)
       .values({
+        tenantId: TENANT_TEMPLO,
         name: "Test Plan Online",
         planTier: "flex",
         bookingMode: "flexible",
@@ -240,7 +252,11 @@ describe("Phase 103 — User status auto-transitions", () => {
       await assignDefaultPlan(userId);
       expect(await getStatus(userId)).toBe("activo");
 
-      await svc.cancelSubscription(userId, /* actorId */ 2);
+      await svc.cancelSubscription(
+        { tenantId: TENANT_TEMPLO },
+        userId,
+        /* actorId */ 2,
+      );
       expect(await getStatus(userId)).toBe("inactivo");
     });
 
@@ -264,11 +280,20 @@ describe("Phase 103 — User status auto-transitions", () => {
       const subs = await app.db
         .select({ id: schema.subscriptions.id })
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, userId));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, userId),
+          ),
+        );
       expect(subs).toHaveLength(2);
 
       // Cancel one through the service (it cancels the latest active sub).
-      await svc.cancelSubscription(userId, /* actorId */ 2);
+      await svc.cancelSubscription(
+        { tenantId: TENANT_TEMPLO },
+        userId,
+        /* actorId */ 2,
+      );
       // One sub remains active → status stays 'activo'
       expect(await getStatus(userId)).toBe("activo");
     });
@@ -283,7 +308,11 @@ describe("Phase 103 — User status auto-transitions", () => {
       expect(await getStatus(userId)).toBe("activo");
 
       // Cancel → inactivo (NOT back to freemium, per D-04 — paying history)
-      await svc.cancelSubscription(userId, /* actorId */ 2);
+      await svc.cancelSubscription(
+        { tenantId: TENANT_TEMPLO },
+        userId,
+        /* actorId */ 2,
+      );
       expect(await getStatus(userId)).toBe("inactivo");
     });
   });
@@ -304,6 +333,7 @@ describe("Phase 103 — User status auto-transitions", () => {
       const [sched] = await app.db
         .insert(schema.schedules)
         .values({
+          tenantId: TENANT_TEMPLO,
           branchId: presentialBranchId,
           activityId: activity.id,
           dayOfWeek: 1,
@@ -313,6 +343,7 @@ describe("Phase 103 — User status auto-transitions", () => {
         })
         .$returningId();
       await app.db.insert(schema.bookings).values({
+        tenantId: TENANT_TEMPLO,
         memberId: userId,
         scheduleId: sched.id,
         bookingDate: todayStr(),
@@ -330,7 +361,11 @@ describe("Phase 103 — User status auto-transitions", () => {
 
       // Idempotency: a second sub mutation does NOT overwrite convertedAt
       const firstConvertedAtMs = (convertedAt as Date).getTime();
-      await svc.cancelSubscription(userId, /* actorId */ 2);
+      await svc.cancelSubscription(
+        { tenantId: TENANT_TEMPLO },
+        userId,
+        /* actorId */ 2,
+      );
       // Re-buy the same plan path
       await assignDefaultPlan(userId);
       const second = await getConvertedAt(userId);
@@ -381,7 +416,12 @@ describe("Phase 103 — User status auto-transitions", () => {
       const subs = await app.db
         .select({ id: schema.subscriptions.id })
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.userId, userId));
+        .where(
+          and(
+            eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+            eq(schema.subscriptions.userId, userId),
+          ),
+        );
       expect(subs).toHaveLength(0);
 
       // user.status must remain unchanged

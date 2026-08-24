@@ -15,12 +15,10 @@ import type {
   PartnerBenefitType,
   PartnerSignupResult,
 } from "../referral-partners/types";
-import { tenantWhere } from "../shared/tenant";
 import { registerSchema, loginSchema } from "./schemas";
 import { appBranchName } from "../shared/app-branch-name";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
-import { AuraService } from "../aura/service";
 import {
   TransactionService,
   BalanceService,
@@ -29,9 +27,17 @@ import {
 import { EnrollmentService } from "../programs/enrollment-service";
 import { normalizePhone } from "../shared";
 import {
+  assertTenant,
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
+import { attachCountryScope } from "../shared/country-scope";
+import {
   RefreshTokenService,
   RefreshTokenError,
 } from "./refresh-token-service";
+import { enabledModulesFor } from "../shared/module-flags";
 
 interface RegisterBody {
   email: string;
@@ -79,10 +85,28 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       } = request.body;
 
       // Reject if email already exists
+      //
+      // T-173-15: esta ruta todavía NO resolvió ningún gimnasio (la sede se
+      // resuelve más abajo) y el chequeo de duplicado es deliberadamente
+      // CROSS-TENANT hoy — `/login` busca por email de la misma forma, sin
+      // selector de gimnasio, así que dos cuentas con el mismo email en dos
+      // gimnasios distintos serían indistinguibles para ese camino. Es deuda
+      // pre-existente (fase 168, CON-01, dejó `uq_users_tenant_email` POR
+      // gimnasio) que esta ruta y `/login` no explotan todavía: documentada en
+      // el SUMMARY de este plan, no la resuelve.
+      //
+      // T-173-22 (deferred-items.md, hallazgo 173-21): este comentario TS
+      // exime al LINT (ancla por AST al statement), pero el SENTINEL solo lee
+      // el SQL de runtime — Drizzle nunca emite un comentario TS en el texto
+      // que llega al pool. Por eso la MISMA exención se repite EMBEBIDA en el
+      // SQL del `where`, el único canal que el sentinel puede leer (D-17).
+      /* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — ver comentario arriba (deuda pre-existente fase 168) */
       const [existingByEmail] = await fastify.db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.email, email))
+        .where(
+          sql`/* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — ver comentario arriba (deuda pre-existente fase 168) */ ${eq(users.email, email)}`,
+        )
         .limit(1);
 
       if (existingByEmail) {
@@ -95,10 +119,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Reject if DNI already exists
       if (dni) {
+        // T-173-22: idem nota de arriba — el tag va embebido en el SQL además
+        // del comentario TS, porque el sentinel no lee comentarios de fuente.
+        /* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — mismo motivo que el email arriba */
         const [existingByDni] = await fastify.db
           .select({ id: users.id })
           .from(users)
-          .where(eq(users.dni, dni))
+          .where(
+            sql`/* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — mismo motivo que el email arriba */ ${eq(users.dni, dni)}`,
+          )
           .limit(1);
 
         if (existingByDni) {
@@ -120,12 +149,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (phone) {
         const normalized = normalizePhone(phone);
         if (normalized.length > 0) {
+          // T-173-22: idem nota de arriba — el tag va embebido en el propio
+          // fragmento `sql` de abajo (no hace falta un `sql` extra: este
+          // statement ya arma su predicado con uno), además del comentario TS
+          // que exime al lint.
+          /* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — mismo motivo que el email arriba */
           const [existingByPhone] = await fastify.db
             .select({ id: users.id })
             .from(users)
             .where(
               and(
-                sql`RIGHT(REGEXP_REPLACE(${users.phone}, '[^0-9]', ''), 10) = ${normalized}`,
+                sql`/* tenant-safe: chequeo de duplicado deliberadamente cross-tenant — mismo motivo que el email arriba */ RIGHT(REGEXP_REPLACE(${users.phone}, '[^0-9]', ''), 10) = ${normalized}`,
                 isNull(users.deletedAt),
               ),
             )
@@ -148,11 +182,29 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      // Resolve branch: use provided branchId or default to ONLINE
+      // Resolve branch: use provided branchId or default to ONLINE.
+      //
+      // Fase 172 (ADO-01 / T-172-07-01) + Fase 173 (D-12/WR-01, T-173-15-01):
+      // las DOS ramas proyectan también `tenantId`. Esta ruta es PÚBLICA — no
+      // hay JWT, no hay `request.user` y por lo tanto NO hay `request.scope`,
+      // así que `assertTenant` no aplica y no existe una quinta fuente de
+      // tenant que inventar. El gimnasio se deriva SERVER-SIDE de la fila de
+      // `branches` que la propia ruta ya lee: el cliente elige una SEDE, y la
+      // sede —no el cliente— dice de qué gimnasio es. El `insert(users)` de
+      // más abajo YA estampa ese valor (`tenantValues(ctx, ...)`, con
+      // `ctx.tenantId = branchTenantId`) — este es el precedente que ya copian
+      // los demás caminos sin JWT (webhook de Wellhub, fase 173 plan 15;
+      // QR de asistencia, fases siguientes).
+      //
+      // Además el id de la sede pedida se toma de la FILA leída y ya no del
+      // número del body: antes se validaba la existencia y después se usaba
+      // `requestedBranchId` igual, lo cual funcionaba pero dejaba al payload
+      // como fuente del dato que ahora decide el tenant.
       let branchId: number;
+      let branchTenantId: number;
       if (requestedBranchId) {
         const branch = await fastify.db
-          .select({ id: branches.id })
+          .select({ id: branches.id, tenantId: branches.tenantId })
           .from(branches)
           .where(eq(branches.id, requestedBranchId))
           .limit(1);
@@ -163,10 +215,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
             message: "Sucursal invalida",
           });
         }
-        branchId = requestedBranchId;
+        branchId = branch[0].id;
+        branchTenantId = branch[0].tenantId;
       } else {
         const defaultBranch = await fastify.db
-          .select({ id: branches.id })
+          .select({ id: branches.id, tenantId: branches.tenantId })
           .from(branches)
           .where(eq(branches.code, "ONLINE"))
           .limit(1);
@@ -178,7 +231,32 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         branchId = defaultBranch[0].id;
+        branchTenantId = defaultBranch[0].tenantId;
       }
+
+      // Fail-closed. `branches.tenant_id` es NOT NULL con FK a `tenants`
+      // (`tenant-column.ts`), así que en una base sana esto no dispara nunca —
+      // es defensa en profundidad contra drift de schema, no una rama esperada.
+      // Se corta con el MISMO 500 de "sede no configurada" a propósito: un
+      // gimnasio no resoluble es DENY, nunca un default numérico al tenant 1
+      // (`country-scope.ts:33-37`).
+      if (!Number.isInteger(branchTenantId)) {
+        request.log.error(
+          { branchId },
+          "Sucursal sin gimnasio resoluble en el autorregistro",
+        );
+        return reply.code(500).send({
+          error: "Error del servidor",
+          message: "Sucursal predeterminada no configurada",
+        });
+      }
+
+      // Fase 173 (D-12/WR-01, T-173-15-01): el gimnasio ya está resuelto y
+      // validado fail-closed arriba — este es el ÚNICO `ctx` de todo el
+      // handler, reusado por el insert de `users`, la actualización de
+      // `referredBy` y el `assignPlan` del promo (antes se construía dos
+      // veces el mismo objeto literal más abajo).
+      const ctx: TenantContext = { tenantId: branchTenantId };
 
       // Hash password and create user
       const passwordHash = await argon2.hash(password);
@@ -190,29 +268,31 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const firstNameTrimmed = firstName.trim();
       const lastNameTrimmed = lastName.trim();
 
-      const result = await fastify.db.insert(users).values({
-        email,
-        passwordHash,
-        branchId,
-        // Recategorización (0185): el registro fija la sede elegida → 'manual'
-        // para que el cron mensual respete la ventana de protección.
-        branchUpdatedAt: new Date(),
-        branchSource: "manual" as const,
-        firstName: firstNameTrimmed,
-        lastName: lastNameTrimmed,
-        dni,
-        phone,
-        gender,
-        role: "member",
-        // Phase 130 (KAIROS-04, D-01): new self-registered members are born
-        // kairos. Server-assigned — never read from the request body, so a
-        // member cannot self-promote (T-130-01).
-        level: "kairos",
-        // Phase 103-03 (R7, D-12, D-13): online self-register starts as freemium.
-        // If a valid promoCode follows, assignPlan → recomputeUserStatus flips
-        // it to 'activo' inside the same transaction (Plan 02 wiring).
-        status: "freemium" as const,
-      });
+      const result = await fastify.db.insert(users).values(
+        tenantValues(ctx, {
+          email,
+          passwordHash,
+          branchId,
+          // Recategorización (0185): el registro fija la sede elegida → 'manual'
+          // para que el cron mensual respete la ventana de protección.
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
+          firstName: firstNameTrimmed,
+          lastName: lastNameTrimmed,
+          dni,
+          phone,
+          gender,
+          role: "member",
+          // Phase 130 (KAIROS-04, D-01): new self-registered members are born
+          // kairos. Server-assigned — never read from the request body, so a
+          // member cannot self-promote (T-130-01).
+          level: "kairos",
+          // Phase 103-03 (R7, D-12, D-13): online self-register starts as freemium.
+          // If a valid promoCode follows, assignPlan → recomputeUserStatus flips
+          // it to 'activo' inside the same transaction (Plan 02 wiring).
+          status: "freemium" as const,
+        }),
+      );
 
       const userId = Number(result[0].insertId);
 
@@ -262,10 +342,19 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (effectivePromoCode) {
         try {
           // Look up promo plan
+          // T-175-06 (bug post-168): promo_code es UNIQUE compuesto con
+          // tenant_id — el mismo codigo puede existir en dos gimnasios. Sin
+          // tenantWhere esto podia resolver la promo de OTRO gimnasio. Reusa
+          // el ctx unico del handler (linea de arriba).
           const [promo] = await fastify.db
             .select()
             .from(promoPlans)
-            .where(eq(promoPlans.promoCode, effectivePromoCode))
+            .where(
+              and(
+                tenantWhere(promoPlans, ctx),
+                eq(promoPlans.promoCode, effectivePromoCode),
+              ),
+            )
             .limit(1);
 
           if (promo && promo.isActive) {
@@ -276,7 +365,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               // NOTE: Cross-module service instantiation is consistent with existing
               // pattern in this file (SegmentationService is already instantiated
               // the same way in /me). All three services export their classes.
-              const auraService = new AuraService(fastify.db);
               const balanceService = new BalanceService(
                 fastify.db,
                 fastify.log,
@@ -298,13 +386,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               const subscriptionService = new SubscriptionService(
                 fastify.db,
                 request.log,
-                auraService,
                 transactionService,
                 enrollmentService,
               );
 
               const today = new Date().toISOString().split("T")[0];
+              // Fase 172/173: reusa el `ctx` único del handler (sale de la
+              // fila de sede leída arriba, no de `request.scope` — no existe
+              // en una ruta pública — ni del body).
               await subscriptionService.assignPlan(
+                ctx,
                 userId,
                 {
                   planId: promo.subscriptionPlanId,
@@ -322,7 +413,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
                 .set({
                   redemptionCount: sql`${promoPlans.redemptionCount} + 1`,
                 })
-                .where(eq(promoPlans.id, promo.id));
+                .where(
+                  and(tenantWhere(promoPlans, ctx), eq(promoPlans.id, promo.id)),
+                );
 
               promoApplied = true;
             }
@@ -351,23 +444,31 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // silently skipped/swallowed: the registration still succeeds.
       if (effectiveRef) {
         try {
-          const referrerId =
-            await referralService.resolveReferralCode(effectiveRef);
+          // T-173-08: `resolveReferralCode` necesita `ctx` (users.referral_code
+          // es UNIQUE compuesto con tenant_id — el mismo código puede existir en
+          // dos gimnasios). Reusa el `ctx` único del handler (sale de la misma
+          // fila de sede leída arriba, no de `request.scope` ni del body).
+          const referrerId = await referralService.resolveReferralCode(
+            ctx,
+            effectiveRef,
+          );
           if (referrerId !== null && referrerId !== userId) {
             await fastify.db
               .update(users)
               .set({ referredBy: referrerId })
-              .where(eq(users.id, userId));
-            await fastify.db.insert(referrals).values({
-              referrerId,
-              referredId: userId,
-              status: "pending",
-              attributionChannel: "self_service",
-              // A/B copy test: estampa la variante que vio el referidor (derivada
-              // de su id) para atribuir la conversión al copy sin depender del
-              // cliente ni de recomputar el bucketing a posteriori.
-              copyVariant: referralCopyVariant(referrerId),
-            });
+              .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
+            await fastify.db.insert(referrals).values(
+              tenantValues(ctx, {
+                referrerId,
+                referredId: userId,
+                status: "pending",
+                attributionChannel: "self_service",
+                // A/B copy test: estampa la variante que vio el referidor (derivada
+                // de su id) para atribuir la conversión al copy sin depender del
+                // cliente ni de recomputar el bucketing a posteriori.
+                copyVariant: referralCopyVariant(referrerId),
+              }),
+            );
           }
         } catch (err: unknown) {
           request.log.warn(
@@ -441,7 +542,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // irrecoverable UNIQUE collision after retries leaves referral_code NULL
       // (the backfill covers it) and NEVER blocks the signup.
       try {
-        await referralService.generateReferralCode(userId);
+        await referralService.generateReferralCode(ctx, userId);
       } catch (err: unknown) {
         request.log.warn(
           { err: err instanceof Error ? err.message : String(err), userId },
@@ -450,6 +551,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Get branch info for response
+      /* tenant-safe: branchId es el MISMO id ya resuelto arriba (el bootstrap que deriva ctx.tenantId), releer por PK para el response no expone otro gimnasio (D4) */
       const [branchRow] = await fastify.db
         .select({
           name: branches.name,
@@ -457,7 +559,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           country: branches.country,
         })
         .from(branches)
-        .where(eq(branches.id, branchId))
+        .where(
+          sql`/* tenant-safe: branchId es el MISMO id ya resuelto arriba (el bootstrap que deriva ctx.tenantId), releer por PK para el response no expone otro gimnasio (D4) */ ${eq(branches.id, branchId)}`,
+        )
         .limit(1);
 
       // Sign JWT (legacy 7d token kept for backwards-compat — Req 7)
@@ -486,9 +590,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           // Phase 130 (KAIROS-04, D-01): echo must match the row written above.
           level: "kairos",
           branchId,
-          // Compat app: reconstruye "El Templo X" para el regex baked del
-          // front (registro es member-only).
-          branchName: appBranchName(branchRow?.name ?? ""),
+          // Compat app: reconstruye "El Templo X" para que el regex baked del
+          // front muestre "Sede X" sin build (registro es member-only).
+          branchName: appBranchName(branchRow?.name ?? "", branchTenantId),
           branchIsVirtual: branchRow?.isVirtual ?? false,
           branchCountry: branchRow?.country ?? "AR",
         },
@@ -506,6 +610,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const { email, password } = request.body;
 
       // Find user by email
+      //
+      // T-173-15: mismo caso que el chequeo de duplicado de `/register` — el
+      // login no recibe ningún selector de gimnasio, así que busca a propósito
+      // en TODOS los gimnasios (deuda pre-existente de la fase 168/CON-01,
+      // documentada en el SUMMARY de este plan). El `ctx` de este handler nace
+      // RECIÉN DESPUÉS, de la fila encontrada (`user.tenantId`).
+      //
+      // T-173-22: el comentario TS de arriba exime al LINT, no al SENTINEL
+      // (que solo lee el SQL de runtime) — la misma exención se repite
+      // embebida en el SQL del `where` de abajo.
+      /* tenant-safe: login sin selector de gimnasio, busca a propósito cross-tenant — ver comentario arriba (deuda pre-existente fase 168) */
       const userResults = await fastify.db
         .select({
           id: users.id,
@@ -516,6 +631,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: users.role,
           level: users.level,
           branchId: users.branchId,
+          tenantId: users.tenantId,
           gender: users.gender,
           dateOfBirth: users.dateOfBirth,
           deletedAt: users.deletedAt,
@@ -525,7 +641,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           staffDisabled: users.staffDisabled,
         })
         .from(users)
-        .where(eq(users.email, email))
+        .where(
+          sql`/* tenant-safe: login sin selector de gimnasio, busca a propósito cross-tenant — ver comentario arriba (deuda pre-existente fase 168) */ ${eq(users.email, email)}`,
+        )
         .limit(1);
 
       if (userResults.length === 0) {
@@ -535,6 +653,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const user = userResults[0];
+
+      // T-173-15: ÚNICO `ctx` del handler, derivado de la FILA ya encontrada
+      // (D-06 — el mismo patrón que usa `attachScope` antes de que exista un
+      // `TenantContext`), reusado por la lectura de `member_profiles` de abajo.
+      const ctx: TenantContext = { tenantId: user.tenantId };
 
       if (user.deletedAt) {
         return reply.code(401).send({
@@ -564,6 +687,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Get branch name and virtual status
+      /* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */
       const branchResults = await fastify.db
         .select({
           name: branches.name,
@@ -571,7 +695,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           country: branches.country,
         })
         .from(branches)
-        .where(eq(branches.id, user.branchId))
+        .where(
+          sql`/* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */ ${eq(branches.id, user.branchId)}`,
+        )
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;
@@ -584,7 +710,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           completedAt: memberProfiles.onboardingCompletedAt,
         })
         .from(memberProfiles)
-        .where(eq(memberProfiles.userId, user.id))
+        .where(
+          and(
+            tenantWhere(memberProfiles, ctx),
+            eq(memberProfiles.userId, user.id),
+          ),
+        )
         .limit(1);
       const onboardingCompleted =
         profileRows.length > 0 && profileRows[0].completedAt !== null;
@@ -618,9 +749,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: user.role,
           level: user.level,
           branchId: user.branchId,
-          // Compat app: solo para socios (login es compartido con el admin).
+          // Compat app: solo para socios de El Templo (login es compartido con
+          // el admin y multi-tenant).
           branchName:
-            user.role === "member" ? appBranchName(branchName) : branchName,
+            user.role === "member"
+              ? appBranchName(branchName, user.tenantId)
+              : branchName,
           branchIsVirtual,
           branchCountry,
           gender: user.gender,
@@ -673,10 +807,24 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // rotate() solo devuelve userId. Consultamos users para armar el payload
       // del access JWT (mismo patron que GET /me).
+      //
+      // T-173-15: `rotated.userId` NO sale del body ni de ningún dato que el
+      // cliente controle — sale de resolver el refresh token OPACO contra su
+      // propia tabla (`refresh_token_service.ts`), que ya validó firma/estado.
+      // No hay ningún `ctx` previo posible en este punto (ruta pública,
+      // body-based) y el filtro por `id` ya es una fila única: no hay sede
+      // ajena que pueda "ganar" acá, a diferencia del `branchId` del body de
+      // `/register`. Mismo criterio que la lectura interna de `attachScope`.
+      //
+      // T-173-22: el comentario TS de arriba exime al LINT, no al SENTINEL —
+      // la misma exención se repite embebida en el SQL del `where` de abajo.
+      /* tenant-safe: userId server-resuelto desde el refresh token opaco, no hay ctx previo posible — ver comentario arriba */
       const [u] = await fastify.db
         .select({ id: users.id, email: users.email, role: users.role })
         .from(users)
-        .where(eq(users.id, rotated.userId))
+        .where(
+          sql`/* tenant-safe: userId server-resuelto desde el refresh token opaco, no hay ctx previo posible — ver comentario arriba */ ${eq(users.id, rotated.userId)}`,
+        )
         .limit(1);
 
       // Caso defensivo: refresh huerfano (user inexistente). No deberia
@@ -738,6 +886,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         request.log,
       );
 
+      // T-173-15: `users` es tabla strict (D-01). El ctx sale de la propia
+      // fila del socio autenticado (attachCountryScope + assertTenant), mismo
+      // patrón que `bar-challenge/routes.ts` (T-173-09-01) — D-09: esta ruta
+      // member-facing NO recibe su caso de aislamiento en esta fase.
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "auth.me");
+
       // Get user from database
       const userResults = await fastify.db
         .select({
@@ -760,7 +915,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           createdAt: users.createdAt,
         })
         .from(users)
-        .where(eq(users.id, userId))
+        .where(and(tenantWhere(users, ctx), eq(users.id, userId)))
         .limit(1);
 
       if (userResults.length === 0) {
@@ -772,6 +927,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const user = userResults[0];
 
       // Get branch name and virtual status
+      /* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */
       const branchResults = await fastify.db
         .select({
           name: branches.name,
@@ -779,7 +935,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           country: branches.country,
         })
         .from(branches)
-        .where(eq(branches.id, user.branchId))
+        .where(
+          sql`/* tenant-safe: branches joineado por FK (user.branchId) a una fila de users ya resuelta arriba, no expone otro gimnasio (D4) */ ${eq(branches.id, user.branchId)}`,
+        )
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;
@@ -809,7 +967,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
             onboardingCompletedAt: memberProfiles.onboardingCompletedAt,
           })
           .from(memberProfiles)
-          .where(eq(memberProfiles.userId, userId))
+          .where(
+            and(
+              tenantWhere(memberProfiles, ctx),
+              eq(memberProfiles.userId, userId),
+            ),
+          )
           .limit(1);
 
         segment = profile?.segment ?? null;
@@ -821,10 +984,23 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           completedAt: memberProfiles.onboardingCompletedAt,
         })
         .from(memberProfiles)
-        .where(eq(memberProfiles.userId, userId))
+        .where(
+          and(
+            tenantWhere(memberProfiles, ctx),
+            eq(memberProfiles.userId, userId),
+          ),
+        )
         .limit(1);
       const onboardingCompleted =
         profileRows.length > 0 && profileRows[0].completedAt !== null;
+
+      // Fase 176 (D-08, MOD-01/MOD-02): campo aditivo, ordenado
+      // alfabéticamente para que la respuesta sea determinística (el `Set`
+      // que devuelve `enabledModulesFor` no garantiza orden). Nadie lo
+      // consume todavía en los frontends — ver D-08 en el plan 176-11.
+      const enabledModules = Array.from(
+        await enabledModulesFor(ctx.tenantId, fastify.db),
+      ).sort();
 
       return {
         id: user.id,
@@ -834,9 +1010,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         role: user.role,
         level: user.level,
         branchId: user.branchId,
-        // Compat app: solo para socios (me es compartido con el admin).
+        // Compat app: solo para socios de El Templo (me es compartido con el
+        // admin y multi-tenant).
         branchName:
-          user.role === "member" ? appBranchName(branchName) : branchName,
+          user.role === "member"
+            ? appBranchName(branchName, ctx.tenantId)
+            : branchName,
         branchIsVirtual,
         branchCountry,
         gender: user.gender,
@@ -852,6 +1031,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         // el app. Para importados legacy es la fecha de import, igual que en
         // analytics (los legacy cuentan por createdAt).
         memberSince: user.createdAt.toISOString(),
+        enabledModules,
       };
     },
   );
@@ -875,6 +1055,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { userId } = request.user;
 
+      // T-173-15: mismo patrón que GET /me — ctx propio del socio autenticado.
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "auth.change-password");
+
       const userResults = await fastify.db
         .select({
           email: users.email,
@@ -882,7 +1066,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: users.role,
         })
         .from(users)
-        .where(eq(users.id, userId))
+        .where(and(tenantWhere(users, ctx), eq(users.id, userId)))
         .limit(1);
 
       if (userResults.length === 0) {
@@ -906,7 +1090,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.db
         .update(users)
         .set({ passwordHash: newHash })
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
 
       // D-01: revocar TODOS los refresh del user (desloguea otros devices) y
       // emitir un par nuevo (access 30m + refresh) para el device actual, que
@@ -948,6 +1132,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { userId } = request.user;
 
+      // T-173-15: mismo patrón que GET /me — ctx propio del socio autenticado.
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "auth.delete-account");
+
       // Fetch current user
       const [user] = await fastify.db
         .select({
@@ -955,7 +1143,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           deletedAt: users.deletedAt,
         })
         .from(users)
-        .where(eq(users.id, userId))
+        .where(and(tenantWhere(users, ctx), eq(users.id, userId)))
         .limit(1);
 
       if (!user) {
@@ -1004,7 +1192,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           passwordHash: "DELETED",
           deletedAt: now,
         })
-        .where(eq(users.id, userId));
+        .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
 
       // D-05: delete-account es soft-delete/anonimizacion, NO borra la fila,
       // asi que el FK ON DELETE CASCADE no se dispara. Revocacion explicita de

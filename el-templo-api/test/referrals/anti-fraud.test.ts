@@ -11,11 +11,20 @@
  *  - toda alta exitosa deja el nuevo socio con referral_code eager (D-25)
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { referrals } from "../../src/db/schema/referrals";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+
+/**
+ * Fase 173 (ADO-02): gimnasio de las lecturas DIRECTAS de `users` en este
+ * archivo. Con `members` en TENANT_STRICT_MODULES una lectura sin estampa
+ * hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -29,7 +38,9 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.email, "admin@test.com"))
+    .where(
+      and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "admin@test.com")),
+    )
     .limit(1);
   adminId = admin.id;
 });
@@ -93,7 +104,9 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     const [link] = await app.db
       .select()
       .from(referrals)
-      .where(eq(referrals.referredId, memberId));
+      .where(
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${referrals.referredId} = ${memberId}`,
+      );
     expect(link).toBeDefined();
     expect(link.referrerId).toBe(referrerId);
     expect(link.status).toBe("pending");
@@ -103,7 +116,7 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     const [u] = await app.db
       .select({ referredBy: users.referredBy })
       .from(users)
-      .where(eq(users.id, memberId))
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, memberId)))
       .limit(1);
     expect(u.referredBy).toBe(referrerId);
   });
@@ -116,13 +129,15 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     const links = await app.db
       .select()
       .from(referrals)
-      .where(eq(referrals.referredId, memberId));
+      .where(
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${referrals.referredId} = ${memberId}`,
+      );
     expect(links).toHaveLength(0);
 
     const [u] = await app.db
       .select({ referredBy: users.referredBy })
       .from(users)
-      .where(eq(users.id, memberId))
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, memberId)))
       .limit(1);
     expect(u.referredBy).toBeNull();
   });
@@ -138,6 +153,7 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     // mismo referred_id debe romper por el UNIQUE de referrals.referred_id.
     await expect(
       app.db.insert(referrals).values({
+        tenantId: TENANT_TEMPLO,
         referrerId: referrerB,
         referredId: memberId,
         status: "pending",
@@ -154,13 +170,15 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     const links = await app.db
       .select()
       .from(referrals)
-      .where(eq(referrals.referredId, memberId));
+      .where(
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${referrals.referredId} = ${memberId}`,
+      );
     expect(links).toHaveLength(0);
 
     const [u] = await app.db
       .select({ code: users.referralCode })
       .from(users)
-      .where(eq(users.id, memberId))
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, memberId)))
       .limit(1);
     expect(u.code).toMatch(CODE_RE);
   });
@@ -188,7 +206,7 @@ describe("POST /api/admin/members — canal asistido + antifraude (157-03)", () 
     const [u] = await app.db
       .select({ code: users.referralCode })
       .from(users)
-      .where(eq(users.id, memberId))
+      .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, memberId)))
       .limit(1);
     expect(u.code).toMatch(CODE_RE);
   });

@@ -15,7 +15,6 @@ import * as schema from "../db/schema";
 import { bookings } from "../db/schema/bookings";
 import { todayInTz } from "../modules/shared/date-utils";
 import { SubscriptionService } from "../modules/subscriptions/service";
-import { AuraService } from "../modules/aura";
 import {
   TransactionService,
   BalanceService,
@@ -24,6 +23,7 @@ import {
 import { EnrollmentService } from "../modules/programs/enrollment-service";
 import {
   forEachActiveTenant,
+  tenantWhere,
   type TenantContext,
 } from "../modules/shared/tenant";
 
@@ -38,7 +38,6 @@ const log = pino({ name: "mark-no-shows" });
 function buildSubscriptionService(
   db: MySql2Database<typeof schema>,
 ): SubscriptionService {
-  const auraService = new AuraService(db);
   const balanceService = new BalanceService(db, log);
   const cashRegisterService = new CashRegisterService(db, log);
   const transactionService = new TransactionService(
@@ -51,7 +50,6 @@ function buildSubscriptionService(
   return new SubscriptionService(
     db,
     log,
-    auraService,
     transactionService,
     enrollmentService,
   );
@@ -95,9 +93,10 @@ async function getDistinctBranchTimezones(
  * `forEachActiveTenant` resuelve la lista de `tenants` en cada corrida y aísla
  * los errores POR ITERACIÓN (D-03): un gimnasio roto no frena a los demás.
  *
- * D-02: el `ctx` NO baja a los services (el `SubscriptionService` que arma el
- * cuerpo mantiene su firma hasta 172-175). Con un solo tenant activo el
- * resultado es IDÉNTICO al de hoy.
+ * Fase 174-06 (D-07, saldada): `ctx` SÍ baja ahora a `pickSubscriptionForActivity`
+ * (el decremento de no-show rutea la sub correcta con el mismo `ctx` per-tenant
+ * que ya resuelve `runAutoResumePausesForTenant` más abajo). Con un solo
+ * tenant activo el resultado sigue siendo IDÉNTICO al de antes.
  *
  * VENCIMIENTO: mientras el cuerpo siga siendo global, más de un tenant activo
  * repetiría el MISMO barrido N veces. Por eso el gate del MILESTONE es que el
@@ -164,6 +163,11 @@ async function runMarkNoShowsForTenantTz(
     )
     .where(
       and(
+        // Fase 174.1-05 (D-02): ctx YA resuelto por el loop de
+        // `forEachActiveTenant` de más arriba — este barrido corre POR
+        // GIMNASIO, así que `bookings`/`schedules` se acotan con `tenantWhere`
+        // en vez de una exención cross-tenant.
+        tenantWhere(bookings, ctx),
         eq(bookings.status, "reservado"),
         sql`${bookings.bookingDate} < ${today}`,
         eq(schema.branches.timezone, tz),
@@ -178,7 +182,7 @@ async function runMarkNoShowsForTenantTz(
   await db
     .update(bookings)
     .set({ status: "no_show" })
-    .where(inArray(bookings.id, ids));
+    .where(and(tenantWhere(bookings, ctx), inArray(bookings.id, ids)));
 
   // Group no-shows by (member, is-special) so each bucket decrements the right
   // subscription. A member with a regular AND a special no-show on the same
@@ -204,6 +208,7 @@ async function runMarkNoShowsForTenantTz(
   let decremented = 0;
   for (const { memberId, isSpecial, count } of memberCounts.values()) {
     const sub = await subscriptionService.pickSubscriptionForActivity(
+      ctx,
       memberId,
       isSpecial,
     );
@@ -220,6 +225,10 @@ async function runMarkNoShowsForTenantTz(
       })
       .where(
         and(
+          // Fase 174.1-05 (D-02): `sub` ya salió de `pickSubscriptionForActivity(ctx, ...)`
+          // scopeado al gimnasio del barrido — `tenantWhere` acá es defensivo
+          // (belt-and-suspenders), no un cambio de comportamiento.
+          tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.id, sub.id),
           sql`${schema.subscriptions.classesRemaining} > 0`,
         ),

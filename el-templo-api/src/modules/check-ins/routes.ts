@@ -115,7 +115,9 @@ export const checkInAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: adminCheckInsQuerySchema },
     async (request, reply) => {
       try {
+        const ctx = assertTenant(request.scope, "check-ins.adminOverview");
         return await service.getAdminCheckIns(
+          ctx,
           {
             isOwner: request.scope.isOwner,
             country: request.scope.country,

@@ -22,6 +22,7 @@ import { and, eq } from "drizzle-orm";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { runTenureMilestones } from "../../src/jobs/tenure-milestones";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 // "Ahora" pinneado → hoy en AR (UTC-3) = 2026-06-15.
 const NOW = new Date("2026-06-15T15:00:00Z");
@@ -139,7 +140,12 @@ describe("job aniversarios de permanencia", () => {
     const pushes = await app.db
       .select({ title: schema.pendingNotifications.title })
       .from(schema.pendingNotifications)
-      .where(eq(schema.pendingNotifications.userId, m6));
+      .where(
+        and(
+          eq(schema.pendingNotifications.tenantId, TENANT_TEMPLO),
+          eq(schema.pendingNotifications.userId, m6),
+        ),
+      );
     expect(pushes).toHaveLength(1);
     expect(pushes[0].title).toContain("6 meses");
   });
@@ -161,7 +167,12 @@ describe("job aniversarios de permanencia", () => {
     const pushes = await app.db
       .select({ id: schema.pendingNotifications.id })
       .from(schema.pendingNotifications)
-      .where(eq(schema.pendingNotifications.userId, m));
+      .where(
+        and(
+          eq(schema.pendingNotifications.tenantId, TENANT_TEMPLO),
+          eq(schema.pendingNotifications.userId, m),
+        ),
+      );
     expect(pushes).toHaveLength(1);
   });
 
@@ -175,7 +186,12 @@ describe("job aniversarios de permanencia", () => {
     const pushes = await app.db
       .select({ id: schema.pendingNotifications.id })
       .from(schema.pendingNotifications)
-      .where(eq(schema.pendingNotifications.userId, m));
+      .where(
+        and(
+          eq(schema.pendingNotifications.tenantId, TENANT_TEMPLO),
+          eq(schema.pendingNotifications.userId, m),
+        ),
+      );
     expect(pushes).toHaveLength(0);
   });
 });

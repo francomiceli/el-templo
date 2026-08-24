@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
@@ -15,6 +15,16 @@ import {
   todayStr,
   dateOffsetStr,
 } from "./_helpers";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+
+/**
+ * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
+ * los tests pasan por `app.dbPool` igual que las de la app, asi que con
+ * `finance` en `TENANT_STRICT_MODULES` una lectura o una siembra sobre las
+ * tablas strict sin gimnasio hace throw antes de llegar a MySQL.
+ */
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Subscriptions API — Change plan", () => {
   let app: FastifyInstance;
@@ -99,7 +109,12 @@ describe("Subscriptions API — Change plan", () => {
       await app.db
         .update(subscriptions)
         .set({ classesRemaining: 6 })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       const previewRes = await app.inject({
         method: "GET",
@@ -252,7 +267,12 @@ describe("Subscriptions API — Change plan", () => {
       await app.db
         .update(subscriptions)
         .set({ classesRemaining: 6 })
-        .where(eq(subscriptions.userId, member.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.userId, member.id),
+          ),
+        );
 
       const res = await app.inject({
         method: "POST",
@@ -275,7 +295,12 @@ describe("Subscriptions API — Change plan", () => {
       const oldSubRows = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.id, oldSubId as number));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, oldSubId as number),
+          ),
+        );
       expect(oldSubRows[0].status).toBe("changed");
 
       // Plan 105-06: payments table dropped — verify against
@@ -290,9 +315,17 @@ describe("Subscriptions API — Change plan", () => {
         .from(financialTransactions)
         .leftJoin(
           transactionLinks,
-          eq(transactionLinks.transactionId, financialTransactions.id),
+          and(
+            tenantWhere(transactionLinks, TEMPLO_CTX),
+            eq(transactionLinks.transactionId, financialTransactions.id),
+          ),
         )
-        .where(eq(financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(financialTransactions, TEMPLO_CTX),
+            eq(financialTransactions.memberId, member.id),
+          ),
+        );
       const upgradePmt = txnRows.find((p) => p.amount === 8800);
       expect(upgradePmt).toBeTruthy();
       expect(upgradePmt!.paymentMethod).toBe("cash");
@@ -356,7 +389,12 @@ describe("Subscriptions API — Change plan", () => {
       const newSubRows = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.id, body.id as number));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, body.id as number),
+          ),
+        );
       expect(newSubRows[0].classesRemaining).toBe(18);
       expect(newSubRows[0].classesBudget).toBe(18);
 
@@ -364,7 +402,12 @@ describe("Subscriptions API — Change plan", () => {
       const txnRows = await app.db
         .select({ amount: financialTransactions.amount })
         .from(financialTransactions)
-        .where(eq(financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(financialTransactions, TEMPLO_CTX),
+            eq(financialTransactions.memberId, member.id),
+          ),
+        );
       expect(txnRows.some((t) => t.amount === 15000)).toBe(true);
     });
 
@@ -500,7 +543,12 @@ describe("Subscriptions API — Change plan", () => {
       const [oldSub] = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.id, oldSubId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, oldSubId),
+          ),
+        );
       expect(oldSub.status).toBe("active");
 
       // Plan 105-06: payments table dropped — query financial_transactions joined via links.
@@ -512,9 +560,17 @@ describe("Subscriptions API — Change plan", () => {
         .from(financialTransactions)
         .leftJoin(
           transactionLinks,
-          eq(transactionLinks.transactionId, financialTransactions.id),
+          and(
+            tenantWhere(transactionLinks, TEMPLO_CTX),
+            eq(transactionLinks.transactionId, financialTransactions.id),
+          ),
         )
-        .where(eq(financialTransactions.memberId, member.id));
+        .where(
+          and(
+            tenantWhere(financialTransactions, TEMPLO_CTX),
+            eq(financialTransactions.memberId, member.id),
+          ),
+        );
       const scheduledPmt = pmts.find((p) => p.targetId === (body.id as number));
       expect(scheduledPmt!.amount).toBe(12000);
     });
@@ -598,7 +654,12 @@ describe("Subscriptions API — Change plan", () => {
       await app.db
         .update(subscriptions)
         .set({ status: "paused" })
-        .where(eq(subscriptions.id, subId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, subId),
+          ),
+        );
 
       const res = await app.inject({
         method: "POST",
@@ -681,11 +742,21 @@ describe("Subscriptions API — Change plan", () => {
       await app.db
         .update(subscriptions)
         .set({ endDate: dateOffsetStr(-1) })
-        .where(eq(subscriptions.id, oldSubId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, oldSubId),
+          ),
+        );
       await app.db
         .update(subscriptions)
         .set({ startDate: dateOffsetStr(-1) })
-        .where(eq(subscriptions.id, scheduledSub.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, scheduledSub.id),
+          ),
+        );
 
       // Trigger auto-expire
       await app.inject({
@@ -697,7 +768,12 @@ describe("Subscriptions API — Change plan", () => {
       const [activatedSub] = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.id, scheduledSub.id));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, scheduledSub.id),
+          ),
+        );
       expect(activatedSub.status).toBe("active");
 
       const enrollmentsA = await app.db
@@ -774,7 +850,12 @@ describe("Subscriptions API — Change plan", () => {
       const [oldSub] = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.id, oldSubId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, oldSubId),
+          ),
+        );
       expect(oldSub.status).toBe("active");
     });
 
@@ -847,7 +928,12 @@ describe("Subscriptions API — Change plan", () => {
       await app.db
         .update(subscriptions)
         .set({ endDate: dateOffsetStr(-1) })
-        .where(eq(subscriptions.id, oldSubId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, oldSubId),
+          ),
+        );
 
       await app.inject({
         method: "GET",
@@ -858,7 +944,12 @@ describe("Subscriptions API — Change plan", () => {
       const [successor] = await app.db
         .select()
         .from(subscriptions)
-        .where(eq(subscriptions.id, successorId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, successorId),
+          ),
+        );
       expect(successor.status).toBe("scheduled");
       expect(successor.startDate).toBe(dateOffsetStr(45));
     });
