@@ -4,6 +4,8 @@
     Nunca renderiza el token ni un estado de error — solo el loader mientras
     canjea, después navega (D-05: un link vencido cae al login, no a una
     pantalla de error).
+    (Fase 180: el canje web es la superficie de la member app que el deploy de
+    staging debe rebuildear — el `paths-filter` solo mira `el-templo-app/**`.)
   -->
   <q-page class="magic-link-page" padding>
     <div class="magic-link-page__loading">

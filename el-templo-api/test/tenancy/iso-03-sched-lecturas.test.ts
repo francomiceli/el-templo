@@ -110,7 +110,7 @@
  * @see test/fixtures/subs-sched-gimnasio-dos.ts — la siembra que este archivo consume (NO extiende)
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, createTestMember, todayStr, dateOffsetStr } from "../helpers";
 import * as schema from "../../src/db/schema";
@@ -163,6 +163,11 @@ beforeEach(async () => {
   //  3. sembrarSubsSchedGimnasioDos siembra el recurso ajeno (El Templo) y lo
   //     propio (gimnasio 2) en una sola llamada.
   await cleanAllTestData(app);
+  // `cleanAllTestData` NO limpia `tenant_settings` (KV compartido con
+  // module-flags). Los casos de `class-label-descriptions` de este archivo
+  // siembran ahí — limpiar su namespace evita fugar filas al test de
+  // migraciones 0190-0191 (mismo worker, isolate:false).
+  await limpiarLabelDescriptions();
   gym2 = await seedSecondTenant(app);
   fx = await sembrarSubsSchedGimnasioDos(app, gym2);
 });
@@ -171,10 +176,19 @@ afterAll(async () => {
   // Obligatorio: la base la comparten todos los archivos del mismo worker
   // (isolate: false).
   await cleanAllTestData(app);
+  await limpiarLabelDescriptions();
   await limpiarSubsSchedDeLaBateria(app);
   await limpiarSegundoGimnasio(app);
   await app.close();
 });
+
+/** Borra el namespace `class_label_description.*` de `tenant_settings` que
+ * siembran los casos de esta suite (cleanAllTestData no toca el KV). */
+async function limpiarLabelDescriptions(): Promise<void> {
+  await app.db
+    .delete(schema.tenantSettings)
+    .where(like(schema.tenantSettings.settingKey, "class_label_description.%"));
+}
 
 // ─── Utilidades ──────────────────────────────────────────────────────────────
 

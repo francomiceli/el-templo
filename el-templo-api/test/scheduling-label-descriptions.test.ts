@@ -79,6 +79,11 @@ describe("Fase 180 Plan 10 (RES-05, D-23): descripción coherente con la etiquet
   });
 
   afterAll(async () => {
+    // Higiene entre archivos del mismo worker (isolate:false): dejar el KV
+    // limpio para no fugar la última siembra al test de migraciones 0190-0191.
+    await app.db
+      .delete(tenantSettings)
+      .where(like(tenantSettings.settingKey, "class_label_description.%"));
     await app.close();
   });
 

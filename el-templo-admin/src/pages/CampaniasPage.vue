@@ -480,7 +480,8 @@ const form = ref<CreateForm>(emptyForm());
 // Options for the segment `q-select` (D-11): a single segment per campaign,
 // never multi-select (D-14). Labels come from the one place they're defined.
 // (Fase 180: este selector es la superficie de admin que el deploy de staging
-// debe rebuildear — el `paths-filter` solo mira `el-templo-admin/**`.)
+// debe rebuildear en cada push — el `paths-filter` solo mira `el-templo-admin/**`,
+// y el deploy rsyncea solo lo que se buildeó.)
 const segmentOptions = (Object.entries(CAMPAIGN_SEGMENT_LABELS) as [CampaignSegment, string][]).map(
   ([value, label]) => ({ label, value })
 );
