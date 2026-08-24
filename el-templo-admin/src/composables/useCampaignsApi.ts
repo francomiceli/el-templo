@@ -16,6 +16,7 @@ import type {
   SendResult,
   EligibleCount,
   CampaignCountry,
+  CampaignSegment,
 } from 'src/types/campaign';
 
 function buildCountryParams(country?: CampaignCountry): Record<string, unknown> {
@@ -119,12 +120,17 @@ export function useCampaignsApi() {
     }
   }
 
-  async function getEligibleCount(country?: CampaignCountry): Promise<number> {
+  async function getEligibleCount(
+    country?: CampaignCountry,
+    segment?: CampaignSegment
+  ): Promise<number> {
     loading.value = true;
     error.value = null;
     try {
+      const params = buildCountryParams(country);
+      if (segment !== undefined) params.segment = segment;
       const { data } = await api.get<EligibleCount>('/campaigns/admin/eligible-count', {
-        params: buildCountryParams(country),
+        params,
       });
       return data.count;
     } catch (err: unknown) {
