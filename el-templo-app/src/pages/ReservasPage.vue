@@ -258,7 +258,12 @@
             >
               <div class="slot-card__time">
                 <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-                <span class="slot-card__activity">{{ slot.activityName }}</span>
+                <span
+                class="slot-card__activity"
+                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                @click="onActivityNameTap(slot, $event)"
+                >{{ slot.activityName }}</span
+              >
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
@@ -299,7 +304,12 @@
             >
               <div class="slot-card__time">
                 <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-                <span class="slot-card__activity">{{ slot.activityName }}</span>
+                <span
+                class="slot-card__activity"
+                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                @click="onActivityNameTap(slot, $event)"
+                >{{ slot.activityName }}</span
+              >
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
@@ -502,7 +512,12 @@
           >
             <div class="slot-card__time">
               <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-              <span class="slot-card__activity">{{ slot.activityName }}</span>
+              <span
+                class="slot-card__activity"
+                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                @click="onActivityNameTap(slot, $event)"
+                >{{ slot.activityName }}</span
+              >
               <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
               <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
                 <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
@@ -602,7 +617,12 @@
           >
             <div class="slot-card__time">
               <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-              <span class="slot-card__activity">{{ slot.activityName }}</span>
+              <span
+                class="slot-card__activity"
+                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                @click="onActivityNameTap(slot, $event)"
+                >{{ slot.activityName }}</span
+              >
               <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
               <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
                 <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
@@ -896,6 +916,14 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Plan 180-13 (D-18): hoja de detalle de actividad, montada una sola vez. -->
+    <ActivityInfoSheet
+      :model-value="activitySheet !== null"
+      :title="activitySheet?.title ?? ''"
+      :description="activitySheet?.description ?? null"
+      @update:model-value="onActivitySheetUpdate"
+    />
   </q-page>
 </template>
 
@@ -905,6 +933,7 @@ import axios from 'axios'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
+import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
 import type { TrialEligibility, BranchOption } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
@@ -1146,6 +1175,23 @@ const showCoverageDialog = ref(false)
 // (tap en una especial sin plan) y desde el catch de confirmReserve ante code
 // PASS_REQUIRED (espejo de COVERAGE_EXPIRED). Informativo, SIN pago in-app.
 const showAuraInfoDialog = ref(false)
+
+// Plan 180-13 (D-18/RES-05): hoja de detalle de actividad. El título viaja
+// TAL CUAL la etiqueta visible del slot (activityName, ya derivada server-side
+// por 180-10) — nunca se busca la descripción por el id de la actividad en el
+// cliente (T-180-61).
+const activitySheet = ref<{ title: string; description: string } | null>(null)
+
+function onActivityNameTap(slot: WeeklySlotView, event: Event): void {
+  if (!slot.activityDescription) return
+  // No debe disparar la acción de reservar/abrir el slot del contenedor padre.
+  event.stopPropagation()
+  activitySheet.value = { title: slot.activityName, description: slot.activityDescription }
+}
+
+function onActivitySheetUpdate(value: boolean): void {
+  if (!value) activitySheet.value = null
+}
 
 function openCoverageWhatsApp(): void {
   const message = 'Hola, quiero renovar mi membresía para reservar una clase 💪'
@@ -2513,6 +2559,15 @@ onBeforeUnmount(() => cleanup())
   &__activity {
     font-size: 12px;
     color: $grey-7;
+
+    // Plan 180-13 (D-18): affordance de tap SOLO cuando el slot trae
+    // activityDescription (:class condicional en el template — sin copy
+    // cargado, este modificador nunca se aplica).
+    &--tappable {
+      text-decoration: underline dotted rgba($grey-7, 0.5);
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
   }
 
   &__right {
