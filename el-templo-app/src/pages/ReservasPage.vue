@@ -16,6 +16,25 @@
           <p class="next-class-card__time">{{ trialConfirmationBody }}</p>
         </div>
       </div>
+
+      <!-- D-16: qué esperar (mismo copy que en modo prueba, ver FIRST_TIMER_ITEMS) -->
+      <q-expansion-item
+        class="first-timer-card q-mt-md"
+        icon="help_outline"
+        label="¿Primera vez? Qué esperar"
+        header-class="first-timer-card__header"
+        dense
+      >
+        <q-list class="first-timer-card__list">
+          <q-item v-for="item in FIRST_TIMER_ITEMS" :key="item.text" dense>
+            <q-item-section avatar>
+              <q-icon :name="item.icon" size="18px" color="primary" />
+            </q-item-section>
+            <q-item-section>{{ item.text }}</q-item-section>
+          </q-item>
+        </q-list>
+      </q-expansion-item>
+
       <!-- >24h before the class: self-service change/cancel. Inside 24h it's
            locked, so we fall back to the WhatsApp affordance. -->
       <template v-if="trialBooking.canModify">
@@ -87,6 +106,24 @@
           <p class="trial-banner__body">Elegí una sede y un horario. Es gratis y sin compromiso.</p>
         </div>
       </div>
+
+      <!-- D-16: "¿Primera vez? Qué esperar" — solo en modo prueba, copy estático -->
+      <q-expansion-item
+        class="first-timer-card q-mb-md"
+        icon="help_outline"
+        label="¿Primera vez? Qué esperar"
+        header-class="first-timer-card__header"
+        dense
+      >
+        <q-list class="first-timer-card__list">
+          <q-item v-for="item in FIRST_TIMER_ITEMS" :key="item.text" dense>
+            <q-item-section avatar>
+              <q-icon :name="item.icon" size="18px" color="primary" />
+            </q-item-section>
+            <q-item-section>{{ item.text }}</q-item-section>
+          </q-item>
+        </q-list>
+      </q-expansion-item>
 
       <!-- Branch selector — ALWAYS shown for trial mode (D-06): freemium must pick a physical sede -->
       <div class="q-mb-md flex justify-center items-center">
@@ -959,6 +996,20 @@ const trialBooking = computed(() =>
   trialEligibility.value?.alreadyBooked ? (trialEligibility.value.booking ?? null) : null,
 )
 const isTrialMode = computed(() => trialEligible.value)
+
+// "¿Primera vez? Qué esperar" (D-16): copy ESTÁTICO, sin llamadas a la API.
+// Fuente única — se referencia (v-for) tanto en el estado "modo prueba" como en
+// "prueba reservada" para no duplicar el texto en dos lugares del template.
+interface FirstTimerItem {
+  icon: string
+  text: string
+}
+const FIRST_TIMER_ITEMS: FirstTimerItem[] = [
+  { icon: 'schedule', text: 'La clase dura 1 hora.' },
+  { icon: 'checkroom', text: 'Ropa cómoda y agua.' },
+  { icon: 'directions_walk', text: 'Llegá 10 minutos antes.' },
+  { icon: 'record_voice_over', text: 'Preguntá por el profe cuando llegues.' },
+]
 
 // Popup de elección de sede (D-07/D-08/D-09, plan 180-05): se abre UNA vez al
 // entrar a Reservas en modo prueba sin sede elegida y con sedes ya cargadas
@@ -2513,6 +2564,35 @@ onBeforeUnmount(() => cleanup())
 
   :deep(.q-item__label--caption) {
     color: $grey-7;
+  }
+}
+
+// ─── D-16: "¿Primera vez? Qué esperar" ───────────────────────────────
+// Mismo patrón que .week-summary (borde redondeado, header en $primary).
+.first-timer-card {
+  border: 1px solid rgba($primary, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.first-timer-card__header) {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: $primary;
+}
+
+.first-timer-card__list {
+  background: transparent;
+  padding: 4px 8px;
+
+  :deep(.q-item) {
+    padding: 8px;
+    min-height: unset;
+  }
+
+  :deep(.q-item__section--avatar) {
+    min-width: 28px;
   }
 }
 </style>
