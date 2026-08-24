@@ -48,6 +48,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/ReservasPage.vue'),
       },
       {
+        // Destino de bajas / prueba-no-convertida (D-13, Phase 180). Dentro
+        // del layout protegido: se llega ya logueado por el canje del
+        // magic-link.
+        path: '/volver',
+        name: 'volver',
+        component: () => import('pages/VolverPage.vue'),
+      },
+      {
         path: 'change-password',
         name: 'change-password',
         component: () => import('pages/ChangePasswordPage.vue'),
