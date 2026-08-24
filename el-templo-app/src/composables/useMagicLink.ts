@@ -3,7 +3,7 @@
  * `MagicLinkPage.vue`) y, a futuro, el listener nativo de deep links
  * (Phase 180, D-03/D-04/D-05/D-21).
  *
- * `exchange(token)` llama a `POST /campaigns/exchange` (plan 180-06) y:
+ * `exchange(token)` llama al endpoint de canje del plan 180-06 (`EXCHANGE_URL`) y:
  *   - D-04: si ya había sesión de OTRO usuario (o ninguna), hace `logout()`
  *     COMPLETO antes de persistir la nueva — nunca `setTokens` sobre estado
  *     Pinia ajeno. Si la sesión ya era del MISMO usuario, no toca tokens ni
@@ -24,6 +24,8 @@ import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { createLogger } from 'src/utils/logger'
 
 const log = createLogger('useMagicLink')
+
+const EXCHANGE_URL = '/campaigns/exchange'
 
 /**
  * Traducción de la CLAVE simbólica que devuelve la API (D-13) a una ruta
@@ -123,7 +125,7 @@ export function useMagicLink() {
 
     try {
       const response = await api.post<ExchangeResponseData>(
-        '/campaigns/exchange',
+        EXCHANGE_URL,
         { token },
         { signal: getSignal() },
       )
