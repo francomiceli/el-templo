@@ -25,6 +25,7 @@ import { signCampaignToken } from "./token-service";
 import { trialCampaignHtml } from "./templates";
 import { AudienceService } from "./audience-service";
 import { deepLinkForSegment } from "./segment-destinations";
+import { buildMapsUrl } from "../shared/maps";
 import type { BranchAddress, TrialCampaignVars } from "./types";
 import type {
   CampaignListItem,
@@ -722,7 +723,13 @@ export class CampaignService {
     };
   }
 
-  /** Load active physical (non-virtual) sedes with an address, scoped by country. */
+  /**
+   * Load active physical (non-virtual) sedes with an address, scoped by
+   * country. `mapsUrl` is derived with the SAME `buildMapsUrl` helper the app
+   * uses for its "Cómo llegar" link (`shared/maps.ts`, D-17) — never a
+   * hand-rolled Google Maps URL here, so the email and the app link are
+   * byte-for-byte identical for the same address (Phase 180, D-09/180-02).
+   */
   private async loadSedes(
     ctx: TenantContext,
     country?: "AR" | "ES" | null,
@@ -749,7 +756,10 @@ export class CampaignService {
 
     return rows
       .filter((r): r is { name: string; address: string } => r.address !== null)
-      .map((r) => ({ name: r.name, address: r.address }));
+      .map((r) => {
+        const mapsUrl = buildMapsUrl(r.address);
+        return { name: r.name, address: r.address, ...(mapsUrl ? { mapsUrl } : {}) };
+      });
   }
 
   /** Build the template merge vars for one recipient's tracking token. */
