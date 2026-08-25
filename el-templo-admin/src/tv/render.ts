@@ -66,8 +66,8 @@ interface ClockNodes {
 interface Nodes {
   fechaL1: HTMLElement;
   fechaL2: HTMLElement;
-  cierreFechaL1: HTMLElement;
-  cierreFechaL2: HTMLElement;
+  /** Fecha larga de la pantalla de cierre (misma cadena que la del reposo). */
+  cierreFecha: HTMLElement;
   reloj: ClockNodes;
   titulo: HTMLElement;
   formato: HTMLElement;
@@ -135,8 +135,7 @@ function ensureNodes(): Nodes {
   nodes = {
     fechaL1: byId('fechaL1'),
     fechaL2: byId('fechaL2'),
-    cierreFechaL1: byId('cierreFechaL1'),
-    cierreFechaL2: byId('cierreFechaL2'),
+    cierreFecha: byId('cierreFecha'),
     reloj: clockNodes(byId('reloj')),
     titulo: byId('titulo'),
     formato: byId('formato'),
@@ -313,6 +312,7 @@ let arranqueUntil = 0;
  * pantalla en blanco. La pagina lo llama en `onMounted`, antes del primer render.
  */
 export function resetRender(): void {
+  clearQuoteTimeouts();
   nodes = null;
   last = null;
   lastListKey = '';
@@ -347,15 +347,7 @@ function classOf(payload: TvPollResponse): TvClassPayload | null {
  * `toLocaleDateString`: misma razón que el reloj (D-20) — la ICU de un televisor de sede
  * puede venir recortada y devolver otra fecha o directamente tirar.
  */
-const DIAS_SEMANA = [
-  'DOMINGO',
-  'LUNES',
-  'MARTES',
-  'MIÉRCOLES',
-  'JUEVES',
-  'VIERNES',
-  'SÁBADO',
-];
+const DIAS_SEMANA = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
 const MESES = [
   'ENERO',
   'FEBRERO',
@@ -503,7 +495,13 @@ function paintList(n: Nodes, c: TvClassPayload): void {
     const col = c.columns[ci];
     key += '|' + col.header + '|' + col.exercises.length;
     for (let i = 0; i < col.exercises.length; i++) {
-      key += '~' + col.exercises[i].name + '~' + col.exercises[i].contraction + '~' + col.exercises[i].dose;
+      key +=
+        '~' +
+        col.exercises[i].name +
+        '~' +
+        col.exercises[i].contraction +
+        '~' +
+        col.exercises[i].dose;
     }
   }
   if (key === lastListKey) {
@@ -632,11 +630,7 @@ function paintDeuHeader(host: HTMLElement, label: string, formato: string): void
  * Pie del 2×2: DOS movilidades (una por deutero), izquierda = DEUTEROS I,
  * derecha = DEUTEROS II — alineadas con las columnas de arriba.
  */
-function paintDeuMovilidad(
-  host: HTMLElement,
-  movI: string | null,
-  movII: string | null,
-): void {
+function paintDeuMovilidad(host: HTMLElement, movI: string | null, movII: string | null): void {
   clear(host);
   const iz = document.createElement('div');
   iz.className = 'movBarCol';
@@ -666,14 +660,13 @@ export function renderState(payload: TvPollResponse): void {
   const fechaCorta = fechaTopbar(nowCorrected(), payload.branch.utcOffsetMinutes);
   setText(n.fechaL1, fechaCorta.l1);
   setText(n.fechaL2, fechaCorta.l2);
-  setText(n.cierreFechaL1, fechaCorta.l1);
-  setText(n.cierreFechaL2, fechaCorta.l2);
   setText(n.reposoFecha, fecha);
+  setText(n.cierreFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   const c = classOf(payload);
-  setVisible(n.pantallaReposo, 'pantalla dosMitades', !c && payload.screen !== 'closing');
-  setVisible(n.pantallaCierre, 'pantalla dosMitades', payload.screen === 'closing');
+  setVisible(n.pantallaReposo, 'pantalla', !c && payload.screen !== 'closing');
+  setVisible(n.pantallaCierre, 'pantalla', payload.screen === 'closing');
 
   if (!c) {
     return;
@@ -761,11 +754,94 @@ export function tickClock(): void {
   }
 }
 
+/** Encendido de la frase: retardo base + paso por letra (jitter determinístico). */
+const IGNITE_BASE_MS = 150;
+const IGNITE_STEP_MS = 22;
+/** Espera extra tras la última letra antes de que aparezca el autor. */
+const IGNITE_AUTOR_EXTRA_MS = 600;
+/** Lo que tarda la frase saliente en apagarse antes de encender la nueva (CSS .apagada). */
+const QUOTE_EXIT_MS = 750;
+
+/**
+ * Timeouts pendientes del encendido (stagger por letra + autor + rebuild).
+ * Se limpian ante cualquier rebuild y al desmontar la página (resetRender): un
+ * timeout huérfano escribiría sobre nodos ya despegados del DOM.
+ */
+let quoteTimeouts: number[] = [];
+/** true mientras la frase saliente se apaga (el rebuild ya quedó agendado). */
+let quoteSaliendo = false;
+
+function clearQuoteTimeouts(): void {
+  for (const t of quoteTimeouts) {
+    window.clearTimeout(t);
+  }
+  quoteTimeouts = [];
+  quoteSaliendo = false;
+}
+
+function quoteLater(fn: () => void, ms: number): void {
+  quoteTimeouts.push(window.setTimeout(fn, ms));
+}
+
+/**
+ * Arma la frase como spans `.palabra` (nowrap) > `.letra` y las enciende en
+ * cadena (clase `.prendida`; los keyframes viven en TvScreenPage.vue). El autor
+ * aparece cuando la última letra terminó de prender. Reconstruir el DOM acá no
+ * rompe la regla de idempotencia: pasa una vez por minuto (la rotación), no por
+ * tick — el guard de `lastQuoteKey` en paintQuote lo garantiza.
+ */
+function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote): void {
+  host.classList.remove('apagada');
+  autor.classList.remove('apagada', 'aparece');
+  clear(host);
+  const letras: HTMLElement[] = [];
+  for (const seg of quote.segments) {
+    for (const palabra of seg.text.split(' ')) {
+      if (palabra.length === 0) {
+        continue;
+      }
+      const wrap = document.createElement('span');
+      wrap.className = seg.gold ? 'palabra oro' : 'palabra';
+      for (const ch of palabra) {
+        const letra = document.createElement('span');
+        letra.className = 'letra';
+        letra.textContent = ch;
+        wrap.appendChild(letra);
+        letras.push(letra);
+      }
+      host.appendChild(wrap);
+      host.appendChild(document.createTextNode(' '));
+    }
+  }
+  for (let i = 0; i < letras.length; i++) {
+    const letra = letras[i];
+    const jitter = ((i * 37) % 5) * 12;
+    quoteLater(
+      function () {
+        letra.classList.add('prendida');
+      },
+      IGNITE_BASE_MS + i * IGNITE_STEP_MS + jitter
+    );
+  }
+  // Sin el "– " ni el punto final del PDF: en la pantalla el autor va en
+  // versalitas espaciadas (CSS) y la puntuación le sobra.
+  setText(autor, quote.author.replace(/\.$/, ''));
+  quoteLater(
+    function () {
+      autor.classList.add('aparece');
+    },
+    IGNITE_BASE_MS + letras.length * IGNITE_STEP_MS + IGNITE_AUTOR_EXTRA_MS
+  );
+}
+
 /**
  * Frase del PDF en reposo/cierre (D-06/D-08).
  *
  * Rota cada minuto con una eleccion derivada del reloj —no aleatoria—: asi todos los
  * televisores de la sede muestran la misma frase y ninguna cambia en medio de un tick.
+ * Al rotar con la pantalla a la vista, la frase actual se apaga (CSS `.apagada`)
+ * y recién entonces se enciende la nueva; al entrar a la pantalla (o cambiar de
+ * reposo a cierre) la frase se enciende directo, sin apagado previo.
  */
 function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): void {
   if (quotes.length === 0) {
@@ -773,23 +849,24 @@ function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): vo
   }
   const idx = Math.floor(nowCorrected() / QUOTE_ROTATION_MS) % quotes.length;
   const key = pantalla + ':' + idx;
-  if (key === lastQuoteKey) {
+  if (key === lastQuoteKey || quoteSaliendo) {
     return;
   }
+  const habiaFrase = lastQuoteKey.indexOf(pantalla + ':') === 0 && host.childNodes.length > 0;
   lastQuoteKey = key;
   const quote = quotes[idx];
-  clear(host);
-  for (const seg of quote.segments) {
-    if (seg.gold) {
-      const oro = document.createElement('span');
-      oro.className = 'oro';
-      oro.textContent = seg.text;
-      host.appendChild(oro);
-    } else {
-      host.appendChild(document.createTextNode(seg.text));
-    }
+  clearQuoteTimeouts();
+  if (!habiaFrase) {
+    buildQuote(host, autor, quote);
+    return;
   }
-  setText(autor, '– ' + quote.author);
+  quoteSaliendo = true;
+  host.classList.add('apagada');
+  autor.classList.add('apagada');
+  quoteLater(function () {
+    quoteSaliendo = false;
+    buildQuote(host, autor, quote);
+  }, QUOTE_EXIT_MS);
 }
 
 // =============================================================================

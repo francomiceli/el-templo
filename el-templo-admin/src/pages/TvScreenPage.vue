@@ -13,15 +13,17 @@
   -->
   <div
     id="tvScreenRoot"
-    :class="`tvbg--${bgState}`"
-    :style="{ '--marble': `url('${MARBLE_BG_BASE64}')` }"
+    :class="[`tvbg--${bgState}`, { 'tvbg--tapado': fondoTapado, 'tv-sobrio': modoSobrio }]"
+    :style="{ '--marble': `url('${MARBLE_BG_BASE64}')`, '--trans-foto': `url('${tvBarsOpen}')` }"
   >
     <!-- Selector de sede: solo la primera vez que se abre esta pantalla en
          este TV (sin `?branchId=` en la URL y sin sede guardada todavía). -->
     <div v-if="!ready" class="tvPicker">
       <img :src="tvLogo" alt="El Templo" class="tvPicker__logo" />
       <div class="tvPicker__title">Elegí la sede de esta pantalla</div>
-      <div class="tvPicker__hint">Se guarda en este televisor: no hace falta elegirla de nuevo.</div>
+      <div class="tvPicker__hint">
+        Se guarda en este televisor: no hace falta elegirla de nuevo.
+      </div>
 
       <div v-if="pickerLoading" class="tvPicker__status">Cargando sedes…</div>
       <div v-else-if="pickerError" class="tvPicker__status tvPicker__status--error">
@@ -57,9 +59,7 @@
         <header class="topbar">
           <div class="marca">
             <img :src="tvLogo" alt="El Templo" />
-            <div class="fecha" id="fecha">
-              <span id="fechaL1"></span><span id="fechaL2"></span>
-            </div>
+            <div class="fecha" id="fecha"><span id="fechaL1"></span><span id="fechaL2"></span></div>
           </div>
           <div class="bloqueNum">
             <span id="bloqueNum"></span><span class="dots" id="dots"></span>
@@ -108,49 +108,42 @@
              oculta sola (:empty) cuando el bloque no trae línea de movilidad. -->
         <div class="movBar" id="movilidad"></div>
 
-        <!-- Reposo: reloj en la mitad superior, frase en la mitad inferior. -->
+        <!-- Pantalla de transición (reposo Y cierre): un solo diseño oscuro —
+             foto con velo charcoal, frase a la izquierda con letras que se
+             "encienden" (render.ts paintQuote), identidad a la derecha
+             (partenón blanco + reloj + fecha; el cierre suma "SESIÓN
+             COMPLETA"). Diseño validado en .planning/sketches/002 (variante D). -->
         <div class="pantalla" id="pantallaReposo">
-          <div class="reposoTop">
-            <img class="logoGrande" :src="tvLogo" alt="El Templo" />
-            <div class="relojXl" id="reposoReloj">--:--</div>
-            <div class="fechaXl" id="reposoFecha"></div>
-          </div>
-          <div class="reposoBottom">
-            <div class="quote" id="reposoQuote"></div>
-            <div class="autor" id="reposoAutor"></div>
+          <div class="transFoto" aria-hidden="true"></div>
+          <div class="transGlow" aria-hidden="true"></div>
+          <div class="transChispas" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="transMarco">
+            <div class="transFrase">
+              <div class="quote" id="reposoQuote"></div>
+              <div class="autor" id="reposoAutor"></div>
+            </div>
+            <aside class="transIdentidad">
+              <img class="transLogo" :src="tvParthenonBlanco" alt="El Templo" />
+              <div class="relojXl" id="reposoReloj">--:--</div>
+              <div class="fechaXl" id="reposoFecha"></div>
+            </aside>
           </div>
         </div>
-        <!-- Cierre: mismo layout que reposo (dos mitades), pero arriba va
-             "SESIÓN COMPLETA" en vez del reloj grande, y el reloj va chico en la
-             esquina superior derecha (como en los bloques). -->
         <div class="pantalla" id="pantallaCierre">
-          <!-- Topbar como en la vista de clase: logo + fecha (izq) y reloj (der). -->
-          <header class="topbar topbar--cierre">
-            <div class="marca">
-              <img :src="tvLogo" alt="El Templo" />
-              <div class="fecha">
-                <span id="cierreFechaL1"></span><span id="cierreFechaL2"></span>
-              </div>
+          <div class="transFoto" aria-hidden="true"></div>
+          <div class="transGlow" aria-hidden="true"></div>
+          <div class="transChispas" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="transMarco">
+            <div class="transFrase">
+              <div class="quote" id="cierreQuote"></div>
+              <div class="autor" id="cierreAutor"></div>
             </div>
-            <div class="reloj" id="cierreReloj">--:--</div>
-          </header>
-          <div class="reposoTop">
-            <div class="cierreBloque">
+            <aside class="transIdentidad">
+              <img class="transLogo" :src="tvParthenonBlanco" alt="El Templo" />
               <div class="cierreTitulo" id="cierreTitulo">SESIÓN COMPLETA</div>
-              <!-- Barra con barrido (misma columna que los separadores) bajo el título. -->
-              <div class="columnaDorica cierreBarra">
-                <div class="columnaDorica__piezas">
-                  <div class="columnaDorica__cap columnaDorica__cap--izq"></div>
-                  <div class="columnaDorica__fuste"></div>
-                  <div class="columnaDorica__cap columnaDorica__cap--der"></div>
-                </div>
-                <div class="columnaDorica__brillo" aria-hidden="true"></div>
-              </div>
-            </div>
-          </div>
-          <div class="reposoBottom">
-            <div class="quote" id="cierreQuote"></div>
-            <div class="autor" id="cierreAutor"></div>
+              <div class="relojXl" id="cierreReloj">--:--</div>
+              <div class="fechaXl" id="cierreFecha"></div>
+            </aside>
           </div>
         </div>
       </div>
@@ -170,6 +163,8 @@ import { scaleTv } from 'src/tv/scale';
 import { QUOTES } from 'src/utils/pdf/quotes';
 import { createLogger } from 'src/utils/logger';
 import tvLogo from 'src/assets/tv-logo.png';
+import tvBarsOpen from 'src/assets/tv-bars-open.webp';
+import tvParthenonBlanco from 'src/assets/tv-parthenon-blanco.png';
 import {
   MARBLE_BG_BASE64,
   CINZEL_REGULAR_BASE64,
@@ -185,6 +180,10 @@ import type { BranchOption } from 'src/types/member';
    (una lectura de classList cada 500 ms) — sin tocar el contrato de render.ts.
    calmo = reposo/descanso · activo = timer corriendo · completo = bloque cerrado. */
 const bgState = ref<'calmo' | 'activo' | 'completo'>('calmo');
+/* La pantalla de transición (reposo/cierre) es un overlay opaco: mientras esté
+   visible, el fondo vivo de atrás se pausa (animation-play-state) — la transición
+   trae sus propias animaciones y no hay por qué pagar las dos a la vez. */
+const fondoTapado = ref(false);
 let bgStateTimer: number | undefined;
 function leerEstadoTimer(): 'calmo' | 'activo' | 'completo' {
   const el = document.getElementById('timerPanel');
@@ -193,9 +192,18 @@ function leerEstadoTimer(): 'calmo' | 'activo' | 'completo' {
   if (el.classList.contains('corriendo')) return 'activo';
   return 'calmo';
 }
+function leerOverlayVisible(): boolean {
+  const reposo = document.getElementById('pantallaReposo');
+  const cierre = document.getElementById('pantallaCierre');
+  return (
+    (reposo !== null && reposo.classList.contains('visible')) ||
+    (cierre !== null && cierre.classList.contains('visible'))
+  );
+}
 onMounted(() => {
   bgStateTimer = window.setInterval(() => {
     bgState.value = leerEstadoTimer();
+    fondoTapado.value = leerOverlayVisible();
   }, 500);
 });
 onUnmounted(() => {
@@ -204,6 +212,9 @@ onUnmounted(() => {
 
 const log = createLogger('TvScreenPage');
 const route = useRoute();
+/* `?sobrio=1`: apaga los efectos de la pantalla de transición (encendido de
+   letras, glow, chispas) sin redeploy — válvula de escape si un TV tironea. */
+const modoSobrio = computed(() => route.query.sobrio !== undefined);
 const authStore = useAuthStore();
 const membersApi = useMembersApi();
 const tvApi = useTvApi();
@@ -232,8 +243,8 @@ function fontFace(family: string, base64: string, weight: number): string {
     family +
     "';font-weight:" +
     weight +
-    ";font-style:normal;font-display:block;" +
-    "src:url(data:font/truetype;charset=utf-8;base64," +
+    ';font-style:normal;font-display:block;' +
+    'src:url(data:font/truetype;charset=utf-8;base64,' +
     base64 +
     ") format('truetype');}"
   );
@@ -440,13 +451,24 @@ onUnmounted(() => {
 -->
 <style>
 #tvScreenRoot {
-  /* Réplica del lenguaje visual del PDF de planis: mármol crema + navy + oro
-     mate + arena (ver session-pdf-builder.ts). */
+  /* Réplica del lenguaje visual del PDF de planis: mármol crema + tinta oscura
+     + oro mate + arena (ver session-pdf-builder.ts). La tinta fue navy #24364a
+     hasta 2026-08-25: pasó a Deep Charcoal ($accent del admin) para alinear el
+     TV con la paleta cálida sin azul de la app. El nombre de la variable se
+     conserva para no reescribir sus ~30 usos. */
   --cream: #f2ebe1;
-  --navy: #24364a;
+  --navy: #3d3732;
   --gold: #b08d6e;
   --sand: #dbcab4;
   --muted: #c5b9a8;
+
+  /* Paleta propia de la pantalla de transición (reposo/cierre): charcoal del
+     login de la app de socios + bronce/ámbar (sketch 002, variante D). */
+  --trans-noche: #1a1714;
+  --trans-crema: #f2ede5;
+  --trans-bronce: #d4b896;
+  --trans-ambar: #d4a843;
+  --trans-apagado: #a89a87;
   --cinzel: 'Cinzel', Georgia, serif;
   --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
   --firma: 'GreatVibes', 'Segoe Script', cursive;
@@ -650,24 +672,6 @@ onUnmounted(() => {
 #tvScreenRoot .topbar .reloj .seg {
   color: var(--gold);
 }
-/* Pantalla de cierre: la topbar es de 2 zonas (marca izq · reloj der). */
-#tvScreenRoot .topbar--cierre {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-/* Barra con barrido bajo "SESIÓN COMPLETA": ocupa el ancho del título (el
-   contenedor .cierreBloque lo fija a fit-content). */
-#tvScreenRoot .cierreBarra {
-  width: 100%;
-  height: 1.4rem;
-  margin: 0.2rem 0rem 0.7rem;
-}
-/* La cita sube un poco respecto al centro de la mitad inferior. */
-#tvScreenRoot #pantallaCierre .quote {
-  margin-top: -2.5rem;
-}
-
 /* ── Cabecera: info del bloque (izquierda, alineada a la izquierda) + cronómetro
    (derecha). El cronómetro salió de la zona de ejercicios para darle todo el ancho
    a la lista. ── */
@@ -856,8 +860,7 @@ onUnmounted(() => {
   height: 100%;
   /* Contorno oro claro (ceñido) + halo suave, y una profundidad navy sutil para
      no oscurecer. Mismo lenguaje que el título tallado del bloque. */
-  filter:
-    drop-shadow(0 0.03em 0.05em rgba(20, 32, 46, 0.2))
+  filter: drop-shadow(0 0.03em 0.05em rgba(20, 32, 46, 0.2))
     drop-shadow(0 0 0.09em rgba(255, 238, 196, 0.95))
     drop-shadow(0 0 0.3em rgba(232, 205, 150, 0.5));
 }
@@ -947,9 +950,15 @@ onUnmounted(() => {
    derecha) el resto = cooldown. Con dos barras, la 2da arranca justo cuando la
    1ra sale (animation-delay), y se ven consecutivas. */
 @keyframes columnaBrillo {
-  0% { transform: translateX(-100%); }
-  25% { transform: translateX(100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  25% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 /* Lista SIN recuadro: respira y usa el espacio; el divisor es la columna dórica. */
 #tvScreenRoot .caja {
@@ -1063,14 +1072,14 @@ onUnmounted(() => {
   border-radius: 0rem 0.5rem 0.5rem 0rem;
   background: linear-gradient(
     to right,
-    #1c2a3a00,
-    #1c2a3a0f 6%,
-    #1c2a3a38 17%,
-    #1c2a3a8c 35%,
-    #26394dd1 47%,
-    #24364a
+    #2e2a2600,
+    #2e2a260f 6%,
+    #2e2a2638 17%,
+    #2e2a268c 35%,
+    #46403ad1 47%,
+    #3d3732
   );
-  /* Sin la sombra navy heredada: sobre placa oscura no aporta y ensucia el número. */
+  /* Sin la sombra oscura heredada: sobre placa oscura no aporta y ensucia el número. */
   text-shadow: none;
 }
 /* El número 15% más grande SIN agrandar la placa: el transform es visual (no
@@ -1394,7 +1403,17 @@ onUnmounted(() => {
   }
 }
 
-/* ── Las otras pantallas (reposo / cierre): overlays del marco 16:9 ── */
+/* ── Pantalla de transición (reposo / cierre): overlay oscuro del marco 16:9.
+   Un solo diseño para las dos (sketch 002, variante D): foto de templo con velo
+   charcoal, frase Cinzel a la izquierda cuyas letras "se encienden" (paintQuote
+   arma spans `.palabra > .letra`), identidad a la derecha (partenón blanco,
+   reloj, fecha; el cierre suma "SESIÓN COMPLETA").
+
+   Presupuesto de perf (incidente del barrido dórico, f655466c): el encendido
+   anima text-shadow SOLO ~2 s una vez por minuto, con UNA sombra por letra y
+   blur acotado; el glow respira solo con opacity (nada de scale animado, era
+   el patrón del fondoDeriva); las chispas son 3 puntos de transform/opacity.
+   Sin blend modes, sin filter animado. `?sobrio=1` apaga todo el movimiento. ── */
 #tvScreenRoot .pantalla {
   display: none;
   position: absolute;
@@ -1402,128 +1421,308 @@ onUnmounted(() => {
   top: 0;
   right: 0;
   bottom: 0;
-  background: var(--cream) var(--marble, none) center / cover no-repeat;
-  color: var(--navy);
-  text-align: center;
+  background: var(--trans-noche);
+  color: var(--trans-crema);
+  overflow: hidden;
 }
 #tvScreenRoot .pantalla.visible {
   display: block;
+  animation: transEntra 0.9s ease;
 }
-#tvScreenRoot .pantalla .contenido {
+@keyframes transEntra {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Foto + velo en un solo background (se pinta una vez): más oscuro detrás del
+   texto (izquierda), abierto sobre el relieve (derecha). */
+#tvScreenRoot .transFoto {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    linear-gradient(
+      100deg,
+      rgba(20, 18, 16, 0.87) 0%,
+      rgba(20, 18, 16, 0.78) 42%,
+      rgba(26, 23, 20, 0.55) 68%,
+      rgba(33, 30, 27, 0.4) 100%
+    ),
+    var(--trans-foto, none) center / cover no-repeat;
+}
+
+/* Glow ámbar que respira — SOLO opacity. */
+#tvScreenRoot .transGlow {
+  position: absolute;
+  left: -12%;
+  bottom: -28%;
+  width: 75%;
+  height: 85%;
+  background: radial-gradient(
+    ellipse at 28% 82%,
+    rgba(212, 168, 67, 0.12) 0%,
+    rgba(212, 168, 67, 0) 60%
+  );
+  animation: transRespira 6s ease-in-out infinite;
+}
+@keyframes transRespira {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Chispas: 3 puntos subiendo, área de repintado mínima. El recorrido va en rem
+   (marco de 56.25rem de alto), no en vh: el frame no siempre llena la ventana. */
+#tvScreenRoot .transChispas i {
+  position: absolute;
+  bottom: -1rem;
+  width: 0.24rem;
+  height: 0.24rem;
+  border-radius: 50%;
+  background: var(--trans-ambar);
+  opacity: 0;
+  animation: transChispa 9s linear infinite;
+}
+#tvScreenRoot .transChispas i:nth-child(1) {
+  left: 10%;
+}
+#tvScreenRoot .transChispas i:nth-child(2) {
+  left: 26%;
+  animation-delay: 3s;
+  animation-duration: 11s;
+}
+#tvScreenRoot .transChispas i:nth-child(3) {
+  left: 41%;
+  animation-delay: 6s;
+}
+@keyframes transChispa {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.4;
+  }
+  60% {
+    opacity: 0.18;
+  }
+  100% {
+    transform: translateY(-44rem) translateX(1.7rem);
+    opacity: 0;
+  }
+}
+
+/* Layout: frase (izquierda, ~60%) | identidad (derecha, ~40%), sin divisor. */
+#tvScreenRoot .transMarco {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+}
+#tvScreenRoot .transFrase {
+  flex: 1.45;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 4rem 0 6rem;
+  text-align: left;
+}
+#tvScreenRoot .transIdentidad {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  padding: 3rem 6rem;
+  text-align: center;
+  padding: 2rem;
 }
-#tvScreenRoot .pantalla .logoGrande {
-  height: 7rem;
-  display: block;
-  margin-bottom: 2rem;
+#tvScreenRoot .transLogo {
+  width: 9rem;
+  opacity: 0.95;
 }
+
+/* Reloj y fecha de la transición (render.ts escribe HH:MM y la fecha larga). */
 #tvScreenRoot .pantalla .relojXl {
   font-family: var(--cinzel);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  font-size: 13rem;
-  color: var(--navy);
-  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+  color: var(--trans-crema);
+  margin-top: 2.5rem;
 }
-#tvScreenRoot .pantalla .relojXl .seg {
-  color: var(--gold);
+#tvScreenRoot #pantallaReposo .relojXl {
+  font-size: 6rem;
+}
+#tvScreenRoot #pantallaCierre .relojXl {
+  font-size: 3.4rem;
 }
 #tvScreenRoot .pantalla .fechaXl {
   font-weight: 700;
-  letter-spacing: 0.16em;
-  font-size: 1.6rem;
-  color: var(--gold);
-  margin-top: 1.2rem;
+  letter-spacing: 0.32em;
+  font-size: 1.1rem;
+  color: var(--trans-apagado);
+  margin-top: 1.1rem;
 }
-#tvScreenRoot .pantalla .quote {
-  /* Las citas van en Cinzel, igual que en el PDF de planis (session-pdf-builder). */
+
+/* "SESIÓN COMPLETA": tracking-in cada vez que aparece la pantalla de cierre. */
+#tvScreenRoot .cierreTitulo {
   font-family: var(--cinzel);
   font-weight: 700;
-  font-size: 1.9rem;
-  line-height: 1.5;
-  max-width: 68%;
-  margin-top: 3rem;
-  color: var(--gold);
-}
-#tvScreenRoot .pantalla .quote .oro {
-  color: var(--navy);
-}
-#tvScreenRoot .pantalla .autor {
-  /* Firma manuscrita (Great Vibes), igual que el autor de la frase en el PDF:
-     navy, como el título "SESIÓN COMPLETA". */
-  font-family: var(--firma);
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  font-size: 2.7rem;
-  color: var(--navy);
-  margin-top: 0.5rem;
-}
-#tvScreenRoot #pantallaCierre .cierreTitulo {
-  font-family: var(--cinzel);
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  font-size: 5.3rem;
+  font-size: 2rem;
   line-height: 1.1;
-  color: var(--navy);
-  text-shadow: 0.05em 0.035em 0 rgba(219, 202, 180, 0.85);
+  color: var(--trans-bronce);
+  white-space: nowrap;
+  margin-top: 2.2rem;
+  opacity: 0;
+  letter-spacing: 0.5em;
+}
+#tvScreenRoot .pantalla.visible .cierreTitulo {
+  animation: transTitulo 1.5s ease 0.3s forwards;
+}
+@keyframes transTitulo {
+  from {
+    opacity: 0;
+    letter-spacing: 0.5em;
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.18em;
+  }
+}
+
+/* Frase: Cinzel crema, remates `.oro` en bronce. La sombra de legibilidad final
+   vive en el keyframe (fill forwards) — el velo es translúcido a la derecha. */
+#tvScreenRoot .pantalla .quote {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 3.2rem;
+  line-height: 1.5;
+  color: var(--trans-crema);
+  text-shadow: 0 0.06em 0.5em rgba(0, 0, 0, 0.6);
+}
+#tvScreenRoot .pantalla .quote .palabra {
   white-space: nowrap;
 }
-/* Título + barra agrupados: el contenedor se ajusta al ancho del texto (fit-content)
-   y la barra ocupa el 100% de ese ancho, así coincide con "SESIÓN COMPLETA". */
-#tvScreenRoot #pantallaCierre .cierreBloque {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: stretch;
-  width: fit-content;
+#tvScreenRoot .pantalla .quote .letra {
+  opacity: 0;
 }
-/* Reloj chico en la esquina superior derecha (como la topbar de los bloques). */
-#tvScreenRoot #pantallaCierre .relojEsquina {
-  position: absolute;
-  top: 0.9rem;
-  right: 2rem;
-  font-family: var(--cinzel);
+#tvScreenRoot .pantalla .quote .letra.prendida {
+  animation: transPrende 1.1s ease forwards;
+}
+#tvScreenRoot .pantalla .quote .palabra.oro .letra.prendida {
+  animation-name: transPrendeOro;
+}
+@keyframes transPrende {
+  0% {
+    opacity: 0;
+    color: #fff3d6;
+    text-shadow: 0 0 0 rgba(255, 157, 77, 0);
+  }
+  18% {
+    opacity: 1;
+    color: #ffd9a0;
+    text-shadow: 0 0 0.3em rgba(255, 157, 77, 0.85);
+  }
+  100% {
+    opacity: 1;
+    color: var(--trans-crema);
+    text-shadow: 0 0.04em 0.28em rgba(0, 0, 0, 0.55);
+  }
+}
+@keyframes transPrendeOro {
+  0% {
+    opacity: 0;
+    color: #fff3d6;
+    text-shadow: 0 0 0 rgba(255, 170, 60, 0);
+  }
+  18% {
+    opacity: 1;
+    color: #ffe2ae;
+    text-shadow: 0 0 0.34em rgba(255, 170, 60, 0.9);
+  }
+  100% {
+    opacity: 1;
+    color: var(--trans-bronce);
+    text-shadow: 0 0.04em 0.28em rgba(0, 0, 0, 0.55);
+  }
+}
+
+/* Autor: entra después de que la frase terminó de encenderse. */
+#tvScreenRoot .pantalla .autor {
+  font-family: var(--nunito);
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  font-size: 2.8rem;
-  line-height: 1;
-  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 1.15rem;
+  color: var(--trans-apagado);
+  margin-top: 2.2rem;
+  opacity: 0;
+  transform: translateY(0.6em);
 }
-/* ── Dos mitades (reposo Y cierre): logo + elemento grande centrado arriba,
-   frase centrada abajo. El reloj grande y la fecha son propios del reposo. ── */
-#tvScreenRoot .pantalla.dosMitades.visible {
-  display: flex;
-  flex-direction: column;
+#tvScreenRoot .pantalla .autor.aparece {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.9s ease,
+    transform 0.9s ease;
 }
-#tvScreenRoot .dosMitades .reposoTop,
-#tvScreenRoot .dosMitades .reposoBottom {
-  flex: 1 1 50%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem 6rem;
+
+/* Salida al rotar: la frase actual se apaga hacia arriba y recién ahí se
+   enciende la nueva (paintQuote maneja los tiempos). */
+#tvScreenRoot .pantalla .quote.apagada,
+#tvScreenRoot .pantalla .autor.apagada {
+  opacity: 0;
+  transform: translateY(-0.4em);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s ease;
 }
-#tvScreenRoot .dosMitades .logoGrande {
-  height: 5rem;
-  margin-bottom: 1rem;
+
+/* Modo sobrio (?sobrio=1): sin encendido, sin glow, sin chispas — la pantalla
+   queda estática con los colores finales. */
+#tvScreenRoot.tv-sobrio .transGlow,
+#tvScreenRoot.tv-sobrio .transChispas {
+  display: none;
 }
-#tvScreenRoot .dosMitades .quote {
-  font-size: 3.4rem;
-  max-width: 82%;
-  margin-top: 0;
+#tvScreenRoot.tv-sobrio .pantalla.visible,
+#tvScreenRoot.tv-sobrio .pantalla.visible .cierreTitulo {
+  animation: none;
 }
-#tvScreenRoot #pantallaReposo .relojXl {
-  font-size: 10rem;
+#tvScreenRoot.tv-sobrio .cierreTitulo {
+  opacity: 1;
+  letter-spacing: 0.18em;
 }
-#tvScreenRoot #pantallaReposo .fechaXl {
-  margin-top: 1rem;
+#tvScreenRoot.tv-sobrio .pantalla .quote .letra {
+  animation: none;
+  opacity: 1;
+  color: var(--trans-crema);
+}
+#tvScreenRoot.tv-sobrio .pantalla .quote .palabra.oro .letra {
+  color: var(--trans-bronce);
+}
+#tvScreenRoot.tv-sobrio .pantalla .autor {
+  opacity: 1;
+  transform: none;
+}
+
+/* Mientras la transición (overlay opaco) tapa la clase, el fondo vivo de atrás
+   se pausa: no pagamos dos juegos de animaciones a la vez. */
+#tvScreenRoot.tvbg--tapado .tvFondo__marmol,
+#tvScreenRoot.tvbg--tapado .tvFondo__luz {
+  animation-play-state: paused;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
