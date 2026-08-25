@@ -23,7 +23,7 @@
  * literalmente lo que el ancla autodestructiva de la fase 172 decía que NO se
  * podía escribir hasta que esta fase arreglara D-13.
  *
- * QUE RUTAS CUBRE (10 de las 29 de members/users/leads del manifiesto)
+ * QUE RUTAS CUBRE (11 de las 30 de members/users/leads del manifiesto)
  * ----------------------------------------------------------------------
  *   POST   /api/admin/members
  *   POST   /api/admin/members/trial
@@ -31,6 +31,7 @@
  *   PUT    /api/admin/members/:userId
  *   DELETE /api/admin/members/:userId
  *   PATCH  /api/admin/leads/:userId
+ *   POST   /api/admin/leads/:userId/start-followup
  *   GET    /api/admin/users
  *   POST   /api/admin/users
  *   PUT    /api/admin/users/:userId
@@ -909,11 +910,14 @@ describe("iniciar seguimiento — POST /api/admin/leads/:userId/start-followup",
   // Sella users.trial_followup_started_at. Mismo criterio que el PATCH: el lead
   // de otro gimnasio es indistinguible de uno inexistente (D-06, 404), y el
   // sello NO puede persistir sobre el lead ajeno.
-  async function followupDe(userId: number): Promise<Date | null> {
+  async function followupDe(
+    userId: number,
+    ctx: TenantContext,
+  ): Promise<Date | null> {
     const [row] = await app.db
       .select({ f: schema.users.trialFollowupStartedAt })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
     return row?.f ?? null;
   }
@@ -979,7 +983,7 @@ describe("iniciar seguimiento — POST /api/admin/leads/:userId/start-followup",
       porQueImporta(RUTA, leadTemplo) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     expect(
-      await followupDe(leadTemplo),
+      await followupDe(leadTemplo, CTX_TEMPLO),
       `${RUTA}: el rechazo no puede sellar el seguimiento del lead ajeno.`,
     ).toBeNull();
   });
@@ -994,7 +998,7 @@ describe("iniciar seguimiento — POST /api/admin/leads/:userId/start-followup",
       porQueImportaElControl(RUTA, leadDos) + ` Respuesta: ${res.body}`,
     ).toBe(200);
     expect(
-      await followupDe(leadDos),
+      await followupDe(leadDos, CTX_DOS),
       `${RUTA}: el control positivo tiene que sellar el followup del lead propio.`,
     ).not.toBeNull();
   });
