@@ -170,6 +170,18 @@ function normalizeISODate(v: string | Date): string {
   return v.toISOString().slice(0, 10);
 }
 
+/**
+ * Normalize a DB timestamp column (string or Date, possibly null) to a full ISO
+ * string, or null. Unlike normalizeISODate, keeps the time part (the followup
+ * marker cares about the moment, not just the day).
+ */
+function normalizeISOTimestamp(v: string | Date | null): string | null {
+  if (v === null) return null;
+  if (typeof v === "string")
+    return new Date(v.replace(" ", "T") + "Z").toISOString();
+  return v.toISOString();
+}
+
 /** floor((b - a) / 1day) for two ISO YYYY-MM-DD strings (UTC day). */
 function daysBetweenISO(a: string, b: string): number {
   const aMs = new Date(a + "T00:00:00Z").getTime();
@@ -2026,6 +2038,8 @@ export class ReportsService {
       creator_first_name: string | null;
       creator_last_name: string | null;
       lead_status_source: "auto" | "manual" | null;
+      booking_source: string | null;
+      trial_followup_started_at: string | Date | null;
       reschedules: number | string;
       phone: string | null;
     }>(sql`
@@ -2050,6 +2064,8 @@ export class ReportsService {
         creator.first_name AS creator_first_name,
         creator.last_name  AS creator_last_name,
         u.lead_status_source AS lead_status_source,
+        b.source          AS booking_source,
+        u.trial_followup_started_at AS trial_followup_started_at,
         (SELECT COUNT(*) FROM ${schema.bookings} AS rc
           WHERE rc.member_id = u.id
             AND rc.is_trial = 1
@@ -2100,6 +2116,8 @@ export class ReportsService {
       creator_first_name: string | null;
       creator_last_name: string | null;
       lead_status_source: "auto" | "manual" | null;
+      booking_source: string | null;
+      trial_followup_started_at: string | Date | null;
       reschedules: number | string;
       phone: string | null;
     }>;
@@ -2109,6 +2127,26 @@ export class ReportsService {
     );
 
     return { rows, total, page, limit };
+  }
+
+  /**
+   * Cuántas SP creadas desde la app siguen sin que nadie inicie su seguimiento.
+   * Alimenta la "pelotita" del drawer. Reusa getTrialSessionsReport (misma
+   * deduplicación por lead + country-scope) pidiendo sólo el total: la página de
+   * datos es de 1 fila y se descarta.
+   */
+  async getAppTrialsPendingCount(
+    ctx: TenantContext,
+    country?: "AR" | "ES",
+  ): Promise<number> {
+    const { total } = await this.getTrialSessionsReport(ctx, {
+      country,
+      origin: "app",
+      pendingFollowup: true,
+      page: 1,
+      limit: 1,
+    });
+    return total;
   }
 
   /**
@@ -2451,6 +2489,29 @@ export class ReportsService {
       }
     }
 
+    if (filters.origin !== undefined) {
+      // 'app' = la SP representativa la reservó el socio (source='self_service').
+      // 'admin' = staff o legacy: source NULL o cualquier valor distinto de
+      // self_service (el camino admin no escribe source → queda NULL). Bound con
+      // `${...}` (defensa en profundidad).
+      if (filters.origin === "app") {
+        preds.push(sql`b.source = 'self_service'`);
+      } else {
+        preds.push(sql`(b.source IS NULL OR b.source <> 'self_service')`);
+      }
+    }
+
+    if (filters.pendingFollowup === true) {
+      // Pendiente de seguimiento: nadie lo tomó todavía Y el lead sigue en juego
+      // (en_seguimiento explícito, o NULL sin convertir; excluye ganado/perdido).
+      // Es la misma derivación de leadStatusEffective usada para 'en_seguimiento'.
+      preds.push(
+        sql`u.trial_followup_started_at IS NULL
+          AND (u.lead_status = 'en_seguimiento'
+               OR (u.lead_status IS NULL AND u.converted_at IS NULL))`,
+      );
+    }
+
     if (preds.length === 0) return sql``;
     return sql` AND ${sql.join(preds, sql` AND `)}`;
   }
@@ -2482,6 +2543,8 @@ export class ReportsService {
     creator_first_name: string | null;
     creator_last_name: string | null;
     lead_status_source: "auto" | "manual" | null;
+    booking_source: string | null;
+    trial_followup_started_at: string | Date | null;
     reschedules: number | string;
     phone: string | null;
   }): TrialSessionsRow {
@@ -2551,6 +2614,10 @@ export class ReportsService {
       reschedules: Number(r.reschedules),
       leadStatusSource: r.lead_status_source ?? null,
       phone: r.phone ?? null,
+      // Origen: 'app' sólo cuando el booking representativo es self-service; el
+      // resto (staff o legacy con source NULL) es 'admin'.
+      origin: r.booking_source === "self_service" ? "app" : "admin",
+      followupStartedAt: normalizeISOTimestamp(r.trial_followup_started_at),
     };
   }
 

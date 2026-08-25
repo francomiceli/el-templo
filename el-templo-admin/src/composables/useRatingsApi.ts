@@ -48,6 +48,16 @@ export interface AssignCoachPayload {
   coachId: number;
 }
 
+/**
+ * Sedes donde el coach logueado está agendado HOY, una por turno. `null` en un
+ * turno = no tiene asignación ahí. Alimenta el default del selector de sucursal
+ * en Horarios (mismo endpoint que usa el login de TV).
+ */
+export interface CoachTodaySchedule {
+  morning: number | null;
+  afternoon: number | null;
+}
+
 /** Per-coach aggregate for the owner view. */
 export interface OwnerCoachRatingSummary {
   coachId: number;
@@ -155,6 +165,14 @@ export function useRatingsApi() {
     }
   }
 
+  // GET /admin/ratings/roster/coach-today — sedes donde el coach autenticado
+  // está agendado hoy, una por turno. El server calcula "hoy" y el tenant; no
+  // lleva params. Fallback silencioso: no toca loading/error globales.
+  async function getCoachTodaySchedule(): Promise<CoachTodaySchedule> {
+    const { data } = await api.get<CoachTodaySchedule>('/admin/ratings/roster/coach-today');
+    return data;
+  }
+
   async function getOwnerRatings(filters: OwnerRatingsFilters = {}): Promise<OwnerRatings> {
     loading.value = true;
     error.value = null;
@@ -174,6 +192,7 @@ export function useRatingsApi() {
     error,
     getCoachesForBranch,
     getRosterWeek,
+    getCoachTodaySchedule,
     assignCoach,
     getOwnerRatings,
   };

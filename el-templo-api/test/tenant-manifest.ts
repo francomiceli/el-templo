@@ -389,6 +389,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
 
   // ── /api/admin/leads ──────────────────────────────────────────────────────
   "PATCH /api/admin/leads/:userId": { categoria: "tenant-scoped" },
+  // Sella trial_followup_started_at del lead (inicia el seguimiento de una SP de
+  // app). Opera sobre users con tenantWhere + gate de sede por canAccessBranch.
+  "POST /api/admin/leads/:userId/start-followup": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/admin/members ────────────────────────────────────────────────────
   "DELETE /api/admin/members/:userId": { categoria: "tenant-scoped" },
@@ -467,6 +472,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "GET /api/admin/reports/trial-conversion": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/trial-sessions": { categoria: "tenant-scoped" },
+  // Contador de la "pelotita": SP de app pendientes de seguimiento en el país
+  // del usuario. Reusa getTrialSessionsReport (mismo ctx + country-scope).
+  "GET /api/admin/reports/trial-sessions/app-pending-count": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/reports/trial-sessions/export": {
     categoria: "tenant-scoped",
   },

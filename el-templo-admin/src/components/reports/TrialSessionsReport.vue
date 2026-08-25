@@ -68,6 +68,25 @@
         />
       </div>
 
+      <!-- Origen de la SP: creada desde la app (self-service) vs cargada por staff -->
+      <div class="col-6 col-sm-2 col-md-2">
+        <q-select
+          v-model="filters.origin"
+          :options="ORIGIN_OPTIONS"
+          emit-value
+          map-options
+          label="Origen SP"
+          dense
+          outlined
+          clearable
+        />
+      </div>
+
+      <!-- Sólo SP de app que nadie tomó todavía (mismo criterio que la pelotita) -->
+      <div class="col-auto self-center">
+        <q-toggle v-model="filters.pendingFollowup" label="Solo pendientes de seguimiento" dense />
+      </div>
+
       <!-- D-44: Gestiona filter is OWNER-ONLY. For admin/gestion the SELECT
            is not rendered at all. There is NO fallback element (no numeric
            input, no free-form text). -->
@@ -151,6 +170,28 @@
             {{ props.row.phone }}
           </a>
           <span v-else class="text-grey-5">—</span>
+        </q-td>
+      </template>
+
+      <!-- Origen slot: 🟢 Nueva (app sin seguimiento) / App ✓ (ya contactada) / Staff -->
+      <template #body-cell-origin="props">
+        <q-td :props="props">
+          <template v-if="props.row.origin === 'app'">
+            <q-chip
+              v-if="!props.row.followupStartedAt"
+              color="positive"
+              text-color="white"
+              dense
+              icon="fiber_new"
+              label="Nueva"
+            >
+              <q-tooltip>Sesión de prueba creada desde la app, sin seguimiento iniciado</q-tooltip>
+            </q-chip>
+            <q-chip v-else color="grey-4" text-color="grey-8" dense icon="smartphone" label="App">
+              <q-tooltip>Desde la app — seguimiento iniciado</q-tooltip>
+            </q-chip>
+          </template>
+          <span v-else class="text-grey-6">Staff</span>
         </q-td>
       </template>
 
@@ -285,9 +326,25 @@
         </q-th>
       </template>
 
-      <!-- Acciones slot (D-07): salto directo a la ficha del lead -->
+      <!-- Acciones slot (D-07): iniciar seguimiento (SP de app) + ficha del lead -->
       <template #body-cell-acciones="props">
         <q-td :props="props">
+          <q-btn
+            v-if="props.row.origin === 'app' && props.row.phone"
+            flat
+            dense
+            no-caps
+            :color="props.row.followupStartedAt ? 'grey-7' : 'green-7'"
+            icon="chat"
+            :label="props.row.followupStartedAt ? 'Reenviar' : 'Iniciar seguimiento'"
+            @click="onStartFollowup(props.row)"
+          >
+            <q-tooltip>
+              Abre WhatsApp con un mensaje listo{{
+                props.row.followupStartedAt ? '' : ' y marca el seguimiento como iniciado'
+              }}
+            </q-tooltip>
+          </q-btn>
           <q-btn
             flat
             dense
@@ -362,6 +419,7 @@ import { useReportsApi, type TrialSessionsRowClient } from 'src/composables/useR
 import { useMembersApi, type LeadSnapshot } from 'src/composables/useMembersApi';
 import { useUsersApi, type StaffUser } from 'src/composables/useUsersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { useAdminStore } from 'src/stores/useAdminStore';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 
@@ -383,6 +441,7 @@ const reportsApi = useReportsApi();
 const membersApi = useMembersApi();
 const usersApi = useUsersApi();
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
 
 // D-44: Gestiona filter is owner-only. Use the same `authStore.user.role`
 // pattern that ReportesPage uses for the country selector.
@@ -446,6 +505,13 @@ const LEAD_STATUS_SOURCE_OPTIONS: Array<{ value: LeadStatusSourceFilter; label: 
 
 // ─── Filter state ───────────────────────────────────────────────────────
 
+type OriginFilter = 'app' | 'admin';
+
+const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
+  { value: 'app', label: 'Desde la app' },
+  { value: 'admin', label: 'Cargada por staff' },
+];
+
 interface Filters {
   leadStatus: LeadStatusValue[];
   attended: AttendedFilter | null;
@@ -454,6 +520,8 @@ interface Filters {
   gestionaUserId: number | null;
   daysWithoutConvertingMin: number | null;
   search: string;
+  origin: OriginFilter | null;
+  pendingFollowup: boolean;
 }
 
 const filters = reactive<Filters>({
@@ -464,6 +532,8 @@ const filters = reactive<Filters>({
   gestionaUserId: null,
   daysWithoutConvertingMin: null,
   search: '',
+  origin: null,
+  pendingFollowup: false,
 });
 
 // ─── Table state ────────────────────────────────────────────────────────
@@ -640,6 +710,44 @@ function whatsappUrl(phone: string): string {
   return `https://wa.me/${intl}`;
 }
 
+// wa.me con mensaje pre-cargado para iniciar el seguimiento de una SP de app.
+// Primer nombre (el "lead" viene "Nombre Apellido") + sede. Sin datos sensibles.
+function followupMessage(row: TrialSessionsRowClient): string {
+  const firstName = row.lead.split(' ')[0] || '';
+  const hola = firstName ? `¡Hola ${firstName}!` : '¡Hola!';
+  return (
+    `${hola} Te escribimos de El Templo${row.branchName ? ` ${row.branchName}` : ''}. ` +
+    `Vimos que reservaste tu sesión de prueba desde la app 💪 ` +
+    `¿Coordinamos para que aproveches al máximo tu clase?`
+  );
+}
+
+function whatsappFollowupUrl(row: TrialSessionsRowClient): string {
+  return `${whatsappUrl(row.phone ?? '')}?text=${encodeURIComponent(followupMessage(row))}`;
+}
+
+// Iniciar seguimiento: abre WhatsApp con el mensaje y sella el seguimiento en el
+// server (baja la pelotita). Se abre la ventana ANTES del await para no perder el
+// gesto de usuario (los navegadores bloquean window.open post-await).
+async function onStartFollowup(row: TrialSessionsRowClient): Promise<void> {
+  if (row.phone) {
+    window.open(whatsappFollowupUrl(row), '_blank', 'noopener');
+  }
+  try {
+    row.followupStartedAt = await reportsApi.startTrialFollowup(row.userId);
+    // Si el filtro "solo pendientes" está activo, la fila ya no corresponde:
+    // recargar para que desaparezca. Si no, la fila queda marcada "contactada".
+    if (filters.pendingFollowup) {
+      void load();
+    }
+    void adminStore.fetchAppTrialsPendingCount();
+  } catch (err: unknown) {
+    const message = extractError(err, 'No se pudo iniciar el seguimiento');
+    log.error('Failed to start trial followup', { error: message, userId: row.userId });
+    $q.notify({ type: 'negative', message });
+  }
+}
+
 const columns: QTableColumn<TrialSessionsRowClient>[] = [
   {
     name: 'lead',
@@ -671,6 +779,14 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
     align: 'left',
     sortable: false,
     format: (val: string) => formatDateDdMmYyyy(val),
+  },
+  // Origen de la SP: 🟢 "Nueva" = creada desde la app y sin seguimiento iniciado.
+  {
+    name: 'origin',
+    label: 'Origen',
+    field: 'origin',
+    align: 'center',
+    sortable: false,
   },
   {
     name: 'startTime',
@@ -781,6 +897,8 @@ function buildServerFilters() {
         ? filters.daysWithoutConvertingMin
         : undefined,
     search: filters.search.trim() ? filters.search.trim() : undefined,
+    origin: filters.origin ?? undefined,
+    pendingFollowup: filters.pendingFollowup ? true : undefined,
     page: pagination.value.page,
     limit: pagination.value.rowsPerPage,
   };

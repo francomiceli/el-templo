@@ -178,6 +178,10 @@ export interface MemberProfile extends MemberListItem {
   segmentUpdatedAt: string | null;
   updatedAt: string;
   onboardingProfile: OnboardingProfileSummary | null;
+  // Etiqueta de membresía: override manual (null = automático) + efectiva ya
+  // resuelta server-side (override ?? sub vigente ?? 'paga').
+  membershipKindOverride: 'paga' | 'bonificada' | 'staff' | null;
+  membershipKindEffective: 'paga' | 'bonificada' | 'staff';
   // Phase 114 (D-38, D-39): lead-lifecycle fields. Only meaningful when
   // `status === 'prueba'`; AlumnoDetailPage's "Datos de Lead" block gates
   // on that. `createdBy` is denormalized via a self-JOIN server-side so
@@ -260,6 +264,8 @@ export interface UpdateMemberInput {
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   emergencyContactRelationship?: string | null;
+  // Override manual de la etiqueta de membresía. null = automático. Ausente = no tocar.
+  membershipKindOverride?: 'paga' | 'bonificada' | 'staff' | null;
   /**
    * Domiciliación bancaria (SEPA) — solo se envía cuando la sucursal del
    * socio es de España. Ausente = el backend no toca los datos existentes.

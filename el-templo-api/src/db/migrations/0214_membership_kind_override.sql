@@ -1,0 +1,28 @@
+-- 0214_membership_kind_override.sql
+-- Override manual de la etiqueta de membresía a nivel SOCIO. Hand-written. NEVER
+-- drizzle-kit push/migrate -- la tabla _migrations es la única fuente de verdad,
+-- local y prod.
+--
+-- Numeración: origin/master y origin/staging están en 0213 (0213 lo agrega este
+-- mismo batch, seguimiento de SP desde la app) -- 0214 es el siguiente libre.
+--
+-- Contenido:
+--   users.membership_kind_override -- enum('paga','bonificada','staff') NULL.
+--   NULL = automático (vale la etiqueta auto-calculada de la suscripción activa,
+--   subscriptions.membership_kind). Un valor no-NULL la PISA para el display en
+--   la ficha del socio y para analytics (excludeInternalSubs / active-member):
+--   una persona que es staff lo es aunque su suscripción cambie o renueve.
+--   Editable desde la ficha del socio (PUT /api/admin/members/:userId). NO toca
+--   el flujo de alta/cobro -- la etiqueta por-suscripción se sigue calculando
+--   igual, el override sólo la sobreescribe en lectura.
+--
+-- Sin backfill: todos arrancan en NULL (automático). Los que ya tienen la
+-- etiqueta correcta por auto-cálculo en su suscripción no la necesitan -- el
+-- override es para los casos que el automático no captura (ej. staff con
+-- suscripción a precio real).
+--
+-- Un comentario SQL NUNCA debe contener el separador de statements -- el runner
+-- parte los statements crudos primero y recién después borra los comentarios de
+-- doble guion.
+
+ALTER TABLE `users` ADD COLUMN `membership_kind_override` enum('paga','bonificada','staff') NULL;

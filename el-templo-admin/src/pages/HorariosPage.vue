@@ -112,10 +112,7 @@
         <!-- ================================================================== -->
         <!-- Cartelera de aniversarios de permanencia -->
         <!-- ================================================================== -->
-        <AnniversariesCard
-          :branch-id="selectedBranchId"
-          :timezone="branchTimezone"
-        />
+        <AnniversariesCard :branch-id="selectedBranchId" :timezone="branchTimezone" />
 
         <!-- ================================================================== -->
         <!-- Registros del día de los alumnos que asisten hoy -->
@@ -925,6 +922,39 @@ async function onAssignCoach(dayOfWeek: number, slot: ClassSlot, coachId: number
 
 // ─── Data Loading ───────────────────────────────────────────────────────────
 
+/**
+ * Sucursal con la que abrir Horarios: la que el profe tiene asignada en el roster
+ * EN ESTE MOMENTO (día + turno actual), con fallback a su sede "home" y, si nada
+ * matchea las opciones visibles, a la primera de la lista (lo resuelve el caller).
+ *
+ * El turno se decide con la hora local del navegador (< 12:00 = mañana), que es
+ * la hora física del profe. Si un profe tiene mañana en una sede y tarde en otra,
+ * al entrar a la mañana ve la primera y a la tarde la segunda; se usa el otro
+ * turno como respaldo si el actual no tiene celda. Cualquier error de red cae al
+ * fallback: es sólo un default de conveniencia, nunca debe romper la carga.
+ */
+async function resolvePreferredBranchId(): Promise<number | null> {
+  const inOptions = (id: number | null | undefined): number | null =>
+    branchOptions.value.find((o) => o.value === id)?.value ?? null;
+
+  let rosterBranchId: number | null = null;
+  try {
+    // El server resuelve "hoy" + tenant; acá sólo elegimos el turno por la hora
+    // local del navegador (la hora física del profe).
+    const slot: ClassSlot = new Date().getHours() < 12 ? 'morning' : 'afternoon';
+    const roster = await ratingsApi.getCoachTodaySchedule();
+    rosterBranchId =
+      slot === 'morning'
+        ? (roster.morning ?? roster.afternoon)
+        : (roster.afternoon ?? roster.morning);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.warn('No se pudo resolver la sede del roster; se usa la sede home', { error: message });
+  }
+
+  return inOptions(rosterBranchId) ?? inOptions(authStore.user?.branchId);
+}
+
 async function loadBranches() {
   loadingBranches.value = true;
   try {
@@ -932,7 +962,8 @@ async function loadBranches() {
     branchesRaw.value = branches;
     branchOptions.value = branches.map((b) => ({ label: b.name, value: b.id }));
     if (branchOptions.value.length > 0) {
-      selectedBranchId.value = branchOptions.value[0].value;
+      const preferred = await resolvePreferredBranchId();
+      selectedBranchId.value = preferred ?? branchOptions.value[0].value;
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';

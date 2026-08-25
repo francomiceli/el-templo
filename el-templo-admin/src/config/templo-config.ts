@@ -137,8 +137,12 @@ export interface NavItem {
   templo?: boolean;
   /** Routines surface (D-02) — additionally gated by TEMPLO_TRAINING_ROUTINES (per-installation). */
   routines?: boolean;
-  /** Badge slot; 'pending' renders adminStore.pendingCount on Sesiones. */
-  badge?: 'pending';
+  /**
+   * Badge slot. 'pending' renders adminStore.pendingCount on Sesiones;
+   * 'app-trials' renders adminStore.appTrialsPendingCount on Reportes (SP nuevas
+   * desde la app pendientes de seguimiento).
+   */
+  badge?: 'pending' | 'app-trials';
 }
 
 export interface NavCategory {
@@ -235,7 +239,13 @@ export const NAV_MODEL: NavCategory[] = [
       { path: '/caja', label: 'Caja', icon: 'point_of_sale', roles: CAJA_SALDOS_ROLES },
       { path: '/cobros', label: 'Cobros', icon: 'payments', roles: PAGOS_ROLES },
       { path: '/deudas', label: 'Deudas', icon: 'request_quote', roles: ['coach'], templo: true },
-      { path: '/reportes', label: 'Reportes', icon: 'summarize', roles: REPORTES_ROLES },
+      {
+        path: '/reportes',
+        label: 'Reportes',
+        icon: 'summarize',
+        roles: REPORTES_ROLES,
+        badge: 'app-trials',
+      },
       { path: '/analiticas', label: 'Analíticas', icon: 'analytics', roles: ANALITICAS_ROLES },
     ],
   },

@@ -40,14 +40,26 @@ export function excludeEspecialSubs(ctx: TenantContext): SQL {
 }
 
 /**
- * Membresías internas (2026-08-07): excluye subs `membership_kind` distinto de
+ * Membresías internas (2026-08-07): excluye subs cuya etiqueta EFECTIVA no es
  * 'paga' — 'bonificada' (regaladas 100%: canje, sorteo, cortesía) y 'staff'
  * (cuentas de entrenamiento del equipo, que son role='member' y por eso
  * invisibles a filtros por rol). Mismo contrato que `excludeEspecialSubs`:
  * SOLO métricas de membresía de analytics — listados, cobros, vencidos y
- * recategorización NO lo usan. Prefijo literal `subscriptions.` obligatorio
- * por el mismo gotcha de des-calificación de Drizzle documentado arriba.
+ * recategorización NO lo usan.
+ *
+ * Etiqueta EFECTIVA (2026-08-25): el override manual del socio
+ * (`users.membership_kind_override`) PISA la etiqueta auto-calculada de la
+ * suscripción. Así un staff/bonificado marcado a mano en la ficha queda fuera
+ * de las métricas aunque su suscripción diga 'paga', y persiste aunque la sub
+ * renueve (el override vive en el socio, no en la sub — no se tocó el flujo de
+ * alta/cobro). La subquery es correlacionada por `member_id`; todo va calificado
+ * (`uo.` / `subscriptions.`) por el gotcha de des-calificación de Drizzle
+ * documentado arriba.
  */
 export function excludeInternalSubs(): SQL {
-  return sql`subscriptions.membership_kind = 'paga'`;
+  return sql`COALESCE(
+    (SELECT uo.membership_kind_override FROM users AS uo
+      WHERE uo.id = subscriptions.user_id),
+    subscriptions.membership_kind
+  ) = 'paga'`;
 }

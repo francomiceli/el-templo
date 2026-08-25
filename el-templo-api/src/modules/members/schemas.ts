@@ -83,6 +83,16 @@ const memberProfileSchema = {
       type: ["string", "null"],
       enum: ["freemium", "prueba", "activo", "inactivo", null],
     },
+    // Etiqueta de membresía: override manual (null = automático) + efectiva ya
+    // resuelta (override ?? sub vigente ?? 'paga').
+    membershipKindOverride: {
+      type: ["string", "null"],
+      enum: ["paga", "bonificada", "staff", null],
+    },
+    membershipKindEffective: {
+      type: "string",
+      enum: ["paga", "bonificada", "staff"],
+    },
     segment: { type: ["string", "null"] },
     segmentUpdatedAt: { type: ["string", "null"] },
     avatarType: { type: ["string", "null"] },
@@ -383,6 +393,24 @@ export const convertToTrialSchema = {
  *   silently by Fastify's default AJV (removeAdditional=true), mirroring the
  *   spoof guard pattern on createTrialMemberSchema (Plan 02 / SUMMARY 114-02).
  */
+export const startFollowupSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        followupStartedAt: { type: "string" },
+      },
+    },
+  },
+} as const;
+
 export const updateLeadSchema = {
   params: {
     type: "object",
@@ -580,6 +608,12 @@ export const updateMemberSchema = {
       level: {
         type: "string",
         enum: ["kairos", "alfa", "delta", "sigma", "omega", "spartan"],
+      },
+      // Override manual de la etiqueta de membresía. null = automático (vuelve a
+      // valer la etiqueta auto-calculada de la suscripción).
+      membershipKindOverride: {
+        type: ["string", "null"],
+        enum: ["paga", "bonificada", "staff", null],
       },
       // Domiciliación bancaria (SEPA) — solo la envía el admin cuando la
       // sucursal del socio es de España. Cerrado (additionalProperties:false)

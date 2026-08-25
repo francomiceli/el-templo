@@ -52,6 +52,10 @@ export interface TrialSessionsFiltersClient {
   gestionaUserId?: number;
   daysWithoutConvertingMin?: number;
   search?: string;
+  // Origen de la SP: 'app' = la reservó el socio desde la app; 'admin' = staff.
+  origin?: 'app' | 'admin';
+  // Sólo SP cuyo seguimiento nadie inició todavía y el lead sigue en juego.
+  pendingFollowup?: boolean;
   page?: number;
   limit?: number;
 }
@@ -84,6 +88,12 @@ export interface TrialSessionsRowClient {
   leadStatusSource: 'auto' | 'manual' | null;
   // Phase 165-03 (D-06): teléfono del lead. null para leads legacy sin teléfono.
   phone: string | null;
+  // Origen de la SP: 'app' cuando la reservó el socio desde la app
+  // (bookings.source='self_service'), 'admin' en cualquier otro caso.
+  origin: 'app' | 'admin';
+  // ISO timestamp de cuándo gestión inició el seguimiento de esta SP de app, o
+  // null si todavía nadie la tomó. Sólo relevante con origin='app'.
+  followupStartedAt: string | null;
 }
 
 export interface TrialSessionsResult {
@@ -339,6 +349,38 @@ export function useReportsApi() {
     return out;
   }
 
+  /**
+   * Contador de la "pelotita": SP creadas desde la app pendientes de que
+   * gestión inicie el seguimiento (dentro del país del usuario). El backend
+   * resuelve el país desde el token, así que no lleva params.
+   */
+  async function fetchAppTrialsPendingCount(): Promise<number> {
+    const { data } = await api.get<{ count: number }>(
+      '/admin/reports/trial-sessions/app-pending-count'
+    );
+    return data.count;
+  }
+
+  /**
+   * Sella el inicio del seguimiento de una SP de app (baja la pelotita).
+   * Idempotente server-side. Devuelve el timestamp vigente.
+   */
+  async function startTrialFollowup(userId: number): Promise<string> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ followupStartedAt: string }>(
+        `/admin/leads/${userId}/start-followup`
+      );
+      return data.followupStartedAt;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo iniciar el seguimiento');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Cleanup ───────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -361,6 +403,8 @@ export function useReportsApi() {
     exportInactiveMembers,
     fetchTrialSessions,
     exportTrialSessions,
+    fetchAppTrialsPendingCount,
+    startTrialFollowup,
     cleanup,
   };
 }

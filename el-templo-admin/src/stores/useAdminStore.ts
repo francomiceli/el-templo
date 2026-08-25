@@ -6,6 +6,9 @@ export const useAdminStore = defineStore('admin', () => {
   const pendingCount = ref(0);
   const lowSessionsAlert = ref(false);
   const weeksAhead = ref(0);
+  // Pelotita de Reportes: SP creadas desde la app pendientes de que gestión
+  // inicie el seguimiento (dentro del país del usuario).
+  const appTrialsPendingCount = ref(0);
 
   async function fetchPendingCount() {
     try {
@@ -14,6 +17,18 @@ export const useAdminStore = defineStore('admin', () => {
     } catch {
       // Silently fail - badge will show 0
       pendingCount.value = 0;
+    }
+  }
+
+  async function fetchAppTrialsPendingCount() {
+    try {
+      const { data } = await api.get<{ count: number }>(
+        '/admin/reports/trial-sessions/app-pending-count'
+      );
+      appTrialsPendingCount.value = data.count;
+    } catch {
+      // Silently fail - badge will show 0
+      appTrialsPendingCount.value = 0;
     }
   }
 
@@ -38,7 +53,9 @@ export const useAdminStore = defineStore('admin', () => {
     pendingCount,
     lowSessionsAlert,
     weeksAhead,
+    appTrialsPendingCount,
     fetchPendingCount,
+    fetchAppTrialsPendingCount,
     checkSessionCoverage,
   };
 });

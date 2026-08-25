@@ -191,7 +191,15 @@ import {
  * `tenantWhere`/`tenantValues`, datos de un solo gimnasio — el caso normal de
  * D-02. Mismo worktree `et-180` que el bump anterior.
  *
- * El reparto por categoría vigente es 226 `tenant-scoped` · 8 `global` · 141
+ * **Movido a 375 el 2026-08-25** (en staging: 373 + 2), dos rutas de la bandeja
+ * de SP desde la app: `GET /api/admin/reports/trial-sessions/app-pending-count`
+ * (contador de la "pelotita") y `POST /api/admin/leads/:userId/start-followup`
+ * (sella el inicio del seguimiento). Ambas **tenant-scoped**: la primera reusa
+ * el `ctx`/country-scope del reporte de SP, la segunda opera sobre `users` con
+ * `tenantWhere` + gate de sede. En master (sin la fase 180) este mismo batch
+ * bumpea 370 → 372.
+ *
+ * El reparto por categoría vigente es 228 `tenant-scoped` · 8 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
  * por categoría a propósito, y
@@ -201,7 +209,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 373;
+const ENTRADAS_BASELINE = 375;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -344,7 +352,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 373 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 375 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
@@ -386,7 +394,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
    * de abajo), que prueban el MOTOR pero no el manifiesto real. Este test cierra
    * ese agujero: `compararManifiesto` shape-valida TODAS las entradas del
    * manifiesto que recibe, así que afirmar sobre el `discrepancias` real cubre
-   * las 373.
+   * las 375.
    */
   it("toda entrada del manifiesto real tiene la forma exigida (D-02 motivo, D-07 módulo, categoría válida)", () => {
     const sinMotivo = discrepancias.sinMotivo.slice().sort();

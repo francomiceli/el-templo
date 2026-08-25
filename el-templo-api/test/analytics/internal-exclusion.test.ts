@@ -211,6 +211,37 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
     expect(body.activeMembers.value).toBe(1);
   });
 
+  it("miembros activos: el override manual 'staff' saca al socio aunque su sub sea 'paga'", async () => {
+    const active = {
+      startDate: dateOffsetStr(-10),
+      endDate: dateOffsetStr(20),
+    };
+
+    // Paga real → cuenta.
+    const pagante = await insertMember();
+    await insertSub({ userId: pagante, ...active });
+
+    // Sub 'paga' (precio real) pero marcado staff a mano en la ficha → el
+    // override pisa y lo excluye de la métrica, sin tocar la suscripción.
+    const staffManual = await insertMember();
+    await insertSub({ userId: staffManual, ...active });
+    await app.db
+      .update(users)
+      .set({ membershipKindOverride: "staff" })
+      .where(eq(users.id, staffManual));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${ANALYTICS_URL}?branchId=${branchA}&dateFrom=${dateOffsetStr(
+        -30,
+      )}&dateTo=${todayStr()}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { activeMembers: { value: number } };
+    expect(body.activeMembers.value).toBe(1);
+  });
+
   // ═══════════════════════════════════════════════════════════════════════
   // (1b) Desglose clickeable del KPI de activos (breakdown)
   // ═══════════════════════════════════════════════════════════════════════
@@ -299,7 +330,9 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
     // Invariante: el número grande del KPI == balde 'paying'.
     expect(body.activeMembers.value).toBe(b.paying);
     // Invariante: los 4 baldes suman el total plano.
-    expect(b.paying + b.staff + b.bonificada + b.onlyEspecial).toBe(b.totalActive);
+    expect(b.paying + b.staff + b.bonificada + b.onlyEspecial).toBe(
+      b.totalActive,
+    );
   });
 
   // ═══════════════════════════════════════════════════════════════════════

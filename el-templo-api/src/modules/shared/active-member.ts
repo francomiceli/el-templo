@@ -141,7 +141,10 @@ export function activePayingNonEspecialMemberExists(
       AND s.subscription_status IN ('active','paused')
       AND s.start_date <= CURDATE()
       AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND s.membership_kind = 'paga'
+      AND COALESCE(
+        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
+        s.membership_kind
+      ) = 'paga'
       AND s.plan_id NOT IN (
         SELECT id FROM subscription_plans WHERE plan_category = 'especial'
       )
@@ -153,7 +156,10 @@ export function activePayingNonEspecialMemberExists(
       AND s.subscription_status IN ('active','paused')
       AND s.start_date <= CURDATE()
       AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND s.membership_kind = 'paga'
+      AND COALESCE(
+        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
+        s.membership_kind
+      ) = 'paga'
       AND s.plan_id NOT IN (
         SELECT id FROM subscription_plans WHERE plan_category = 'especial'
       )
@@ -183,7 +189,10 @@ export function activeSubOfKindExists(
       AND s.subscription_status IN ('active','paused')
       AND s.start_date <= CURDATE()
       AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND s.membership_kind = ${kind}
+      AND COALESCE(
+        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
+        s.membership_kind
+      ) = ${kind}
       AND s.tenant_id = ${ctx.tenantId}
   )`
     : sql`EXISTS (
@@ -192,7 +201,10 @@ export function activeSubOfKindExists(
       AND s.subscription_status IN ('active','paused')
       AND s.start_date <= CURDATE()
       AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND s.membership_kind = ${kind}
+      AND COALESCE(
+        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
+        s.membership_kind
+      ) = ${kind}
   )`;
 }
 
@@ -216,7 +228,10 @@ export function activePayingMemberExists(
       AND s.subscription_status IN ('active','paused')
       AND s.start_date <= CURDATE()
       AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND s.membership_kind = 'paga'
+      AND COALESCE(
+        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
+        s.membership_kind
+      ) = 'paga'
       AND s.tenant_id = ${ctx.tenantId}
   )`
     : sql`EXISTS (
@@ -225,6 +240,9 @@ export function activePayingMemberExists(
       AND s.subscription_status IN ('active','paused')
       AND s.start_date <= CURDATE()
       AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND s.membership_kind = 'paga'
+      AND COALESCE(
+        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
+        s.membership_kind
+      ) = 'paga'
   )`;
 }

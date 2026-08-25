@@ -1,0 +1,26 @@
+-- 0213_trial_followup_started_at.sql
+-- Seguimiento de SP creadas desde la app -- marca de cuándo gestión inició el
+-- seguimiento de una Sesión de Prueba self-service (bookings.source
+-- 'self_service'). Hand-written. NEVER drizzle-kit push/migrate -- la tabla
+-- _migrations es la única fuente de verdad, local y prod.
+--
+-- Numeración: origin/master y origin/staging están en 0212 (master sin 0210,
+-- staging con 0210) -- 0213 es el siguiente libre real en ambas.
+--
+-- Contenido:
+--   users.trial_followup_started_at -- timestamp NULL. NULL = SP de app que
+--   todavía nadie tomó (alimenta la pelotita del drawer y el filtro
+--   "pendientes" del reporte de Sesiones de Prueba). Se sella una sola vez vía
+--   POST /api/admin/leads/:userId/start-followup (idempotente).
+--
+-- Sin backfill: las SP self-service históricas quedan con NULL, o sea
+-- "pendientes". Es el default correcto -- nunca se registró su seguimiento --
+-- pero implica que al deployar la pelotita arranca con el backlog de SP de app
+-- en_seguimiento que nadie resolvió. Si se prefiere arrancar en cero, correr
+-- una migración de datos aparte que selle trial_followup_started_at.
+--
+-- Un comentario SQL NUNCA debe contener el separador de statements -- el runner
+-- parte los statements crudos primero y recién después borra los comentarios de
+-- doble guion.
+
+ALTER TABLE `users` ADD COLUMN `trial_followup_started_at` timestamp NULL;

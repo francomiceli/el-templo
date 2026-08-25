@@ -19,7 +19,7 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { MemberService } from "./service";
-import { updateLeadSchema } from "./schemas";
+import { updateLeadSchema, startFollowupSchema } from "./schemas";
 import { handleServiceError } from "../shared/error-handler";
 import { ConflictError, NotFoundError } from "../shared/errors";
 import { CAJA_ROLES } from "../shared/permissions";
@@ -116,4 +116,72 @@ export const leadsRoutes: FastifyPluginAsync = async (fastify) => {
       return handleServiceError(err, reply, request.log, "update lead");
     }
   });
+
+  /**
+   * POST /:userId/start-followup — sella el inicio del seguimiento de una SP
+   * creada desde la app (baja la "pelotita"). Idempotente: si ya estaba iniciado
+   * devuelve el timestamp existente. Mismo gate de sede que el PATCH (D-29): el
+   * branchId sale de la fila del lead, no del payload.
+   */
+  fastify.post<{ Params: { userId: number } }>(
+    "/:userId/start-followup",
+    { schema: startFollowupSchema },
+    async (request, reply) => {
+      const ctx = assertTenant(request.scope, "leads.start-followup");
+      try {
+        const branchId = await memberService.getLeadBranchId(
+          ctx,
+          request.params.userId,
+        );
+        if (branchId === null) {
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Lead no encontrado",
+          });
+        }
+
+        const allowed = await canAccessBranch(
+          request.scope,
+          branchId,
+          fastify.db,
+        );
+        if (!allowed) {
+          request.log.warn(
+            {
+              userId: request.user?.userId,
+              role: request.user?.role,
+              targetUserId: request.params.userId,
+              branchId,
+              scope: request.scope,
+            },
+            BRANCH_OUT_OF_SCOPE,
+          );
+          return reply.code(403).send({
+            error: "Forbidden",
+            message: "No tenés acceso a esta sede",
+            code: BRANCH_OUT_OF_SCOPE,
+          });
+        }
+
+        const result = await memberService.startTrialFollowup(
+          ctx,
+          request.params.userId,
+        );
+        return reply.code(200).send(result);
+      } catch (err: unknown) {
+        if (err instanceof NotFoundError) {
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: err.message,
+          });
+        }
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "start trial followup",
+        );
+      }
+    },
+  );
 };
