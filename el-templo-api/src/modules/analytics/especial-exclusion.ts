@@ -57,6 +57,12 @@ export function excludeEspecialSubs(ctx: TenantContext): SQL {
  * documentado arriba.
  */
 export function excludeInternalSubs(): SQL {
+  /* tenant-safe: subquery correlacionada por user_id (PK globalmente única
+     desde la fase 166) — uo.id = subscriptions.user_id encierra el override en
+     el MISMO tenant que la sub externa por FK, así que nunca cruza gimnasios.
+     El fragmento viaja ANDed dentro de una query de membresía ya
+     tenantWhere-scoped sobre subscriptions (mismo criterio que active-member.ts).
+     No se agrega uo.tenant_id: el repo nunca lo hace (redundante con la PK). */
   return sql`COALESCE(
     (SELECT uo.membership_kind_override FROM users AS uo
       WHERE uo.id = subscriptions.user_id),

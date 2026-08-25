@@ -228,7 +228,7 @@ describe("membresías internas — exclusión de métricas de membresía", () =>
     await app.db
       .update(users)
       .set({ membershipKindOverride: "staff" })
-      .where(eq(users.id, staffManual));
+      .where(and(eq(users.tenantId, TENANT_TEMPLO), eq(users.id, staffManual)));
 
     const res = await app.inject({
       method: "GET",
