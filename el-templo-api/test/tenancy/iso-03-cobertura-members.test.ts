@@ -178,7 +178,9 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
  * manifiesto vacío y todo pasaría en verde por vacuidad. Este conteo es lo que
  * hace que 0 rutas cubiertas se ponga tan rojo como 29.
  */
-const CASOS_BASELINE = 29;
+// 2026-08-25: 29 → 30 al agregar POST /api/admin/leads/:userId/start-followup
+// (sella el seguimiento de una SP de app) con su caso de aislamiento + control.
+const CASOS_BASELINE = 30;
 
 /** Los tres archivos de la batería ISO-03 de members. */
 const ARCHIVOS_BATERIA = [

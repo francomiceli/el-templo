@@ -134,11 +134,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import {
-  createTestApp,
-  cleanAllTestData,
-  createStaffUser,
-} from "../helpers";
+import { createTestApp, cleanAllTestData, createStaffUser } from "../helpers";
 import { normalizePhone } from "../../src/modules/shared/phone";
 import * as schema from "../../src/db/schema";
 import {
@@ -901,6 +897,106 @@ describe("editar lead — PATCH /api/admin/leads/:userId", () => {
       TENANT_DOS,
       "nota actualizada por el control",
     ]);
+  });
+});
+
+describe("iniciar seguimiento — POST /api/admin/leads/:userId/start-followup", () => {
+  const RUTA = "POST /api/admin/leads/:userId/start-followup";
+
+  let leadTemplo: number;
+  let leadDos: number;
+
+  // Sella users.trial_followup_started_at. Mismo criterio que el PATCH: el lead
+  // de otro gimnasio es indistinguible de uno inexistente (D-06, 404), y el
+  // sello NO puede persistir sobre el lead ajeno.
+  async function followupDe(userId: number): Promise<Date | null> {
+    const [row] = await app.db
+      .select({ f: schema.users.trialFollowupStartedAt })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    return row?.f ?? null;
+  }
+
+  beforeEach(async () => {
+    const passwordHash =
+      "$argon2id$v=19$m=4096,t=3,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const suf = sufijo();
+    const [rowTemplo] = await app.db
+      .insert(schema.users)
+      .values(
+        tenantValues(CTX_TEMPLO, {
+          email: `sf-templo-${suf}@test.com`,
+          passwordHash,
+          firstName: "SegTemplo",
+          lastName: "Aislado",
+          phone: `+549${String(Date.now()).slice(-9)}3`,
+          dni: `SFT${suf}`,
+          role: "member" as const,
+          branchId: templo.branchId,
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
+          level: "kairos" as const,
+          status: "prueba" as const,
+          leadStatus: "en_seguimiento" as const,
+          leadStatusSource: "auto" as const,
+        }),
+      )
+      .$returningId();
+    leadTemplo = rowTemplo.id;
+
+    const [rowDos] = await app.db
+      .insert(schema.users)
+      .values(
+        tenantValues(CTX_DOS, {
+          email: `sf-dos-${suf}@test.com`,
+          passwordHash,
+          firstName: "SegDos",
+          lastName: "Aislado",
+          phone: `+549${String(Date.now()).slice(-9)}4`,
+          dni: `SFD${suf}`,
+          role: "member" as const,
+          branchId: gym2.branchId,
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
+          level: "kairos" as const,
+          status: "prueba" as const,
+          leadStatus: "en_seguimiento" as const,
+          leadStatusSource: "auto" as const,
+        }),
+      )
+      .$returningId();
+    leadDos = rowDos.id;
+  });
+
+  it("aislamiento: iniciar el seguimiento de un lead de El Templo se rechaza, y su followup NO se sella", async () => {
+    const res = await comoGimnasioDos(
+      "POST",
+      `${LEADS_BASE}/${leadTemplo}/start-followup`,
+    );
+    expect(
+      res.statusCode,
+      porQueImporta(RUTA, leadTemplo) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await followupDe(leadTemplo),
+      `${RUTA}: el rechazo no puede sellar el seguimiento del lead ajeno.`,
+    ).toBeNull();
+  });
+
+  it("control: iniciar el seguimiento del lead propio del gimnasio 2 SI funciona", async () => {
+    const res = await comoGimnasioDos(
+      "POST",
+      `${LEADS_BASE}/${leadDos}/start-followup`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, leadDos) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(
+      await followupDe(leadDos),
+      `${RUTA}: el control positivo tiene que sellar el followup del lead propio.`,
+    ).not.toBeNull();
   });
 });
 
