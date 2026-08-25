@@ -588,6 +588,8 @@ const trialSessionsQuerystringProps = {
   daysWithoutConvertingMin: { type: "integer", minimum: 0 },
   search: { type: "string", maxLength: 100 },
   leadStatusSource: { type: "string", enum: ["auto", "manual"] },
+  origin: { type: "string", enum: ["app", "admin"] },
+  pendingFollowup: { type: "boolean" },
 } as const;
 
 const trialSessionsRowSchema = {
@@ -643,6 +645,8 @@ const trialSessionsRowSchema = {
       anyOf: [{ type: "string", enum: ["auto", "manual"] }, { type: "null" }],
     },
     phone: { type: ["string", "null"] },
+    origin: { type: "string", enum: ["app", "admin"] },
+    followupStartedAt: { type: ["string", "null"] },
   },
 } as const;
 

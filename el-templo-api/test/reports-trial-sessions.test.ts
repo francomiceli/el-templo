@@ -250,6 +250,8 @@ interface SeedBookingOpts {
   isTrial?: boolean;
   withAttendance?: boolean; // creates an attendance row tied to this booking
   attendanceBranchId?: number;
+  /** bookings.source: 'self_service' (app) | 'admin' | undefined (→ NULL = admin). */
+  source?: string;
 }
 
 async function seedBooking(opts: SeedBookingOpts): Promise<number> {
@@ -262,6 +264,7 @@ async function seedBooking(opts: SeedBookingOpts): Promise<number> {
       bookingDate: date,
       status: opts.status ?? "reservado",
       isTrial: opts.isTrial ?? true,
+      source: opts.source,
     })
     .$returningId();
 
@@ -1386,5 +1389,177 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     expect(autoIds).toContain(uAuto);
     expect(autoIds).toContain(uNull);
     expect(autoIds).not.toContain(uManual);
+  });
+
+  // ─── Bandeja de SP desde la app (origen, pendientes, seguimiento) ──────────
+
+  it("expone origin='app' vs 'admin' y filtra por origin", async () => {
+    const uApp = await seedLead({
+      firstName: "Ana",
+      lastName: "App",
+      branchId: ctx.arBranchId,
+    });
+    await seedBooking({
+      userId: uApp,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -1,
+      source: "self_service",
+    });
+    const uAdmin = await seedLead({
+      firstName: "Beto",
+      lastName: "Admin",
+      branchId: ctx.arBranchId,
+      createdBy: ctx.adminArId,
+    });
+    await seedBooking({
+      userId: uAdmin,
+      scheduleId: ctx.scheduleArAfternoon,
+      bookingDateOffsetDays: -1,
+    });
+
+    const all = JSON.parse(
+      (
+        await ctx.app.inject({
+          method: "GET",
+          url: `${REPORTS_URL}/trial-sessions`,
+          headers: { authorization: `Bearer ${ctx.adminArToken}` },
+        })
+      ).body,
+    );
+    const appRow = all.rows.find((r: { userId: number }) => r.userId === uApp);
+    const adminRow = all.rows.find(
+      (r: { userId: number }) => r.userId === uAdmin,
+    );
+    expect(appRow.origin).toBe("app");
+    expect(appRow.followupStartedAt).toBeNull();
+    expect(adminRow.origin).toBe("admin");
+
+    const onlyApp = JSON.parse(
+      (
+        await ctx.app.inject({
+          method: "GET",
+          url: `${REPORTS_URL}/trial-sessions?origin=app`,
+          headers: { authorization: `Bearer ${ctx.adminArToken}` },
+        })
+      ).body,
+    );
+    const appIds = onlyApp.rows.map((r: { userId: number }) => r.userId);
+    expect(appIds).toContain(uApp);
+    expect(appIds).not.toContain(uAdmin);
+  });
+
+  it("contador de pendientes: cuenta SP de app en_seguimiento sin seguimiento iniciado, y start-followup lo baja (idempotente)", async () => {
+    const LEADS_URL = "/api/admin/leads";
+    const auth = { authorization: `Bearer ${ctx.adminArToken}` };
+
+    const u1 = await seedLead({ firstName: "Uno", branchId: ctx.arBranchId });
+    await seedBooking({
+      userId: u1,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -1,
+      source: "self_service",
+    });
+    const u2 = await seedLead({ firstName: "Dos", branchId: ctx.arBranchId });
+    await seedBooking({
+      userId: u2,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -1,
+      source: "self_service",
+    });
+    const uGanado = await seedLead({
+      firstName: "Ganado",
+      branchId: ctx.arBranchId,
+      leadStatus: "ganado",
+    });
+    await seedBooking({
+      userId: uGanado,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -1,
+      source: "self_service",
+    });
+    const uAdmin = await seedLead({
+      firstName: "DeAdmin",
+      branchId: ctx.arBranchId,
+      createdBy: ctx.adminArId,
+    });
+    await seedBooking({
+      userId: uAdmin,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -1,
+    });
+
+    const count = async (): Promise<number> => {
+      const res = await ctx.app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/trial-sessions/app-pending-count`,
+        headers: auth,
+      });
+      expect(res.statusCode).toBe(200);
+      return JSON.parse(res.body).count;
+    };
+
+    expect(await count()).toBe(2);
+
+    const followRes = await ctx.app.inject({
+      method: "POST",
+      url: `${LEADS_URL}/${u1}/start-followup`,
+      headers: auth,
+    });
+    expect(followRes.statusCode).toBe(200);
+    const firstStamp = JSON.parse(followRes.body).followupStartedAt;
+    expect(typeof firstStamp).toBe("string");
+    expect(await count()).toBe(1);
+
+    const followAgain = await ctx.app.inject({
+      method: "POST",
+      url: `${LEADS_URL}/${u1}/start-followup`,
+      headers: auth,
+    });
+    expect(followAgain.statusCode).toBe(200);
+    expect(JSON.parse(followAgain.body).followupStartedAt).toBe(firstStamp);
+    expect(await count()).toBe(1);
+
+    const pending = JSON.parse(
+      (
+        await ctx.app.inject({
+          method: "GET",
+          url: `${REPORTS_URL}/trial-sessions?origin=app&pendingFollowup=true`,
+          headers: auth,
+        })
+      ).body,
+    );
+    const pendingIds = pending.rows.map((r: { userId: number }) => r.userId);
+    expect(pendingIds).toContain(u2);
+    expect(pendingIds).not.toContain(u1);
+    expect(pendingIds).not.toContain(uGanado);
+    expect(pendingIds).not.toContain(uAdmin);
+  });
+
+  it("start-followup respeta el scope de sede (403 fuera de país) y 404 si no existe", async () => {
+    const LEADS_URL = "/api/admin/leads";
+    const uAr = await seedLead({
+      firstName: "SoloAR",
+      branchId: ctx.arBranchId,
+    });
+    await seedBooking({
+      userId: uAr,
+      scheduleId: ctx.scheduleArMorning,
+      bookingDateOffsetDays: -1,
+      source: "self_service",
+    });
+
+    const forbidden = await ctx.app.inject({
+      method: "POST",
+      url: `${LEADS_URL}/${uAr}/start-followup`,
+      headers: { authorization: `Bearer ${ctx.adminEsToken}` },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const notFound = await ctx.app.inject({
+      method: "POST",
+      url: `${LEADS_URL}/99999999/start-followup`,
+      headers: { authorization: `Bearer ${ctx.adminArToken}` },
+    });
+    expect(notFound.statusCode).toBe(404);
   });
 });

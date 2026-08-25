@@ -617,6 +617,16 @@ export class MemberService {
       )
     )`;
 
+    // Etiqueta de membresía de la suscripción vigente (active/paused) más
+    // reciente, para calcular la etiqueta EFECTIVA del chip cuando no hay
+    // override manual. NULL si el socio no tiene suscripción vigente.
+    const activeSubKindSubquery = sql<"paga" | "bonificada" | "staff" | null>`(
+      SELECT s.membership_kind FROM subscriptions s
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId}
+        AND s.subscription_status IN ('active', 'paused')
+      ORDER BY s.id DESC LIMIT 1
+    )`;
+
     // Phase 114 (D-38): self-join to materialize the creator-admin's name
     // for the "Gestiona: <name>" caption in AlumnoDetailPage's "Datos de
     // Lead" block. Mirrors the same alias() pattern used by updateLead.
@@ -644,6 +654,8 @@ export class MemberService {
         branchName: schema.branches.name,
         branchCountry: schema.branches.country,
         status: schema.users.status,
+        membershipKindOverride: schema.users.membershipKindOverride,
+        activeSubKind: activeSubKindSubquery,
         createdAt: schema.users.createdAt,
         updatedAt: schema.users.updatedAt,
         hasUsedTrial: hasUsedTrialSubquery,
@@ -799,6 +811,10 @@ export class MemberService {
       branchName: row.branchName,
       branchCountry: row.branchCountry,
       status: row.status,
+      membershipKindOverride: row.membershipKindOverride,
+      // Efectiva = override manual ?? etiqueta de la sub vigente ?? 'paga'.
+      membershipKindEffective:
+        row.membershipKindOverride ?? row.activeSubKind ?? "paga",
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       hasUsedTrial: Boolean(row.hasUsedTrial),
@@ -1545,6 +1561,47 @@ export class MemberService {
   }
 
   /**
+   * Sella el inicio del seguimiento de una SP creada desde la app: setea
+   * trial_followup_started_at = NOW() SÓLO si estaba NULL — idempotente, reabrir
+   * el WhatsApp no pisa el primer contacto ni su timestamp. El scope de sede ya
+   * lo validó la ruta (getLeadBranchId + canAccessBranch). Devuelve el timestamp
+   * vigente (el recién sellado o el que ya estaba). NotFound si el user no existe
+   * o está borrado.
+   */
+  async startTrialFollowup(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<{ followupStartedAt: string }> {
+    await this.db
+      .update(schema.users)
+      .set({ trialFollowupStartedAt: sql`NOW()` })
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, userId),
+          isNull(schema.users.deletedAt),
+          isNull(schema.users.trialFollowupStartedAt),
+        ),
+      );
+
+    const [row] = await this.db
+      .select({
+        deletedAt: schema.users.deletedAt,
+        followupStartedAt: schema.users.trialFollowupStartedAt,
+      })
+      .from(schema.users)
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
+      .limit(1);
+
+    if (!row || row.deletedAt) {
+      throw new NotFoundError("Lead no encontrado");
+    }
+    return {
+      followupStartedAt: (row.followupStartedAt ?? new Date()).toISOString(),
+    };
+  }
+
+  /**
    * Update member profile fields. Password is never changeable here. Email is
    * write-once: it can be SET when the member has none yet (trial → alumno
    * conversion — trials are created with email=NULL), but an email already on
@@ -1594,12 +1651,7 @@ export class MemberService {
     if (input.dni !== undefined) updateData.dni = input.dni;
     if (input.documentType !== undefined)
       updateData.documentType = input.documentType as
-        | "DNI"
-        | "Pasaporte"
-        | "NIE"
-        | "NIF"
-        | "Otro"
-        | null;
+        "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro" | null;
     if (input.photoUrl !== undefined) updateData.photoUrl = input.photoUrl;
     if (input.address !== undefined) updateData.address = input.address;
     if (input.dateOfBirth !== undefined)
@@ -1618,12 +1670,7 @@ export class MemberService {
     // escribe la fila YA resuelta (ver `branchChanged`).
     if (input.level !== undefined) {
       const newLevel = input.level as
-        | "kairos"
-        | "alfa"
-        | "delta"
-        | "sigma"
-        | "omega"
-        | "spartan";
+        "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
       updateData.level = newLevel;
       // Phase 130 (KAIROS-06, D-03/D-05): a coach manually CHANGING the level is
       // a sticky decision — set level_override=true so auto-graduation (Plan 02)
@@ -1636,6 +1683,13 @@ export class MemberService {
       if (newLevel !== existing.level) {
         updateData.levelOverride = true;
       }
+    }
+
+    // Override manual de la etiqueta de membresía. null vuelve a automático
+    // (la etiqueta pasa a resolverse por la suscripción). Editable directo — no
+    // toca subscriptions ni el flujo de alta/cobro.
+    if (input.membershipKindOverride !== undefined) {
+      updateData.membershipKindOverride = input.membershipKindOverride;
     }
 
     // Write-once email: only set it when the member has none yet (trial →

@@ -165,6 +165,17 @@ export interface MemberProfile {
   branchCountry: string;
   /** Phase 103 (R10): see MemberListItem.status. */
   status: UserStatus | null;
+  /**
+   * Override manual de la etiqueta de membresía (users.membership_kind_override).
+   * null = automático. Es lo que muestra seleccionado el control de la ficha.
+   */
+  membershipKindOverride: "paga" | "bonificada" | "staff" | null;
+  /**
+   * Etiqueta de membresía EFECTIVA para el chip de la ficha:
+   * membershipKindOverride ?? etiqueta de la suscripción activa
+   * (subscriptions.membership_kind) ?? 'paga'. Ya resuelta server-side.
+   */
+  membershipKindEffective: "paga" | "bonificada" | "staff";
   createdAt: string;
   updatedAt: string;
   /**
@@ -356,6 +367,11 @@ export interface UpdateMemberInput {
   emergencyContactRelationship?: string | null;
   branchId?: number;
   level?: string;
+  /**
+   * Override manual de la etiqueta de membresía (bonificada/staff). null =
+   * volver a automático. Ausente = no tocar.
+   */
+  membershipKindOverride?: "paga" | "bonificada" | "staff" | null;
   /**
    * Domiciliación bancaria (SEPA). El admin solo lo envía cuando la sucursal
    * del socio es de España; el service upsertea la fila 1:1 y valida el IBAN

@@ -101,6 +101,17 @@ export const leadStatusSourceEnum = mysqlEnum("lead_status_source", [
   "manual",
 ]);
 
+// Override manual de la etiqueta de membresía (bonificada/staff) a nivel SOCIO.
+// NULL = automático (vale la etiqueta auto-calculada de la suscripción activa,
+// subscriptions.membership_kind). Un valor no-NULL PISA esa etiqueta para el
+// display en la ficha y para analytics (una persona que es staff lo es aunque
+// su suscripción cambie/renueve). Mismos valores que subscriptions.membership_kind,
+// pero columna propia (mysqlEnum 1er-arg = nombre de columna).
+export const membershipKindOverrideEnum = mysqlEnum(
+  "membership_kind_override",
+  ["paga", "bonificada", "staff"],
+);
+
 export const users = mysqlTable(
   "users",
   {
@@ -178,6 +189,9 @@ export const users = mysqlTable(
     // Phase 103: status is nullable; DB DEFAULT NULL. Member-creating endpoints
     // set the value explicitly per intent. Staff inserts omit the field (stays NULL).
     status: userStatusEnum,
+    // Override manual de la etiqueta de membresía (ver membershipKindOverrideEnum).
+    // NULL = automático. Editable desde la ficha del socio; lo respeta analytics.
+    membershipKindOverride: membershipKindOverrideEnum,
     // Phase 103: staff disable flag (semantically only applies to non-member roles).
     staffDisabled: boolean("staff_disabled").notNull().default(false),
     deletedAt: timestamp("deleted_at"),
@@ -199,6 +213,13 @@ export const users = mysqlTable(
     // the lead bought lives in purchasedPlanId, never here. The old
     // "prefill plan name on conversion" behavior moved to purchasedPlanId.
     leadNotes: text("lead_notes"),
+    // Seguimiento de SP self-service: sello de cuándo gestión inició el
+    // seguimiento (abrió el WhatsApp) de una Sesión de Prueba creada desde la
+    // app (bookings.source='self_service'). NULL = todavía nadie la tomó — es lo
+    // que alimenta la "pelotita" de SP nuevas y el filtro "pendientes" del
+    // reporte. Se sella UNA vez, vía POST /api/admin/leads/:userId/start-followup
+    // (idempotente: reabrir el WhatsApp no lo pisa).
+    trialFollowupStartedAt: timestamp("trial_followup_started_at"),
     // Hotfix 2026-07 (migration 0170): plan the lead bought when they
     // converted ("Plan comprado" in the trial sessions report). Set by the
     // conversion hook (recomputeUserStatus) from the first subscription, or

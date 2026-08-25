@@ -51,6 +51,36 @@
             <div class="text-body1">{{ levelDisplayName }}</div>
           </div>
           <div class="col-12 col-sm-6">
+            <div class="text-caption text-grey-7">Membresía</div>
+            <div class="text-body1 row items-center q-gutter-xs">
+              <q-chip
+                v-if="member.membershipKindEffective === 'staff'"
+                color="indigo"
+                text-color="white"
+                dense
+                icon="badge"
+                label="Staff"
+              />
+              <q-chip
+                v-else-if="member.membershipKindEffective === 'bonificada'"
+                color="teal"
+                text-color="white"
+                dense
+                icon="redeem"
+                label="Bonificada"
+              />
+              <span v-else>Paga</span>
+              <q-icon
+                v-if="member.membershipKindOverride !== null"
+                name="edit"
+                size="14px"
+                class="text-grey-6"
+              >
+                <q-tooltip>Etiqueta puesta a mano (override manual)</q-tooltip>
+              </q-icon>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6">
             <div class="text-caption text-grey-7">Fecha de Alta</div>
             <div class="text-body1">{{ formattedCreatedAt }}</div>
           </div>

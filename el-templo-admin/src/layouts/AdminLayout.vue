@@ -35,6 +35,12 @@
             <q-item-section side v-if="item.badge === 'pending' && adminStore.pendingCount > 0">
               <q-badge color="negative" :label="adminStore.pendingCount" />
             </q-item-section>
+            <q-item-section
+              side
+              v-if="item.badge === 'app-trials' && adminStore.appTrialsPendingCount > 0"
+            >
+              <q-badge color="negative" :label="adminStore.appTrialsPendingCount" />
+            </q-item-section>
           </q-item>
         </template>
       </q-list>
@@ -100,6 +106,13 @@ function visibleItems(cat: NavCategory) {
 // comes from isNavItemVisible on the trainingOnly items).
 const canSeeTraining = computed(() => canAccessTraining(authStore.user));
 
+// Quiénes ven Reportes (y por ende la pelotita de SP desde la app): gestión,
+// admin y dueño. Mismo set que REPORTES_ROLES en templo-config.ts.
+const canSeeReports = computed(() => {
+  const role = authStore.user?.role;
+  return role === 'gestion' || role === 'admin' || role === 'owner';
+});
+
 async function handleLogout() {
   await authStore.logout();
   router.push('/login');
@@ -111,6 +124,9 @@ onMounted(() => {
     adminStore.fetchPendingCount();
     adminStore.checkSessionCoverage();
   }
+  if (canSeeReports.value) {
+    adminStore.fetchAppTrialsPendingCount();
+  }
 });
 
 // Refresh pending count on route change (only for training viewers)
@@ -119,6 +135,9 @@ watch(
   () => {
     if (canSeeTraining.value) {
       adminStore.fetchPendingCount();
+    }
+    if (canSeeReports.value) {
+      adminStore.fetchAppTrialsPendingCount();
     }
   }
 );

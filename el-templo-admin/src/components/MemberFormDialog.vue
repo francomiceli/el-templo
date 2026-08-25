@@ -420,6 +420,18 @@
                   map-options
                 />
               </div>
+              <div class="col-12 col-sm-6">
+                <q-select
+                  v-model="form.membershipKindOverride"
+                  :options="membershipKindOptions"
+                  label="Etiqueta de membresía"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  hint="Automático = según la suscripción"
+                />
+              </div>
             </div>
 
             <div class="row q-col-gutter-sm q-mt-sm">
@@ -713,6 +725,8 @@ const form = ref({
   emergencyContactName: '',
   emergencyContactPhone: '',
   emergencyContactRelationship: '',
+  // Override manual de la etiqueta de membresía (null = automático). Solo edición.
+  membershipKindOverride: null as 'paga' | 'bonificada' | 'staff' | null,
   // Domiciliación bancaria (SEPA) — solo visible/enviado con sucursal de España.
   sepaDebtorName: '',
   sepaNif: '',
@@ -750,6 +764,17 @@ const levelOptions = [
   { label: 'Sigma', value: 'sigma' },
   { label: 'Omega', value: 'omega' },
   { label: 'Spartan', value: 'spartan' },
+];
+
+// Etiqueta de membresía: 'Automático' = null (vale la etiqueta de la sub).
+const membershipKindOptions: Array<{
+  label: string;
+  value: 'paga' | 'bonificada' | 'staff' | null;
+}> = [
+  { label: 'Automático', value: null },
+  { label: 'Paga', value: 'paga' },
+  { label: 'Bonificada', value: 'bonificada' },
+  { label: 'Staff', value: 'staff' },
 ];
 
 const genderOptions = [
@@ -922,6 +947,7 @@ watch(
         emergencyContactName: props.member.emergencyContactName ?? '',
         emergencyContactPhone: props.member.emergencyContactPhone ?? '',
         emergencyContactRelationship: props.member.emergencyContactRelationship ?? '',
+        membershipKindOverride: props.member.membershipKindOverride,
         sepaDebtorName: sepa?.debtorName ?? '',
         sepaNif: sepa?.nif ?? '',
         sepaIban: sepa?.iban ?? '',
@@ -948,6 +974,7 @@ watch(
         emergencyContactName: '',
         emergencyContactPhone: '',
         emergencyContactRelationship: '',
+        membershipKindOverride: null,
         sepaDebtorName: '',
         sepaNif: '',
         sepaIban: '',
@@ -1079,6 +1106,7 @@ async function onSubmit() {
         emergencyContactName: form.value.emergencyContactName || null,
         emergencyContactPhone: form.value.emergencyContactPhone || null,
         emergencyContactRelationship: form.value.emergencyContactRelationship || null,
+        membershipKindOverride: form.value.membershipKindOverride,
       };
       // Domiciliación (SEPA): solo se manda con sucursal de España — para
       // sedes AR el campo va ausente y el backend no toca datos existentes.

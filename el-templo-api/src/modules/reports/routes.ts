@@ -945,6 +945,27 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // Contador para la "pelotita": SP creadas desde la app pendientes de que
+  // gesti\u00F3n inicie el seguimiento, dentro del pa\u00EDs del usuario. Sin querystring
+  // (el pa\u00EDs sale de request.scope.country, igual que el reporte).
+  fastify.get("/trial-sessions/app-pending-count", async (request, reply) => {
+    try {
+      const ctx = assertTenant(request.scope, "reports.app-pending-count");
+      const count = await reportsService.getAppTrialsPendingCount(
+        ctx,
+        request.scope.country ?? undefined,
+      );
+      return { count };
+    } catch (err: unknown) {
+      handleServiceError(
+        err,
+        reply,
+        request.log,
+        "get app trials pending count",
+      );
+    }
+  });
 };
 
 // =============================================================================
@@ -1031,6 +1052,8 @@ function buildTrialSessionsFilters(
       daysWithoutConvertingMin?: number;
       search?: string;
       leadStatusSource?: "auto" | "manual";
+      origin?: "app" | "admin";
+      pendingFollowup?: boolean;
       page?: number;
       limit?: number;
     };
@@ -1073,6 +1096,8 @@ function buildTrialSessionsFilters(
     daysWithoutConvertingMin: q.daysWithoutConvertingMin,
     search: q.search,
     leadStatusSource: q.leadStatusSource,
+    origin: q.origin,
+    pendingFollowup: q.pendingFollowup,
     page: q.page,
     limit: q.limit,
   };

@@ -25,10 +25,7 @@ export interface AccessReportFilters {
  * es plata que el banco ya confirmó cuando el staff la carga.
  */
 export type ChargeReportPaymentMethod =
-  | "cash"
-  | "transfer"
-  | "card"
-  | "direct_debit";
+  "cash" | "transfer" | "card" | "direct_debit";
 
 export interface ChargeReportFilters {
   branchId?: number;
@@ -217,6 +214,18 @@ export interface TrialSessionsFilters {
    * lead_status_source NULL (histórico/desconocido). Sin filtro = todos.
    */
   leadStatusSource?: "auto" | "manual";
+  /**
+   * Origen de la SP representativa: 'app' = creada por el socio desde la app
+   * (bookings.source='self_service'); 'admin' = cargada por staff (source NULL o
+   * 'admin'). Sin filtro = todos.
+   */
+  origin?: "app" | "admin";
+  /**
+   * true = sólo SP cuyo seguimiento todavía nadie inició (trial_followup_started_at
+   * IS NULL) y el lead sigue en juego (en_seguimiento / no convertido, no perdido).
+   * Alimenta la bandeja "pendientes" y el contador de la pelotita.
+   */
+  pendingFollowup?: boolean;
   page?: number;
   limit?: number;
 }
@@ -277,6 +286,18 @@ export interface TrialSessionsRow {
    * teléfono. Se muestra como link wa.me en la UI y en la columna CSV.
    */
   phone: string | null;
+  /**
+   * Origen de la SP representativa: 'app' cuando bookings.source='self_service'
+   * (la reservó el socio desde la app), 'admin' en cualquier otro caso (staff o
+   * legacy con source NULL). Dispara el indicador visual "🟢 nueva desde app".
+   */
+  origin: "app" | "admin";
+  /**
+   * ISO timestamp de cuándo gestión inició el seguimiento de esta SP de app
+   * (users.trial_followup_started_at), o null si todavía nadie la tomó. Sólo es
+   * relevante para SP con origin='app'.
+   */
+  followupStartedAt: string | null;
 }
 
 export interface TrialSessionsReport {

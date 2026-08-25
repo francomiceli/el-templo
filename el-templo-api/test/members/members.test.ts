@@ -803,6 +803,33 @@ describe("Members Management Routes", () => {
       expect(res.statusCode).toBe(404);
     });
 
+    it("membershipKindOverride: 'staff' pisa la etiqueta efectiva; null vuelve a automático", async () => {
+      const member = await createMember();
+
+      const set = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { membershipKindOverride: "staff" },
+      });
+      expect(set.statusCode).toBe(200);
+      const setBody = JSON.parse(set.body);
+      expect(setBody.membershipKindOverride).toBe("staff");
+      expect(setBody.membershipKindEffective).toBe("staff");
+
+      const clear = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { membershipKindOverride: null },
+      });
+      expect(clear.statusCode).toBe(200);
+      const clearBody = JSON.parse(clear.body);
+      expect(clearBody.membershipKindOverride).toBeNull();
+      // Sin override y sin sub interna → efectiva 'paga'.
+      expect(clearBody.membershipKindEffective).toBe("paga");
+    });
+
     // Phase 111-01 (REQ-9, D-26): trim firstName/lastName on update.
     it("trims trailing/leading whitespace from firstName and lastName on update", async () => {
       const member = await createMember();
