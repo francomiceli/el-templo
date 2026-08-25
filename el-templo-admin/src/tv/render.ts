@@ -779,12 +779,15 @@ function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): vo
   lastQuoteKey = key;
   const quote = quotes[idx];
   clear(host);
-  host.appendChild(document.createTextNode(quote.text));
-  if (quote.goldText.length > 0) {
-    const oro = document.createElement('span');
-    oro.className = 'oro';
-    oro.textContent = quote.goldText;
-    host.appendChild(oro);
+  for (const seg of quote.segments) {
+    if (seg.gold) {
+      const oro = document.createElement('span');
+      oro.className = 'oro';
+      oro.textContent = seg.text;
+      host.appendChild(oro);
+    } else {
+      host.appendChild(document.createTextNode(seg.text));
+    }
   }
   setText(autor, '– ' + quote.author);
 }

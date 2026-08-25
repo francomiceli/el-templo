@@ -1,128 +1,233 @@
 /**
- * Frases de cierre del PDF de sesión.
+ * Frases de cierre del PDF de sesión (y de las pantallas de reposo/cierre del TV).
  *
- * Cada frase viene partida en dos: `text` se imprime en navy y `goldText` es el
- * remate en dorado. El corte es editorial — define dónde cae el golpe visual —
- * así que al reemplazar una frase hay que elegir el punto de corte a mano.
- * `goldText` vacío imprime la frase entera en navy (sirve para las muy cortas).
- *
- * `text` termina en espacio cuando sigue un remate: los dos tramos se
- * concatenan sin separador al renderizar (ver buildClosingPage).
+ * Cada frase es una lista de `segments`: cada tramo se pinta en navy por
+ * defecto o en dorado si `gold` es true. Los tramos se concatenan SIN separador
+ * al renderizar (tanto en el PDF como en el TV), así que el espaciado entre
+ * tramos viaja dentro del propio `text` (por convención, como espacio final del
+ * tramo que precede al siguiente). El corte es editorial — define dónde cae el
+ * golpe visual dorado — y admite varios tramos dorados intercalados.
  *
  * Las comillas van como escapes \u201C / \u201D (mismo criterio que tenía el
  * builder antes de esta extracción) para que no dependan del editor ni de la
  * codificación del archivo. Los acentos sí van literales.
  *
- * Rotan por `semana * 7 + día`, así que con 10 frases el ciclo se repite cada
- * 10 días de sesión.
+ * Rotan por `semana * 7 + día`, así que con 12 frases el ciclo se repite cada
+ * 12 días de sesión.
  */
-export interface SessionQuote {
+export interface QuoteSegment {
   text: string;
-  goldText: string;
+  gold?: boolean;
+}
+
+export interface SessionQuote {
+  segments: QuoteSegment[];
   author: string;
 }
 
-/** Tanda vigente desde 2026-07 (reemplazó a RETIRED_QUOTES). */
+/** Tanda vigente desde 2026-08 (reemplazó parte de la tanda de 2026-07). */
 export const QUOTES: SessionQuote[] = [
   {
-    text: '\u201CLA FORTUNA FAVORECE A ',
-    goldText: 'LOS AUDACES.\u201D',
+    segments: [
+      { text: '\u201CLA FORTUNA FAVORECE A ' },
+      { text: 'LOS AUDACES.\u201D', gold: true },
+    ],
     author: 'Virgilio.',
   },
   {
-    text: '\u201CNO NOS ATREVEMOS A MUCHAS COSAS PORQUE SON DIFÍCILES, ',
-    goldText: 'PERO SON DIFÍCILES PORQUE NO NOS ATREVEMOS A HACERLAS.\u201D',
-    author: 'Séneca.',
-  },
-  {
-    text: '\u201CLA VIDA SE CONTRAE O SE EXPANDE ',
-    goldText: 'EN PROPORCIÓN A NUESTRO CORAJE.\u201D',
-    author: 'Anaïs Nin.',
-  },
-  {
-    text: '\u201CQUIEN MUEVE UNA MONTAÑA ',
-    goldText: 'COMIENZA MOVIENDO PEQUEÑAS PIEDRAS.\u201D',
+    segments: [
+      { text: '\u201CQUIEN MUEVE UNA MONTAÑA ' },
+      { text: 'COMIENZA MOVIENDO PEQUEÑAS PIEDRAS.\u201D', gold: true },
+    ],
     author: 'Confucio.',
   },
   {
-    text: '\u201CLA CREATIVIDAD REQUIERE TENER EL VALOR ',
-    goldText: 'DE DESPRENDERSE DE LAS CERTEZAS.\u201D',
+    segments: [
+      { text: '\u201CLA CREATIVIDAD REQUIERE TENER EL VALOR ' },
+      { text: 'DE DESPRENDERSE DE LAS CERTEZAS.\u201D', gold: true },
+    ],
     author: 'Erich Fromm.',
   },
   {
-    text: '\u201CLA VIDA SOLO PUEDE SER COMPRENDIDA MIRANDO HACIA ATRÁS, ',
-    goldText: 'PERO HA DE SER VIVIDA MIRANDO HACIA ADELANTE.\u201D',
-    author: 'Søren Kierkegaard.',
-  },
-  {
-    text: '\u201CEN CUALQUIER MOMENTO PODEMOS ELEGIR ENTRE ',
-    goldText: 'AVANZAR HACIA EL CRECIMIENTO O RETROCEDER HACIA LA SEGURIDAD.\u201D',
-    author: 'Abraham Maslow.',
-  },
-  {
-    text: '\u201CHASTA QUE LO INCONSCIENTE SE HAGA CONSCIENTE, ',
-    goldText: 'DIRIGIRÁ TU VIDA Y LO LLAMARÁS DESTINO.\u201D',
+    segments: [
+      { text: '\u201CHASTA QUE LO INCONSCIENTE SE HAGA CONSCIENTE, ' },
+      { text: 'DIRIGIRÁ TU VIDA Y LO LLAMARÁS DESTINO.\u201D', gold: true },
+    ],
     author: 'Carl Jung.',
   },
   {
-    text: '\u201CLA BUENA VIDA ES UN PROCESO, NO UN ESTADO DEL SER. ',
-    goldText: 'ES UNA DIRECCIÓN, NO UN DESTINO.\u201D',
-    author: 'Carl Rogers.',
+    segments: [{ text: '\u201C¿ME ATREVO A ' }, { text: 'ALTERAR EL UNIVERSO?\u201D', gold: true }],
+    author: 'T. S. Eliot.',
   },
   {
-    text: '\u201CLA RAÍZ ES QUIZÁS ',
-    goldText: 'LA NECESIDAD MÁS IMPORTANTE Y MÁS DESCONOCIDA DEL ALMA HUMANA.\u201D',
-    author: 'Simone Weil.',
+    segments: [
+      { text: '\u201CSOY CREADO Y ' },
+      { text: 'RECREADO CONTINUAMENTE.\u201D', gold: true },
+    ],
+    author: 'Virginia Woolf.',
+  },
+  {
+    segments: [
+      { text: '\u201CINTENTA OTRA VEZ. FALLA OTRA VEZ. ' },
+      { text: 'FALLA MEJOR.\u201D', gold: true },
+    ],
+    author: 'Samuel Beckett.',
+  },
+  {
+    segments: [
+      { text: '\u201CLA VIDA ES LO QUE HACEMOS DE ELLA. ' },
+      { text: 'LOS VIAJES SON LOS VIAJEROS.', gold: true },
+      { text: ' LO QUE VEMOS NO ES LO QUE VEMOS, ' },
+      { text: 'SINO LO QUE SOMOS.\u201D', gold: true },
+    ],
+    author: 'Fernando Pessoa.',
+  },
+  {
+    segments: [
+      { text: '\u201CMIRA CADA CAMINO DE CERCA Y CON INTENCIÓN. LUEGO HAZTE UNA PREGUNTA: ' },
+      { text: '¿TIENE CORAZÓN ESTE CAMINO?\u201D', gold: true },
+    ],
+    author: 'Carlos Castaneda.',
+  },
+  {
+    segments: [
+      { text: '\u201CLOS LUGARES VERDADEROS ' },
+      { text: 'NO ESTÁN EN NINGÚN MAPA.\u201D', gold: true },
+    ],
+    author: 'Herman Melville.',
+  },
+  {
+    segments: [
+      { text: '\u201CREALIZA TUS ACCIONES ABANDONANDO EL APEGO, ' },
+      { text: 'PERMANECIENDO ECUÁNIME ANTE EL ÉXITO Y EL FRACASO.\u201D', gold: true },
+    ],
+    author: 'Bhagavad Gita 2.48.',
+  },
+  {
+    segments: [
+      { text: '\u201CQUIEN VENCE A LOS DEMÁS TIENE FUERZA; ' },
+      { text: 'QUIEN SE VENCE A SÍ MISMO ES PODEROSO.\u201D', gold: true },
+    ],
+    author: 'Lao-Tsé.',
   },
 ];
 
 /**
- * Tanda anterior, retirada en 2026-07. Se guarda entera (con su corte navy/oro
- * original) para poder volver a rotarla sin tener que reconstruir los cortes.
- * No se importa desde ningún lado a propósito: es un archivo, no una fuente
- * activa. Para reponerla, mové las entradas que quieras a QUOTES.
+ * Tandas retiradas. Se guardan enteras (con su corte navy/oro original) para
+ * poder volver a rotarlas sin reconstruir los cortes. No se importan desde
+ * ningún lado a propósito: es un archivo, no una fuente activa. Para reponer
+ * una, mové su entrada a QUOTES.
  */
 export const RETIRED_QUOTES: SessionQuote[] = [
+  // --- Retiradas en 2026-07 ---
   {
-    text: '\u201CLAS CADENAS DE LA DISCIPLINA SON LIGERAS COMPARADAS CON ',
-    goldText: 'EL PESO DEL ARREPENTIMIENTO.\u201D',
+    segments: [
+      { text: '\u201CLAS CADENAS DE LA DISCIPLINA SON LIGERAS COMPARADAS CON ' },
+      { text: 'EL PESO DEL ARREPENTIMIENTO.\u201D', gold: true },
+    ],
     author: 'Jim Rohn.',
   },
   {
-    text: '\u201CES UNA PENA ENVEJECER SIN NUNCA VER ',
-    goldText: 'LA BELLEZA Y LA FUERZA DE LA QUE TU CUERPO ES CAPAZ.\u201D',
+    segments: [
+      { text: '\u201CES UNA PENA ENVEJECER SIN NUNCA VER ' },
+      { text: 'LA BELLEZA Y LA FUERZA DE LA QUE TU CUERPO ES CAPAZ.\u201D', gold: true },
+    ],
     author: 'Sócrates.',
   },
   {
-    text: '\u201CLOS OBSTÁCULOS SON ESAS COSAS ESPANTOSAS QUE VES ',
-    goldText: 'CUANDO APARTAS LOS OJOS DE TU META.\u201D',
+    segments: [
+      { text: '\u201CLOS OBSTÁCULOS SON ESAS COSAS ESPANTOSAS QUE VES ' },
+      { text: 'CUANDO APARTAS LOS OJOS DE TU META.\u201D', gold: true },
+    ],
     author: 'Henry Ford.',
   },
-  { text: '\u201CVENI, VIDI, VICI.\u201D', goldText: '', author: 'Julio César.' },
   {
-    text: '\u201CEL QUE TIENE UN PORQUÉ PARA VIVIR ',
-    goldText: 'PUEDE SOPORTAR CASI CUALQUIER CÓMO.\u201D',
+    segments: [{ text: '\u201CVENI, VIDI, VICI.\u201D' }],
+    author: 'Julio César.',
+  },
+  {
+    segments: [
+      { text: '\u201CEL QUE TIENE UN PORQUÉ PARA VIVIR ' },
+      { text: 'PUEDE SOPORTAR CASI CUALQUIER CÓMO.\u201D', gold: true },
+    ],
     author: 'Friedrich Nietzsche.',
   },
-  { text: '\u201CNO EXPLIQUES TU FILOSOFÍA. ', goldText: 'ENCÁRNALA.\u201D', author: 'Epicteto.' },
   {
-    text: '\u201CLA VERDADERA GENEROSIDAD HACIA EL FUTURO CONSISTE EN ',
-    goldText: 'ENTREGARLO TODO AL PRESENTE.\u201D',
+    segments: [
+      { text: '\u201CNO EXPLIQUES TU FILOSOFÍA. ' },
+      { text: 'ENCÁRNALA.\u201D', gold: true },
+    ],
+    author: 'Epicteto.',
+  },
+  {
+    segments: [
+      { text: '\u201CLA VERDADERA GENEROSIDAD HACIA EL FUTURO CONSISTE EN ' },
+      { text: 'ENTREGARLO TODO AL PRESENTE.\u201D', gold: true },
+    ],
     author: 'Albert Camus.',
   },
   {
-    text: '\u201CTODO LO QUE HACEMOS REPETIDAMENTE NOS DEFINE. ',
-    goldText: 'LA EXCELENCIA ES UN HÁBITO.\u201D',
+    segments: [
+      { text: '\u201CTODO LO QUE HACEMOS REPETIDAMENTE NOS DEFINE. ' },
+      { text: 'LA EXCELENCIA ES UN HÁBITO.\u201D', gold: true },
+    ],
     author: 'Aristóteles.',
   },
   {
-    text: '\u201CATREVERSE ES PERDER EL EQUILIBRIO MOMENTÁNEAMENTE; ',
-    goldText: 'NO ATREVERSE ES PERDERSE A UNO MISMO.\u201D',
+    segments: [
+      { text: '\u201CATREVERSE ES PERDER EL EQUILIBRIO MOMENTÁNEAMENTE; ' },
+      { text: 'NO ATREVERSE ES PERDERSE A UNO MISMO.\u201D', gold: true },
+    ],
     author: 'Søren Kierkegaard.',
   },
   {
-    text: '\u201CEL VERDADERO MÉTODO SIGUE ',
-    goldText: 'LA NATURALEZA DE LAS COSAS.\u201D',
+    segments: [
+      { text: '\u201CEL VERDADERO MÉTODO SIGUE ' },
+      { text: 'LA NATURALEZA DE LAS COSAS.\u201D', gold: true },
+    ],
     author: 'Edmund Husserl.',
+  },
+  // --- Retiradas en 2026-08 (salieron de QUOTES) ---
+  {
+    segments: [
+      { text: '\u201CNO NOS ATREVEMOS A MUCHAS COSAS PORQUE SON DIFÍCILES, ' },
+      { text: 'PERO SON DIFÍCILES PORQUE NO NOS ATREVEMOS A HACERLAS.\u201D', gold: true },
+    ],
+    author: 'Séneca.',
+  },
+  {
+    segments: [
+      { text: '\u201CLA VIDA SE CONTRAE O SE EXPANDE ' },
+      { text: 'EN PROPORCIÓN A NUESTRO CORAJE.\u201D', gold: true },
+    ],
+    author: 'Anaïs Nin.',
+  },
+  {
+    segments: [
+      { text: '\u201CLA VIDA SOLO PUEDE SER COMPRENDIDA MIRANDO HACIA ATRÁS, ' },
+      { text: 'PERO HA DE SER VIVIDA MIRANDO HACIA ADELANTE.\u201D', gold: true },
+    ],
+    author: 'Søren Kierkegaard.',
+  },
+  {
+    segments: [
+      { text: '\u201CEN CUALQUIER MOMENTO PODEMOS ELEGIR ENTRE ' },
+      { text: 'AVANZAR HACIA EL CRECIMIENTO O RETROCEDER HACIA LA SEGURIDAD.\u201D', gold: true },
+    ],
+    author: 'Abraham Maslow.',
+  },
+  {
+    segments: [
+      { text: '\u201CLA BUENA VIDA ES UN PROCESO, NO UN ESTADO DEL SER. ' },
+      { text: 'ES UNA DIRECCIÓN, NO UN DESTINO.\u201D', gold: true },
+    ],
+    author: 'Carl Rogers.',
+  },
+  {
+    segments: [
+      { text: '\u201CLA RAÍZ ES QUIZÁS ' },
+      { text: 'LA NECESIDAD MÁS IMPORTANTE Y MÁS DESCONOCIDA DEL ALMA HUMANA.\u201D', gold: true },
+    ],
+    author: 'Simone Weil.',
   },
 ];

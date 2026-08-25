@@ -276,10 +276,10 @@ function buildClosingPage(quoteIndex: number): Content[] {
     { text: '', margin: [0, 200, 0, 0] },
     // Quote with navy + gold accent split
     {
-      text: [
-        { text: quote.text, color: NAVY },
-        { text: quote.goldText, color: GOLD },
-      ],
+      text: quote.segments.map((seg) => ({
+        text: seg.text,
+        color: seg.gold ? GOLD : NAVY,
+      })),
       fontSize: 130,
       bold: true,
       alignment: 'center' as const,
