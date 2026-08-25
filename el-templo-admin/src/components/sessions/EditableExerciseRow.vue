@@ -487,9 +487,17 @@ watch(
 
 function togglePausa() {
   if (isPausaSelected.value) {
-    // Deactivate PAUSA: restore defaults
-    localReps.value = 0;
-    localSeconds.value = 30;
+    // Deactivate PAUSA: restore defaults según la contracción. Un ISO se edita
+    // por segundos, un CON/EXC por reps. Sembrar segundos en un CON dejaba un
+    // `seconds` fantasma que el editor no vuelve a mostrar (solo expone Reps) y
+    // que el TV prioriza sobre las reps — mostraba 30" en vez de las reps reales.
+    if (isIso.value) {
+      localReps.value = 0;
+      localSeconds.value = 30;
+    } else {
+      localReps.value = 0;
+      localSeconds.value = 0;
+    }
     localNotes.value = '';
   } else {
     // Activate PAUSA
