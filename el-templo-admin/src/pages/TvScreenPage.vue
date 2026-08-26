@@ -1653,9 +1653,14 @@ onUnmounted(() => {
   text-align: center;
   padding: 2rem;
 }
+/* La columna de identidad se distribuye en vertical con aire entre elementos
+   (pedido 2026-08-25): logo arriba, [título de cierre], reloj y fecha — los
+   márgenes generosos hacen que ocupe el alto del marco en vez de apretarse
+   en el centro. */
 #tvScreenRoot .transLogo {
   width: 9rem;
   opacity: 0.95;
+  margin-bottom: 6.5rem;
 }
 
 /* Reloj y fecha de la transición (render.ts escribe HH:MM y la fecha larga). */
@@ -1665,7 +1670,8 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
   line-height: 1;
   color: var(--trans-crema);
-  margin-top: 2.5rem;
+  /* El aire antes del reloj lo ponen el logo (reposo) o el título (cierre). */
+  margin-top: 0;
 }
 /* Hora y día más grandes (pedido 2026-08-25; la hora va SIN segundero, como
    todos los relojes de sede — ver clockNodes en render.ts). */
@@ -1680,7 +1686,7 @@ onUnmounted(() => {
   letter-spacing: 0.32em;
   font-size: 1.5rem;
   color: var(--trans-apagado);
-  margin-top: 1.1rem;
+  margin-top: 1.7rem;
 }
 
 /* "SESIÓN COMPLETA": tracking-in cada vez que aparece la pantalla de cierre. */
@@ -1691,7 +1697,7 @@ onUnmounted(() => {
   line-height: 1.1;
   color: var(--trans-bronce);
   white-space: nowrap;
-  margin-top: 2.2rem;
+  margin: 0 0 5rem;
   opacity: 0;
   letter-spacing: 0.5em;
 }
