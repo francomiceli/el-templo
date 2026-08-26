@@ -180,7 +180,12 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
  */
 // 2026-08-25: 29 → 30 al agregar POST /api/admin/leads/:userId/start-followup
 // (sella el seguimiento de una SP de app) con su caso de aislamiento + control.
-const CASOS_BASELINE = 30;
+// 2026-08-26: 30 → 33 al aterrizar la fase 179 (tren 179+180 a master) — las 3
+// rutas de asignación retroactiva de partner de la ficha,
+// GET/POST/DELETE /api/admin/members/:userId/partner-referral, con sus casos de
+// aislamiento + control en iso-03-members-ficha.test.ts (la deuda "batería
+// tenancy por verificar" de la 179, saldada acá).
+const CASOS_BASELINE = 33;
 
 /** Los tres archivos de la batería ISO-03 de members. */
 const ARCHIVOS_BATERIA = [

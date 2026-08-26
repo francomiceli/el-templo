@@ -29,7 +29,7 @@ import {
   beforeEach,
   vi,
 } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
 import {
@@ -242,7 +242,9 @@ async function subscriptionRow(id: number): Promise<SubscriptionRow | null> {
       status: schema.subscriptions.status,
     })
     .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.id, id));
+    .where(
+      sql`/* tenant-safe: evidencia del test — lectura por id/socio recién creados por el propio test, se afirma sobre la fila cruda sin importar el tenant estampado (justamente lo que se verifica) */ ${eq(schema.subscriptions.id, id)}`,
+    );
   return row ?? null;
 }
 
@@ -255,7 +257,9 @@ async function bookingRow(
       memberId: schema.bookings.memberId,
     })
     .from(schema.bookings)
-    .where(eq(schema.bookings.id, id));
+    .where(
+      sql`/* tenant-safe: evidencia del test — lectura por id/socio recién creados por el propio test, se afirma sobre la fila cruda sin importar el tenant estampado (justamente lo que se verifica) */ ${eq(schema.bookings.id, id)}`,
+    );
   return row ?? null;
 }
 
@@ -263,7 +267,9 @@ async function countSubscriptionsForUser(userId: number): Promise<number> {
   const rows = await app.db
     .select({ id: schema.subscriptions.id })
     .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.userId, userId));
+    .where(
+      sql`/* tenant-safe: evidencia del test — lectura por id/socio recién creados por el propio test, se afirma sobre la fila cruda sin importar el tenant estampado (justamente lo que se verifica) */ ${eq(schema.subscriptions.userId, userId)}`,
+    );
   return rows.length;
 }
 
@@ -271,7 +277,9 @@ async function countBookingsForUser(userId: number): Promise<number> {
   const rows = await app.db
     .select({ id: schema.bookings.id })
     .from(schema.bookings)
-    .where(eq(schema.bookings.memberId, userId));
+    .where(
+      sql`/* tenant-safe: evidencia del test — lectura por id/socio recién creados por el propio test, se afirma sobre la fila cruda sin importar el tenant estampado (justamente lo que se verifica) */ ${eq(schema.bookings.memberId, userId)}`,
+    );
   return rows.length;
 }
 

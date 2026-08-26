@@ -140,6 +140,10 @@ import {
   setDerivedLabelDescription,
   DERIVED_LABEL_DESCRIPTION_KEYS,
 } from "../../src/modules/scheduling/label-descriptions";
+import {
+  insertPartner,
+  insertPartnerLink,
+} from "../referral-partners/_helpers";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -1668,5 +1672,132 @@ describe("descripciones de etiqueta derivada — PUT /api/admin/scheduling/class
     ).toBe(200);
     const dos = await fotoDeLabelDescription(TENANT_DOS, "tecnica");
     expect([dos?.value, dos?.tenantId]).toEqual([valorDos, TENANT_DOS]);
+  });
+});
+
+describe("activar semana de partner (socio) — POST /api/members/scheduling/reserve-partner-week", () => {
+  const RUTA = "POST /api/members/scheduling/reserve-partner-week";
+
+  /** Socio fresco del gimnasio 2 SIN plan, con vinculo free_pass PROPIO
+   * pendiente. `gym2.socios[0]` no sirve: su suscripcion activa corta el
+   * flujo por `con_plan_activo` antes de llegar a la sede o al plan. */
+  async function socioConBeneficioDelDos() {
+    const socio = await createTestMember(app, {
+      email: `partner-week-${sufijo()}@test.com`,
+      branchId: gym2.branchId,
+      tenantId: TENANT_DOS,
+      phone: telefonoUnico(),
+    });
+    const partner = await insertPartner(app, {
+      tenantId: TENANT_DOS,
+      name: `Partner Dos ${sufijo()}`,
+    });
+    const link = await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: socio.id,
+      tenantId: TENANT_DOS,
+      benefitType: "free_pass",
+    });
+    return { socio, linkId: link.id };
+  }
+
+  async function estadoDelVinculo(linkId: number): Promise<string> {
+    const [fila] = await app.db
+      .select({ benefitStatus: schema.partnerReferrals.benefitStatus })
+      .from(schema.partnerReferrals)
+      .where(eq(schema.partnerReferrals.id, linkId));
+    return fila.benefitStatus;
+  }
+
+  async function contarSubsDeMiembro(memberId: number): Promise<number> {
+    const filas = await consultar<{ c: number }>(
+      sql`SELECT /* tenant-safe: contar subscriptions de un userId (sin filtro de gimnasio) es la asercion de "cero suscripciones nuevas" — filtrar la volveria tautologica */ COUNT(*) AS c FROM subscriptions WHERE user_id = ${memberId}`,
+    );
+    return Number(filas[0]?.c ?? 0);
+  }
+
+  it("aislamiento: una sede de El Templo en el body se rechaza — 404, el vinculo sigue pending y CERO suscripciones/reservas nuevas", async () => {
+    const { socio, linkId } = await socioConBeneficioDelDos();
+    const bookingsAntes = await contarBookingsDeMiembro(socio.id);
+
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/reserve-partner-week",
+      socio.token,
+      {
+        scheduleId: fx.dos.scheduleId,
+        date: dateOffsetStr(1),
+        branchId: fx.templo.branchId,
+      },
+    );
+    expect(
+      res.statusCode,
+      porQueImporta(RUTA, fx.templo.branchId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await estadoDelVinculo(linkId),
+      `${RUTA}: el rechazo por sede ajena no puede consumir el beneficio.`,
+    ).toBe("pending");
+    expect(
+      await contarSubsDeMiembro(socio.id),
+      `${RUTA}: la sede ajena no puede dejar una suscripcion bonificada creada.`,
+    ).toBe(0);
+    expect(
+      await contarBookingsDeMiembro(socio.id),
+      `${RUTA}: la sede ajena no puede dejar NINGUNA fila en bookings.`,
+    ).toBe(bookingsAntes);
+  });
+
+  it("control: con sede, horario, vinculo y plan paquete PROPIOS el flujo completo funciona — 201, todo nace TENANT_DOS y el vinculo queda consumido", async () => {
+    const { socio, linkId } = await socioConBeneficioDelDos();
+    // D-19: el plan `paquete` de 7 dias / 3 clases del pais de la sede se
+    // resuelve server-side — el fixture compartido no lo siembra (es de la
+    // fase 179), asi que se siembra LOCAL con el ctx del gimnasio 2, mismo
+    // criterio que el resto de la siembra local de este archivo.
+    await app.db.insert(schema.subscriptionPlans).values(
+      tenantValues(CTX_DOS, {
+        name: `Paquete Semana Partner ${sufijo()}`,
+        planTier: "flex" as const,
+        bookingMode: "flexible" as const,
+        planCategory: "paquete" as const,
+        priceRegular: 9990,
+        priceZero: 9990,
+        durationDays: 7,
+        classesPerWeek: 3,
+        country: "AR" as const,
+      }),
+    );
+    const scheduleId = await crearHorarioParaManana();
+
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/reserve-partner-week",
+      socio.token,
+      {
+        scheduleId,
+        date: dateOffsetStr(1),
+        branchId: gym2.branchId,
+      },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, socio.id) + ` Respuesta: ${res.body}`,
+    ).toBe(201);
+    const body = JSON.parse(res.body) as {
+      subscriptionId: number;
+      bookingId: number;
+    };
+    expect(
+      await tenantDeLaFila(app, "subscriptions", body.subscriptionId),
+      `${RUTA}: la suscripcion bonificada del socio del gimnasio ${TENANT_DOS} tiene que nacer con ese tenant_id.`,
+    ).toBe(TENANT_DOS);
+    expect(
+      await tenantDeLaFila(app, "bookings", body.bookingId),
+      `${RUTA}: la reserva de la semana de regalo tiene que nacer con tenant_id = ${TENANT_DOS}.`,
+    ).toBe(TENANT_DOS);
+    expect(
+      await estadoDelVinculo(linkId),
+      `${RUTA}: el flujo completo tiene que dejar el beneficio consumido — sin esto, el control no probaria el camino real de escritura.`,
+    ).toBe("consumed");
   });
 });

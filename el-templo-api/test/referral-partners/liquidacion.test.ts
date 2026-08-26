@@ -15,7 +15,7 @@
  *  5. D-13: la moneda devuelta por la liquidación es la del partner (AR/ES).
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -30,7 +30,7 @@ import {
   todayStr,
 } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
-import { tenantValues } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import { insertBranch, insertPartner, insertPartnerLink } from "./_helpers";
 import {
   seedSecondTenant,
@@ -52,7 +52,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   if (!admin) throw new Error("admin@test.com seed missing");
   adminId = admin.id;
@@ -138,16 +143,21 @@ async function seedRawSubscription(
 ): Promise<number> {
   const [res] = await app.db
     .insert(schema.subscriptions)
-    .values({
-      userId,
-      planId,
-      branchId,
-      status: "active",
-      startDate: todayStr(),
-      pricePaid,
-      currency: "ARS",
-      priceTypeApplied: "regular",
-    })
+    .values(
+      tenantValues(
+        { tenantId: TENANT_TEMPLO },
+        {
+          userId,
+          planId,
+          branchId,
+          status: "active",
+          startDate: todayStr(),
+          pricePaid,
+          currency: "ARS",
+          priceTypeApplied: "regular",
+        },
+      ),
+    )
     .$returningId();
   return res.id;
 }

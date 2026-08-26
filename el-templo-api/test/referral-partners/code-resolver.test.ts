@@ -13,7 +13,7 @@
  *  4. `branchId` acota la rama partner al tenant de esa sede.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, getAuthToken } from "../helpers";
 import { createPlan, createMember } from "../subscriptions/_helpers";
@@ -25,6 +25,7 @@ import {
   TENANT_TEMPLO,
 } from "../fixtures/second-tenant";
 import { resolveSignupCode } from "../../src/modules/referral-partners/code-resolver";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import * as schema from "../../src/db/schema";
 
 let app: FastifyInstance;
@@ -147,15 +148,20 @@ describe("resolveSignupCode — rama promo", () => {
     const code = nextCode("PROMO");
     const [row] = await app.db
       .insert(schema.promoPlans)
-      .values({
-        name: `Promo ${code}`,
-        promoCode: code,
-        subscriptionPlanId: plan.id as number,
-        startDate: new Date(),
-        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        country: "AR",
-        isActive: true,
-      })
+      .values(
+        tenantValues(
+          { tenantId: TENANT_TEMPLO },
+          {
+            name: `Promo ${code}`,
+            promoCode: code,
+            subscriptionPlanId: plan.id as number,
+            startDate: new Date(),
+            expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            country: "AR",
+            isActive: true,
+          },
+        ),
+      )
       .$returningId();
 
     const result = await resolveSignupCode(app.db, app.log, code, {
@@ -175,15 +181,20 @@ describe("resolveSignupCode — rama promo", () => {
     );
     const plan = await createPlan(app, adminToken);
     const code = nextCode("INACTPROMO");
-    await app.db.insert(schema.promoPlans).values({
-      name: `Promo inactiva ${code}`,
-      promoCode: code,
-      subscriptionPlanId: plan.id as number,
-      startDate: new Date(),
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      country: "AR",
-      isActive: false,
-    });
+    await app.db.insert(schema.promoPlans).values(
+      tenantValues(
+        { tenantId: TENANT_TEMPLO },
+        {
+          name: `Promo inactiva ${code}`,
+          promoCode: code,
+          subscriptionPlanId: plan.id as number,
+          startDate: new Date(),
+          expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          country: "AR",
+          isActive: false,
+        },
+      ),
+    );
 
     const result = await resolveSignupCode(app.db, app.log, code, {
       branchId: AR_BRANCH_ID,
@@ -201,7 +212,12 @@ describe("resolveSignupCode — rama socio", () => {
     await app.db
       .update(schema.users)
       .set({ referralCode: code })
-      .where(eq(schema.users.id, member.id));
+      .where(
+        and(
+          tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+          eq(schema.users.id, member.id),
+        ),
+      );
 
     const result = await resolveSignupCode(app.db, app.log, code, {
       branchId: AR_BRANCH_ID,

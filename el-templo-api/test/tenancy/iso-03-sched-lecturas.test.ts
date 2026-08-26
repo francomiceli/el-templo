@@ -140,6 +140,10 @@ import {
   type SubsSchedFixture,
 } from "../fixtures/subs-sched-gimnasio-dos";
 import { setDerivedLabelDescription } from "../../src/modules/scheduling/label-descriptions";
+import {
+  insertPartner,
+  insertPartnerLink,
+} from "../referral-partners/_helpers";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -1163,5 +1167,93 @@ describe("descripciones de etiqueta derivada — GET /api/admin/scheduling/class
         `Sin este control, el caso de aislamiento de al lado pasaria en verde por la razon equivocada.`,
     ).toBe(valorDos);
     expect(body.descriptions.combos).not.toBe(valorTemplo);
+  });
+});
+
+describe("beneficio de partner del socio — GET /api/members/scheduling/partner-benefit", () => {
+  const RUTA = "GET /api/members/scheduling/partner-benefit";
+
+  /** Socio fresco del gimnasio 2, sin plan (el fixture compartido deja a
+   * `gym2.socios[0]` con suscripcion activa y eso corta la elegibilidad por
+   * `con_plan_activo` ANTES de mirar el vinculo — no serviria de evidencia). */
+  async function socioSinPlanDelDos() {
+    return createTestMember(app, {
+      email: `partner-benefit-${sufijo()}@test.com`,
+      branchId: gym2.branchId,
+      tenantId: TENANT_DOS,
+      phone: telefonoUnico(),
+    });
+  }
+
+  it("aislamiento: un vinculo free_pass estampado en El Templo es INVISIBLE — sin_beneficio, indistinguible de no tener nada", async () => {
+    const socio = await socioSinPlanDelDos();
+    // Tampering cross-tenant: la fila existe y apunta al socio del gimnasio 2,
+    // pero pertenece a El Templo (partner y vinculo con tenant_id = 1).
+    const partnerTemplo = await insertPartner(app, {
+      tenantId: TENANT_TEMPLO,
+      name: `Partner Templo ${sufijo()}`,
+    });
+    await insertPartnerLink(app, {
+      partnerId: partnerTemplo.id,
+      referredId: socio.id,
+      tenantId: TENANT_TEMPLO,
+      benefitType: "free_pass",
+    });
+
+    const res = await getMemberComo("/partner-benefit", socio.token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      eligible: boolean;
+      reason?: string;
+    };
+    expect(
+      body.eligible,
+      `${RUTA}: el vinculo ajeno tiene que ser INVISIBLE — si aparece como ` +
+        `elegible, el ctx derivado del propio usuario no esta filtrando ` +
+        `partner_referrals por tenant y un gimnasio le regala semanas al otro.`,
+    ).toBe(false);
+    expect(
+      body.reason,
+      `${RUTA}: el motivo tiene que ser 'sin_beneficio' (indistinguible de no ` +
+        `tener nada), no 'expirado'/'consumido' — esos delatarian que la fila ` +
+        `ajena SI se leyo.`,
+    ).toBe("sin_beneficio");
+  });
+
+  it("control: el vinculo free_pass PROPIO del gimnasio 2 SI se ve — eligible con el nombre del partner", async () => {
+    const socio = await socioSinPlanDelDos();
+    const nombrePartner = `Partner Dos ${sufijo()}`;
+    const partnerDos = await insertPartner(app, {
+      tenantId: TENANT_DOS,
+      name: nombrePartner,
+    });
+    await insertPartnerLink(app, {
+      partnerId: partnerDos.id,
+      referredId: socio.id,
+      tenantId: TENANT_DOS,
+      benefitType: "free_pass",
+    });
+
+    const res = await getMemberComo("/partner-benefit", socio.token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      eligible: boolean;
+      partnerName?: string;
+      expiresAt?: string;
+    };
+    expect(
+      body.eligible,
+      porQueImportaElControl(RUTA, socio.id) + ` Respuesta: ${res.body}`,
+    ).toBe(true);
+    expect(
+      body.partnerName,
+      `${RUTA}: el nombre tiene que ser el del partner del gimnasio 2 — con ` +
+        `datos reales, no solo el flag.`,
+    ).toBe(nombrePartner);
+    expect(
+      body.expiresAt,
+      `${RUTA}: la fecha de vencimiento del beneficio tiene que viajar en la ` +
+        `respuesta (la usa la grilla para el countdown).`,
+    ).toBeTruthy();
   });
 });

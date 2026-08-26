@@ -14,7 +14,7 @@
 // partners CALCA lo que necesita, no lo importa (salvo `ReferralService`,
 // consumida solo desde `code-resolver.ts` para la rama `member`).
 
-import { and, desc, eq, gt, gte, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -785,6 +785,26 @@ export class PartnerReferralService {
       .limit(1);
     if (!partner || !partner.isActive) {
       throw new NotFoundError("El partner no existe");
+    }
+
+    // `users` es tabla strict: sin este `tenantWhere` el `referredId` era un
+    // id sin dueño y un admin de OTRO gimnasio podía crear un vínculo de
+    // partner apuntando a un socio ajeno (mismo blindaje que la asignación
+    // retroactiva de referidor en `referrals/service.ts`). El socio ajeno
+    // queda indistinguible de uno inexistente (D-06).
+    const [member] = await this.db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          tenantWhere(users, ctx),
+          eq(users.id, referredId),
+          isNull(users.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!member) {
+      throw new NotFoundError("El socio no existe");
     }
 
     const existingOrigin = await this.findOriginForMember(ctx, referredId);

@@ -1151,6 +1151,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const result = await partnerWeekService.getPartnerWeekEligibility(
+          assertTenant(request.scope, "scheduling.partnerBenefit"),
           request.user.userId,
         );
         return result;
@@ -1171,6 +1172,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const result = await partnerWeekService.activateAndReserve(
+          assertTenant(request.scope, "scheduling.reservePartnerWeek"),
           request.user.userId,
           request.body,
         );

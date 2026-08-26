@@ -659,14 +659,20 @@ export class TransactionService {
     // T-179-36 mitiga: comisión viva sobre un cobro anulado).
     const subLink = linkRows.find((l) => l.targetKind === "subscription");
     if (subLink) {
-      // tenant-safe: lectura por PK de la fila de la suscripción (dentro de
-      // la MISMA tx) para derivar el tenant del cobro anulado — no es un
-      // listado cross-tenant. Mismo patrón que qualifyPartnerOnCharge
-      // (subscriptions/service.ts). DENY (no voidea nada) si no resuelve.
+      // Lectura por PK de la suscripción del cobro anulado (dentro de la
+      // MISMA tx), acotada al gimnasio del void: una fila ajena "no
+      // resuelve" y cae en el DENY de abajo — antes esto llevaba una
+      // exención en comentario TS que el sentinel no ve (D-17) y tiraba
+      // TenantSentinelError con subscriptions en strict.
       const [sub] = await tx
         .select({ tenantId: schema.subscriptions.tenantId })
         .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.id, subLink.targetId));
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, subLink.targetId),
+          ),
+        );
       if (typeof sub?.tenantId === "number") {
         await new PartnerReferralService(
           this.db,

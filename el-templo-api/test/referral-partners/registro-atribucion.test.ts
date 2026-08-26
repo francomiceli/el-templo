@@ -17,7 +17,7 @@
  *     dispara ESE bloque y ninguno crea `partner_referrals`.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { referrals } from "../../src/db/schema/referrals";
@@ -26,6 +26,8 @@ import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { users } from "../../src/db/schema/users";
 import { partnerReferrals } from "../../src/db/schema/partner-referrals";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { insertPartner, partnerLinkRow } from "./_helpers";
 
 let app: FastifyInstance;
@@ -69,30 +71,40 @@ async function seedPromo(
 ): Promise<{ promoCode: string }> {
   const [planResult] = await app.db
     .insert(subscriptionPlans)
-    .values({
-      name: "Test Promo Plan (179-04)",
-      planTier: "other",
-      bookingMode: "flexible",
-      priceRegular: 0,
-      priceZero: 0,
-      durationDays: 30,
-      planCategory: "online_regular",
-      isTrial: true,
-    })
+    .values(
+      tenantValues(
+        { tenantId: TENANT_TEMPLO },
+        {
+          name: "Test Promo Plan (179-04)",
+          planTier: "other",
+          bookingMode: "flexible",
+          priceRegular: 0,
+          priceZero: 0,
+          durationDays: 30,
+          planCategory: "online_regular",
+          isTrial: true,
+        },
+      ),
+    )
     .$returningId();
 
   const now = new Date();
   const promoCode = overrides.promoCode ?? "REG04PROMO";
-  await app.db.insert(promoPlans).values({
-    name: "Test Promo 179-04",
-    promoCode,
-    planDurationDays: 30,
-    subscriptionPlanId: planResult.id,
-    startDate: new Date(now.getTime() - 86400000),
-    expiryDate: new Date(now.getTime() + 86400000),
-    promoType: "auto" as const,
-    isActive: overrides.isActive ?? true,
-  });
+  await app.db.insert(promoPlans).values(
+    tenantValues(
+      { tenantId: TENANT_TEMPLO },
+      {
+        name: "Test Promo 179-04",
+        promoCode,
+        planDurationDays: 30,
+        subscriptionPlanId: planResult.id,
+        startDate: new Date(now.getTime() - 86400000),
+        expiryDate: new Date(now.getTime() + 86400000),
+        promoType: "auto" as const,
+        isActive: overrides.isActive ?? true,
+      },
+    ),
+  );
   return { promoCode };
 }
 
@@ -201,17 +213,22 @@ describe("POST /api/auth/register — atribución de partner (code, 179-04)", ()
   it("back-compat: ref (código de socio) sin code sigue creando la fila en referrals", async () => {
     const [referrer] = await app.db
       .insert(users)
-      .values({
-        email: `ref-backcompat-${Date.now()}@test.com`,
-        passwordHash: "x",
-        firstName: "Referrer",
-        lastName: "Backcompat",
-        branchId: AR_BRANCH_ID,
-        role: "member",
-        level: "alfa",
-        status: "freemium" as const,
-        referralCode: "BCK-A1B2",
-      })
+      .values(
+        tenantValues(
+          { tenantId: TENANT_TEMPLO },
+          {
+            email: `ref-backcompat-${Date.now()}@test.com`,
+            passwordHash: "x",
+            firstName: "Referrer",
+            lastName: "Backcompat",
+            branchId: AR_BRANCH_ID,
+            role: "member",
+            level: "alfa",
+            status: "freemium" as const,
+            referralCode: "BCK-A1B2",
+          },
+        ),
+      )
       .$returningId();
 
     const res = await app.inject({
@@ -227,7 +244,12 @@ describe("POST /api/auth/register — atribución de partner (code, 179-04)", ()
     const links = await app.db
       .select()
       .from(referrals)
-      .where(eq(referrals.referredId, body.user.id));
+      .where(
+        and(
+          tenantWhere(referrals, { tenantId: TENANT_TEMPLO }),
+          eq(referrals.referredId, body.user.id),
+        ),
+      );
     expect(links).toHaveLength(1);
     expect(links[0].referrerId).toBe(referrer.id);
 
@@ -252,7 +274,12 @@ describe("POST /api/auth/register — atribución de partner (code, 179-04)", ()
     const [sub] = await app.db
       .select()
       .from(subscriptions)
-      .where(eq(subscriptions.userId, body.user.id));
+      .where(
+        and(
+          tenantWhere(subscriptions, { tenantId: TENANT_TEMPLO }),
+          eq(subscriptions.userId, body.user.id),
+        ),
+      );
     expect(sub).toBeDefined();
   });
 
@@ -277,17 +304,22 @@ describe("POST /api/auth/register — atribución de partner (code, 179-04)", ()
   it("code que resuelve a socio dispara el bloque ref y NO crea partner_referrals", async () => {
     const [referrer] = await app.db
       .insert(users)
-      .values({
-        email: `unified-ref-${Date.now()}@test.com`,
-        passwordHash: "x",
-        firstName: "Unified",
-        lastName: "Ref",
-        branchId: AR_BRANCH_ID,
-        role: "member",
-        level: "alfa",
-        status: "freemium" as const,
-        referralCode: "UNI-F00D",
-      })
+      .values(
+        tenantValues(
+          { tenantId: TENANT_TEMPLO },
+          {
+            email: `unified-ref-${Date.now()}@test.com`,
+            passwordHash: "x",
+            firstName: "Unified",
+            lastName: "Ref",
+            branchId: AR_BRANCH_ID,
+            role: "member",
+            level: "alfa",
+            status: "freemium" as const,
+            referralCode: "UNI-F00D",
+          },
+        ),
+      )
       .$returningId();
 
     const res = await app.inject({
@@ -303,7 +335,12 @@ describe("POST /api/auth/register — atribución de partner (code, 179-04)", ()
     const links = await app.db
       .select()
       .from(referrals)
-      .where(eq(referrals.referredId, body.user.id));
+      .where(
+        and(
+          tenantWhere(referrals, { tenantId: TENANT_TEMPLO }),
+          eq(referrals.referredId, body.user.id),
+        ),
+      );
     expect(links).toHaveLength(1);
     expect(links[0].referrerId).toBe(referrer.id);
 

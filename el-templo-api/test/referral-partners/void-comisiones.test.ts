@@ -28,6 +28,7 @@ import {
 } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
 import { tenantValues } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { insertPartner, insertPartnerLink, partnerLinkRow } from "./_helpers";
 
 let app: FastifyInstance;
@@ -82,7 +83,7 @@ async function transactionIdForSubscription(
 ): Promise<number> {
   const rows = await app.db.execute(
     sql`SELECT transaction_id FROM transaction_links
-        WHERE target_kind = 'subscription' AND target_id = ${subscriptionId}
+        WHERE tenant_id = ${TENANT_TEMPLO} AND target_kind = 'subscription' AND target_id = ${subscriptionId}
         LIMIT 1`,
   );
   const list = rows[0] as unknown as Array<{ transaction_id: number }>;
@@ -136,16 +137,21 @@ async function seedRawSubscription(
 ): Promise<number> {
   const [res] = await app.db
     .insert(schema.subscriptions)
-    .values({
-      userId,
-      planId,
-      branchId: AR_BRANCH_ID,
-      status: "active",
-      startDate: todayStr(),
-      pricePaid,
-      currency: "ARS",
-      priceTypeApplied: "regular",
-    })
+    .values(
+      tenantValues(
+        { tenantId: TENANT_TEMPLO },
+        {
+          userId,
+          planId,
+          branchId: AR_BRANCH_ID,
+          status: "active",
+          startDate: todayStr(),
+          pricePaid,
+          currency: "ARS",
+          priceTypeApplied: "regular",
+        },
+      ),
+    )
     .$returningId();
   return res.id;
 }

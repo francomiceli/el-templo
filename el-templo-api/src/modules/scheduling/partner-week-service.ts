@@ -99,23 +99,23 @@ export class PartnerWeekService {
    * cron, CON-04) pero igual se reporta `expirado` si la fecha ya pasó.
    */
   async getPartnerWeekEligibility(
+    ctx: TenantCtx,
     userId: number,
   ): Promise<PartnerWeekEligibility> {
-    /* tenant-safe: lectura por PK del propio usuario que llama — no hay
-     * request.scope en esta ruta member (mismo patrón que
-     * getTrialEligibility/consumePartnerBenefitOnCharge). */
+    // El ctx viene de `assertTenant(request.scope, …)` en el handler — las
+    // rutas member SÍ tienen scope (mismo patrón que getTrialEligibility;
+    // la versión anterior lo derivaba de la fila de users con una exención
+    // en comentario TS que el sentinel no ve — D-17).
     const [user] = await this.db
       .select({
-        tenantId: schema.users.tenantId,
         deletedAt: schema.users.deletedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
     if (!user || user.deletedAt) {
       return { eligible: false, reason: "sin_beneficio" };
     }
-    const ctx: TenantCtx = { tenantId: user.tenantId };
 
     const [link] = await this.db
       .select({
@@ -190,23 +190,21 @@ export class PartnerWeekService {
    * de la garantía, el que si importa silenciarlo mal).
    */
   async activateAndReserve(
+    ctx: TenantCtx,
     userId: number,
     input: ActivatePartnerWeekInput,
   ): Promise<ActivatePartnerWeekResult> {
-    /* tenant-safe: lectura por PK del propio usuario que llama (ver
-     * getPartnerWeekEligibility arriba). */
+    // ctx del scope del request (ver getPartnerWeekEligibility arriba).
     const [user] = await this.db
       .select({
-        tenantId: schema.users.tenantId,
         deletedAt: schema.users.deletedAt,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, userId))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
       .limit(1);
     if (!user || user.deletedAt) {
       throw new NotFoundError("Alumno no encontrado");
     }
-    const ctx: TenantCtx = { tenantId: user.tenantId };
 
     const [branch] = await this.db
       .select({

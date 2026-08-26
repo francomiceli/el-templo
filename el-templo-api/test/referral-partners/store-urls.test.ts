@@ -17,10 +17,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, createStaffUser, getAuthToken } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const SETTING_URL = "/api/admin/settings/store-urls";
 
@@ -57,7 +59,12 @@ beforeAll(async () => {
   const [owner] = await app.db
     .select({ branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   const branchId = owner.branchId ?? 1;
   ownerToken = await getAuthToken(app, "admin@test.com", "adminpass123");

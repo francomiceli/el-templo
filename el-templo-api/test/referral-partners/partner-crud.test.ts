@@ -29,7 +29,7 @@
  *     gimnasio.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -45,6 +45,7 @@ import {
   TENANT_DOS,
   TENANT_TEMPLO,
 } from "../fixtures/second-tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import * as schema from "../../src/db/schema";
 
 const BASE_URL = "/api/admin/referral-partners";
@@ -109,7 +110,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id, branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   if (!admin) throw new Error("admin@test.com seed missing");
   adminId = admin.id;
@@ -142,7 +148,12 @@ beforeEach(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id, branchId: schema.users.branchId })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   const branchId = admin?.branchId ?? AR_BRANCH_ID;
   await createStaffUser(app, {
@@ -212,7 +223,12 @@ describe("POST /api/admin/referral-partners — 409 por los 3 espacios de nombre
     await app.db
       .update(schema.users)
       .set({ referralCode: code })
-      .where(eq(schema.users.id, adminId));
+      .where(
+        and(
+          tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+          eq(schema.users.id, adminId),
+        ),
+      );
 
     const res = await app.inject({
       method: "POST",
@@ -226,15 +242,20 @@ describe("POST /api/admin/referral-partners — 409 por los 3 espacios de nombre
   it("409 si el código ya lo usa una promo (promo_plans.promo_code)", async () => {
     const plan = await createPlan(app, adminToken);
     const code = nextCode("PROMO");
-    await app.db.insert(schema.promoPlans).values({
-      name: `Promo ${code}`,
-      promoCode: code,
-      subscriptionPlanId: plan.id as number,
-      startDate: new Date(),
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      country: "AR",
-      isActive: true,
-    });
+    await app.db.insert(schema.promoPlans).values(
+      tenantValues(
+        { tenantId: TENANT_TEMPLO },
+        {
+          name: `Promo ${code}`,
+          promoCode: code,
+          subscriptionPlanId: plan.id as number,
+          startDate: new Date(),
+          expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          country: "AR",
+          isActive: true,
+        },
+      ),
+    );
 
     const res = await app.inject({
       method: "POST",

@@ -99,7 +99,7 @@ async function subscriptionPartnerDiscount(subscriptionId: number): Promise<{
   price_paid: number;
 }> {
   const rows = await app.db.execute(
-    sql`SELECT partner_discount_percent, partner_discount_amount, price_paid
+    sql`SELECT /* tenant-safe: lectura de evidencia por PK de la suscripción recién creada por el test — se afirma sobre la fila cruda, el tenant es irrelevante */ partner_discount_percent, partner_discount_amount, price_paid
         FROM subscriptions WHERE id = ${subscriptionId}`,
   );
   const list = rows[0] as unknown as Array<{

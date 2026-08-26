@@ -152,6 +152,13 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
  * gate se escribió (2026-08-13, planes 174.1-01/06/07/08): **62**
  * (26 admin-subs + 4 app-subs + 23 admin-sched + 9 app-sched).
  *
+ * Movimientos: 62→63 (`assign-proration-preview`, alta prorrateada, con su
+ * caso — saldado D6 2026-08-20); 63→65 (GET/PUT `class-label-descriptions`,
+ * fase 180 plan 10, con sus casos); 65→67 (2026-08-26, tren 179+180 a
+ * master: GET `partner-benefit` + POST `reserve-partner-week` de la fase
+ * 179, con sus casos en iso-03-sched-lecturas/escritura — la deuda "batería
+ * tenancy por verificar" de la 179 saldada acá).
+ *
  * MOVER ESTE NÚMERO ES UNA DECISIÓN DE DISEÑO, NO UN AJUSTE.
  *
  *   - **Sube** cuando se agrega una ruta de subscriptions/scheduling CON su
@@ -172,7 +179,7 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
  * contra un manifiesto vacío y todo pasaría en verde por vacuidad. Este
  * conteo es lo que hace que 0 rutas cubiertas se ponga tan rojo como 63.
  */
-const CASOS_BASELINE = 65;
+const CASOS_BASELINE = 67;
 
 /** Los cuatro archivos de la batería ISO-03 de subs+scheduling. */
 const ARCHIVOS_BATERIA = [

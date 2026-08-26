@@ -18,7 +18,7 @@
  *     el perdedor), documentada como real desde la fase 173.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -29,6 +29,8 @@ import {
 } from "../helpers";
 import { createMember, createPlan } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import {
   insertBranch,
   insertPartner,
@@ -87,17 +89,22 @@ async function seedPaidSubscription(params: {
 }): Promise<number> {
   const [res] = await app.db
     .insert(schema.subscriptions)
-    .values({
-      userId: params.userId,
-      planId: params.planId,
-      branchId: params.branchId ?? 1,
-      status: "active",
-      startDate: todayStr(),
-      pricePaid: params.pricePaid,
-      currency: "ARS",
-      priceTypeApplied: "regular",
-      ...(params.createdAt ? { createdAt: params.createdAt } : {}),
-    })
+    .values(
+      tenantValues(
+        { tenantId: TENANT_TEMPLO },
+        {
+          userId: params.userId,
+          planId: params.planId,
+          branchId: params.branchId ?? 1,
+          status: "active",
+          startDate: todayStr(),
+          pricePaid: params.pricePaid,
+          currency: "ARS",
+          priceTypeApplied: "regular",
+          ...(params.createdAt ? { createdAt: params.createdAt } : {}),
+        },
+      ),
+    )
     .$returningId();
   return res.id;
 }
@@ -117,7 +124,12 @@ beforeAll(async () => {
   const [admin] = await app.db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(eq(schema.users.email, "admin@test.com"))
+    .where(
+      and(
+        tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
     .limit(1);
   if (!admin) throw new Error("admin@test.com seed missing");
   adminId = admin.id;
@@ -212,12 +224,17 @@ describe("POST /api/admin/members/:userId/partner-referral — asignación retro
     const partner = await insertPartner(app);
     const target = await createMember(app, { email: email("hasref-t") });
     const referrer = await createMember(app, { email: email("hasref-r") });
-    await app.db.insert(schema.referrals).values({
-      referrerId: referrer.id,
-      referredId: target.id,
-      status: "pending",
-      attributionChannel: "self_service",
-    });
+    await app.db.insert(schema.referrals).values(
+      tenantValues(
+        { tenantId: TENANT_TEMPLO },
+        {
+          referrerId: referrer.id,
+          referredId: target.id,
+          status: "pending" as const,
+          attributionChannel: "self_service" as const,
+        },
+      ),
+    );
 
     const res = await assign(target.id, partner.id);
     expect(res.statusCode).toBe(409);

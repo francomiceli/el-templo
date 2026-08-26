@@ -14,12 +14,13 @@
  *     funnel de leads (D-08) es un reporte propio, no un flip de estado.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { createMember } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
 import { insertPartner, insertPartnerLink } from "./_helpers";
+import { tenantWhere } from "../../src/modules/shared/tenant";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -288,7 +289,12 @@ describe("GET /api/admin/referral-partners/benefits-without-conversion (D-08 ree
     const [before] = await app.db
       .select({ leadStatus: schema.users.leadStatus })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
 
     await getConversions();
@@ -297,7 +303,12 @@ describe("GET /api/admin/referral-partners/benefits-without-conversion (D-08 ree
     const [after] = await app.db
       .select({ leadStatus: schema.users.leadStatus })
       .from(schema.users)
-      .where(eq(schema.users.id, member.id))
+      .where(
+        and(
+          tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+          eq(schema.users.id, member.id),
+        ),
+      )
       .limit(1);
 
     expect(after?.leadStatus).toBe(before?.leadStatus);
