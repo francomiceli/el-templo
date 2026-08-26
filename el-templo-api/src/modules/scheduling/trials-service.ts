@@ -54,6 +54,7 @@ import {
 } from "../shared/tenant";
 import type { BookingService } from "./booking-service";
 import type { NotificationService } from "../notifications/service";
+import { assertTrialSlotCapacity } from "./capacity";
 
 /**
  * Phase 119 (D-03 revised): a self-service trial can be cancelled or changed up
@@ -387,6 +388,17 @@ export class TrialService {
         "El horario elegido no pertenece a la sede seleccionada",
       );
     }
+
+    // Cupo de SP del turno (máx 3, separado del cupo general de la clase). Se
+    // excluye al propio userId para que reactivar su fila cancelada no se cuente
+    // contra el tope.
+    await assertTrialSlotCapacity(
+      this.db,
+      ctx,
+      input.scheduleId,
+      input.date,
+      userId,
+    );
 
     // 6. Promote freemium→prueba AND insert the trial booking atomically.
     const statusBefore = user.status; // 'freemium'
@@ -992,6 +1004,16 @@ export class TrialService {
       );
     }
 
+    // Cupo de SP del turno (máx 3, separado del cupo general). Excluye al propio
+    // alumno para no contar su reactivación de la fila existente.
+    await assertTrialSlotCapacity(
+      this.db,
+      ctx,
+      input.scheduleId,
+      input.bookingDate,
+      input.userId,
+    );
+
     // 5. Close any stale (past-dated) pending trials as no_show, then insert
     //    the new booking — atomically, so the alumno never ends up with two
     //    open trials or a closed-but-not-rebooked state. There's a UNIQUE
@@ -1213,6 +1235,16 @@ export class TrialService {
         "La fecha no corresponde al día del horario elegido",
       );
     }
+
+    // Cupo de SP del turno DESTINO (máx 3, separado del cupo general). Excluye al
+    // propio alumno: su reserva vieja está en otro turno y se cancela en la tx.
+    await assertTrialSlotCapacity(
+      this.db,
+      ctx,
+      input.scheduleId,
+      input.date,
+      userId,
+    );
 
     // 5. Cancel-old + reset-lead + create-new, all in ONE tx (D-01/D-04).
     const bookingId = await this.db.transaction(async (tx) => {

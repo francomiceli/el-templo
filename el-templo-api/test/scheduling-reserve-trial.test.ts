@@ -144,6 +144,30 @@ describe("POST /api/members/scheduling/reserve-trial (Phase 119)", () => {
     expect(typeof body.bookingId).toBe("number");
   });
 
+  it("SP-CUPO: 3 pruebas llenan el turno; la 4ª se rechaza (409)", async () => {
+    const date = thursdayOffset();
+    // 3 freemiums DISTINTOS reservan el MISMO turno (scheduleId, date) → entran
+    // (el cupo de SP es 3, separado del cupo general de la clase).
+    for (let i = 0; i < 3; i++) {
+      const { token } = await freemiumToken({ phone: `112233440${i}` });
+      const { statusCode } = await reserve(token, {
+        scheduleId,
+        date,
+        branchId: physicalBranchId,
+      });
+      expect(statusCode).toBe(201);
+    }
+    // La 4ª supera el cupo especial de SP → 409.
+    const { token: fourth } = await freemiumToken({ phone: "1122334409" });
+    const { statusCode, body } = await reserve(fourth, {
+      scheduleId,
+      date,
+      branchId: physicalBranchId,
+    });
+    expect(statusCode).toBe(409);
+    expect(JSON.stringify(body)).toContain("cupos de prueba");
+  });
+
   it("D-01/D-26: promotes the user freemium→prueba + history + booking in one tx", async () => {
     const { id, token } = await freemiumToken();
     const { statusCode } = await reserve(token, {

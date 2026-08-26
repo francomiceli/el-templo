@@ -179,7 +179,8 @@ import {
  * "pelotita" de SP nuevas) y `POST /api/admin/leads/:userId/start-followup`
  * (sella el inicio del seguimiento). Ambas **tenant-scoped**: la primera reusa
  * el `ctx`/country-scope del reporte de SP, la segunda opera sobre `users` con
- * `tenantWhere` + gate de sede. Directo a master, donde el gate existe.
+ * `tenantWhere` + gate de sede. En master (sin la fase 180) este mismo batch
+ * bumpea 370 → 372.
  *
  * **Movido a 373 el 2026-08-23 (rama 180, +1 sobre su base 370)**: `POST
  * /api/campaigns/exchange` (canje de magic-link por sesión, fase 180 Plan 06,
@@ -442,7 +443,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
    * de abajo), que prueban el MOTOR pero no el manifiesto real. Este test cierra
    * ese agujero: `compararManifiesto` shape-valida TODAS las entradas del
    * manifiesto que recibe, así que afirmar sobre el `discrepancias` real cubre
-   * las 373.
+   * las 375.
    */
   it("toda entrada del manifiesto real tiene la forma exigida (D-02 motivo, D-07 módulo, categoría válida)", () => {
     const sinMotivo = discrepancias.sinMotivo.slice().sort();

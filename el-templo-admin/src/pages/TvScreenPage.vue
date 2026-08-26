@@ -1026,13 +1026,19 @@ onUnmounted(() => {
    apuntando a la izquierda. Solo existe sobre la fila `actual` → no reserva
    espacio en las demás. line-height 0 para no agrandar el alto de la fila. */
 #tvScreenRoot .lista-col .item.actual .ej-nombre::after {
-  content: '\25C2';
-  color: var(--gold);
-  font-weight: 700;
-  font-size: 4.8rem;
-  line-height: 0;
+  /* Triángulo dibujado con BORDES (no el glyph ◂ / U+25C2): en el TV con
+     Chromium viejo esa fuente no tiene el carácter y renderizaba el rectángulo
+     de "carácter faltante" (tofu). Los bordes siempre pintan, en cualquier TV.
+     Apunta a la IZQUIERDA (border-right relleno). */
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 1.5rem solid transparent;
+  border-bottom: 1.5rem solid transparent;
+  border-right: 1.7rem solid var(--gold);
   vertical-align: middle;
-  /* Separación del nombre: 0.9rem (en el TV el glyph queda pegado con 0.5). */
+  /* Separación del nombre: 0.9rem (en el TV el glyph quedaba pegado con 0.5). */
   margin-left: 0.9rem;
 }
 #tvScreenRoot .lista-col .item .ej-nombre {
@@ -1135,7 +1141,10 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 #tvScreenRoot .stage[data-cols='4'] .lista-col .item.actual .ej-nombre::after {
-  font-size: 3rem;
+  /* 2×2: triángulo más chico (proporcional al viejo 3rem vs 4.8rem). */
+  border-top-width: 0.95rem;
+  border-bottom-width: 0.95rem;
+  border-right-width: 1.1rem;
   margin-left: 0.6rem;
 }
 #tvScreenRoot .stage[data-cols='4'] .lista-col .item .ej-nombre {
