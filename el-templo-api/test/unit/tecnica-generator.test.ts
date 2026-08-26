@@ -61,14 +61,28 @@ const MOCK_STRETCHING_EXERCISES: ExercisePrescription[] = [
   { exerciseId: 903, name: "Mock Stretch 4", contraction: "CON", reps: 10, seconds: 0, rest: 0 },
 ];
 
+/** Mock mobility add-on ("descanso activo") returned by the mocked selector. */
+const MOCK_MOBILITY: ExercisePrescription = {
+  exerciseId: 999,
+  name: "Mock Movilidad",
+  contraction: "ISO",
+  reps: 0,
+  seconds: 20,
+  rest: 0,
+  exerciseType: "mobility",
+  dificultadLineal: 1,
+};
+
 const {
   mockRunSemanaNuevaBlockPipeline,
   mockSelectStretchingExercises,
   mockQueryFormatByName,
+  mockSelectMobilityExercise,
 } = vi.hoisted(() => ({
   mockRunSemanaNuevaBlockPipeline: vi.fn(),
   mockSelectStretchingExercises: vi.fn(),
   mockQueryFormatByName: vi.fn(),
+  mockSelectMobilityExercise: vi.fn(),
 }));
 
 vi.mock("../../src/modules/sessions/pipeline/semana-nueva-pipeline", async () => {
@@ -85,6 +99,10 @@ vi.mock("../../src/modules/sessions/pipeline/semana-nueva-pipeline", async () =>
 
 vi.mock("../../src/modules/sessions/pipeline/utils/stretching-selection", () => ({
   selectStretchingExercises: mockSelectStretchingExercises,
+}));
+
+vi.mock("../../src/modules/sessions/pipeline/utils/mobility-selection", () => ({
+  selectMobilityExercise: mockSelectMobilityExercise,
 }));
 
 vi.mock("../../src/modules/sessions/fallback/format-fallback", () => ({
@@ -152,6 +170,9 @@ describe("Tecnica Generator", () => {
 
     mockSelectStretchingExercises.mockReset();
     mockSelectStretchingExercises.mockResolvedValue(MOCK_STRETCHING_EXERCISES);
+
+    mockSelectMobilityExercise.mockReset();
+    mockSelectMobilityExercise.mockResolvedValue(MOCK_MOBILITY);
 
     mockQueryFormatByName.mockReset();
     mockQueryFormatByName.mockImplementation(async (_db: unknown, name: string) => {
@@ -324,6 +345,36 @@ describe("Tecnica Generator", () => {
       for (const call of mockSelectStretchingExercises.mock.calls) {
         expect(call).toEqual([db, 21, "jueves"]);
       }
+    });
+
+    it("attaches a mobility 'descanso activo' to the role/alt blocks but NOT to INITIUM or STRETCHING", async () => {
+      const { generateTecnicaSession } = await import("../../src/modules/sessions/tecnica-generator");
+      const db = createMockDb();
+
+      const session = await generateTecnicaSession(
+        db as Parameters<typeof generateTecnicaSession>[0],
+        21,
+        "jueves",
+        "alfa_delta",
+        "alfa",
+      );
+
+      // INITIUM never carries the add-on (warmup); STRETCHING IS the mobility
+      // block, so it does not get a redundant add-on on top.
+      const initium = session.blocks.find((b) => b.role === "INITIUM")!;
+      const stretching = session.blocks.find((b) => b.role === "STRETCHING")!;
+      expect(initium.mobilityExercise).toBeUndefined();
+      expect(stretching.mobilityExercise).toBeUndefined();
+
+      for (const role of ["TECNICA_I", "TECNICA_II", "TECNICA_II_ALT"]) {
+        const block = session.blocks.find((b) => b.role === role)!;
+        expect(block.mobilityExercise).toBeDefined();
+        expect(block.mobilityExercise!.exerciseType).toBe("mobility");
+      }
+
+      // One selection per role/alt block (2 role + 1 alt); the STRETCHING
+      // close is assembled without calling the mobility selector.
+      expect(mockSelectMobilityExercise).toHaveBeenCalledTimes(3);
     });
 
     it("validateSession reports no ERROR severity on the generated session", async () => {
