@@ -920,44 +920,69 @@ function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): vo
 }
 
 /**
- * Arma la cápsula de técnica de la pre-clase: nombre del ejercicio, cue con
- * escritura por letra (mismo mecanismo que la frase del cierre, en clave
- * diurna) y chips "ACTIVA" al final. Se reconstruye una vez por minuto.
+ * Arma la cápsula de técnica de la pre-clase. Coreografía (2026-08-26): el
+ * NOMBRE del ejercicio se escribe por letra (el mecanismo de la frase del
+ * cierre, en clave diurna), el cue entra después como bloque con fade+subida,
+ * y las pills "ACTIVACIONES" suben escalonadas desde una línea abajo. Se
+ * reconstruye una vez por minuto.
  */
 function buildCapsula(n: Nodes, capsula: CapsulaTecnica): void {
-  n.capEjercicio.classList.remove('apagada', 'aparece');
-  n.capCue.classList.remove('apagada');
+  n.capEjercicio.classList.remove('apagada');
+  n.capCue.classList.remove('apagada', 'aparece');
   n.capMusculos.classList.remove('apagada', 'aparece');
-  setText(n.capEjercicio, capsula.ejercicio);
-  quoteLater(function () {
-    n.capEjercicio.classList.add('aparece');
-  }, 60);
-  clear(n.capCue);
+
+  // Título con escritura por letra.
+  clear(n.capEjercicio);
   const letras = appendEscritura(
-    n.capCue,
-    capsula.cue.map(function (s) {
-      return { text: s.text, marcada: s.acento === true };
-    }),
+    n.capEjercicio,
+    [{ text: capsula.ejercicio, marcada: false }],
     'acento'
   );
   encenderLetras(letras);
+  const tituloListoMs = IGNITE_BASE_MS + letras.length * IGNITE_STEP_MS + 350;
+
+  // Cue como bloque: tramos planos + spans `.acento` (terracotta), sin letras.
+  clear(n.capCue);
+  for (const seg of capsula.cue) {
+    if (seg.acento === true) {
+      const acento = document.createElement('span');
+      acento.className = 'acento';
+      acento.textContent = seg.text;
+      n.capCue.appendChild(acento);
+    } else {
+      n.capCue.appendChild(document.createTextNode(seg.text));
+    }
+  }
+  quoteLater(function () {
+    n.capCue.classList.add('aparece');
+  }, tituloListoMs);
+
+  // Pills: etiqueta + chips que suben desde una línea abajo, escalonadas.
   clear(n.capMusculos);
   const etiqueta = document.createElement('span');
   etiqueta.className = 'capActiva';
-  etiqueta.textContent = 'ACTIVA';
+  etiqueta.textContent = 'ACTIVACIONES';
   n.capMusculos.appendChild(etiqueta);
+  const chips: HTMLElement[] = [];
   for (const musculo of capsula.musculos) {
     const chip = document.createElement('span');
     chip.className = 'capChip';
     chip.textContent = musculo;
     n.capMusculos.appendChild(chip);
+    chips.push(chip);
   }
-  quoteLater(
-    function () {
-      n.capMusculos.classList.add('aparece');
-    },
-    IGNITE_BASE_MS + letras.length * IGNITE_STEP_MS + IGNITE_AUTOR_EXTRA_MS
-  );
+  quoteLater(function () {
+    n.capMusculos.classList.add('aparece');
+  }, tituloListoMs + 450);
+  for (let i = 0; i < chips.length; i++) {
+    const chip = chips[i];
+    quoteLater(
+      function () {
+        chip.classList.add('sube');
+      },
+      tituloListoMs + 550 + i * 130
+    );
+  }
 }
 
 /**

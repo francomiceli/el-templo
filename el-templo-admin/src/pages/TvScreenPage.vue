@@ -127,7 +127,7 @@
           <div class="transFoto" aria-hidden="true"></div>
           <div class="transMarco">
             <div class="transFrase">
-              <div class="capKicker">TÉCNICA DEL DÍA</div>
+              <div class="capKicker">CONCEPTOS TÉCNICOS</div>
               <div class="capEjercicio" id="capEjercicio"></div>
               <div class="quote" id="capCue"></div>
               <div class="capMusculos" id="capMusculos"></div>
@@ -1859,6 +1859,8 @@ onUnmounted(() => {
   color: var(--gold);
   margin-bottom: 1.6rem;
 }
+/* El TÍTULO es el que se escribe por letra (coreografía 2026-08-26):
+   render.ts lo arma con `.palabra > .letra` y los keyframes diurnos. */
 #tvScreenRoot .capEjercicio {
   font-family: var(--cinzel);
   font-weight: 700;
@@ -1867,18 +1869,19 @@ onUnmounted(() => {
   letter-spacing: 0.04em;
   color: var(--navy);
   margin-bottom: 1.8rem;
+}
+#tvScreenRoot .capEjercicio .palabra {
+  white-space: nowrap;
+}
+#tvScreenRoot .capEjercicio .letra {
   opacity: 0;
-  transform: translateY(0.3em);
 }
-#tvScreenRoot .capEjercicio.aparece {
-  opacity: 1;
-  transform: none;
-  transition:
-    opacity 0.55s ease,
-    transform 0.55s ease;
+#tvScreenRoot .capEjercicio .letra.prendida {
+  animation: escribeClaro 1.1s ease forwards;
 }
-/* El cue reusa `.quote` (escritura por letra) pero en Nunito y tinta oscura,
-   con los keyframes diurnos. Sin sombra: el velo claro no la necesita. */
+/* El cue entra como BLOQUE (fade + subida corta) cuando el título terminó de
+   escribirse — el gesto que antes tenía el título. Nunito, tinta oscura,
+   `.acento` en terracotta. Sin sombra: el velo claro no la necesita. */
 #tvScreenRoot .pantalla--dia .quote {
   font-family: var(--nunito);
   font-size: 2.9rem;
@@ -1886,12 +1889,18 @@ onUnmounted(() => {
   color: var(--navy);
   text-shadow: none;
   max-width: 92%;
+  opacity: 0;
+  transform: translateY(0.3em);
 }
-#tvScreenRoot .pantalla--dia .quote .letra.prendida {
-  animation-name: escribeClaro;
+#tvScreenRoot .pantalla--dia .quote.aparece {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s ease;
 }
-#tvScreenRoot .pantalla--dia .quote .palabra.acento .letra.prendida {
-  animation-name: escribeAcento;
+#tvScreenRoot .pantalla--dia .quote .acento {
+  color: var(--trans-terracotta);
 }
 @keyframes escribeClaro {
   0% {
@@ -1946,6 +1955,8 @@ onUnmounted(() => {
   color: var(--trans-apagado-dia);
   margin-right: 1.2rem;
 }
+/* Las pills suben desde una línea abajo, escalonadas (render.ts las marca
+   con `.sube` una a una). */
 #tvScreenRoot .capChip {
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -1957,6 +1968,15 @@ onUnmounted(() => {
   padding: 0.5rem 1.2rem;
   margin-right: 0.85rem;
   margin-bottom: 0.6rem;
+  opacity: 0;
+  transform: translateY(1.5em);
+}
+#tvScreenRoot .capChip.sube {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.5s ease,
+    transform 0.55s cubic-bezier(0.2, 0.7, 0.25, 1);
 }
 /* Identidad diurna: tinta y halo crema (apoyo local sobre la foto). */
 #tvScreenRoot .pantalla--dia .relojXl {
@@ -1981,14 +2001,13 @@ onUnmounted(() => {
     transform 0.7s ease;
 }
 /* Modo sobrio: la cápsula queda estática con los colores finales. */
-#tvScreenRoot.tv-sobrio .pantalla--dia .quote .letra {
-  color: var(--navy);
+#tvScreenRoot.tv-sobrio .capEjercicio .letra {
+  animation: none;
+  opacity: 1;
 }
-#tvScreenRoot.tv-sobrio .pantalla--dia .quote .palabra.acento .letra {
-  color: var(--trans-terracotta);
-}
-#tvScreenRoot.tv-sobrio .capEjercicio,
-#tvScreenRoot.tv-sobrio .capMusculos {
+#tvScreenRoot.tv-sobrio .pantalla--dia .quote,
+#tvScreenRoot.tv-sobrio .capMusculos,
+#tvScreenRoot.tv-sobrio .capChip {
   opacity: 1;
   transform: none;
 }
