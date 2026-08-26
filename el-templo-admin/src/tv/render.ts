@@ -189,8 +189,42 @@ function setClass(el: HTMLElement, value: string): void {
   }
 }
 
+/** Duración del fade de salida de una pantalla de transición (CSS `.saliendo`). */
+const PANTALLA_FADE_MS = 550;
+
+/**
+ * Muestra u oculta una pantalla de transición con fade en AMBOS sentidos
+ * (pedido 2026-08-26): la entrada la anima el CSS (`transEntra` sobre
+ * `.visible`); la salida pasa por `.saliendo` (opacity→0) y recién después se
+ * saca del layout. Como los overlays son opacos y hermanos del marco, el que
+ * entra y el que sale se cruzan en un crossfade y la pantalla de clase de
+ * abajo se revela fundida, nunca de golpe.
+ *
+ * Idempotente por poll: si la salida ya está en curso no se reinicia, y si el
+ * estado vuelve a "visible" a mitad del fade, la clase `saliendo` se pisa y el
+ * timeout pendiente (que la chequea antes de ocultar) no hace nada. El timeout
+ * huérfano tras un desmontaje escribe sobre un nodo despegado: inofensivo.
+ */
 function setVisible(el: HTMLElement, base: string, visible: boolean): void {
-  setClass(el, visible ? base + ' visible' : base);
+  const mostrada = el.className.indexOf('visible') !== -1;
+  const saliendo = el.className.indexOf('saliendo') !== -1;
+  if (visible) {
+    setClass(el, base + ' visible');
+    return;
+  }
+  if (!mostrada && !saliendo) {
+    setClass(el, base);
+    return;
+  }
+  if (saliendo) {
+    return;
+  }
+  setClass(el, base + ' visible saliendo');
+  window.setTimeout(function () {
+    if (el.className.indexOf('saliendo') !== -1) {
+      setClass(el, base);
+    }
+  }, PANTALLA_FADE_MS);
 }
 
 /**
@@ -688,6 +722,20 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.cierreFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
+  // Limpieza total al cambiar de pantalla (UAT TV 2026-08-26): los staggers
+  // pendientes de la pantalla saliente se cancelan de una — durante el
+  // crossfade no debe quedar NINGUNA animación encolada de la vieja — y la
+  // entrante reconstruye su contenido de cero en el próximo tick.
+  if (previo !== null && previo.screen !== payload.screen) {
+    clearQuoteTimeouts();
+    if (payload.screen === 'idle') {
+      lastCapsulaKey = '';
+    }
+    if (payload.screen === 'closing') {
+      lastQuoteKey = '';
+    }
+  }
+
   const c = classOf(payload);
   // OJO: setVisible reescribe el className COMPLETO — la base tiene que repetir
   // el modificador diurno del template o la pre-clase cae al estilo nocturno.
@@ -780,11 +828,14 @@ export function tickClock(): void {
   }
 }
 
-/** Encendido de la frase: retardo base + paso por letra (jitter determinístico). */
-const IGNITE_BASE_MS = 150;
-const IGNITE_STEP_MS = 22;
-/** Espera extra tras la última letra antes de que aparezca el autor. */
-const IGNITE_AUTOR_EXTRA_MS = 600;
+/** Encendido de la frase: retardo base + paso POR PALABRA (jitter determinístico).
+ *  Pasó de por-letra a por-palabra tras el UAT en el TV real (2026-08-26): son
+ *  ~8-15 nodos animando text-shadow en vez de 50-100 — a distancia de TV el
+ *  efecto se lee igual y el costo de paint baja un orden de magnitud. */
+const IGNITE_BASE_MS = 120;
+const IGNITE_STEP_MS = 90;
+/** Espera extra tras la última palabra antes de que aparezca el autor. */
+const IGNITE_AUTOR_EXTRA_MS = 400;
 /** Lo que tarda la frase saliente en apagarse antes de encender la nueva (CSS .apagada). */
 const QUOTE_EXIT_MS = 750;
 
@@ -810,15 +861,16 @@ function quoteLater(fn: () => void, ms: number): void {
 }
 
 /**
- * Arma la frase como spans `.palabra` (nowrap) > `.letra` y las enciende en
+ * Arma la frase como spans `.palabra` (nowrap, uno por palabra) y los enciende en
  * cadena (clase `.prendida`; los keyframes viven en TvScreenPage.vue). El autor
  * aparece cuando la última letra terminó de prender. Reconstruir el DOM acá no
  * rompe la regla de idempotencia: pasa una vez por minuto (la rotación), no por
  * tick — el guard de `lastQuoteKey` en paintQuote lo garantiza.
  */
 /**
- * Arma tramos de texto como spans `.palabra` (nowrap) > `.letra` y devuelve las
- * letras en orden de lectura. `claseMarcada` se suma a la palabra cuando su
+ * Arma tramos de texto como spans `.palabra` (nowrap, UN nodo por palabra —
+ * sin spans por letra: eran demasiados nodos animando para el TV) y los
+ * devuelve en orden de lectura. `claseMarcada` se suma a la palabra cuando su
  * tramo viene marcado (el `oro` de las frases / el `acento` de las cápsulas).
  */
 function appendEscritura(
@@ -826,7 +878,7 @@ function appendEscritura(
   tramos: { text: string; marcada: boolean }[],
   claseMarcada: string
 ): HTMLElement[] {
-  const letras: HTMLElement[] = [];
+  const palabras: HTMLElement[] = [];
   for (const tramo of tramos) {
     for (const palabra of tramo.text.split(' ')) {
       if (palabra.length === 0) {
@@ -834,28 +886,23 @@ function appendEscritura(
       }
       const wrap = document.createElement('span');
       wrap.className = tramo.marcada ? 'palabra ' + claseMarcada : 'palabra';
-      for (const ch of palabra) {
-        const letra = document.createElement('span');
-        letra.className = 'letra';
-        letra.textContent = ch;
-        wrap.appendChild(letra);
-        letras.push(letra);
-      }
+      wrap.textContent = palabra;
       host.appendChild(wrap);
       host.appendChild(document.createTextNode(' '));
+      palabras.push(wrap);
     }
   }
-  return letras;
+  return palabras;
 }
 
-/** Enciende las letras en cadena (clase `.prendida`, stagger + jitter fijo). */
-function encenderLetras(letras: HTMLElement[]): void {
-  for (let i = 0; i < letras.length; i++) {
-    const letra = letras[i];
-    const jitter = ((i * 37) % 5) * 12;
+/** Enciende las palabras en cadena (clase `.prendida`, stagger + jitter fijo). */
+function encenderPalabras(palabras: HTMLElement[]): void {
+  for (let i = 0; i < palabras.length; i++) {
+    const palabra = palabras[i];
+    const jitter = ((i * 37) % 3) * 20;
     quoteLater(
       function () {
-        letra.classList.add('prendida');
+        palabra.classList.add('prendida');
       },
       IGNITE_BASE_MS + i * IGNITE_STEP_MS + jitter
     );
@@ -866,14 +913,14 @@ function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote):
   host.classList.remove('apagada');
   autor.classList.remove('apagada', 'aparece');
   clear(host);
-  const letras = appendEscritura(
+  const palabras = appendEscritura(
     host,
     quote.segments.map(function (s) {
       return { text: s.text, marcada: s.gold === true };
     }),
     'oro'
   );
-  encenderLetras(letras);
+  encenderPalabras(palabras);
   // Sin el "– " ni el punto final del PDF: en la pantalla el autor va en
   // versalitas espaciadas (CSS) y la puntuación le sobra.
   setText(autor, quote.author.replace(/\.$/, ''));
@@ -881,7 +928,7 @@ function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote):
     function () {
       autor.classList.add('aparece');
     },
-    IGNITE_BASE_MS + letras.length * IGNITE_STEP_MS + IGNITE_AUTOR_EXTRA_MS
+    IGNITE_BASE_MS + palabras.length * IGNITE_STEP_MS + IGNITE_AUTOR_EXTRA_MS
   );
 }
 
@@ -935,15 +982,15 @@ function buildCapsula(n: Nodes, capsula: CapsulaTecnica): void {
   n.capCue.classList.remove('aparece');
   n.capMusculos.classList.remove('aparece');
 
-  // Título con escritura por letra.
+  // Título con escritura por palabra.
   clear(n.capEjercicio);
-  const letras = appendEscritura(
+  const palabras = appendEscritura(
     n.capEjercicio,
     [{ text: capsula.ejercicio, marcada: false }],
     'acento'
   );
-  encenderLetras(letras);
-  const tituloListoMs = IGNITE_BASE_MS + letras.length * IGNITE_STEP_MS + 350;
+  encenderPalabras(palabras);
+  const tituloListoMs = IGNITE_BASE_MS + palabras.length * IGNITE_STEP_MS + 250;
 
   // Cue como bloque: tramos planos + spans `.acento` (terracotta), sin letras.
   clear(n.capCue);
@@ -977,14 +1024,14 @@ function buildCapsula(n: Nodes, capsula: CapsulaTecnica): void {
   }
   quoteLater(function () {
     n.capMusculos.classList.add('aparece');
-  }, tituloListoMs + 450);
+  }, tituloListoMs + 300);
   for (let i = 0; i < chips.length; i++) {
     const chip = chips[i];
     quoteLater(
       function () {
         chip.classList.add('sube');
       },
-      tituloListoMs + 550 + i * 130
+      tituloListoMs + 380 + i * 100
     );
   }
 }
