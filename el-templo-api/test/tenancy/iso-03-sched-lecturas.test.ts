@@ -110,7 +110,7 @@
  * @see test/fixtures/subs-sched-gimnasio-dos.ts — la siembra que este archivo consume (NO extiende)
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, createTestMember, todayStr, dateOffsetStr } from "../helpers";
 import * as schema from "../../src/db/schema";
@@ -129,6 +129,7 @@ import {
   campoDeLaFila,
   type SubsSchedFixture,
 } from "../fixtures/subs-sched-gimnasio-dos";
+import { setDerivedLabelDescription } from "../../src/modules/scheduling/label-descriptions";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -162,6 +163,11 @@ beforeEach(async () => {
   //  3. sembrarSubsSchedGimnasioDos siembra el recurso ajeno (El Templo) y lo
   //     propio (gimnasio 2) en una sola llamada.
   await cleanAllTestData(app);
+  // `cleanAllTestData` NO limpia `tenant_settings` (KV compartido con
+  // module-flags). Los casos de `class-label-descriptions` de este archivo
+  // siembran ahí — limpiar su namespace evita fugar filas al test de
+  // migraciones 0190-0191 (mismo worker, isolate:false).
+  await limpiarLabelDescriptions();
   gym2 = await seedSecondTenant(app);
   fx = await sembrarSubsSchedGimnasioDos(app, gym2);
 });
@@ -170,10 +176,19 @@ afterAll(async () => {
   // Obligatorio: la base la comparten todos los archivos del mismo worker
   // (isolate: false).
   await cleanAllTestData(app);
+  await limpiarLabelDescriptions();
   await limpiarSubsSchedDeLaBateria(app);
   await limpiarSegundoGimnasio(app);
   await app.close();
 });
+
+/** Borra el namespace `class_label_description.*` de `tenant_settings` que
+ * siembran los casos de esta suite (cleanAllTestData no toca el KV). */
+async function limpiarLabelDescriptions(): Promise<void> {
+  await app.db
+    .delete(schema.tenantSettings)
+    .where(like(schema.tenantSettings.settingKey, "class_label_description.%"));
+}
 
 // ─── Utilidades ──────────────────────────────────────────────────────────────
 
@@ -1041,5 +1056,54 @@ describe("sedes disponibles — GET /api/members/scheduling/branches", () => {
       .from(schema.branches)
       .where(eq(schema.branches.id, gym2.branchId));
     expect(propia?.name).toBe(filaReal?.name);
+  });
+});
+
+// ─── Fase 180: descripciones de etiqueta derivada (KV por-tenant) ────────────
+//
+// `GET /class-label-descriptions` no tiene id de recurso: devuelve el KV
+// completo del tenant (`{ descriptions: { combos, tecnica } }`), leido de
+// `tenant_settings` con `tenantWhere(tenantSettings, ctx)` y `ctx` de
+// `assertTenant(request.scope, …)`. El recurso ajeno no es una fila con id sino
+// el `setting_value` de El Templo bajo la misma `setting_key`; la fuga se ve si
+// el gimnasio 2 recibe ese valor en vez de su propio `null`/su propia fila.
+
+describe("descripciones de etiqueta derivada — GET /api/admin/scheduling/class-label-descriptions", () => {
+  const RUTA = "GET /api/admin/scheduling/class-label-descriptions";
+
+  it("aislamiento: no expone la descripcion de El Templo cuando el gimnasio 2 no cargo la suya (recibe null, no el valor ajeno)", async () => {
+    const valorTemplo = `TEMPLO combos ${sufijo()}`;
+    await setDerivedLabelDescription(app.db, CTX_TEMPLO, "combos", valorTemplo);
+
+    const res = await getAdminComoGimnasioDos("/class-label-descriptions");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      descriptions: Record<string, string | null>;
+    };
+    expect(
+      body.descriptions.combos,
+      `${RUTA} le devolvio al staff del gimnasio ${TENANT_DOS} la descripcion "combos" de El ` +
+        `Templo (${TENANT_TEMPLO}). Es una fuga de KV entre gimnasios: el listado perdio su ` +
+        `\`tenantWhere(tenantSettings, ctx)\`, o el \`ctx\` no salio de \`assertTenant(request.scope, …)\`.`,
+    ).toBeNull();
+  });
+
+  it("control: el KV SI trae la descripcion propia del gimnasio 2, aislada de la de El Templo con el mismo modo", async () => {
+    const valorTemplo = `TEMPLO combos ${sufijo()}`;
+    const valorDos = `DOS combos ${sufijo()}`;
+    await setDerivedLabelDescription(app.db, CTX_TEMPLO, "combos", valorTemplo);
+    await setDerivedLabelDescription(app.db, CTX_DOS, "combos", valorDos);
+
+    const res = await getAdminComoGimnasioDos("/class-label-descriptions");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      descriptions: Record<string, string | null>;
+    };
+    expect(
+      body.descriptions.combos,
+      `${RUTA} NO le devolvio al staff del gimnasio ${TENANT_DOS} su PROPIA descripcion "combos". ` +
+        `Sin este control, el caso de aislamiento de al lado pasaria en verde por la razon equivocada.`,
+    ).toBe(valorDos);
+    expect(body.descriptions.combos).not.toBe(valorTemplo);
   });
 });

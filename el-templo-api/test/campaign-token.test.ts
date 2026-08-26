@@ -8,10 +8,13 @@
  *     tracking and carries exp; reserve-trial revalidates state server-side
  */
 import { describe, it, expect } from "vitest";
+import { createHmac } from "crypto";
 import {
   signCampaignToken,
   validateCampaignToken,
+  validateMagicLinkToken,
   CAMPAIGN_TOKEN_TTL_SECONDS,
+  CAMPAIGN_LOGIN_TTL_SECONDS,
 } from "../src/modules/campaigns/token-service";
 
 describe("campaign token sign/validate (Phase 119)", () => {
@@ -82,5 +85,117 @@ describe("campaign token sign/validate (Phase 119)", () => {
       "sendId",
       "userId",
     ]);
+  });
+});
+
+describe("magic link (D-01/D-02)", () => {
+  it("purpose:'login' freshly signed: both validators accept it", () => {
+    const token = signCampaignToken({
+      userId: 7,
+      campaignId: 3,
+      sendId: 42,
+      purpose: "login",
+    });
+
+    const trackingPayload = validateCampaignToken(token);
+    expect(trackingPayload).not.toBeNull();
+    expect(trackingPayload?.userId).toBe(7);
+
+    const loginPayload = validateMagicLinkToken(token);
+    expect(loginPayload).not.toBeNull();
+    expect(loginPayload?.userId).toBe(7);
+    expect(loginPayload?.sendId).toBe(42);
+  });
+
+  it("purpose:'login' freshly signed carries a ~7-day loginExp (D-02, not 30d)", () => {
+    const before = Math.floor(Date.now() / 1000);
+    const token = signCampaignToken({
+      userId: 1,
+      campaignId: 1,
+      sendId: 1,
+      purpose: "login",
+    });
+    const payload = validateCampaignToken(token);
+    expect(payload).not.toBeNull();
+    const expectedLoginExp = before + CAMPAIGN_LOGIN_TTL_SECONDS;
+    // Allow a few seconds of slack for clock/exec time.
+    expect(payload!.loginExp).toBeGreaterThanOrEqual(expectedLoginExp - 5);
+    expect(payload!.loginExp).toBeLessThanOrEqual(expectedLoginExp + 5);
+    // loginExp (7d) must be strictly shorter than exp (30d) on the same token.
+    expect(payload!.loginExp).toBeLessThan(payload!.exp);
+  });
+
+  it("day 8 (loginExp vencido, exp vigente): tracking sigue OK, magic link ya no", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = signCampaignToken({
+      userId: 9,
+      campaignId: 2,
+      sendId: 55,
+      purpose: "login",
+      loginExp: now - 60, // vencido hace 1 minuto
+      // exp por defecto sigue siendo now + 30d (vigente)
+    });
+
+    const trackingPayload = validateCampaignToken(token);
+    expect(trackingPayload).not.toBeNull();
+    expect(trackingPayload?.sendId).toBe(55);
+
+    expect(validateMagicLinkToken(token)).toBeNull();
+  });
+
+  it("token de tracking (sin purpose): nunca se puede canjear por sesión", () => {
+    const token = signCampaignToken({ userId: 1, campaignId: 1, sendId: 1 });
+    expect(validateCampaignToken(token)).not.toBeNull();
+    expect(validateMagicLinkToken(token)).toBeNull();
+  });
+
+  it("firma alterada en 1 byte: ambos validadores rechazan", () => {
+    const token = signCampaignToken({
+      userId: 1,
+      campaignId: 1,
+      sendId: 1,
+      purpose: "login",
+    });
+    const [payloadB64, sig] = token.split(".");
+    // Flip the last character of the signature (still valid base64url charset).
+    const lastChar = sig.at(-1);
+    const flippedChar = lastChar === "A" ? "B" : "A";
+    const tamperedSig = sig.slice(0, -1) + flippedChar;
+    const tamperedToken = `${payloadB64}.${tamperedSig}`;
+
+    expect(validateCampaignToken(tamperedToken)).toBeNull();
+    expect(validateMagicLinkToken(tamperedToken)).toBeNull();
+  });
+
+  it("purpose:'login' sin loginExp (payload manipulado a mano): magic link null (fail closed)", () => {
+    const secret = process.env.JWT_SECRET as string;
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      userId: 3,
+      campaignId: 4,
+      sendId: 5,
+      exp: now + CAMPAIGN_TOKEN_TTL_SECONDS,
+      purpose: "login",
+      // loginExp deliberately omitted — simulates a hand-crafted payload.
+    };
+    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString(
+      "base64url",
+    );
+    const signature = createHmac("sha256", secret)
+      .update(payloadB64)
+      .digest("base64url");
+    const handCraftedToken = `${payloadB64}.${signature}`;
+
+    // Tracking validation still accepts it (only exp matters there).
+    expect(validateCampaignToken(handCraftedToken)).not.toBeNull();
+    // But the magic-link validator fails closed — loginExp is required.
+    expect(validateMagicLinkToken(handCraftedToken)).toBeNull();
+  });
+
+  it("malformed tokens return null for validateMagicLinkToken (never throw)", () => {
+    expect(validateMagicLinkToken("")).toBeNull();
+    expect(validateMagicLinkToken("garbage")).toBeNull();
+    expect(validateMagicLinkToken("a.b.c")).toBeNull();
+    expect(validateMagicLinkToken("notbase64.sig")).toBeNull();
   });
 });

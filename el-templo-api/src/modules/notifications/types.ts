@@ -30,6 +30,17 @@ export interface QueueNotificationInput {
   titleOverride?: string;
   bodyOverride?: string;
   routeOverride?: string;
+  /**
+   * Fase 180 (D-20/D-24): permite encolar SIN que el usuario tenga un device
+   * token registrado. Default `false` — sin esta bandera, `queueNotification`
+   * descarta el enqueue (ver el guard homónimo en service.ts) porque el
+   * procesador solo podría marcar la fila 'failed'. Existe SOLO para
+   * notificaciones que tienen un canal alternativo garantizado (hoy: el
+   * recordatorio de sesión de prueba, que cae a email en `processQueue`).
+   * Sin esa condición, encolar sin device token es ruido que ahoga los
+   * errores reales de FCM.
+   */
+  allowWithoutDeviceToken?: boolean;
 }
 
 export interface QueueAdHocInput {
@@ -227,5 +238,19 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     titleFemale: "¡Tu referida pagó!",
     bodyFemale: "{Nombre} pagó su primer plan. Ya tenés tu descuento activo.",
     route: "/mis-referidos",
+  },
+  {
+    // Fase 180 (D-20/D-24): recordatorio ~24h antes de la sesión de prueba
+    // reservada (anti no-show). El título/body de acá son el fallback
+    // genérico del seed — reserveTrialSelfService encola con bodyOverride
+    // (día/hora/sede) en la práctica, pero el seed necesita copy válido.
+    templateKey: "trial_session_reminder",
+    category: "anuncios",
+    title: "Mañana entrenás con nosotros",
+    body: "Tu sesión de prueba es mañana. Llegá 10 minutos antes para que te recibamos bien.",
+    titleFemale: "Mañana entrenás con nosotros",
+    bodyFemale:
+      "Tu sesion de prueba es mañana. Llega 10 minutos antes para que te recibamos bien.",
+    route: "/reservas",
   },
 ];

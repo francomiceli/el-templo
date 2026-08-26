@@ -12,6 +12,14 @@ const routes: RouteRecordRaw[] = [
     name: 'register',
     component: () => import('pages/RegisterPage.vue'),
   },
+  // Magic-link landing (Phase 180, D-03). Path EXACTO: los `.well-known`
+  // (assetlinks + AASA) de la fase 119 ya lo cubren — cambiarlo rompe el
+  // deep link nativo.
+  {
+    path: '/r/trial',
+    name: 'magic-link',
+    component: () => import('pages/MagicLinkPage.vue'),
+  },
 
   // Protected routes (with MainLayout)
   {
@@ -38,6 +46,14 @@ const routes: RouteRecordRaw[] = [
         path: 'reservas',
         name: 'reservas',
         component: () => import('pages/ReservasPage.vue'),
+      },
+      {
+        // Destino de bajas / prueba-no-convertida (D-13, Phase 180). Dentro
+        // del layout protegido: se llega ya logueado por el canje del
+        // magic-link.
+        path: '/volver',
+        name: 'volver',
+        component: () => import('pages/VolverPage.vue'),
       },
       {
         path: 'change-password',

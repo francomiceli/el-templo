@@ -7,17 +7,30 @@
  * OWNER/ADMIN role + country-scope guard.
  *
  * Security invariants:
- *   - The HMAC token only IDENTIFIES a sendId (D-21) — it never authorizes.
+ *   - The HMAC token only IDENTIFIES a sendId (D-21) for `/track/*` and
+ *     `/unsubscribe` — it NEVER authorizes those three. Phase 180 (D-01)
+ *     REVISES this per-PURPOSE, not globally: a token signed with
+ *     `purpose:'login'` ADDITIONALLY authorizes `POST /exchange`, but ONLY
+ *     for 7 days (`loginExp`, D-02) — validated exclusively by
+ *     `validateMagicLinkToken` (`token-service.ts`), never by
+ *     `validateCampaignToken` (the one `/track/*`/`/unsubscribe` use).
  *   - The /track/click redirect target is DERIVED from an internal allowlist
  *     (host app.eltemplo.org, D-25) — never echoed from query input (Pitfall 4
  *     open-redirect).
  *   - /unsubscribe shows a generic confirmation page (no email echoed) to avoid
  *     enumeration (D-15).
+ *   - POST /exchange (Phase 180, D-01) returns the SAME generic 401 for every
+ *     failure path (anti-enumeration, T-180-25) and is POST-only on purpose:
+ *     email scanners (Defender/Safe Links, Proofpoint) and client prefetch do
+ *     GET/HEAD, so a GET that logs someone in would fire itself the moment the
+ *     scanner visits the link, before the human ever clicks (T-180-24).
  */
 
 import type { FastifyPluginAsync } from "fastify";
 import { CampaignService } from "./service";
 import { CampaignTrackingService } from "./tracking-service";
+import { MagicLinkService } from "./magic-link-service";
+import { AudienceService } from "./audience-service";
 import { EmailService } from "../email/service";
 import { validateCampaignToken } from "./token-service";
 import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
@@ -30,8 +43,9 @@ import {
   campaignIdSchema,
   testCampaignSchema,
   eligibleCountSchema,
+  exchangeSchema,
 } from "./schemas";
-import type { CreateCampaignInput } from "./types";
+import type { CreateCampaignInput, CampaignSegment } from "./types";
 
 /**
  * Allowlisted redirect host for /track/click (D-25, anti open-redirect).
@@ -72,6 +86,13 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     new EmailService(fastify.log),
   );
+  const magicLink = new MagicLinkService(
+    fastify.db,
+    fastify.log,
+    fastify.jwt,
+    fastify.accessTokenExpiresIn,
+  );
+  const audience = new AudienceService(fastify.db, fastify.log);
 
   // ===========================================================================
   // Public tracking routes (NO auth — D-15 / D-18)
@@ -109,9 +130,20 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       const payload = validateCampaignToken(request.query.t);
       // The redirect host is fixed to the web app; we re-sign nothing and never
       // echo a caller-supplied URL.
-      const destination = CampaignService.trialDeepLink(request.query.t);
+      //
+      // Phase 180 (D-13): the destination is derived from the CAMPAIGN'S
+      // PERSISTED SEGMENT (via `deepLinkForToken`, which reads `campaignId`
+      // off the already-validated `payload`, never from raw query input) —
+      // a 'bajas' campaign's click must land on 'volver', not the freemium
+      // 'reservas-prueba'. An invalid/garbage `t` (no `payload`) falls back
+      // to the pre-Phase-180 freemium default so an unparseable token still
+      // redirects somewhere sane.
+      const destination = payload
+        ? await service.deepLinkForToken(payload.campaignId, request.query.t)
+        : CampaignService.trialDeepLink(request.query.t);
       // Defense-in-depth: the derived destination MUST be on the allowlisted
-      // host (D-25). This can only fail if trialDeepLink regresses — fail closed.
+      // host (D-25). This can only fail if trialDeepLink/deepLinkForToken
+      // regress — fail closed.
       if (new URL(destination).host !== CLICK_REDIRECT_ALLOWLIST_HOST) {
         request.log.error(
           { destination },
@@ -152,6 +184,40 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       return reply
         .header("Content-Type", "text/html; charset=utf-8")
         .send(UNSUBSCRIBE_CONFIRMATION_HTML);
+    },
+  );
+
+  // POST /exchange — magic-link canje: purpose:'login' token -> sesion real
+  // (Phase 180, D-01/D-02). NO preHandler (publica, como las 3 de arriba).
+  //
+  // POST y no GET a proposito (T-180-24): los escaneres de correo
+  // (Defender/Safe Links, Proofpoint) y el prefetch del cliente disparan
+  // GET/HEAD sobre TODOS los links de un email antes de que el humano
+  // llegue a clickear — un GET que canjeara se dispararia solo y quemaria
+  // el link (o, peor, generaria una sesion en la maquina del escaner).
+  //
+  // 401 generico para TODO camino de fallo (T-180-25, anti-enumeracion): el
+  // caller nunca sabe si el token era de tracking, estaba vencido, tenia la
+  // firma alterada, el sendId no resolvia, el usuario estaba borrado o el
+  // userId no coincidia con el dueno real del send — MagicLinkService.exchange
+  // ya colapsa los 6+ motivos en un solo `null`.
+  //
+  // Referrer-Policy: no-referrer (T-180-27): el token viaja en el BODY de este
+  // POST (nunca en la URL de esta ruta), pero la respuesta lo deja sentado
+  // para que ningun link saliente que la app renderice después del canje
+  // pueda filtrar nada por el header Referer.
+  fastify.post<{ Body: { token: string } }>(
+    "/exchange",
+    { schema: exchangeSchema },
+    async (request, reply) => {
+      const result = await magicLink.exchange(request.body.token);
+      reply.header("Referrer-Policy", "no-referrer");
+      if (!result) {
+        return reply
+          .status(401)
+          .send({ error: "Enlace inválido o vencido" });
+      }
+      return result;
     },
   );
 
@@ -264,8 +330,13 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // GET /admin/eligible-count — current eligible audience size (D-08/09/10).
-  fastify.get<{ Querystring: { country?: "AR" | "ES" } }>(
+  // GET /admin/eligible-count — current eligible audience size per segment
+  // (D-08/09/10, Phase 180 D-11/D-14). `segment` optional query param,
+  // default 'freemium_elegibles' so the pre-existing caller (never sends it)
+  // keeps counting the same audience as before this plan.
+  fastify.get<{
+    Querystring: { country?: "AR" | "ES"; segment?: CampaignSegment };
+  }>(
     "/admin/eligible-count",
     { preHandler: [fastify.authenticate], schema: eligibleCountSchema },
     async (request, reply) => {
@@ -277,8 +348,11 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       const country = request.scope.isOwner
         ? (request.query.country ?? null)
         : scopeCountry(request);
-      const eligible = await service.listEligible(ctx, country);
-      return { count: eligible.length };
+      const segment = request.query.segment ?? "freemium_elegibles";
+      // T-180-17 / Pitfall 8: COUNT(*) en SQL, nunca trae la audiencia entera
+      // solo para devolver un número — "bajas" puede ser miles de filas.
+      const count = await audience.countAudience(ctx, segment, country);
+      return { count };
     },
   );
 };

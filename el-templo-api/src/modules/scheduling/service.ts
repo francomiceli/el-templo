@@ -30,6 +30,10 @@ import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant"
 import { dateToWeekNumber } from "../shared/week-dates";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
 import { deriveActivityLabel } from "./derived-label";
+import {
+  getDerivedLabelDescriptions,
+  type DerivedLabelMode,
+} from "./label-descriptions";
 import type {
   ScheduleSlot,
   WeeklySlotView,
@@ -208,6 +212,10 @@ export class SchedulingService {
         branchName: schema.branches.name,
         activityId: schema.schedules.activityId,
         activityName: schema.activities.name,
+        // Fase 180 Plan 10 (RES-05, D-23): descripción de la actividad REAL,
+        // usada cuando NO hubo relabel (ver label-descriptions.ts para el
+        // caso derivado).
+        description: schema.activities.description,
         // Phase 155-01 (D-06/D-07): per-slot effective capacity source.
         activityMaxCapacity: schema.activities.maxCapacity,
         // Phase 162-01 (APP-01): special-activity flag for the member badge.
@@ -273,6 +281,11 @@ export class SchedulingService {
         ),
       );
     const modeByDay = new Map(modeRows.map((r) => [r.day, r.sessionMode]));
+
+    // Fase 180 Plan 10 (RES-05, D-23): descripciones de las etiquetas
+    // derivadas (Combos/Técnica), UNA sola query por llamada — igual que
+    // modeByDay/bookingCountMap/holidayDates, nunca dentro del loop de slots.
+    const derivedDescriptions = await getDerivedLabelDescriptions(this.db, ctx);
 
     // Batch-fetch confirmed booking counts (single GROUP BY instead of N+1).
     // Phase 102-06: compute bookedCount (non-trials, drives capacity) and
@@ -377,17 +390,34 @@ export class SchedulingService {
       // aca, aunque el dia tenga combos/tecnica aprobado.
       const dayName = DAY_OF_WEEK_MAP[row.dayOfWeek];
       const dayMode = dayName ? modeByDay.get(dayName) : undefined;
+      const derivedLabel = deriveActivityLabel(
+        row.activityName,
+        row.isSpecial,
+        dayMode,
+      );
+
+      // Fase 180 Plan 10 (RES-05, D-23, anti Pitfall 9): la descripción
+      // sigue a la etiqueta MOSTRADA, no al activityId real. "Hubo relabel"
+      // se decide comparando el resultado de deriveActivityLabel contra
+      // row.activityName — no se reimplementa la regla de "es General y no
+      // es especial" en un segundo lugar. Sin relabel, la descripción es la
+      // de la actividad real (row.description). Vacío/espacios -> null (la
+      // app no muestra el affordance de tap).
+      const wasRelabeled = derivedLabel !== row.activityName;
+      const rawDescription =
+        wasRelabeled && dayMode && dayMode in derivedDescriptions
+          ? derivedDescriptions[dayMode as DerivedLabelMode]
+          : row.description;
+      const activityDescription =
+        rawDescription && rawDescription.trim() !== "" ? rawDescription : null;
 
       slots.push({
         id: row.id,
         branchId: row.branchId,
         branchName: row.branchName,
         activityId: row.activityId,
-        activityName: deriveActivityLabel(
-          row.activityName,
-          row.isSpecial,
-          dayMode,
-        ),
+        activityName: derivedLabel,
+        activityDescription,
         dayOfWeek: row.dayOfWeek,
         startTime: row.startTime,
         endTime: row.endTime,

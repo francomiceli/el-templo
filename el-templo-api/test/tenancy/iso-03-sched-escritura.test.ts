@@ -108,7 +108,7 @@
  * @see .planning/phases/174.1-.../174.1-CONTEXT.md — D-01/D-06/D-07/D-08
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { and, eq, sql, type SQL } from "drizzle-orm";
+import { and, eq, like, sql, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -132,6 +132,10 @@ import {
   tenantDeLaFila,
   type SubsSchedFixture,
 } from "../fixtures/subs-sched-gimnasio-dos";
+import {
+  setDerivedLabelDescription,
+  DERIVED_LABEL_DESCRIPTION_KEYS,
+} from "../../src/modules/scheduling/label-descriptions";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -159,16 +163,30 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await cleanAllTestData(app);
+  // `cleanAllTestData` NO limpia `tenant_settings` (KV compartido con
+  // module-flags). Los casos de `class-label-descriptions` de este archivo
+  // siembran ahí — limpiar su namespace evita fugar filas al test de
+  // migraciones 0190-0191 (mismo worker, isolate:false).
+  await limpiarLabelDescriptions();
   gym2 = await seedSecondTenant(app);
   fx = await sembrarSubsSchedGimnasioDos(app, gym2);
 });
 
 afterAll(async () => {
   await cleanAllTestData(app);
+  await limpiarLabelDescriptions();
   await limpiarSubsSchedDeLaBateria(app);
   await limpiarSegundoGimnasio(app);
   await app.close();
 });
+
+/** Borra el namespace `class_label_description.*` de `tenant_settings` que
+ * siembran los casos de esta suite (cleanAllTestData no toca el KV). */
+async function limpiarLabelDescriptions(): Promise<void> {
+  await app.db
+    .delete(schema.tenantSettings)
+    .where(like(schema.tenantSettings.settingKey, "class_label_description.%"));
+}
 
 // ─── Utilidades HTTP ─────────────────────────────────────────────────────────
 
@@ -1410,5 +1428,88 @@ describe("cancelar reserva propia (socio) — DELETE /api/members/scheduling/boo
     ).toBe(200);
     const despues = await fotoDeBooking(fx.dos.bookingId);
     expect([despues.tenantId, despues.status]).toEqual([TENANT_DOS, "cancelado"]);
+  });
+});
+
+// ─── Fase 180: descripciones de etiqueta derivada (KV por-tenant) ────────────
+//
+// `PUT /class-label-descriptions` no tiene `:id` en el path: edita por `mode`
+// en el body, haciendo upsert sobre `tenant_settings` bajo `setting_key =
+// class_label_description.<mode>` con `tenantValues(ctx, …)`. El recurso ajeno
+// no es una fila con id (no hay 404 posible), sino la fila de El Templo del
+// MISMO modo. El contrato de aislamiento es: la escritura del gimnasio 2 crea/
+// pisa SU fila (tenant_id propio) y no toca ni expone la de El Templo.
+
+/** La descripcion persistida (valor + tenant_id) de un modo para un tenant,
+ * leida de `tenant_settings` por (tenant_id, setting_key). Leer el tenant_id de
+ * la fila ES la asercion — misma exencion que `fotoDeBooking`/`fotoDeActivity`. */
+async function fotoDeLabelDescription(
+  tenantId: number,
+  mode: "combos" | "tecnica",
+): Promise<{ value: string; tenantId: number } | null> {
+  const [row] = await app.db
+    .select({
+      value: schema.tenantSettings.settingValue,
+      tenantId: schema.tenantSettings.tenantId,
+    })
+    .from(schema.tenantSettings)
+    .where(
+      and(
+        eq(schema.tenantSettings.tenantId, tenantId),
+        eq(
+          schema.tenantSettings.settingKey,
+          DERIVED_LABEL_DESCRIPTION_KEYS[mode],
+        ),
+      ),
+    );
+  return row ?? null;
+}
+
+describe("descripciones de etiqueta derivada — PUT /api/admin/scheduling/class-label-descriptions", () => {
+  const RUTA = "PUT /api/admin/scheduling/class-label-descriptions";
+
+  it("aislamiento: escribir un modo como gimnasio 2 no pisa ni expone la fila de El Templo del mismo modo", async () => {
+    const valorTemplo = `TEMPLO combos ${sufijo()}`;
+    await setDerivedLabelDescription(app.db, CTX_TEMPLO, "combos", valorTemplo);
+
+    const valorDos = `DOS combos ${sufijo()}`;
+    const res = await comoAdminGimnasioDos("PUT", "/class-label-descriptions", {
+      mode: "combos",
+      description: valorDos,
+    });
+    expect(
+      res.statusCode,
+      porQueImporta(RUTA, TENANT_TEMPLO) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+
+    // La fila de El Templo para "combos" quedo intacta (valor y tenant_id): la
+    // upsert del gimnasio 2 no la piso (habria pasado si el `where` de la
+    // onDuplicateKey no llevara tenant_id, o si la unique fuera solo por key).
+    const templo = await fotoDeLabelDescription(TENANT_TEMPLO, "combos");
+    expect(
+      [templo?.value, templo?.tenantId],
+      `${RUTA}: la escritura del gimnasio ${TENANT_DOS} piso o borro la descripcion "combos" de El Templo.`,
+    ).toEqual([valorTemplo, TENANT_TEMPLO]);
+
+    // La respuesta que recibe el gimnasio 2 es su propio KV, sin el valor ajeno.
+    const body = JSON.parse(res.body) as {
+      descriptions: Record<string, string | null>;
+    };
+    expect(body.descriptions.combos).toBe(valorDos);
+    expect(body.descriptions.combos).not.toBe(valorTemplo);
+  });
+
+  it("control: escribir la descripcion propia del gimnasio 2 SI funciona y crea su fila con su tenant_id", async () => {
+    const valorDos = `DOS tecnica ${sufijo()}`;
+    const res = await comoAdminGimnasioDos("PUT", "/class-label-descriptions", {
+      mode: "tecnica",
+      description: valorDos,
+    });
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, TENANT_DOS) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const dos = await fotoDeLabelDescription(TENANT_DOS, "tecnica");
+    expect([dos?.value, dos?.tenantId]).toEqual([valorDos, TENANT_DOS]);
   });
 });

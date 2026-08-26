@@ -31,6 +31,7 @@ import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
 import { appBranchName } from "../shared/app-branch-name";
+import { buildMapsUrl } from "../shared/maps";
 import {
   ConflictError,
   CoverageExpiredError,
@@ -67,10 +68,17 @@ import {
   reserveTrialSchema,
   cancelTrialSchema,
   trialEligibilitySchema,
+  classLabelDescriptionsSchema,
+  updateClassLabelDescriptionSchema,
 } from "./schemas";
 import type { DayOfWeek, AffectedScheduleRef } from "./types";
 
 import { ALL_STAFF_ROLES } from "../shared/permissions";
+import {
+  getDerivedLabelDescriptions,
+  setDerivedLabelDescription,
+  type DerivedLabelMode,
+} from "./label-descriptions";
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/scheduling)
@@ -103,7 +111,14 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // Wire circular dependency: SubscriptionService needs BookingService for fixed-plan booking generation
   subscriptionService.setBookingService(bookingService);
   // Phase 102: TrialService — atomic lead+booking creation.
-  const trialService = new TrialService(fastify.db, fastify.log);
+  // Fase 180 (D-20/D-24): notificationService inyectado para que
+  // rescheduleTrial (admin) limpie/reencole el recordatorio de la prueba.
+  const trialService = new TrialService(
+    fastify.db,
+    fastify.log,
+    undefined,
+    notificationService,
+  );
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
@@ -211,6 +226,74 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         handleServiceError(err, reply, request.log, "update activity");
+      }
+    },
+  );
+
+  // ─── Class label descriptions (Fase 180 Plan 10, RES-05, D-23) ──────────
+  //
+  // Descripciones editables de las etiquetas derivadas (Combos/Técnica) —
+  // ver label-descriptions.ts para el porqué: la descripción que ve el
+  // socio sigue a la etiqueta MOSTRADA, no a `activities.description` de la
+  // fila real "General" (Pitfall 9 del research). Mismo guard admin/coach y
+  // `assertTenant` que el resto de este bloque.
+
+  // GET /class-label-descriptions — descripciones actuales por modo
+  fastify.get(
+    "/class-label-descriptions",
+    { schema: classLabelDescriptionsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.getClassLabelDescriptions",
+        );
+        const descriptions = await getDerivedLabelDescriptions(
+          fastify.db,
+          ctx,
+        );
+        return { descriptions };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get class label descriptions",
+        );
+      }
+    },
+  );
+
+  // PUT /class-label-descriptions — upsert de la descripción de un modo
+  fastify.put<{
+    Body: { mode: DerivedLabelMode; description: string };
+  }>(
+    "/class-label-descriptions",
+    { schema: updateClassLabelDescriptionSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.updateClassLabelDescription",
+        );
+        await setDerivedLabelDescription(
+          fastify.db,
+          ctx,
+          request.body.mode,
+          request.body.description,
+        );
+        const descriptions = await getDerivedLabelDescriptions(
+          fastify.db,
+          ctx,
+        );
+        return { descriptions };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "update class label description",
+        );
       }
     },
   );
@@ -837,10 +920,13 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Phase 119: self-service trial. BookingService is injected so the trial
   // path reuses the 30-day window + dayOfWeek/holiday validation (D-05).
+  // Fase 180 (D-20/D-24): notificationService inyectado para encolar/limpiar
+  // el recordatorio ~24h antes de la clase (reserva/cancelación self-service).
   const trialService = new TrialService(
     fastify.db,
     fastify.log,
     bookingService,
+    notificationService,
   );
 
   /**
@@ -1121,6 +1207,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       .select({
         id: schema.branches.id,
         name: schema.branches.name,
+        address: schema.branches.address,
       })
       .from(schema.branches)
       .where(where)
@@ -1130,6 +1217,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       branches: rows.map((r) => ({
         ...r,
         name: appBranchName(r.name, ctx.tenantId),
+        // D-17: link "Cómo llegar" derivado server-side (fuente única en
+        // shared/maps.ts); null cuando la sede no tiene dirección cargada.
+        mapsUrl: buildMapsUrl(r.address),
       })),
     };
   });

@@ -14,8 +14,58 @@
         <div class="next-class-card__info">
           <p class="next-class-card__activity">Tu sesión de prueba está reservada</p>
           <p class="next-class-card__time">{{ trialConfirmationBody }}</p>
+          <p v-if="trialBooking.branchAddress" class="next-class-card__address">
+            {{ trialBooking.branchAddress }}
+          </p>
         </div>
       </div>
+
+      <!-- D-19: "Cómo llegar" secundario, reusa mapsUrlForBranch/openBranchMaps
+           (D-17) — mapsUrl viaja pre-armado desde el backend (buildMapsUrl,
+           fuente única), nunca una segunda construcción acá. -->
+      <q-btn
+        v-if="trialBooking.mapsUrl"
+        flat
+        dense
+        no-caps
+        color="primary"
+        icon="directions"
+        label="Cómo llegar"
+        class="q-mt-sm"
+        @click="openBranchMaps(trialBooking.mapsUrl)"
+      />
+
+      <!-- D-20: botón PRIMARIO de calendario — para el freemium sin la app, es
+           el mecanismo anti no-show de primera línea (no un link chiquito). -->
+      <q-btn
+        unelevated
+        no-caps
+        rounded
+        color="primary"
+        icon="event"
+        label="Agregar al calendario"
+        class="q-mt-md trial-calendar-btn"
+        @click="onAddTrialToCalendar"
+      />
+
+      <!-- D-16: qué esperar (mismo copy que en modo prueba, ver FIRST_TIMER_ITEMS) -->
+      <q-expansion-item
+        class="first-timer-card q-mt-md"
+        icon="help_outline"
+        label="¿Primera vez? Qué esperar"
+        header-class="first-timer-card__header"
+        dense
+      >
+        <q-list class="first-timer-card__list">
+          <q-item v-for="item in FIRST_TIMER_ITEMS" :key="item.text" dense>
+            <q-item-section avatar>
+              <q-icon :name="item.icon" size="18px" color="primary" />
+            </q-item-section>
+            <q-item-section>{{ item.text }}</q-item-section>
+          </q-item>
+        </q-list>
+      </q-expansion-item>
+
       <!-- >24h before the class: self-service change/cancel. Inside 24h it's
            locked, so we fall back to the WhatsApp affordance. -->
       <template v-if="trialBooking.canModify">
@@ -71,6 +121,14 @@
 
     <!-- State 2 — modo reservar prueba (freemium elegible, D-20/D-22) -->
     <template v-else-if="trialEligible">
+      <!-- Popup de elección de sede (D-07/D-08): setea el MISMO trialBranchId
+           que alimenta el q-select de abajo — no hay un segundo estado de sede (D-09). -->
+      <BranchPickerDialog
+        v-model="showBranchPicker"
+        :branches="branches"
+        @select="onBranchPickerSelect"
+      />
+
       <!-- Trial banner -->
       <div class="trial-banner q-mb-md">
         <q-icon name="card_giftcard" size="20px" class="trial-banner__icon" />
@@ -80,8 +138,26 @@
         </div>
       </div>
 
+      <!-- D-16: "¿Primera vez? Qué esperar" — solo en modo prueba, copy estático -->
+      <q-expansion-item
+        class="first-timer-card q-mb-md"
+        icon="help_outline"
+        label="¿Primera vez? Qué esperar"
+        header-class="first-timer-card__header"
+        dense
+      >
+        <q-list class="first-timer-card__list">
+          <q-item v-for="item in FIRST_TIMER_ITEMS" :key="item.text" dense>
+            <q-item-section avatar>
+              <q-icon :name="item.icon" size="18px" color="primary" />
+            </q-item-section>
+            <q-item-section>{{ item.text }}</q-item-section>
+          </q-item>
+        </q-list>
+      </q-expansion-item>
+
       <!-- Branch selector — ALWAYS shown for trial mode (D-06): freemium must pick a physical sede -->
-      <div class="q-mb-md flex justify-center">
+      <div class="q-mb-md flex justify-center items-center">
         <q-select
           v-model="trialBranchId"
           :options="branchOptions"
@@ -99,7 +175,27 @@
           <template #append>
             <q-icon name="unfold_more" size="16px" color="grey-6" />
           </template>
+          <template #option="scope">
+            <q-item v-bind="scope.itemProps">
+              <q-item-section>
+                <q-item-label>{{ scope.opt.label }}</q-item-label>
+                <q-item-label caption>{{ scope.opt.address ?? 'Dirección no disponible' }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </template>
         </q-select>
+        <!-- D-17: link "Cómo llegar" junto al selector cuando ya hay sede elegida -->
+        <q-btn
+          v-if="mapsUrlForBranch(trialBranchId)"
+          flat
+          dense
+          no-caps
+          size="sm"
+          color="primary"
+          label="Cómo llegar"
+          class="q-ml-sm"
+          @click="openBranchMaps(mapsUrlForBranch(trialBranchId)!)"
+        />
       </div>
 
       <!-- Grid hidden until a sede is chosen -->
@@ -162,7 +258,12 @@
             >
               <div class="slot-card__time">
                 <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-                <span class="slot-card__activity">{{ slot.activityName }}</span>
+                <span
+                class="slot-card__activity"
+                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                @click="onActivityNameTap(slot, $event)"
+                >{{ slot.activityName }}</span
+              >
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
@@ -203,7 +304,12 @@
             >
               <div class="slot-card__time">
                 <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-                <span class="slot-card__activity">{{ slot.activityName }}</span>
+                <span
+                class="slot-card__activity"
+                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                @click="onActivityNameTap(slot, $event)"
+                >{{ slot.activityName }}</span
+              >
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
@@ -251,7 +357,10 @@
 
     <template v-else>
       <!-- Branch selector -->
-      <div v-if="isMultiBranch && branches.length > 1" class="q-mb-md flex justify-center">
+      <div
+        v-if="isMultiBranch && branches.length > 1"
+        class="q-mb-md flex justify-center items-center"
+      >
         <q-select
           v-model="selectedBranchId"
           :options="branchOptions"
@@ -268,7 +377,27 @@
           <template #append>
             <q-icon name="unfold_more" size="16px" color="grey-6" />
           </template>
+          <template #option="scope">
+            <q-item v-bind="scope.itemProps">
+              <q-item-section>
+                <q-item-label>{{ scope.opt.label }}</q-item-label>
+                <q-item-label caption>{{ scope.opt.address ?? 'Dirección no disponible' }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </template>
         </q-select>
+        <!-- D-17: link "Cómo llegar" junto al selector cuando ya hay sede elegida -->
+        <q-btn
+          v-if="mapsUrlForBranch(selectedBranchId)"
+          flat
+          dense
+          no-caps
+          size="sm"
+          color="primary"
+          label="Cómo llegar"
+          class="q-ml-sm"
+          @click="openBranchMaps(mapsUrlForBranch(selectedBranchId)!)"
+        />
       </div>
       <p v-else class="branch-label">
         <q-icon name="location_on" size="14px" class="q-mr-xs" />
@@ -383,7 +512,12 @@
           >
             <div class="slot-card__time">
               <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-              <span class="slot-card__activity">{{ slot.activityName }}</span>
+              <span
+                class="slot-card__activity"
+                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                @click="onActivityNameTap(slot, $event)"
+                >{{ slot.activityName }}</span
+              >
               <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
               <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
                 <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
@@ -483,7 +617,12 @@
           >
             <div class="slot-card__time">
               <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-              <span class="slot-card__activity">{{ slot.activityName }}</span>
+              <span
+                class="slot-card__activity"
+                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                @click="onActivityNameTap(slot, $event)"
+                >{{ slot.activityName }}</span
+              >
               <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
               <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
                 <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
@@ -777,6 +916,14 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Plan 180-13 (D-18): hoja de detalle de actividad, montada una sola vez. -->
+    <ActivityInfoSheet
+      :model-value="activitySheet !== null"
+      :title="activitySheet?.title ?? ''"
+      :description="activitySheet?.description ?? null"
+      @update:model-value="onActivitySheetUpdate"
+    />
   </q-page>
 </template>
 
@@ -785,8 +932,10 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import axios from 'axios'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
+import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
-import type { TrialEligibility } from 'src/composables/useSchedulingApi'
+import type { TrialEligibility, BranchOption } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
@@ -800,6 +949,7 @@ import type {
 import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/scheduling'
 import { todayInTz, dowInTz, zonedWallClockToUtc, isWallClockPast } from 'src/utils/tz'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
+import { buildGoogleCalendarUrl } from 'src/utils/calendar-link'
 
 const $q = useQuasar()
 const log = createLogger('ReservasV2')
@@ -836,7 +986,7 @@ const weekStart = ref<Date>(getMondayInTz(branchTimezone.value))
 const selectedDay = ref<DayOfWeek>(getTodayDow(branchTimezone.value))
 
 // ─── Multi-branch ───────────────────────────────────────────────────
-const branches = ref<{ id: number; name: string }[]>([])
+const branches = ref<BranchOption[]>([])
 const selectedBranchId = ref<number | null>(null)
 const hasActiveButNotPresencial = computed(
   () => userStore.hasActiveSubscription && !userStore.hasPresencialPlan,
@@ -879,10 +1029,17 @@ function openWhatsApp(): void {
   window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 const isMultiBranch = computed(() => userStore.subscription?.multiBranch ?? false)
+// El nombre de sede ya viene normalizado desde el server (`appBranchName`,
+// shared/app-branch-name.ts): el helper prefija la marca del tenant cuando
+// corresponde. Se elimina el replace() que hacía este mismo trabajo del lado
+// del front para no tener dos normalizadores del mismo nombre (plan 180-05,
+// Task 1).
 const branchOptions = computed(() =>
   branches.value.map((b) => ({
-    label: b.name.replace(/^El Templo\s+/i, 'Sede '),
+    label: b.name,
     value: b.id,
+    address: b.address,
+    mapsUrl: b.mapsUrl,
   })),
 )
 
@@ -901,6 +1058,41 @@ const trialBooking = computed(() =>
 )
 const isTrialMode = computed(() => trialEligible.value)
 
+// "¿Primera vez? Qué esperar" (D-16): copy ESTÁTICO, sin llamadas a la API.
+// Fuente única — se referencia (v-for) tanto en el estado "modo prueba" como en
+// "prueba reservada" para no duplicar el texto en dos lugares del template.
+interface FirstTimerItem {
+  icon: string
+  text: string
+}
+const FIRST_TIMER_ITEMS: FirstTimerItem[] = [
+  { icon: 'schedule', text: 'La clase dura 1 hora.' },
+  { icon: 'checkroom', text: 'Ropa cómoda y agua.' },
+  { icon: 'directions_walk', text: 'Llegá 10 minutos antes.' },
+  { icon: 'record_voice_over', text: 'Preguntá por el profe cuando llegues.' },
+]
+
+// Popup de elección de sede (D-07/D-08/D-09, plan 180-05): se abre UNA vez al
+// entrar a Reservas en modo prueba sin sede elegida y con sedes ya cargadas
+// (ver onMounted). Elegir o descartar lo cierra y no se reabre solo — el
+// q-select existente queda como la única vía para cambiar de sede después.
+const showBranchPicker = ref(false)
+
+function onBranchPickerSelect(id: number): void {
+  trialBranchId.value = id
+}
+
+/** Link "Cómo llegar" (D-17) de la sede actualmente elegida en un selector. */
+function mapsUrlForBranch(branchId: number | null): string | null {
+  return branchOptions.value.find((o) => o.value === branchId)?.mapsUrl ?? null
+}
+
+/** Abre un link de Maps (selector de sede o "Cómo llegar" de la confirmación de prueba). */
+function openBranchMaps(mapsUrl: string): void {
+  log.info('Cómo llegar → abre Maps', { mapsUrl })
+  window.open(mapsUrl, '_blank', 'noopener')
+}
+
 const trialConfirmationBody = computed(() => {
   const b = trialBooking.value
   if (!b) return ''
@@ -911,6 +1103,23 @@ const trialConfirmationBody = computed(() => {
   const sede = b.branchAddress ? `${b.branchName} (${b.branchAddress})` : b.branchName
   return `Te esperamos el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}. ¡Llegá unos minutos antes!`
 })
+
+// D-20: botón primario "Agregar al calendario" de la confirmación de prueba
+// (estado "prueba reservada"). Usa branchTimezone del booking (la SEDE, no un
+// default de página — T-180-33): este estado nunca corre loadGrid().
+function onAddTrialToCalendar(): void {
+  const b = trialBooking.value
+  if (!b) return
+  const url = buildGoogleCalendarUrl({
+    date: b.date,
+    startTime: b.startTime,
+    timezone: b.branchTimezone,
+    branchName: b.branchName,
+    branchAddress: b.branchAddress,
+  })
+  log.info('Agregar al calendario (prueba)', { url })
+  window.open(url, '_blank', 'noopener')
+}
 
 // 30-day forward bound for the trial grid (D-05): disable navigating past a week
 // whose Monday is already beyond today+30d.
@@ -966,6 +1175,23 @@ const showCoverageDialog = ref(false)
 // (tap en una especial sin plan) y desde el catch de confirmReserve ante code
 // PASS_REQUIRED (espejo de COVERAGE_EXPIRED). Informativo, SIN pago in-app.
 const showAuraInfoDialog = ref(false)
+
+// Plan 180-13 (D-18/RES-05): hoja de detalle de actividad. El título viaja
+// TAL CUAL la etiqueta visible del slot (activityName, ya derivada server-side
+// por 180-10) — nunca se busca la descripción por el id de la actividad en el
+// cliente (T-180-61).
+const activitySheet = ref<{ title: string; description: string } | null>(null)
+
+function onActivityNameTap(slot: WeeklySlotView, event: Event): void {
+  if (!slot.activityDescription) return
+  // No debe disparar la acción de reservar/abrir el slot del contenedor padre.
+  event.stopPropagation()
+  activitySheet.value = { title: slot.activityName, description: slot.activityDescription }
+}
+
+function onActivitySheetUpdate(value: boolean): void {
+  if (!value) activitySheet.value = null
+}
 
 function openCoverageWhatsApp(): void {
   const message = 'Hola, quiero renovar mi membresía para reservar una clase 💪'
@@ -1734,6 +1960,11 @@ onMounted(async () => {
     } catch {
       // fall through — selector simply renders empty
     }
+    // Gate del popup (D-08): modo prueba (isTrialMode) sin sede elegida
+    // (trialBranchId === null) y con sedes efectivamente disponibles.
+    if (isTrialMode.value && trialBranchId.value === null && branches.value.length > 0) {
+      showBranchPicker.value = true
+    }
     loading.value = false
     return
   }
@@ -2107,6 +2338,22 @@ onBeforeUnmount(() => cleanup())
   margin: 0;
 }
 
+.next-class-card__address {
+  font-size: 12px;
+  color: #8a8472; // Olive Stone, igual que .trial-banner__body
+  margin: 4px 0 0;
+}
+
+// D-20: CTA primario del calendario en la confirmación de prueba.
+.trial-calendar-btn {
+  background: linear-gradient(135deg, $primary 0%, #ad6540 100%) !important;
+  color: white !important;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 10px 24px;
+}
+
 .next-class-card__activity-empty {
   font-size: 14px;
   color: $grey-6;
@@ -2312,6 +2559,15 @@ onBeforeUnmount(() => cleanup())
   &__activity {
     font-size: 12px;
     color: $grey-7;
+
+    // Plan 180-13 (D-18): affordance de tap SOLO cuando el slot trae
+    // activityDescription (:class condicional en el template — sin copy
+    // cargado, este modificador nunca se aplica).
+    &--tappable {
+      text-decoration: underline dotted rgba($grey-7, 0.5);
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
   }
 
   &__right {
@@ -2429,6 +2685,35 @@ onBeforeUnmount(() => cleanup())
 
   :deep(.q-item__label--caption) {
     color: $grey-7;
+  }
+}
+
+// ─── D-16: "¿Primera vez? Qué esperar" ───────────────────────────────
+// Mismo patrón que .week-summary (borde redondeado, header en $primary).
+.first-timer-card {
+  border: 1px solid rgba($primary, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.first-timer-card__header) {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: $primary;
+}
+
+.first-timer-card__list {
+  background: transparent;
+  padding: 4px 8px;
+
+  :deep(.q-item) {
+    padding: 8px;
+    min-height: unset;
+  }
+
+  :deep(.q-item__section--avatar) {
+    min-width: 28px;
   }
 }
 </style>

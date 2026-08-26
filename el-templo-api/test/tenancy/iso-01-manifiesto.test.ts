@@ -181,7 +181,26 @@ import {
  * el `ctx`/country-scope del reporte de SP, la segunda opera sobre `users` con
  * `tenantWhere` + gate de sede. Directo a master, donde el gate existe.
  *
- * El reparto por categoría vigente es 228 `tenant-scoped` · 8 `global` · 141
+ * **Movido a 373 el 2026-08-23 (rama 180, +1 sobre su base 370)**: `POST
+ * /api/campaigns/exchange` (canje de magic-link por sesión, fase 180 Plan 06,
+ * D-01/D-02). **tenant-scoped**, mismo precedente que las 3 rutas públicas de
+ * `/api/campaigns` de arriba (`track/click`, `track/open`, `unsubscribe`): se
+ * resuelve por token sin `request.scope`, pero el `tenant_id` que estampa/lee
+ * sale de `campaign_sends` (T-180-23), nunca del payload — el caso normal de
+ * D-02, jamás `global`.
+ *
+ * **(rama 180, +2 más)**: `GET /api/admin/scheduling/class-label-descriptions`
+ * y `PUT /api/admin/scheduling/class-label-descriptions` (copy editable de las
+ * etiquetas derivadas Combos/Técnica, fase 180 Plan 10, RES-05/D-23).
+ * **tenant-scoped**: leen/escriben `tenant_settings` con
+ * `tenantWhere`/`tenantValues`, datos de un solo gimnasio — el caso normal de
+ * D-02.
+ *
+ * **Movido a 375 el 2026-08-26**, merge de la fase 180 a master: los +2 de la
+ * bandeja de SP (arriba) y los +3 de la 180 salen de la misma base 370, así
+ * que la unión es 370+2+3. Ninguna ruta nueva de este bump — solo el merge.
+ *
+ * El reparto por categoría vigente es 231 `tenant-scoped` · 8 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
  * por categoría a propósito, y
@@ -191,7 +210,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 372;
+const ENTRADAS_BASELINE = 375;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -334,7 +353,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 372 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 375 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
@@ -351,7 +370,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
         `rompiera —alguien "limpia" BuildAppOptions, o el hook se cuelga después ` +
         `del primer register— las listas quedarían vacías contra un manifiesto ` +
         `vacío y todo pasaría en verde por vacuidad. Este conteo es lo que hace ` +
-        `que 0 rutas observadas se ponga tan rojo como 371.`,
+        `que 0 rutas observadas se ponga tan rojo como 374.`,
     ).toBe(ENTRADAS_BASELINE);
 
     // El baseline también tiene que coincidir con lo que el app registra hoy:

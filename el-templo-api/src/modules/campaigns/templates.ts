@@ -1,5 +1,6 @@
 /**
- * Trial-campaign email template (Phase 119, D-13/D-14/D-16/D-23/D-27).
+ * Trial-campaign email template (Phase 119, D-13/D-14/D-16/D-23/D-27; Phase
+ * 180, D-06/D-10).
  *
  * Authored in MJML (the one approved Phase 119 dependency, D-23) and compiled
  * to bulletproof, table-based HTML at render time. Merge variables are
@@ -64,7 +65,13 @@ function bodyToParagraphs(body: string): string {
     .join("");
 }
 
-/** Render one sede row for the "Nuestras sedes" table. */
+/**
+ * Render one sede row for the "Nuestras sedes" table (Phase 180, D-06/D-07).
+ * INFORMATIONAL ONLY: name + address + an optional "Cómo llegar" link — no
+ * per-sede button and no per-row booking/reservation link. Sede selection
+ * moved to the app's popup (D-07); a per-row CTA here would compete with the
+ * single primary CTA below and is exactly what D-06 forbids (T-180-43).
+ */
 function sedeRow(sede: {
   name: string;
   address: string;
@@ -136,6 +143,10 @@ export async function trialCampaignHtml(
 
   const sedeRows = sedes.map(sedeRow).join("");
 
+  // Phase 180 (D-06/D-10/D-14, T-180-43): exactly ONE primary CTA — the
+  // magic-link click-tracking URL `send()` builds — plus the WhatsApp button
+  // as the sole secondary CTA (D-10/119-D-14, unchanged). No CTA is rendered
+  // per sede row; do not add one back — see `sedeRow` above.
   const primaryCta = bulletproofButton({
     href: ctaAppUrl,
     label: "Reservá en la app",

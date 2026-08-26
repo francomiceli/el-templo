@@ -22,14 +22,21 @@ import {
 } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { and, eq, sql } from "drizzle-orm";
+import argon2 from "argon2";
 import {
   createTestApp,
   cleanAllTestData,
   createEligibleFreemium,
+  getAuthToken,
+  todayStr,
 } from "./helpers";
 import { CampaignService } from "../src/modules/campaigns/service";
 import { EmailService } from "../src/modules/email/service";
-import { tenantWhere, type TenantContext } from "../src/modules/shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
 
 let app: FastifyInstance;
@@ -60,6 +67,60 @@ beforeEach(async () => {
     .limit(1);
   ownerId = owner.id;
 });
+
+/**
+ * Seed a "bajas" user directly (status='inactivo' + una suscripción con
+ * priceTypeApplied<>'zero', D-22) — mismo criterio de segmento que
+ * `audience-service.ts#bajasConditions`. Local a este archivo (no toca
+ * `helpers.ts`, fuera del `files_modified` declarado de este plan), mismo
+ * espíritu que `createUserWithStatus`/`seedActiveSubscription` de
+ * `campaigns-audience.test.ts`.
+ */
+async function createBajaUser(): Promise<{ id: number; email: string }> {
+  const uniqueSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const email = `baja-${uniqueSuffix}@test.com`;
+  const passwordHash = await argon2.hash("pass123456");
+
+  const [user] = await app.db
+    .insert(schema.users)
+    .values(
+      tenantValues(CTX, {
+        email,
+        passwordHash,
+        firstName: "Baja",
+        lastName: "Test",
+        role: "member",
+        branchId: 1,
+        status: "inactivo",
+      }),
+    )
+    .$returningId();
+
+  const [plan] = await app.db
+    .insert(schema.subscriptionPlans)
+    .values({
+      name: `Send Test Plan (bajas) ${uniqueSuffix}`,
+      planTier: "foundation",
+      bookingMode: "flexible",
+      planCategory: "presencial",
+      priceRegular: 10000,
+      priceZero: 0,
+      durationDays: 30,
+    })
+    .$returningId();
+
+  await app.db.insert(schema.subscriptions).values({
+    userId: user.id,
+    planId: plan.id,
+    branchId: 1,
+    status: "cancelled",
+    startDate: todayStr(),
+    pricePaid: 10000,
+    priceTypeApplied: "regular",
+  });
+
+  return { id: user.id, email };
+}
 
 function makeService(email?: EmailService): CampaignService {
   return new CampaignService(
@@ -304,5 +365,139 @@ describe("campaign test send (Phase 119)", () => {
     await expect(
       service.sendTest(CTX, campaign.id, "alguien@gmail.com"),
     ).rejects.toThrow(/No se pudo enviar la prueba/i);
+  });
+});
+
+describe("campaign send by segment (Fase 180, D-11/D-12/D-14)", () => {
+  it("D-11: campaña con segment='bajas' encola solo a los usuarios de ese segmento, no a los freemium sembrados en el mismo test", async () => {
+    const { id: freemiumId } = await createEligibleFreemium(app);
+    const { id: bajaId, email: bajaEmail } = await createBajaUser();
+    const service = makeService();
+    const campaign = await service.create(
+      CTX,
+      {
+        name: "Bajas",
+        subject: "Volvé a entrenar",
+        segment: "bajas",
+        copySlots: { headline: "H", subheadline: "S", body: "B" },
+      },
+      ownerId,
+    );
+    expect(campaign.segment).toBe("bajas");
+
+    const result = await service.send(CTX, campaign.id);
+    expect(result.recipientCount).toBe(1);
+
+    const sends = await app.db
+      .select()
+      .from(schema.campaignSends)
+      .where(
+        sql`/* tenant-safe: lectura por FK propia (campaign.id), campaña creada por este mismo test */ ${schema.campaignSends.campaignId} = ${campaign.id}`,
+      );
+    expect(sends).toHaveLength(1);
+    expect(sends[0].userId).toBe(bajaId);
+    expect(sends[0].email).toBe(bajaEmail);
+    expect(sends.map((s) => s.userId)).not.toContain(freemiumId);
+  });
+
+  it("D-12: campaña creada sin segment explícito persiste 'freemium_elegibles' y send() mantiene el comportamiento heredado", async () => {
+    const { id: freemiumId } = await createEligibleFreemium(app);
+    const { id: bajaId } = await createBajaUser();
+    const service = makeService();
+    const campaign = await service.create(
+      CTX,
+      {
+        name: "Sin segmento",
+        subject: "S",
+        copySlots: { headline: "H", subheadline: "S", body: "B" },
+      },
+      ownerId,
+    );
+    expect(campaign.segment).toBe("freemium_elegibles");
+
+    const result = await service.send(CTX, campaign.id);
+    expect(result.recipientCount).toBe(1);
+
+    const sends = await app.db
+      .select()
+      .from(schema.campaignSends)
+      .where(
+        sql`/* tenant-safe: lectura por FK propia (campaign.id), campaña creada por este mismo test */ ${schema.campaignSends.campaignId} = ${campaign.id}`,
+      );
+    expect(sends.map((s) => s.userId)).toEqual([freemiumId]);
+    expect(sends.map((s) => s.userId)).not.toContain(bajaId);
+  });
+
+  it("D-01/D-02: el token firmado en el envío es canjeable en POST /api/campaigns/exchange (integración envío↔canje)", async () => {
+    await createEligibleFreemium(app);
+    const email = new EmailService(app.log);
+    const spy = vi
+      .spyOn(email, "sendCampaignBatch")
+      .mockResolvedValue(undefined);
+    const service = makeService(email);
+    const campaign = await service.create(
+      CTX,
+      {
+        name: "Exchange E2E",
+        subject: "S",
+        copySlots: { headline: "H", subheadline: "S", body: "B" },
+      },
+      ownerId,
+    );
+
+    await service.send(CTX, campaign.id);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [messages] = spy.mock.calls[0];
+    const html = messages[0].html;
+    const match = html.match(/track\/click\?t=([^"&]+)/);
+    expect(match).not.toBeNull();
+    const token = decodeURIComponent(match![1]);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/campaigns/exchange",
+      payload: { token },
+    });
+
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      accessToken: string;
+      refreshToken: string;
+    };
+    expect(typeof body.accessToken).toBe("string");
+    expect(typeof body.refreshToken).toBe("string");
+
+    spy.mockRestore();
+  });
+
+  it("GET /admin/eligible-count?segment=bajas devuelve el mismo número que las filas campaign_sends que produce el envío de ese segmento", async () => {
+    await createEligibleFreemium(app); // ruido: otro segmento, no debe contar
+    await createBajaUser();
+    await createBajaUser();
+    const token = await getAuthToken(app, "admin@test.com", "adminpass123");
+
+    const countRes = await app.inject({
+      method: "GET",
+      url: "/api/campaigns/admin/eligible-count?segment=bajas",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(countRes.statusCode, countRes.body).toBe(200);
+    const { count } = JSON.parse(countRes.body) as { count: number };
+
+    const service = makeService();
+    const campaign = await service.create(
+      CTX,
+      {
+        name: "Count check",
+        subject: "S",
+        segment: "bajas",
+        copySlots: { headline: "H", subheadline: "S", body: "B" },
+      },
+      ownerId,
+    );
+    const result = await service.send(CTX, campaign.id);
+
+    expect(result.recipientCount).toBe(count);
   });
 });

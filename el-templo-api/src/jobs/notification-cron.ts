@@ -21,6 +21,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../db/schema";
 import * as s from "../db/schema";
 import { NotificationService } from "../modules/notifications/service";
+import { EmailService } from "../modules/email/service";
 import { deriveCoveredUntil } from "../modules/subscriptions/service";
 import { SegmentationService } from "../modules/segmentation/service";
 // segment_transition template keys are defined in SEGMENT_TRANSITION_TEMPLATES
@@ -397,7 +398,15 @@ async function runNotificationQueueTickForTenant(
   ctx: TenantContext,
 ): Promise<{ sent: number; failed: number; purged: number }> {
   const tenantId = ctx.tenantId;
-  const notificationService = new NotificationService(db, log);
+  // Fase 180 (D-24): EmailService inyectado SOLO acá — es el único de los
+  // ~18 sitios de instanciación de NotificationService cuya cola realmente
+  // se procesa (processQueue es donde vive el fallback por email).
+  const notificationService = new NotificationService(
+    db,
+    log,
+    undefined,
+    new EmailService(log),
+  );
 
   await notificationService.initFirebase();
   const result = await notificationService.processQueue();

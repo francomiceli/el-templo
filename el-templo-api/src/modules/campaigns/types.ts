@@ -3,6 +3,23 @@
  */
 
 /**
+ * The 5 predefined campaign audience segments (Phase 180, D-11/D-12).
+ * Resolved by `AudienceService` (audience-service.ts). This is a CLOSED list
+ * on purpose (T-180-14): a segment is a key into a `Record`, never
+ * interpolated into raw SQL — an unknown value throws `BadRequestError`
+ * before any query runs.
+ */
+export const CAMPAIGN_SEGMENTS = [
+  "freemium_elegibles",
+  "bajas",
+  "prueba_no_convertida",
+  "alerta_ausente",
+  "referidos_pendientes",
+] as const;
+
+export type CampaignSegment = (typeof CAMPAIGN_SEGMENTS)[number];
+
+/**
  * A physical branch row as rendered in the campaign email's "sedes" table.
  * Sourced from `branches.address` (D-24); canonical values live in
  * `el-templo-web/data/sedes.ts`.
@@ -79,6 +96,12 @@ export interface CreateCampaignInput {
   subject: string;
   /** Optional country scope ('AR' | 'ES'); null/undefined = global. */
   country?: "AR" | "ES" | null;
+  /**
+   * Optional audience segment (Phase 180, D-11/D-14). When omitted, the
+   * service does NOT write the column — the DB `DEFAULT 'freemium_elegibles'`
+   * applies, preserving the pre-Phase-180 campaigns byte-for-byte.
+   */
+  segment?: CampaignSegment;
   /** Optional self-hosted hero image URL (D-27). */
   heroImageUrl?: string;
   /** Per-section copy for the template. */
@@ -93,6 +116,13 @@ export interface CampaignRecord {
   status: string;
   createdBy: number;
   country: string | null;
+  /**
+   * Persisted audience segment (Phase 180, D-11/D-14) — soft-enum, same
+   * convention as `status` (typed `string`, validated at the trust boundary
+   * by `createCampaignSchema`'s enum + `AudienceService`'s closed dispatcher,
+   * never in this type).
+   */
+  segment: string;
   /** Persisted email copy (CR-02); null on legacy/blank campaigns. */
   headline: string | null;
   subheadline: string | null;

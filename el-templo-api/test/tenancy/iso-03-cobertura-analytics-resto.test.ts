@@ -103,10 +103,10 @@
  *
  * LOS OCHO PREFIJOS
  * ------------------
- * `/api/admin/analytics` (22) + `/api/campaigns` (10) + `/api/notifications`
+ * `/api/admin/analytics` (22) + `/api/campaigns` (11) + `/api/notifications`
  * (8) + `/api/admin/referrals` (1) + `/api/members/referrals` (2) +
  * `/api/admin/improvement-proposals` (2) + `/api/members/improvement-proposals`
- * (2) + `/api/auth` (4) = **51** rutas `tenant-scoped`. Verificado sin
+ * (2) + `/api/auth` (4) = **52** rutas `tenant-scoped`. Verificado sin
  * colisiones contra el manifiesto completo con `tsx` (374 entradas):
  * ninguno de los 8 prefijos matchea `/api/admin/members/*`, y
  * `/api/admin/referrals` no es prefijo de `/api/admin/members/.../referrals`
@@ -241,14 +241,14 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
  * renombra un archivo de la batería, `readFileSync` devuelve otra cosa, el
  * regex de `describe` deja de matchear— las dos listas quedarían vacías
  * contra un manifiesto vacío y todo pasaría en verde por vacuidad. Este
- * conteo es lo que hace que 0 rutas cubiertas se ponga tan rojo como 50.
+ * conteo es lo que hace que 0 rutas cubiertas se ponga tan rojo como 51.
  */
-const CASOS_BASELINE = 51;
+const CASOS_BASELINE = 52;
 
 /** Los seis archivos de la batería ISO-03 de analytics + resto del core. */
 const ARCHIVOS_BATERIA = [
   "iso-03-analytics.test.ts", // plan 175.1-02 — 22 rutas
-  "iso-03-campaigns.test.ts", // plan 175.1-03 — 10 rutas
+  "iso-03-campaigns.test.ts", // plan 175.1-03 — 11 rutas (+1 fase 180: POST /exchange)
   "iso-03-notifications.test.ts", // plan 175.1-04 — 8 rutas
   "iso-03-referrals.test.ts", // plan 175.1-05 — 3 rutas (2 más ya cubiertas por members, ver EXCEPCIONES_NOMBRADAS)
   "iso-03-improvement-proposals.test.ts", // plan 175.1-05 — 4 rutas
