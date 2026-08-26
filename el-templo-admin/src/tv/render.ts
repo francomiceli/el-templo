@@ -33,6 +33,8 @@ import { pad2 } from './scale';
 import type { TimerFrame, TvTimerStatus } from './timer';
 import { elapsedFrom, formatDigits, phaseAt } from './timer';
 import type { SessionQuote } from '../utils/pdf/quotes';
+import { rotationIndex } from '../utils/pdf/quotes';
+import type { CapsulaTecnica } from './capsulas';
 
 const log = createTvLogger('render');
 
@@ -66,8 +68,8 @@ interface ClockNodes {
 interface Nodes {
   fechaL1: HTMLElement;
   fechaL2: HTMLElement;
-  cierreFechaL1: HTMLElement;
-  cierreFechaL2: HTMLElement;
+  /** Fecha larga de la pantalla de cierre (misma cadena que la del reposo). */
+  cierreFecha: HTMLElement;
   reloj: ClockNodes;
   titulo: HTMLElement;
   formato: HTMLElement;
@@ -80,12 +82,19 @@ interface Nodes {
   timerPanel: HTMLElement;
   digitos: HTMLElement;
   digitosGhost: HTMLElement;
+  /** Cartel VAMOS!/DESCANSO que destella al cambiar de fase. */
+  faseLabel: HTMLElement;
   progreso: HTMLElement;
   pantallaReposo: HTMLElement;
   reposoReloj: ClockNodes;
   reposoFecha: HTMLElement;
-  reposoQuote: HTMLElement;
-  reposoAutor: HTMLElement;
+  /** Cápsula de técnica de la pre-clase (pantalla de transición diurna).
+   *  capFrase = la columna izquierda entera: kicker + título + cue + pills —
+   *  la salida al rotar apaga ESTE contenedor, todo junto. */
+  capFrase: HTMLElement;
+  capEjercicio: HTMLElement;
+  capCue: HTMLElement;
+  capMusculos: HTMLElement;
   pantallaCierre: HTMLElement;
   cierreTitulo: HTMLElement;
   cierreReloj: ClockNodes;
@@ -135,8 +144,7 @@ function ensureNodes(): Nodes {
   nodes = {
     fechaL1: byId('fechaL1'),
     fechaL2: byId('fechaL2'),
-    cierreFechaL1: byId('cierreFechaL1'),
-    cierreFechaL2: byId('cierreFechaL2'),
+    cierreFecha: byId('cierreFecha'),
     reloj: clockNodes(byId('reloj')),
     titulo: byId('titulo'),
     formato: byId('formato'),
@@ -147,12 +155,15 @@ function ensureNodes(): Nodes {
     timerPanel: byId('timerPanel'),
     digitos: byId('digitos'),
     digitosGhost: byId('digitosGhost'),
+    faseLabel: byId('faseLabel'),
     progreso: byId('progreso'),
     pantallaReposo: byId('pantallaReposo'),
     reposoReloj: clockNodes(byId('reposoReloj')),
     reposoFecha: byId('reposoFecha'),
-    reposoQuote: byId('reposoQuote'),
-    reposoAutor: byId('reposoAutor'),
+    capFrase: byId('capFrase'),
+    capEjercicio: byId('capEjercicio'),
+    capCue: byId('capCue'),
+    capMusculos: byId('capMusculos'),
     pantallaCierre: byId('pantallaCierre'),
     cierreTitulo: byId('cierreTitulo'),
     cierreReloj: clockNodes(byId('cierreReloj')),
@@ -286,13 +297,18 @@ function paintGlyphText(host: HTMLElement, text: string): void {
 // =============================================================================
 
 let quotes: SessionQuote[] = [];
+let capsulas: CapsulaTecnica[] = [];
 let last: TvPollResponse | null = null;
 let lastListKey = '';
 /** Ronda marcada por última vez en la lista (marcador ▸); evita tocar el DOM cada tick. */
 let lastMarkerKey: string | null = null;
 let lastDotsKey = '';
 let lastQuoteKey = '';
+/** Última cápsula de técnica pintada en la pre-clase (mismo rol que lastQuoteKey). */
+let lastCapsulaKey = '';
 let lastBeepKey: string | null = null;
+/** Última fase+ronda con cartel VAMOS!/DESCANSO mostrado; evita repetir el destello. */
+let lastFaseKey: string | null = null;
 /** Última cadena de formato pintada (con su salto de línea nombre/spec). */
 let lastFormatoRaw: string | null = null;
 /** Estado del timer en el tick anterior — para detectar el ARRANQUE (idle→running). */
@@ -313,13 +329,16 @@ let arranqueUntil = 0;
  * pantalla en blanco. La pagina lo llama en `onMounted`, antes del primer render.
  */
 export function resetRender(): void {
+  clearQuoteTimeouts();
   nodes = null;
   last = null;
   lastListKey = '';
   lastMarkerKey = null;
   lastDotsKey = '';
   lastQuoteKey = '';
+  lastCapsulaKey = '';
   lastBeepKey = null;
+  lastFaseKey = null;
   lastFormatoRaw = null;
   lastTimerStatus = null;
   lastStartedAt = null;
@@ -329,6 +348,11 @@ export function resetRender(): void {
 /** Las frases del PDF, que la pantalla pasa una vez al montar (D-06/D-08). */
 export function setQuotes(next: SessionQuote[]): void {
   quotes = next;
+}
+
+/** Las cápsulas de técnica de la pre-clase, que la pantalla pasa al montar. */
+export function setCapsulas(next: CapsulaTecnica[]): void {
+  capsulas = next;
 }
 
 // =============================================================================
@@ -347,15 +371,7 @@ function classOf(payload: TvPollResponse): TvClassPayload | null {
  * `toLocaleDateString`: misma razón que el reloj (D-20) — la ICU de un televisor de sede
  * puede venir recortada y devolver otra fecha o directamente tirar.
  */
-const DIAS_SEMANA = [
-  'DOMINGO',
-  'LUNES',
-  'MARTES',
-  'MIÉRCOLES',
-  'JUEVES',
-  'VIERNES',
-  'SÁBADO',
-];
+const DIAS_SEMANA = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
 const MESES = [
   'ENERO',
   'FEBRERO',
@@ -503,7 +519,13 @@ function paintList(n: Nodes, c: TvClassPayload): void {
     const col = c.columns[ci];
     key += '|' + col.header + '|' + col.exercises.length;
     for (let i = 0; i < col.exercises.length; i++) {
-      key += '~' + col.exercises[i].name + '~' + col.exercises[i].contraction + '~' + col.exercises[i].dose;
+      key +=
+        '~' +
+        col.exercises[i].name +
+        '~' +
+        col.exercises[i].contraction +
+        '~' +
+        col.exercises[i].dose;
     }
   }
   if (key === lastListKey) {
@@ -632,11 +654,7 @@ function paintDeuHeader(host: HTMLElement, label: string, formato: string): void
  * Pie del 2×2: DOS movilidades (una por deutero), izquierda = DEUTEROS I,
  * derecha = DEUTEROS II — alineadas con las columnas de arriba.
  */
-function paintDeuMovilidad(
-  host: HTMLElement,
-  movI: string | null,
-  movII: string | null,
-): void {
+function paintDeuMovilidad(host: HTMLElement, movI: string | null, movII: string | null): void {
   clear(host);
   const iz = document.createElement('div');
   iz.className = 'movBarCol';
@@ -666,14 +684,15 @@ export function renderState(payload: TvPollResponse): void {
   const fechaCorta = fechaTopbar(nowCorrected(), payload.branch.utcOffsetMinutes);
   setText(n.fechaL1, fechaCorta.l1);
   setText(n.fechaL2, fechaCorta.l2);
-  setText(n.cierreFechaL1, fechaCorta.l1);
-  setText(n.cierreFechaL2, fechaCorta.l2);
   setText(n.reposoFecha, fecha);
+  setText(n.cierreFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   const c = classOf(payload);
-  setVisible(n.pantallaReposo, 'pantalla dosMitades', !c && payload.screen !== 'closing');
-  setVisible(n.pantallaCierre, 'pantalla dosMitades', payload.screen === 'closing');
+  // OJO: setVisible reescribe el className COMPLETO — la base tiene que repetir
+  // el modificador diurno del template o la pre-clase cae al estilo nocturno.
+  setVisible(n.pantallaReposo, 'pantalla pantalla--dia', !c && payload.screen !== 'closing');
+  setVisible(n.pantallaCierre, 'pantalla', payload.screen === 'closing');
 
   if (!c) {
     return;
@@ -754,11 +773,116 @@ export function tickClock(): void {
 
   if (last.screen === 'idle') {
     paintClock(n.reposoReloj, d);
-    paintQuote(n.reposoQuote, n.reposoAutor, 'reposo');
+    paintCapsula(n);
   } else if (last.screen === 'closing') {
     paintClock(n.cierreReloj, d);
     paintQuote(n.cierreQuote, n.cierreAutor, 'cierre');
   }
+}
+
+/** Encendido de la frase: retardo base + paso por letra (jitter determinístico). */
+const IGNITE_BASE_MS = 150;
+const IGNITE_STEP_MS = 22;
+/** Espera extra tras la última letra antes de que aparezca el autor. */
+const IGNITE_AUTOR_EXTRA_MS = 600;
+/** Lo que tarda la frase saliente en apagarse antes de encender la nueva (CSS .apagada). */
+const QUOTE_EXIT_MS = 750;
+
+/**
+ * Timeouts pendientes del encendido (stagger por letra + autor + rebuild).
+ * Se limpian ante cualquier rebuild y al desmontar la página (resetRender): un
+ * timeout huérfano escribiría sobre nodos ya despegados del DOM.
+ */
+let quoteTimeouts: number[] = [];
+/** true mientras la frase saliente se apaga (el rebuild ya quedó agendado). */
+let quoteSaliendo = false;
+
+function clearQuoteTimeouts(): void {
+  for (const t of quoteTimeouts) {
+    window.clearTimeout(t);
+  }
+  quoteTimeouts = [];
+  quoteSaliendo = false;
+}
+
+function quoteLater(fn: () => void, ms: number): void {
+  quoteTimeouts.push(window.setTimeout(fn, ms));
+}
+
+/**
+ * Arma la frase como spans `.palabra` (nowrap) > `.letra` y las enciende en
+ * cadena (clase `.prendida`; los keyframes viven en TvScreenPage.vue). El autor
+ * aparece cuando la última letra terminó de prender. Reconstruir el DOM acá no
+ * rompe la regla de idempotencia: pasa una vez por minuto (la rotación), no por
+ * tick — el guard de `lastQuoteKey` en paintQuote lo garantiza.
+ */
+/**
+ * Arma tramos de texto como spans `.palabra` (nowrap) > `.letra` y devuelve las
+ * letras en orden de lectura. `claseMarcada` se suma a la palabra cuando su
+ * tramo viene marcado (el `oro` de las frases / el `acento` de las cápsulas).
+ */
+function appendEscritura(
+  host: HTMLElement,
+  tramos: { text: string; marcada: boolean }[],
+  claseMarcada: string
+): HTMLElement[] {
+  const letras: HTMLElement[] = [];
+  for (const tramo of tramos) {
+    for (const palabra of tramo.text.split(' ')) {
+      if (palabra.length === 0) {
+        continue;
+      }
+      const wrap = document.createElement('span');
+      wrap.className = tramo.marcada ? 'palabra ' + claseMarcada : 'palabra';
+      for (const ch of palabra) {
+        const letra = document.createElement('span');
+        letra.className = 'letra';
+        letra.textContent = ch;
+        wrap.appendChild(letra);
+        letras.push(letra);
+      }
+      host.appendChild(wrap);
+      host.appendChild(document.createTextNode(' '));
+    }
+  }
+  return letras;
+}
+
+/** Enciende las letras en cadena (clase `.prendida`, stagger + jitter fijo). */
+function encenderLetras(letras: HTMLElement[]): void {
+  for (let i = 0; i < letras.length; i++) {
+    const letra = letras[i];
+    const jitter = ((i * 37) % 5) * 12;
+    quoteLater(
+      function () {
+        letra.classList.add('prendida');
+      },
+      IGNITE_BASE_MS + i * IGNITE_STEP_MS + jitter
+    );
+  }
+}
+
+function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote): void {
+  host.classList.remove('apagada');
+  autor.classList.remove('apagada', 'aparece');
+  clear(host);
+  const letras = appendEscritura(
+    host,
+    quote.segments.map(function (s) {
+      return { text: s.text, marcada: s.gold === true };
+    }),
+    'oro'
+  );
+  encenderLetras(letras);
+  // Sin el "– " ni el punto final del PDF: en la pantalla el autor va en
+  // versalitas espaciadas (CSS) y la puntuación le sobra.
+  setText(autor, quote.author.replace(/\.$/, ''));
+  quoteLater(
+    function () {
+      autor.classList.add('aparece');
+    },
+    IGNITE_BASE_MS + letras.length * IGNITE_STEP_MS + IGNITE_AUTOR_EXTRA_MS
+  );
 }
 
 /**
@@ -766,30 +890,138 @@ export function tickClock(): void {
  *
  * Rota cada minuto con una eleccion derivada del reloj —no aleatoria—: asi todos los
  * televisores de la sede muestran la misma frase y ninguna cambia en medio de un tick.
+ * El orden NO es el de la lista: `rotationIndex` baraja el paso con una permutacion
+ * deterministica (la frase salta en vez de ir 1, 2, 3…), pero al ser deterministica
+ * todos los TV siguen mostrando la misma frase en el mismo minuto.
+ * Al rotar con la pantalla a la vista, la frase actual se apaga (CSS `.apagada`)
+ * y recién entonces se enciende la nueva; al entrar a la pantalla (o cambiar de
+ * reposo a cierre) la frase se enciende directo, sin apagado previo.
  */
 function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): void {
   if (quotes.length === 0) {
     return;
   }
-  const idx = Math.floor(nowCorrected() / QUOTE_ROTATION_MS) % quotes.length;
+  const idx = rotationIndex(Math.floor(nowCorrected() / QUOTE_ROTATION_MS), quotes.length);
   const key = pantalla + ':' + idx;
-  if (key === lastQuoteKey) {
+  if (key === lastQuoteKey || quoteSaliendo) {
     return;
   }
+  const habiaFrase = lastQuoteKey.indexOf(pantalla + ':') === 0 && host.childNodes.length > 0;
   lastQuoteKey = key;
   const quote = quotes[idx];
-  clear(host);
-  for (const seg of quote.segments) {
-    if (seg.gold) {
-      const oro = document.createElement('span');
-      oro.className = 'oro';
-      oro.textContent = seg.text;
-      host.appendChild(oro);
+  clearQuoteTimeouts();
+  if (!habiaFrase) {
+    buildQuote(host, autor, quote);
+    return;
+  }
+  quoteSaliendo = true;
+  host.classList.add('apagada');
+  autor.classList.add('apagada');
+  quoteLater(function () {
+    quoteSaliendo = false;
+    buildQuote(host, autor, quote);
+  }, QUOTE_EXIT_MS);
+}
+
+/**
+ * Arma la cápsula de técnica de la pre-clase. Coreografía (2026-08-26): el
+ * NOMBRE del ejercicio se escribe por letra (el mecanismo de la frase del
+ * cierre, en clave diurna), el cue entra después como bloque con fade+subida,
+ * y las pills "ACTIVACIONES" suben escalonadas desde una línea abajo. Se
+ * reconstruye una vez por minuto.
+ */
+function buildCapsula(n: Nodes, capsula: CapsulaTecnica): void {
+  n.capFrase.classList.remove('apagada');
+  n.capCue.classList.remove('aparece');
+  n.capMusculos.classList.remove('aparece');
+
+  // Título con escritura por letra.
+  clear(n.capEjercicio);
+  const letras = appendEscritura(
+    n.capEjercicio,
+    [{ text: capsula.ejercicio, marcada: false }],
+    'acento'
+  );
+  encenderLetras(letras);
+  const tituloListoMs = IGNITE_BASE_MS + letras.length * IGNITE_STEP_MS + 350;
+
+  // Cue como bloque: tramos planos + spans `.acento` (terracotta), sin letras.
+  clear(n.capCue);
+  for (const seg of capsula.cue) {
+    if (seg.acento === true) {
+      const acento = document.createElement('span');
+      acento.className = 'acento';
+      acento.textContent = seg.text;
+      n.capCue.appendChild(acento);
     } else {
-      host.appendChild(document.createTextNode(seg.text));
+      n.capCue.appendChild(document.createTextNode(seg.text));
     }
   }
-  setText(autor, '– ' + quote.author);
+  quoteLater(function () {
+    n.capCue.classList.add('aparece');
+  }, tituloListoMs);
+
+  // Pills: etiqueta + chips que suben desde una línea abajo, escalonadas.
+  clear(n.capMusculos);
+  const etiqueta = document.createElement('span');
+  etiqueta.className = 'capActiva';
+  etiqueta.textContent = 'ACTIVACIONES';
+  n.capMusculos.appendChild(etiqueta);
+  const chips: HTMLElement[] = [];
+  for (const musculo of capsula.musculos) {
+    const chip = document.createElement('span');
+    chip.className = 'capChip';
+    chip.textContent = musculo;
+    n.capMusculos.appendChild(chip);
+    chips.push(chip);
+  }
+  quoteLater(function () {
+    n.capMusculos.classList.add('aparece');
+  }, tituloListoMs + 450);
+  for (let i = 0; i < chips.length; i++) {
+    const chip = chips[i];
+    quoteLater(
+      function () {
+        chip.classList.add('sube');
+      },
+      tituloListoMs + 550 + i * 130
+    );
+  }
+}
+
+/**
+ * Cápsula de técnica en la pre-clase. Rota cada minuto con la misma elección
+ * barajada y derivada del reloj que las frases (`rotationIndex`): todos los TV
+ * de la sede muestran la misma cápsula. Comparte el pool de timeouts y el flag
+ * de salida con las frases — nunca hay más de una pantalla de transición a la
+ * vista.
+ */
+function paintCapsula(n: Nodes): void {
+  if (capsulas.length === 0) {
+    return;
+  }
+  const idx = rotationIndex(Math.floor(nowCorrected() / QUOTE_ROTATION_MS), capsulas.length);
+  const key = 'capsula:' + idx;
+  if (key === lastCapsulaKey || quoteSaliendo) {
+    return;
+  }
+  const habiaCapsula = lastCapsulaKey !== '' && n.capCue.childNodes.length > 0;
+  lastCapsulaKey = key;
+  const capsula = capsulas[idx];
+  clearQuoteTimeouts();
+  if (!habiaCapsula) {
+    buildCapsula(n, capsula);
+    return;
+  }
+  quoteSaliendo = true;
+  // Toda la columna izquierda (kicker, título, cue y pills) se apaga JUNTA:
+  // el fade vive en el contenedor, así ningún hijo con estado propio
+  // (`aparece`/`sube`) le gana la especificidad y se queda tarde.
+  n.capFrase.classList.add('apagada');
+  quoteLater(function () {
+    quoteSaliendo = false;
+    buildCapsula(n, capsula);
+  }, QUOTE_EXIT_MS);
 }
 
 // =============================================================================
@@ -995,6 +1227,7 @@ export function tickTimer(): void {
   }
 
   maybeBeep(c, frame);
+  maybePhaseLabel(n, c, frame, arranco);
 }
 
 /**
@@ -1019,4 +1252,55 @@ function maybeBeep(c: TvClassPayload, frame: TimerFrame): void {
     return;
   }
   beep(frame.finished ? 'end' : 'phase', c.timer.soundEnabled);
+}
+
+/**
+ * Muestra el cartel (VAMOS! / DESCANSO) reiniciando su animación: le pone el
+ * texto, limpia las clases y fuerza un reflow antes de volver a marcarlo, para
+ * que el keyframe corra de nuevo aunque la clase ya estuviera puesta.
+ */
+function flashFase(n: Nodes, texto: string, descanso: boolean): void {
+  const el = n.faseLabel;
+  el.textContent = texto;
+  el.classList.remove('mostrar');
+  if (descanso) {
+    el.classList.add('descanso');
+  } else {
+    el.classList.remove('descanso');
+  }
+  // Forzar reflow: sin esto el navegador agrupa el remove+add y no reinicia la
+  // animación. Leer offsetWidth obliga a recalcular el layout entre ambos.
+  void el.offsetWidth;
+  el.classList.add('mostrar');
+}
+
+/**
+ * Destella "VAMOS!" al empezar cada tramo de trabajo y "DESCANSO" al empezar el
+ * descanso, sólo en bloques con las dos fases reales (tabata / HIIT / intervalos
+ * con trabajo y descanso). Los cronómetros libres (ROM, standard) y los
+ * intervalos sin descanso (EMOM) no tienen cambio de fase que anunciar.
+ *
+ * `arranco` es el mismo pulso que dispara el flourish de arranque (el profe dio
+ * INICIAR): distingue el comienzo real del bloque —donde SÍ se canta VAMOS— de
+ * un TV que se reconecta a mitad de una fase, que sólo recuerda la clave sin
+ * destellar (mismo cuidado que `maybeBeep`).
+ */
+function maybePhaseLabel(n: Nodes, c: TvClassPayload, frame: TimerFrame, arranco: boolean): void {
+  const spec = c.timer.spec;
+  const conFases = spec.kind === 'work_rest' && spec.workMs > 0 && spec.restMs > 0;
+  if (c.timer.status !== 'running' || !conFases || frame.finished) {
+    lastFaseKey = null;
+    return;
+  }
+  const key = frame.phase + ':' + frame.round;
+  if (key === lastFaseKey) {
+    return;
+  }
+  const primera = lastFaseKey === null;
+  lastFaseKey = key;
+  // Reconexión a mitad de fase (primer pintado sin arranque): sólo recordar.
+  if (primera && !arranco) {
+    return;
+  }
+  flashFase(n, frame.phase === 'rest' ? 'DESCANSO' : 'VAMOS!', frame.phase === 'rest');
 }
