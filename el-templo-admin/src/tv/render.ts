@@ -34,6 +34,7 @@ import type { TimerFrame, TvTimerStatus } from './timer';
 import { elapsedFrom, formatDigits, phaseAt } from './timer';
 import type { SessionQuote } from '../utils/pdf/quotes';
 import { rotationIndex } from '../utils/pdf/quotes';
+import type { CapsulaTecnica } from './capsulas';
 
 const log = createTvLogger('render');
 
@@ -87,8 +88,10 @@ interface Nodes {
   pantallaReposo: HTMLElement;
   reposoReloj: ClockNodes;
   reposoFecha: HTMLElement;
-  reposoQuote: HTMLElement;
-  reposoAutor: HTMLElement;
+  /** Cápsula de técnica de la pre-clase (pantalla de transición diurna). */
+  capEjercicio: HTMLElement;
+  capCue: HTMLElement;
+  capMusculos: HTMLElement;
   pantallaCierre: HTMLElement;
   cierreTitulo: HTMLElement;
   cierreReloj: ClockNodes;
@@ -154,8 +157,9 @@ function ensureNodes(): Nodes {
     pantallaReposo: byId('pantallaReposo'),
     reposoReloj: clockNodes(byId('reposoReloj')),
     reposoFecha: byId('reposoFecha'),
-    reposoQuote: byId('reposoQuote'),
-    reposoAutor: byId('reposoAutor'),
+    capEjercicio: byId('capEjercicio'),
+    capCue: byId('capCue'),
+    capMusculos: byId('capMusculos'),
     pantallaCierre: byId('pantallaCierre'),
     cierreTitulo: byId('cierreTitulo'),
     cierreReloj: clockNodes(byId('cierreReloj')),
@@ -289,12 +293,15 @@ function paintGlyphText(host: HTMLElement, text: string): void {
 // =============================================================================
 
 let quotes: SessionQuote[] = [];
+let capsulas: CapsulaTecnica[] = [];
 let last: TvPollResponse | null = null;
 let lastListKey = '';
 /** Ronda marcada por última vez en la lista (marcador ▸); evita tocar el DOM cada tick. */
 let lastMarkerKey: string | null = null;
 let lastDotsKey = '';
 let lastQuoteKey = '';
+/** Última cápsula de técnica pintada en la pre-clase (mismo rol que lastQuoteKey). */
+let lastCapsulaKey = '';
 let lastBeepKey: string | null = null;
 /** Última fase+ronda con cartel VAMOS!/DESCANSO mostrado; evita repetir el destello. */
 let lastFaseKey: string | null = null;
@@ -325,6 +332,7 @@ export function resetRender(): void {
   lastMarkerKey = null;
   lastDotsKey = '';
   lastQuoteKey = '';
+  lastCapsulaKey = '';
   lastBeepKey = null;
   lastFaseKey = null;
   lastFormatoRaw = null;
@@ -336,6 +344,11 @@ export function resetRender(): void {
 /** Las frases del PDF, que la pantalla pasa una vez al montar (D-06/D-08). */
 export function setQuotes(next: SessionQuote[]): void {
   quotes = next;
+}
+
+/** Las cápsulas de técnica de la pre-clase, que la pantalla pasa al montar. */
+export function setCapsulas(next: CapsulaTecnica[]): void {
+  capsulas = next;
 }
 
 // =============================================================================
@@ -754,7 +767,7 @@ export function tickClock(): void {
 
   if (last.screen === 'idle') {
     paintClock(n.reposoReloj, d);
-    paintQuote(n.reposoQuote, n.reposoAutor, 'reposo');
+    paintCapsula(n);
   } else if (last.screen === 'closing') {
     paintClock(n.cierreReloj, d);
     paintQuote(n.cierreQuote, n.cierreAutor, 'cierre');
@@ -797,18 +810,24 @@ function quoteLater(fn: () => void, ms: number): void {
  * rompe la regla de idempotencia: pasa una vez por minuto (la rotación), no por
  * tick — el guard de `lastQuoteKey` en paintQuote lo garantiza.
  */
-function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote): void {
-  host.classList.remove('apagada');
-  autor.classList.remove('apagada', 'aparece');
-  clear(host);
+/**
+ * Arma tramos de texto como spans `.palabra` (nowrap) > `.letra` y devuelve las
+ * letras en orden de lectura. `claseMarcada` se suma a la palabra cuando su
+ * tramo viene marcado (el `oro` de las frases / el `acento` de las cápsulas).
+ */
+function appendEscritura(
+  host: HTMLElement,
+  tramos: { text: string; marcada: boolean }[],
+  claseMarcada: string
+): HTMLElement[] {
   const letras: HTMLElement[] = [];
-  for (const seg of quote.segments) {
-    for (const palabra of seg.text.split(' ')) {
+  for (const tramo of tramos) {
+    for (const palabra of tramo.text.split(' ')) {
       if (palabra.length === 0) {
         continue;
       }
       const wrap = document.createElement('span');
-      wrap.className = seg.gold ? 'palabra oro' : 'palabra';
+      wrap.className = tramo.marcada ? 'palabra ' + claseMarcada : 'palabra';
       for (const ch of palabra) {
         const letra = document.createElement('span');
         letra.className = 'letra';
@@ -820,6 +839,11 @@ function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote):
       host.appendChild(document.createTextNode(' '));
     }
   }
+  return letras;
+}
+
+/** Enciende las letras en cadena (clase `.prendida`, stagger + jitter fijo). */
+function encenderLetras(letras: HTMLElement[]): void {
   for (let i = 0; i < letras.length; i++) {
     const letra = letras[i];
     const jitter = ((i * 37) % 5) * 12;
@@ -830,6 +854,20 @@ function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote):
       IGNITE_BASE_MS + i * IGNITE_STEP_MS + jitter
     );
   }
+}
+
+function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote): void {
+  host.classList.remove('apagada');
+  autor.classList.remove('apagada', 'aparece');
+  clear(host);
+  const letras = appendEscritura(
+    host,
+    quote.segments.map(function (s) {
+      return { text: s.text, marcada: s.gold === true };
+    }),
+    'oro'
+  );
+  encenderLetras(letras);
   // Sin el "– " ni el punto final del PDF: en la pantalla el autor va en
   // versalitas espaciadas (CSS) y la puntuación le sobra.
   setText(autor, quote.author.replace(/\.$/, ''));
@@ -876,6 +914,81 @@ function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): vo
   quoteLater(function () {
     quoteSaliendo = false;
     buildQuote(host, autor, quote);
+  }, QUOTE_EXIT_MS);
+}
+
+/**
+ * Arma la cápsula de técnica de la pre-clase: nombre del ejercicio, cue con
+ * escritura por letra (mismo mecanismo que la frase del cierre, en clave
+ * diurna) y chips "ACTIVA" al final. Se reconstruye una vez por minuto.
+ */
+function buildCapsula(n: Nodes, capsula: CapsulaTecnica): void {
+  n.capEjercicio.classList.remove('apagada', 'aparece');
+  n.capCue.classList.remove('apagada');
+  n.capMusculos.classList.remove('apagada', 'aparece');
+  setText(n.capEjercicio, capsula.ejercicio);
+  quoteLater(function () {
+    n.capEjercicio.classList.add('aparece');
+  }, 60);
+  clear(n.capCue);
+  const letras = appendEscritura(
+    n.capCue,
+    capsula.cue.map(function (s) {
+      return { text: s.text, marcada: s.acento === true };
+    }),
+    'acento'
+  );
+  encenderLetras(letras);
+  clear(n.capMusculos);
+  const etiqueta = document.createElement('span');
+  etiqueta.className = 'capActiva';
+  etiqueta.textContent = 'ACTIVA';
+  n.capMusculos.appendChild(etiqueta);
+  for (const musculo of capsula.musculos) {
+    const chip = document.createElement('span');
+    chip.className = 'capChip';
+    chip.textContent = musculo;
+    n.capMusculos.appendChild(chip);
+  }
+  quoteLater(
+    function () {
+      n.capMusculos.classList.add('aparece');
+    },
+    IGNITE_BASE_MS + letras.length * IGNITE_STEP_MS + IGNITE_AUTOR_EXTRA_MS
+  );
+}
+
+/**
+ * Cápsula de técnica en la pre-clase. Rota cada minuto con la misma elección
+ * barajada y derivada del reloj que las frases (`rotationIndex`): todos los TV
+ * de la sede muestran la misma cápsula. Comparte el pool de timeouts y el flag
+ * de salida con las frases — nunca hay más de una pantalla de transición a la
+ * vista.
+ */
+function paintCapsula(n: Nodes): void {
+  if (capsulas.length === 0) {
+    return;
+  }
+  const idx = rotationIndex(Math.floor(nowCorrected() / QUOTE_ROTATION_MS), capsulas.length);
+  const key = 'capsula:' + idx;
+  if (key === lastCapsulaKey || quoteSaliendo) {
+    return;
+  }
+  const habiaCapsula = lastCapsulaKey !== '' && n.capCue.childNodes.length > 0;
+  lastCapsulaKey = key;
+  const capsula = capsulas[idx];
+  clearQuoteTimeouts();
+  if (!habiaCapsula) {
+    buildCapsula(n, capsula);
+    return;
+  }
+  quoteSaliendo = true;
+  n.capEjercicio.classList.add('apagada');
+  n.capCue.classList.add('apagada');
+  n.capMusculos.classList.add('apagada');
+  quoteLater(function () {
+    quoteSaliendo = false;
+    buildCapsula(n, capsula);
   }, QUOTE_EXIT_MS);
 }
 

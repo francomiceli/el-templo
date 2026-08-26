@@ -116,22 +116,24 @@
              transición (que en clase están ocultas). -->
         <div class="faseLabel" id="faseLabel" aria-hidden="true"></div>
 
-        <!-- Pantalla de transición (reposo Y cierre): un solo diseño oscuro —
-             foto con velo charcoal, frase a la izquierda con letras que se
-             "encienden" (render.ts paintQuote), identidad a la derecha
-             (partenón blanco + reloj + fecha; el cierre suma "SESIÓN
-             COMPLETA"). Diseño validado en .planning/sketches/002 (variante D). -->
-        <div class="pantalla" id="pantallaReposo">
+        <!-- Pantallas de transición: MISMO escenario (la foto del templo),
+             distinta luz. PRE-CLASE = diurna: velo crema claro, cápsula de
+             técnica a la izquierda (render.ts paintCapsula, escritura por
+             letra en clave cálida→tinta), partenón charcoal + reloj + fecha.
+             CIERRE = nocturna: velo charcoal, frase que se enciende
+             (paintQuote), partenón blanco + "SESIÓN COMPLETA". Diseños en
+             .planning/sketches/002 (cierre D) y 003 (pre-clase D). -->
+        <div class="pantalla pantalla--dia" id="pantallaReposo">
           <div class="transFoto" aria-hidden="true"></div>
-          <div class="transGlow" aria-hidden="true"></div>
-          <div class="transChispas" aria-hidden="true"><i></i><i></i><i></i></div>
           <div class="transMarco">
             <div class="transFrase">
-              <div class="quote" id="reposoQuote"></div>
-              <div class="autor" id="reposoAutor"></div>
+              <div class="capKicker">TÉCNICA DEL DÍA</div>
+              <div class="capEjercicio" id="capEjercicio"></div>
+              <div class="quote" id="capCue"></div>
+              <div class="capMusculos" id="capMusculos"></div>
             </div>
             <aside class="transIdentidad">
-              <img class="transLogo" :src="tvParthenonBlanco" alt="El Templo" />
+              <img class="transLogo" :src="tvParthenonCharcoal" alt="El Templo" />
               <div class="relojXl" id="reposoReloj">--:--</div>
               <div class="fechaXl" id="reposoFecha"></div>
             </aside>
@@ -166,13 +168,22 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useTvApi } from 'src/composables/useTvApi';
 import { applyServerNow } from 'src/tv/poll';
-import { renderState, resetRender, setQuotes, tickClock, tickTimer } from 'src/tv/render';
+import {
+  renderState,
+  resetRender,
+  setCapsulas,
+  setQuotes,
+  tickClock,
+  tickTimer,
+} from 'src/tv/render';
+import { CAPSULAS } from 'src/tv/capsulas';
 import { scaleTv } from 'src/tv/scale';
 import { QUOTES } from 'src/utils/pdf/quotes';
 import { createLogger } from 'src/utils/logger';
 import tvLogo from 'src/assets/tv-logo.png';
 import tvBarsOpen from 'src/assets/tv-bars-open.webp';
 import tvParthenonBlanco from 'src/assets/tv-parthenon-blanco.png';
+import tvParthenonCharcoal from 'src/assets/tv-parthenon-charcoal.png';
 import {
   MARBLE_BG_BASE64,
   CINZEL_REGULAR_BASE64,
@@ -402,6 +413,7 @@ async function startScreen(): Promise<void> {
   // olvidar ese cache antes del primer render o un segundo montaje pinta en blanco.
   resetRender();
   setQuotes(QUOTES);
+  setCapsulas(CAPSULAS);
   scaleTv();
   await pollOnce();
   pollId = setInterval(() => {
@@ -477,6 +489,10 @@ onUnmounted(() => {
   --trans-bronce: #d4b896;
   --trans-ambar: #d4a843;
   --trans-apagado: #a89a87;
+  /* Versión diurna (pre-clase, sketch 003): terracotta de la app + apagado
+     más oscuro para leerse sobre el velo crema. */
+  --trans-terracotta: #96593a;
+  --trans-apagado-dia: #6f6455;
   --cinzel: 'Cinzel', Georgia, serif;
   --nunito: 'NunitoSans', 'Segoe UI', system-ui, sans-serif;
   --firma: 'GreatVibes', 'Segoe Script', cursive;
@@ -1651,16 +1667,18 @@ onUnmounted(() => {
   color: var(--trans-crema);
   margin-top: 2.5rem;
 }
+/* Hora y día más grandes (pedido 2026-08-25; la hora va SIN segundero, como
+   todos los relojes de sede — ver clockNodes en render.ts). */
 #tvScreenRoot #pantallaReposo .relojXl {
-  font-size: 6rem;
+  font-size: 6.6rem;
 }
 #tvScreenRoot #pantallaCierre .relojXl {
-  font-size: 3.4rem;
+  font-size: 4.6rem;
 }
 #tvScreenRoot .pantalla .fechaXl {
   font-weight: 700;
   letter-spacing: 0.32em;
-  font-size: 1.1rem;
+  font-size: 1.5rem;
   color: var(--trans-apagado);
   margin-top: 1.1rem;
 }
@@ -1669,7 +1687,7 @@ onUnmounted(() => {
 #tvScreenRoot .cierreTitulo {
   font-family: var(--cinzel);
   font-weight: 700;
-  font-size: 2rem;
+  font-size: 2.4rem;
   line-height: 1.1;
   color: var(--trans-bronce);
   white-space: nowrap;
@@ -1696,7 +1714,8 @@ onUnmounted(() => {
 #tvScreenRoot .pantalla .quote {
   font-family: var(--cinzel);
   font-weight: 700;
-  font-size: 3.2rem;
+  /* +20% de tipografía en ambas pantallas (pedido 2026-08-25). */
+  font-size: 3.85rem;
   line-height: 1.5;
   color: var(--trans-crema);
   text-shadow: 0 0.06em 0.5em rgba(0, 0, 0, 0.6);
@@ -1754,7 +1773,7 @@ onUnmounted(() => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.3em;
-  font-size: 1.15rem;
+  font-size: 1.4rem;
   color: var(--trans-apagado);
   margin-top: 2.2rem;
   opacity: 0;
@@ -1802,6 +1821,168 @@ onUnmounted(() => {
   color: var(--trans-bronce);
 }
 #tvScreenRoot.tv-sobrio .pantalla .autor {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── Pre-clase diurna (`.pantalla--dia`, sketch 003 variante D): la MISMA foto
+   con velo CREMA claro (más denso tras el texto), cápsula de técnica a la
+   izquierda con escritura por letra en clave cálida→tinta, y la identidad en
+   charcoal (partenón oscuro + reloj + fecha con halo crema, porque la zona del
+   león es la más transparente del velo). Sin glow ni chispas: el teatro es del
+   cierre. ── */
+#tvScreenRoot .pantalla--dia {
+  background: var(--cream);
+  color: var(--navy);
+}
+#tvScreenRoot .pantalla--dia .transFoto {
+  background:
+    linear-gradient(
+      100deg,
+      rgba(242, 236, 226, 0.9) 0%,
+      rgba(242, 236, 226, 0.82) 42%,
+      rgba(240, 232, 220, 0.66) 68%,
+      rgba(238, 229, 214, 0.55) 100%
+    ),
+    var(--trans-foto, none) center / cover no-repeat;
+}
+#tvScreenRoot .capKicker {
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  font-size: 1.45rem;
+  color: var(--gold);
+  margin-bottom: 1.6rem;
+}
+#tvScreenRoot .capEjercicio {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 4.3rem;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--navy);
+  margin-bottom: 1.8rem;
+  opacity: 0;
+  transform: translateY(0.3em);
+}
+#tvScreenRoot .capEjercicio.aparece {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.55s ease,
+    transform 0.55s ease;
+}
+/* El cue reusa `.quote` (escritura por letra) pero en Nunito y tinta oscura,
+   con los keyframes diurnos. Sin sombra: el velo claro no la necesita. */
+#tvScreenRoot .pantalla--dia .quote {
+  font-family: var(--nunito);
+  font-size: 2.9rem;
+  line-height: 1.55;
+  color: var(--navy);
+  text-shadow: none;
+  max-width: 92%;
+}
+#tvScreenRoot .pantalla--dia .quote .letra.prendida {
+  animation-name: escribeClaro;
+}
+#tvScreenRoot .pantalla--dia .quote .palabra.acento .letra.prendida {
+  animation-name: escribeAcento;
+}
+@keyframes escribeClaro {
+  0% {
+    opacity: 0;
+    color: #c9a26b;
+    text-shadow: 0 0 0.3em rgba(212, 168, 67, 0);
+  }
+  20% {
+    opacity: 1;
+    color: #a97c4a;
+    text-shadow: 0 0 0.26em rgba(212, 168, 67, 0.7);
+  }
+  100% {
+    opacity: 1;
+    color: var(--navy);
+    text-shadow: none;
+  }
+}
+@keyframes escribeAcento {
+  0% {
+    opacity: 0;
+    color: #d8a15e;
+    text-shadow: 0 0 0.3em rgba(212, 168, 67, 0);
+  }
+  20% {
+    opacity: 1;
+    color: #c07a3f;
+    text-shadow: 0 0 0.3em rgba(212, 168, 67, 0.8);
+  }
+  100% {
+    opacity: 1;
+    color: var(--trans-terracotta);
+    text-shadow: none;
+  }
+}
+/* Chips "ACTIVA": render.ts arma `.capActiva` + `.capChip` por cápsula. */
+#tvScreenRoot .capMusculos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2.6rem;
+  opacity: 0;
+}
+#tvScreenRoot .capMusculos.aparece {
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+#tvScreenRoot .capActiva {
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  font-size: 1.2rem;
+  color: var(--trans-apagado-dia);
+  margin-right: 1.2rem;
+}
+#tvScreenRoot .capChip {
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 1.4rem;
+  color: var(--navy);
+  border: 1px solid var(--muted);
+  background: rgba(176, 141, 110, 0.1);
+  border-radius: 999rem;
+  padding: 0.5rem 1.2rem;
+  margin-right: 0.85rem;
+  margin-bottom: 0.6rem;
+}
+/* Identidad diurna: tinta y halo crema (apoyo local sobre la foto). */
+#tvScreenRoot .pantalla--dia .relojXl {
+  color: var(--navy);
+  text-shadow:
+    0 0 0.9rem rgba(242, 236, 226, 0.95),
+    0 0 2.2rem rgba(242, 236, 226, 0.8);
+}
+#tvScreenRoot .pantalla--dia .fechaXl {
+  color: var(--trans-apagado-dia);
+  text-shadow:
+    0 0 0.9rem rgba(242, 236, 226, 0.95),
+    0 0 2.2rem rgba(242, 236, 226, 0.8);
+}
+/* Salida de la cápsula al rotar (mismo gesto que la frase). */
+#tvScreenRoot .capEjercicio.apagada,
+#tvScreenRoot .capMusculos.apagada {
+  opacity: 0;
+  transform: translateY(-0.4em);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s ease;
+}
+/* Modo sobrio: la cápsula queda estática con los colores finales. */
+#tvScreenRoot.tv-sobrio .pantalla--dia .quote .letra {
+  color: var(--navy);
+}
+#tvScreenRoot.tv-sobrio .pantalla--dia .quote .palabra.acento .letra {
+  color: var(--trans-terracotta);
+}
+#tvScreenRoot.tv-sobrio .capEjercicio,
+#tvScreenRoot.tv-sobrio .capMusculos {
   opacity: 1;
   transform: none;
 }
