@@ -117,7 +117,6 @@
           <div class="col-6">
             <q-btn
               class="tv-btn full-width"
-              icon="wb_sunny"
               label="FLEXIBILIDAD - INICIO"
               color="secondary"
               :outline="hasState"
@@ -140,7 +139,6 @@
           <div class="col-6">
             <q-btn
               class="tv-btn full-width"
-              icon="nights_stay"
               label="FLEXIBILIDAD - FINAL"
               color="secondary"
               :outline="!isClosingScreen"
