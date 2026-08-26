@@ -141,8 +141,9 @@
         </div>
         <div class="pantalla" id="pantallaCierre">
           <div class="transFoto" aria-hidden="true"></div>
+          <!-- (Las chispas se retiraron por perf en el TV real, 2026-08-26;
+               el glow quedó estático por el mismo motivo.) -->
           <div class="transGlow" aria-hidden="true"></div>
-          <div class="transChispas" aria-hidden="true"><i></i><i></i><i></i></div>
           <div class="transMarco">
             <div class="transFrase">
               <div class="quote" id="cierreQuote"></div>
@@ -1548,7 +1549,7 @@ onUnmounted(() => {
 /* ── Pantalla de transición (reposo / cierre): overlay oscuro del marco 16:9.
    Un solo diseño para las dos (sketch 002, variante D): foto de templo con velo
    charcoal, frase Cinzel a la izquierda cuyas letras "se encienden" (paintQuote
-   arma spans `.palabra > .letra`), identidad a la derecha (partenón blanco,
+   arma spans `.palabra`, un nodo por palabra), identidad a la derecha (partenón blanco,
    reloj, fecha; el cierre suma "SESIÓN COMPLETA").
 
    Presupuesto de perf (incidente del barrido dórico, f655466c): el encendido
@@ -1569,7 +1570,7 @@ onUnmounted(() => {
 }
 #tvScreenRoot .pantalla.visible {
   display: block;
-  animation: transEntra 0.9s ease;
+  animation: transEntra 0.6s ease;
 }
 /* Fade de salida (render.ts setVisible): la pantalla sigue en el layout
    mientras su opacity baja, y recién después se oculta — toda transición
@@ -1577,7 +1578,18 @@ onUnmounted(() => {
 #tvScreenRoot .pantalla.visible.saliendo {
   animation: none;
   opacity: 0;
-  transition: opacity 0.6s ease;
+  transition: opacity 0.5s ease;
+}
+/* Congelar TODO el movimiento interno de la pantalla que se va: durante el
+   crossfade solo paga el fade del contenedor (UAT TV 2026-08-26). */
+#tvScreenRoot .pantalla.saliendo .palabra,
+#tvScreenRoot .pantalla.saliendo .quote,
+#tvScreenRoot .pantalla.saliendo .autor,
+#tvScreenRoot .pantalla.saliendo .cierreTitulo,
+#tvScreenRoot .pantalla.saliendo .capMusculos,
+#tvScreenRoot .pantalla.saliendo .capChip {
+  animation: none !important;
+  transition: none !important;
 }
 @keyframes transEntra {
   from {
@@ -1607,7 +1619,10 @@ onUnmounted(() => {
     var(--trans-foto, none) center / cover no-repeat;
 }
 
-/* Glow ámbar que respira — SOLO opacity. */
+/* Glow ámbar ESTÁTICO (UAT TV 2026-08-26): el respirado era una animación
+   infinita sobre 3/4 de pantalla y las chispas otros tres loops permanentes —
+   en el hardware del TV su suma pesaba. El glow quieto conserva la calidez;
+   las chispas se retiraron. */
 #tvScreenRoot .transGlow {
   position: absolute;
   left: -12%;
@@ -1616,60 +1631,9 @@ onUnmounted(() => {
   height: 85%;
   background: radial-gradient(
     ellipse at 28% 82%,
-    rgba(212, 168, 67, 0.12) 0%,
+    rgba(212, 168, 67, 0.1) 0%,
     rgba(212, 168, 67, 0) 60%
   );
-  animation: transRespira 6s ease-in-out infinite;
-}
-@keyframes transRespira {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/* Chispas: 3 puntos subiendo, área de repintado mínima. El recorrido va en rem
-   (marco de 56.25rem de alto), no en vh: el frame no siempre llena la ventana. */
-#tvScreenRoot .transChispas i {
-  position: absolute;
-  bottom: -1rem;
-  width: 0.24rem;
-  height: 0.24rem;
-  border-radius: 50%;
-  background: var(--trans-ambar);
-  opacity: 0;
-  animation: transChispa 9s linear infinite;
-}
-#tvScreenRoot .transChispas i:nth-child(1) {
-  left: 10%;
-}
-#tvScreenRoot .transChispas i:nth-child(2) {
-  left: 26%;
-  animation-delay: 3s;
-  animation-duration: 11s;
-}
-#tvScreenRoot .transChispas i:nth-child(3) {
-  left: 41%;
-  animation-delay: 6s;
-}
-@keyframes transChispa {
-  0% {
-    transform: translateY(0);
-    opacity: 0;
-  }
-  8% {
-    opacity: 0.4;
-  }
-  60% {
-    opacity: 0.18;
-  }
-  100% {
-    transform: translateY(-44rem) translateX(1.7rem);
-    opacity: 0;
-  }
 }
 
 /* Layout: frase (izquierda, ~60%) | identidad (derecha, ~40%), sin divisor. */
@@ -1772,16 +1736,16 @@ onUnmounted(() => {
   color: var(--trans-crema);
   text-shadow: 0 0.06em 0.5em rgba(0, 0, 0, 0.6);
 }
+/* El encendido va POR PALABRA (un nodo animado por palabra, no por letra):
+   decisión de perf del UAT en el TV real, 2026-08-26. */
 #tvScreenRoot .pantalla .quote .palabra {
   white-space: nowrap;
-}
-#tvScreenRoot .pantalla .quote .letra {
   opacity: 0;
 }
-#tvScreenRoot .pantalla .quote .letra.prendida {
-  animation: transPrende 1.1s ease forwards;
+#tvScreenRoot .pantalla .quote .palabra.prendida {
+  animation: transPrende 0.8s ease forwards;
 }
-#tvScreenRoot .pantalla .quote .palabra.oro .letra.prendida {
+#tvScreenRoot .pantalla .quote .palabra.oro.prendida {
   animation-name: transPrendeOro;
 }
 @keyframes transPrende {
@@ -1793,7 +1757,7 @@ onUnmounted(() => {
   18% {
     opacity: 1;
     color: #ffd9a0;
-    text-shadow: 0 0 0.3em rgba(255, 157, 77, 0.85);
+    text-shadow: 0 0 0.22em rgba(255, 157, 77, 0.85);
   }
   100% {
     opacity: 1;
@@ -1810,7 +1774,7 @@ onUnmounted(() => {
   18% {
     opacity: 1;
     color: #ffe2ae;
-    text-shadow: 0 0 0.34em rgba(255, 170, 60, 0.9);
+    text-shadow: 0 0 0.24em rgba(255, 170, 60, 0.9);
   }
   100% {
     opacity: 1;
@@ -1867,12 +1831,12 @@ onUnmounted(() => {
   opacity: 1;
   letter-spacing: 0.18em;
 }
-#tvScreenRoot.tv-sobrio .pantalla .quote .letra {
+#tvScreenRoot.tv-sobrio .pantalla .quote .palabra {
   animation: none;
   opacity: 1;
   color: var(--trans-crema);
 }
-#tvScreenRoot.tv-sobrio .pantalla .quote .palabra.oro .letra {
+#tvScreenRoot.tv-sobrio .pantalla .quote .palabra.oro {
   color: var(--trans-bronce);
 }
 #tvScreenRoot.tv-sobrio .pantalla .autor {
@@ -1909,7 +1873,7 @@ onUnmounted(() => {
   margin-bottom: 1.6rem;
 }
 /* El TÍTULO es el que se escribe por letra (coreografía 2026-08-26):
-   render.ts lo arma con `.palabra > .letra` y los keyframes diurnos. */
+   render.ts lo arma con spans `.palabra` (uno por palabra) y los keyframes diurnos. */
 #tvScreenRoot .capEjercicio {
   font-family: var(--cinzel);
   font-weight: 700;
@@ -1921,12 +1885,10 @@ onUnmounted(() => {
 }
 #tvScreenRoot .capEjercicio .palabra {
   white-space: nowrap;
-}
-#tvScreenRoot .capEjercicio .letra {
   opacity: 0;
 }
-#tvScreenRoot .capEjercicio .letra.prendida {
-  animation: escribeClaro 1.1s ease forwards;
+#tvScreenRoot .capEjercicio .palabra.prendida {
+  animation: escribeClaro 0.8s ease forwards;
 }
 /* El cue entra como BLOQUE (fade + subida corta) cuando el título terminó de
    escribirse — el gesto que antes tenía el título. Nunito, tinta oscura,
@@ -1960,28 +1922,11 @@ onUnmounted(() => {
   20% {
     opacity: 1;
     color: #a97c4a;
-    text-shadow: 0 0 0.26em rgba(212, 168, 67, 0.7);
+    text-shadow: 0 0 0.2em rgba(212, 168, 67, 0.7);
   }
   100% {
     opacity: 1;
     color: var(--navy);
-    text-shadow: none;
-  }
-}
-@keyframes escribeAcento {
-  0% {
-    opacity: 0;
-    color: #d8a15e;
-    text-shadow: 0 0 0.3em rgba(212, 168, 67, 0);
-  }
-  20% {
-    opacity: 1;
-    color: #c07a3f;
-    text-shadow: 0 0 0.3em rgba(212, 168, 67, 0.8);
-  }
-  100% {
-    opacity: 1;
-    color: var(--trans-terracotta);
     text-shadow: none;
   }
 }
@@ -2053,7 +1998,7 @@ onUnmounted(() => {
     transform 0.7s ease;
 }
 /* Modo sobrio: la cápsula queda estática con los colores finales. */
-#tvScreenRoot.tv-sobrio .capEjercicio .letra {
+#tvScreenRoot.tv-sobrio .capEjercicio .palabra {
   animation: none;
   opacity: 1;
 }
