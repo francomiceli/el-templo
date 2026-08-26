@@ -1636,7 +1636,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 2rem;
+  /* Asimétrico: corre el contenido lejos del borde derecho para equilibrar
+     con los 6rem que la frase guarda del borde izquierdo. */
+  padding: 2rem 6rem 2rem 2rem;
 }
 /* La columna de identidad se distribuye en vertical con aire entre elementos
    (pedido 2026-08-25): logo arriba, [título de cierre], reloj y fecha — los
@@ -1674,6 +1676,20 @@ onUnmounted(() => {
   margin-top: 1.7rem;
 }
 
+/* Identidad nocturna: halo OSCURO espejo del crema diurno — despega logo,
+   título, reloj y fecha de la zona translúcida del velo (el relieve). Todo
+   estático: text-shadow fijo y drop-shadow que se rasteriza una vez. */
+#tvScreenRoot #pantallaCierre .transLogo {
+  filter: drop-shadow(0 0 0.9rem rgba(26, 23, 20, 0.95))
+    drop-shadow(0 0 2.2rem rgba(26, 23, 20, 0.8));
+}
+#tvScreenRoot #pantallaCierre .relojXl,
+#tvScreenRoot #pantallaCierre .fechaXl {
+  text-shadow:
+    0 0 0.9rem rgba(26, 23, 20, 0.95),
+    0 0 2.2rem rgba(26, 23, 20, 0.8);
+}
+
 /* "SESIÓN COMPLETA": estático (UAT TV 2026-08-26 — la columna de identidad
    entera aparece dibujada desde el principio, sin transición propia; el
    tracking-in que tenía se retiró por perf). */
@@ -1686,6 +1702,9 @@ onUnmounted(() => {
   white-space: nowrap;
   margin: 0 0 5rem;
   letter-spacing: 0.18em;
+  text-shadow:
+    0 0 0.9rem rgba(26, 23, 20, 0.95),
+    0 0 2.2rem rgba(26, 23, 20, 0.8);
 }
 
 /* Frase: Cinzel crema, remates `.oro` en bronce. La sombra de legibilidad final
@@ -1888,7 +1907,12 @@ onUnmounted(() => {
     opacity 0.5s ease,
     transform 0.55s cubic-bezier(0.2, 0.7, 0.25, 1);
 }
-/* Identidad diurna: tinta y halo crema (apoyo local sobre la foto). */
+/* Identidad diurna: tinta y halo crema (apoyo local sobre la foto). El logo
+   lleva el mismo halo vía drop-shadow ESTÁTICO (se rasteriza una vez). */
+#tvScreenRoot .pantalla--dia .transLogo {
+  filter: drop-shadow(0 0 0.9rem rgba(242, 236, 226, 0.95))
+    drop-shadow(0 0 2.2rem rgba(242, 236, 226, 0.8));
+}
 #tvScreenRoot .pantalla--dia .relojXl {
   color: var(--navy);
   text-shadow:
