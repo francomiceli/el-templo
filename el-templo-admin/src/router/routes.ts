@@ -7,6 +7,7 @@ import {
   PAGOS_ROLES,
   DUENO_ROLES,
   TV_CONTROL_ROLES,
+  PARTNERS_ROLES,
 } from 'src/config/templo-config';
 
 /**
@@ -118,6 +119,14 @@ const routes: RouteRecordRaw[] = [
         // con el nav (Plan 03) y la API (Plan 01, PROGRAMAS_ROLES). Un gestion
         // que navega a /programas por URL directa es rebotado por el guard.
         meta: { allowedRoles: DUENO_ROLES },
+      },
+      {
+        // Partners (fase 179, D-20): CRUD de comercios/marcas con código de
+        // referido propio. El nav solo oculta — el gate real es la API
+        // (MEMBER_LIFECYCLE_ROLES en referral-partners/admin-routes.ts).
+        path: 'partners',
+        component: () => import('pages/PartnersPage.vue'),
+        meta: { allowedRoles: PARTNERS_ROLES },
       },
       {
         path: 'caja',

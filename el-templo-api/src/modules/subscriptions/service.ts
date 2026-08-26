@@ -49,6 +49,7 @@ import type {
   PromoListItem,
   CreatePromoInput,
   UpdatePromoInput,
+  AuraDiscountTier,
 } from "./types";
 import { isOnlinePlan, categoryGroup, excludedFromReferrals } from "./types";
 import { resolvePlanPrice, readModuleColumns } from "./pricing";
@@ -70,6 +71,7 @@ import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
 import { ReferralService } from "../referrals/service";
 import { NotificationService } from "../notifications/service";
+import { PartnerReferralService } from "../referral-partners/service";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -627,6 +629,149 @@ export class SubscriptionService {
       percent,
       amount,
     );
+  }
+
+  // ── Partners (fase 179) ────────────────────────────────────────────────
+  // Helper GEMELO del bloque de Referidos de arriba, deliberadamente
+  // separado: el CONTEXT de la fase prohíbe reusar o modificar
+  // qualifyReferralOnCharge/computePriceWithReferralDiscount/
+  // recordReferralCreditOnCharge. Este bloque cuelga la cualificación del
+  // vínculo `partner_referrals` y el alta de la comisión (D-11) del mismo
+  // punto "membresía confirmada" que usan los referidos, pero con sus
+  // propias reglas (D-17): dispara con `pricePaid>0` de CUALQUIER categoría
+  // de plan (sin `excludedFromReferrals`) y sin excluir el alta prorrateada
+  // (`prorateToMonthEnd`) — un alta prorrateada sigue siendo una venta real.
+  //
+  // Reconciliación tren v6.0: los charge-paths reciben `ctx` (fase 172), así
+  // que el tenant sale SIEMPRE de ahí — se eliminaron las derivaciones por
+  // sede-del-cobro/PK-de-la-sub que la fase traía de su base pre-tenancy.
+
+  /**
+   * Candidato de descuento de partner (D-09/D-10/D-17) — envoltorio de
+   * `computePartnerDiscountCandidate` (lectura pura,
+   * `referral-partners/service.ts`) que aplica las exclusiones propias del
+   * DESCUENTO (a diferencia de la comisión de `qualifyPartnerOnCharge`, que
+   * NO las lleva — D-17): `excludedFromReferrals(planCategory)` ('especial'
+   * + 'paquete') y `prorateToMonthEnd` (el proporcional de fin de mes ya ES
+   * el precio final, sin descuento encima — mismo criterio que el bloque de
+   * referidos). `null` en cualquiera de los dos casos, sin llegar a
+   * consultar la tabla.
+   */
+  private async resolvePartnerDiscountCandidate(
+    ctx: TenantContext,
+    userId: number,
+    planCategory: PlanCategory,
+    prorateToMonthEnd: boolean | undefined,
+  ): Promise<{ linkId: number; percent: number } | null> {
+    if (excludedFromReferrals(planCategory) || prorateToMonthEnd === true) {
+      return null;
+    }
+    return new PartnerReferralService(
+      this.db,
+      this.log,
+    ).computePartnerDiscountCandidate(ctx, userId);
+  }
+
+  /**
+   * Consume el beneficio de descuento de partner tras el cargo, con el
+   * candidato/ganador ya resueltos ANTES del filter de pricing por
+   * `resolvePartnerDiscountCandidate` (D-09/D-10/D-20). Best-effort: el
+   * cobro ya ocurrió, un fallo acá jamás lo revierte (T-179-23, mismo
+   * criterio que `qualifyPartnerOnCharge`).
+   *
+   * - `won=true`: el descuento de partner efectivamente redujo `pricePaid`
+   *   → `applied_reason='aplicado'` con el `percent`/`amount` ganadores.
+   * - `won=false` pero el cargo cobró (`pricePaid>0`): el beneficio se
+   *   consume IGUAL — la primera cuota ya pasó, aunque haya sido AURA quien
+   *   dio el descuento mayor → `applied_reason='perdio_vs_aura'`,
+   *   `applied_percent=0` (D-20).
+   * - `won=false` y `pricePaid<=0`: no se consume — un cargo 100%
+   *   bonificado no gasta "la primera cuota" real del socio (mismo umbral
+   *   que referidos/comisión).
+   * - Sin candidato (`candidate === null`): no-op, nada que consumir.
+   */
+  private async consumePartnerBenefitAfterCharge(
+    ctx: TenantContext,
+    params: {
+      userId: number;
+      subscriptionId: number;
+      pricePaid: number;
+      candidate: { linkId: number; percent: number } | null;
+      won: boolean;
+      wonPercent: number | null;
+      wonAmount: number | null;
+    },
+  ): Promise<void> {
+    const {
+      userId,
+      subscriptionId,
+      pricePaid,
+      candidate,
+      won,
+      wonPercent,
+      wonAmount,
+    } = params;
+    if (!candidate) return;
+    if (!won && pricePaid <= 0) return;
+
+    try {
+      await new PartnerReferralService(
+        this.db,
+        this.log,
+      ).consumePartnerBenefitOnCharge(
+        ctx,
+        userId,
+        subscriptionId,
+        won
+          ? {
+              percent: wonPercent ?? 0,
+              amount: wonAmount ?? 0,
+              reason: "aplicado" as const,
+            }
+          : { percent: 0, amount: 0, reason: "perdio_vs_aura" as const },
+      );
+    } catch (err: unknown) {
+      this.log.warn(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          userId,
+          subscriptionId,
+        },
+        "partner: consumo del beneficio de descuento falló (best-effort, el cobro no se revierte)",
+      );
+    }
+  }
+
+  /**
+   * Cualifica el vínculo de partner del payer y da de alta su comisión
+   * (D-11), cuando el cargo efectivamente cobra (`pricePaid>0` — mismo
+   * umbral que referidos: un mes 100% bonificado no es una venta). Best-
+   * effort: la comisión es contabilidad de negocio, nunca puede romper un
+   * cobro ya efectuado (T-179-23).
+   */
+  private async qualifyPartnerOnCharge(
+    ctx: TenantContext,
+    payerUserId: number,
+    pricePaid: number,
+    subscriptionId: number,
+  ): Promise<void> {
+    if (pricePaid <= 0) return;
+    try {
+      await new PartnerReferralService(this.db, this.log).qualifyAndCommission(
+        ctx,
+        payerUserId,
+        subscriptionId,
+      );
+    } catch (err: unknown) {
+      this.log.warn(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          payerUserId,
+          subscriptionId,
+        },
+        "partner: cualificación/comisión falló (best-effort, el cobro no se revierte)",
+      );
+    }
   }
 
   /**
@@ -1786,6 +1931,27 @@ export class SubscriptionService {
           }
         : undefined;
 
+    // ── Partners (fase 179, D-09/D-10/D-20) — candidato ANTES del filter ──
+    // Lectura pura (Pitfall 6): acá todavía no se sabe si el partner gana.
+    // Solo participa en la rama de cálculo normal: sin prorrateo (el helper
+    // lo excluye, D-17) y sin override (paridad con el diseño original de la
+    // fase, que resolvía el candidato dentro del else de cálculo normal).
+    // Su percent viaja al filter como `competingDiscountPercent`: el módulo
+    // AURA valida igual que siempre (categoría/tier inválido → 400 gane
+    // quien gane, D-10) pero NO gasta puntos si el competidor iguala o
+    // supera su tier (empate a favor del partner — el socio conserva sus
+    // puntos AURA para llegar al mismo precio final, D-20).
+    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
+      null;
+    if (override === undefined) {
+      partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+        ctx,
+        userId,
+        plan.planCategory,
+        input.prorateToMonthEnd,
+      );
+    }
+
     // Boarding pass (precio Zero) y descuento AURA son MÓDULO
     // (`templo-gamification`) — resolvePlanPrice dispara el filter
     // `pricing.adjust`, que las aplica leyendo `moduleInput` (poblado por
@@ -1803,6 +1969,7 @@ export class SubscriptionService {
       resolvePriceType: (t) => this.resolvePriceType(t),
       basePriceFor: (t) => this.getBasePrice(plan, t),
       moduleInput: input.moduleInput ?? {},
+      competingDiscountPercent: partnerBenefitCandidate?.percent ?? null,
       override,
       prorate,
     });
@@ -1822,6 +1989,40 @@ export class SubscriptionService {
     const priceOverrideReason = resolved.priceOverrideReason;
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
+
+    // ── Partners (fase 179, D-09/D-10/D-20) — decisión POST-filter ──
+    // El candidato viajó al filter como `competingDiscountPercent`. Si el
+    // módulo NO aplicó AURA (no se pidió, o el partner igualó/superó el
+    // tier — empate a favor del partner), el candidato gana y su descuento
+    // se aplica acá sobre el precio base. Si el módulo SÍ aplicó AURA, el
+    // partner perdió la comparación (D-20 — se consumirá igual como
+    // 'perdio_vs_aura' tras el cobro). Con boarding pass (beneficio
+    // exclusivo del módulo) el candidato no participa — mismo alcance que
+    // la rama "cálculo normal" del diseño original de la fase.
+    let partnerBenefitWon = false;
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
+    if (resolved.exclusive) {
+      partnerBenefitCandidate = null;
+    }
+    if (partnerBenefitCandidate !== null && auraDiscountPercent === null) {
+      partnerBenefitWon = true;
+      const discountAmount = Math.floor(
+        resolved.basePrice * (partnerBenefitCandidate.percent / 100),
+      );
+      pricePaid = resolved.basePrice - discountAmount;
+      partnerDiscountPercent = partnerBenefitCandidate.percent;
+      partnerDiscountAmount = discountAmount;
+      this.log.info(
+        {
+          userId,
+          partnerLinkId: partnerBenefitCandidate.linkId,
+          partnerPercent: partnerBenefitCandidate.percent,
+          auraDiscountPercent,
+        },
+        "partner: descuento de partner ganó (o AURA no estaba en juego) — no se gastaron puntos AURA (D-10/D-20)",
+      );
+    }
 
     // ── Referidos (fase 157, D-20/D-21) ──
     // Orden canónico: (1) el precio ya está resuelto (incl. auraSpend); (2) si
@@ -1939,6 +2140,10 @@ export class SubscriptionService {
             auraDiscountPercent,
             referralDiscountPercent,
             referralDiscountAmount,
+            // Fase 179 (D-09): descuento de partner materializado, null cuando
+            // no aplicó (no había candidato, o AURA ganó la comparación D-10).
+            partnerDiscountPercent,
+            partnerDiscountAmount,
             boardingPassUsed,
             priceOverrideAmount,
             priceOverrideReason,
@@ -2267,6 +2472,27 @@ export class SubscriptionService {
       referralDiscountPercent ?? 0,
       referralDiscountAmount ?? 0,
     );
+
+    // Partners (D-11/D-17): a diferencia del bloque de referidos de arriba,
+    // dispara con pricePaid>0 de CUALQUIER categoría (paquete/especial
+    // incluidos) y NO excluye el alta prorrateada — un alta prorrateada
+    // sigue siendo una venta real.
+    await this.qualifyPartnerOnCharge(ctx, userId, pricePaid, subscriptionId);
+
+    // Partners (D-09/D-10/D-20): consume el beneficio de descuento, con el
+    // candidato/ganador ya resueltos alrededor del filter de pricing. No-op
+    // si no hubo candidato (`resolvePartnerDiscountCandidate` corre solo en
+    // la rama de cálculo normal de precio, con las mismas exclusiones D-17
+    // que referidos).
+    await this.consumePartnerBenefitAfterCharge(ctx, {
+      userId,
+      subscriptionId,
+      pricePaid,
+      candidate: partnerBenefitCandidate,
+      won: partnerBenefitWon,
+      wonPercent: partnerDiscountPercent,
+      wonAmount: partnerDiscountAmount,
+    });
 
     this.log.info(
       {
@@ -3660,6 +3886,8 @@ export class SubscriptionService {
         netAmount: null,
         referralDiscountPercent: 0,
         referralDiscountAmount: 0,
+        partnerDiscountPercent: 0,
+        partnerDiscountAmount: 0,
         expiryDate: sub.endDate ?? undefined,
       };
     }
@@ -3670,6 +3898,35 @@ export class SubscriptionService {
       0,
       targetPlan.priceRegular - proration.remainingValue,
     );
+
+    // ── Partners (fase 179, D-09/D-10/D-17/D-20): preview parity con
+    // changePlanNow ──
+    // Deviation (Rule 2) del plan 179-14: este preview (usado por el bloque
+    // "Cambio ahora, reinicia vencimiento" de AssignPlanDialog.vue) no tenía
+    // el descuento de partner — el guard de las 4 charge-paths + getPricingPreview
+    // (179-06/179-07) no lo cubría, así que el admin veía un neto sin
+    // descuento que el cobro real sí aplicaba. changePlanNow NO tiene bloque
+    // AURA propio: el candidato se aplica DIRECTO sobre el neto post-prorrateo,
+    // mismo punto donde referidos aplica el suyo más abajo (orden idéntico al
+    // de changePlanNow: partner primero, referido sobre el remanente).
+    let partnerDiscountPercent = 0;
+    let partnerDiscountAmount = 0;
+    {
+      // Reconciliación tren v6.0: el tenant sale del `ctx` (fase 172), no de
+      // la sede de la sub como en la base pre-tenancy de la fase.
+      const partnerCandidate = await this.resolvePartnerDiscountCandidate(
+        ctx,
+        userId,
+        targetPlan.planCategory,
+        undefined,
+      );
+      if (partnerCandidate) {
+        const amount = Math.floor(netAmount * (partnerCandidate.percent / 100));
+        partnerDiscountPercent = partnerCandidate.percent;
+        partnerDiscountAmount = amount;
+        netAmount -= amount;
+      }
+    }
 
     // ── Referidos: preview parity con changePlanNow ──
     // El cobro real descuenta referidos sobre el neto post-prorrateo (D-20/D-21,
@@ -3702,6 +3959,8 @@ export class SubscriptionService {
       netAmount,
       referralDiscountPercent,
       referralDiscountAmount,
+      partnerDiscountPercent,
+      partnerDiscountAmount,
       // Surfaced so the admin UI can pre-fill the "mantener vencimiento" option
       // (new plan inherits this expiry) without a second round-trip.
       expiryDate: sub.endDate ?? undefined,
@@ -3891,7 +4150,36 @@ export class SubscriptionService {
     // Referidos (fase 157): materialización del descuento en columnas nuevas.
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
+    // Fase 179 (D-09/D-10/D-20): candidato de descuento de partner.
+    // changePlanNow NO tiene bloque de descuento AURA propio (a diferencia
+    // de assignPlan/changePlanAfterCurrent) — sin competidor, el candidato
+    // se aplica directo sobre el neto si existe (ver bloque post-else abajo).
+    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
+      null;
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
 
+    // ── Partners (fase 179, D-09/D-10/D-20) ──
+    // Sin bloque AURA en este método (`supports.discounts: false`, T-176-24),
+    // el candidato se aplica DIRECTO sobre el neto post-prorrateo (mismo
+    // punto donde referidos aplica el suyo, ver bloque de abajo) — no hay
+    // ganador a decidir. Los guards D-17 (excludedFromReferrals +
+    // prorateToMonthEnd) los aplica el helper; el tenant sale del `ctx`
+    // (tren v6.0, fase 172).
+    partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+      ctx,
+      userId,
+      targetPlan.planCategory,
+      input.prorateToMonthEnd,
+    );
+    if (partnerBenefitCandidate) {
+      const partnerDiscountAmountCalc = Math.floor(
+        netAmount * (partnerBenefitCandidate.percent / 100),
+      );
+      netAmount -= partnerDiscountAmountCalc;
+      partnerDiscountPercent = partnerBenefitCandidate.percent;
+      partnerDiscountAmount = partnerDiscountAmountCalc;
+    }
     // ── Referidos (fase 157, D-20/D-21) ──
     // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
     // neto post-prorrateo. resolvedOverrideAmount conserva el neto de prorrateo;
@@ -4044,6 +4332,10 @@ export class SubscriptionService {
               input.priceOverrideAmount === 0 ? "bonificada" : "paga",
             referralDiscountPercent,
             referralDiscountAmount,
+            // Fase 179 (D-09): descuento de partner materializado (ver bloque
+            // de arriba — sin bloque AURA en este método, se aplica directo).
+            partnerDiscountPercent,
+            partnerDiscountAmount,
             boardingPassUsed,
             classesRemaining,
             classesBudget: classesRemaining,
@@ -4180,6 +4472,28 @@ export class SubscriptionService {
         referralDiscountPercent ?? 0,
         referralDiscountAmount ?? 0,
       );
+
+      // Partners (D-11/D-17): dispara con netAmount>0 de CUALQUIER categoría
+      // y NO excluye el alta prorrateada — un cambio de plan cobrado ahora
+      // sigue siendo una venta real.
+      await this.qualifyPartnerOnCharge(
+        ctx,
+        userId,
+        netAmount,
+        newSubscriptionId,
+      );
+
+      // Partners (D-09/D-10/D-20): consume el beneficio de descuento (sin
+      // bloque AURA en este método, `won` es simplemente "había candidato").
+      await this.consumePartnerBenefitAfterCharge(ctx, {
+        userId,
+        subscriptionId: newSubscriptionId,
+        pricePaid: netAmount,
+        candidate: partnerBenefitCandidate,
+        won: partnerBenefitCandidate !== null,
+        wonPercent: partnerDiscountPercent,
+        wonAmount: partnerDiscountAmount,
+      });
 
       // Auto-migrate member from virtual branch to subscription's physical branch
       const [memberForMigration] = await this.db
@@ -4398,6 +4712,30 @@ export class SubscriptionService {
       throw new NotFoundError("Miembro no encontrado");
     }
 
+    // ── Partners (fase 179, D-09/D-10/D-20) — candidato ANTES del filter ──
+    // Mismo esquema que assignPlan: lectura pura, solo en la rama de cálculo
+    // normal (sin override; el helper excluye prorrateo/categoría, D-17). El
+    // percent viaja al filter como `competingDiscountPercent` — el módulo
+    // AURA valida igual (400 gane quien gane) pero NO gasta si el competidor
+    // iguala o supera su tier (empate a favor del partner, D-20).
+    const override =
+      input.priceOverrideAmount !== undefined && input.priceOverrideAmount >= 0
+        ? {
+            amount: input.priceOverrideAmount,
+            reason: input.priceOverrideReason,
+          }
+        : undefined;
+    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
+      null;
+    if (override === undefined) {
+      partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+        ctx,
+        userId,
+        targetPlan.planCategory,
+        input.prorateToMonthEnd,
+      );
+    }
+
     // Pricing: override → boarding → AURA → plan price by type.
     // Fase 176 Plan 09 (MOD-02): boarding pass y AURA son MÓDULO
     // (`templo-gamification`) — resolvePlanPrice dispara el filter
@@ -4416,14 +4754,8 @@ export class SubscriptionService {
       resolvePriceType: (t) => this.resolvePriceType(t),
       basePriceFor: (t) => this.getBasePrice(targetPlan, t),
       moduleInput: input.moduleInput ?? {},
-      override:
-        input.priceOverrideAmount !== undefined &&
-        input.priceOverrideAmount >= 0
-          ? {
-              amount: input.priceOverrideAmount,
-              reason: input.priceOverrideReason,
-            }
-          : undefined,
+      competingDiscountPercent: partnerBenefitCandidate?.percent ?? null,
+      override,
     });
 
     let pricePaid = resolved.price;
@@ -4434,6 +4766,38 @@ export class SubscriptionService {
     const priceOverrideReason = resolved.priceOverrideReason;
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
+
+    // ── Partners (fase 179, D-09/D-10/D-20) — decisión POST-filter ──
+    // Mismo esquema que assignPlan: si el módulo NO aplicó AURA (no se
+    // pidió, o el partner igualó/superó el tier — empate a favor del
+    // partner), el candidato gana y se aplica sobre el precio base. Si el
+    // módulo SÍ aplicó AURA, el partner perdió (D-20, se consume como
+    // 'perdio_vs_aura' tras el cobro). Con boarding pass (exclusivo) el
+    // candidato no participa.
+    let partnerBenefitWon = false;
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
+    if (resolved.exclusive) {
+      partnerBenefitCandidate = null;
+    }
+    if (partnerBenefitCandidate !== null && auraDiscountPercent === null) {
+      partnerBenefitWon = true;
+      const discountAmount = Math.floor(
+        resolved.basePrice * (partnerBenefitCandidate.percent / 100),
+      );
+      pricePaid = resolved.basePrice - discountAmount;
+      partnerDiscountPercent = partnerBenefitCandidate.percent;
+      partnerDiscountAmount = discountAmount;
+      this.log.info(
+        {
+          userId,
+          partnerLinkId: partnerBenefitCandidate.linkId,
+          partnerPercent: partnerBenefitCandidate.percent,
+          auraDiscountPercent,
+        },
+        "partner: descuento de partner ganó (o AURA no estaba en juego) — no se gastaron puntos AURA (D-10/D-20)",
+      );
+    }
 
     // ── Referidos (fase 157, D-20/D-21) ──
     // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
@@ -4507,6 +4871,10 @@ export class SubscriptionService {
           auraDiscountPercent,
           referralDiscountPercent,
           referralDiscountAmount,
+          // Fase 179 (D-09): descuento de partner materializado, null cuando
+          // no aplicó (no había candidato, o AURA ganó la comparación D-10).
+          partnerDiscountPercent,
+          partnerDiscountAmount,
           boardingPassUsed,
           priceOverrideAmount,
           priceOverrideReason,
@@ -4600,6 +4968,22 @@ export class SubscriptionService {
       referralDiscountPercent ?? 0,
       referralDiscountAmount ?? 0,
     );
+
+    // Partners (D-11/D-17): dispara con pricePaid>0 de CUALQUIER categoría —
+    // sin el guard excludedFromReferrals que sí aplica al bloque de arriba.
+    await this.qualifyPartnerOnCharge(ctx, userId, pricePaid, newSubscriptionId);
+
+    // Partners (D-09/D-10/D-20): consume el beneficio de descuento, con el
+    // candidato/ganador ya resueltos alrededor del filter de pricing.
+    await this.consumePartnerBenefitAfterCharge(ctx, {
+      userId,
+      subscriptionId: newSubscriptionId,
+      pricePaid,
+      candidate: partnerBenefitCandidate,
+      won: partnerBenefitWon,
+      wonPercent: partnerDiscountPercent,
+      wonAmount: partnerDiscountAmount,
+    });
 
     const newSub = await this.getSubscriptionById(ctx, newSubscriptionId);
     if (!newSub) {
@@ -4838,6 +5222,15 @@ export class SubscriptionService {
     // Referidos (fase 157): materialización del descuento en columnas nuevas.
     let referralDiscountPercent: number | null = null;
     let referralDiscountAmount: number | null = null;
+    // Fase 179 (D-09/D-10/D-20): candidato de descuento de partner.
+    // renewSubscription NO tiene bloque de descuento AURA propio (a
+    // diferencia de assignPlan/changePlanAfterCurrent) — sin competidor, el
+    // candidato se aplica directo sobre el precio de renovación ya resuelto
+    // (ver bloque justo antes de referidos, más abajo).
+    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
+      null;
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
 
     // priceType de la renovación (heredado por default). Se declara acá arriba
     // porque el prorrateo también lo resuelve; el bloque WR-04 de más abajo lo
@@ -4897,6 +5290,27 @@ export class SubscriptionService {
         // vigente del plan (no perpetuar el recargo heredado en pricePaid).
         renewalPrice = this.getBasePrice(plan, renewalPriceType);
       }
+    }
+
+    // ── Partners (fase 179, D-09/D-10/D-20) ──
+    // Sin bloque AURA en este método, el candidato se aplica DIRECTO sobre
+    // el precio de renovación ya resuelto (heredado/override/prorrateado).
+    // `resolvePartnerDiscountCandidate` ya aplica los guards D-17
+    // (excludedFromReferrals + prorateToMonthEnd) internamente. El tenant
+    // sale del `ctx` (tren v6.0, fase 172).
+    partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+      ctx,
+      userId,
+      plan.planCategory,
+      input.prorateToMonthEnd,
+    );
+    if (partnerBenefitCandidate) {
+      const partnerDiscountAmountCalc = Math.floor(
+        renewalPrice * (partnerBenefitCandidate.percent / 100),
+      );
+      renewalPrice -= partnerDiscountAmountCalc;
+      partnerDiscountPercent = partnerBenefitCandidate.percent;
+      partnerDiscountAmount = partnerDiscountAmountCalc;
     }
 
     // ── Referidos (fase 157, D-20/D-21) ──
@@ -5049,6 +5463,10 @@ export class SubscriptionService {
                 : "paga",
           referralDiscountPercent,
           referralDiscountAmount,
+          // Fase 179 (D-09): descuento de partner materializado (ver bloque
+          // de arriba — sin bloque AURA en este método, se aplica directo).
+          partnerDiscountPercent,
+          partnerDiscountAmount,
           classesRemaining: periodBudget,
           classesBudget: periodBudget,
           previousSubscriptionId: currentSub.id,
@@ -5219,6 +5637,29 @@ export class SubscriptionService {
       referralDiscountPercent ?? 0,
       referralDiscountAmount ?? 0,
     );
+
+    // Partners (D-11/D-17): dispara con renewalPrice>0 de CUALQUIER
+    // categoría (pases especiales incluidos) y sin la exclusión de
+    // prorateToMonthEnd que sí aplica al bloque de referidos de arriba — una
+    // renovación prorrateada sigue siendo una venta real.
+    await this.qualifyPartnerOnCharge(
+      ctx,
+      userId,
+      renewalPrice,
+      newSubscriptionId,
+    );
+
+    // Partners (D-09/D-10/D-20): consume el beneficio de descuento (sin
+    // bloque AURA en este método, `won` es simplemente "había candidato").
+    await this.consumePartnerBenefitAfterCharge(ctx, {
+      userId,
+      subscriptionId: newSubscriptionId,
+      pricePaid: renewalPrice,
+      candidate: partnerBenefitCandidate,
+      won: partnerBenefitCandidate !== null,
+      wonPercent: partnerDiscountPercent,
+      wonAmount: partnerDiscountAmount,
+    });
 
     const newSub = await this.getSubscriptionById(ctx, newSubscriptionId);
     if (!newSub) {
@@ -5405,6 +5846,23 @@ export class SubscriptionService {
     // que el preview matchee lo que assignPlan efectivamente cobra).
     // `exclusiveBenefits: false`: el preview NO tiene rama de precio de
     // boarding pass, solo reporta `boardingPassEligible` (Pitfall 5).
+    // ── Partners (fase 179, D-09/D-10/D-20): paridad preview↔cobro ──
+    // Existe test/referrals/preview-parity.test.ts justamente porque una
+    // divergencia entre preview y cobro ya pasó en producción — el candidato
+    // se resuelve ANTES del filter y su percent viaja como
+    // `competingDiscountPercent`, EXACTO como las charge-paths. SOLO
+    // LECTURA: no llama `consumePartnerBenefitOnCharge` ni
+    // `qualifyAndCommission`, así que consultarlo dos veces nunca cambia
+    // `benefit_status` ni crea comisiones. Sin `prorateToMonthEnd` en la
+    // firma del preview: siempre `undefined` (el guard D-17 del helper solo
+    // excluye cuando es `true`).
+    const partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+      ctx,
+      userId,
+      plan.planCategory,
+      undefined,
+    );
+
     const resolved = await resolvePlanPrice({
       hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
       userId,
@@ -5417,6 +5875,7 @@ export class SubscriptionService {
       resolvePriceType: (t) => this.resolvePriceType(t),
       basePriceFor: (t) => this.getBasePrice(plan, t),
       moduleInput: moduleInput ?? {},
+      competingDiscountPercent: partnerBenefitCandidate?.percent ?? null,
     });
 
     const basePrice = resolved.basePrice;
@@ -5453,6 +5912,24 @@ export class SubscriptionService {
       typeof moduleOutput.auraToSpend === "number"
         ? moduleOutput.auraToSpend
         : 0;
+
+    // D-10/D-20: gana el mayor, empate a favor del partner — la comparación
+    // la hizo el filter con `competingDiscountPercent`, misma fórmula que
+    // las charge-paths. Si el módulo NO aplicó AURA (`discountType` quedó
+    // 'none': no se pidió, tier/saldo insuficiente — tolerancia histórica
+    // del preview —, o el partner igualó/superó el tier), el partner gana y
+    // se aplica sobre el precio base, con discountAmount/auraToSpend en 0
+    // tal como lo haría el cobro real (no gastaría los puntos del socio).
+    let partnerDiscountPercent: number | null = null;
+    let partnerDiscountAmount: number | null = null;
+    if (partnerBenefitCandidate !== null && discountType === "none") {
+      const amount = Math.floor(
+        basePrice * (partnerBenefitCandidate.percent / 100),
+      );
+      partnerDiscountPercent = partnerBenefitCandidate.percent;
+      partnerDiscountAmount = amount;
+      finalPrice = basePrice - amount;
+    }
 
     // ── Referidos (fase 157, Pitfall 4): preview parity ──
     // computeReferralDiscountPercent es SOLO LECTURA: NO flippea cualificación
@@ -5495,6 +5972,8 @@ export class SubscriptionService {
       availableTiers,
       referralDiscountPercent,
       referralDiscountAmount,
+      partnerDiscountPercent,
+      partnerDiscountAmount,
     };
   }
 

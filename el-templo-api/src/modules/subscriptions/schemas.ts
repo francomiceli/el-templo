@@ -116,6 +116,13 @@ const pricingPreviewResponseSchema = {
     // finalPrice (preview parity con la charge-path, Pitfall 4).
     referralDiscountPercent: { type: "integer" },
     referralDiscountAmount: { type: "integer" },
+    // Partners (fase 179, D-09/D-10/D-20): desglose del descuento de partner
+    // ya aplicado en finalPrice cuando gana "el mayor" vs AURA. `null` en el
+    // resto de los casos (sin candidato, o AURA ganó). Sin esta entrada
+    // fast-json-stringify descarta el campo del body aunque el service lo
+    // devuelva (mismo tipo de bug que motivó Pitfall 4 con referidos).
+    partnerDiscountPercent: { type: ["integer", "null"] },
+    partnerDiscountAmount: { type: ["integer", "null"] },
   },
 } as const;
 
@@ -716,6 +723,12 @@ export const changePlanPreviewSchema = {
         netAmount: { type: ["integer", "null"] },
         referralDiscountPercent: { type: "integer" },
         referralDiscountAmount: { type: "integer" },
+        // Fase 179 (D-09/D-10/D-20), deviation Rule 2 del plan 179-14: sin
+        // estas 2 líneas fast-json-stringify las descarta en silencio del
+        // body HTTP aunque el service las calcule (mismo Pitfall 4 ya
+        // atrapado una vez en pricingPreviewResponseSchema, plan 179-07).
+        partnerDiscountPercent: { type: "integer" },
+        partnerDiscountAmount: { type: "integer" },
         expiryDate: { type: "string" },
       },
     },

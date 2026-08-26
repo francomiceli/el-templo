@@ -19,6 +19,12 @@ export const registerSchema = {
       // is resolved server-side from this code — never taken raw from the body
       // (Security V4/T-157-08). Unknown/invalid codes are ignored gracefully.
       ref: { type: "string", maxLength: 32 },
+      // Phase 179-04 (D-02/D-03): campo MANUAL unificado del registro (el
+      // usuario tipea "¿Tenés un código?"). Acepta código de partner, promo o
+      // socio — resuelto server-side (`resolveSignupCode`). Convive con
+      // `ref`/`promoCode`, que las builds nativas viejas van a seguir
+      // mandando por meses (Pitfall 9).
+      code: { type: "string", maxLength: 24 },
     },
   },
 };

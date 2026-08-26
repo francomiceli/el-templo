@@ -79,6 +79,13 @@ export const subscriptions = mysqlTable(
     // Nullable: NULL en cobros sin descuento por referido.
     referralDiscountPercent: int("referral_discount_percent"),
     referralDiscountAmount: int("referral_discount_amount"),
+    // Fase 179 (D-09): descuento por código de PARTNER (comercio/marca externa),
+    // materializado en columnas propias — distintas de auraDiscount* (gasto AURA
+    // discrecional) y de referralDiscount* (referido entre socios, D-12 exclusividad
+    // de origen). One-shot en la primera cuota, nunca ambas junto a las otras
+    // (D-10: gana el mayor). Nullable: NULL en cobros sin descuento de partner.
+    partnerDiscountPercent: int("partner_discount_percent"),
+    partnerDiscountAmount: int("partner_discount_amount"),
     boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
     priceOverrideAmount: int("price_override_amount"),
     priceOverrideReason: text("price_override_reason"),

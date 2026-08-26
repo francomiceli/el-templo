@@ -245,6 +245,11 @@ const TABLES_TO_CLEAN = [
   // (FK checks off durante el DELETE), se limpian para no filtrar vínculos entre tests.
   schema.referralCredits,
   schema.referrals,
+  // Fase 179: comercio partner. Orden de FK: comisiones (FK a partner_referrals
+  // y subscriptions) -> vínculos (FK a referral_partners y users) -> partners.
+  schema.partnerCommissions,
+  schema.partnerReferrals,
+  schema.referralPartners,
   // v5.5 follow-up: clics del CTA del A/B test — sin limpiar se acumularían entre tests.
   schema.referralCtaClicks,
   schema.memberNotes,

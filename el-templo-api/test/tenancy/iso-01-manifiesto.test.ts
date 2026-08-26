@@ -200,6 +200,53 @@ import {
  * bandeja de SP (arriba) y los +3 de la 180 salen de la misma base 370, así
  * que la unión es 370+2+3. Ninguna ruta nueva de este bump — solo el merge.
  *
+ * **Movido a 374 el 2026-08-23**, 4 rutas nuevas y no un merge (fase 179, plan
+ * 03): CRUD admin de partners de comercio/marca — `GET /api/admin/referral-partners`,
+ * `GET /api/admin/referral-partners/:id`, `POST /api/admin/referral-partners`,
+ * `PATCH /api/admin/referral-partners/:id`. Las 4 **tenant-scoped**: leen/escriben
+ * `referral_partners`, gym-owned, y el gimnasio sale de
+ * `assertTenant(request.scope, …)` en cada ruta, jamás del body. Caso normal de
+ * D-02. Worktree `et-179`, rama `feat/179-referidos-partners`.
+ *
+ * **Movido a 378 el 2026-08-23**, 2 rutas nuevas y no un merge (fase 179, plan
+ * 09, D-14/D-15): `POST /api/admin/members/:userId/partner-referral`
+ * (asignación retroactiva de partner) y `DELETE
+ * /api/admin/members/:userId/partner-referral` (revocación del vínculo, con
+ * void en cascada de comisiones `pending`). Las 2 **tenant-scoped**:
+ * leen/escriben `partner_referrals`/`partner_commissions`, gym-owned, y el
+ * gimnasio sale de `assertTenant(request.scope, …)` en cada ruta, jamás del
+ * body. Caso normal de D-02. Worktree `et-179`, rama
+ * `feat/179-referidos-partners`.
+ *
+ * **Movido a 383 el 2026-08-23**, 3 rutas nuevas y no un merge (fase 179, plan
+ * 10, D-08 reescrita/D-16/D-20): `GET /api/admin/referral-partners/conversions`
+ * (reporte de conversiones por partner), `GET
+ * /api/admin/referral-partners/benefits-without-conversion` (reporte de
+ * seguimiento manual, D-08 reescrita) y `POST
+ * /api/admin/referral-partners/:id/settle` (liquidación batch de comisiones,
+ * D-16). Las 3 **tenant-scoped**: leen/escriben `partner_referrals`/
+ * `partner_commissions`, gym-owned, y el gimnasio sale de
+ * `assertTenant(request.scope, …)` en cada ruta, jamás del body. Caso normal
+ * de D-02. Worktree `et-179`, rama `feat/179-referidos-partners`.
+ *
+ * **Movido a 384 el 2026-08-23**, 1 ruta nueva y no un merge (fase 179, plan
+ * 14, D-15): `GET /api/admin/members/:userId/partner-referral` — detalle del
+ * vínculo de partner para la sección "Partner" de `MemberReferralsTab.vue`
+ * (nombre/código, fecha, estado del vínculo y del beneficio; `null` sin
+ * vínculo). **tenant-scoped**: lee `partner_referrals`/`referral_partners`,
+ * gym-owned, con `assertTenant(request.scope, …)`, jamás del body. Caso
+ * normal de D-02. Deviation (Rule 2) del plan 179-14: sin este GET la
+ * sección "Con vínculo" del must_have D-15 no tiene de dónde leer el estado.
+ * Worktree `et-179`, rama `feat/179-referidos-partners`.
+ *
+ * **Movido a 389 el 2026-08-26**, merge de la fase 179 a master (tren
+ * 179+180): los +2 de SP, los +3 de la 180 y los +14 de la 179 salen todos de
+ * la misma base 370, así que la unión es 370+2+3+14. Ninguna ruta nueva de
+ * este bump — solo el merge.
+ *
+ * El reparto por categoría vigente es 239 `tenant-scoped` · 8 `global` · 142
+
+ *
  * El reparto por categoría vigente es 231 `tenant-scoped` · 8 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
@@ -210,7 +257,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 375;
+const ENTRADAS_BASELINE = 389;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -353,7 +400,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 375 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 389 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

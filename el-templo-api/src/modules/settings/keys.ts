@@ -21,3 +21,15 @@ export const LEADS_SETTINGS_KEYS = {
   /** días de ventana antes de vencer En seguimiento → Perdido (entero en días). */
   perdidoWindowDays: "leads.perdido_window_days",
 } as const;
+
+// Phase 179-12 (D-01/D-04/D-20): URLs de las tiendas que codifican los QRs de
+// la tarjeta física de partners. Franco las carga desde el admin sin deploy
+// (la de iOS necesita el Apple ID numérico, que no vive en el repo). Ambas
+// arrancan sin fila (null) hasta el checkpoint humano del plan 179-17 — el
+// admin lo muestra explícitamente en vez de generar un QR roto.
+export const APP_STORE_SETTINGS_KEYS = {
+  /** URL pública de Play Store para el QR de Android. */
+  android: "app.store_url.android",
+  /** URL pública de App Store para el QR de iOS. */
+  ios: "app.store_url.ios",
+} as const;
