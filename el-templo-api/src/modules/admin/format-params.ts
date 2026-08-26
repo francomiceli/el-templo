@@ -653,6 +653,7 @@ export function formatNameWithParams(
 
     // ROM: la etiqueta es solo el nombre del formato ("ROM"). Las rondas/hold
     // son parámetros informativos que NO van en el título del bloque (TV/PDF).
+    // (Espejo en session-data-transformer.ts del admin.)
     case "rom":
       return name;
 
