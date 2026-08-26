@@ -2000,14 +2000,14 @@ onUnmounted(() => {
 #tvScreenRoot .capChip {
   font-weight: 700;
   letter-spacing: 0.12em;
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   color: var(--navy);
   border: 1px solid var(--muted);
   background: rgba(176, 141, 110, 0.1);
   border-radius: 999rem;
-  padding: 0.5rem 1.2rem;
-  margin-right: 0.85rem;
-  margin-bottom: 0.6rem;
+  padding: 0.42rem 1rem;
+  margin-right: 0.75rem;
+  margin-bottom: 0.55rem;
   opacity: 0;
   transform: translateY(1.5em);
 }
