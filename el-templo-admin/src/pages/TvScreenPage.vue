@@ -1568,36 +1568,11 @@ onUnmounted(() => {
   color: var(--trans-crema);
   overflow: hidden;
 }
+/* El cambio de pantalla es un CORTE SECO (UAT TV 2026-08-26): el crossfade
+   componía dos capas full-screen a la vez y era el mayor costo puntual del
+   televisor. Sin transEntra ni fade de salida. */
 #tvScreenRoot .pantalla.visible {
   display: block;
-  animation: transEntra 0.6s ease;
-}
-/* Fade de salida (render.ts setVisible): la pantalla sigue en el layout
-   mientras su opacity baja, y recién después se oculta — toda transición
-   entre pantallas queda fundida, nunca de golpe. */
-#tvScreenRoot .pantalla.visible.saliendo {
-  animation: none;
-  opacity: 0;
-  transition: opacity 0.5s ease;
-}
-/* Congelar TODO el movimiento interno de la pantalla que se va: durante el
-   crossfade solo paga el fade del contenedor (UAT TV 2026-08-26). */
-#tvScreenRoot .pantalla.saliendo .palabra,
-#tvScreenRoot .pantalla.saliendo .quote,
-#tvScreenRoot .pantalla.saliendo .autor,
-#tvScreenRoot .pantalla.saliendo .cierreTitulo,
-#tvScreenRoot .pantalla.saliendo .capMusculos,
-#tvScreenRoot .pantalla.saliendo .capChip {
-  animation: none !important;
-  transition: none !important;
-}
-@keyframes transEntra {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 /* Foto + velo en un solo background (se pinta una vez): más oscuro detrás del
@@ -1724,50 +1699,29 @@ onUnmounted(() => {
   color: var(--trans-crema);
   text-shadow: 0 0.06em 0.5em rgba(0, 0, 0, 0.6);
 }
-/* El encendido va POR PALABRA (un nodo animado por palabra, no por letra):
-   decisión de perf del UAT en el TV real, 2026-08-26. */
+/* Encendido POR PALABRA, solo opacity+transform (UAT TV 2026-08-26, 2ª
+   vuelta): la versión con color+glow animado repintaba cada glifo por frame
+   (y con blur). Ahora la palabra se rasteriza UNA vez en su color final (con
+   la sombra estática heredada del host) y la entrada es puro compositor. */
 #tvScreenRoot .pantalla .quote .palabra {
   white-space: nowrap;
   opacity: 0;
+  color: var(--trans-crema);
+}
+#tvScreenRoot .pantalla .quote .palabra.oro {
+  color: var(--trans-bronce);
 }
 #tvScreenRoot .pantalla .quote .palabra.prendida {
-  animation: transPrende 0.8s ease forwards;
+  animation: palabraEntra 0.55s ease forwards;
 }
-#tvScreenRoot .pantalla .quote .palabra.oro.prendida {
-  animation-name: transPrendeOro;
-}
-@keyframes transPrende {
-  0% {
+@keyframes palabraEntra {
+  from {
     opacity: 0;
-    color: #fff3d6;
-    text-shadow: 0 0 0 rgba(255, 157, 77, 0);
+    transform: translateY(0.14em);
   }
-  18% {
+  to {
     opacity: 1;
-    color: #ffd9a0;
-    text-shadow: 0 0 0.22em rgba(255, 157, 77, 0.85);
-  }
-  100% {
-    opacity: 1;
-    color: var(--trans-crema);
-    text-shadow: 0 0.04em 0.28em rgba(0, 0, 0, 0.55);
-  }
-}
-@keyframes transPrendeOro {
-  0% {
-    opacity: 0;
-    color: #fff3d6;
-    text-shadow: 0 0 0 rgba(255, 170, 60, 0);
-  }
-  18% {
-    opacity: 1;
-    color: #ffe2ae;
-    text-shadow: 0 0 0.24em rgba(255, 170, 60, 0.9);
-  }
-  100% {
-    opacity: 1;
-    color: var(--trans-bronce);
-    text-shadow: 0 0.04em 0.28em rgba(0, 0, 0, 0.55);
+    transform: none;
   }
 }
 
@@ -1811,16 +1765,10 @@ onUnmounted(() => {
 #tvScreenRoot.tv-sobrio .pantalla.visible {
   animation: none;
 }
-#tvScreenRoot.tv-sobrio .pantalla.visible.saliendo {
-  transition: none;
-}
-#tvScreenRoot.tv-sobrio .pantalla .quote .palabra {
+#tvScreenRoot.tv-sobrio .pantalla .quote .palabra,
+#tvScreenRoot.tv-sobrio .capEjercicio .palabra {
   animation: none;
   opacity: 1;
-  color: var(--trans-crema);
-}
-#tvScreenRoot.tv-sobrio .pantalla .quote .palabra.oro {
-  color: var(--trans-bronce);
 }
 #tvScreenRoot.tv-sobrio .pantalla .autor {
   opacity: 1;
@@ -1871,7 +1819,7 @@ onUnmounted(() => {
   opacity: 0;
 }
 #tvScreenRoot .capEjercicio .palabra.prendida {
-  animation: escribeClaro 0.8s ease forwards;
+  animation: palabraEntra 0.55s ease forwards;
 }
 /* El cue entra como BLOQUE (fade + subida corta) cuando el título terminó de
    escribirse — el gesto que antes tenía el título. Nunito, tinta oscura,
@@ -1895,23 +1843,6 @@ onUnmounted(() => {
 }
 #tvScreenRoot .pantalla--dia .quote .acento {
   color: var(--trans-terracotta);
-}
-@keyframes escribeClaro {
-  0% {
-    opacity: 0;
-    color: #c9a26b;
-    text-shadow: 0 0 0.3em rgba(212, 168, 67, 0);
-  }
-  20% {
-    opacity: 1;
-    color: #a97c4a;
-    text-shadow: 0 0 0.2em rgba(212, 168, 67, 0.7);
-  }
-  100% {
-    opacity: 1;
-    color: var(--navy);
-    text-shadow: none;
-  }
 }
 /* Chips "ACTIVA": render.ts arma `.capActiva` + `.capChip` por cápsula. */
 #tvScreenRoot .capMusculos {
@@ -1981,10 +1912,6 @@ onUnmounted(() => {
     transform 0.7s ease;
 }
 /* Modo sobrio: la cápsula queda estática con los colores finales. */
-#tvScreenRoot.tv-sobrio .capEjercicio .palabra {
-  animation: none;
-  opacity: 1;
-}
 #tvScreenRoot.tv-sobrio .pantalla--dia .quote,
 #tvScreenRoot.tv-sobrio .capMusculos,
 #tvScreenRoot.tv-sobrio .capChip {
@@ -1995,7 +1922,9 @@ onUnmounted(() => {
 /* Mientras la transición (overlay opaco) tapa la clase, el fondo vivo de atrás
    se pausa: no pagamos dos juegos de animaciones a la vez. */
 #tvScreenRoot.tvbg--tapado .tvFondo__marmol,
-#tvScreenRoot.tvbg--tapado .tvFondo__luz {
+#tvScreenRoot.tvbg--tapado .tvFondo__luz,
+#tvScreenRoot.tv-sobrio .tvFondo__marmol,
+#tvScreenRoot.tv-sobrio .tvFondo__luz {
   animation-play-state: paused;
 }
 
