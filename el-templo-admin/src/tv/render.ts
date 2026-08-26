@@ -832,10 +832,13 @@ export function tickClock(): void {
  *  Pasó de por-letra a por-palabra tras el UAT en el TV real (2026-08-26): son
  *  ~8-15 nodos animando text-shadow en vez de 50-100 — a distancia de TV el
  *  efecto se lee igual y el costo de paint baja un orden de magnitud. */
-const IGNITE_BASE_MS = 120;
-const IGNITE_STEP_MS = 90;
+/** El encendido arranca DESPUÉS del fade de entrada de la pantalla (0.6s en
+ *  CSS): las órdenes de aparición se demoran a propósito para que nunca se
+ *  solapen el fade del overlay y el stagger de palabras (UAT TV 2026-08-26). */
+const IGNITE_BASE_MS = 750;
+const IGNITE_STEP_MS = 140;
 /** Espera extra tras la última palabra antes de que aparezca el autor. */
-const IGNITE_AUTOR_EXTRA_MS = 400;
+const IGNITE_AUTOR_EXTRA_MS = 600;
 /** Lo que tarda la frase saliente en apagarse antes de encender la nueva (CSS .apagada). */
 const QUOTE_EXIT_MS = 750;
 
@@ -990,7 +993,10 @@ function buildCapsula(n: Nodes, capsula: CapsulaTecnica): void {
     'acento'
   );
   encenderPalabras(palabras);
-  const tituloListoMs = IGNITE_BASE_MS + palabras.length * IGNITE_STEP_MS + 250;
+  // Fases SECUENCIALES con aire entre sí: título → cue → etiqueta → pills.
+  // Cada una arranca cuando la anterior terminó de animarse — nunca hay dos
+  // tipos de animación corriendo a la vez (UAT TV 2026-08-26).
+  const tituloListoMs = IGNITE_BASE_MS + palabras.length * IGNITE_STEP_MS + 400;
 
   // Cue como bloque: tramos planos + spans `.acento` (terracotta), sin letras.
   clear(n.capCue);
@@ -1024,14 +1030,14 @@ function buildCapsula(n: Nodes, capsula: CapsulaTecnica): void {
   }
   quoteLater(function () {
     n.capMusculos.classList.add('aparece');
-  }, tituloListoMs + 300);
+  }, tituloListoMs + 650);
   for (let i = 0; i < chips.length; i++) {
     const chip = chips[i];
     quoteLater(
       function () {
         chip.classList.add('sube');
       },
-      tituloListoMs + 380 + i * 100
+      tituloListoMs + 800 + i * 150
     );
   }
 }

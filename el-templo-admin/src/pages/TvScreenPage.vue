@@ -1699,7 +1699,9 @@ onUnmounted(() => {
   margin-top: 1.7rem;
 }
 
-/* "SESIÓN COMPLETA": tracking-in cada vez que aparece la pantalla de cierre. */
+/* "SESIÓN COMPLETA": estático (UAT TV 2026-08-26 — la columna de identidad
+   entera aparece dibujada desde el principio, sin transición propia; el
+   tracking-in que tenía se retiró por perf). */
 #tvScreenRoot .cierreTitulo {
   font-family: var(--cinzel);
   font-weight: 700;
@@ -1708,21 +1710,7 @@ onUnmounted(() => {
   color: var(--trans-bronce);
   white-space: nowrap;
   margin: 0 0 5rem;
-  opacity: 0;
-  letter-spacing: 0.5em;
-}
-#tvScreenRoot .pantalla.visible .cierreTitulo {
-  animation: transTitulo 1.5s ease 0.3s forwards;
-}
-@keyframes transTitulo {
-  from {
-    opacity: 0;
-    letter-spacing: 0.5em;
-  }
-  to {
-    opacity: 1;
-    letter-spacing: 0.18em;
-  }
+  letter-spacing: 0.18em;
 }
 
 /* Frase: Cinzel crema, remates `.oro` en bronce. La sombra de legibilidad final
@@ -1820,16 +1808,11 @@ onUnmounted(() => {
 #tvScreenRoot.tv-sobrio .transChispas {
   display: none;
 }
-#tvScreenRoot.tv-sobrio .pantalla.visible,
-#tvScreenRoot.tv-sobrio .pantalla.visible .cierreTitulo {
+#tvScreenRoot.tv-sobrio .pantalla.visible {
   animation: none;
 }
 #tvScreenRoot.tv-sobrio .pantalla.visible.saliendo {
   transition: none;
-}
-#tvScreenRoot.tv-sobrio .cierreTitulo {
-  opacity: 1;
-  letter-spacing: 0.18em;
 }
 #tvScreenRoot.tv-sobrio .pantalla .quote .palabra {
   animation: none;
