@@ -79,24 +79,17 @@
         {{ contextError }}
       </q-banner>
 
-      <!-- Clase no iniciada hoy: un solo botón grande. -->
-      <div v-if="context.state === null" class="q-mt-lg">
-        <q-btn
-          class="tv-btn full-width"
-          color="primary"
-          unelevated
-          size="lg"
-          label="INICIAR CLASE"
-          :disable="!canControl"
-          :loading="busy"
-          @click="onStartClass"
-        />
-      </div>
-
-      <div v-else>
+      <!-- La botonera se muestra SIEMPRE (rediseño 2026-08-26): ya no hay botón
+           "INICIAR CLASE" — la clase arranca cuando el profe toca un bloque, y la
+           tira de BLOQUES incluye las dos pantallas de transición como extremos:
+           FLEXIBILIDAD - INICIO (diurna, sin clase) y FLEXIBILIDAD - FINAL
+           (nocturna, cierre). Sin sesión aprobada queda toda deshabilitada
+           (canControl), con el banner de arriba explicando por qué. -->
+      <div>
         <!-- ============================ BLOQUES ============================ -->
-        <!-- Primera fila: navegación anterior/siguiente. Debajo, los bloques en dos     -->
-        <!-- columnas (como el TIMER), con SOLO el nombre del bloque (sin el formato).    -->
+        <!-- Primera fila: navegación anterior/siguiente sobre la tira COMPLETA  -->
+        <!-- (inicio → bloques → final). Debajo, los extremos de flexibilidad y  -->
+        <!-- los bloques en dos columnas, con SOLO el nombre (sin formato).      -->
         <div class="tv-section-title">BLOQUES</div>
         <div class="row q-col-gutter-sm">
           <div class="col-6">
@@ -106,7 +99,7 @@
               label="ANTERIOR"
               color="primary"
               outline
-              :disable="!canControl || buttonIndex <= 0"
+              :disable="!canControl || seqIndex <= 0"
               @click="onBlockStep(-1)"
             />
           </div>
@@ -117,8 +110,19 @@
               label="SIGUIENTE"
               color="primary"
               outline
-              :disable="!canControl || buttonIndex < 0 || buttonIndex >= blockButtons.length - 1"
+              :disable="!canControl || seqIndex >= seqLength - 1"
               @click="onBlockStep(1)"
+            />
+          </div>
+          <div class="col-6">
+            <q-btn
+              class="tv-btn full-width"
+              label="FLEXIBILIDAD - INICIO"
+              color="secondary"
+              :outline="hasState"
+              :unelevated="!hasState"
+              :disable="!canControl"
+              @click="onFlexInicio"
             />
           </div>
           <div v-for="button in blockButtons" :key="button.role" class="col-6">
@@ -130,6 +134,17 @@
               :label="button.label"
               :disable="!canControl"
               @click="onSelectBlock(button.role)"
+            />
+          </div>
+          <div class="col-6">
+            <q-btn
+              class="tv-btn full-width"
+              label="FLEXIBILIDAD - FINAL"
+              color="secondary"
+              :outline="!isClosingScreen"
+              :unelevated="isClosingScreen"
+              :disable="!canControl"
+              @click="onFlexFinal"
             />
           </div>
         </div>
@@ -146,7 +161,7 @@
               :outline="!isActivePair(pair)"
               :unelevated="isActivePair(pair)"
               :label="pair.label"
-              :disable="!canControl || levelsDisabled || !pair.present"
+              :disable="!canControl || !hasState || levelsDisabled || !pair.present"
               @click="onSelectLevel(pair.targetLevel)"
             />
           </div>
@@ -167,7 +182,7 @@
               label="INICIAR"
               color="positive"
               unelevated
-              :disable="!canControl || timerStatus === 'running'"
+              :disable="!canControl || !hasState || timerStatus === 'running'"
               @click="onTimer('start')"
             />
           </div>
@@ -179,7 +194,7 @@
               color="warning"
               text-color="dark"
               unelevated
-              :disable="!canControl || timerStatus === 'idle'"
+              :disable="!canControl || !hasState || timerStatus === 'idle'"
               @click="onTimer(timerStatus === 'paused' ? 'resume' : 'pause')"
             />
           </div>
@@ -190,7 +205,7 @@
               label="RESET"
               color="grey-7"
               outline
-              :disable="!canControl"
+              :disable="!canControl || !hasState"
               @click="onTimer('reset')"
             />
           </div>
@@ -202,39 +217,15 @@
               :color="soundEnabled ? 'primary' : 'grey-7'"
               :outline="!soundEnabled"
               :unelevated="soundEnabled"
-              :disable="!canControl"
+              :disable="!canControl || !hasState"
               @click="onToggleSound"
             />
           </div>
         </div>
 
-        <!-- =========================== FIN DE CLASE ========================= -->
-        <q-separator class="q-mb-md" />
-        <div class="row q-col-gutter-sm">
-          <div class="col-12 col-sm-6">
-            <q-btn
-              class="tv-btn full-width"
-              :icon="isClosingScreen ? 'undo' : 'flag'"
-              :label="isClosingScreen ? 'VOLVER A LA CLASE' : 'PANTALLA DE CIERRE'"
-              color="secondary"
-              :outline="!isClosingScreen"
-              :unelevated="isClosingScreen"
-              :disable="!canControl"
-              @click="onToggleClosing"
-            />
-          </div>
-          <div class="col-12 col-sm-6">
-            <q-btn
-              class="tv-btn full-width"
-              icon="power_settings_new"
-              label="TERMINAR CLASE"
-              color="negative"
-              outline
-              :disable="!canControl"
-              @click="confirmEndOpen = true"
-            />
-          </div>
-        </div>
+        <!-- (El viejo pie "PANTALLA DE CIERRE / TERMINAR CLASE" se retiró: ambos
+             gestos viven ahora en la tira de BLOQUES como FLEXIBILIDAD - INICIO
+             y FLEXIBILIDAD - FINAL.) -->
       </div>
     </template>
 
@@ -329,8 +320,8 @@
           <div class="text-h6">Verificá la sede</div>
         </q-card-section>
         <q-card-section class="text-body2">
-          Chequeá que seleccionaste la sede correcta. Si está mal elegida vas a manejar la
-          pantalla de otra sede.
+          Chequeá que seleccionaste la sede correcta. Si está mal elegida vas a manejar la pantalla
+          de otra sede.
           <div class="text-weight-bold q-mt-sm">{{ selectedBranchLabel }}</div>
         </q-card-section>
         <q-card-actions align="right">
@@ -351,9 +342,12 @@
         <q-card-section>
           <div class="text-h6">¿Pasar al bloque {{ pendingBlockLabel }}?</div>
         </q-card-section>
-        <q-card-section class="text-body2">
-          Cambiar de bloque reinicia el cronómetro del bloque actual. Confirmá para no
-          interrumpirlo por error.
+        <q-card-section v-if="hasState" class="text-body2">
+          Cambiar de bloque reinicia el cronómetro del bloque actual. Confirmá para no interrumpirlo
+          por error.
+        </q-card-section>
+        <q-card-section v-else class="text-body2">
+          La clase arranca en este bloque y el televisor pasa a la pantalla de clase.
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" color="grey-7" v-close-popup />
@@ -367,18 +361,40 @@
       </q-card>
     </q-dialog>
 
+    <q-dialog v-model="closingConfirmOpen">
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6">¿Pasar a la pantalla de cierre?</div>
+        </q-card-section>
+        <q-card-section class="text-body2">
+          El televisor muestra la pantalla de cierre (flexibilidad final). Para volver, tocá el
+          bloque en curso.
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn v-close-popup flat label="Cancelar" color="grey-7" />
+          <q-btn unelevated color="secondary" label="Sí, ir al cierre" @click="confirmClosing" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-dialog v-model="confirmEndOpen" persistent>
       <q-card style="min-width: 320px">
         <q-card-section>
-          <div class="text-h6">Terminar la clase</div>
+          <div class="text-h6">¿Volver a la pantalla de inicio?</div>
         </q-card-section>
         <q-card-section class="text-body2">
-          El televisor vuelve a la pantalla de reposo (reloj y logo). Para retomar hay que iniciar
-          la clase de nuevo desde el primer bloque.
+          La clase termina y el televisor muestra la pantalla de inicio (flexibilidad). Para
+          retomar, tocá un bloque: la clase arranca de nuevo ahí.
         </q-card-section>
         <q-card-actions align="right">
           <q-btn v-close-popup flat label="Cancelar" color="grey-8" />
-          <q-btn flat label="Terminar" color="negative" :loading="busy" @click="onEndClass" />
+          <q-btn
+            flat
+            label="Sí, terminar la clase"
+            color="negative"
+            :loading="busy"
+            @click="onEndClass"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -471,6 +487,8 @@ const confirmEndOpen = ref(false);
 /** Confirmación antes de cambiar de bloque: un mis-tap no debe interrumpir el bloque en curso. */
 const blockConfirmOpen = ref(false);
 const pendingBlockRole = ref<string | null>(null);
+/** Confirmación antes de pasar a la pantalla de cierre (FLEXIBILIDAD - FINAL). */
+const closingConfirmOpen = ref(false);
 /** Advertencia de sede: se abre explícitamente (re-entrada del día o cambio manual), no al montar. */
 const sedeWarningOpen = ref(false);
 /** Modal de selección de sedes por turno: solo la 1ª vez que el profe entra en el día. */
@@ -626,6 +644,10 @@ const canControl = computed(
   () => context.value !== null && context.value.sessionApproved && !busy.value
 );
 
+/** Hay clase en curso (estado escrito hoy). Sin estado el TV muestra la
+ *  pantalla de inicio (diurna) y FLEXIBILIDAD - INICIO figura activo. */
+const hasState = computed(() => context.value !== null && context.value.state !== null);
+
 const currentBlockRole = computed(() => context.value?.state?.blockRole ?? '');
 const blockIndex = computed(() =>
   context.value ? context.value.blocks.findIndex((b) => b.role === currentBlockRole.value) : -1
@@ -657,17 +679,19 @@ const blockButtons = computed<{ role: string; label: string }[]>(() => {
 });
 
 /** El botón está activo si es el bloque en curso; el botón DEUTEROS (colapsado)
- *  queda activo con cualquiera de sus dos caminos (DEUTEROS_1/DEUTEROS_2). */
+ *  queda activo con cualquiera de sus dos caminos (DEUTEROS_1/DEUTEROS_2).
+ *  En las pantallas de transición NINGÚN bloque figura activo: el activo es el
+ *  extremo de flexibilidad correspondiente (el rol persiste en el estado, pero
+ *  mostrarlo encendido confundía al profe). */
 function isActiveButton(role: string): boolean {
+  if (!hasState.value || isClosingScreen.value) return false;
   const cur = currentBlockRole.value;
   if (role === cur) return true;
   return role === 'DEUTEROS_1' && (cur === 'DEUTEROS_1' || cur === 'DEUTEROS_2');
 }
 
 /** Índice del bloque en curso dentro de la botonera colapsada (para prev/next). */
-const buttonIndex = computed(() =>
-  blockButtons.value.findIndex((btn) => isActiveButton(btn.role))
-);
+const buttonIndex = computed(() => blockButtons.value.findIndex((btn) => isActiveButton(btn.role)));
 const currentBlockTitle = computed(() => currentBlock.value?.title ?? 'Este bloque');
 /** INITIUM/PYROS es lista compartida: no hay nivel que elegir. */
 const levelsDisabled = computed(() => currentBlock.value?.shared === true);
@@ -693,7 +717,9 @@ const levelPairs = computed<LevelPairOption[]>(() => {
   return LEVEL_PAIRS.map((pair) => {
     const present = pair.filter((lvl) => levels.includes(lvl));
     const names = pair.map((lvl) =>
-      mode === 'rom' ? (ROM_LEVEL_LABELS[lvl] ?? lvl.toUpperCase()) : LEVEL_NAME_LABELS[lvl] ?? lvl.toUpperCase()
+      mode === 'rom'
+        ? (ROM_LEVEL_LABELS[lvl] ?? lvl.toUpperCase())
+        : (LEVEL_NAME_LABELS[lvl] ?? lvl.toUpperCase())
     );
     return {
       levels: pair,
@@ -831,13 +857,51 @@ async function send(write: Omit<TvStateWrite, 'branchId'>): Promise<void> {
   }
 }
 
-function onStartClass(): void {
-  void send({ screen: 'class' });
+/**
+ * La tira completa que recorren ANTERIOR/SIGUIENTE (rediseño 2026-08-26):
+ * posición 0 = FLEXIBILIDAD - INICIO (diurna), 1..N = bloques, N+1 =
+ * FLEXIBILIDAD - FINAL (nocturna). El "iniciar clase" desapareció: tocar un
+ * bloque desde la pantalla de inicio arranca la clase en ese bloque.
+ */
+const seqLength = computed(() => blockButtons.value.length + 2);
+const seqIndex = computed(() => {
+  if (!hasState.value) return 0;
+  if (isClosingScreen.value) return blockButtons.value.length + 1;
+  return buttonIndex.value + 1;
+});
+
+/** FLEXIBILIDAD - INICIO: terminar la clase (con confirmación) → diurna. */
+function onFlexInicio(): void {
+  if (!hasState.value) return; // ya está en la pantalla de inicio
+  confirmEndOpen.value = true;
 }
 
-/** Los dos triángulos mandan el ROL destino, calculado acá sobre el roster. */
+/** FLEXIBILIDAD - FINAL: pantalla de cierre (nocturna), con confirmación —
+ *  como toda transición de la tira. Reversible tocando un bloque; si no había
+ *  clase, el write la crea ya en cierre. */
+function onFlexFinal(): void {
+  if (isClosingScreen.value) return;
+  closingConfirmOpen.value = true;
+}
+
+function confirmClosing(): void {
+  closingConfirmOpen.value = false;
+  void send({ screen: 'closing' });
+}
+
+/** Los dos triángulos recorren la tira completa: inicio → bloques → final. */
 function onBlockStep(delta: number): void {
-  const target = blockButtons.value[buttonIndex.value + delta];
+  const destino = seqIndex.value + delta;
+  if (destino < 0 || destino >= seqLength.value) return;
+  if (destino === 0) {
+    onFlexInicio();
+    return;
+  }
+  if (destino === blockButtons.value.length + 1) {
+    onFlexFinal();
+    return;
+  }
+  const target = blockButtons.value[destino - 1];
   if (!target) return;
   requestBlockChange(target.role);
 }
@@ -863,16 +927,41 @@ function visualGroupOf(role: string): string {
 }
 
 function requestBlockChange(role: string): void {
+  // Desde la pantalla de inicio también se confirma (pedido 2026-08-26): el
+  // tap arranca la clase en ese bloque, y arrancarla por un mis-tap molesta
+  // igual que un cambio de bloque. El popup adapta su texto (no hay
+  // cronómetro que proteger todavía).
+  if (!hasState.value) {
+    pendingBlockRole.value = role;
+    blockConfirmOpen.value = true;
+    return;
+  }
   const current = currentBlockRole.value;
-  if (role === current) return;
+  if (role === current) {
+    // Desde el cierre, tocar el bloque en curso vuelve a la clase.
+    if (isClosingScreen.value) {
+      void send({ screen: 'class' });
+    }
+    return;
+  }
   // Pasar de un DEUTEROS al otro es el MISMO bloque visual: no reinicia nada, así
   // que se aplica directo, sin alerta. Solo se confirma al cambiar de bloque real.
   if (visualGroupOf(role) === visualGroupOf(current)) {
-    void send({ blockRole: role });
+    void sendBlockChange(role);
     return;
   }
   pendingBlockRole.value = role;
   blockConfirmOpen.value = true;
+}
+
+/** Cambio de bloque; desde el cierre o la pantalla de inicio además lleva a
+ *  la pantalla de clase (desde inicio, el write CREA el estado). */
+async function sendBlockChange(role: string): Promise<void> {
+  const write: Omit<TvStateWrite, 'branchId'> = { blockRole: role };
+  if (isClosingScreen.value || !hasState.value) {
+    write.screen = 'class';
+  }
+  await send(write);
 }
 
 function confirmBlockChange(): void {
@@ -880,7 +969,7 @@ function confirmBlockChange(): void {
   blockConfirmOpen.value = false;
   pendingBlockRole.value = null;
   if (role === null) return;
-  void send({ blockRole: role });
+  void sendBlockChange(role);
 }
 
 function onSelectLevel(level: string): void {
@@ -897,10 +986,6 @@ function onToggleSound(): void {
   void send({ soundEnabled: !soundEnabled.value });
 }
 
-function onToggleClosing(): void {
-  void send({ screen: isClosingScreen.value ? 'class' : 'closing' });
-}
-
 async function onEndClass(): Promise<void> {
   const branchId = selectedBranchId.value;
   if (branchId === null) return;
@@ -909,7 +994,10 @@ async function onEndClass(): Promise<void> {
   try {
     await tvApi.endClass(branchId);
     confirmEndOpen.value = false;
-    $q.notify({ type: 'positive', message: 'Clase terminada. El televisor vuelve a reposo.' });
+    $q.notify({
+      type: 'positive',
+      message: 'Clase terminada. El televisor muestra la pantalla de inicio.',
+    });
   } catch (err: unknown) {
     $q.notify({
       type: 'negative',
@@ -972,5 +1060,4 @@ onUnmounted(() => {
   color: var(--q-primary);
   margin-bottom: 8px;
 }
-
 </style>

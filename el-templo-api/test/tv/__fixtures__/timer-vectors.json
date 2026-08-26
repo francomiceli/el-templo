@@ -255,58 +255,47 @@
     ]
   },
   {
-    "name": "rom 4 rondas / 45s de descanso (sabado)",
+    "name": "rom (sabado): cronometro libre que sube desde cero",
     "params": {
       "type": "rom",
       "rounds": 4,
       "restSeconds": 45
     },
     "spec": {
-      "kind": "work_rest",
-      "workMs": 0,
-      "restMs": 45000,
-      "rounds": 4
+      "kind": "countup"
     },
     "samples": [
       {
         "elapsedMs": 0,
-        "phase": "work",
+        "phase": "run",
         "displayMs": 0,
         "round": 1,
-        "totalRounds": 4,
+        "totalRounds": 1,
         "finished": false
       },
       {
         "elapsedMs": 44999,
-        "phase": "work",
+        "phase": "run",
         "displayMs": 44999,
         "round": 1,
-        "totalRounds": 4,
-        "finished": false
-      },
-      {
-        "elapsedMs": 45000,
-        "phase": "work",
-        "displayMs": 0,
-        "round": 2,
-        "totalRounds": 4,
-        "finished": false
-      },
-      {
-        "elapsedMs": 179999,
-        "phase": "work",
-        "displayMs": 44999,
-        "round": 4,
-        "totalRounds": 4,
+        "totalRounds": 1,
         "finished": false
       },
       {
         "elapsedMs": 180000,
-        "phase": "done",
-        "displayMs": 0,
-        "round": 4,
-        "totalRounds": 4,
-        "finished": true
+        "phase": "run",
+        "displayMs": 180000,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": false
+      },
+      {
+        "elapsedMs": 3600000,
+        "phase": "run",
+        "displayMs": 3600000,
+        "round": 1,
+        "totalRounds": 1,
+        "finished": false
       }
     ]
   }

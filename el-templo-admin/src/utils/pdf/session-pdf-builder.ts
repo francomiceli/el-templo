@@ -27,7 +27,7 @@ import {
   MARBLE_BG_BASE64,
 } from './pdf-assets';
 import { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
-import { QUOTES } from './quotes';
+import { QUOTES, rotationIndex } from './quotes';
 import { formatWeekLabel, formatWeekForFilename } from '../weekDates';
 import { getRouteLabel } from 'src/constants/route-labels';
 
@@ -35,7 +35,10 @@ import { getRouteLabel } from 'src/constants/route-labels';
 // BRAND DESIGN TOKENS (from visual guidelines)
 // ============================================================
 const BG_CREAM = '#F2EBE1'; // Crema Mármol - main background
-const NAVY = '#24364A'; // Azul Profundo - headers, primary text
+// Tinta principal: fue Azul Profundo #24364A hasta 2026-08-25 — pasó a Deep
+// Charcoal ($accent del admin) para alinear PDF y TV con la paleta cálida sin
+// azul de la app. El nombre NAVY se conserva por sus usos en todo el builder.
+const NAVY = '#3D3732'; // Deep Charcoal - headers, primary text
 const GOLD = '#B08D6E'; // Oro Mate - accents, borders, subtitles
 const SAND = '#DBCAB4'; // Arena Suave - card backgrounds
 const BORDER_MUTED = '#c5b9a8'; // Muted border color
@@ -266,7 +269,7 @@ function buildCoverPage(): Content[] {
  * Closing page: Logo at top + motivational quote with gold accent
  */
 function buildClosingPage(quoteIndex: number): Content[] {
-  const quote = QUOTES[quoteIndex % QUOTES.length];
+  const quote = QUOTES[rotationIndex(quoteIndex, QUOTES.length)];
 
   return [
     { text: '', pageBreak: 'before' as const },
