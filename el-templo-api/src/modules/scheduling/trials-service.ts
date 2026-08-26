@@ -24,7 +24,17 @@
 
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
-import { and, asc, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import * as schema from "../../db/schema";
 import {
   BadRequestError,
@@ -37,7 +47,11 @@ import { appBranchName } from "../shared/app-branch-name";
 import { buildMapsUrl } from "../shared/maps";
 import type { CountryCode } from "../shared/country-scope";
 import { buildClassDateTime, todayInTz } from "../shared/date-utils";
-import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import type { BookingService } from "./booking-service";
 import type { NotificationService } from "../notifications/service";
 
@@ -301,7 +315,10 @@ export class TrialService {
       })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, input.branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, input.branchId),
+        ),
       )
       .limit(1);
     if (!branch) throw new NotFoundError("Sede no encontrada");
@@ -1320,7 +1337,10 @@ export class TrialService {
       .select({ tz: schema.branches.timezone })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
       )
       .limit(1);
     const today = todayInTz(branchRow?.tz ?? "America/Argentina/Buenos_Aires");

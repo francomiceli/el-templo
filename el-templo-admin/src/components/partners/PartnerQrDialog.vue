@@ -14,8 +14,8 @@
            del plan 179-17). -->
       <q-card-section v-else-if="missingUrls.length > 0">
         <q-banner class="bg-warning text-white q-mb-md" rounded>
-          Falta configurar la URL de {{ missingUrls.join(' y de ') }}. El QR no se genera
-          hasta cargarla.
+          Falta configurar la URL de {{ missingUrls.join(' y de ') }}. El QR no se genera hasta
+          cargarla.
         </q-banner>
         <q-form @submit="onSaveUrls" class="q-gutter-y-md">
           <q-input
@@ -47,7 +47,11 @@
         <div v-else class="row q-col-gutter-md">
           <div v-if="images.play" class="col-6 text-center">
             <div class="text-caption q-mb-xs">Play Store</div>
-            <img :src="images.play.dataUrl" style="width: 100%; max-width: 220px" alt="QR Play Store" />
+            <img
+              :src="images.play.dataUrl"
+              style="width: 100%; max-width: 220px"
+              alt="QR Play Store"
+            />
             <div class="q-mt-sm">
               <q-btn
                 dense
@@ -60,7 +64,11 @@
           </div>
           <div v-if="images.appstore" class="col-6 text-center">
             <div class="text-caption q-mb-xs">App Store</div>
-            <img :src="images.appstore.dataUrl" style="width: 100%; max-width: 220px" alt="QR App Store" />
+            <img
+              :src="images.appstore.dataUrl"
+              style="width: 100%; max-width: 220px"
+              alt="QR App Store"
+            />
             <div class="q-mt-sm">
               <q-btn
                 dense
@@ -75,9 +83,7 @@
 
         <q-separator class="q-my-md" />
 
-        <div class="text-caption text-grey-7 q-mb-xs">
-          Link de registro (campañas digitales)
-        </div>
+        <div class="text-caption text-grey-7 q-mb-xs">Link de registro (campañas digitales)</div>
         <q-input :model-value="registerLink" readonly dense outlined>
           <template #append>
             <q-btn flat dense round icon="content_copy" @click="copyLink">

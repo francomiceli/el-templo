@@ -271,8 +271,8 @@
       <q-icon name="event_busy" size="64px" color="grey-5" />
       <h2 class="reservas__empty-title">Tu semana de regalo venció</h2>
       <p class="reservas__empty-text">
-        El beneficio de tu semana gratis venció porque no llegaste a reservar a tiempo. Consultá
-        por nuestros planes para seguir entrenando.
+        El beneficio de tu semana gratis venció porque no llegaste a reservar a tiempo. Consultá por
+        nuestros planes para seguir entrenando.
       </p>
       <q-btn no-caps rounded color="positive" class="q-mt-md" @click="openWhatsApp">
         <q-icon
@@ -363,7 +363,9 @@
             <q-item v-bind="scope.itemProps">
               <q-item-section>
                 <q-item-label>{{ scope.opt.label }}</q-item-label>
-                <q-item-label caption>{{ scope.opt.address ?? 'Dirección no disponible' }}</q-item-label>
+                <q-item-label caption>{{
+                  scope.opt.address ?? 'Dirección no disponible'
+                }}</q-item-label>
               </q-item-section>
             </q-item>
           </template>
@@ -443,11 +445,11 @@
               <div class="slot-card__time">
                 <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
                 <span
-                class="slot-card__activity"
-                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
-                @click="onActivityNameTap(slot, $event)"
-                >{{ slot.activityName }}</span
-              >
+                  class="slot-card__activity"
+                  :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                  @click="onActivityNameTap(slot, $event)"
+                  >{{ slot.activityName }}</span
+                >
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
@@ -489,11 +491,11 @@
               <div class="slot-card__time">
                 <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
                 <span
-                class="slot-card__activity"
-                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
-                @click="onActivityNameTap(slot, $event)"
-                >{{ slot.activityName }}</span
-              >
+                  class="slot-card__activity"
+                  :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                  @click="onActivityNameTap(slot, $event)"
+                  >{{ slot.activityName }}</span
+                >
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
@@ -565,7 +567,9 @@
             <q-item v-bind="scope.itemProps">
               <q-item-section>
                 <q-item-label>{{ scope.opt.label }}</q-item-label>
-                <q-item-label caption>{{ scope.opt.address ?? 'Dirección no disponible' }}</q-item-label>
+                <q-item-label caption>{{
+                  scope.opt.address ?? 'Dirección no disponible'
+                }}</q-item-label>
               </q-item-section>
             </q-item>
           </template>
@@ -1027,7 +1031,13 @@
           {{ partnerDialog.message }}
         </q-card-section>
         <q-card-actions align="right">
-          <q-btn flat label="Cancelar" color="grey" v-close-popup :disable="partnerDialog.loading" />
+          <q-btn
+            flat
+            label="Cancelar"
+            color="grey"
+            v-close-popup
+            :disable="partnerDialog.loading"
+          />
           <q-btn
             flat
             label="Confirmar"
@@ -1141,7 +1151,11 @@ import TemploLoader from 'src/components/TemploLoader.vue'
 import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
-import type { TrialEligibility, BranchOption, PartnerBenefitEligibility } from 'src/composables/useSchedulingApi'
+import type {
+  TrialEligibility,
+  BranchOption,
+  PartnerBenefitEligibility,
+} from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'

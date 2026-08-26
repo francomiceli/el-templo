@@ -118,7 +118,11 @@ import {
   dateOffsetStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
-import { tenantWhere, tenantValues, type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -418,7 +422,8 @@ async function fotoDeBooking(bookingId: number): Promise<FotoDeBooking> {
   return {
     tenantId: f.tenant_id === null ? null : Number(f.tenant_id),
     status: f.status,
-    waitlistPosition: f.waitlist_position === null ? null : Number(f.waitlist_position),
+    waitlistPosition:
+      f.waitlist_position === null ? null : Number(f.waitlist_position),
   };
 }
 
@@ -428,7 +433,10 @@ interface FotoDeHoliday {
 }
 
 async function fotoDeHoliday(holidayId: number): Promise<FotoDeHoliday> {
-  const filas = await consultar<{ tenant_id: number | null; name: string | null }>(
+  const filas = await consultar<{
+    tenant_id: number | null;
+    name: string | null;
+  }>(
     sql`SELECT /* tenant-safe: releer la fila (ajena o propia) es la asercion de tampering; filtrarla por gimnasio la volveria tautologica */ tenant_id, name FROM holidays WHERE id = ${holidayId}`,
   );
   const f = filas[0];
@@ -479,7 +487,10 @@ async function contarExcepcionesDeHorario(scheduleId: number): Promise<number> {
 }
 
 /** Resuelve el id de la excepcion recien creada por (scheduleId, date), sin filtro de gimnasio. */
-async function idDeExcepcion(scheduleId: number, date: string): Promise<number | null> {
+async function idDeExcepcion(
+  scheduleId: number,
+  date: string,
+): Promise<number | null> {
   const filas = await consultar<{ id: number }>(
     sql`SELECT /* tenant-safe: resolver el id de la fila recien creada ES la precondicion del resto de la asercion */ id FROM schedule_exceptions WHERE schedule_id = ${scheduleId} AND exception_date = ${date} LIMIT 1`,
   );
@@ -495,12 +506,20 @@ describe("precondiciones de la bateria", () => {
     const [sedeDos] = await app.db
       .select({ country: schema.branches.country })
       .from(schema.branches)
-      .where(and(tenantWhere(schema.branches, CTX_DOS), eq(schema.branches.id, gym2.branchId)));
+      .where(
+        and(
+          tenantWhere(schema.branches, CTX_DOS),
+          eq(schema.branches.id, gym2.branchId),
+        ),
+      );
     const [sedeTemplo] = await app.db
       .select({ country: schema.branches.country })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, CTX_TEMPLO), eq(schema.branches.id, fx.templo.branchId)),
+        and(
+          tenantWhere(schema.branches, CTX_TEMPLO),
+          eq(schema.branches.id, fx.templo.branchId),
+        ),
       );
     expect(
       [sedeDos?.country, sedeTemplo?.country],
@@ -514,7 +533,11 @@ describe("precondiciones de la bateria", () => {
       [
         await tenantDeLaFila(app, "schedules", fx.templo.scheduleId),
         await tenantDeLaFila(app, "bookings", fx.templo.bookingId),
-        await tenantDeLaFila(app, "schedule_exceptions", fx.templo.scheduleExceptionId),
+        await tenantDeLaFila(
+          app,
+          "schedule_exceptions",
+          fx.templo.scheduleExceptionId,
+        ),
         await tenantDeLaFila(app, "holidays", fx.templo.holidayId),
       ],
       "Alguna fila ajena no quedo en El Templo. Revisar sembrarLadoTemplo en subs-sched-gimnasio-dos.ts.",
@@ -523,7 +546,11 @@ describe("precondiciones de la bateria", () => {
       [
         await tenantDeLaFila(app, "schedules", fx.dos.scheduleId),
         await tenantDeLaFila(app, "bookings", fx.dos.bookingId),
-        await tenantDeLaFila(app, "schedule_exceptions", fx.dos.scheduleExceptionId),
+        await tenantDeLaFila(
+          app,
+          "schedule_exceptions",
+          fx.dos.scheduleExceptionId,
+        ),
         await tenantDeLaFila(app, "holidays", fx.dos.holidayId),
       ],
       "Alguna fila del gimnasio 2 nacio en El Templo por el DEFAULT 1.",
@@ -591,9 +618,9 @@ describe("sembrar horarios default — POST /api/admin/scheduling/schedules/seed
     // mano aca, simulando que otro seed/alta la creo antes). Si el lookup de
     // "existe o crea" del seed no filtrara por gimnasio, esta 2da creacion
     // reusaria la fila ajena en vez de crear la propia del gimnasio 2.
-    await app.db.insert(schema.activities).values(
-      tenantValues(CTX_TEMPLO, { name: "General", isActive: true }),
-    );
+    await app.db
+      .insert(schema.activities)
+      .values(tenantValues(CTX_TEMPLO, { name: "General", isActive: true }));
 
     const res = await comoAdminGimnasioDos("POST", "/schedules/seed", {
       branchId: gym2.branchId,
@@ -621,17 +648,24 @@ describe("sembrar horarios default — POST /api/admin/scheduling/schedules/seed
     const res = await comoAdminGimnasioDos("POST", "/schedules/seed", {
       branchId: gym2.branchId,
     });
-    expect(res.statusCode, porQueImportaElControl(RUTA, gym2.branchId) + ` Respuesta: ${res.body}`).toBe(
-      201,
-    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, gym2.branchId) + ` Respuesta: ${res.body}`,
+    ).toBe(201);
     const body = JSON.parse(res.body) as { created: number };
-    expect(body.created, `${RUTA}: el seed no creo ningun horario.`).toBeGreaterThan(0);
+    expect(
+      body.created,
+      `${RUTA}: el seed no creo ningun horario.`,
+    ).toBeGreaterThan(0);
 
     const sembrados = await app.db
       .select({ id: schema.schedules.id })
       .from(schema.schedules)
       .where(
-        and(tenantWhere(schema.schedules, CTX_DOS), eq(schema.schedules.branchId, gym2.branchId)),
+        and(
+          tenantWhere(schema.schedules, CTX_DOS),
+          eq(schema.schedules.branchId, gym2.branchId),
+        ),
       );
     for (const s of sembrados) {
       expect(
@@ -647,28 +681,41 @@ describe("activar/desactivar horario — PUT /api/admin/scheduling/schedules/:sc
 
   it("aislamiento: desactivar un horario de El Templo se rechaza, y sigue activo (foto sin cambios)", async () => {
     const antes = await fotoDeSchedule(fx.templo.scheduleId);
-    expect(antes.active, "Precondicion: el horario de El Templo empieza activo.").toBe(true);
-    const res = await comoAdminGimnasioDos("PUT", `/schedules/${fx.templo.scheduleId}/toggle`, {
-      isActive: false,
-    });
+    expect(
+      antes.active,
+      "Precondicion: el horario de El Templo empieza activo.",
+    ).toBe(true);
+    const res = await comoAdminGimnasioDos(
+      "PUT",
+      `/schedules/${fx.templo.scheduleId}/toggle`,
+      {
+        isActive: false,
+      },
+    );
     expect(
       res.statusCode,
       porQueImporta(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     const despues = await fotoDeSchedule(fx.templo.scheduleId);
-    expect(despues, `${RUTA}: el rechazo no puede dejar cambios en el horario de El Templo.`).toEqual(
-      antes,
-    );
+    expect(
+      despues,
+      `${RUTA}: el rechazo no puede dejar cambios en el horario de El Templo.`,
+    ).toEqual(antes);
   });
 
   it("control: desactivar el horario propio del gimnasio 2 SI funciona", async () => {
-    const res = await comoAdminGimnasioDos("PUT", `/schedules/${fx.dos.scheduleId}/toggle`, {
-      isActive: false,
-      inactiveReason: "control 174.1-08",
-    });
+    const res = await comoAdminGimnasioDos(
+      "PUT",
+      `/schedules/${fx.dos.scheduleId}/toggle`,
+      {
+        isActive: false,
+        inactiveReason: "control 174.1-08",
+      },
+    );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeSchedule(fx.dos.scheduleId);
     expect([despues.tenantId, despues.active]).toEqual([TENANT_DOS, false]);
@@ -720,10 +767,14 @@ describe("cambiar actividad del horario — PATCH /api/admin/scheduling/schedule
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeSchedule(fx.dos.scheduleId);
-    expect([despues.tenantId, despues.activityId]).toEqual([TENANT_DOS, gym2.activityId]);
+    expect([despues.tenantId, despues.activityId]).toEqual([
+      TENANT_DOS,
+      gym2.activityId,
+    ]);
   });
 });
 
@@ -758,7 +809,8 @@ describe("cancelar UNA fecha — POST /api/admin/scheduling/schedules/:scheduleI
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as { exceptionDate: string };
     expect(body.exceptionDate).toBe(fecha);
@@ -772,7 +824,8 @@ describe("cancelar UNA fecha — POST /api/admin/scheduling/schedules/:scheduleI
 });
 
 describe("restaurar UNA fecha — DELETE /api/admin/scheduling/schedules/:scheduleId/cancel-date/:date", () => {
-  const RUTA = "DELETE /api/admin/scheduling/schedules/:scheduleId/cancel-date/:date";
+  const RUTA =
+    "DELETE /api/admin/scheduling/schedules/:scheduleId/cancel-date/:date";
 
   it("aislamiento: un scheduleId de El Templo se rechaza, y la excepcion ajena sigue existiendo", async () => {
     const res = await comoAdminGimnasioDos(
@@ -784,7 +837,11 @@ describe("restaurar UNA fecha — DELETE /api/admin/scheduling/schedules/:schedu
       porQueImporta(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     expect(
-      await tenantDeLaFila(app, "schedule_exceptions", fx.templo.scheduleExceptionId),
+      await tenantDeLaFila(
+        app,
+        "schedule_exceptions",
+        fx.templo.scheduleExceptionId,
+      ),
       `${RUTA}: el rechazo no puede haber borrado la excepcion de El Templo.`,
     ).toBe(TENANT_TEMPLO);
   });
@@ -796,9 +853,13 @@ describe("restaurar UNA fecha — DELETE /api/admin/scheduling/schedules/:schedu
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
-    const idAun = await idDeExcepcion(fx.dos.scheduleId, fx.dos.scheduleExceptionDate);
+    const idAun = await idDeExcepcion(
+      fx.dos.scheduleId,
+      fx.dos.scheduleExceptionDate,
+    );
     expect(
       idAun,
       `${RUTA}: la excepcion propia deberia haber sido borrada por la restauracion.`,
@@ -807,7 +868,8 @@ describe("restaurar UNA fecha — DELETE /api/admin/scheduling/schedules/:schedu
 });
 
 describe("eliminar horario desde una fecha — POST /api/admin/scheduling/schedules/:scheduleId/delete-from-date", () => {
-  const RUTA = "POST /api/admin/scheduling/schedules/:scheduleId/delete-from-date";
+  const RUTA =
+    "POST /api/admin/scheduling/schedules/:scheduleId/delete-from-date";
 
   it("aislamiento: un scheduleId de El Templo se rechaza, y sigue activo (foto sin cambios)", async () => {
     const antes = await fotoDeSchedule(fx.templo.scheduleId);
@@ -832,7 +894,8 @@ describe("eliminar horario desde una fecha — POST /api/admin/scheduling/schedu
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeSchedule(fx.dos.scheduleId);
     expect([despues.tenantId, despues.active]).toEqual([TENANT_DOS, false]);
@@ -878,25 +941,36 @@ describe("eliminar feriado — DELETE /api/admin/scheduling/holidays/:holidayId"
 
   it("aislamiento: eliminar un feriado de El Templo se rechaza, y sigue existiendo", async () => {
     const antes = await fotoDeHoliday(fx.templo.holidayId);
-    const res = await comoAdminGimnasioDos("DELETE", `/holidays/${fx.templo.holidayId}`);
+    const res = await comoAdminGimnasioDos(
+      "DELETE",
+      `/holidays/${fx.templo.holidayId}`,
+    );
     expect(
       res.statusCode,
       porQueImporta(RUTA, fx.templo.holidayId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     const despues = await fotoDeHoliday(fx.templo.holidayId);
-    expect(despues, `${RUTA}: el rechazo no puede haber borrado el feriado de El Templo.`).toEqual(
-      antes,
-    );
+    expect(
+      despues,
+      `${RUTA}: el rechazo no puede haber borrado el feriado de El Templo.`,
+    ).toEqual(antes);
   });
 
   it("control: eliminar el feriado propio del gimnasio 2 SI funciona", async () => {
-    const res = await comoAdminGimnasioDos("DELETE", `/holidays/${fx.dos.holidayId}`);
+    const res = await comoAdminGimnasioDos(
+      "DELETE",
+      `/holidays/${fx.dos.holidayId}`,
+    );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.holidayId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.holidayId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeHoliday(fx.dos.holidayId);
-    expect(despues.name, `${RUTA}: el feriado propio deberia haber sido borrado.`).toBeNull();
+    expect(
+      despues.name,
+      `${RUTA}: el feriado propio deberia haber sido borrado.`,
+    ).toBeNull();
   });
 });
 
@@ -908,7 +982,10 @@ describe("crear actividad — POST /api/admin/scheduling/activities", () => {
       .select({ name: schema.activities.name })
       .from(schema.activities)
       .where(
-        and(tenantWhere(schema.activities, CTX_TEMPLO), eq(schema.activities.id, fx.templo.activityId)),
+        and(
+          tenantWhere(schema.activities, CTX_TEMPLO),
+          eq(schema.activities.id, fx.templo.activityId),
+        ),
       );
     const res = await comoAdminGimnasioDos("POST", "/activities", {
       name: actTemplo?.name,
@@ -941,26 +1018,36 @@ describe("editar actividad — PUT /api/admin/scheduling/activities/:activityId"
 
   it("aislamiento: editar una actividad de El Templo se rechaza, y la fila (tenant_id/active/name) NO cambia", async () => {
     const antes = await fotoDeActivity(fx.templo.activityId);
-    const res = await comoAdminGimnasioDos("PUT", `/activities/${fx.templo.activityId}`, {
-      name: "Hackeado174.1",
-    });
+    const res = await comoAdminGimnasioDos(
+      "PUT",
+      `/activities/${fx.templo.activityId}`,
+      {
+        name: "Hackeado174.1",
+      },
+    );
     expect(
       res.statusCode,
       porQueImporta(RUTA, fx.templo.activityId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     const despues = await fotoDeActivity(fx.templo.activityId);
-    expect(despues, `${RUTA}: el rechazo no puede dejar cambios en la actividad de El Templo.`).toEqual(
-      antes,
-    );
+    expect(
+      despues,
+      `${RUTA}: el rechazo no puede dejar cambios en la actividad de El Templo.`,
+    ).toEqual(antes);
   });
 
   it("control: editar la actividad propia del gimnasio 2 SI funciona", async () => {
-    const res = await comoAdminGimnasioDos("PUT", `/activities/${fx.dos.activityId}`, {
-      name: `ISO03SS Actividad Editada ${sufijo()}`,
-    });
+    const res = await comoAdminGimnasioDos(
+      "PUT",
+      `/activities/${fx.dos.activityId}`,
+      {
+        name: `ISO03SS Actividad Editada ${sufijo()}`,
+      },
+    );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.activityId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.activityId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeActivity(fx.dos.activityId);
     expect(despues.tenantId).toBe(TENANT_DOS);
@@ -987,7 +1074,10 @@ describe("agregar reserva (admin) — POST /api/admin/scheduling/bookings", () =
       porQueImporta(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     const despues = await contarBookingsDeMiembro(fx.templo.userId);
-    expect(despues, `${RUTA}: el rechazo no puede crear NINGUNA fila en bookings.`).toBe(antes);
+    expect(
+      despues,
+      `${RUTA}: el rechazo no puede crear NINGUNA fila en bookings.`,
+    ).toBe(antes);
   });
 
   it("combinacion cruzada A (T-174.1-08-04): memberId de El Templo + scheduleId PROPIO se rechaza — 'Alumno no encontrado', CERO bookings nuevas", async () => {
@@ -1037,7 +1127,8 @@ describe("agregar reserva (admin) — POST /api/admin/scheduling/bookings", () =
     });
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[1].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[1].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(201);
     const body = JSON.parse(res.body) as { booking: { id: number } };
     expect(
@@ -1052,28 +1143,40 @@ describe("quitar reserva (admin) — DELETE /api/admin/scheduling/bookings/:book
 
   it("aislamiento: un bookingId de El Templo se rechaza, y la reserva NO cambia de estado", async () => {
     const antes = await fotoDeBooking(fx.templo.bookingId);
-    expect(antes.status, "Precondicion: la reserva de El Templo empieza reservada.").toBe(
-      "reservado",
+    expect(
+      antes.status,
+      "Precondicion: la reserva de El Templo empieza reservada.",
+    ).toBe("reservado");
+    const res = await comoAdminGimnasioDos(
+      "DELETE",
+      `/bookings/${fx.templo.bookingId}`,
     );
-    const res = await comoAdminGimnasioDos("DELETE", `/bookings/${fx.templo.bookingId}`);
     expect(
       res.statusCode,
       porQueImporta(RUTA, fx.templo.bookingId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     const despues = await fotoDeBooking(fx.templo.bookingId);
-    expect(despues, `${RUTA}: el rechazo no puede dejar cambios en la reserva de El Templo.`).toEqual(
-      antes,
-    );
+    expect(
+      despues,
+      `${RUTA}: el rechazo no puede dejar cambios en la reserva de El Templo.`,
+    ).toEqual(antes);
   });
 
   it("control: quitar la reserva propia del gimnasio 2 SI funciona", async () => {
-    const res = await comoAdminGimnasioDos("DELETE", `/bookings/${fx.dos.bookingId}`);
+    const res = await comoAdminGimnasioDos(
+      "DELETE",
+      `/bookings/${fx.dos.bookingId}`,
+    );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.bookingId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.bookingId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeBooking(fx.dos.bookingId);
-    expect([despues.tenantId, despues.status]).toEqual([TENANT_DOS, "cancelado"]);
+    expect([despues.tenantId, despues.status]).toEqual([
+      TENANT_DOS,
+      "cancelado",
+    ]);
   });
 });
 
@@ -1093,7 +1196,10 @@ describe("agendar sesion de prueba (admin) — POST /api/admin/scheduling/trials
       porQueImporta(RUTA, fx.templo.userId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     const despues = await contarBookingsDeMiembro(fx.templo.userId);
-    expect(despues, `${RUTA}: el rechazo no puede crear NINGUNA fila en bookings.`).toBe(antes);
+    expect(
+      despues,
+      `${RUTA}: el rechazo no puede crear NINGUNA fila en bookings.`,
+    ).toBe(antes);
   });
 
   it("combinacion cruzada: scheduleId de El Templo + userId PROPIO se rechaza — 'Horario no encontrado'", async () => {
@@ -1142,11 +1248,15 @@ describe("reprogramar sesion de prueba (admin) — POST /api/admin/scheduling/tr
   let bookingTrialDosId: number;
 
   beforeEach(async () => {
-    const leadTemploId = await crearLeadDirecto(CTX_TEMPLO, fx.templo.branchId, {
-      firstName: "ReproTemplo",
-      lastName: `ISO0308${sufijo()}`,
-      status: "prueba",
-    });
+    const leadTemploId = await crearLeadDirecto(
+      CTX_TEMPLO,
+      fx.templo.branchId,
+      {
+        firstName: "ReproTemplo",
+        lastName: `ISO0308${sufijo()}`,
+        status: "prueba",
+      },
+    );
     const leadDosId = await crearLeadDirecto(CTX_DOS, gym2.branchId, {
       firstName: "ReproDos",
       lastName: `ISO0308${sufijo()}`,
@@ -1182,9 +1292,10 @@ describe("reprogramar sesion de prueba (admin) — POST /api/admin/scheduling/tr
       porQueImporta(RUTA, bookingTrialTemploId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     const despues = await fotoDeBooking(bookingTrialTemploId);
-    expect(despues, `${RUTA}: el rechazo no puede dejar cambios en la reserva de El Templo.`).toEqual(
-      antes,
-    );
+    expect(
+      despues,
+      `${RUTA}: el rechazo no puede dejar cambios en la reserva de El Templo.`,
+    ).toEqual(antes);
   });
 
   it("combinacion cruzada: bookingId PROPIO con scheduleId destino de El Templo se rechaza, sin cambios", async () => {
@@ -1222,7 +1333,8 @@ describe("reprogramar sesion de prueba (admin) — POST /api/admin/scheduling/tr
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, bookingTrialDosId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, bookingTrialDosId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as { bookingId: number };
     expect(
@@ -1230,7 +1342,10 @@ describe("reprogramar sesion de prueba (admin) — POST /api/admin/scheduling/tr
       `${RUTA}: la sesion reprogramada por el staff del gimnasio ${TENANT_DOS} tiene que nacer con ese tenant_id.`,
     ).toBe(TENANT_DOS);
     const vieja = await fotoDeBooking(bookingTrialDosId);
-    expect(vieja.status, `${RUTA}: la sesion vieja tiene que quedar cancelada.`).toBe("cancelado");
+    expect(
+      vieja.status,
+      `${RUTA}: la sesion vieja tiene que quedar cancelada.`,
+    ).toBe("cancelado");
   });
 });
 
@@ -1239,10 +1354,15 @@ describe("reservar clase (socio) — POST /api/members/scheduling/reserve", () =
 
   it("aislamiento: un scheduleId de El Templo se rechaza — SC1, 'Horario no encontrado', CERO bookings nuevas", async () => {
     const antes = await contarBookingsDeMiembro(gym2.socios[0].id);
-    const res = await comoMemberGimnasioDos("POST", "/reserve", gym2.socios[0].token, {
-      scheduleId: fx.templo.scheduleId,
-      date: dateOffsetStr(1),
-    });
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/reserve",
+      gym2.socios[0].token,
+      {
+        scheduleId: fx.templo.scheduleId,
+        date: dateOffsetStr(1),
+      },
+    );
     expect(
       res.statusCode,
       porQueImporta(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
@@ -1256,13 +1376,19 @@ describe("reservar clase (socio) — POST /api/members/scheduling/reserve", () =
 
   it("control: reservar un horario propio SI funciona, la reserva nace con tenant_id = TENANT_DOS", async () => {
     const scheduleId = await crearHorarioParaManana();
-    const res = await comoMemberGimnasioDos("POST", "/reserve", gym2.socios[0].token, {
-      scheduleId,
-      date: dateOffsetStr(1),
-    });
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/reserve",
+      gym2.socios[0].token,
+      {
+        scheduleId,
+        date: dateOffsetStr(1),
+      },
+    );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(201);
     const body = JSON.parse(res.body) as { id: number };
     expect(
@@ -1283,17 +1409,25 @@ describe("reservar sesion de prueba self-service — POST /api/members/schedulin
       phone: telefonoUnico(),
     });
     const antes = await contarBookingsDeMiembro(freemiumDos.id);
-    const res = await comoMemberGimnasioDos("POST", "/reserve-trial", freemiumDos.token, {
-      scheduleId: fx.templo.scheduleId,
-      date: dateOffsetStr(1),
-      branchId: gym2.branchId,
-    });
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/reserve-trial",
+      freemiumDos.token,
+      {
+        scheduleId: fx.templo.scheduleId,
+        date: dateOffsetStr(1),
+        branchId: gym2.branchId,
+      },
+    );
     expect(
       res.statusCode,
       porQueImporta(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     const despues = await contarBookingsDeMiembro(freemiumDos.id);
-    expect(despues, `${RUTA}: el rechazo no puede crear NINGUNA fila en bookings.`).toBe(antes);
+    expect(
+      despues,
+      `${RUTA}: el rechazo no puede crear NINGUNA fila en bookings.`,
+    ).toBe(antes);
   });
 
   it("control: reservar la sesion de prueba propia SI funciona, nace con tenant_id = TENANT_DOS", async () => {
@@ -1304,11 +1438,16 @@ describe("reservar sesion de prueba self-service — POST /api/members/schedulin
       phone: telefonoUnico(),
     });
     const scheduleId = await crearHorarioParaManana();
-    const res = await comoMemberGimnasioDos("POST", "/reserve-trial", freemiumDos.token, {
-      scheduleId,
-      date: dateOffsetStr(1),
-      branchId: gym2.branchId,
-    });
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/reserve-trial",
+      freemiumDos.token,
+      {
+        scheduleId,
+        date: dateOffsetStr(1),
+        branchId: gym2.branchId,
+      },
+    );
     expect(
       res.statusCode,
       porQueImportaElControl(RUTA, freemiumDos.id) + ` Respuesta: ${res.body}`,
@@ -1364,7 +1503,11 @@ describe("cancelar sesion de prueba self-service — POST /api/members/schedulin
 
   it("aislamiento: cancelar la sesion propia del gimnasio 2 NO toca la de El Templo (ctx resuelto al gimnasio correcto)", async () => {
     const antesAjena = await fotoDeBooking(pruebaTemploBookingId);
-    const res = await comoMemberGimnasioDos("POST", "/cancel-trial", pruebaDos.token);
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/cancel-trial",
+      pruebaDos.token,
+    );
     expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
     const despuesAjena = await fotoDeBooking(pruebaTemploBookingId);
     expect(
@@ -1380,7 +1523,11 @@ describe("cancelar sesion de prueba self-service — POST /api/members/schedulin
   });
 
   it("control: revierte prueba→freemium, la reserva sigue con tenant_id = TENANT_DOS", async () => {
-    const res = await comoMemberGimnasioDos("POST", "/cancel-trial", pruebaDos.token);
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/cancel-trial",
+      pruebaDos.token,
+    );
     expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
     const body = JSON.parse(res.body) as { cancelled: boolean };
     expect(body.cancelled).toBe(true);
@@ -1388,7 +1535,12 @@ describe("cancelar sesion de prueba self-service — POST /api/members/schedulin
     const [userRow] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(and(tenantWhere(schema.users, CTX_DOS), eq(schema.users.id, pruebaDos.id)));
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_DOS),
+          eq(schema.users.id, pruebaDos.id),
+        ),
+      );
     expect(
       userRow?.status,
       `${RUTA}: el usuario tiene que volver a 'freemium' tras cancelar su unica sesion de prueba.`,
@@ -1411,9 +1563,10 @@ describe("cancelar reserva propia (socio) — DELETE /api/members/scheduling/boo
       porQueImporta(RUTA, fx.templo.bookingId) + ` Respuesta: ${res.body}`,
     ).toBe(404);
     const despues = await fotoDeBooking(fx.templo.bookingId);
-    expect(despues, `${RUTA}: el rechazo no puede dejar cambios en la reserva de El Templo.`).toEqual(
-      antes,
-    );
+    expect(
+      despues,
+      `${RUTA}: el rechazo no puede dejar cambios en la reserva de El Templo.`,
+    ).toEqual(antes);
   });
 
   it("control: cancelar la reserva propia del gimnasio 2 SI funciona", async () => {
@@ -1424,10 +1577,14 @@ describe("cancelar reserva propia (socio) — DELETE /api/members/scheduling/boo
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.bookingId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.bookingId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const despues = await fotoDeBooking(fx.dos.bookingId);
-    expect([despues.tenantId, despues.status]).toEqual([TENANT_DOS, "cancelado"]);
+    expect([despues.tenantId, despues.status]).toEqual([
+      TENANT_DOS,
+      "cancelado",
+    ]);
   });
 });
 

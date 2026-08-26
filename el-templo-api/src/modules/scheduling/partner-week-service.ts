@@ -36,7 +36,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError, ConflictError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import { tenantWhere } from "../shared/tenant";
 import type { TenantCtx } from "../referral-partners/types";
 import { PartnerReferralService } from "../referral-partners/service";
@@ -94,12 +98,17 @@ export class PartnerWeekService {
    * en la fila (nada lo pasa a `expired` de forma automática — prohibido un
    * cron, CON-04) pero igual se reporta `expirado` si la fecha ya pasó.
    */
-  async getPartnerWeekEligibility(userId: number): Promise<PartnerWeekEligibility> {
+  async getPartnerWeekEligibility(
+    userId: number,
+  ): Promise<PartnerWeekEligibility> {
     /* tenant-safe: lectura por PK del propio usuario que llama — no hay
      * request.scope en esta ruta member (mismo patrón que
      * getTrialEligibility/consumePartnerBenefitOnCharge). */
     const [user] = await this.db
-      .select({ tenantId: schema.users.tenantId, deletedAt: schema.users.deletedAt })
+      .select({
+        tenantId: schema.users.tenantId,
+        deletedAt: schema.users.deletedAt,
+      })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
       .limit(1);
@@ -133,7 +142,10 @@ export class PartnerWeekService {
     if (link.benefitStatus === "consumed") {
       return { eligible: false, reason: "consumido" };
     }
-    if (link.benefitStatus === "expired" || link.benefitExpiresAt <= new Date()) {
+    if (
+      link.benefitStatus === "expired" ||
+      link.benefitExpiresAt <= new Date()
+    ) {
       return { eligible: false, reason: "expirado" };
     }
 
@@ -184,7 +196,10 @@ export class PartnerWeekService {
     /* tenant-safe: lectura por PK del propio usuario que llama (ver
      * getPartnerWeekEligibility arriba). */
     const [user] = await this.db
-      .select({ tenantId: schema.users.tenantId, deletedAt: schema.users.deletedAt })
+      .select({
+        tenantId: schema.users.tenantId,
+        deletedAt: schema.users.deletedAt,
+      })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
       .limit(1);
@@ -201,7 +216,12 @@ export class PartnerWeekService {
         timezone: schema.branches.timezone,
       })
       .from(schema.branches)
-      .where(and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, input.branchId)))
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, input.branchId),
+        ),
+      )
       .limit(1);
     if (!branch) {
       throw new NotFoundError("Sede no encontrada");
@@ -234,12 +254,17 @@ export class PartnerWeekService {
       )
       .limit(1);
     if (!link) {
-      throw new ConflictError("No tenés un beneficio de semana de regalo pendiente");
+      throw new ConflictError(
+        "No tenés un beneficio de semana de regalo pendiente",
+      );
     }
     if (link.benefitStatus === "consumed") {
       throw new ConflictError("Ya activaste tu semana de regalo");
     }
-    if (link.benefitStatus === "expired" || link.benefitExpiresAt <= new Date()) {
+    if (
+      link.benefitStatus === "expired" ||
+      link.benefitExpiresAt <= new Date()
+    ) {
       throw new ConflictError("Tu semana de regalo venció");
     }
 
@@ -321,12 +346,14 @@ export class PartnerWeekService {
     // concurrente que haya pasado los guards de arriba no pisa esta fila.
     // `percent`/`amount` en 0: la semana gratis no es un descuento monetario
     // (ese es el eje `discount_percent`, D-09/D-10), es un plan a precio 0.
-    await new PartnerReferralService(this.db, this.log).consumePartnerBenefitOnCharge(
-      ctx,
-      userId,
-      subscription.id,
-      { percent: 0, amount: 0, reason: "semana_activada" },
-    );
+    await new PartnerReferralService(
+      this.db,
+      this.log,
+    ).consumePartnerBenefitOnCharge(ctx, userId, subscription.id, {
+      percent: 0,
+      amount: 0,
+      reason: "semana_activada",
+    });
 
     return {
       subscriptionId: subscription.id,
@@ -355,7 +382,9 @@ export class PartnerWeekService {
         and(
           tenantWhere(schema.subscriptions, ctx),
           eq(schema.subscriptions.userId, userId),
-          inArray(schema.subscriptions.status, [...BLOCKING_SUBSCRIPTION_STATUSES]),
+          inArray(schema.subscriptions.status, [
+            ...BLOCKING_SUBSCRIPTION_STATUSES,
+          ]),
         ),
       )
       .limit(1);

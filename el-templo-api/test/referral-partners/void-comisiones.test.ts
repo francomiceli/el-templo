@@ -19,11 +19,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import {
-  createTestApp,
-  getAuthToken,
-  cleanAllTestData,
-} from "../helpers";
+import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import {
   createPlan,
   createMember,
@@ -32,11 +28,7 @@ import {
 } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
 import { tenantValues } from "../../src/modules/shared/tenant";
-import {
-  insertPartner,
-  insertPartnerLink,
-  partnerLinkRow,
-} from "./_helpers";
+import { insertPartner, insertPartnerLink, partnerLinkRow } from "./_helpers";
 
 let app: FastifyInstance;
 let adminToken: string;

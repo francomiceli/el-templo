@@ -251,10 +251,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
           request.scope,
           "scheduling.getClassLabelDescriptions",
         );
-        const descriptions = await getDerivedLabelDescriptions(
-          fastify.db,
-          ctx,
-        );
+        const descriptions = await getDerivedLabelDescriptions(fastify.db, ctx);
         return { descriptions };
       } catch (err: unknown) {
         handleServiceError(
@@ -285,10 +282,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
           request.body.mode,
           request.body.description,
         );
-        const descriptions = await getDerivedLabelDescriptions(
-          fastify.db,
-          ctx,
-        );
+        const descriptions = await getDerivedLabelDescriptions(fastify.db, ctx);
         return { descriptions };
       } catch (err: unknown) {
         handleServiceError(
@@ -456,7 +450,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: cancelScheduleDateSchema },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(request.scope, "scheduling.cancelScheduleDate");
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.cancelScheduleDate",
+        );
         const { scheduleId } = request.params;
         const { date, reason } = request.body;
 
@@ -497,7 +494,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: restoreScheduleDateSchema },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(request.scope, "scheduling.restoreScheduleDate");
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.restoreScheduleDate",
+        );
         const { scheduleId, date } = request.params;
 
         const exception = await schedulingService.restoreScheduleDate(
@@ -530,10 +530,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: previewScheduleDeletionSchema },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(
-          request.scope,
-          "scheduling.deletionPreview",
-        );
+        const ctx = assertTenant(request.scope, "scheduling.deletionPreview");
         const preview = await bookingService.previewScheduleDeletion(
           ctx,
           request.params.scheduleId,
@@ -713,7 +710,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: adminRemoveBookingSchema },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(request.scope, "scheduling.adminRemoveBooking");
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.adminRemoveBooking",
+        );
         await bookingService.adminRemoveBooking(ctx, request.params.bookingId);
         return { cancelled: true };
       } catch (err: unknown) {
@@ -791,7 +791,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(request.scope, "scheduling.listEligibleTrials");
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.listEligibleTrials",
+        );
         const result = await trialService.listEligibleTrials(
           ctx,
           request.query.branchId,
@@ -1068,7 +1071,12 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   // revalidated server-side from user state; the email token never authorizes
   // (D-21).
   fastify.post<{
-    Body: { scheduleId: number; date: string; branchId: number; phone?: string };
+    Body: {
+      scheduleId: number;
+      date: string;
+      branchId: number;
+      phone?: string;
+    };
   }>(
     "/reserve-trial",
     { schema: reserveTrialSchema },
@@ -1168,7 +1176,12 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.code(201).send(result);
       } catch (err: unknown) {
-        handleServiceError(err, reply, request.log, "member reserve partner week");
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "member reserve partner week",
+        );
       }
     },
   );
@@ -1239,7 +1252,10 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         ),
       )
       .where(
-        and(tenantWhere(schema.users, ctx), eq(schema.users.id, request.user.userId)),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, request.user.userId),
+        ),
       )
       .limit(1);
 

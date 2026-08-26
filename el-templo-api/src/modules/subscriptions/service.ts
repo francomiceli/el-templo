@@ -4971,7 +4971,12 @@ export class SubscriptionService {
 
     // Partners (D-11/D-17): dispara con pricePaid>0 de CUALQUIER categoría —
     // sin el guard excludedFromReferrals que sí aplica al bloque de arriba.
-    await this.qualifyPartnerOnCharge(ctx, userId, pricePaid, newSubscriptionId);
+    await this.qualifyPartnerOnCharge(
+      ctx,
+      userId,
+      pricePaid,
+      newSubscriptionId,
+    );
 
     // Partners (D-09/D-10/D-20): consume el beneficio de descuento, con el
     // candidato/ganador ya resueltos alrededor del filter de pricing.

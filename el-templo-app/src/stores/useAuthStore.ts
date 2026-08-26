@@ -98,7 +98,13 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       const response = await api.post('/auth/register', data)
-      const { accessToken, refreshToken, user: userData, promoApplied, partnerBenefit } = response.data
+      const {
+        accessToken,
+        refreshToken,
+        user: userData,
+        promoApplied,
+        partnerBenefit,
+      } = response.data
 
       // Phase 116: persist access+refresh (legacy authToken cleaned up inside setTokens).
       await setTokens(accessToken, refreshToken)

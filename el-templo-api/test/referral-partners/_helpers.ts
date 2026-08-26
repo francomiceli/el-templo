@@ -116,7 +116,10 @@ interface InsertPartnerLinkOverrides {
 /** INSERT crudo en `partner_referrals`, con `benefit_expires_at` a 30 días. */
 export async function insertPartnerLink(
   app: FastifyInstance,
-  params: { partnerId: number; referredId: number } & InsertPartnerLinkOverrides,
+  params: {
+    partnerId: number;
+    referredId: number;
+  } & InsertPartnerLinkOverrides,
 ): Promise<{ id: number }> {
   const { partnerId, referredId, ...overrides } = params;
   const expiresAt =

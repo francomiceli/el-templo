@@ -103,7 +103,9 @@ export class SettingsService {
     const [row] = await this.db
       .select({ settingValue: systemSettings.settingValue })
       .from(systemSettings)
-      .where(eq(systemSettings.settingKey, LEADS_SETTINGS_KEYS.perdidoWindowDays))
+      .where(
+        eq(systemSettings.settingKey, LEADS_SETTINGS_KEYS.perdidoWindowDays),
+      )
       .limit(1);
 
     const n = Number(row?.settingValue);
@@ -142,7 +144,10 @@ export class SettingsService {
    * QRs de la tarjeta física de partners. `null` cuando la fila falta —
    * ninguna se deriva en silencio.
    */
-  async getStoreUrls(): Promise<{ android: string | null; ios: string | null }> {
+  async getStoreUrls(): Promise<{
+    android: string | null;
+    ios: string | null;
+  }> {
     const [android, ios] = await Promise.all([
       this.getStringValue(APP_STORE_SETTINGS_KEYS.android),
       this.getStringValue(APP_STORE_SETTINGS_KEYS.ios),

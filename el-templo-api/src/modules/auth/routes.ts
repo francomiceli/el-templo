@@ -9,7 +9,10 @@ import { referrals } from "../../db/schema/referrals";
 import { referralPartners } from "../../db/schema/referral-partners";
 import { ReferralService } from "../referrals/service";
 import { referralCopyVariant } from "../referrals/ab-variant";
-import { PartnerReferralService, normalizeCode } from "../referral-partners/service";
+import {
+  PartnerReferralService,
+  normalizeCode,
+} from "../referral-partners/service";
 import { resolveSignupCode } from "../referral-partners/code-resolver";
 import type {
   PartnerBenefitType,
@@ -313,9 +316,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       } | null = null;
 
       if (code) {
-        const resolved = await resolveSignupCode(fastify.db, request.log, code, {
-          branchId,
-        });
+        const resolved = await resolveSignupCode(
+          fastify.db,
+          request.log,
+          code,
+          {
+            branchId,
+          },
+        );
         // `code` es el campo unificado: cuando viene, GANA sobre `promoCode`/
         // `ref` sueltos del body para ese código (D-03, los 3 espacios son
         // disjuntos por construcción — createPartner valida la unicidad
@@ -414,7 +422,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
                   redemptionCount: sql`${promoPlans.redemptionCount} + 1`,
                 })
                 .where(
-                  and(tenantWhere(promoPlans, ctx), eq(promoPlans.id, promo.id)),
+                  and(
+                    tenantWhere(promoPlans, ctx),
+                    eq(promoPlans.id, promo.id),
+                  ),
                 );
 
               promoApplied = true;

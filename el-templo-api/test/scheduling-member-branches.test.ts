@@ -64,10 +64,15 @@ describe("GET /api/members/scheduling/branches — address + mapsUrl (D-17)", ()
     const { branches } = await getBranches(app, member.token);
 
     const sede = branches.find((b) => b.id === sedeConDireccionId);
-    expect(sede, "la sede recién creada debe aparecer en el listado").toBeDefined();
+    expect(
+      sede,
+      "la sede recién creada debe aparecer en el listado",
+    ).toBeDefined();
     expect(sede?.address).toBe(direccion);
     expect(sede?.mapsUrl?.startsWith(MAPS_PREFIX)).toBe(true);
-    expect(sede?.mapsUrl).toBe(`${MAPS_PREFIX}${encodeURIComponent(direccion)}`);
+    expect(sede?.mapsUrl).toBe(
+      `${MAPS_PREFIX}${encodeURIComponent(direccion)}`,
+    );
   });
 
   it("sede con address NULL devuelve address null y mapsUrl null (nunca un link roto)", async () => {
@@ -84,7 +89,10 @@ describe("GET /api/members/scheduling/branches — address + mapsUrl (D-17)", ()
     const { branches } = await getBranches(app, member.token);
 
     const sede = branches.find((b) => b.id === sedeSinDireccionId);
-    expect(sede, "la sede sin dirección también debe aparecer en el listado").toBeDefined();
+    expect(
+      sede,
+      "la sede sin dirección también debe aparecer en el listado",
+    ).toBeDefined();
     expect(sede?.address).toBeNull();
     expect(sede?.mapsUrl).toBeNull();
   });

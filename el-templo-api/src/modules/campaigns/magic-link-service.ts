@@ -92,7 +92,10 @@ export class MagicLinkService {
       // Camino normal de un link viejo/vencido/de tracking (D-05) — warn, no
       // error (evita ruido en Sentry). Nunca loguear el string firmado
       // (T-180-27): ni el objeto ni el mensaje llevan la variable `token`.
-      this.log.warn({}, "magic-link exchange: firma invalida o no autoriza login");
+      this.log.warn(
+        {},
+        "magic-link exchange: firma invalida o no autoriza login",
+      );
       return null;
     }
 
@@ -152,7 +155,10 @@ export class MagicLinkService {
       })
       .from(schema.users)
       .where(
-        and(tenantWhere(schema.users, ctx), eq(schema.users.id, payload.userId)),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, payload.userId),
+        ),
       )
       .limit(1);
 

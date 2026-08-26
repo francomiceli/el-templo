@@ -112,9 +112,19 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { and, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { createTestApp, cleanAllTestData, createTestMember, todayStr, dateOffsetStr } from "../helpers";
+import {
+  createTestApp,
+  cleanAllTestData,
+  createTestMember,
+  todayStr,
+  dateOffsetStr,
+} from "../helpers";
 import * as schema from "../../src/db/schema";
-import { tenantWhere, tenantValues, type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -244,7 +254,9 @@ async function tenantDeFilaFueraDelModulo(
   const resultado = (await app.db.execute(
     sql`SELECT /* tenant-safe: leer el tenant_id de la fila (fuera del boundary de 174.1, D-01) ES la asercion */ tenant_id AS t FROM ${sql.raw(tabla)} WHERE id = ${id}`,
   )) as unknown as [Array<{ t: number | null }>];
-  const filas = Array.isArray(resultado) ? resultado[0] : (resultado as unknown as Array<{ t: number | null }>);
+  const filas = Array.isArray(resultado)
+    ? resultado[0]
+    : (resultado as unknown as Array<{ t: number | null }>);
   if (!filas || filas[0] === undefined || filas[0].t === null) return null;
   return Number(filas[0].t);
 }
@@ -388,8 +400,16 @@ describe("precondiciones de la bateria", () => {
         await tenantDeLaFila(app, "bookings", t.bookingId),
         await tenantDeLaFila(app, "schedule_exceptions", t.scheduleExceptionId),
         await tenantDeLaFila(app, "holidays", t.holidayId),
-        await tenantDeLaFila(app, "subscription_schedule_changes", t.scheduleChangeId),
-        await tenantDeLaFila(app, "subscription_schedules", t.subscriptionScheduleId),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedule_changes",
+          t.scheduleChangeId,
+        ),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedules",
+          t.subscriptionScheduleId,
+        ),
       ],
       `Alguna fila ajena no quedo en El Templo (${TENANT_TEMPLO}). Sin recurso ajeno ` +
         `vivo, todos los casos de aislamiento de este archivo pasan probando nada. ` +
@@ -409,8 +429,16 @@ describe("precondiciones de la bateria", () => {
         await tenantDeLaFila(app, "bookings", d.bookingId),
         await tenantDeLaFila(app, "schedule_exceptions", d.scheduleExceptionId),
         await tenantDeLaFila(app, "holidays", d.holidayId),
-        await tenantDeLaFila(app, "subscription_schedule_changes", d.scheduleChangeId),
-        await tenantDeLaFila(app, "subscription_schedules", d.subscriptionScheduleId),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedule_changes",
+          d.scheduleChangeId,
+        ),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedules",
+          d.subscriptionScheduleId,
+        ),
       ],
       `Alguna fila del gimnasio 2 nacio en otro gimnasio. Si el valor es ${TENANT_TEMPLO}, ` +
         `ese INSERT perdio su \`tenantValues(CTX_DOS, …)\` y cayo en el DEFAULT 1: el ` +
@@ -480,7 +508,8 @@ describe("detalle de horario — GET /api/admin/scheduling/schedules/:scheduleId
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -490,7 +519,8 @@ describe("detalle de horario — GET /api/admin/scheduling/schedules/:scheduleId
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as {
       schedule: { id: number };
@@ -498,7 +528,10 @@ describe("detalle de horario — GET /api/admin/scheduling/schedules/:scheduleId
     };
     expect(body.schedule.id).toBe(fx.dos.scheduleId);
     const propio = body.bookings.find((b) => b.id === fx.dos.bookingId);
-    expect(propio, porQueImportaElControl(RUTA, fx.dos.bookingId)).toBeDefined();
+    expect(
+      propio,
+      porQueImportaElControl(RUTA, fx.dos.bookingId),
+    ).toBeDefined();
     expect(propio?.memberId).toBe(gym2.socios[0].id);
   });
 });
@@ -512,7 +545,8 @@ describe("proximo turno disponible — GET /api/admin/scheduling/schedules/:sche
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -522,7 +556,8 @@ describe("proximo turno disponible — GET /api/admin/scheduling/schedules/:sche
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as { nextAvailableDate: string | null };
     expect(body).toHaveProperty("nextAvailableDate");
@@ -539,7 +574,8 @@ describe("vista previa de eliminacion — GET /api/admin/scheduling/schedules/:s
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -549,7 +585,8 @@ describe("vista previa de eliminacion — GET /api/admin/scheduling/schedules/:s
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as { cancelledBookings: number };
     expect(
@@ -586,8 +623,16 @@ describe("feriados — GET /api/admin/scheduling/holidays", () => {
       holidays: Array<{ id: number; name: string }>;
     };
     const propio = body.holidays.find((h) => h.id === fx.dos.holidayId);
-    expect(propio, porQueImportaElControl(RUTA, fx.dos.holidayId)).toBeDefined();
-    const nombreReal = await campoDeLaFila(app, "holidays", "name", fx.dos.holidayId);
+    expect(
+      propio,
+      porQueImportaElControl(RUTA, fx.dos.holidayId),
+    ).toBeDefined();
+    const nombreReal = await campoDeLaFila(
+      app,
+      "holidays",
+      "name",
+      fx.dos.holidayId,
+    );
     expect(propio?.name).toBe(nombreReal);
   });
 });
@@ -663,9 +708,17 @@ describe("sesiones de prueba del dia — GET /api/admin/scheduling/trials", () =
       }>;
     };
     const grupoPropio = body.groups.find((g) => g.branchId === gym2.branchId);
-    expect(grupoPropio, porQueImportaElControl(RUTA, bookingTrialDosId)).toBeDefined();
-    const propio = grupoPropio?.trials.find((t) => t.bookingId === bookingTrialDosId);
-    expect(propio, porQueImportaElControl(RUTA, bookingTrialDosId)).toBeDefined();
+    expect(
+      grupoPropio,
+      porQueImportaElControl(RUTA, bookingTrialDosId),
+    ).toBeDefined();
+    const propio = grupoPropio?.trials.find(
+      (t) => t.bookingId === bookingTrialDosId,
+    );
+    expect(
+      propio,
+      porQueImportaElControl(RUTA, bookingTrialDosId),
+    ).toBeDefined();
     expect(propio?.userId).toBe(leadDosId);
   });
 });
@@ -717,7 +770,9 @@ describe("prueba elegibles — GET /api/admin/scheduling/trials/eligible", () =>
     const [filaReal] = await app.db
       .select({ dni: schema.users.dni })
       .from(schema.users)
-      .where(and(tenantWhere(schema.users, CTX_DOS), eq(schema.users.id, leadDosId)));
+      .where(
+        and(tenantWhere(schema.users, CTX_DOS), eq(schema.users.id, leadDosId)),
+      );
     expect(propio?.dni).toBe(filaReal?.dni);
   });
 });
@@ -748,7 +803,10 @@ describe("catalogo de actividades — GET /api/admin/scheduling/activities", () 
       activities: Array<{ id: number; name: string }>;
     };
     const propia = body.activities.find((a) => a.id === fx.dos.activityId);
-    expect(propia, porQueImportaElControl(RUTA, fx.dos.activityId)).toBeDefined();
+    expect(
+      propia,
+      porQueImportaElControl(RUTA, fx.dos.activityId),
+    ).toBeDefined();
     const [filaReal] = await app.db
       .select({ name: schema.activities.name })
       .from(schema.activities)

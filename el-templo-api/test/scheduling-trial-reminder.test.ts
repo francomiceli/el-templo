@@ -313,8 +313,18 @@ describe("Recordatorio de sesión de prueba — D-20/D-24 (Fase 180-03)", () => 
   });
 
   it("reprogramar (admin) borra el recordatorio del horario viejo y encola exactamente uno para el nuevo", async () => {
-    const oldScheduleId = await mkSchedule(4, "19:00", physicalBranchId, "19:30"); // Jueves 19:00-19:30
-    const newScheduleId = await mkSchedule(4, "20:00", physicalBranchId, "20:30"); // Jueves 20:00-20:30, misma fecha, sin solaparse
+    const oldScheduleId = await mkSchedule(
+      4,
+      "19:00",
+      physicalBranchId,
+      "19:30",
+    ); // Jueves 19:00-19:30
+    const newScheduleId = await mkSchedule(
+      4,
+      "20:00",
+      physicalBranchId,
+      "20:30",
+    ); // Jueves 20:00-20:30, misma fecha, sin solaparse
     const { id, token } = await freemiumToken();
     const { body } = await reserve(token, {
       scheduleId: oldScheduleId,

@@ -110,7 +110,9 @@
           <q-list>
             <q-item class="q-px-none">
               <q-item-section>
-                <q-item-label>{{ partnerLink.partnerName }} ({{ partnerLink.partnerCode }})</q-item-label>
+                <q-item-label
+                  >{{ partnerLink.partnerName }} ({{ partnerLink.partnerCode }})</q-item-label
+                >
                 <q-item-label caption>
                   Vinculado el {{ formatDate(partnerLink.createdAt) }} — beneficio
                   {{ benefitStatusLabel(partnerLink.benefitStatus) }}
@@ -303,7 +305,8 @@ const filteredPartnerOptions = computed(() => {
   const needle = partnerSearch.value.trim().toLowerCase();
   return allActivePartners.value
     .filter(
-      (p) => !needle || p.name.toLowerCase().includes(needle) || p.code.toLowerCase().includes(needle)
+      (p) =>
+        !needle || p.name.toLowerCase().includes(needle) || p.code.toLowerCase().includes(needle)
     )
     .map((p) => ({ id: p.id, displayLabel: `${p.name} (${p.code})` }));
 });
@@ -376,7 +379,8 @@ async function onAssignPartner(): Promise<void> {
     });
     const status = axios.isAxiosError(err) ? err.response?.status : undefined;
     let message = partnersApi.error.value ?? 'No se pudo asignar el partner.';
-    if (status === 404) message = partnersApi.error.value ?? 'El partner no existe o está inactivo.';
+    if (status === 404)
+      message = partnersApi.error.value ?? 'El partner no existe o está inactivo.';
     if (status === 403) message = 'No tenés permisos para asignar el partner.';
     $q.notify({ type: 'negative', message });
   } finally {

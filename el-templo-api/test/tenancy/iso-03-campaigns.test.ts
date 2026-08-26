@@ -239,11 +239,15 @@ describe("listar campañas — GET /api/campaigns/admin", () => {
     const nombres = body.map((c) => c.name);
     expect(
       nombres,
-      porQueImportaElAislamiento(RUTA, "el listado trae la campaña de El Templo"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "el listado trae la campaña de El Templo",
+      ),
     ).not.toContain(templo.campaignName);
-    expect(nombres, porQueImportaElAislamiento(RUTA, "falta la campaña propia")).toContain(
-      dos.campaignName,
-    );
+    expect(
+      nombres,
+      porQueImportaElAislamiento(RUTA, "falta la campaña propia"),
+    ).toContain(dos.campaignName);
   });
 
   it("control: El Templo ve su propia campaña en el listado, no la del gimnasio 2", async () => {
@@ -313,31 +317,49 @@ describe("funnel de campaña — GET /api/campaigns/admin/:id/funnel", () => {
   const RUTA = "GET /api/campaigns/admin/:id/funnel";
 
   it("aislamiento: la campaña ajena (El Templo) resuelve 400 'no encontrada' para el gimnasio 2, nunca 403", async () => {
-    const res = await getComo(`/admin/${templo.campaignId}/funnel`, gym2.adminToken);
+    const res = await getComo(
+      `/admin/${templo.campaignId}/funnel`,
+      gym2.adminToken,
+    );
     expect(
       res.statusCode,
-      porQueImportaElAislamiento(RUTA, `esperaba 400, recibió ${res.statusCode}`),
+      porQueImportaElAislamiento(
+        RUTA,
+        `esperaba 400, recibió ${res.statusCode}`,
+      ),
     ).toBe(400);
     const body = JSON.parse(res.body) as { message: string };
     expect(body.message).toContain("Campaña no encontrada");
   });
 
   it("aislamiento: el funnel de la campaña propia del gimnasio 2 es enviado=1/abierto=1 (propio), no mezclado con El Templo", async () => {
-    const res = await getComo(`/admin/${dos.campaignId}/funnel`, gym2.adminToken);
+    const res = await getComo(
+      `/admin/${dos.campaignId}/funnel`,
+      gym2.adminToken,
+    );
     expect(res.statusCode, res.body).toBe(200);
     const body = JSON.parse(res.body) as { enviado: number; abierto: number };
     expect(
       body.enviado,
-      porQueImportaElAislamiento(RUTA, "enviado debería ser 1 (propio), no 1+1=2"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "enviado debería ser 1 (propio), no 1+1=2",
+      ),
     ).toBe(1);
     expect(
       body.abierto,
-      porQueImportaElAislamiento(RUTA, "abierto debería ser 1 (propio), no 1+1=2"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "abierto debería ser 1 (propio), no 1+1=2",
+      ),
     ).toBe(1);
   });
 
   it("control: El Templo ve el funnel de su propia campaña (enviado=1, abierto=1)", async () => {
-    const res = await getComo(`/admin/${templo.campaignId}/funnel`, templeAdminToken);
+    const res = await getComo(
+      `/admin/${templo.campaignId}/funnel`,
+      templeAdminToken,
+    );
     expect(res.statusCode, res.body).toBe(200);
     const body = JSON.parse(res.body) as { enviado: number; abierto: number };
     expect(body.enviado).toBe(1);
@@ -361,7 +383,10 @@ describe("preview de campaña — POST /api/campaigns/admin/:id/test", () => {
     );
     expect(
       res.statusCode,
-      porQueImportaElAislamiento(RUTA, `esperaba 400, recibió ${res.statusCode}`),
+      porQueImportaElAislamiento(
+        RUTA,
+        `esperaba 400, recibió ${res.statusCode}`,
+      ),
     ).toBe(400);
     const body = JSON.parse(res.body) as { message: string };
     expect(
@@ -374,7 +399,11 @@ describe("preview de campaña — POST /api/campaigns/admin/:id/test", () => {
   });
 
   it("control: el gimnasio 2 sí resuelve su propia campaña (llega al paso de envío — RESEND_API_KEY no configurado en test, 400 distinto)", async () => {
-    const res = await postComo(`/admin/${dos.campaignId}/test`, gym2.adminToken, BODY);
+    const res = await postComo(
+      `/admin/${dos.campaignId}/test`,
+      gym2.adminToken,
+      BODY,
+    );
     expect(res.statusCode, res.body).toBe(400);
     const body = JSON.parse(res.body) as { message: string };
     // Prueba que el lookup por ctx SÍ encontró la campaña propia: el error es
@@ -393,10 +422,16 @@ describe("enviar campaña — POST /api/campaigns/admin/:id/send", () => {
   const RUTA = "POST /api/campaigns/admin/:id/send";
 
   it("aislamiento: el owner del gimnasio 2 no puede enviar la campaña de El Templo (400 'no encontrada', nunca 403)", async () => {
-    const res = await postComo(`/admin/${templo.campaignId}/send`, dos.ownerToken);
+    const res = await postComo(
+      `/admin/${templo.campaignId}/send`,
+      dos.ownerToken,
+    );
     expect(
       res.statusCode,
-      porQueImportaElAislamiento(RUTA, `esperaba 400, recibió ${res.statusCode}`),
+      porQueImportaElAislamiento(
+        RUTA,
+        `esperaba 400, recibió ${res.statusCode}`,
+      ),
     ).toBe(400);
     const body = JSON.parse(res.body) as { message: string };
     expect(body.message).toContain("Campaña no encontrada");
@@ -609,7 +644,10 @@ describe("canje de magic-link — POST /api/campaigns/exchange", () => {
     ).not.toBe(templo.sendEmail);
     expect(
       body.user.branchId,
-      porQueImportaElAislamiento(RUTA, "la sede devuelta no es la del gimnasio 2"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "la sede devuelta no es la del gimnasio 2",
+      ),
     ).toBe(gym2.branchId);
   });
 

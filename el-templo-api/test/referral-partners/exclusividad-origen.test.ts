@@ -113,7 +113,10 @@ describe("attributePartnerAtSignup — exclusividad de origen (D-12)", () => {
       email: `origen-doble-${Date.now()}@test.com`,
       branchId: AR_BRANCH_ID,
     });
-    const partnerA = await insertPartner(app, { benefitType: "free_pass", benefitValue: 0 });
+    const partnerA = await insertPartner(app, {
+      benefitType: "free_pass",
+      benefitValue: 0,
+    });
     const partnerB = await insertPartner(app, {
       benefitType: "discount_percent",
       benefitValue: 20,
@@ -145,7 +148,9 @@ describe("attributePartnerAtSignup — exclusividad de origen (D-12)", () => {
       email: `origen-null-${Date.now()}@test.com`,
       branchId: AR_BRANCH_ID,
     });
-    expect(await service.findOriginForMember({ tenantId: 1 }, sinOrigen.id)).toBeNull();
+    expect(
+      await service.findOriginForMember({ tenantId: 1 }, sinOrigen.id),
+    ).toBeNull();
 
     const referrer = await createMember(app, {
       email: `origen-member-referrer-${Date.now()}@test.com`,

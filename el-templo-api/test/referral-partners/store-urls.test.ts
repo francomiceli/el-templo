@@ -95,7 +95,8 @@ describe("URLs de tienda (system_settings)", () => {
   it("b. PUT owner guarda ambas URLs y GET las refleja (upsert, sin duplicar)", async () => {
     const put = await putStoreUrls(
       {
-        android: "https://play.google.com/store/apps/details?id=com.eltemplo.app",
+        android:
+          "https://play.google.com/store/apps/details?id=com.eltemplo.app",
         ios: "https://apps.apple.com/app/id0000000000",
       },
       ownerToken,
@@ -120,12 +121,16 @@ describe("URLs de tienda (system_settings)", () => {
 
     // Segundo PUT solo de android — upsert, no duplica ni pisa ios.
     const put2 = await putStoreUrls(
-      { android: "https://play.google.com/store/apps/details?id=com.eltemplo.app2" },
+      {
+        android:
+          "https://play.google.com/store/apps/details?id=com.eltemplo.app2",
+      },
       ownerToken,
     );
     expect(put2.statusCode).toBe(200);
     expect(put2.body).toEqual({
-      android: "https://play.google.com/store/apps/details?id=com.eltemplo.app2",
+      android:
+        "https://play.google.com/store/apps/details?id=com.eltemplo.app2",
       ios: "https://apps.apple.com/app/id0000000000",
     });
 
@@ -137,7 +142,10 @@ describe("URLs de tienda (system_settings)", () => {
 
   it("c. PUT con una URL sin https:// devuelve 400 y no persiste nada", async () => {
     const put = await putStoreUrls(
-      { android: "http://play.google.com/store/apps/details?id=com.eltemplo.app" },
+      {
+        android:
+          "http://play.google.com/store/apps/details?id=com.eltemplo.app",
+      },
       ownerToken,
     );
     expect(put.statusCode).toBe(400);
@@ -148,7 +156,10 @@ describe("URLs de tienda (system_settings)", () => {
 
   it("d. PUT con token no-owner (coach) devuelve 403 y no persiste nada", async () => {
     const put = await putStoreUrls(
-      { android: "https://play.google.com/store/apps/details?id=com.eltemplo.app" },
+      {
+        android:
+          "https://play.google.com/store/apps/details?id=com.eltemplo.app",
+      },
       coachToken,
     );
     expect(put.statusCode).toBe(403);

@@ -2009,7 +2009,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.code(200).send(result);
       } catch (err: unknown) {
-        handleServiceError(err, reply, request.log, "revoke member partner link");
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "revoke member partner link",
+        );
       }
     },
   );

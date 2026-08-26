@@ -129,9 +129,9 @@
         <div class="text-subtitle1 text-weight-medium">Descripciones de clases derivadas</div>
         <div class="text-caption text-grey-7 q-mb-md">
           Los días de Combos y Técnica reetiquetan una actividad genérica: el socio ve "Combos" o
-          "Técnica" en vez del nombre real de la actividad, así que necesita leer la descripción
-          de ESO, no la de la actividad genérica de arriba. Dejar el texto vacío borra la
-          descripción (vuelve a "sin descripción").
+          "Técnica" en vez del nombre real de la actividad, así que necesita leer la descripción de
+          ESO, no la de la actividad genérica de arriba. Dejar el texto vacío borra la descripción
+          (vuelve a "sin descripción").
         </div>
 
         <div class="q-mb-md">
@@ -377,7 +377,8 @@ async function onSaveLabelDescription(mode: 'combos' | 'tecnica') {
     await schedulingApi.saveClassLabelDescription(mode, labelDescriptionsForm.value[mode]);
     $q.notify({
       type: 'positive',
-      message: mode === 'combos' ? 'Descripción de Combos guardada' : 'Descripción de Técnica guardada',
+      message:
+        mode === 'combos' ? 'Descripción de Combos guardada' : 'Descripción de Técnica guardada',
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';

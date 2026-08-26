@@ -110,7 +110,9 @@
       <template #body-cell-comision="props">
         <q-td :props="props">
           <template v-if="props.row.commissionId !== null">
-            {{ formatPrice(props.row.commissionAmount ?? 0, props.row.commissionCurrency ?? 'ARS') }}
+            {{
+              formatPrice(props.row.commissionAmount ?? 0, props.row.commissionCurrency ?? 'ARS')
+            }}
             ({{ commissionStatusLabel(props.row.commissionStatus) }})
           </template>
           <span v-else class="text-grey-5">Sin comisión</span>
@@ -177,7 +179,13 @@ async function loadPartnerOptions() {
 const columns: QTableProps['columns'] = [
   { name: 'referredName', label: 'Socio', field: 'referredName', align: 'left', sortable: true },
   { name: 'partner', label: 'Partner', field: 'partnerName', align: 'left', sortable: true },
-  { name: 'createdAt', label: 'Fecha de vínculo', field: (row) => formatDate(row.createdAt), align: 'left', sortable: true },
+  {
+    name: 'createdAt',
+    label: 'Fecha de vínculo',
+    field: (row) => formatDate(row.createdAt),
+    align: 'left',
+    sortable: true,
+  },
   { name: 'status', label: 'Estado del vínculo', field: 'status', align: 'center' },
   { name: 'beneficio', label: 'Beneficio', field: 'benefitType', align: 'left' },
   { name: 'comision', label: 'Comisión', field: 'commissionAmount', align: 'right' },

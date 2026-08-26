@@ -81,7 +81,10 @@ async function getConversions(
     url: `/api/admin/referral-partners/conversions${qs}`,
     headers: { authorization: `Bearer ${token}` },
   });
-  return { statusCode: res.statusCode, body: JSON.parse(res.body) as ConversionRowBody[] };
+  return {
+    statusCode: res.statusCode,
+    body: JSON.parse(res.body) as ConversionRowBody[],
+  };
 }
 
 async function getBenefitsWithoutConversion(
@@ -261,12 +264,17 @@ describe("GET /api/admin/referral-partners/benefits-without-conversion (D-08 ree
     expect(rowVencido).toBeDefined();
     expect(rowVencido?.motivo).toBe("beneficio_vencido_sin_uso");
 
-    expect(res.body.some((r) => r.referredId === memberConvertido.id)).toBe(false);
+    expect(res.body.some((r) => r.referredId === memberConvertido.id)).toBe(
+      false,
+    );
   });
 
   it("(4) ninguna de las dos rutas modifica users.lead_status", async () => {
     const partner = await insertPartner(app, { tenantId: TENANT_TEMPLO });
-    const member = await createMember(app, { email: email("lead"), branchId: AR_BRANCH_ID });
+    const member = await createMember(app, {
+      email: email("lead"),
+      branchId: AR_BRANCH_ID,
+    });
     await insertPartnerLink(app, {
       partnerId: partner.id,
       referredId: member.id,

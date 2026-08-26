@@ -391,10 +391,7 @@ describe("D-13 — moneda de la comisión por país de sede del partner", () => 
     const res = await assignPlan(app, adminToken, member.id, {
       planId: plan.id,
     });
-    const commissions = await partnerCommissionRows(
-      app,
-      res.body.id as number,
-    );
+    const commissions = await partnerCommissionRows(app, res.body.id as number);
     expect(commissions[0].currency).toBe("ARS");
   });
 
@@ -429,10 +426,7 @@ describe("D-13 — moneda de la comisión por país de sede del partner", () => 
       branchId: esBranch.id,
     });
     expect(res.statusCode).toBe(201);
-    const commissions = await partnerCommissionRows(
-      app,
-      res.body.id as number,
-    );
+    const commissions = await partnerCommissionRows(app, res.body.id as number);
     expect(commissions[0].currency).toBe("EUR");
   });
 });

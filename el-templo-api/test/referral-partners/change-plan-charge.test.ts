@@ -23,11 +23,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import {
-  createTestApp,
-  getAuthToken,
-  cleanAllTestData,
-} from "../helpers";
+import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import {
   createPlan,
   createMember,

@@ -28,7 +28,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../../db/schema";
 import { tenantSettings } from "../../db/schema";
-import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
 import { DERIVED_CLASS_LABEL } from "./derived-label";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -49,9 +53,12 @@ export const DERIVED_LABEL_DESCRIPTION_KEYS = Object.fromEntries(
 ) as Record<DerivedLabelMode, string>;
 
 const MODE_BY_SETTING_KEY = new Map<string, DerivedLabelMode>(
-  (Object.entries(DERIVED_LABEL_DESCRIPTION_KEYS) as [DerivedLabelMode, string][]).map(
-    ([mode, key]) => [key, mode],
-  ),
+  (
+    Object.entries(DERIVED_LABEL_DESCRIPTION_KEYS) as [
+      DerivedLabelMode,
+      string,
+    ][]
+  ).map(([mode, key]) => [key, mode]),
 );
 
 /**
@@ -79,7 +86,9 @@ export async function getDerivedLabelDescriptions(
     );
 
   const result = {} as Record<DerivedLabelMode, string | null>;
-  for (const mode of Object.keys(DERIVED_LABEL_DESCRIPTION_KEYS) as DerivedLabelMode[]) {
+  for (const mode of Object.keys(
+    DERIVED_LABEL_DESCRIPTION_KEYS,
+  ) as DerivedLabelMode[]) {
     result[mode] = null;
   }
   for (const row of rows) {

@@ -148,7 +148,10 @@ export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
           ),
         );
     }
-    ctx.applied.push({ module: "templo-gamification", benefit: "boarding pass" });
+    ctx.applied.push({
+      module: "templo-gamification",
+      benefit: "boarding pass",
+    });
     ctx.moduleOutput.boardingPassUsed = true;
     ctx.exclusive = true;
     return;

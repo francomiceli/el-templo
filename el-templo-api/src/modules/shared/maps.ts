@@ -18,7 +18,9 @@
  * `undefined` o solo espacios en blanco) para no producir un link a una
  * búsqueda vacía.
  */
-export function buildMapsUrl(address: string | null | undefined): string | null {
+export function buildMapsUrl(
+  address: string | null | undefined,
+): string | null {
   const trimmed = address?.trim();
   if (!trimmed) {
     return null;

@@ -29,9 +29,7 @@ describe('resolveGuardRedirect — auth', () => {
 
   it('no autenticado + login/register ⇒ true', () => {
     expect(resolveGuardRedirect({ ...BASE, toName: 'login', isAuthenticated: false })).toBe(true)
-    expect(resolveGuardRedirect({ ...BASE, toName: 'register', isAuthenticated: false })).toBe(
-      true,
-    )
+    expect(resolveGuardRedirect({ ...BASE, toName: 'register', isAuthenticated: false })).toBe(true)
   })
 
   it('autenticado + login ⇒ home', () => {

@@ -33,10 +33,10 @@ export const partnerReferralStatusEnum = mysqlEnum("status", [
 // Canal de atribución. self_service = el socio cargó el código en el registro
 // (RegisterPage.vue, campo manual unificado D-02/D-03). assisted = asignación
 // retroactiva desde la ficha del alumno (D-15).
-export const partnerAttributionChannelEnum = mysqlEnum(
-  "attribution_channel",
-  ["self_service", "assisted"],
-);
+export const partnerAttributionChannelEnum = mysqlEnum("attribution_channel", [
+  "self_service",
+  "assisted",
+]);
 
 // Tipo de beneficio SNAPSHOT al momento de vincular (independiente del enum
 // de referral_partners: el partner puede cambiar su beneficio después sin

@@ -213,9 +213,7 @@ export const campaignRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await magicLink.exchange(request.body.token);
       reply.header("Referrer-Policy", "no-referrer");
       if (!result) {
-        return reply
-          .status(401)
-          .send({ error: "Enlace inválido o vencido" });
+        return reply.status(401).send({ error: "Enlace inválido o vencido" });
       }
       return result;
     },

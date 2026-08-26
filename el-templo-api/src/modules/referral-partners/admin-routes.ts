@@ -14,7 +14,10 @@ import { PartnerReferralService } from "./service";
 import { handleServiceError } from "../shared/error-handler";
 import { assertTenant } from "../shared/tenant";
 import { attachCountryScope } from "../shared/country-scope";
-import { FINANCE_VOID_ROLES, MEMBER_LIFECYCLE_ROLES } from "../shared/permissions";
+import {
+  FINANCE_VOID_ROLES,
+  MEMBER_LIFECYCLE_ROLES,
+} from "../shared/permissions";
 import {
   createPartnerBodySchema,
   updatePartnerBodySchema,
@@ -34,9 +37,7 @@ export const referralPartnersAdminRoutes: FastifyPluginAsync = async (
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
     if (
-      !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(
-        request.user.role,
-      )
+      !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(request.user.role)
     ) {
       return reply.code(403).send({
         error: "Acceso denegado",
@@ -79,10 +80,7 @@ export const referralPartnersAdminRoutes: FastifyPluginAsync = async (
     { schema: listConversionsQuerySchema },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(
-          request.scope,
-          "referralPartners.conversions",
-        );
+        const ctx = assertTenant(request.scope, "referralPartners.conversions");
         return await service.listConversions(ctx, request.query);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "list partner conversions");
@@ -103,10 +101,7 @@ export const referralPartnersAdminRoutes: FastifyPluginAsync = async (
           request.scope,
           "referralPartners.benefitsWithoutConversion",
         );
-        return await service.listBenefitsWithoutConversion(
-          ctx,
-          request.query,
-        );
+        return await service.listBenefitsWithoutConversion(ctx, request.query);
       } catch (err: unknown) {
         handleServiceError(
           err,
@@ -147,12 +142,7 @@ export const referralPartnersAdminRoutes: FastifyPluginAsync = async (
         );
         return reply.code(201).send(result);
       } catch (err: unknown) {
-        handleServiceError(
-          err,
-          reply,
-          request.log,
-          "create referral partner",
-        );
+        handleServiceError(err, reply, request.log, "create referral partner");
       }
     },
   );
@@ -168,12 +158,7 @@ export const referralPartnersAdminRoutes: FastifyPluginAsync = async (
         await service.updatePartner(ctx, request.params.id, request.body);
         return reply.code(200).send({ ok: true });
       } catch (err: unknown) {
-        handleServiceError(
-          err,
-          reply,
-          request.log,
-          "update referral partner",
-        );
+        handleServiceError(err, reply, request.log, "update referral partner");
       }
     },
   );
@@ -200,9 +185,7 @@ export const referralPartnersAdminRoutes: FastifyPluginAsync = async (
     { schema: settlePartnerCommissionsParamsSchema },
     async (request, reply) => {
       if (
-        !(FINANCE_VOID_ROLES as readonly string[]).includes(
-          request.user.role,
-        )
+        !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
       ) {
         return reply.code(403).send({
           error: "Acceso denegado",

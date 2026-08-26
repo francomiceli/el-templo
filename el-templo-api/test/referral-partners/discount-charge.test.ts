@@ -32,7 +32,11 @@ import {
   cleanAllTestData,
   seedAuraBalance,
 } from "../helpers";
-import { createPlan, createMember, assignPlan } from "../subscriptions/_helpers";
+import {
+  createPlan,
+  createMember,
+  assignPlan,
+} from "../subscriptions/_helpers";
 import {
   insertPartner,
   insertPartnerLink,

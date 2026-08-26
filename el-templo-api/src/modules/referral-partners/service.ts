@@ -28,7 +28,11 @@ import {
   referrals,
   subscriptions,
 } from "../../db/schema";
-import { BadRequestError, ConflictError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import { tenantValues, tenantWhere } from "../shared/tenant";
 import type { TxHandle } from "../finance/balance-service";
 import type {
@@ -92,9 +96,7 @@ export class PartnerReferralService {
 
     if (input.benefitType === "discount_percent") {
       if (input.benefitValue < 1 || input.benefitValue > 100) {
-        throw new BadRequestError(
-          "El descuento debe estar entre 1 y 100",
-        );
+        throw new BadRequestError("El descuento debe estar entre 1 y 100");
       }
     } else if (input.benefitValue !== 0) {
       throw new BadRequestError(
@@ -102,9 +104,7 @@ export class PartnerReferralService {
       );
     }
     if (input.commissionValue < 0) {
-      throw new BadRequestError(
-        "El monto de comisión no puede ser negativo",
-      );
+      throw new BadRequestError("El monto de comisión no puede ser negativo");
     }
 
     const [branch] = await this.db
@@ -125,7 +125,10 @@ export class PartnerReferralService {
       .select({ id: referralPartners.id })
       .from(referralPartners)
       .where(
-        and(tenantWhere(referralPartners, ctx), eq(referralPartners.code, code)),
+        and(
+          tenantWhere(referralPartners, ctx),
+          eq(referralPartners.code, code),
+        ),
       )
       .limit(1);
     if (existingPartner) {
@@ -196,7 +199,9 @@ export class PartnerReferralService {
     const [existing] = await this.db
       .select({ code: referralPartners.code })
       .from(referralPartners)
-      .where(and(tenantWhere(referralPartners, ctx), eq(referralPartners.id, id)))
+      .where(
+        and(tenantWhere(referralPartners, ctx), eq(referralPartners.id, id)),
+      )
       .limit(1);
     if (!existing) {
       throw new NotFoundError("El partner no existe");
@@ -228,9 +233,7 @@ export class PartnerReferralService {
       );
     }
     if (input.commissionValue !== undefined && input.commissionValue < 0) {
-      throw new BadRequestError(
-        "El monto de comisión no puede ser negativo",
-      );
+      throw new BadRequestError("El monto de comisión no puede ser negativo");
     }
 
     const fields = {
@@ -274,7 +277,9 @@ export class PartnerReferralService {
     await this.db
       .update(referralPartners)
       .set(fields)
-      .where(and(tenantWhere(referralPartners, ctx), eq(referralPartners.id, id)));
+      .where(
+        and(tenantWhere(referralPartners, ctx), eq(referralPartners.id, id)),
+      );
 
     this.log.info(
       { partnerId: id, tenantId: ctx.tenantId },
@@ -998,7 +1003,10 @@ export class PartnerReferralService {
     }
 
     const [partnerOrigin] = await this.db
-      .select({ id: partnerReferrals.id, partnerId: partnerReferrals.partnerId })
+      .select({
+        id: partnerReferrals.id,
+        partnerId: partnerReferrals.partnerId,
+      })
       .from(partnerReferrals)
       .where(
         and(
@@ -1096,12 +1104,19 @@ export class PartnerReferralService {
     ctx: TenantCtx,
     partnerId: number,
     settledBy: number,
-  ): Promise<{ count: number; totalAmount: number; currency: PartnerCurrency }> {
+  ): Promise<{
+    count: number;
+    totalAmount: number;
+    currency: PartnerCurrency;
+  }> {
     const [partner] = await this.db
       .select({ id: referralPartners.id, currency: referralPartners.currency })
       .from(referralPartners)
       .where(
-        and(tenantWhere(referralPartners, ctx), eq(referralPartners.id, partnerId)),
+        and(
+          tenantWhere(referralPartners, ctx),
+          eq(referralPartners.id, partnerId),
+        ),
       )
       .limit(1);
     if (!partner) {
@@ -1139,7 +1154,11 @@ export class PartnerReferralService {
       "referral-partners: liquidación batch ejecutada (D-16)",
     );
 
-    return { count, totalAmount, currency: partner.currency as PartnerCurrency };
+    return {
+      count,
+      totalAmount,
+      currency: partner.currency as PartnerCurrency,
+    };
   }
 
   /**
@@ -1172,7 +1191,10 @@ export class PartnerReferralService {
     }
     if (filters.dateFrom !== undefined) {
       conditions.push(
-        gte(partnerReferrals.createdAt, new Date(`${filters.dateFrom}T00:00:00`)),
+        gte(
+          partnerReferrals.createdAt,
+          new Date(`${filters.dateFrom}T00:00:00`),
+        ),
       );
     }
     if (filters.dateTo !== undefined) {
@@ -1314,7 +1336,8 @@ export class PartnerReferralService {
     return rows.map((row) => ({
       ...row,
       benefitType: row.benefitType as PartnerBenefitType,
-      benefitStatus: row.benefitStatus as BenefitWithoutConversionRow["benefitStatus"],
+      benefitStatus:
+        row.benefitStatus as BenefitWithoutConversionRow["benefitStatus"],
       motivo: row.motivo as BenefitWithoutConversionRow["motivo"],
       fechaRelevante: row.benefitConsumedAt ?? row.benefitExpiresAt,
     }));

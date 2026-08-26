@@ -20,13 +20,31 @@
  *  6. Un socio con plan activo, o un país sin el plan `paquete` de 1 semana /
  *     3 clases configurado, nunca dejan escritura a medias.
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from "vitest";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
-import { createTestApp, getAuthToken, registerUser, cleanAllTestData } from "../helpers";
+import {
+  createTestApp,
+  getAuthToken,
+  registerUser,
+  cleanAllTestData,
+} from "../helpers";
 import { assignPlan, createPlan } from "../subscriptions/_helpers";
-import { insertBranch, insertPartner, insertPartnerLink, partnerCommissionRows } from "./_helpers";
+import {
+  insertBranch,
+  insertPartner,
+  insertPartnerLink,
+  partnerCommissionRows,
+} from "./_helpers";
 
 const ADMIN_URL = "/api/admin/scheduling";
 const MEMBER_URL = "/api/members/scheduling";
@@ -321,7 +339,11 @@ describe("Semana gratis de partner (D-05/D-06/D-07/D-18/D-19)", () => {
       method: "POST",
       url: RESERVE_PARTNER_WEEK_URL,
       headers: { authorization: `Bearer ${member.token}` },
-      payload: { scheduleId: slot.id, date: futureSlot.date, branchId: arBranchId },
+      payload: {
+        scheduleId: slot.id,
+        date: futureSlot.date,
+        branchId: arBranchId,
+      },
     });
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
@@ -377,7 +399,11 @@ describe("Semana gratis de partner (D-05/D-06/D-07/D-18/D-19)", () => {
       method: "POST",
       url: RESERVE_PARTNER_WEEK_URL,
       headers: { authorization: `Bearer ${member.token}` },
-      payload: { scheduleId: slot.id, date: futureSlot.date, branchId: arBranchId },
+      payload: {
+        scheduleId: slot.id,
+        date: futureSlot.date,
+        branchId: arBranchId,
+      },
     });
     expect(first.statusCode).toBe(201);
 
@@ -385,7 +411,11 @@ describe("Semana gratis de partner (D-05/D-06/D-07/D-18/D-19)", () => {
       method: "POST",
       url: RESERVE_PARTNER_WEEK_URL,
       headers: { authorization: `Bearer ${member.token}` },
-      payload: { scheduleId: slot.id, date: futureSlot.date, branchId: arBranchId },
+      payload: {
+        scheduleId: slot.id,
+        date: futureSlot.date,
+        branchId: arBranchId,
+      },
     });
     expect(second.statusCode).toBe(409);
 
@@ -427,7 +457,11 @@ describe("Semana gratis de partner (D-05/D-06/D-07/D-18/D-19)", () => {
       method: "POST",
       url: RESERVE_PARTNER_WEEK_URL,
       headers: { authorization: `Bearer ${member.token}` },
-      payload: { scheduleId: 1, date: getFutureSlot().date, branchId: arBranchId },
+      payload: {
+        scheduleId: 1,
+        date: getFutureSlot().date,
+        branchId: arBranchId,
+      },
     });
     expect(postRes.statusCode).toBe(409);
 
@@ -438,7 +472,9 @@ describe("Semana gratis de partner (D-05/D-06/D-07/D-18/D-19)", () => {
     // Cross-assertion: el vínculo sigue vivo para atribución — si el socio
     // paga un plan real después, la comisión dispara igual (D-07/D-11).
     const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
-    const charge = await assignPlan(app, adminToken, member.id, { planId: plan.id });
+    const charge = await assignPlan(app, adminToken, member.id, {
+      planId: plan.id,
+    });
     expect(charge.statusCode).toBe(201);
     const subscriptionId = charge.body.id as number;
 
@@ -534,7 +570,11 @@ describe("Semana gratis de partner (D-05/D-06/D-07/D-18/D-19)", () => {
       method: "POST",
       url: RESERVE_PARTNER_WEEK_URL,
       headers: { authorization: `Bearer ${member.token}` },
-      payload: { scheduleId: slot.id, date: futureSlot.date, branchId: arBranchId },
+      payload: {
+        scheduleId: slot.id,
+        date: futureSlot.date,
+        branchId: arBranchId,
+      },
     });
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
@@ -579,7 +619,11 @@ describe("Semana gratis de partner (D-05/D-06/D-07/D-18/D-19)", () => {
       method: "POST",
       url: RESERVE_PARTNER_WEEK_URL,
       headers: { authorization: `Bearer ${member.token}` },
-      payload: { scheduleId: 1, date: getFutureSlot().date, branchId: arBranchId },
+      payload: {
+        scheduleId: 1,
+        date: getFutureSlot().date,
+        branchId: arBranchId,
+      },
     });
     expect(res.statusCode).toBe(409);
 
@@ -613,7 +657,11 @@ describe("Semana gratis de partner (D-05/D-06/D-07/D-18/D-19)", () => {
       method: "POST",
       url: RESERVE_PARTNER_WEEK_URL,
       headers: { authorization: `Bearer ${member.token}` },
-      payload: { scheduleId: 1, date: getFutureSlot().date, branchId: xxBranch.id },
+      payload: {
+        scheduleId: 1,
+        date: getFutureSlot().date,
+        branchId: xxBranch.id,
+      },
     });
     expect(res.statusCode).toBe(400);
     const body = JSON.parse(res.body);

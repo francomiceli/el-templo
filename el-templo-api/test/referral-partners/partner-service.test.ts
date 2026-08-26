@@ -318,8 +318,6 @@ describe("listPartners — aislamiento de tenant (D-20)", () => {
 
     const rows = await service.listPartners({ tenantId: TENANT_TEMPLO }, {});
     expect(rows.length).toBeGreaterThan(0);
-    expect(
-      rows.every((r) => r.name !== "Partner del gimnasio 2"),
-    ).toBe(true);
+    expect(rows.every((r) => r.name !== "Partner del gimnasio 2")).toBe(true);
   });
 });

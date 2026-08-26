@@ -26,7 +26,11 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays, computeSeniority, todayInTz } from "../shared/date-utils";
 import { memberCoveredUntilSql } from "../shared/covered-until";
-import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
 import { dateToWeekNumber } from "../shared/week-dates";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
 import { deriveActivityLabel } from "./derived-label";
@@ -90,7 +94,10 @@ export class SchedulingService {
       })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
       );
 
     if (!branch) throw new NotFoundError("Sede no encontrada");
@@ -187,7 +194,10 @@ export class SchedulingService {
       })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
       );
 
     if (!branch) throw new NotFoundError("Sede no encontrada");
@@ -198,7 +208,10 @@ export class SchedulingService {
     // would surface classes they can't book). Admins pass includeInactive=true
     // so they can see deactivated slots and reactivate them from the same UI.
     const scheduleFilter = includeInactive
-      ? and(tenantWhere(schema.schedules, ctx), eq(schema.schedules.branchId, branchId))
+      ? and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.branchId, branchId),
+        )
       : and(
           tenantWhere(schema.schedules, ctx),
           eq(schema.schedules.branchId, branchId),
@@ -473,7 +486,12 @@ export class SchedulingService {
     // the admin dialog can list the bookings that a restore would bring back
     // (cancelledAt >= exceptionCreatedAt), mirroring pendingRestoration for
     // whole-slot deactivations.
-    const exception = await getScheduleException(ctx, scheduleId, date, this.db);
+    const exception = await getScheduleException(
+      ctx,
+      scheduleId,
+      date,
+      this.db,
+    );
 
     // Get all bookings (not cancelled) for this slot + date.
     // Phase 102: trials are returned alongside regular bookings — the admin
@@ -681,7 +699,10 @@ export class SchedulingService {
       .select({ timezone: schema.branches.timezone })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, slot.branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, slot.branchId),
+        ),
       );
     const today = todayInTz(
       branch?.timezone ?? "America/Argentina/Buenos_Aires",
@@ -729,7 +750,12 @@ export class SchedulingService {
     scheduleId: number,
     date: string,
   ): Promise<ScheduleExceptionRow> {
-    const exception = await getScheduleException(ctx, scheduleId, date, this.db);
+    const exception = await getScheduleException(
+      ctx,
+      scheduleId,
+      date,
+      this.db,
+    );
     if (!exception) {
       throw new NotFoundError("Esta fecha no esta cancelada");
     }
@@ -833,7 +859,10 @@ export class SchedulingService {
       .select({ deactivatedAt: schema.schedules.deactivatedAt })
       .from(schema.schedules)
       .where(
-        and(tenantWhere(schema.schedules, ctx), eq(schema.schedules.id, scheduleId)),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
       );
     return row?.deactivatedAt ?? null;
   }
@@ -943,12 +972,18 @@ export class SchedulingService {
     await this.db
       .delete(schema.bookings)
       .where(
-        and(tenantWhere(schema.bookings, ctx), eq(schema.bookings.scheduleId, scheduleId)),
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.scheduleId, scheduleId),
+        ),
       );
     await this.db
       .delete(schema.schedules)
       .where(
-        and(tenantWhere(schema.schedules, ctx), eq(schema.schedules.id, scheduleId)),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
       );
 
     this.log.info({ scheduleId }, "Schedule deleted");
@@ -974,7 +1009,10 @@ export class SchedulingService {
       })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
       );
 
     if (!branch) throw new NotFoundError("Sede no encontrada");
@@ -1221,7 +1259,10 @@ export class SchedulingService {
         ),
       )
       .where(
-        and(tenantWhere(schema.schedules, ctx), eq(schema.schedules.id, scheduleId)),
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
       );
 
     if (!row) return null;

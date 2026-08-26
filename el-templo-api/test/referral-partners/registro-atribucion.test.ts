@@ -45,7 +45,8 @@ beforeEach(async () => {
 
 /** Payload de registro con defaults únicos por llamada (evita colisión de email/phone/dni). */
 function makeRegPayload(overrides: Record<string, unknown> = {}) {
-  const unique = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const unique =
+    Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   return {
     email: `partner-signup-${unique}@test.com`,
     password: "password123",

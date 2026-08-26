@@ -86,7 +86,9 @@
 
           <!-- Vínculos column -->
           <template #body-cell-vinculos="props">
-            <q-td :props="props"> {{ props.row.vinculosQualified }}/{{ props.row.vinculosTotal }} </q-td>
+            <q-td :props="props">
+              {{ props.row.vinculosQualified }}/{{ props.row.vinculosTotal }}
+            </q-td>
           </template>
 
           <!-- Comisiones pendientes column -->
@@ -138,7 +140,11 @@
           </template>
         </q-table>
 
-        <PartnerFormDialog v-model="showFormDialog" :partner="editingPartner" @saved="onPartnerSaved" />
+        <PartnerFormDialog
+          v-model="showFormDialog"
+          :partner="editingPartner"
+          @saved="onPartnerSaved"
+        />
         <PartnerQrDialog v-model="showQrDialog" :partner="qrPartner" />
       </q-tab-panel>
 
@@ -240,7 +246,11 @@
           </template>
         </q-table>
 
-        <PartnerSettleDialog v-model="showSettleDialog" :partner="settlingPartner" @settled="onSettled" />
+        <PartnerSettleDialog
+          v-model="showSettleDialog"
+          :partner="settlingPartner"
+          @settled="onSettled"
+        />
       </q-tab-panel>
     </q-tab-panels>
   </q-page>

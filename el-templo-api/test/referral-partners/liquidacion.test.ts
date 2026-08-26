@@ -23,7 +23,12 @@ import {
   cleanAllTestData,
   createStaffUser,
 } from "../helpers";
-import { createPlan, createMember, assignPlan, todayStr } from "../subscriptions/_helpers";
+import {
+  createPlan,
+  createMember,
+  assignPlan,
+  todayStr,
+} from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
 import { tenantValues } from "../../src/modules/shared/tenant";
 import { insertBranch, insertPartner, insertPartnerLink } from "./_helpers";
@@ -78,7 +83,9 @@ interface CommissionRow {
 }
 
 /** Filas crudas de comisión de un partner — se afirma sobre el SQL. */
-async function commissionRowsForPartner(partnerId: number): Promise<CommissionRow[]> {
+async function commissionRowsForPartner(
+  partnerId: number,
+): Promise<CommissionRow[]> {
   const rows = await app.db.execute(
     sql`SELECT id, partner_id, status, amount, currency, settled_at, settled_by
         FROM partner_commissions WHERE partner_id = ${partnerId} ORDER BY id`,
@@ -154,7 +161,10 @@ async function settle(
     url: `/api/admin/referral-partners/${partnerId}/settle`,
     headers: { authorization: `Bearer ${token}` },
   });
-  return { statusCode: res.statusCode, body: JSON.parse(res.body) as Record<string, unknown> };
+  return {
+    statusCode: res.statusCode,
+    body: JSON.parse(res.body) as Record<string, unknown>,
+  };
 }
 
 describe("POST /api/admin/referral-partners/:id/settle — liquidación batch (D-16)", () => {
@@ -164,7 +174,10 @@ describe("POST /api/admin/referral-partners/:id/settle — liquidación batch (D
       commissionValue: 5000,
       currency: "ARS",
     });
-    const member = await createMember(app, { email: email("a"), branchId: AR_BRANCH_ID });
+    const member = await createMember(app, {
+      email: email("a"),
+      branchId: AR_BRANCH_ID,
+    });
     const link = await insertPartnerLink(app, {
       partnerId: partner.id,
       referredId: member.id,
@@ -248,9 +261,18 @@ describe("POST /api/admin/referral-partners/:id/settle — liquidación batch (D
   });
 
   it("(2) segunda llamada: count 0, ninguna fila cambia (settled_at idéntico)", async () => {
-    const partner = await insertPartner(app, { commissionType: "fixed", commissionValue: 5000 });
-    const member = await createMember(app, { email: email("b"), branchId: AR_BRANCH_ID });
-    const link = await insertPartnerLink(app, { partnerId: partner.id, referredId: member.id });
+    const partner = await insertPartner(app, {
+      commissionType: "fixed",
+      commissionValue: 5000,
+    });
+    const member = await createMember(app, {
+      email: email("b"),
+      branchId: AR_BRANCH_ID,
+    });
+    const link = await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: member.id,
+    });
     const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
     const sub = await seedRawSubscription(member.id, plan.id as number, 15000);
     await insertRawCommission({
@@ -279,15 +301,41 @@ describe("POST /api/admin/referral-partners/:id/settle — liquidación batch (D
   });
 
   it("(3) no toca comisiones pending de OTRO partner del mismo tenant", async () => {
-    const partnerA = await insertPartner(app, { commissionType: "fixed", commissionValue: 5000 });
-    const partnerB = await insertPartner(app, { commissionType: "fixed", commissionValue: 5000 });
-    const memberA = await createMember(app, { email: email("c1"), branchId: AR_BRANCH_ID });
-    const memberB = await createMember(app, { email: email("c2"), branchId: AR_BRANCH_ID });
-    const linkA = await insertPartnerLink(app, { partnerId: partnerA.id, referredId: memberA.id });
-    const linkB = await insertPartnerLink(app, { partnerId: partnerB.id, referredId: memberB.id });
+    const partnerA = await insertPartner(app, {
+      commissionType: "fixed",
+      commissionValue: 5000,
+    });
+    const partnerB = await insertPartner(app, {
+      commissionType: "fixed",
+      commissionValue: 5000,
+    });
+    const memberA = await createMember(app, {
+      email: email("c1"),
+      branchId: AR_BRANCH_ID,
+    });
+    const memberB = await createMember(app, {
+      email: email("c2"),
+      branchId: AR_BRANCH_ID,
+    });
+    const linkA = await insertPartnerLink(app, {
+      partnerId: partnerA.id,
+      referredId: memberA.id,
+    });
+    const linkB = await insertPartnerLink(app, {
+      partnerId: partnerB.id,
+      referredId: memberB.id,
+    });
     const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
-    const subA = await seedRawSubscription(memberA.id, plan.id as number, 15000);
-    const subB = await seedRawSubscription(memberB.id, plan.id as number, 15000);
+    const subA = await seedRawSubscription(
+      memberA.id,
+      plan.id as number,
+      15000,
+    );
+    const subB = await seedRawSubscription(
+      memberB.id,
+      plan.id as number,
+      15000,
+    );
     await insertRawCommission({
       partnerId: partnerA.id,
       partnerReferralId: linkA.id,
@@ -342,7 +390,11 @@ describe("POST /api/admin/referral-partners/:id/settle — liquidación batch (D
       role: "coach",
       branchId: AR_BRANCH_ID,
     });
-    const coachToken = await getAuthToken(app, `liq-coach-${seq}@test.local`, "pass123456");
+    const coachToken = await getAuthToken(
+      app,
+      `liq-coach-${seq}@test.local`,
+      "pass123456",
+    );
 
     // No existe hoy un rol que pase MEMBER_LIFECYCLE_ROLES (guard exterior)
     // y falle contra FINANCE_VOID_ROLES (chequeo interior de /settle): en
@@ -382,10 +434,21 @@ describe("POST /api/admin/referral-partners/:id/settle — liquidación batch (D
       commissionType: "fixed",
       commissionValue: 4000,
     });
-    const member = await createMember(app, { email: email("es"), branchId: esBranch.id });
-    const link = await insertPartnerLink(app, { partnerId: partner.id, referredId: member.id });
+    const member = await createMember(app, {
+      email: email("es"),
+      branchId: esBranch.id,
+    });
+    const link = await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: member.id,
+    });
     const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
-    const sub = await seedRawSubscription(member.id, plan.id as number, 15000, esBranch.id);
+    const sub = await seedRawSubscription(
+      member.id,
+      plan.id as number,
+      15000,
+      esBranch.id,
+    );
     await insertRawCommission({
       partnerId: partner.id,
       partnerReferralId: link.id,

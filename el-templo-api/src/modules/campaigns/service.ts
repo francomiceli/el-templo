@@ -19,7 +19,11 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
-import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { EmailService } from "../email/service";
 import { signCampaignToken } from "./token-service";
 import { trialCampaignHtml } from "./templates";
@@ -171,7 +175,10 @@ export class CampaignService {
       .select()
       .from(schema.campaigns)
       .where(
-        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, inserted.id)),
+        and(
+          tenantWhere(schema.campaigns, ctx),
+          eq(schema.campaigns.id, inserted.id),
+        ),
       )
       .limit(1);
 
@@ -260,7 +267,10 @@ export class CampaignService {
       .select()
       .from(schema.campaigns)
       .where(
-        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+        and(
+          tenantWhere(schema.campaigns, ctx),
+          eq(schema.campaigns.id, campaignId),
+        ),
       )
       .limit(1);
 
@@ -376,7 +386,12 @@ export class CampaignService {
           sendId: send.id,
           purpose: "login",
         });
-        const vars = this.buildTemplateVars(campaign, token, sedes, scopeCountry);
+        const vars = this.buildTemplateVars(
+          campaign,
+          token,
+          sedes,
+          scopeCountry,
+        );
         const html = await trialCampaignHtml(vars);
         messages.push({ to: send.email, subject: campaign.subject, html });
       }
@@ -469,7 +484,10 @@ export class CampaignService {
       .select()
       .from(schema.campaigns)
       .where(
-        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+        and(
+          tenantWhere(schema.campaigns, ctx),
+          eq(schema.campaigns.id, campaignId),
+        ),
       )
       .limit(1);
     if (!campaign) throw new BadRequestError("Campaña no encontrada");
@@ -521,7 +539,10 @@ export class CampaignService {
       .select({ id: schema.campaigns.id, sentAt: schema.campaigns.sentAt })
       .from(schema.campaigns)
       .where(
-        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+        and(
+          tenantWhere(schema.campaigns, ctx),
+          eq(schema.campaigns.id, campaignId),
+        ),
       )
       .limit(1);
 
@@ -736,7 +757,9 @@ export class CampaignService {
   ): Promise<BranchAddress[]> {
     const br = schema.branches;
     const countryFilter =
-      country === "AR" || country === "ES" ? eq(br.country, country) : undefined;
+      country === "AR" || country === "ES"
+        ? eq(br.country, country)
+        : undefined;
 
     // T-175-02: `tenantWhere(br, ctx)` INLINE en el `.where()` (antes vivía
     // en un array `conditions` armado en un statement separado) — mismo
@@ -758,7 +781,11 @@ export class CampaignService {
       .filter((r): r is { name: string; address: string } => r.address !== null)
       .map((r) => {
         const mapsUrl = buildMapsUrl(r.address);
-        return { name: r.name, address: r.address, ...(mapsUrl ? { mapsUrl } : {}) };
+        return {
+          name: r.name,
+          address: r.address,
+          ...(mapsUrl ? { mapsUrl } : {}),
+        };
       });
   }
 

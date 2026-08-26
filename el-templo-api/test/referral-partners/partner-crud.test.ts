@@ -72,7 +72,9 @@ interface RawPartnerRow {
   is_active: number;
 }
 
-function basePayload(overrides: Partial<PartnerCreateBody> = {}): PartnerCreateBody {
+function basePayload(
+  overrides: Partial<PartnerCreateBody> = {},
+): PartnerCreateBody {
   return {
     name: "Café X",
     code: nextCode("CRUD"),
@@ -121,7 +123,11 @@ beforeAll(async () => {
     role: "coach",
     branchId,
   });
-  coachToken = await getAuthToken(app, "coach-partners@test.local", "pass123456");
+  coachToken = await getAuthToken(
+    app,
+    "coach-partners@test.local",
+    "pass123456",
+  );
 });
 
 afterAll(async () => {
@@ -147,7 +153,11 @@ beforeEach(async () => {
     role: "coach",
     branchId,
   });
-  coachToken = await getAuthToken(app, "coach-partners@test.local", "pass123456");
+  coachToken = await getAuthToken(
+    app,
+    "coach-partners@test.local",
+    "pass123456",
+  );
 });
 
 describe("POST /api/admin/referral-partners — happy path y currency (D-13)", () => {

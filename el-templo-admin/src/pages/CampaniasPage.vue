@@ -564,10 +564,7 @@ async function openSendDialog(campaign: CampaignListItem) {
   sendDialog.value = true;
   loadingEligible.value = true;
   try {
-    eligibleCount.value = await campaignsApi.getEligibleCount(
-      countryScope.value,
-      campaign.segment
-    );
+    eligibleCount.value = await campaignsApi.getEligibleCount(countryScope.value, campaign.segment);
     eligibleCountAt.value = new Date();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';

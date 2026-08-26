@@ -281,14 +281,19 @@ const confirmPasswordRules = [
 
 // Un código inválido/no resuelto NUNCA bloquea ni ensucia el alta (D-02/D-03,
 // T-179-60): partnerBenefit null deja el mensaje de siempre intacto.
-function buildSuccessMessage(partnerBenefit: PartnerBenefit | null, promoApplied?: boolean): string {
+function buildSuccessMessage(
+  partnerBenefit: PartnerBenefit | null,
+  promoApplied?: boolean,
+): string {
   if (partnerBenefit?.benefitType === 'discount_percent') {
     return `Cuenta creada. Tenés ${partnerBenefit.benefitValue}% de descuento en tu primera cuota, cortesía de ${partnerBenefit.partnerName}.`
   }
   if (partnerBenefit?.benefitType === 'free_pass') {
     return `Cuenta creada. Tenés una semana de regalo, cortesía de ${partnerBenefit.partnerName}. Reservá tu primera clase para activarla.`
   }
-  return promoApplied ? 'Cuenta creada. Tu mes gratis ya esta activo!' : 'Cuenta creada exitosamente'
+  return promoApplied
+    ? 'Cuenta creada. Tu mes gratis ya esta activo!'
+    : 'Cuenta creada exitosamente'
 }
 
 function togglePassword() {

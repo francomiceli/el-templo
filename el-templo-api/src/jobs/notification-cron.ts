@@ -356,7 +356,11 @@ export async function runPlanRenewalWarnings(
         // D-05 suppression: enqueue ONLY when the chain's covered-until equals
         // the threshold date. A scheduled successor pushes covered-until past
         // the threshold → !== target → skip (the member already renewed).
-        const coveredUntil = await deriveCoveredUntil(db, candidate.userId, ctx);
+        const coveredUntil = await deriveCoveredUntil(
+          db,
+          candidate.userId,
+          ctx,
+        );
         if (coveredUntil !== candidate.target) {
           continue;
         }

@@ -279,7 +279,11 @@ describe("POST /api/admin/members/:userId/partner-referral — asignación retro
     const partner = await insertPartner(app);
     const target = await createMember(app, { email: email("forbidden-t") });
     const socio = await createMember(app, { email: email("forbidden-s") });
-    const socioToken = await getAuthToken(app, socio.email as string, "pass123456");
+    const socioToken = await getAuthToken(
+      app,
+      socio.email as string,
+      "pass123456",
+    );
 
     const res = await assign(target.id, partner.id, socioToken);
     expect(res.statusCode).toBe(403);

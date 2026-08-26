@@ -340,7 +340,10 @@ describe("POST /api/campaigns/exchange — canje de magic-link (D-01/D-02)", () 
     const conCampoExtra = await app.inject({
       method: "POST",
       url: "/api/campaigns/exchange",
-      payload: { token: "token-invalido-no-resuelve-nada", extra: "no-deberia-colarse" },
+      payload: {
+        token: "token-invalido-no-resuelve-nada",
+        extra: "no-deberia-colarse",
+      },
     });
     // El token es invalido de por si -> 401 genérico, NO un 400 por el campo
     // extra (prueba que se podó, no que rompió la validación).

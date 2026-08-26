@@ -52,7 +52,8 @@ const baseVars: TrialCampaignVars = {
   headline: "Tu primera clase es gratis",
   subheadline: "Vení a probar",
   body: "Te esperamos con onda.\n\nTraé ropa cómoda.",
-  trackingPixelUrl: "https://api.eltemplo.org/api/campaigns/track/open?t=TOKEN123",
+  trackingPixelUrl:
+    "https://api.eltemplo.org/api/campaigns/track/open?t=TOKEN123",
   ctaAppUrl: "https://api.eltemplo.org/api/campaigns/track/click?t=TOKEN123",
   whatsappUrl: "https://wa.me/5492235820521?text=hola",
   sedes: [
@@ -65,10 +66,12 @@ const baseVars: TrialCampaignVars = {
     {
       name: "Barcelona Centro",
       address: "Carrer de Balmes 100",
-      mapsUrl: "https://www.google.com/maps/search/?api=1&query=Carrer%20de%20Balmes%20100",
+      mapsUrl:
+        "https://www.google.com/maps/search/?api=1&query=Carrer%20de%20Balmes%20100",
     },
   ],
-  unsubscribeUrl: "https://api.eltemplo.org/api/campaigns/unsubscribe?t=TOKEN123",
+  unsubscribeUrl:
+    "https://api.eltemplo.org/api/campaigns/unsubscribe?t=TOKEN123",
 };
 
 describe("trialCampaignHtml render (Phase 180, D-06/D-07/D-10)", () => {
@@ -98,10 +101,7 @@ describe("trialCampaignHtml render (Phase 180, D-06/D-07/D-10)", () => {
   it("D-06: a sede without a usable address produces no Maps href for that row", async () => {
     const vars: TrialCampaignVars = {
       ...baseVars,
-      sedes: [
-        ...baseVars.sedes,
-        { name: "Sede sin dirección", address: "" },
-      ],
+      sedes: [...baseVars.sedes, { name: "Sede sin dirección", address: "" }],
     };
     const html = await trialCampaignHtml(vars);
     // Only the 2 sedes WITH a mapsUrl produce a "Cómo llegar" link; the
@@ -126,7 +126,7 @@ describe("trialCampaignHtml render (Phase 180, D-06/D-07/D-10)", () => {
       ...baseVars,
       headline: "<script>alert('x')</script> & Co",
       subheadline: "Sub & Co <b>bold</b>",
-      body: "Cuerpo con \"comillas\" & <em>tags</em>",
+      body: 'Cuerpo con "comillas" & <em>tags</em>',
     };
     const html = await trialCampaignHtml(vars);
     expect(html).not.toContain("<script>alert");
@@ -148,7 +148,9 @@ describe("trialCampaignHtml render (Phase 180, D-06/D-07/D-10)", () => {
     const html = await trialCampaignHtml(vars);
     expect(html).not.toContain("<script>");
     expect(html).toContain("Sede &amp; Co &lt;script&gt;");
-    expect(html).toContain("Calle &quot;Falsa&quot; 123 &amp; &lt;b&gt;algo&lt;/b&gt;");
+    expect(html).toContain(
+      "Calle &quot;Falsa&quot; 123 &amp; &lt;b&gt;algo&lt;/b&gt;",
+    );
   });
 
   it("D-16: the primary CTA label is live text, not an image, and includes a VML fallback for Outlook", async () => {

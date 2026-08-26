@@ -31,8 +31,8 @@
         </div>
 
         <div class="text-body2 text-grey-8">
-          "Liquidar" marca esas comisiones como pagadas fuera del sistema (efectivo,
-          transferencia u otro medio acordado con el comercio) y
+          "Liquidar" marca esas comisiones como pagadas fuera del sistema (efectivo, transferencia u
+          otro medio acordado con el comercio) y
           <span class="text-weight-bold">no genera ningún movimiento de caja</span>. Confirmá solo
           si ya le pagaste al partner.
         </div>

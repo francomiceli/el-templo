@@ -21,7 +21,10 @@ import {
 import { CampaignService } from "../src/modules/campaigns/service";
 import { EmailService } from "../src/modules/email/service";
 import { AudienceService } from "../src/modules/campaigns/audience-service";
-import { CAMPAIGN_SEGMENTS, type CampaignSegment } from "../src/modules/campaigns/types";
+import {
+  CAMPAIGN_SEGMENTS,
+  type CampaignSegment,
+} from "../src/modules/campaigns/types";
 import {
   tenantValues,
   tenantWhere,
@@ -453,7 +456,9 @@ describe("AudienceService — invariantes D-15 por segmento", () => {
     await app.db
       .update(schema.users)
       .set({ email: null })
-      .where(and(tenantWhere(schema.users, CTX), eq(schema.users.id, referido.id)));
+      .where(
+        and(tenantWhere(schema.users, CTX), eq(schema.users.id, referido.id)),
+      );
     const eligible = await audienceService.resolveAudience(
       CTX,
       "referidos_pendientes",
@@ -466,7 +471,9 @@ describe("AudienceService — invariantes D-15 por segmento", () => {
     const referrer = await createUserWithStatus("activo");
     const referido = await createUserWithStatus("activo");
     await seedReferral(referrer.id, referido.id, "pending");
-    await app.db.insert(schema.campaignUnsubscribes).values({ email: referido.email });
+    await app.db
+      .insert(schema.campaignUnsubscribes)
+      .values({ email: referido.email });
     const eligible = await audienceService.resolveAudience(
       CTX,
       "referidos_pendientes",
@@ -495,7 +502,11 @@ describe("AudienceService — countAudience", () => {
 
     for (const segment of CAMPAIGN_SEGMENTS) {
       const count = await audienceService.countAudience(CTX, segment, null);
-      const resolved = await audienceService.resolveAudience(CTX, segment, null);
+      const resolved = await audienceService.resolveAudience(
+        CTX,
+        segment,
+        null,
+      );
       expect(count).toBe(resolved.length);
     }
   });

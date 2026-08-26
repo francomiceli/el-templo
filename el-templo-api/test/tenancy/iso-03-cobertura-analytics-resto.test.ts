@@ -310,9 +310,7 @@ export function clavesDeLosDescribe(fuente: string): string[] {
 }
 
 /** Las rutas `tenant-scoped` de los 8 prefijos del módulo (la lista a cubrir). */
-const RUTAS_ANALYTICS_RESTO: readonly string[] = Object.entries(
-  TENANT_MANIFEST,
-)
+const RUTAS_ANALYTICS_RESTO: readonly string[] = Object.entries(TENANT_MANIFEST)
   .filter(([clave, entrada]) => {
     if (entrada.categoria !== "tenant-scoped") return false;
     const url = clave.slice(clave.indexOf(" ") + 1);

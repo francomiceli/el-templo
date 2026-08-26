@@ -206,10 +206,7 @@ export interface StreakMilestoneEvent {
  * PROPAGAN — ver "SEMÁNTICA DE ERRORES" arriba.
  */
 export interface FilterMap {
-  "pricing.adjust": (
-    ctx: PricingAdjustCtx,
-    hook: HookCallCtx,
-  ) => Promise<void>;
+  "pricing.adjust": (ctx: PricingAdjustCtx, hook: HookCallCtx) => Promise<void>;
 }
 
 /**
@@ -329,9 +326,7 @@ export class HookRegistry {
   }
 
   /** Introspección: qué módulos tienen handler registrado para `key`. */
-  modulesFor<K extends keyof FilterMap | keyof EventMap>(
-    key: K,
-  ): ModuleName[] {
+  modulesFor<K extends keyof FilterMap | keyof EventMap>(key: K): ModuleName[] {
     const filterByModule = this.filterHandlers.get(key as keyof FilterMap);
     if (filterByModule) return Array.from(filterByModule.keys());
     const eventByModule = this.eventHandlers.get(key as keyof EventMap);

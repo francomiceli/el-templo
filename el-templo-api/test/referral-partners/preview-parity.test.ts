@@ -22,11 +22,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import {
-  createTestApp,
-  getAuthToken,
-  cleanAllTestData,
-} from "../helpers";
+import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import {
   createPlan,
   createMember,
@@ -34,7 +30,11 @@ import {
   seedAuraBalance,
   SUBSCRIPTIONS_URL,
 } from "../subscriptions/_helpers";
-import { insertPartner, insertPartnerLink, partnerCommissionRows } from "./_helpers";
+import {
+  insertPartner,
+  insertPartnerLink,
+  partnerCommissionRows,
+} from "./_helpers";
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -75,9 +75,7 @@ async function getPricingPreview(
   planId: number,
   auraSpend?: number,
 ): Promise<{ statusCode: number; body: PreviewBody }> {
-  const qs = auraSpend
-    ? `&auraSpend=${auraSpend}`
-    : "";
+  const qs = auraSpend ? `&auraSpend=${auraSpend}` : "";
   const res = await app.inject({
     method: "GET",
     url: `${SUBSCRIPTIONS_URL}/members/${memberId}/subscription/pricing-preview?planId=${planId}&priceType=regular${qs}`,
@@ -240,6 +238,8 @@ describe("Preview↔cobro: paridad exacta del descuento de partner (D-09/D-10/D-
     expect(charge.statusCode).toBe(201);
     expect(charge.body.pricePaid).toBe(first.body.finalPrice);
     expect(await readBenefitStatus(member.id)).toBe("consumed");
-    expect(await partnerCommissionRows(app, charge.body.id as number)).toHaveLength(1);
+    expect(
+      await partnerCommissionRows(app, charge.body.id as number),
+    ).toHaveLength(1);
   });
 });
