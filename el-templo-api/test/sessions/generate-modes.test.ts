@@ -19,7 +19,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import { createTestApp, createStaffUser, getAuthToken } from "../helpers";
 
@@ -183,6 +183,59 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
       const tecnicaIIAlt = result!.blocks.find((b) => b.role === "TECNICA_II_ALT");
       expect(tecnicaIIAlt?.formatName).toBe(tecnicaII?.formatName);
       expect(tecnicaIIAlt?.route).not.toBe(tecnicaII?.route);
+    } finally {
+      await cleanupWeek(week);
+    }
+  });
+
+  it("regenerar ROM sobre un día de técnica borra los niveles que ROM no genera (queda solo alfa/delta rom)", async (ctx) => {
+    if (!catalogSeeded) ctx.skip(SKIP_NOTE);
+    const week = 43;
+    try {
+      // 1. Generar el día como técnica: 6 niveles (alfa/delta/kairos/sigma/omega/spartan).
+      const tec = await app.inject({
+        method: "POST",
+        url: "/api/admin/generate",
+        headers: { authorization: `Bearer ${coachToken}` },
+        payload: { week, days: ["jueves"], dayModes: { jueves: "tecnica" } },
+      });
+      expect(tec.statusCode).toBe(200);
+      const before = await app.db
+        .select()
+        .from(schema.sessions)
+        .where(
+          and(eq(schema.sessions.week, week), eq(schema.sessions.day, "jueves")),
+        );
+      expect(before.length).toBeGreaterThan(2);
+
+      // 2. Regenerar el MISMO día como ROM (ROM sólo produce alfa/delta).
+      const rom = await app.inject({
+        method: "POST",
+        url: "/api/admin/generate",
+        headers: { authorization: `Bearer ${coachToken}` },
+        payload: {
+          week,
+          days: ["jueves"],
+          dayModes: { jueves: "rom" },
+          regenerate: true,
+        },
+      });
+      expect(rom.statusCode).toBe(200);
+
+      // 3. El día queda SOLO con alfa/delta en modo rom — sin restos de técnica.
+      const after = await app.db
+        .select()
+        .from(schema.sessions)
+        .where(
+          and(eq(schema.sessions.week, week), eq(schema.sessions.day, "jueves")),
+        );
+      expect(after.map((s) => s.dayId).sort()).toEqual(
+        [`W${week}-jueves-alfa`, `W${week}-jueves-delta`].sort(),
+      );
+      expect(after.every((s) => s.sessionMode === "rom")).toBe(true);
+      // Los niveles kairos/sigma/omega/spartan de técnica ya no existen.
+      expect(await readSession(`W${week}-jueves-sigma`)).toBeNull();
+      expect(await readSession(`W${week}-jueves-kairos`)).toBeNull();
     } finally {
       await cleanupWeek(week);
     }
