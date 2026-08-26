@@ -44,6 +44,7 @@ import {
 } from "./pipeline/semana-nueva-pipeline";
 import { selectStretchingExercises } from "./pipeline/utils/stretching-selection";
 import { selectFullBodyCircuitExercises } from "./pipeline/utils/full-body-selection";
+import { selectMobilityExercise } from "./pipeline/utils/mobility-selection";
 import { queryFormatByName } from "./fallback/format-fallback";
 import { GOAL_PLAN_ROUTE_MAP } from "../goal-plans/constants";
 import { getFinalBlockRole } from "./types";
@@ -162,6 +163,15 @@ export async function assembleFixedStructureSession(
       route: spec.route,
       forcedFormat,
     });
+    // Mobility "descanso activo" per block, same as regular days (service.ts):
+    // combos/tecnica concentrate mobility in the closing STRETCHING block but
+    // every OTHER block still carries its own add-on. INITIUM is excluded (it
+    // never enters this loop), and the STRETCHING close is assembled below
+    // without one (it IS the mobility).
+    const roleMobility = await selectMobilityExercise(blockPlan.route, db);
+    if (roleMobility) {
+      blockPlan.mobilityExercise = roleMobility;
+    }
     blocks.push(blockPlan);
 
     sessionTrace.push({
@@ -199,6 +209,10 @@ export async function assembleFixedStructureSession(
     route: altSpec.route,
     forcedFormat,
   });
+  const altMobility = await selectMobilityExercise(altBlock.route, db);
+  if (altMobility) {
+    altBlock.mobilityExercise = altMobility;
+  }
   blocks.push(altBlock);
 
   sessionTrace.push({
@@ -235,6 +249,10 @@ export async function assembleFixedStructureSession(
       memberLevel,
     );
     const fullBodyBlockId = `${traceCodePrefix}-${finalRole}-W${week}-${day}-${memberLevel}`;
+    // The FB close is not the STRETCHING block, so it carries a mobility
+    // add-on like the regular day's final ATHLOS/EPIKOS block. Route FB has no
+    // specific mapping — selectMobilityExercise falls back to the full pool.
+    const fullBodyMobility = await selectMobilityExercise(FULL_BODY_ROUTE, db);
     const fullBodyBlock: BlockPlan = {
       blockId: fullBodyBlockId,
       role: finalRole,
@@ -245,6 +263,7 @@ export async function assembleFixedStructureSession(
       format: await resolveRealFormat(db, "Circuito cooperativo"),
       formatParams: { type: "circuito_cooperativo" },
       exercises: fullBodyExercises,
+      mobilityExercise: fullBodyMobility ?? undefined,
       trace: [],
     };
     blocks.push(fullBodyBlock);
