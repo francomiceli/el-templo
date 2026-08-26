@@ -126,7 +126,7 @@
         <div class="pantalla pantalla--dia" id="pantallaReposo">
           <div class="transFoto" aria-hidden="true"></div>
           <div class="transMarco">
-            <div class="transFrase">
+            <div class="transFrase" id="capFrase">
               <div class="capKicker">CONCEPTOS TÉCNICOS</div>
               <div class="capEjercicio" id="capEjercicio"></div>
               <div class="quote" id="capCue"></div>
@@ -1953,7 +1953,9 @@ onUnmounted(() => {
   letter-spacing: 0.22em;
   font-size: 1.2rem;
   color: var(--trans-apagado-dia);
-  margin-right: 1.2rem;
+  /* En su propia línea: las pills van DEBAJO de la etiqueta. */
+  flex-basis: 100%;
+  margin-bottom: 1.1rem;
 }
 /* Las pills suben desde una línea abajo, escalonadas (render.ts las marca
    con `.sube` una a una). */
@@ -1991,11 +1993,12 @@ onUnmounted(() => {
     0 0 0.9rem rgba(242, 236, 226, 0.95),
     0 0 2.2rem rgba(242, 236, 226, 0.8);
 }
-/* Salida de la cápsula al rotar (mismo gesto que la frase). */
-#tvScreenRoot .capEjercicio.apagada,
-#tvScreenRoot .capMusculos.apagada {
+/* Salida de la cápsula al rotar: se apaga el CONTENEDOR entero (kicker +
+   título + cue + pills a la vez) — el fade en el padre no pierde contra los
+   estados `aparece`/`sube` de los hijos. */
+#tvScreenRoot .transFrase.apagada {
   opacity: 0;
-  transform: translateY(-0.4em);
+  transform: translateY(-0.6rem);
   transition:
     opacity 0.7s ease,
     transform 0.7s ease;

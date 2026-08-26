@@ -81,22 +81,6 @@ export const CAPSULAS: CapsulaTecnica[] = [
     musculos: ['CORE', 'GLÚTEOS', 'HOMBROS'],
   },
   {
-    ejercicio: 'HOLLOW BODY',
-    cue: [
-      { text: 'Pegá la zona lumbar al piso: ' },
-      { text: 'las costillas bajan antes de que suban las piernas.', acento: true },
-    ],
-    musculos: ['CORE PROFUNDO', 'PSOAS'],
-  },
-  {
-    ejercicio: 'COLGADA ACTIVA',
-    cue: [
-      { text: 'Colgarse también se entrena: ' },
-      { text: 'hombros activos, empujá la barra lejos de vos.', acento: true },
-    ],
-    musculos: ['ESCÁPULAS', 'DORSAL', 'ANTEBRAZO'],
-  },
-  {
     ejercicio: 'ESTOCADAS',
     cue: [
       { text: 'La rodilla de adelante firme y estable: ' },

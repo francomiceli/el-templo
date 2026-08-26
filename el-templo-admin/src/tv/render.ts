@@ -88,7 +88,10 @@ interface Nodes {
   pantallaReposo: HTMLElement;
   reposoReloj: ClockNodes;
   reposoFecha: HTMLElement;
-  /** Cápsula de técnica de la pre-clase (pantalla de transición diurna). */
+  /** Cápsula de técnica de la pre-clase (pantalla de transición diurna).
+   *  capFrase = la columna izquierda entera: kicker + título + cue + pills —
+   *  la salida al rotar apaga ESTE contenedor, todo junto. */
+  capFrase: HTMLElement;
   capEjercicio: HTMLElement;
   capCue: HTMLElement;
   capMusculos: HTMLElement;
@@ -157,6 +160,7 @@ function ensureNodes(): Nodes {
     pantallaReposo: byId('pantallaReposo'),
     reposoReloj: clockNodes(byId('reposoReloj')),
     reposoFecha: byId('reposoFecha'),
+    capFrase: byId('capFrase'),
     capEjercicio: byId('capEjercicio'),
     capCue: byId('capCue'),
     capMusculos: byId('capMusculos'),
@@ -927,9 +931,9 @@ function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): vo
  * reconstruye una vez por minuto.
  */
 function buildCapsula(n: Nodes, capsula: CapsulaTecnica): void {
-  n.capEjercicio.classList.remove('apagada');
-  n.capCue.classList.remove('apagada', 'aparece');
-  n.capMusculos.classList.remove('apagada', 'aparece');
+  n.capFrase.classList.remove('apagada');
+  n.capCue.classList.remove('aparece');
+  n.capMusculos.classList.remove('aparece');
 
   // Título con escritura por letra.
   clear(n.capEjercicio);
@@ -1010,9 +1014,10 @@ function paintCapsula(n: Nodes): void {
     return;
   }
   quoteSaliendo = true;
-  n.capEjercicio.classList.add('apagada');
-  n.capCue.classList.add('apagada');
-  n.capMusculos.classList.add('apagada');
+  // Toda la columna izquierda (kicker, título, cue y pills) se apaga JUNTA:
+  // el fade vive en el contenedor, así ningún hijo con estado propio
+  // (`aparece`/`sube`) le gana la especificidad y se queda tarde.
+  n.capFrase.classList.add('apagada');
   quoteLater(function () {
     quoteSaliendo = false;
     buildCapsula(n, capsula);
