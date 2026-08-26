@@ -273,6 +273,16 @@ export function buildRoster<TBlock extends RosterBlock>(
 ): TvBlockSummary[] {
   const roles: readonly string[] = rolesForMode(classDay.mode);
   const roster: TvBlockSummary[] = [];
+  // Dedup por bloque: `COMBOS_ROLES` lista ATHLOS y EPIKOS como el MISMO slot
+  // final del día (dos nombres por paridad de semana), y `findBlock` para
+  // EPIKOS matchea también ATHLOS. Sin esto, un día de combos de semana impar
+  // (bloque final = ATHLOS) se agregaría DOS veces — una por el rol ATHLOS y
+  // otra por el EPIKOS que resuelve al mismo bloque —, duplicando la entrada en
+  // el control e inflando "BLOQUE n / M". El primer rol que lo resuelve gana
+  // (ATHLOS en impares, EPIKOS en pares), así que el rol queda correcto por
+  // paridad. DEUTEROS_1/2 y COMBOS_II/ALT son bloques distintos (objetos
+  // distintos), no colisionan.
+  const seen = new Set<TBlock>();
 
   for (const role of roles) {
     const block =
@@ -280,6 +290,8 @@ export function buildRoster<TBlock extends RosterBlock>(
         ? findInitiumBlock(classDay.sessions)
         : findCanonicalBlock(role, classDay.sessions);
     if (!block) continue;
+    if (seen.has(block)) continue;
+    seen.add(block);
     roster.push({
       role,
       title: blockTitle(role, block),
