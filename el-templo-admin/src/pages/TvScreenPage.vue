@@ -108,6 +108,14 @@
              oculta sola (:empty) cuando el bloque no trae línea de movilidad. -->
         <div class="movBar" id="movilidad"></div>
 
+        <!-- Cartel de fase: destella "VAMOS!" al empezar el trabajo y "DESCANSO"
+             al empezar el descanso (bloques con las dos fases: tabata / HIIT /
+             intervalos con descanso). Overlay centrado sobre TODO el marco;
+             render.ts le pone el texto y reinicia la animación al cambiar de
+             fase. Va sobre las columnas pero debajo de las pantallas de
+             transición (que en clase están ocultas). -->
+        <div class="faseLabel" id="faseLabel" aria-hidden="true"></div>
+
         <!-- Pantalla de transición (reposo Y cierre): un solo diseño oscuro —
              foto con velo charcoal, frase a la izquierda con letras que se
              "encienden" (render.ts paintQuote), identidad a la derecha
@@ -1345,6 +1353,86 @@ onUnmounted(() => {
   100% {
     opacity: 0;
     transform: translate(0, -0.4em) scale(1.05);
+  }
+}
+/* Cartel de fase (VAMOS! / DESCANSO): destella GRANDE y centrado sobre TODO el
+   marco al empezar cada tramo de trabajo o descanso, sólo en bloques con las dos
+   fases (tabata / HIIT / intervalos con descanso). Letras enormes con relleno
+   (oro en trabajo, tinta en descanso) y CONTORNO claro dorado. render.ts le pone
+   el texto y dispara la animación reiniciando la clase `.mostrar`. Overlay sobre
+   las columnas (z-index 1, debajo de las pantallas de transición). Una sola
+   animación por cambio de fase (~cada 20-40 s), opacity + scale (compositor),
+   sin fill-mode: al terminar vuelve a opacity 0 y deja ver la clase. */
+#tvScreenRoot .faseLabel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0;
+  font-family: var(--cinzel);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  /* VAMOS! (base): un poco más grande que DESCANSO. "VAMOS!" (6) entra de sobra;
+     "DESCANSO" (8) baja a 15rem abajo para no pasarse del marco de 100rem. */
+  font-size: 17rem;
+  line-height: 1;
+  /* Colores intercambiados con DESCANSO: VAMOS va en la tinta oscura, sin contorno. */
+  color: var(--navy);
+  text-shadow: none;
+}
+/* Descanso: toma el look que tenía VAMOS — relleno oro con glow cálido, sin contorno. */
+#tvScreenRoot .faseLabel.descanso {
+  font-size: 15rem;
+  color: var(--gold);
+  text-shadow: 0 0 0.18em rgba(255, 238, 196, 0.55);
+}
+#tvScreenRoot .faseLabel.mostrar {
+  animation: flashFase 2.4s ease-out;
+}
+@keyframes flashFase {
+  0% {
+    opacity: 0;
+    transform: scale(0.84);
+  }
+  14% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.07);
+  }
+}
+/* Sin movimiento (reduced-motion o ?sobrio=1): el cartel sigue apareciendo —es
+   info para el profe, no adorno— pero sólo con opacity, sin escala. */
+@media (prefers-reduced-motion: reduce) {
+  #tvScreenRoot .faseLabel.mostrar {
+    animation-name: flashFaseSobrio;
+  }
+}
+#tvScreenRoot.tv-sobrio .faseLabel.mostrar {
+  animation-name: flashFaseSobrio;
+}
+@keyframes flashFaseSobrio {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  16%,
+  70% {
+    opacity: 1;
   }
 }
 #tvScreenRoot .cronometro .barra {

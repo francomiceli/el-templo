@@ -33,6 +33,7 @@ import { pad2 } from './scale';
 import type { TimerFrame, TvTimerStatus } from './timer';
 import { elapsedFrom, formatDigits, phaseAt } from './timer';
 import type { SessionQuote } from '../utils/pdf/quotes';
+import { rotationIndex } from '../utils/pdf/quotes';
 
 const log = createTvLogger('render');
 
@@ -80,6 +81,8 @@ interface Nodes {
   timerPanel: HTMLElement;
   digitos: HTMLElement;
   digitosGhost: HTMLElement;
+  /** Cartel VAMOS!/DESCANSO que destella al cambiar de fase. */
+  faseLabel: HTMLElement;
   progreso: HTMLElement;
   pantallaReposo: HTMLElement;
   reposoReloj: ClockNodes;
@@ -146,6 +149,7 @@ function ensureNodes(): Nodes {
     timerPanel: byId('timerPanel'),
     digitos: byId('digitos'),
     digitosGhost: byId('digitosGhost'),
+    faseLabel: byId('faseLabel'),
     progreso: byId('progreso'),
     pantallaReposo: byId('pantallaReposo'),
     reposoReloj: clockNodes(byId('reposoReloj')),
@@ -292,6 +296,8 @@ let lastMarkerKey: string | null = null;
 let lastDotsKey = '';
 let lastQuoteKey = '';
 let lastBeepKey: string | null = null;
+/** Última fase+ronda con cartel VAMOS!/DESCANSO mostrado; evita repetir el destello. */
+let lastFaseKey: string | null = null;
 /** Última cadena de formato pintada (con su salto de línea nombre/spec). */
 let lastFormatoRaw: string | null = null;
 /** Estado del timer en el tick anterior — para detectar el ARRANQUE (idle→running). */
@@ -320,6 +326,7 @@ export function resetRender(): void {
   lastDotsKey = '';
   lastQuoteKey = '';
   lastBeepKey = null;
+  lastFaseKey = null;
   lastFormatoRaw = null;
   lastTimerStatus = null;
   lastStartedAt = null;
@@ -839,6 +846,9 @@ function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote):
  *
  * Rota cada minuto con una eleccion derivada del reloj —no aleatoria—: asi todos los
  * televisores de la sede muestran la misma frase y ninguna cambia en medio de un tick.
+ * El orden NO es el de la lista: `rotationIndex` baraja el paso con una permutacion
+ * deterministica (la frase salta en vez de ir 1, 2, 3…), pero al ser deterministica
+ * todos los TV siguen mostrando la misma frase en el mismo minuto.
  * Al rotar con la pantalla a la vista, la frase actual se apaga (CSS `.apagada`)
  * y recién entonces se enciende la nueva; al entrar a la pantalla (o cambiar de
  * reposo a cierre) la frase se enciende directo, sin apagado previo.
@@ -847,7 +857,7 @@ function paintQuote(host: HTMLElement, autor: HTMLElement, pantalla: string): vo
   if (quotes.length === 0) {
     return;
   }
-  const idx = Math.floor(nowCorrected() / QUOTE_ROTATION_MS) % quotes.length;
+  const idx = rotationIndex(Math.floor(nowCorrected() / QUOTE_ROTATION_MS), quotes.length);
   const key = pantalla + ':' + idx;
   if (key === lastQuoteKey || quoteSaliendo) {
     return;
@@ -1072,6 +1082,7 @@ export function tickTimer(): void {
   }
 
   maybeBeep(c, frame);
+  maybePhaseLabel(n, c, frame, arranco);
 }
 
 /**
@@ -1096,4 +1107,55 @@ function maybeBeep(c: TvClassPayload, frame: TimerFrame): void {
     return;
   }
   beep(frame.finished ? 'end' : 'phase', c.timer.soundEnabled);
+}
+
+/**
+ * Muestra el cartel (VAMOS! / DESCANSO) reiniciando su animación: le pone el
+ * texto, limpia las clases y fuerza un reflow antes de volver a marcarlo, para
+ * que el keyframe corra de nuevo aunque la clase ya estuviera puesta.
+ */
+function flashFase(n: Nodes, texto: string, descanso: boolean): void {
+  const el = n.faseLabel;
+  el.textContent = texto;
+  el.classList.remove('mostrar');
+  if (descanso) {
+    el.classList.add('descanso');
+  } else {
+    el.classList.remove('descanso');
+  }
+  // Forzar reflow: sin esto el navegador agrupa el remove+add y no reinicia la
+  // animación. Leer offsetWidth obliga a recalcular el layout entre ambos.
+  void el.offsetWidth;
+  el.classList.add('mostrar');
+}
+
+/**
+ * Destella "VAMOS!" al empezar cada tramo de trabajo y "DESCANSO" al empezar el
+ * descanso, sólo en bloques con las dos fases reales (tabata / HIIT / intervalos
+ * con trabajo y descanso). Los cronómetros libres (ROM, standard) y los
+ * intervalos sin descanso (EMOM) no tienen cambio de fase que anunciar.
+ *
+ * `arranco` es el mismo pulso que dispara el flourish de arranque (el profe dio
+ * INICIAR): distingue el comienzo real del bloque —donde SÍ se canta VAMOS— de
+ * un TV que se reconecta a mitad de una fase, que sólo recuerda la clave sin
+ * destellar (mismo cuidado que `maybeBeep`).
+ */
+function maybePhaseLabel(n: Nodes, c: TvClassPayload, frame: TimerFrame, arranco: boolean): void {
+  const spec = c.timer.spec;
+  const conFases = spec.kind === 'work_rest' && spec.workMs > 0 && spec.restMs > 0;
+  if (c.timer.status !== 'running' || !conFases || frame.finished) {
+    lastFaseKey = null;
+    return;
+  }
+  const key = frame.phase + ':' + frame.round;
+  if (key === lastFaseKey) {
+    return;
+  }
+  const primera = lastFaseKey === null;
+  lastFaseKey = key;
+  // Reconexión a mitad de fase (primer pintado sin arranque): sólo recordar.
+  if (primera && !arranco) {
+    return;
+  }
+  flashFase(n, frame.phase === 'rest' ? 'DESCANSO' : 'VAMOS!', frame.phase === 'rest');
 }

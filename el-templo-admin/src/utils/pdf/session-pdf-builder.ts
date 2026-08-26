@@ -27,7 +27,7 @@ import {
   MARBLE_BG_BASE64,
 } from './pdf-assets';
 import { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
-import { QUOTES } from './quotes';
+import { QUOTES, rotationIndex } from './quotes';
 import { formatWeekLabel, formatWeekForFilename } from '../weekDates';
 import { getRouteLabel } from 'src/constants/route-labels';
 
@@ -269,7 +269,7 @@ function buildCoverPage(): Content[] {
  * Closing page: Logo at top + motivational quote with gold accent
  */
 function buildClosingPage(quoteIndex: number): Content[] {
-  const quote = QUOTES[quoteIndex % QUOTES.length];
+  const quote = QUOTES[rotationIndex(quoteIndex, QUOTES.length)];
 
   return [
     { text: '', pageBreak: 'before' as const },

@@ -110,22 +110,15 @@ export function toTimerSpec(
       };
     }
 
-    // ROM is the only genuinely ambiguous mapping of the catalog: it declares
-    // `rounds` + `restSeconds` but NO work duration, because the work itself is
-    // free (the coach calls the pace). It is modeled as `work_rest` with
-    // `workMs = 0` — NOT as `countup` — so the TV still renders the prescribed
-    // rest and the round counter, which is the whole point of a ROM Saturday
-    // (D-23). `phaseAt` treats `workMs === 0` as "work phase counting UP".
-    case "rom": {
-      const restMs = sanitizeMs(params.restSeconds, MS_PER_SECOND);
-      if (restMs <= 0) return COUNTUP;
-      return {
-        kind: "work_rest",
-        workMs: 0,
-        restMs,
-        rounds: sanitizeRounds(params.rounds),
-      };
-    }
+    // ROM (mobility): a free stopwatch counting UP from zero for the whole
+    // block. The coach paces the work and calls when to move on, so the screen
+    // just shows elapsed time — no per-round reset and no prescribed countdown.
+    // This supersedes the old `work_rest`/`workMs = 0` model of D-23, which
+    // reset the digits every `restSeconds` (the block "only lasted the rest
+    // window"): `rounds`/`restSeconds` are ignored and the block counts up as
+    // long as it runs, same as `standard`/`chipper`.
+    case "rom":
+      return COUNTUP;
 
     // ── one countdown segment per round ───────────────────────────────────
     // `emom` and `every_x_seconds` express the total as minutes: the round

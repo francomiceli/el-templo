@@ -190,17 +190,12 @@ describe("toTimerSpec — work_rest family (tabata / interval / hiit)", () => {
   });
 });
 
-describe("toTimerSpec — rom (Saturday, D-23)", () => {
-  it("maps rom to work_rest with workMs = 0 (free work, prescribed rest)", () => {
-    expect(toTimerSpec(SAMPLES.rom)).toEqual<TimerSpec>({
-      kind: "work_rest",
-      workMs: 0,
-      restMs: 45_000,
-      rounds: 4,
-    });
+describe("toTimerSpec — rom (Saturday mobility)", () => {
+  it("maps rom to a free count-up stopwatch (coach-paced, ignores rounds/rest)", () => {
+    expect(toTimerSpec(SAMPLES.rom)).toEqual<TimerSpec>({ kind: "countup" });
   });
 
-  it("degrades to countup when rom has no rest either", () => {
+  it("stays countup even without a prescribed rest", () => {
     expect(
       toTimerSpec({ type: "rom", rounds: 4, restSeconds: 0 }),
     ).toEqual<TimerSpec>({ kind: "countup" });
