@@ -189,8 +189,42 @@ function setClass(el: HTMLElement, value: string): void {
   }
 }
 
+/** Duración del fade de salida de una pantalla de transición (CSS `.saliendo`). */
+const PANTALLA_FADE_MS = 650;
+
+/**
+ * Muestra u oculta una pantalla de transición con fade en AMBOS sentidos
+ * (pedido 2026-08-26): la entrada la anima el CSS (`transEntra` sobre
+ * `.visible`); la salida pasa por `.saliendo` (opacity→0) y recién después se
+ * saca del layout. Como los overlays son opacos y hermanos del marco, el que
+ * entra y el que sale se cruzan en un crossfade y la pantalla de clase de
+ * abajo se revela fundida, nunca de golpe.
+ *
+ * Idempotente por poll: si la salida ya está en curso no se reinicia, y si el
+ * estado vuelve a "visible" a mitad del fade, la clase `saliendo` se pisa y el
+ * timeout pendiente (que la chequea antes de ocultar) no hace nada. El timeout
+ * huérfano tras un desmontaje escribe sobre un nodo despegado: inofensivo.
+ */
 function setVisible(el: HTMLElement, base: string, visible: boolean): void {
-  setClass(el, visible ? base + ' visible' : base);
+  const mostrada = el.className.indexOf('visible') !== -1;
+  const saliendo = el.className.indexOf('saliendo') !== -1;
+  if (visible) {
+    setClass(el, base + ' visible');
+    return;
+  }
+  if (!mostrada && !saliendo) {
+    setClass(el, base);
+    return;
+  }
+  if (saliendo) {
+    return;
+  }
+  setClass(el, base + ' visible saliendo');
+  window.setTimeout(function () {
+    if (el.className.indexOf('saliendo') !== -1) {
+      setClass(el, base);
+    }
+  }, PANTALLA_FADE_MS);
 }
 
 /**

@@ -1571,6 +1571,14 @@ onUnmounted(() => {
   display: block;
   animation: transEntra 0.9s ease;
 }
+/* Fade de salida (render.ts setVisible): la pantalla sigue en el layout
+   mientras su opacity baja, y recién después se oculta — toda transición
+   entre pantallas queda fundida, nunca de golpe. */
+#tvScreenRoot .pantalla.visible.saliendo {
+  animation: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
 @keyframes transEntra {
   from {
     opacity: 0;
@@ -1851,6 +1859,9 @@ onUnmounted(() => {
 #tvScreenRoot.tv-sobrio .pantalla.visible,
 #tvScreenRoot.tv-sobrio .pantalla.visible .cierreTitulo {
   animation: none;
+}
+#tvScreenRoot.tv-sobrio .pantalla.visible.saliendo {
+  transition: none;
 }
 #tvScreenRoot.tv-sobrio .cierreTitulo {
   opacity: 1;
