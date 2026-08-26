@@ -92,10 +92,12 @@ describe("TV roster — orden canonico de bloques", () => {
       {
         memberLevel: "alfa",
         blocks: [
-          block("ROM_UPPER", { formatParams: ROM }),
+          // Los bloques de zona ROM llevan formatName "ROM" (como el generador
+          // real, rom-generator.ts) — es lo que la etiqueta muestra.
+          block("ROM_UPPER", { formatName: "ROM", formatParams: ROM }),
           block("INITIUM", { formatParams: TABATA }),
-          block("ROM_CORE", { formatParams: ROM }),
-          block("ROM_LOWER", { formatParams: ROM }),
+          block("ROM_CORE", { formatName: "ROM", formatParams: ROM }),
+          block("ROM_LOWER", { formatName: "ROM", formatParams: ROM }),
         ],
       },
       { memberLevel: "delta", blocks: [block("ROM_LOWER")] },

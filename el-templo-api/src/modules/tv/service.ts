@@ -916,8 +916,8 @@ export class TvService {
       const label = this.levelLabel(classDay, level, false);
       // ROM: la ruta es el rol de la zona (ROM_LOWER/…) y la intensidad un 50
       // fijo informativo — nada de eso aporta en pantalla, así que el header es
-      // solo el tier (BASICO/AVANZADO). El resto de los modos conservan
-      // "NIVEL | RUTA %".
+      // solo el tier (BÁSICO/AVANZADO, ROM_LEVEL_LABELS). El resto de los modos
+      // conservan "NIVEL | RUTA %".
       const header =
         classDay.mode === "rom"
           ? label

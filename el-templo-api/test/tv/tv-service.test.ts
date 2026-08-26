@@ -429,7 +429,7 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     // alfa+delta presentes -> dos columnas. En ROM el header es sólo el tier
     // (BASICO/AVANZADO): la ruta es el rol de la zona y la intensidad un 50 fijo
     // informativo, nada de eso va en pantalla (antes salía "BASICO | ROM_LOWER 50%").
-    expect(cls.columns.map((c) => c.header)).toEqual(["BASICO", "AVANZADO"]);
+    expect(cls.columns.map((c) => c.header)).toEqual(["BÁSICO", "AVANZADO"]);
   });
 
   it("DEUTEROS_1/DEUTEROS_2 cuentan como UN bloque visual (C1)", async () => {
