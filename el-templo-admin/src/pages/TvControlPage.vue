@@ -344,9 +344,12 @@
         <q-card-section>
           <div class="text-h6">¿Pasar al bloque {{ pendingBlockLabel }}?</div>
         </q-card-section>
-        <q-card-section class="text-body2">
+        <q-card-section v-if="hasState" class="text-body2">
           Cambiar de bloque reinicia el cronómetro del bloque actual. Confirmá para no interrumpirlo
           por error.
+        </q-card-section>
+        <q-card-section v-else class="text-body2">
+          La clase arranca en este bloque y el televisor pasa a la pantalla de clase.
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" color="grey-7" v-close-popup />
@@ -356,6 +359,22 @@
             label="Sí, pasar al bloque"
             @click="confirmBlockChange"
           />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="closingConfirmOpen">
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6">¿Pasar a la pantalla de cierre?</div>
+        </q-card-section>
+        <q-card-section class="text-body2">
+          El televisor muestra la pantalla de cierre (flexibilidad final). Para volver, tocá el
+          bloque en curso.
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn v-close-popup flat label="Cancelar" color="grey-7" />
+          <q-btn unelevated color="secondary" label="Sí, ir al cierre" @click="confirmClosing" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -470,6 +489,8 @@ const confirmEndOpen = ref(false);
 /** Confirmación antes de cambiar de bloque: un mis-tap no debe interrumpir el bloque en curso. */
 const blockConfirmOpen = ref(false);
 const pendingBlockRole = ref<string | null>(null);
+/** Confirmación antes de pasar a la pantalla de cierre (FLEXIBILIDAD - FINAL). */
+const closingConfirmOpen = ref(false);
 /** Advertencia de sede: se abre explícitamente (re-entrada del día o cambio manual), no al montar. */
 const sedeWarningOpen = ref(false);
 /** Modal de selección de sedes por turno: solo la 1ª vez que el profe entra en el día. */
@@ -660,8 +681,12 @@ const blockButtons = computed<{ role: string; label: string }[]>(() => {
 });
 
 /** El botón está activo si es el bloque en curso; el botón DEUTEROS (colapsado)
- *  queda activo con cualquiera de sus dos caminos (DEUTEROS_1/DEUTEROS_2). */
+ *  queda activo con cualquiera de sus dos caminos (DEUTEROS_1/DEUTEROS_2).
+ *  En las pantallas de transición NINGÚN bloque figura activo: el activo es el
+ *  extremo de flexibilidad correspondiente (el rol persiste en el estado, pero
+ *  mostrarlo encendido confundía al profe). */
 function isActiveButton(role: string): boolean {
+  if (!hasState.value || isClosingScreen.value) return false;
   const cur = currentBlockRole.value;
   if (role === cur) return true;
   return role === 'DEUTEROS_1' && (cur === 'DEUTEROS_1' || cur === 'DEUTEROS_2');
@@ -853,10 +878,16 @@ function onFlexInicio(): void {
   confirmEndOpen.value = true;
 }
 
-/** FLEXIBILIDAD - FINAL: pantalla de cierre (nocturna). Reversible tocando
- *  un bloque; si no había clase, el write la crea ya en cierre. */
+/** FLEXIBILIDAD - FINAL: pantalla de cierre (nocturna), con confirmación —
+ *  como toda transición de la tira. Reversible tocando un bloque; si no había
+ *  clase, el write la crea ya en cierre. */
 function onFlexFinal(): void {
   if (isClosingScreen.value) return;
+  closingConfirmOpen.value = true;
+}
+
+function confirmClosing(): void {
+  closingConfirmOpen.value = false;
   void send({ screen: 'closing' });
 }
 
@@ -898,10 +929,13 @@ function visualGroupOf(role: string): string {
 }
 
 function requestBlockChange(role: string): void {
-  // Desde la pantalla de inicio no hay clase ni cronómetro que proteger: el
-  // tap ARRANCA la clase directamente en ese bloque (el write crea el estado).
+  // Desde la pantalla de inicio también se confirma (pedido 2026-08-26): el
+  // tap arranca la clase en ese bloque, y arrancarla por un mis-tap molesta
+  // igual que un cambio de bloque. El popup adapta su texto (no hay
+  // cronómetro que proteger todavía).
   if (!hasState.value) {
-    void send({ screen: 'class', blockRole: role });
+    pendingBlockRole.value = role;
+    blockConfirmOpen.value = true;
     return;
   }
   const current = currentBlockRole.value;
@@ -922,10 +956,11 @@ function requestBlockChange(role: string): void {
   blockConfirmOpen.value = true;
 }
 
-/** Cambio de bloque; desde el cierre además vuelve a la pantalla de clase. */
+/** Cambio de bloque; desde el cierre o la pantalla de inicio además lleva a
+ *  la pantalla de clase (desde inicio, el write CREA el estado). */
 async function sendBlockChange(role: string): Promise<void> {
   const write: Omit<TvStateWrite, 'branchId'> = { blockRole: role };
-  if (isClosingScreen.value) {
+  if (isClosingScreen.value || !hasState.value) {
     write.screen = 'class';
   }
   await send(write);
