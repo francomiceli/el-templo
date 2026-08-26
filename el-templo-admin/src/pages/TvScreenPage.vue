@@ -1038,8 +1038,8 @@ onUnmounted(() => {
   border-bottom: 1.5rem solid transparent;
   border-right: 1.7rem solid var(--gold);
   vertical-align: middle;
-  /* Separación del nombre: 0.9rem (en el TV el glyph quedaba pegado con 0.5). */
-  margin-left: 0.9rem;
+  /* Aire respecto del nombre del ejercicio. */
+  margin-left: 1.6rem;
 }
 #tvScreenRoot .lista-col .item .ej-nombre {
   flex: 1 1 auto;
@@ -1145,7 +1145,7 @@ onUnmounted(() => {
   border-top-width: 0.95rem;
   border-bottom-width: 0.95rem;
   border-right-width: 1.1rem;
-  margin-left: 0.6rem;
+  margin-left: 1.05rem;
 }
 #tvScreenRoot .stage[data-cols='4'] .lista-col .item .ej-nombre {
   /* Tamaño común a TODAS las listas del 2×2: lo fija render.ts (auto-fit) al
