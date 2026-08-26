@@ -116,9 +116,10 @@ function formatNameWithParams(
     case 'death_by_unbroken':
       return p.timeCapMinutes ? `${name} ${p.timeCapMinutes}'` : name;
 
-    // ROM (rounds + rest)
+    // ROM: la etiqueta es solo el nombre del formato ("ROM"). Espejo de
+    // formatNameWithParams en el-templo-api/src/modules/admin/format-params.ts.
     case 'rom':
-      return p.rounds ? `${p.rounds} Rondas · Hold ${p.restSeconds || 30}s` : name;
+      return name;
 
     // Rounds-only formats
     case 'complex':

@@ -651,11 +651,10 @@ export function formatNameWithParams(
         ? `${name} ${formatParams.timeCapMinutes}'`
         : name;
 
-    // ROM (rounds + rest)
+    // ROM: la etiqueta es solo el nombre del formato ("ROM"). Las rondas/hold
+    // son parámetros informativos que NO van en el título del bloque (TV/PDF).
     case "rom":
-      return formatParams.rounds
-        ? `${formatParams.rounds} Rondas · Hold ${formatParams.restSeconds || 30}s`
-        : name;
+      return name;
 
     // Rounds-only formats
     case "complex":

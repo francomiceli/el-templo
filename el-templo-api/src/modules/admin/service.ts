@@ -770,7 +770,24 @@ export class AdminSessionService {
       }
 
       if (dayMode === "rom") {
-        // ROM generation: only alfa and delta (per D-04)
+        // ROM sólo genera alfa/delta (D-04, 2 tiers BASICO/AVANZADO). Si el día
+        // venía de otro modo (técnica/combos/regular con 6 niveles), regenerar
+        // ROM dejaría vivas las sesiones kairos/sigma/omega/spartan del modo
+        // anterior — el TV las mostraría mezcladas y la etiqueta del día seguiría
+        // siendo la vieja. Al regenerar, borramos TODAS las sesiones de la plani
+        // del (semana, día) primero, así el día queda 100% ROM. (goal_plans —
+        // goalPlanType != null — son curados por socio y no se tocan.)
+        if (options.regenerate) {
+          await this.db
+            .delete(schema.sessions)
+            .where(
+              and(
+                eq(schema.sessions.week, week),
+                eq(schema.sessions.day, day),
+                isNull(schema.sessions.goalPlanType),
+              ),
+            );
+        }
         for (const memberLevel of ["alfa", "delta"] as const) {
           const dayId = `W${week}-${day}-${memberLevel}`;
           const existing = await sessionService.getSessionByDayId(dayId);
