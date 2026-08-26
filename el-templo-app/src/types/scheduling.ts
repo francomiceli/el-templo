@@ -26,6 +26,9 @@ export interface WeeklySlotView {
   maxCapacity: number
   isFull: boolean
   isHoliday: boolean
+  // Cupos de Sesión de Prueba que quedan en el turno (tope propio de 3,
+  // separado del cupo general). Se usa para la disponibilidad del modo prueba.
+  trialSpotsRemaining: number
   // mirror de scheduling/types.ts (162 APP-01): clase especial "Actividades con Aura"
   isSpecial: boolean
 }

@@ -56,6 +56,12 @@ export interface ScheduleSlot {
 export interface WeeklySlotView extends ScheduleSlot {
   bookedCount: number;
   trialCount: number;
+  /**
+   * Cupos de Sesión de Prueba que quedan en el turno (tope propio de 3,
+   * separado del cupo general de la clase / `maxCapacity`). La app lo usa para
+   * la disponibilidad del modo prueba de freemium. `max(0, 3 - trialCount)`.
+   */
+  trialSpotsRemaining: number;
   maxCapacity: number;
   isFull: boolean;
   isHoliday: boolean;

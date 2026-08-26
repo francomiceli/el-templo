@@ -168,7 +168,7 @@
                 <template v-if="isSlotHoliday(slot)">
                   <q-badge color="accent" label="Feriado" />
                 </template>
-                <template v-else-if="slot.isFull">
+                <template v-else-if="slotIsFull(slot)">
                   <span class="slot-card__avail slot-card__avail--full">Completo</span>
                 </template>
                 <template v-else-if="isSlotPast(slot)"></template>
@@ -209,7 +209,7 @@
                 <template v-if="isSlotHoliday(slot)">
                   <q-badge color="accent" label="Feriado" />
                 </template>
-                <template v-else-if="slot.isFull">
+                <template v-else-if="slotIsFull(slot)">
                   <span class="slot-card__avail slot-card__avail--full">Completo</span>
                 </template>
                 <template v-else-if="isSlotPast(slot)"></template>
@@ -1224,11 +1224,12 @@ function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
   return {
     'slot-card--booked': isSlotBooked(slot) && !isSlotAttended(slot),
     'slot-card--attended': isSlotAttended(slot),
-    'slot-card--full': slot.isFull && !isSlotBooked(slot) && !isSlotAttended(slot),
+    'slot-card--full':
+      slotIsFull(slot) && !isSlotBooked(slot) && !isSlotAttended(slot),
     'slot-card--holiday': isSlotHoliday(slot),
     'slot-card--past': isSlotPast(slot) && !isSlotBooked(slot) && !isSlotAttended(slot),
     'slot-card--available':
-      !slot.isFull &&
+      !slotIsFull(slot) &&
       !isSlotBooked(slot) &&
       !isSlotAttended(slot) &&
       !isSlotHoliday(slot) &&
@@ -1250,13 +1251,23 @@ type AvailabilityLevel = 'available' | 'few' | 'last' | 'full'
 
 const FEW_THRESHOLD = 5
 
+// En modo prueba (freemium eligiendo SP) la disponibilidad NO es la del cupo
+// general de la clase, sino la del cupo ESPECIAL de SP (tope 3, `trialSpotsRemaining`).
+// El bloque de prueba y el regular son mutuamente excluyentes (v-if/v-else-if
+// sobre `trialEligible`), así que estas funciones ramifican por `isTrialMode`.
+function slotIsFull(slot: WeeklySlotView): boolean {
+  if (isTrialMode.value) return slot.trialSpotsRemaining <= 0
+  return slot.isFull
+}
+
 function spotsLeft(slot: WeeklySlotView): number {
+  if (isTrialMode.value) return Math.max(0, slot.trialSpotsRemaining)
   return Math.max(0, slot.maxCapacity - slot.bookedCount)
 }
 
 function availabilityLevel(slot: WeeklySlotView): AvailabilityLevel {
   const left = spotsLeft(slot)
-  if (slot.isFull || left <= 0) return 'full'
+  if (slotIsFull(slot) || left <= 0) return 'full'
   if (left === 1) return 'last'
   if (left < FEW_THRESHOLD) return 'few'
   return 'available'
@@ -1267,7 +1278,9 @@ function availabilityText(slot: WeeklySlotView): string {
   if (level === 'full') return 'Completo'
   if (level === 'last') return 'Queda 1 lugar'
   if (level === 'few') return `Quedan ${spotsLeft(slot)} lugares`
-  // 'available': prueba social — cuántos ya se anotaron.
+  // 'available': prueba social — cuántos ya se anotaron. (En modo prueba nunca
+  // se llega acá: el tope de SP es 3, siempre < FEW_THRESHOLD, así que cae en
+  // 'few'/'last'/'full' y muestra los cupos restantes.)
   const booked = Math.max(0, slot.bookedCount)
   if (booked === 1) return '1 persona anotada'
   return `${booked} personas anotadas`
@@ -1489,7 +1502,7 @@ async function confirmReserve() {
 function onTrialSlotTap(slot: WeeklySlotView) {
   if (isSlotHoliday(slot)) return
   if (isSlotPast(slot)) return
-  if (slot.isFull) return
+  if (slotIsFull(slot)) return
 
   const date = dateForDay(slot.dayOfWeek as DayOfWeek)
   const dayLabel = DAY_LABELS_FULL[slot.dayOfWeek as DayOfWeek]
