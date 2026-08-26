@@ -404,6 +404,34 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     expect(cls.timer.soundEnabled).toBe(false);
   });
 
+  it("ROM: el header de columna es sólo el tier (BASICO/AVANZADO), sin ruta ni intensidad", async () => {
+    await seedSession({
+      level: "alfa",
+      roles: ["INITIUM", "ROM_LOWER", "ROM_CORE", "ROM_UPPER"],
+      sessionMode: "rom",
+    });
+    await seedSession({
+      level: "delta",
+      roles: ["INITIUM", "ROM_LOWER", "ROM_CORE", "ROM_UPPER"],
+      sessionMode: "rom",
+    });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "ROM_LOWER",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    expect(cls.mode).toBe("rom");
+    // alfa+delta presentes -> dos columnas. En ROM el header es sólo el tier
+    // (BASICO/AVANZADO): la ruta es el rol de la zona y la intensidad un 50 fijo
+    // informativo, nada de eso va en pantalla (antes salía "BASICO | ROM_LOWER 50%").
+    expect(cls.columns.map((c) => c.header)).toEqual(["BÁSICO", "AVANZADO"]);
+  });
+
   it("DEUTEROS_1/DEUTEROS_2 cuentan como UN bloque visual (C1)", async () => {
     await seedSession({
       level: "alfa",

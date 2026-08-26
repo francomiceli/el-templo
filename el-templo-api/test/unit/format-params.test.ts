@@ -419,6 +419,11 @@ describe("formatNameWithParams", () => {
     expect(formatNameWithParams("STRETCHING", { type: "stretching" })).toBe(
       "STRETCHING",
     );
+    // ROM: las rondas/hold son parámetros informativos, no van en la etiqueta
+    // del bloque (TV/PDF) — sólo el nombre "ROM".
+    expect(
+      formatNameWithParams("ROM", { type: "rom", rounds: 3, restSeconds: 30 }),
+    ).toBe("ROM");
     expect(
       formatNameWithParams("OPEN STYLE", { type: "open_style", minutes: 20 }),
     ).toBe("OPEN STYLE");

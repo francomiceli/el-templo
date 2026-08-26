@@ -19,7 +19,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
 import { createTestApp, createStaffUser, getAuthToken } from "../helpers";
 
@@ -94,6 +94,26 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
     return { session, blocks };
   }
 
+  /** role -> count of persisted `exercise_type='mobility'` prescriptions. */
+  async function mobilityCountByRole(
+    blocks: Array<{ id: number; role: string }>,
+  ): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    for (const b of blocks) {
+      const rows = await app.db
+        .select()
+        .from(schema.sessionPrescriptions)
+        .where(
+          and(
+            eq(schema.sessionPrescriptions.blockId, b.id),
+            eq(schema.sessionPrescriptions.exerciseType, "mobility"),
+          ),
+        );
+      counts[b.role] = rows.length;
+    }
+    return counts;
+  }
+
   async function cleanupWeek(week: number) {
     // sessionBlocks cascade-delete with sessions (onDelete: cascade), so a
     // single DELETE on sessions is enough.
@@ -141,6 +161,15 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
       const comboIIAlt = result!.blocks.find((b) => b.role === "COMBOS_II_ALT");
       expect(comboIIAlt?.formatName).toBe(comboII?.formatName);
       expect(comboIIAlt?.route).not.toBe(comboII?.route);
+
+      // Mobility "descanso activo" on every block except INITIUM (the FB close
+      // is not STRETCHING, so it carries one too) — same as a regular day.
+      const mobility = await mobilityCountByRole(result!.blocks);
+      expect(mobility["INITIUM"]).toBe(0);
+      expect(mobility["COMBOS_I"]).toBe(1);
+      expect(mobility["COMBOS_II"]).toBe(1);
+      expect(mobility["COMBOS_II_ALT"]).toBe(1);
+      expect(mobility["EPIKOS"]).toBe(1);
     } finally {
       await cleanupWeek(week);
     }
@@ -183,6 +212,68 @@ describe("POST /admin/generate — dayModes routing (combos/tecnica, Phase 159-0
       const tecnicaIIAlt = result!.blocks.find((b) => b.role === "TECNICA_II_ALT");
       expect(tecnicaIIAlt?.formatName).toBe(tecnicaII?.formatName);
       expect(tecnicaIIAlt?.route).not.toBe(tecnicaII?.route);
+
+      // Mobility "descanso activo" on the role/alt blocks; INITIUM (warmup) and
+      // STRETCHING (which IS the mobility block) carry none.
+      const mobility = await mobilityCountByRole(result!.blocks);
+      expect(mobility["INITIUM"]).toBe(0);
+      expect(mobility["STRETCHING"]).toBe(0);
+      expect(mobility["TECNICA_I"]).toBe(1);
+      expect(mobility["TECNICA_II"]).toBe(1);
+      expect(mobility["TECNICA_II_ALT"]).toBe(1);
+    } finally {
+      await cleanupWeek(week);
+    }
+  });
+
+  it("regenerar ROM sobre un día de técnica borra los niveles que ROM no genera (queda solo alfa/delta rom)", async (ctx) => {
+    if (!catalogSeeded) ctx.skip(SKIP_NOTE);
+    const week = 43;
+    try {
+      // 1. Generar el día como técnica: 6 niveles (alfa/delta/kairos/sigma/omega/spartan).
+      const tec = await app.inject({
+        method: "POST",
+        url: "/api/admin/generate",
+        headers: { authorization: `Bearer ${coachToken}` },
+        payload: { week, days: ["jueves"], dayModes: { jueves: "tecnica" } },
+      });
+      expect(tec.statusCode).toBe(200);
+      const before = await app.db
+        .select()
+        .from(schema.sessions)
+        .where(
+          and(eq(schema.sessions.week, week), eq(schema.sessions.day, "jueves")),
+        );
+      expect(before.length).toBeGreaterThan(2);
+
+      // 2. Regenerar el MISMO día como ROM (ROM sólo produce alfa/delta).
+      const rom = await app.inject({
+        method: "POST",
+        url: "/api/admin/generate",
+        headers: { authorization: `Bearer ${coachToken}` },
+        payload: {
+          week,
+          days: ["jueves"],
+          dayModes: { jueves: "rom" },
+          regenerate: true,
+        },
+      });
+      expect(rom.statusCode).toBe(200);
+
+      // 3. El día queda SOLO con alfa/delta en modo rom — sin restos de técnica.
+      const after = await app.db
+        .select()
+        .from(schema.sessions)
+        .where(
+          and(eq(schema.sessions.week, week), eq(schema.sessions.day, "jueves")),
+        );
+      expect(after.map((s) => s.dayId).sort()).toEqual(
+        [`W${week}-jueves-alfa`, `W${week}-jueves-delta`].sort(),
+      );
+      expect(after.every((s) => s.sessionMode === "rom")).toBe(true);
+      // Los niveles kairos/sigma/omega/spartan de técnica ya no existen.
+      expect(await readSession(`W${week}-jueves-sigma`)).toBeNull();
+      expect(await readSession(`W${week}-jueves-kairos`)).toBeNull();
     } finally {
       await cleanupWeek(week);
     }

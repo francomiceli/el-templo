@@ -479,6 +479,15 @@ const levelOptions = [
   { label: 'Omega', value: 'omega' },
 ];
 
+const DAY_FULL_LABELS: Record<string, string> = {
+  lunes: 'Lunes',
+  martes: 'Martes',
+  miercoles: 'Miércoles',
+  jueves: 'Jueves',
+  viernes: 'Viernes',
+  sabado: 'Sábado',
+};
+
 // Single per-day mode selector for /generate. Carries all four modes and
 // REMEMBERS the coach's last choice per weekday in localStorage ("hasta que se
 // cambie"). It is deliberately NOT persisted to the server day_modes table:
@@ -641,6 +650,30 @@ const hasExistingSessionsInScope = computed(() => {
   }
 });
 
+// Días en el alcance donde generar ROM va a sobrescribir un día de otro modo.
+// ROM sólo produce alfa/delta (BASICO/AVANZADO), así que los demás niveles del
+// día (kairos/sigma/omega/spartan) del modo anterior se ELIMINAN al regenerar.
+// Se usa para avisarlo explícitamente antes de confirmar la regeneración.
+const romOverwriteDays = computed<string[]>(() => {
+  if (!weekSummary.value) return [];
+  const daysInScope =
+    generationScope.value === 'week'
+      ? weekSummary.value.days.map((d) => d.day)
+      : [selectedDay.value];
+  const result: string[] = [];
+  for (const day of daysInScope) {
+    const targetMode = generateDayModes.value[day] ?? getDayMode(day);
+    if (targetMode !== 'rom') continue;
+    const dayData = weekSummary.value.days.find((d) => d.day === day);
+    if (!dayData) continue;
+    const hasSessions = dayData.levels.some((l) => l.hasSession);
+    if (hasSessions && dayData.sessionMode && dayData.sessionMode !== 'rom') {
+      result.push(day);
+    }
+  }
+  return result;
+});
+
 const isFutureWeek = computed(() => selectedWeek.value >= currentWeek.value);
 
 const isPastDay = computed(() => {
@@ -695,11 +728,22 @@ async function handleGenerate() {
   }
 
   if (hasExistingSessionsInScope.value && regenerate.value) {
+    // Aviso específico cuando ROM sobrescribe un día de otro modo: además del
+    // borrado normal, se pierden los niveles que ROM no regenera.
+    const romDays = romOverwriteDays.value;
+    const romWarn =
+      romDays.length > 0
+        ? ` ATENCIÓN: vas a generar ROM sobre ${romDays
+            .map((d) => DAY_FULL_LABELS[d] ?? d)
+            .join(', ')}. Como ROM sólo tiene BASICO y AVANZADO, TODOS los demás niveles del día (Kairos, Sigma, Omega, Spartan) del modo anterior se ELIMINARÁN y el día quedará solo con esos dos tiers.`
+        : '';
     // Confirmation dialog for regeneration (permanent deletion)
     $q.dialog({
       title: 'Confirmar Regeneracion',
       message:
-        'Las sesiones existentes se ELIMINARAN permanentemente y se generaran nuevas. Esta accion no se puede deshacer. Continuar?',
+        'Las sesiones existentes se ELIMINARAN permanentemente y se generaran nuevas. Esta accion no se puede deshacer.' +
+        romWarn +
+        ' Continuar?',
       cancel: true,
       persistent: true,
       ok: {

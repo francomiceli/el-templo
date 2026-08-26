@@ -1,6 +1,32 @@
 <template>
   <div>
     <!-- ================================================================== -->
+    <!-- Aviso: SP reservadas desde la app pendientes de contactar. El filtro  -->
+    <!-- NO se aplica por defecto; solo al tocar "Clickeá acá para filtrarlos" -->
+    <!-- (toggle). Estilo suave tipo danger (espeja MemberProgramsTab).        -->
+    <!-- ================================================================== -->
+    <q-banner
+      v-if="adminStore.appTrialsPendingCount > 0"
+      class="bg-red-1 text-negative q-mb-md app-trials-banner"
+    >
+      <template #avatar>
+        <q-icon name="notifications_active" color="negative" size="20px" />
+      </template>
+      <span class="text-weight-medium">
+        {{ adminStore.appTrialsPendingCount }}
+        {{ adminStore.appTrialsPendingCount === 1 ? 'alumno reservó' : 'alumnos reservaron' }}
+        su sesión de prueba desde la app y
+        {{ adminStore.appTrialsPendingCount === 1 ? 'espera' : 'esperan' }} tu mensaje.
+      </span>
+      <span
+        class="text-weight-medium cursor-pointer text-underline q-ml-xs"
+        @click="togglePendingFollowup"
+      >
+        {{ filters.pendingFollowup ? 'Quitar filtro.' : 'Clickeá acá para filtrarlos.' }}
+      </span>
+    </q-banner>
+
+    <!-- ================================================================== -->
     <!-- Filters -->
     <!-- ================================================================== -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
@@ -904,6 +930,13 @@ function buildServerFilters() {
   };
 }
 
+// Botón del aviso → alterna el filtro "solo pendientes de seguimiento" (SP de
+// app sin contactar). Por defecto queda apagado: la lista muestra todo hasta
+// que gestión decide ver solo los pendientes. El watcher de `filters` recarga.
+function togglePendingFollowup(): void {
+  filters.pendingFollowup = !filters.pendingFollowup;
+}
+
 // ─── Load lifecycle ─────────────────────────────────────────────────────
 
 async function load(): Promise<void> {
@@ -1097,6 +1130,9 @@ watch(
 );
 
 onMounted(async () => {
+  // Refresca la pelotita para el banner al aterrizar directo en la tab
+  // (deep-link ?tab=sesiones-de-prueba) sin depender del layout.
+  void adminStore.fetchAppTrialsPendingCount();
   await loadGestionaOptionsIfOwner();
   void loadPlanOptions();
   await load();
@@ -1126,5 +1162,12 @@ onUnmounted(() => {
 }
 .no-underline:hover {
   text-decoration: underline;
+}
+.text-underline {
+  text-decoration: underline;
+}
+/* Centrar la campanita verticalmente: Quasar le pone self-start al avatar. */
+.app-trials-banner :deep(.q-banner__avatar.self-start) {
+  align-self: center !important;
 }
 </style>

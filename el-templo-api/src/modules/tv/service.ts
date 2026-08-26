@@ -914,8 +914,16 @@ export class TvService {
         !!levelBlock?.formatParams &&
         FORMAT_DICTATED_TYPES.has(levelBlock.formatParams.type);
       const label = this.levelLabel(classDay, level, false);
+      // ROM: la ruta es el rol de la zona (ROM_LOWER/…) y la intensidad un 50
+      // fijo informativo — nada de eso aporta en pantalla, así que el header es
+      // solo el tier (BÁSICO/AVANZADO, ROM_LEVEL_LABELS). El resto de los modos
+      // conservan "NIVEL | RUTA %".
+      const header =
+        classDay.mode === "rom"
+          ? label
+          : `${label} | ${getRouteLabel(levelBlock?.route)} ${levelBlock?.intensity ?? 0}%`;
       return {
-        header: `${label} | ${getRouteLabel(levelBlock?.route)} ${levelBlock?.intensity ?? 0}%`,
+        header,
         exercises: this.mainPrescriptions(levelBlock).map((p) =>
           this.toExercise(p, dictated),
         ),

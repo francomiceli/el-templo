@@ -62,7 +62,17 @@
       <q-tab name="inactivos" label="Inactivos" icon="person_off" />
       <q-tab name="deudas" label="Deudas" icon="request_quote" />
       <q-tab name="conversion" label="Conversión" icon="trending_up" />
-      <q-tab name="sesiones-de-prueba" label="Sesiones de Prueba" icon="how_to_reg" />
+      <!-- Badge de SP de app pendientes de contactar (misma pelotita que Reportes
+           en el nav): flotante arriba a la derecha de la tab, como notificación. -->
+      <q-tab name="sesiones-de-prueba" label="Sesiones de Prueba" icon="how_to_reg">
+        <q-badge
+          v-if="adminStore.appTrialsPendingCount > 0"
+          color="negative"
+          floating
+          rounded
+          :label="adminStore.appTrialsPendingCount"
+        />
+      </q-tab>
       <q-tab name="recategorizacion" label="Recategorización" icon="sync_alt" />
     </q-tabs>
 
@@ -740,6 +750,7 @@ import { useReportsApi } from 'src/composables/useReportsApi';
 import { useAnalyticsApi } from 'src/composables/useAnalyticsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { useAdminStore } from 'src/stores/useAdminStore';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import {
@@ -775,6 +786,7 @@ const reportsApi = useReportsApi();
 const analyticsApi = useAnalyticsApi();
 const membersApi = useMembersApi();
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
 
 // -- Country selector (owner-only per D-06 / D-10) ---------------------------
 
@@ -1626,6 +1638,9 @@ watch(activeTab, () => {
 // -- Lifecycle ---------------------------------------------------------------
 
 onMounted(async () => {
+  // Refresca la pelotita de SP de app (badge de la tab) al entrar a Reportes,
+  // sin depender de que el layout ya la haya cargado.
+  void adminStore.fetchAppTrialsPendingCount();
   await fetchBranches();
   await fetchTabData();
 });

@@ -66,16 +66,30 @@ const MOCK_FULL_BODY_EXERCISES: ExercisePrescription[] = [
   { exerciseId: 912, name: "Mock FB Core", contraction: "ISO", reps: 0, seconds: 200, rest: 60, dificultadLineal: 1 },
 ];
 
+/** Mock mobility add-on ("descanso activo") returned by the mocked selector. */
+const MOCK_MOBILITY: ExercisePrescription = {
+  exerciseId: 999,
+  name: "Mock Movilidad",
+  contraction: "ISO",
+  reps: 0,
+  seconds: 20,
+  rest: 0,
+  exerciseType: "mobility",
+  dificultadLineal: 1,
+};
+
 const {
   mockRunSemanaNuevaBlockPipeline,
   mockSelectStretchingExercises,
   mockSelectFullBodyCircuitExercises,
   mockQueryFormatByName,
+  mockSelectMobilityExercise,
 } = vi.hoisted(() => ({
   mockRunSemanaNuevaBlockPipeline: vi.fn(),
   mockSelectStretchingExercises: vi.fn(),
   mockSelectFullBodyCircuitExercises: vi.fn(),
   mockQueryFormatByName: vi.fn(),
+  mockSelectMobilityExercise: vi.fn(),
 }));
 
 vi.mock("../../src/modules/sessions/pipeline/semana-nueva-pipeline", async () => {
@@ -96,6 +110,10 @@ vi.mock("../../src/modules/sessions/pipeline/utils/stretching-selection", () => 
 
 vi.mock("../../src/modules/sessions/pipeline/utils/full-body-selection", () => ({
   selectFullBodyCircuitExercises: mockSelectFullBodyCircuitExercises,
+}));
+
+vi.mock("../../src/modules/sessions/pipeline/utils/mobility-selection", () => ({
+  selectMobilityExercise: mockSelectMobilityExercise,
 }));
 
 vi.mock("../../src/modules/sessions/fallback/format-fallback", () => ({
@@ -168,6 +186,9 @@ describe("Combos Generator", () => {
 
     mockSelectFullBodyCircuitExercises.mockReset();
     mockSelectFullBodyCircuitExercises.mockResolvedValue(MOCK_FULL_BODY_EXERCISES);
+
+    mockSelectMobilityExercise.mockReset();
+    mockSelectMobilityExercise.mockResolvedValue(MOCK_MOBILITY);
 
     mockQueryFormatByName.mockReset();
     mockQueryFormatByName.mockImplementation(async (_db: unknown, name: string) => {
@@ -297,6 +318,33 @@ describe("Combos Generator", () => {
       expect(fullBody.exercises.map((ex) => ex.exerciseId)).toEqual([910, 911, 912]);
       // The selector is per-level: it must receive memberLevel.
       expect(mockSelectFullBodyCircuitExercises).toHaveBeenCalledWith(db, 21, "miercoles", "alfa");
+    });
+
+    it("attaches a mobility 'descanso activo' to every block except INITIUM (FB close included)", async () => {
+      const { generateCombosSession } = await import("../../src/modules/sessions/combos-generator");
+      const db = createMockDb();
+
+      const session = await generateCombosSession(
+        db as Parameters<typeof generateCombosSession>[0],
+        21,
+        "miercoles",
+        "alfa_delta",
+        "alfa",
+      );
+
+      const initium = session.blocks.find((b) => b.role === "INITIUM")!;
+      expect(initium.mobilityExercise).toBeUndefined();
+
+      // COMBOS_I, COMBOS_II, COMBOS_II_ALT and the FB close (ATHLOS) all carry
+      // the add-on, same as a regular day's non-INITIUM blocks.
+      for (const role of ["COMBOS_I", "COMBOS_II", "COMBOS_II_ALT", "ATHLOS"]) {
+        const block = session.blocks.find((b) => b.role === role)!;
+        expect(block.mobilityExercise).toBeDefined();
+        expect(block.mobilityExercise!.exerciseType).toBe("mobility");
+      }
+
+      // One selection per non-INITIUM block (2 role + 1 alt + 1 FB close).
+      expect(mockSelectMobilityExercise).toHaveBeenCalledTimes(4);
     });
 
     it("COMBOS_I route belongs to tren_superior, COMBOS_II to tren_inferior (D-05)", async () => {
