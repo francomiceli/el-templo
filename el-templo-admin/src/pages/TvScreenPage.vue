@@ -127,7 +127,7 @@
           <div class="transFoto" aria-hidden="true"></div>
           <div class="transMarco">
             <div class="transFrase" id="capFrase">
-              <div class="capKicker">CONCEPTOS TÉCNICOS</div>
+              <div class="capKicker">NOTAS TÉCNICAS</div>
               <div class="capEjercicio" id="capEjercicio"></div>
               <div class="quote" id="capCue"></div>
               <div class="capMusculos" id="capMusculos"></div>
@@ -1953,9 +1953,9 @@ onUnmounted(() => {
   letter-spacing: 0.22em;
   font-size: 1.2rem;
   color: var(--trans-apagado-dia);
-  /* En su propia línea: las pills van DEBAJO de la etiqueta. */
+  /* En su propia línea: las pills van DEBAJO de la etiqueta, con aire. */
   flex-basis: 100%;
-  margin-bottom: 1.1rem;
+  margin-bottom: 1.7rem;
 }
 /* Las pills suben desde una línea abajo, escalonadas (render.ts las marca
    con `.sube` una a una). */
