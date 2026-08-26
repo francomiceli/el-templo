@@ -685,7 +685,9 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   const c = classOf(payload);
-  setVisible(n.pantallaReposo, 'pantalla', !c && payload.screen !== 'closing');
+  // OJO: setVisible reescribe el className COMPLETO — la base tiene que repetir
+  // el modificador diurno del template o la pre-clase cae al estilo nocturno.
+  setVisible(n.pantallaReposo, 'pantalla pantalla--dia', !c && payload.screen !== 'closing');
   setVisible(n.pantallaCierre, 'pantalla', payload.screen === 'closing');
 
   if (!c) {
