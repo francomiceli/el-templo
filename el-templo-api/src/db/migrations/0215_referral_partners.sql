@@ -1,4 +1,4 @@
--- 0210_referral_partners.sql
+-- 0215_referral_partners.sql
 -- Fase 179 (D-09, D-11, D-12, D-13, D-14, D-16, D-20): cimiento de datos del
 -- modulo de referidos de partners/marcas. Crea `referral_partners`,
 -- `partner_referrals` y `partner_commissions` -- las tres tablas nacen con
@@ -33,9 +33,11 @@
 -- Numeracion: verificado 2026-08-23 con `git ls-tree --name-only
 -- origin/master el-templo-api/src/db/migrations/` y lo mismo contra
 -- origin/staging -- ambas ramas topean en 0208_rename_branches_short_names.sql,
--- Renumerada 0209→0210 (2026-08-24): el tren v6.0 llevó 0209_seed_module_flags
--- a master/prod antes de que esta fase viajara. OJO: la fase 180 (et-180, sin
--- pushear) tambien reservo 0210 -- la que shippee segunda renumera de nuevo.
+-- Renumerada 0209→0210 (2026-08-24) y 0210→0215 (2026-08-26): la 0209 la tomó
+-- el tren v6.0 (seed_module_flags), la 0210 la tomó la fase 180
+-- (campaigns_segment, shippeó primera) y 0211-0214 entraron por Alberti y el
+-- batch admin-ux. Verificado contra origin/master y origin/staging: 0215 es
+-- el siguiente libre real en ambas.
 --
 -- Cero datos de prueba en esta migracion (staging y prod comparten servidor
 -- MySQL, todo DDL commiteado corre contra prod).
