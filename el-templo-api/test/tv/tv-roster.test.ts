@@ -301,6 +301,37 @@ describe("TV roster — dias combos/tecnica (fase 160, SEM-15)", () => {
     ]);
   });
 
+  it("dia combos de semana IMPAR (cierre ATHLOS): el bloque final NO se duplica", () => {
+    // Semana impar -> el generador emite el cierre FB con rol ATHLOS. Como
+    // COMBOS_ROLES lista ATHLOS y EPIKOS (el mismo slot final, dos nombres por
+    // paridad) y findBlock(EPIKOS) matchea ATHLOS, sin dedup el bloque saldría
+    // DOS veces (una por ATHLOS, otra por EPIKOS) — ambas rotuladas "ATHLOS".
+    const day = dayWithMode("combos", [
+      {
+        memberLevel: "alfa",
+        blocks: [
+          block("ATHLOS", { formatParams: TABATA }),
+          block("INITIUM", { formatParams: TABATA }),
+          block("COMBOS_II"),
+          block("COMBOS_I"),
+        ],
+      },
+    ]);
+
+    const roster = buildRoster(day);
+    // UNA sola entrada final (ATHLOS), no ATHLOS + EPIKOS.
+    expect(roster.map((b) => b.role)).toEqual([
+      "INITIUM",
+      "COMBOS_I",
+      "COMBOS_II",
+      "ATHLOS",
+    ]);
+    // Y ni un solo título "ATHLOS · …" repetido.
+    expect(roster.filter((b) => b.title.startsWith("ATHLOS · "))).toHaveLength(
+      1,
+    );
+  });
+
   it("marca shared en STRETCHING ademas de INITIUM (dia tecnica: lista unica de cierre)", () => {
     const day = dayWithMode("tecnica", [
       {
