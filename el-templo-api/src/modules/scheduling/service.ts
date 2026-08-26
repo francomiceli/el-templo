@@ -51,7 +51,11 @@ import {
   ConflictError,
 } from "../shared/errors";
 import { HolidayService } from "./holiday-service";
-import { getEffectiveCapacity, resolveEffectiveCapacity } from "./capacity";
+import {
+  getEffectiveCapacity,
+  resolveEffectiveCapacity,
+  MAX_TRIALS_PER_SLOT,
+} from "./capacity";
 import {
   getScheduleException,
   type ScheduleExceptionRow,
@@ -426,6 +430,12 @@ export class SchedulingService {
         deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
         bookedCount: counts.bookedCount,
         trialCount: counts.trialCount,
+        // Cupo de SP restante del turno (tope propio de 3, separado del cupo
+        // general de la clase). La app lo usa para el modo prueba de freemium.
+        trialSpotsRemaining: Math.max(
+          0,
+          MAX_TRIALS_PER_SLOT - counts.trialCount,
+        ),
         maxCapacity: slotCapacity,
         isFull: counts.bookedCount >= slotCapacity,
         isHoliday: holidayDates.has(slotDate),

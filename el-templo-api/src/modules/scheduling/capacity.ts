@@ -17,8 +17,10 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { ConflictError } from "../shared/errors";
 
 /**
  * Final defensive fallback when neither the activity nor the branch yields a
@@ -54,4 +56,70 @@ export async function getEffectiveCapacity(
     .where(eq(schema.branches.id, branchId));
 
   return resolveEffectiveCapacity(row?.activityCapacity, row?.branchCapacity);
+}
+
+/**
+ * Cupo ESPECIAL de Sesiones de Prueba por turno (`scheduleId` + fecha), SEPARADO
+ * del cupo general de la clase. Las SP no consumen ni miran el cupo general
+ * (`booking-service.countActiveBookings` filtra `is_trial=false`, D-102); este
+ * es su propio tope: máx 3 SP por turno.
+ */
+export const MAX_TRIALS_PER_SLOT = 3;
+
+/**
+ * Cuenta las SP ACTIVAS (`is_trial=true`, status ocupante) de un turno concreto
+ * (`scheduleId` + `bookingDate`), scopeado por tenant. `excludeMemberId` saca la
+ * reserva del propio alumno que reserva/reactiva, para que un re-book idempotente
+ * (o una reprogramación al mismo turno) no se cuente contra el tope. Espeja el
+ * filtro de estados de `countActiveBookings` / `getWeeklyGrid`.
+ */
+export async function countActiveTrialsForSlot(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  scheduleId: number,
+  bookingDate: string,
+  excludeMemberId?: number,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(schema.bookings)
+    .where(
+      and(
+        tenantWhere(schema.bookings, ctx),
+        eq(schema.bookings.scheduleId, scheduleId),
+        eq(schema.bookings.bookingDate, bookingDate),
+        eq(schema.bookings.isTrial, true),
+        sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
+        ...(excludeMemberId != null
+          ? [ne(schema.bookings.memberId, excludeMemberId)]
+          : []),
+      ),
+    );
+  return Number(row?.count ?? 0);
+}
+
+/**
+ * Tope duro de SP por turno: tira 409 (ConflictError) si el turno ya llegó a
+ * `MAX_TRIALS_PER_SLOT` SP activas. Se llama antes de crear/reactivar CUALQUIER
+ * reserva de prueba — app self-service Y panel de admin (reserve/book/reschedule).
+ */
+export async function assertTrialSlotCapacity(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  scheduleId: number,
+  bookingDate: string,
+  excludeMemberId?: number,
+): Promise<void> {
+  const count = await countActiveTrialsForSlot(
+    db,
+    ctx,
+    scheduleId,
+    bookingDate,
+    excludeMemberId,
+  );
+  if (count >= MAX_TRIALS_PER_SLOT) {
+    throw new ConflictError(
+      "Este turno ya no tiene cupos de prueba disponibles",
+    );
+  }
 }
