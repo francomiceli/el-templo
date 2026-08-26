@@ -1413,6 +1413,39 @@ onUnmounted(() => {
 #tvScreenRoot .faseLabel.mostrar {
   animation: flashFase 2.4s ease-out;
 }
+/* Píldora con blur detrás del texto: despega el cartel de las columnas del
+   fondo. El backdrop-filter existe SOLO bajo `.mostrar` y con opacity animada
+   sin fill — fuera del destello el pseudo queda en opacity 0 (subtree
+   transparente, el compositor lo saltea): costo acotado a los ~2.4 s del
+   flash, una vez por cambio de fase. */
+#tvScreenRoot .faseLabel.mostrar::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 82rem;
+  height: 23rem;
+  border-radius: 999rem;
+  background: rgba(242, 235, 225, 0.32);
+  -webkit-backdrop-filter: blur(0.5rem);
+  backdrop-filter: blur(0.5rem);
+  opacity: 0;
+  animation: flashFasePildora 2.4s ease-out;
+  z-index: -1;
+}
+@keyframes flashFasePildora {
+  0% {
+    opacity: 0;
+  }
+  14%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
 @keyframes flashFase {
   0% {
     opacity: 0;
@@ -1440,6 +1473,9 @@ onUnmounted(() => {
 }
 #tvScreenRoot.tv-sobrio .faseLabel.mostrar {
   animation-name: flashFaseSobrio;
+}
+#tvScreenRoot.tv-sobrio .faseLabel.mostrar::before {
+  display: none;
 }
 @keyframes flashFaseSobrio {
   0%,
