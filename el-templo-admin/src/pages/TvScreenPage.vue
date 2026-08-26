@@ -1095,14 +1095,17 @@ onUnmounted(() => {
   white-space: nowrap;
   padding: 0.08em 0.6em 0.08em 2em;
   border-radius: 0rem 0.5rem 0.5rem 0rem;
+  /* La mitad derecha (donde caen los números) va ~18% más oscura que antes:
+     los stops 35%/47%/final se bajaron en brillo (el fade-in de la izquierda
+     queda igual) para que la placa cierre más oscura bajo los dígitos. */
   background: linear-gradient(
     to right,
     #2e2a2600,
     #2e2a260f 6%,
     #2e2a2638 17%,
-    #2e2a268c 35%,
-    #46403ad1 47%,
-    #3d3732
+    #26221f8c 35%,
+    #393430d1 47%,
+    #322d29
   );
   /* Sin la sombra oscura heredada: sobre placa oscura no aporta y ensucia el número. */
   text-shadow: none;

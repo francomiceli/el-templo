@@ -110,6 +110,14 @@ describe("TV roster — orden canonico de bloques", () => {
       "ZONA MEDIA",
       "TREN SUPERIOR",
     ]);
+    // El formato de las zonas ROM es sólo "ROM" — las rondas/hold no van en la
+    // etiqueta (paridad con el PDF). El INITIUM conserva su propio formato.
+    const romZones = roster.filter((b) => b.role !== "INITIUM");
+    expect(romZones.map((b) => b.title.split(" · ")[1])).toEqual([
+      "ROM",
+      "ROM",
+      "ROM",
+    ]);
     // Un dia ROM nunca puede exponer los roles de un dia habil.
     expect(roster.some((b) => b.role === "NUCLEUS")).toBe(false);
   });
