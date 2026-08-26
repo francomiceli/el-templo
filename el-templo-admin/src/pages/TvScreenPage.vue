@@ -1919,10 +1919,14 @@ onUnmounted(() => {
   transform: none;
 }
 
-/* Mientras la transición (overlay opaco) tapa la clase, el fondo vivo de atrás
-   se pausa: no pagamos dos juegos de animaciones a la vez. */
-#tvScreenRoot.tvbg--tapado .tvFondo__marmol,
-#tvScreenRoot.tvbg--tapado .tvFondo__luz,
+/* Con una pantalla de transición (overlay opaco) a la vista, el fondo vivo
+   directamente NO SE DIBUJA (UAT TV 2026-08-26): pausar las animaciones no
+   alcanzaba — las capas seguían existiendo para el compositor. El overlay lo
+   tapa igual, así que sacarlo del render es invisible y gratis. */
+#tvScreenRoot.tvbg--tapado .tvFondo {
+  display: none;
+}
+/* Modo sobrio con la CLASE a la vista: el fondo se ve pero quieto. */
 #tvScreenRoot.tv-sobrio .tvFondo__marmol,
 #tvScreenRoot.tv-sobrio .tvFondo__luz {
   animation-play-state: paused;
