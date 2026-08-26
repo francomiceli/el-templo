@@ -695,16 +695,20 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   // Limpieza total al cambiar de pantalla (UAT TV 2026-08-26): los staggers
-  // pendientes de la pantalla saliente se cancelan de una — durante el
-  // crossfade no debe quedar NINGUNA animación encolada de la vieja — y la
-  // entrante reconstruye su contenido de cero en el próximo tick.
+  // pendientes de la pantalla saliente se cancelan de una, y la entrante se
+  // reconstruye SINCRÓNICAMENTE, en este mismo frame — si quedara para el
+  // próximo tick (≤250 ms), el contenido viejo ya encendido (opacity 1) se
+  // vería completo un instante antes de arrancar la animación (el "flash de
+  // título entero" del UAT).
   if (previo !== null && previo.screen !== payload.screen) {
     clearQuoteTimeouts();
     if (payload.screen === 'idle') {
       lastCapsulaKey = '';
+      paintCapsula(n);
     }
     if (payload.screen === 'closing') {
       lastQuoteKey = '';
+      paintQuote(n.cierreQuote, n.cierreAutor, 'cierre');
     }
   }
 
