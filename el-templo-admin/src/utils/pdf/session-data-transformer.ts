@@ -117,7 +117,8 @@ function formatNameWithParams(
       return p.timeCapMinutes ? `${name} ${p.timeCapMinutes}'` : name;
 
     // ROM: la etiqueta es solo el nombre del formato ("ROM"). Espejo de
-    // formatNameWithParams en el-templo-api/src/modules/admin/format-params.ts.
+    // formatNameWithParams en el-templo-api/src/modules/admin/format-params.ts
+    // (mantener ambos idénticos: TV = PDF).
     case 'rom':
       return name;
 
