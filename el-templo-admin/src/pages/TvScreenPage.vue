@@ -728,59 +728,46 @@ onUnmounted(() => {
   font-size: 3.6rem;
   line-height: 1.1;
   /* La caja se encoge al texto (fit-content) y se ancla a su lado (justify-self):
-     así el gradiente del brillo (background-clip:text, más abajo) mapea al ancho
-     del texto y no al del track 1fr. `max-width:100%` deja que siga envolviendo
-     por palabras si el nombre es largo. */
+     así la banda de brillo (::after, overflow:hidden) barre el box del TEXTO y no
+     el hueco vacío del track 1fr. `max-width:100%` deja que siga envolviendo por
+     palabras si el nombre es largo. `position:relative` ancla la banda. */
+  position: relative;
   width: fit-content;
   max-width: 100%;
+  overflow: hidden;
 }
-/* Brillo SOBRE LAS LETRAS (no sobre el box): el texto se pinta con un gradiente
-   de su color base con una franja clara, recortado a los glifos con
-   `background-clip: text` (relleno transparente). El barrido mueve la franja
-   DENTRO del propio relleno del texto — brilla solo el glifo, nunca el hueco del
-   box. Se anima `background-position` (no `transform`: acá no hay overlay que
-   componer aparte), pero el área es un header corto → repaint chico, y
-   `will-change` lo promociona. Envuelto en `@supports` con fallback a color
-   sólido si el Chromium del TV no soporta clip:text. Se EXCLUYE `.cabDeu`
-   (deuteros): su texto vive en hijos (`.cabDeuLabel`/`.cabDeuFormato`) con
-   tallado propio y el fill transparente heredado los rompería. */
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  #tvScreenRoot .cabecera .cabTitulo:not(.cabDeu),
-  #tvScreenRoot .cabecera .cabFormato:not(.cabDeu) {
-    background-repeat: no-repeat;
-    background-size: 300% 100%;
-    /* Reposo: la franja queda fuera del texto → se ve el color base. */
-    background-position: 0% 0;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: cabShineText 12s linear infinite;
-    will-change: background-position;
-  }
-  /* Orden pedido: primero el nombre del BLOQUE (0s), después el FORMATO (1.4s);
-     la columna dórica cierra la cascada (delay 4.5s, más abajo). */
-  #tvScreenRoot .cabecera .cabTitulo:not(.cabDeu) {
-    background-image: linear-gradient(
-      100deg,
-      var(--gold) 0%,
-      var(--gold) 45%,
-      #fff6de 50%,
-      var(--gold) 55%,
-      var(--gold) 100%
-    );
-    animation-delay: 0s;
-  }
-  #tvScreenRoot .cabecera .cabFormato:not(.cabDeu) {
-    background-image: linear-gradient(
-      100deg,
-      var(--navy) 0%,
-      var(--navy) 45%,
-      #9fb0d0 50%,
-      var(--navy) 55%,
-      var(--navy) 100%
-    );
-    animation-delay: 1.4s;
-  }
+/* Banda de brillo: overlay `::after` recortado al box del texto; la franja de luz
+   cruza con `transform` (compositado por GPU, sin repaint por frame), misma
+   mecánica que la columna dórica —que SÍ se ve en el Chromium viejo del TV—. El
+   intento con `background-clip:text` (brillar solo el glifo) no rendereaba ahí,
+   así que volvemos a esto aunque ilumine un poco el box. El `inset` vertical
+   achica el alto de la banda para pegar la luz a los glifos y no al aire de
+   arriba/abajo. NADA de background-position animado (esa vía repinta). */
+#tvScreenRoot .cabecera .cabTitulo::after,
+#tvScreenRoot .cabecera .cabFormato::after {
+  content: '';
+  position: absolute;
+  /* Banda más baja que el box (inset vertical) → pegada a los glifos. */
+  inset: 0.14em 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent calc(50% - 1.6rem),
+    rgba(255, 248, 232, 0.8) 50%,
+    transparent calc(50% + 1.6rem)
+  );
+  transform: translateX(-100%);
+  animation: cabBrillo 12s linear infinite;
+  will-change: transform;
+}
+/* Orden pedido: primero el nombre del BLOQUE (0s), después el FORMATO (1.4s);
+   la columna dórica cierra la cascada (delay 4.5s, más abajo). Todos comparten el
+   ciclo de 12s, así que el orden queda fijo. */
+#tvScreenRoot .cabecera .cabTitulo::after {
+  animation-delay: 0s;
+}
+#tvScreenRoot .cabecera .cabFormato::after {
+  animation-delay: 1.4s;
 }
 /* Nombre del bloque: pegado a la izquierda, color de los headers de NIVEL. */
 #tvScreenRoot .cabecera .cabTitulo {
@@ -1001,8 +988,8 @@ onUnmounted(() => {
     transparent calc(50% + 2.5rem)
   );
   transform: translateX(-100%);
-  /* Delay 4.5s: la columna cierra la cascada formato(0s)→bloque(1.4s)→columna
-     (barrido del bloque/formato en cabShineText, más arriba). */
+  /* Delay 4.5s: la columna cierra la cascada bloque(0s)→formato(1.4s)→columna
+     (barrido del bloque/formato en cabBrillo, más arriba). */
   animation: columnaBrillo 12s linear infinite;
   animation-delay: 4.5s;
   will-change: transform;
@@ -1044,20 +1031,17 @@ onUnmounted(() => {
     transform: translateX(100%);
   }
 }
-/* Barrido del brillo de los textos de cabecera (bloque/formato): la franja clara
-   cruza los glifos en el primer 25% (3s de 12s) moviendo el gradiente de
-   `background-position` 100%→0% (izq→der), y queda fuera del texto el resto del
-   ciclo = cooldown. En los extremos (0% y 25%) la franja está fuera del texto, así
-   que el salto del loop es invisible (color base de ambos lados). */
-@keyframes cabShineText {
+/* Gemelo de columnaBrillo para el barrido del nombre del bloque y del formato:
+   la banda cruza en el primer 25% (3s de 12s) y luego queda fuera = cooldown. */
+@keyframes cabBrillo {
   0% {
-    background-position: 100% 0;
+    transform: translateX(-100%);
   }
   25% {
-    background-position: 0% 0;
+    transform: translateX(100%);
   }
   100% {
-    background-position: 0% 0;
+    transform: translateX(100%);
   }
 }
 /* Lista SIN recuadro: respira y usa el espacio; el divisor es la columna dórica. */
@@ -2225,8 +2209,8 @@ onUnmounted(() => {
   #tvScreenRoot .tvFondo__marmol,
   #tvScreenRoot .tvFondo__luz,
   #tvScreenRoot .columnaDorica__brillo::after,
-  #tvScreenRoot .cabecera .cabTitulo,
-  #tvScreenRoot .cabecera .cabFormato {
+  #tvScreenRoot .cabecera .cabTitulo::after,
+  #tvScreenRoot .cabecera .cabFormato::after {
     animation: none;
   }
 }
