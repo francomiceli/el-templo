@@ -931,10 +931,16 @@ function buildServerFilters() {
 }
 
 // Botón del aviso → alterna el filtro "solo pendientes de seguimiento" (SP de
-// app sin contactar). Por defecto queda apagado: la lista muestra todo hasta
-// que gestión decide ver solo los pendientes. El watcher de `filters` recarga.
+// app sin contactar). Espeja EXACTAMENTE el contador del banner, que combina
+// origen app + pendiente (getAppTrialsPendingCount): por eso también setea el
+// filtro "Origen SP" en 'app'. Sin esto, la lista mostraba también SP cargadas
+// por staff y el select "Origen SP" quedaba vacío (no coincidía con el número).
+// Por defecto queda apagado: la lista muestra todo hasta que gestión decide ver
+// solo los pendientes. El watcher de `filters` recarga.
 function togglePendingFollowup(): void {
-  filters.pendingFollowup = !filters.pendingFollowup;
+  const enabling = !filters.pendingFollowup;
+  filters.pendingFollowup = enabling;
+  filters.origin = enabling ? 'app' : null;
 }
 
 // ─── Load lifecycle ─────────────────────────────────────────────────────
