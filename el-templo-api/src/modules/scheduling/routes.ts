@@ -22,6 +22,7 @@ import { ActivityService } from "./activity-service";
 import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
 import { TrialService } from "./trials-service";
+import { PartnerWeekService } from "./partner-week-service";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantWhere } from "../shared/tenant";
 import { requireBranchAccess } from "../shared/branch-access";
@@ -31,6 +32,7 @@ import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
 import { appBranchName } from "../shared/app-branch-name";
+import { buildMapsUrl } from "../shared/maps";
 import {
   ConflictError,
   CoverageExpiredError,
@@ -67,10 +69,19 @@ import {
   reserveTrialSchema,
   cancelTrialSchema,
   trialEligibilitySchema,
+  classLabelDescriptionsSchema,
+  updateClassLabelDescriptionSchema,
+  partnerBenefitSchema,
+  reservePartnerWeekSchema,
 } from "./schemas";
 import type { DayOfWeek, AffectedScheduleRef } from "./types";
 
 import { ALL_STAFF_ROLES } from "../shared/permissions";
+import {
+  getDerivedLabelDescriptions,
+  setDerivedLabelDescription,
+  type DerivedLabelMode,
+} from "./label-descriptions";
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/scheduling)
@@ -103,7 +114,14 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // Wire circular dependency: SubscriptionService needs BookingService for fixed-plan booking generation
   subscriptionService.setBookingService(bookingService);
   // Phase 102: TrialService — atomic lead+booking creation.
-  const trialService = new TrialService(fastify.db, fastify.log);
+  // Fase 180 (D-20/D-24): notificationService inyectado para que
+  // rescheduleTrial (admin) limpie/reencole el recordatorio de la prueba.
+  const trialService = new TrialService(
+    fastify.db,
+    fastify.log,
+    undefined,
+    notificationService,
+  );
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
@@ -211,6 +229,68 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         handleServiceError(err, reply, request.log, "update activity");
+      }
+    },
+  );
+
+  // ─── Class label descriptions (Fase 180 Plan 10, RES-05, D-23) ──────────
+  //
+  // Descripciones editables de las etiquetas derivadas (Combos/Técnica) —
+  // ver label-descriptions.ts para el porqué: la descripción que ve el
+  // socio sigue a la etiqueta MOSTRADA, no a `activities.description` de la
+  // fila real "General" (Pitfall 9 del research). Mismo guard admin/coach y
+  // `assertTenant` que el resto de este bloque.
+
+  // GET /class-label-descriptions — descripciones actuales por modo
+  fastify.get(
+    "/class-label-descriptions",
+    { schema: classLabelDescriptionsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.getClassLabelDescriptions",
+        );
+        const descriptions = await getDerivedLabelDescriptions(fastify.db, ctx);
+        return { descriptions };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get class label descriptions",
+        );
+      }
+    },
+  );
+
+  // PUT /class-label-descriptions — upsert de la descripción de un modo
+  fastify.put<{
+    Body: { mode: DerivedLabelMode; description: string };
+  }>(
+    "/class-label-descriptions",
+    { schema: updateClassLabelDescriptionSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.updateClassLabelDescription",
+        );
+        await setDerivedLabelDescription(
+          fastify.db,
+          ctx,
+          request.body.mode,
+          request.body.description,
+        );
+        const descriptions = await getDerivedLabelDescriptions(fastify.db, ctx);
+        return { descriptions };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "update class label description",
+        );
       }
     },
   );
@@ -370,7 +450,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: cancelScheduleDateSchema },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(request.scope, "scheduling.cancelScheduleDate");
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.cancelScheduleDate",
+        );
         const { scheduleId } = request.params;
         const { date, reason } = request.body;
 
@@ -411,7 +494,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: restoreScheduleDateSchema },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(request.scope, "scheduling.restoreScheduleDate");
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.restoreScheduleDate",
+        );
         const { scheduleId, date } = request.params;
 
         const exception = await schedulingService.restoreScheduleDate(
@@ -444,10 +530,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: previewScheduleDeletionSchema },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(
-          request.scope,
-          "scheduling.deletionPreview",
-        );
+        const ctx = assertTenant(request.scope, "scheduling.deletionPreview");
         const preview = await bookingService.previewScheduleDeletion(
           ctx,
           request.params.scheduleId,
@@ -627,7 +710,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: adminRemoveBookingSchema },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(request.scope, "scheduling.adminRemoveBooking");
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.adminRemoveBooking",
+        );
         await bookingService.adminRemoveBooking(ctx, request.params.bookingId);
         return { cancelled: true };
       } catch (err: unknown) {
@@ -705,7 +791,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
-        const ctx = assertTenant(request.scope, "scheduling.listEligibleTrials");
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.listEligibleTrials",
+        );
         const result = await trialService.listEligibleTrials(
           ctx,
           request.query.branchId,
@@ -837,9 +926,23 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Phase 119: self-service trial. BookingService is injected so the trial
   // path reuses the 30-day window + dayOfWeek/holiday validation (D-05).
+  // Fase 180 (D-20/D-24): notificationService inyectado para encolar/limpiar
+  // el recordatorio ~24h antes de la clase (reserva/cancelación self-service).
   const trialService = new TrialService(
     fastify.db,
     fastify.log,
+    bookingService,
+    notificationService,
+  );
+
+  // Fase 179-08 (D-05/D-06): semana de regalo de partner. Reusa
+  // subscriptionService/bookingService — activateAndReserve llama a
+  // assignPlan y a bookingService.reserve() (ver el docblock del servicio
+  // para la decisión de transaccionalidad).
+  const partnerWeekService = new PartnerWeekService(
+    fastify.db,
+    fastify.log,
+    subscriptionService,
     bookingService,
   );
 
@@ -968,7 +1071,12 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   // revalidated server-side from user state; the email token never authorizes
   // (D-21).
   fastify.post<{
-    Body: { scheduleId: number; date: string; branchId: number; phone?: string };
+    Body: {
+      scheduleId: number;
+      date: string;
+      branchId: number;
+      phone?: string;
+    };
   }>(
     "/reserve-trial",
     { schema: reserveTrialSchema },
@@ -1030,6 +1138,52 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "member trial eligibility");
+      }
+    },
+  );
+
+  // GET /partner-benefit — fase 179-08 (D-06): ¿puede el socio activar su
+  // semana de regalo de partner? Consumido por 179-16 para dibujar la
+  // grilla igual que trial-eligibility.
+  fastify.get(
+    "/partner-benefit",
+    { schema: partnerBenefitSchema },
+    async (request, reply) => {
+      try {
+        const result = await partnerWeekService.getPartnerWeekEligibility(
+          assertTenant(request.scope, "scheduling.partnerBenefit"),
+          request.user.userId,
+        );
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member partner benefit");
+      }
+    },
+  );
+
+  // POST /reserve-partner-week — fase 179-08 (D-05/D-06): activa la semana
+  // de regalo Y reserva la primera clase en un solo request. Eligibilidad
+  // revalidada server-side (nunca confiada del cliente).
+  fastify.post<{
+    Body: { scheduleId: number; date: string; branchId: number };
+  }>(
+    "/reserve-partner-week",
+    { schema: reservePartnerWeekSchema },
+    async (request, reply) => {
+      try {
+        const result = await partnerWeekService.activateAndReserve(
+          assertTenant(request.scope, "scheduling.reservePartnerWeek"),
+          request.user.userId,
+          request.body,
+        );
+        return reply.code(201).send(result);
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "member reserve partner week",
+        );
       }
     },
   );
@@ -1100,7 +1254,10 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         ),
       )
       .where(
-        and(tenantWhere(schema.users, ctx), eq(schema.users.id, request.user.userId)),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, request.user.userId),
+        ),
       )
       .limit(1);
 
@@ -1121,6 +1278,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       .select({
         id: schema.branches.id,
         name: schema.branches.name,
+        address: schema.branches.address,
       })
       .from(schema.branches)
       .where(where)
@@ -1130,6 +1288,9 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       branches: rows.map((r) => ({
         ...r,
         name: appBranchName(r.name, ctx.tenantId),
+        // D-17: link "Cómo llegar" derivado server-side (fuente única en
+        // shared/maps.ts); null cuando la sede no tiene dirección cargada.
+        mapsUrl: buildMapsUrl(r.address),
       })),
     };
   });

@@ -19,14 +19,22 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
-import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { EmailService } from "../email/service";
 import { signCampaignToken } from "./token-service";
 import { trialCampaignHtml } from "./templates";
+import { AudienceService } from "./audience-service";
+import { deepLinkForSegment } from "./segment-destinations";
+import { buildMapsUrl } from "../shared/maps";
 import type { BranchAddress, TrialCampaignVars } from "./types";
 import type {
   CampaignListItem,
   CampaignRecord,
+  CampaignSegment,
   CreateCampaignInput,
   EligibleUser,
   FunnelStages,
@@ -36,8 +44,12 @@ import type {
 /** Resend hard limit: ≤100 messages per batch request. */
 const BATCH_SIZE = 100;
 
-/** The web-app host the click redirect targets (D-25, anti open-redirect). */
-const TRIAL_DEEP_LINK_BASE = "https://app.eltemplo.org/r/trial";
+/**
+ * The web-app host the click redirect targets (D-25, anti open-redirect).
+ * Exported (Phase 180) so `segment-destinations.ts` (D-13) can compose the
+ * per-segment login deep link over the SAME host/path — never a new literal.
+ */
+export const TRIAL_DEEP_LINK_BASE = "https://app.eltemplo.org/r/trial";
 
 /** Public API base for the tracking endpoints (open/click/unsubscribe). */
 const TRACKING_API_BASE =
@@ -55,106 +67,44 @@ const WHATSAPP_URLS: Record<"AR" | "ES", string> = {
 };
 
 export class CampaignService {
+  private audienceService: AudienceService;
+
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private email: EmailService,
-  ) {}
+  ) {
+    this.audienceService = new AudienceService(db, log);
+  }
 
   /**
-   * Audience query (D-08/09/10). Returns freemium users that:
-   *   - have status='freemium'
-   *   - have a non-null email
-   *   - registered more than 3 days ago (D-10 freshness guard)
-   *   - have NO active/paused/scheduled subscription
-   *   - have NO non-cancelled is_trial booking (already used / pending a trial)
-   *   - are NOT on the marketing suppression list (by email, D-15)
+   * Audience query (D-08/09/10). Facade sobre `AudienceService.resolveAudience`
+   * (Phase 180, D-11/D-12) fijada al segmento 'freemium_elegibles' — se
+   * conserva este método para no romper a los llamadores existentes.
    *
-   * Ghosts / inactives are intentionally included — there is no activity filter
-   * (D-09). An optional country scope filters by the user's branch country.
+   * Criterio EXACTO del segmento (movido a `audience-service.ts`,
+   * `freemiumElegiblesConditions`, sin cambiar un solo criterio respecto de
+   * la fase 119): status='freemium', email no nulo, registrado hace más de 3
+   * días (D-10), sin suscripción activa/pausada/agendada, sin booking
+   * `is_trial` no cancelado, y no suprimido por unsubscribe (D-15). Ghosts /
+   * inactivos quedan incluidos a propósito — no hay filtro de actividad
+   * (D-09). El país opcional filtra por la sede del usuario.
    *
-   * T-173-08: `ctx` PRIMERO (D-01/D-02) — la audiencia de una campaña NUNCA
+   * T-173-08 (tenancy): `ctx` PRIMERO — la audiencia de una campaña NUNCA
    * puede incluir socios de otro gimnasio, es el peor caso práctico de una
    * fuga de tenancy (sale un email/push a un destinatario ajeno, sin 404 que
-   * lo mitigue después). El `tenantWhere` va INLINE en el `and(...)` final,
-   * no en el array `conditions` de arriba (el lint juzga por STATEMENT: el
-   * array se construye en statements separados del `.from(u)...where(...)`).
+   * lo mitigue después). Ver `audience-service.ts` para el detalle de cómo
+   * se compone `tenantWhere` y la mina M3 del unsubscribe.
    */
   async listEligible(
     ctx: TenantContext,
     country?: "AR" | "ES" | null,
   ): Promise<EligibleUser[]> {
-    const u = schema.users;
-    const s = schema.subscriptions;
-    const b = schema.bookings;
-    const unsub = schema.campaignUnsubscribes;
-    const br = schema.branches;
-
-    // T-173-08: los `sql` de abajo referencian `${u.id}` / `${u.email}` como
-    // VALOR de una subconsulta correlacionada contra OTRA tabla (subscriptions
-    // / bookings / campaign_unsubscribes) — ninguno hace `FROM users`, así que
-    // no hay tabla `users` que filtrar ahí adentro. El acceso real a `users`
-    // de este método es el `.from(u)` de más abajo, ya scopeado con
-    // `tenantWhere(u, ctx)` en su propio `.where(...)`.
-    /* tenant-safe: sql correlacionado que solo referencia users.id/email como valor, no hace FROM users (D-02) */
-    const conditions = [
-      eq(u.status, "freemium"),
-      sql`${u.email} IS NOT NULL`,
-      // D-10: registered strictly more than 3 days ago.
-      sql`${u.createdAt} < (NOW() - INTERVAL 3 DAY)`,
-      // No active/paused/scheduled subscription.
-      sql`NOT EXISTS (
-        SELECT 1 FROM ${s}
-        WHERE ${s.userId} = ${u.id}
-          AND ${s.status} IN ('active', 'paused', 'scheduled')
-      )`,
-      // No non-cancelled is_trial booking (already used or pending a trial).
-      sql`NOT EXISTS (
-        SELECT 1 FROM ${b}
-        WHERE ${b.memberId} = ${u.id}
-          AND ${b.isTrial} = TRUE
-          AND ${b.status} <> 'cancelado'
-      )`,
-      // Not on the marketing suppression list (D-15).
-      //
-      // T-175-02 (mina M3): a diferencia de subscriptions/bookings de arriba
-      // —correlacionados por ${u.id}, ya blindados por el tenantWhere(u, ctx)
-      // externo, porque users.id es una FK única global—, este WHERE
-      // correlaciona por ${u.email}, y el email NO es único global (fase 168:
-      // la unique es (tenant_id, email)). Sin filtrar `unsub` por su PROPIO
-      // tenant, un opt-out del gimnasio A suprimiría la audiencia del
-      // gimnasio B para el mismo email. `tenant_id = ${ctx.tenantId}` sigue
-      // el idioma documentado en shared/tenant.ts para un `sql` crudo.
-      sql`NOT EXISTS (
-        SELECT 1 FROM ${unsub}
-        WHERE ${unsub.email} = ${u.email} AND ${unsub.tenantId} = ${ctx.tenantId}
-      )`,
-    ];
-
-    if (country === "AR" || country === "ES") {
-      conditions.push(eq(br.country, country));
-    }
-
-    const rows = await this.db
-      .select({
-        userId: u.id,
-        email: u.email,
-        branchId: u.branchId,
-        country: br.country,
-      })
-      .from(u)
-      .innerJoin(br, eq(br.id, u.branchId))
-      .where(and(tenantWhere(u, ctx), ...conditions));
-
-    // email IS NOT NULL is enforced in SQL; narrow the nullable column here.
-    return rows
-      .filter((r): r is typeof r & { email: string } => r.email !== null)
-      .map((r) => ({
-        userId: r.userId,
-        email: r.email,
-        branchId: r.branchId,
-        country: r.country,
-      }));
+    return this.audienceService.resolveAudience(
+      ctx,
+      "freemium_elegibles",
+      country,
+    );
   }
 
   /**
@@ -213,6 +163,10 @@ export class CampaignService {
           subheadline,
           body,
           heroImageUrl,
+          // Phase 180 (D-11/D-14): only write `segment` when the admin picked
+          // one — omitting the key lets the DB `DEFAULT 'freemium_elegibles'`
+          // apply, which is byte-for-byte what pre-Phase-180 campaigns get.
+          ...(input.segment ? { segment: input.segment } : {}),
         }),
       )
       .$returningId();
@@ -221,7 +175,10 @@ export class CampaignService {
       .select()
       .from(schema.campaigns)
       .where(
-        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, inserted.id)),
+        and(
+          tenantWhere(schema.campaigns, ctx),
+          eq(schema.campaigns.id, inserted.id),
+        ),
       )
       .limit(1);
 
@@ -256,6 +213,10 @@ export class CampaignService {
         status: c.status,
         createdBy: c.createdBy,
         country: c.country,
+        // Phase 180 (D-11/D-14): the admin's preview must read the segment
+        // the campaign actually PERSISTED, never the form's unsaved value
+        // (Pitfall 8).
+        segment: c.segment,
         createdAt: c.createdAt,
         sentAt: c.sentAt,
         recipientCount: sql<number>`(
@@ -306,7 +267,10 @@ export class CampaignService {
       .select()
       .from(schema.campaigns)
       .where(
-        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+        and(
+          tenantWhere(schema.campaigns, ctx),
+          eq(schema.campaigns.id, campaignId),
+        ),
       )
       .limit(1);
 
@@ -343,7 +307,24 @@ export class CampaignService {
         ? campaign.country
         : null;
 
-    const eligible = await this.listEligible(ctx, scopeCountry);
+    // Phase 180 (D-11/D-14, Pitfall 8): the audience is resolved from the
+    // campaign's PERSISTED segment (never a stale form value), and recomputed
+    // HERE at send time, not read off the admin's earlier preview — the
+    // preview (`eligible-count`) is only an estimate, `recipientCount` below
+    // is the verdad del envío. `campaign.segment` came back from the full-row
+    // select above; it's cast because Drizzle types the varchar column as
+    // `string`, but `AudienceService.resolveAudience`'s closed dispatcher
+    // (T-180-14) throws `BadRequestError` before running any query if this
+    // ever holds a value outside `CAMPAIGN_SEGMENTS` — every writer of this
+    // column (`create()`) is already scoped to that same enum via
+    // `createCampaignSchema`, so this narrows a validated value, it doesn't
+    // widen trust.
+    const segment = campaign.segment as CampaignSegment;
+    const eligible = await this.audienceService.resolveAudience(
+      ctx,
+      segment,
+      scopeCountry,
+    );
 
     // ── Enroll audience idempotently ──────────────────────────────────────
     let newlyEnrolled = 0;
@@ -394,12 +375,23 @@ export class CampaignService {
 
       const messages: { to: string; subject: string; html: string }[] = [];
       for (const send of chunk) {
+        // Phase 180 (D-01/D-02): every send-pipeline token carries
+        // `purpose: 'login'` — additionally canjeable (7d, `loginExp`) via
+        // `POST /api/campaigns/exchange`, on top of continuing to identify
+        // this send for tracking (30d, `exp`), byte-for-byte the same TTL as
+        // before Phase 180.
         const token = signCampaignToken({
           userId: send.userId,
           campaignId,
           sendId: send.id,
+          purpose: "login",
         });
-        const vars = this.buildTemplateVars(campaign, token, sedes, scopeCountry);
+        const vars = this.buildTemplateVars(
+          campaign,
+          token,
+          sedes,
+          scopeCountry,
+        );
         const html = await trialCampaignHtml(vars);
         messages.push({ to: send.email, subject: campaign.subject, html });
       }
@@ -492,7 +484,10 @@ export class CampaignService {
       .select()
       .from(schema.campaigns)
       .where(
-        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+        and(
+          tenantWhere(schema.campaigns, ctx),
+          eq(schema.campaigns.id, campaignId),
+        ),
       )
       .limit(1);
     if (!campaign) throw new BadRequestError("Campaña no encontrada");
@@ -544,7 +539,10 @@ export class CampaignService {
       .select({ id: schema.campaigns.id, sentAt: schema.campaigns.sentAt })
       .from(schema.campaigns)
       .where(
-        and(tenantWhere(schema.campaigns, ctx), eq(schema.campaigns.id, campaignId)),
+        and(
+          tenantWhere(schema.campaigns, ctx),
+          eq(schema.campaigns.id, campaignId),
+        ),
       )
       .limit(1);
 
@@ -718,6 +716,7 @@ export class CampaignService {
     status: string;
     createdBy: number;
     country: string | null;
+    segment?: string;
     headline?: string | null;
     subheadline?: string | null;
     body?: string | null;
@@ -732,6 +731,10 @@ export class CampaignService {
       status: row.status,
       createdBy: row.createdBy,
       country: row.country,
+      // `segment` is NOT NULL DEFAULT 'freemium_elegibles' at the DB — the
+      // `?? "freemium_elegibles"` fallback only covers callers (e.g.
+      // `funnel()`'s narrower select) that don't fetch the column at all.
+      segment: row.segment ?? "freemium_elegibles",
       headline: row.headline ?? null,
       subheadline: row.subheadline ?? null,
       body: row.body ?? null,
@@ -741,14 +744,22 @@ export class CampaignService {
     };
   }
 
-  /** Load active physical (non-virtual) sedes with an address, scoped by country. */
+  /**
+   * Load active physical (non-virtual) sedes with an address, scoped by
+   * country. `mapsUrl` is derived with the SAME `buildMapsUrl` helper the app
+   * uses for its "Cómo llegar" link (`shared/maps.ts`, D-17) — never a
+   * hand-rolled Google Maps URL here, so the email and the app link are
+   * byte-for-byte identical for the same address (Phase 180, D-09/180-02).
+   */
   private async loadSedes(
     ctx: TenantContext,
     country?: "AR" | "ES" | null,
   ): Promise<BranchAddress[]> {
     const br = schema.branches;
     const countryFilter =
-      country === "AR" || country === "ES" ? eq(br.country, country) : undefined;
+      country === "AR" || country === "ES"
+        ? eq(br.country, country)
+        : undefined;
 
     // T-175-02: `tenantWhere(br, ctx)` INLINE en el `.where()` (antes vivía
     // en un array `conditions` armado en un statement separado) — mismo
@@ -768,7 +779,14 @@ export class CampaignService {
 
     return rows
       .filter((r): r is { name: string; address: string } => r.address !== null)
-      .map((r) => ({ name: r.name, address: r.address }));
+      .map((r) => {
+        const mapsUrl = buildMapsUrl(r.address);
+        return {
+          name: r.name,
+          address: r.address,
+          ...(mapsUrl ? { mapsUrl } : {}),
+        };
+      });
   }
 
   /** Build the template merge vars for one recipient's tracking token. */
@@ -803,8 +821,51 @@ export class CampaignService {
     };
   }
 
-  /** The allowlisted deep-link the click redirect resolves to (D-25). */
+  /**
+   * The allowlisted deep-link the click redirect resolves to (D-25).
+   * Phase 180 (D-13): delegates to `deepLinkForSegment('freemium_elegibles',
+   * token)` — the freemium trial campaign is exactly the `freemium_elegibles`
+   * segment, so this stays byte-for-byte the same URL as before Phase 180.
+   *
+   * Used ONLY as the fallback in `deepLinkForToken` below, for a `t` that
+   * failed HMAC validation (garbage/tampered token, no `campaignId` to look
+   * up) — the real, segment-aware resolution for a VALID token is
+   * `deepLinkForToken`.
+   */
   static trialDeepLink(token: string): string {
-    return `${TRIAL_DEEP_LINK_BASE}?t=${encodeURIComponent(token)}`;
+    return deepLinkForSegment("freemium_elegibles", token);
+  }
+
+  /**
+   * Resolve the `/track/click` redirect destination for an ALREADY-VALIDATED
+   * token, deriving it from the CAMPAIGN'S PERSISTED SEGMENT (Phase 180,
+   * D-13) instead of the hardcoded `freemium_elegibles` that `trialDeepLink`
+   * uses — a 'bajas' campaign's click must land on 'volver', not
+   * 'reservas-prueba' (see `<behavior>` of Task 2, 180-08-PLAN.md).
+   *
+   * Pre-scope read (same idiom as `tracking-service.ts#getSendEmail`,
+   * T-175-02): `/track/click` is a PUBLIC route with no `ctx` — `campaignId`
+   * comes from the SIGNED token payload (HMAC-checked by the caller before
+   * this runs), never from raw query input. Falls back to
+   * 'freemium_elegibles' when the campaign row no longer resolves (deleted /
+   * never existed), so a token for a vanished campaign still redirects
+   * somewhere sane instead of throwing on a public, unauthenticated route.
+   */
+  async deepLinkForToken(campaignId: number, token: string): Promise<string> {
+    // T-175-02 / T-180-23: lookup PRE-SCOPE por `campaignId` — no hay ctx
+    // posible en esta ruta pública. Exención `tenant-safe` DUPLICADA:
+    // comentario TS (LINT) + embebida en el SQL (SENTINEL, mismo idioma que
+    // `magic-link-service.ts#exchange`).
+    /* tenant-safe: campaignId del token firmado y ya validado por el caller (D-21), resuelve el segmento antes de tener ctx — pre-scope, no hay actor en esta ruta publica (T-175-02/T-180-23) */
+    const [row] = await this.db
+      .select({ segment: schema.campaigns.segment })
+      .from(schema.campaigns)
+      .where(
+        sql`/* tenant-safe: campaignId del token firmado y ya validado por el caller (D-21), resuelve el segmento antes de tener ctx — pre-scope, no hay actor en esta ruta publica (T-175-02/T-180-23) */ ${schema.campaigns.id} = ${campaignId}`,
+      )
+      .limit(1);
+    const segment: CampaignSegment =
+      (row?.segment as CampaignSegment | undefined) ?? "freemium_elegibles";
+    return deepLinkForSegment(segment, token);
   }
 }

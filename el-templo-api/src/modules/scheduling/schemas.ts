@@ -1,6 +1,16 @@
 /**
  * Fastify JSON schemas for Scheduling API request/response validation.
  */
+import { DERIVED_LABEL_DESCRIPTION_KEYS } from "./label-descriptions";
+
+/**
+ * Fase 180 Plan 10 (RES-05, D-23, T-180-44): enum cerrado de modos
+ * derivados, construido a partir de `DERIVED_LABEL_DESCRIPTION_KEYS`
+ * (label-descriptions.ts) — no se repite la lista `["combos","tecnica"]` en
+ * un segundo lugar. `mode` nunca se interpola en SQL: es clave de un
+ * `Record` cerrado, validada acá por `enum`.
+ */
+const DERIVED_LABEL_MODES = Object.keys(DERIVED_LABEL_DESCRIPTION_KEYS);
 
 // =============================================================================
 // Shared response fragments
@@ -70,6 +80,9 @@ const weeklySlotViewSchema = {
     // Phase 162-01 (APP-01): declared here or fast-json-stringify strips it
     // and the member badge never reaches the client.
     isSpecial: { type: "boolean" },
+    // Fase 180 Plan 10 (RES-05, D-23): declarado aquí o fast-json-stringify
+    // lo strippea y el bottom sheet de actividad nunca recibe el copy.
+    activityDescription: { type: ["string", "null"] },
   },
 } as const;
 
@@ -929,11 +942,84 @@ export const trialEligibilitySchema = {
             branchId: { type: "integer" },
             branchName: { type: "string" },
             branchAddress: { type: ["string", "null"] },
+            // Fase 180-07: mismo buildMapsUrl (shared/maps.ts) que ya usa GET /branches.
+            mapsUrl: { type: ["string", "null"] },
+            // Fase 180-07: IANA timezone de la sede reservada (schema.branches.timezone),
+            // ya se consultaba internamente para canModify — se expone para que el
+            // botón "Agregar al calendario" no dependa del ref de página branchTimezone
+            // (que queda en su default AR cuando el estado "prueba reservada" nunca
+            // corre loadGrid — bug real, no un edge case: cualquier sede fuera de AR).
+            branchTimezone: { type: "string" },
             canModify: { type: "boolean" },
           },
         },
       },
     },
+  },
+} as const;
+
+/**
+ * Fase 179-08 (D-06/D-07): partnerBenefitSchema
+ *
+ * GET /api/members/scheduling/partner-benefit
+ * Devuelve si el socio puede activar su semana de regalo de partner.
+ * `eligible: true` trae `partnerName`/`expiresAt`; `eligible: false` trae
+ * `reason` (`sin_beneficio` | `expirado` | `consumido` | `con_plan_activo`).
+ * Mismo shape base que `trialEligibilitySchema` (unión discriminada por
+ * `eligible`), consumido por la app en el plan 179-16.
+ */
+export const partnerBenefitSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["eligible"],
+      properties: {
+        eligible: { type: "boolean" },
+        partnerName: { type: "string" },
+        expiresAt: { type: "string" },
+        reason: {
+          type: "string",
+          enum: ["sin_beneficio", "expirado", "consumido", "con_plan_activo"],
+        },
+      },
+    },
+  },
+} as const;
+
+/**
+ * Fase 179-08 (D-05/D-06/D-19): reservePartnerWeekSchema
+ *
+ * POST /api/members/scheduling/reserve-partner-week
+ * Activa la semana de regalo (7 días, 3 clases, precio 0) Y reserva la
+ * primera clase en un solo request. `additionalProperties: false` rechaza
+ * campos extra (T-179-32: el `planId` NUNCA viaja en el body, se resuelve
+ * server-side).
+ */
+export const reservePartnerWeekSchema = {
+  body: {
+    type: "object",
+    required: ["scheduleId", "date", "branchId"],
+    properties: {
+      scheduleId: { type: "integer", minimum: 1 },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      branchId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    201: {
+      type: "object",
+      required: ["subscriptionId", "bookingId"],
+      properties: {
+        subscriptionId: { type: "integer" },
+        bookingId: { type: "integer" },
+        endDate: { type: ["string", "null"] },
+        classesRemaining: { type: ["integer", "null"] },
+      },
+    },
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
   },
 } as const;
 
@@ -970,5 +1056,64 @@ export const myBookingsSchema = {
         bookings: { type: "array", items: bookingRecordSchema },
       },
     },
+  },
+};
+
+/**
+ * Fase 180 Plan 10 (RES-05, D-23) — GET /api/admin/scheduling/class-label-descriptions
+ * Lee las descripciones de las etiquetas derivadas (Combos/Técnica) para el
+ * tenant del admin autenticado.
+ */
+export const classLabelDescriptionsSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        descriptions: {
+          type: "object",
+          properties: Object.fromEntries(
+            DERIVED_LABEL_MODES.map((mode) => [
+              mode,
+              { type: ["string", "null"] },
+            ]),
+          ),
+        },
+      },
+    },
+  },
+};
+
+/**
+ * Fase 180 Plan 10 (RES-05, D-23, T-180-44) — PUT /api/admin/scheduling/class-label-descriptions
+ * `mode` valida por `enum` cerrado (nunca se interpola en SQL); un
+ * `description` vacío o solo espacios borra el copy cargado (equivale a
+ * "sin descripción").
+ */
+export const updateClassLabelDescriptionSchema = {
+  body: {
+    type: "object",
+    required: ["mode", "description"],
+    properties: {
+      mode: { type: "string", enum: DERIVED_LABEL_MODES },
+      description: { type: "string", maxLength: 2000 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        descriptions: {
+          type: "object",
+          properties: Object.fromEntries(
+            DERIVED_LABEL_MODES.map((mode) => [
+              mode,
+              { type: ["string", "null"] },
+            ]),
+          ),
+        },
+      },
+    },
+    400: errorSchema,
   },
 };

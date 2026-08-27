@@ -70,6 +70,13 @@
           :pagination="{ rowsPerPage: 20 }"
           @row-click="onRowClick"
         >
+          <template #body-cell-segment="props">
+            <q-td :props="props">
+              <q-chip dense square color="grey-3" text-color="grey-9">
+                {{ CAMPAIGN_SEGMENT_LABELS[props.row.segment as CampaignSegment] }}
+              </q-chip>
+            </q-td>
+          </template>
           <template #body-cell-status="props">
             <q-td :props="props">
               <q-badge
@@ -179,6 +186,16 @@
             dense
             outlined
             hint="Asset auto-alojado en eltemplo.org (D-27)"
+          />
+          <q-select
+            v-model="form.segment"
+            :options="segmentOptions"
+            label="Segmento (a quién le habla)"
+            dense
+            outlined
+            emit-value
+            map-options
+            :rules="[requiredRule]"
           />
           <q-separator />
           <div class="text-caption text-weight-bold text-grey-8">Copy del email</div>
@@ -298,11 +315,13 @@ import { useCampaignsApi } from 'src/composables/useCampaignsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
 import CampaignFunnel from 'src/components/campaigns/CampaignFunnel.vue';
-import type {
-  CampaignListItem,
-  CampaignFunnel as CampaignFunnelData,
-  CampaignCountry,
-  CreateCampaignInput,
+import {
+  CAMPAIGN_SEGMENT_LABELS,
+  type CampaignListItem,
+  type CampaignFunnel as CampaignFunnelData,
+  type CampaignCountry,
+  type CampaignSegment,
+  type CreateCampaignInput,
 } from 'src/types/campaign';
 
 // -- Setup -------------------------------------------------------------------
@@ -376,6 +395,7 @@ const loadingList = ref(false);
 
 const campaignColumns: QTableColumn[] = [
   { name: 'name', label: 'Nombre', field: 'name', align: 'left' },
+  { name: 'segment', label: 'Segmento', field: 'segment', align: 'left' },
   { name: 'status', label: 'Estado', field: 'status', align: 'left' },
   { name: 'sentAt', label: 'Enviada', field: 'sentAt', align: 'left' },
   {
@@ -439,6 +459,7 @@ interface CreateForm {
   headline: string;
   subheadline: string;
   body: string;
+  segment: CampaignSegment;
 }
 
 function emptyForm(): CreateForm {
@@ -450,10 +471,20 @@ function emptyForm(): CreateForm {
     headline: '',
     subheadline: '',
     body: '',
+    segment: 'freemium_elegibles',
   };
 }
 
 const form = ref<CreateForm>(emptyForm());
+
+// Options for the segment `q-select` (D-11): a single segment per campaign,
+// never multi-select (D-14). Labels come from the one place they're defined.
+// (Fase 180: este selector es la superficie de admin que el deploy de staging
+// debe rebuildear en cada push — el `paths-filter` solo mira `el-templo-admin/**`,
+// y el deploy rsyncea solo lo que se buildeó.)
+const segmentOptions = (Object.entries(CAMPAIGN_SEGMENT_LABELS) as [CampaignSegment, string][]).map(
+  ([value, label]) => ({ label, value })
+);
 
 function requiredRule(val: string): boolean | string {
   return (val !== null && val !== undefined && val.trim().length > 0) || 'Requerido';
@@ -483,6 +514,7 @@ async function confirmCreate() {
         subheadline: form.value.subheadline.trim(),
         body: form.value.body.trim(),
       },
+      segment: form.value.segment,
     };
     if (form.value.country) payload.country = form.value.country;
     if (form.value.heroImageUrl.trim()) payload.heroImageUrl = form.value.heroImageUrl.trim();
@@ -508,21 +540,32 @@ const sendDialog = ref(false);
 const sending = ref(false);
 const loadingEligible = ref(false);
 const eligibleCount = ref(0);
+const eligibleCountAt = ref<Date | null>(null);
 const campaignToSend = ref<CampaignListItem | null>(null);
 
-// Exact UI-SPEC Copywriting Contract send-confirmation body (D-11).
-const sendConfirmMessage = computed(
-  () =>
-    `Vas a enviar este email a ${eligibleCount.value} personas. Esta acción no se puede deshacer. ¿Continuar?`
-);
+// Send-confirmation body (D-11): the count is an estimate as of the moment it
+// was fetched — the audience is recalculated at send time (Pitfall 8), so the
+// copy never promises an exact number, only what to expect.
+const sendConfirmMessage = computed(() => {
+  const campaign = campaignToSend.value;
+  const segmentLabel = campaign ? CAMPAIGN_SEGMENT_LABELS[campaign.segment] : '';
+  const time = eligibleCountAt.value
+    ? `${String(eligibleCountAt.value.getHours()).padStart(2, '0')}:${String(
+        eligibleCountAt.value.getMinutes()
+      ).padStart(2, '0')}`
+    : '';
+  return `Vas a enviar este email a ~${eligibleCount.value} personas del segmento «${segmentLabel}» (estimado a las ${time}). Esta acción no se puede deshacer. ¿Continuar?`;
+});
 
 async function openSendDialog(campaign: CampaignListItem) {
   campaignToSend.value = campaign;
   eligibleCount.value = 0;
+  eligibleCountAt.value = null;
   sendDialog.value = true;
   loadingEligible.value = true;
   try {
-    eligibleCount.value = await campaignsApi.getEligibleCount(countryScope.value);
+    eligibleCount.value = await campaignsApi.getEligibleCount(countryScope.value, campaign.segment);
+    eligibleCountAt.value = new Date();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error fetching eligible count', { error: message });

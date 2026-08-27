@@ -110,11 +110,21 @@
  * @see test/fixtures/subs-sched-gimnasio-dos.ts — la siembra que este archivo consume (NO extiende)
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, like, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { createTestApp, cleanAllTestData, createTestMember, todayStr, dateOffsetStr } from "../helpers";
+import {
+  createTestApp,
+  cleanAllTestData,
+  createTestMember,
+  todayStr,
+  dateOffsetStr,
+} from "../helpers";
 import * as schema from "../../src/db/schema";
-import { tenantWhere, tenantValues, type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -129,6 +139,11 @@ import {
   campoDeLaFila,
   type SubsSchedFixture,
 } from "../fixtures/subs-sched-gimnasio-dos";
+import { setDerivedLabelDescription } from "../../src/modules/scheduling/label-descriptions";
+import {
+  insertPartner,
+  insertPartnerLink,
+} from "../referral-partners/_helpers";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -162,6 +177,11 @@ beforeEach(async () => {
   //  3. sembrarSubsSchedGimnasioDos siembra el recurso ajeno (El Templo) y lo
   //     propio (gimnasio 2) en una sola llamada.
   await cleanAllTestData(app);
+  // `cleanAllTestData` NO limpia `tenant_settings` (KV compartido con
+  // module-flags). Los casos de `class-label-descriptions` de este archivo
+  // siembran ahí — limpiar su namespace evita fugar filas al test de
+  // migraciones 0190-0191 (mismo worker, isolate:false).
+  await limpiarLabelDescriptions();
   gym2 = await seedSecondTenant(app);
   fx = await sembrarSubsSchedGimnasioDos(app, gym2);
 });
@@ -170,10 +190,19 @@ afterAll(async () => {
   // Obligatorio: la base la comparten todos los archivos del mismo worker
   // (isolate: false).
   await cleanAllTestData(app);
+  await limpiarLabelDescriptions();
   await limpiarSubsSchedDeLaBateria(app);
   await limpiarSegundoGimnasio(app);
   await app.close();
 });
+
+/** Borra el namespace `class_label_description.*` de `tenant_settings` que
+ * siembran los casos de esta suite (cleanAllTestData no toca el KV). */
+async function limpiarLabelDescriptions(): Promise<void> {
+  await app.db
+    .delete(schema.tenantSettings)
+    .where(like(schema.tenantSettings.settingKey, "class_label_description.%"));
+}
 
 // ─── Utilidades ──────────────────────────────────────────────────────────────
 
@@ -229,7 +258,9 @@ async function tenantDeFilaFueraDelModulo(
   const resultado = (await app.db.execute(
     sql`SELECT /* tenant-safe: leer el tenant_id de la fila (fuera del boundary de 174.1, D-01) ES la asercion */ tenant_id AS t FROM ${sql.raw(tabla)} WHERE id = ${id}`,
   )) as unknown as [Array<{ t: number | null }>];
-  const filas = Array.isArray(resultado) ? resultado[0] : (resultado as unknown as Array<{ t: number | null }>);
+  const filas = Array.isArray(resultado)
+    ? resultado[0]
+    : (resultado as unknown as Array<{ t: number | null }>);
   if (!filas || filas[0] === undefined || filas[0].t === null) return null;
   return Number(filas[0].t);
 }
@@ -373,8 +404,16 @@ describe("precondiciones de la bateria", () => {
         await tenantDeLaFila(app, "bookings", t.bookingId),
         await tenantDeLaFila(app, "schedule_exceptions", t.scheduleExceptionId),
         await tenantDeLaFila(app, "holidays", t.holidayId),
-        await tenantDeLaFila(app, "subscription_schedule_changes", t.scheduleChangeId),
-        await tenantDeLaFila(app, "subscription_schedules", t.subscriptionScheduleId),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedule_changes",
+          t.scheduleChangeId,
+        ),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedules",
+          t.subscriptionScheduleId,
+        ),
       ],
       `Alguna fila ajena no quedo en El Templo (${TENANT_TEMPLO}). Sin recurso ajeno ` +
         `vivo, todos los casos de aislamiento de este archivo pasan probando nada. ` +
@@ -394,8 +433,16 @@ describe("precondiciones de la bateria", () => {
         await tenantDeLaFila(app, "bookings", d.bookingId),
         await tenantDeLaFila(app, "schedule_exceptions", d.scheduleExceptionId),
         await tenantDeLaFila(app, "holidays", d.holidayId),
-        await tenantDeLaFila(app, "subscription_schedule_changes", d.scheduleChangeId),
-        await tenantDeLaFila(app, "subscription_schedules", d.subscriptionScheduleId),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedule_changes",
+          d.scheduleChangeId,
+        ),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedules",
+          d.subscriptionScheduleId,
+        ),
       ],
       `Alguna fila del gimnasio 2 nacio en otro gimnasio. Si el valor es ${TENANT_TEMPLO}, ` +
         `ese INSERT perdio su \`tenantValues(CTX_DOS, …)\` y cayo en el DEFAULT 1: el ` +
@@ -465,7 +512,8 @@ describe("detalle de horario — GET /api/admin/scheduling/schedules/:scheduleId
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -475,7 +523,8 @@ describe("detalle de horario — GET /api/admin/scheduling/schedules/:scheduleId
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as {
       schedule: { id: number };
@@ -483,7 +532,10 @@ describe("detalle de horario — GET /api/admin/scheduling/schedules/:scheduleId
     };
     expect(body.schedule.id).toBe(fx.dos.scheduleId);
     const propio = body.bookings.find((b) => b.id === fx.dos.bookingId);
-    expect(propio, porQueImportaElControl(RUTA, fx.dos.bookingId)).toBeDefined();
+    expect(
+      propio,
+      porQueImportaElControl(RUTA, fx.dos.bookingId),
+    ).toBeDefined();
     expect(propio?.memberId).toBe(gym2.socios[0].id);
   });
 });
@@ -497,7 +549,8 @@ describe("proximo turno disponible — GET /api/admin/scheduling/schedules/:sche
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -507,7 +560,8 @@ describe("proximo turno disponible — GET /api/admin/scheduling/schedules/:sche
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as { nextAvailableDate: string | null };
     expect(body).toHaveProperty("nextAvailableDate");
@@ -524,7 +578,8 @@ describe("vista previa de eliminacion — GET /api/admin/scheduling/schedules/:s
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -534,7 +589,8 @@ describe("vista previa de eliminacion — GET /api/admin/scheduling/schedules/:s
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, fx.dos.scheduleId) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as { cancelledBookings: number };
     expect(
@@ -571,8 +627,16 @@ describe("feriados — GET /api/admin/scheduling/holidays", () => {
       holidays: Array<{ id: number; name: string }>;
     };
     const propio = body.holidays.find((h) => h.id === fx.dos.holidayId);
-    expect(propio, porQueImportaElControl(RUTA, fx.dos.holidayId)).toBeDefined();
-    const nombreReal = await campoDeLaFila(app, "holidays", "name", fx.dos.holidayId);
+    expect(
+      propio,
+      porQueImportaElControl(RUTA, fx.dos.holidayId),
+    ).toBeDefined();
+    const nombreReal = await campoDeLaFila(
+      app,
+      "holidays",
+      "name",
+      fx.dos.holidayId,
+    );
     expect(propio?.name).toBe(nombreReal);
   });
 });
@@ -648,9 +712,17 @@ describe("sesiones de prueba del dia — GET /api/admin/scheduling/trials", () =
       }>;
     };
     const grupoPropio = body.groups.find((g) => g.branchId === gym2.branchId);
-    expect(grupoPropio, porQueImportaElControl(RUTA, bookingTrialDosId)).toBeDefined();
-    const propio = grupoPropio?.trials.find((t) => t.bookingId === bookingTrialDosId);
-    expect(propio, porQueImportaElControl(RUTA, bookingTrialDosId)).toBeDefined();
+    expect(
+      grupoPropio,
+      porQueImportaElControl(RUTA, bookingTrialDosId),
+    ).toBeDefined();
+    const propio = grupoPropio?.trials.find(
+      (t) => t.bookingId === bookingTrialDosId,
+    );
+    expect(
+      propio,
+      porQueImportaElControl(RUTA, bookingTrialDosId),
+    ).toBeDefined();
     expect(propio?.userId).toBe(leadDosId);
   });
 });
@@ -702,7 +774,9 @@ describe("prueba elegibles — GET /api/admin/scheduling/trials/eligible", () =>
     const [filaReal] = await app.db
       .select({ dni: schema.users.dni })
       .from(schema.users)
-      .where(and(tenantWhere(schema.users, CTX_DOS), eq(schema.users.id, leadDosId)));
+      .where(
+        and(tenantWhere(schema.users, CTX_DOS), eq(schema.users.id, leadDosId)),
+      );
     expect(propio?.dni).toBe(filaReal?.dni);
   });
 });
@@ -733,7 +807,10 @@ describe("catalogo de actividades — GET /api/admin/scheduling/activities", () 
       activities: Array<{ id: number; name: string }>;
     };
     const propia = body.activities.find((a) => a.id === fx.dos.activityId);
-    expect(propia, porQueImportaElControl(RUTA, fx.dos.activityId)).toBeDefined();
+    expect(
+      propia,
+      porQueImportaElControl(RUTA, fx.dos.activityId),
+    ).toBeDefined();
     const [filaReal] = await app.db
       .select({ name: schema.activities.name })
       .from(schema.activities)
@@ -1041,5 +1118,142 @@ describe("sedes disponibles — GET /api/members/scheduling/branches", () => {
       .from(schema.branches)
       .where(eq(schema.branches.id, gym2.branchId));
     expect(propia?.name).toBe(filaReal?.name);
+  });
+});
+
+// ─── Fase 180: descripciones de etiqueta derivada (KV por-tenant) ────────────
+//
+// `GET /class-label-descriptions` no tiene id de recurso: devuelve el KV
+// completo del tenant (`{ descriptions: { combos, tecnica } }`), leido de
+// `tenant_settings` con `tenantWhere(tenantSettings, ctx)` y `ctx` de
+// `assertTenant(request.scope, …)`. El recurso ajeno no es una fila con id sino
+// el `setting_value` de El Templo bajo la misma `setting_key`; la fuga se ve si
+// el gimnasio 2 recibe ese valor en vez de su propio `null`/su propia fila.
+
+describe("descripciones de etiqueta derivada — GET /api/admin/scheduling/class-label-descriptions", () => {
+  const RUTA = "GET /api/admin/scheduling/class-label-descriptions";
+
+  it("aislamiento: no expone la descripcion de El Templo cuando el gimnasio 2 no cargo la suya (recibe null, no el valor ajeno)", async () => {
+    const valorTemplo = `TEMPLO combos ${sufijo()}`;
+    await setDerivedLabelDescription(app.db, CTX_TEMPLO, "combos", valorTemplo);
+
+    const res = await getAdminComoGimnasioDos("/class-label-descriptions");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      descriptions: Record<string, string | null>;
+    };
+    expect(
+      body.descriptions.combos,
+      `${RUTA} le devolvio al staff del gimnasio ${TENANT_DOS} la descripcion "combos" de El ` +
+        `Templo (${TENANT_TEMPLO}). Es una fuga de KV entre gimnasios: el listado perdio su ` +
+        `\`tenantWhere(tenantSettings, ctx)\`, o el \`ctx\` no salio de \`assertTenant(request.scope, …)\`.`,
+    ).toBeNull();
+  });
+
+  it("control: el KV SI trae la descripcion propia del gimnasio 2, aislada de la de El Templo con el mismo modo", async () => {
+    const valorTemplo = `TEMPLO combos ${sufijo()}`;
+    const valorDos = `DOS combos ${sufijo()}`;
+    await setDerivedLabelDescription(app.db, CTX_TEMPLO, "combos", valorTemplo);
+    await setDerivedLabelDescription(app.db, CTX_DOS, "combos", valorDos);
+
+    const res = await getAdminComoGimnasioDos("/class-label-descriptions");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      descriptions: Record<string, string | null>;
+    };
+    expect(
+      body.descriptions.combos,
+      `${RUTA} NO le devolvio al staff del gimnasio ${TENANT_DOS} su PROPIA descripcion "combos". ` +
+        `Sin este control, el caso de aislamiento de al lado pasaria en verde por la razon equivocada.`,
+    ).toBe(valorDos);
+    expect(body.descriptions.combos).not.toBe(valorTemplo);
+  });
+});
+
+describe("beneficio de partner del socio — GET /api/members/scheduling/partner-benefit", () => {
+  const RUTA = "GET /api/members/scheduling/partner-benefit";
+
+  /** Socio fresco del gimnasio 2, sin plan (el fixture compartido deja a
+   * `gym2.socios[0]` con suscripcion activa y eso corta la elegibilidad por
+   * `con_plan_activo` ANTES de mirar el vinculo — no serviria de evidencia). */
+  async function socioSinPlanDelDos() {
+    return createTestMember(app, {
+      email: `partner-benefit-${sufijo()}@test.com`,
+      branchId: gym2.branchId,
+      tenantId: TENANT_DOS,
+      phone: telefonoUnico(),
+    });
+  }
+
+  it("aislamiento: un vinculo free_pass estampado en El Templo es INVISIBLE — sin_beneficio, indistinguible de no tener nada", async () => {
+    const socio = await socioSinPlanDelDos();
+    // Tampering cross-tenant: la fila existe y apunta al socio del gimnasio 2,
+    // pero pertenece a El Templo (partner y vinculo con tenant_id = 1).
+    const partnerTemplo = await insertPartner(app, {
+      tenantId: TENANT_TEMPLO,
+      name: `Partner Templo ${sufijo()}`,
+    });
+    await insertPartnerLink(app, {
+      partnerId: partnerTemplo.id,
+      referredId: socio.id,
+      tenantId: TENANT_TEMPLO,
+      benefitType: "free_pass",
+    });
+
+    const res = await getMemberComo("/partner-benefit", socio.token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      eligible: boolean;
+      reason?: string;
+    };
+    expect(
+      body.eligible,
+      `${RUTA}: el vinculo ajeno tiene que ser INVISIBLE — si aparece como ` +
+        `elegible, el ctx derivado del propio usuario no esta filtrando ` +
+        `partner_referrals por tenant y un gimnasio le regala semanas al otro.`,
+    ).toBe(false);
+    expect(
+      body.reason,
+      `${RUTA}: el motivo tiene que ser 'sin_beneficio' (indistinguible de no ` +
+        `tener nada), no 'expirado'/'consumido' — esos delatarian que la fila ` +
+        `ajena SI se leyo.`,
+    ).toBe("sin_beneficio");
+  });
+
+  it("control: el vinculo free_pass PROPIO del gimnasio 2 SI se ve — eligible con el nombre del partner", async () => {
+    const socio = await socioSinPlanDelDos();
+    const nombrePartner = `Partner Dos ${sufijo()}`;
+    const partnerDos = await insertPartner(app, {
+      tenantId: TENANT_DOS,
+      name: nombrePartner,
+    });
+    await insertPartnerLink(app, {
+      partnerId: partnerDos.id,
+      referredId: socio.id,
+      tenantId: TENANT_DOS,
+      benefitType: "free_pass",
+    });
+
+    const res = await getMemberComo("/partner-benefit", socio.token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      eligible: boolean;
+      partnerName?: string;
+      expiresAt?: string;
+    };
+    expect(
+      body.eligible,
+      porQueImportaElControl(RUTA, socio.id) + ` Respuesta: ${res.body}`,
+    ).toBe(true);
+    expect(
+      body.partnerName,
+      `${RUTA}: el nombre tiene que ser el del partner del gimnasio 2 — con ` +
+        `datos reales, no solo el flag.`,
+    ).toBe(nombrePartner);
+    expect(
+      body.expiresAt,
+      `${RUTA}: la fecha de vencimiento del beneficio tiene que viajar en la ` +
+        `respuesta (la usa la grilla para el countdown).`,
+    ).toBeTruthy();
   });
 });

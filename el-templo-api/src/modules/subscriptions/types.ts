@@ -550,9 +550,14 @@ export interface ChangePlanPreview {
   };
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null; // null if not allowed
-  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus referral discount (parity with changePlanNow)
+  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus partner/referral discount (parity with changePlanNow)
   referralDiscountPercent: number; // 0 if none — % de referido que el cobro real va a aplicar
   referralDiscountAmount: number; // 0 if none — monto ya restado de netAmount
+  // Fase 179 (D-09/D-10/D-20), deviation Rule 2 del plan 179-14: mismo
+  // criterio que referralDiscount* — % y monto de partner que el cobro real
+  // (changePlanNow) va a aplicar, ya restado de netAmount. 0 si no aplica.
+  partnerDiscountPercent: number;
+  partnerDiscountAmount: number;
   expiryDate?: string; // current subscription endDate (always set; used to pre-fill "mantener vencimiento")
 }
 
@@ -572,6 +577,14 @@ export interface PricingPreview {
   // Compone sobre el descuento auraSpend. 0 cuando no hay vínculos activos.
   referralDiscountPercent: number;
   referralDiscountAmount: number;
+  // Partners (fase 179, D-09/D-10/D-20): descuento de partner ya aplicado en
+  // finalPrice cuando gana la comparación "gana el mayor" contra AURA (empate
+  // a favor del partner). `null` cuando no hay candidato o perdió contra AURA
+  // — en ese caso discountType/discountAmount/auraToSpend siguen reflejando
+  // el descuento AURA como siempre. Paridad exacta con las 4 charge-paths
+  // (test/referrals/preview-parity.test.ts existe justamente por esto).
+  partnerDiscountPercent: number | null;
+  partnerDiscountAmount: number | null;
 }
 
 // ─── Promo Plan Types ────────────────────────────────────────────────────────

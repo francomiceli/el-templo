@@ -528,6 +528,46 @@ export function useSchedulingApi() {
     }
   }
 
+  // ─── Class label descriptions (Plan 180-10/180-15, RES-05, D-23) ──────
+  // Copy editable de las etiquetas derivadas ("Combos"/"Técnica"), que
+  // reetiquetan una actividad genérica según el sessionMode del día — no
+  // hay que confundirlas con `activities.description` (ver ActivitiesDialog).
+
+  async function getClassLabelDescriptions(): Promise<{
+    combos: string | null;
+    tecnica: string | null;
+  }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{
+        descriptions: { combos: string | null; tecnica: string | null };
+      }>('/admin/scheduling/class-label-descriptions');
+      return data.descriptions;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando descripciones de etiquetas derivadas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function saveClassLabelDescription(
+    mode: 'combos' | 'tecnica',
+    description: string
+  ): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.put('/admin/scheduling/class-label-descriptions', { mode, description });
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error guardando descripción de etiqueta derivada');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -561,6 +601,8 @@ export function useSchedulingApi() {
     addHoliday,
     removeHoliday,
     listHolidays,
+    getClassLabelDescriptions,
+    saveClassLabelDescription,
     cleanup,
   };
 }

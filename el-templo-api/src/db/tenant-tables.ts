@@ -116,6 +116,8 @@ export const GYM_OWNED_TABLES = [
   "notification_preferences",
   "notification_templates",
   "onboarding_analytics",
+  "partner_commissions",
+  "partner_referrals",
   "pending_notifications",
   "plan_programs",
   "program_content_blocks",
@@ -124,6 +126,7 @@ export const GYM_OWNED_TABLES = [
   "promo_plans",
   "referral_credits",
   "referral_cta_clicks",
+  "referral_partners",
   "referrals",
   "refresh_tokens",
   "routes",
@@ -324,6 +327,10 @@ export const TENANT_UNIQUE_ALLOWLIST: Record<string, string> = {
     "Derivada de FK scopeada: primer campo `user_id` → `users`. Un perfil por socio.",
   "notification_preferences.uq_notification_preferences_user_category":
     "Derivada de FK scopeada: primer campo `user_id` → `users`. Una preferencia por socio y categoría de notificación.",
+  "partner_commissions.unique_partner_commission_sub":
+    "Derivada de FK scopeada: primer campo `subscription_id` → `subscriptions`, que ancla en `users`. Una comisión por cargo (D-11).",
+  "partner_referrals.partner_referrals_referred_id_unique":
+    "Derivada de FK scopeada: `referred_id` → `users`, un socio tiene un solo origen y el socio pertenece a un solo tenant (D-12).",
   "plan_programs.plan_program_unique":
     "Derivada de FK scopeada: primer campo `subscription_plan_id` → `subscription_plans`, tabla gym-owned. Es el puente plan↔programa: no puede unir el plan de un tenant con el programa de otro sin violar sus FKs.",
   "referral_credits.unique_referral_credit_sub":

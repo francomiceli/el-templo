@@ -367,10 +367,15 @@ export interface ChangePlanPreview {
   currentPlan: { id: number; name: string; priceRegular: number; pricePaid: number };
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null;
-  // Neto post-prorrateo Y post-descuento de referido (paridad con el cobro real).
+  // Neto post-prorrateo Y post-descuento de partner/referido (paridad con el cobro real).
   netAmount: number | null;
   referralDiscountPercent: number;
   referralDiscountAmount: number;
+  // Fase 179 (D-09/D-10/D-20, plan 179-14): % y monto de descuento de
+  // partner que el cobro real (changePlanNow) va a aplicar, ya restado de
+  // netAmount. 0 si no aplica — mismo criterio que referralDiscount*.
+  partnerDiscountPercent: number;
+  partnerDiscountAmount: number;
   expiryDate?: string;
 }
 
@@ -389,6 +394,12 @@ export interface PricingPreview {
   availableTiers: AuraDiscountTier[];
   referralDiscountPercent: number;
   referralDiscountAmount: number;
+  // Fase 179 (D-09/D-10/D-20, plan 179-14): % y monto de descuento de
+  // partner ya restado de finalPrice (mismo criterio que referralDiscount*,
+  // gana el mayor contra AURA con empate a favor del partner — ver el-templo-
+  // api/src/modules/subscriptions/service.ts getPricingPreview).
+  partnerDiscountPercent: number;
+  partnerDiscountAmount: number;
 }
 
 // ─── Class Usage Types ─────────────────────────────────────────────────────

@@ -11,6 +11,16 @@ export interface AuthUser {
   role: 'member' | 'coach' | 'admin' | 'superadmin'
 }
 
+// Phase 179-04 (D-02/D-03): partner benefit resolved server-side from the
+// unified `code` field. null when there was no code, the code didn't resolve
+// to a partner, or the exclusivity-of-origin guard (D-12) degraded it in
+// silence — the registration itself always succeeds regardless.
+export interface PartnerBenefit {
+  partnerName: string
+  benefitType: 'discount_percent' | 'free_pass'
+  benefitValue: number
+}
+
 export const useAuthStore = defineStore('auth', () => {
   // State
   const token = ref<string | null>(null)
@@ -79,13 +89,22 @@ export const useAuthStore = defineStore('auth', () => {
     branchId?: number
     promoCode?: string
     ref?: string
-  }): Promise<{ promoApplied?: boolean } | undefined> {
+    // Phase 179-15 (D-02/D-03): unified manual code field, sent alongside
+    // promoCode/ref for back-compat. Server resolves code ?? ref ?? promoCode.
+    code?: string
+  }): Promise<{ promoApplied?: boolean; partnerBenefit: PartnerBenefit | null } | undefined> {
     loading.value = true
     error.value = null
 
     try {
       const response = await api.post('/auth/register', data)
-      const { accessToken, refreshToken, user: userData, promoApplied } = response.data
+      const {
+        accessToken,
+        refreshToken,
+        user: userData,
+        promoApplied,
+        partnerBenefit,
+      } = response.data
 
       // Phase 116: persist access+refresh (legacy authToken cleaned up inside setTokens).
       await setTokens(accessToken, refreshToken)
@@ -102,7 +121,7 @@ export const useAuthStore = defineStore('auth', () => {
       // user BEFORE returning to the caller (and before any navigation).
       await userStore.hydrateSelection()
 
-      return { promoApplied }
+      return { promoApplied, partnerBenefit: (partnerBenefit as PartnerBenefit | null) ?? null }
     } catch (err: unknown) {
       error.value = extractError(err, 'Error de registro')
       throw err

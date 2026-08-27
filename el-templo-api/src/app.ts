@@ -52,6 +52,7 @@ import { programRoutes } from "./modules/programs";
 import { notificationRoutes } from "./modules/notifications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
 import { referralAdminRoutes } from "./modules/referrals/admin-routes";
+import { referralPartnersAdminRoutes } from "./modules/referral-partners";
 import { campaignRoutes } from "./modules/campaigns/routes";
 import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
@@ -250,6 +251,12 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // Admin referrals route (v5.5 follow-up): resultados globales del A/B copy test
   await app.register(referralAdminRoutes, {
     prefix: "/api/admin/referrals",
+  });
+
+  // CRUD admin de partners de comercio/marca (fase 179): listar, ver, crear y
+  // editar. Solo MEMBER_LIFECYCLE_ROLES (owner/admin/gestion).
+  await app.register(referralPartnersAdminRoutes, {
+    prefix: "/api/admin/referral-partners",
   });
 
   // Scheduling management routes (activities, schedules, bookings, holidays)

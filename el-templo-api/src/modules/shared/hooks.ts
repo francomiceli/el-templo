@@ -164,6 +164,16 @@ export interface PricingAdjustCtx {
   price: number;
   /** El core ya fijó el precio por una regla core (override/prorrateo). */
   priceLocked: "prorate" | "override" | null;
+  /**
+   * Fase 179 (D-10/D-20): percent de un descuento CORE que compite con los
+   * beneficios del módulo (hoy, el descuento de partner). El módulo decide
+   * su regla frente a él — `templo-gamification` NO aplica (ni gasta) su
+   * descuento AURA cuando el competidor lo iguala o supera (empate a favor
+   * del core: el socio conserva sus puntos). Las validaciones del módulo
+   * (tier/categoría → 400) corren igual, gane quien gane. El core no revela
+   * QUÉ compite — solo el percent; `null` = sin competidor.
+   */
+  competingDiscountPercent: number | null;
   /** false = preview: calcular sin gastar ni marcar. */
   commit: boolean;
   supports: PricingSupports;
@@ -196,10 +206,7 @@ export interface StreakMilestoneEvent {
  * PROPAGAN — ver "SEMÁNTICA DE ERRORES" arriba.
  */
 export interface FilterMap {
-  "pricing.adjust": (
-    ctx: PricingAdjustCtx,
-    hook: HookCallCtx,
-  ) => Promise<void>;
+  "pricing.adjust": (ctx: PricingAdjustCtx, hook: HookCallCtx) => Promise<void>;
 }
 
 /**
@@ -319,9 +326,7 @@ export class HookRegistry {
   }
 
   /** Introspección: qué módulos tienen handler registrado para `key`. */
-  modulesFor<K extends keyof FilterMap | keyof EventMap>(
-    key: K,
-  ): ModuleName[] {
+  modulesFor<K extends keyof FilterMap | keyof EventMap>(key: K): ModuleName[] {
     const filterByModule = this.filterHandlers.get(key as keyof FilterMap);
     if (filterByModule) return Array.from(filterByModule.keys());
     const eventByModule = this.eventHandlers.get(key as keyof EventMap);

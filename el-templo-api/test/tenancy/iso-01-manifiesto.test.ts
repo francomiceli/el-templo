@@ -179,9 +179,76 @@ import {
  * "pelotita" de SP nuevas) y `POST /api/admin/leads/:userId/start-followup`
  * (sella el inicio del seguimiento). Ambas **tenant-scoped**: la primera reusa
  * el `ctx`/country-scope del reporte de SP, la segunda opera sobre `users` con
- * `tenantWhere` + gate de sede. Directo a master, donde el gate existe.
+ * `tenantWhere` + gate de sede. En master (sin la fase 180) este mismo batch
+ * bumpea 370 → 372.
  *
- * El reparto por categoría vigente es 228 `tenant-scoped` · 8 `global` · 141
+ * **Movido a 373 el 2026-08-23 (rama 180, +1 sobre su base 370)**: `POST
+ * /api/campaigns/exchange` (canje de magic-link por sesión, fase 180 Plan 06,
+ * D-01/D-02). **tenant-scoped**, mismo precedente que las 3 rutas públicas de
+ * `/api/campaigns` de arriba (`track/click`, `track/open`, `unsubscribe`): se
+ * resuelve por token sin `request.scope`, pero el `tenant_id` que estampa/lee
+ * sale de `campaign_sends` (T-180-23), nunca del payload — el caso normal de
+ * D-02, jamás `global`.
+ *
+ * **(rama 180, +2 más)**: `GET /api/admin/scheduling/class-label-descriptions`
+ * y `PUT /api/admin/scheduling/class-label-descriptions` (copy editable de las
+ * etiquetas derivadas Combos/Técnica, fase 180 Plan 10, RES-05/D-23).
+ * **tenant-scoped**: leen/escriben `tenant_settings` con
+ * `tenantWhere`/`tenantValues`, datos de un solo gimnasio — el caso normal de
+ * D-02.
+ *
+ * **Movido a 375 el 2026-08-26**, merge de la fase 180 a master: los +2 de la
+ * bandeja de SP (arriba) y los +3 de la 180 salen de la misma base 370, así
+ * que la unión es 370+2+3. Ninguna ruta nueva de este bump — solo el merge.
+ *
+ * **Movido a 374 el 2026-08-23**, 4 rutas nuevas y no un merge (fase 179, plan
+ * 03): CRUD admin de partners de comercio/marca — `GET /api/admin/referral-partners`,
+ * `GET /api/admin/referral-partners/:id`, `POST /api/admin/referral-partners`,
+ * `PATCH /api/admin/referral-partners/:id`. Las 4 **tenant-scoped**: leen/escriben
+ * `referral_partners`, gym-owned, y el gimnasio sale de
+ * `assertTenant(request.scope, …)` en cada ruta, jamás del body. Caso normal de
+ * D-02. Worktree `et-179`, rama `feat/179-referidos-partners`.
+ *
+ * **Movido a 378 el 2026-08-23**, 2 rutas nuevas y no un merge (fase 179, plan
+ * 09, D-14/D-15): `POST /api/admin/members/:userId/partner-referral`
+ * (asignación retroactiva de partner) y `DELETE
+ * /api/admin/members/:userId/partner-referral` (revocación del vínculo, con
+ * void en cascada de comisiones `pending`). Las 2 **tenant-scoped**:
+ * leen/escriben `partner_referrals`/`partner_commissions`, gym-owned, y el
+ * gimnasio sale de `assertTenant(request.scope, …)` en cada ruta, jamás del
+ * body. Caso normal de D-02. Worktree `et-179`, rama
+ * `feat/179-referidos-partners`.
+ *
+ * **Movido a 383 el 2026-08-23**, 3 rutas nuevas y no un merge (fase 179, plan
+ * 10, D-08 reescrita/D-16/D-20): `GET /api/admin/referral-partners/conversions`
+ * (reporte de conversiones por partner), `GET
+ * /api/admin/referral-partners/benefits-without-conversion` (reporte de
+ * seguimiento manual, D-08 reescrita) y `POST
+ * /api/admin/referral-partners/:id/settle` (liquidación batch de comisiones,
+ * D-16). Las 3 **tenant-scoped**: leen/escriben `partner_referrals`/
+ * `partner_commissions`, gym-owned, y el gimnasio sale de
+ * `assertTenant(request.scope, …)` en cada ruta, jamás del body. Caso normal
+ * de D-02. Worktree `et-179`, rama `feat/179-referidos-partners`.
+ *
+ * **Movido a 384 el 2026-08-23**, 1 ruta nueva y no un merge (fase 179, plan
+ * 14, D-15): `GET /api/admin/members/:userId/partner-referral` — detalle del
+ * vínculo de partner para la sección "Partner" de `MemberReferralsTab.vue`
+ * (nombre/código, fecha, estado del vínculo y del beneficio; `null` sin
+ * vínculo). **tenant-scoped**: lee `partner_referrals`/`referral_partners`,
+ * gym-owned, con `assertTenant(request.scope, …)`, jamás del body. Caso
+ * normal de D-02. Deviation (Rule 2) del plan 179-14: sin este GET la
+ * sección "Con vínculo" del must_have D-15 no tiene de dónde leer el estado.
+ * Worktree `et-179`, rama `feat/179-referidos-partners`.
+ *
+ * **Movido a 389 el 2026-08-26**, merge de la fase 179 a master (tren
+ * 179+180): los +2 de SP, los +3 de la 180 y los +14 de la 179 salen todos de
+ * la misma base 370, así que la unión es 370+2+3+14. Ninguna ruta nueva de
+ * este bump — solo el merge.
+ *
+ * El reparto por categoría vigente es 239 `tenant-scoped` · 8 `global` · 142
+
+ *
+ * El reparto por categoría vigente es 231 `tenant-scoped` · 8 `global` · 141
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
  * por categoría a propósito, y
@@ -191,7 +258,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 372;
+const ENTRADAS_BASELINE = 389;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -334,7 +401,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 372 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 389 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
@@ -351,7 +418,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
         `rompiera —alguien "limpia" BuildAppOptions, o el hook se cuelga después ` +
         `del primer register— las listas quedarían vacías contra un manifiesto ` +
         `vacío y todo pasaría en verde por vacuidad. Este conteo es lo que hace ` +
-        `que 0 rutas observadas se ponga tan rojo como 371.`,
+        `que 0 rutas observadas se ponga tan rojo como 374.`,
     ).toBe(ENTRADAS_BASELINE);
 
     // El baseline también tiene que coincidir con lo que el app registra hoy:
@@ -376,7 +443,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
    * de abajo), que prueban el MOTOR pero no el manifiesto real. Este test cierra
    * ese agujero: `compararManifiesto` shape-valida TODAS las entradas del
    * manifiesto que recibe, así que afirmar sobre el `discrepancias` real cubre
-   * las 373.
+   * las 375.
    */
   it("toda entrada del manifiesto real tiene la forma exigida (D-02 motivo, D-07 módulo, categoría válida)", () => {
     const sinMotivo = discrepancias.sinMotivo.slice().sort();

@@ -400,6 +400,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "DELETE /api/admin/members/:userId/notes/:noteId": {
     categoria: "tenant-scoped",
   },
+  // Revoca el vínculo de partner del socio (fase 179 plan 09, D-14): void en
+  // cascada de las comisiones `pending`. tenant-scoped, ver el par POST más
+  // abajo (mismo motivo).
+  "DELETE /api/admin/members/:userId/partner-referral": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/members": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId/financial-history": {
@@ -407,6 +413,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "GET /api/admin/members/:userId/notes": { categoria: "tenant-scoped" },
   "GET /api/admin/members/:userId/outstanding-concepts": {
+    categoria: "tenant-scoped",
+  },
+  // Vínculo de partner de la ficha del alumno (fase 179 plan 14, D-15):
+  // lectura, mismo motivo que el par POST/DELETE de más abajo.
+  "GET /api/admin/members/:userId/partner-referral": {
     categoria: "tenant-scoped",
   },
   "GET /api/admin/members/:userId/referrals": { categoria: "tenant-scoped" },
@@ -428,6 +439,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // `referrals`, que es gym-owned — el INSERT toma el gimnasio de
   // `assertTenant(request.scope)`, nunca del body.
   "POST /api/admin/members/:userId/referrals": { categoria: "tenant-scoped" },
+  // Asignación retroactiva de partner (fase 179 plan 09, D-15). tenant-scoped:
+  // escribe en `partner_referrals`/`partner_commissions`, gym-owned — el
+  // gimnasio sale de `assertTenant(request.scope, …)`, nunca del body. Caso
+  // normal de D-02.
+  "POST /api/admin/members/:userId/partner-referral": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/admin/members/:userId/photo/upload-url": {
     categoria: "tenant-scoped",
   },
@@ -449,6 +467,28 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/ratings/roster": { categoria: "tenant-scoped" },
   "GET /api/admin/ratings/roster/coach-today": { categoria: "tenant-scoped" },
   "POST /api/admin/ratings/roster": { categoria: "tenant-scoped" },
+
+  // ── /api/admin/referral-partners ──────────────────────────────────────────
+  // Fase 179 (D-20): CRUD de partners de comercio/marca. tenant-scoped: lee/
+  // escribe en `referral_partners`, que es gym-owned — el gimnasio sale de
+  // `assertTenant(request.scope)` en las 4 rutas, nunca del body.
+  "GET /api/admin/referral-partners": { categoria: "tenant-scoped" },
+  "GET /api/admin/referral-partners/:id": { categoria: "tenant-scoped" },
+  "POST /api/admin/referral-partners": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/referral-partners/:id": { categoria: "tenant-scoped" },
+  // Fase 179 plan 10 (D-08 reescrita/D-16/D-20): liquidación batch de
+  // comisiones y los dos reportes de negocio. Las 3 tenant-scoped: leen/
+  // escriben `partner_referrals`/`partner_commissions`, gym-owned, y el
+  // gimnasio sale de `assertTenant(request.scope)`, nunca del body.
+  "GET /api/admin/referral-partners/conversions": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/referral-partners/benefits-without-conversion": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/referral-partners/:id/settle": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/admin/referrals ──────────────────────────────────────────────────
   "GET /api/admin/referrals/ab-results": { categoria: "tenant-scoped" },
@@ -495,6 +535,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "GET /api/admin/scheduling/activities": { categoria: "tenant-scoped" },
+  "GET /api/admin/scheduling/class-label-descriptions": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/scheduling/holidays": { categoria: "tenant-scoped" },
   "GET /api/admin/scheduling/schedules/:scheduleId/deletion-preview": {
     categoria: "tenant-scoped",
@@ -529,6 +572,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PUT /api/admin/scheduling/activities/:activityId": {
     categoria: "tenant-scoped",
   },
+  "PUT /api/admin/scheduling/class-label-descriptions": {
+    categoria: "tenant-scoped",
+  },
   "PUT /api/admin/scheduling/schedules/:scheduleId/toggle": {
     categoria: "tenant-scoped",
   },
@@ -542,6 +588,23 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "PUT /api/admin/settings/pricing/zero-price": { categoria: "tenant-scoped" },
+  // Fase 179-12 (D-20): `system_settings` es una de las 4 `TENANT_EXEMPT_TABLES`
+  // (src/db/tenant-tables.ts) — config global heredada SIN tenant_id, a
+  // diferencia de las claves de pricing de arriba (etiquetadas tenant-scoped
+  // por precedente de fase 154/156, no reabierto acá). Las URLs de tienda son
+  // un valor único de instalación (una sola app El Templo en las stores, no
+  // una por gimnasio), así que la clasificación correcta según la propia
+  // definición de este archivo es `global`.
+  "GET /api/admin/settings/store-urls": {
+    categoria: "global",
+    motivo:
+      "Lee `system_settings` (TENANT_EXEMPT_TABLES): las URLs de Play/App Store son un valor único de instalación, no por gimnasio — no hay tenant que aislar.",
+  },
+  "PUT /api/admin/settings/store-urls": {
+    categoria: "global",
+    motivo:
+      "Escribe `system_settings` (TENANT_EXEMPT_TABLES): mismo motivo que el GET hermano — valor único de instalación, gateado owner-only server-side.",
+  },
 
   // ── /api/admin/subscriptions ──────────────────────────────────────────────
   "GET /api/admin/subscriptions/members/:userId/class-usage": {
@@ -646,9 +709,15 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // clasificación de hoy: "queda por verificar si campaigns está realmente
   // preparado para que cada tenant lo use (armando su propia campaña con su
   // propio mail saliente, etc.) — es material de la fase 175 (adopción)".
+  //
+  // Fase 180 Plan 06 (D-01/D-02): `POST /exchange` es pública por el MISMO
+  // motivo — se resuelve por token, sin `request.scope` — así que sigue el
+  // precedente de arriba: `tenant-scoped`, NO `global`. El tenant sale de
+  // `campaign_sends` (T-180-23), nunca del payload del token.
   "GET /api/campaigns/track/click": { categoria: "tenant-scoped" },
   "GET /api/campaigns/track/open": { categoria: "tenant-scoped" },
   "GET /api/campaigns/unsubscribe": { categoria: "tenant-scoped" },
+  "POST /api/campaigns/exchange": { categoria: "tenant-scoped" },
 
   // ── /api/members/attendance ───────────────────────────────────────────────
   "GET /api/members/attendance/history": { categoria: "tenant-scoped" },
@@ -678,12 +747,22 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/members/scheduling/bonus-usage": { categoria: "tenant-scoped" },
   "GET /api/members/scheduling/branches": { categoria: "tenant-scoped" },
   "GET /api/members/scheduling/my-bookings": { categoria: "tenant-scoped" },
+  // Fase 179-08 (D-06): elegibilidad de la semana de regalo de partner — lee
+  // partner_referrals + subscriptions del socio.
+  "GET /api/members/scheduling/partner-benefit": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/members/scheduling/trial-eligibility": {
     categoria: "tenant-scoped",
   },
   "GET /api/members/scheduling/weekly": { categoria: "tenant-scoped" },
   "POST /api/members/scheduling/cancel-trial": { categoria: "tenant-scoped" },
   "POST /api/members/scheduling/reserve": { categoria: "tenant-scoped" },
+  // Fase 179-08 (D-05/D-06): activa la semana de regalo (subscriptions) y
+  // consume el beneficio (partner_referrals) en el mismo request.
+  "POST /api/members/scheduling/reserve-partner-week": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/members/scheduling/reserve-trial": { categoria: "tenant-scoped" },
 
   // ── /api/members/subscription ─────────────────────────────────────────────

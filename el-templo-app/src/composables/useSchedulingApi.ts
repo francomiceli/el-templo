@@ -23,9 +23,34 @@ interface MyBookingsResponse {
   bookings: BookingRecord[]
 }
 
-interface BranchOption {
+export interface BranchOption {
   id: number
   name: string
+  address: string | null
+  mapsUrl: string | null
+}
+
+/**
+ * Partner free-week benefit eligibility (Phase 179, D-05/D-06/D-07). Mirrors
+ * the trial-eligibility shape but is a discriminated union: `eligible:true`
+ * carries the info needed for the pending-benefit banner, `eligible:false`
+ * carries a `reason` the UI branches on (D-07: 'expirado' blocks reserving;
+ * 'consumido'/'con_plan_activo' fall back to the normal grid). Shape frozen
+ * by 179-08 (GET /members/scheduling/partner-benefit).
+ */
+export type PartnerBenefitEligibility =
+  | { eligible: true; partnerName: string; expiresAt: string }
+  | {
+      eligible: false
+      reason: 'sin_beneficio' | 'expirado' | 'consumido' | 'con_plan_activo'
+    }
+
+/** Response of POST /reserve-partner-week (201) — shape frozen by 179-08. */
+export interface PartnerWeekActivation {
+  subscriptionId: number
+  bookingId: number
+  endDate: string | null
+  classesRemaining: number | null
 }
 
 /**
@@ -49,6 +74,14 @@ export interface TrialEligibility {
     branchId: number
     branchName: string
     branchAddress: string | null
+    // Link "Cómo llegar" (plan 180-07), MISMA fuente que BranchOption.mapsUrl
+    // (buildMapsUrl server-side) — nunca reconstruir esta URL en el front.
+    mapsUrl: string | null
+    // IANA timezone de la sede reservada (plan 180-07). Necesaria para armar
+    // el link de "Agregar al calendario" con la hora correcta — el ref de
+    // página `branchTimezone` no sirve acá porque este estado nunca corre
+    // loadGrid() y se queda en el default AR.
+    branchTimezone: string
     // True while the class is still >24h away — show cancel/change affordances.
     canModify: boolean
   }
@@ -133,6 +166,27 @@ export function useSchedulingApi() {
     return response.data
   }
 
+  async function getPartnerBenefit(): Promise<PartnerBenefitEligibility> {
+    const response = await api.get<PartnerBenefitEligibility>(
+      '/members/scheduling/partner-benefit',
+      { signal: getSignal() },
+    )
+    return response.data
+  }
+
+  async function reservePartnerWeek(input: {
+    scheduleId: number
+    date: string
+    branchId: number
+  }): Promise<PartnerWeekActivation> {
+    const response = await api.post<PartnerWeekActivation>(
+      '/members/scheduling/reserve-partner-week',
+      input,
+      { signal: getSignal() },
+    )
+    return response.data
+  }
+
   async function getBonusUsage(): Promise<BonusUsage> {
     const response = await api.get<BonusUsage>('/members/scheduling/bonus-usage', {
       signal: getSignal(),
@@ -157,6 +211,8 @@ export function useSchedulingApi() {
     getTrialEligibility,
     reserveTrial,
     cancelTrial,
+    getPartnerBenefit,
+    reservePartnerWeek,
     cleanup,
   }
 }

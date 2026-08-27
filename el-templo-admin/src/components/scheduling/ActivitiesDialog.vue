@@ -123,6 +123,60 @@
         </div>
       </q-card-section>
     </q-card>
+
+    <q-card flat bordered class="q-mt-md">
+      <q-card-section>
+        <div class="text-subtitle1 text-weight-medium">Descripciones de clases derivadas</div>
+        <div class="text-caption text-grey-7 q-mb-md">
+          Los días de Combos y Técnica reetiquetan una actividad genérica: el socio ve "Combos" o
+          "Técnica" en vez del nombre real de la actividad, así que necesita leer la descripción de
+          ESO, no la de la actividad genérica de arriba. Dejar el texto vacío borra la descripción
+          (vuelve a "sin descripción").
+        </div>
+
+        <div class="q-mb-md">
+          <q-input
+            v-model="labelDescriptionsForm.combos"
+            label="Descripción de Combos"
+            type="textarea"
+            dense
+            outlined
+            autogrow
+          />
+          <div class="row justify-end q-mt-xs">
+            <q-btn
+              label="Guardar Combos"
+              color="primary"
+              dense
+              flat
+              :loading="savingCombos"
+              @click="onSaveLabelDescription('combos')"
+            />
+          </div>
+        </div>
+
+        <div>
+          <q-input
+            v-model="labelDescriptionsForm.tecnica"
+            label="Descripción de Técnica"
+            type="textarea"
+            dense
+            outlined
+            autogrow
+          />
+          <div class="row justify-end q-mt-xs">
+            <q-btn
+              label="Guardar Técnica"
+              color="primary"
+              dense
+              flat
+              :loading="savingTecnica"
+              @click="onSaveLabelDescription('tecnica')"
+            />
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
   </div>
 </template>
 
@@ -170,6 +224,17 @@ const activityForm = ref<{
 }>({ name: '', description: '', maxCapacity: null, isSpecial: false });
 const editingActivity = ref<ActivityRecord | null>(null);
 
+// Descripciones de clases derivadas (Combos/Técnica) — Plan 180-15, RES-05,
+// D-23. No confundir con `activityForm.description` de arriba: esto es el
+// copy que ve el socio cuando el sessionMode del día reetiqueta la
+// actividad genérica como "Combos"/"Técnica" (ver useSchedulingApi).
+const labelDescriptionsForm = ref<{ combos: string; tecnica: string }>({
+  combos: '',
+  tecnica: '',
+});
+const savingCombos = ref(false);
+const savingTecnica = ref(false);
+
 /**
  * Validates the Cupo field: empty (inherit) or a positive integer.
  * Server-side validation (155-02) remains authoritative (1-500).
@@ -198,6 +263,19 @@ async function loadActivities() {
     log.error('Error loading activities', { error: message });
   } finally {
     loadingActivities.value = false;
+  }
+}
+
+async function loadLabelDescriptions() {
+  try {
+    const descriptions = await schedulingApi.getClassLabelDescriptions();
+    labelDescriptionsForm.value = {
+      combos: descriptions.combos ?? '',
+      tecnica: descriptions.tecnica ?? '',
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading class label descriptions', { error: message });
   }
 }
 
@@ -292,6 +370,28 @@ async function onToggleActivity(
   }
 }
 
+async function onSaveLabelDescription(mode: 'combos' | 'tecnica') {
+  const savingRef = mode === 'combos' ? savingCombos : savingTecnica;
+  savingRef.value = true;
+  try {
+    await schedulingApi.saveClassLabelDescription(mode, labelDescriptionsForm.value[mode]);
+    $q.notify({
+      type: 'positive',
+      message:
+        mode === 'combos' ? 'Descripción de Combos guardada' : 'Descripción de Técnica guardada',
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error saving class label description', { error: message, mode });
+    $q.notify({
+      type: 'negative',
+      message: extractError(err, 'Error guardando la descripción'),
+    });
+  } finally {
+    savingRef.value = false;
+  }
+}
+
 function confirmDeactivate(act: ActivityRecord) {
   $q.dialog({
     title: 'Desactivar actividad',
@@ -310,6 +410,7 @@ function confirmDeactivate(act: ActivityRecord) {
 onMounted(() => {
   if (props.active) {
     void loadActivities();
+    void loadLabelDescriptions();
     cancelEditActivity();
   }
 });
@@ -321,6 +422,7 @@ watch(
   (val) => {
     if (val) {
       void loadActivities();
+      void loadLabelDescriptions();
       cancelEditActivity();
     }
   }

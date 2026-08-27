@@ -96,22 +96,120 @@
           </q-item>
         </q-list>
       </div>
+
+      <!-- Partner (fase 179, D-15): comercio/marca que trajo al alumno,
+           asignación retroactiva desde la ficha y revocación (D-14). -->
+      <div class="q-mt-md">
+        <div class="text-subtitle2 text-weight-bold q-mb-sm">Partner</div>
+
+        <div v-if="partnerLoading" class="flex flex-center q-pa-md">
+          <q-spinner-dots size="24px" color="primary" />
+        </div>
+
+        <template v-else-if="partnerLink">
+          <q-list>
+            <q-item class="q-px-none">
+              <q-item-section>
+                <q-item-label
+                  >{{ partnerLink.partnerName }} ({{ partnerLink.partnerCode }})</q-item-label
+                >
+                <q-item-label caption>
+                  Vinculado el {{ formatDate(partnerLink.createdAt) }} — beneficio
+                  {{ benefitStatusLabel(partnerLink.benefitStatus) }}
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side top>
+                <q-chip
+                  dense
+                  :color="partnerStatusChipColor(partnerLink.status)"
+                  text-color="white"
+                  :label="partnerStatusChipLabel(partnerLink.status)"
+                />
+              </q-item-section>
+            </q-item>
+          </q-list>
+          <q-btn
+            flat
+            dense
+            color="negative"
+            label="Revocar vínculo"
+            size="sm"
+            :loading="revokingPartner"
+            @click="onRevokePartner"
+          />
+        </template>
+
+        <div v-else>
+          <div class="text-caption text-grey-7 q-mb-sm">
+            Si el alumno llegó por un comercio, cargalo acá.
+          </div>
+          <div class="row items-start q-col-gutter-sm">
+            <div class="col">
+              <q-select
+                v-model="selectedPartnerId"
+                :options="filteredPartnerOptions"
+                option-value="id"
+                option-label="displayLabel"
+                label="¿Qué partner lo trajo?"
+                dense
+                outlined
+                clearable
+                emit-value
+                map-options
+                use-input
+                input-debounce="0"
+                :loading="loadingPartners"
+                :disable="assigningPartner"
+                @filter="onFilterPartners"
+              >
+                <template #no-option>
+                  <q-item>
+                    <q-item-section class="text-grey">
+                      No se encontró ningún partner activo
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+            </div>
+            <div class="col-auto">
+              <q-btn
+                color="primary"
+                label="Asignar"
+                unelevated
+                :disable="selectedPartnerId === null"
+                :loading="assigningPartner"
+                @click="onAssignPartner"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
+import axios from 'axios';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi, type MemberReferralsResponse } from 'src/composables/useMembersApi';
+import {
+  usePartnersApi,
+  type MemberPartnerLink,
+  type PartnerListItem,
+  type PartnerLinkStatus,
+  type PartnerBenefitStatus,
+} from 'src/composables/usePartnersApi';
+import { formatDate } from 'src/utils/format-date';
 import ReferrerSelect from './ReferrerSelect.vue';
 
 const log = createLogger('MemberReferralsTab');
 const $q = useQuasar();
 const router = useRouter();
 const membersApi = useMembersApi();
+const partnersApi = usePartnersApi();
 
 const props = defineProps<{ userId: number }>();
 
@@ -122,6 +220,16 @@ const loading = ref(false);
 const newReferrerId = ref<number | null>(null);
 const referrerSelect = ref<{ reset: () => void } | null>(null);
 const assigning = ref(false);
+
+// Partner (fase 179, D-15): vínculo actual + asignación retroactiva/revocación.
+const partnerLink = ref<MemberPartnerLink | null>(null);
+const partnerLoading = ref(false);
+const allActivePartners = ref<PartnerListItem[]>([]);
+const partnerSearch = ref('');
+const selectedPartnerId = ref<number | null>(null);
+const loadingPartners = ref(false);
+const assigningPartner = ref(false);
+const revokingPartner = ref(false);
 
 // Chips: misma semántica derivada que la app (S1). El estado viene del server
 // (deriveCoveredUntil, D-28); el cliente nunca lo recalcula desde users.status.
@@ -153,6 +261,175 @@ function chipLabel(state: ReferralState): string {
 
 function goToMember(userId: number): void {
   void router.push(`/alumnos/${userId}`);
+}
+
+// ─── Partner (fase 179, D-15) ──────────────────────────────────────────────
+
+function partnerStatusChipColor(status: PartnerLinkStatus): string {
+  switch (status) {
+    case 'qualified':
+      return 'positive';
+    case 'revoked':
+      return 'grey';
+    case 'pending':
+    default:
+      return 'info';
+  }
+}
+
+function partnerStatusChipLabel(status: PartnerLinkStatus): string {
+  switch (status) {
+    case 'qualified':
+      return 'Calificado';
+    case 'revoked':
+      return 'Revocado';
+    case 'pending':
+    default:
+      return 'Pendiente';
+  }
+}
+
+function benefitStatusLabel(status: PartnerBenefitStatus): string {
+  switch (status) {
+    case 'consumed':
+      return 'consumido';
+    case 'expired':
+      return 'vencido sin usar';
+    case 'pending':
+    default:
+      return 'pendiente';
+  }
+}
+
+const filteredPartnerOptions = computed(() => {
+  const needle = partnerSearch.value.trim().toLowerCase();
+  return allActivePartners.value
+    .filter(
+      (p) =>
+        !needle || p.name.toLowerCase().includes(needle) || p.code.toLowerCase().includes(needle)
+    )
+    .map((p) => ({ id: p.id, displayLabel: `${p.name} (${p.code})` }));
+});
+
+function onFilterPartners(val: string, update: (callback: () => void) => void): void {
+  update(() => {
+    partnerSearch.value = val;
+  });
+}
+
+async function loadPartnerLink(): Promise<void> {
+  partnerLoading.value = true;
+  try {
+    partnerLink.value = await partnersApi.getMemberPartnerLink(props.userId);
+  } catch (err: unknown) {
+    log.error('Failed to load partner link', {
+      userId: props.userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    $q.notify({
+      type: 'negative',
+      message: partnersApi.error.value ?? 'No se pudo cargar el vínculo con el partner.',
+    });
+  } finally {
+    partnerLoading.value = false;
+  }
+}
+
+async function loadActivePartners(): Promise<void> {
+  loadingPartners.value = true;
+  try {
+    allActivePartners.value = await partnersApi.listPartners({ isActive: true });
+  } catch (err: unknown) {
+    log.error('Failed to load active partners', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    loadingPartners.value = false;
+  }
+}
+
+/**
+ * Asignación retroactiva de partner (D-15). Mismo criterio de mensajería
+ * distinta pending/qualified que `onAssign` (referidor de socio) — el
+ * status HTTP diferencia el motivo (404 partner inválido, 409 origen ya
+ * asignado, mensaje servidor ya distingue socio/partner — D-12); sin
+ * status conocido, mensaje genérico.
+ */
+async function onAssignPartner(): Promise<void> {
+  if (selectedPartnerId.value === null) return;
+  assigningPartner.value = true;
+  try {
+    const result = await partnersApi.assignPartnerToMember(props.userId, selectedPartnerId.value);
+    selectedPartnerId.value = null;
+    partnerSearch.value = '';
+    $q.notify({
+      type: 'positive',
+      message:
+        result.status === 'qualified'
+          ? 'Partner asignado. Como el alumno ya pagó, la comisión quedó generada.'
+          : 'Partner asignado. Cuando pague su primer plan se genera la comisión.',
+    });
+    // Recarga en vez de mutar local — mismo motivo que el referidor.
+    await loadPartnerLink();
+  } catch (err: unknown) {
+    log.error('Failed to assign partner', {
+      userId: props.userId,
+      partnerId: selectedPartnerId.value,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+    let message = partnersApi.error.value ?? 'No se pudo asignar el partner.';
+    if (status === 404)
+      message = partnersApi.error.value ?? 'El partner no existe o está inactivo.';
+    if (status === 403) message = 'No tenés permisos para asignar el partner.';
+    $q.notify({ type: 'negative', message });
+  } finally {
+    assigningPartner.value = false;
+  }
+}
+
+/**
+ * Revocación del vínculo (D-14): confirmación explícita del efecto sobre
+ * comisiones pendientes (se anulan) vs. ya liquidadas (no se tocan) ANTES
+ * de ejecutar (T-179-56).
+ */
+function onRevokePartner(): void {
+  if (!partnerLink.value) return;
+  const partnerName = partnerLink.value.partnerName;
+  $q.dialog({
+    title: 'Revocar vínculo de partner',
+    message: `¿Revocar el vínculo con "${partnerName}"? Las comisiones pendientes de este vínculo se van a anular. Las comisiones ya liquidadas no se tocan.`,
+    cancel: true,
+    persistent: true,
+  }).onOk(() => {
+    void doRevokePartner();
+  });
+}
+
+async function doRevokePartner(): Promise<void> {
+  revokingPartner.value = true;
+  try {
+    const result = await partnersApi.revokePartnerFromMember(props.userId);
+    $q.notify({
+      type: 'positive',
+      message:
+        result.voidedCommissions > 0
+          ? `Vínculo revocado. Se anularon ${result.voidedCommissions} comisión(es) pendiente(s).`
+          : 'Vínculo revocado.',
+    });
+    await loadPartnerLink();
+  } catch (err: unknown) {
+    log.error('Failed to revoke partner link', {
+      userId: props.userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    $q.notify({
+      type: 'negative',
+      message: partnersApi.error.value ?? 'No se pudo revocar el vínculo con el partner.',
+    });
+  } finally {
+    revokingPartner.value = false;
+  }
 }
 
 async function load() {
@@ -215,6 +492,8 @@ async function onAssign(): Promise<void> {
 
 onMounted(() => {
   void load();
+  void loadPartnerLink();
+  void loadActivePartners();
 });
 
 // Los cross-links "Lo trajo"/"Trajo a" navegan a otra ficha reutilizando la
@@ -229,6 +508,15 @@ watch(
     newReferrerId.value = null;
     referrerSelect.value?.reset();
     void load();
+
+    // Fase 179 (T-179-55): un partner a medio elegir tampoco puede sobrevivir
+    // al cambio de ficha — mismo motivo que el referidor. El catálogo de
+    // partners activos (allActivePartners) NO se resetea: es independiente
+    // del alumno.
+    partnerLink.value = null;
+    selectedPartnerId.value = null;
+    partnerSearch.value = '';
+    void loadPartnerLink();
   }
 );
 </script>

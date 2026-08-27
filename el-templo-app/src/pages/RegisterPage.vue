@@ -164,6 +164,19 @@
                 color="primary"
               />
 
+              <!-- Campo unificado de código (D-02/D-03): socio, promo o partner -->
+              <q-input
+                v-model="signupCode"
+                label="¿Tenés un código?"
+                hint="Código de un socio, una promo o un comercio amigo"
+                dark
+                outlined
+                label-color="cream"
+                input-class="text-cream"
+                color="primary"
+                @update:model-value="onSignupCodeInput"
+              />
+
               <q-btn
                 type="submit"
                 label="Crear Cuenta"
@@ -190,6 +203,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
 import { extractError } from 'src/utils/extract-error'
+import { normalizeSignupCode } from 'src/utils/signup-code'
+import type { PartnerBenefit } from 'stores/useAuthStore'
 
 const router = useRouter()
 const route = useRoute()
@@ -230,6 +245,21 @@ const refCode = computed(() => {
   return typeof code === 'string' ? code : null
 })
 
+// Phase 179-15 (D-02/D-03): manual unified code field. Pre-filled from the
+// URL with priority code -> ref -> promo, reusing the existing badges'
+// query-param convention. Kept normalized as the user types so what they see
+// matches exactly what the server will resolve.
+function initialSignupCode(): string {
+  const raw = route.query.code
+  if (typeof raw === 'string' && raw) return normalizeSignupCode(raw)
+  return normalizeSignupCode(refCode.value ?? promoCode.value ?? '')
+}
+const signupCode = ref(initialSignupCode())
+
+function onSignupCodeInput(val: string | number | null) {
+  signupCode.value = normalizeSignupCode(String(val ?? ''))
+}
+
 const requiredRule = (val: string) => !!val || 'Este campo es requerido'
 
 // DNI and phone are optional per App Store guideline 5.1.1(v)
@@ -248,6 +278,23 @@ const confirmPasswordRules = [
   (val: string) => !!val || 'Confirma tu contraseña',
   (val: string) => val === password.value || 'Las contraseñas no coinciden',
 ]
+
+// Un código inválido/no resuelto NUNCA bloquea ni ensucia el alta (D-02/D-03,
+// T-179-60): partnerBenefit null deja el mensaje de siempre intacto.
+function buildSuccessMessage(
+  partnerBenefit: PartnerBenefit | null,
+  promoApplied?: boolean,
+): string {
+  if (partnerBenefit?.benefitType === 'discount_percent') {
+    return `Cuenta creada. Tenés ${partnerBenefit.benefitValue}% de descuento en tu primera cuota, cortesía de ${partnerBenefit.partnerName}.`
+  }
+  if (partnerBenefit?.benefitType === 'free_pass') {
+    return `Cuenta creada. Tenés una semana de regalo, cortesía de ${partnerBenefit.partnerName}. Reservá tu primera clase para activarla.`
+  }
+  return promoApplied
+    ? 'Cuenta creada. Tu mes gratis ya esta activo!'
+    : 'Cuenta creada exitosamente'
+}
 
 function togglePassword() {
   showPassword.value = !showPassword.value
@@ -272,12 +319,13 @@ async function onSubmit() {
       branchId: branchIdParam,
       promoCode: promoCode.value ?? undefined,
       ref: refCode.value ?? undefined,
+      // Back-compat total (D-02): code se SUMA, nunca reemplaza promoCode/ref.
+      // El servidor resuelve code ?? ref ?? promoCode.
+      code: signupCode.value || undefined,
     })
     $q.notify({
       type: 'positive',
-      message: result?.promoApplied
-        ? 'Cuenta creada. Tu mes gratis ya esta activo!'
-        : 'Cuenta creada exitosamente',
+      message: buildSuccessMessage(result?.partnerBenefit ?? null, result?.promoApplied),
     })
     router.push('/')
   } catch (err: unknown) {

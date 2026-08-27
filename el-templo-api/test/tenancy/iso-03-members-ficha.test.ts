@@ -95,6 +95,12 @@ import {
   type FichaTemplo,
   type FichaGimnasioDos,
 } from "../fixtures/members-gimnasio-dos";
+import {
+  insertPartner,
+  insertPartnerLink,
+  partnerLinkRow,
+  nextCode,
+} from "../referral-partners/_helpers";
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -721,6 +727,155 @@ describe("asignar referidor — POST /api/admin/members/:userId/referrals", () =
       [fila?.tenantId, fila?.referrerId, fila?.referredId],
       `${RUTA} no dejo la fila esperada en \`referrals\`.`,
     ).toEqual([TENANT_DOS, gym2.socios[1].id, dos.userId]);
+  });
+});
+
+describe("vínculo de partner de la ficha — GET /api/admin/members/:userId/partner-referral", () => {
+  const RUTA = "GET /api/admin/members/:userId/partner-referral";
+
+  it("aislamiento: pedir el vínculo de partner de un socio de El Templo se rechaza (404), aunque ese socio tenga uno real", async () => {
+    // El Templo tiene un vínculo de partner sobre su socio; el staff del
+    // gimnasio 2 no puede verlo ni saber que existe (la ruta valida el socio
+    // con `assertReferralTargetInScope` → 404 si es de otro gimnasio).
+    const partnerTemplo = await insertPartner(app, {
+      tenantId: TENANT_TEMPLO,
+      name: `Partner Templo ${nextCode("PT")}`,
+    });
+    await insertPartnerLink(app, {
+      partnerId: partnerTemplo.id,
+      referredId: templo.userId,
+      tenantId: TENANT_TEMPLO,
+    });
+    const res = await comoGimnasioDos(
+      "GET",
+      `/${templo.userId}/partner-referral`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+  });
+
+  it("control: pedir el vínculo de un socio propio del gimnasio 2 SÍ funciona y trae el partner", async () => {
+    const nombre = `Partner Dos ${nextCode("PD")}`;
+    const partnerDos = await insertPartner(app, {
+      tenantId: TENANT_DOS,
+      name: nombre,
+    });
+    await insertPartnerLink(app, {
+      partnerId: partnerDos.id,
+      referredId: dos.userId,
+      tenantId: TENANT_DOS,
+    });
+    const res = await comoGimnasioDos("GET", `/${dos.userId}/partner-referral`);
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const body = JSON.parse(res.body) as { partnerName: string } | null;
+    expect(
+      body?.partnerName,
+      `${RUTA}: el control tiene que traer el partner propio con datos reales.`,
+    ).toBe(nombre);
+  });
+});
+
+describe("asignar partner a la ficha — POST /api/admin/members/:userId/partner-referral", () => {
+  const RUTA = "POST /api/admin/members/:userId/partner-referral";
+
+  it("aislamiento: asignar un partner a un socio de El Templo se rechaza (404) y NO persiste vínculo", async () => {
+    const partnerDos = await insertPartner(app, {
+      tenantId: TENANT_DOS,
+      name: `Partner Dos ${nextCode("PD")}`,
+    });
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${templo.userId}/partner-referral`,
+      { partnerId: partnerDos.id },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await partnerLinkRow(app, templo.userId),
+      `${RUTA}: el 404 no puede dejar un vínculo persistido para el socio ajeno.`,
+    ).toBeNull();
+  });
+
+  it("control: asignar un partner a un socio propio del gimnasio 2 SÍ funciona (201) y persiste con tenant_id=DOS", async () => {
+    const partnerDos = await insertPartner(app, {
+      tenantId: TENANT_DOS,
+      name: `Partner Dos ${nextCode("PD")}`,
+    });
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${dos.userId}/partner-referral`,
+      { partnerId: partnerDos.id },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(201);
+    const fila = await partnerLinkRow(app, dos.userId);
+    expect(
+      [fila?.tenant_id, fila?.referred_id, fila?.partner_id],
+      `${RUTA}: no dejó el vínculo esperado en \`partner_referrals\`.`,
+    ).toEqual([TENANT_DOS, dos.userId, partnerDos.id]);
+  });
+});
+
+describe("revocar partner de la ficha — DELETE /api/admin/members/:userId/partner-referral", () => {
+  const RUTA = "DELETE /api/admin/members/:userId/partner-referral";
+
+  it("aislamiento: revocar el vínculo de un socio de El Templo se rechaza (404) y el vínculo sigue vivo", async () => {
+    const partnerTemplo = await insertPartner(app, {
+      tenantId: TENANT_TEMPLO,
+      name: `Partner Templo ${nextCode("PT")}`,
+    });
+    await insertPartnerLink(app, {
+      partnerId: partnerTemplo.id,
+      referredId: templo.userId,
+      tenantId: TENANT_TEMPLO,
+    });
+    const res = await comoGimnasioDos(
+      "DELETE",
+      `/${templo.userId}/partner-referral`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    const fila = await partnerLinkRow(app, templo.userId);
+    expect(
+      fila?.status,
+      `${RUTA}: el 404 no puede haber revocado el vínculo del socio ajeno.`,
+    ).not.toBe("revoked");
+  });
+
+  it("control: revocar el vínculo de un socio propio del gimnasio 2 SÍ funciona (200) y lo deja revoked", async () => {
+    const partnerDos = await insertPartner(app, {
+      tenantId: TENANT_DOS,
+      name: `Partner Dos ${nextCode("PD")}`,
+    });
+    await insertPartnerLink(app, {
+      partnerId: partnerDos.id,
+      referredId: dos.userId,
+      tenantId: TENANT_DOS,
+    });
+    const res = await comoGimnasioDos(
+      "DELETE",
+      `/${dos.userId}/partner-referral`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const fila = await partnerLinkRow(app, dos.userId);
+    expect(
+      fila?.status,
+      `${RUTA}: el control tiene que dejar el vínculo en 'revoked'.`,
+    ).toBe("revoked");
   });
 });
 

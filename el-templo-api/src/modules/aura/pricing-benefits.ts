@@ -148,7 +148,10 @@ export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
           ),
         );
     }
-    ctx.applied.push({ module: "templo-gamification", benefit: "boarding pass" });
+    ctx.applied.push({
+      module: "templo-gamification",
+      benefit: "boarding pass",
+    });
     ctx.moduleOutput.boardingPassUsed = true;
     ctx.exclusive = true;
     return;
@@ -174,6 +177,16 @@ export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
           `Monto de AURA invalido. Opciones: ${AURA_DISCOUNT_TIERS.map((t) => t.spend).join(", ")}`,
         );
       }
+      // Fase 179 (D-10/D-20): un descuento CORE que compite (partner) e
+      // iguala o supera el tier gana la comparación — AURA no se aplica NI
+      // se gasta (el socio conserva sus puntos; empate a favor del core).
+      // Las validaciones de arriba ya corrieron: 400 gane quien gane (D-10).
+      if (
+        ctx.competingDiscountPercent !== null &&
+        ctx.competingDiscountPercent >= tier.percent
+      ) {
+        return;
+      }
       // Sin try/catch: InsufficientBalanceError debe abortar el alta (T-176-07).
       await auraService.spend({
         userId: ctx.userId,
@@ -190,7 +203,13 @@ export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
       applyDiscount =
         tier !== undefined &&
         auraSpend <= balance &&
-        !excludedFromAura(ctx.planCategory);
+        !excludedFromAura(ctx.planCategory) &&
+        // Fase 179 (D-10/D-20): el competidor core (partner) que iguala o
+        // supera el tier gana también en el preview (paridad con el cobro).
+        !(
+          ctx.competingDiscountPercent !== null &&
+          ctx.competingDiscountPercent >= tier.percent
+        );
     }
 
     if (applyDiscount && tier) {

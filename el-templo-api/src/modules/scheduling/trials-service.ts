@@ -24,7 +24,17 @@
 
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
-import { and, asc, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import * as schema from "../../db/schema";
 import {
   BadRequestError,
@@ -34,10 +44,16 @@ import {
 } from "../shared/errors";
 import { sanitizePhoneForStorage } from "../shared/phone";
 import { appBranchName } from "../shared/app-branch-name";
+import { buildMapsUrl } from "../shared/maps";
 import type { CountryCode } from "../shared/country-scope";
 import { buildClassDateTime, todayInTz } from "../shared/date-utils";
-import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import type { BookingService } from "./booking-service";
+import type { NotificationService } from "../notifications/service";
 import { assertTrialSlotCapacity } from "./capacity";
 
 /**
@@ -48,11 +64,24 @@ import { assertTrialSlotCapacity } from "./capacity";
 const TRIAL_CANCEL_CUTOFF_HOURS = 24;
 
 /**
+ * Fase 180 (D-20/D-24): template key del recordatorio ~24h antes de la
+ * sesión de prueba reservada. Ver TEMPLATE_SEEDS en notifications/types.ts.
+ */
+const TRIAL_REMINDER_TEMPLATE_KEY = "trial_session_reminder";
+
+/** Fase 180 (D-20): cuánto antes de la clase sale el recordatorio. */
+const TRIAL_REMINDER_HOURS_BEFORE = 24;
+
+/**
  * Subscription statuses that disqualify a user from booking a trial: an
  * active/paused/scheduled sub means they are (or are about to be) a member,
  * not a freemium lead. Mirrors the campaign-audience predicate (D-08/D-20).
+ *
+ * Exportada (fase 179, D-06): `partner-week-service.ts` reusa el MISMO
+ * criterio para su propio guard de "plan activo" — mismo valor, no una copia
+ * que pueda divergir.
  */
-const BLOCKING_SUBSCRIPTION_STATUSES = [
+export const BLOCKING_SUBSCRIPTION_STATUSES = [
   "active",
   "paused",
   "scheduled",
@@ -99,6 +128,15 @@ export interface TrialEligibility {
     branchId: number;
     branchName: string;
     branchAddress: string | null;
+    // Fase 180-07: link "Cómo llegar" vía buildMapsUrl (shared/maps.ts, la MISMA
+    // fuente única que ya usa GET /branches) — evita que la app reconstruya la
+    // URL de Maps por su cuenta (única construcción en todo el repo, doc en
+    // shared/maps.ts).
+    mapsUrl: string | null;
+    // Fase 180-07: IANA timezone de la sede (schema.branches.timezone). Ya se
+    // consultaba para canModify — se expone para que el "Agregar al calendario"
+    // de la app use la timezone real de la sede, no un default de página.
+    branchTimezone: string;
     // True while the class is still >24h away — the app shows cancel/change.
     canModify: boolean;
   };
@@ -185,6 +223,11 @@ export class TrialService {
     // keep their 2-arg construction. The self-service trial path injects it to
     // reuse the 30-day window + dayOfWeek/holiday validation (D-05).
     private bookingService?: BookingService,
+    // Fase 180 (D-20/D-24): optional por el mismo motivo — ambos sitios de
+    // instanciación en routes.ts ya construyen un NotificationService antes
+    // de TrialService y lo pasan acá. Si falta (defensivo), el recordatorio
+    // se skipea con un log, nunca rompe la reserva/cancelación/reprogramación.
+    private notificationService?: NotificationService,
   ) {}
 
   /**
@@ -273,7 +316,10 @@ export class TrialService {
       })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, input.branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, input.branchId),
+        ),
       )
       .limit(1);
     if (!branch) throw new NotFoundError("Sede no encontrada");
@@ -432,7 +478,146 @@ export class TrialService {
       "Self-service trial reserved (freemium→prueba)",
     );
 
+    // Fase 180 (D-20/D-24): encolar el recordatorio ~24h antes de la clase,
+    // FUERA de la transacción — mirrors promoteWaitlist (booking-service.ts):
+    // un fallo del enqueue nunca revierte ni rompe la reserva ya confirmada.
+    await this.queueTrialReminder(ctx, userId, input.scheduleId, input.date);
+
     return { bookingId };
+  }
+
+  /**
+   * Fase 180 (D-20/D-24): encola el recordatorio ~24h antes de la clase para
+   * la que el freemium/prueba tiene una sesión de prueba reservada. Se llama
+   * desde reserveTrialSelfService (crear) y rescheduleTrial (recrear tras
+   * borrar el viejo). `allowWithoutDeviceToken: true` porque el freemium que
+   * llega por email de campaña casi nunca instaló la app — el fallback por
+   * email en processQueue (notifications/service.ts) es el canal real (D-24).
+   *
+   * PROHIBIDO construir el instante concatenando fecha+hora a mano en un
+   * `Date`: interpretaría en la zona del proceso, no en la de la sede —
+   * buildClassDateTime es DST-aware por tz.
+   */
+  private async queueTrialReminder(
+    ctx: TenantContext,
+    userId: number,
+    scheduleId: number,
+    date: string,
+  ): Promise<void> {
+    if (!this.notificationService) {
+      this.log.warn(
+        { userId, scheduleId },
+        "TrialService sin NotificationService inyectado — recordatorio de prueba no encolado",
+      );
+      return;
+    }
+
+    try {
+      const [slot] = await this.db
+        .select({
+          startTime: schema.schedules.startTime,
+          branchName: schema.branches.name,
+          branchAddress: schema.branches.address,
+          branchTimezone: schema.branches.timezone,
+        })
+        .from(schema.schedules)
+        .innerJoin(
+          schema.branches,
+          eq(schema.branches.id, schema.schedules.branchId),
+        )
+        .where(
+          and(
+            tenantWhere(schema.schedules, ctx),
+            eq(schema.schedules.id, scheduleId),
+          ),
+        )
+        .limit(1);
+      if (!slot) return; // defensivo: el horario ya se validó más arriba
+
+      const classTime = buildClassDateTime(
+        date,
+        slot.startTime,
+        slot.branchTimezone,
+      );
+      const scheduledAt = new Date(
+        classTime.getTime() - TRIAL_REMINDER_HOURS_BEFORE * 60 * 60 * 1000,
+      );
+
+      // Reserva hecha con menos de 24h de anticipación: no encolar (saldría
+      // inmediatamente, ruido para un no-show que ya no se puede prevenir).
+      if (scheduledAt <= new Date()) {
+        this.log.info(
+          { userId, scheduleId, date },
+          "Ventana del recordatorio de prueba ya pasó — no se encola",
+        );
+        return;
+      }
+
+      const [y, m, d] = date.split("-");
+      const branchLabel = slot.branchAddress
+        ? `${slot.branchName} (${slot.branchAddress})`
+        : slot.branchName;
+      const bodyOverride = `Tu sesión de prueba es mañana ${d}/${m} a las ${slot.startTime} en ${branchLabel}. Llegá 10 minutos antes.`;
+
+      await this.notificationService.queueNotification({
+        userId,
+        templateKey: TRIAL_REMINDER_TEMPLATE_KEY,
+        scheduledAt,
+        allowWithoutDeviceToken: true,
+        bodyOverride,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      this.log.error(
+        { err: message, userId, scheduleId, date },
+        "Failed to queue trial reminder",
+      );
+    }
+  }
+
+  /**
+   * Fase 180 (D-20/D-24): borra las filas `pending` de
+   * `trial_session_reminder` del usuario — llamado en cancelación y en
+   * reprogramación (antes de volver a encolar con el horario nuevo). Nunca
+   * lanza: un fallo de limpieza no debe romper la cancelación/reprogramación.
+   */
+  private async cancelTrialReminder(
+    userId: number,
+    ctx: TenantContext,
+  ): Promise<void> {
+    try {
+      const [template] = await this.db
+        .select({ id: schema.notificationTemplates.id })
+        .from(schema.notificationTemplates)
+        .where(
+          and(
+            tenantWhere(schema.notificationTemplates, ctx),
+            eq(
+              schema.notificationTemplates.templateKey,
+              TRIAL_REMINDER_TEMPLATE_KEY,
+            ),
+          ),
+        )
+        .limit(1);
+      if (!template) return; // no seedeado para este tenant — nada que borrar
+
+      await this.db
+        .delete(schema.pendingNotifications)
+        .where(
+          and(
+            tenantWhere(schema.pendingNotifications, ctx),
+            eq(schema.pendingNotifications.userId, userId),
+            eq(schema.pendingNotifications.templateId, template.id),
+            eq(schema.pendingNotifications.status, "pending"),
+          ),
+        );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      this.log.error(
+        { err: message, userId },
+        "Failed to clean up trial reminder",
+      );
+    }
   }
 
   /**
@@ -459,6 +644,7 @@ export class TrialService {
         status: schema.users.status,
         deletedAt: schema.users.deletedAt,
         phone: schema.users.phone,
+        tenantId: schema.users.tenantId,
       })
       .from(schema.users)
       .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
@@ -492,6 +678,33 @@ export class TrialService {
       )
       .limit(1);
     if (blockingSub) {
+      return { eligible: false, alreadyBooked: false, phoneRequired };
+    }
+
+    // Fase 179 (D-18): "sin doble gratis" — quien canjea un código de partner
+    // (semana gratis, `free_pass`) deja de ser elegible a la sesión de prueba
+    // freemium, sea que el beneficio siga `pending` (todavía no reservó la
+    // semana) o ya esté `consumed` (la reservó). Misma forma que el guard de
+    // `blockingSub` de arriba, y corre junto a él por el mismo motivo: un
+    // socio con beneficio de partner es, a todos los efectos, alguien que ya
+    // tiene "su gratis" — no dos. `/* tenant-safe: derivado del propio userId
+    // por PK del usuario que llama, no hay request.scope en esta ruta member */`
+    const [partnerBenefit] = await this.db
+      .select({ id: schema.partnerReferrals.id })
+      .from(schema.partnerReferrals)
+      .where(
+        and(
+          eq(schema.partnerReferrals.tenantId, user.tenantId),
+          eq(schema.partnerReferrals.referredId, userId),
+          eq(schema.partnerReferrals.benefitType, "free_pass"),
+          inArray(schema.partnerReferrals.benefitStatus, [
+            "pending",
+            "consumed",
+          ]),
+        ),
+      )
+      .limit(1);
+    if (partnerBenefit) {
       return { eligible: false, alreadyBooked: false, phoneRequired };
     }
 
@@ -540,6 +753,8 @@ export class TrialService {
           // Compat app: getTrialEligibility es member-only, se transforma acá.
           branchName: appBranchName(booking.branchName, ctx.tenantId),
           branchAddress: booking.branchAddress,
+          mapsUrl: buildMapsUrl(booking.branchAddress),
+          branchTimezone: booking.branchTimezone,
           canModify: this.isOutsideCancelWindow(
             booking.date,
             booking.startTime,
@@ -673,6 +888,11 @@ export class TrialService {
       { userId, bookingId: row.bookingId },
       "Self-service trial cancelled (prueba→freemium)",
     );
+
+    // Fase 180 (D-20/D-24): sin esto el freemium recibiría un recordatorio
+    // huérfano de una prueba que ya canceló (T-180-13).
+    await this.cancelTrialReminder(userId, ctx);
+
     return { cancelled: true };
   }
 
@@ -1115,6 +1335,12 @@ export class TrialService {
       "Trial rescheduled",
     );
 
+    // Fase 180 (D-20/D-24): borra el recordatorio del horario viejo y encola
+    // uno nuevo para el horario reprogramado — mismo patrón fuera-de-tx que
+    // reserveTrialSelfService/cancelTrialSelfService (T-180-13).
+    await this.cancelTrialReminder(userId, ctx);
+    await this.queueTrialReminder(ctx, userId, input.scheduleId, input.date);
+
     return { bookingId };
   }
 
@@ -1143,7 +1369,10 @@ export class TrialService {
       .select({ tz: schema.branches.timezone })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
       )
       .limit(1);
     const today = todayInTz(branchRow?.tz ?? "America/Argentina/Buenos_Aires");

@@ -31,6 +31,9 @@ export interface WeeklySlotView {
   trialSpotsRemaining: number
   // mirror de scheduling/types.ts (162 APP-01): clase especial "Actividades con Aura"
   isSpecial: boolean
+  // Fase 180 Plan 10 (RES-05, D-23): descripción coherente con la etiqueta
+  // MOSTRADA (activityName). null = sin copy cargado por el admin.
+  activityDescription: string | null
 }
 
 export interface BookingRecord {
