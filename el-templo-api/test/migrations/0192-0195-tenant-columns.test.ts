@@ -41,6 +41,11 @@
  * 0192-0195 -- así que `report.gymOwnedChecked` (que recorre TODA
  * GYM_OWNED_TABLES) pasa de 87 a 88. El resto de este docblock describe la
  * tanda C tal cual la dejó la fase 167 y no se reescribe.
+ *
+ * Nota (fase 179): el módulo de partners suma 3 tablas gym-owned nuevas y
+ * tenancy-native (`referral_partners`, `partner_referrals`,
+ * `partner_commissions`) -- nacen con tenant_id + FK en la 0215, no por un
+ * ALTER de 0192-0195 -- así que `report.gymOwnedChecked` pasa de 88 a 91.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { sql, eq } from "drizzle-orm";
@@ -143,9 +148,11 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
   });
 
   // ─── 2. Cobertura ───────────────────────────────────────────────────────
-  it("Test 2: la verificacion cubre las 88 tablas gym-owned, no un subconjunto", () => {
-    // 87 de la tanda C (fase 167) + session_week_regime (fase 159, SEM-05).
-    expect(report.gymOwnedChecked).toBe(88);
+  it("Test 2: la verificacion cubre las 91 tablas gym-owned, no un subconjunto", () => {
+    // 87 de la tanda C (fase 167) + session_week_regime (fase 159, SEM-05)
+    // + 3 tablas de partners (referral_partners/partner_referrals/
+    // partner_commissions, fase 179, tenancy-native en la 0215) = 91.
+    expect(report.gymOwnedChecked).toBe(91);
   });
 
   // ─── 3. Exclusiones de diseño ───────────────────────────────────────────

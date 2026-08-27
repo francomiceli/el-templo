@@ -613,7 +613,7 @@ describe("Verificador de uniques e índices por tenant — gate fail-closed (CON
     ).toEqual([]);
   });
 
-  it("Test 10: el reporte cierra en 0 discrepancias y cubre las 88 tablas gym-owned", () => {
+  it("Test 10: el reporte cierra en 0 discrepancias y cubre las 91 tablas gym-owned", () => {
     // El reporte completo va DENTRO del mensaje: un fallo en CI trae el detalle
     // en el log y nadie tiene que reproducirlo local para saber qué pasó.
     expect(
@@ -623,13 +623,14 @@ describe("Verificador de uniques e índices por tenant — gate fail-closed (CON
 
     // Sin estos dos, un reporte que no miró NADA (lista vacía, base equivocada,
     // query rota) daría los cinco arrays vacíos y pasaría los Tests 5 a 9.
-    // 87 de la fase 167 + session_week_regime (fase 159, SEM-05) = 88.
+    // 87 de la fase 167 + session_week_regime (fase 159, SEM-05)
+    // + 3 tablas de partners (fase 179, tenancy-native en la 0215) = 91.
     expect(
       report.gymOwnedChecked,
-      `El verificador solo pudo mirar ${report.gymOwnedChecked} de las 88 tablas gym-owned ` +
-        `(87 de la fase 167 + session_week_regime de la 159): faltan tablas en ` +
-        `${report.database} y el resultado no es concluyente.`,
-    ).toBe(88);
+      `El verificador solo pudo mirar ${report.gymOwnedChecked} de las 91 tablas gym-owned ` +
+        `(87 de la fase 167 + session_week_regime de la 159 + 3 de partners de la 179): ` +
+        `faltan tablas en ${report.database} y el resultado no es concluyente.`,
+    ).toBe(91);
     expect(
       report.uniquesChecked,
       `El verificador evaluó ${report.uniquesChecked} uniques de tablas gym-owned. Tienen que ` +
