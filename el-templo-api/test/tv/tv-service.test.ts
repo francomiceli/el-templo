@@ -565,9 +565,8 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       timerStartedAt: new Date("2026-02-24T14:58:00.000Z"),
     });
 
-    const enII = (
-      await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC)
-    ).class!;
+    const enII = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
     expect(enII.blockRole).toBe("COMBOS_II");
     expect(enII.title).toContain("COMBOS II");
     expect(enII.title).not.toContain("ALT");
@@ -582,9 +581,8 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       .set({ blockRole: "COMBOS_II_ALT" })
       .where(eq(schema.tvClassState.branchId, branchArId));
 
-    const enAlt = (
-      await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC)
-    ).class!;
+    const enAlt = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
     expect(enAlt.blockRole).toBe("COMBOS_II_ALT");
     expect(enAlt.title).toContain("COMBOS II ALT");
     expect(enAlt.blocks.map((b) => b.role)).toContain("COMBOS_II_ALT");
@@ -710,6 +708,31 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
       restMs: 10_000,
       rounds: 8,
     });
+  });
+
+  it("la lista compartida de STRETCHING sale del nivel canonico (kairos), no del control", async () => {
+    // STRETCHING es un bloque comun, pero hoy cada nivel guarda el suyo y pueden
+    // divergir (kairos limpio a mano, otros con los defaults del generador). La
+    // columna shared tiene que mostrar SIEMPRE el canonico (kairos-first), igual
+    // que la movilidad, el editor y el PDF — aunque el control este en alfa. El
+    // helper nombra cada ejercicio `STRETCHING-<nivel>-0`, asi que el nombre
+    // delata que nivel se leyo.
+    await seedSession({ level: "kairos", roles: ["INITIUM", "STRETCHING"] });
+    await seedSession({ level: "alfa", roles: ["INITIUM", "STRETCHING"] });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "STRETCHING",
+      level: "alfa",
+    });
+
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+
+    // El control esta en alfa, pero la lista shared es la de kairos (canonica).
+    expect(cls.level).toBe("alfa");
+    expect(cls.columns).toHaveLength(1);
+    expect(cls.columns[0].exercises[0].name).toBe("STRETCHING-kairos-0");
   });
 
   it("con un solo nivel del par presente hoy, la columna es UNA sola", async () => {

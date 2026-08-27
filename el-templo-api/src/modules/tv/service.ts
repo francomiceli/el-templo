@@ -981,22 +981,39 @@ export class TvService {
     const rawVisualBlockIndex = visualGroups.indexOf(
       visualGroupOf(state.blockRole),
     );
-    const visualBlockIndex =
-      rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
+    const visualBlockIndex = rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
 
     const block = this.resolveBlock(classDay, state.blockRole, state.level);
     const formatDictated =
       !!block?.formatParams &&
       FORMAT_DICTATED_TYPES.has(block.formatParams.type);
+
+    // La lista COMPARTIDA (STRETCHING/INITIUM) se lee del nivel CANONICO
+    // (kairos-first) —el mismo que muestran el editor, el PDF y la movilidad
+    // (resolveCanonicalBlock)—, NO del nivel del control. Stretching es un
+    // bloque comun a todos los niveles: idealmente ni deberia tener niveles,
+    // pero hoy cada nivel genera su propio bloque y pueden divergir (kairos con
+    // sostenes editados a mano, otros niveles con los defaults del generador,
+    // donde los estiramientos CON traen 10 reps). Sin esto el TV mostraba el
+    // stretching del nivel del control (con reps) mientras el editor de kairos
+    // mostraba sostenes: divergencia. Leyendo el canonico, el TV colapsa los
+    // niveles en UNA sola version y no diverge del editor. INITIUM no cambia
+    // (resolveBlock ya ignora el nivel para ese rol). El timer y el resto
+    // siguen usando `block` (nivel del control) — solo cambia la lista shared.
+    const columnBlock = shared
+      ? this.resolveCanonicalBlock(classDay, state.blockRole)
+      : block;
+    const columnDictated = shared
+      ? !!columnBlock?.formatParams &&
+        FORMAT_DICTATED_TYPES.has(columnBlock.formatParams.type)
+      : formatDictated;
+
     const title = summary?.title ?? "";
 
     const levelLabel = this.levelLabel(classDay, state.level, shared);
     // La movilidad sale del nivel canonico (kairos-first), como el PDF/editor
     // (regresion KAIROS-01, tambien cubierta en la TV).
-    const mobilityBlock = this.resolveCanonicalBlock(
-      classDay,
-      state.blockRole,
-    );
+    const mobilityBlock = this.resolveCanonicalBlock(classDay, state.blockRole);
     const mobility = mobilityBlock?.prescriptions.filter(
       (p) => p.exerciseType === "mobility",
     );
@@ -1019,7 +1036,13 @@ export class TvService {
         mobility && mobility.length > 0
           ? `MOVILIDAD · ${mobility.map(mobilityText).join(" · ")}`
           : null,
-      columns: this.buildColumns(classDay, state, shared, block, formatDictated),
+      columns: this.buildColumns(
+        classDay,
+        state,
+        shared,
+        columnBlock,
+        columnDictated,
+      ),
       deuteros: this.buildDeuterosPanel(classDay, state),
       exerciseIndex: state.exerciseIndex,
       timer: {

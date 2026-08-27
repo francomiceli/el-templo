@@ -727,16 +727,56 @@ onUnmounted(() => {
   letter-spacing: 0.09em;
   font-size: 3.6rem;
   line-height: 1.1;
+  /* La caja se encoge al texto (fit-content) y se ancla a su lado (justify-self):
+     así la banda de brillo (::after, overflow:hidden) barre SOLO los glifos y no
+     el hueco vacío del track 1fr. `max-width:100%` deja que siga envolviendo por
+     palabras si el nombre es largo. `position:relative` ancla la banda. */
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+}
+/* Banda de brillo sobre el texto: misma mecánica que la columna dórica —overlay
+   hermano recortado al box, la franja de luz cruza con `transform` (compositado
+   por GPU, sin repaint por frame) para no arrastrarse en el Chromium viejo del TV.
+   NADA de background-position animado acá (esa vía repinta y se arrastra). */
+#tvScreenRoot .cabecera .cabTitulo::after,
+#tvScreenRoot .cabecera .cabFormato::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent calc(50% - 1.6rem),
+    rgba(255, 248, 232, 0.75) 50%,
+    transparent calc(50% + 1.6rem)
+  );
+  transform: translateX(-100%);
+  animation: cabBrillo 12s linear infinite;
+  will-change: transform;
+}
+/* Escalonado pedido: formato → bloque → columna. El formato barre primero (0s),
+   el nombre del bloque 1.4s después, y la columna dórica cierra la cascada (su
+   delay base pasa a 4.5s, ver más abajo). Todos comparten el ciclo de 12s, así
+   que el orden queda fijo para siempre. */
+#tvScreenRoot .cabecera .cabFormato::after {
+  animation-delay: 0s;
+}
+#tvScreenRoot .cabecera .cabTitulo::after {
+  animation-delay: 1.4s;
 }
 /* Nombre del bloque: pegado a la izquierda, color de los headers de NIVEL. */
 #tvScreenRoot .cabecera .cabTitulo {
   text-align: left;
   color: var(--gold);
+  justify-self: start;
 }
 /* Formato (ej. "AMRAP 10'"): pegado a la derecha, navy. */
 #tvScreenRoot .cabecera .cabFormato {
   text-align: right;
   color: var(--navy);
+  justify-self: end;
 }
 /* Movilidad: fila al pie de la pantalla (debajo de las columnas), texto centrado
    en itálica y en el navy de los ejercicios. Se oculta sola si viene vacía. */
@@ -945,14 +985,16 @@ onUnmounted(() => {
     transparent calc(50% + 2.5rem)
   );
   transform: translateX(-100%);
+  /* Delay 4.5s: la columna cierra la cascada formato(0s)→bloque(1.4s)→columna. */
   animation: columnaBrillo 12s linear infinite;
+  animation-delay: 4.5s;
   will-change: transform;
 }
-/* Con dos columnas lado a lado, la 2da barre desfasada medio ciclo (-5s de 10s)
-   para que las barras no brillen al mismo tiempo. */
+/* Con dos columnas lado a lado, la 2da barre desfasada para que las barras no
+   brillen al mismo tiempo: arranca cuando la 1ra termina de cruzar (base 4.5s +
+   los 3s que tarda el barrido = 7.5s), consecutivas y detrás de los títulos. */
 #tvScreenRoot .lista-col:nth-child(2n) .columnaDorica__brillo::after {
-  /* Arranca cuando la 1ra barra termina de cruzar (25% de 12s = 3s): consecutivas. */
-  animation-delay: 3s;
+  animation-delay: 7.5s;
 }
 /* En el 2×2 hay cuatro dóricas: con la regla `2n` de arriba brillarían de a dos
    (1+3 y 2+4). Escalono los delays 0/3/6/9 s (cada barrido cruza en 3 s) para que
@@ -975,6 +1017,19 @@ onUnmounted(() => {
    derecha) el resto = cooldown. Con dos barras, la 2da arranca justo cuando la
    1ra sale (animation-delay), y se ven consecutivas. */
 @keyframes columnaBrillo {
+  0% {
+    transform: translateX(-100%);
+  }
+  25% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+/* Gemelo de columnaBrillo para el barrido del nombre del formato y del bloque:
+   cruza en el primer 25% (3s de 12s) y luego queda fuera = cooldown. */
+@keyframes cabBrillo {
   0% {
     transform: translateX(-100%);
   }
@@ -1101,17 +1156,18 @@ onUnmounted(() => {
   white-space: nowrap;
   padding: 0.08em 0.6em 0.08em 2em;
   border-radius: 0rem 0.5rem 0.5rem 0rem;
-  /* La mitad derecha (donde caen los números) va ~18% más oscura que antes:
-     los stops 35%/47%/final se bajaron en brillo (el fade-in de la izquierda
-     queda igual) para que la placa cierre más oscura bajo los dígitos. */
+  /* La mitad derecha (donde caen los números) se oscureció otra vuelta para que
+     el ivory del dígito contraste más: los stops 17%/35%/47%/final bajaron en
+     brillo y subieron en opacidad (el fade-in transparente de la izquierda queda
+     igual, para que la placa siga fundiéndose con la banda). */
   background: linear-gradient(
     to right,
     #2e2a2600,
     #2e2a260f 6%,
-    #2e2a2638 17%,
-    #26221f8c 35%,
-    #393430d1 47%,
-    #322d29
+    #26221f4d 17%,
+    #201c19a6 35%,
+    #282420e0 47%,
+    #241f1c
   );
   /* Sin la sombra oscura heredada: sobre placa oscura no aporta y ensucia el número. */
   text-shadow: none;
@@ -2148,7 +2204,9 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .tvFondo__marmol,
   #tvScreenRoot .tvFondo__luz,
-  #tvScreenRoot .columnaDorica__brillo::after {
+  #tvScreenRoot .columnaDorica__brillo::after,
+  #tvScreenRoot .cabecera .cabTitulo::after,
+  #tvScreenRoot .cabecera .cabFormato::after {
     animation: none;
   }
 }

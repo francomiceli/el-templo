@@ -33,7 +33,7 @@ export interface CapsulaTecnica {
 
 export const CAPSULAS: CapsulaTecnica[] = [
   {
-    ejercicio: 'DOMINADAS AL PECHO',
+    ejercicio: 'DOMINADAS',
     cue: [
       { text: 'El pecho busca la barra: ' },
       { text: 'el codo termina atrás, no abajo.', acento: true },
@@ -41,17 +41,20 @@ export const CAPSULAS: CapsulaTecnica[] = [
     musculos: ['DORSAL ANCHO', 'BÍCEPS', 'TRAPECIO'],
   },
   {
-    ejercicio: 'FONDOS EN PARALELAS',
+    ejercicio: 'FONDOS',
     cue: [
-      { text: 'Hombros lejos de las orejas: ' },
-      { text: 'bajá hasta los 90° con el pecho apenas adelante.', acento: true },
+      { text: 'Brazos firmes y hombros lejos de las orejas: ' },
+      {
+        text: 'bajá hasta los 90° inclinando el pecho apenas adelante.',
+        acento: true,
+      },
     ],
     musculos: ['PECTORAL', 'TRÍCEPS', 'DELTOIDE ANTERIOR'],
   },
   {
-    ejercicio: 'REMO INVERTIDO',
+    ejercicio: 'REMOS',
     cue: [
-      { text: 'Tirá con la espalda, no con los brazos: ' },
+      { text: 'Tirá con la espalda: ' },
       { text: 'juntá los omóplatos antes de flexionar.', acento: true },
     ],
     musculos: ['DORSAL', 'ROMBOIDES', 'BÍCEPS'],
@@ -73,7 +76,7 @@ export const CAPSULAS: CapsulaTecnica[] = [
     musculos: ['CUÁDRICEPS', 'GLÚTEOS', 'CORE'],
   },
   {
-    ejercicio: 'PLANCHA ABDOMINAL',
+    ejercicio: 'PLANCHA',
     cue: [
       { text: 'Glúteos y abdomen apretados: ' },
       { text: 'la cadera ni sube ni cae.', acento: true },
@@ -95,5 +98,27 @@ export const CAPSULAS: CapsulaTecnica[] = [
       { text: 'exhalá en el esfuerzo, inhalá al volver.', acento: true },
     ],
     musculos: ['DIAFRAGMA', 'CORE'],
+  },
+  {
+    ejercicio: 'FRONT LEVER',
+    cue: [
+      { text: 'Cuerpo rígido de la cabeza a los pies: ' },
+      {
+        text: 'hombros abajo y tirá con los dorsales sin doblar los codos.',
+        acento: true,
+      },
+    ],
+    musculos: ['DORSAL ANCHO', 'CORE', 'GLÚTEOS'],
+  },
+  {
+    ejercicio: 'VERTICALES',
+    cue: [
+      { text: 'Empujá el piso con los hombros y apilá muñeca-cadera-talón: ' },
+      {
+        text: 'abdomen y glúteos firmes, la mirada entre las manos.',
+        acento: true,
+      },
+    ],
+    musculos: ['HOMBROS', 'CORE', 'TRÍCEPS'],
   },
 ];
