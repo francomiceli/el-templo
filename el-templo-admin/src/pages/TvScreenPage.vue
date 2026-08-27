@@ -985,7 +985,8 @@ onUnmounted(() => {
     transparent calc(50% + 2.5rem)
   );
   transform: translateX(-100%);
-  /* Delay 4.5s: la columna cierra la cascada formato(0s)→bloque(1.4s)→columna. */
+  /* Delay 4.5s: la columna cierra la cascada formato(0s)→bloque(1.4s)→columna
+     (barrido del formato/bloque en cabBrillo, más arriba). */
   animation: columnaBrillo 12s linear infinite;
   animation-delay: 4.5s;
   will-change: transform;

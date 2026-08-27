@@ -1000,6 +1000,7 @@ export class TvService {
     // niveles en UNA sola version y no diverge del editor. INITIUM no cambia
     // (resolveBlock ya ignora el nivel para ese rol). El timer y el resto
     // siguen usando `block` (nivel del control) — solo cambia la lista shared.
+    // (Cubierto por el test "STRETCHING sale del nivel canonico" en tv-service.test.ts.)
     const columnBlock = shared
       ? this.resolveCanonicalBlock(classDay, state.blockRole)
       : block;
