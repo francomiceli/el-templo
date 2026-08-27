@@ -717,8 +717,19 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     // que la movilidad, el editor y el PDF — aunque el control este en alfa. El
     // helper nombra cada ejercicio `STRETCHING-<nivel>-0`, asi que el nombre
     // delata que nivel se leyo.
-    await seedSession({ level: "kairos", roles: ["INITIUM", "STRETCHING"] });
-    await seedSession({ level: "alfa", roles: ["INITIUM", "STRETCHING"] });
+    // sessionMode "tecnica": STRETCHING solo esta en el roster de combos/tecnica
+    // (`TECNICA_ROLES`/`COMBOS_ROLES`), no en el regular — sin esto clampState lo
+    // reemplaza por INITIUM (tambien shared) y el test leeria el bloque equivocado.
+    await seedSession({
+      level: "kairos",
+      roles: ["INITIUM", "STRETCHING"],
+      sessionMode: "tecnica",
+    });
+    await seedSession({
+      level: "alfa",
+      roles: ["INITIUM", "STRETCHING"],
+      sessionMode: "tecnica",
+    });
     await writeState({
       branchId: branchArId,
       classDate: TUESDAY_DATE,
