@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v6.1
 milestone_name: Módulo Gimnasio
 status: executing
-stopped_at: Phase 181 context gathered
-last_updated: "2026-08-27T19:05:44.807Z"
+stopped_at: Phase 182 context gathered
+last_updated: "2026-08-28T17:12:31.241Z"
 last_activity: 2026-08-27 -- Phase 181 planning complete
 progress:
   total_phases: 12
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 0
-  percent: 0
+  completed_plans: 6
+  percent: 8
 ---
 
 # Project State
@@ -1026,9 +1026,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-08-27T17:59:08.418Z
-Stopped at: Phase 181 context gathered
-Resume file: .planning/phases/181-dise-o-del-m-dulo-gimnasio-bloqueante/181-CONTEXT.md
+Last session: 2026-08-28T17:12:31.221Z
+Stopped at: Phase 182 context gathered
+Resume file: .planning/phases/182-plataforma-rol-super-owner-wizard-de-alta-de-tenant/182-CONTEXT.md
 
 **Planned Phase:** 114 (Reporte tabular de sesiones de prueba) — 7 plans — 2026-05-12T18:39:04.628Z
 
