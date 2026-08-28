@@ -103,10 +103,10 @@ export const QUOTES: SessionQuote[] = [
   },
   {
     segments: [
-      { text: '\u201CMIRA CADA CAMINO DE CERCA Y CON INTENCIÓN. LUEGO HAZTE UNA PREGUNTA: ' },
-      { text: '¿TIENE CORAZÓN ESTE CAMINO?\u201D', gold: true },
+      { text: '\u201CES EL CUERPO EL QUE SEÑALA Y ' },
+      { text: 'EL CUERPO EL QUE COMPRENDE.\u201D', gold: true },
     ],
-    author: 'Carlos Castaneda.',
+    author: 'Maurice Merleau-Ponty.',
   },
   {
     segments: [
@@ -270,5 +270,13 @@ export const RETIRED_QUOTES: SessionQuote[] = [
       { text: 'SINO LO QUE SOMOS.\u201D', gold: true },
     ],
     author: 'Fernando Pessoa.',
+  },
+  // --- Retirada en 2026-08 (reemplazada por Merleau-Ponty) ---
+  {
+    segments: [
+      { text: '\u201CMIRA CADA CAMINO DE CERCA Y CON INTENCIÓN. LUEGO HAZTE UNA PREGUNTA: ' },
+      { text: '¿TIENE CORAZÓN ESTE CAMINO?\u201D', gold: true },
+    ],
+    author: 'Carlos Castaneda.',
   },
 ];

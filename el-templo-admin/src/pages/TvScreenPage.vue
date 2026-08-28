@@ -727,24 +727,23 @@ onUnmounted(() => {
   letter-spacing: 0.09em;
   font-size: 3.6rem;
   line-height: 1.1;
-  /* La caja se encoge al texto (fit-content) y se ancla a su lado (justify-self):
-     así la banda de brillo (::after, overflow:hidden) barre el box del TEXTO y no
-     el hueco vacío del track 1fr. `max-width:100%` deja que siga envolviendo por
-     palabras si el nombre es largo. `position:relative` ancla la banda. */
+}
+/* Brillo POR LÍNEA: cada línea del header vive en un `.cabLine` (render.ts:
+   paintCabTitulo / paintFormato) y la banda `::after` se recorta al box de ESA
+   línea → respeta el salto de línea del formato (nombre arriba / valor abajo) y
+   no ilumina el hueco de la línea corta. Es inline-block, así que el parent lo
+   posiciona con su `text-align` (izq el bloque, der el formato). La franja cruza
+   con `transform` (GPU, sin repaint por frame), misma mecánica que la columna
+   dórica —que SÍ se ve en el Chromium viejo del TV (el background-clip:text no
+   rendereaba)—. `inset` vertical achica el alto de la banda para pegarla a los
+   glifos. Deuteros (paintDeuHeader) no usa `.cabLine` → sin brillo, y está bien. */
+#tvScreenRoot .cabecera .cabLine {
   position: relative;
-  width: fit-content;
+  display: inline-block;
   max-width: 100%;
   overflow: hidden;
 }
-/* Banda de brillo: overlay `::after` recortado al box del texto; la franja de luz
-   cruza con `transform` (compositado por GPU, sin repaint por frame), misma
-   mecánica que la columna dórica —que SÍ se ve en el Chromium viejo del TV—. El
-   intento con `background-clip:text` (brillar solo el glifo) no rendereaba ahí,
-   así que volvemos a esto aunque ilumine un poco el box. El `inset` vertical
-   achica el alto de la banda para pegar la luz a los glifos y no al aire de
-   arriba/abajo. NADA de background-position animado (esa vía repinta). */
-#tvScreenRoot .cabecera .cabTitulo::after,
-#tvScreenRoot .cabecera .cabFormato::after {
+#tvScreenRoot .cabecera .cabLine::after {
   content: '';
   position: absolute;
   /* Banda más baja que el box (inset vertical) → pegada a los glifos. */
@@ -763,11 +762,19 @@ onUnmounted(() => {
 /* Orden pedido: primero el nombre del BLOQUE (0s), después el FORMATO (1.4s);
    la columna dórica cierra la cascada (delay 4.5s, más abajo). Todos comparten el
    ciclo de 12s, así que el orden queda fijo. */
-#tvScreenRoot .cabecera .cabTitulo::after {
+#tvScreenRoot .cabecera .cabTitulo .cabLine::after {
   animation-delay: 0s;
 }
-#tvScreenRoot .cabecera .cabFormato::after {
-  animation-delay: 1.4s;
+#tvScreenRoot .cabecera .cabFormato .cabLine::after {
+  animation-delay: 1.2s;
+}
+/* Formato de 2 líneas: la 2da línea (la que va DESPUÉS del <br>) barre en cuanto
+   la 1ra termina de cruzar (1.2s + 1.2s que tarda el barrido = 2.4s) → secuencial
+   y PEGADAS, una y después la otra. El caso de 1 línea no tiene <br>, así que
+   conserva el 1.2s de la regla de arriba. Cascada total: bloque(0s)→L1(1.2s)→
+   L2(2.4s), back-to-back. */
+#tvScreenRoot .cabecera .cabFormato br + .cabLine::after {
+  animation-delay: 2.4s;
 }
 /* Nombre del bloque: pegado a la izquierda, color de los headers de NIVEL. */
 #tvScreenRoot .cabecera .cabTitulo {
@@ -1031,13 +1038,14 @@ onUnmounted(() => {
     transform: translateX(100%);
   }
 }
-/* Gemelo de columnaBrillo para el barrido del nombre del bloque y del formato:
-   la banda cruza en el primer 25% (3s de 12s) y luego queda fuera = cooldown. */
+/* Barrido de los textos de cabecera: cruce RÁPIDO en el primer 10% (1.2s de 12s)
+   y luego fuera = cooldown. Más veloz que la columna (que cruza en 25%) a pedido:
+   el header es texto corto y el glint tiene que ser un flash, no un arrastre. */
 @keyframes cabBrillo {
   0% {
     transform: translateX(-100%);
   }
-  25% {
+  10% {
     transform: translateX(100%);
   }
   100% {
@@ -2209,8 +2217,7 @@ onUnmounted(() => {
   #tvScreenRoot .tvFondo__marmol,
   #tvScreenRoot .tvFondo__luz,
   #tvScreenRoot .columnaDorica__brillo::after,
-  #tvScreenRoot .cabecera .cabTitulo::after,
-  #tvScreenRoot .cabecera .cabFormato::after {
+  #tvScreenRoot .cabecera .cabLine::after {
     animation: none;
   }
 }

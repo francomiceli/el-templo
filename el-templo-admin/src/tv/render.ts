@@ -183,6 +183,35 @@ function setText(el: HTMLElement, value: string): void {
   }
 }
 
+/** Un `<span class="cabLine">` con texto plano: la unidad de UNA línea de header. */
+function makeCabLine(text: string): HTMLElement {
+  const line = document.createElement('span');
+  line.className = 'cabLine';
+  line.textContent = text;
+  return line;
+}
+
+/**
+ * Pinta el título del bloque como UNA sola `.cabLine` (para que el brillo del
+ * header —::after sobre cada `.cabLine`— recorte al ancho del texto y respete el
+ * salto de línea). GUARD idempotente OBLIGATORIO: si el texto no cambió NO se
+ * recrea el nodo —recrearlo en cada tick reiniciaría la animación del barrido y
+ * nunca terminaría de cruzar.
+ */
+function paintCabTitulo(host: HTMLElement, text: string): void {
+  const first = host.firstElementChild;
+  if (
+    host.childElementCount === 1 &&
+    first instanceof HTMLElement &&
+    first.classList.contains('cabLine') &&
+    first.textContent === text
+  ) {
+    return;
+  }
+  clear(host);
+  host.appendChild(makeCabLine(text));
+}
+
 function setClass(el: HTMLElement, value: string): void {
   if (el.className !== value) {
     el.className = value;
@@ -251,23 +280,29 @@ function paintFormato(host: HTMLElement, raw: string): void {
     }
   }
   if (breakAt < 0) {
-    // Sin número no hay corte forzado: dejamos que envuelva por espacios, pero los
-    // guiones de nombres compuestos (Buy-in, Cash-out) NO deben partir la palabra.
-    // Cada token va en un span nowrap → "Buy-in /" en una línea y "Cash-out" en la otra.
+    // Sin número no hay corte forzado: una sola `.cabLine` con los tokens en spans
+    // nowrap adentro —los guiones de nombres compuestos (Buy-in, Cash-out) NO
+    // deben partir la palabra— que envuelve por espacios dentro de la línea. El
+    // brillo (::after de la cabLine) barre esa única línea.
+    const line = document.createElement('span');
+    line.className = 'cabLine';
     for (let i = 0; i < tokens.length; i++) {
       if (i > 0) {
-        host.appendChild(document.createTextNode(' '));
+        line.appendChild(document.createTextNode(' '));
       }
       const span = document.createElement('span');
       span.style.whiteSpace = 'nowrap';
       span.textContent = tokens[i];
-      host.appendChild(span);
+      line.appendChild(span);
     }
+    host.appendChild(line);
     return;
   }
-  host.appendChild(document.createTextNode(tokens.slice(0, breakAt).join(' ')));
+  // Con número: DOS líneas explícitas, cada una su propia `.cabLine` → el brillo
+  // recorta al ancho de cada línea y respeta el salto (el `<br>` las apila).
+  host.appendChild(makeCabLine(tokens.slice(0, breakAt).join(' ')));
   host.appendChild(document.createElement('br'));
-  host.appendChild(document.createTextNode(tokens.slice(breakAt).join(' ')));
+  host.appendChild(makeCabLine(tokens.slice(breakAt).join(' ')));
 }
 
 function paintGlyphText(host: HTMLElement, text: string): void {
@@ -754,7 +789,7 @@ export function renderState(payload: TvPollResponse): void {
   } else {
     n.titulo.className = 'cabTitulo';
     n.formato.className = 'cabFormato';
-    setText(n.titulo, nombre);
+    paintCabTitulo(n.titulo, nombre);
     paintFormato(n.formato, formato);
     n.movilidad.className = 'movBar';
     paintMovilidad(n.movilidad, c.mobilityLine);
