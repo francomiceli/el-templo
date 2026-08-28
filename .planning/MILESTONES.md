@@ -1,5 +1,25 @@
 # Milestones
 
+## v6.0 Tenancy — El Templo pasa a ser tenant #1 (Shipped: 2026-08-26)
+
+**Phases:** 166-178 (incl. 174.1/175.1) — 178 planes, 397 tareas. Timeline: 2026-07-26 → 2026-08-23 (en master `da8a308f`; prod verificado 2026-08-26).
+**Requirements:** 24/24 Complete (FUND/COL/CON/ISO/ADO/MOD).
+
+**Key accomplishments:**
+
+1. **Fundación + columnas:** `tenants`/`tenant_settings` + `tenant_id NOT NULL DEFAULT 1` con FK en las 87 tablas gym-owned (migs 0190-0196), backfill `=1` verificado por cadena de FK con **0 discrepancias en staging Y prod** (`db:verify-tenant` como gate de CI).
+2. **Enforcement en 5 capas:** scope server-side (403 `TENANT_SUSPENDED`), helpers `tenantWhere`/`tenantValues` + `TenantContext` para crons/webhooks/CLIs, sentinel de pool mysql2 (throw en test/dev para módulos strict, log en prod), lint CON-06 en CI con allowlist-ratchet decreciente (1.852 violaciones → 148 entradas), manifiesto de rutas fail-closed (ruta nueva sin clasificar = CI rojo — ya cobró 2 veces en la vida real).
+3. **Gate del milestone cumplido:** batería de aislamiento ISO-03 verde sobre el 100% de las rutas core tenant-scoped (test/tenancy 644/644) — **el onboarding del tenant 2 quedó técnicamente desbloqueado**.
+4. **Adopción con switch a strict** módulo a módulo (finance → members → subscriptions → scheduling → analytics → resto del core), cazando **~25 bugs reales cross-tenant** por el camino (los peores: dashboard de analytics "todas las sedes" mezclando gimnasios, `deriveCoveredUntilBatch` sin filtro, `qualifyFirstPayment` con UPDATE global).
+5. **Mecanismo de módulos** (fase 176): flags `module.<nombre>.enabled` + guard `requireModule` (404) + registry de hooks tipado (filter `pricing.adjust` bloqueante + event `streak.milestone` best-effort), 4 módulos Templo gateados, prendidos para tenant 1 y apagados por default para tenants nuevos (mig 0209).
+6. **Cero downtime, cero cambio visible para el staff:** migraciones incrementales staging-first (0190→0209), verificadores como gates permanentes, sentinel corriendo en prod en modo log (0 fallos internos, 0 hits strict).
+
+**Fases de producto que viajaron con la numeración del milestone:** 177 (paquete de clases) y 178 (bloque alternativo TV) shippeadas standalone. **179 (referidos partners/marcas) y 180 (freemium etapa 2) siguen EN VUELO y cierran fuera del milestone** (179 en `et-179` sin pushear con mig a renumerar; 180 en staging esperando UAT).
+
+**Known deferred items at close:** 83 (ver STATE.md § Deferred Items — mayormente UAT/verification gaps históricos de fases pre-v6.0, ya trackeados como pendientes de UAT).
+
+---
+
 ## v5.8 Sesiones de Prueba — automatización y self-service (Shipped: 2026-07-16)
 
 **Phases completed:** 3 phases, 13 plans, 28 tasks

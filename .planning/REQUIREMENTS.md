@@ -1,136 +1,154 @@
-# Requirements — v6.0 Tenancy — El Templo pasa a ser tenant #1
+# Requirements: El Templo — Milestone v6.1 Módulo Gimnasio
 
-Scope derivado del diseño SaaS validado y CERRADO (`.docs/saas-multitenancy/`): README
-(decisiones fases 1-2, validadas con Nacho 2026-07-02), doc 05 (inventario real de 89
-tablas @ `8ac9ba9f`, minas M1-M10), doc 06 (estrategia de migración en 4 tandas +
-`TenantContext` + fases T1-T6+; las 5 decisiones abiertas §8 resueltas 2026-07-26).
-Requirements confirmados en sesión 2026-07-26 (24, con MOD incluido).
+**Defined:** 2026-08-27
+**Core Value (v6.1):** El primer gimnasio que no es El Templo puede operar sobre la plataforma: el super-owner lo da de alta con un wizard, sus profes arman y asignan rutinas desde un catálogo curado, sus alumnos registran lo que realmente hicieron y ven su evolución, y el profe deja de planificar a ciegas. La brecha entre lo planificado y lo realizado — que hoy no existe en ningún lado — pasa a ser el dato central del módulo.
 
-**Decisiones ya tomadas (NO re-litigar en discuss/plan-phase):** `tenant_id`
-denormalizado en toda tabla gym-owned; enforcement en 5 capas (scope server-side +
-helpers por-método + sentinel de pool + lint CI + tests de aislamiento fail-closed);
-`tenant_id` jamás viaja en JWT ni payload; backfill `=1` (un solo tenant existente, la
-cadena de FK es verificación, no fuente); lista M8 de uniques queda global; supresión de
-unsubscribes por tenant; wellhub = core-integración (flag, NO ofertada por ahora);
-`labs_inquiries` = GLOBAL; referidos = CORE; `system_settings` no recibe tenant_id
-(deprecación gradual hacia `tenant_settings`).
+**Fuente:** `.docs/saas-multitenancy/brief-fran-modulo-gimnasio.md` (brief Nacho 2026-07-24 + addendum A1-A7 2026-07-26). Las decisiones ya tomadas del addendum (A1 módulo duro, A2 dos catálogos, A3 prior modelos separados, A4 categoría derivada, A5 desde-cero solo profe, A7 secuencia) NO se re-litigan; la fase de diseño resuelve lo abierto (7 definiciones + A6).
 
-**Constraint operativo:** staging-first estricto; migraciones incrementales compatibles
-con código viejo (nullable → backfill → NOT NULL), SQL commiteado junto al schema,
-reservar bloque de numeración al arrancar (verificar `_migrations` en ese momento);
-tests de integración para todo lo nuevo; sin downtime; cero cambio visible para el staff
-del Templo.
+## v1 Requirements
 
-**Gate del MILESTONE (no de una fase):** el tenant 2 no se onboardea hasta que los
-caminos críticos pasen la batería de aislamiento (ISO-03) en verde.
+### Diseño (DIS)
 
----
+- [x] **DIS-01**: Las 7 definiciones del brief están respondidas y documentadas antes de construir — modelo de datos Calistenia vs Gimnasio (bloqueante; prior A3: NO comparten), alcance global/local y promoción sin romper historial, comportamiento offline, estrategia de recálculo de récords, modelado de agrupaciones (superseries/circuitos), esquema e índices para la consulta "historial de este alumno en este ejercicio", y mapa de parámetros configurables en `tenant_settings`
+- [x] **DIS-02**: La superficie member-facing multi-tenant está decidida y documentada (dónde viven ejecución y registro; `el-templo-app` NO se transforma; puede adelantar la discusión del split de repos)
 
-## v6.0 Requirements
+### Plataforma super-owner (PLAT)
 
-### FUND — Fundación de tenants
+- [ ] **PLAT-01**: El super-owner tiene un rol de plataforma propio, autenticado y separado de los roles de tenant (owner/admin/coach)
+- [ ] **PLAT-02**: El super-owner puede crear un tenant con un wizard (identidad del gimnasio, info básica)
+- [ ] **PLAT-03**: El alta de tenant aprovisiona todo automáticamente: sede virtual propia (receta 07 §1.4), `tenant_settings` con defaults, módulos Templo OFF / Gimnasio ON
+- [ ] **PLAT-04**: El super-owner ve un panel de tenants con métricas por tenant (alumnos, clases, actividad)
+- [ ] **PLAT-05**: El super-owner puede suspender/archivar un tenant desde el panel (el enforcement 403 ya existe desde v6.0)
 
-- [x] **FUND-01**: Existen `tenants` + `tenant_settings` (schema validado README §5) con El Templo sembrado como tenant `id=1`, slug `el-templo`, status `active`
-- [x] **FUND-02**: `users` y `branches` (anclas) tienen `tenant_id NOT NULL` con FK a `tenants` e índice, backfilleado `=1`
-- [x] **FUND-03**: Todo request autenticado resuelve `scope.tenantId` server-side en `attachScope` (extensión de `attachCountryScope`) — nunca del JWT ni de un payload
-- [x] **FUND-04**: Un tenant `suspended`/`archived` recibe 403 en todo request scoped, enforced en la misma query que resuelve el scope
+### Catálogo de ejercicios (CAT)
 
-### COL — Columnas y backfill
+- [ ] **CAT-01**: Todos los gimnasios ven y usan el catálogo global de ejercicios (tablas nuevas — `exercises` del SPOM no se toca)
+- [ ] **CAT-02**: Un gimnasio puede crear ejercicios propios, visibles solo para él
+- [ ] **CAT-03**: Editar un ejercicio global genera automáticamente una copia local editable; el global nunca muta
+- [ ] **CAT-04**: La plataforma puede promover un ejercicio local a global sin romper registros históricos ni métricas del alumno
+- [ ] **CAT-05**: Los ejercicios se desactivan, no se borran: salen del buscador y de rutinas nuevas pero resuelven todo el historial
+- [ ] **CAT-06**: Las taxonomías cerradas del §2.3 (14 grupos musculares, 25 equipamientos, 9 patrones) se validan en la carga — ningún valor fuera de lista — y la categoría (7 valores, A4) es capa derivada por mapeo fijo, no campo editable
+- [ ] **CAT-07**: El buscador encuentra por nombre canónico y alias, y filtra por taxonomías
+- [ ] **CAT-08**: Catálogo inicial de 40-80 ejercicios publicados: generado con agentes contra base de prueba, los 9 patrones cubiertos, validación de duplicados/sinónimos, revisión humana Borrador→Publicado, backup + carga transaccional reversible
 
-- [x] **COL-01**: Las 85 tablas gym-owned restantes (46 CORE + 42 TEMPLO-MODULO del doc 05, menos anclas; `system_settings` y `labs_inquiries` excluidas por diseño) tienen `tenant_id NOT NULL` + FK, backfill `=1`
-- [x] **COL-02**: Script versionado de verificación recorre las cadenas de FK del inventario (incl. mapeo manual de las FKs lógicas M9) y reporta 0 discrepancias entre backfill y derivación
+### Plantillas y rutinas (RUT)
 
-### CON — Contratos de acceso
+- [ ] **RUT-01**: Existen plantillas globales de la plataforma y cada gimnasio/profe puede crear y guardar las suyas
+- [ ] **RUT-02**: La plantilla estructura día → ejercicio (orden, series objetivo, reps valor/rango, peso sugerido opcional, descanso, observaciones) y soporta superseries/circuitos como bloques simples
+- [ ] **RUT-03**: El profe clona una plantilla, la ajusta y la asigna; la original no se toca
+- [ ] **RUT-04**: La rutina asignada es una COPIA con fecha de inicio (y fin opcional) — editar la plantilla después jamás modifica lo ya asignado
+- [ ] **RUT-05**: Un alumno tiene una rutina activa por vez; las anteriores quedan en su historial consultable
+- [ ] **RUT-06**: Cuando el profe modifica una rutina en curso, el alumno ve el cambio como modificación con su fecha
+- [ ] **RUT-07**: La autogestión es un permiso por gimnasio (default OFF): apagado, el alumno sin rutina ve una invitación a hablar con un profe (nunca pantalla en blanco); prendido, se autoasigna plantillas del catálogo de su gimnasio, marcadas como autoasignadas
+- [ ] **RUT-08**: El profe puede crear una rutina desde cero eligiendo ejercicios del catálogo y guardarla como plantilla propia del gimnasio (solo profe en v1, A5)
 
-- [x] **CON-01**: Uniques globales convertidas a compuestas `(tenant_id, …)` según doc 06 §1-D (users.email/dni/referral_code, branches.code, cost_centers, promo_code, campaign_unsubscribes.email, template_key, day_modes, holidays, formats); lista M8 queda global (aprobada 2026-07-26)
-- [x] **CON-02**: Toda tabla gym-owned tiene índice con prefijo `tenant_id` (vía unique compuesta o `INDEX` explícito) en la misma migración
-- [x] **CON-03**: Helpers `tenantWhere`/`tenantValues` en `shared/tenant.ts`; todo INSERT sobre gym-owned toma `tenant_id` exclusivamente de scope/contexto server-side
-- [x] **CON-04**: `TenantContext` explícito para caminos sin request: crons iteran tenants activos, webhook Wellhub deriva tenant vía `branches.wellhub_gym_id`, scripts CLI lo exigen como argumento; `tv_pairings` pre-claim con exención anotada (M7)
-- [ ] **CON-05**: Sentinel de pool mysql2 detecta SQL sobre tabla gym-owned sin `tenant_id`: test/dev = throw para módulos migrados, prod = `log.error` + métrica; exenciones `/* tenant-safe: <motivo> */` respetadas y grepeables
-- [ ] **CON-06**: Lint estático en CI falla ante ` sql` ``/`.from()`sobre gym-owned sin`tenant_id` ni anotación (allowlist decreciente por módulo)
+### Ejecución y registro (REG)
 
-### ISO — Backstop de aislamiento
+- [ ] **REG-01**: Fricción mínima al cargar: valores del profe precargados, botón "hice lo planificado" que completa la serie de un toque, la serie siguiente hereda el peso, steppers en vez de teclado libre, y carga al final de la sesión permitida
+- [ ] **REG-02**: La sesión tiene estados Pendiente / En curso / Completada / Abandonada — completada SOLO por cierre manual del alumno; abandonada por timeout parametrizable (default 12h) conservando lo cargado sin sumar a la métrica
+- [ ] **REG-03**: El registro por serie captura según el tipo de carga: reps, peso, duración, distancia, y para peso corporal el lastre/asistencia; acepta cero y valores parciales; kg en v1 (libras previsto en el modelo)
+- [ ] **REG-04**: El alumno (o el profe) reemplaza un ejercicio por una de sus alternativas con un toque, y el registro guarda el ejercicio efectivamente realizado, no el planificado
+- [ ] **REG-05**: El alumno corrige sus registros hasta 24h después de finalizada la sesión (parametrizable); después queda solo-lectura salvo para el profe; toda edición/eliminación recalcula los récords
 
-- [ ] **ISO-01**: Manifiesto versionado (`test/tenant-manifest.ts`) clasifica el 100% de las rutas (`tenant-scoped`/`global`/`templo-module`); hook `onRoute` fail-closed: ruta nueva sin clasificar = test rojo
-- [ ] **ISO-02**: Fixtures de test siembran 2 tenants; helpers (`createStaffUser` y afines) soportan crear staff/socios por tenant
-- [x] **ISO-03**: Batería de aislamiento: cada ruta `tenant-scoped` de un módulo migrado, ejecutada como staff del tenant A, no expone ni escribe datos del tenant B
+### Valoración (VAL)
 
-### ADO — Adopción módulo a módulo
+- [ ] **VAL-01**: Al terminar cada ejercicio el alumno puede responder "¿Cómo te resultó?" (Fácil / Adecuado / Difícil) — opcional, saltearlo nunca bloquea la sesión
+- [ ] **VAL-02**: El alumno puede marcar molestia (Sí/No) indicando dónde y con comentario libre — opcional
 
-- [x] **ADO-01**: `finance` migrado al patrón completo (services reciben scope + `tenantWhere`/`tenantValues` + sentinel throw para sus tablas + aislamiento verde)
-- [ ] **ADO-02**: `members` ídem
-- [ ] **ADO-03**: `subscriptions` ídem, con la cadena de pricing (override → boarding pass → AURA → referral) intacta
-- [ ] **ADO-04**: `scheduling` ídem (schedules/bookings/attendance/schedule_exceptions)
-- [ ] **ADO-05**: `analytics` ídem
-- [ ] **ADO-06**: Resto del core ídem (campaigns, notifications, referrals, wellhub, feedback/improvement_proposals, auth/settings) — incluye supresión de unsubscribes POR TENANT (decisión Q5, mina M3)
-- [ ] **ADO-07**: Guarda de consistencia `user.tenant_id === branch.tenant_id` en los ~10 sitios de escritura de `branch_id` + `setMemberBranch()` + cron de recategorización (mina M10)
+### Evolución del alumno (EVO)
 
-### MOD — Mecanismo de módulos
+- [ ] **EVO-01**: El alumno ve su récord de peso por ejercicio con la fecha en que lo logró, recalculado ante todo alta/edición/baja de registro
+- [ ] **EVO-02**: Al abrir un ejercicio, el alumno ve qué hizo la última vez que lo entrenó
+- [ ] **EVO-03**: El alumno ve sus sesiones completadas del mes con el mes anterior al lado
 
-- [ ] **MOD-01**: Flags `module.<nombre>.enabled` en `tenant_settings` + guard `requireModule` (404) gatean las rutas de los 4 módulos Templo (templo-training/gamification/marketing/onboarding) — prendidos para tenant 1, apagados por default para tenants nuevos
-- [ ] **MOD-02**: Registry de hooks tipado con la superficie mínima validada (doc 04): filter `pricing.adjust` (bloqueante) + event `streak.milestone` (best-effort), composition root explícito
+### Panel del profesor (PROF)
 
----
+- [ ] **PROF-01**: El profe ve la lista de sus alumnos con rutina activa, última sesión registrada y señales destacadas
+- [ ] **PROF-02**: Las señales saltan a la vista sin buscarlas: molestia registrada (prioridad máxima), ejercicio Difícil ×N sesiones seguidas (default 3), Fácil repetido, alumno sin sesiones en N días (default 14) — umbrales configurables por gimnasio en `tenant_settings`
+- [ ] **PROF-03**: La ficha del alumno muestra rutina asignada, historial de sesiones, planificado vs realizado por ejercicio y valoraciones; el profe ajusta series/reps/pesos desde ahí
 
-## Future Requirements (deferred)
+### Onboarding tenant 2 (ONB)
 
-- Módulo Gimnasio completo (catálogo genérico global + plantillas + registro + panel del profe) — **milestone siguiente**, spec en `brief-fran-modulo-gimnasio.md` + addendum A1-A7
-- Superficie member-facing multi-tenant (dónde vive se decide en la fase de diseño del milestone Gimnasio; reabre el trigger del split de repos)
-- Onboarding real del tenant 2 (alta comercial, provisioning) — post batería verde
-- Contrato de tipos API↔frontends (matar el patrón "mirror a mano") — oportunidad natural durante la adopción, pero no es requirement de v6.0
-- Billing/plan comercial del SaaS en `tenants` (se agrega cuando exista modelo comercial)
-- Login/dominios/subdominios por tenant (diferida original; `tenants.slug` es agnóstico)
+- [ ] **ONB-01**: Un gimnasio real queda dado de alta con el wizard y operando el módulo Gimnasio en producción — la prueba de fuego del SaaS
 
-## Out of Scope (this milestone)
+## v2 Requirements
 
-- **Módulo Gimnasio** — milestone siguiente (secuencia decidida en addendum A7)
-- **App member multi-tenant y split de repos** — triggers intactos (README §6)
-- **Transformar SPOM o `el-templo-app`** — jamás se transforman (patrón "construir lo genérico nuevo")
-- **Uniques de módulos Templo** (`sessions.day_id` M5, `aura_config.source_type`, slugs blog/gladius) — reciben `tenant_id` como columna pero sus uniques quedan globales mientras esos módulos sean Templo-only (deuda consciente documentada)
-- **Migración de keys `system_settings` → `tenant_settings`** — coexistencia gradual, migra módulo a módulo cuando cada uno adopte el patrón (no big-bang en v6.0)
-- **Postgres/RLS** — MySQL se queda (decisión §4 README)
+### Catálogo y contenido
+
+- **CAT-V2-01**: Videos e imágenes por ejercicio (los campos quedan previstos vacíos en v1)
+- **CAT-V2-02**: Sugerencia automática de alternativa cuando el alumno marca que no puede hacer un ejercicio
+
+### Ejecución y evolución
+
+- **REG-V2-01**: Temporizador de descanso entre series con aviso
+- **VAL-V2-01**: Preferencia (me gusta / no me gusta) y sensación (muy bien / incómodo / dolor) en la valoración
+- **EVO-V2-01**: Volumen total, 1RM estimado, récords de repeticiones y de volumen, gráficos de evolución, feedback automático en texto
+- **RUT-V2-01**: Rutina desde cero para el alumno autogestionado
+- **RUT-V2-02**: Exportar la rutina a PDF
+
+## Out of Scope
+
+| Feature                                                     | Reason                                                                                                             |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Equipamiento configurado por gimnasio/sede                  | Explícitamente fuera por brief §2.3 — se etiqueta en el ejercicio; las alternativas manuales (§2.6) son la salida  |
+| 1RM estimado                                                | Decisión deliberada del brief §7 — número que se malinterpreta y termina en máximos sin supervisión                |
+| Libras                                                      | kg en v1; el modelo lo deja previsto                                                                               |
+| Transformación de SPOM / `el-templo-app`                    | Regla firme desde v6.0 — jamás se transforman; el módulo Gimnasio es frontera dura (A1)                            |
+| Toggle de consentimiento de privacidad                      | Decisión del brief §9 — aviso único en onboarding; profe ve lo de sus alumnos de su gimnasio, nada cruza gimnasios |
+| Renombres/navegación del doc original (Guía→Gimnasio, etc.) | Brief aparte según Nacho — no es parte de este milestone                                                           |
+| Split de repos                                              | Trigger intacto; la fase de diseño (DIS-02) puede adelantar la discusión pero ejecutarlo no entra en v6.1          |
 
 ## Traceability
 
-_Se completa cuando el roadmap asigne cada REQ-ID a una fase._
+| Requirement | Phase     | Status  |
+| ----------- | --------- | ------- |
+| DIS-01      | Phase 181 | Done    |
+| DIS-02      | Phase 181 | Done    |
+| PLAT-01     | Phase 182 | Pending |
+| PLAT-02     | Phase 182 | Pending |
+| PLAT-03     | Phase 182 | Pending |
+| PLAT-04     | Phase 183 | Pending |
+| PLAT-05     | Phase 183 | Pending |
+| CAT-01      | Phase 184 | Pending |
+| CAT-02      | Phase 184 | Pending |
+| CAT-06      | Phase 184 | Pending |
+| CAT-03      | Phase 185 | Pending |
+| CAT-04      | Phase 185 | Pending |
+| CAT-05      | Phase 185 | Pending |
+| CAT-07      | Phase 185 | Pending |
+| CAT-08      | Phase 186 | Pending |
+| RUT-01      | Phase 187 | Pending |
+| RUT-02      | Phase 187 | Pending |
+| RUT-08      | Phase 187 | Pending |
+| RUT-03      | Phase 188 | Pending |
+| RUT-04      | Phase 188 | Pending |
+| RUT-05      | Phase 188 | Pending |
+| RUT-06      | Phase 188 | Pending |
+| RUT-07      | Phase 188 | Pending |
+| REG-01      | Phase 189 | Pending |
+| REG-02      | Phase 189 | Pending |
+| REG-03      | Phase 189 | Pending |
+| REG-04      | Phase 189 | Pending |
+| REG-05      | Phase 190 | Pending |
+| VAL-01      | Phase 190 | Pending |
+| VAL-02      | Phase 190 | Pending |
+| EVO-01      | Phase 190 | Pending |
+| EVO-02      | Phase 190 | Pending |
+| EVO-03      | Phase 190 | Pending |
+| PROF-01     | Phase 191 | Pending |
+| PROF-02     | Phase 191 | Pending |
+| PROF-03     | Phase 191 | Pending |
+| ONB-01      | Phase 192 | Pending |
 
-| REQ-ID  | Fase      | Estado   |
-| ------- | --------- | -------- |
-| FUND-01 | Phase 166 | Complete |
-| FUND-02 | Phase 166 | Complete |
-| FUND-03 | Phase 166 | Complete |
-| FUND-04 | Phase 166 | Complete |
-| COL-01  | Phase 167 | Complete |
-| COL-02  | Phase 167 | Complete |
-| CON-01  | Phase 168 | Complete |
-| CON-02  | Phase 168 | Complete |
-| CON-03  | Phase 169 | Complete |
-| CON-04  | Phase 169 | Complete |
-| CON-05  | Phase 170 | Pending  |
-| CON-06  | Phase 170 | Pending  |
-| ISO-01  | Phase 171 | Pending  |
-| ISO-02  | Phase 171 | Pending  |
-| ISO-03  | Phase 172 | Complete |
-| ADO-01  | Phase 172 | Complete |
-| ADO-02  | Phase 173 | Pending  |
-| ADO-07  | Phase 173 | Pending  |
-| ADO-03  | Phase 174 | Pending  |
-| ADO-04  | Phase 174 | Pending  |
-| ADO-05  | Phase 175 | Pending  |
-| ADO-06  | Phase 175 | Pending  |
-| MOD-01  | Phase 176 | Pending  |
-| MOD-02  | Phase 176 | Pending  |
+**Coverage:**
 
-**Cobertura: 24/24 REQ-IDs mapeados a exactamente una fase (0 huérfanos, 0 duplicados).**
-(El encabezado decía "23" por error aritmético al confirmar; son 24 REQ-IDs — corregido 2026-07-26.)
+- v1 requirements: **37 total** (el conteo previo de "34" era erróneo — verificado por REQ-ID)
+- Mapped to phases: 37 ✓
+- Unmapped: 0
 
-**Notas de mapeo:**
+**Fases del milestone:** 181-192 (179-180 tomadas por fases en vuelo fuera del milestone). Migraciones reservan desde **0216**.
 
-- **ISO-03** (batería de aislamiento) se ancla en la **fase 172** (piloto `finance`), que es donde
-  la batería se construye y corre verde por primera vez; cada fase de adopción posterior
-  (173-175) la extiende a sus rutas como parte de su propio ADO-xx.
-- **ADO-07** (guarda `user.tenant_id === branch.tenant_id`) viaja con **`members`** (fase 173),
-  que es donde viven `setMemberBranch()` y los sitios de escritura de `branch_id`, incluido el
-  cron de recategorización multisucursal.
-- El **gate del milestone** (tenant 2 solo con la batería verde) NO es de ninguna fase: se evalúa
-  al cierre de la fase 175 / del milestone.
+---
+
+_Requirements defined: 2026-08-27_
+_Last updated: 2026-08-27 — trazabilidad completada al crear el ROADMAP de v6.1 (12 fases, 181-192); conteo de v1 corregido 34 → 37_

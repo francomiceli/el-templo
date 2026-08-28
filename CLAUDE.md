@@ -66,6 +66,13 @@ Monorepo with 3 apps:
 - El hilo principal queda para decisiones, ediciones, merges delicados y comunicación con el usuario.
 - Preguntas de referencia sobre la API/modelos de Anthropic → sesión aparte (el skill `claude-api` inyecta decenas de miles de tokens al contexto y quedan cargados el resto de la sesión).
 
+### Ejecución de fases GSD con modelo barato (validado en la fase 173, 2026-08)
+
+- **El modelo caro (fable/opus) planifica, discute y orquesta; los planes GSD detallados se EJECUTAN con `gsd-executor` en `model: sonnet`.** Con planes que traen must_haves, artefactos y verificación explícita, la calidad no cede: en la 173 (27 planes en cadena, ~460k tokens/plan) los ejecutores sonnet encontraron ~15 bugs reales que los planes no anticipaban, con mutation testing honesto.
+- El orquestador verifica después de CADA plan (worktree limpio + typecheck + lint), actualiza STATE y encadena el siguiente. Los ejecutores comparten worktree → ejecución SECUENCIAL, nunca paralela.
+- Reglas de prompt para ejecutores sonnet (aprendidas a golpes): tests SOLO en foreground con timeout amplio (PROHIBIDO `run_in_background` y loops de espera con `pgrep` — se matchean a sí mismos y quedan colgados); pasar las lecciones acumuladas de la fase en el prompt; prohibirles commitear docs en el checkout principal (igual a veces lo hacen: revisar el commit antes de conservarlo).
+- El detalle del método y las trampas: memoria `project_saas_multitenancy_fase173.md` y los SUMMARYs de la fase 173.
+
 ## Plan Mode Review
 
 When entering plan mode, review the plan thoroughly before making any code changes. For every issue or recommendation, explain the concrete tradeoffs, give an opinionated recommendation, and ask for user input before assuming a direction.
