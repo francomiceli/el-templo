@@ -108,7 +108,41 @@ Plans:
 3. El alta deja el tenant aprovisionado sin pasos manuales: sede virtual propia según receta 07 §1.4, `tenant_settings` con los defaults del milestone, módulos Templo OFF y `module.gimnasio.enabled` ON
 4. Un tenant creado con el wizard queda aislado desde el minuto cero: sus datos no aparecen en ninguna consulta de otro tenant y las baterías de aislamiento siguen verdes
 
-**Plans**: TBD
+**Plans**: 10 plans (7 olas)
+
+Plans:
+
+**Wave 1**
+
+- [ ] 182-01-PLAN.md — Schema `platform_users`/`platform_audit_log`, migración 0216, clasificación en `tenant-tables.ts` y variables de entorno de plataforma
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 182-02-PLAN.md — Auth de plataforma: segundo JWT con secreto y decorador propios, `POST /auth/login` + `GET /auth/me`, manifiesto y batería de cruce de tokens
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 182-03-PLAN.md — Rate limit del login de plataforma (checkpoint humano: instalar `@fastify/rate-limit` o limitador en memoria)
+- [ ] 182-04-PLAN.md — Resolución de tenant pre-login por `Origin`/`X-Tenant-Slug` (D-18), CORS con regex anclada y no-regresión de El Templo
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 182-05-PLAN.md — `provisionTenant()` transaccional, `POST /tenants` + `GET /tenants/slug-disponible`, auditoría y batería de alta
+- [ ] 182-06-PLAN.md — CLI de bootstrap del super-owner, runbook de infra en `deploy/` y enmienda D-18 en el doc 08 §H-3
+
+**Wave 5** _(blocked on Wave 4 completion)_
+
+- [ ] 182-07-PLAN.md — Batería `iso-04` de aislamiento de plataforma + caso de crons sobre un tenant recién aprovisionado
+- [ ] 182-08-PLAN.md — Admin: instancia axios `platformApi`, store `platformAuth`, guard propio, login y home de `/plataforma`
+
+**Wave 6** _(blocked on Wave 5 completion)_
+
+- [ ] 182-09-PLAN.md — Admin: wizard `q-stepper` de 5 pasos, contraseña del owner y pantalla final (checkpoint de verificación humana)
+
+**Wave 7** _(blocked on Wave 6 completion)_
+
+- [ ] 182-10-PLAN.md — Gates humanos: infra en staging y prod (DNS, cert DNS-01, vhost wildcard), bootstrap del super-owner, tenant `demo` staging→prod y UAT de no-regresión
+
 **UI hint**: yes
 
 ### Phase 183: Plataforma — panel de tenants

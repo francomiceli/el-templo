@@ -4,12 +4,12 @@ milestone: v6.1
 milestone_name: Módulo Gimnasio
 status: executing
 stopped_at: Phase 182 context gathered
-last_updated: "2026-08-28T17:12:31.241Z"
-last_activity: 2026-08-27 -- Phase 181 planning complete
+last_updated: "2026-08-28T19:33:29.186Z"
+last_activity: 2026-08-28 -- Phase 182 planning complete
 progress:
   total_phases: 12
   completed_phases: 1
-  total_plans: 6
+  total_plans: 16
   completed_plans: 6
   percent: 8
 ---
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (milestone v6.0 initialized 2026-07-26)
 Phase: 181 — Diseño del módulo Gimnasio (bloqueante) — Not started
 Plan: —
 Status: Ready to execute
-Last activity: 2026-08-27 -- Phase 181 planning complete
+Last activity: 2026-08-28 -- Phase 182 planning complete
 
 **Milestone v6.1 — Módulo Gimnasio.** Fases **181-192** (179-180 tomadas por fases en vuelo fuera del milestone; no se renumeran). Migraciones reservan desde **0216** (prod en 0215 tras el tren 179+180). Orden: 181 diseño bloqueante → 182/183 plataforma super-owner (wizard + panel) → 184/185/186 catálogo (modelo+taxonomías → ciclo de vida+buscador → carga inicial) → 187/188 plantillas y asignación → 189 ejecución y registro (el corazón) → 190 valoración/evolución/recálculo → 191 panel del profe → **192 onboarding del tenant 2 = cierre del milestone**. Regla dura transversal: **módulo duro A1** (tablas y rutas propias, cero imports desde/hacia el SPOM, `exercises` intacta), gateado por `module.gimnasio.enabled`, todo parámetro en `tenant_settings`, staging-first estricto.
 

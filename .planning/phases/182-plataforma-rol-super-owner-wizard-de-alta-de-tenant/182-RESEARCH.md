@@ -837,7 +837,7 @@ CREATE TABLE IF NOT EXISTS `platform_users` ( … );
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 > **RESUELTAS por el usuario el 2026-08-28 (ver `182-CONTEXT.md` §"Decisiones post-research", D-18 y D-11/D-17 enmendadas):**
 >
@@ -856,19 +856,19 @@ CREATE TABLE IF NOT EXISTS `platform_users` ( … );
   - **(C) No usar `Host`: el login de Kaia manda el slug en el body** y a partir de ahí todo se resuelve por `users.tenant_id` como hoy. Resuelve la deuda T-173-15 sin capa de host, pero **contradice H-3, que está firmado**.
 - **Recomendación:** planificar el código para (A) — `hostToSlug` con el patrón de un label bajo `PLATFORM_DOMAIN` sirve para (A) y (B) sin cambios — y **llevar la elección de topología al usuario antes de la sesión SSH de D-02**. El código y los tests de la fase no dependen de la respuesta; el runbook y el vhost sí.
 
-### 2. ¿D-11 justifica tocar el login de El Templo? (bloquea el alcance)
+### 2. ¿D-11 justifica tocar el login de El Templo? (bloquea el alcance) — RESUELTA (ver bloque arriba)
 
 - **Lo que sabemos:** no existe columna de cambio forzado (C-2); implementarlo es aditivo pero toca `users` y la respuesta de `POST /api/auth/login`.
 - **Lo que no sabemos:** si "no quiero tocar nada del templo" admite un cambio aditivo con test de no-regresión, o si es literal.
 - **Recomendación:** el planner **pregunta**; opción (A) de C-2 si el usuario acepta, opción (B) si no. No decidirlo en silencio.
 
-### 3. ¿El tenant `demo` va en la DB de prod compartida con staging?
+### 3. ¿El tenant `demo` va en la DB de prod compartida con staging? — RESUELTA (ver bloque arriba)
 
 - **Lo que sabemos:** memoria `reference_staging_db_same_host` — staging y prod **comparten host MySQL**. D-17 pone el demo en producción.
 - **Lo que no sabemos:** si el demo debe existir también en la base de staging (para probar el wizard sin ensuciar prod) o solo en prod.
 - **Recomendación:** crear el demo **primero en staging** (staging-first estricto) y, si se aprueba, repetir el alta en prod por el mismo wizard. Dos tenants distintos, dos slugs distintos si comparten base — verificar cuál base usa cada entorno antes de correr el alta.
 
-### 4. ¿Cuántas rutas expone `/api/platform/*` en esta fase?
+### 4. ¿Cuántas rutas expone `/api/platform/*` en esta fase? — RESUELTA (ver bloque arriba)
 
 - Afecta el `ENTRADAS_BASELINE` (389 → 389+N). Mínimo viable: `POST /api/platform/auth/login`, `GET /api/platform/auth/me`, `POST /api/platform/tenants`, y probablemente `GET /api/platform/tenants/slug-disponible` para el wizard. El planner fija N y actualiza el baseline en el mismo commit que registra las rutas.
 
