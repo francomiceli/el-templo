@@ -1,7 +1,7 @@
 /**
- * Sede data — 8 physical El Templo locations.
+ * Sede data — 9 physical El Templo locations.
  *
- * Grouped by city: Mar del Plata (7), Barcelona (1). Each sede carries the
+ * Grouped by city: Mar del Plata (8), Barcelona (1). Each sede carries the
  * WhatsApp number for its country (AR for Mar del Plata, ES for Barcelona)
  * until individual per-sede numbers are introduced.
  */
@@ -73,6 +73,20 @@ export const sedes: Sede[] = [
     whatsappUrl: WHATSAPP_URL_AR,
     lat: -38.004,
     lng: -57.548,
+  },
+  {
+    id: "alberti",
+    name: "Alberti",
+    address: "Alberti 2024",
+    city: "Mar del Plata",
+    mapsUrl: "https://maps.google.com/?q=Alberti+2024+Mar+del+Plata",
+    whatsappUrl: WHATSAPP_URL_AR,
+    badge: {
+      text: "Nueva",
+      variant: "special",
+    },
+    lat: -38.0019,
+    lng: -57.546,
   },
   {
     id: "mogotes",
