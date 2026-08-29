@@ -9,82 +9,72 @@
       <div class="placaFoto" aria-hidden="true"></div>
       <div :key="`bienvenida-${ciclo}`" class="contenido">
         <img class="parten parten--entra" :src="tvParthenonCharcoal" alt="El Templo" />
-        <div class="kicker kicker--dia aparece" :style="delay(0.5)">
-          INAUGURACIÓN · ALBERTI 2024
-        </div>
         <div class="titulo titulo--dia">
           <template v-for="(linea, i) in TITULO_BIENVENIDA" :key="i">
             <span
-              v-for="(palabra, j) in linea"
+              v-for="(palabra, j) in linea.palabras"
               :key="j"
               class="palabra prendida"
-              :style="delayPalabra(i, j)"
+              :class="{ remarcada: linea.remarcada }"
+              :style="delayPalabra(TITULO_BIENVENIDA, i, j)"
               >{{ palabra }}</span
             >
             <br v-if="i !== TITULO_BIENVENIDA.length - 1" />
           </template>
         </div>
-        <div class="bajada bajada--dia aparece" :style="delay(3.4)">
+        <div class="bajada bajada--dia aparece" :style="delay(3.6)">
           Hoy abrimos las puertas de nuestra nueva sede en
           <span class="acento--terracotta">Mar del Plata</span>.
+        </div>
+        <div class="descarga descarga--dia aparece" :style="delay(4.4)">
+          <div class="descarga__label">Descargá la app y reservá tu clase</div>
+          <div class="tiendas">
+            <div class="tienda">
+              <img class="tienda__badge" :src="tvBadgeGooglePlay" alt="Disponible en Google Play" />
+              <div class="qr__box"><img v-if="qrAndroid" :src="qrAndroid" alt="QR Google Play" /></div>
+            </div>
+            <div class="tienda">
+              <img class="tienda__badge" :src="tvBadgeAppStore" alt="Disponible en App Store" />
+              <div class="qr__box"><img v-if="qrIos" :src="qrIos" alt="QR App Store" /></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- ============ PLACA 2: NUEVA SEDE (charcoal) ============ -->
-    <div
-      class="placa"
-      :class="{ visible: placaActiva === 'encuentro' }"
-      aria-label="Nueva sede"
-    >
+    <div class="placa" :class="{ visible: placaActiva === 'encuentro' }" aria-label="Nueva sede">
       <div class="placaFoto placaFoto--noche" aria-hidden="true"></div>
       <div class="placaGlow" aria-hidden="true"></div>
       <div :key="`encuentro-${ciclo}`" class="contenido">
-        <img class="parten parten--chica parten--entra" :src="tvParthenonBlanco" alt="El Templo" />
-        <div class="kicker kicker--noche aparece" :style="delay(0.5)">
-          HOY · INAUGURACIÓN EN VIVO
-        </div>
+        <img class="parten parten--entra" :src="tvParthenonBlanco" alt="El Templo" />
         <div class="titulo titulo--noche">
-          <span
-            v-for="(palabra, j) in TITULO_ENCUENTRO"
-            :key="j"
-            class="palabra prendida"
-            :class="{ oro: palabra.oro }"
-            :style="delayPalabra(0, j)"
-            >{{ palabra.text }}</span
-          >
+          <template v-for="(linea, i) in TITULO_ENCUENTRO" :key="i">
+            <span
+              v-for="(palabra, j) in linea.palabras"
+              :key="j"
+              class="palabra prendida"
+              :class="{ remarcada: linea.remarcada }"
+              :style="delayPalabra(TITULO_ENCUENTRO, i, j)"
+              >{{ palabra }}</span
+            >
+            <br v-if="i !== TITULO_ENCUENTRO.length - 1" />
+          </template>
         </div>
-        <div class="bajada bajada--noche aparece" :style="delay(3)">
+        <div class="bajada bajada--noche aparece" :style="delay(4)">
           El Templo abre en <span class="acento--bronce">Alberti 2024</span>. Ya somos
           <span class="acento--bronce">seis</span> en Mar del Plata.
         </div>
-        <div class="fila aparece" :style="delay(3.8)">
-          <div class="mapaCol">
-            <div class="mapaWrap">
-              <img class="mapaImg" :src="tvMapaSedes" alt="Mapa de sedes de Mar del Plata" />
-              <!-- Pin de Alberti animado por encima del mapa horneado -->
-              <div class="pinNueva" :style="PIN_ALBERTI_POS">
-                <div class="pinNueva__label">ALBERTI · NUEVA</div>
-                <div class="pinNueva__dot"></div>
-              </div>
+        <div class="descarga descarga--noche aparece" :style="delay(4.8)">
+          <div class="descarga__label">Descargá la app y reservá tu clase</div>
+          <div class="tiendas">
+            <div class="tienda">
+              <img class="tienda__badge" :src="tvBadgeGooglePlay" alt="Disponible en Google Play" />
+              <div class="qr__box"><img v-if="qrAndroid" :src="qrAndroid" alt="QR Google Play" /></div>
             </div>
-            <div class="mapaCap">MAR DEL PLATA · 6 SEDES</div>
-          </div>
-          <div class="descarga">
-            <div class="descarga__label">Descargá la app<br />y reservá tu clase</div>
-            <div class="qrRow">
-              <div class="qr">
-                <div class="qr__box">
-                  <img v-if="qrAndroid" :src="qrAndroid" alt="QR Google Play" />
-                </div>
-                <div class="qr__cap">Android</div>
-              </div>
-              <div class="qr">
-                <div class="qr__box">
-                  <img v-if="qrIos" :src="qrIos" alt="QR App Store" />
-                </div>
-                <div class="qr__cap">iPhone</div>
-              </div>
+            <div class="tienda">
+              <img class="tienda__badge" :src="tvBadgeAppStore" alt="Disponible en App Store" />
+              <div class="qr__box"><img v-if="qrIos" :src="qrIos" alt="QR App Store" /></div>
             </div>
           </div>
         </div>
@@ -101,10 +91,9 @@
  * (TvScreenPage): variante diurna crema y nocturna charcoal, con el encendido
  * palabra-por-palabra de las planis.
  *
- * Autocontenida (sin CDN): fuentes embebidas desde pdf-assets, mapa de sedes
- * horneado como asset estático (tv-mapa-sedes.webp — tiles OSM oscurecidos,
- * 5 pines urbanos; el pin de Alberti se anima por encima con CSS), QRs de las
- * tiendas generados en runtime con la dep `qrcode`.
+ * Autocontenida (sin CDN): fuentes embebidas desde pdf-assets, badges oficiales
+ * de las tiendas como assets estáticos y QRs generados en runtime con la dep
+ * `qrcode`.
  */
 
 import { onBeforeUnmount, onMounted, ref } from 'vue';
@@ -113,7 +102,8 @@ import { createLogger } from 'src/utils/logger';
 import tvBarsOpen from 'src/assets/tv-bars-open.webp';
 import tvParthenonBlanco from 'src/assets/tv-parthenon-blanco.png';
 import tvParthenonCharcoal from 'src/assets/tv-parthenon-charcoal.png';
-import tvMapaSedes from 'src/assets/tv-mapa-sedes.webp';
+import tvBadgeAppStore from 'src/assets/tv-badge-appstore.png';
+import tvBadgeGooglePlay from 'src/assets/tv-badge-googleplay.png';
 import {
   CINZEL_REGULAR_BASE64,
   CINZEL_BOLD_BASE64,
@@ -127,32 +117,28 @@ const logger = createLogger('tv-inauguracion');
 // Contenido
 // ---------------------------------------------------------------------------
 
-/** Título de la placa 1, por líneas (para el <br/> y el stagger por palabra). */
-const TITULO_BIENVENIDA: string[][] = [
-  ['BIENVENIDOS'],
-  ['A', 'LA', 'SEXTA'],
+/** Título por líneas; `remarcada` pinta la línea con el color de acento. */
+interface LineaTitulo {
+  palabras: string[];
+  remarcada?: boolean;
+}
+
+const TITULO_BIENVENIDA: LineaTitulo[] = [
+  { palabras: ['BIENVENIDOS', 'A'] },
+  { palabras: ['LA', 'SEXTA', 'SEDE'], remarcada: true },
 ];
 
-/** Título de la placa 2; "NUEVA SEDE" va en bronce (mismo esquema segments/gold de quotes.ts). */
-const TITULO_ENCUENTRO: { text: string; oro?: boolean }[] = [
-  { text: 'SUMÁ' },
-  { text: 'UNA' },
-  { text: 'NUEVA', oro: true },
-  { text: 'SEDE', oro: true },
+const TITULO_ENCUENTRO: LineaTitulo[] = [
+  { palabras: ['EL', 'TEMPLO', 'SUMA'] },
+  { palabras: ['UNA', 'NUEVA', 'SEDE'], remarcada: true },
 ];
-
-/**
- * Posición del pin de Alberti sobre el mapa horneado, medida al hornear
- * (latLngToContainerPoint sobre el fitBounds real, zoom 14): (307, 170) de 520×460.
- */
-const PIN_ALBERTI_POS = { left: '59.0%', top: '37.0%' };
 
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.eltemplo.app';
 const APP_STORE_URL = 'https://apps.apple.com/app/el-templo-calistenia/id6761773726';
 
 /** Duración de cada placa antes de rotar (ms). */
-const DURACION_BIENVENIDA_MS = 18_000;
-const DURACION_ENCUENTRO_MS = 32_000;
+const DURACION_BIENVENIDA_MS = 20_000;
+const DURACION_ENCUENTRO_MS = 20_000;
 
 // ---------------------------------------------------------------------------
 // Rotación de placas: el :key con `ciclo` fuerza remount del contenido para
@@ -187,8 +173,12 @@ function delay(segundos: number): { animationDelay: string } {
 /** Encendido palabra-por-palabra: base + step, contando palabras de líneas previas. */
 const IGNITE_BASE_S = 0.9;
 const IGNITE_STEP_S = 0.45;
-function delayPalabra(linea: number, palabra: number): { animationDelay: string } {
-  const previas = TITULO_BIENVENIDA.slice(0, linea).reduce((n, l) => n + l.length, 0);
+function delayPalabra(
+  titulo: LineaTitulo[],
+  linea: number,
+  palabra: number,
+): { animationDelay: string } {
+  const previas = titulo.slice(0, linea).reduce((n, l) => n + l.palabras.length, 0);
   return { animationDelay: `${IGNITE_BASE_S + (previas + palabra) * IGNITE_STEP_S}s` };
 }
 
@@ -289,6 +279,9 @@ body.tv-inauguracion-active {
     0 0 5.5rem rgba(176, 141, 110, 0.3);
   --halo-oro: 0 0 1.5rem rgba(212, 168, 67, 0.45), 0 0 3.8rem rgba(212, 168, 67, 0.28),
     0 0.06em 0.5em rgba(0, 0, 0, 0.65);
+  /* Glow dorado sobre crema: mismo ámbar, sin la sombra oscura */
+  --halo-oro-dia: 0 0 1.3rem rgba(242, 236, 226, 0.98), 0 0 2.2rem rgba(212, 168, 67, 0.55),
+    0 0 4.5rem rgba(212, 168, 67, 0.35);
   --halo-noche: 0 0 1.2rem rgba(26, 23, 20, 0.9), 0 0 2.6rem rgba(212, 184, 150, 0.28);
 
   position: fixed;
@@ -362,15 +355,17 @@ body.tv-inauguracion-active {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 3vmin 4vmin;
+  /* Aire arriba/abajo para que el partenón nunca quede al ras del borde */
+  padding: 4rem 4vmin;
 }
 
 /* ============ Piezas comunes ============ */
 
 #tvInauguracionRoot .parten {
-  width: 8.5rem;
+  width: 12rem;
+  flex-shrink: 0;
   opacity: 0;
-  margin-bottom: 2.2rem;
+  margin-bottom: 2.4rem;
   filter: drop-shadow(0 0 1rem rgba(242, 236, 226, 0.95))
     drop-shadow(0 0 2.6rem rgba(242, 236, 226, 0.85));
 }
@@ -378,30 +373,8 @@ body.tv-inauguracion-active {
   filter: drop-shadow(0 0 1rem rgba(26, 23, 20, 0.95))
     drop-shadow(0 0 2.6rem rgba(26, 23, 20, 0.85));
 }
-#tvInauguracionRoot .parten--chica {
-  width: 6.4rem;
-  margin-bottom: 1.4rem;
-}
 #tvInauguracionRoot .parten--entra {
   animation: inaugEntra 1s ease 0.15s forwards;
-}
-
-#tvInauguracionRoot .kicker {
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.42em;
-  font-size: 2rem;
-  margin-bottom: 1.9rem;
-  opacity: 0;
-}
-#tvInauguracionRoot .kicker--dia {
-  color: var(--trans-terracotta);
-  text-shadow: var(--halo-crema);
-}
-#tvInauguracionRoot .kicker--noche {
-  font-size: 1.9rem;
-  color: var(--trans-bronce);
-  text-shadow: var(--halo-noche);
 }
 
 #tvInauguracionRoot .titulo {
@@ -409,18 +382,16 @@ body.tv-inauguracion-active {
   font-weight: 700;
   line-height: 1.08;
   letter-spacing: 0.05em;
+  font-size: 7rem;
+  margin-bottom: 2rem;
 }
 #tvInauguracionRoot .titulo--dia {
-  font-size: 8.2rem;
   color: var(--navy);
-  text-shadow: var(--halo-crema);
-  margin-bottom: 2.4rem;
+  text-shadow: var(--halo-oro-dia);
 }
 #tvInauguracionRoot .titulo--noche {
-  font-size: 6.6rem;
   color: var(--trans-crema);
   text-shadow: var(--halo-oro);
-  margin-bottom: 1.6rem;
 }
 #tvInauguracionRoot .titulo .palabra {
   white-space: nowrap;
@@ -430,7 +401,10 @@ body.tv-inauguracion-active {
 #tvInauguracionRoot .titulo .palabra + .palabra {
   margin-left: 0.28em;
 }
-#tvInauguracionRoot .titulo .palabra.oro {
+#tvInauguracionRoot .titulo--dia .palabra.remarcada {
+  color: var(--trans-terracotta);
+}
+#tvInauguracionRoot .titulo--noche .palabra.remarcada {
   color: var(--trans-bronce);
 }
 #tvInauguracionRoot .palabra.prendida {
@@ -441,19 +415,17 @@ body.tv-inauguracion-active {
   font-family: var(--nunito);
   line-height: 1.42;
   opacity: 0;
+  font-size: 2.9rem;
+  max-width: 44ch;
+  margin-bottom: 2.8rem;
 }
 #tvInauguracionRoot .bajada--dia {
-  font-size: 3.5rem;
   color: var(--navy);
   text-shadow: var(--halo-crema);
-  max-width: 46ch;
 }
 #tvInauguracionRoot .bajada--noche {
-  font-size: 2.9rem;
   color: var(--trans-crema);
   text-shadow: var(--halo-noche);
-  max-width: 40ch;
-  margin-bottom: 2.4rem;
 }
 #tvInauguracionRoot .acento--terracotta {
   color: var(--trans-terracotta);
@@ -468,122 +440,61 @@ body.tv-inauguracion-active {
   animation: inaugEntra 0.9s ease forwards;
 }
 
-/* ============ Placa 2: mapa + QRs ============ */
-
-#tvInauguracionRoot .fila {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3.4rem;
-  opacity: 0;
-}
-
-#tvInauguracionRoot .mapaCol {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.1rem;
-}
-#tvInauguracionRoot .mapaWrap {
-  position: relative;
-  width: 520px;
-  height: 460px;
-  border-radius: 1rem;
-  overflow: hidden;
-  border: 1px solid rgba(212, 184, 150, 0.3);
-  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.55);
-}
-#tvInauguracionRoot .mapaImg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-#tvInauguracionRoot .mapaCap {
-  font-family: var(--cinzel);
-  font-weight: 700;
-  font-size: 1.7rem;
-  letter-spacing: 0.16em;
-  color: var(--trans-bronce);
-  text-shadow: var(--halo-noche);
-}
-
-#tvInauguracionRoot .pinNueva {
-  position: absolute;
-  transform: translate(-50%, -50%);
-}
-#tvInauguracionRoot .pinNueva__dot {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--trans-ambar);
-  border: 2px solid #fff;
-  box-shadow: 0 0 0 6px rgba(212, 168, 67, 0.4);
-  animation: inaugPulso 1.8s ease-out infinite;
-}
-#tvInauguracionRoot .pinNueva__label {
-  position: absolute;
-  left: 50%;
-  top: -2rem;
-  transform: translateX(-50%);
-  font-family: var(--nunito);
-  font-weight: 700;
-  font-size: 1rem;
-  letter-spacing: 0.14em;
-  white-space: nowrap;
-  color: #fff;
-  text-transform: uppercase;
-  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.95);
-}
+/* ============ Descarga: badges oficiales + QR ============ */
 
 #tvInauguracionRoot .descarga {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.6rem;
+  gap: 1.4rem;
+  opacity: 0;
 }
 #tvInauguracionRoot .descarga__label {
   font-family: var(--nunito);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.24em;
-  font-size: 1.55rem;
+  font-size: 1.5rem;
+}
+#tvInauguracionRoot .descarga--dia .descarga__label {
+  color: var(--trans-terracotta);
+  text-shadow: var(--halo-crema);
+}
+#tvInauguracionRoot .descarga--noche .descarga__label {
   color: var(--trans-bronce);
   text-shadow: var(--halo-noche);
 }
-#tvInauguracionRoot .qrRow {
+#tvInauguracionRoot .tiendas {
   display: flex;
-  gap: 2.2rem;
+  gap: 3.2rem;
 }
-#tvInauguracionRoot .qr {
+#tvInauguracionRoot .tienda {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.85rem;
+  gap: 1rem;
+}
+#tvInauguracionRoot .tienda__badge {
+  display: block;
+  width: 232px;
+  height: auto;
+  border-radius: 0.55rem;
+  box-shadow: 0 0.4rem 1.4rem rgba(0, 0, 0, 0.35);
 }
 #tvInauguracionRoot .qr__box {
   background: #f2ede5;
-  padding: 0.7rem;
+  padding: 0.6rem;
   border-radius: 0.6rem;
-  box-shadow: 0 0.4rem 1.6rem rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0.4rem 1.6rem rgba(0, 0, 0, 0.45);
   line-height: 0;
   /* Reserva el espacio mientras el QR se genera */
-  width: 182px;
-  height: 182px;
-}
-#tvInauguracionRoot .qr__box img {
-  display: block;
   width: 168px;
   height: 168px;
 }
-#tvInauguracionRoot .qr__cap {
-  font-family: var(--nunito);
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  font-size: 1.25rem;
-  text-transform: uppercase;
-  color: var(--trans-crema);
-  text-shadow: var(--halo-noche);
+#tvInauguracionRoot .qr__box img {
+  display: block;
+  width: 148.8px;
+  height: 148.8px;
 }
 
 /* ============ Keyframes ============ */
@@ -606,14 +517,6 @@ body.tv-inauguracion-active {
   to {
     opacity: 1;
     transform: none;
-  }
-}
-@keyframes inaugPulso {
-  0% {
-    box-shadow: 0 0 0 0 rgba(212, 168, 67, 0.55);
-  }
-  100% {
-    box-shadow: 0 0 0 24px rgba(212, 168, 67, 0);
   }
 }
 </style>
