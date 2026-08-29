@@ -1,5 +1,8 @@
 <template>
   <div id="tvInauguracionRoot" :style="{ '--trans-foto': `url('${tvBarsOpen}')` }">
+   <!-- Escenario fijo 1920×1080 escalado al viewport: se ve igual en el TV y en
+        cualquier monitor (letterbox si el aspecto no es 16:9). -->
+   <div class="escenario" :style="{ transform: `translate(-50%, -50%) scale(${escala})` }">
     <!-- ============ PLACA 1: BIENVENIDA (crema) ============ -->
     <div
       class="placa placa--dia"
@@ -23,8 +26,7 @@
           </template>
         </div>
         <div class="bajada bajada--dia aparece" :style="delay(3.6)">
-          Hoy abrimos las puertas de nuestra nueva sede en
-          <span class="acento--terracotta">Mar del Plata</span>.
+          Ya somos <span class="acento--terracotta">seis</span> en Mar del Plata.
         </div>
         <div class="descarga descarga--dia aparece" :style="delay(4.4)">
           <div class="descarga__label">Descargá la app y reservá tu clase</div>
@@ -62,8 +64,7 @@
           </template>
         </div>
         <div class="bajada bajada--noche aparece" :style="delay(4)">
-          El Templo abre en <span class="acento--bronce">Alberti 2024</span>. Ya somos
-          <span class="acento--bronce">seis</span> en Mar del Plata.
+          Ya somos <span class="acento--bronce">seis</span> en Mar del Plata.
         </div>
         <div class="descarga descarga--noche aparece" :style="delay(4.8)">
           <div class="descarga__label">Descargá la app y reservá tu clase</div>
@@ -80,6 +81,7 @@
         </div>
       </div>
     </div>
+   </div>
   </div>
 </template>
 
@@ -148,6 +150,22 @@ const DURACION_ENCUENTRO_MS = 20_000;
 const placaActiva = ref<'bienvenida' | 'encuentro'>('bienvenida');
 const ciclo = ref(0);
 let rotacionTimer: ReturnType<typeof setTimeout> | null = null;
+
+// ---------------------------------------------------------------------------
+// Escala del escenario: la placa se diseña a 1920×1080 fijos y se escala al
+// viewport (min de ambos ejes), así se ve idéntica en el TV y en un monitor.
+// ---------------------------------------------------------------------------
+
+const ESCENARIO_ANCHO = 1920;
+const ESCENARIO_ALTO = 1080;
+const escala = ref(1);
+
+function recalcularEscala(): void {
+  escala.value = Math.min(
+    window.innerWidth / ESCENARIO_ANCHO,
+    window.innerHeight / ESCENARIO_ALTO,
+  );
+}
 
 function programarRotacion(): void {
   const esBienvenida = placaActiva.value === 'bienvenida';
@@ -243,12 +261,15 @@ const BODY_ACTIVE_CLASS = 'tv-inauguracion-active';
 onMounted(() => {
   installFonts();
   document.body.classList.add(BODY_ACTIVE_CLASS);
+  recalcularEscala();
+  window.addEventListener('resize', recalcularEscala);
   void generarQrs();
   programarRotacion();
 });
 
 onBeforeUnmount(() => {
   if (rotacionTimer !== null) clearTimeout(rotacionTimer);
+  window.removeEventListener('resize', recalcularEscala);
   document.body.classList.remove(BODY_ACTIVE_CLASS);
   removeFonts();
 });
@@ -289,6 +310,18 @@ body.tv-inauguracion-active {
   background: #17140f;
   font-family: var(--nunito);
   z-index: 3000;
+}
+
+/* ============ Escenario fijo 1920×1080, escalado por JS al viewport ============ */
+
+#tvInauguracionRoot .escenario {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: center center;
+  overflow: hidden;
 }
 
 /* ============ Placas (corte seco, como el TV) ============ */
@@ -382,8 +415,8 @@ body.tv-inauguracion-active {
   font-weight: 700;
   line-height: 1.08;
   letter-spacing: 0.05em;
-  font-size: 7rem;
-  margin-bottom: 2rem;
+  font-size: 6.8rem;
+  margin-bottom: 1.8rem;
 }
 #tvInauguracionRoot .titulo--dia {
   color: var(--navy);
@@ -417,7 +450,7 @@ body.tv-inauguracion-active {
   opacity: 0;
   font-size: 2.9rem;
   max-width: 44ch;
-  margin-bottom: 2.8rem;
+  margin-bottom: 2.2rem;
 }
 #tvInauguracionRoot .bajada--dia {
   color: var(--navy);
