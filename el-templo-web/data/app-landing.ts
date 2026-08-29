@@ -211,8 +211,8 @@ export const downloadContent: DownloadContent = {
 
 // --- Store links ---
 export const storeLinks = {
-  appStore: "#",
-  googlePlay: "#",
+  appStore: "https://apps.apple.com/app/el-templo-calistenia/id6761773726",
+  googlePlay: "https://play.google.com/store/apps/details?id=com.eltemplo.app",
 };
 
 // --- Page config ---
