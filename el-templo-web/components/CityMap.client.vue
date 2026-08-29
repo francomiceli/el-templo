@@ -2,9 +2,13 @@
 /**
  * CityMap — Client-only Leaflet map for expansion section.
  *
- * Renders a display-only tiled map with CartoDB Dark Matter tiles
- * and Terracotta-colored pins for each sede. All interactions disabled.
- * `.client.vue` suffix ensures no SSR rendering.
+ * Renders a display-only tiled map with OpenStreetMap tiles darkened via a
+ * CSS invert filter (charcoal look) and Terracotta-colored pins for each
+ * sede. All interactions disabled. `.client.vue` suffix ensures no SSR.
+ *
+ * NOTE: switched off CARTO basemaps — their free tiles now return an
+ * "API KEY REQUIRED" watermark. OSM needs no key. Attribution is kept
+ * (required by the OSM tile usage policy) but styled subtly.
  */
 
 import L from "leaflet";
@@ -25,7 +29,7 @@ function initMap() {
     center: props.config.center,
     zoom: props.config.zoom,
     zoomControl: false,
-    attributionControl: false,
+    attributionControl: true,
     dragging: false,
     scrollWheelZoom: false,
     doubleClickZoom: false,
@@ -34,13 +38,10 @@ function initMap() {
     keyboard: false,
   });
 
-  L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
-    {
-      subdomains: "abcd",
-      maxZoom: 19,
-    },
-  ).addTo(map);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap',
+  }).addTo(map);
 
   // Add pins
   for (const pin of props.config.pins) {
@@ -93,9 +94,11 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-/* Lighten CartoDB dark tiles for better contrast */
+/* Darken OSM (light) tiles into a charcoal basemap.
+   Only the tile pane is filtered, so the terracotta pins keep their color. */
 .city-map .leaflet-tile-pane {
-  filter: brightness(1.4) contrast(0.9);
+  filter: invert(0.94) hue-rotate(185deg) brightness(0.86) contrast(0.92)
+    grayscale(0.32) sepia(0.18);
 }
 
 /* Pin dot (Terracotta) */
@@ -139,8 +142,14 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Hide Leaflet's default attribution styling */
+/* OSM requires attribution — keep it, but subtle so it doesn't fight the design */
 .city-map .leaflet-control-attribution {
-  display: none;
+  background: rgba(26, 23, 20, 0.55);
+  color: rgba(242, 237, 229, 0.6);
+  font-size: 9px;
+  padding: 1px 5px;
+}
+.city-map .leaflet-control-attribution a {
+  color: rgba(242, 237, 229, 0.75);
 }
 </style>
