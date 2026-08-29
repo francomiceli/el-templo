@@ -50,6 +50,15 @@ const routes: RouteRecordRaw[] = [
     meta: { allowedRoles: TV_CONTROL_ROLES },
   },
   {
+    // Placa animada de inauguración de sede (Alberti 2024): fullscreen para el
+    // navegador del TV, mismo patrón que '/pantalla-tv' (top-level, sin layout
+    // del admin, mismos roles). Página autocontenida y estática — se puede
+    // retirar cuando pase la inauguración.
+    path: '/pantalla-inauguracion',
+    component: () => import('pages/TvInauguracionPage.vue'),
+    meta: { allowedRoles: TV_CONTROL_ROLES },
+  },
+  {
     path: '/',
     component: () => import('layouts/AdminLayout.vue'),
     children: [
