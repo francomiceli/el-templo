@@ -15,6 +15,7 @@
           outlined
           emit-value
           map-options
+          :popup-content-style="branchPopupStyle"
           :loading="branchesLoading"
           @update:model-value="onBranchChange"
         />
@@ -250,6 +251,7 @@
             outlined
             emit-value
             map-options
+            :popup-content-style="branchPopupStyle"
           >
             <template v-if="turnoActual === 'morning'" #append>
               <q-badge color="primary" label="turno actual" />
@@ -262,6 +264,7 @@
             outlined
             emit-value
             map-options
+            :popup-content-style="branchPopupStyle"
           >
             <template v-if="turnoActual === 'afternoon'" #append>
               <q-badge color="primary" label="turno actual" />
@@ -297,6 +300,7 @@
             outlined
             emit-value
             map-options
+            :popup-content-style="branchPopupStyle"
           />
         </q-card-section>
         <q-card-actions>
@@ -564,6 +568,13 @@ function saveDailySedes(s: DailySedes): void {
 const branchOptions = computed(() =>
   branches.value.filter((b) => !b.isVirtual).map((b) => ({ label: b.name, value: b.id }))
 );
+
+// El control del TV se opera a veces con el MANDO del televisor (no un mouse):
+// el popup del q-select con su max-height por default (~200px) hace scroll con
+// muchas sedes y el mando no puede scrollearlo, así que las sedes de abajo
+// quedaban inalcanzables. Con un max-height alto todas las sedes entran a la
+// vez (ya están todas en el DOM) y el mando navega opción por opción sin scroll.
+const branchPopupStyle = 'max-height: 80vh';
 
 /** Label de la sede seleccionada para el modal de advertencia (reactivo: se actualiza solo cuando cargan las sedes). */
 const selectedBranchLabel = computed(
