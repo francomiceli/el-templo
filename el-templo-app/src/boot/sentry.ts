@@ -42,7 +42,11 @@ export default boot(({ app, router }) => {
     dsn,
     environment: import.meta.env.VITE_APP_ENVIRONMENT || import.meta.env.MODE,
     integrations: [Sentry.browserTracingIntegration({ router })],
-    tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
+    // Solo usamos Sentry para ERRORES, no para performance/traces. La app de
+    // alumnos es la que más spans genera (cada navegación traza); al 0.2 la
+    // cuota mensual de spans se consumía en días. Se baja a una muestra fina
+    // (los errores son cuota aparte y no se ven afectados).
+    tracesSampleRate: import.meta.env.PROD ? 0.02 : 1.0,
     beforeSend(event) {
       if (shouldDropEvent(event)) return null
       return event

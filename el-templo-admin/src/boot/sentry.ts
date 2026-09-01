@@ -45,7 +45,10 @@ export default boot(({ app, router }) => {
     dsn,
     environment: import.meta.env.VITE_APP_ENVIRONMENT || import.meta.env.MODE,
     integrations: [Sentry.browserTracingIntegration({ router })],
-    tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
+    // Solo usamos Sentry para ERRORES, no para performance/traces. Se baja el
+    // muestreo de tracing para no quemar la cuota de spans (los errores son
+    // cuota aparte y no se ven afectados). Admin es bajo volumen (staff).
+    tracesSampleRate: import.meta.env.PROD ? 0.05 : 1.0,
     beforeSend(event) {
       if (shouldDropEvent(event)) return null;
       return event;
