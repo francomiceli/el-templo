@@ -125,6 +125,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import {
@@ -375,8 +376,18 @@ async function onConfirm(): Promise<void> {
     emit('paid');
     emit('update:modelValue', false);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error registrando pago', { error: message });
+    // El backend manda un `message` específico y accionable (p.ej. "No existe
+    // caja efectivo para la sucursal N", "Moneda inconsistente…"). Antes se
+    // mostraba y logueaba el `err.message` genérico de axios ("Request failed
+    // with status code 400"), inútil para el admin y ruido en Sentry.
+    const message = extractError(err, 'Error desconocido');
+    if (isExpectedClientError(err)) {
+      // 4xx = rechazo de negocio corregible por el usuario: NO es un error para
+      // Sentry, solo se avisa por consola.
+      log.warn('Pago rechazado por el backend', { error: message });
+    } else {
+      log.error('Error registrando pago', { error: message });
+    }
     $q.notify({ type: 'negative', message });
   } finally {
     submitting.value = false;
