@@ -197,11 +197,19 @@ function buildExerciseVolume(ex: PdfExercise): string {
   }
   // Seconds (ISO)
   if (ex.seconds) {
-    return ex.secondsMax ? `${ex.seconds}-${ex.secondsMax}"` : `${ex.seconds}"`;
+    // Rango valido solo si el techo supera al piso (ver reps abajo).
+    return ex.secondsMax && ex.secondsMax > ex.seconds
+      ? `${ex.seconds}-${ex.secondsMax}"`
+      : `${ex.seconds}"`;
   }
   // Reps
   if (ex.reps) {
-    return ex.repsMax ? `${ex.reps}-${ex.repsMax}` : `${ex.reps}`;
+    // repsMax es especifico de formatos de rango y puede quedar stale al
+    // cambiar de formato; solo mostrarlo si es un rango valido (repsMax > reps),
+    // de lo contrario se imprime "40-16" con 16<40 (bug reportado).
+    return ex.repsMax && ex.repsMax > ex.reps
+      ? `${ex.reps}-${ex.repsMax}`
+      : `${ex.reps}`;
   }
   return '';
 }

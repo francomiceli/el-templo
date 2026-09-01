@@ -904,3 +904,76 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     expect(payload.branch.utcOffsetMinutes).toBe(60);
   });
 });
+
+/**
+ * Regresión del "40-16": `reps_max` (y `seconds_max`) son campos específicos de
+ * formatos de rango que pueden quedar stale en la fila cuando el bloque cambia a
+ * un formato sin rango. El render (`prescriptionVolume`) solo debe mostrar el
+ * rango cuando es válido (techo > piso); un `reps_max <= reps` es basura y NO
+ * debe imprimirse (antes se veía "40-16" en el TV, con 16 < 40).
+ */
+describe("TvService.buildPollPayload — dose ignora rangos inválidos (stale)", () => {
+  async function seedNucleusPair() {
+    await seedSession({ level: "alfa", roles: ["INITIUM", "NUCLEUS"] });
+    await seedSession({ level: "delta", roles: ["INITIUM", "NUCLEUS"] });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "NUCLEUS",
+      level: "alfa",
+    });
+  }
+
+  async function patchAlfaMain(fields: {
+    reps: number;
+    repsMax?: number | null;
+    seconds?: number;
+    secondsMax?: number | null;
+  }) {
+    await app.db
+      .update(schema.sessionPrescriptions)
+      .set({
+        reps: fields.reps,
+        repsMax: fields.repsMax ?? null,
+        seconds: fields.seconds ?? 0,
+        secondsMax: fields.secondsMax ?? null,
+      })
+      .where(eq(schema.sessionPrescriptions.exerciseName, "NUCLEUS-alfa-0"));
+  }
+
+  async function alfaMainDose(): Promise<string> {
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+    return cls.columns[0].exercises[0].dose;
+  }
+
+  it("no muestra rango cuando reps_max quedó stale (<= reps): el bug 40-16", async () => {
+    await seedNucleusPair();
+    await patchAlfaMain({ reps: 40, repsMax: 16 });
+    expect(await alfaMainDose()).toBe("40");
+  });
+
+  it("tampoco muestra rango cuando reps_max == reps (rango degenerado)", async () => {
+    await seedNucleusPair();
+    await patchAlfaMain({ reps: 40, repsMax: 40 });
+    expect(await alfaMainDose()).toBe("40");
+  });
+
+  it("sigue mostrando el rango cuando es válido (reps_max > reps)", async () => {
+    await seedNucleusPair();
+    await patchAlfaMain({ reps: 40, repsMax: 45 });
+    expect(await alfaMainDose()).toBe("40-45");
+  });
+
+  it("no muestra rango cuando seconds_max quedó stale (<= seconds)", async () => {
+    await seedNucleusPair();
+    await patchAlfaMain({ reps: 0, seconds: 30, secondsMax: 20 });
+    expect(await alfaMainDose()).toBe('30"');
+  });
+
+  it("sigue mostrando el rango de segundos cuando es válido (seconds_max > seconds)", async () => {
+    await seedNucleusPair();
+    await patchAlfaMain({ reps: 0, seconds: 30, secondsMax: 45 });
+    expect(await alfaMainDose()).toBe('30-45"');
+  });
+});

@@ -394,6 +394,13 @@ export class ExerciseSwapService {
         rest: prescription.rest,
         notes: prescription.notes,
         difficulty: newExercise.dificultadLineal,
+        // El ejercicio nuevo recibe reps/seconds frescos; los campos de rango
+        // (reps_max/seconds_max) y la escalera (increment) del ejercicio viejo
+        // no le corresponden. Sin esto, un reps_max stale <= reps hacia que el
+        // TV/PDF mostrara "40-16" (ver prescriptionVolume en tv/service.ts).
+        repsMax: null,
+        secondsMax: null,
+        increment: null,
       })
       .where(eq(schema.sessionPrescriptions.id, oldPrescriptionId));
 

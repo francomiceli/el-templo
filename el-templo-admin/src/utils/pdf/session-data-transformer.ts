@@ -238,9 +238,15 @@ function formatInitiumExercise(ex: SessionExercise, formatName: string): string 
     const start = ex.reps || ex.seconds || 0;
     prescription = `${start}-${start + ex.increment}-${start + ex.increment * 2}-...`;
   } else if (ex.reps) {
-    prescription = ex.repsMax ? `${ex.reps}-${ex.repsMax}` : `${ex.reps}`;
+    // Solo es rango si el techo supera al piso; un repsMax <= reps es dato
+    // stale de un formato anterior (no mostrar "40-16" con 16<40).
+    prescription =
+      ex.repsMax && ex.repsMax > ex.reps ? `${ex.reps}-${ex.repsMax}` : `${ex.reps}`;
   } else if (ex.seconds) {
-    prescription = ex.secondsMax ? `${ex.seconds}-${ex.secondsMax}"` : `${ex.seconds}"`;
+    prescription =
+      ex.secondsMax && ex.secondsMax > ex.seconds
+        ? `${ex.seconds}-${ex.secondsMax}"`
+        : `${ex.seconds}"`;
   }
   return prescription ? `${name}  ·  ${prescription}` : name;
 }

@@ -137,16 +137,22 @@ function formatPrescriptionInline(exercise: Prescription): string {
 
   // For isometric exercises, show duration with ISO
   if (exercise.contraction === 'ISO' && exercise.seconds) {
-    const secsText = exercise.secondsMax
-      ? `${exercise.seconds}-${exercise.secondsMax}`
-      : `${exercise.seconds}`
+    // Rango valido solo si el techo supera al piso (secondsMax stale <= seconds).
+    const secsText =
+      exercise.secondsMax && exercise.secondsMax > exercise.seconds
+        ? `${exercise.seconds}-${exercise.secondsMax}`
+        : `${exercise.seconds}`
     return `${secsText}s ISO`
   }
 
   // For rep-based exercises, show count and contraction type
   const parts: string[] = []
   if (exercise.reps) {
-    const repsText = exercise.repsMax ? `${exercise.reps}-${exercise.repsMax}` : `${exercise.reps}`
+    // Solo rango si repsMax > reps; un repsMax <= reps es stale (no "40-16").
+    const repsText =
+      exercise.repsMax && exercise.repsMax > exercise.reps
+        ? `${exercise.reps}-${exercise.repsMax}`
+        : `${exercise.reps}`
     parts.push(repsText)
   }
   if (exercise.contraction) {

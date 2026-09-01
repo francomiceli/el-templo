@@ -26,9 +26,12 @@ export function formatDose(exercise: DoseFields): string {
       const inc = exercise.increment
       return `${start} - ${start + inc} - ${start + inc * 2} - ...`
     }
-    const repsText = exercise.repsMax
-      ? `${exercise.reps} \u00B7 ${exercise.repsMax}`
-      : `${exercise.reps}`
+    // Solo es un rango si el techo supera al piso; un repsMax <= reps es dato
+    // stale de un formato anterior (no mostrar "40 \u00B7 16" con 16<40).
+    const repsText =
+      exercise.repsMax && exercise.repsMax > exercise.reps
+        ? `${exercise.reps} \u00B7 ${exercise.repsMax}`
+        : `${exercise.reps}`
     return `${repsText} REPS`
   }
 
@@ -38,9 +41,10 @@ export function formatDose(exercise: DoseFields): string {
       const inc = exercise.increment
       return `${start} - ${start + inc} - ${start + inc * 2} - ...`
     }
-    const secsText = exercise.secondsMax
-      ? `${exercise.seconds} \u00B7 ${exercise.secondsMax}`
-      : `${exercise.seconds}`
+    const secsText =
+      exercise.secondsMax && exercise.secondsMax > exercise.seconds
+        ? `${exercise.seconds} \u00B7 ${exercise.secondsMax}`
+        : `${exercise.seconds}`
     return `${secsText} SEG`
   }
 
@@ -58,9 +62,10 @@ export function formatQuickDose(exercise: Prescription): string {
     if (exercise.increment) {
       return `${exercise.reps} - ${exercise.reps + exercise.increment} - ...`
     }
-    const repsText = exercise.repsMax
-      ? `${exercise.reps} \u00B7 ${exercise.repsMax}`
-      : `${exercise.reps}`
+    const repsText =
+      exercise.repsMax && exercise.repsMax > exercise.reps
+        ? `${exercise.reps} \u00B7 ${exercise.repsMax}`
+        : `${exercise.reps}`
     return `${repsText} REPS`
   }
 
@@ -68,9 +73,10 @@ export function formatQuickDose(exercise: Prescription): string {
     if (exercise.increment) {
       return `${exercise.seconds} - ${exercise.seconds + exercise.increment} - ...`
     }
-    const secsText = exercise.secondsMax
-      ? `${exercise.seconds} \u00B7 ${exercise.secondsMax}`
-      : `${exercise.seconds}`
+    const secsText =
+      exercise.secondsMax && exercise.secondsMax > exercise.seconds
+        ? `${exercise.seconds} \u00B7 ${exercise.secondsMax}`
+        : `${exercise.seconds}`
     return `${secsText} SEG`
   }
 

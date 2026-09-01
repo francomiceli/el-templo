@@ -498,6 +498,19 @@ export class AdminEditService {
       })
       .where(eq(schema.sessionBlocks.id, blockId));
 
+    // Un cambio de formato invalida los campos especificos del formato anterior
+    // (techo de rango AMRAP/pyramid en reps_max/seconds_max, escalera death-by
+    // en increment). Se limpian en TODAS las prescripciones del bloque, no solo
+    // en las que rematchean por exerciseId abajo: si una fila no rematchea (p.ej.
+    // buy-in/cash-out recorta ejercicios), antes conservaba el reps_max viejo y
+    // el TV/PDF terminaba mostrando "40-16" (16<40). Ver prescriptionVolume en
+    // tv/service.ts. `prescribeBlock` no produce estos campos, asi que dejarlos
+    // en null es consistente con el resto del flujo de cambio de formato.
+    await this.db
+      .update(schema.sessionPrescriptions)
+      .set({ repsMax: null, secondsMax: null, increment: null })
+      .where(eq(schema.sessionPrescriptions.blockId, blockId));
+
     const updates = currentPrescriptions.flatMap((current) => {
       const newP = newPrescriptions.find(
         (p) => p.exerciseId === current.exerciseId,
@@ -527,10 +540,6 @@ export class AdminEditService {
           seconds: buildCase((p) => p.seconds),
           rest: buildCase((p) => p.rest),
           notes: buildCase((p) => p.notes),
-          // Reset format-specific fields so stale data doesn't carry over
-          repsMax: null,
-          secondsMax: null,
-          increment: null,
         })
         .where(
           inArray(

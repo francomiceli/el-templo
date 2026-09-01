@@ -180,10 +180,20 @@ function prescriptionVolume(p: ClassDayPrescription): string {
     return `${start}-${start + p.increment}-${start + p.increment * 2}-...`;
   }
   if (p.seconds) {
-    return p.secondsMax ? `${p.seconds}-${p.secondsMax}"` : `${p.seconds}"`;
+    // Solo es un rango si el techo supera al piso (mismo criterio que reps).
+    return p.secondsMax && p.secondsMax > p.seconds
+      ? `${p.seconds}-${p.secondsMax}"`
+      : `${p.seconds}"`;
   }
   if (p.reps) {
-    return p.repsMax ? `${p.reps}-${p.repsMax}` : `${p.reps}`;
+    // `reps_max` es un campo especifico de formatos de rango (AMRAP/pyramid) que
+    // puede quedar pegado en la fila aunque el bloque cambie a un formato sin
+    // rango (dato stale — ver changeBlockFormat/swapExercise en admin). Solo se
+    // muestra si es un rango valido (repsMax > reps); si quedo <= reps es
+    // basura y mostrariamos algo como "40-16" (16<40), el bug reportado.
+    return p.repsMax && p.repsMax > p.reps
+      ? `${p.reps}-${p.repsMax}`
+      : `${p.reps}`;
   }
   return "";
 }
