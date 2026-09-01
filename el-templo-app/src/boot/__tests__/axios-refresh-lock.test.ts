@@ -189,4 +189,34 @@ describe('axios refresh lock (D-02, Req 9)', () => {
     expect(refreshCallCount).toBe(0)
     expect(onRedirect).toHaveBeenCalledTimes(1)
   })
+
+  it('un error de red (sin response) se traduce a castellano en el mensaje', async () => {
+    const onRedirect = vi.fn(async () => {})
+    const retryInstance = (async () => ({ data: {} })) as unknown as AxiosInstance
+    const handler = createAuthErrorHandler(retryInstance, onRedirect)
+
+    // Sin internet: axios deja message "Network Error", code ERR_NETWORK y SIN response.
+    const netErr = new Error('Network Error') as AxiosError
+    netErr.isAxiosError = true
+    netErr.code = 'ERR_NETWORK'
+
+    await expect(handler(netErr)).rejects.toBe(netErr)
+    expect(netErr.message).toBe('Error de red. Revisá tu conexión a internet.')
+    // No dispara refresh ni redirect: no es un 401.
+    expect(refreshCallCount).toBe(0)
+    expect(onRedirect).not.toHaveBeenCalled()
+  })
+
+  it('una request cancelada (ERR_CANCELED) NO se reescribe como error de red', async () => {
+    const onRedirect = vi.fn(async () => {})
+    const retryInstance = (async () => ({ data: {} })) as unknown as AxiosInstance
+    const handler = createAuthErrorHandler(retryInstance, onRedirect)
+
+    const canceled = new Error('canceled') as AxiosError
+    canceled.isAxiosError = true
+    canceled.code = 'ERR_CANCELED'
+
+    await expect(handler(canceled)).rejects.toBe(canceled)
+    expect(canceled.message).toBe('canceled')
+  })
 })

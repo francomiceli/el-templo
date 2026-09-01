@@ -138,6 +138,16 @@ api.interceptors.request.use(
  */
 export function createAuthErrorHandler(instance: AxiosInstance, onRedirect: () => Promise<void>) {
   return async (error: AxiosError): Promise<unknown> => {
+    // Sin respuesta del servidor = problema de red (sin internet, server caído
+    // o timeout): axios deja `message` en inglés ("Network Error", "timeout of
+    // …"). Se traduce acá, en el único choke-point de respuestas, para que TODO
+    // consumidor de `err.message` / extractError muestre castellano al alumno.
+    // Se excluyen las cancelaciones (ERR_CANCELED), que no son fallas de red y
+    // no se muestran al usuario.
+    if (!error.response && error.code !== 'ERR_CANCELED') {
+      error.message = 'Error de red. Revisá tu conexión a internet.'
+    }
+
     const config = error.config as InternalAxiosRequestConfig | undefined
     if (error.response?.status !== 401 || !config) {
       return Promise.reject(error)
