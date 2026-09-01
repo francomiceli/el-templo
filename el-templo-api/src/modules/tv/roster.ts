@@ -237,8 +237,18 @@ function findCanonicalBlock<TBlock extends RosterBlock>(
  * del bloque en la TV tiene que ser identica a la del PDF de planis.
  */
 export function blockTitle(role: string, block: RosterBlock): string {
-  if (role === "INITIUM" && block.customTitle) return block.customTitle;
   const label = ROLE_LABELS[block.role] ?? ROLE_LABELS[role] ?? role;
+  // Un INITIUM especial (juego: "200 QUEST!", "RAMP UP!") lleva su nombre en
+  // `customTitle`. Fase 100 lo devolvía SOLO — y en la TV PYROS desaparecía. El
+  // PDF, en cambio, SIEMPRE imprime "PYROS" grande + el nombre del juego debajo
+  // (session-pdf-builder.ts). Se alinea la TV al PDF: la etiqueta (PYROS) va en
+  // el título y el nombre del especial en la línea de formato — render.ts parte
+  // el string en " · " (título arriba, formato "del otro costado"). El nombre
+  // del juego ocupa el lugar del formato real (For Time, etc.), que es lo que
+  // el profe quiere ver destacado.
+  if (role === "INITIUM" && block.customTitle) {
+    return `${label} · ${block.customTitle}`;
+  }
   const format = formatNameWithParams(block.formatName, block.formatParams);
   return `${label} · ${format}`;
 }

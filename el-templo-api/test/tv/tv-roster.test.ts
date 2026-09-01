@@ -213,7 +213,7 @@ describe("TV roster — orden canonico de bloques", () => {
     ]);
   });
 
-  it("titula INITIUM como PYROS · FORMATO y respeta el customTitle de la fase 100", () => {
+  it("titula INITIUM como PYROS · FORMATO, y como PYROS · NOMBRE cuando es un especial (customTitle)", () => {
     const plain = regularDay([
       {
         memberLevel: "alfa",
@@ -224,13 +224,16 @@ describe("TV roster — orden canonico de bloques", () => {
     // `block()` de este fixture no fija formatName, así que sale el default "Standard".
     expect(buildRoster(plain)[0].title).toBe('PYROS · Standard 20"/10"');
 
+    // Un especial (juego) NO reemplaza a PYROS: la etiqueta va en el título y el
+    // nombre del juego en la línea de formato ("del otro costado"), igual que el
+    // PDF que siempre imprime PYROS + el nombre. render.ts parte en " · ".
     const games = regularDay([
       {
         memberLevel: "alfa",
         blocks: [block("INITIUM", { customTitle: "LA MANCHA CONGELADA" })],
       },
     ]);
-    expect(buildRoster(games)[0].title).toBe("LA MANCHA CONGELADA");
+    expect(buildRoster(games)[0].title).toBe("PYROS · LA MANCHA CONGELADA");
   });
 
   it("rotula DEUTEROS_1 / DEUTEROS_2 con numeracion romana y cae a formatName sin params", () => {
