@@ -5,8 +5,39 @@ import { FirebaseMessaging } from '@capacitor-firebase/messaging'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
+import { APP_SECTIONS, CONTACT_SALES_ROUTE, FALLBACK_ROUTE } from 'src/config/destinations'
 
 const log = createLogger('PushNotificationsBoot')
+
+/**
+ * Resuelve la ruta interna a la que navega el tap de una push, en el orden
+ * fijo de D-03/D-04 (nunca devuelve `undefined` ni una ruta vacía):
+ * 1. `destination === 'whatsapp_sales'` → /contacto-ventas (con ?text= si
+ *    vino `whatsappText`, que salta directo a WhatsApp, D-03).
+ * 2. `destination === 'app_section'` con `destinationSection` conocida →
+ *    la ruta curada de esa sección.
+ * 3. `route` (compat app vieja / fallback server-side, D-04).
+ * 4. `/mi-templo` — nunca un 404.
+ */
+export function resolveTapRoute(data: Record<string, string> | undefined): string {
+  if (!data) return FALLBACK_ROUTE
+
+  if (data.destination === 'whatsapp_sales') {
+    const text = data.whatsappText
+    return text ? `${CONTACT_SALES_ROUTE}?text=${encodeURIComponent(text)}` : CONTACT_SALES_ROUTE
+  }
+
+  if (data.destination === 'app_section' && data.destinationSection) {
+    const section = APP_SECTIONS.find((s) => s.key === data.destinationSection)
+    if (section) return section.route
+  }
+
+  if (typeof data.route === 'string' && data.route.trim() !== '') {
+    return data.route
+  }
+
+  return FALLBACK_ROUTE
+}
 
 /**
  * Platform strategy:
@@ -39,7 +70,11 @@ export default boot(async ({ router }) => {
     }
   }
 
-  function handleTapNavigation(route: string, notificationId: string | undefined) {
+  function handleTapNavigation(
+    data: Record<string, string> | undefined,
+    notificationId: string | undefined,
+  ) {
+    const route = resolveTapRoute(data)
     log.info('Notification tapped', { route, notificationId })
 
     // Report opened to backend (per D-32)
@@ -82,7 +117,7 @@ export default boot(async ({ router }) => {
 
     await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
       const data = action.notification.data as Record<string, string> | undefined
-      handleTapNavigation(data?.route || '/mi-templo', data?.notificationId)
+      handleTapNavigation(data, data?.notificationId)
     })
 
     const permResult = await PushNotifications.checkPermissions()
@@ -122,7 +157,7 @@ export default boot(async ({ router }) => {
 
     await FirebaseMessaging.addListener('notificationActionPerformed', (event) => {
       const data = event.notification.data as Record<string, string> | undefined
-      handleTapNavigation(data?.route || '/mi-templo', data?.notificationId)
+      handleTapNavigation(data, data?.notificationId)
     })
 
     const permResult = await FirebaseMessaging.checkPermissions()
