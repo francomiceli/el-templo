@@ -6,8 +6,8 @@
          copiados de
          el-templo-app/src/modules/progression/components/ImprovementCtaCard.vue).
      Solo lectura. El copy se interpola con `{{ }}` (Vue escapa por defecto) —
-     PROHIBIDO `v-html` acá (T-193-42): un aviso con HTML en el título nunca
-     debe ejecutarse en el admin. -->
+     PROHIBIDA la directiva de HTML crudo de Vue acá (T-193-42): un aviso con
+     HTML en el título nunca debe ejecutarse en el admin. -->
 <template>
   <div class="aviso-preview">
     <div class="aviso-preview__label">Vista previa</div>
