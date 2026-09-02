@@ -17,3 +17,5 @@ export {
   validateWhatsAppText,
   validateDestination,
 } from "./destinations";
+export type { SystemAvisoCode, SystemAvisoSeed } from "./system-avisos";
+export { SYSTEM_AVISO_CODES, SYSTEM_AVISOS, seedSystemAvisos } from "./system-avisos";
