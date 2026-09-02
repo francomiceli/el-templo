@@ -157,6 +157,39 @@
             </aside>
           </div>
         </div>
+
+        <!-- Placa de aviso de TV (fase 193, D-25/D-27/D-28): MISMA estructura
+             que la pantalla de cierre (foto+velo, glow estático, marco
+             frase|identidad) — es la ÚNICA de las tres pantallas de
+             transición con velo DINÁMICO: render.ts alterna
+             `pantalla pantalla--dia` (modo manual disparado desde la
+             flexibilidad inicial, o el reemplazo de esa cápsula) y `pantalla`
+             a secas (todo lo demás), con `setVisible`, igual que reposo y
+             cierre. Por eso lleva DOS logos superpuestos (uno por velo,
+             `.transLogo--dia`/`.transLogo--noche` más abajo) en vez de uno
+             fijo como los de arriba. Sin imagen propia del aviso (D-27: solo
+             texto) — reusa exactamente el fondo `--trans-foto` de las otras
+             dos. -->
+        <div class="pantalla" id="pantallaAviso">
+          <div class="transFoto" aria-hidden="true"></div>
+          <div class="transGlow" aria-hidden="true"></div>
+          <div class="transMarco">
+            <div class="transFrase">
+              <div class="avisoTitulo" id="avisoTitulo"></div>
+              <div class="avisoCuerpo" id="avisoCuerpo"></div>
+            </div>
+            <aside class="transIdentidad">
+              <img class="transLogo transLogo--noche" :src="tvParthenonBlanco" alt="El Templo" />
+              <img
+                class="transLogo transLogo--dia"
+                :src="tvParthenonCharcoal"
+                alt="El Templo"
+              />
+              <div class="relojXl" id="avisoReloj">--:--</div>
+              <div class="fechaXl" id="avisoFecha"></div>
+            </aside>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1785,6 +1818,56 @@ onUnmounted(() => {
   text-shadow:
     0 0 0.9rem rgba(26, 23, 20, 0.95),
     0 0 2.2rem rgba(26, 23, 20, 0.8);
+}
+
+/* Placa de aviso (fase 193, D-27): título en bronce (derivado de
+   `.cierreTitulo`, MISMO tamaño/peso/sombra, pero SIN `white-space: nowrap`
+   — el título de un aviso es texto libre del admin, no una etiqueta fija de
+   dos palabras, y tiene que poder envolver). Cuerpo en crema (derivado de
+   `.quote`, mismo tamaño/sombra) — se escribe con `textContent` plano
+   (render.ts `paintAviso`), sin spans `.palabra`: el aviso no rota ni se
+   enciende por palabra como la frase/cápsula, así que no hace falta el
+   mecanismo de encendido. */
+#tvScreenRoot .avisoTitulo {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 2.4rem;
+  line-height: 1.1;
+  color: var(--trans-bronce);
+  letter-spacing: 0.18em;
+  margin: 0 0 2rem;
+  text-shadow:
+    0 0 0.9rem rgba(26, 23, 20, 0.95),
+    0 0 2.2rem rgba(26, 23, 20, 0.8);
+}
+#tvScreenRoot .avisoCuerpo {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 3.85rem;
+  line-height: 1.5;
+  color: var(--trans-crema);
+  text-shadow: 0 0.06em 0.5em rgba(0, 0, 0, 0.6);
+}
+
+/* Los dos logos de la placa de aviso (ver comentario del template): la
+   pantalla de cierre y la de reposo tienen velo FIJO y por eso un solo logo
+   fijo alcanza; ésta cambia de velo en runtime (render.ts la alterna con
+   `pantalla--dia`/`pantalla` vía `setVisible`, igual que las otras dos), así
+   que el logo correcto se elige con el MISMO selector de clase, en CSS puro
+   — sin lógica nueva en render.ts. Sin halo extra por velo (a diferencia de
+   `#pantallaCierre .relojXl`/`.fechaXl` arriba): esta pantalla es la única
+   con dos velos posibles y una regla de halo por-id como esa colisionaría
+   con `.pantalla--dia .relojXl` (el id gana por especificidad aunque sea de
+   noche); el `.pantalla .relojXl`/`.fechaXl` base (crema, sin sombra extra)
+   ya es legible en las dos. */
+#tvScreenRoot #pantallaAviso .transLogo--dia {
+  display: none;
+}
+#tvScreenRoot #pantallaAviso.pantalla--dia .transLogo--dia {
+  display: block;
+}
+#tvScreenRoot #pantallaAviso.pantalla--dia .transLogo--noche {
+  display: none;
 }
 
 /* Frase: Cinzel crema, remates `.oro` en bronce. La sombra de legibilidad final
