@@ -146,9 +146,19 @@ const SYSTEM_ALLOWED_BASE: ReadonlySet<keyof UpdateAvisoInput> = new Set([
 const SYSTEM_ALLOWED_PLAN_EXPIRY: ReadonlySet<keyof UpdateAvisoInput> =
   new Set(["title", "body", "buttonText", "whatsappText", "destinationType", "destinationSection"]);
 
-/** D-08/D-09: `rating_prompt`/`improvement_prompt` — el set de `plan_expiry` + frecuencia editable. */
+/**
+ * D-08/D-09: `rating_prompt`/`improvement_prompt` — el set de `plan_expiry` +
+ * frecuencia editable + `status` (D-11: los avisos de sistema se pueden
+ * desactivar, salvo vencimiento). `prompt-service.ts` ya respeta
+ * `status !== 'active'` en esos escalones.
+ */
 const SYSTEM_ALLOWED_WITH_FREQUENCY: ReadonlySet<keyof UpdateAvisoInput> =
-  new Set([...SYSTEM_ALLOWED_PLAN_EXPIRY, "frequencyType", "frequencyDays"]);
+  new Set([
+    ...SYSTEM_ALLOWED_PLAN_EXPIRY,
+    "frequencyType",
+    "frequencyDays",
+    "status",
+  ]);
 
 function allowedFieldsForSystemAviso(
   code: string | null,

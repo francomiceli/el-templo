@@ -249,6 +249,29 @@ describe("communications/avisos-admin (COM-01/COM-02)", () => {
     expect(updated.title).toBe("Tu membresía vence pronto — editado");
   });
 
+  it("(4b) PUT status sobre rating_prompt -> 200 (D-11: se puede pausar); sobre plan_expiry -> 400 (D-10)", async () => {
+    const ratingId = await getSystemAvisoId(app, "rating_prompt");
+    const resPause = await putComo(`/admin/avisos/${ratingId}`, adminToken, {
+      status: "paused",
+    });
+    expect(resPause.statusCode, resPause.body).toBe(200);
+    expect((JSON.parse(resPause.body) as { status: string }).status).toBe(
+      "paused",
+    );
+
+    // Restaurar para no contaminar otros casos (el aviso de sistema es semilla).
+    const resResume = await putComo(`/admin/avisos/${ratingId}`, adminToken, {
+      status: "active",
+    });
+    expect(resResume.statusCode, resResume.body).toBe(200);
+
+    const planExpiryId = await getSystemAvisoId(app, "plan_expiry");
+    const resBad = await putComo(`/admin/avisos/${planExpiryId}`, adminToken, {
+      status: "paused",
+    });
+    expect(resBad.statusCode, resBad.body).toBe(400);
+  });
+
   it("(5) DELETE de un aviso de sistema -> 400 (D-11); de uno custom -> 200", async () => {
     const planExpiryId = await getSystemAvisoId(app, "plan_expiry");
     const resSystem = await deleteComo(`/admin/avisos/${planExpiryId}`, adminToken);
