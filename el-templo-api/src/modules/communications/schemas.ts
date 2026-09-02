@@ -277,3 +277,110 @@ export const successResponseSchema = {
     },
   },
 };
+
+// ── Member-facing (Fase 193, plan 05, D-06/D-07/D-11/D-15b/D-20) ───────────
+//
+// El `userId` SIEMPRE sale de `request.user` (mitigación IDOR, T-193-16) —
+// ninguno de estos 4 schemas declara `userId` en params/body/querystring.
+
+const EVENT_TYPE_ENUM = ["shown", "dismissed", "clicked"] as const;
+
+/** Forma de un aviso proyectado para el socio (`PromptAviso` de `prompt-service.ts`). */
+const promptAvisoResponseProperties = {
+  id: { type: "integer" },
+  title: { type: "string" },
+  body: { type: "string" },
+  buttonText: { type: "string" },
+  destination: {
+    type: "object",
+    properties: {
+      type: { type: "string", enum: DESTINATION_TYPE_ENUM },
+      section: { type: ["string", "null"] },
+      route: { type: "string" },
+      whatsappText: { type: ["string", "null"] },
+    },
+  },
+  whatsappNumber: { type: ["string", "null"] },
+};
+
+// ── GET /me/prompt ───────────────────────────────────────────────────────
+
+export const promptResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      prompt: {
+        type: ["object", "null"],
+        properties: {
+          kind: {
+            type: "string",
+            enum: ["plan_expiry", "aviso", "rating", "improvement"],
+          },
+          aviso: {
+            type: "object",
+            properties: promptAvisoResponseProperties,
+          },
+          // Solo kind: 'plan_expiry'.
+          daysRemaining: { type: "integer" },
+          // Solo kind: 'rating' — la clase que el socio va a puntuar (sin coach, D-A3).
+          pending: {
+            type: "object",
+            properties: {
+              sessionDate: { type: "string" },
+              branchId: { type: "integer" },
+              scheduleId: { type: "integer" },
+              activityName: { type: "string" },
+              dayOfWeek: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+// ── POST /me/avisos/:id/event ───────────────────────────────────────────
+
+export const recordEventSchema = {
+  body: {
+    type: "object",
+    required: ["type"],
+    properties: {
+      type: { type: "string", enum: EVENT_TYPE_ENUM },
+    },
+    additionalProperties: false,
+  },
+};
+
+export interface RecordEventBody {
+  type: "shown" | "dismissed" | "clicked";
+}
+
+// ── GET /me/tarjetas ─────────────────────────────────────────────────────
+
+export const tarjetasResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      tarjetas: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: promptAvisoResponseProperties,
+        },
+      },
+    },
+  },
+};
+
+// ── GET /me/config ───────────────────────────────────────────────────────
+
+export const memberConfigResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      salesWhatsappNumber: { type: ["string", "null"] },
+      defaultWhatsappText: { type: "string" },
+    },
+  },
+};

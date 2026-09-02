@@ -92,6 +92,19 @@
 //   ─────────────────────────
 //   TOTAL          389 → 396   (+7)
 //
+// 2026-09-02 — **400 rutas** (250 `tenant-scoped`): plan 193-05 (Fase 193,
+// Comunicaciones) agregó las 4 rutas member-facing bajo `/api/communications/me`
+// — "qué pop-up toca hoy" (D-07), registro de eventos (D-11), tarjetas del
+// carrusel (D-15b) y config del socio con el número de ventas (D-20). Todas
+// `tenant-scoped`; el `userId` sale SIEMPRE de `request.user.userId`, nunca de
+// params/body (T-193-16). La unidad ganada:
+//
+//   tenant-scoped  246 → 250   (+4, las rutas nuevas)
+//   templo-module  142 → 142   (sin cambio)
+//   global           8 →   8   (sin cambio)
+//   ─────────────────────────
+//   TOTAL          396 → 400   (+4)
+//
 // Ese reparto es el APROBADO en el checkpoint del plan 171-06 (Franco,
 // 2026-07-29). El volcado del plan 171-02 había propuesto 221 / 11 / 138; la
 // única diferencia son las 3 rutas de `labs-inquiries`, que pasaron de `global`
@@ -751,6 +764,16 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/communications/admin/avisos": { categoria: "tenant-scoped" },
   "PUT /api/communications/admin/avisos/:id": { categoria: "tenant-scoped" },
   "PUT /api/communications/admin/sales-number": { categoria: "tenant-scoped" },
+  // Fase 193 Plan 05 (COM-02/COM-03, D-06/D-07/D-11/D-15b/D-20): 4 rutas
+  // member-facing — "qué pop-up toca hoy", registro de eventos, tarjetas del
+  // carrusel y config del socio (número de ventas). El `userId` sale SIEMPRE
+  // de `request.user.userId` (T-193-16, mismo criterio que `/coverage`).
+  "GET /api/communications/me/prompt": { categoria: "tenant-scoped" },
+  "POST /api/communications/me/avisos/:id/event": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/communications/me/tarjetas": { categoria: "tenant-scoped" },
+  "GET /api/communications/me/config": { categoria: "tenant-scoped" },
 
   // ── /api/members/attendance ───────────────────────────────────────────────
   "GET /api/members/attendance/history": { categoria: "tenant-scoped" },

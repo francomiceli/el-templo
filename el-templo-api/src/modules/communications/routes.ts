@@ -12,11 +12,13 @@
  */
 import { FastifyPluginAsync } from "fastify";
 import { CommunicationsService } from "./service";
+import { PromptService } from "./prompt-service";
 import { ADMIN_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
 import { handleServiceError } from "../shared/error-handler";
-import { validateDestination } from "./destinations";
+import { validateDestination, DEFAULT_WHATSAPP_TEXT } from "./destinations";
+import { resolveSalesNumberForUser } from "./sales-number";
 import {
   listAvisosQuerySchema,
   createAvisoSchema,
@@ -29,13 +31,19 @@ import {
   clickersResponseSchema,
   salesNumberResponseSchema,
   successResponseSchema,
+  promptResponseSchema,
+  recordEventSchema,
+  tarjetasResponseSchema,
+  memberConfigResponseSchema,
   type CreateAvisoBody,
   type UpdateAvisoBody,
   type UpdateSalesNumberBody,
+  type RecordEventBody,
 } from "./schemas";
 
 export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new CommunicationsService(fastify.db, fastify.log);
+  const promptService = new PromptService(fastify.db, fastify.log);
 
   /** D-30: gate compartido por las 7 rutas — solo owner/admin. */
   function isAdmin(role: string): boolean {
@@ -315,6 +323,129 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
           fastify.log,
           "communications.setSalesNumbers",
         );
+      }
+    },
+  );
+
+  // =========================================================================
+  // Member-facing (Fase 193, plan 05, D-06/D-07/D-11/D-15b/D-20)
+  //
+  // Las 4 rutas de acá abajo NO son admin: cualquier socio autenticado puede
+  // pedir SU propio pop-up, reportar SUS eventos, ver SUS tarjetas y leer SU
+  // config. El `userId` sale SIEMPRE de `request.user.userId` (mitigación
+  // IDOR T-193-16, mismo criterio que `/coverage` — nunca por params/body).
+  // =========================================================================
+
+  // =========================================================================
+  // GET /me/prompt — "qué pop-up toca hoy" (D-07)
+  // =========================================================================
+
+  fastify.get(
+    "/me/prompt",
+    {
+      onRequest: [fastify.authenticate],
+      schema: { response: promptResponseSchema },
+    },
+    async (request, reply) => {
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "communications.resolvePrompt");
+
+      try {
+        const prompt = await promptService.resolvePrompt(
+          ctx,
+          request.user.userId,
+        );
+        return { prompt };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, fastify.log, "communications.resolvePrompt");
+      }
+    },
+  );
+
+  // =========================================================================
+  // POST /me/avisos/:id/event — registrar "mostrado"/"cerró"/"tocó el botón" (D-11)
+  // =========================================================================
+
+  fastify.post<{ Params: { id: number }; Body: RecordEventBody }>(
+    "/me/avisos/:id/event",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        ...avisoIdParamsSchema,
+        ...recordEventSchema,
+        response: successResponseSchema,
+      },
+    },
+    async (request, reply) => {
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "communications.recordEvent");
+
+      try {
+        await promptService.recordEvent(
+          ctx,
+          request.user.userId,
+          request.params.id,
+          request.body.type,
+        );
+        return { success: true };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, fastify.log, "communications.recordEvent");
+      }
+    },
+  );
+
+  // =========================================================================
+  // GET /me/tarjetas — tarjetas del carrusel de Mi Templo (D-15b)
+  // =========================================================================
+
+  fastify.get(
+    "/me/tarjetas",
+    {
+      onRequest: [fastify.authenticate],
+      schema: { response: tarjetasResponseSchema },
+    },
+    async (request, reply) => {
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "communications.listTarjetas");
+
+      try {
+        const tarjetas = await promptService.listTarjetas(
+          ctx,
+          request.user.userId,
+        );
+        return { tarjetas };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, fastify.log, "communications.listTarjetas");
+      }
+    },
+  );
+
+  // =========================================================================
+  // GET /me/config — número de WhatsApp de ventas por la sede del socio (D-20)
+  // =========================================================================
+
+  fastify.get(
+    "/me/config",
+    {
+      onRequest: [fastify.authenticate],
+      schema: { response: memberConfigResponseSchema },
+    },
+    async (request, reply) => {
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "communications.getMemberConfig");
+
+      try {
+        const { number } = await resolveSalesNumberForUser(
+          fastify.db,
+          ctx,
+          request.user.userId,
+        );
+        return {
+          salesWhatsappNumber: number,
+          defaultWhatsappText: DEFAULT_WHATSAPP_TEXT,
+        };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, fastify.log, "communications.getMemberConfig");
       }
     },
   );
