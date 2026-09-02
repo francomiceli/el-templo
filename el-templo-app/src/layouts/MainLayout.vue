@@ -152,12 +152,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
+import { useCommunicationsStore } from 'src/stores/useCommunicationsStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
@@ -171,6 +172,22 @@ const route = useRoute()
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const progressionStore = useProgressionStore()
+const communicationsStore = useCommunicationsStore()
+
+// Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
+// por defecto de WhatsApp una vez por sesión, mismo patrón `watch` +
+// `immediate: true` que los 4 diálogos globales de abajo (ver
+// PlanExpiryDialog.vue). MainLayout es el único punto montado siempre que hay
+// sesión activa, tanto en boot con token persistido como en login recién
+// hecho — cubre ambos caminos de hidratación del perfil sin duplicar lógica
+// en boot/auth.ts y useAuthStore.login()/register().
+watch(
+  () => authStore.isAuthenticated,
+  (isAuth) => {
+    if (isAuth) void communicationsStore.loadConfig()
+  },
+  { immediate: true },
+)
 
 const isDesktop = computed(() => $q.screen.width >= 768)
 const isMiTemplo = computed(() => route.path === '/mi-templo')
