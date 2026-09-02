@@ -339,6 +339,13 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         titleFemale: row.titleFemale,
         bodyFemale: row.bodyFemale,
         route: row.route,
+        // Fase 193 (D-01/D-02/D-05, deviation plan 08): el admin necesita el
+        // destino curado ACTUAL para pre-cargar el selector al editar — antes
+        // solo viajaba `route` (el fallback), que no alcanza para reconstruir
+        // `whatsappText` ni distinguir 'programas' de 'mi_plan' (misma ruta).
+        destinationType: row.destinationType,
+        destinationSection: row.destinationSection,
+        whatsappText: row.whatsappText,
         isEnabled: row.isEnabled,
         sentCount: row.sentCount,
         openedCount: row.openedCount,
@@ -475,6 +482,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         titleFemale: updated.titleFemale,
         bodyFemale: updated.bodyFemale,
         route: updated.route,
+        // Fase 193 (deviation plan 08, ver GET /admin/templates arriba).
+        destinationType: updated.destinationType,
+        destinationSection: updated.destinationSection,
+        whatsappText: updated.whatsappText,
         isEnabled: updated.isEnabled,
         sentCount: updated.sentCount,
         openedCount: updated.openedCount,

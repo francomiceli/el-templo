@@ -278,6 +278,10 @@ describe("Notifications — Destino común (Fase 193)", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.route).toBe("/reservas");
+      // Deviation (plan 08, Rule 2): el admin necesita el destino curado en
+      // la respuesta para re-pintar el selector tras guardar, sin recargar.
+      expect(body.destinationType).toBe("app_section");
+      expect(body.destinationSection).toBe("reservas");
 
       const row = await templateRow(templateId);
       expect(row.route).toBe("/reservas");
@@ -300,11 +304,40 @@ describe("Notifications — Destino común (Fase 193)", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.route).toBe("/mi-templo");
+      expect(body.destinationType).toBe("whatsapp_sales");
+      // whatsappText queda null (no vino uno propio); el default global
+      // (D-02) se resuelve más tarde, en `buildPushData` al armar la push
+      // real — no acá, donde el admin necesita ver "vacío" para saber que
+      // no hay override propio.
+      expect(body.whatsappText).toBeNull();
 
       const row = await templateRow(templateId);
       expect(row.route).toBe("/mi-templo");
       expect(row.destinationType).toBe("whatsapp_sales");
       expect(row.destinationSection).toBeNull();
+      expect(row.whatsappText).toBeNull();
+    });
+
+    it("GET /admin/templates devuelve destinationType/destinationSection/whatsappText por fila (deviation plan 08)", async () => {
+      const templateId = await firstTemplateId();
+      await app.inject({
+        method: "PUT",
+        url: `/api/notifications/admin/templates/${templateId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          destination: { type: "app_section", section: "referidos" },
+        },
+      });
+
+      const listRes = await app.inject({
+        method: "GET",
+        url: "/api/notifications/admin/templates",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const templates = JSON.parse(listRes.body).templates;
+      const row = templates.find((t: { id: number }) => t.id === templateId);
+      expect(row.destinationType).toBe("app_section");
+      expect(row.destinationSection).toBe("referidos");
       expect(row.whatsappText).toBeNull();
     });
 
