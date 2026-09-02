@@ -257,6 +257,7 @@ describe("TvService.clampState — el nivel nunca rompe el bloque (Pitfall 1)", 
     pausedAt: null,
     pausedAccumMs: 0,
     soundEnabled: false,
+    tvAvisoId: null,
   };
 
   it("un rol que ya no esta en el roster cae al primer bloque", async () => {
@@ -314,8 +315,10 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
 
     expect(payload.screen).toBe("idle");
     expect(payload.class).toBeNull();
+    expect(payload.aviso).toBeNull();
     // El reposo es indistinguible de "no hay clase": ni error, ni mensaje.
     expect(Object.keys(payload).sort()).toEqual([
+      "aviso",
       "branch",
       "class",
       "screen",

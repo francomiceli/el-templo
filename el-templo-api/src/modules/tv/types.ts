@@ -84,7 +84,7 @@ export type TvTimerStatus = "idle" | "running" | "paused";
  * internal errors). D-08: `closing` after the last block, until the coach ends
  * the class. `class` = the live block.
  */
-export type TvScreen = "idle" | "class" | "closing";
+export type TvScreen = "idle" | "class" | "closing" | "aviso";
 
 /**
  * Regular weekday session vs. Saturday ROM session (D-23, Pitfall 2), plus
@@ -243,6 +243,20 @@ export interface TvPollResponse {
   branch: { name: string; utcOffsetMinutes: number; dateLabel: string };
   screen: TvScreen;
   class: TvClassPayload | null;
+  /**
+   * Fase 193 (D-25/D-28): texto del aviso de TV en pantalla completa, ya
+   * resuelto — el TV es una pagina estatica que no hace un segundo fetch, asi
+   * que el titulo y el cuerpo viajan aca directo. `null` salvo cuando
+   * `screen === "aviso"`.
+   */
+  aviso: TvAvisoPollPayload | null;
+}
+
+/** Texto minimo de un aviso de TV, tal como lo necesita el kiosco (D-27). */
+export interface TvAvisoPollPayload {
+  id: number;
+  title: string;
+  body: string;
 }
 
 // =============================================================================
@@ -270,6 +284,9 @@ export interface TvControlState {
   pausedAt: number | null;
   pausedAccumMs: number;
   soundEnabled: boolean;
+  /** Fase 193 (D-25): que aviso de TV esta mostrando la sede cuando
+   *  `screen === "aviso"`. `null` en cualquier otro caso. */
+  tvAvisoId: number | null;
 }
 
 /**
@@ -302,10 +319,15 @@ export interface TvControlContext {
  */
 export interface TvStateWrite {
   branchId: number;
-  screen?: TvScreen;
+  // "idle" NO se acepta (D-08): volver a reposo es `end-class`, no una
+  // pantalla. Fase 193: "aviso" se suma con `tvAvisoId` obligatorio en ese
+  // caso (D-25) — validado por el servicio, no por el tipo.
+  screen?: "class" | "closing" | "aviso";
   blockRole?: string;
   level?: string;
   exerciseIndex?: number;
   timer?: "start" | "pause" | "resume" | "reset";
   soundEnabled?: boolean;
+  /** Fase 193 (D-25): el aviso a mostrar cuando `screen === "aviso"`. */
+  tvAvisoId?: number | null;
 }

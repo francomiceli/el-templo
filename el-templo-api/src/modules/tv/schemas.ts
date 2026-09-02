@@ -160,7 +160,7 @@ export const tvControlScreenSchema = {
   response: {
     200: {
       type: "object",
-      required: ["serverNow", "branch", "screen", "class"],
+      required: ["serverNow", "branch", "screen", "class", "aviso"],
       properties: {
         // Sello del server en TODOS los polls (Pattern 6): el TV corrige su
         // reloj contra el, porque el suyo puede estar corrido.
@@ -175,9 +175,25 @@ export const tvControlScreenSchema = {
             dateLabel: { type: "string" },
           },
         },
-        screen: { type: "string", enum: ["idle", "class", "closing"] },
+        screen: { type: "string", enum: ["idle", "class", "closing", "aviso"] },
         class: {
           anyOf: [{ type: "null" }, tvClassPayloadSchema],
+        },
+        // Fase 193 (D-25/D-28): texto YA RESUELTO del aviso en pantalla
+        // completa. `null` salvo cuando `screen === "aviso"` — el kiosco es
+        // una pagina estatica sin segundo fetch (D-27).
+        aviso: {
+          anyOf: [
+            { type: "null" },
+            {
+              type: "object",
+              properties: {
+                id: { type: "integer" },
+                title: { type: "string" },
+                body: { type: "string" },
+              },
+            },
+          ],
         },
       },
     },
@@ -256,8 +272,13 @@ export const tvControlStateSchema = {
       exerciseIndex: { type: "integer", minimum: 0 },
       timer: { type: "string", enum: ["start", "pause", "resume", "reset"] },
       // "idle" NO se acepta: volver a reposo es `end-class`, no una pantalla.
-      screen: { type: "string", enum: ["class", "closing"] },
+      // Fase 193 (D-25): "aviso" se suma con `tvAvisoId`.
+      screen: { type: "string", enum: ["class", "closing", "aviso"] },
       soundEnabled: { type: "boolean" },
+      // Fase 193 (D-25): el aviso de TV a mostrar cuando `screen === "aviso"`.
+      // La validacion SEMANTICA (existe, es del tenant, esta activo) vive en
+      // el servicio, igual que `blockRole`/`level` mas arriba.
+      tvAvisoId: { type: ["integer", "null"] },
     },
   },
 };

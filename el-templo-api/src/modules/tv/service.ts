@@ -17,12 +17,12 @@
  *     `screen: "idle"` sin un solo campo de error. Un socio no puede distinguir
  *     "no hay clase ahora" de "el profe no aprobo la sesion".
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
-import { ConflictError, NotFoundError } from "../shared/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "../shared/errors";
 import { ROLE_LABELS } from "../shared/role-labels";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
@@ -41,6 +41,7 @@ import {
 import { getRouteLabel } from "./route-labels";
 import { toTimerSpec } from "./timer-spec";
 import type {
+  TvAvisoPollPayload,
   TvBlockSummary,
   TvClassPayload,
   TvControlBlock,
@@ -71,6 +72,9 @@ interface TvBranchRef {
   id: number;
   name: string;
   timezone: string;
+  // Fase 193 (T-193-38): resolver/validar un aviso de TV siempre filtra por
+  // este campo — nunca el de otro gimnasio.
+  tenantId: number;
 }
 
 /** Simbolos de nivel del UI-SPEC. */
@@ -240,6 +244,7 @@ export class TvService {
         pausedAt: schema.tvClassState.pausedAt,
         pausedAccumMs: schema.tvClassState.pausedAccumMs,
         soundEnabled: schema.tvClassState.soundEnabled,
+        tvAvisoId: schema.tvClassState.tvAvisoId,
       })
       .from(schema.tvClassState)
       .where(eq(schema.tvClassState.branchId, branchId));
@@ -248,7 +253,14 @@ export class TvService {
     if (row.classDate !== classDate) return null;
 
     return {
-      screen: row.screen === "closing" ? "closing" : "class",
+      // Fase 193 (D-25): ya no colapsa todo lo que no sea "closing" a "class"
+      // — "aviso" viaja tal cual para que el poll y el control lo reflejen.
+      screen:
+        row.screen === "closing"
+          ? "closing"
+          : row.screen === "aviso"
+            ? "aviso"
+            : "class",
       blockRole: row.blockRole,
       level: row.level,
       exerciseIndex: row.exerciseIndex,
@@ -258,6 +270,7 @@ export class TvService {
       pausedAt: row.pausedAt ? row.pausedAt.getTime() : null,
       pausedAccumMs: row.pausedAccumMs,
       soundEnabled: row.soundEnabled,
+      tvAvisoId: row.tvAvisoId,
     };
   }
 
@@ -305,6 +318,9 @@ export class TvService {
         id: schema.branches.id,
         name: schema.branches.name,
         timezone: schema.branches.timezone,
+        // Fase 193 (D-25/T-193-38): resolver el aviso de TV filtrado por el
+        // tenant de la sede — nunca el texto de un aviso de otro gimnasio.
+        tenantId: schema.branches.tenantId,
       })
       .from(schema.branches)
       .where(eq(schema.branches.id, branchId));
@@ -321,6 +337,7 @@ export class TvService {
         branch: { name: "", utcOffsetMinutes: 0, dateLabel: "" },
         screen: "idle",
         class: null,
+        aviso: null,
       };
     }
 
@@ -349,20 +366,70 @@ export class TvService {
 
     // D-09: sin sesion aprobada o sin clase iniciada -> reposo, SIN mensaje.
     if (!classDay.approved || !stored) {
-      return { ...base, screen: "idle", class: null };
+      return { ...base, screen: "idle", class: null, aviso: null };
     }
 
     const state = this.clampState(stored, classDay);
-    const screen: TvScreen = state.screen === "closing" ? "closing" : "class";
+    let screen: TvScreen =
+      state.screen === "closing"
+        ? "closing"
+        : state.screen === "aviso"
+          ? "aviso"
+          : "class";
+
+    // T-193-39: un aviso borrado/desactivado no puede dejar el TV clavado —
+    // se degrada a la pantalla de clase (o de cierre, si corresponde) en vez
+    // de fallar. `resolveAviso` ya filtra por el tenant de la sede (T-193-38).
+    let aviso: TvAvisoPollPayload | null = null;
+    if (screen === "aviso") {
+      aviso = await this.resolveAviso(state.tvAvisoId, branch.tenantId);
+      if (!aviso) {
+        screen = "class";
+      }
+    }
+
     if (screen !== "class") {
-      return { ...base, screen, class: null };
+      return { ...base, screen, class: null, aviso };
     }
 
     return {
       ...base,
       screen,
       class: this.buildClassPayload(classDay, state, now),
+      aviso: null,
     };
+  }
+
+  /**
+   * T-193-38/T-193-39: el texto del aviso de TV en pantalla completa,
+   * filtrado por el tenant de la sede — nunca el aviso de otro gimnasio. `null`
+   * si el id no existe, quedo inactivo o no es del tenant (degradacion, no
+   * error: un TV nunca se queda mostrando un aviso borrado).
+   */
+  private async resolveAviso(
+    tvAvisoId: number | null,
+    tenantId: number,
+  ): Promise<TvAvisoPollPayload | null> {
+    if (tvAvisoId === null) return null;
+
+    const [row] = await this.db
+      .select({
+        id: schema.tvAvisos.id,
+        title: schema.tvAvisos.title,
+        body: schema.tvAvisos.body,
+        isActive: schema.tvAvisos.isActive,
+      })
+      .from(schema.tvAvisos)
+      .where(
+        and(
+          eq(schema.tvAvisos.id, tvAvisoId),
+          eq(schema.tvAvisos.tenantId, tenantId),
+        ),
+      )
+      .limit(1);
+
+    if (!row || !row.isActive) return null;
+    return { id: row.id, title: row.title, body: row.body };
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -451,6 +518,7 @@ export class TvService {
         level: "alfa",
         exerciseIndex: 0,
         soundEnabled: false,
+        tvAvisoId: null,
         ...IDLE_TIMER,
       },
       classDay,
@@ -470,9 +538,46 @@ export class TvService {
       state = { ...state, soundEnabled: write.soundEnabled };
     }
     // D-08: la pantalla de cierre es un estado del profe, no del reloj. "idle"
-    // no se escribe: para volver a reposo esta `endClass`.
-    if (write.screen === "class" || write.screen === "closing") {
+    // no se escribe: para volver a reposo esta `endClass`. Fase 193 (D-25):
+    // "aviso" se suma al mismo criterio absoluto.
+    if (
+      write.screen === "class" ||
+      write.screen === "closing" ||
+      write.screen === "aviso"
+    ) {
       state = { ...state, screen: write.screen };
+    }
+
+    // Fase 193 (D-25/D-26/T-193-37): el aviso vive hasta que el profe avanza
+    // a otro bloque o vuelve a otra pantalla — nunca por un timer. Escribir
+    // `screen: "aviso"` valida y setea `tvAvisoId` (T-193-37/T-193-38); un
+    // cambio de bloque o de pantalla explícito a otra cosa lo saca del
+    // aviso. Cualquier otra escritura (nivel, ejercicio, timer, sonido, sin
+    // tocar bloque ni pantalla) NO lo toca.
+    if (write.screen === "aviso") {
+      const aviso = await this.resolveAviso(
+        write.tvAvisoId ?? null,
+        branch.tenantId,
+      );
+      if (!aviso) {
+        throw new BadRequestError(
+          "Ese aviso de TV no existe, no es de este gimnasio o está inactivo",
+        );
+      }
+      state = { ...state, tvAvisoId: aviso.id };
+    } else if (write.blockRole !== undefined || write.screen !== undefined) {
+      // Acá `write.screen` ya no puede ser "aviso" (lo excluyó el `if` de
+      // arriba): es "class"/"closing"/undefined, y ambos casos con valor
+      // sacan al estado del aviso (D-26).
+      state = { ...state, tvAvisoId: null };
+      // Un cambio de BLOQUE sin pantalla explícita (el control NO manda
+      // `screen` al tocar un bloque salvo que venga de cierre/inicio — D-26
+      // "no tocar los handlers de bloques") es el gesto que D-26 describe
+      // como "avanzar": si la pantalla seguía en "aviso", vuelve a "class"
+      // acá mismo para no dejar un "aviso" fantasma sin `tvAvisoId`.
+      if (write.screen === undefined && state.screen === "aviso") {
+        state = { ...state, screen: "class" };
+      }
     }
 
     const next = this.clampState(state, classDay);
@@ -638,6 +743,7 @@ export class TvService {
       pausedAt: state.pausedAt ? new Date(state.pausedAt) : null,
       pausedAccumMs: state.pausedAccumMs,
       soundEnabled: state.soundEnabled,
+      tvAvisoId: state.tvAvisoId,
       updatedBy: userId,
     };
 
@@ -663,6 +769,7 @@ export class TvService {
         id: schema.branches.id,
         name: schema.branches.name,
         timezone: schema.branches.timezone,
+        tenantId: schema.branches.tenantId,
       })
       .from(schema.branches)
       .where(eq(schema.branches.id, branchId))

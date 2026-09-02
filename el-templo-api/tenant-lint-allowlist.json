@@ -565,10 +565,6 @@
     },
     {
       "file": "el-templo-api/src/modules/tv/service.ts",
-      "table": "branches"
-    },
-    {
-      "file": "el-templo-api/src/modules/tv/service.ts",
       "table": "tv_class_state"
     },
     {
