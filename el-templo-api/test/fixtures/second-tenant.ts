@@ -399,6 +399,24 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM activities WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Fase 193 (COM-02/COM-03): `aviso_events` tiene FK a `avisos` Y a
+  // `users` (`aviso_events_user_id_users_id_fk`) — tiene que salir ANTES
+  // del `DELETE FROM users` de más abajo, igual que `audit_log`. `avisos` y
+  // `tv_avisos` solo tienen FK a `tenants`, así que alcanza con que salgan
+  // antes del `DELETE FROM tenants` final — sin este bloque, un test que
+  // llame `seedSystemAvisos`/cree avisos custom para el gimnasio 2 (plan
+  // 193-03 en adelante) deja filas que hacen reventar el `DELETE FROM
+  // tenants` de abajo con ER_ROW_IS_REFERENCED_2, la misma bomba FK latente
+  // que `cash_registers`/`tenant_settings` más abajo.
+  await app.db.execute(
+    sql`DELETE FROM aviso_events WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM avisos WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM tv_avisos WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM user_branches WHERE tenant_id = ${TENANT_DOS}`,
   );
