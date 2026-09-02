@@ -43,6 +43,20 @@
           <div v-if="showProgramCta" class="premium-carousel__slide">
             <ProgramCtaCard :segment="userStore.segment" />
           </div>
+          <!-- D-15b: tarjetas libres del admin, DESPUÉS de las fijas visibles. -->
+          <div
+            v-for="t in avisosStore.tarjetasLibres"
+            :key="t.id"
+            class="premium-carousel__slide"
+          >
+            <AvisoCard
+              :aviso-id="t.id"
+              :title="t.title"
+              :body="t.body"
+              :button-text="t.buttonText"
+              :destination="t.destination"
+            />
+          </div>
         </div>
       </div>
 
@@ -182,6 +196,8 @@ import PermissionBanner from '../components/PermissionBanner.vue'
 import ImprovementCtaCard from '../components/ImprovementCtaCard.vue'
 import ReferralCtaCard from '../components/ReferralCtaCard.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
+import AvisoCard from '../components/AvisoCard.vue'
+import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
@@ -191,6 +207,7 @@ const notificationStore = useNotificationStore()
 const router = useRouter()
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()
+const avisosStore = useAvisosStore()
 const { fetchStats, requestEvaluation, fetchWeeklySummary } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const { sessions: weekSessions, fetchWeekSessions } = useWeekData()
@@ -247,7 +264,12 @@ const programProgressCard = computed(() =>
 const showProgramCta = computed(() => !showProgramProgress.value)
 
 const premiumSlideCount = computed(() => {
-  return 2 + (showUpsellBadge.value ? 1 : 0) + (showProgramCta.value ? 1 : 0)
+  return (
+    2 +
+    (showUpsellBadge.value ? 1 : 0) +
+    (showProgramCta.value ? 1 : 0) +
+    avisosStore.tarjetasLibres.length
+  )
 })
 
 function onPremiumScroll() {
@@ -396,6 +418,10 @@ onMounted(async () => {
   fetchStats()
   fetchWeeklySummary()
   fetchTodayCheckIns()
+  // D-15b: tarjetas del carrusel (fijas con copy editable + libres del
+  // admin), sin bloquear el render — mismo criterio que fetchStats/
+  // fetchWeeklySummary de arriba.
+  void avisosStore.loadTarjetas()
 
   // Hydrate active enrollments so the program dropdown on ProgramProgressCard
   // appears on first load. loadSubscription is only called from /training,
