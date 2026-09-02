@@ -268,6 +268,7 @@ import {
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { formatPrice } from 'src/utils/format-price';
+import { whatsappUrl } from 'src/utils/whatsapp';
 import type { BranchOption } from 'src/types/member';
 import PartnerFormDialog from 'src/components/partners/PartnerFormDialog.vue';
 import PartnerQrDialog from 'src/components/partners/PartnerQrDialog.vue';
@@ -343,15 +344,6 @@ function motivoLabel(motivo: BenefitWithoutConversionRow['motivo']): string {
 
 function formatDateEs(iso: string): string {
   return new Date(iso).toLocaleDateString('es-AR');
-}
-
-// Phase 165-03 (D-06) + WR-01: link wa.me a partir del teléfono del socio.
-// Espeja TrialSessionsReport.vue (digits-only + prefijo AR para móviles de
-// 10 dígitos sin país).
-function whatsappUrl(phone: string): string {
-  const digits = phone.replace(/[^0-9]/g, '');
-  const intl = digits.length === 10 ? `549${digits}` : digits;
-  return `https://wa.me/${intl}`;
 }
 
 // =========================================================================

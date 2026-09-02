@@ -448,6 +448,7 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
+import { whatsappUrl } from 'src/utils/whatsapp';
 
 const props = defineProps<{
   branchId?: number | undefined;
@@ -724,17 +725,8 @@ function formatDateDdMmYyyy(iso: string): string {
 }
 
 // Phase 165-03 (D-06) + WR-01: link wa.me a partir del teléfono del lead.
-// Espeja SesionesDePruebaDialog.openWhatsapp (digits-only) pero agrega el
-// prefijo internacional que wa.me necesita para resolver. Los teléfonos de 165
-// se persisten preservando el país (WR-02): un número con más de 10 dígitos ya
-// trae código de país (ej. "5491122334455", "34612345678") y se usa tal cual;
-// uno de 10 dígitos exactos es un móvil AR legacy sin país y se le antepone
-// "549" (AR + 9 de móvil). Menos de 10: se usa lo que haya (no adivinamos país).
-function whatsappUrl(phone: string): string {
-  const digits = phone.replace(/[^0-9]/g, '');
-  const intl = digits.length === 10 ? `549${digits}` : digits;
-  return `https://wa.me/${intl}`;
-}
+// Fase 193 (D-18): la normalización vive en `src/utils/whatsapp.ts` (fuente
+// única, fin de las copias locales) — importada arriba.
 
 // wa.me con mensaje pre-cargado para iniciar el seguimiento de una SP de app.
 // Primer nombre (el "lead" viene "Nombre Apellido") + sede. Sin datos sensibles.
