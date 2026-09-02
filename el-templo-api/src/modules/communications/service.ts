@@ -378,7 +378,15 @@ export class CommunicationsService {
       throw new NotFoundError("Aviso no encontrado");
     }
 
-    const providedFields = Object.keys(input) as Array<keyof UpdateAvisoInput>;
+    // `!== undefined` es OBLIGATORIO acá: routes.ts arma el input con las
+    // 16 keys SIEMPRE presentes (`placement: request.body.placement`, etc.),
+    // así que un campo que el body NO mandó llega como `undefined` pero la
+    // KEY sigue estando — `Object.keys` la vería igual y un PUT que solo
+    // manda `title` rechazaría por "placement no editable" (bug real,
+    // encontrado por el test (4) de este plan).
+    const providedFields = (
+      Object.keys(input) as Array<keyof UpdateAvisoInput>
+    ).filter((field) => input[field] !== undefined);
 
     if (existing.kind === "system") {
       const allowed = allowedFieldsForSystemAviso(existing.code);
