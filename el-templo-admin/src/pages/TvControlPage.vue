@@ -717,13 +717,22 @@ const blockButtons = computed<{ role: string; label: string }[]>(() => {
  *  mostrarlo encendido confundía al profe). */
 function isActiveButton(role: string): boolean {
   if (!hasState.value || isClosingScreen.value || isAvisoScreen.value) return false;
-  const cur = currentBlockRole.value;
-  if (role === cur) return true;
-  return role === 'DEUTEROS_1' && (cur === 'DEUTEROS_1' || cur === 'DEUTEROS_2');
+  return buttonMatchesRole(role, currentBlockRole.value);
 }
 
-/** Índice del bloque en curso dentro de la botonera colapsada (para prev/next). */
-const buttonIndex = computed(() => blockButtons.value.findIndex((btn) => isActiveButton(btn.role)));
+/** Un botón de la tira "es" el rol en curso (DEUTEROS colapsa sus dos caminos). */
+function buttonMatchesRole(buttonRole: string, cur: string): boolean {
+  if (buttonRole === cur) return true;
+  return buttonRole === 'DEUTEROS_1' && (cur === 'DEUTEROS_1' || cur === 'DEUTEROS_2');
+}
+
+/** Índice del bloque en curso dentro de la botonera colapsada (para prev/next).
+ *  Se calcula por rol y no por botón encendido: durante el aviso (fase 193)
+ *  ningún botón figura activo pero el bloque persiste en el estado, y las
+ *  flechas tienen que partir de él, no de la posición 0. */
+const buttonIndex = computed(() =>
+  blockButtons.value.findIndex((btn) => buttonMatchesRole(btn.role, currentBlockRole.value))
+);
 const currentBlockTitle = computed(() => currentBlock.value?.title ?? 'Este bloque');
 /** INITIUM/PYROS es lista compartida: no hay nivel que elegir. */
 const levelsDisabled = computed(() => currentBlock.value?.shared === true);
@@ -1004,8 +1013,9 @@ function requestBlockChange(role: string): void {
   }
   const current = currentBlockRole.value;
   if (role === current) {
-    // Desde el cierre, tocar el bloque en curso vuelve a la clase.
-    if (isClosingScreen.value) {
+    // Desde el cierre o desde el aviso (fase 193), tocar el bloque en curso
+    // vuelve a la clase.
+    if (isClosingScreen.value || isAvisoScreen.value) {
       void send({ screen: 'class' });
     }
     return;
@@ -1024,7 +1034,7 @@ function requestBlockChange(role: string): void {
  *  la pantalla de clase (desde inicio, el write CREA el estado). */
 async function sendBlockChange(role: string): Promise<void> {
   const write: Omit<TvStateWrite, 'branchId'> = { blockRole: role };
-  if (isClosingScreen.value || !hasState.value) {
+  if (isClosingScreen.value || isAvisoScreen.value || !hasState.value) {
     write.screen = 'class';
   }
   await send(write);
