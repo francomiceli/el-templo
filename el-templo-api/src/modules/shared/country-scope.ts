@@ -295,8 +295,13 @@ export const attachCountryScope = attachScope;
  * estado legítimo de este punto del código (guard fail-closed de arriba) y
  * no una excepción de programación. `null` NO filtra por tenant — la query
  * sigue scopeada a `users.id = userId`, una sola fila.
+ *
+ * Fase 193 (COM-01, D-20): exportada para que
+ * `modules/communications/sales-number.ts` resuelva el país de la sede del
+ * socio sin duplicar esta query (DRY) — mismo criterio de import por path
+ * directo que el resto de este archivo (no está en el barrel).
  */
-async function resolveBranchCountry(
+export async function resolveBranchCountry(
   db: MySql2Database<typeof schema>,
   ctx: TenantContext | null,
   userId: number,
