@@ -29,8 +29,12 @@ const AR_TIMEZONE = "America/Argentina/Buenos_Aires";
  * Whole calendar days from today (AR wall-clock date) to a "YYYY-MM-DD" target.
  * Both endpoints are anchored at UTC midnight so DST transitions never shift the
  * integer day count. Returns a negative number when the target is in the past.
+ *
+ * Exportada (Fase 193, plan 05, D-06/D-10): `prompt-service.ts` la reusa para
+ * `daysRemaining` del pop-up de vencimiento — mismo criterio AR wall-clock que
+ * ya usa `/coverage` (144-03), sin re-implementar la cuenta de días.
  */
-function wholeDaysUntil(target: string): number {
+export function wholeDaysUntil(target: string): number {
   const today = todayInTz(AR_TIMEZONE);
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
   const diffMs =
