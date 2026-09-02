@@ -13,6 +13,7 @@ import { relations } from "drizzle-orm";
 import { branches } from "./branches";
 import { users } from "./users";
 import { tenantIdColumn } from "./tenant-column";
+import { tvAvisos } from "./communications";
 
 /**
  * Pantalla TV de sucursal — dispositivos, pairing y estado de clase.
@@ -160,6 +161,10 @@ export const tvClassState = mysqlTable(
     // Reemplaza a las dos columnas de rotacion automatica de deuteros de la
     // fase 164, dadas de baja en la migracion 0206 junto con esta columna.
     showAlternative: boolean("show_alternative").default(false).notNull(),
+    // Fase 193 (D-25/D-28): cuando `screen = 'aviso'` esta columna dice QUÉ
+    // aviso de TV se está mostrando. `screen` sigue siendo varchar(10) y
+    // `'aviso'` entra sin ALTER de tipo.
+    tvAvisoId: int("tv_aviso_id").references(() => tvAvisos.id),
     updatedBy: int("updated_by").references(() => users.id),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
