@@ -441,3 +441,106 @@ describe("número de ventas — GET/PUT /api/communications/admin/sales-number",
     expect(bodyTemplo.AR).not.toBe(bodyDos.AR);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /me/prompt — Fase 193 Plan 05 (D-06/D-07/D-13)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("qué pop-up toca hoy — GET /api/communications/me/prompt", () => {
+  const RUTA = "GET /api/communications/me/prompt";
+
+  it("aislamiento: el socio del gimnasio 2 NUNCA recibe un aviso de El Templo, aunque los dos tengan uno vigente hoy", async () => {
+    const socioTemplo = await createTestMember(app);
+    const socioDos = gym2.socios[0];
+
+    const avisoVigenteTemploId = await crearAvisoCustom(
+      CTX_TEMPLO,
+      `${MARCA_ISO03C} Aviso vigente de El Templo`,
+    );
+    const avisoVigenteDosId = await crearAvisoCustom(
+      { tenantId: gym2.tenantId },
+      `${MARCA_ISO03C} Aviso vigente del gimnasio 2`,
+    );
+
+    // El Templo ya trae `templeAvisoId` del `beforeEach` (otro popup custom
+    // activo, sortOrder 0 igual que el nuevo) — con "sort_order, id" como
+    // criterio de desempate, el que gana entre los DOS de El Templo es el de
+    // id más chico. Eso es esperado (no es un leak): la aserción de acá es
+    // que el ganador SIEMPRE sea uno de los avisos DEL PROPIO tenant, nunca
+    // el del otro.
+    const idsElTemplo = new Set([templeAvisoId, avisoVigenteTemploId]);
+    const idsGimnasioDos = new Set([gym2AvisoId, avisoVigenteDosId]);
+
+    const resTemplo = await getComo("/me/prompt", socioTemplo.token);
+    expect(resTemplo.statusCode, resTemplo.body).toBe(200);
+    const bodyTemplo = JSON.parse(resTemplo.body) as {
+      prompt: { aviso: { id: number } } | null;
+    };
+    expect(
+      bodyTemplo.prompt?.aviso.id,
+      porQueImportaElAislamiento(
+        RUTA,
+        `El Templo recibió el aviso ${bodyTemplo.prompt?.aviso.id}, que no es propio`,
+      ),
+    ).toBeDefined();
+    expect(idsElTemplo.has(bodyTemplo.prompt!.aviso.id)).toBe(true);
+    expect(idsGimnasioDos.has(bodyTemplo.prompt!.aviso.id)).toBe(false);
+
+    const resDos = await getComo("/me/prompt", socioDos.token);
+    expect(resDos.statusCode, resDos.body).toBe(200);
+    const bodyDos = JSON.parse(resDos.body) as {
+      prompt: { aviso: { id: number } } | null;
+    };
+    expect(
+      bodyDos.prompt?.aviso.id,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el socio del gimnasio 2 recibió el aviso ${bodyDos.prompt?.aviso.id}, que no es propio`,
+      ),
+    ).toBeDefined();
+    expect(idsGimnasioDos.has(bodyDos.prompt!.aviso.id)).toBe(true);
+    expect(idsElTemplo.has(bodyDos.prompt!.aviso.id)).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /me/avisos/:id/event — Fase 193 Plan 05 (D-11, T-193-16/T-193-17)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("registrar evento — POST /api/communications/me/avisos/:id/event", () => {
+  const RUTA = "POST /api/communications/me/avisos/:id/event";
+
+  it("aislamiento: el socio del gimnasio 2 no puede registrar un evento sobre un aviso de El Templo (404, NUNCA 403) y no escribe fila", async () => {
+    const socioDos = gym2.socios[0];
+    const res = await postComo(`/me/avisos/${templeAvisoId}/event`, socioDos.token, {
+      type: "shown",
+    });
+    expect(
+      res.statusCode,
+      porQueImportaElAislamiento(RUTA, `esperaba 404, recibió ${res.statusCode}`),
+    ).toBe(404);
+
+    const rows = await app.db
+      .select({ id: avisoEvents.id })
+      .from(avisoEvents)
+      .where(
+        and(
+          tenantWhere(avisoEvents, CTX_TEMPLO),
+          eq(avisoEvents.avisoId, templeAvisoId),
+          eq(avisoEvents.userId, socioDos.id),
+        ),
+      );
+    expect(
+      rows,
+      porQueImportaElAislamiento(RUTA, "se escribió una fila de evento pese al 404"),
+    ).toHaveLength(0);
+  });
+
+  it("control: el socio de El Templo SÍ puede registrar un evento sobre su propio aviso", async () => {
+    const socioTemplo = await createTestMember(app);
+    const res = await postComo(`/me/avisos/${templeAvisoId}/event`, socioTemplo.token, {
+      type: "shown",
+    });
+    expect(res.statusCode, res.body).toBe(200);
+  });
+});
