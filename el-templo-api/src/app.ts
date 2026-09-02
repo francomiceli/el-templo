@@ -50,7 +50,7 @@ import {
 } from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
 import { notificationRoutes } from "./modules/notifications";
-import { communicationsRoutes } from "./modules/communications";
+import { communicationsRoutes, tvAvisosRoutes } from "./modules/communications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
 import { referralAdminRoutes } from "./modules/referrals/admin-routes";
 import { referralPartnersAdminRoutes } from "./modules/referral-partners";
@@ -357,6 +357,17 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // envuelto en `moduleScope`. Solo las rutas de avisos de TV se gatean por
   // `templo-training` (ver `tvAvisosRoutes`).
   await app.register(communicationsRoutes, { prefix: "/api/communications" });
+
+  // Fase 193 Plan 07 (D-23): la pestaña Avisos en TV se gatea por
+  // `templo-training`, el mismo módulo que gatea el resto del TV en vivo
+  // (`spomPlugin`, `sessionsPlugin`, `checkInRoutes`). No existe un módulo
+  // `tv` propio (`MODULE_NAMES`). `tvControlRoutes` sigue registrada SIN
+  // `moduleScope` a propósito: cambiar su gate está fuera de alcance en esta
+  // fase (D-25: un módulo apagado no puede dejar a un TV de producción sin
+  // datos a mitad de clase).
+  await moduleScope(app, "templo-training", tvAvisosRoutes, {
+    prefix: "/api/communications/tv",
+  });
 
   // Campaign routes (Phase 119): public tracking (open/click/unsubscribe) +
   // admin campaign create/list/send/funnel/eligible-count.

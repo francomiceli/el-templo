@@ -105,6 +105,21 @@
 //   ─────────────────────────
 //   TOTAL          396 → 400   (+4)
 //
+// 2026-09-02 — **405 rutas** (250 `tenant-scoped`): plan 193-07 (Fase 193,
+// Comunicaciones) agregó las 5 rutas de avisos de TV bajo
+// `/api/communications/tv` — CRUD admin (D-24) + lectura del activo por sede
+// para el control del profe (D-29). Entidad APARTE de `avisos`. Única
+// superficie `templo-module` de esta fase (D-23): gateada por
+// `templo-training`, el mismo módulo que el resto del TV en vivo —
+// `tvControlRoutes` sigue SIN `moduleScope`, fuera de alcance. La unidad
+// ganada:
+//
+//   tenant-scoped  250 → 250   (sin cambio)
+//   templo-module  142 → 147   (+5, las rutas nuevas)
+//   global           8 →   8   (sin cambio)
+//   ─────────────────────────
+//   TOTAL          400 → 405   (+5)
+//
 // Ese reparto es el APROBADO en el checkpoint del plan 171-06 (Franco,
 // 2026-07-29). El volcado del plan 171-02 había propuesto 221 / 11 / 138; la
 // única diferencia son las 3 rutas de `labs-inquiries`, que pasaron de `global`
@@ -774,6 +789,34 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "GET /api/communications/me/tarjetas": { categoria: "tenant-scoped" },
   "GET /api/communications/me/config": { categoria: "tenant-scoped" },
+
+  // ── /api/communications/tv ────────────────────────────────────────────────
+  // Fase 193 Plan 07 (COM-04, D-24/D-29): CRUD admin de avisos de TV + lectura
+  // del activo por sede para el control del profe. Entidad APARTE de
+  // `avisos` (arriba). Única superficie de Comunicaciones gateada por módulo
+  // (D-23): `templo-training`, el mismo que gatea el resto del TV en vivo —
+  // `tvControlRoutes` (`/api/admin/tv/*`, arriba) queda sin `moduleScope` a
+  // propósito, fuera de alcance de este plan.
+  "DELETE /api/communications/tv/admin/tv-avisos/:id": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/communications/tv/admin/tv-avisos": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/communications/tv/control/tv-aviso-activo": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/communications/tv/admin/tv-avisos": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/communications/tv/admin/tv-avisos/:id": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
 
   // ── /api/members/attendance ───────────────────────────────────────────────
   "GET /api/members/attendance/history": { categoria: "tenant-scoped" },
