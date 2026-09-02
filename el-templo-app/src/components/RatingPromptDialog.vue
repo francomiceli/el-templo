@@ -74,22 +74,21 @@
 import { computed, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { Preferences } from '@capacitor/preferences'
-import { useAuthStore } from 'stores/useAuthStore'
-import { useRatingsApi, type PendingRating } from 'src/composables/useRatingsApi'
-import { proposalPromptWillShow } from 'src/composables/useImprovementProposalsApi'
+import { useAvisosStore, type PendingRatingPrompt } from 'src/stores/useAvisosStore'
+import { useRatingsApi } from 'src/composables/useRatingsApi'
 import { createLogger } from 'src/utils/logger'
 
 const log = createLogger('RatingPromptDialog')
 const $q = useQuasar()
-const authStore = useAuthStore()
-const { getPendingRating, submitRating } = useRatingsApi()
+const avisosStore = useAvisosStore()
+const { submitRating } = useRatingsApi()
 
 const show = ref(false)
 const submitting = ref(false)
 const stars = ref(0)
 const classStars = ref(0)
 const comment = ref('')
-const pending = ref<PendingRating | null>(null)
+const pending = ref<PendingRatingPrompt | null>(null)
 
 // Título class-framed (alrededor de la actividad), NUNCA datos del profe (D-A3).
 const title = computed(() => {
@@ -97,42 +96,35 @@ const title = computed(() => {
   return activity ? `¿Cómo estuvo tu clase de ${activity}?` : '¿Cómo estuvo tu clase?'
 })
 
-// One-shot (D-P2): key versionado por clase (sessionDate + scheduleId).
-function resolvedKey(p: PendingRating): string {
+// One-shot (D-P2): key versionado por clase (sessionDate + scheduleId). El
+// servidor decide QUE hoy toca calificación (D-06/D-07), pero NO trackea
+// "resuelta esta clase" — esa guarda sigue siendo local (fase 143 D-P2).
+function resolvedKey(p: PendingRatingPrompt): string {
   return `rating_resolved_v1_${p.sessionDate}_${p.scheduleId}`
 }
 
-async function markResolved(p: PendingRating): Promise<void> {
+async function markResolved(p: PendingRatingPrompt): Promise<void> {
   await Preferences.set({ key: resolvedKey(p), value: '1' })
 }
 
-async function shouldShow(): Promise<boolean> {
-  if (!authStore.isAuthenticated) return false
-
-  // Un solo popup automático por apertura: si el de propuestas de mejora va a
-  // mostrarse, la puntuación le cede el turno (la clase pendiente sigue
-  // vigente dentro de su ventana de 48h para la próxima apertura).
-  if (await proposalPromptWillShow()) return false
-
-  const result = await getPendingRating()
-  if (!result) return false
-
-  // Si ya fue resuelta en este dispositivo (saltear/enviar previo) → no re-pedir.
-  const { value: resolved } = await Preferences.get({ key: resolvedKey(result) })
-  if (resolved === '1') return false
-
-  pending.value = result
-  return true
+function currentAvisoId(): number | null {
+  const p = avisosStore.prompt
+  return p ? p.aviso.id : null
 }
 
 async function evaluate(): Promise<void> {
+  const current = avisosStore.prompt
+  if (!current || current.kind !== 'rating') return
+
   try {
-    if (await shouldShow()) {
-      stars.value = 0
-      classStars.value = 0
-      comment.value = ''
-      show.value = true
-    }
+    const { value: resolved } = await Preferences.get({ key: resolvedKey(current.pending) })
+    if (resolved === '1') return
+
+    pending.value = current.pending
+    stars.value = 0
+    classStars.value = 0
+    comment.value = ''
+    show.value = true
   } catch (err: unknown) {
     log.error('Failed to evaluate pending rating', {
       error: err instanceof Error ? err.message : String(err),
@@ -143,6 +135,8 @@ async function evaluate(): Promise<void> {
 async function onSkip(): Promise<void> {
   log.info('Rating prompt skipped')
   if (pending.value) await markResolved(pending.value)
+  const avisoId = currentAvisoId()
+  if (avisoId) void avisosStore.reportDismissed(avisoId)
   show.value = false
 }
 
@@ -159,6 +153,8 @@ async function onSubmit(): Promise<void> {
       ...(trimmed ? { comment: trimmed } : {}),
     })
     await markResolved(pending.value)
+    const avisoId = currentAvisoId()
+    if (avisoId) void avisosStore.reportClicked(avisoId)
     show.value = false
     $q.notify({ type: 'positive', message: '¡Gracias por tu puntuación!' })
   } catch (err: unknown) {
@@ -174,11 +170,12 @@ async function onSubmit(): Promise<void> {
   }
 }
 
-// Dispara al login / al volver a la app ya autenticado.
+// El servidor ya decidió que hoy toca calificación (D-06/D-07): esta vista
+// solo reacciona al getter del store, sin evaluar nada por su cuenta.
 watch(
-  () => authStore.isAuthenticated,
-  (isAuth) => {
-    if (isAuth) void evaluate()
+  () => avisosStore.isRating,
+  (isRating) => {
+    if (isRating) void evaluate()
   },
   { immediate: true },
 )

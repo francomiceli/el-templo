@@ -3,10 +3,8 @@
   <q-dialog v-model="show">
     <q-card class="proposal-dialog">
       <q-card-section class="proposal-dialog__body">
-        <h3 class="proposal-dialog__title">¿Qué mejorarías de El Templo?</h3>
-        <p class="proposal-dialog__question">
-          El equipo está escuchando: contanos qué te gustaría para darte la mejor experiencia.
-        </p>
+        <h3 class="proposal-dialog__title">{{ title }}</h3>
+        <p class="proposal-dialog__question">{{ bodyText }}</p>
 
         <q-input
           v-model="proposal"
@@ -32,7 +30,7 @@
           class="proposal-dialog__primary full-width"
           :disable="proposal.trim().length === 0"
           :loading="submitting"
-          label="Enviar sugerencia"
+          :label="buttonText"
           @click="onSubmit"
         />
         <q-btn
@@ -50,47 +48,50 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { useAuthStore } from 'stores/useAuthStore'
-import {
-  evaluateProposalPrompt,
-  markProposalPromptShown,
-  resetProposalPromptEvaluation,
-  useImprovementProposalsApi,
-} from 'src/composables/useImprovementProposalsApi'
+import { useAvisosStore } from 'src/stores/useAvisosStore'
+import { useImprovementProposalsApi } from 'src/composables/useImprovementProposalsApi'
 import { extractError, isExpectedClientError } from 'src/utils/extract-error'
 import { createLogger } from 'src/utils/logger'
 
 const log = createLogger('ImprovementPromptDialog')
 const $q = useQuasar()
-const authStore = useAuthStore()
+const avisosStore = useAvisosStore()
 const { submitProposal } = useImprovementProposalsApi()
 
 const show = ref(false)
 const submitting = ref(false)
 const proposal = ref('')
 
-async function evaluate(): Promise<void> {
-  try {
-    const status = await evaluateProposalPrompt()
-    if (!status) return
+// Copy del aviso de sistema `improvement_prompt` (D-09), con fallback al
+// hardcode viejo por si el servidor no lo trae (defensivo, L4).
+const title = computed(() => {
+  const p = avisosStore.prompt
+  return p && p.kind === 'improvement' ? p.aviso.title : '¿Qué mejorarías de El Templo?'
+})
 
-    // "Mostrado ahora" se marca al abrir: tras un "Ahora no" el re-prompt
-    // recién vuelve a los 14 días; tras un envío el server silencia
-    // shouldPrompt por 30 días (recurrencia mensual).
-    await markProposalPromptShown(status.campaign)
-    proposal.value = ''
-    show.value = true
-  } catch (err: unknown) {
-    log.error('Failed to evaluate proposal prompt', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
+const bodyText = computed(() => {
+  const p = avisosStore.prompt
+  return p && p.kind === 'improvement'
+    ? p.aviso.body
+    : 'El equipo está escuchando: contanos qué te gustaría para darte la mejor experiencia.'
+})
+
+const buttonText = computed(() => {
+  const p = avisosStore.prompt
+  return p && p.kind === 'improvement' ? p.aviso.buttonText : 'Enviar sugerencia'
+})
+
+function currentAvisoId(): number | null {
+  const p = avisosStore.prompt
+  return p ? p.aviso.id : null
 }
 
 function onSkip(): void {
   log.info('Proposal prompt skipped')
+  const avisoId = currentAvisoId()
+  if (avisoId) void avisosStore.reportDismissed(avisoId)
   show.value = false
 }
 
@@ -100,6 +101,8 @@ async function onSubmit(): Promise<void> {
   submitting.value = true
   try {
     await submitProposal(trimmed)
+    const avisoId = currentAvisoId()
+    if (avisoId) void avisosStore.reportClicked(avisoId)
     show.value = false
     $q.notify({ type: 'positive', message: '¡Gracias! Tu sugerencia fue enviada al equipo.' })
   } catch (err: unknown) {
@@ -117,15 +120,14 @@ async function onSubmit(): Promise<void> {
   }
 }
 
-// Dispara al login / al volver a la app ya autenticado (mismo trigger que
-// RatingPromptDialog, que cede esta apertura si este popup va a mostrarse).
+// El servidor ya decidió que hoy toca la propuesta de mejora (D-06/D-07/D-09):
+// esta vista solo reacciona al getter del store, sin evaluar nada por su cuenta.
 watch(
-  () => authStore.isAuthenticated,
-  (isAuth) => {
-    if (isAuth) {
-      void evaluate()
-    } else {
-      resetProposalPromptEvaluation()
+  () => avisosStore.isImprovement,
+  (isImprovement) => {
+    if (isImprovement) {
+      proposal.value = ''
+      show.value = true
     }
   },
   { immediate: true },

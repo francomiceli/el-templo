@@ -15,7 +15,7 @@
           unelevated
           no-caps
           class="plan-expiry-dialog__primary full-width"
-          label="Renovar por WhatsApp"
+          :label="buttonText"
           @click="onRenew"
         />
         <q-btn
@@ -33,42 +33,43 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Preferences } from '@capacitor/preferences'
-import { api } from 'src/boot/axios'
-import { useAuthStore } from 'stores/useAuthStore'
-import { useUserStore } from 'stores/useUserStore'
-import { buildWhatsAppUrl } from 'src/utils/whatsapp'
+import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { createLogger } from 'src/utils/logger'
 
 const log = createLogger('PlanExpiryDialog')
-const authStore = useAuthStore()
-const userStore = useUserStore()
+const router = useRouter()
+const avisosStore = useAvisosStore()
 
-// Once-per-DAY (D-08, distinto del once-ever de RatingPromptDialog): guardamos
-// la fecha local "YYYY-MM-DD" de la última vez que se mostró. Reaparece a lo
-// sumo una vez por día calendario hasta que la cobertura se extienda.
+// Cache local opcional (D-10/D-11): la cadencia REAL la impone el servidor
+// (aviso `plan_expiry`, `every_n_days`/1 — daily). Esta key ya no gatea si el
+// diálogo se muestra; solo queda como registro local para diagnóstico.
 const SHOWN_KEY = 'plan_expiry_shown_v1'
-const WHATSAPP_TEXT = 'Hola, quiero renovar mi membresía 💪'
-
-interface CoverageResponse {
-  coveredUntil: string | null
-  daysRemaining: number | null
-}
 
 const show = ref(false)
-const daysRemaining = ref(0)
 
-const title = 'Tu membresía está por vencer'
+const current = computed(() => {
+  const p = avisosStore.prompt
+  return p && p.kind === 'plan_expiry' ? p : null
+})
 
-// Copy de UI-SPEC §97-98: variante "vence hoy" (N=0) y singular "1 día" (N=1).
+const title = computed(() => current.value?.aviso.title ?? 'Tu membresía está por vencer')
+
+const buttonText = computed(() => current.value?.aviso.buttonText ?? 'Renovar por WhatsApp')
+
+// El copy editable del servidor trae el token literal `{dias}` (D-10):
+// la app lo sustituye por el `daysRemaining` que el propio endpoint calculó,
+// respetando singular/plural y el caso "vence hoy" (n === 0, UI-SPEC).
 const body = computed(() => {
-  const n = daysRemaining.value
+  const c = current.value
+  if (!c) return ''
+  const n = c.daysRemaining
   if (n === 0) {
     return 'Tu membresía vence hoy. Renovala por WhatsApp para seguir entrenando.'
   }
   const dayWord = n === 1 ? '1 día' : `${n} días`
-  const verb = n === 1 ? 'Te queda' : 'Te quedan'
-  return `${verb} ${dayWord} de acceso. Renovala por WhatsApp para no perder tu lugar en las clases.`
+  return c.aviso.body.replace('{dias}', dayWord)
 })
 
 /** Fecha local del dispositivo como "YYYY-MM-DD" (día calendario local). */
@@ -84,60 +85,42 @@ async function recordShownToday(): Promise<void> {
   await Preferences.set({ key: SHOWN_KEY, value: todayLocalStr() })
 }
 
-async function shouldShow(): Promise<boolean> {
-  if (!authStore.isAuthenticated) return false
-
-  // Ya mostrado hoy en este dispositivo → no re-pedir (evita el fetch).
-  const { value: shown } = await Preferences.get({ key: SHOWN_KEY })
-  if (shown === todayLocalStr()) return false
-
-  const { data } = await api.get<CoverageResponse>('/members/subscription/coverage')
-  const days = data.daysRemaining
-
-  // Gate (D-06/D-10): autenticado AND 0 ≤ daysRemaining ≤ 3 AND no mostrado hoy.
-  // El límite inferior >= 0 es OBLIGATORIO: /coverage NO dispara el barrido
-  // autoExpireSubscriptions, así que un socio vencido-pero-no-barrido puede
-  // devolver daysRemaining negativo, para el cual UI-SPEC no define copy (esos
-  // casos los cubren el push del día y el bloqueo de reserva, no este diálogo).
-  if (days === null || days < 0 || days > 3) return false
-
-  daysRemaining.value = days
-  return true
-}
-
-async function evaluate(): Promise<void> {
-  try {
-    if (await shouldShow()) {
-      show.value = true
-    }
-  } catch (err: unknown) {
-    log.error('Failed to evaluate plan expiry', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
-}
+// El servidor ya decidió que hoy toca el vencimiento (D-06/D-07/D-10): esta
+// vista solo reacciona al getter del store, sin re-implementar la regla de
+// disparo (≤3 días, supresión por cobertura, fase 144).
+watch(
+  () => avisosStore.isPlanExpiry,
+  (isPlanExpiry) => {
+    if (isPlanExpiry) show.value = true
+  },
+  { immediate: true },
+)
 
 async function onRenew(): Promise<void> {
-  log.info('Plan expiry → WhatsApp renewal')
-  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, WHATSAPP_TEXT), '_blank')
+  const c = current.value
+  if (!c) return
+  log.info('Plan expiry → renewal')
+  void avisosStore.reportClicked(c.aviso.id)
   await recordShownToday()
   show.value = false
+
+  // El botón usa el destino del aviso (WhatsApp de ventas por defecto, D-20).
+  const destination = c.aviso.destination
+  if (destination.type === 'whatsapp_sales') {
+    const text = destination.whatsappText ?? ''
+    void router.push(`${destination.route}?text=${encodeURIComponent(text)}`)
+  } else {
+    void router.push(destination.route)
+  }
 }
 
 async function onSkip(): Promise<void> {
   log.info('Plan expiry skipped')
+  const c = current.value
+  if (c) void avisosStore.reportDismissed(c.aviso.id)
   await recordShownToday()
   show.value = false
 }
-
-// Dispara al login / al volver a la app ya autenticado (igual que los hermanos).
-watch(
-  () => authStore.isAuthenticated,
-  (isAuth) => {
-    if (isAuth) void evaluate()
-  },
-  { immediate: true },
-)
 </script>
 
 <style lang="scss" scoped>

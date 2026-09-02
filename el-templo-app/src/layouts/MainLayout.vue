@@ -138,16 +138,21 @@
     <!-- First-login soft pre-prompt for push notifications (native only). -->
     <PushPermissionDialog />
 
-    <!-- Improvement proposal pop-up (monthly recurrence: quiet 30 days after a
-         submit, 14-day re-prompt after "Ahora no"; wins the app-open slot over
-         the rating pop-up). -->
+    <!-- Improvement proposal pop-up (aviso de sistema `improvement_prompt`,
+         D-09: cadencia editable server-side). -->
     <ImprovementPromptDialog />
 
-    <!-- Class rating pop-up (auto-triggered on return after a completed in-person class). -->
+    <!-- Class rating pop-up (aviso de sistema `rating_prompt`, D-08: cadencia
+         editable server-side; la guarda por clase sigue siendo local). -->
     <RatingPromptDialog />
 
-    <!-- Plan expiry pop-up (auto-triggered when covered-until ≤3 days, once/day). -->
+    <!-- Plan expiry pop-up (aviso de sistema `plan_expiry`, D-10: regla de
+         disparo fija en código, texto y botón editables). -->
     <PlanExpiryDialog />
+
+    <!-- Aviso genérico creado por el staff (D-06/D-07: gana su turno cuando
+         no compite con ninguno de los 3 anteriores). -->
+    <AvisoPromptDialog />
   </q-layout>
 </template>
 
@@ -159,10 +164,12 @@ import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 import { useCommunicationsStore } from 'src/stores/useCommunicationsStore'
+import { useAvisosStore } from 'src/stores/useAvisosStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
 import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
+import AvisoPromptDialog from 'src/components/AvisoPromptDialog.vue'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
 import VeteranSeal from 'src/components/VeteranSeal.vue'
 
@@ -173,6 +180,7 @@ const authStore = useAuthStore()
 const userStore = useUserStore()
 const progressionStore = useProgressionStore()
 const communicationsStore = useCommunicationsStore()
+const avisosStore = useAvisosStore()
 
 // Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
 // por defecto de WhatsApp una vez por sesión, mismo patrón `watch` +
@@ -185,6 +193,23 @@ watch(
   () => authStore.isAuthenticated,
   (isAuth) => {
     if (isAuth) void communicationsStore.loadConfig()
+  },
+  { immediate: true },
+)
+
+// Fase 193 (D-06/D-07): un único punto que pide "qué pop-up toca hoy" — la
+// app ya NO arbitra, cada uno de los 4 diálogos de abajo (PushPermissionDialog
+// queda fuera, D-07) solo reacciona al getter que le corresponde en
+// `avisosStore`. `reset()` al desloguear limpia el estado de la apertura
+// anterior para que la próxima sesión evalúe de cero.
+watch(
+  () => authStore.isAuthenticated,
+  (isAuth) => {
+    if (isAuth) {
+      void avisosStore.evaluate()
+    } else {
+      avisosStore.reset()
+    }
   },
   { immediate: true },
 )
