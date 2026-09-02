@@ -75,6 +75,8 @@ export const GYM_OWNED_TABLES = [
   "aura_balances",
   "aura_config",
   "aura_transactions",
+  "aviso_events",
+  "avisos",
   "balances",
   "blog_post_tags",
   "blog_posts",
@@ -146,6 +148,7 @@ export const GYM_OWNED_TABLES = [
   "subscription_schedules",
   "subscriptions",
   "transaction_links",
+  "tv_avisos",
   "tv_class_state",
   "tv_devices",
   "tv_pairings",
@@ -299,6 +302,8 @@ export const TENANT_UNIQUE_ALLOWLIST: Record<string, string> = {
     "Derivada de FK scopeada: primer campo `user_id` → `users`, que lleva `tenant_id`. El saldo Aura es uno por socio y el socio ya es de un solo tenant.",
   "aura_transactions.unique_user_source_ref":
     "Derivada de FK scopeada: primer campo `user_id` → `users`. La idempotencia (source_type, reference_type, reference_id) se evalúa dentro del socio, y el socio es de un solo tenant.",
+  "aviso_events.uq_aviso_events_aviso_user_type":
+    "Derivada de FK scopeada: primer campo `aviso_id` → `avisos`, tabla gym-owned. Un evento por aviso, socio y tipo (D-11).",
   "balances.uniq_balance_target":
     "Derivada de FK scopeada: primer campo `member_id` → `users`. El saldo por (target_kind, target_id, currency) es del socio, así que la unicidad ya está encerrada en su tenant.",
   "blog_post_tags.post_tag_unique":
@@ -610,6 +615,8 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "campaign_unsubscribes",
     "campaigns",
   ],
+  // Fase 193: el módulo nace strict, no hay deuda previa que tolerar.
+  communications: ["aviso_events", "avisos", "tv_avisos"],
   "improvement-proposals": ["improvement_proposals"],
   notifications: [
     "device_tokens",

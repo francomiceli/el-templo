@@ -96,17 +96,19 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 91 gym-owned + 4 exentas y cubren las 95 tablas del schema", () => {
+  it("los conteos son 94 gym-owned + 4 exentas y cubren las 98 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
     // `partner_commissions`: 88 -> 91, 92 -> 95.
-    expect(GYM_OWNED_TABLES.length).toBe(91);
+    // Fase 193 sumó `avisos`, `aviso_events`, `tv_avisos` (+3 gym-owned,
+    // +3 del schema, exentas sin cambio): 91 -> 94, 95 -> 98.
+    expect(GYM_OWNED_TABLES.length).toBe(94);
     expect(TENANT_EXEMPT_TABLES.length).toBe(4);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(95);
+    expect(schemaTables.size).toBe(98);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -388,6 +390,10 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
    * (D-01, fase 175.1) — ver el docblock de `TENANT_STRICT_MODULES`.
    * `aura_balances` / `aura_transactions` NO están: las escribe gamification y
    * su throw llega con la adopción de ESE módulo.
+   * `communications` (fase 193, plan 02): `aviso_events`, `avisos`,
+   * `tv_avisos` nacen strict — no hay deuda previa que tolerar (tablas
+   * nuevas, sin lecturas/escrituras preexistentes fuera de tenantWhere), así
+   * que no hace falta vaciar nada de tenant-lint-allowlist.json.
    */
   const MODULOS_DECLARADOS: Record<string, readonly string[]> = {
     finance: [
@@ -422,6 +428,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "campaign_unsubscribes",
       "campaigns",
     ],
+    communications: ["aviso_events", "avisos", "tv_avisos"],
     "improvement-proposals": ["improvement_proposals"],
     notifications: [
       "device_tokens",
