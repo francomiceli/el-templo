@@ -46,6 +46,14 @@
 
         <DestinoSelector v-model="form.destination" />
 
+        <AvisoPreview
+          placement="popup"
+          :title="form.title"
+          :body="form.body"
+          :button-text="form.buttonText"
+          :destination-label="destinationLabel"
+        />
+
         <q-separator />
         <div class="text-subtitle2">Alcance</div>
         <div class="text-caption text-grey-7 q-mb-xs">
@@ -192,7 +200,8 @@ import type {
   UpdateAvisoInput,
 } from 'src/composables/useCommunicationsApi';
 import DestinoSelector from 'src/components/comunicaciones/DestinoSelector.vue';
-import type { Destination } from 'src/config/destinations';
+import AvisoPreview from 'src/components/comunicaciones/AvisoPreview.vue';
+import { APP_SECTIONS, type Destination } from 'src/config/destinations';
 import type { BranchOption } from 'src/types/member';
 
 const log = createLogger('AvisoEditorDialog');
@@ -329,6 +338,13 @@ const form = reactive({
   status: 'draft' as AvisoStatus,
   frequencyType: 'once' as AvisoFrequencyType,
   frequencyDays: 1 as number | null,
+});
+
+// Vista previa (D-16): etiqueta legible del destino elegido.
+const destinationLabel = computed(() => {
+  if (form.destination.type === 'whatsapp_sales') return 'WhatsApp de ventas';
+  const section = APP_SECTIONS.find((s) => s.key === form.destination.section);
+  return section?.label ?? 'Mi Templo';
 });
 
 function resetForm() {
