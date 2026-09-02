@@ -161,7 +161,11 @@ const templateIdParamsSchema = {
 const sendSegmentSchema = {
   body: {
     type: "object",
-    required: ["title", "body", "segmentIds", "destination"],
+    // `destination` NO es required a nivel de JSON Schema (compat con
+    // callers que todavía no lo mandan, ver DEFAULT_SEND_SEGMENT_DESTINATION
+    // más abajo) — pero sí se valida con `validateDestination` cuando llega,
+    // y `route` desapareció de `properties` (additionalProperties:false).
+    required: ["title", "body", "segmentIds"],
     properties: {
       title: { type: "string", minLength: 1, maxLength: 200 },
       body: { type: "string", minLength: 1 },
@@ -494,7 +498,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       titleFemale?: string;
       bodyFemale?: string;
       segmentIds: MemberSegment[];
-      destination: unknown;
+      destination?: unknown;
     };
   }>(
     "/admin/send-segment",
@@ -518,9 +522,18 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         request.body;
 
       // Fase 193 (D-01/D-05): destino validado contra la lista curada —
-      // nunca una ruta de texto libre (T-193-21).
+      // nunca una ruta de texto libre (T-193-21). `destination` es opcional
+      // a nivel de schema (compat con callers viejos que todavía no lo
+      // mandan) — sin él, cae al mismo default que tenía `route` antes de
+      // esta fase (mi_templo == "/mi-templo").
       const destinationResult = validateDestination(
-        normalizeDestinationInput(request.body.destination),
+        normalizeDestinationInput(
+          request.body.destination ?? {
+            type: "app_section",
+            section: "mi_templo",
+            whatsappText: null,
+          },
+        ),
       );
       if (!destinationResult.ok) {
         return reply
