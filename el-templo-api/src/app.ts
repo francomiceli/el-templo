@@ -50,6 +50,7 @@ import {
 } from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
 import { notificationRoutes } from "./modules/notifications";
+import { communicationsRoutes } from "./modules/communications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
 import { referralAdminRoutes } from "./modules/referrals/admin-routes";
 import { referralPartnersAdminRoutes } from "./modules/referral-partners";
@@ -351,6 +352,11 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 
   // Notification routes (push notifications, preferences, admin templates)
   await app.register(notificationRoutes, { prefix: "/api/notifications" });
+
+  // Fase 193 — Comunicaciones. Core para todos los tenants (D-23): NO va
+  // envuelto en `moduleScope`. Solo las rutas de avisos de TV se gatean por
+  // `templo-training` (ver `tvAvisosRoutes`).
+  await app.register(communicationsRoutes, { prefix: "/api/communications" });
 
   // Campaign routes (Phase 119): public tracking (open/click/unsubscribe) +
   // admin campaign create/list/send/funnel/eligible-count.

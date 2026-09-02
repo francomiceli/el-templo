@@ -74,6 +74,24 @@
 // cuenta ENTRADAS: es 374. Quien vuelva a medir esto: contá entradas del
 // `Record`, no rutas conceptuales, o vas a "corregir" un número que estaba bien.
 //
+// NOTA: entre el 2026-08-07 y este bloque, otras fases sumaron rutas al
+// registro sin actualizar ESTE header (el propio texto de arriba ya advierte
+// que esto pasa — "el header quedó stale"). El baseline real vive en
+// `ENTRADAS_BASELINE` (`iso-01-manifiesto.test.ts`), que estaba en 389 antes
+// de este plan — no en 374. La cuenta de abajo parte de ESE número real, no
+// del 374 stale de arriba (deuda preexistente, fuera de alcance de este plan).
+//
+// 2026-09-02 — **396 rutas** (246 `tenant-scoped`): plan 193-04 (Fase 193,
+// Comunicaciones) agregó las 7 rutas admin de avisos bajo `/api/communications`
+// — CRUD, "ver socios" (D-18) y número de ventas por país (D-20). Todas
+// `tenant-scoped`, gateadas por `ADMIN_ROLES` (D-30). La unidad ganada:
+//
+//   tenant-scoped  239 → 246   (+7, las rutas nuevas)
+//   templo-module  142 → 142   (sin cambio)
+//   global           8 →   8   (sin cambio)
+//   ─────────────────────────
+//   TOTAL          389 → 396   (+7)
+//
 // Ese reparto es el APROBADO en el checkpoint del plan 171-06 (Franco,
 // 2026-07-29). El volcado del plan 171-02 había propuesto 221 / 11 / 138; la
 // única diferencia son las 3 rutas de `labs-inquiries`, que pasaron de `global`
@@ -718,6 +736,21 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/campaigns/track/open": { categoria: "tenant-scoped" },
   "GET /api/campaigns/unsubscribe": { categoria: "tenant-scoped" },
   "POST /api/campaigns/exchange": { categoria: "tenant-scoped" },
+
+  // ── /api/communications ───────────────────────────────────────────────────
+  // Fase 193 Plan 04 (COM-01/COM-02, D-12..D-20): CRUD admin de avisos +
+  // métricas "ver socios" + número de ventas por país. Core para todos los
+  // tenants (D-23) — NO envuelto en `moduleScope` (a diferencia de las rutas
+  // de avisos de TV, plan 07, gateadas por `templo-training`).
+  "DELETE /api/communications/admin/avisos/:id": { categoria: "tenant-scoped" },
+  "GET /api/communications/admin/avisos": { categoria: "tenant-scoped" },
+  "GET /api/communications/admin/avisos/:id/clickers": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/communications/admin/sales-number": { categoria: "tenant-scoped" },
+  "POST /api/communications/admin/avisos": { categoria: "tenant-scoped" },
+  "PUT /api/communications/admin/avisos/:id": { categoria: "tenant-scoped" },
+  "PUT /api/communications/admin/sales-number": { categoria: "tenant-scoped" },
 
   // ── /api/members/attendance ───────────────────────────────────────────────
   "GET /api/members/attendance/history": { categoria: "tenant-scoped" },
