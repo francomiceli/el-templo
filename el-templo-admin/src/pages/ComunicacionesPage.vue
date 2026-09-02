@@ -7,7 +7,12 @@
      `<q-tab name="..." label="..." />` + su `<q-tab-panel name="...">`
      montando el componente de la pestaña (mismo patrón que
      `<PushTab />`/`<AvisosTab />`/`<TarjetasTab />` acá abajo), bajo
-     `src/components/comunicaciones/`. -->
+     `src/components/comunicaciones/`.
+
+     Plan 14 (número de ventas, D-20): "Ajustes" NO es una pestaña propia —
+     vive como bloque colapsable arriba de la tabla de tarjetas, dentro del
+     panel "tarjetas" (una de las dos ubicaciones que dejaba a discreción el
+     CONTEXT). Visible por defecto (`default-opened`), no escondido. -->
 <template>
   <q-page class="q-pa-md">
     <div class="text-h5 q-mb-md">Comunicaciones</div>
@@ -33,6 +38,16 @@
         <AvisosTab />
       </q-tab-panel>
       <q-tab-panel name="tarjetas" class="q-pa-none">
+        <q-expansion-item
+          default-opened
+          dense
+          icon="settings"
+          label="Ajustes"
+          header-class="text-subtitle1 text-weight-medium"
+          class="q-mb-md bg-white"
+        >
+          <AjustesVentas />
+        </q-expansion-item>
         <TarjetasTab />
       </q-tab-panel>
     </q-tab-panels>
@@ -45,6 +60,7 @@ import { useRoute, useRouter } from 'vue-router';
 import PushTab from 'src/components/comunicaciones/PushTab.vue';
 import AvisosTab from 'src/components/comunicaciones/AvisosTab.vue';
 import TarjetasTab from 'src/components/comunicaciones/TarjetasTab.vue';
+import AjustesVentas from 'src/components/comunicaciones/AjustesVentas.vue';
 
 const route = useRoute();
 const router = useRouter();

@@ -90,6 +90,18 @@ export interface SalesNumbers {
   ES: string | null;
 }
 
+/**
+ * Body de `PUT /admin/sales-number` (`UpdateSalesNumberBody`,
+ * el-templo-api/src/modules/communications/schemas.ts): ambos campos
+ * OPCIONALES y, si vienen, `string` puro (patrón `^[0-9]{8,15}$`) — el
+ * schema del server NO acepta `null`. Un país ausente del body no se toca
+ * (`service.setSalesNumbers` solo escribe los campos `!== undefined`).
+ */
+export interface UpdateSalesNumbersInput {
+  AR?: string;
+  ES?: string;
+}
+
 // ── Plantillas push (el-templo-api/src/modules/notifications/routes.ts) ───
 
 export interface TemplateRow {
@@ -224,7 +236,7 @@ export function useCommunicationsApi() {
     }
   }
 
-  async function setSalesNumbers(input: SalesNumbers): Promise<void> {
+  async function setSalesNumbers(input: UpdateSalesNumbersInput): Promise<void> {
     loading.value = true;
     error.value = null;
     try {
