@@ -22,16 +22,17 @@
         </div>
       </div>
 
-      <!-- Title -->
-      <h3 class="exp-title">Entrená con un plan<br />diseñado para vos</h3>
+      <!-- Title: el fallback trae un salto de línea real (\n), interpolado
+           con {{ }} + `white-space: pre-line` en .exp-title — sin markup
+           crudo, así el mismo mecanismo sirve para el copy fijo Y para el
+           que venga editable del servidor (D-12: texto plano). -->
+      <h3 class="exp-title">{{ title }}</h3>
 
       <!-- Subtitle + CTA row -->
       <div class="exp-footer">
-        <p class="exp-subtitle">
-          Creamos programas enfocados en tus objetivos, con seguimiento personalizado
-        </p>
+        <p class="exp-subtitle">{{ subtitle }}</p>
         <a href="#" class="exp-cta" @click.prevent="openWhatsApp">
-          <span class="exp-cta-text">Mi Plan</span>
+          <span class="exp-cta-text">{{ buttonText }}</span>
         </a>
       </div>
     </div>
@@ -39,21 +40,44 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
 import type { MemberSegment } from 'src/stores/useUserStore'
+import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
+import { navigateToAvisoDestination } from 'src/utils/aviso-navigation'
 
 defineProps<{
   segment: MemberSegment | null
 }>()
 
+// D-15a: copy editable vía el aviso de sistema `card_program`, con fallback
+// al literal de hoy. La visibilidad (solo cuando no corresponde
+// ProgramProgressCard) NO se toca acá, sigue en MiTemplo.vue
+// (`showProgramCta`/`showProgramProgress`).
+const FALLBACK_TITLE = 'Entrená con un plan\ndiseñado para vos'
+const FALLBACK_SUBTITLE = 'Creamos programas enfocados en tus objetivos, con seguimiento personalizado'
+const FALLBACK_BUTTON_TEXT = 'Mi Plan'
+const FALLBACK_WHATSAPP_TEXT = 'Hola! Quiero saber más sobre mi plan personalizado 💪'
+
+const router = useRouter()
 const userStore = useUserStore()
+const avisosStore = useAvisosStore()
+
+const cardRow = computed(() => avisosStore.tarjetaByCode('card_program'))
+const title = computed(() => cardRow.value?.title ?? FALLBACK_TITLE)
+const subtitle = computed(() => cardRow.value?.body ?? FALLBACK_SUBTITLE)
+const buttonText = computed(() => cardRow.value?.buttonText ?? FALLBACK_BUTTON_TEXT)
 
 function openWhatsApp() {
-  const url = buildWhatsAppUrl(
-    userStore.profile?.branchCountry,
-    'Hola! Quiero saber más sobre mi plan personalizado 💪',
-  )
+  const row = cardRow.value
+  if (row) {
+    void avisosStore.reportClicked(row.id)
+    navigateToAvisoDestination(router, row.destination)
+    return
+  }
+  const url = buildWhatsAppUrl(userStore.profile?.branchCountry, FALLBACK_WHATSAPP_TEXT)
   window.open(url, '_blank')
 }
 </script>
@@ -257,6 +281,10 @@ function openWhatsApp() {
   line-height: 2.25rem;
   padding: 10px 0;
   margin: 0;
+  // El fallback trae un \n real (ver script); pre-line lo pinta como salto
+  // de línea sin necesitar markup crudo — mismo mecanismo para el copy
+  // fijo y para el editable del servidor.
+  white-space: pre-line;
   animation: fadeUp 0.6s ease-out 0.15s both;
 }
 

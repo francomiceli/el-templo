@@ -25,14 +25,14 @@
         </div>
       </div>
 
-      <!-- Title (A/B copy test — variante por paridad del user.id) -->
-      <h3 class="exp-title">{{ copy.title }}</h3>
+      <!-- Title (D-15: copy editable del servidor, el test A/B de v5.5 se retira acá) -->
+      <h3 class="exp-title">{{ title }}</h3>
 
       <!-- Subtitle + CTA row -->
       <div class="exp-footer">
-        <p class="exp-subtitle">{{ copy.subtitle }}</p>
+        <p class="exp-subtitle">{{ subtitle }}</p>
         <a href="#" class="exp-cta" @click.prevent="goToReferidos">
-          <span class="exp-cta-text">Compartir código</span>
+          <span class="exp-cta-text">{{ buttonText }}</span>
         </a>
       </div>
     </div>
@@ -43,49 +43,47 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
-import { useAuthStore } from 'src/stores/useAuthStore'
-import { referralCopyVariant } from 'src/utils/ab-variant'
+import { useAvisosStore } from 'src/stores/useAvisosStore'
+import { navigateToAvisoDestination } from 'src/utils/aviso-navigation'
 import { createLogger } from 'src/utils/logger'
 
 const log = createLogger('ReferralCtaCard')
 const router = useRouter()
-const authStore = useAuthStore()
+const avisosStore = useAvisosStore()
 
-interface ReferralCopy {
-  title: string
-  subtitle: string
-}
+// D-15: el test A/B de copy por paridad de user.id (v5.5) se retira acá —
+// el título pasa a ser el copy editable del aviso de sistema
+// `card_referral`. Fallback = la variante A (el seed de `system-avisos.ts`
+// fija esa variante como copy base). El subtítulo nunca varió entre A/B.
+// `referralCopyVariant` (utils/ab-variant.ts) queda sin consumidores en la
+// app; el backend sigue calculando variantes para el registro/atribución
+// de clics de referidos, que este componente NO toca.
+const FALLBACK_TITLE = 'Vos decidís cuánto bajás tu cuota'
+const FALLBACK_SUBTITLE = 'Invitá a entrenar: cada persona que traigas suma descuento a tu cuota.'
+const FALLBACK_BUTTON_TEXT = 'Compartir código'
 
-// A/B copy test (v5.5 follow-up): dos versiones del copy de la card. La variante
-// se deriva de la paridad del user.id (par='A' / impar='B'). Ambas comparten el
-// subtítulo y difieren SOLO en el título (foco del test). El backend recomputa la
-// misma variante al registrar el clic y al medir la conversión.
-// Largo calibrado a la referencia visual (ProgramCtaCard): un subtítulo más
-// largo desbalancea la fila subtítulo+CTA del footer. El detalle completo del
-// beneficio vive en /mis-referidos.
-const SUBTITLE = 'Invitá a entrenar: cada persona que traigas suma descuento a tu cuota.'
-const COPIES: Record<'A' | 'B', ReferralCopy> = {
-  A: {
-    title: 'Vos decidís cuánto bajás tu cuota',
-    subtitle: SUBTITLE,
-  },
-  B: {
-    title: 'Compartí la experiencia y ganá un descuento',
-    subtitle: SUBTITLE,
-  },
-}
-
-const variant = computed<'A' | 'B'>(() => referralCopyVariant(authStore.user?.id ?? 0))
-const copy = computed<ReferralCopy>(() => COPIES[variant.value])
+const cardRow = computed(() => avisosStore.tarjetaByCode('card_referral'))
+const title = computed(() => cardRow.value?.title ?? FALLBACK_TITLE)
+const subtitle = computed(() => cardRow.value?.body ?? FALLBACK_SUBTITLE)
+const buttonText = computed(() => cardRow.value?.buttonText ?? FALLBACK_BUTTON_TEXT)
 
 function goToReferidos(): void {
-  // A/B copy test: registra el clic en el CTA (best-effort, no bloquea la
-  // navegación). La variante la resuelve el backend desde el token.
+  // Atribución/registro de clics de referidos: NO se toca (endpoint y
+  // regla propios, ajenos a D-15/D-19).
   void api.post('/members/referrals/cta-click').catch((err: unknown) => {
     log.warn('Referral CTA click tracking failed', {
       error: err instanceof Error ? err.message : String(err),
     })
   })
+
+  // D-19: la tarjeta mide su propio clic (aparte del tracking de arriba)
+  // cuando el aviso de sistema existe, y navega al destino del servidor.
+  const row = cardRow.value
+  if (row) {
+    void avisosStore.reportClicked(row.id)
+    navigateToAvisoDestination(router, row.destination)
+    return
+  }
   void router.push('/mis-referidos')
 }
 </script>

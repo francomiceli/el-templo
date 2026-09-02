@@ -19,15 +19,13 @@
       </div>
 
       <!-- Title -->
-      <h3 class="exp-title">¿Qué mejorarías de El Templo?</h3>
+      <h3 class="exp-title">{{ title }}</h3>
 
       <!-- Subtitle + CTA row -->
       <div class="exp-footer">
-        <p class="exp-subtitle">
-          El equipo está escuchando: contanos qué te gustaría para darte la mejor experiencia.
-        </p>
+        <p class="exp-subtitle">{{ subtitle }}</p>
         <a href="#" class="exp-cta" @click.prevent="goToMejoras">
-          <span class="exp-cta-text">Enviar sugerencia</span>
+          <span class="exp-cta-text">{{ buttonText }}</span>
         </a>
       </div>
     </div>
@@ -35,11 +33,35 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAvisosStore } from 'src/stores/useAvisosStore'
+import { navigateToAvisoDestination } from 'src/utils/aviso-navigation'
+
+// D-15a: copy editable vía el aviso de sistema `card_improvement`, con
+// fallback al literal de hoy si el servidor no responde o el code todavía
+// no existe para el tenant. La visibilidad de esta tarjeta sigue siendo
+// SIEMPRE (no cambia acá, D-15a).
+const FALLBACK_TITLE = '¿Qué mejorarías de El Templo?'
+const FALLBACK_SUBTITLE =
+  'El equipo está escuchando: contanos qué te gustaría para darte la mejor experiencia.'
+const FALLBACK_BUTTON_TEXT = 'Enviar sugerencia'
 
 const router = useRouter()
+const avisosStore = useAvisosStore()
+
+const cardRow = computed(() => avisosStore.tarjetaByCode('card_improvement'))
+const title = computed(() => cardRow.value?.title ?? FALLBACK_TITLE)
+const subtitle = computed(() => cardRow.value?.body ?? FALLBACK_SUBTITLE)
+const buttonText = computed(() => cardRow.value?.buttonText ?? FALLBACK_BUTTON_TEXT)
 
 function goToMejoras(): void {
+  const row = cardRow.value
+  if (row) {
+    void avisosStore.reportClicked(row.id)
+    navigateToAvisoDestination(router, row.destination)
+    return
+  }
   void router.push('/proponer-mejora')
 }
 </script>

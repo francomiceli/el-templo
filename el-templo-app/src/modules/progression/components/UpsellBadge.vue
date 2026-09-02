@@ -23,13 +23,13 @@
       </div>
 
       <!-- Title -->
-      <h3 class="exp-title">Llevalo al siguiente nivel</h3>
+      <h3 class="exp-title">{{ title }}</h3>
 
       <!-- Subtitle + CTA row -->
       <div class="exp-footer">
-        <p class="exp-subtitle">Visitá nuestras sedes y entrená junto a nuestros entrenadores</p>
+        <p class="exp-subtitle">{{ subtitle }}</p>
         <a href="#" class="exp-cta" @click.prevent="openWhatsApp">
-          <span class="exp-cta-text">Más info</span>
+          <span class="exp-cta-text">{{ buttonText }}</span>
         </a>
       </div>
     </div>
@@ -37,14 +37,38 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
+import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
+import { navigateToAvisoDestination } from 'src/utils/aviso-navigation'
 
+// D-15a: copy editable vía el aviso de sistema `card_upsell`, con fallback
+// al literal de hoy. La visibilidad (solo sedes virtuales) NO se toca acá,
+// sigue en MiTemplo.vue (`showUpsellBadge`).
+const FALLBACK_TITLE = 'Llevalo al siguiente nivel'
+const FALLBACK_SUBTITLE = 'Visitá nuestras sedes y entrená junto a nuestros entrenadores'
+const FALLBACK_BUTTON_TEXT = 'Más info'
+const FALLBACK_WHATSAPP_TEXT = 'Hola, me interesa entrenar de forma presencial'
+
+const router = useRouter()
 const userStore = useUserStore()
+const avisosStore = useAvisosStore()
+
+const cardRow = computed(() => avisosStore.tarjetaByCode('card_upsell'))
+const title = computed(() => cardRow.value?.title ?? FALLBACK_TITLE)
+const subtitle = computed(() => cardRow.value?.body ?? FALLBACK_SUBTITLE)
+const buttonText = computed(() => cardRow.value?.buttonText ?? FALLBACK_BUTTON_TEXT)
 
 function openWhatsApp(): void {
-  const message = 'Hola, me interesa entrenar de forma presencial'
-  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
+  const row = cardRow.value
+  if (row) {
+    void avisosStore.reportClicked(row.id)
+    navigateToAvisoDestination(router, row.destination)
+    return
+  }
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, FALLBACK_WHATSAPP_TEXT), '_blank')
 }
 </script>
 
