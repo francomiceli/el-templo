@@ -35,6 +35,17 @@ export const devicePlatformEnum = mysqlEnum("device_platform", [
   "ios",
 ]);
 
+// Fase 193 (D-01): mismo vocabulario que `modules/communications/destinations.ts`
+// (DestinationType). Duplicado a proposito -- ese modulo es puro (sin db) y
+// este archivo es el unico lugar del repo donde un mysqlEnum define un tipo
+// de columna fisica; mantenerlos sincronizados es responsabilidad de quien
+// toque cualquiera de los dos (mismo criterio de "espejo sin paquete
+// compartido" que ya usan los otros dos espejos de destinations.ts).
+export const destinationTypeEnum = mysqlEnum("destination_type", [
+  "app_section",
+  "whatsapp_sales",
+]);
+
 // ── device_tokens ───────────────────────────────────────────────────────────
 
 export const deviceTokens = mysqlTable(
@@ -78,7 +89,14 @@ export const notificationTemplates = mysqlTable(
     body: text("body").notNull(),
     titleFemale: varchar("title_female", { length: 200 }),
     bodyFemale: text("body_female"),
+    // Fase 193 (D-04): `route` NO se borra — es la ruta de FALLBACK que
+    // consume la app vieja y los callers internos (`queueNotification` con
+    // `routeOverride`, `TEMPLATE_SEEDS`). El destino nuevo viaja en las 3
+    // columnas de abajo.
     route: varchar("route", { length: 200 }).default("/mi-templo"),
+    destinationType: destinationTypeEnum.default("app_section").notNull(),
+    destinationSection: varchar("destination_section", { length: 40 }),
+    whatsappText: varchar("whatsapp_text", { length: 300 }),
     isEnabled: boolean("is_enabled").default(true).notNull(),
     sentCount: int("sent_count").default(0).notNull(),
     openedCount: int("opened_count").default(0).notNull(),
@@ -146,7 +164,14 @@ export const pendingNotifications = mysqlTable(
     templateId: int("template_id").references(() => notificationTemplates.id),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
+    // Fase 193 (D-04): `route` NO se borra — es la ruta de FALLBACK que
+    // consume la app vieja y los callers internos (`queueNotification` con
+    // `routeOverride`, `TEMPLATE_SEEDS`). El destino nuevo viaja en las 3
+    // columnas de abajo.
     route: varchar("route", { length: 200 }).default("/mi-templo"),
+    destinationType: destinationTypeEnum.default("app_section").notNull(),
+    destinationSection: varchar("destination_section", { length: 40 }),
+    whatsappText: varchar("whatsapp_text", { length: 300 }),
     status: notificationStatusEnum.default("pending").notNull(),
     scheduledAt: timestamp("scheduled_at").notNull(),
     sentAt: timestamp("sent_at"),
