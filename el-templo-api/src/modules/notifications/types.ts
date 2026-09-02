@@ -1,3 +1,6 @@
+// Fase 193 (D-01): destino curado compartido, ver modules/communications/destinations.ts
+import type { Destination } from "../communications";
+
 // ── Notification Types ──────────────────────────────────────────────────────
 
 export type NotificationCategory =
@@ -49,6 +52,16 @@ export interface QueueAdHocInput {
   body: string;
   category: NotificationCategory;
   route?: string;
+  /**
+   * Fase 193 (D-01/D-04/D-05): destino curado, validado por el caller
+   * (`validateDestination`) antes de llegar acá. Cuando viene presente,
+   * `queueAdHocNotification` deriva `route` con `fallbackRouteFor(destination)`
+   * — ese valor GANA sobre el parámetro `route` de arriba, que solo aplica a
+   * callers viejos que todavía no migraron a destino (ej.
+   * `jobs/tenure-milestones.ts`). Persistido en `destinationType`/
+   * `destinationSection`/`whatsappText`.
+   */
+  destination?: Destination;
   scheduledAt?: Date;
 }
 

@@ -23,6 +23,14 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import type { EmailService } from "../email/service";
+// Fase 193 (D-01/D-02/D-04): destino curado compartido — buildPushData
+// resuelve el payload FCM con fallback (route) + destino nuevo, nunca lanza.
+import {
+  fallbackRouteFor,
+  DEFAULT_WHATSAPP_TEXT,
+  type Destination,
+  type DestinationType,
+} from "../communications";
 
 /** Fase 180 (D-20/D-24): template key del recordatorio de sesión de prueba. */
 const TRIAL_REMINDER_TEMPLATE_KEY = "trial_session_reminder";
@@ -48,6 +56,46 @@ interface FcmMessaging {
     notification: { title: string; body: string };
     data: Record<string, string>;
   }): Promise<string>;
+}
+
+/**
+ * Fase 193 (D-04): payload `data` de la push, compatible hacia atrás.
+ *
+ * `route` SIEMPRE viaja — es el fallback que la app vieja ya sabe leer
+ * (`handleTapNavigation(data?.route || '/mi-templo')`), nunca 404. `route`
+ * llega YA resuelto (columna `route` de la fila, escrita en el momento del
+ * encolado con `fallbackRouteFor`) — esta función no vuelve a resolverlo, solo
+ * arma el objeto final.
+ *
+ * `destination`/`destinationSection`/`whatsappText` son el agregado nuevo
+ * (D-01): una app vieja los ignora por completo. FCM `data` solo admite
+ * strings — ninguna clave se agrega con `undefined`/`null`.
+ *
+ * Pura: sin `db`, sin `this`, testeable de punta a punta con un input en
+ * memoria (T-193-23).
+ */
+export function buildPushData(input: {
+  route: string;
+  destinationType: DestinationType;
+  destinationSection: string | null;
+  whatsappText: string | null;
+  notificationId: number;
+}): Record<string, string> {
+  const data: Record<string, string> = {
+    route: input.route,
+    notificationId: String(input.notificationId),
+    destination: input.destinationType,
+  };
+
+  if (input.destinationSection) {
+    data.destinationSection = input.destinationSection;
+  }
+
+  if (input.destinationType === "whatsapp_sales") {
+    data.whatsappText = input.whatsappText ?? DEFAULT_WHATSAPP_TEXT;
+  }
+
+  return data;
 }
 
 export class NotificationService {
@@ -412,6 +460,16 @@ export class NotificationService {
         title: resolvedTitle,
         body: resolvedBody,
         route: routeOverride ?? template.route ?? "/mi-templo",
+        // Fase 193 (D-01/D-05): el destino curado del template viaja a la
+        // fila encolada — sin esto, editar el destino de un template vía
+        // PUT /admin/templates/:id no tendría ningún efecto en la push
+        // real (routeOverride sigue ganando cuando un caller interno lo
+        // pasa explícito, mismo criterio que ya regía para `route`).
+        destinationType: routeOverride
+          ? "app_section"
+          : template.destinationType,
+        destinationSection: routeOverride ? null : template.destinationSection,
+        whatsappText: routeOverride ? null : template.whatsappText,
         status: "pending",
         scheduledAt: scheduledAt ?? new Date(),
       }),
@@ -442,7 +500,8 @@ export class NotificationService {
     input: QueueAdHocInput,
     ctx: TenantContext,
   ): Promise<number> {
-    const { userId, title, body, category, route, scheduledAt } = input;
+    const { userId, title, body, category, route, destination, scheduledAt } =
+      input;
 
     // Check user preference for the notification category
     const prefs = await this.getUserPreferences(userId);
@@ -463,13 +522,25 @@ export class NotificationService {
       return -1;
     }
 
+    // Fase 193 (D-01/D-04): `destination` (ya validado por el caller con
+    // `validateDestination`) gana sobre el `route` suelto — deriva el
+    // fallback con `fallbackRouteFor` y persiste el destino curado. Callers
+    // viejos sin migrar (`jobs/tenure-milestones.ts`) siguen funcionando
+    // idéntico: sin `destination`, cae al `route`/default de siempre.
+    const resolvedRoute = destination
+      ? fallbackRouteFor(destination)
+      : (route ?? "/mi-templo");
+
     const result = await this.db.insert(schema.pendingNotifications).values(
       tenantValues(ctx, {
         userId,
         templateId: null,
         title,
         body,
-        route: route ?? "/mi-templo",
+        route: resolvedRoute,
+        destinationType: destination?.type ?? "app_section",
+        destinationSection: destination?.section ?? null,
+        whatsappText: destination?.whatsappText ?? null,
         status: "pending",
         scheduledAt: scheduledAt ?? new Date(),
       }),
@@ -586,8 +657,7 @@ export class NotificationService {
           token,
           notification.title,
           notification.body,
-          notification.route ?? "/mi-templo",
-          notification.id,
+          notification,
         );
 
         if (success) {
@@ -646,14 +716,20 @@ export class NotificationService {
    * In DRY_RUN mode, logs the notification and returns true.
    * On invalid token errors, auto-deletes the token (per D-27).
    * Single retry on failure (per D-38).
+   *
+   * Fase 193 (D-04): recibe la fila ENTERA de `pending_notifications` (no un
+   * `route` suelto) — `buildPushData` arma el payload con el fallback
+   * (`route`, ya resuelto al encolar) + el destino nuevo.
    */
   async sendToDevice(
     token: string,
     title: string,
     body: string,
-    route: string,
-    notificationId: number,
+    notification: typeof schema.pendingNotifications.$inferSelect,
   ): Promise<boolean> {
+    const { id: notificationId } = notification;
+    const route = notification.route ?? "/mi-templo";
+
     if (this.dryRun) {
       this.log.info(
         {
@@ -678,7 +754,13 @@ export class NotificationService {
     const message = {
       token,
       notification: { title, body },
-      data: { route, notificationId: String(notificationId) },
+      data: buildPushData({
+        route,
+        destinationType: notification.destinationType,
+        destinationSection: notification.destinationSection,
+        whatsappText: notification.whatsappText,
+        notificationId,
+      }),
     };
 
     // First attempt

@@ -19,6 +19,14 @@ import { assertTenant, tenantWhere } from "../shared/tenant";
 import * as schema from "../../db/schema";
 // Attendance label values (4 bands) — single source of truth (D-01).
 import type { MemberSegment } from "../segmentation/types";
+// Fase 193 (D-01/D-04/D-05): destino curado compartido — el input de texto
+// libre "route" desaparece de estas dos rutas admin; el destino se valida
+// server-side contra la lista curada, nunca se acepta una ruta arbitraria.
+import {
+  validateDestination,
+  fallbackRouteFor,
+  type Destination,
+} from "../communications";
 
 // ---- Fastify JSON Schemas for request validation ----
 
@@ -109,6 +117,22 @@ const templateResponseSchema = {
   },
 };
 
+// Fase 193 (D-01/D-05): objeto de destino curado — reemplaza el input de
+// texto libre "route". `section`/`whatsappText` no son requeridos acá porque
+// su validez depende del `type` (a cargo de `validateDestination`, no del
+// JSON Schema); un body viejo con `route` cae en `additionalProperties:
+// false` → 400 del propio schema, nunca se ignora en silencio (T-193-21).
+const destinationSchema = {
+  type: "object",
+  properties: {
+    type: { type: "string", enum: ["app_section", "whatsapp_sales"] },
+    section: { type: ["string", "null"] },
+    whatsappText: { type: ["string", "null"] },
+  },
+  required: ["type"],
+  additionalProperties: false,
+};
+
 const updateTemplateSchema = {
   body: {
     type: "object",
@@ -117,7 +141,7 @@ const updateTemplateSchema = {
       body: { type: "string", minLength: 1 },
       titleFemale: { type: "string", minLength: 1, maxLength: 200 },
       bodyFemale: { type: "string", minLength: 1 },
-      route: { type: "string", maxLength: 200 },
+      destination: destinationSchema,
       isEnabled: { type: "boolean" },
     },
     additionalProperties: false,
@@ -137,7 +161,7 @@ const templateIdParamsSchema = {
 const sendSegmentSchema = {
   body: {
     type: "object",
-    required: ["title", "body", "segmentIds"],
+    required: ["title", "body", "segmentIds", "destination"],
     properties: {
       title: { type: "string", minLength: 1, maxLength: 200 },
       body: { type: "string", minLength: 1 },
@@ -151,11 +175,35 @@ const sendSegmentSchema = {
         },
         minItems: 1,
       },
-      route: { type: "string", maxLength: 200 },
+      destination: destinationSchema,
     },
     additionalProperties: false,
   },
 };
+
+/**
+ * Fase 193 (D-02): un `whatsappText` vacío/solo-espacios en el body se
+ * normaliza a `null` ANTES de `validateDestination` — `validateWhatsAppText`
+ * rechaza el string vacío como texto inválido, pero acá el vacío significa
+ * "no elegí texto propio, usá el default global" (D-02), no un error 400.
+ */
+function normalizeDestinationInput(input: unknown): unknown {
+  if (
+    typeof input !== "object" ||
+    input === null ||
+    !("whatsappText" in input)
+  ) {
+    return input;
+  }
+  const candidate = input as Record<string, unknown>;
+  if (
+    typeof candidate.whatsappText === "string" &&
+    candidate.whatsappText.trim().length === 0
+  ) {
+    return { ...candidate, whatsappText: null };
+  }
+  return input;
+}
 
 export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new NotificationService(fastify.db, fastify.log);
@@ -316,7 +364,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       body?: string;
       titleFemale?: string;
       bodyFemale?: string;
-      route?: string;
+      destination?: unknown;
       isEnabled?: boolean;
     };
   }>(
@@ -346,9 +394,27 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         updates.titleFemale = request.body.titleFemale;
       if (request.body.bodyFemale !== undefined)
         updates.bodyFemale = request.body.bodyFemale;
-      if (request.body.route !== undefined) updates.route = request.body.route;
       if (request.body.isEnabled !== undefined)
         updates.isEnabled = request.body.isEnabled;
+
+      // Fase 193 (D-01/D-04/D-05): destino validado contra la lista curada
+      // — nunca una ruta de texto libre. `route` se deriva del destino
+      // (fallback para la app vieja), nunca se acepta directo del body.
+      if (request.body.destination !== undefined) {
+        const destinationResult = validateDestination(
+          normalizeDestinationInput(request.body.destination),
+        );
+        if (!destinationResult.ok) {
+          return reply
+            .code(400)
+            .send({ error: "Destino inválido", message: destinationResult.reason });
+        }
+        const destination: Destination = destinationResult.value;
+        updates.route = fallbackRouteFor(destination);
+        updates.destinationType = destination.type;
+        updates.destinationSection = destination.section;
+        updates.whatsappText = destination.whatsappText;
+      }
 
       if (Object.keys(updates).length === 0) {
         return reply.code(400).send({
@@ -428,7 +494,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       titleFemale?: string;
       bodyFemale?: string;
       segmentIds: MemberSegment[];
-      route?: string;
+      destination: unknown;
     };
   }>(
     "/admin/send-segment",
@@ -448,8 +514,20 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       await attachCountryScope(request, fastify.db);
       const ctx = assertTenant(request.scope, "notifications.sendSegment");
 
-      const { title, body, segmentIds, route, titleFemale, bodyFemale } =
+      const { title, body, segmentIds, titleFemale, bodyFemale } =
         request.body;
+
+      // Fase 193 (D-01/D-05): destino validado contra la lista curada —
+      // nunca una ruta de texto libre (T-193-21).
+      const destinationResult = validateDestination(
+        normalizeDestinationInput(request.body.destination),
+      );
+      if (!destinationResult.ok) {
+        return reply
+          .code(400)
+          .send({ error: "Destino inválido", message: destinationResult.reason });
+      }
+      const destination: Destination = destinationResult.value;
 
       // Query members in the selected segments with their gender (per D-12)
       const members = await fastify.db
@@ -484,7 +562,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
             title: useFemale ? titleFemale : title,
             body: useFemale ? bodyFemale : body,
             category: "anuncios",
-            route: route ?? "/mi-templo",
+            destination,
           },
           ctx,
         );
