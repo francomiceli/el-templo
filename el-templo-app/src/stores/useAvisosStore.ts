@@ -16,6 +16,8 @@ export interface PromptDestination {
 
 export interface PromptAviso {
   id: number
+  /** `code` de sistema (ej. `card_improvement`) o `null` para un aviso libre (`kind: 'custom'`). */
+  code: string | null
   title: string
   body: string
   buttonText: string
@@ -44,6 +46,10 @@ interface PromptResponse {
   prompt: PromptResult
 }
 
+interface TarjetasResponse {
+  tarjetas: PromptAviso[]
+}
+
 type AvisoEventType = 'shown' | 'dismissed' | 'clicked'
 
 /**
@@ -60,10 +66,25 @@ export const useAvisosStore = defineStore('avisos', () => {
   const evaluated = ref(false)
   const loading = ref(false)
 
+  // D-15b: tarjetas del carrusel de Mi Templo — las 4 fijas (code de
+  // sistema) más las libres del admin, ya ordenadas por sortOrder,id por
+  // el server. `tarjetasLoaded` sigue el mismo criterio que `evaluated`
+  // (una sola llamada por apertura, marcado ANTES del primer await).
+  const tarjetas = ref<PromptAviso[]>([])
+  const tarjetasLoaded = ref(false)
+
   const isPlanExpiry = computed(() => prompt.value?.kind === 'plan_expiry')
   const isAviso = computed(() => prompt.value?.kind === 'aviso')
   const isRating = computed(() => prompt.value?.kind === 'rating')
   const isImprovement = computed(() => prompt.value?.kind === 'improvement')
+
+  /** Las 4 tarjetas fijas se identifican por su `code` de sistema (`card_*`). */
+  function tarjetaByCode(code: string): PromptAviso | null {
+    return tarjetas.value.find((t) => t.code === code) ?? null
+  }
+
+  /** Tarjetas libres del admin (`code: null`), en el orden que ya viene del server. */
+  const tarjetasLibres = computed(() => tarjetas.value.filter((t) => t.code === null))
 
   /**
    * Pide el pop-up que toca hoy. Solo llama al endpoint UNA vez por apertura
@@ -93,6 +114,28 @@ export const useAvisosStore = defineStore('avisos', () => {
     }
   }
 
+  /**
+   * Pide las tarjetas del carrusel (D-15b). Sin frecuencia por socio: el
+   * carrusel se ve en cada apertura, así que a diferencia de `evaluate()`
+   * NO reporta `shown` (D-19: las tarjetas miden solo clics). Fail-open: un
+   * error de red deja `tarjetas` vacío — las 4 fijas siguen visibles en el
+   * carrusel con su copy hardcodeado de fallback (MiTemplo.vue/los 4
+   * componentes), nunca un carrusel roto.
+   */
+  async function loadTarjetas(): Promise<void> {
+    if (tarjetasLoaded.value) return
+    tarjetasLoaded.value = true
+    try {
+      const { data } = await api.get<TarjetasResponse>('/communications/me/tarjetas')
+      tarjetas.value = data.tarjetas
+    } catch (err: unknown) {
+      tarjetas.value = []
+      log.error('Failed to load tarjetas', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
   async function reportEvent(avisoId: number, type: AvisoEventType): Promise<void> {
     try {
       await api.post(`/communications/me/avisos/${avisoId}/event`, { type })
@@ -118,17 +161,24 @@ export const useAvisosStore = defineStore('avisos', () => {
     prompt.value = null
     evaluated.value = false
     loading.value = false
+    tarjetas.value = []
+    tarjetasLoaded.value = false
   }
 
   return {
     prompt,
     evaluated,
     loading,
+    tarjetas,
+    tarjetasLoaded,
     isPlanExpiry,
     isAviso,
     isRating,
     isImprovement,
+    tarjetasLibres,
     evaluate,
+    loadTarjetas,
+    tarjetaByCode,
     reportDismissed,
     reportClicked,
     reset,

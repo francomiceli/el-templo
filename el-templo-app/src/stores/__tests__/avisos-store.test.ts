@@ -119,3 +119,98 @@ describe('useAvisosStore (D-06/D-07/D-11 — un pop-up por apertura + eventos se
     expect(api.get).toHaveBeenCalledTimes(2)
   })
 })
+
+const TARJETAS_RESPONSE = {
+  tarjetas: [
+    {
+      id: 1,
+      code: 'card_improvement',
+      title: '¿Qué mejorarías de El Templo?',
+      body: 'Contanos qué te gustaría',
+      buttonText: 'Enviar sugerencia',
+      destination: {
+        type: 'app_section',
+        section: 'proponer_mejora',
+        route: '/proponer-mejora',
+        whatsappText: null,
+      },
+    },
+    {
+      id: 5,
+      code: null,
+      title: 'Tarjeta libre',
+      body: 'Cuerpo libre',
+      buttonText: 'Ver',
+      destination: {
+        type: 'app_section',
+        section: 'mi_templo',
+        route: '/mi-templo',
+        whatsappText: null,
+      },
+    },
+  ],
+}
+
+describe('useAvisosStore — tarjetas del carrusel (D-15b, plan 193-15)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(api.get).mockReset()
+    vi.mocked(api.post).mockReset()
+  })
+
+  it('loadTarjetas() llama al endpoint UNA sola vez aunque se invoque tres veces', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: TARJETAS_RESPONSE })
+    const store = useAvisosStore()
+
+    await Promise.all([store.loadTarjetas(), store.loadTarjetas(), store.loadTarjetas()])
+
+    expect(api.get).toHaveBeenCalledTimes(1)
+    expect(api.get).toHaveBeenCalledWith('/communications/me/tarjetas')
+    // D-19: las tarjetas NO reportan "shown", a diferencia de evaluate().
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('tarjetaByCode() encuentra la fija por su code y devuelve null si no está', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: TARJETAS_RESPONSE })
+    const store = useAvisosStore()
+
+    await store.loadTarjetas()
+
+    expect(store.tarjetaByCode('card_improvement')?.id).toBe(1)
+    expect(store.tarjetaByCode('card_referral')).toBeNull()
+  })
+
+  it('tarjetasLibres devuelve solo las de code null, en el orden del server', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: TARJETAS_RESPONSE })
+    const store = useAvisosStore()
+
+    await store.loadTarjetas()
+
+    expect(store.tarjetasLibres).toHaveLength(1)
+    expect(store.tarjetasLibres[0]?.id).toBe(5)
+  })
+
+  it('un error de red deja tarjetas vacío sin lanzar (fail-open)', async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error('500'))
+    const store = useAvisosStore()
+
+    await expect(store.loadTarjetas()).resolves.toBeUndefined()
+    expect(store.tarjetas).toEqual([])
+    expect(store.tarjetasLibres).toEqual([])
+  })
+
+  it('reset() limpia tarjetas y permite volver a cargarlas', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: TARJETAS_RESPONSE })
+    const store = useAvisosStore()
+
+    await store.loadTarjetas()
+    expect(store.tarjetas).toHaveLength(2)
+
+    store.reset()
+    expect(store.tarjetas).toEqual([])
+    expect(store.tarjetasLoaded).toBe(false)
+
+    await store.loadTarjetas()
+    expect(api.get).toHaveBeenCalledTimes(2)
+  })
+})
