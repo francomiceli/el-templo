@@ -672,11 +672,34 @@ describe("tarjetas — GET /api/communications/me/tarjetas (D-15b)", () => {
 
     const res = await getComo(app, "/me/tarjetas", member.token);
     expect(res.statusCode, res.body).toBe(200);
-    const body = JSON.parse(res.body) as { tarjetas: Array<{ id: number; title: string }> };
+    const body = JSON.parse(res.body) as {
+      tarjetas: Array<{ id: number; title: string; code: string | null }>;
+    };
     expect(body.tarjetas).toHaveLength(5);
     expect(body.tarjetas[body.tarjetas.length - 1]?.id).toBe(freeId);
     const idsSistema = body.tarjetas.slice(0, 4).map((t) => t.id);
     expect(new Set(idsSistema).size).toBe(4);
     expect(idsSistema).not.toContain(freeId);
+  });
+
+  it("expone `code` de sistema en las 4 fijas y `code: null` en la libre (plan 193-15)", async () => {
+    const member = await createTestMember(app, { branchId: 1 });
+    const freeId = await crearAvisoCustom(app, `${MARCA} Tarjeta libre code`, {
+      placement: "tarjeta",
+      frequencyType: "every_open",
+      sortOrder: 99,
+    });
+
+    const res = await getComo(app, "/me/tarjetas", member.token);
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      tarjetas: Array<{ id: number; code: string | null }>;
+    };
+    const codesSistema = body.tarjetas.filter((t) => t.id !== freeId).map((t) => t.code);
+    expect(codesSistema.sort()).toEqual(
+      ["card_improvement", "card_program", "card_referral", "card_upsell"].sort(),
+    );
+    const libre = body.tarjetas.find((t) => t.id === freeId);
+    expect(libre?.code ?? null).toBeNull();
   });
 });

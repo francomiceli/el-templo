@@ -288,6 +288,10 @@ const EVENT_TYPE_ENUM = ["shown", "dismissed", "clicked"] as const;
 /** Forma de un aviso proyectado para el socio (`PromptAviso` de `prompt-service.ts`). */
 const promptAvisoResponseProperties = {
   id: { type: "integer" },
+  // Plan 193-15: `code` de sistema (ej. `card_improvement`) o `null` para
+  // un aviso `kind: 'custom'` — la app lo usa para mapear las 4 tarjetas
+  // fijas a su copy editable.
+  code: { type: ["string", "null"] },
   title: { type: "string" },
   body: { type: "string" },
   buttonText: { type: "string" },

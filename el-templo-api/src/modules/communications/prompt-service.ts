@@ -94,6 +94,13 @@ export interface MemberScopeInfo {
 /** Forma de un aviso proyectada para la app (pop-up o tarjeta). */
 export interface PromptAviso {
   id: number;
+  /**
+   * `code` de sistema (ej. `card_improvement`) o `null` para un aviso
+   * `kind: 'custom'`. Plan 193-15: la app lo necesita para mapear las 4
+   * tarjetas fijas del carrusel a su copy editable (`tarjetaByCode`); las
+   * libres son las que traen `code: null`.
+   */
+  code: string | null;
   title: string;
   body: string;
   buttonText: string;
@@ -531,6 +538,7 @@ function buildPromptAviso(row: AvisoRow, whatsappNumber: string | null): PromptA
 
   const aviso: PromptAviso = {
     id: row.id,
+    code: row.code,
     title: row.title,
     body: row.body,
     buttonText: row.buttonText,
