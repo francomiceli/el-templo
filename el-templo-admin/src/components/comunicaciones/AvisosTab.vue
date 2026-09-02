@@ -46,7 +46,10 @@
 
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-badge :color="statusColor(props.row.status)" :label="statusLabel(props.row.status)" />
+          <q-badge
+            :color="avisoStatusColor(props.row.status)"
+            :label="avisoStatusLabel(props.row.status)"
+          />
         </q-td>
       </template>
 
@@ -116,7 +119,8 @@ import { extractError } from 'src/utils/extract-error';
 import AvisoEditorDialog from 'src/components/comunicaciones/AvisoEditorDialog.vue';
 import VerSociosDialog from 'src/components/comunicaciones/VerSociosDialog.vue';
 import { useCommunicationsApi } from 'src/composables/useCommunicationsApi';
-import type { AvisoRow, AvisoStatus, AvisoFrequencyType } from 'src/composables/useCommunicationsApi';
+import type { AvisoRow, AvisoFrequencyType } from 'src/composables/useCommunicationsApi';
+import { vigenciaLabel, avisoStatusColor, avisoStatusLabel } from 'src/utils/aviso-format';
 
 const log = createLogger('AvisosTab');
 const $q = useQuasar();
@@ -161,33 +165,6 @@ const columns: QTableColumn[] = [
   },
   { name: 'actions', label: '', field: 'id', align: 'center' },
 ];
-
-function statusColor(status: AvisoStatus): string {
-  if (status === 'active') return 'positive';
-  if (status === 'paused') return 'warning';
-  return 'grey';
-}
-
-function statusLabel(status: AvisoStatus): string {
-  if (status === 'active') return 'Activo';
-  if (status === 'paused') return 'Pausado';
-  return 'Borrador';
-}
-
-function formatDateDdMmYyyy(iso: string): string {
-  const parts = iso.split('-');
-  if (parts.length !== 3) return iso;
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
-}
-
-function vigenciaLabel(row: AvisoRow): string {
-  if (row.startsOn && row.endsOn) {
-    return `${formatDateDdMmYyyy(row.startsOn)} - ${formatDateDdMmYyyy(row.endsOn)}`;
-  }
-  if (row.startsOn) return `Desde ${formatDateDdMmYyyy(row.startsOn)}`;
-  if (row.endsOn) return `Hasta ${formatDateDdMmYyyy(row.endsOn)}`;
-  return 'Sin límite';
-}
 
 const FREQUENCY_LABELS: Record<AvisoFrequencyType, string> = {
   once: 'Una vez',

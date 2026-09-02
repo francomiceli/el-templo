@@ -6,12 +6,18 @@
      Modo sistema (D-08/D-09/D-10): cuando el aviso es `kind: 'system'`, el
      diálogo deshabilita exactamente los campos que `allowedFieldsForSystemAviso`
      (el-templo-api/src/modules/communications/service.ts) rechazaría — nunca
-     manda al PUT un campo no editable, aunque el usuario no lo haya tocado. -->
+     manda al PUT un campo no editable, aunque el usuario no lo haya tocado.
+
+     Reuso por TarjetasTab.vue (plan 14, D-15): con `placement="tarjeta"` el
+     bloque de Frecuencia se oculta entero (D-15b, el carrusel se ve en cada
+     apertura — el service fuerza `every_open`/`null` de todos modos) y el
+     alta manda `sortOrder` vía `createSortOrder` (calculado por
+     TarjetasTab.vue como el siguiente lugar en el carrusel). -->
 <template>
   <q-dialog v-model="localOpen" persistent>
     <q-card style="min-width: 480px; max-width: 640px; width: 100%">
       <q-card-section>
-        <div class="text-h6">{{ aviso ? 'Editar aviso' : 'Nuevo aviso' }}</div>
+        <div class="text-h6">{{ dialogTitle }}</div>
         <q-badge v-if="isSystem" color="grey-7" label="Aviso de sistema" class="q-mt-xs" />
       </q-card-section>
 
@@ -47,7 +53,7 @@
         <DestinoSelector v-model="form.destination" />
 
         <AvisoPreview
-          placement="popup"
+          :placement="placement"
           :title="form.title"
           :body="form.body"
           :button-text="form.buttonText"
@@ -143,29 +149,34 @@
           :hint="!fieldEditable('status') ? 'El estado de este aviso de sistema no es editable' : undefined"
         />
 
-        <q-separator />
-        <div class="text-subtitle2">Frecuencia</div>
-        <q-select
-          v-model="form.frequencyType"
-          :options="frequencyOptions"
-          label="Frecuencia"
-          dense
-          outlined
-          emit-value
-          map-options
-          :disable="!fieldEditable('frequencyType')"
-          :hint="frequencyHint"
-        />
-        <q-input
-          v-if="form.frequencyType === 'every_n_days'"
-          v-model.number="form.frequencyDays"
-          label="Cada cuántos días"
-          type="number"
-          min="1"
-          dense
-          outlined
-          :disable="!fieldEditable('frequencyType')"
-        />
+        <template v-if="placement === 'popup'">
+          <q-separator />
+          <div class="text-subtitle2">Frecuencia</div>
+          <q-select
+            v-model="form.frequencyType"
+            :options="frequencyOptions"
+            label="Frecuencia"
+            dense
+            outlined
+            emit-value
+            map-options
+            :disable="!fieldEditable('frequencyType')"
+            :hint="frequencyHint"
+          />
+          <q-input
+            v-if="form.frequencyType === 'every_n_days'"
+            v-model.number="form.frequencyDays"
+            label="Cada cuántos días"
+            type="number"
+            min="1"
+            dense
+            outlined
+            :disable="!fieldEditable('frequencyType')"
+          />
+        </template>
+        <div v-else class="text-caption text-grey-7">
+          Las tarjetas se ven en cada apertura de Mi Templo: no tienen frecuencia por socio (D-15b).
+        </div>
       </q-card-section>
 
       <q-card-actions align="right">
@@ -195,6 +206,7 @@ import type {
   AvisoRow,
   AvisoStatus,
   AvisoFrequencyType,
+  AvisoPlacement,
   MemberSegmentKey,
   CreateAvisoInput,
   UpdateAvisoInput,
@@ -210,10 +222,20 @@ const authStore = useAuthStore();
 const membersApi = useMembersApi();
 const commsApi = useCommunicationsApi();
 
-const props = defineProps<{
-  modelValue: boolean;
-  aviso: AvisoRow | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean;
+    aviso: AvisoRow | null;
+    /** D-15: 'tarjeta' cuando lo reusa TarjetasTab.vue (plan 14). */
+    placement?: AvisoPlacement;
+    /** Solo aplica a un alta con `placement: 'tarjeta'` (siguiente lugar del carrusel, D-15b). */
+    createSortOrder?: number;
+  }>(),
+  {
+    placement: 'popup',
+    createSortOrder: 0,
+  },
+);
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
@@ -223,6 +245,13 @@ const emit = defineEmits<{
 const localOpen = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit('update:modelValue', value),
+});
+
+const dialogTitle = computed(() => {
+  if (props.placement === 'tarjeta') {
+    return props.aviso ? 'Editar tarjeta' : 'Nueva tarjeta';
+  }
+  return props.aviso ? 'Editar aviso' : 'Nuevo aviso';
 });
 
 const isOwner = computed(() => authStore.user?.role === 'owner');
@@ -403,6 +432,7 @@ const datesInvalid = computed(() => {
 const canSave = computed(() => {
   if (!form.title.trim() || !form.body.trim() || !form.buttonText.trim()) return false;
   if (
+    props.placement === 'popup' &&
     fieldEditable('frequencyType') &&
     form.frequencyType === 'every_n_days' &&
     (!form.frequencyDays || form.frequencyDays < 1)
@@ -430,7 +460,7 @@ async function handleSave() {
       payload.destinationSection = form.destination.section;
       payload.whatsappText = form.destination.whatsappText;
       if (fieldEditable('status')) payload.status = form.status;
-      if (fieldEditable('frequencyType')) {
+      if (props.placement === 'popup' && fieldEditable('frequencyType')) {
         payload.frequencyType = form.frequencyType;
         payload.frequencyDays = form.frequencyType === 'every_n_days' ? form.frequencyDays : null;
       }
@@ -444,21 +474,30 @@ async function handleSave() {
       await commsApi.updateAviso(props.aviso.id, payload);
     } else {
       const payload: CreateAvisoInput = {
-        placement: 'popup',
+        placement: props.placement,
         title: form.title.trim(),
         body: form.body.trim(),
         buttonText: form.buttonText.trim(),
         destinationType: form.destination.type,
         destinationSection: form.destination.section,
         whatsappText: form.destination.whatsappText,
-        frequencyType: form.frequencyType,
-        frequencyDays: form.frequencyType === 'every_n_days' ? form.frequencyDays : null,
+        // D-15b: las tarjetas nunca tienen frecuencia por socio — el service
+        // fuerza `every_open`/`null` igual, esto solo evita mandar un valor
+        // sin sentido (el bloque de Frecuencia está oculto para tarjetas).
+        frequencyType: props.placement === 'tarjeta' ? 'every_open' : form.frequencyType,
+        frequencyDays:
+          props.placement === 'tarjeta'
+            ? null
+            : form.frequencyType === 'every_n_days'
+              ? form.frequencyDays
+              : null,
         status: form.status,
         startsOn: form.startsOn || null,
         endsOn: form.endsOn || null,
         scopeBranchIds: form.scopeBranchIds.length ? form.scopeBranchIds : null,
         scopeCountries: form.scopeCountries.length ? form.scopeCountries : null,
         scopeSegments: form.scopeSegments.length ? form.scopeSegments : null,
+        sortOrder: props.placement === 'tarjeta' ? props.createSortOrder : undefined,
       };
       await commsApi.createAviso(payload);
     }

@@ -3,10 +3,10 @@
      FeedbackPage.vue) para que el redirect desde /notificaciones y los deep
      links funcionen.
 
-     Cómo se enchufa una pestaña nueva (planes 14 Tarjetas + Ajustes, 16
-     Avisos en TV): agregar un `<q-tab name="..." label="..." />` + su
-     `<q-tab-panel name="...">` montando el componente de la pestaña (mismo
-     patrón que `<PushTab />`/`<AvisosTab />` acá abajo), bajo
+     Cómo se enchufa una pestaña nueva (plan 16 Avisos en TV): agregar un
+     `<q-tab name="..." label="..." />` + su `<q-tab-panel name="...">`
+     montando el componente de la pestaña (mismo patrón que
+     `<PushTab />`/`<AvisosTab />`/`<TarjetasTab />` acá abajo), bajo
      `src/components/comunicaciones/`. -->
 <template>
   <q-page class="q-pa-md">
@@ -22,6 +22,7 @@
     >
       <q-tab name="push" label="Notificaciones push" />
       <q-tab name="avisos" label="Avisos en la app" />
+      <q-tab name="tarjetas" label="Tarjetas de Mi Templo" />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
@@ -30,6 +31,9 @@
       </q-tab-panel>
       <q-tab-panel name="avisos" class="q-pa-none">
         <AvisosTab />
+      </q-tab-panel>
+      <q-tab-panel name="tarjetas" class="q-pa-none">
+        <TarjetasTab />
       </q-tab-panel>
     </q-tab-panels>
   </q-page>
@@ -40,11 +44,12 @@ import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import PushTab from 'src/components/comunicaciones/PushTab.vue';
 import AvisosTab from 'src/components/comunicaciones/AvisosTab.vue';
+import TarjetasTab from 'src/components/comunicaciones/TarjetasTab.vue';
 
 const route = useRoute();
 const router = useRouter();
 
-const VALID_TABS = ['push', 'avisos'];
+const VALID_TABS = ['push', 'avisos', 'tarjetas'];
 
 function initialTab(): string {
   const requested = typeof route.query.tab === 'string' ? route.query.tab : null;
