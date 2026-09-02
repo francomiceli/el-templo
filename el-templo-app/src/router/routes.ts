@@ -56,6 +56,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/VolverPage.vue'),
       },
       {
+        // Destino común WhatsApp de ventas (Fase 193, D-03). Path EXACTO:
+        // debe coincidir literal con CONTACT_SALES_ROUTE de
+        // src/config/destinations.ts (resolveDestinationRoute lo produce).
+        path: '/contacto-ventas',
+        name: 'contacto-ventas',
+        component: () => import('pages/ContactoVentasPage.vue'),
+      },
+      {
         path: 'change-password',
         name: 'change-password',
         component: () => import('pages/ChangePasswordPage.vue'),
