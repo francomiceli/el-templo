@@ -140,6 +140,33 @@ export interface SendSegmentInput {
   destination: Destination;
 }
 
+// ── Avisos de TV (el-templo-api/src/modules/communications/tv-avisos-service.ts) ──
+// Entidad APARTE de los avisos de app: sin destino/alcance-país-segmento/vigencia/
+// frecuencia (D-24). Gateada por el módulo `templo-training` (D-23) — un 404 en
+// cualquiera de estas 4 rutas significa "módulo apagado para este tenant", no un
+// error real (ver TvAvisosTab.vue).
+
+export type TvAvisoMode = 'manual' | 'flex_inicio' | 'flex_final';
+
+export interface TvAvisoRow {
+  id: number;
+  title: string;
+  body: string;
+  mode: TvAvisoMode;
+  isActive: boolean;
+  scopeBranchIds: number[] | null;
+}
+
+export interface CreateTvAvisoInput {
+  title: string;
+  body: string;
+  mode: TvAvisoMode;
+  isActive?: boolean;
+  scopeBranchIds?: number[] | null;
+}
+
+export type UpdateTvAvisoInput = Partial<CreateTvAvisoInput>;
+
 export function useCommunicationsApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -301,6 +328,71 @@ export function useCommunicationsApi() {
     }
   }
 
+  // -- Avisos de TV (D-24) ---------------------------------------------------
+
+  async function listTvAvisos(): Promise<TvAvisoRow[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ avisos: TvAvisoRow[] }>(
+        '/communications/tv/admin/tv-avisos',
+      );
+      return data.avisos;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudieron cargar los avisos de TV');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function createTvAviso(input: CreateTvAvisoInput): Promise<TvAvisoRow> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<TvAvisoRow>(
+        '/communications/tv/admin/tv-avisos',
+        input,
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo crear el aviso de TV');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function updateTvAviso(id: number, input: UpdateTvAvisoInput): Promise<TvAvisoRow> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.put<TvAvisoRow>(
+        `/communications/tv/admin/tv-avisos/${id}`,
+        input,
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo actualizar el aviso de TV');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function deleteTvAviso(id: number): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.delete(`/communications/tv/admin/tv-avisos/${id}`);
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo borrar el aviso de TV');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -319,6 +411,10 @@ export function useCommunicationsApi() {
     listTemplates,
     updateTemplate,
     sendSegment,
+    listTvAvisos,
+    createTvAviso,
+    updateTvAviso,
+    deleteTvAviso,
     cleanup,
   };
 }

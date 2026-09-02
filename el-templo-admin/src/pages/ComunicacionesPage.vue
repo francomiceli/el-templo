@@ -3,11 +3,11 @@
      FeedbackPage.vue) para que el redirect desde /notificaciones y los deep
      links funcionen.
 
-     Cómo se enchufa una pestaña nueva (plan 16 Avisos en TV): agregar un
-     `<q-tab name="..." label="..." />` + su `<q-tab-panel name="...">`
-     montando el componente de la pestaña (mismo patrón que
-     `<PushTab />`/`<AvisosTab />`/`<TarjetasTab />` acá abajo), bajo
-     `src/components/comunicaciones/`.
+     Plan 16 (Avisos en TV, D-23): la pestaña se enchufó con el mismo patrón
+     que `<PushTab />`/`<AvisosTab />`/`<TarjetasTab />` acá abajo, bajo
+     `src/components/comunicaciones/`. El gate de módulo (`templo-training`)
+     es responsabilidad de `TvAvisosTab.vue` — la pestaña siempre se ve, el
+     404 del guard se muestra como un estado vacío explicativo adentro.
 
      Plan 14 (número de ventas, D-20): "Ajustes" NO es una pestaña propia —
      vive como bloque colapsable arriba de la tabla de tarjetas, dentro del
@@ -28,6 +28,7 @@
       <q-tab name="push" label="Notificaciones push" />
       <q-tab name="avisos" label="Avisos en la app" />
       <q-tab name="tarjetas" label="Tarjetas de Mi Templo" />
+      <q-tab name="tv" label="Avisos en TV" />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
@@ -50,6 +51,9 @@
         </q-expansion-item>
         <TarjetasTab />
       </q-tab-panel>
+      <q-tab-panel name="tv" class="q-pa-none">
+        <TvAvisosTab />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -61,11 +65,12 @@ import PushTab from 'src/components/comunicaciones/PushTab.vue';
 import AvisosTab from 'src/components/comunicaciones/AvisosTab.vue';
 import TarjetasTab from 'src/components/comunicaciones/TarjetasTab.vue';
 import AjustesVentas from 'src/components/comunicaciones/AjustesVentas.vue';
+import TvAvisosTab from 'src/components/comunicaciones/TvAvisosTab.vue';
 
 const route = useRoute();
 const router = useRouter();
 
-const VALID_TABS = ['push', 'avisos', 'tarjetas'];
+const VALID_TABS = ['push', 'avisos', 'tarjetas', 'tv'];
 
 function initialTab(): string {
   const requested = typeof route.query.tab === 'string' ? route.query.tab : null;
