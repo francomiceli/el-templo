@@ -17,7 +17,7 @@
  *     `screen: "idle"` sin un solo campo de error. Un socio no puede distinguir
  *     "no hay clase ahora" de "el profe no aprobo la sesion".
  */
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -365,8 +365,16 @@ export class TvService {
     const stored = await this.readState(branch.id, classDate);
 
     // D-09: sin sesion aprobada o sin clase iniciada -> reposo, SIN mensaje.
+    // D-28: la pantalla de reposo SI puede traer un aviso de reemplazo (modo
+    // "flex_inicio") -- la pantalla sigue siendo "idle", solo cambia el
+    // contenido que pinta el kiosco (la capsula de flexibilidad inicial).
     if (!classDay.approved || !stored) {
-      return { ...base, screen: "idle", class: null, aviso: null };
+      const aviso = await this.resolveReplacementAviso(
+        branchId,
+        branch.tenantId,
+        "flex_inicio",
+      );
+      return { ...base, screen: "idle", class: null, aviso };
     }
 
     const state = this.clampState(stored, classDay);
@@ -386,6 +394,15 @@ export class TvService {
       if (!aviso) {
         screen = "class";
       }
+    } else if (screen === "closing") {
+      // D-28: la pantalla de cierre puede traer un aviso de reemplazo (modo
+      // "flex_final") -- ocupa el lugar de la frase, la pantalla sigue
+      // siendo "closing".
+      aviso = await this.resolveReplacementAviso(
+        branchId,
+        branch.tenantId,
+        "flex_final",
+      );
     }
 
     if (screen !== "class") {
@@ -430,6 +447,50 @@ export class TvService {
 
     if (!row || !row.isActive) return null;
     return { id: row.id, title: row.title, body: row.body };
+  }
+
+  /**
+   * D-28: aviso de reemplazo para las pantallas de flexibilidad inicial
+   * (`idle`) o final (`closing`) -- mismo criterio de alcance por sede
+   * (`scopeBranchIds` NULL/vacio = todas las sedes) que
+   * `TvAvisosService.getActiveForBranch`, resuelto aca en vez de reusar ese
+   * service porque el poll no tiene un `TenantContext` de request: corre con
+   * `branch.tenantId` ya resuelto por `buildPollPayload`. Filtro literal por
+   * `tenantId` (sin `tenantWhere`), mismo criterio que `resolveAviso` arriba.
+   * Una sola query extra por poll, solo en las ramas `idle`/`closing` -- la
+   * rama de clase no la llama.
+   */
+  private async resolveReplacementAviso(
+    branchId: number,
+    tenantId: number,
+    mode: "flex_inicio" | "flex_final",
+  ): Promise<TvAvisoPollPayload | null> {
+    const rows = await this.db
+      .select({
+        id: schema.tvAvisos.id,
+        title: schema.tvAvisos.title,
+        body: schema.tvAvisos.body,
+        scopeBranchIds: schema.tvAvisos.scopeBranchIds,
+      })
+      .from(schema.tvAvisos)
+      .where(
+        and(
+          eq(schema.tvAvisos.tenantId, tenantId),
+          eq(schema.tvAvisos.isActive, true),
+          eq(schema.tvAvisos.mode, mode),
+        ),
+      )
+      .orderBy(desc(schema.tvAvisos.id));
+
+    const match = rows.find((row) => {
+      const scope = row.scopeBranchIds;
+      if (!scope || scope.length === 0) return true;
+      return scope.includes(branchId);
+    });
+
+    return match
+      ? { id: match.id, title: match.title, body: match.body }
+      : null;
   }
 
   // ───────────────────────────────────────────────────────────────────────────

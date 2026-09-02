@@ -159,8 +159,10 @@ async function createTvAviso(
   overrides: Partial<{
     title: string;
     body: string;
+    mode: "manual" | "flex_inicio" | "flex_final";
     isActive: boolean;
     tenantId: number;
+    scopeBranchIds: number[] | null;
   }> = {},
 ): Promise<number> {
   const [row] = await app.db
@@ -168,8 +170,11 @@ async function createTvAviso(
     .values({
       title: overrides.title ?? "Aviso de prueba 193-10",
       body: overrides.body ?? "Cuerpo del aviso de prueba 193-10",
-      mode: "manual",
+      mode: overrides.mode ?? "manual",
       isActive: overrides.isActive ?? true,
+      ...(overrides.scopeBranchIds !== undefined
+        ? { scopeBranchIds: overrides.scopeBranchIds }
+        : {}),
       ...(overrides.tenantId !== undefined
         ? { tenantId: overrides.tenantId }
         : {}),
@@ -252,6 +257,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
   vi.useRealTimers();
+  // 193-13: sin esto, un aviso flex_inicio/flex_final activo creado por el
+  // ULTIMO test de este archivo (tv_avisos NO esta en TABLES_TO_CLEAN, L3)
+  // quedaria vivo para los archivos de test/tv/ que corren despues en el
+  // mismo proceso (orden alfabetico: tv-service.test.ts, etc.) y romperia
+  // sus aserciones de `aviso: null` en idle/closing.
+  await limpiarTvAvisos();
   await app.close();
 });
 
@@ -492,6 +503,79 @@ describe("screen 'aviso' — escritura, poll, salida y degradacion (D-25/D-26)",
     expect(second.statusCode, second.body).toBe(200);
 
     const screenRes = await getScreen(coachToken, branchId);
+    const poll = JSON.parse(screenRes.body) as PollBody;
+    expect(poll.screen).toBe("idle");
+    expect(poll.aviso).toBeNull();
+  });
+});
+
+
+describe("modo reemplazo — flexibilidad inicial y final (D-28)", () => {
+  it("(6a) flex_inicio activo sin clase iniciada: screen 'idle' con el texto del aviso", async () => {
+    await createTvAviso({
+      title: "Flexibilidad libre antes de empezar",
+      body: "Aprovecha para estirar y elongar",
+      mode: "flex_inicio",
+      isActive: true,
+    });
+
+    // Sin postState: no hay fila en tv_class_state -> !stored -> idle.
+    const screenRes = await getScreen(coachToken, branchId);
+    expect(screenRes.statusCode, screenRes.body).toBe(200);
+    const poll = JSON.parse(screenRes.body) as PollBody;
+    expect(poll.screen).toBe("idle");
+    expect(poll.class).toBeNull();
+    expect(poll.aviso).toMatchObject({
+      title: "Flexibilidad libre antes de empezar",
+      body: "Aprovecha para estirar y elongar",
+    });
+  });
+
+  it("(6b) flex_final activo con screen 'closing': el aviso viaja junto al cierre", async () => {
+    await createTvAviso({
+      title: "Antes de irte",
+      body: "Dejanos tu feedback de la clase",
+      mode: "flex_final",
+      isActive: true,
+    });
+    await postState(coachToken, { branchId, screen: "closing" });
+
+    const screenRes = await getScreen(coachToken, branchId);
+    expect(screenRes.statusCode, screenRes.body).toBe(200);
+    const poll = JSON.parse(screenRes.body) as PollBody;
+    expect(poll.screen).toBe("closing");
+    expect(poll.class).toBeNull();
+    expect(poll.aviso).toMatchObject({
+      title: "Antes de irte",
+      body: "Dejanos tu feedback de la clase",
+    });
+  });
+
+  it("(6c) un aviso 'manual' no aparece como reemplazo ni en idle ni en closing", async () => {
+    await createTvAviso({ mode: "manual", isActive: true });
+
+    const idleRes = await getScreen(coachToken, branchId);
+    const idlePoll = JSON.parse(idleRes.body) as PollBody;
+    expect(idlePoll.screen).toBe("idle");
+    expect(idlePoll.aviso).toBeNull();
+
+    await postState(coachToken, { branchId, screen: "closing" });
+    const closingRes = await getScreen(coachToken, branchId);
+    const closingPoll = JSON.parse(closingRes.body) as PollBody;
+    expect(closingPoll.screen).toBe("closing");
+    expect(closingPoll.aviso).toBeNull();
+  });
+
+  it("(6d) un aviso flex_inicio con scope de otra sede no aparece", async () => {
+    const otherBranchId = branchId + 999999;
+    await createTvAviso({
+      mode: "flex_inicio",
+      isActive: true,
+      scopeBranchIds: [otherBranchId],
+    });
+
+    const screenRes = await getScreen(coachToken, branchId);
+    expect(screenRes.statusCode, screenRes.body).toBe(200);
     const poll = JSON.parse(screenRes.body) as PollBody;
     expect(poll.screen).toBe("idle");
     expect(poll.aviso).toBeNull();
