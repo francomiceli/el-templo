@@ -278,9 +278,9 @@ export const NAV_MODEL: NavCategory[] = [
         roles: ['owner'],
       },
       {
-        path: '/notificaciones',
-        label: 'Notificaciones',
-        icon: 'notifications',
+        path: '/comunicaciones',
+        label: 'Comunicaciones',
+        icon: 'campaign',
         roles: DUENO_ROLES,
       },
     ],

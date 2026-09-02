@@ -251,8 +251,11 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
-        path: 'notificaciones',
-        component: () => import('pages/NotificacionesPage.vue'),
+        // Comunicaciones (Fase 193, D-30/D-31): reemplaza a Notificaciones.
+        // Push (este plan) + Avisos en la app / Tarjetas / Avisos en TV
+        // (planes 11, 14, 16) como pestañas de la misma página.
+        path: 'comunicaciones',
+        component: () => import('pages/ComunicacionesPage.vue'),
         meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
       {
@@ -266,6 +269,11 @@ const routes: RouteRecordRaw[] = [
       // Rutas viejas de puntuaciones/propuestas → tabs de Feedback.
       { path: 'puntuaciones', redirect: { path: '/feedback', query: { tab: 'profes' } } },
       { path: 'propuestas', redirect: { path: '/feedback', query: { tab: 'sugerencias' } } },
+      // Ruta vieja de notificaciones → Comunicaciones (D-31). El guard
+      // (`router/index.ts`) evalúa `to.meta` DESPUÉS de resolver el
+      // redirect, así que el `allowedRoles` de destino ya rige — mismo
+      // criterio, sin meta propio, que puntuaciones/propuestas arriba.
+      { path: 'notificaciones', redirect: '/comunicaciones' },
     ],
   },
   {
