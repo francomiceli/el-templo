@@ -16,8 +16,18 @@
 
 import type { TimerClock, TimerSpec } from './timer';
 
-/** Que esta mostrando el TV. `idle` es tambien el reposo silencioso de D-09. */
-export type TvScreen = 'idle' | 'class' | 'closing';
+/** Que esta mostrando el TV. `idle` es tambien el reposo silencioso de D-09.
+ *  `aviso` (fase 193, D-25/D-28): placa a pantalla completa con el texto de
+ *  un aviso de TV, disparada desde el control del profe. */
+export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso';
+
+/** Texto minimo de un aviso de TV, ya resuelto por el poll (D-27: sin
+ *  segundo fetch, el kiosco es una pagina estatica). */
+export interface TvAvisoPollPayload {
+  id: number;
+  title: string;
+  body: string;
+}
 
 /** Sesion de semana vs. sabado ROM (D-23). */
 export type TvClassMode = 'regular' | 'rom';
@@ -97,6 +107,8 @@ export interface TvPollResponse {
   branch: { name: string; utcOffsetMinutes: number; dateLabel: string };
   screen: TvScreen;
   class: TvClassPayload | null;
+  /** Fase 193 (D-25/D-28): `null` salvo cuando `screen === 'aviso'`. */
+  aviso: TvAvisoPollPayload | null;
 }
 
 // =============================================================================

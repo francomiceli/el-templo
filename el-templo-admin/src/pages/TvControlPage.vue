@@ -148,6 +148,22 @@
               @click="onFlexFinal"
             />
           </div>
+          <!-- Fase 193 (D-25): solo aparece con un aviso de TV activo en modo
+               manual para la sede. Sin confirmación (D-26). -->
+          <div v-if="avisoActivo" class="col-12">
+            <q-btn
+              class="tv-btn full-width"
+              label="AVISO"
+              color="secondary"
+              :outline="!isAvisoScreen"
+              :unelevated="isAvisoScreen"
+              :disable="!canControl"
+              @click="onAviso"
+            />
+            <div class="text-caption text-grey-7 text-center q-mt-xs">
+              {{ avisoActivo.title }}
+            </div>
+          </div>
         </div>
 
         <!-- ============================ NIVELES ============================ -->
@@ -413,6 +429,7 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import {
   useTvApi,
+  type TvAvisoActivo,
   type TvControlBlock,
   type TvControlContext,
   type TvStateWrite,
@@ -505,6 +522,10 @@ const screenBranchId = ref<number | null>(null);
 const branches = ref<BranchOption[]>([]);
 const branchesLoading = ref(false);
 const selectedBranchId = ref<number | null>(null);
+
+/** Fase 193 (D-25): aviso de TV activo en modo `manual` para la sede
+ *  seleccionada. `null` sin aviso — el botón AVISO no se muestra. */
+const avisoActivo = ref<TvAvisoActivo | null>(null);
 
 let refreshId: ReturnType<typeof setInterval> | null = null;
 
@@ -695,7 +716,7 @@ const blockButtons = computed<{ role: string; label: string }[]>(() => {
  *  extremo de flexibilidad correspondiente (el rol persiste en el estado, pero
  *  mostrarlo encendido confundía al profe). */
 function isActiveButton(role: string): boolean {
-  if (!hasState.value || isClosingScreen.value) return false;
+  if (!hasState.value || isClosingScreen.value || isAvisoScreen.value) return false;
   const cur = currentBlockRole.value;
   if (role === cur) return true;
   return role === 'DEUTEROS_1' && (cur === 'DEUTEROS_1' || cur === 'DEUTEROS_2');
@@ -712,6 +733,8 @@ const currentLevel = computed(() => context.value?.state?.level ?? '');
 const timerStatus = computed(() => context.value?.state?.timerStatus ?? 'idle');
 const soundEnabled = computed(() => context.value?.state?.soundEnabled === true);
 const isClosingScreen = computed(() => context.value?.state?.screen === 'closing');
+/** Fase 193 (D-25): el TV está mostrando la placa del aviso disparado. */
+const isAvisoScreen = computed(() => context.value?.state?.screen === 'aviso');
 
 /**
  * Pares DISPONIBLES hoy: solo los que tienen al menos un nivel presente en
@@ -769,6 +792,23 @@ const pendingBlockLabel = computed(() => {
 // Lectura del contexto
 // =========================================================================
 
+/**
+ * Fase 193 (D-25): aviso de TV activo en modo `manual` de la sede, para el
+ * botón AVISO. Carga auxiliar de la botonera — un fallo acá no puede tumbar
+ * el control ciego (D-13): se apaga el botón en silencio y se loguea.
+ */
+async function fetchAvisoActivo(branchId: number): Promise<void> {
+  try {
+    avisoActivo.value = await tvApi.getTvAvisoActivo(branchId);
+  } catch (err: unknown) {
+    avisoActivo.value = null;
+    if (!isExpectedClientError(err)) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      log.warn('No se pudo cargar el aviso de TV activo', { error: message, branchId });
+    }
+  }
+}
+
 async function fetchContext(): Promise<void> {
   const branchId = selectedBranchId.value;
   if (branchId === null) return;
@@ -788,6 +828,10 @@ async function fetchContext(): Promise<void> {
   } finally {
     initialLoading.value = false;
   }
+
+  // D-25: se recarga junto con el contexto — al elegir sede y en el refresco
+  // de cortesía de 30 s (`fetchContext` es el único punto que corre en ambos).
+  void fetchAvisoActivo(branchId);
 }
 
 async function onManualRefresh(): Promise<void> {
@@ -898,6 +942,17 @@ function onFlexFinal(): void {
 function confirmClosing(): void {
   closingConfirmOpen.value = false;
   void send({ screen: 'closing' });
+}
+
+/**
+ * Botón AVISO (fase 193, D-25): dispara el aviso de TV activo en pantalla
+ * completa. Sin confirmación (D-26: no es destructivo como los extremos de
+ * flexibilidad — sale solo al avanzar a otro bloque, no hay nada que perder).
+ */
+function onAviso(): void {
+  const aviso = avisoActivo.value;
+  if (aviso === null) return;
+  void send({ screen: 'aviso', tvAvisoId: aviso.id });
 }
 
 /** Los dos triángulos recorren la tira completa: inicio → bloques → final. */

@@ -33,8 +33,18 @@ import type { TvPollResponse } from 'src/tv/poll';
 // compañía de `el-templo-api/src/modules/tv/types.ts`. Renombrar un campo allá
 // obliga a tocar acá — el docblock de aquel archivo lo dice explícitamente.
 
-/** Qué está mostrando el TV. `idle` = reposo (D-06); `closing` = cierre (D-08). */
-export type TvScreen = 'idle' | 'class' | 'closing';
+/** Qué está mostrando el TV. `idle` = reposo (D-06); `closing` = cierre (D-08);
+ *  `aviso` (fase 193, D-25) = placa de aviso a pantalla completa. */
+export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso';
+
+/** Aviso de TV activo en modo `manual` para una sede — `GET
+ *  /communications/tv/control/tv-aviso-activo?branchId=NN` (fase 193, D-29). */
+export interface TvAvisoActivo {
+  id: number;
+  title: string;
+  body: string;
+  mode: 'manual' | 'flex_inicio' | 'flex_final';
+}
 
 /**
  * Ciclo de vida del cronómetro. No existe "finished": terminar se deriva del
@@ -83,6 +93,8 @@ export interface TvControlState {
   pausedAccumMs: number;
   /** D-19: arranca apagado; el profe prende los beeps desde el celular. */
   soundEnabled: boolean;
+  /** Fase 193 (D-25): el aviso en pantalla cuando `screen === 'aviso'`. */
+  tvAvisoId: number | null;
 }
 
 /**
@@ -112,12 +124,14 @@ export interface TvControlContext {
  */
 export interface TvStateWrite {
   branchId: number;
-  screen?: Exclude<TvScreen, 'idle'>;
+  screen?: 'class' | 'closing' | 'aviso';
   blockRole?: string;
   level?: string;
   exerciseIndex?: number;
   timer?: 'start' | 'pause' | 'resume' | 'reset';
   soundEnabled?: boolean;
+  /** Fase 193 (D-25): el aviso a mostrar cuando `screen: 'aviso'`. */
+  tvAvisoId?: number | null;
 }
 
 /**
@@ -181,6 +195,24 @@ export function useTvApi() {
     } finally {
       loading.value = false;
     }
+  }
+
+  /**
+   * GET /communications/tv/control/tv-aviso-activo?branchId=NN — el aviso de
+   * TV activo en modo `manual` para la sede (fase 193, D-29), el que dispara
+   * el botón AVISO de la tira de bloques. `null` sin aviso manual activo.
+   *
+   * No toca `loading`/`error` compartidos (mismo criterio que
+   * `getCoachTodaySchedule`): es una carga auxiliar de la botonera que no
+   * puede pisar el spinner ni el mensaje de error del contexto principal —
+   * el llamador la envuelve con un fallback silencioso.
+   */
+  async function getTvAvisoActivo(branchId: number): Promise<TvAvisoActivo | null> {
+    const { data } = await api.get<{ aviso: TvAvisoActivo | null }>(
+      '/communications/tv/control/tv-aviso-activo',
+      { params: { branchId } }
+    );
+    return data.aviso;
   }
 
   /**
@@ -252,6 +284,7 @@ export function useTvApi() {
     error,
     getScreen,
     getControlContext,
+    getTvAvisoActivo,
     writeState,
     endClass,
     getCoachTodaySchedule,
