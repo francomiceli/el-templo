@@ -27,3 +27,11 @@ export type {
 } from "./service";
 export { CommunicationsService } from "./service";
 export { communicationsRoutes } from "./routes";
+export type {
+  TvAvisoMode,
+  TvAvisoItem,
+  CreateTvAvisoInput,
+  UpdateTvAvisoInput,
+} from "./tv-avisos-service";
+export { TvAvisosService } from "./tv-avisos-service";
+export { tvAvisosRoutes } from "./tv-avisos-routes";

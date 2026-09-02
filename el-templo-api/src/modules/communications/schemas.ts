@@ -384,3 +384,138 @@ export const memberConfigResponseSchema = {
     },
   },
 };
+
+// =============================================================================
+// Avisos de TV (Fase 193 plan 07, D-24/D-29) — entidad APARTE de `avisos`.
+// Sin destino, sin vigencia, sin frecuencia: solo título+cuerpo, sedes, modo y
+// activo/inactivo manual. `additionalProperties: false` en los 2 bodies.
+// =============================================================================
+
+const TV_AVISO_MODE_ENUM = ["manual", "flex_inicio", "flex_final"] as const;
+
+// ── GET /admin/tv-avisos ─────────────────────────────────────────────────
+
+const tvAvisoResponseProperties = {
+  id: { type: "integer" },
+  title: { type: "string" },
+  body: { type: "string" },
+  mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
+  isActive: { type: "boolean" },
+  scopeBranchIds: { type: ["array", "null"], items: { type: "integer" } },
+};
+
+export const listTvAvisosResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      avisos: {
+        type: "array",
+        items: { type: "object", properties: tvAvisoResponseProperties },
+      },
+    },
+  },
+};
+
+export const tvAvisoWriteResponseSchema = {
+  200: { type: "object", properties: tvAvisoResponseProperties },
+  201: { type: "object", properties: tvAvisoResponseProperties },
+};
+
+// ── POST /admin/tv-avisos ────────────────────────────────────────────────
+
+export const createTvAvisoSchema = {
+  body: {
+    type: "object",
+    required: ["title", "body", "mode"],
+    properties: {
+      title: { type: "string", minLength: 1, maxLength: 120 },
+      body: { type: "string", minLength: 1, maxLength: 400 },
+      mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
+      isActive: { type: "boolean" },
+      scopeBranchIds: {
+        type: ["array", "null"],
+        items: { type: "integer" },
+      },
+    },
+    additionalProperties: false,
+  },
+};
+
+export interface CreateTvAvisoBody {
+  title: string;
+  body: string;
+  mode: "manual" | "flex_inicio" | "flex_final";
+  isActive?: boolean;
+  scopeBranchIds?: number[] | null;
+}
+
+// ── PUT /admin/tv-avisos/:id ─────────────────────────────────────────────
+
+export const tvAvisoIdParamsSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: {
+      id: { type: "integer" },
+    },
+  },
+};
+
+export const updateTvAvisoSchema = {
+  body: {
+    type: "object",
+    properties: {
+      title: { type: "string", minLength: 1, maxLength: 120 },
+      body: { type: "string", minLength: 1, maxLength: 400 },
+      mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
+      isActive: { type: "boolean" },
+      scopeBranchIds: {
+        type: ["array", "null"],
+        items: { type: "integer" },
+      },
+    },
+    additionalProperties: false,
+  },
+};
+
+export interface UpdateTvAvisoBody {
+  title?: string;
+  body?: string;
+  mode?: "manual" | "flex_inicio" | "flex_final";
+  isActive?: boolean;
+  scopeBranchIds?: number[] | null;
+}
+
+// ── GET /control/tv-aviso-activo ─────────────────────────────────────────
+
+export const tvAvisoActivoQuerySchema = {
+  querystring: {
+    type: "object",
+    required: ["branchId"],
+    properties: {
+      branchId: { type: "integer" },
+    },
+    additionalProperties: false,
+  },
+};
+
+export interface TvAvisoActivoQuery {
+  branchId: number;
+}
+
+export const tvAvisoActivoResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      aviso: {
+        type: ["object", "null"],
+        properties: {
+          id: { type: "integer" },
+          title: { type: "string" },
+          body: { type: "string" },
+          mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
+        },
+      },
+    },
+  },
+};
