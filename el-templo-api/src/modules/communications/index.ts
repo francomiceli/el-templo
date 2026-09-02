@@ -26,3 +26,4 @@ export type {
   UpdateAvisoInput,
 } from "./service";
 export { CommunicationsService } from "./service";
+export { communicationsRoutes } from "./routes";
