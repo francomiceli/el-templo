@@ -26,7 +26,7 @@
 import { beep } from './audio';
 import { createTvLogger } from './logger';
 import { nowCorrected } from './poll';
-import type { TvClassPayload, TvExercise, TvPollResponse } from './poll';
+import type { TvAvisoPollPayload, TvClassPayload, TvExercise, TvPollResponse, TvScreen } from './poll';
 /* El relleno a dos digitos vive en `scale.ts`: es el unico helper de relleno de todo
    `src/tv/` (reloj, timer y logger). El metodo nativo del string es ES2017 — Pitfall 5. */
 import { pad2 } from './scale';
@@ -100,6 +100,13 @@ interface Nodes {
   cierreReloj: ClockNodes;
   cierreQuote: HTMLElement;
   cierreAutor: HTMLElement;
+  /** Placa de aviso (fase 193, D-25/D-28) — única de las tres pantallas de
+   *  transición con velo dinámico (ver docblock del template). */
+  pantallaAviso: HTMLElement;
+  avisoTitulo: HTMLElement;
+  avisoCuerpo: HTMLElement;
+  avisoReloj: ClockNodes;
+  avisoFecha: HTMLElement;
 }
 
 let nodes: Nodes | null = null;
@@ -169,6 +176,11 @@ function ensureNodes(): Nodes {
     cierreReloj: clockNodes(byId('cierreReloj')),
     cierreQuote: byId('cierreQuote'),
     cierreAutor: byId('cierreAutor'),
+    pantallaAviso: byId('pantallaAviso'),
+    avisoTitulo: byId('avisoTitulo'),
+    avisoCuerpo: byId('avisoCuerpo'),
+    avisoReloj: clockNodes(byId('avisoReloj')),
+    avisoFecha: byId('avisoFecha'),
   };
   return nodes;
 }
@@ -347,6 +359,16 @@ let lastDotsKey = '';
 let lastQuoteKey = '';
 /** Última cápsula de técnica pintada en la pre-clase (mismo rol que lastQuoteKey). */
 let lastCapsulaKey = '';
+/** Fase 193 (D-25/D-28): guard idempotente de `paintAviso` — a diferencia de
+ *  la frase/cápsula (que rotan cada minuto), el texto del aviso es fijo
+ *  mientras siga activo, así que alcanza con el id + el largo del texto (una
+ *  edición del admin sin cambiar el id igual dispara un repintado). */
+let lastAvisoKey = '';
+/** Fase 193 (D-25): última pantalla NO-aviso vista — el modo manual puede
+ *  dispararse desde CUALQUIER punto de la tira del control (incluida la
+ *  flexibilidad inicial, "en cualquier momento"), así que necesita memoria de
+ *  qué había antes para elegir el velo día/noche de la placa (D-25). */
+let lastNonAvisoScreen: TvScreen = 'idle';
 let lastBeepKey: string | null = null;
 /** Última fase+ronda con cartel VAMOS!/DESCANSO mostrado; evita repetir el destello. */
 let lastFaseKey: string | null = null;
@@ -378,6 +400,8 @@ export function resetRender(): void {
   lastDotsKey = '';
   lastQuoteKey = '';
   lastCapsulaKey = '';
+  lastAvisoKey = '';
+  lastNonAvisoScreen = 'idle';
   lastBeepKey = null;
   lastFaseKey = null;
   lastFormatoRaw = null;
@@ -727,31 +751,79 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.fechaL2, fechaCorta.l2);
   setText(n.reposoFecha, fecha);
   setText(n.cierreFecha, fecha);
+  setText(n.avisoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
-  // Limpieza total al cambiar de pantalla (UAT TV 2026-08-26): los staggers
-  // pendientes de la pantalla saliente se cancelan de una, y la entrante se
-  // reconstruye SINCRÓNICAMENTE, en este mismo frame — si quedara para el
-  // próximo tick (≤250 ms), el contenido viejo ya encendido (opacity 1) se
-  // vería completo un instante antes de arrancar la animación (el "flash de
-  // título entero" del UAT).
-  if (previo !== null && previo.screen !== payload.screen) {
+  // Fase 193 (D-25): recordar la última pantalla NO-aviso — `avisoVeloFor`
+  // la necesita para el modo manual. Se actualiza ANTES de calcular el velo
+  // de este mismo payload (si HOY es 'aviso', el valor de ayer/la última
+  // pantalla real sigue disponible en `lastNonAvisoScreen` sin pisarse).
+  if (payload.screen !== 'aviso') {
+    lastNonAvisoScreen = payload.screen;
+  }
+  const avisoVelo = avisoVeloFor(payload);
+  const avisoWasVisible = previo !== null && previo.aviso !== null;
+  const avisoIsVisible = payload.aviso !== null;
+
+  // Limpieza total al cambiar de CONTENIDO de las pantallas de transición
+  // (UAT TV 2026-08-26 + fase 193 D-28): además del cambio de `screen`
+  // literal (idle → class, closing → class, etc.), un aviso de reemplazo
+  // puede aparecer o desaparecer SIN que `screen` cambie — el poll agrega o
+  // saca `aviso` mientras la pantalla sigue siendo 'idle'/'closing' (D-28:
+  // "la pantalla sigue siendo la misma, solo cambia el contenido"). Los dos
+  // disparadores conviven: cualquiera de los dos cancela los timeouts
+  // pendientes y reconstruye en este mismo frame, para no esperar hasta
+  // 250 ms (el mismo "flash de contenido viejo" que ya evitaba el chequeo de
+  // `screen`).
+  const screenChanged = previo !== null && previo.screen !== payload.screen;
+  const avisoToggled = avisoWasVisible !== avisoIsVisible;
+  if (screenChanged || avisoToggled) {
     clearQuoteTimeouts();
-    if (payload.screen === 'idle') {
+    if (avisoIsVisible && payload.aviso) {
+      lastAvisoKey = '';
+      paintAviso(n, payload.aviso, avisoVelo);
+    } else if (payload.screen === 'idle') {
       lastCapsulaKey = '';
       paintCapsula(n);
-    }
-    if (payload.screen === 'closing') {
+    } else if (payload.screen === 'closing') {
       lastQuoteKey = '';
       paintQuote(n.cierreQuote, n.cierreAutor, 'cierre');
     }
+  } else if (avisoIsVisible && payload.aviso) {
+    // Sin transición, pero con un aviso ya en pantalla: `paintAviso` decide
+    // con su propio `lastAvisoKey` si hace falta repintar (el admin editó el
+    // texto, u otro aviso quedó activo con el mismo `screen` — dos avisos
+    // manuales seguidos, por ejemplo).
+    paintAviso(n, payload.aviso, avisoVelo);
   }
+
+  // D-25/D-28: la placa de aviso se muestra a pantalla completa en modo
+  // manual (`screen:'aviso'`) y TAMBIÉN cuando el poll trae un aviso de
+  // reemplazo sobre `idle`/`closing` — MISMO componente en los tres casos
+  // (DRY): ocupa el lugar exacto de la cápsula o de la frase (D-28) sin
+  // duplicar el mecanismo de pintado ni arriesgar escribir texto libre
+  // dentro de los nodos de la cápsula técnica (`capKicker`/`capEjercicio`/
+  // `capCue` están pensados para "NOTAS TÉCNICAS", no para un aviso
+  // genérico). El velo (día/noche) sale de `avisoVeloFor` arriba.
+  setVisible(
+    n.pantallaAviso,
+    avisoVelo === 'dia' ? 'pantalla pantalla--dia' : 'pantalla',
+    avisoIsVisible
+  );
 
   const c = classOf(payload);
   // OJO: setVisible reescribe el className COMPLETO — la base tiene que repetir
   // el modificador diurno del template o la pre-clase cae al estilo nocturno.
-  setVisible(n.pantallaReposo, 'pantalla pantalla--dia', !c && payload.screen !== 'closing');
-  setVisible(n.pantallaCierre, 'pantalla', payload.screen === 'closing');
+  // `!avisoIsVisible` en las dos: con un aviso activo (manual o de
+  // reemplazo) la placa de aviso reemplaza COMPLETO a reposo/cierre — nunca
+  // conviven dos pantallas de transición a la vez (mismo criterio que ya
+  // regía entre reposo y cierre).
+  setVisible(
+    n.pantallaReposo,
+    'pantalla pantalla--dia',
+    !c && payload.screen !== 'closing' && !avisoIsVisible
+  );
+  setVisible(n.pantallaCierre, 'pantalla', payload.screen === 'closing' && !avisoIsVisible);
 
   if (!c) {
     return;
@@ -830,7 +902,15 @@ export function tickClock(): void {
   const d = new Date(nowCorrected() + last.branch.utcOffsetMinutes * 60000);
   paintClock(n.reloj, d);
 
-  if (last.screen === 'idle') {
+  // Fase 193 (D-25/D-28): el aviso (manual o de reemplazo) manda primero —
+  // con `aviso` presente, `screen` puede seguir siendo 'idle'/'closing' pero
+  // la cápsula/frase ya no está en pantalla (ver `renderState`), así que acá
+  // tampoco hay que seguir rotándolas. `paintAviso` es idempotente
+  // (`lastAvisoKey`): repetir la llamada cada 250 ms es gratis.
+  if (last.aviso) {
+    paintClock(n.avisoReloj, d);
+    paintAviso(n, last.aviso, avisoVeloFor(last));
+  } else if (last.screen === 'idle') {
     paintClock(n.reposoReloj, d);
     paintCapsula(n);
   } else if (last.screen === 'closing') {
@@ -921,6 +1001,46 @@ function encenderPalabras(palabras: HTMLElement[]): void {
       IGNITE_BASE_MS + i * IGNITE_STEP_MS + jitter
     );
   }
+}
+
+/**
+ * Velo (día/noche) de la placa de aviso (D-25/D-28).
+ *
+ * `idle` es siempre día (la flexibilidad inicial, cápsula o placa, es
+ * diurna) y `closing` es siempre noche (la frase final, charcoal) — esos dos
+ * casos son deterministas, no necesitan memoria. El modo manual
+ * (`screen === 'aviso'`) es el único ambiguo: se dispara desde CUALQUIER
+ * punto de la tira del control (D-25 "en cualquier momento"), así que usa
+ * `lastNonAvisoScreen` (la última pantalla no-aviso vista) para decidir si
+ * venía de la flexibilidad inicial (día) o de cualquier otro punto — clase o
+ * cierre — (noche).
+ */
+function avisoVeloFor(payload: TvPollResponse): 'dia' | 'noche' {
+  if (payload.screen === 'idle') return 'dia';
+  if (payload.screen === 'aviso') {
+    return lastNonAvisoScreen === 'idle' ? 'dia' : 'noche';
+  }
+  return 'noche';
+}
+
+/**
+ * Pinta la placa de aviso: título + cuerpo con `textContent` plano, sin HTML
+ * crudo (T-193-48) y sin la coreografía de encendido por palabra de
+ * `buildQuote`/`buildCapsula` — a diferencia de la frase/cápsula (que rotan
+ * cada minuto y se benefician del gesto), el texto de un aviso es fijo
+ * mientras siga activo, así que un `setText` directo alcanza y evita
+ * reconstruir spans en cada poll (T-193-50, regla de idempotencia del
+ * archivo). `pantalla` entra en el guard para que un cambio de velo con el
+ * mismo aviso (edge case: manual → reemplazo del mismo texto) igual repinte.
+ */
+function paintAviso(n: Nodes, aviso: TvAvisoPollPayload, pantalla: 'dia' | 'noche'): void {
+  const key = pantalla + ':' + aviso.id + ':' + aviso.title.length + ':' + aviso.body.length;
+  if (key === lastAvisoKey) {
+    return;
+  }
+  lastAvisoKey = key;
+  setText(n.avisoTitulo, aviso.title);
+  setText(n.avisoCuerpo, aviso.body);
 }
 
 function buildQuote(host: HTMLElement, autor: HTMLElement, quote: SessionQuote): void {
