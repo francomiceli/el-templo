@@ -243,7 +243,11 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
  * contra un manifiesto vacío y todo pasaría en verde por vacuidad. Este
  * conteo es lo que hace que 0 rutas cubiertas se ponga tan rojo como 51.
  */
-const CASOS_BASELINE = 52;
+// 2026-09-03 (extensión post-UAT fase 193): 52 -> 55 por las 3 rutas nuevas de
+// reglas propias bajo /api/notifications/admin/templates (POST, DELETE /:id,
+// POST preview-audience), cada una con su caso + control en
+// iso-03-notifications.test.ts.
+const CASOS_BASELINE = 55;
 
 /** Los seis archivos de la batería ISO-03 de analytics + resto del core. */
 const ARCHIVOS_BATERIA = [
@@ -394,7 +398,7 @@ describe("cobertura de la batería ISO-03 de analytics+resto — contra el manif
     ).toEqual([]);
   });
 
-  it("la batería cubre exactamente las 51 rutas de analytics+resto del baseline", () => {
+  it("la batería cubre exactamente las 55 rutas de analytics+resto del baseline", () => {
     expect(
       RUTAS_ANALYTICS_RESTO.length,
       `El manifiesto tiene ${RUTAS_ANALYTICS_RESTO.length} rutas de ` +

@@ -424,8 +424,11 @@ describe("Notification Module", () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.success).toBe(true);
+      // Desde 2026-09-03 "restaurar" responde { restored, keys }: ya sembrado
+      // en beforeEach, así que no repone nada (INSERT IGNORE, idempotente).
+      const body = JSON.parse(res.body) as { restored: number; keys: string[] };
+      expect(body.restored).toBe(0);
+      expect(body.keys).toEqual([]);
     });
   });
 

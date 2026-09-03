@@ -57,6 +57,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { sql } from "drizzle-orm";
 import { createTestApp, cleanAllTestData, getAuthToken } from "../helpers";
 import {
   seedSecondTenant,
@@ -152,6 +153,44 @@ function putComo(url: string, token: string, payload: Record<string, unknown>) {
     headers: { authorization: `Bearer ${token}` },
     payload,
   });
+}
+
+function deleteComo(url: string, token: string) {
+  return app.inject({
+    method: "DELETE",
+    url: `${BASE}${url}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
+/** Body mínimo válido para crear una regla propia (kind custom). */
+function bodyReglaPropia(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    name: `${MARCA_ISO03N} regla`,
+    category: "planes",
+    title: `${MARCA_ISO03N} Tu cuota vence pronto`,
+    body: "Renová antes del vencimiento",
+    destination: { type: "app_section", section: "mi_templo", whatsappText: null },
+    triggerType: "plan_expires_in_days",
+    triggerValue: 5,
+    cooldownDays: 30,
+    ...extra,
+  };
+}
+
+/**
+ * Las fixtures crean socios en estado inicial (no `activo`): el motor de
+ * reglas solo cuenta socios `activo`, así que los casos de preview los
+ * activan a mano, cada uno dentro de SU tenant.
+ */
+async function activarSociosDeAmbosGimnasios(): Promise<void> {
+  await app.db.execute(
+    sql`UPDATE users SET status = 'activo' WHERE tenant_id = ${TENANT_TEMPLO} AND id = ${templo.memberId}`,
+  );
+  const idsDos = [dos.memberId, gym2.socios[0].id, gym2.socios[1].id];
+  await app.db.execute(
+    sql`UPDATE users SET status = 'activo' WHERE tenant_id = ${TENANT_DOS} AND id IN (${sql.join(idsDos.map((id) => sql`${id}`), sql`, `)})`,
+  );
 }
 
 /** Mensaje compartido de los rojos de AISLAMIENTO. */
@@ -350,6 +389,177 @@ describe("sembrar catálogo — POST /api/notifications/admin/seed-templates", (
 
     expect(despues?.id).toBe(antes?.id);
     expect(despues?.title).toBe(antes?.title);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /admin/templates — crear regla propia (kind custom, alcance validado)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("crear regla propia — POST /api/notifications/admin/templates", () => {
+  const RUTA = "POST /api/notifications/admin/templates";
+
+  it("aislamiento: el gimnasio 2 no puede crear una regla con alcance a una sede de El Templo (400, la sede ajena es indistinguible de una inexistente) y NO queda fila", async () => {
+    const res = await postComo(
+      "/admin/templates",
+      dos.ownerToken,
+      bodyReglaPropia({ scopeBranchIds: [templo.branchId] }),
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElAislamiento(RUTA, `esperaba 400, recibió ${res.statusCode}`),
+    ).toBe(400);
+    const body = JSON.parse(res.body) as { message: string };
+    expect(body.message).toContain("fuera del tenant");
+
+    // Evidencia: el gimnasio 2 sigue sin reglas propias.
+    const lista = await getComo("/admin/templates", dos.ownerToken);
+    expect(lista.statusCode, lista.body).toBe(200);
+    const propias = (
+      JSON.parse(lista.body) as { templates: Array<{ kind: string }> }
+    ).templates.filter((t) => t.kind === "custom");
+    expect(propias).toHaveLength(0);
+  });
+
+  it("control: cada gimnasio crea su regla propia en su tenant y NO la ve el otro", async () => {
+    const resTemplo = await postComo("/admin/templates", templeAdminToken, bodyReglaPropia());
+    expect(resTemplo.statusCode, resTemplo.body).toBe(201);
+    const creadaTemplo = JSON.parse(resTemplo.body) as { id: number; kind: string };
+    expect(creadaTemplo.kind).toBe("custom");
+
+    const resDos = await postComo(
+      "/admin/templates",
+      dos.ownerToken,
+      bodyReglaPropia({ scopeBranchIds: [gym2.branchId] }),
+    );
+    expect(resDos.statusCode, resDos.body).toBe(201);
+    const creadaDos = JSON.parse(resDos.body) as { id: number };
+
+    const filaTemplo = await plantillaPorId(app, creadaTemplo.id);
+    expect(filaTemplo?.tenantId).toBe(TENANT_TEMPLO);
+    const filaDos = await plantillaPorId(app, creadaDos.id);
+    expect(filaDos?.tenantId).toBe(TENANT_DOS);
+
+    // El listado de cada uno trae SOLO su regla propia.
+    const listaTemplo = (
+      JSON.parse((await getComo("/admin/templates", templeAdminToken)).body) as {
+        templates: Array<{ id: number; kind: string }>;
+      }
+    ).templates;
+    const idsTemplo = listaTemplo.filter((t) => t.kind === "custom").map((t) => t.id);
+    expect(idsTemplo).toEqual([creadaTemplo.id]);
+
+    const listaDos = (
+      JSON.parse((await getComo("/admin/templates", dos.ownerToken)).body) as {
+        templates: Array<{ id: number; kind: string }>;
+      }
+    ).templates;
+    const idsDos = listaDos.filter((t) => t.kind === "custom").map((t) => t.id);
+    expect(
+      idsDos,
+      porQueImportaElAislamiento(RUTA, "el gimnasio 2 ve la regla propia de El Templo"),
+    ).toEqual([creadaDos.id]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DELETE /admin/templates/:id — borrar plantilla (cualquier kind, por tenant)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("borrar plantilla — DELETE /api/notifications/admin/templates/:id", () => {
+  const RUTA = "DELETE /api/notifications/admin/templates/:id";
+
+  it("aislamiento: el owner del gimnasio 2 no puede borrar la plantilla de El Templo (404 'no encontrado', NUNCA 403) y la fila sigue", async () => {
+    const res = await deleteComo(`/admin/templates/${templo.templateId}`, dos.ownerToken);
+    expect(
+      res.statusCode,
+      porQueImportaElAislamiento(RUTA, `esperaba 404, recibió ${res.statusCode}`),
+    ).toBe(404);
+    const body = JSON.parse(res.body) as { message: string };
+    expect(body.message).toContain("Template no encontrado");
+
+    const filaTemplo = await plantillaPorId(app, templo.templateId);
+    expect(
+      filaTemplo,
+      porQueImportaElAislamiento(RUTA, "un DELETE ajeno borró la plantilla de El Templo"),
+    ).not.toBeNull();
+    expect(filaTemplo?.tenantId).toBe(TENANT_TEMPLO);
+  });
+
+  it("control: El Templo borra su propia plantilla (misma key que la del gimnasio 2) y la del gimnasio 2 sigue intacta", async () => {
+    const res = await deleteComo(`/admin/templates/${templo.templateId}`, templeAdminToken);
+    expect(res.statusCode, res.body).toBe(200);
+
+    expect(await plantillaPorId(app, templo.templateId)).toBeNull();
+
+    const filaDos = await plantillaPorId(app, dos.templateId);
+    expect(
+      filaDos,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el gimnasio 2 tiene la MISMA template_key (${TEMPLATE_KEY_COLISION}) — un delete sin tenantWhere real la habría borrado también`,
+      ),
+    ).not.toBeNull();
+    expect(filaDos?.title).toBe(dos.templateTitle);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /admin/templates/preview-audience — "hoy alcanzaría N socios"
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("preview de audiencia — POST /api/notifications/admin/templates/preview-audience", () => {
+  const RUTA = "POST /api/notifications/admin/templates/preview-audience";
+  // Los socios de las fixtures nacen HOY: `member_since_days = 0` los alcanza
+  // a todos sin depender de suscripciones ni asistencias.
+  const condicionHoy = { triggerType: "member_since_days", triggerValue: 0 };
+
+  it("aislamiento: el gimnasio 2 no puede previsualizar con alcance a una sede de El Templo (400) y su conteo global NO incluye socios de El Templo", async () => {
+    await activarSociosDeAmbosGimnasios();
+    const resAjena = await postComo("/admin/templates/preview-audience", dos.ownerToken, {
+      ...condicionHoy,
+      scopeBranchIds: [templo.branchId],
+    });
+    expect(
+      resAjena.statusCode,
+      porQueImportaElAislamiento(RUTA, `esperaba 400, recibió ${resAjena.statusCode}`),
+    ).toBe(400);
+
+    // Sin alcance = "todos MIS socios": tiene que dar lo mismo que acotado a
+    // la única sede del gimnasio 2. Si sumara los de El Templo, difiere.
+    const resTodos = await postComo("/admin/templates/preview-audience", dos.ownerToken, condicionHoy);
+    expect(resTodos.statusCode, resTodos.body).toBe(200);
+    const todos = (JSON.parse(resTodos.body) as { count: number }).count;
+
+    const resPropia = await postComo("/admin/templates/preview-audience", dos.ownerToken, {
+      ...condicionHoy,
+      scopeBranchIds: [gym2.branchId],
+    });
+    expect(resPropia.statusCode, resPropia.body).toBe(200);
+    const propia = (JSON.parse(resPropia.body) as { count: number }).count;
+
+    expect(
+      todos,
+      porQueImportaElAislamiento(
+        RUTA,
+        `sin alcance cuenta ${todos} socios y acotado a su única sede ${propia}: la diferencia son socios de El Templo`,
+      ),
+    ).toBe(propia);
+  });
+
+  it("control: cada gimnasio cuenta a sus propios socios activos (al menos los de la fixture)", async () => {
+    await activarSociosDeAmbosGimnasios();
+    const resDos = await postComo("/admin/templates/preview-audience", dos.ownerToken, condicionHoy);
+    expect(resDos.statusCode, resDos.body).toBe(200);
+    expect((JSON.parse(resDos.body) as { count: number }).count).toBeGreaterThanOrEqual(1);
+
+    const resTemplo = await postComo(
+      "/admin/templates/preview-audience",
+      templeAdminToken,
+      { ...condicionHoy, scopeBranchIds: [templo.branchId] },
+    );
+    expect(resTemplo.statusCode, resTemplo.body).toBe(200);
+    expect((JSON.parse(resTemplo.body) as { count: number }).count).toBeGreaterThanOrEqual(1);
   });
 });
 
