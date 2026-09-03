@@ -175,3 +175,5 @@ export default boot(async ({ router }) => {
     // completes, so the eager fetch is redundant.
   }
 })
+
+// deploy: fase 193 comunicaciones (fix de tests de tenancy en el mismo push)

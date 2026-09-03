@@ -46,6 +46,10 @@
  * tenancy-native (`referral_partners`, `partner_referrals`,
  * `partner_commissions`) -- nacen con tenant_id + FK en la 0215, no por un
  * ALTER de 0192-0195 -- así que `report.gymOwnedChecked` pasa de 88 a 91.
+ *
+ * Nota (fase 193): el módulo de comunicaciones suma 3 tablas gym-owned nuevas
+ * y tenancy-native (`avisos`, `aviso_events`, `tv_avisos`) -- nacen con
+ * tenant_id + FK en la 0216 -- así que `report.gymOwnedChecked` pasa de 91 a 94.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { sql, eq } from "drizzle-orm";
@@ -148,11 +152,13 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
   });
 
   // ─── 2. Cobertura ───────────────────────────────────────────────────────
-  it("Test 2: la verificacion cubre las 91 tablas gym-owned, no un subconjunto", () => {
+  it("Test 2: la verificacion cubre las 94 tablas gym-owned, no un subconjunto", () => {
     // 87 de la tanda C (fase 167) + session_week_regime (fase 159, SEM-05)
     // + 3 tablas de partners (referral_partners/partner_referrals/
-    // partner_commissions, fase 179, tenancy-native en la 0215) = 91.
-    expect(report.gymOwnedChecked).toBe(91);
+    // partner_commissions, fase 179, tenancy-native en la 0215)
+    // + 3 tablas de comunicaciones (avisos/aviso_events/tv_avisos, fase 193,
+    // tenancy-native en la 0216) = 94.
+    expect(report.gymOwnedChecked).toBe(94);
   });
 
   // ─── 3. Exclusiones de diseño ───────────────────────────────────────────

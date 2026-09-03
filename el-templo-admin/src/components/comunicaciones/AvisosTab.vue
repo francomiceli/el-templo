@@ -241,3 +241,5 @@ onUnmounted(() => {
   commsApi.cleanup();
 });
 </script>
+
+<!-- deploy: fase 193 comunicaciones (fix de tests de tenancy en el mismo push) -->
