@@ -3,10 +3,13 @@
      D-13: alcance por sede/país/segmento (vacío = todos).
      D-14: vigencia desde/hasta opcional + estado borrador/activo/pausado.
      D-11: frecuencia una vez / cada N días / cada apertura.
-     Modo sistema (D-08/D-09/D-10): cuando el aviso es `kind: 'system'`, el
-     diálogo deshabilita exactamente los campos que `allowedFieldsForSystemAviso`
-     (el-templo-api/src/modules/communications/service.ts) rechazaría — nunca
-     manda al PUT un campo no editable, aunque el usuario no lo haya tocado.
+     Homogeneidad sistema/propias (Plan B, pedido de Franco 2026-09-03): el
+     `kind: 'system'` de un aviso ya NO restringe qué campos se pueden editar
+     — `CommunicationsService.updateAviso` acepta el mismo set completo para
+     cualquier `kind` (la vieja restricción por `code`, D-08..D-11, se
+     retiró del server). El badge de arriba es solo informativo; el
+     dashboard (`ComunicacionCard.vue`) es el que muestra el chip
+     Sistema/Propia homogéneo en las 4 categorías.
 
      Reuso por TarjetasTab.vue (plan 14, D-15): con `placement="tarjeta"` el
      bloque de Frecuencia se oculta entero (D-15b, el carrusel se ve en cada
@@ -63,11 +66,7 @@
         <q-separator />
         <div class="text-subtitle2">Alcance</div>
         <div class="text-caption text-grey-7 q-mb-xs">
-          {{
-            isSystem
-              ? 'El alcance de los avisos de sistema no es editable: siempre aplica a todos los socios.'
-              : 'Vacío en los tres selectores = todos los socios.'
-          }}
+          Vacío en los tres selectores = todos los socios.
         </div>
         <q-select
           v-model="form.scopeBranchIds"
@@ -79,8 +78,7 @@
           emit-value
           map-options
           use-chips
-          :disable="isSystem"
-          :hint="isSystem ? undefined : 'Vacío = todas las sedes'"
+          hint="Vacío = todas las sedes"
         />
         <q-select
           v-if="isOwner"
@@ -93,8 +91,7 @@
           emit-value
           map-options
           use-chips
-          :disable="isSystem"
-          :hint="isSystem ? undefined : 'Vacío = todos los países'"
+          hint="Vacío = todos los países"
         />
         <q-select
           v-model="form.scopeSegments"
@@ -106,32 +103,17 @@
           emit-value
           map-options
           use-chips
-          :disable="isSystem"
-          :hint="isSystem ? undefined : 'Vacío = todos los segmentos'"
+          hint="Vacío = todos los segmentos"
         />
 
         <q-separator />
         <div class="text-subtitle2">Vigencia</div>
         <div class="row q-col-gutter-md">
           <div class="col-6">
-            <q-input
-              v-model="form.startsOn"
-              label="Desde"
-              type="date"
-              dense
-              outlined
-              :disable="isSystem"
-            />
+            <q-input v-model="form.startsOn" label="Desde" type="date" dense outlined />
           </div>
           <div class="col-6">
-            <q-input
-              v-model="form.endsOn"
-              label="Hasta"
-              type="date"
-              dense
-              outlined
-              :disable="isSystem"
-            />
+            <q-input v-model="form.endsOn" label="Hasta" type="date" dense outlined />
           </div>
         </div>
         <div v-if="datesInvalid" class="text-caption text-negative">
@@ -145,8 +127,6 @@
           outlined
           emit-value
           map-options
-          :disable="!fieldEditable('status')"
-          :hint="!fieldEditable('status') ? 'El estado de este aviso de sistema no es editable' : undefined"
         />
 
         <template v-if="placement === 'popup'">
@@ -160,8 +140,6 @@
             outlined
             emit-value
             map-options
-            :disable="!fieldEditable('frequencyType')"
-            :hint="frequencyHint"
           />
           <q-input
             v-if="form.frequencyType === 'every_n_days'"
@@ -171,7 +149,6 @@
             min="1"
             dense
             outlined
-            :disable="!fieldEditable('frequencyType')"
           />
         </template>
         <div v-else class="text-caption text-grey-7">
@@ -255,59 +232,12 @@ const dialogTitle = computed(() => {
 });
 
 const isOwner = computed(() => authStore.user?.role === 'owner');
+// Pedido de Franco (2026-09-03, homogeneidad sistema/propias): el server YA
+// NO restringe el subset de campos editables por `code` para `kind:
+// 'system'` (`CommunicationsService.updateAviso`, comentario "CUALQUIER
+// `kind` acepta el mismo set completo de campos") — el chip de arriba es
+// SOLO informativo. `isSystem` queda solo para el badge del título.
 const isSystem = computed(() => props.aviso?.kind === 'system');
-const systemCode = computed(() => props.aviso?.code ?? null);
-
-// ── Reglas de campos editables para avisos de sistema ─────────────────────
-// Espejo EXACTO de `allowedFieldsForSystemAviso` en
-// `el-templo-api/src/modules/communications/service.ts` — solo los campos
-// que aparecen en este formulario (sin `placement`/`sortOrder`, que acá no
-// se editan). `scopeBranchIds`/`scopeCountries`/`scopeSegments`/`startsOn`/
-// `endsOn` NUNCA están en ninguno de los 3 sets del server: los avisos de
-// sistema no tienen alcance ni vigencia editables, con cualquier `code`.
-const SYSTEM_ALLOWED_BASE = new Set([
-  'title',
-  'body',
-  'buttonText',
-  'destinationType',
-  'destinationSection',
-  'whatsappText',
-  'status',
-  'frequencyType',
-  'frequencyDays',
-]);
-const SYSTEM_ALLOWED_PLAN_EXPIRY = new Set([
-  'title',
-  'body',
-  'buttonText',
-  'whatsappText',
-  'destinationType',
-  'destinationSection',
-]);
-const SYSTEM_ALLOWED_WITH_FREQUENCY = new Set([
-  ...SYSTEM_ALLOWED_PLAN_EXPIRY,
-  'frequencyType',
-  'frequencyDays',
-  'status',
-]);
-
-function allowedFieldsForCode(code: string | null): ReadonlySet<string> {
-  if (code === 'plan_expiry') return SYSTEM_ALLOWED_PLAN_EXPIRY;
-  if (code === 'rating_prompt' || code === 'improvement_prompt') return SYSTEM_ALLOWED_WITH_FREQUENCY;
-  return SYSTEM_ALLOWED_BASE;
-}
-
-function fieldEditable(field: string): boolean {
-  if (!isSystem.value) return true;
-  return allowedFieldsForCode(systemCode.value).has(field);
-}
-
-const frequencyHint = computed(() => {
-  if (isSystem.value && systemCode.value === 'plan_expiry') {
-    return 'La regla de disparo del vencimiento es fija (≤3 días, una vez por día)';
-  }
-  return undefined;
-});
 
 // ── Opciones ────────────────────────────────────────────────────────────
 
@@ -424,16 +354,14 @@ function requiredRule(val: string): boolean | string {
   return val.trim().length > 0 || 'Requerido';
 }
 
-const datesInvalid = computed(() => {
-  if (isSystem.value) return false;
-  return Boolean(form.startsOn && form.endsOn && form.startsOn > form.endsOn);
-});
+const datesInvalid = computed(() =>
+  Boolean(form.startsOn && form.endsOn && form.startsOn > form.endsOn),
+);
 
 const canSave = computed(() => {
   if (!form.title.trim() || !form.body.trim() || !form.buttonText.trim()) return false;
   if (
     props.placement === 'popup' &&
-    fieldEditable('frequencyType') &&
     form.frequencyType === 'every_n_days' &&
     (!form.frequencyDays || form.frequencyDays < 1)
   ) {
@@ -451,25 +379,26 @@ async function handleSave() {
   saving.value = true;
   try {
     if (props.aviso) {
-      const payload: UpdateAvisoInput = {};
-      if (fieldEditable('title')) payload.title = form.title.trim();
-      if (fieldEditable('body')) payload.body = form.body.trim();
-      if (fieldEditable('buttonText')) payload.buttonText = form.buttonText.trim();
-      // El destino siempre es editable (D-08/D-09/D-10: copy + botón + destino).
-      payload.destinationType = form.destination.type;
-      payload.destinationSection = form.destination.section;
-      payload.whatsappText = form.destination.whatsappText;
-      if (fieldEditable('status')) payload.status = form.status;
-      if (props.placement === 'popup' && fieldEditable('frequencyType')) {
+      // Homogeneidad sistema/propias (pedido de Franco 2026-09-03): el server
+      // acepta el mismo set completo de campos para cualquier `kind` — acá se
+      // manda todo el formulario sin gating por `isSystem`.
+      const payload: UpdateAvisoInput = {
+        title: form.title.trim(),
+        body: form.body.trim(),
+        buttonText: form.buttonText.trim(),
+        destinationType: form.destination.type,
+        destinationSection: form.destination.section,
+        whatsappText: form.destination.whatsappText,
+        status: form.status,
+        startsOn: form.startsOn || null,
+        endsOn: form.endsOn || null,
+        scopeBranchIds: form.scopeBranchIds.length ? form.scopeBranchIds : null,
+        scopeCountries: form.scopeCountries.length ? form.scopeCountries : null,
+        scopeSegments: form.scopeSegments.length ? form.scopeSegments : null,
+      };
+      if (props.placement === 'popup') {
         payload.frequencyType = form.frequencyType;
         payload.frequencyDays = form.frequencyType === 'every_n_days' ? form.frequencyDays : null;
-      }
-      if (!isSystem.value) {
-        payload.startsOn = form.startsOn || null;
-        payload.endsOn = form.endsOn || null;
-        payload.scopeBranchIds = form.scopeBranchIds.length ? form.scopeBranchIds : null;
-        payload.scopeCountries = form.scopeCountries.length ? form.scopeCountries : null;
-        payload.scopeSegments = form.scopeSegments.length ? form.scopeSegments : null;
       }
       await commsApi.updateAviso(props.aviso.id, payload);
     } else {
