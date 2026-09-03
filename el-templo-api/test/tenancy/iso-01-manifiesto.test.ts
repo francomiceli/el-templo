@@ -250,6 +250,13 @@ import {
  * socios", número de ventas por país — D-12..D-20), todas `tenant-scoped`.
  * Detalle de la contabilidad en el header de `tenant-manifest.ts`.
  *
+ * **Movido a 409 el 2026-09-03**, extensión post-UAT de la fase 193
+ * (reglas recetadas + homogeneidad sistema/propias): +3 rutas bajo
+ * `/api/notifications/admin/templates` (POST, DELETE /:id, POST
+ * preview-audience) y +1 `POST /api/communications/admin/avisos/restore-system`,
+ * todas `tenant-scoped`. (El salto 396→405 intermedio lo hicieron los planes
+ * 193-05/193-07: rutas member-facing y avisos de TV.)
+ *
  * El reparto por categoría vigente es 246 `tenant-scoped` · 8 `global` · 142
  * `templo-module`, sobre el aprobado por Franco en el
  * checkpoint del plan 171-06 (2026-07-29). Este archivo NO afirma el reparto
@@ -260,7 +267,7 @@ import {
  * `categoriaInvalida`). Quién va en qué categoría es una decisión humana con
  * dueño y fecha, registrada en `171-CLASIFICACION.md`, no una constante de test.
  */
-const ENTRADAS_BASELINE = 405;
+const ENTRADAS_BASELINE = 409;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -403,7 +410,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 396 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 409 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

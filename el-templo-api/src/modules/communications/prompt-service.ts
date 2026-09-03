@@ -78,7 +78,7 @@ const AR_TIMEZONE = "America/Argentina/Buenos_Aires";
  * acá — se EXCLUYEN del escalón 2 (aviso vigente) para no competir consigo
  * mismos por partida doble.
  */
-const ORCHESTRATED_POPUP_CODES: readonly SystemAvisoCode[] = [
+export const ORCHESTRATED_POPUP_CODES: readonly SystemAvisoCode[] = [
   "plan_expiry",
   "rating_prompt",
   "improvement_prompt",
@@ -334,6 +334,13 @@ export class PromptService {
           tenantWhere(avisos, ctx),
           eq(avisos.placement, "tarjeta"),
           eq(avisos.status, "active"),
+          // Los pop-ups orquestados se resuelven por `code` en los escalones
+          // 1/3/4: jamás deben aparecer también como tarjeta, aunque alguien
+          // les cambie el `placement` (además `updateAviso` lo rechaza).
+          or(
+            isNull(avisos.code),
+            notInArray(avisos.code, [...ORCHESTRATED_POPUP_CODES]),
+          ),
         ),
       )
       .orderBy(avisos.sortOrder, avisos.id);

@@ -897,7 +897,7 @@ export class NotificationService {
     const keys: string[] = [];
     for (const seed of TEMPLATE_SEEDS) {
       // `kind` NO va en el INSERT: la columna trae DEFAULT 'system'
-      // (migración 0219) — las 16 filas de TEMPLATE_SEEDS son siempre
+      // (migración 0219) — las 17 filas de TEMPLATE_SEEDS son siempre
       // 'system', nunca una regla propia.
       const [result] = await this.db.execute(
         sql`INSERT IGNORE INTO notification_templates

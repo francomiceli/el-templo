@@ -25,7 +25,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { addDays, todayInTz } from "../shared/date-utils";
-import { deriveCoveredUntil } from "../subscriptions/service";
+import { deriveCoveredUntilBatch } from "../subscriptions/service";
 import type { NotificationService } from "./service";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -104,6 +104,21 @@ const RULE_TRIGGER_BY_TYPE: ReadonlyMap<RuleTriggerType, RuleTriggerDef> =
 
 export function findRuleTrigger(type: string): RuleTriggerDef | undefined {
   return RULE_TRIGGER_BY_TYPE.get(type as RuleTriggerType);
+}
+
+/**
+ * Cobertura (covered-until) de una lista de socios en UNA query. Envuelve
+ * `deriveCoveredUntilBatch` y devuelve `null` para los que no figuran (misma
+ * semántica que la versión de a uno). Evita el N+1 por candidato que el
+ * codebase ya documenta como bug real (`subscriptions/service.ts`).
+ */
+async function coverageFor(
+  db: MySql2Database<typeof schema>,
+  userIds: number[],
+  ctx: TenantContext,
+): Promise<Map<number, string | null>> {
+  if (userIds.length === 0) return new Map();
+  return deriveCoveredUntilBatch(db, userIds, ctx);
 }
 
 // ── Input compartido por preview y evaluación real ──────────────────────────
@@ -205,13 +220,13 @@ async function resolveTriggerCandidates(
           ),
         );
 
+      const candidates = rows.map((r) => r.userId).filter((id) => activeIds.has(id));
+      const coverage = await coverageFor(db, candidates, ctx);
       const result = new Set<number>();
-      for (const row of rows) {
-        if (!activeIds.has(row.userId)) continue;
+      for (const userId of candidates) {
         // D-05 (mismo criterio que runPlanRenewalWarnings): si ya renovó, el
         // covered-until real corre más allá del target -> se suprime.
-        const coveredUntil = await deriveCoveredUntil(db, row.userId, ctx);
-        if (coveredUntil === target) result.add(row.userId);
+        if ((coverage.get(userId) ?? null) === target) result.add(userId);
       }
       return result;
     }
@@ -225,18 +240,22 @@ async function resolveTriggerCandidates(
         .where(
           and(
             tenantWhere(schema.subscriptions, ctx),
+            // Solo vencimientos REALES: una suscripción cancelada/cambiada/
+            // completada con end_date = target no "venció", la cerró alguien.
+            // Mismo criterio de estados que `plan_expires_in_days`, más
+            // `expired` (el cron ya la pudo marcar como vencida).
+            inArray(schema.subscriptions.status, ["active", "expired"]),
             eq(schema.subscriptions.endDate, target),
           ),
         );
 
+      const candidates = rows.map((r) => r.userId).filter((id) => activeIds.has(id));
+      const coverage = await coverageFor(db, candidates, ctx);
       const result = new Set<number>();
-      for (const row of rows) {
-        if (!activeIds.has(row.userId)) continue;
+      for (const userId of candidates) {
         // Sin otra suscripción activa/scheduled que cubra HOY -> no renovó.
-        const coveredUntil = await deriveCoveredUntil(db, row.userId, ctx);
-        if (coveredUntil === null || coveredUntil < today) {
-          result.add(row.userId);
-        }
+        const coveredUntil = coverage.get(userId) ?? null;
+        if (coveredUntil === null || coveredUntil < today) result.add(userId);
       }
       return result;
     }
@@ -254,15 +273,14 @@ async function resolveTriggerCandidates(
         .groupBy(schema.attendance.memberId)
         .having(sql`MAX(${schema.attendance.sessionDate}) = ${target}`);
 
+      const candidates = rows.map((r) => r.userId).filter((id) => activeIds.has(id));
+      const coverage = await coverageFor(db, candidates, ctx);
       const result = new Set<number>();
-      for (const row of rows) {
-        if (!activeIds.has(row.userId)) continue;
+      for (const userId of candidates) {
         // Con suscripción activa HOY (si ya no entrena y tampoco tiene plan
         // vigente, lo cubre `plan_expired_days_ago`, no este trigger).
-        const coveredUntil = await deriveCoveredUntil(db, row.userId, ctx);
-        if (coveredUntil !== null && coveredUntil >= today) {
-          result.add(row.userId);
-        }
+        const coveredUntil = coverage.get(userId) ?? null;
+        if (coveredUntil !== null && coveredUntil >= today) result.add(userId);
       }
       return result;
     }

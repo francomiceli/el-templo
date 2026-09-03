@@ -283,6 +283,12 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     await giveDeviceToken(otroN);
     await insertSubscription(otroN, branchAR, "expired", -4);
 
+    // Canceló voluntariamente con end_date = hace 3 días: NO "venció", la
+    // cerró alguien. Sin este filtro de estados se le mandaba "tu plan venció".
+    const cancelo = await insertMember({});
+    await giveDeviceToken(cancelo);
+    await insertSubscription(cancelo, branchAR, "cancelled", -3);
+
     const result = await evaluateCustomRulesForTenant(
       app.db,
       newService(),
@@ -295,6 +301,7 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     expect(await wasQueued(positivo, rule.id)).toBe(true);
     expect(await wasQueued(yaRenovo, rule.id)).toBe(false);
     expect(await wasQueued(otroN, rule.id)).toBe(false);
+    expect(await wasQueued(cancelo, rule.id)).toBe(false);
   });
 
   it("days_without_attendance: encola con suscripción activa hoy; no encola sin suscripción activa", async () => {

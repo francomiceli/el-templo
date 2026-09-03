@@ -6,7 +6,7 @@
  *
  * Member: authenticated members
  * Admin CRUD: ADMIN_ROLES (admin, owner) per D-15
- * Template seeding: OWNER_ROLES (owner only)
+ * Template seeding/restore: ADMIN_ROLES (homogéneo con avisos/restore-system, 2026-09-03)
  */
 
 import { FastifyPluginAsync } from "fastify";
@@ -21,7 +21,7 @@ import {
   countAudienceForRule,
   type RuleTriggerType,
 } from "./rules";
-import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
+import { ADMIN_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import {
   assertTenant,
@@ -267,13 +267,15 @@ const ruleConditionProperties = {
   triggerType: { type: "string", enum: RULE_TRIGGER_TYPE_VALUES },
   triggerValue: { type: "integer", minimum: 0, maximum: 365 },
   triggerSegment: { type: "string", enum: MEMBER_SEGMENT_VALUES },
+  // `null` explícito = "todas" (permite VACIAR un alcance ya guardado al
+  // editar; omitir el campo = sin cambios). Mismo contrato que los avisos.
   scopeBranchIds: {
-    type: "array",
+    type: ["array", "null"],
     items: { type: "integer" },
     minItems: 1,
   },
   scopeCountries: {
-    type: "array",
+    type: ["array", "null"],
     items: { type: "string", minLength: 2, maxLength: 2 },
     minItems: 1,
   },
@@ -1171,7 +1173,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       const { role } = request.user;
-      if (!(OWNER_ROLES as readonly string[]).includes(role)) {
+      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 

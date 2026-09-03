@@ -28,7 +28,7 @@
  * -------------
  *   pnpm exec vitest run --no-file-parallelism test/communications/avisos-admin.test.ts
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { sql, and, eq } from "drizzle-orm";
 import {
@@ -193,6 +193,21 @@ beforeEach(async () => {
   coachToken = await getAuthToken(app, COACH_EMAIL, COACH_PASSWORD);
 });
 
+// Red de seguridad: los casos 4/4b/5/5b mutan avisos de SISTEMA compartidos
+// por el worker (plan_expiry, rating_prompt) y los restauran a mano al final;
+// si una aserción intermedia falla, ese "a mano" no corre y contamina a
+// prompt-endpoint.test.ts / iso-03. Acá se re-siembran SIEMPRE desde cero.
+afterEach(async () => {
+  await app.db.execute(
+    sql`/* tenant-safe: limpieza global de prueba (patron cleanAllTestData) — re-siembra de avisos de sistema tras cada caso */ DELETE FROM aviso_events`,
+  );
+  await app.db.execute(
+    sql`/* tenant-safe: limpieza global de prueba — los avisos de sistema se re-siembran via restore-system para que un caso fallido no contamine al worker */ DELETE FROM avisos WHERE kind = 'system'`,
+  );
+  const res = await postComo("/admin/avisos/restore-system", adminToken);
+  expect(res.statusCode, res.body).toBe(200);
+});
+
 describe("communications/avisos-admin (COM-01/COM-02)", () => {
   it("(1) POST /admin/avisos crea un aviso custom válido y aparece en GET", async () => {
     const res = await postComo("/admin/avisos", adminToken, buildValidAvisoBody());
@@ -246,6 +261,15 @@ describe("communications/avisos-admin (COM-01/COM-02)", () => {
     expect(
       (JSON.parse(resFreq.body) as { frequencyDays: number }).frequencyDays,
     ).toBe(5);
+
+    // Excepción a la homogeneidad: los 3 pop-ups orquestados por `code` no
+    // pueden pasar a tarjeta (se duplicarían en pantalla).
+    const resPlacement = await putComo(
+      `/admin/avisos/${planExpiryId}`,
+      adminToken,
+      { placement: "tarjeta" },
+    );
+    expect(resPlacement.statusCode, resPlacement.body).toBe(400);
 
     const resOk = await putComo(`/admin/avisos/${planExpiryId}`, adminToken, {
       title: "Tu membresía vence pronto — editado",

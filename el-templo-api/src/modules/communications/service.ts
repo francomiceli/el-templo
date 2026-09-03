@@ -8,6 +8,7 @@
  * son gym-owned desde el día uno (193-02).
  */
 import { and, desc, eq, sql } from "drizzle-orm";
+import { ORCHESTRATED_POPUP_CODES } from "./prompt-service";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -363,8 +364,22 @@ export class CommunicationsService {
     if (input.scopeSegments !== undefined)
       updates.scopeSegments = input.scopeSegments;
     // Pedido de Franco (2026-09-03): `placement` ahora es editable para
-    // CUALQUIER `kind`, homogéneo con el resto de los campos.
-    if (input.placement !== undefined) updates.placement = input.placement;
+    // CUALQUIER `kind`, homogéneo con el resto de los campos. Excepción: los
+    // 3 pop-ups orquestados por `code` (vencimiento, rating, mejoras) se
+    // disparan por su propio escalón del prompt-service y no compiten en el
+    // carrusel — moverlos a tarjeta los duplicaría en pantalla.
+    if (input.placement !== undefined) {
+      if (
+        input.placement !== "popup" &&
+        existing.code !== null &&
+        (ORCHESTRATED_POPUP_CODES as readonly string[]).includes(existing.code)
+      ) {
+        throw new BadRequestError(
+          "Este aviso del sistema se muestra como pop-up por su propia regla y no puede pasar a tarjeta",
+        );
+      }
+      updates.placement = input.placement;
+    }
 
     // Destino: si viene CUALQUIERA de los 3 campos, se revalida el destino
     // COMPLETO (los 3 juntos), mergeado con lo existente — evita una

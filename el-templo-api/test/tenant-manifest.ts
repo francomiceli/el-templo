@@ -777,6 +777,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "GET /api/communications/admin/sales-number": { categoria: "tenant-scoped" },
   "POST /api/communications/admin/avisos": { categoria: "tenant-scoped" },
+  "POST /api/communications/admin/avisos/restore-system": {
+    categoria: "tenant-scoped",
+  },
   "PUT /api/communications/admin/avisos/:id": { categoria: "tenant-scoped" },
   "PUT /api/communications/admin/sales-number": { categoria: "tenant-scoped" },
   // Fase 193 Plan 05 (COM-02/COM-03, D-06/D-07/D-11/D-15b/D-20): 4 rutas
@@ -884,6 +887,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/notifications/admin/send-segment": { categoria: "tenant-scoped" },
   "POST /api/notifications/token": { categoria: "tenant-scoped" },
   "PUT /api/notifications/admin/templates/:id": { categoria: "tenant-scoped" },
+  "POST /api/notifications/admin/templates": { categoria: "tenant-scoped" },
+  "POST /api/notifications/admin/templates/preview-audience": {
+    categoria: "tenant-scoped",
+  },
+  "DELETE /api/notifications/admin/templates/:id": {
+    categoria: "tenant-scoped",
+  },
   "PUT /api/notifications/preferences": { categoria: "tenant-scoped" },
 
   // ── /api/tv (kiosco anónimo) — RETIRADO 2026-08-12 ──────────────────────────

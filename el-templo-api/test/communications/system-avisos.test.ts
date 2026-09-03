@@ -100,10 +100,10 @@ describe("communications/system-avisos (D-08/D-09/D-10/D-15a/D-22)", () => {
   it("(b) seedSystemAvisos es idempotente sobre el mismo tenant: no duplica y devuelve inserted:0 la segunda vez", async () => {
     // El Templo ya tiene las 7 filas (sembradas por la migración 0217, caso a).
     const first = await seedSystemAvisos(app.db, CTX_TEMPLO);
-    expect(first).toEqual({ inserted: 0 });
+    expect(first).toMatchObject({ inserted: 0, codes: [] });
 
     const second = await seedSystemAvisos(app.db, CTX_TEMPLO);
-    expect(second).toEqual({ inserted: 0 });
+    expect(second).toMatchObject({ inserted: 0, codes: [] });
 
     const rows = await systemAvisosOf(CTX_TEMPLO);
     expect(rows).toHaveLength(7); // no 14
@@ -119,7 +119,7 @@ describe("communications/system-avisos (D-08/D-09/D-10/D-15a/D-22)", () => {
     expect(before).toHaveLength(0);
 
     const result = await seedSystemAvisos(app.db, ctxDos);
-    expect(result).toEqual({ inserted: 7 });
+    expect(result).toMatchObject({ inserted: 7 });
 
     const rowsDos = await systemAvisosOf(ctxDos);
     expect(rowsDos).toHaveLength(7);
@@ -158,7 +158,7 @@ describe("communications/system-avisos (D-08/D-09/D-10/D-15a/D-22)", () => {
       );
 
     const result = await seedSystemAvisos(app.db, CTX_TEMPLO);
-    expect(result).toEqual({ inserted: 0 });
+    expect(result).toMatchObject({ inserted: 0, codes: [] });
 
     const rows = await systemAvisosOf(CTX_TEMPLO);
     expect(rows).toHaveLength(7); // no se duplicó la fila
