@@ -1,18 +1,21 @@
 /**
  * Fase 193 Plan 04 (COM-01/COM-02, D-05/D-08..D-11/D-17/D-18/D-30) —
- * integración HTTP contra `createTestApp()` de las 7 rutas admin de
+ * integración HTTP contra `createTestApp()` de las 8 rutas admin de
  * `/api/communications`. Casos del plan:
  *   (1) POST crea un aviso custom válido, aparece en GET
  *   (2) POST con destinationSection inválida -> 400, no crea fila
  *   (3) POST whatsapp_sales con link en whatsappText -> 400
- *   (4) PUT sobre el aviso de sistema `plan_expiry`: frequencyDays -> 400
- *       (D-10, regla fija en código), title -> 200
- *   (5) DELETE de un aviso de sistema -> 400 (D-11); de uno custom -> 200
+ *   (4/4b) PUT sobre avisos de sistema (`plan_expiry`/`rating_prompt`):
+ *       homogéneo con uno custom (pedido de Franco 2026-09-03, D-10
+ *       retirado) — TODO campo es editable, incluida frequencyDays/status.
+ *   (5/5b) DELETE de un aviso de sistema -> 200 (homogéneo, D-11 retirado);
+ *       de uno custom -> 200; POST restore-system repone SOLO lo que falta,
+ *       sin pisar ediciones (INSERT IGNORE)
  *   (6) métricas: reachedCount/dismissedCount/clickedCount cuentan socios
  *       ÚNICOS (D-17), no eventos
  *   (7) GET .../clickers devuelve nombre y teléfono de quien tocó el botón
  *       (D-18)
- *   (8) un coach autenticado recibe 403 en las 7 rutas (D-30)
+ *   (8) un coach autenticado recibe 403 en las 8 rutas (D-30)
  *
  * LIMPIEZA (193-03, L5): `avisos`/`aviso_events`/`tv_avisos` NO están en
  * `TABLES_TO_CLEAN` (`test/helpers.ts`) a propósito — el catálogo de sistema
@@ -233,13 +236,16 @@ describe("communications/avisos-admin (COM-01/COM-02)", () => {
     expect(res.statusCode, res.body).toBe(400);
   });
 
-  it("(4) PUT sobre el aviso de sistema plan_expiry: frequencyDays -> 400 (D-10), title -> 200", async () => {
+  it("(4) PUT sobre el aviso de sistema plan_expiry: homogéneo — frequencyDays y title -> 200 (pedido de Franco 2026-09-03, D-10 retirado)", async () => {
     const planExpiryId = await getSystemAvisoId(app, "plan_expiry");
 
-    const resBad = await putComo(`/admin/avisos/${planExpiryId}`, adminToken, {
+    const resFreq = await putComo(`/admin/avisos/${planExpiryId}`, adminToken, {
       frequencyDays: 5,
     });
-    expect(resBad.statusCode, resBad.body).toBe(400);
+    expect(resFreq.statusCode, resFreq.body).toBe(200);
+    expect(
+      (JSON.parse(resFreq.body) as { frequencyDays: number }).frequencyDays,
+    ).toBe(5);
 
     const resOk = await putComo(`/admin/avisos/${planExpiryId}`, adminToken, {
       title: "Tu membresía vence pronto — editado",
@@ -247,9 +253,17 @@ describe("communications/avisos-admin (COM-01/COM-02)", () => {
     expect(resOk.statusCode, resOk.body).toBe(200);
     const updated = JSON.parse(resOk.body) as { title: string };
     expect(updated.title).toBe("Tu membresía vence pronto — editado");
+
+    // Restaurar frequencyDays: otros archivos del mismo worker
+    // (prompt-endpoint.test.ts) dependen del valor semilla frequencyDays=1
+    // de plan_expiry para su cadencia diaria (D-08).
+    const resRestore = await putComo(`/admin/avisos/${planExpiryId}`, adminToken, {
+      frequencyDays: 1,
+    });
+    expect(resRestore.statusCode, resRestore.body).toBe(200);
   });
 
-  it("(4b) PUT status sobre rating_prompt -> 200 (D-11: se puede pausar); sobre plan_expiry -> 400 (D-10)", async () => {
+  it("(4b) PUT status sobre rating_prompt y plan_expiry -> 200 (homogéneo: los dos se pueden pausar, pedido de Franco 2026-09-03)", async () => {
     const ratingId = await getSystemAvisoId(app, "rating_prompt");
     const resPause = await putComo(`/admin/avisos/${ratingId}`, adminToken, {
       status: "paused",
@@ -266,16 +280,42 @@ describe("communications/avisos-admin (COM-01/COM-02)", () => {
     expect(resResume.statusCode, resResume.body).toBe(200);
 
     const planExpiryId = await getSystemAvisoId(app, "plan_expiry");
-    const resBad = await putComo(`/admin/avisos/${planExpiryId}`, adminToken, {
-      status: "paused",
-    });
-    expect(resBad.statusCode, resBad.body).toBe(400);
+    const resPauseExpiry = await putComo(
+      `/admin/avisos/${planExpiryId}`,
+      adminToken,
+      { status: "paused" },
+    );
+    expect(resPauseExpiry.statusCode, resPauseExpiry.body).toBe(200);
+    expect(
+      (JSON.parse(resPauseExpiry.body) as { status: string }).status,
+    ).toBe("paused");
+
+    // Restaurar: otros archivos (prompt-endpoint.test.ts,
+    // iso-03-communications.test.ts) dependen de plan_expiry activo.
+    const resResumeExpiry = await putComo(
+      `/admin/avisos/${planExpiryId}`,
+      adminToken,
+      { status: "active" },
+    );
+    expect(resResumeExpiry.statusCode, resResumeExpiry.body).toBe(200);
   });
 
-  it("(5) DELETE de un aviso de sistema -> 400 (D-11); de uno custom -> 200", async () => {
+  it("(5) DELETE de un aviso de sistema -> 200 (homogéneo, pedido de Franco 2026-09-03); de uno custom -> 200; restore-system lo repone", async () => {
     const planExpiryId = await getSystemAvisoId(app, "plan_expiry");
     const resSystem = await deleteComo(`/admin/avisos/${planExpiryId}`, adminToken);
-    expect(resSystem.statusCode, resSystem.body).toBe(400);
+    expect(resSystem.statusCode, resSystem.body).toBe(200);
+
+    // Restaurar antes de seguir: otros archivos del mismo worker
+    // (prompt-endpoint.test.ts, iso-03-communications.test.ts) dependen de
+    // que plan_expiry exista.
+    const resRestore = await postComo("/admin/avisos/restore-system", adminToken);
+    expect(resRestore.statusCode, resRestore.body).toBe(200);
+    const restoreBody = JSON.parse(resRestore.body) as {
+      restored: number;
+      keys: string[];
+    };
+    expect(restoreBody.restored).toBe(1);
+    expect(restoreBody.keys).toContain("plan_expiry");
 
     const createRes = await postComo(
       "/admin/avisos",
@@ -285,6 +325,42 @@ describe("communications/avisos-admin (COM-01/COM-02)", () => {
     const created = JSON.parse(createRes.body) as { id: number };
     const resCustom = await deleteComo(`/admin/avisos/${created.id}`, adminToken);
     expect(resCustom.statusCode, resCustom.body).toBe(200);
+  });
+
+  it("(5b) POST restore-system no pisa una fila editada: solo repone lo que falta", async () => {
+    const ratingId = await getSystemAvisoId(app, "rating_prompt");
+    const resEdit = await putComo(`/admin/avisos/${ratingId}`, adminToken, {
+      title: "Título editado a mano",
+    });
+    expect(resEdit.statusCode, resEdit.body).toBe(200);
+
+    const planExpiryId = await getSystemAvisoId(app, "plan_expiry");
+    const resDelete = await deleteComo(
+      `/admin/avisos/${planExpiryId}`,
+      adminToken,
+    );
+    expect(resDelete.statusCode, resDelete.body).toBe(200);
+
+    const resRestore = await postComo("/admin/avisos/restore-system", adminToken);
+    expect(resRestore.statusCode, resRestore.body).toBe(200);
+    const restoreBody = JSON.parse(resRestore.body) as {
+      restored: number;
+      keys: string[];
+    };
+    expect(restoreBody.restored).toBe(1);
+    expect(restoreBody.keys).toEqual(["plan_expiry"]);
+
+    // La edición de rating_prompt sobrevivió intacta (INSERT IGNORE, nunca UPDATE).
+    const getRating = await getComo("/admin/avisos", adminToken);
+    const ratingRow = (
+      JSON.parse(getRating.body) as { avisos: Array<{ id: number; title: string }> }
+    ).avisos.find((a) => a.id === ratingId);
+    expect(ratingRow?.title).toBe("Título editado a mano");
+
+    // Restaurar el título para no contaminar otros archivos del worker.
+    await putComo(`/admin/avisos/${ratingId}`, adminToken, {
+      title: "¿Cómo estuvo tu clase?",
+    });
   });
 
   it("(6) métricas: reachedCount/dismissedCount/clickedCount cuentan socios ÚNICOS (D-17)", async () => {
@@ -343,7 +419,7 @@ describe("communications/avisos-admin (COM-01/COM-02)", () => {
     expect(body.clickers[0]?.phone).toBe("5492235550000");
   });
 
-  it("(8) un coach autenticado recibe 403 en las 7 rutas admin (D-30)", async () => {
+  it("(8) un coach autenticado recibe 403 en las 8 rutas admin (D-30, + restore-system)", async () => {
     // Sembrado con el admin para tener un id válido con el que probar los
     // handlers por :id (el 403 debe llegar ANTES de resolver el recurso).
     const createRes = await postComo("/admin/avisos", adminToken, buildValidAvisoBody());
@@ -362,6 +438,9 @@ describe("communications/avisos-admin (COM-01/COM-02)", () => {
 
     const del = await deleteComo(`/admin/avisos/${created.id}`, coachToken);
     expect(del.statusCode).toBe(403);
+
+    const restoreSystem = await postComo("/admin/avisos/restore-system", coachToken);
+    expect(restoreSystem.statusCode).toBe(403);
 
     const clickers = await getComo(`/admin/avisos/${created.id}/clickers`, coachToken);
     expect(clickers.statusCode).toBe(403);
