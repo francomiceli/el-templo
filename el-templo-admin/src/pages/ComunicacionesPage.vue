@@ -77,9 +77,19 @@
       </div>
     </div>
 
-    <PushTab v-if="tab === 'push'" :templates="templates" @reload="loadPush" />
-    <AvisosTab v-else-if="tab === 'avisos'" :avisos="avisosPopup" @reload="loadAvisos" />
-    <TarjetasTab v-else-if="tab === 'tarjetas'" :tarjetas="avisosTarjeta" @reload="loadAvisos" />
+    <PushTab v-if="tab === 'push'" :templates="templates" :branches="branches" @reload="loadPush" />
+    <AvisosTab
+      v-else-if="tab === 'avisos'"
+      :avisos="avisosPopup"
+      :branches="branches"
+      @reload="loadAvisos"
+    />
+    <TarjetasTab
+      v-else-if="tab === 'tarjetas'"
+      :tarjetas="avisosTarjeta"
+      :branches="branches"
+      @reload="loadAvisos"
+    />
     <TvAvisosTab
       v-else-if="tab === 'tv'"
       :avisos="tvAvisos"

@@ -5,7 +5,12 @@
      montar; acá solo se pide `reload` tras crear/editar/borrar/toggle.
      Entidad APARTE de los avisos de la app: sin `kind` (siempre "Propia",
      D-24, plan 16) — no hay plantillas de sistema de TV, así que tampoco
-     hay botón "Restaurar las del sistema" acá. -->
+     hay botón "Restaurar las del sistema" acá.
+
+     Plan C 2026-09-03: como todas las filas son propias, se agrupan por
+     AUDIENCIA (`audienceOfTvAviso`: sin sedes = todas, con sedes = grupo)
+     y dentro de cada grupo se ordenan por título (no hay noción de
+     "más reciente" relevante acá, a diferencia de Push/Avisos). -->
 <template>
   <div>
     <div class="row items-center q-mb-md">
@@ -57,20 +62,26 @@
         No hay avisos de TV todavía. Creá uno con "Nuevo aviso de TV".
       </div>
 
-      <div v-else class="row q-col-gutter-md">
-        <div v-for="row in avisos" :key="row.id" class="col-12 col-sm-6 col-lg-4">
-          <ComunicacionCard
-            :title="row.title"
-            :subtitle="row.body"
-            origin="custom"
-            :enabled="row.isActive"
-            :meta="cardMeta(row)"
-            @update:enabled="(val) => toggleActive(row, val)"
-            @edit="openEdit(row)"
-            @delete="handleDelete(row)"
-          />
+      <template v-else>
+        <div v-for="group in groupedAvisos" :key="group.breadth" class="comm-group">
+          <div class="comm-group__title">{{ group.title }} ({{ group.rows.length }})</div>
+          <div class="row q-col-gutter-md">
+            <div v-for="row in group.rows" :key="row.id" class="col-12 col-sm-6 col-lg-4">
+              <ComunicacionCard
+                :title="row.title"
+                :subtitle="row.body"
+                origin="custom"
+                :audience="audienceOfTvAviso(row, branches)"
+                :enabled="row.isActive"
+                :meta="cardMeta(row)"
+                @update:enabled="(val) => toggleActive(row, val)"
+                @edit="openEdit(row)"
+                @delete="handleDelete(row)"
+              />
+            </div>
+          </div>
         </div>
-      </div>
+      </template>
     </template>
 
     <TvAvisoEditorDialog v-model="editorOpen" :aviso="editingAviso" @saved="emit('reload')" />
@@ -78,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
@@ -88,6 +99,7 @@ import { useCommunicationsApi } from 'src/composables/useCommunicationsApi';
 import type { TvAvisoRow, TvAvisoMode } from 'src/composables/useCommunicationsApi';
 import type { BranchOption } from 'src/types/member';
 import { confirmDeleteComunicacion } from 'src/utils/confirm-delete-comunicacion';
+import { audienceOfTvAviso, groupByAudience } from 'src/utils/comunicaciones-audience';
 
 const log = createLogger('TvAvisosTab');
 const $q = useQuasar();
@@ -99,6 +111,14 @@ const props = defineProps<{
   branches: BranchOption[];
 }>();
 const emit = defineEmits<{ reload: [] }>();
+
+const groupedAvisos = computed(() =>
+  groupByAudience(
+    props.avisos,
+    (row) => audienceOfTvAviso(row, props.branches),
+    (a, b) => a.title.localeCompare(b.title, 'es-AR'),
+  ),
+);
 
 const MODE_LABELS: Record<TvAvisoMode, string> = {
   manual: 'Manual',
@@ -165,3 +185,22 @@ async function handleDelete(row: TvAvisoRow): Promise<void> {
   }
 }
 </script>
+
+<style lang="scss" scoped>
+// Subheader de cada grupo de audiencia (Plan C 2026-09-03). Repetido igual
+// en las 4 tabs de Comunicaciones — no hay hoja de tokens compartida entre
+// componentes en este módulo (mismo criterio que `ComunicacionCard.vue`,
+// que también declara sus colores localmente).
+.comm-group + .comm-group {
+  margin-top: 4px;
+}
+
+.comm-group__title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b6459;
+  margin: 16px 0 8px;
+}
+</style>

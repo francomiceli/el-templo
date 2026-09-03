@@ -4,7 +4,12 @@
      placement 'popup') lo carga y cachea `ComunicacionesPage.vue`; acá solo
      se pide `reload` tras crear/editar/borrar/restaurar/toggle. Homogéneo:
      ahora también se borran los de sistema (antes deshabilitado, ver
-     `git log` de este archivo) — "Restaurar las del sistema" los repone. -->
+     `git log` de este archivo) — "Restaurar las del sistema" los repone.
+
+     Plan C 2026-09-03: la grilla plana pasa a agruparse por AUDIENCIA
+     (`groupByAudience`, `src/utils/comunicaciones-audience.ts`) en vez de
+     por origen — la línea de meta "Todos los socios" que calculaba
+     `alcanceLabel` sale de acá porque ahora vive en el chip de la card. -->
 <template>
   <div>
     <div class="row items-center q-mb-md">
@@ -40,38 +45,48 @@
       No hay avisos todavía. Creá uno con "Nuevo aviso".
     </div>
 
-    <div v-else class="row q-col-gutter-md">
-      <div v-for="row in orderedAvisos" :key="row.id" class="col-12 col-sm-6 col-lg-4">
-        <ComunicacionCard
-          :title="row.title"
-          :subtitle="row.body"
-          :origin="row.kind"
-          :enabled="row.status === 'active'"
-          :meta="cardMeta(row)"
-          :metrics="cardMetrics(row)"
-          @update:enabled="(val) => toggleActive(row, val)"
-          @edit="openEdit(row)"
-          @delete="handleDelete(row)"
-        >
-          <template #preview>
-            <q-expansion-item dense label="Vista previa" header-class="text-caption text-grey-7">
-              <AvisoPreview
-                placement="popup"
-                :title="row.title"
-                :body="row.body"
-                :button-text="row.buttonText"
-                :destination-label="destinationLabel(row)"
-              />
-            </q-expansion-item>
-          </template>
-          <template #extra-actions>
-            <q-btn flat round dense icon="groups" color="primary" @click="openVerSocios(row)">
-              <q-tooltip>Ver socios</q-tooltip>
-            </q-btn>
-          </template>
-        </ComunicacionCard>
+    <template v-else>
+      <div v-for="group in groupedAvisos" :key="group.breadth" class="comm-group">
+        <div class="comm-group__title">{{ group.title }} ({{ group.rows.length }})</div>
+        <div class="row q-col-gutter-md">
+          <div v-for="row in group.rows" :key="row.id" class="col-12 col-sm-6 col-lg-4">
+            <ComunicacionCard
+              :title="row.title"
+              :subtitle="row.body"
+              :origin="row.kind"
+              :audience="audienceOfAviso(row, branches)"
+              :enabled="row.status === 'active'"
+              :meta="cardMeta(row)"
+              :metrics="cardMetrics(row)"
+              @update:enabled="(val) => toggleActive(row, val)"
+              @edit="openEdit(row)"
+              @delete="handleDelete(row)"
+            >
+              <template #preview>
+                <q-expansion-item
+                  dense
+                  label="Vista previa"
+                  header-class="text-caption text-grey-7"
+                >
+                  <AvisoPreview
+                    placement="popup"
+                    :title="row.title"
+                    :body="row.body"
+                    :button-text="row.buttonText"
+                    :destination-label="destinationLabel(row)"
+                  />
+                </q-expansion-item>
+              </template>
+              <template #extra-actions>
+                <q-btn flat round dense icon="groups" color="primary" @click="openVerSocios(row)">
+                  <q-tooltip>Ver socios</q-tooltip>
+                </q-btn>
+              </template>
+            </ComunicacionCard>
+          </div>
+        </div>
       </div>
-    </div>
+    </template>
 
     <AvisoEditorDialog v-model="editorOpen" :aviso="editingAviso" @saved="emit('reload')" />
 
@@ -97,19 +112,27 @@ import type { AvisoRow, AvisoFrequencyType } from 'src/composables/useCommunicat
 import { vigenciaLabel } from 'src/utils/aviso-format';
 import { confirmDeleteComunicacion } from 'src/utils/confirm-delete-comunicacion';
 import { APP_SECTIONS } from 'src/config/destinations';
+import type { BranchOption } from 'src/types/member';
+import { audienceOfAviso, byOriginThenTitle, groupByAudience } from 'src/utils/comunicaciones-audience';
 
 const log = createLogger('AvisosTab');
 const $q = useQuasar();
 const commsApi = useCommunicationsApi();
 
-const props = defineProps<{ avisos: AvisoRow[] }>();
+const props = defineProps<{ avisos: AvisoRow[]; branches: BranchOption[] }>();
 const emit = defineEmits<{ reload: [] }>();
 
-const orderedAvisos = computed(() => {
-  const custom = props.avisos.filter((a) => a.kind === 'custom').sort((a, b) => b.id - a.id);
-  const system = props.avisos.filter((a) => a.kind === 'system').sort((a, b) => a.id - b.id);
-  return [...custom, ...system];
-});
+const groupedAvisos = computed(() =>
+  groupByAudience(
+    props.avisos,
+    (row) => audienceOfAviso(row, props.branches),
+    byOriginThenTitle(
+      (row) => row.kind,
+      (row) => row.id,
+      (row) => row.title,
+    ),
+  ),
+);
 
 const editorOpen = ref(false);
 const editingAviso = ref<AvisoRow | null>(null);
@@ -131,19 +154,11 @@ function frecuenciaLabel(row: AvisoRow): string {
   return FREQUENCY_LABELS[row.frequencyType];
 }
 
-function alcanceLabel(row: AvisoRow): string {
-  const parts: string[] = [];
-  if (row.scopeBranchIds?.length) parts.push(`${row.scopeBranchIds.length} sede(s)`);
-  if (row.scopeCountries?.length) parts.push(row.scopeCountries.join('/'));
-  if (row.scopeSegments?.length) parts.push(row.scopeSegments.join('/'));
-  return parts.length ? parts.join(' · ') : 'Todos los socios';
-}
-
 function cardMeta(row: AvisoRow): Array<{ icon: string; text: string }> {
   return [
     { icon: 'event', text: vigenciaLabel(row) },
-    { icon: 'place', text: alcanceLabel(row) },
     { icon: 'repeat', text: frecuenciaLabel(row) },
+    { icon: 'open_in_new', text: destinationLabel(row) },
   ];
 }
 
@@ -228,5 +243,24 @@ async function handleRestore(): Promise<void> {
   }
 }
 </script>
+
+<style lang="scss" scoped>
+// Subheader de cada grupo de audiencia (Plan C 2026-09-03). Repetido igual
+// en las 4 tabs de Comunicaciones — no hay hoja de tokens compartida entre
+// componentes en este módulo (mismo criterio que `ComunicacionCard.vue`,
+// que también declara sus colores localmente).
+.comm-group + .comm-group {
+  margin-top: 4px;
+}
+
+.comm-group__title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b6459;
+  margin: 16px 0 8px;
+}
+</style>
 
 <!-- deploy: fase 193 comunicaciones (fix de tests de tenancy en el mismo push) -->

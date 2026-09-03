@@ -5,7 +5,16 @@
      al montar, para que las 4 KpiCard tengan número aunque no se haya
      visitado esta categoría) — acá solo se pide `reload` después de
      crear/editar/borrar/restaurar/toggle. Orden (plan): propias primero
-     (más recientes arriba), luego sistema agrupadas por categoría. -->
+     (más recientes arriba), luego sistema agrupadas por categoría.
+
+     Plan C 2026-09-03: la grilla plana pasa a agruparse por AUDIENCIA
+     (`groupByAudience`) — dentro de cada grupo de audiencia las de sistema
+     pueden ser de categorías bien distintas (ej. "Solo algunos socios"
+     mezcla segment_transition_* de Motivación con plan_renewal_warning_*
+     de Planes), así que ACÁ se mantiene el comparador propio de siempre
+     (propias por id desc, sistema por categoría+título) en vez de
+     `byOriginThenTitle` genérico — perder el sub-orden por categoría sería
+     peor lectura que antes. -->
 <template>
   <div>
     <div class="row items-center q-mb-md">
@@ -46,21 +55,27 @@
       No hay notificaciones todavía.
     </div>
 
-    <div v-else class="row q-col-gutter-md">
-      <div v-for="row in orderedTemplates" :key="row.id" class="col-12 col-sm-6 col-lg-4">
-        <ComunicacionCard
-          :title="cardTitle(row)"
-          :subtitle="cardSubtitle(row)"
-          :origin="row.kind"
-          :enabled="row.isEnabled"
-          :meta="cardMeta(row)"
-          :metrics="cardMetrics(row)"
-          @update:enabled="(val) => toggleEnabled(row, val)"
-          @edit="openEdit(row)"
-          @delete="handleDelete(row)"
-        />
+    <template v-else>
+      <div v-for="group in groupedTemplates" :key="group.breadth" class="comm-group">
+        <div class="comm-group__title">{{ group.title }} ({{ group.rows.length }})</div>
+        <div class="row q-col-gutter-md">
+          <div v-for="row in group.rows" :key="row.id" class="col-12 col-sm-6 col-lg-4">
+            <ComunicacionCard
+              :title="cardTitle(row)"
+              :subtitle="cardSubtitle(row)"
+              :origin="row.kind"
+              :audience="audienceOfTemplate(row, branches)"
+              :enabled="row.isEnabled"
+              :meta="cardMeta(row)"
+              :metrics="cardMetrics(row)"
+              @update:enabled="(val) => toggleEnabled(row, val)"
+              @edit="openEdit(row)"
+              @delete="handleDelete(row)"
+            />
+          </div>
+        </div>
       </div>
-    </div>
+    </template>
 
     <PushRuleEditorDialog
       v-model="editorOpen"
@@ -88,24 +103,23 @@ import {
   findRuleTrigger,
   systemTriggerDescription,
 } from 'src/config/rule-triggers';
+import type { BranchOption } from 'src/types/member';
+import { audienceOfTemplate, groupByAudience } from 'src/utils/comunicaciones-audience';
 
 const log = createLogger('PushTab');
 const $q = useQuasar();
 const commsApi = useCommunicationsApi();
 
-const props = defineProps<{ templates: TemplateRow[] }>();
+const props = defineProps<{ templates: TemplateRow[]; branches: BranchOption[] }>();
 const emit = defineEmits<{ reload: [] }>();
 
-
-const orderedTemplates = computed(() => {
-  const custom = props.templates
-    .filter((t) => t.kind === 'custom')
-    .sort((a, b) => b.id - a.id);
-  const system = props.templates
-    .filter((t) => t.kind === 'system')
-    .sort((a, b) => a.category.localeCompare(b.category) || a.title.localeCompare(b.title));
-  return [...custom, ...system];
-});
+const groupedTemplates = computed(() =>
+  groupByAudience(props.templates, (row) => audienceOfTemplate(row, props.branches), (a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'custom' ? -1 : 1;
+    if (a.kind === 'custom') return b.id - a.id;
+    return a.category.localeCompare(b.category) || a.title.localeCompare(b.title);
+  }),
+);
 
 function cardTitle(row: TemplateRow): string {
   return row.kind === 'custom' && row.name ? row.name : row.title;
@@ -230,3 +244,22 @@ async function handleRestore(): Promise<void> {
   }
 }
 </script>
+
+<style lang="scss" scoped>
+// Subheader de cada grupo de audiencia (Plan C 2026-09-03). Repetido igual
+// en las 4 tabs de Comunicaciones — no hay hoja de tokens compartida entre
+// componentes en este módulo (mismo criterio que `ComunicacionCard.vue`,
+// que también declara sus colores localmente).
+.comm-group + .comm-group {
+  margin-top: 4px;
+}
+
+.comm-group__title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b6459;
+  margin: 16px 0 8px;
+}
+</style>

@@ -7,7 +7,13 @@
      sigue siendo `AvisoEditorDialog` con `placement="tarjeta"` (nunca se
      duplica el formulario). "Restaurar las del sistema" pega al MISMO
      endpoint que Avisos (misma entidad, distinta `placement`) — el parent
-     refresca las dos listas juntas para que ninguna quede desactualizada. -->
+     refresca las dos listas juntas para que ninguna quede desactualizada.
+
+     Plan C 2026-09-03: se agrupa por AUDIENCIA como las demás tabs, pero
+     el orden DENTRO de cada grupo respeta el `sortOrder` que ya traían
+     (comparador neutro en `groupByAudience`) — reordenar acá por id/título
+     rompería el sentido visual de las flechas subir/bajar, que operan
+     sobre el `sortOrder` real de la lista completa (`orderedTarjetas`). -->
 <template>
   <div>
     <div class="row items-center q-mb-md">
@@ -36,55 +42,65 @@
       vez.
     </div>
 
-    <div v-else class="row q-col-gutter-md">
-      <div v-for="row in orderedTarjetas" :key="row.id" class="col-12 col-sm-6 col-lg-4">
-        <ComunicacionCard
-          :title="row.title"
-          :subtitle="row.body"
-          :origin="row.kind"
-          :enabled="row.status === 'active'"
-          :meta="cardMeta(row)"
-          :metrics="cardMetrics(row)"
-          @update:enabled="(val) => toggleActive(row, val)"
-          @edit="openEdit(row)"
-          @delete="handleDelete(row)"
-        >
-          <template #preview>
-            <q-expansion-item dense label="Vista previa" header-class="text-caption text-grey-7">
-              <AvisoPreview
-                placement="tarjeta"
-                :title="row.title"
-                :body="row.body"
-                :button-text="row.buttonText"
-                :destination-label="destinationLabel(row)"
-              />
-            </q-expansion-item>
-          </template>
-          <template #extra-actions>
-            <q-btn
-              flat
-              round
-              dense
-              icon="arrow_upward"
-              :disable="!canMoveUp(row) || reorderingId !== null"
-              @click="move(row, 'up')"
+    <template v-else>
+      <div v-for="group in groupedTarjetas" :key="group.breadth" class="comm-group">
+        <div class="comm-group__title">{{ group.title }} ({{ group.rows.length }})</div>
+        <div class="row q-col-gutter-md">
+          <div v-for="row in group.rows" :key="row.id" class="col-12 col-sm-6 col-lg-4">
+            <ComunicacionCard
+              :title="row.title"
+              :subtitle="row.body"
+              :origin="row.kind"
+              :audience="audienceOfAviso(row, branches)"
+              :enabled="row.status === 'active'"
+              :meta="cardMeta(row)"
+              :metrics="cardMetrics(row)"
+              @update:enabled="(val) => toggleActive(row, val)"
+              @edit="openEdit(row)"
+              @delete="handleDelete(row)"
             >
-              <q-tooltip>Subir</q-tooltip>
-            </q-btn>
-            <q-btn
-              flat
-              round
-              dense
-              icon="arrow_downward"
-              :disable="!canMoveDown(row) || reorderingId !== null"
-              @click="move(row, 'down')"
-            >
-              <q-tooltip>Bajar</q-tooltip>
-            </q-btn>
-          </template>
-        </ComunicacionCard>
+              <template #preview>
+                <q-expansion-item
+                  dense
+                  label="Vista previa"
+                  header-class="text-caption text-grey-7"
+                >
+                  <AvisoPreview
+                    placement="tarjeta"
+                    :title="row.title"
+                    :body="row.body"
+                    :button-text="row.buttonText"
+                    :destination-label="destinationLabel(row)"
+                  />
+                </q-expansion-item>
+              </template>
+              <template #extra-actions>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="arrow_upward"
+                  :disable="!canMoveUp(row) || reorderingId !== null"
+                  @click="move(row, 'up')"
+                >
+                  <q-tooltip>Subir</q-tooltip>
+                </q-btn>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="arrow_downward"
+                  :disable="!canMoveDown(row) || reorderingId !== null"
+                  @click="move(row, 'down')"
+                >
+                  <q-tooltip>Bajar</q-tooltip>
+                </q-btn>
+              </template>
+            </ComunicacionCard>
+          </div>
+        </div>
       </div>
-    </div>
+    </template>
 
     <AvisoEditorDialog
       v-model="editorOpen"
@@ -109,12 +125,14 @@ import type { AvisoRow } from 'src/composables/useCommunicationsApi';
 import { vigenciaLabel } from 'src/utils/aviso-format';
 import { confirmDeleteComunicacion } from 'src/utils/confirm-delete-comunicacion';
 import { APP_SECTIONS } from 'src/config/destinations';
+import type { BranchOption } from 'src/types/member';
+import { audienceOfAviso, groupByAudience } from 'src/utils/comunicaciones-audience';
 
 const log = createLogger('TarjetasTab');
 const $q = useQuasar();
 const commsApi = useCommunicationsApi();
 
-const props = defineProps<{ tarjetas: AvisoRow[] }>();
+const props = defineProps<{ tarjetas: AvisoRow[]; branches: BranchOption[] }>();
 const emit = defineEmits<{ reload: [] }>();
 
 // `tarjetas` ya llega ordenada por `sortOrder, id` (mismo criterio que
@@ -122,25 +140,27 @@ const emit = defineEmits<{ reload: [] }>();
 // tenga sentido visual.
 const orderedTarjetas = computed(() => props.tarjetas);
 
+// Agrupa por audiencia con comparador NEUTRO (`() => 0`): `Array.sort` es
+// estable, así que cada grupo conserva el `sortOrder` de `orderedTarjetas`.
+const groupedTarjetas = computed(() =>
+  groupByAudience(
+    orderedTarjetas.value,
+    (row) => audienceOfAviso(row, props.branches),
+    () => 0,
+  ),
+);
+
 // D-15b: el alta de una tarjeta libre entra al final del orden vigente.
 const nextSortOrder = computed(() => {
   if (props.tarjetas.length === 0) return 1;
   return Math.max(...props.tarjetas.map((t) => t.sortOrder)) + 1;
 });
 
-function alcanceLabel(row: AvisoRow): string {
-  const parts: string[] = [];
-  if (row.scopeBranchIds?.length) parts.push(`${row.scopeBranchIds.length} sede(s)`);
-  if (row.scopeCountries?.length) parts.push(row.scopeCountries.join('/'));
-  if (row.scopeSegments?.length) parts.push(row.scopeSegments.join('/'));
-  return parts.length ? parts.join(' · ') : 'Todos';
-}
-
 function cardMeta(row: AvisoRow): Array<{ icon: string; text: string }> {
   return [
     { icon: 'event', text: vigenciaLabel(row) },
-    { icon: 'place', text: alcanceLabel(row) },
     { icon: 'format_list_numbered', text: `Orden ${row.sortOrder}` },
+    { icon: 'open_in_new', text: destinationLabel(row) },
   ];
 }
 
@@ -258,3 +278,22 @@ async function handleRestore(): Promise<void> {
   }
 }
 </script>
+
+<style lang="scss" scoped>
+// Subheader de cada grupo de audiencia (Plan C 2026-09-03). Repetido igual
+// en las 4 tabs de Comunicaciones — no hay hoja de tokens compartida entre
+// componentes en este módulo (mismo criterio que `ComunicacionCard.vue`,
+// que también declara sus colores localmente).
+.comm-group + .comm-group {
+  margin-top: 4px;
+}
+
+.comm-group__title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b6459;
+  margin: 16px 0 8px;
+}
+</style>
