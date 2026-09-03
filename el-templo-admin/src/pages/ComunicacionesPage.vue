@@ -222,3 +222,5 @@ onUnmounted(() => {
   membersApi.cleanup();
 });
 </script>
+
+<!-- deploy 2026-09-03: dashboard de comunicaciones + reglas propias (el push anterior murió en CI, este fuerza el build del admin) -->

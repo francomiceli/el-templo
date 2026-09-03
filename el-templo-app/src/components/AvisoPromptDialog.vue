@@ -162,3 +162,5 @@ $charcoal: #2e2a26;
   margin-top: 4px;
 }
 </style>
+
+<!-- deploy 2026-09-03: "Descartar" + retiro A/B referidos (el push anterior murió en CI, este fuerza el build de la app) -->
