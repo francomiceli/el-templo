@@ -6,11 +6,13 @@ import {
   timestamp,
   mysqlEnum,
   boolean,
+  json,
   index,
   unique,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
+import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
 import { users } from "./users";
 import { tenantIdColumn } from "./tenant-column";
 
@@ -33,6 +35,42 @@ export const notificationStatusEnum = mysqlEnum("notification_status", [
 export const devicePlatformEnum = mysqlEnum("device_platform", [
   "android",
   "ios",
+]);
+
+// Pedido de Franco (2026-09-03): homogeneidad sistema/propias -- 'system'
+// son las 17 filas de TEMPLATE_SEEDS (types.ts), 'custom' las que crea el
+// admin con una condicion recetada (ver notificationTriggerTypeEnum abajo).
+export const notificationTemplateKindEnum = mysqlEnum(
+  "kind",
+  ["system", "custom"],
+);
+
+// Catalogo cerrado de condiciones recetadas. Fuente de verdad del
+// vocabulario + validacion de rango: src/modules/notifications/rules.ts
+// (RULE_TRIGGERS) -- mantenerlos sincronizados es responsabilidad de quien
+// toque cualquiera de los dos.
+export const notificationTriggerTypeEnum = mysqlEnum("trigger_type", [
+  "plan_expires_in_days",
+  "plan_expired_days_ago",
+  "days_without_attendance",
+  "member_since_days",
+  "segment_is",
+]);
+
+// Pedido de Franco (2026-09-03): mismos VALORES que `memberSegmentEnum` de
+// member-profiles.ts (byte a byte), pero un `mysqlEnum` PROPIO — su 1er
+// argumento es el nombre de columna físico (trampa documentada en
+// `reference_drizzle_enum_column_name.md`), así que reusar directamente
+// `memberSegmentEnum` (bound a "member_segment") haría que Drizzle emita
+// esa columna en vez de "trigger_segment" (bug real, encontrado por
+// test/notifications/custom-rules-engine.test.ts: ER_BAD_FIELD_ERROR
+// "Unknown column 'member_segment'"). Mantener sincronizados los VALORES
+// de los dos enums es responsabilidad de quien toque cualquiera.
+export const notificationTriggerSegmentEnum = mysqlEnum("trigger_segment", [
+  "optima",
+  "regular",
+  "alerta",
+  "ausente",
 ]);
 
 // Fase 193 (D-01): mismo vocabulario que `modules/communications/destinations.ts`
@@ -100,6 +138,20 @@ export const notificationTemplates = mysqlTable(
     isEnabled: boolean("is_enabled").default(true).notNull(),
     sentCount: int("sent_count").default(0).notNull(),
     openedCount: int("opened_count").default(0).notNull(),
+    // Pedido de Franco (2026-09-03, migración 0219): homogeneidad
+    // sistema/propias + reglas recetadas para las propias.
+    kind: notificationTemplateKindEnum.default("system").notNull(),
+    name: varchar("name", { length: 120 }),
+    triggerType: notificationTriggerTypeEnum,
+    triggerValue: int("trigger_value"),
+    triggerSegment: notificationTriggerSegmentEnum,
+    scopeBranchIds: json("scope_branch_ids").$type<number[] | null>(),
+    scopeCountries: json("scope_countries").$type<string[] | null>(),
+    cooldownDays: int("cooldown_days").default(30).notNull(),
+    createdBy: int("created_by").references(
+      (): AnyMySqlColumn => users.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
@@ -111,6 +163,12 @@ export const notificationTemplates = mysqlTable(
     uniqueIndex("uq_notification_templates_tenant_key").on(
       table.tenantId,
       table.templateKey,
+    ),
+    // Migración 0219: el motor de reglas (jobs/notification-rules.ts)
+    // filtra por tenant + kind='custom' una vez por gimnasio, todos los días.
+    index("idx_notification_templates_tenant_kind").on(
+      table.tenantId,
+      table.kind,
     ),
   ],
 );
@@ -161,7 +219,13 @@ export const pendingNotifications = mysqlTable(
     userId: int("user_id")
       .references(() => users.id)
       .notNull(),
-    templateId: int("template_id").references(() => notificationTemplates.id),
+    // Migración 0219: ON DELETE SET NULL -- ahora se puede borrar CUALQUIER
+    // template (homogéneo, también los de sistema); el histórico de
+    // pending_notifications ya enviadas queda con template_id NULL.
+    templateId: int("template_id").references(
+      () => notificationTemplates.id,
+      { onDelete: "set null" },
+    ),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     // Fase 193 (D-04): `route` NO se borra — es la ruta de FALLBACK que
