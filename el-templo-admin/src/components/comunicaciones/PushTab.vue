@@ -25,7 +25,6 @@
           @click="sendSegmentOpen = true"
         />
         <q-btn
-          v-if="isOwner"
           flat
           no-caps
           icon="restore"
@@ -78,7 +77,6 @@ import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
-import { useAuthStore } from 'src/stores/useAuthStore';
 import ComunicacionCard from 'src/components/comunicaciones/ComunicacionCard.vue';
 import PushRuleEditorDialog from 'src/components/comunicaciones/PushRuleEditorDialog.vue';
 import SendSegmentDialog from 'src/components/comunicaciones/SendSegmentDialog.vue';
@@ -93,13 +91,11 @@ import {
 
 const log = createLogger('PushTab');
 const $q = useQuasar();
-const authStore = useAuthStore();
 const commsApi = useCommunicationsApi();
 
 const props = defineProps<{ templates: TemplateRow[] }>();
 const emit = defineEmits<{ reload: [] }>();
 
-const isOwner = computed(() => authStore.user?.role === 'owner');
 
 const orderedTemplates = computed(() => {
   const custom = props.templates
@@ -210,7 +206,7 @@ async function handleDelete(row: TemplateRow): Promise<void> {
   }
 }
 
-// ── Restaurar las del sistema (owner-only en el server) ───────────────
+// ── Restaurar las del sistema (ADMIN_ROLES en el server, homogéneo con avisos) ──
 const restoring = ref(false);
 
 async function handleRestore(): Promise<void> {

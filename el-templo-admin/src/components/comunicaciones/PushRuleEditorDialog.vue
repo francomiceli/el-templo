@@ -14,14 +14,10 @@
          `kind: 'system'` (ver docblock del PUT), así que este componente ni
          los muestra ni los manda.
 
-     LIMITACIÓN CONOCIDA (API, no tocable desde acá — Plan B trabaja SOLO en
-     el-templo-admin): el JSON Schema de `scopeBranchIds`/`scopeCountries`
-     en el PUT/POST de notificaciones exige `type: "array", minItems: 1`
-     (SIN variante `null`) — a diferencia del endpoint de avisos, acá NO se
-     puede mandar `null` para "volver a todos los socios". Si el admin
-     vacía el selector de una regla que YA tenía sedes/países guardados, ese
-     campo simplemente no se manda (sin cambios) en vez de vaciarse — para
-     "volver a todos" hay que borrar la regla y crear una nueva. -->
+     Alcance: `scopeBranchIds`/`scopeCountries` viajan como `null` cuando el
+     selector queda vacío ("todos los socios") — la API acepta `null`
+     explícito para VACIAR un alcance ya guardado (mismo contrato que los
+     avisos); omitir el campo significaría "sin cambios". -->
 <template>
   <q-dialog v-model="localOpen" persistent>
     <q-card style="min-width: 520px; max-width: 680px; width: 100%">
@@ -512,11 +508,10 @@ async function handleSave(): Promise<void> {
         if (trigger?.needsSegment && form.triggerSegment) {
           payload.triggerSegment = form.triggerSegment;
         }
-        // Limitación de la API (ver comentario del template): solo se manda
-        // el scope cuando NO está vacío — vaciarlo en el edit no lo borra
-        // server-side (ver docblock arriba).
-        if (form.scopeBranchIds.length) payload.scopeBranchIds = form.scopeBranchIds;
-        if (form.scopeCountries.length) payload.scopeCountries = form.scopeCountries;
+        // `null` explícito = "todos": vaciar el selector en el edit SÍ borra
+        // el alcance guardado (la API lo acepta desde el fix post-revisión).
+        payload.scopeBranchIds = form.scopeBranchIds.length ? form.scopeBranchIds : null;
+        payload.scopeCountries = form.scopeCountries.length ? form.scopeCountries : null;
         payload.cooldownDays = form.cooldownDays;
       }
 
