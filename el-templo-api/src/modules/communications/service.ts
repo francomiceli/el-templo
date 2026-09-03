@@ -119,76 +119,14 @@ export interface AvisoClicker {
   lastAt: Date;
 }
 
-/**
- * Los campos que `updateAviso` acepta para un aviso `kind: 'system'`, según
- * su `code` (D-08/D-09/D-10). Cualquier campo fuera de este set en el input
- * se rechaza con `BadRequestError` nombrándolo — nunca se ignora en
- * silencio.
- */
-const SYSTEM_ALLOWED_BASE: ReadonlySet<keyof UpdateAvisoInput> = new Set([
-  "title",
-  "body",
-  "buttonText",
-  "destinationType",
-  "destinationSection",
-  "whatsappText",
-  "status",
-  "frequencyType",
-  "frequencyDays",
-  "sortOrder",
-]);
-
-/**
- * D-10: `plan_expiry` — la regla de disparo (≤3 días, diario, supresión por
- * cobertura) queda FIJA EN CÓDIGO. Ni `status`, ni `frequencyType`, ni
- * `frequencyDays`, ni `sortOrder` son editables para este code.
- */
-const SYSTEM_ALLOWED_PLAN_EXPIRY: ReadonlySet<keyof UpdateAvisoInput> =
-  new Set(["title", "body", "buttonText", "whatsappText", "destinationType", "destinationSection"]);
-
-/**
- * D-08/D-09: `rating_prompt`/`improvement_prompt` — el set de `plan_expiry` +
- * frecuencia editable + `status` (D-11: los avisos de sistema se pueden
- * desactivar, salvo vencimiento). `prompt-service.ts` ya respeta
- * `status !== 'active'` en esos escalones.
- */
-const SYSTEM_ALLOWED_WITH_FREQUENCY: ReadonlySet<keyof UpdateAvisoInput> =
-  new Set([
-    ...SYSTEM_ALLOWED_PLAN_EXPIRY,
-    "frequencyType",
-    "frequencyDays",
-    "status",
-  ]);
-
-function allowedFieldsForSystemAviso(
-  code: string | null,
-): ReadonlySet<keyof UpdateAvisoInput> {
-  if (code === "plan_expiry") return SYSTEM_ALLOWED_PLAN_EXPIRY;
-  if (code === "rating_prompt" || code === "improvement_prompt") {
-    return SYSTEM_ALLOWED_WITH_FREQUENCY;
-  }
-  return SYSTEM_ALLOWED_BASE;
-}
-
-/** Etiquetas legibles de cada campo, para el mensaje del `BadRequestError` de `updateAviso`. */
-const FIELD_LABELS: Record<keyof UpdateAvisoInput, string> = {
-  placement: "placement",
-  title: "title",
-  body: "body",
-  buttonText: "buttonText",
-  destinationType: "destinationType",
-  destinationSection: "destinationSection",
-  whatsappText: "whatsappText",
-  frequencyType: "frequencyType",
-  frequencyDays: "frequencyDays",
-  status: "status",
-  startsOn: "startsOn",
-  endsOn: "endsOn",
-  scopeBranchIds: "scopeBranchIds",
-  scopeCountries: "scopeCountries",
-  scopeSegments: "scopeSegments",
-  sortOrder: "sortOrder",
-};
+// Pedido de Franco (2026-09-03): homogeneidad sistema/propias — hasta acá
+// vivía el subset de campos editables por `code` para un aviso `kind:
+// 'system'` (D-08/D-09/D-10) y el mapa de labels legibles para el
+// `BadRequestError` que lo hacía cumplir. Se borró: `updateAviso` ahora
+// acepta el mismo set de campos para CUALQUIER `kind` (ver su docblock).
+// El histórico de esa restricción (qué campo estaba fijo para cada `code`
+// y por qué) queda en el git blame de este archivo, no hace falta
+// mantenerlo vivo en código muerto.
 
 export class CommunicationsService {
   constructor(
@@ -367,11 +305,15 @@ export class CommunicationsService {
   }
 
   /**
-   * D-08..D-11: actualiza un aviso. Lookup por PK **con `tenantWhere`**: un
-   * id ajeno da 404 `NotFoundError`, NUNCA 403 (criterio T-175-03). Para
-   * `kind: 'system'` solo acepta el subset de campos que corresponde a su
-   * `code` — cualquier otro campo del input se RECHAZA con `BadRequestError`
-   * nombrándolo (nunca se ignora en silencio).
+   * Actualiza un aviso. Lookup por PK **con `tenantWhere`**: un id ajeno da
+   * 404 `NotFoundError`, NUNCA 403 (criterio T-175-03).
+   *
+   * Pedido de Franco (2026-09-03, homogeneidad sistema/propias): CUALQUIER
+   * `kind` acepta el mismo set completo de campos (`title`/`body`/
+   * `buttonText`/destino/frecuencia/`status`/vigencia/alcance/`placement`/
+   * `sortOrder`) — la restricción de subset por `code` que regía para
+   * `kind: 'system'` (D-08..D-11) se retiró. `code`/`kind` siguen sin ser
+   * editables (ni están en `UpdateAvisoInput`).
    */
   async updateAviso(
     ctx: TenantContext,
@@ -398,16 +340,12 @@ export class CommunicationsService {
       Object.keys(input) as Array<keyof UpdateAvisoInput>
     ).filter((field) => input[field] !== undefined);
 
-    if (existing.kind === "system") {
-      const allowed = allowedFieldsForSystemAviso(existing.code);
-      for (const field of providedFields) {
-        if (!allowed.has(field)) {
-          throw new BadRequestError(
-            `El campo '${FIELD_LABELS[field]}' no es editable para el aviso de sistema '${existing.code}'`,
-          );
-        }
-      }
-    }
+    // Pedido de Franco (2026-09-03): homogeneidad sistema/propias — un
+    // aviso de sistema ahora se edita COMPLETO, igual que uno custom. La
+    // restricción de subset por `code` (D-08..D-11, `allowedFieldsForSystemAviso`)
+    // queda solo como catálogo histórico (abajo) para el comentario de
+    // `FIELD_LABELS`, ya no se aplica acá. `code`/`kind` siguen sin ser
+    // editables (ni están en `UpdateAvisoInput`).
 
     const updates: Record<string, unknown> = {};
 
@@ -424,8 +362,8 @@ export class CommunicationsService {
       updates.scopeCountries = input.scopeCountries;
     if (input.scopeSegments !== undefined)
       updates.scopeSegments = input.scopeSegments;
-    // `placement` solo lo puede tocar un aviso custom (los de sistema no
-    // están en SYSTEM_ALLOWED_* así que ya se rechazó arriba si vino).
+    // Pedido de Franco (2026-09-03): `placement` ahora es editable para
+    // CUALQUIER `kind`, homogéneo con el resto de los campos.
     if (input.placement !== undefined) updates.placement = input.placement;
 
     // Destino: si viene CUALQUIERA de los 3 campos, se revalida el destino
@@ -524,9 +462,10 @@ export class CommunicationsService {
   }
 
   /**
-   * D-11: solo borra avisos `kind: 'custom'` — los de sistema se desactivan
-   * (`status: 'paused'`), nunca se borran. Lookup por PK con `tenantWhere`:
-   * un id ajeno da 404, nunca 403.
+   * Pedido de Franco (2026-09-03, homogeneidad sistema/propias): borra
+   * CUALQUIER `kind` — antes el retiro de D-11 restringía el borrado a
+   * `kind: 'custom'` (los de sistema solo se desactivaban). Lookup por PK
+   * con `tenantWhere`: un id ajeno da 404, nunca 403.
    */
   async deleteAviso(ctx: TenantContext, id: number): Promise<void> {
     const [existing] = await this.db
@@ -539,17 +478,19 @@ export class CommunicationsService {
       throw new NotFoundError("Aviso no encontrado");
     }
 
-    if (existing.kind === "system") {
-      throw new BadRequestError(
-        "Los avisos de sistema no se borran: desactivalos",
-      );
-    }
-
+    // Pedido de Franco (2026-09-03): homogeneidad sistema/propias — un
+    // aviso de sistema ahora SÍ se borra (antes tiraba BadRequestError acá
+    // y solo se podía desactivar). "Restaurar las del sistema"
+    // (`POST /admin/avisos/restore-system` → `seedSystemAvisos`) es el
+    // camino de vuelta si el admin se arrepiente.
     await this.db
       .delete(avisos)
       .where(and(tenantWhere(avisos, ctx), eq(avisos.id, id)));
 
-    this.log.info({ avisoId: id, tenantId: ctx.tenantId }, "Aviso custom borrado");
+    this.log.info(
+      { avisoId: id, tenantId: ctx.tenantId, kind: existing.kind },
+      "Aviso borrado",
+    );
   }
 
   // ── Métricas: ver socios ────────────────────────────────────────────────

@@ -19,6 +19,7 @@ import { assertTenant } from "../shared/tenant";
 import { handleServiceError } from "../shared/error-handler";
 import { validateDestination, DEFAULT_WHATSAPP_TEXT } from "./destinations";
 import { resolveSalesNumberForUser } from "./sales-number";
+import { seedSystemAvisos } from "./system-avisos";
 import {
   listAvisosQuerySchema,
   createAvisoSchema,
@@ -192,7 +193,8 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // =========================================================================
-  // DELETE /admin/avisos/:id — borrar (D-11: solo custom)
+  // DELETE /admin/avisos/:id — borrar (homogéneo: también los de sistema,
+  // pedido de Franco 2026-09-03)
   // =========================================================================
 
   fastify.delete<{ Params: { id: number } }>(
@@ -217,6 +219,41 @@ export const communicationsRoutes: FastifyPluginAsync = async (fastify) => {
         return { success: true };
       } catch (err: unknown) {
         handleServiceError(err, reply, fastify.log, "communications.deleteAviso");
+      }
+    },
+  );
+
+  // =========================================================================
+  // POST /admin/avisos/restore-system — "Restaurar las del sistema"
+  // (pedido de Franco, 2026-09-03): re-siembra SOLO los `code` de sistema
+  // que faltan (por ejemplo, tras un DELETE) — `seedSystemAvisos` nunca pisa
+  // una fila existente, así que un título editado por el admin sobrevive.
+  // =========================================================================
+
+  fastify.post(
+    "/admin/avisos/restore-system",
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      if (!isAdmin(request.user.role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
+
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(
+        request.scope,
+        "communications.restoreSystemAvisos",
+      );
+
+      try {
+        const { inserted, codes } = await seedSystemAvisos(fastify.db, ctx);
+        return { restored: inserted, keys: codes };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          fastify.log,
+          "communications.restoreSystemAvisos",
+        );
       }
     },
   );

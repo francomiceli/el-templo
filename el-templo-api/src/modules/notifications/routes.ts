@@ -10,12 +10,26 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
+import { randomBytes } from "node:crypto";
 import { eq, and, sql, inArray } from "drizzle-orm";
+import type { MySql2Database } from "drizzle-orm/mysql2";
 import { NotificationService } from "./service";
 import { NOTIFICATION_CATEGORIES, type NotificationCategory } from "./types";
+import {
+  RULE_TRIGGERS,
+  findRuleTrigger,
+  countAudienceForRule,
+  type RuleTriggerType,
+} from "./rules";
 import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
-import { assertTenant, tenantWhere } from "../shared/tenant";
+import {
+  assertTenant,
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
+import { todayInTz } from "../shared/date-utils";
 import * as schema from "../../db/schema";
 // Attendance label values (4 bands) — single source of truth (D-01).
 import type { MemberSegment } from "../segmentation/types";
@@ -27,6 +41,115 @@ import {
   fallbackRouteFor,
   type Destination,
 } from "../communications";
+
+const AR_TZ = "America/Argentina/Buenos_Aires";
+
+/**
+ * Pedido de Franco (2026-09-03): mismo criterio que `validateWhatsAppText`
+ * (`communications/destinations.ts`) para el texto de WhatsApp — un título o
+ * cuerpo de push propio tampoco puede llevar un link arbitrario.
+ */
+const FORBIDDEN_LINK_PATTERN = /https?:\/\//i;
+
+function containsForbiddenLink(text: string | undefined): boolean {
+  return typeof text === "string" && FORBIDDEN_LINK_PATTERN.test(text);
+}
+
+interface RuleConditionCandidate {
+  triggerType: RuleTriggerType | null;
+  triggerValue: number | null | undefined;
+  triggerSegment: MemberSegment | null | undefined;
+  scopeBranchIds: number[] | null | undefined;
+  scopeCountries: string[] | null | undefined;
+}
+
+type RuleConditionValidation = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Valida CONTENIDO (no solo forma) de la condición recetada de un template
+ * `kind: 'custom'`: el `triggerType` existe en el catálogo (`RULE_TRIGGERS`),
+ * trae `triggerValue`/`triggerSegment` según lo que ese trigger exige (y
+ * NADA MÁS — un `triggerValue` en un trigger `segment_is` es tan inválido
+ * como uno faltante en `plan_expires_in_days`), el valor cae dentro del
+ * rango del catálogo, y las `scopeBranchIds` pertenecen al tenant (T-193-11:
+ * el JSON Schema valida forma, esto valida contenido).
+ */
+async function validateRuleCondition(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  input: RuleConditionCandidate,
+): Promise<RuleConditionValidation> {
+  if (!input.triggerType) {
+    return { ok: false, reason: "triggerType es requerido" };
+  }
+  const trigger = findRuleTrigger(input.triggerType);
+  if (!trigger) {
+    return { ok: false, reason: "triggerType no está en el catálogo" };
+  }
+
+  if (trigger.requiresValue) {
+    if (input.triggerSegment != null) {
+      return {
+        ok: false,
+        reason: `El trigger '${trigger.type}' no lleva triggerSegment`,
+      };
+    }
+    if (
+      input.triggerValue === null ||
+      input.triggerValue === undefined ||
+      !Number.isInteger(input.triggerValue)
+    ) {
+      return {
+        ok: false,
+        reason: `El trigger '${trigger.type}' requiere triggerValue (entero)`,
+      };
+    }
+    if (
+      (trigger.minValue !== undefined && input.triggerValue < trigger.minValue) ||
+      (trigger.maxValue !== undefined && input.triggerValue > trigger.maxValue)
+    ) {
+      return {
+        ok: false,
+        reason: `triggerValue debe estar entre ${trigger.minValue} y ${trigger.maxValue}`,
+      };
+    }
+  } else if (trigger.requiresSegment) {
+    if (input.triggerValue != null) {
+      return {
+        ok: false,
+        reason: `El trigger '${trigger.type}' no lleva triggerValue`,
+      };
+    }
+    if (!input.triggerSegment) {
+      return {
+        ok: false,
+        reason: `El trigger '${trigger.type}' requiere triggerSegment`,
+      };
+    }
+  }
+
+  if (input.scopeBranchIds && input.scopeBranchIds.length > 0) {
+    const rows = await db
+      .select({ id: schema.branches.id })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          inArray(schema.branches.id, input.scopeBranchIds),
+        ),
+      );
+    const foundIds = new Set(rows.map((r) => r.id));
+    const missing = input.scopeBranchIds.filter((id) => !foundIds.has(id));
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        reason: `scopeBranchIds incluye sedes fuera del tenant: ${missing.join(", ")}`,
+      };
+    }
+  }
+
+  return { ok: true };
+}
 
 // ---- Fastify JSON Schemas for request validation ----
 
@@ -133,6 +256,30 @@ const destinationSchema = {
   additionalProperties: false,
 };
 
+// Pedido de Franco (2026-09-03): catálogo cerrado de triggers + segmentos,
+// derivado en runtime de `RULE_TRIGGERS` (rules.ts) para que el JSON Schema
+// nunca diverja del catálogo real — un trigger nuevo solo se agrega ahí.
+const RULE_TRIGGER_TYPE_VALUES = RULE_TRIGGERS.map((t) => t.type);
+const MEMBER_SEGMENT_VALUES = ["optima", "regular", "alerta", "ausente"];
+
+/** Campos de la condición recetada, compartidos por create/update/preview. */
+const ruleConditionProperties = {
+  triggerType: { type: "string", enum: RULE_TRIGGER_TYPE_VALUES },
+  triggerValue: { type: "integer", minimum: 0, maximum: 365 },
+  triggerSegment: { type: "string", enum: MEMBER_SEGMENT_VALUES },
+  scopeBranchIds: {
+    type: "array",
+    items: { type: "integer" },
+    minItems: 1,
+  },
+  scopeCountries: {
+    type: "array",
+    items: { type: "string", minLength: 2, maxLength: 2 },
+    minItems: 1,
+  },
+  cooldownDays: { type: "integer", minimum: 1, maximum: 365 },
+};
+
 const updateTemplateSchema = {
   body: {
     type: "object",
@@ -143,7 +290,49 @@ const updateTemplateSchema = {
       bodyFemale: { type: "string", minLength: 1 },
       destination: destinationSchema,
       isEnabled: { type: "boolean" },
+      // Solo aplican a `kind: 'custom'` — el handler rechaza con 400 si
+      // vienen para un template de sistema (D-homogeneidad).
+      name: { type: "string", minLength: 1, maxLength: 120 },
+      ...ruleConditionProperties,
     },
+    additionalProperties: false,
+  },
+};
+
+const createTemplateSchema = {
+  body: {
+    type: "object",
+    required: [
+      "name",
+      "category",
+      "title",
+      "body",
+      "destination",
+      "triggerType",
+    ],
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 120 },
+      category: {
+        type: "string",
+        enum: [...NOTIFICATION_CATEGORIES],
+      },
+      title: { type: "string", minLength: 1, maxLength: 200 },
+      body: { type: "string", minLength: 1 },
+      titleFemale: { type: "string", minLength: 1, maxLength: 200 },
+      bodyFemale: { type: "string", minLength: 1 },
+      destination: destinationSchema,
+      isEnabled: { type: "boolean" },
+      ...ruleConditionProperties,
+    },
+    additionalProperties: false,
+  },
+};
+
+const previewAudienceSchema = {
+  body: {
+    type: "object",
+    required: ["triggerType"],
+    properties: ruleConditionProperties,
     additionalProperties: false,
   },
 };
@@ -353,6 +542,17 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
           row.sentCount > 0
             ? Math.round((row.openedCount / row.sentCount) * 10000) / 100
             : 0,
+        // Pedido de Franco (2026-09-03): homogeneidad sistema/propias +
+        // reglas recetadas — el admin arma el label del trigger client-side
+        // con su propio catálogo, así que acá viajan los valores crudos.
+        kind: row.kind,
+        name: row.name,
+        triggerType: row.triggerType,
+        triggerValue: row.triggerValue,
+        triggerSegment: row.triggerSegment,
+        scopeBranchIds: row.scopeBranchIds,
+        scopeCountries: row.scopeCountries,
+        cooldownDays: row.cooldownDays,
       }));
 
       return { templates };
@@ -361,7 +561,15 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * PUT /api/notifications/admin/templates/:id — Update template (per D-13).
-   * Admin can edit title, body, route, and enable/disable.
+   *
+   * Pedido de Franco (2026-09-03): homogeneidad sistema/propias — un
+   * template de sistema ahora se edita COMPLETO (title/body/destino/
+   * isEnabled), salvo `templateKey`/`kind` (inmutables, ni siquiera están
+   * en el JSON Schema) y la condición recetada (`name`/`trigger*`/`scope*`/
+   * `cooldownDays`, que no aplica: su disparador es implícito por
+   * `templateKey`) — esos campos dan 400 si vienen para un `kind: 'system'`.
+   * Para `kind: 'custom'` esos mismos campos SÍ son editables, con la misma
+   * validación server-side que `POST /admin/templates`.
    *
    * T-175-03: scopeado por tenant — antes leía/actualizaba por PK cruda, así
    * que un admin de un gimnasio podía editar el template de OTRO (tampering
@@ -377,6 +585,13 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       bodyFemale?: string;
       destination?: unknown;
       isEnabled?: boolean;
+      name?: string;
+      triggerType?: string;
+      triggerValue?: number;
+      triggerSegment?: string;
+      scopeBranchIds?: number[];
+      scopeCountries?: string[];
+      cooldownDays?: number;
     };
   }>(
     "/admin/templates/:id",
@@ -397,6 +612,51 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       const ctx = assertTenant(request.scope, "notifications.updateTemplate");
 
       const { id } = request.params;
+
+      const [existing] = await fastify.db
+        .select()
+        .from(schema.notificationTemplates)
+        .where(
+          and(
+            tenantWhere(schema.notificationTemplates, ctx),
+            eq(schema.notificationTemplates.id, id),
+          ),
+        )
+        .limit(1);
+
+      if (!existing) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Template no encontrado" });
+      }
+
+      const ruleFieldsPresent =
+        request.body.name !== undefined ||
+        request.body.triggerType !== undefined ||
+        request.body.triggerValue !== undefined ||
+        request.body.triggerSegment !== undefined ||
+        request.body.scopeBranchIds !== undefined ||
+        request.body.scopeCountries !== undefined ||
+        request.body.cooldownDays !== undefined;
+
+      if (existing.kind === "system" && ruleFieldsPresent) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message:
+            "Un aviso de sistema no lleva condición recetada (name/trigger*/scope*/cooldownDays)",
+        });
+      }
+
+      if (containsForbiddenLink(request.body.title) ||
+        containsForbiddenLink(request.body.body) ||
+        containsForbiddenLink(request.body.titleFemale) ||
+        containsForbiddenLink(request.body.bodyFemale)) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "El título y el cuerpo no pueden contener links",
+        });
+      }
+
       const updates: Record<string, unknown> = {};
 
       if (request.body.title !== undefined) updates.title = request.body.title;
@@ -427,28 +687,57 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         updates.whatsappText = destination.whatsappText;
       }
 
+      if (ruleFieldsPresent) {
+        // kind === 'custom' acá (se rechazó arriba si fuera 'system').
+        // El trigger resultante (nuevo o el existente si no vino en el
+        // body) determina qué combinación de value/segment es válida.
+        const resolvedTriggerType = (request.body.triggerType ??
+          existing.triggerType) as RuleTriggerType | null;
+        const validated = await validateRuleCondition(fastify.db, ctx, {
+          triggerType: resolvedTriggerType,
+          triggerValue:
+            request.body.triggerValue !== undefined
+              ? request.body.triggerValue
+              : existing.triggerValue,
+          triggerSegment:
+            request.body.triggerSegment !== undefined
+              ? (request.body.triggerSegment as MemberSegment)
+              : (existing.triggerSegment as MemberSegment | null),
+          scopeBranchIds:
+            request.body.scopeBranchIds !== undefined
+              ? request.body.scopeBranchIds
+              : (existing.scopeBranchIds as number[] | null),
+          scopeCountries:
+            request.body.scopeCountries !== undefined
+              ? request.body.scopeCountries
+              : (existing.scopeCountries as string[] | null),
+        });
+        if (!validated.ok) {
+          return reply
+            .code(400)
+            .send({ error: "Solicitud invalida", message: validated.reason });
+        }
+
+        if (request.body.name !== undefined) updates.name = request.body.name;
+        if (request.body.triggerType !== undefined)
+          updates.triggerType = request.body.triggerType;
+        if (request.body.triggerValue !== undefined)
+          updates.triggerValue = request.body.triggerValue;
+        if (request.body.triggerSegment !== undefined)
+          updates.triggerSegment = request.body.triggerSegment;
+        if (request.body.scopeBranchIds !== undefined)
+          updates.scopeBranchIds = request.body.scopeBranchIds;
+        if (request.body.scopeCountries !== undefined)
+          updates.scopeCountries = request.body.scopeCountries;
+        if (request.body.cooldownDays !== undefined)
+          updates.cooldownDays = request.body.cooldownDays;
+      }
+
       if (Object.keys(updates).length === 0) {
         return reply.code(400).send({
           error: "Solicitud invalida",
           message: "No hay campos para actualizar",
         });
-      }
-
-      const [existing] = await fastify.db
-        .select({ id: schema.notificationTemplates.id })
-        .from(schema.notificationTemplates)
-        .where(
-          and(
-            tenantWhere(schema.notificationTemplates, ctx),
-            eq(schema.notificationTemplates.id, id),
-          ),
-        )
-        .limit(1);
-
-      if (!existing) {
-        return reply
-          .code(404)
-          .send({ error: "No encontrado", message: "Template no encontrado" });
       }
 
       await fastify.db
@@ -494,7 +783,269 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
             ? Math.round((updated.openedCount / updated.sentCount) * 10000) /
               100
             : 0,
+        kind: updated.kind,
+        name: updated.name,
+        triggerType: updated.triggerType,
+        triggerValue: updated.triggerValue,
+        triggerSegment: updated.triggerSegment,
+        scopeBranchIds: updated.scopeBranchIds,
+        scopeCountries: updated.scopeCountries,
+        cooldownDays: updated.cooldownDays,
       };
+    },
+  );
+
+  /**
+   * POST /api/notifications/admin/templates — Crea un template propio con
+   * una condición recetada (pedido de Franco, 2026-09-03). Siempre
+   * `kind: 'custom'`; `templateKey` se genera server-side
+   * (`custom_<16 hex>`), nunca lo elige el cliente.
+   */
+  fastify.post<{
+    Body: {
+      name: string;
+      category: NotificationCategory;
+      title: string;
+      body: string;
+      titleFemale?: string;
+      bodyFemale?: string;
+      destination: unknown;
+      triggerType: string;
+      triggerValue?: number;
+      triggerSegment?: string;
+      scopeBranchIds?: number[];
+      scopeCountries?: string[];
+      cooldownDays?: number;
+      isEnabled?: boolean;
+    };
+  }>(
+    "/admin/templates",
+    {
+      onRequest: [fastify.authenticate],
+      schema: createTemplateSchema,
+    },
+    async (request, reply) => {
+      const { role } = request.user;
+      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
+
+      if (
+        containsForbiddenLink(request.body.title) ||
+        containsForbiddenLink(request.body.body) ||
+        containsForbiddenLink(request.body.titleFemale) ||
+        containsForbiddenLink(request.body.bodyFemale)
+      ) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "El título y el cuerpo no pueden contener links",
+        });
+      }
+
+      const destinationResult = validateDestination(
+        normalizeDestinationInput(request.body.destination),
+      );
+      if (!destinationResult.ok) {
+        return reply
+          .code(400)
+          .send({ error: "Destino inválido", message: destinationResult.reason });
+      }
+      const destination: Destination = destinationResult.value;
+
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "notifications.createTemplate");
+
+      const validated = await validateRuleCondition(fastify.db, ctx, {
+        triggerType: request.body.triggerType as RuleTriggerType,
+        triggerValue: request.body.triggerValue ?? null,
+        triggerSegment: (request.body.triggerSegment as MemberSegment) ?? null,
+        scopeBranchIds: request.body.scopeBranchIds ?? null,
+        scopeCountries: request.body.scopeCountries ?? null,
+      });
+      if (!validated.ok) {
+        return reply
+          .code(400)
+          .send({ error: "Solicitud invalida", message: validated.reason });
+      }
+
+      const templateKey = `custom_${randomBytes(8).toString("hex")}`;
+
+      const [result] = await fastify.db.insert(schema.notificationTemplates).values(
+        tenantValues(ctx, {
+          templateKey,
+          kind: "custom",
+          name: request.body.name,
+          category: request.body.category,
+          title: request.body.title,
+          body: request.body.body,
+          titleFemale: request.body.titleFemale ?? null,
+          bodyFemale: request.body.bodyFemale ?? null,
+          route: fallbackRouteFor(destination),
+          destinationType: destination.type,
+          destinationSection: destination.section,
+          whatsappText: destination.whatsappText,
+          isEnabled: request.body.isEnabled ?? true,
+          triggerType: request.body.triggerType as RuleTriggerType,
+          triggerValue: request.body.triggerValue ?? null,
+          triggerSegment: (request.body.triggerSegment as MemberSegment) ?? null,
+          scopeBranchIds: request.body.scopeBranchIds ?? null,
+          scopeCountries: request.body.scopeCountries ?? null,
+          cooldownDays: request.body.cooldownDays ?? 30,
+          createdBy: request.user.userId,
+        }),
+      );
+
+      const insertId = Number(result.insertId);
+      const [created] = await fastify.db
+        .select()
+        .from(schema.notificationTemplates)
+        .where(
+          and(
+            tenantWhere(schema.notificationTemplates, ctx),
+            eq(schema.notificationTemplates.id, insertId),
+          ),
+        )
+        .limit(1);
+
+      reply.code(201);
+      return {
+        id: created.id,
+        templateKey: created.templateKey,
+        kind: created.kind,
+        name: created.name,
+        category: created.category,
+        title: created.title,
+        body: created.body,
+        titleFemale: created.titleFemale,
+        bodyFemale: created.bodyFemale,
+        route: created.route,
+        destinationType: created.destinationType,
+        destinationSection: created.destinationSection,
+        whatsappText: created.whatsappText,
+        isEnabled: created.isEnabled,
+        triggerType: created.triggerType,
+        triggerValue: created.triggerValue,
+        triggerSegment: created.triggerSegment,
+        scopeBranchIds: created.scopeBranchIds,
+        scopeCountries: created.scopeCountries,
+        cooldownDays: created.cooldownDays,
+        sentCount: created.sentCount,
+        openedCount: created.openedCount,
+        openRate: 0,
+      };
+    },
+  );
+
+  /**
+   * DELETE /api/notifications/admin/templates/:id — Borra CUALQUIER
+   * template (homogéneo: también los de sistema, pedido de Franco
+   * 2026-09-03). `pending_notifications.template_id` cae a NULL por la FK
+   * `ON DELETE SET NULL` de la migración 0219 — el histórico de envíos
+   * queda intacto. `NotificationService.queueNotification` ya tolera un
+   * `templateKey` sin fila (log.warn + skip, nunca rompe).
+   */
+  fastify.delete<{ Params: { id: number } }>(
+    "/admin/templates/:id",
+    {
+      onRequest: [fastify.authenticate],
+      schema: templateIdParamsSchema,
+    },
+    async (request, reply) => {
+      const { role } = request.user;
+      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
+
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "notifications.deleteTemplate");
+
+      const { id } = request.params;
+      const [existing] = await fastify.db
+        .select({ id: schema.notificationTemplates.id })
+        .from(schema.notificationTemplates)
+        .where(
+          and(
+            tenantWhere(schema.notificationTemplates, ctx),
+            eq(schema.notificationTemplates.id, id),
+          ),
+        )
+        .limit(1);
+
+      if (!existing) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Template no encontrado" });
+      }
+
+      await fastify.db
+        .delete(schema.notificationTemplates)
+        .where(
+          and(
+            tenantWhere(schema.notificationTemplates, ctx),
+            eq(schema.notificationTemplates.id, id),
+          ),
+        );
+
+      return { success: true };
+    },
+  );
+
+  /**
+   * POST /api/notifications/admin/templates/preview-audience — "hoy
+   * alcanzaría N socios" (pedido de Franco, 2026-09-03). Mismo shape de
+   * condición que la creación, sin textos obligatorios — el editor lo llama
+   * en vivo mientras arma la regla, antes de guardarla.
+   */
+  fastify.post<{
+    Body: {
+      triggerType: string;
+      triggerValue?: number;
+      triggerSegment?: string;
+      scopeBranchIds?: number[];
+      scopeCountries?: string[];
+    };
+  }>(
+    "/admin/templates/preview-audience",
+    {
+      onRequest: [fastify.authenticate],
+      schema: previewAudienceSchema,
+    },
+    async (request, reply) => {
+      const { role } = request.user;
+      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
+
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(
+        request.scope,
+        "notifications.previewAudience",
+      );
+
+      const condition = {
+        triggerType: request.body.triggerType as RuleTriggerType,
+        triggerValue: request.body.triggerValue ?? null,
+        triggerSegment: (request.body.triggerSegment as MemberSegment) ?? null,
+        scopeBranchIds: request.body.scopeBranchIds ?? null,
+        scopeCountries: request.body.scopeCountries ?? null,
+      };
+
+      const validated = await validateRuleCondition(fastify.db, ctx, condition);
+      if (!validated.ok) {
+        return reply
+          .code(400)
+          .send({ error: "Solicitud invalida", message: validated.reason });
+      }
+
+      const today = todayInTz(AR_TZ);
+      const count = await countAudienceForRule(
+        fastify.db,
+        ctx,
+        condition,
+        today,
+      );
+
+      return { count };
     },
   );
 
@@ -606,8 +1157,11 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
-   * POST /api/notifications/admin/seed-templates — Seed initial templates.
-   * Owner-only for safety. Uses INSERT IGNORE to skip existing keys.
+   * POST /api/notifications/admin/seed-templates — "Restaurar las del
+   * sistema" (pedido de Franco, 2026-09-03): re-siembra SOLO las 16
+   * plantillas de TEMPLATE_SEEDS que faltan (por ejemplo, tras un DELETE)
+   * — `INSERT IGNORE` nunca pisa una fila existente, así que un título
+   * editado por el admin sobrevive intacto. Owner-only for safety.
    *
    * T-175-03: siembra el catálogo del gimnasio del owner que dispara la
    * acción (antes insertaba GLOBAL con el DEFAULT 1).
@@ -624,8 +1178,8 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       await attachCountryScope(request, fastify.db);
       const ctx = assertTenant(request.scope, "notifications.seedTemplates");
 
-      await service.seedTemplates(ctx);
-      return { success: true };
+      const { inserted, keys } = await service.seedTemplates(ctx);
+      return { restored: inserted, keys };
     },
   );
 };

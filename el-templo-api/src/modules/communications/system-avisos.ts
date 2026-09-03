@@ -228,14 +228,17 @@ export const SYSTEM_AVISOS: SystemAvisoSeed[] = [
 export async function seedSystemAvisos(
   db: DbInstance,
   ctx: TenantContext,
-): Promise<{ inserted: number }> {
+): Promise<{ inserted: number; codes: SystemAvisoCode[] }> {
   const existing = await db
     .select({ code: avisos.code })
     .from(avisos)
     .where(and(tenantWhere(avisos, ctx), eq(avisos.kind, "system")));
   const existingCodes = new Set(existing.map((row) => row.code));
 
-  let inserted = 0;
+  // Pedido de Franco (2026-09-03): "Restaurar las del sistema" en el admin
+  // necesita saber QUÉ codes volvió a sembrar (no solo cuántos) — el botón
+  // los muestra en el toast de confirmación.
+  const codes: SystemAvisoCode[] = [];
   for (const seed of SYSTEM_AVISOS) {
     if (existingCodes.has(seed.code)) continue;
 
@@ -256,8 +259,8 @@ export async function seedSystemAvisos(
         sortOrder: seed.sortOrder,
       }),
     );
-    inserted++;
+    codes.push(seed.code);
   }
 
-  return { inserted };
+  return { inserted: codes.length, codes };
 }

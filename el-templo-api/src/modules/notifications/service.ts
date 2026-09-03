@@ -891,28 +891,36 @@ export class NotificationService {
    * sites (`routes.ts` admin/seed-templates y `notification-cron.ts` en el
    * boot) resuelven su propio `ctx` antes de llamar.
    */
-  async seedTemplates(ctx: TenantContext): Promise<void> {
-    let inserted = 0;
+  async seedTemplates(
+    ctx: TenantContext,
+  ): Promise<{ inserted: number; keys: string[] }> {
+    const keys: string[] = [];
     for (const seed of TEMPLATE_SEEDS) {
+      // `kind` NO va en el INSERT: la columna trae DEFAULT 'system'
+      // (migración 0219) — las 16 filas de TEMPLATE_SEEDS son siempre
+      // 'system', nunca una regla propia.
       const [result] = await this.db.execute(
         sql`INSERT IGNORE INTO notification_templates
             (tenant_id, template_key, notification_category, title, body, title_female, body_female, route)
             VALUES (${ctx.tenantId}, ${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.titleFemale}, ${seed.bodyFemale}, ${seed.route})`,
       );
       if ((result as { affectedRows?: number }).affectedRows === 1) {
-        inserted++;
+        keys.push(seed.templateKey);
       }
     }
 
+    const inserted = keys.length;
     const skipped = TEMPLATE_SEEDS.length - inserted;
     if (inserted > 0) {
-      this.log.info({ inserted, skipped }, "Notification templates seeded");
+      this.log.info({ inserted, skipped, keys }, "Notification templates seeded");
     } else {
       this.log.info(
         { total: TEMPLATE_SEEDS.length },
         "Notification templates already exist — skipped seeding",
       );
     }
+
+    return { inserted, keys };
   }
 
   // ── Private Helpers ─────────────────────────────────────────────────────
