@@ -12,14 +12,19 @@
     :class="{ 'kpi-card--active': active }"
     role="button"
     tabindex="0"
+    :aria-pressed="active"
     @click="emit('click')"
     @keydown.enter="emit('click')"
     @keydown.space.prevent="emit('click')"
   >
+    <div class="kpi-card__accent" />
     <q-card-section class="kpi-card__section">
       <div class="row items-center justify-between no-wrap">
-        <q-icon :name="icon" size="20px" class="kpi-card__icon" />
+        <div class="kpi-card__icon-wrap">
+          <q-icon :name="icon" size="20px" class="kpi-card__icon" />
+        </div>
         <q-spinner v-if="loading" size="16px" color="grey-6" />
+        <q-icon v-else-if="active" name="check_circle" size="18px" class="kpi-card__check" />
       </div>
       <div class="kpi-card__value">{{ displayValue }}</div>
       <div class="kpi-card__label">{{ label }}</div>
@@ -99,17 +104,30 @@ $sandy-beige: #e5d9c8;
 $terracotta: #96593a;
 $olive-stone: #6b6459;
 $charcoal: #3d3732;
+$surface: #ffffff;
 
+// Superficie BLANCA sobre el Marble Cream de la página (pedido de Franco
+// 2026-09-03): la card tiene que leerse como objeto, no fundirse con el fondo.
+// La regla global `.q-card { background-color: #f2ede5 }` de app.scss se
+// pisa acá a propósito.
 .kpi-card {
+  position: relative;
+  overflow: hidden;
   cursor: pointer;
-  border-color: $warm-stone;
+  background-color: $surface !important;
+  border: 1px solid $warm-stone;
+  border-radius: 12px;
+  height: 100%;
+  box-shadow: 0 1px 2px rgba($charcoal, 0.06);
   transition:
     border-color 0.15s ease,
-    background-color 0.15s ease,
-    box-shadow 0.15s ease;
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 
   &:hover {
-    border-color: $terracotta;
+    border-color: rgba($terracotta, 0.55);
+    box-shadow: 0 6px 16px rgba($charcoal, 0.1);
+    transform: translateY(-1px);
   }
 
   &:focus-visible {
@@ -117,18 +135,58 @@ $charcoal: #3d3732;
     outline-offset: 2px;
   }
 
+  // Tab activa: barra superior terracota + ícono relleno + label en color.
   &--active {
     border-color: $terracotta;
-    border-width: 2px;
-    background-color: $sandy-beige;
+    box-shadow: 0 8px 20px rgba($terracotta, 0.18);
+
+    .kpi-card__accent {
+      transform: scaleX(1);
+    }
+    .kpi-card__icon-wrap {
+      background-color: $terracotta;
+    }
+    .kpi-card__icon {
+      color: $surface;
+    }
+    .kpi-card__label {
+      color: $terracotta;
+    }
   }
 }
 
+.kpi-card__accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, $terracotta, lighten($terracotta, 12%));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.2s ease;
+}
+
 .kpi-card__section {
-  padding: 14px 16px 12px;
+  padding: 18px 18px 14px;
+}
+
+.kpi-card__icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background-color: $sandy-beige;
+  transition: background-color 0.15s ease;
 }
 
 .kpi-card__icon {
+  color: $terracotta;
+  transition: color 0.15s ease;
+}
+
+.kpi-card__check {
   color: $terracotta;
 }
 
@@ -136,23 +194,25 @@ $charcoal: #3d3732;
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: clamp(2.2rem, 4vw, 3.2rem);
-  line-height: 1.05;
+  font-size: clamp(2.4rem, 3.6vw, 3.4rem);
+  letter-spacing: -0.02em;
+  line-height: 1;
   color: $charcoal;
-  margin-top: 4px;
+  margin-top: 14px;
 }
 
 .kpi-card__label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: $olive-stone;
-  margin-top: 2px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: $charcoal;
+  margin-top: 6px;
+  transition: color 0.15s ease;
 }
 
 .kpi-card__hint {
   font-size: 0.75rem;
   color: $olive-stone;
-  margin-top: 4px;
+  margin-top: 3px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
