@@ -17,7 +17,7 @@
       <h3 class="popup-preview__title">{{ title || 'Título del aviso' }}</h3>
       <p class="popup-preview__body">{{ body || 'Mensaje del aviso.' }}</p>
       <div class="popup-preview__primary">{{ buttonText || 'Botón' }}</div>
-      <div class="popup-preview__secondary">Ahora no</div>
+      <div class="popup-preview__secondary">Descartar</div>
       <div class="popup-preview__destination">Destino: {{ destinationLabel }}</div>
     </div>
 

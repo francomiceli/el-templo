@@ -55,9 +55,9 @@ const avisosStore = useAvisosStore()
 // el título pasa a ser el copy editable del aviso de sistema
 // `card_referral`. Fallback = la variante A (el seed de `system-avisos.ts`
 // fija esa variante como copy base). El subtítulo nunca varió entre A/B.
-// `referralCopyVariant` (utils/ab-variant.ts) queda sin consumidores en la
-// app; el backend sigue calculando variantes para el registro/atribución
-// de clics de referidos, que este componente NO toca.
+// El helper de la app `utils/ab-variant.ts` se borró (retiro confirmado en
+// el UAT de la 193, 2026-09-03); el backend sigue calculando variantes para
+// el registro/atribución de clics de referidos, que este componente NO toca.
 const FALLBACK_TITLE = 'Vos decidís cuánto bajás tu cuota'
 const FALLBACK_SUBTITLE = 'Invitá a entrenar: cada persona que traigas suma descuento a tu cuota.'
 const FALLBACK_BUTTON_TEXT = 'Compartir código'

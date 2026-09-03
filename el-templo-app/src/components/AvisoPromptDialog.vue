@@ -21,7 +21,7 @@
           no-caps
           dense
           class="aviso-dialog__secondary"
-          label="Ahora no"
+          label="Descartar"
           @click="onSkip"
         />
       </q-card-actions>
