@@ -23,6 +23,10 @@ import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
 import type { AppSectionKey, Destination } from 'src/config/destinations';
+import type {
+  NotificationCategoryKey,
+  RuleTriggerType,
+} from 'src/config/rule-triggers';
 
 // ── Avisos (el-templo-api/src/modules/communications/schemas.ts) ──────────
 
@@ -104,9 +108,18 @@ export interface UpdateSalesNumbersInput {
 
 // ── Plantillas push (el-templo-api/src/modules/notifications/routes.ts) ───
 
+// Fase 193, Plan B (pedido de Franco 2026-09-03): homogeneidad sistema/propias
+// + reglas recetadas — campos nuevos que agregó el Plan A en
+// `el-templo-api/src/modules/notifications/routes.ts` (GET/PUT/POST
+// /admin/templates). `kind` distingue el origen; el resto solo aplica de
+// verdad a `kind: 'custom'` (en `kind: 'system'` viajan `null`/default).
+export type TemplateKind = 'system' | 'custom';
+
 export interface TemplateRow {
   id: number;
   templateKey: string;
+  kind: TemplateKind;
+  name: string | null;
   category: string;
   title: string;
   body: string;
@@ -120,6 +133,12 @@ export interface TemplateRow {
   sentCount: number;
   openedCount: number;
   openRate: number;
+  triggerType: RuleTriggerType | null;
+  triggerValue: number | null;
+  triggerSegment: MemberSegmentKey | null;
+  scopeBranchIds: number[] | null;
+  scopeCountries: string[] | null;
+  cooldownDays: number;
 }
 
 export interface UpdateTemplateInput {
@@ -129,6 +148,47 @@ export interface UpdateTemplateInput {
   bodyFemale?: string;
   destination?: Destination;
   isEnabled?: boolean;
+  // Solo aplican a `kind: 'custom'` — el server rechaza con 400 si vienen
+  // para un template de sistema (ver docblock de PUT en routes.ts).
+  name?: string;
+  triggerType?: RuleTriggerType;
+  triggerValue?: number;
+  triggerSegment?: MemberSegmentKey;
+  scopeBranchIds?: number[] | null;
+  scopeCountries?: string[] | null;
+  cooldownDays?: number;
+}
+
+export interface CreateTemplateInput {
+  name: string;
+  category: NotificationCategoryKey;
+  title: string;
+  body: string;
+  titleFemale?: string;
+  bodyFemale?: string;
+  destination: Destination;
+  triggerType: RuleTriggerType;
+  triggerValue?: number;
+  triggerSegment?: MemberSegmentKey;
+  scopeBranchIds?: number[] | null;
+  scopeCountries?: string[] | null;
+  cooldownDays?: number;
+  isEnabled?: boolean;
+}
+
+/** Body de `POST /admin/templates/preview-audience` — sin textos, mismo
+ * shape de condición que create/update. */
+export interface PreviewTemplateAudienceInput {
+  triggerType: RuleTriggerType;
+  triggerValue?: number;
+  triggerSegment?: MemberSegmentKey;
+  scopeBranchIds?: number[] | null;
+  scopeCountries?: string[] | null;
+}
+
+export interface RestoreSystemResult {
+  restored: number;
+  keys: string[];
 }
 
 export interface SendSegmentInput {
@@ -328,6 +388,102 @@ export function useCommunicationsApi() {
     }
   }
 
+  /**
+   * POST /notifications/admin/templates — crea una notificación propia con
+   * condición recetada (Plan B, editor `PushRuleEditorDialog.vue`). Siempre
+   * `kind: 'custom'` — `templateKey` lo genera el server.
+   */
+  async function createTemplate(input: CreateTemplateInput): Promise<TemplateRow> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<TemplateRow>('/notifications/admin/templates', input);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo crear la notificación');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** DELETE /notifications/admin/templates/:id — borra CUALQUIER kind (homogeneidad). */
+  async function deleteTemplate(id: number): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.delete(`/notifications/admin/templates/${id}`);
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo borrar la notificación');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * POST /notifications/admin/templates/preview-audience — "hoy alcanzaría
+   * N socios" del editor de reglas propias. Devuelve solo el número; el
+   * caller decide cómo mostrarlo (debounce, loading, etc.).
+   */
+  async function previewTemplateAudience(input: PreviewTemplateAudienceInput): Promise<number> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ count: number }>(
+        '/notifications/admin/templates/preview-audience',
+        input,
+      );
+      return data.count;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo calcular la audiencia');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * POST /notifications/admin/seed-templates — "Restaurar las del sistema"
+   * para notificaciones push. Owner-only en el server (403 para admin) —
+   * el caller debe ocultar el botón para roles no-owner.
+   */
+  async function restoreSystemTemplates(): Promise<RestoreSystemResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<RestoreSystemResult>('/notifications/admin/seed-templates');
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudieron restaurar las plantillas de sistema');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * POST /communications/admin/avisos/restore-system — "Restaurar las del
+   * sistema" para avisos Y tarjetas (misma entidad `avisos`, distinguidas
+   * por `placement`) — re-siembra los `code` que falten en las dos
+   * categorías a la vez.
+   */
+  async function restoreSystemAvisos(): Promise<RestoreSystemResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<RestoreSystemResult>(
+        '/communications/admin/avisos/restore-system',
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudieron restaurar los avisos de sistema');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // -- Avisos de TV (D-24) ---------------------------------------------------
 
   async function listTvAvisos(): Promise<TvAvisoRow[]> {
@@ -410,6 +566,11 @@ export function useCommunicationsApi() {
     setSalesNumbers,
     listTemplates,
     updateTemplate,
+    createTemplate,
+    deleteTemplate,
+    previewTemplateAudience,
+    restoreSystemTemplates,
+    restoreSystemAvisos,
     sendSegment,
     listTvAvisos,
     createTvAviso,
