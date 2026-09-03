@@ -1,467 +1,236 @@
-<!-- Pestaña "Notificaciones push" de Comunicaciones (Fase 193, plan 08).
-     Contenido migrado de la vieja página de Notificaciones (retirada) — dos sub-tabs
-     (Plantillas automáticas / Enviar a segmento), con el ÚNICO cambio de
-     fondo: el input de "Ruta de destino" de texto libre se reemplazó por
-     `DestinoSelector` (D-05), y las llamadas mandan `destination:
-     { type, section, whatsappText }` en vez de `route` (D-01/D-02). -->
+<!-- Categoría "Notificaciones push" del dashboard de Comunicaciones (Fase
+     193, Plan B, pedido de Franco 2026-09-03) — reemplaza la vieja
+     `q-table` + sub-tabs por una grilla de `ComunicacionCard`. El listado
+     (`templates`) lo carga y cachea `ComunicacionesPage.vue` (una sola vez
+     al montar, para que las 4 KpiCard tengan número aunque no se haya
+     visitado esta categoría) — acá solo se pide `reload` después de
+     crear/editar/borrar/restaurar/toggle. Orden (plan): propias primero
+     (más recientes arriba), luego sistema agrupadas por categoría. -->
 <template>
   <div>
-    <q-tabs
-      v-model="tab"
-      dense
-      align="left"
-      class="q-mb-md"
-      active-color="primary"
-      indicator-color="primary"
-    >
-      <q-tab name="plantillas" label="Plantillas automaticas" />
-      <q-tab name="enviar" label="Enviar a segmento" />
-    </q-tabs>
-
-    <q-tab-panels v-model="tab" animated>
-      <!-- ============================================================ -->
-      <!-- Tab 1: Plantillas automaticas -->
-      <!-- ============================================================ -->
-      <q-tab-panel name="plantillas">
-        <q-table
-          :rows="templates"
-          :columns="templateColumns"
-          row-key="id"
-          flat
-          bordered
-          :loading="loading"
-          :pagination="{ rowsPerPage: 20 }"
-        >
-          <!-- Category badge -->
-          <template #body-cell-category="props">
-            <q-td :props="props">
-              <q-badge
-                :color="categoryColor(props.row.category)"
-                :label="categoryLabel(props.row.category)"
-              />
-            </q-td>
-          </template>
-
-          <!-- Title (male + female stacked) -->
-          <template #body-cell-title="props">
-            <q-td :props="props" class="cursor-pointer" @click="openEdit(props.row)">
-              <div class="text-primary">{{ props.row.title }}</div>
-              <div
-                v-if="props.row.titleFemale && props.row.titleFemale !== props.row.title"
-                class="text-caption text-grey-6"
-              >
-                ♀ {{ props.row.titleFemale }}
-              </div>
-            </q-td>
-          </template>
-
-          <!-- Body (male + female stacked, truncated) -->
-          <template #body-cell-body="props">
-            <q-td
-              :props="props"
-              class="cursor-pointer"
-              @click="openEdit(props.row)"
-              style="max-width: 350px"
-            >
-              <div :class="{ ellipsis: props.row.body.length > 60 }">
-                {{ truncate(props.row.body) }}
-              </div>
-              <div
-                v-if="props.row.bodyFemale && props.row.bodyFemale !== props.row.body"
-                class="text-caption text-grey-6"
-                :class="{ ellipsis: props.row.bodyFemale.length > 60 }"
-              >
-                ♀ {{ truncate(props.row.bodyFemale) }}
-              </div>
-            </q-td>
-          </template>
-
-          <!-- Enable/disable toggle -->
-          <template #body-cell-isEnabled="props">
-            <q-td :props="props">
-              <q-toggle
-                :model-value="props.row.isEnabled"
-                color="positive"
-                @update:model-value="(val: boolean) => toggleEnabled(props.row, val)"
-              />
-            </q-td>
-          </template>
-
-          <!-- Open rate -->
-          <template #body-cell-openRate="props">
-            <q-td :props="props">
-              {{ formatRate(props.row.openRate) }}
-            </q-td>
-          </template>
-
-          <!-- Actions -->
-          <template #body-cell-actions="props">
-            <q-td :props="props">
-              <q-btn flat round dense icon="edit" color="primary" @click="openEdit(props.row)">
-                <q-tooltip>Editar plantilla</q-tooltip>
-              </q-btn>
-            </q-td>
-          </template>
-        </q-table>
-      </q-tab-panel>
-
-      <!-- ============================================================ -->
-      <!-- Tab 2: Enviar a segmento -->
-      <!-- ============================================================ -->
-      <q-tab-panel name="enviar">
-        <div class="q-pa-md" style="max-width: 600px">
-          <q-input v-model="sendForm.title" label="Titulo" class="q-mb-md" outlined dense />
-          <q-input
-            v-model="sendForm.body"
-            label="Mensaje"
-            type="textarea"
-            autogrow
-            class="q-mb-md"
-            outlined
-            dense
-          />
-          <q-separator class="q-my-md" />
-          <div class="text-subtitle2 q-mb-sm">Version femenina (opcional)</div>
-          <q-input
-            v-model="sendForm.titleFemale"
-            label="Titulo (femenino)"
-            class="q-mb-md"
-            outlined
-            dense
-          />
-          <q-input
-            v-model="sendForm.bodyFemale"
-            label="Mensaje (femenino)"
-            type="textarea"
-            autogrow
-            class="q-mb-md"
-            outlined
-            dense
-          />
-
-          <DestinoSelector v-model="sendForm.destination" />
-
-          <div class="q-mb-md q-mt-md">
-            <div class="text-subtitle2 q-mb-sm">Segmentos destino</div>
-            <div class="row q-gutter-sm">
-              <q-checkbox
-                v-for="seg in segments"
-                :key="seg.value"
-                v-model="sendForm.segmentIds"
-                :val="seg.value"
-                :label="seg.label"
-              />
-            </div>
-          </div>
-
-          <q-btn
-            color="primary"
-            label="Enviar notificacion"
-            icon="send"
-            :loading="sending"
-            :disable="!canSend"
-            @click="handleSendSegment"
-            no-caps
-            unelevated
-          />
+    <div class="row items-center q-mb-md">
+      <div class="col">
+        <div class="text-subtitle1 text-weight-medium">Notificaciones push</div>
+        <div class="text-caption text-grey-7">
+          Avisos automáticos que recibe el socio en el celular. Las propias corren con condición
+          y cadencia propia; las de sistema son fijas.
         </div>
-      </q-tab-panel>
-    </q-tab-panels>
+      </div>
+      <div class="col-auto q-gutter-sm">
+        <q-btn
+          flat
+          no-caps
+          icon="send"
+          label="Enviar ahora a segmento"
+          @click="sendSegmentOpen = true"
+        />
+        <q-btn
+          v-if="isOwner"
+          flat
+          no-caps
+          icon="restore"
+          label="Restaurar las del sistema"
+          :loading="restoring"
+          @click="handleRestore"
+        />
+        <q-btn
+          color="primary"
+          icon="add"
+          label="Nueva notificación"
+          unelevated
+          @click="openCreate"
+        />
+      </div>
+    </div>
 
-    <!-- ============================================================ -->
-    <!-- Edit template dialog -->
-    <!-- ============================================================ -->
-    <q-dialog v-model="editDialog">
-      <q-card style="min-width: 700px; max-width: 900px">
-        <q-card-section class="text-h6">Editar plantilla</q-card-section>
-        <q-card-section>
-          <div class="row q-col-gutter-md">
-            <!-- Male / Default column -->
-            <div class="col-6">
-              <div class="text-subtitle2 q-mb-sm">Masculino / Default</div>
-              <q-input v-model="editForm.title" label="Titulo" class="q-mb-md" outlined dense />
-              <q-input
-                v-model="editForm.body"
-                label="Cuerpo"
-                type="textarea"
-                autogrow
-                outlined
-                dense
-              />
-            </div>
-            <!-- Female column -->
-            <div class="col-6">
-              <div class="text-subtitle2 q-mb-sm">Femenino</div>
-              <q-input
-                v-model="editForm.titleFemale"
-                label="Titulo femenino"
-                class="q-mb-md"
-                outlined
-                dense
-              />
-              <q-input
-                v-model="editForm.bodyFemale"
-                label="Cuerpo femenino"
-                type="textarea"
-                autogrow
-                outlined
-                dense
-              />
-            </div>
-          </div>
-          <DestinoSelector v-model="editForm.destination" class="q-mt-md" />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancelar" v-close-popup />
-          <q-btn color="primary" label="Guardar" @click="saveTemplate" :loading="saving" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <div v-if="!templates.length" class="text-center q-pa-lg text-grey-6">
+      No hay notificaciones todavía.
+    </div>
+
+    <div v-else class="row q-col-gutter-md">
+      <div v-for="row in orderedTemplates" :key="row.id" class="col-12 col-sm-6 col-lg-4">
+        <ComunicacionCard
+          :title="cardTitle(row)"
+          :subtitle="cardSubtitle(row)"
+          :origin="row.kind"
+          :enabled="row.isEnabled"
+          :meta="cardMeta(row)"
+          :metrics="cardMetrics(row)"
+          @update:enabled="(val) => toggleEnabled(row, val)"
+          @edit="openEdit(row)"
+          @delete="handleDelete(row)"
+        />
+      </div>
+    </div>
+
+    <PushRuleEditorDialog
+      v-model="editorOpen"
+      :template="editingTemplate"
+      :all-templates="templates"
+      @saved="emit('reload')"
+    />
+    <SendSegmentDialog v-model="sendSegmentOpen" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
-import type { QTableColumn } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
-import DestinoSelector from 'src/components/comunicaciones/DestinoSelector.vue';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import ComunicacionCard from 'src/components/comunicaciones/ComunicacionCard.vue';
+import PushRuleEditorDialog from 'src/components/comunicaciones/PushRuleEditorDialog.vue';
+import SendSegmentDialog from 'src/components/comunicaciones/SendSegmentDialog.vue';
 import { useCommunicationsApi } from 'src/composables/useCommunicationsApi';
-import type {
-  TemplateRow,
-  MemberSegmentKey,
-} from 'src/composables/useCommunicationsApi';
-import type { Destination } from 'src/config/destinations';
+import type { TemplateRow } from 'src/composables/useCommunicationsApi';
+import { confirmDeleteComunicacion } from 'src/utils/confirm-delete-comunicacion';
+import {
+  categoryLabel,
+  findRuleTrigger,
+  systemTriggerDescription,
+} from 'src/config/rule-triggers';
 
 const log = createLogger('PushTab');
 const $q = useQuasar();
+const authStore = useAuthStore();
 const commsApi = useCommunicationsApi();
 
-// ----------------------------------------------------------------
-// State
-// ----------------------------------------------------------------
-const tab = ref('plantillas');
-const loading = ref(true);
-const templates = ref<TemplateRow[]>([]);
-const editDialog = ref(false);
+const props = defineProps<{ templates: TemplateRow[] }>();
+const emit = defineEmits<{ reload: [] }>();
 
-function emptyDestination(): Destination {
-  return { type: 'app_section', section: 'mi_templo', whatsappText: null };
+const isOwner = computed(() => authStore.user?.role === 'owner');
+
+const orderedTemplates = computed(() => {
+  const custom = props.templates
+    .filter((t) => t.kind === 'custom')
+    .sort((a, b) => b.id - a.id);
+  const system = props.templates
+    .filter((t) => t.kind === 'system')
+    .sort((a, b) => a.category.localeCompare(b.category) || a.title.localeCompare(b.title));
+  return [...custom, ...system];
+});
+
+function cardTitle(row: TemplateRow): string {
+  return row.kind === 'custom' && row.name ? row.name : row.title;
 }
 
-const editForm = reactive({
-  id: 0,
-  title: '',
-  body: '',
-  titleFemale: '',
-  bodyFemale: '',
-  destination: emptyDestination(),
-});
-const saving = ref(false);
-
-const sendForm = reactive({
-  title: '',
-  body: '',
-  titleFemale: '',
-  bodyFemale: '',
-  destination: emptyDestination(),
-  segmentIds: [] as MemberSegmentKey[],
-});
-const sending = ref(false);
-
-// ----------------------------------------------------------------
-// Segments
-// ----------------------------------------------------------------
-const segments: Array<{ value: MemberSegmentKey; label: string }> = [
-  { value: 'optima', label: 'Óptima' },
-  { value: 'regular', label: 'Regular' },
-  { value: 'alerta', label: 'Alerta' },
-  { value: 'ausente', label: 'Ausente' },
-];
-
-// ----------------------------------------------------------------
-// Table columns
-// ----------------------------------------------------------------
-const templateColumns: QTableColumn[] = [
-  { name: 'category', label: 'Categoria', field: 'category', align: 'left', sortable: true },
-  { name: 'title', label: 'Titulo', field: 'title', align: 'left', sortable: true },
-  { name: 'body', label: 'Cuerpo', field: 'body', align: 'left' },
-  { name: 'isEnabled', label: 'Activo', field: 'isEnabled', align: 'center' },
-  { name: 'sentCount', label: 'Enviados', field: 'sentCount', align: 'center', sortable: true },
-  { name: 'openedCount', label: 'Abiertos', field: 'openedCount', align: 'center', sortable: true },
-  { name: 'openRate', label: 'Tasa apertura', field: 'openRate', align: 'center', sortable: true },
-  { name: 'actions', label: '', field: 'id', align: 'center' },
-];
-
-// ----------------------------------------------------------------
-// Category helpers
-// ----------------------------------------------------------------
-const CATEGORY_COLORS: Record<string, string> = {
-  entrenamiento: 'blue',
-  programas: 'green',
-  motivacion: 'orange',
-  anuncios: 'purple',
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  entrenamiento: 'Entrenamiento',
-  programas: 'Programas',
-  motivacion: 'Motivacion',
-  anuncios: 'Anuncios',
-};
-
-function categoryColor(category: string): string {
-  return CATEGORY_COLORS[category] ?? 'grey';
+function cardSubtitle(row: TemplateRow): string {
+  return row.kind === 'custom' && row.name ? row.title : categoryLabel(row.category);
 }
 
-function categoryLabel(category: string): string {
-  return CATEGORY_LABELS[category] ?? category;
+function alcanceLabel(row: TemplateRow): string {
+  const parts: string[] = [];
+  if (row.scopeBranchIds?.length) parts.push(`${row.scopeBranchIds.length} sede(s)`);
+  if (row.scopeCountries?.length) parts.push(row.scopeCountries.join('/'));
+  return parts.length ? parts.join(' · ') : 'Todos los socios';
+}
+
+function cardMeta(row: TemplateRow): Array<{ icon: string; text: string }> {
+  if (row.kind === 'system') {
+    return [
+      { icon: 'bolt', text: systemTriggerDescription(row.templateKey) },
+      { icon: 'category', text: categoryLabel(row.category) },
+    ];
+  }
+  const trigger = row.triggerType ? findRuleTrigger(row.triggerType) : undefined;
+  const conditionText = trigger
+    ? trigger.needsValue
+      ? `${trigger.label.replace('N', String(row.triggerValue ?? '?'))}`
+      : trigger.needsSegment
+        ? `Segmento: ${row.triggerSegment ?? '?'}`
+        : trigger.label
+    : 'Sin condición';
+  return [
+    { icon: 'bolt', text: conditionText },
+    { icon: 'place', text: alcanceLabel(row) },
+    { icon: 'schedule', text: `No repetir antes de ${row.cooldownDays} días` },
+  ];
 }
 
 function formatRate(rate: number): string {
-  return `${rate.toFixed(1)}%`;
+  return rate > 0 ? `${rate.toFixed(1)}%` : '—';
 }
 
-function truncate(text: string, max = 60): string {
-  return text.length > max ? text.substring(0, max) + '...' : text;
+function cardMetrics(row: TemplateRow): Array<{ label: string; value: string | number }> {
+  return [
+    { label: 'Enviados', value: row.sentCount },
+    { label: 'Abiertos', value: row.openedCount },
+    { label: 'Apertura', value: formatRate(row.openRate) },
+  ];
 }
 
-// ----------------------------------------------------------------
-// Computed
-// ----------------------------------------------------------------
-const canSend = computed(() => {
-  return (
-    sendForm.title.trim().length > 0 &&
-    sendForm.body.trim().length > 0 &&
-    sendForm.segmentIds.length > 0
-  );
-});
+// ── Editor ─────────────────────────────────────────────────────────────
+const editorOpen = ref(false);
+const editingTemplate = ref<TemplateRow | null>(null);
 
-// ----------------------------------------------------------------
-// API methods
-// ----------------------------------------------------------------
-async function loadTemplates() {
-  loading.value = true;
+function openCreate(): void {
+  editingTemplate.value = null;
+  editorOpen.value = true;
+}
+
+function openEdit(row: TemplateRow): void {
+  editingTemplate.value = row;
+  editorOpen.value = true;
+}
+
+// ── Enviar a segmento ──────────────────────────────────────────────────
+const sendSegmentOpen = ref(false);
+
+// ── Toggle activo/pausado ─────────────────────────────────────────────
+async function toggleEnabled(row: TemplateRow, enabled: boolean): Promise<void> {
   try {
-    templates.value = await commsApi.listTemplates();
+    await commsApi.updateTemplate(row.id, { isEnabled: enabled });
+    emit('reload');
   } catch (err: unknown) {
-    const message = extractError(err, 'Error cargando plantillas');
-    log.error('Error loading templates', { error: message });
-    $q.notify({ type: 'negative', message });
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function toggleEnabled(template: TemplateRow, enabled: boolean) {
-  try {
-    await commsApi.updateTemplate(template.id, { isEnabled: enabled });
-    template.isEnabled = enabled;
-  } catch (err: unknown) {
-    const message = extractError(err, 'Error actualizando plantilla');
-    log.error('Error toggling template', { error: message, templateId: template.id });
+    const message = extractError(err, 'Error actualizando la notificación');
+    log.error('Error toggling template', { error: message, templateId: row.id });
     $q.notify({ type: 'negative', message });
   }
 }
 
-function openEdit(template: TemplateRow) {
-  editForm.id = template.id;
-  editForm.title = template.title;
-  editForm.body = template.body;
-  editForm.titleFemale = template.titleFemale ?? '';
-  editForm.bodyFemale = template.bodyFemale ?? '';
-  editForm.destination = {
-    type: template.destinationType,
-    section: template.destinationSection,
-    whatsappText: template.whatsappText,
-  };
-  editDialog.value = true;
-}
+// ── Borrar (homogéneo: también sistema) ───────────────────────────────
+async function handleDelete(row: TemplateRow): Promise<void> {
+  const label = cardTitle(row);
+  const ok = await confirmDeleteComunicacion($q, {
+    title: 'Borrar notificación',
+    itemLabel: label,
+    isSystem: row.kind === 'system',
+  });
+  if (!ok) return;
 
-async function saveTemplate() {
-  saving.value = true;
   try {
-    const updated = await commsApi.updateTemplate(editForm.id, {
-      title: editForm.title,
-      body: editForm.body,
-      titleFemale: editForm.titleFemale,
-      bodyFemale: editForm.bodyFemale,
-      destination: editForm.destination,
-    });
-
-    // Update local row
-    const row = templates.value.find((t) => t.id === editForm.id);
-    if (row) {
-      row.title = updated.title;
-      row.body = updated.body;
-      row.titleFemale = updated.titleFemale;
-      row.bodyFemale = updated.bodyFemale;
-      row.destinationType = updated.destinationType;
-      row.destinationSection = updated.destinationSection;
-      row.whatsappText = updated.whatsappText;
-    }
-
-    editDialog.value = false;
-    $q.notify({ type: 'positive', message: 'Plantilla actualizada' });
+    await commsApi.deleteTemplate(row.id);
+    $q.notify({ type: 'positive', message: 'Notificación borrada' });
+    emit('reload');
   } catch (err: unknown) {
-    const message = extractError(err, 'Error guardando plantilla');
-    log.error('Error saving template', { error: message, templateId: editForm.id });
+    const message = extractError(err, 'No se pudo borrar la notificación');
+    log.error('Error deleting template', { error: message, templateId: row.id });
     $q.notify({ type: 'negative', message });
-  } finally {
-    saving.value = false;
   }
 }
 
-async function handleSendSegment() {
-  sending.value = true;
+// ── Restaurar las del sistema (owner-only en el server) ───────────────
+const restoring = ref(false);
+
+async function handleRestore(): Promise<void> {
+  restoring.value = true;
   try {
-    const payload: {
-      title: string;
-      body: string;
-      segmentIds: MemberSegmentKey[];
-      destination: Destination;
-      titleFemale?: string;
-      bodyFemale?: string;
-    } = {
-      title: sendForm.title,
-      body: sendForm.body,
-      segmentIds: sendForm.segmentIds,
-      destination: sendForm.destination,
-    };
-    if (sendForm.titleFemale.trim() && sendForm.bodyFemale.trim()) {
-      payload.titleFemale = sendForm.titleFemale.trim();
-      payload.bodyFemale = sendForm.bodyFemale.trim();
-    }
-
-    const data = await commsApi.sendSegment(payload);
-
+    const { restored } = await commsApi.restoreSystemTemplates();
     $q.notify({
       type: 'positive',
-      message: `${data.queued} notificaciones enviadas`,
+      message:
+        restored > 0
+          ? `${restored} notificaciones de sistema restauradas`
+          : 'Ya estaban todas las notificaciones de sistema',
     });
-
-    // Clear form
-    sendForm.title = '';
-    sendForm.body = '';
-    sendForm.titleFemale = '';
-    sendForm.bodyFemale = '';
-    sendForm.destination = emptyDestination();
-    sendForm.segmentIds = [];
+    emit('reload');
   } catch (err: unknown) {
-    const message = extractError(err, 'Error enviando notificacion');
-    log.error('Error sending segment notification', { error: message });
+    const message = extractError(err, 'No se pudieron restaurar las notificaciones de sistema');
+    log.error('Error restoring system templates', { error: message });
     $q.notify({ type: 'negative', message });
   } finally {
-    sending.value = false;
+    restoring.value = false;
   }
 }
-
-// ----------------------------------------------------------------
-// Lifecycle
-// ----------------------------------------------------------------
-onMounted(loadTemplates);
-onUnmounted(() => {
-  commsApi.cleanup();
-});
 </script>

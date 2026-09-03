@@ -1,8 +1,10 @@
-<!-- Pestaña "Avisos en la app" de Comunicaciones (Fase 193, plan 11).
-     Lista los avisos pop-up (placement === 'popup'; los de tarjeta van en la
-     pestaña del plan 14) con métricas de socios únicos (D-17) y advierte
-     explícitamente el orden de prioridad de los pop-ups (D-06). El editor
-     completo vive en AvisoEditorDialog; "ver socios" en VerSociosDialog. -->
+<!-- Categoría "Avisos en la app" del dashboard de Comunicaciones (Fase 193,
+     Plan B, pedido de Franco 2026-09-03) — reemplaza la vieja `q-table` por
+     una grilla de `ComunicacionCard`. El listado (`avisos`, ya filtrado a
+     placement 'popup') lo carga y cachea `ComunicacionesPage.vue`; acá solo
+     se pide `reload` tras crear/editar/borrar/restaurar/toggle. Homogéneo:
+     ahora también se borran los de sistema (antes deshabilitado, ver
+     `git log` de este archivo) — "Restaurar las del sistema" los repone. -->
 <template>
   <div>
     <div class="row items-center q-mb-md">
@@ -12,7 +14,15 @@
           Pop-ups que ve el socio al abrir la app. Vigencia, alcance y frecuencia por aviso.
         </div>
       </div>
-      <div class="col-auto">
+      <div class="col-auto q-gutter-sm">
+        <q-btn
+          flat
+          no-caps
+          icon="restore"
+          label="Restaurar las del sistema"
+          :loading="restoring"
+          @click="handleRestore"
+        />
         <q-btn color="primary" icon="add" label="Nuevo aviso" unelevated @click="openCreate" />
       </div>
     </div>
@@ -26,81 +36,44 @@
       vencimiento de plan → aviso vigente → calificación de clase → propuesta de mejora.
     </q-banner>
 
-    <q-table
-      :rows="avisos"
-      :columns="columns"
-      row-key="id"
-      flat
-      bordered
-      :loading="loading"
-      :pagination="{ rowsPerPage: 20 }"
-    >
-      <template #body-cell-kind="props">
-        <q-td :props="props">
-          <q-badge
-            :color="props.row.kind === 'system' ? 'grey-7' : 'primary'"
-            :label="props.row.kind === 'system' ? 'Sistema' : 'Propio'"
-          />
-        </q-td>
-      </template>
+    <div v-if="!avisos.length" class="text-center q-pa-lg text-grey-6">
+      No hay avisos todavía. Creá uno con "Nuevo aviso".
+    </div>
 
-      <template #body-cell-status="props">
-        <q-td :props="props">
-          <q-badge
-            :color="avisoStatusColor(props.row.status)"
-            :label="avisoStatusLabel(props.row.status)"
-          />
-        </q-td>
-      </template>
+    <div v-else class="row q-col-gutter-md">
+      <div v-for="row in orderedAvisos" :key="row.id" class="col-12 col-sm-6 col-lg-4">
+        <ComunicacionCard
+          :title="row.title"
+          :subtitle="row.body"
+          :origin="row.kind"
+          :enabled="row.status === 'active'"
+          :meta="cardMeta(row)"
+          :metrics="cardMetrics(row)"
+          @update:enabled="(val) => toggleActive(row, val)"
+          @edit="openEdit(row)"
+          @delete="handleDelete(row)"
+        >
+          <template #preview>
+            <q-expansion-item dense label="Vista previa" header-class="text-caption text-grey-7">
+              <AvisoPreview
+                placement="popup"
+                :title="row.title"
+                :body="row.body"
+                :button-text="row.buttonText"
+                :destination-label="destinationLabel(row)"
+              />
+            </q-expansion-item>
+          </template>
+          <template #extra-actions>
+            <q-btn flat round dense icon="groups" color="primary" @click="openVerSocios(row)">
+              <q-tooltip>Ver socios</q-tooltip>
+            </q-btn>
+          </template>
+        </ComunicacionCard>
+      </div>
+    </div>
 
-      <template #body-cell-vigencia="props">
-        <q-td :props="props">
-          {{ vigenciaLabel(props.row) }}
-        </q-td>
-      </template>
-
-      <template #body-cell-frecuencia="props">
-        <q-td :props="props">
-          {{ frecuenciaLabel(props.row) }}
-        </q-td>
-      </template>
-
-      <template #body-cell-actions="props">
-        <q-td :props="props">
-          <q-btn flat round dense icon="edit" color="primary" @click="openEdit(props.row)">
-            <q-tooltip>Editar</q-tooltip>
-          </q-btn>
-          <q-btn flat round dense icon="groups" color="primary" @click="openVerSocios(props.row)">
-            <q-tooltip>Ver socios</q-tooltip>
-          </q-btn>
-          <q-btn
-            flat
-            round
-            dense
-            icon="delete"
-            color="negative"
-            :disable="props.row.kind === 'system'"
-            @click="confirmDelete(props.row)"
-          >
-            <q-tooltip>
-              {{
-                props.row.kind === 'system'
-                  ? 'Los avisos de sistema no se borran: pausalos'
-                  : 'Borrar'
-              }}
-            </q-tooltip>
-          </q-btn>
-        </q-td>
-      </template>
-
-      <template #no-data>
-        <div class="full-width text-center q-pa-lg text-grey-6">
-          No hay avisos todavía. Creá uno con "Nuevo aviso".
-        </div>
-      </template>
-    </q-table>
-
-    <AvisoEditorDialog v-model="editorOpen" :aviso="editingAviso" @saved="onSaved" />
+    <AvisoEditorDialog v-model="editorOpen" :aviso="editingAviso" @saved="emit('reload')" />
 
     <VerSociosDialog
       v-model="verSociosOpen"
@@ -111,23 +84,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
-import type { QTableColumn } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import AvisoEditorDialog from 'src/components/comunicaciones/AvisoEditorDialog.vue';
+import AvisoPreview from 'src/components/comunicaciones/AvisoPreview.vue';
 import VerSociosDialog from 'src/components/comunicaciones/VerSociosDialog.vue';
+import ComunicacionCard from 'src/components/comunicaciones/ComunicacionCard.vue';
 import { useCommunicationsApi } from 'src/composables/useCommunicationsApi';
 import type { AvisoRow, AvisoFrequencyType } from 'src/composables/useCommunicationsApi';
-import { vigenciaLabel, avisoStatusColor, avisoStatusLabel } from 'src/utils/aviso-format';
+import { vigenciaLabel } from 'src/utils/aviso-format';
+import { confirmDeleteComunicacion } from 'src/utils/confirm-delete-comunicacion';
+import { APP_SECTIONS } from 'src/config/destinations';
 
 const log = createLogger('AvisosTab');
 const $q = useQuasar();
 const commsApi = useCommunicationsApi();
 
-const avisos = ref<AvisoRow[]>([]);
-const loading = ref(true);
+const props = defineProps<{ avisos: AvisoRow[] }>();
+const emit = defineEmits<{ reload: [] }>();
+
+const orderedAvisos = computed(() => {
+  const custom = props.avisos.filter((a) => a.kind === 'custom').sort((a, b) => b.id - a.id);
+  const system = props.avisos.filter((a) => a.kind === 'system').sort((a, b) => a.id - b.id);
+  return [...custom, ...system];
+});
 
 const editorOpen = ref(false);
 const editingAviso = ref<AvisoRow | null>(null);
@@ -135,36 +117,6 @@ const editingAviso = ref<AvisoRow | null>(null);
 const verSociosOpen = ref(false);
 const verSociosAvisoId = ref<number | null>(null);
 const verSociosAvisoTitle = ref('');
-
-const columns: QTableColumn[] = [
-  { name: 'title', label: 'Título', field: 'title', align: 'left', sortable: true },
-  { name: 'kind', label: 'Tipo', field: 'kind', align: 'left', sortable: true },
-  { name: 'status', label: 'Estado', field: 'status', align: 'left', sortable: true },
-  { name: 'vigencia', label: 'Vigencia', field: 'startsOn', align: 'left' },
-  { name: 'frecuencia', label: 'Frecuencia', field: 'frequencyType', align: 'left' },
-  {
-    name: 'reachedCount',
-    label: 'Alcanzados',
-    field: 'reachedCount',
-    align: 'center',
-    sortable: true,
-  },
-  {
-    name: 'dismissedCount',
-    label: 'Cerraron',
-    field: 'dismissedCount',
-    align: 'center',
-    sortable: true,
-  },
-  {
-    name: 'clickedCount',
-    label: 'Tocaron el botón',
-    field: 'clickedCount',
-    align: 'center',
-    sortable: true,
-  },
-  { name: 'actions', label: '', field: 'id', align: 'center' },
-];
 
 const FREQUENCY_LABELS: Record<AvisoFrequencyType, string> = {
   once: 'Una vez',
@@ -179,56 +131,75 @@ function frecuenciaLabel(row: AvisoRow): string {
   return FREQUENCY_LABELS[row.frequencyType];
 }
 
-async function loadAvisos() {
-  loading.value = true;
-  try {
-    avisos.value = await commsApi.listAvisos('popup');
-  } catch (err: unknown) {
-    const message = extractError(err, 'Error cargando avisos');
-    log.error('Error loading avisos', { error: message });
-    $q.notify({ type: 'negative', message });
-  } finally {
-    loading.value = false;
-  }
+function alcanceLabel(row: AvisoRow): string {
+  const parts: string[] = [];
+  if (row.scopeBranchIds?.length) parts.push(`${row.scopeBranchIds.length} sede(s)`);
+  if (row.scopeCountries?.length) parts.push(row.scopeCountries.join('/'));
+  if (row.scopeSegments?.length) parts.push(row.scopeSegments.join('/'));
+  return parts.length ? parts.join(' · ') : 'Todos los socios';
 }
 
-function openCreate() {
+function cardMeta(row: AvisoRow): Array<{ icon: string; text: string }> {
+  return [
+    { icon: 'event', text: vigenciaLabel(row) },
+    { icon: 'place', text: alcanceLabel(row) },
+    { icon: 'repeat', text: frecuenciaLabel(row) },
+  ];
+}
+
+function cardMetrics(row: AvisoRow): Array<{ label: string; value: string | number }> {
+  return [
+    { label: 'Alcanzados', value: row.reachedCount },
+    { label: 'Cerraron', value: row.dismissedCount },
+    { label: 'Tocaron', value: row.clickedCount },
+  ];
+}
+
+function destinationLabel(row: AvisoRow): string {
+  if (row.destinationType === 'whatsapp_sales') return 'WhatsApp de ventas';
+  const section = APP_SECTIONS.find((s) => s.key === row.destinationSection);
+  return section?.label ?? 'Mi Templo';
+}
+
+function openCreate(): void {
   editingAviso.value = null;
   editorOpen.value = true;
 }
 
-function openEdit(row: AvisoRow) {
+function openEdit(row: AvisoRow): void {
   editingAviso.value = row;
   editorOpen.value = true;
 }
 
-function openVerSocios(row: AvisoRow) {
+function openVerSocios(row: AvisoRow): void {
   verSociosAvisoId.value = row.id;
   verSociosAvisoTitle.value = row.title;
   verSociosOpen.value = true;
 }
 
-function onSaved() {
-  void loadAvisos();
+async function toggleActive(row: AvisoRow, enabled: boolean): Promise<void> {
+  try {
+    await commsApi.updateAviso(row.id, { status: enabled ? 'active' : 'paused' });
+    emit('reload');
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error actualizando el aviso');
+    log.error('Error toggling aviso', { error: message, avisoId: row.id });
+    $q.notify({ type: 'negative', message });
+  }
 }
 
-function confirmDelete(row: AvisoRow) {
-  if (row.kind === 'system') return;
-  $q.dialog({
+async function handleDelete(row: AvisoRow): Promise<void> {
+  const ok = await confirmDeleteComunicacion($q, {
     title: 'Borrar aviso',
-    message: `¿Borrar el aviso "${row.title}"? Esta acción no se puede deshacer.`,
-    cancel: true,
-    persistent: true,
-  }).onOk(() => {
-    void deleteAviso(row);
+    itemLabel: row.title,
+    isSystem: row.kind === 'system',
   });
-}
+  if (!ok) return;
 
-async function deleteAviso(row: AvisoRow) {
   try {
     await commsApi.deleteAviso(row.id);
-    avisos.value = avisos.value.filter((a) => a.id !== row.id);
     $q.notify({ type: 'positive', message: 'Aviso borrado' });
+    emit('reload');
   } catch (err: unknown) {
     const message = extractError(err, 'No se pudo borrar el aviso');
     log.error('Error deleting aviso', { error: message, avisoId: row.id });
@@ -236,10 +207,26 @@ async function deleteAviso(row: AvisoRow) {
   }
 }
 
-onMounted(loadAvisos);
-onUnmounted(() => {
-  commsApi.cleanup();
-});
+const restoring = ref(false);
+
+async function handleRestore(): Promise<void> {
+  restoring.value = true;
+  try {
+    const { restored } = await commsApi.restoreSystemAvisos();
+    $q.notify({
+      type: 'positive',
+      message:
+        restored > 0 ? `${restored} avisos de sistema restaurados` : 'Ya estaban todos los avisos de sistema',
+    });
+    emit('reload');
+  } catch (err: unknown) {
+    const message = extractError(err, 'No se pudieron restaurar los avisos de sistema');
+    log.error('Error restoring system avisos', { error: message });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    restoring.value = false;
+  }
+}
 </script>
 
 <!-- deploy: fase 193 comunicaciones (fix de tests de tenancy en el mismo push) -->
