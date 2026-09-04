@@ -269,14 +269,31 @@ describe("Migraciones 0190 + 0191 — tenants, tenant_settings y anclas", () => 
 
     // D-05: el KV por tenant nace vacío (coexistencia gradual con
     // system_settings, que no recibe tenant_id en todo el milestone).
-    // Fase 176 (MOD-01): la 0209 siembra los flags `module.<nombre>.enabled` —
-    // únicas keys admitidas desde entonces. No se assertan sus valores ni
-    // cuántas filas hay: los tests de MOD-01/MOD-02 los mutan de forma
-    // concurrente (workers paralelos sobre la misma DB, fixtures
-    // `module-flags.ts`). Lo estable es que ninguna OTRA key exista.
+    // Fase 176 (MOD-01): la 0209 siembra los flags `module.<nombre>.enabled`.
+    // No se assertan sus valores ni cuántas filas hay: los tests de
+    // MOD-01/MOD-02 los mutan de forma concurrente (workers paralelos sobre
+    // la misma DB, fixtures `module-flags.ts`).
+    //
+    // Desde entonces otros módulos usan el mismo KV con su propio namespace,
+    // y sus suites insertan/borran filas en paralelo con esta (misma carrera
+    // que los flags). Lo estable es que ninguna key FUERA de los namespaces
+    // conocidos exista. Cada prefijo tiene una única fuente en src/:
+    //   - `module.<nombre>.enabled`      → shared/modules.ts (0209)
+    //   - `class_label_description.<m>`  → scheduling/label-descriptions.ts (fase 180)
+    //   - `whatsapp.sales_number.<pais>` → communications/sales-number.ts (fase 193)
+    // Al sumar un namespace nuevo, agregarlo acá con su referencia.
+    const KNOWN_KEY_PATTERNS = [
+      "module.%.enabled",
+      "class_label_description.%",
+      "whatsapp.sales_number.%",
+    ];
+    const notKnown = sql.join(
+      KNOWN_KEY_PATTERNS.map((p) => sql`setting_key NOT LIKE ${p}`),
+      sql` AND `,
+    );
     const extras = await countRows(
       app,
-      sql`SELECT COUNT(*) AS n FROM tenant_settings WHERE setting_key NOT LIKE 'module.%.enabled'`,
+      sql`SELECT COUNT(*) AS n FROM tenant_settings WHERE ${notKnown}`,
     );
     expect(extras).toBe(0);
   });

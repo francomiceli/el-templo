@@ -23,6 +23,10 @@
  * `class_label_description.combos`). Un `value` vacío o solo espacios borra
  * la fila — equivale a "sin descripción cargada" (la app no muestra el
  * affordance de tap).
+ *
+ * Este prefijo está en la lista de namespaces conocidos de `tenant_settings`
+ * que verifica test/migrations/0190-0191-tenants.test.ts (Test 3). Si se
+ * renombra, actualizar esa lista.
  */
 import { and, eq, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
