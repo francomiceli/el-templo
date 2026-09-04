@@ -546,6 +546,7 @@ export class MemberService {
 
     // Etiqueta de membresía efectiva (override manual o la de la sub
     // vigente). Mismo predicado que el desglose de activos de analytics.
+    // Cubierto por test/members/search.test.ts (bloque membershipKind).
     if (membershipKind !== undefined) {
       conditions.push(
         activeSubOfKindExists(schema.users.id, membershipKind, ctx),

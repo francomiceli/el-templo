@@ -61,6 +61,8 @@ type AvisoEventType = 'shown' | 'dismissed' | 'clicked'
  * `isImprovement`. Un fallo de red nunca puede romper la pantalla: se traga
  * y se loguea, sin pop-up para esta apertura.
  */
+// Deploy 2026-09-04: el build de la app de la 193 quedó sin publicar por un
+// test roto en la API (paths-filter usa event.before), este toque lo fuerza.
 export const useAvisosStore = defineStore('avisos', () => {
   const prompt = ref<PromptResult>(null)
   const evaluated = ref(false)

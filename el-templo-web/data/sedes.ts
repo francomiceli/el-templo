@@ -6,6 +6,8 @@
  * until individual per-sede numbers are introduced.
  */
 
+// Deploy 2026-09-04: el build de la web (rename Sur→Mario Bravo) quedó sin
+// publicar por un test roto en la API (paths-filter usa event.before).
 export interface Sede {
   id: string;
   name: string;

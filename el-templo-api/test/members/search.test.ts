@@ -16,7 +16,8 @@ import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { subscriptions } from "../../src/db/schema/subscriptions";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 describe("GET /api/admin/members/search", () => {
   let app: FastifyInstance;
@@ -232,17 +233,24 @@ describe("GET /api/admin/members/search", () => {
     await app.db
       .update(users)
       .set({ membershipKindOverride: kind })
-      .where(eq(users.id, userId));
+      .where(and(eq(users.id, userId), eq(users.tenantId, TENANT_TEMPLO)));
   }
 
   async function setSubMembershipKind(
     userId: number,
     kind: "paga" | "bonificada" | "staff",
   ): Promise<void> {
+    // El sentinel de tenancy exige tenant_id en toda escritura sobre
+    // subscriptions (módulo strict): mismo patrón que change-plan.test.ts.
     await app.db
       .update(subscriptions)
       .set({ membershipKind: kind })
-      .where(eq(subscriptions.userId, userId));
+      .where(
+        and(
+          eq(subscriptions.userId, userId),
+          eq(subscriptions.tenantId, TENANT_TEMPLO),
+        ),
+      );
   }
 
   it("membershipKind=staff keeps a member whose active sub is tagged staff", async () => {

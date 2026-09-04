@@ -558,6 +558,8 @@ const searchingTestMember = ref(false);
 // Filtro del buscador: por defecto ofrece solo socios con etiqueta de
 // membresía efectiva "staff" (override manual o sub vigente), para que las
 // pruebas vayan a gente de la casa y no a un alumno con nombre parecido.
+// Deploy 2026-09-04: el build del admin de la 193 quedó sin publicar por un
+// test roto en la API (paths-filter usa event.before), este toque lo fuerza.
 const testOnlyStaff = ref(true);
 const sendingTest = ref(false);
 
