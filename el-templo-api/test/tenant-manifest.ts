@@ -891,6 +891,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/notifications/admin/templates/preview-audience": {
     categoria: "tenant-scoped",
   },
+  "POST /api/notifications/admin/templates/send-test": {
+    categoria: "tenant-scoped",
+  },
   "DELETE /api/notifications/admin/templates/:id": {
     categoria: "tenant-scoped",
   },

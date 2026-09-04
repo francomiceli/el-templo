@@ -206,6 +206,37 @@ describe("notifications/custom-rules — POST /admin/templates (crear regla prop
     expect(res.statusCode, res.body).toBe(400);
   });
 
+  it("(3c) disparador de estado (has_booking_today) sin parámetro -> 201; con triggerValue o triggerSegment sobrante -> 400", async () => {
+    const ok = await postComo(
+      "/admin/templates",
+      adminToken,
+      buildValidRuleBody({ triggerType: "has_booking_today", triggerSegment: undefined }),
+    );
+    expect(ok.statusCode, ok.body).toBe(201);
+    const created = JSON.parse(ok.body) as TemplateRow;
+    expect(created.triggerType).toBe("has_booking_today");
+    expect(created.triggerValue).toBeNull();
+    expect(created.triggerSegment).toBeNull();
+
+    const conValor = await postComo(
+      "/admin/templates",
+      adminToken,
+      buildValidRuleBody({
+        triggerType: "has_active_program",
+        triggerSegment: undefined,
+        triggerValue: 3,
+      }),
+    );
+    expect(conValor.statusCode, conValor.body).toBe(400);
+
+    const conSegmento = await postComo(
+      "/admin/templates",
+      adminToken,
+      buildValidRuleBody({ triggerType: "branch_is_virtual" }),
+    );
+    expect(conSegmento.statusCode, conSegmento.body).toBe(400);
+  });
+
   it("(4) scopeBranchIds con una sede de OTRO tenant -> 400 (T-193-11, validación de contenido)", async () => {
     const res = await postComo(
       "/admin/templates",
@@ -274,6 +305,59 @@ describe("notifications/custom-rules — PUT/DELETE (homogeneidad sistema/propia
     expect(updated.name).toBe("Regla renombrada");
     expect(updated.triggerValue).toBe(5);
     expect(updated.cooldownDays).toBe(45);
+  });
+
+  it("(7b) PUT que CAMBIA el trigger no hereda el value/segment viejo: 'vence en 3 días' -> 'segmento Alerta' -> 200 con triggerValue null", async () => {
+    const created = await postComo(
+      "/admin/templates",
+      adminToken,
+      buildValidRuleBody({
+        triggerType: "plan_expires_in_days",
+        triggerSegment: undefined,
+        triggerValue: 3,
+      }),
+    );
+    const createdBody = JSON.parse(created.body) as TemplateRow;
+
+    const aSegmento = await putComo(`/admin/templates/${createdBody.id}`, adminToken, {
+      triggerType: "segment_is",
+      triggerSegment: "alerta",
+    });
+    expect(aSegmento.statusCode, aSegmento.body).toBe(200);
+    const updated = JSON.parse(aSegmento.body) as TemplateRow;
+    expect(updated.triggerType).toBe("segment_is");
+    expect(updated.triggerValue).toBeNull();
+    expect(updated.triggerSegment).toBe("alerta");
+
+    // Y de ahí a un disparador de estado, mandando null explícito (como el
+    // editor): queda sin parámetros.
+    const aEstado = await putComo(`/admin/templates/${createdBody.id}`, adminToken, {
+      triggerType: "no_active_program",
+      triggerValue: null,
+      triggerSegment: null,
+    });
+    expect(aEstado.statusCode, aEstado.body).toBe(200);
+    const estado = JSON.parse(aEstado.body) as TemplateRow;
+    expect(estado.triggerType).toBe("no_active_program");
+    expect(estado.triggerValue).toBeNull();
+    expect(estado.triggerSegment).toBeNull();
+
+    // Sin cambiar el trigger, el value guardado SÍ se hereda (regresión de (7)).
+    const otra = await postComo(
+      "/admin/templates",
+      adminToken,
+      buildValidRuleBody({
+        triggerType: "plan_expires_in_days",
+        triggerSegment: undefined,
+        triggerValue: 3,
+      }),
+    );
+    const otraBody = JSON.parse(otra.body) as TemplateRow;
+    const soloNombre = await putComo(`/admin/templates/${otraBody.id}`, adminToken, {
+      name: "Solo renombrada",
+    });
+    expect(soloNombre.statusCode, soloNombre.body).toBe(200);
+    expect((JSON.parse(soloNombre.body) as TemplateRow).triggerValue).toBe(3);
   });
 
   it("(8) PUT con campos de regla sobre un template de SISTEMA -> 400 (no lleva condición recetada)", async () => {

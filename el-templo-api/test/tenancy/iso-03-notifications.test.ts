@@ -564,6 +564,61 @@ describe("preview de audiencia — POST /api/notifications/admin/templates/previ
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// POST /admin/templates/send-test — "Probar en tu teléfono" (2026-09-04)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("envío de prueba — POST /api/notifications/admin/templates/send-test", () => {
+  const RUTA = "POST /api/notifications/admin/templates/send-test";
+  const BODY = {
+    title: `${MARCA_ISO03N} Prueba`,
+    body: "Cuerpo de la prueba",
+    destination: { type: "app_section", section: "mi_templo", whatsappText: null },
+  };
+
+  it("aislamiento: el gimnasio 2 no puede mandarle una prueba a un socio de El Templo (404, indistinguible de inexistente) y no queda ninguna fila nueva", async () => {
+    const antes = await ultimaPendingDeUsuario(app, templo.memberId);
+
+    const res = await postComo("/admin/templates/send-test", dos.ownerToken, {
+      ...BODY,
+      userId: templo.memberId,
+    });
+    expect(
+      res.statusCode,
+      porQueImportaElAislamiento(RUTA, `esperaba 404, recibió ${res.statusCode}`),
+    ).toBe(404);
+
+    const despues = await ultimaPendingDeUsuario(app, templo.memberId);
+    expect(
+      despues?.id,
+      porQueImportaElAislamiento(
+        RUTA,
+        `apareció una pending_notification nueva para el socio de El Templo (${templo.memberId})`,
+      ),
+    ).toBe(antes?.id);
+  });
+
+  it("control: el gimnasio 2 le manda la prueba a su propio socio (200) y la fila nace con SU tenant_id", async () => {
+    const antes = await ultimaPendingDeUsuario(app, dos.memberId);
+
+    const res = await postComo("/admin/templates/send-test", dos.ownerToken, {
+      ...BODY,
+      userId: dos.memberId,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    // Sin FCM inicializado en esta batería el envío real falla, pero la fila
+    // se escribe igual (status sent -> failed). Lo que importa acá es el tenant.
+    const body = JSON.parse(res.body) as { status: string; notificationId?: number };
+    expect(["sent", "failed"]).toContain(body.status);
+
+    const despues = await ultimaPendingDeUsuario(app, dos.memberId);
+    expect(despues).not.toBeNull();
+    expect(despues?.id).not.toBe(antes?.id);
+    expect(despues?.id).toBe(body.notificationId);
+    expect(despues?.tenantId).toBe(TENANT_DOS);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // POST /admin/send-segment — enviar a segmento (audiencia scopeada)
 // ═══════════════════════════════════════════════════════════════════════════
 

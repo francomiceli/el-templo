@@ -152,8 +152,9 @@ export interface UpdateTemplateInput {
   // para un template de sistema (ver docblock de PUT en routes.ts).
   name?: string;
   triggerType?: RuleTriggerType;
-  triggerValue?: number;
-  triggerSegment?: MemberSegmentKey;
+  // `null` explícito limpia el parámetro al cambiar de disparador.
+  triggerValue?: number | null;
+  triggerSegment?: MemberSegmentKey | null;
   scopeBranchIds?: number[] | null;
   scopeCountries?: string[] | null;
   cooldownDays?: number;
@@ -184,6 +185,21 @@ export interface PreviewTemplateAudienceInput {
   triggerSegment?: MemberSegmentKey;
   scopeBranchIds?: number[] | null;
   scopeCountries?: string[] | null;
+}
+
+/** Body de `POST /admin/templates/send-test` — "Probar en tu teléfono". */
+export interface SendTestTemplateInput {
+  userId: number;
+  title: string;
+  body: string;
+  destination: Destination;
+}
+
+export interface SendTestTemplateResult {
+  /** `no_tokens` = el socio no tiene la app con push en ningún teléfono. */
+  status: 'sent' | 'failed' | 'no_tokens';
+  notificationId?: number;
+  memberName: string;
 }
 
 export interface RestoreSystemResult {
@@ -444,6 +460,27 @@ export function useCommunicationsApi() {
   }
 
   /**
+   * POST /notifications/admin/templates/send-test — manda YA el título/cuerpo
+   * del editor a los dispositivos de un socio de prueba (sin guardar nada).
+   */
+  async function sendTestTemplate(input: SendTestTemplateInput): Promise<SendTestTemplateResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<SendTestTemplateResult>(
+        '/notifications/admin/templates/send-test',
+        input,
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo enviar la prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
    * POST /notifications/admin/seed-templates — "Restaurar las del sistema"
    * para notificaciones push. Owner-only en el server (403 para admin) —
    * el caller debe ocultar el botón para roles no-owner.
@@ -569,6 +606,7 @@ export function useCommunicationsApi() {
     createTemplate,
     deleteTemplate,
     previewTemplateAudience,
+    sendTestTemplate,
     restoreSystemTemplates,
     restoreSystemAvisos,
     sendSegment,

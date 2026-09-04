@@ -77,6 +77,10 @@ const TRIGGER_LABEL_TEMPLATES: Record<RuleTriggerType, (value: number | null) =>
   days_without_attendance: (v) => `${v ?? '?'} días sin venir`,
   member_since_days: (v) => `Se dio de alta hace ${v ?? '?'} días`,
   segment_is: () => '',
+  has_active_program: () => 'Con programa activo',
+  no_active_program: () => 'Sin programa activo',
+  has_booking_today: () => 'Con sesión reservada hoy',
+  branch_is_virtual: () => 'Socios de sede virtual',
 };
 
 const TRIGGER_ICONS: Record<RuleTriggerType, string> = {
@@ -85,6 +89,10 @@ const TRIGGER_ICONS: Record<RuleTriggerType, string> = {
   days_without_attendance: 'directions_run',
   member_since_days: 'person_add',
   segment_is: 'insights',
+  has_active_program: 'fitness_center',
+  no_active_program: 'fitness_center',
+  has_booking_today: 'event_available',
+  branch_is_virtual: 'laptop',
 };
 
 function triggerAudienceLabel(row: TemplateRow): string {

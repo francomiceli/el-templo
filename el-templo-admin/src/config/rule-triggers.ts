@@ -13,7 +13,12 @@ export type RuleTriggerType =
   | 'plan_expired_days_ago'
   | 'days_without_attendance'
   | 'member_since_days'
-  | 'segment_is';
+  | 'segment_is'
+  // Disparadores de ESTADO (2026-09-04): sin N ni segmento.
+  | 'has_active_program'
+  | 'no_active_program'
+  | 'has_booking_today'
+  | 'branch_is_virtual';
 
 export interface RuleTriggerDef {
   type: RuleTriggerType;
@@ -70,6 +75,38 @@ export const RULE_TRIGGERS: readonly RuleTriggerDef[] = [
     helpText: 'Alcanza a socios cuyo segmento de asistencia actual es el elegido.',
     needsValue: false,
     needsSegment: true,
+  },
+  {
+    type: 'has_active_program',
+    label: 'Tiene un programa activo',
+    helpText:
+      'Alcanza a socios con un programa en curso. Se repite según la cadencia mientras el programa siga activo.',
+    needsValue: false,
+    needsSegment: false,
+  },
+  {
+    type: 'no_active_program',
+    label: 'No tiene programa activo',
+    helpText:
+      'Alcanza a socios activos sin ningún programa en curso (útil para ofrecer uno). Se repite según la cadencia.',
+    needsValue: false,
+    needsSegment: false,
+  },
+  {
+    type: 'has_booking_today',
+    label: 'Tiene una sesión reservada hoy',
+    helpText:
+      'Alcanza a socios con una reserva vigente para hoy (no cuenta cancelada, lista de espera ni ausente). Se evalúa cada mañana.',
+    needsValue: false,
+    needsSegment: false,
+  },
+  {
+    type: 'branch_is_virtual',
+    label: 'Es socio de una sede virtual',
+    helpText:
+      'Alcanza a socios cuya sede es virtual (Templo Online). Se repite según la cadencia.',
+    needsValue: false,
+    needsSegment: false,
   },
 ];
 

@@ -555,6 +555,106 @@ export class NotificationService {
     return insertId;
   }
 
+  // ── Envío de prueba (editor admin) ──────────────────────────────────────
+
+  /**
+   * Pedido de Franco (2026-09-04): "Probar en tu teléfono" desde el editor
+   * de notificaciones. Manda AHORA el título/cuerpo tal como están escritos
+   * (sin guardar la plantilla) a TODOS los dispositivos de un socio de prueba
+   * del mismo gimnasio, sin pasar por la cola del cron.
+   *
+   * A propósito NO respeta las preferencias por categoría del socio: es un
+   * envío que el propio admin se manda a su cuenta para ver cómo queda.
+   *
+   * La fila de `pending_notifications` nace directamente como `sent`
+   * (optimista) y se degrada a `failed` si ningún token aceptó — así el
+   * barrido de `processQueue` (cada 15 min) nunca la ve como `pending` y no
+   * puede reenviarla en paralelo.
+   */
+  async sendTestNotification(
+    input: {
+      userId: number;
+      title: string;
+      body: string;
+      destination: Destination;
+    },
+    ctx: TenantContext,
+  ): Promise<
+    | { status: "sent"; notificationId: number }
+    | { status: "failed"; notificationId: number }
+    | { status: "no_tokens" }
+  > {
+    const tokens = await this.db
+      .select({ token: schema.deviceTokens.token })
+      .from(schema.deviceTokens)
+      .where(
+        and(
+          tenantWhere(schema.deviceTokens, ctx),
+          eq(schema.deviceTokens.userId, input.userId),
+        ),
+      );
+    if (tokens.length === 0) return { status: "no_tokens" };
+
+    const now = new Date();
+    const result = await this.db.insert(schema.pendingNotifications).values(
+      tenantValues(ctx, {
+        userId: input.userId,
+        templateId: null,
+        title: input.title,
+        body: input.body,
+        route: fallbackRouteFor(input.destination),
+        destinationType: input.destination.type,
+        destinationSection: input.destination.section ?? null,
+        whatsappText: input.destination.whatsappText ?? null,
+        status: "sent",
+        scheduledAt: now,
+        sentAt: now,
+      }),
+    );
+    const notificationId = Number(result[0].insertId);
+
+    const [row] = await this.db
+      .select()
+      .from(schema.pendingNotifications)
+      .where(
+        and(
+          tenantWhere(schema.pendingNotifications, ctx),
+          eq(schema.pendingNotifications.id, notificationId),
+        ),
+      );
+    if (!row) return { status: "failed", notificationId };
+
+    let anySent = false;
+    for (const { token } of tokens) {
+      if (await this.sendToDevice(token, input.title, input.body, row)) {
+        anySent = true;
+      }
+    }
+
+    if (!anySent) {
+      await this.db
+        .update(schema.pendingNotifications)
+        .set({
+          status: "failed",
+          sentAt: null,
+          errorMessage: "All device tokens failed (test send)",
+        })
+        .where(
+          and(
+            tenantWhere(schema.pendingNotifications, ctx),
+            eq(schema.pendingNotifications.id, notificationId),
+          ),
+        );
+      return { status: "failed", notificationId };
+    }
+
+    this.log.info(
+      { userId: input.userId, notificationId, devices: tokens.length },
+      "Test notification sent",
+    );
+    return { status: "sent", notificationId };
+  }
+
   // ── Queue Processing ────────────────────────────────────────────────────
 
   /**

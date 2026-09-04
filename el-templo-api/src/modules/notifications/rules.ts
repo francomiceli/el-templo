@@ -40,7 +40,14 @@ export type RuleTriggerType =
   | "plan_expired_days_ago"
   | "days_without_attendance"
   | "member_since_days"
-  | "segment_is";
+  | "segment_is"
+  // Disparadores de ESTADO (pedido de Franco 2026-09-04): sin N ni segmento.
+  // El socio califica mientras el estado se mantenga, y `cooldownDays`
+  // marca cada cuánto se le vuelve a mandar.
+  | "has_active_program"
+  | "no_active_program"
+  | "has_booking_today"
+  | "branch_is_virtual";
 
 export interface RuleTriggerDef {
   type: RuleTriggerType;
@@ -54,9 +61,11 @@ export interface RuleTriggerDef {
 }
 
 /**
- * Las 5 condiciones recetadas (catálogo cerrado, D-01 del plan). Agregar una
- * es un cambio de código chico: sumar acá + un `case` nuevo en
- * `resolveTriggerCandidates`.
+ * Las condiciones recetadas (catálogo cerrado, D-01 del plan): 5 con
+ * parámetro (N días o segmento) + 4 de estado sin parámetro. Agregar una es
+ * un cambio de código chico: sumar acá + un `case` nuevo en
+ * `resolveTriggerCandidates` + el valor en el enum `trigger_type` (schema +
+ * migración, es un enum MySQL) + el espejo del admin (`rule-triggers.ts`).
  */
 export const RULE_TRIGGERS: readonly RuleTriggerDef[] = [
   {
@@ -97,6 +106,30 @@ export const RULE_TRIGGERS: readonly RuleTriggerDef[] = [
     requiresValue: false,
     requiresSegment: true,
   },
+  {
+    type: "has_active_program",
+    label: "Tiene un programa activo",
+    requiresValue: false,
+    requiresSegment: false,
+  },
+  {
+    type: "no_active_program",
+    label: "No tiene programa activo",
+    requiresValue: false,
+    requiresSegment: false,
+  },
+  {
+    type: "has_booking_today",
+    label: "Tiene una sesión reservada hoy",
+    requiresValue: false,
+    requiresSegment: false,
+  },
+  {
+    type: "branch_is_virtual",
+    label: "Es socio de una sede virtual",
+    requiresValue: false,
+    requiresSegment: false,
+  },
 ];
 
 const RULE_TRIGGER_BY_TYPE: ReadonlyMap<RuleTriggerType, RuleTriggerDef> =
@@ -135,6 +168,7 @@ interface ActiveMember {
   userId: number;
   branchId: number;
   country: string;
+  branchIsVirtual: boolean;
   createdAt: Date;
 }
 
@@ -142,7 +176,8 @@ interface ActiveMember {
  * Socios ACTIVOS, no borrados, rol `member` (mismo criterio que
  * `POST /admin/send-segment`, `routes.ts` L505-606) — la base de audiencia
  * de CUALQUIER regla. Trae `branchId`/`country`/`createdAt` para resolver
- * alcance y el trigger `member_since_days` sin una query aparte.
+ * alcance y los triggers `member_since_days` / `branch_is_virtual` sin una
+ * query aparte.
  */
 async function loadActiveMembers(
   db: DbInstance,
@@ -153,6 +188,7 @@ async function loadActiveMembers(
       userId: schema.users.id,
       branchId: schema.users.branchId,
       country: schema.branches.country,
+      branchIsVirtual: schema.branches.isVirtual,
       createdAt: schema.users.createdAt,
     })
     .from(schema.users)
@@ -313,9 +349,83 @@ async function resolveTriggerCandidates(
       return result;
     }
 
+    // ── Disparadores de estado (sin parámetro) ──────────────────────────
+
+    case "has_active_program": {
+      return activeProgramMembers(db, ctx, activeIds);
+    }
+
+    case "no_active_program": {
+      const withProgram = await activeProgramMembers(db, ctx, activeIds);
+      const result = new Set<number>();
+      for (const id of activeIds) {
+        if (!withProgram.has(id)) result.add(id);
+      }
+      return result;
+    }
+
+    case "has_booking_today": {
+      const rows = await db
+        .selectDistinct({ userId: schema.bookings.memberId })
+        .from(schema.bookings)
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.bookingDate, today),
+            // Reserva VIGENTE: cancelada, lista de espera y ausente no
+            // cuentan (mismo criterio que el roster del día).
+            inArray(schema.bookings.status, [
+              "reservado",
+              "qr_escaneado",
+              "confirmado",
+            ]),
+          ),
+        );
+      const result = new Set<number>();
+      for (const row of rows) {
+        if (activeIds.has(row.userId)) result.add(row.userId);
+      }
+      return result;
+    }
+
+    case "branch_is_virtual": {
+      const result = new Set<number>();
+      for (const m of members) {
+        if (m.branchIsVirtual) result.add(m.userId);
+      }
+      return result;
+    }
+
     default:
       return new Set();
   }
+}
+
+/**
+ * Socios activos con al menos una inscripción a programa en estado `active`
+ * (mismo criterio que `program_renewal_warning` en `jobs/notification-cron.ts`
+ * y que `programs/service.ts` para "programa activo"). Compartido por
+ * `has_active_program` y su complemento `no_active_program`.
+ */
+async function activeProgramMembers(
+  db: DbInstance,
+  ctx: TenantContext,
+  activeIds: Set<number>,
+): Promise<Set<number>> {
+  const rows = await db
+    .selectDistinct({ userId: schema.programEnrollments.userId })
+    .from(schema.programEnrollments)
+    .where(
+      and(
+        tenantWhere(schema.programEnrollments, ctx),
+        eq(schema.programEnrollments.status, "active"),
+      ),
+    );
+  const result = new Set<number>();
+  for (const row of rows) {
+    if (activeIds.has(row.userId)) result.add(row.userId);
+  }
+  return result;
 }
 
 /**

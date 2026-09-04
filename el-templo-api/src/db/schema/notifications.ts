@@ -55,6 +55,12 @@ export const notificationTriggerTypeEnum = mysqlEnum("trigger_type", [
   "days_without_attendance",
   "member_since_days",
   "segment_is",
+  // Pedido de Franco (2026-09-04): 4 disparadores de ESTADO (sin N ni
+  // segmento), agregados al final (migracion 0220).
+  "has_active_program",
+  "no_active_program",
+  "has_booking_today",
+  "branch_is_virtual",
 ]);
 
 // Pedido de Franco (2026-09-03): mismos VALORES que `memberSegmentEnum` de

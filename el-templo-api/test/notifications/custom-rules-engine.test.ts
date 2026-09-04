@@ -165,6 +165,68 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     });
   }
 
+  /** Inscripción a programa (crea un `programs` mínimo por llamada). */
+  async function insertProgramEnrollment(
+    userId: number,
+    status: "active" | "completed" | "expired" | "cancelled",
+  ): Promise<void> {
+    seq += 1;
+    const prog = await app.db.insert(schema.programs).values({
+      name: `Programa regla ${seq}`,
+      durationWeeks: 4,
+    });
+    await app.db.insert(schema.programEnrollments).values({
+      userId,
+      programId: Number(prog[0].insertId),
+      status,
+      source: "admin_addon",
+    });
+  }
+
+  /** Reserva de un socio para un día dado (crea activity + schedule mínimos). */
+  async function insertBooking(
+    userId: number,
+    branchId: number,
+    bookingDateOffsetDays: number,
+    status:
+      | "reservado"
+      | "qr_escaneado"
+      | "confirmado"
+      | "cancelado"
+      | "lista_espera"
+      | "no_show",
+  ): Promise<void> {
+    seq += 1;
+    const act = await app.db
+      .insert(schema.activities)
+      .values({ name: `Actividad regla ${seq}` });
+    const sched = await app.db.insert(schema.schedules).values({
+      branchId,
+      activityId: Number(act[0].insertId),
+      dayOfWeek: 1,
+      startTime: "08:00",
+      endTime: "09:00",
+    });
+    await app.db.insert(schema.bookings).values({
+      memberId: userId,
+      scheduleId: Number(sched[0].insertId),
+      bookingDate: dateOffset(bookingDateOffsetDays),
+      status,
+    });
+  }
+
+  async function insertVirtualBranch(): Promise<number> {
+    seq += 1;
+    const res = await app.db.insert(schema.branches).values({
+      name: `RULES-VIRTUAL-${seq}`,
+      code: `RVI-${seq}`,
+      country: "AR",
+      timezone: "America/Argentina/Buenos_Aires",
+      isVirtual: true,
+    });
+    return Number(res[0].insertId);
+  }
+
   /** Offset en días desde TODAY, formato YYYY-MM-DD (aritmética en UTC-noon, sin drift de DST). */
   function dateOffset(days: number): string {
     const d = new Date(TODAY + "T12:00:00Z");
@@ -391,6 +453,102 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
 
     expect(await wasQueued(positivo, rule.id)).toBe(true);
     expect(await wasQueued(otroSegmento, rule.id)).toBe(false);
+  });
+
+  // ── Disparadores de estado (sin parámetro, 2026-09-04) ──────────────────
+
+  it("has_active_program: encola con inscripción active; no con completed ni sin inscripción", async () => {
+    const rule = await insertCustomRule({ triggerType: "has_active_program" });
+
+    const conPrograma = await insertMember({});
+    await giveDeviceToken(conPrograma);
+    await insertProgramEnrollment(conPrograma, "active");
+
+    const programaTerminado = await insertMember({});
+    await giveDeviceToken(programaTerminado);
+    await insertProgramEnrollment(programaTerminado, "completed");
+
+    const sinPrograma = await insertMember({});
+    await giveDeviceToken(sinPrograma);
+
+    await evaluateCustomRulesForTenant(app.db, newService(), CTX, TODAY, app.log);
+
+    expect(await wasQueued(conPrograma, rule.id)).toBe(true);
+    expect(await wasQueued(programaTerminado, rule.id)).toBe(false);
+    expect(await wasQueued(sinPrograma, rule.id)).toBe(false);
+  });
+
+  it("no_active_program: complemento exacto — encola a quien no tiene inscripción active, nunca a un socio inactivo", async () => {
+    const rule = await insertCustomRule({ triggerType: "no_active_program" });
+
+    const conPrograma = await insertMember({});
+    await giveDeviceToken(conPrograma);
+    await insertProgramEnrollment(conPrograma, "active");
+
+    const programaVencido = await insertMember({});
+    await giveDeviceToken(programaVencido);
+    await insertProgramEnrollment(programaVencido, "expired");
+
+    const sinPrograma = await insertMember({});
+    await giveDeviceToken(sinPrograma);
+
+    const inactivo = await insertMember({ status: "inactivo" });
+    await giveDeviceToken(inactivo);
+
+    await evaluateCustomRulesForTenant(app.db, newService(), CTX, TODAY, app.log);
+
+    expect(await wasQueued(conPrograma, rule.id)).toBe(false);
+    expect(await wasQueued(programaVencido, rule.id)).toBe(true);
+    expect(await wasQueued(sinPrograma, rule.id)).toBe(true);
+    expect(await wasQueued(inactivo, rule.id)).toBe(false);
+  });
+
+  it("has_booking_today: encola con reserva vigente HOY; no con reserva cancelada, en lista de espera ni de otro día", async () => {
+    const rule = await insertCustomRule({ triggerType: "has_booking_today" });
+
+    const reservaHoy = await insertMember({});
+    await giveDeviceToken(reservaHoy);
+    await insertBooking(reservaHoy, branchAR, 0, "reservado");
+
+    const confirmadaHoy = await insertMember({});
+    await giveDeviceToken(confirmadaHoy);
+    await insertBooking(confirmadaHoy, branchAR, 0, "confirmado");
+
+    const canceladaHoy = await insertMember({});
+    await giveDeviceToken(canceladaHoy);
+    await insertBooking(canceladaHoy, branchAR, 0, "cancelado");
+
+    const listaEsperaHoy = await insertMember({});
+    await giveDeviceToken(listaEsperaHoy);
+    await insertBooking(listaEsperaHoy, branchAR, 0, "lista_espera");
+
+    const reservaManana = await insertMember({});
+    await giveDeviceToken(reservaManana);
+    await insertBooking(reservaManana, branchAR, 1, "reservado");
+
+    await evaluateCustomRulesForTenant(app.db, newService(), CTX, TODAY, app.log);
+
+    expect(await wasQueued(reservaHoy, rule.id)).toBe(true);
+    expect(await wasQueued(confirmadaHoy, rule.id)).toBe(true);
+    expect(await wasQueued(canceladaHoy, rule.id)).toBe(false);
+    expect(await wasQueued(listaEsperaHoy, rule.id)).toBe(false);
+    expect(await wasQueued(reservaManana, rule.id)).toBe(false);
+  });
+
+  it("branch_is_virtual: encola solo a socios de una sede con is_virtual=1", async () => {
+    const rule = await insertCustomRule({ triggerType: "branch_is_virtual" });
+    const branchVirtual = await insertVirtualBranch();
+
+    const online = await insertMember({ branchId: branchVirtual });
+    await giveDeviceToken(online);
+
+    const presencial = await insertMember({ branchId: branchAR });
+    await giveDeviceToken(presencial);
+
+    await evaluateCustomRulesForTenant(app.db, newService(), CTX, TODAY, app.log);
+
+    expect(await wasQueued(online, rule.id)).toBe(true);
+    expect(await wasQueued(presencial, rule.id)).toBe(false);
   });
 
   // ── Alcance ─────────────────────────────────────────────────────────────

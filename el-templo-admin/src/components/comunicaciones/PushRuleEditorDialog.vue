@@ -214,6 +214,51 @@
         </template>
 
         <q-separator />
+        <div class="text-subtitle2">Probar en tu teléfono</div>
+        <div class="text-caption text-grey-7 q-mb-xs">
+          Manda esta notificación, tal como está escrita ahora, a la cuenta de la app de un socio
+          (por ejemplo la tuya). No guarda nada ni cuenta como envío de la regla.
+        </div>
+        <div class="row items-start q-col-gutter-sm">
+          <div class="col-12 col-sm">
+            <q-select
+              v-model="testMember"
+              :options="testMemberOptions"
+              :loading="searchingTestMember"
+              label="Socio de prueba"
+              option-label="displayLabel"
+              option-value="id"
+              dense
+              outlined
+              clearable
+              use-input
+              input-debounce="300"
+              hint="Buscá por nombre o DNI. Queda guardado en este navegador."
+              @filter="onTestMemberFilter"
+            >
+              <template #no-option>
+                <q-item>
+                  <q-item-section class="text-grey">
+                    {{ testMemberQuery.length < 2 ? 'Escribí al menos 2 letras' : 'Sin resultados' }}
+                  </q-item-section>
+                </q-item>
+              </template>
+            </q-select>
+          </div>
+          <div class="col-12 col-sm-auto">
+            <q-btn
+              outline
+              color="primary"
+              icon="send"
+              label="Enviar prueba"
+              :loading="sendingTest"
+              :disable="!canSendTest"
+              @click="handleSendTest"
+            />
+          </div>
+        </div>
+
+        <q-separator />
         <q-toggle v-model="form.isEnabled" color="positive" label="Activo" />
       </q-card-section>
 
@@ -261,6 +306,7 @@ import {
   type RuleTriggerType,
 } from 'src/config/rule-triggers';
 import type { BranchOption } from 'src/types/member';
+import type { MemberSearchResult } from 'src/composables/useMembersApi';
 
 const log = createLogger('PushRuleEditorDialog');
 const $q = useQuasar();
@@ -457,6 +503,138 @@ watch(
   { deep: true },
 );
 
+// ── Probar en tu teléfono (pedido de Franco, 2026-09-04) ────────────────
+// El socio de prueba (normalmente la cuenta de la app del propio admin) se
+// recuerda en localStorage: es una conveniencia por navegador, no un dato
+// del sistema — si no está o el storage falla, simplemente se vuelve a elegir.
+
+interface TestMemberOption {
+  id: number;
+  displayLabel: string;
+}
+
+const TEST_MEMBER_STORAGE_KEY = 'comunicaciones.testMember';
+
+function loadStoredTestMember(): TestMemberOption | null {
+  try {
+    const raw = localStorage.getItem(TEST_MEMBER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      typeof (parsed as TestMemberOption).id === 'number' &&
+      typeof (parsed as TestMemberOption).displayLabel === 'string'
+    ) {
+      return parsed as TestMemberOption;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function storeTestMember(member: TestMemberOption | null): void {
+  try {
+    if (member) localStorage.setItem(TEST_MEMBER_STORAGE_KEY, JSON.stringify(member));
+    else localStorage.removeItem(TEST_MEMBER_STORAGE_KEY);
+  } catch {
+    // storage bloqueado o lleno: la elección vale solo para este diálogo
+  }
+}
+
+// Declarado acá (y no en "Guardar") porque `canSendTest` lo lee.
+const saving = ref(false);
+
+const testMember = ref<TestMemberOption | null>(loadStoredTestMember());
+const testMemberOptions = ref<TestMemberOption[]>([]);
+const testMemberQuery = ref('');
+const searchingTestMember = ref(false);
+const sendingTest = ref(false);
+
+watch(testMember, (member) => storeTestMember(member));
+
+function memberDisplayLabel(m: MemberSearchResult): string {
+  const name = `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || `Socio #${m.id}`;
+  return m.dni ? `${name} (${m.dni})` : name;
+}
+
+function onTestMemberFilter(val: string, update: (fn: () => void) => void): void {
+  testMemberQuery.value = val;
+  if (!val || val.length < 2) {
+    update(() => {
+      testMemberOptions.value = [];
+    });
+    return;
+  }
+  searchingTestMember.value = true;
+  membersApi
+    .searchMembers(val, 10)
+    .then((members) => {
+      update(() => {
+        testMemberOptions.value = members.map((m) => ({
+          id: m.id,
+          displayLabel: memberDisplayLabel(m),
+        }));
+      });
+    })
+    .catch((err: unknown) => {
+      log.error('Error buscando socio de prueba', {
+        error: extractError(err, 'Error buscando socios'),
+      });
+      update(() => {
+        testMemberOptions.value = [];
+      });
+    })
+    .finally(() => {
+      searchingTestMember.value = false;
+    });
+}
+
+const canSendTest = computed(
+  () =>
+    Boolean(testMember.value) &&
+    form.title.trim().length > 0 &&
+    form.body.trim().length > 0 &&
+    !sendingTest.value &&
+    !saving.value,
+);
+
+async function handleSendTest(): Promise<void> {
+  if (!testMember.value) return;
+  sendingTest.value = true;
+  try {
+    const result = await commsApi.sendTestTemplate({
+      userId: testMember.value.id,
+      title: form.title.trim(),
+      body: form.body.trim(),
+      destination: form.destination,
+    });
+    if (result.status === 'sent') {
+      $q.notify({
+        type: 'positive',
+        message: `Prueba enviada a ${result.memberName}. Tendría que llegar al teléfono en segundos.`,
+      });
+    } else if (result.status === 'no_tokens') {
+      $q.notify({
+        type: 'warning',
+        message: `${result.memberName} no tiene la app con notificaciones activas en ningún teléfono.`,
+      });
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: `No se pudo entregar la prueba a ${result.memberName}. Revisá que la app esté instalada y con notificaciones permitidas.`,
+      });
+    }
+  } catch (err: unknown) {
+    const message = extractError(err, 'No se pudo enviar la prueba');
+    log.error('Error enviando notificación de prueba', { error: message });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    sendingTest.value = false;
+  }
+}
+
 // ── Validación ──────────────────────────────────────────────────────────
 
 function requiredRule(val: string | number | null): boolean | string {
@@ -483,8 +661,6 @@ const canSave = computed(() => {
 
 // ── Guardar ─────────────────────────────────────────────────────────────
 
-const saving = ref(false);
-
 async function handleSave(): Promise<void> {
   saving.value = true;
   try {
@@ -502,12 +678,13 @@ async function handleSave(): Promise<void> {
         payload.name = form.name.trim();
         payload.triggerType = form.triggerType;
         const trigger = selectedTrigger.value;
-        if (trigger?.needsValue && form.triggerValue !== null) {
-          payload.triggerValue = form.triggerValue;
-        }
-        if (trigger?.needsSegment && form.triggerSegment) {
-          payload.triggerSegment = form.triggerSegment;
-        }
+        // `null` explícito cuando el disparador no lleva ese parámetro: al
+        // cambiar de "vence en N días" a un disparador de estado, el N viejo
+        // no debe quedar guardado.
+        payload.triggerValue =
+          trigger?.needsValue && form.triggerValue !== null ? form.triggerValue : null;
+        payload.triggerSegment =
+          trigger?.needsSegment && form.triggerSegment ? form.triggerSegment : null;
         // `null` explícito = "todos": vaciar el selector en el edit SÍ borra
         // el alcance guardado (la API lo acepta desde el fix post-revisión).
         payload.scopeBranchIds = form.scopeBranchIds.length ? form.scopeBranchIds : null;

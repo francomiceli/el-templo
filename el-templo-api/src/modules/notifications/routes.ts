@@ -126,6 +126,22 @@ async function validateRuleCondition(
         reason: `El trigger '${trigger.type}' requiere triggerSegment`,
       };
     }
+  } else {
+    // Disparador de ESTADO (has_active_program, has_booking_today, …): no
+    // lleva ni número ni segmento — un parámetro sobrante es inválido igual
+    // que en los otros casos.
+    if (input.triggerValue != null) {
+      return {
+        ok: false,
+        reason: `El trigger '${trigger.type}' no lleva triggerValue`,
+      };
+    }
+    if (input.triggerSegment != null) {
+      return {
+        ok: false,
+        reason: `El trigger '${trigger.type}' no lleva triggerSegment`,
+      };
+    }
   }
 
   if (input.scopeBranchIds && input.scopeBranchIds.length > 0) {
@@ -265,8 +281,10 @@ const MEMBER_SEGMENT_VALUES = ["optima", "regular", "alerta", "ausente"];
 /** Campos de la condición recetada, compartidos por create/update/preview. */
 const ruleConditionProperties = {
   triggerType: { type: "string", enum: RULE_TRIGGER_TYPE_VALUES },
-  triggerValue: { type: "integer", minimum: 0, maximum: 365 },
-  triggerSegment: { type: "string", enum: MEMBER_SEGMENT_VALUES },
+  // `null` explícito = "sin parámetro" (al cambiar a un trigger que no lo
+  // lleva, el editor lo manda en null para limpiar el valor guardado).
+  triggerValue: { type: ["integer", "null"], minimum: 0, maximum: 365 },
+  triggerSegment: { type: ["string", "null"], enum: [...MEMBER_SEGMENT_VALUES, null] },
   // `null` explícito = "todas" (permite VACIAR un alcance ya guardado al
   // editar; omitir el campo = sin cambios). Mismo contrato que los avisos.
   scopeBranchIds: {
@@ -325,6 +343,21 @@ const createTemplateSchema = {
       destination: destinationSchema,
       isEnabled: { type: "boolean" },
       ...ruleConditionProperties,
+    },
+    additionalProperties: false,
+  },
+};
+
+/** Body de `POST /admin/templates/send-test` (pedido de Franco, 2026-09-04). */
+const sendTestSchema = {
+  body: {
+    type: "object",
+    required: ["userId", "title", "body", "destination"],
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+      title: { type: "string", minLength: 1, maxLength: 200 },
+      body: { type: "string", minLength: 1 },
+      destination: destinationSchema,
     },
     additionalProperties: false,
   },
@@ -589,8 +622,8 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       isEnabled?: boolean;
       name?: string;
       triggerType?: string;
-      triggerValue?: number;
-      triggerSegment?: string;
+      triggerValue?: number | null;
+      triggerSegment?: string | null;
       scopeBranchIds?: number[];
       scopeCountries?: string[];
       cooldownDays?: number;
@@ -695,16 +728,29 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         // body) determina qué combinación de value/segment es válida.
         const resolvedTriggerType = (request.body.triggerType ??
           existing.triggerType) as RuleTriggerType | null;
+        // Si el trigger CAMBIA, el value/segment guardados pertenecen al
+        // trigger viejo: no se heredan (si no, pasar de "vence en 7 días" a
+        // "segmento Alerta" fallaba con "no lleva triggerValue"). Se
+        // resetean a null salvo que el body traiga los nuevos.
+        const triggerChanged =
+          request.body.triggerType !== undefined &&
+          request.body.triggerType !== existing.triggerType;
+        const resolvedTriggerValue =
+          request.body.triggerValue !== undefined
+            ? request.body.triggerValue
+            : triggerChanged
+              ? null
+              : existing.triggerValue;
+        const resolvedTriggerSegment =
+          request.body.triggerSegment !== undefined
+            ? (request.body.triggerSegment as MemberSegment | null)
+            : triggerChanged
+              ? null
+              : (existing.triggerSegment as MemberSegment | null);
         const validated = await validateRuleCondition(fastify.db, ctx, {
           triggerType: resolvedTriggerType,
-          triggerValue:
-            request.body.triggerValue !== undefined
-              ? request.body.triggerValue
-              : existing.triggerValue,
-          triggerSegment:
-            request.body.triggerSegment !== undefined
-              ? (request.body.triggerSegment as MemberSegment)
-              : (existing.triggerSegment as MemberSegment | null),
+          triggerValue: resolvedTriggerValue,
+          triggerSegment: resolvedTriggerSegment,
           scopeBranchIds:
             request.body.scopeBranchIds !== undefined
               ? request.body.scopeBranchIds
@@ -723,10 +769,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         if (request.body.name !== undefined) updates.name = request.body.name;
         if (request.body.triggerType !== undefined)
           updates.triggerType = request.body.triggerType;
-        if (request.body.triggerValue !== undefined)
-          updates.triggerValue = request.body.triggerValue;
-        if (request.body.triggerSegment !== undefined)
-          updates.triggerSegment = request.body.triggerSegment;
+        if (request.body.triggerValue !== undefined || triggerChanged)
+          updates.triggerValue = resolvedTriggerValue;
+        if (request.body.triggerSegment !== undefined || triggerChanged)
+          updates.triggerSegment = resolvedTriggerSegment;
         if (request.body.scopeBranchIds !== undefined)
           updates.scopeBranchIds = request.body.scopeBranchIds;
         if (request.body.scopeCountries !== undefined)
@@ -989,6 +1035,92 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         );
 
       return { success: true };
+    },
+  );
+
+  /**
+   * POST /api/notifications/admin/templates/send-test — "Probar en tu
+   * teléfono" (pedido de Franco, 2026-09-04). Manda YA el título/cuerpo del
+   * editor (sin guardar nada) a los dispositivos de un socio del mismo
+   * gimnasio — típicamente la cuenta de la app del propio admin. Mismas
+   * validaciones de contenido que crear una regla (sin links, destino
+   * curado). Devuelve `no_tokens` si el socio no tiene la app con push.
+   */
+  fastify.post<{
+    Body: {
+      userId: number;
+      title: string;
+      body: string;
+      destination: unknown;
+    };
+  }>(
+    "/admin/templates/send-test",
+    {
+      onRequest: [fastify.authenticate],
+      schema: sendTestSchema,
+    },
+    async (request, reply) => {
+      const { role } = request.user;
+      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
+
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "notifications.sendTest");
+
+      const { userId, title, body } = request.body;
+      if (containsForbiddenLink(title) || containsForbiddenLink(body)) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "El título y el cuerpo no pueden llevar links",
+        });
+      }
+
+      const destinationResult = validateDestination(
+        normalizeDestinationInput(request.body.destination),
+      );
+      if (!destinationResult.ok) {
+        return reply
+          .code(400)
+          .send({ error: "Destino inválido", message: destinationResult.reason });
+      }
+
+      const [member] = await fastify.db
+        .select({
+          id: schema.users.id,
+          firstName: schema.users.firstName,
+          lastName: schema.users.lastName,
+        })
+        .from(schema.users)
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, userId),
+            eq(schema.users.role, "member"),
+            sql`${schema.users.deletedAt} IS NULL`,
+          ),
+        )
+        .limit(1);
+      if (!member) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Socio no encontrado" });
+      }
+
+      const result = await service.sendTestNotification(
+        { userId, title, body, destination: destinationResult.value },
+        ctx,
+      );
+
+      request.log.info(
+        { userId, status: result.status },
+        "Test notification requested from admin editor",
+      );
+
+      return {
+        ...result,
+        memberName: `${member.firstName ?? ""} ${member.lastName ?? ""}`.trim(),
+      };
     },
   );
 
