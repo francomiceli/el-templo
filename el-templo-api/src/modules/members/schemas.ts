@@ -252,6 +252,7 @@ export const searchMembersSchema = {
     properties: {
       search: { type: "string", minLength: 1 },
       limit: { type: "integer", minimum: 1, maximum: 50, default: 10 },
+      membershipKind: { type: "string", enum: ["paga", "bonificada", "staff"] },
     },
   },
   response: {

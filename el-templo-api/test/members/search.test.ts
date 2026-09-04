@@ -16,6 +16,7 @@ import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { subscriptions } from "../../src/db/schema/subscriptions";
+import { eq } from "drizzle-orm";
 
 describe("GET /api/admin/members/search", () => {
   let app: FastifyInstance;
@@ -218,6 +219,106 @@ describe("GET /api/admin/members/search", () => {
 
     const { members } = await search("search=apellidorepetido&limit=3");
     expect(members).toHaveLength(3);
+  });
+
+  // ── membershipKind (filtro "Solo staff" de Probar en tu teléfono) ──────
+  // Etiqueta EFECTIVA: override manual en users o, si no hay, la de la sub
+  // vigente (activeSubOfKindExists, mismo predicado que analytics).
+
+  async function setMembershipKindOverride(
+    userId: number,
+    kind: "paga" | "bonificada" | "staff" | null,
+  ): Promise<void> {
+    await app.db
+      .update(users)
+      .set({ membershipKindOverride: kind })
+      .where(eq(users.id, userId));
+  }
+
+  async function setSubMembershipKind(
+    userId: number,
+    kind: "paga" | "bonificada" | "staff",
+  ): Promise<void> {
+    await app.db
+      .update(subscriptions)
+      .set({ membershipKind: kind })
+      .where(eq(subscriptions.userId, userId));
+  }
+
+  it("membershipKind=staff keeps a member whose active sub is tagged staff", async () => {
+    const id = await makeMember({ firstName: "Kindsub", lastName: "Staff" });
+    await seedSubscription(id, "active", "2020-01-01", "2099-12-31");
+    await setSubMembershipKind(id, "staff");
+
+    const { members } = await search("search=Kindsub&membershipKind=staff");
+    expect(members.map((m) => m.id)).toEqual([id]);
+  });
+
+  it("membershipKind=staff keeps a member whose manual override is staff even if the sub says paga", async () => {
+    const id = await makeMember({ firstName: "Kindover", lastName: "Staff" });
+    await seedSubscription(id, "active", "2020-01-01", "2099-12-31");
+    await setSubMembershipKind(id, "paga");
+    await setMembershipKindOverride(id, "staff");
+
+    const { members } = await search("search=Kindover&membershipKind=staff");
+    expect(members.map((m) => m.id)).toEqual([id]);
+  });
+
+  it("membershipKind=staff drops paga members, members overridden to paga, and members without an active sub", async () => {
+    const paga = await makeMember({ firstName: "Kinddrop", lastName: "Paga" });
+    await seedSubscription(paga, "active", "2020-01-01", "2099-12-31");
+
+    const overriddenToPaga = await makeMember({
+      firstName: "Kinddrop",
+      lastName: "Override",
+    });
+    await seedSubscription(
+      overriddenToPaga,
+      "active",
+      "2020-01-01",
+      "2099-12-31",
+    );
+    await setSubMembershipKind(overriddenToPaga, "staff");
+    await setMembershipKindOverride(overriddenToPaga, "paga");
+
+    const lapsedStaff = await makeMember({
+      firstName: "Kinddrop",
+      lastName: "Lapsed",
+    });
+    await seedSubscription(lapsedStaff, "expired", "2020-01-01", "2020-01-31");
+    await setSubMembershipKind(lapsedStaff, "staff");
+
+    const noSub = await makeMember({
+      firstName: "Kinddrop",
+      lastName: "Nosub",
+    });
+    await setMembershipKindOverride(noSub, "staff");
+
+    const all = await search("search=Kinddrop");
+    expect(all.members).toHaveLength(4);
+
+    const { members } = await search("search=Kinddrop&membershipKind=staff");
+    expect(members).toHaveLength(0);
+  });
+
+  it("without membershipKind the typeahead is unchanged (staff and paga both appear)", async () => {
+    const staff = await makeMember({ firstName: "Kindall", lastName: "Staff" });
+    await seedSubscription(staff, "active", "2020-01-01", "2099-12-31");
+    await setSubMembershipKind(staff, "staff");
+    const paga = await makeMember({ firstName: "Kindall", lastName: "Paga" });
+    await seedSubscription(paga, "active", "2020-01-01", "2099-12-31");
+
+    const { members } = await search("search=Kindall");
+    expect(members.map((m) => m.id).sort()).toEqual([staff, paga].sort());
+  });
+
+  it("returns 400 for an unknown membershipKind", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/admin/members/search?search=x&membershipKind=vip",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   it("returns 400 when the search param is missing", async () => {

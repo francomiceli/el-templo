@@ -46,6 +46,7 @@ import type {
   ConvertFreemiumToTrialInput,
   UpdateMemberInput,
   MemberListParams,
+  MembershipKind,
 } from "./types";
 import {
   listMembersSchema,
@@ -523,14 +524,16 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     Querystring: {
       search: string;
       limit?: number;
+      membershipKind?: MembershipKind;
     };
   }>("/search", { schema: searchMembersSchema }, async (request) => {
     const ctx = assertTenant(request.scope, "members.search");
-    const { search, limit = 10 } = request.query;
+    const { search, limit = 10, membershipKind } = request.query;
     const members = await memberService.searchMembers(ctx, {
       search,
       country: request.scope.country ?? undefined,
       limit,
+      membershipKind,
     });
     return { members };
   });

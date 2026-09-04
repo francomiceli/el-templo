@@ -15,6 +15,7 @@ import type {
   MembersListResponse,
   CreateMemberInput,
   CreateTrialMemberInput,
+  MembershipKind,
   UpdateMemberInput,
   DniCheckResult,
   MemberNote,
@@ -135,9 +136,17 @@ export function useMembersApi() {
    * Intentionally does NOT touch the shared loading flag — callers track their
    * own per-typeahead loading state.
    */
-  async function searchMembers(search: string, limit = 10): Promise<MemberSearchResult[]> {
+  async function searchMembers(
+    search: string,
+    limit = 10,
+    opts: { membershipKind?: MembershipKind } = {}
+  ): Promise<MemberSearchResult[]> {
     const { data } = await api.get<{ members: MemberSearchResult[] }>('/admin/members/search', {
-      params: { search, limit },
+      params: {
+        search,
+        limit,
+        ...(opts.membershipKind ? { membershipKind: opts.membershipKind } : {}),
+      },
     });
     return data.members;
   }

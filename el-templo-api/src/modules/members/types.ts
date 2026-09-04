@@ -62,11 +62,21 @@ export interface MemberListParams {
  * filters, pagination, or status — it backs the member autocomplete in the
  * scheduling dialogs, which only need id/name/dni to render an option label.
  */
+/** Etiqueta de membresía (`subscriptions.membership_kind` / override en `users`). */
+export type MembershipKind = "paga" | "bonificada" | "staff";
+
 export interface MemberSearchParams {
   search: string;
   /** Country scope, plumbed from request.scope.country (mirrors listMembers). */
   country?: "AR" | "ES";
   limit: number;
+  /**
+   * Etiqueta de membresía EFECTIVA (override manual de `users` o, si no hay,
+   * la de la sub vigente). Filtra con `activeSubOfKindExists`, el mismo
+   * predicado del listado de Miembros: exige una sub vigente de esa clase.
+   * Lo usa "Probar en tu teléfono" (Comunicaciones) para ofrecer solo staff.
+   */
+  membershipKind?: MembershipKind;
 }
 
 /**
@@ -169,13 +179,13 @@ export interface MemberProfile {
    * Override manual de la etiqueta de membresía (users.membership_kind_override).
    * null = automático. Es lo que muestra seleccionado el control de la ficha.
    */
-  membershipKindOverride: "paga" | "bonificada" | "staff" | null;
+  membershipKindOverride: MembershipKind | null;
   /**
    * Etiqueta de membresía EFECTIVA para el chip de la ficha:
    * membershipKindOverride ?? etiqueta de la suscripción activa
    * (subscriptions.membership_kind) ?? 'paga'. Ya resuelta server-side.
    */
-  membershipKindEffective: "paga" | "bonificada" | "staff";
+  membershipKindEffective: MembershipKind;
   createdAt: string;
   updatedAt: string;
   /**
@@ -371,7 +381,7 @@ export interface UpdateMemberInput {
    * Override manual de la etiqueta de membresía (bonificada/staff). null =
    * volver a automático. Ausente = no tocar.
    */
-  membershipKindOverride?: "paga" | "bonificada" | "staff" | null;
+  membershipKindOverride?: MembershipKind | null;
   /**
    * Domiciliación bancaria (SEPA). El admin solo lo envía cuando la sucursal
    * del socio es de España; el service upsertea la fila 1:1 y valida el IBAN

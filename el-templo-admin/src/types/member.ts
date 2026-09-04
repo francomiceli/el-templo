@@ -70,6 +70,9 @@ const EXPIRY_BANDS: ReadonlyArray<{ maxDays: number } & ExpiryBadge> = [
   { maxDays: 10, label: '10 Venc', color: 'amber' },
 ];
 
+/** Etiqueta de membresía (espeja MembershipKind de el-templo-api members/types.ts). */
+export type MembershipKind = 'paga' | 'bonificada' | 'staff';
+
 export interface ExpiryBadge {
   label: string;
   color: string;
@@ -180,8 +183,8 @@ export interface MemberProfile extends MemberListItem {
   onboardingProfile: OnboardingProfileSummary | null;
   // Etiqueta de membresía: override manual (null = automático) + efectiva ya
   // resuelta server-side (override ?? sub vigente ?? 'paga').
-  membershipKindOverride: 'paga' | 'bonificada' | 'staff' | null;
-  membershipKindEffective: 'paga' | 'bonificada' | 'staff';
+  membershipKindOverride: MembershipKind | null;
+  membershipKindEffective: MembershipKind;
   // Phase 114 (D-38, D-39): lead-lifecycle fields. Only meaningful when
   // `status === 'prueba'`; AlumnoDetailPage's "Datos de Lead" block gates
   // on that. `createdBy` is denormalized via a self-JOIN server-side so
@@ -265,7 +268,7 @@ export interface UpdateMemberInput {
   emergencyContactPhone?: string | null;
   emergencyContactRelationship?: string | null;
   // Override manual de la etiqueta de membresía. null = automático. Ausente = no tocar.
-  membershipKindOverride?: 'paga' | 'bonificada' | 'staff' | null;
+  membershipKindOverride?: MembershipKind | null;
   /**
    * Domiciliación bancaria (SEPA) — solo se envía cuando la sucursal del
    * socio es de España. Ausente = el backend no toca los datos existentes.

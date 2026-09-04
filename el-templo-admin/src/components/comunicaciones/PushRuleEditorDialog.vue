@@ -23,12 +23,7 @@
     <q-card style="min-width: 520px; max-width: 680px; width: 100%">
       <q-card-section>
         <div class="text-h6">{{ dialogTitle }}</div>
-        <div
-          v-if="isSystem"
-          class="comm-origin-chip comm-origin-chip--system q-mt-xs"
-        >
-          Sistema
-        </div>
+        <div v-if="isSystem" class="comm-origin-chip comm-origin-chip--system q-mt-xs">Sistema</div>
       </q-card-section>
 
       <q-card-section class="q-gutter-md" style="max-height: 68vh; overflow-y: auto">
@@ -219,6 +214,13 @@
           Manda esta notificación, tal como está escrita ahora, a la cuenta de la app de un socio
           (por ejemplo la tuya). No guarda nada ni cuenta como envío de la regla.
         </div>
+        <q-toggle
+          v-model="testOnlyStaff"
+          dense
+          color="primary"
+          label="Solo socios con etiqueta Staff"
+          class="q-mb-xs"
+        />
         <div class="row items-start q-col-gutter-sm">
           <div class="col-12 col-sm">
             <q-select
@@ -239,7 +241,9 @@
               <template #no-option>
                 <q-item>
                   <q-item-section class="text-grey">
-                    {{ testMemberQuery.length < 2 ? 'Escribí al menos 2 letras' : 'Sin resultados' }}
+                    {{
+                      testMemberQuery.length < 2 ? 'Escribí al menos 2 letras' : 'Sin resultados'
+                    }}
                   </q-item-section>
                 </q-item>
               </template>
@@ -342,7 +346,7 @@ const dialogTitle = computed(() => {
 });
 
 const systemDescription = computed(() =>
-  props.template ? systemTriggerDescription(props.template.templateKey) : '',
+  props.template ? systemTriggerDescription(props.template.templateKey) : ''
 );
 
 function emptyDestination(): Destination {
@@ -367,7 +371,7 @@ const form = reactive({
 });
 
 const selectedTrigger = computed(() =>
-  form.triggerType ? findRuleTrigger(form.triggerType) : undefined,
+  form.triggerType ? findRuleTrigger(form.triggerType) : undefined
 );
 
 function resetForm(): void {
@@ -413,7 +417,7 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) resetForm();
-  },
+  }
 );
 
 // ── Sedes / países ─────────────────────────────────────────────────────
@@ -436,11 +440,11 @@ async function loadBranches() {
 const overlapWarning = computed(() => {
   if (isSystem.value || form.triggerType !== 'plan_expires_in_days') return null;
   const match = PLAN_EXPIRY_OVERLAP_WARNINGS.find(
-    (w) => w.triggerType === form.triggerType && w.value === form.triggerValue,
+    (w) => w.triggerType === form.triggerType && w.value === form.triggerValue
   );
   if (!match) return null;
   const systemTemplate = props.allTemplates.find(
-    (t) => t.templateKey === match.systemTemplateKey && t.kind === 'system',
+    (t) => t.templateKey === match.systemTemplateKey && t.kind === 'system'
   );
   if (!systemTemplate?.isEnabled) return null;
   return `Esta condición coincide con la plantilla fija de sistema "${systemTemplate.title}", que está activa. El socio podría recibir dos avisos parecidos el mismo día — esto no bloquea el guardado.`;
@@ -455,7 +459,8 @@ function conditionReady(): boolean {
   if (!form.triggerType) return false;
   const trigger = selectedTrigger.value;
   if (!trigger) return false;
-  if (trigger.needsValue) return typeof form.triggerValue === 'number' && Number.isInteger(form.triggerValue);
+  if (trigger.needsValue)
+    return typeof form.triggerValue === 'number' && Number.isInteger(form.triggerValue);
   if (trigger.needsSegment) return Boolean(form.triggerSegment);
   return true;
 }
@@ -500,7 +505,7 @@ watch(
       void runPreview();
     }, 400);
   },
-  { deep: true },
+  { deep: true }
 );
 
 // ── Probar en tu teléfono (pedido de Franco, 2026-09-04) ────────────────
@@ -550,6 +555,10 @@ const testMember = ref<TestMemberOption | null>(loadStoredTestMember());
 const testMemberOptions = ref<TestMemberOption[]>([]);
 const testMemberQuery = ref('');
 const searchingTestMember = ref(false);
+// Filtro del buscador: por defecto ofrece solo socios con etiqueta de
+// membresía efectiva "staff" (override manual o sub vigente), para que las
+// pruebas vayan a gente de la casa y no a un alumno con nombre parecido.
+const testOnlyStaff = ref(true);
 const sendingTest = ref(false);
 
 watch(testMember, (member) => storeTestMember(member));
@@ -569,7 +578,7 @@ function onTestMemberFilter(val: string, update: (fn: () => void) => void): void
   }
   searchingTestMember.value = true;
   membersApi
-    .searchMembers(val, 10)
+    .searchMembers(val, 10, testOnlyStaff.value ? { membershipKind: 'staff' } : {})
     .then((members) => {
       update(() => {
         testMemberOptions.value = members.map((m) => ({
@@ -597,7 +606,7 @@ const canSendTest = computed(
     form.title.trim().length > 0 &&
     form.body.trim().length > 0 &&
     !sendingTest.value &&
-    !saving.value,
+    !saving.value
 );
 
 async function handleSendTest(): Promise<void> {
@@ -720,7 +729,10 @@ async function handleSave(): Promise<void> {
       await commsApi.createTemplate(payload);
     }
 
-    $q.notify({ type: 'positive', message: props.template ? 'Notificación actualizada' : 'Notificación creada' });
+    $q.notify({
+      type: 'positive',
+      message: props.template ? 'Notificación actualizada' : 'Notificación creada',
+    });
     emit('saved');
     localOpen.value = false;
   } catch (err: unknown) {

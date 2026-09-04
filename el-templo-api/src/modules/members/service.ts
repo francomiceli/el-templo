@@ -63,7 +63,10 @@ import { isDuplicateKeyError } from "../shared/sql-errors";
 import { ReferralService } from "../referrals/service";
 import { referralCopyVariant } from "../referrals/ab-variant";
 import { isValidIban, normalizeIban } from "../shared/iban";
-import { activeMemberExists } from "../shared/active-member";
+import {
+  activeMemberExists,
+  activeSubOfKindExists,
+} from "../shared/active-member";
 import { memberCoveredUntilSql } from "../shared/covered-until";
 import {
   tenantValues,
@@ -514,7 +517,7 @@ export class MemberService {
     ctx: TenantContext,
     params: MemberSearchParams,
   ): Promise<MemberSearchItem[]> {
-    const { search, country, limit } = params;
+    const { search, country, limit, membershipKind } = params;
 
     const searchCondition = buildMemberNameSearchCondition(ctx, search);
     // No meaningful tokens (e.g. only whitespace) → nothing to search for.
@@ -539,6 +542,14 @@ export class MemberService {
         eq(schema.branches.isVirtual, true),
       );
       if (countryOrVirtual) conditions.push(countryOrVirtual);
+    }
+
+    // Etiqueta de membresía efectiva (override manual o la de la sub
+    // vigente). Mismo predicado que el desglose de activos de analytics.
+    if (membershipKind !== undefined) {
+      conditions.push(
+        activeSubOfKindExists(schema.users.id, membershipKind, ctx),
+      );
     }
 
     // Active subscription plan name — same subquery as listMembers, for the
@@ -1651,7 +1662,12 @@ export class MemberService {
     if (input.dni !== undefined) updateData.dni = input.dni;
     if (input.documentType !== undefined)
       updateData.documentType = input.documentType as
-        "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro" | null;
+        | "DNI"
+        | "Pasaporte"
+        | "NIE"
+        | "NIF"
+        | "Otro"
+        | null;
     if (input.photoUrl !== undefined) updateData.photoUrl = input.photoUrl;
     if (input.address !== undefined) updateData.address = input.address;
     if (input.dateOfBirth !== undefined)
@@ -1670,7 +1686,12 @@ export class MemberService {
     // escribe la fila YA resuelta (ver `branchChanged`).
     if (input.level !== undefined) {
       const newLevel = input.level as
-        "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
+        | "kairos"
+        | "alfa"
+        | "delta"
+        | "sigma"
+        | "omega"
+        | "spartan";
       updateData.level = newLevel;
       // Phase 130 (KAIROS-06, D-03/D-05): a coach manually CHANGING the level is
       // a sticky decision — set level_override=true so auto-graduation (Plan 02)
