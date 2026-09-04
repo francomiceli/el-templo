@@ -90,7 +90,7 @@ export const sedes: Sede[] = [
   },
   {
     id: "mogotes",
-    name: "Zona Sur",
+    name: "Mario Bravo",
     address: "Mario Bravo 618",
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Mario+Bravo+618+Mar+del+Plata",

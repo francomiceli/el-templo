@@ -74,7 +74,7 @@ async function seedStaging() {
       { name: "Alem", code: "ALEM" },
       { name: "Constitucion", code: "CONST" },
       { name: "Jujuy", code: "JUJUY" },
-      { name: "Sur", code: "MOGOTES" },
+      { name: "Mario Bravo", code: "MOGOTES" },
       { name: "Park", code: "PARK" },
     ];
     await db.insert(branches).values(branchesData);

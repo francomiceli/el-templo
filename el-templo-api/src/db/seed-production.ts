@@ -60,7 +60,7 @@ async function seedProduction() {
         isVirtual: false,
       },
       {
-        name: "Sur",
+        name: "Mario Bravo",
         code: "MOGOTES",
         maxCapacity: 22,
         isVirtual: false,

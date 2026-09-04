@@ -41,7 +41,7 @@ async function seed() {
     { name: "Alem", code: "ALEM" },
     { name: "Constitucion", code: "CONST" },
     { name: "Jujuy", code: "JUJUY" },
-    { name: "Sur", code: "MOGOTES" },
+    { name: "Mario Bravo", code: "MOGOTES" },
     { name: "Park", code: "PARK" },
   ];
 

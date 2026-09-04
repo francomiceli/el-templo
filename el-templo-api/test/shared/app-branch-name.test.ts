@@ -4,7 +4,7 @@ import { appBranchName } from "../../src/modules/shared/app-branch-name";
 describe("appBranchName — compat shim para la app de miembros", () => {
   it("reconstruye el prefijo en nombres cortos", () => {
     expect(appBranchName("Alem")).toBe("El Templo Alem");
-    expect(appBranchName("Sur")).toBe("El Templo Sur");
+    expect(appBranchName("Mario Bravo")).toBe("El Templo Mario Bravo");
     expect(appBranchName("Moreno")).toBe("El Templo Moreno");
   });
 
@@ -22,6 +22,6 @@ describe("appBranchName — compat shim para la app de miembros", () => {
   it("el resultado, pasado por el regex baked del front, da 'Sede X'", () => {
     const front = (n: string) => n.replace(/^El Templo\s+/i, "Sede ");
     expect(front(appBranchName("Alem"))).toBe("Sede Alem");
-    expect(front(appBranchName("Sur"))).toBe("Sede Sur");
+    expect(front(appBranchName("Mario Bravo"))).toBe("Sede Mario Bravo");
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Compat shim del nombre de sede para la APP de miembros.
  *
- * Las sedes se renombraron en la DB a nombres cortos ("Alem", "Sur"). El admin,
+ * Las sedes se renombraron en la DB a nombres cortos ("Alem", "Mario Bravo"). El admin,
  * la TV y los exports usan ese nombre corto tal cual. Pero la app de miembros
  * tiene BAKED en el bundle (celulares ya instalados) un regex que hace
  * `name.replace(/^El Templo\s+/i, 'Sede ')` para mostrar "Sede X". Con el
