@@ -221,11 +221,6 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
-        path: 'app-waitlist',
-        component: () => import('pages/AppWaitlistPage.vue'),
-        meta: { allowedRoles: ['owner'] as AdminRole[] },
-      },
-      {
         path: 'labs-inquiries',
         component: () => import('pages/LabsInquiriesPage.vue'),
         meta: { allowedRoles: ['owner'] as AdminRole[] },

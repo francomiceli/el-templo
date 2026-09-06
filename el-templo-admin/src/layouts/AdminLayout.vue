@@ -32,14 +32,8 @@
               <q-icon :name="item.icon" />
             </q-item-section>
             <q-item-section>{{ item.label }}</q-item-section>
-            <q-item-section side v-if="item.badge === 'pending' && adminStore.pendingCount > 0">
-              <q-badge color="negative" :label="adminStore.pendingCount" />
-            </q-item-section>
-            <q-item-section
-              side
-              v-if="item.badge === 'app-trials' && adminStore.appTrialsPendingCount > 0"
-            >
-              <q-badge color="negative" :label="adminStore.appTrialsPendingCount" />
+            <q-item-section side v-if="badgeCount(item) > 0">
+              <q-badge color="negative" :label="badgeCount(item)" />
             </q-item-section>
           </q-item>
         </template>
@@ -77,6 +71,7 @@ import {
   isNavCategoryVisible,
   isNavItemVisible,
   type NavCategory,
+  type NavItem,
 } from 'src/config/templo-config';
 
 const drawer = ref(false);
@@ -99,6 +94,31 @@ const visibleCategories = computed(() =>
 function visibleItems(cat: NavCategory) {
   return cat.items.filter((item) => isNavItemVisible(item, authStore.user));
 }
+
+// Pelotita de cada ítem: la clave `badge` del NAV_MODEL elige el contador del
+// store. Un solo lugar para todos los badges (antes había un v-if por clave).
+function badgeCount(item: NavItem): number {
+  switch (item.badge) {
+    case 'pending':
+      return adminStore.pendingCount;
+    case 'app-trials':
+      return adminStore.appTrialsPendingCount;
+    case 'landing-academy':
+      return adminStore.landingInbox.academy;
+    case 'landing-labs':
+      return adminStore.landingInbox.labs;
+    case 'landing-franquicias':
+      return adminStore.landingInbox.franchise;
+    default:
+      return 0;
+  }
+}
+
+// Quiénes ven el grupo Landing (y por ende sus pelotitas): se deriva del
+// NAV_MODEL en vez de repetir el set de roles + el flag Templo acá.
+const canSeeLanding = computed(() =>
+  visibleCategories.value.some((cat) => cat.header === 'Landing')
+);
 
 // Entrenamiento surface (sesiones, programador, ejercicios, árbol): owner or
 // the exclusive training coach only. Still needed to gate the mount/watch
@@ -127,6 +147,9 @@ onMounted(() => {
   if (canSeeReports.value) {
     adminStore.fetchAppTrialsPendingCount();
   }
+  if (canSeeLanding.value) {
+    adminStore.fetchLandingInbox();
+  }
 });
 
 // Refresh pending count on route change (only for training viewers)
@@ -138,6 +161,9 @@ watch(
     }
     if (canSeeReports.value) {
       adminStore.fetchAppTrialsPendingCount();
+    }
+    if (canSeeLanding.value) {
+      adminStore.fetchLandingInbox();
     }
   }
 );

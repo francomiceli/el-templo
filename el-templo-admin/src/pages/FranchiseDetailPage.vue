@@ -188,6 +188,7 @@ import {
   type FranchiseApplication,
 } from 'src/composables/useFranchiseAdminApi';
 import FranchiseAiPanel from 'src/components/FranchiseAiPanel.vue';
+import { useAdminStore } from 'src/stores/useAdminStore';
 import {
   STATUS_COLORS,
   STATUS_LABELS,
@@ -201,6 +202,7 @@ const log = createLogger('FranchiseDetailPage');
 const route = useRoute();
 const router = useRouter();
 const franchiseApi = useFranchiseAdminApi();
+const adminStore = useAdminStore();
 
 // =========================================================================
 // State
@@ -258,6 +260,8 @@ async function saveStatus() {
       status: selectedStatus.value,
     });
     Notify.create({ type: 'positive', message: 'Estado actualizado' });
+    // La pelotita de "Franquicias" en el drawer cuenta las solicitudes en "new".
+    void adminStore.fetchLandingInbox();
   } catch {
     // Error handled by composable
   } finally {

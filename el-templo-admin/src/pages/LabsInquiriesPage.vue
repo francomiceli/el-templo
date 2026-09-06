@@ -59,6 +59,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { useAdminStore } from 'src/stores/useAdminStore';
 
 interface LabsInquiry {
   id: number;
@@ -75,6 +76,7 @@ interface LabsInquiry {
 }
 
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
 const inquiries = ref<LabsInquiry[]>([]);
 const loading = ref(true);
 const error = ref('');
@@ -219,6 +221,8 @@ async function updateStatus(id: number, status: string): Promise<void> {
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
+    // La pelotita de "Labs" en el drawer cuenta las consultas en estado "new".
+    void adminStore.fetchLandingInbox();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     error.value = `Error al actualizar estado: ${message}`;

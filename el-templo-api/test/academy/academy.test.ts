@@ -220,4 +220,72 @@ describe("Academy Routes", () => {
       }
     });
   });
+  // ---------------------------------------------------------------
+  // PATCH /api/academy/admin/inquiries/:id/status — Owner only
+  // ---------------------------------------------------------------
+  describe("PATCH /api/academy/admin/inquiries/:id/status", () => {
+    async function crearConsulta(): Promise<number> {
+      await app.inject({
+        method: "POST",
+        url: "/api/academy/inquire",
+        payload: validInquiry,
+      });
+      const [row] = await app.db
+        .select()
+        .from(academyInquiries)
+        .where(eq(academyInquiries.email, "juan@example.com"));
+      return row.id;
+    }
+
+    it("rejects unauthenticated requests", async () => {
+      const id = await crearConsulta();
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/academy/admin/inquiries/${id}/status`,
+        payload: { status: "contacted" },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it("moves the inquiry out of 'new' and persists it", async () => {
+      const id = await crearConsulta();
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/academy/admin/inquiries/${id}/status`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { status: "contacted" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).success).toBe(true);
+
+      const [updated] = await app.db
+        .select()
+        .from(academyInquiries)
+        .where(eq(academyInquiries.id, id));
+      expect(updated.status).toBe("contacted");
+    });
+
+    it("returns 400 for a status outside the enum", async () => {
+      const id = await crearConsulta();
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/api/academy/admin/inquiries/${id}/status`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { status: "archivada" },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("returns 404 when the inquiry does not exist", async () => {
+      const res = await app.inject({
+        method: "PATCH",
+        url: "/api/academy/admin/inquiries/999999999/status",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { status: "closed" },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+  });
 });

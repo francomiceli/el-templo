@@ -269,7 +269,9 @@ import {
  */
 // 2026-09-04: 409 -> 410 por `POST /api/notifications/admin/templates/send-test`
 // ("Probar en tu teléfono" del editor de notificaciones), `tenant-scoped`.
-const ENTRADAS_BASELINE = 410;
+// 2026-09-06: 410 -> 412 por `PATCH /api/academy/admin/inquiries/:id/status` y
+// `GET /api/app/admin/landing-inbox` (pelotitas del grupo Landing), `templo-module`.
+const ENTRADAS_BASELINE = 412;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -412,7 +414,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 410 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 412 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

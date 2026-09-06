@@ -147,12 +147,22 @@ export interface NavItem {
   /** Routines surface (D-02) — additionally gated by TEMPLO_TRAINING_ROUTINES (per-installation). */
   routines?: boolean;
   /**
-   * Badge slot. 'pending' renders adminStore.pendingCount on Sesiones;
-   * 'app-trials' renders adminStore.appTrialsPendingCount on Reportes (SP nuevas
-   * desde la app pendientes de seguimiento).
+   * Badge slot ("pelotita" roja con un conteo). Cada clave mapea a un contador
+   * del adminStore (ver `badgeCount` en AdminLayout.vue):
+   * - 'pending': sesiones pendientes de aprobar (Sesiones).
+   * - 'app-trials': SP nuevas desde la app pendientes de seguimiento (Reportes).
+   * - 'landing-academy' | 'landing-labs' | 'landing-franquicias': leads del sitio
+   *   público todavía en estado "new" (grupo Landing).
    */
-  badge?: 'pending' | 'app-trials';
+  badge?: NavBadge;
 }
+
+export type NavBadge =
+  | 'pending'
+  | 'app-trials'
+  | 'landing-academy'
+  | 'landing-labs'
+  | 'landing-franquicias';
 
 export interface NavCategory {
   header: string;
@@ -236,15 +246,6 @@ export const NAV_MODEL: NavCategory[] = [
     items: [
       { path: '/planes', label: 'Planes', icon: 'card_membership', roles: PLANES_READ_ROLES },
       { path: '/programas', label: 'Rutinas', icon: 'school', roles: DUENO_ROLES, routines: true },
-      {
-        // Partners (fase 179, D-20): comercios/marcas con código de
-        // referido propio. Mismo grupo que Planes/Rutinas — es una
-        // superficie de gestión comercial, no de entrenamiento.
-        path: '/partners',
-        label: 'Partners',
-        icon: 'handshake',
-        roles: PARTNERS_ROLES,
-      },
     ],
   },
   {
@@ -283,24 +284,47 @@ export const NAV_MODEL: NavCategory[] = [
         icon: 'campaign',
         roles: DUENO_ROLES,
       },
+      {
+        // Partners (fase 179): comercios/marcas con código de referido propio.
+        // Nació en "Planes" (D-20) y se movió acá el 2026-09-06: es un alta
+        // esporádica de configuración, no una pantalla del día a día.
+        path: '/partners',
+        label: 'Partners',
+        icon: 'handshake',
+        roles: PARTNERS_ROLES,
+      },
     ],
   },
   {
-    // Landing (revisión v5.4): gestión del sitio público, solo Templo (las "6 de landing").
+    // Landing (revisión v5.4): gestión del sitio público, solo Templo. "App Waitlist"
+    // se retiró del admin el 2026-09-06 (el formulario público sigue guardando en
+    // app_waitlist). Las secciones que reciben consultas llevan pelotita de "nuevos".
     header: 'Landing',
     templo: true,
     items: [
       { path: '/blog', label: 'Blog', icon: 'article', roles: ['owner'] },
       { path: '/gladius', label: 'Gladius', icon: 'fitness_center', roles: ['owner'] },
-      { path: '/academy', label: 'Academy', icon: 'school', roles: ['owner'] },
       {
-        path: '/app-waitlist',
-        label: 'App Waitlist',
-        icon: 'notifications_active',
+        path: '/academy',
+        label: 'Academy',
+        icon: 'school',
         roles: ['owner'],
+        badge: 'landing-academy',
       },
-      { path: '/labs-inquiries', label: 'Labs Inquiries', icon: 'business', roles: ['owner'] },
-      { path: '/franquicias', label: 'Franquicias', icon: 'store', roles: ['owner'] },
+      {
+        path: '/labs-inquiries',
+        label: 'Labs',
+        icon: 'business',
+        roles: ['owner'],
+        badge: 'landing-labs',
+      },
+      {
+        path: '/franquicias',
+        label: 'Franquicias',
+        icon: 'store',
+        roles: ['owner'],
+        badge: 'landing-franquicias',
+      },
     ],
   },
 ];

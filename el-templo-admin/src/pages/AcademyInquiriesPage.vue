@@ -29,13 +29,37 @@
       flat
       bordered
       :pagination="{ rowsPerPage: 20 }"
-    />
+    >
+      <!-- Status column with badge + inline select (same pattern as Labs) -->
+      <template #body-cell-status="props">
+        <q-td :props="props">
+          <q-select
+            v-model="props.row.status"
+            :options="statusOptions"
+            dense
+            borderless
+            emit-value
+            map-options
+            style="min-width: 120px"
+            @update:model-value="(val: string) => updateStatus(props.row.id, val)"
+          >
+            <template #selected>
+              <q-badge
+                :color="statusColors[props.row.status] ?? 'grey'"
+                :label="statusLabels[props.row.status] ?? props.row.status"
+              />
+            </template>
+          </q-select>
+        </q-td>
+      </template>
+    </q-table>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { useAdminStore } from 'src/stores/useAdminStore';
 
 interface AcademyInquiry {
   id: number;
@@ -54,9 +78,28 @@ interface AcademyInquiry {
 }
 
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
 const inquiries = ref<AcademyInquiry[]>([]);
 const loading = ref(true);
 const error = ref('');
+
+const statusColors: Record<string, string> = {
+  new: 'primary',
+  contacted: 'warning',
+  closed: 'positive',
+};
+
+const statusLabels: Record<string, string> = {
+  new: 'Nuevo',
+  contacted: 'Contactado',
+  closed: 'Cerrado',
+};
+
+const statusOptions = [
+  { label: 'Nuevo', value: 'new' },
+  { label: 'Contactado', value: 'contacted' },
+  { label: 'Cerrado', value: 'closed' },
+];
 
 const nivelLabels: Record<string, string> = {
   'nivel-1-trainer': 'Nivel 1 \u2014 Trainer',
@@ -86,6 +129,13 @@ const columns = [
     align: 'left' as const,
     sortable: true,
     format: (val: string) => nivelLabels[val] || val,
+  },
+  {
+    name: 'status',
+    label: 'Estado',
+    field: 'status',
+    align: 'left' as const,
+    sortable: true,
   },
   {
     name: 'createdAt',
@@ -124,6 +174,31 @@ async function fetchInquiries(): Promise<void> {
     error.value = `Error al cargar consultas: ${message}`;
   } finally {
     loading.value = false;
+  }
+}
+
+async function updateStatus(id: number, status: string): Promise<void> {
+  try {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const res = await fetch(`${baseUrl}/academy/admin/inquiries/${id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authStore.token}`,
+      },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    // La pelotita de "Academy" en el drawer cuenta las consultas en estado "new".
+    void adminStore.fetchLandingInbox();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    error.value = `Error al actualizar estado: ${message}`;
+    // Reload to revert optimistic update
+    await fetchInquiries();
   }
 }
 

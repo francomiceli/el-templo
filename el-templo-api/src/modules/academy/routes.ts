@@ -14,7 +14,36 @@ interface InquireBody {
   mensaje?: string;
 }
 
+interface StatusBody {
+  status: string;
+}
+
+interface IdParams {
+  id: number;
+}
+
 import { OWNER_ROLES } from "../shared/permissions";
+
+const statusUpdateSchema = {
+  body: {
+    type: "object",
+    required: ["status"],
+    properties: {
+      status: {
+        type: "string",
+        enum: ["new", "contacted", "closed"],
+      },
+    },
+    additionalProperties: false,
+  },
+  params: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+    },
+    required: ["id"],
+  },
+};
 
 const inquireSchema = {
   body: {
@@ -115,6 +144,33 @@ export const academyRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
       return service.listInquiries();
+    },
+  );
+
+  // PATCH /admin/inquiries/:id/status — update academy inquiry status
+  fastify.patch<{ Params: IdParams; Body: StatusBody }>(
+    "/admin/inquiries/:id/status",
+    {
+      preHandler: [fastify.authenticate],
+      schema: statusUpdateSchema,
+    },
+    async (request, reply) => {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply
+          .status(403)
+          .send({ error: "Acceso de administrador requerido" });
+      }
+
+      const updated = await service.updateInquiryStatus(
+        request.params.id,
+        request.body.status,
+      );
+
+      if (!updated) {
+        return reply.status(404).send({ error: "Consulta no encontrada" });
+      }
+
+      return { success: true };
     },
   );
 };

@@ -1455,6 +1455,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-marketing",
   },
+  "PATCH /api/academy/admin/inquiries/:id/status": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
   "POST /api/academy/inquire": {
     categoria: "templo-module",
     modulo: "templo-marketing",
@@ -1546,6 +1550,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // checkpoint 171-06 (2026-07-29), registrado en 171-CLASIFICACION.md §C caso
   // 3; supersede la recomendación Q2-global PARA ESTAS RUTAS. Consecuencia
   // buscada: quedan protegidas por el aislamiento en vez de exentas.
+  "GET /api/app/admin/landing-inbox": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
   "GET /api/app/admin/labs-inquiries": {
     categoria: "templo-module",
     modulo: "templo-marketing",

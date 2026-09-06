@@ -167,6 +167,21 @@ export const appLandingRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // GET /admin/landing-inbox — leads nuevos por seccion del grupo Landing
+  // (pelotitas del drawer del admin). Un solo request para las 3 secciones.
+  fastify.get(
+    "/admin/landing-inbox",
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply
+          .status(403)
+          .send({ error: "Acceso de administrador requerido" });
+      }
+      return service.countNewLeads();
+    },
+  );
+
   // GET /admin/labs-inquiries — list all Labs inquiries
   fastify.get(
     "/admin/labs-inquiries",

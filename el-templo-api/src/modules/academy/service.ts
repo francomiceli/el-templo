@@ -1,5 +1,5 @@
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Resend } from "resend";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -62,6 +62,31 @@ export class AcademyService {
       .select()
       .from(academyInquiries)
       .orderBy(desc(academyInquiries.createdAt));
+  }
+
+  /**
+   * Cambia el estado de una consulta (new -> contacted -> closed). Mismo
+   * ciclo que Labs (`AppLandingService.updateLabsInquiryStatus`): salir de
+   * `new` es lo que baja la pelotita de "Academy" en el drawer del admin.
+   * Devuelve false si el estado no es valido o la consulta no existe.
+   */
+  async updateInquiryStatus(id: number, status: string): Promise<boolean> {
+    const validStatuses = ["new", "contacted", "closed"];
+    if (!validStatuses.includes(status)) {
+      return false;
+    }
+
+    const [result] = await this.db
+      .update(academyInquiries)
+      .set({ status })
+      .where(eq(academyInquiries.id, id));
+
+    if (result.affectedRows === 0) {
+      return false;
+    }
+
+    this.log.info({ id, status }, "Academy inquiry status updated");
+    return true;
   }
 
   private async sendNotificationEmail(data: InquiryData): Promise<void> {

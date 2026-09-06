@@ -1,10 +1,23 @@
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, count } from "drizzle-orm";
 import { Resend } from "resend";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { appWaitlist } from "../../db/schema/app-waitlist";
 import { labsInquiries } from "../../db/schema/labs-inquiries";
+import { academyInquiries } from "../../db/schema/academy-inquiries";
+import { franchiseApplications } from "../../db/schema/franchise-applications";
+
+/**
+ * Conteo de leads del sitio publico que nadie atendio todavia, por seccion
+ * del grupo "Landing" del admin. Alimenta las pelotitas del drawer (mismo
+ * patron que `appTrialsPendingCount` en Reportes).
+ */
+export interface LandingInboxCounts {
+  academy: number;
+  labs: number;
+  franchise: number;
+}
 
 const WHATSAPP_URL = "https://wa.link/ci8dpl";
 
@@ -119,6 +132,41 @@ export class AppLandingService {
       .select()
       .from(labsInquiries)
       .orderBy(desc(labsInquiries.createdAt));
+  }
+
+  /**
+   * "Nuevo" = `status = 'new'` (default al insertar desde el formulario
+   * publico). Baja cuando el owner cambia el estado desde la pagina de cada
+   * seccion (PATCH .../status de academy, labs y franchise).
+   *
+   * Las tres tablas son leads del sitio publico de El Templo (modulo
+   * templo-marketing, solo owner): el conteo es sobre toda la tabla, igual que
+   * los listados de cada seccion.
+   */
+  async countNewLeads(): Promise<LandingInboxCounts> {
+    /* tenant-safe: leads del sitio publico de El Templo (templo-marketing, solo owner), sin tenant en la consulta igual que listInquiries de academy */
+    const [academyRow] = await this.db
+      .select({ total: count() })
+      .from(academyInquiries)
+      .where(eq(academyInquiries.status, "new"));
+
+    // labs_inquiries no tiene tenant_id (lead del propio SaaS).
+    const [labsRow] = await this.db
+      .select({ total: count() })
+      .from(labsInquiries)
+      .where(eq(labsInquiries.status, "new"));
+
+    /* tenant-safe: leads del sitio publico de El Templo (templo-marketing, solo owner), sin tenant en la consulta igual que listApplications de franchise */
+    const [franchiseRow] = await this.db
+      .select({ total: count() })
+      .from(franchiseApplications)
+      .where(eq(franchiseApplications.status, "new"));
+
+    return {
+      academy: academyRow?.total ?? 0,
+      labs: labsRow?.total ?? 0,
+      franchise: franchiseRow?.total ?? 0,
+    };
   }
 
   async updateLabsInquiryStatus(id: number, status: string): Promise<boolean> {

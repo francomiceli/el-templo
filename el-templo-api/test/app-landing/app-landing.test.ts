@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { createTestApp, getAuthToken } from "../helpers";
 import { appWaitlist } from "../../src/db/schema/app-waitlist";
 import { labsInquiries } from "../../src/db/schema/labs-inquiries";
+import { academyInquiries } from "../../src/db/schema/academy-inquiries";
+import { franchiseApplications } from "../../src/db/schema/franchise-applications";
 
 describe("App Landing Routes", () => {
   let app: FastifyInstance;
@@ -40,6 +42,12 @@ describe("App Landing Routes", () => {
     await app.db
       .delete(labsInquiries)
       .where(eq(labsInquiries.email, "carlos@example.com"));
+    await app.db
+      .delete(academyInquiries)
+      .where(eq(academyInquiries.email, "inbox-academy@example.com"));
+    await app.db
+      .delete(franchiseApplications)
+      .where(eq(franchiseApplications.email, "inbox-franchise@example.com"));
   });
 
   afterAll(async () => {
@@ -324,6 +332,121 @@ describe("App Landing Routes", () => {
         .from(labsInquiries)
         .where(eq(labsInquiries.id, inquiry.id));
       expect(updated.status).toBe("contacted");
+    });
+  });
+  // ---------------------------------------------------------------
+  // GET /api/app/admin/landing-inbox — pelotitas del grupo Landing
+  // ---------------------------------------------------------------
+  describe("GET /api/app/admin/landing-inbox", () => {
+    interface Inbox {
+      academy: number;
+      labs: number;
+      franchise: number;
+    }
+
+    async function leerInbox(): Promise<Inbox> {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/app/admin/landing-inbox",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      return JSON.parse(res.body) as Inbox;
+    }
+
+    it("returns 401 without auth", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/app/admin/landing-inbox",
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it("returns the three counters as numbers", async () => {
+      const inbox = await leerInbox();
+      expect(typeof inbox.academy).toBe("number");
+      expect(typeof inbox.labs).toBe("number");
+      expect(typeof inbox.franchise).toBe("number");
+    });
+
+    // Los contadores son globales (otros archivos de test insertan leads en
+    // paralelo), asi que se afirma el DELTA propio y no el valor absoluto.
+    it("a new lead raises its own section only, and leaving 'new' lowers it back", async () => {
+      const antes = await leerInbox();
+
+      const altaLabs = await app.inject({
+        method: "POST",
+        url: "/api/app/labs-inquiry",
+        payload: validLabsInquiry,
+      });
+      expect(altaLabs.statusCode).toBe(201);
+      const altaAcademy = await app.inject({
+        method: "POST",
+        url: "/api/academy/inquire",
+        payload: {
+          nombre: "Inbox Academy",
+          email: "inbox-academy@example.com",
+          telefono: "+5492235550000",
+          ciudadPais: "Mar del Plata, Argentina",
+          nivelInteres: "nivel-1-trainer",
+          modalidad: "presencial",
+          experiencia: "calistenia",
+          alumnoElTemplo: "si",
+          origen: "instagram",
+        },
+      });
+      expect(altaAcademy.statusCode).toBe(201);
+      const altaFranquicia = await app.inject({
+        method: "POST",
+        url: "/api/franchise/apply",
+        payload: {
+          nombre: "Inbox Franquicia",
+          email: "inbox-franchise@example.com",
+          telefono: "+5492235550001",
+          ciudadPais: "Buenos Aires, Argentina",
+          modelo: "activa",
+          experiencia: "fitness",
+          capital: "entre_50k_100k",
+          origen: "instagram",
+        },
+      });
+      expect(altaFranquicia.statusCode).toBe(201);
+
+      const conLeads = await leerInbox();
+      expect(conLeads.labs).toBeGreaterThanOrEqual(antes.labs + 1);
+      expect(conLeads.academy).toBeGreaterThanOrEqual(antes.academy + 1);
+      expect(conLeads.franchise).toBeGreaterThanOrEqual(antes.franchise + 1);
+
+      // Atender el lead de Labs: sale de 'new' y solo baja SU contador.
+      const [labs] = await app.db
+        .select()
+        .from(labsInquiries)
+        .where(eq(labsInquiries.email, "carlos@example.com"));
+      const patch = await app.inject({
+        method: "PATCH",
+        url: `/api/app/admin/labs-inquiries/${labs.id}/status`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { status: "contacted" },
+      });
+      expect(patch.statusCode).toBe(200);
+
+      const [academy] = await app.db
+        .select()
+        .from(academyInquiries)
+        .where(eq(academyInquiries.email, "inbox-academy@example.com"));
+      const patchAcademy = await app.inject({
+        method: "PATCH",
+        url: `/api/academy/admin/inquiries/${academy.id}/status`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { status: "closed" },
+      });
+      expect(patchAcademy.statusCode).toBe(200);
+
+      const despues = await leerInbox();
+      expect(despues.labs).toBeLessThanOrEqual(conLeads.labs - 1);
+      expect(despues.academy).toBeLessThanOrEqual(conLeads.academy - 1);
+      // Franquicias no se toco: no puede haber bajado por nuestra causa.
+      expect(despues.franchise).toBeGreaterThanOrEqual(antes.franchise + 1);
     });
   });
 });
