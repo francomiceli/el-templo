@@ -120,18 +120,78 @@
         </div>
       </template>
     </div>
+
+    <!-- Ingresos por sede en el período (feedback 2026-09-07): todo lo que entró
+         por la sede, sin importar la caja — efectivo, transferencia, tarjeta,
+         domiciliación. Plata firme, misma condición que las tarjetas del
+         Historial de cobros. -->
+    <div class="q-mt-xl">
+      <div class="text-subtitle1 text-weight-medium q-mb-sm">
+        Ingresos por sede
+        <span class="text-caption text-grey-7 q-ml-sm">{{ incomePeriodLabel }}</span>
+      </div>
+      <div v-if="!hasRange" class="text-caption text-grey-5">
+        Elegí un rango de fechas completo para ver los ingresos del período.
+      </div>
+      <q-table
+        v-else
+        :rows="income"
+        :columns="incomeColumns"
+        row-key="key"
+        flat
+        bordered
+        dense
+        :loading="loadingIncome"
+        :pagination="{ rowsPerPage: 0 }"
+        hide-bottom
+      >
+        <template #body-cell-sede="cellProps">
+          <q-td :props="cellProps" class="text-weight-medium">
+            {{ cellProps.row.branchName }}
+            <q-badge
+              class="q-ml-xs"
+              color="grey-3"
+              text-color="grey-8"
+              :label="cellProps.row.currency"
+            />
+          </q-td>
+        </template>
+        <template
+          v-for="col in incomeMoneyColumns"
+          :key="col.name"
+          #[`body-cell-${col.name}`]="cellProps"
+        >
+          <q-td :props="cellProps" :class="{ 'text-weight-bold': col.name === 'total' }">
+            {{ formatPrice(col.value(cellProps.row), cellProps.row.currency) }}
+          </q-td>
+        </template>
+        <template #bottom-row v-if="income.length > 1">
+          <q-tr v-for="sub in incomeSubtotals" :key="sub.currency" class="text-weight-bold">
+            <q-td>Total {{ sub.currency }}</q-td>
+            <q-td v-for="col in incomeMoneyColumns" :key="col.name" class="text-right">
+              {{ formatPrice(sub[col.name], sub.currency) }}
+            </q-td>
+          </q-tr>
+        </template>
+        <template #no-data>
+          <div class="full-width text-center text-grey-6 q-pa-md">
+            Sin ingresos firmes en el período.
+          </div>
+        </template>
+      </q-table>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useQuasar } from 'quasar';
+import { useQuasar, type QTableColumn } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import DateRangeFilter from 'src/components/caja/DateRangeFilter.vue';
 import { currentMonthRange, type DateRangeValue } from 'src/utils/date-range';
-import type { CajaSaldoRow } from 'src/types/transaction';
+import type { CajaSaldoRow, IncomeByBranchRow } from 'src/types/transaction';
 
 // =========================================================================
 // Props — shared selectedCountry / isOwner from the CajaPage hub.
@@ -214,17 +274,20 @@ function onDateRangeChange(value: DateRangeValue) {
   void loadBalances();
 }
 
+// El rango va completo o no va (el server rechaza uno solo con 400).
+const hasRange = computed(
+  () => dateRange.value.dateFrom !== undefined && dateRange.value.dateTo !== undefined
+);
+
 async function loadBalances() {
   loading.value = true;
   try {
-    // El rango va completo o no va (el server rechaza uno solo con 400). Con el
-    // control en modo "por día" y una sola fecha elegida, se omite: los saldos
-    // se siguen mostrando, sin el bloque de movimientos.
+    // Con el control en modo "por día" y una sola fecha elegida, el rango se
+    // omite: los saldos se siguen mostrando, sin el bloque de movimientos.
     const { dateFrom, dateTo } = dateRange.value;
-    const hasRange = dateFrom !== undefined && dateTo !== undefined;
     rows.value = await transactionsApi.getCashRegisterBalances({
       country: props.isOwner ? props.selectedCountry : undefined,
-      ...(hasRange ? { dateFrom, dateTo } : {}),
+      ...(hasRange.value ? { dateFrom, dateTo } : {}),
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -232,6 +295,94 @@ async function loadBalances() {
     $q.notify({ type: 'negative', message: 'Error cargando saldos' });
   } finally {
     loading.value = false;
+  }
+  void loadIncome();
+}
+
+// =========================================================================
+// Ingresos por sede en el período (2026-09-07) — misma plata firme que las
+// tarjetas del Historial, agrupada por (sede, moneda) y abierta por método.
+// =========================================================================
+
+type IncomeRow = IncomeByBranchRow & { key: string };
+const income = ref<IncomeRow[]>([]);
+const loadingIncome = ref(false);
+
+type IncomeColName = 'cash' | 'transfer' | 'card' | 'direct_debit' | 'otros' | 'total';
+type IncomeSubtotal = { currency: string } & Record<IncomeColName, number>;
+
+const incomeMoneyColumns: Array<{
+  name: IncomeColName;
+  label: string;
+  value: (r: IncomeByBranchRow) => number;
+}> = [
+  { name: 'cash', label: 'Efectivo', value: (r) => r.byMethod.cash },
+  { name: 'transfer', label: 'Transferencia', value: (r) => r.byMethod.transfer },
+  { name: 'card', label: 'Tarjeta', value: (r) => r.byMethod.card },
+  { name: 'direct_debit', label: 'Domiciliación', value: (r) => r.byMethod.direct_debit },
+  // AURA / interno: no es plata que entra a una caja, pero el summary lo cuenta
+  // como ingreso; se muestra aparte para que el total cierre con el Historial.
+  { name: 'otros', label: 'AURA / interno', value: (r) => r.byMethod.aura_credit + r.byMethod.internal },
+  { name: 'total', label: 'Total', value: (r) => r.total },
+];
+
+const incomeColumns: QTableColumn<IncomeRow>[] = [
+  { name: 'sede', label: 'Sede', field: 'branchName', align: 'left' },
+  ...incomeMoneyColumns.map(
+    (c): QTableColumn<IncomeRow> => ({
+      name: c.name,
+      label: c.label,
+      field: (r) => c.value(r),
+      align: 'right',
+    })
+  ),
+];
+
+/** Totales por moneda (nunca cross-currency, D-06). */
+const incomeSubtotals = computed<IncomeSubtotal[]>(() => {
+  const byCurrency = new Map<string, IncomeSubtotal>();
+  for (const r of income.value) {
+    const acc: IncomeSubtotal = byCurrency.get(r.currency) ?? {
+      currency: r.currency,
+      cash: 0,
+      transfer: 0,
+      card: 0,
+      direct_debit: 0,
+      otros: 0,
+      total: 0,
+    };
+    for (const c of incomeMoneyColumns) acc[c.name] += c.value(r);
+    byCurrency.set(r.currency, acc);
+  }
+  return Array.from(byCurrency.values());
+});
+
+const incomePeriodLabel = computed(() => {
+  const { dateFrom, dateTo } = dateRange.value;
+  if (dateFrom === undefined || dateTo === undefined) return '';
+  return `${dateFrom} → ${dateTo}`;
+});
+
+async function loadIncome() {
+  if (!hasRange.value) {
+    income.value = [];
+    return;
+  }
+  loadingIncome.value = true;
+  try {
+    const { dateFrom, dateTo } = dateRange.value;
+    const rowsIncome = await transactionsApi.getIncomeByBranch({
+      country: props.isOwner ? props.selectedCountry : undefined,
+      dateFrom,
+      dateTo,
+    });
+    income.value = rowsIncome.map((r) => ({ ...r, key: `${r.branchId}:${r.currency}` }));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading income by branch', { error: message });
+    $q.notify({ type: 'negative', message: 'Error cargando ingresos por sede' });
+  } finally {
+    loadingIncome.value = false;
   }
 }
 

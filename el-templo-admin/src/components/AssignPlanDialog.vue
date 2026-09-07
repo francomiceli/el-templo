@@ -364,22 +364,12 @@
                 </template>
               </div>
 
-              <!-- Boarding pass — WR-05 (156): gateado por zeroPriceEnabled,
-                   simétrico a la opción Zero del selector (D-05). Con la regla
-                   Zero OFF el server normaliza a 'regular' + priceRegular pero
-                   igual marca boardingPassUsed=true: ofrecer el toggle solo
-                   quemaría el regalo one-shot cobrando precio completo. -->
-              <div v-if="zeroPriceEnabled && !assignForm.prorateToMonthEnd" class="q-mb-md">
-                <q-toggle
-                  v-model="assignForm.boardingPass"
-                  label="Usar Boarding Pass"
-                  :disable="boardingPassUsed"
-                  @update:model-value="onPricingOptionChange"
-                />
-                <div v-if="boardingPassUsed" class="text-caption text-grey-5 q-ml-md">
-                  Ya utilizado
-                </div>
-              </div>
+              <!-- Boarding Pass (WR-05, fase 156): retirado de la UI el 2026-09-07.
+                   En prod se usó 36 veces (abril-junio 2026) y nunca más; el
+                   descuento manual real es "Precio acordado" (613 usos, 274 con
+                   motivo PROMO). El soporte del módulo AURA sigue en la API
+                   (`boardingPass` en assignPlan), el toggle simplemente no se
+                   ofrece: assignForm.boardingPass queda siempre en false. -->
 
               <!-- AURA discount -->
               <div
@@ -407,7 +397,7 @@
               <div v-if="!assignForm.prorateToMonthEnd" class="q-mb-md">
                 <q-toggle
                   v-model="assignForm.useOverride"
-                  label="Precio personalizado"
+                  label="Precio acordado"
                   @update:model-value="onOverrideToggle"
                 />
                 <template v-if="assignForm.useOverride">
@@ -425,9 +415,10 @@
                     <div class="col-12 col-sm-8">
                       <q-input
                         v-model="assignForm.priceOverrideReason"
-                        label="Razon (requerida)"
+                        label="Motivo (requerido)"
                         dense
                         outlined
+                        placeholder="Ej.: PROMO, alumno aire libre, staff"
                       />
                     </div>
                   </div>
@@ -872,12 +863,6 @@
                     <q-item-section>Horarios fijos</q-item-section>
                     <q-item-section side class="text-weight-medium">
                       {{ formatSelectedSchedules() }}
-                    </q-item-section>
-                  </q-item>
-                  <q-item v-if="assignForm.boardingPass">
-                    <q-item-section>Boarding Pass</q-item-section>
-                    <q-item-section side>
-                      <q-badge color="deep-purple" label="Aplicado" />
                     </q-item-section>
                   </q-item>
                 </q-list>

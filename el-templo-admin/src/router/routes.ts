@@ -140,8 +140,10 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'caja',
         component: () => import('pages/CajaPage.vue'),
-        // Rollout: gestión queda excluida de Caja (saldos) por ahora → admin/owner.
-        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
+        // 2026-09-07: gestión (Fer/Mica) opera la caja a diario — valida,
+        // registra retiros, concilia. La API ya lo permitía (FINANCE_VOID_ROLES);
+        // el ABM de cuentas/categorías sigue admin/owner (se oculta en la UI).
+        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'cobros',
