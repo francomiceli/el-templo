@@ -116,6 +116,10 @@
             dense
             :rules="[(v: string) => !!v || 'Requerido']"
           />
+          <div v-if="form.role === 'tv'" class="text-caption text-grey-7">
+            Cuenta para loguear los televisores de las sedes. Ve todas las sedes y solo entra a la
+            sección TV. No le cambies la contraseña sin volver a loguear cada tele.
+          </div>
           <!-- Phase 110 D-11: País selector for admin/gestion roles. -->
           <q-select
             v-if="needsCountry"
@@ -225,9 +229,10 @@ const roleOptions = [
   { label: 'Owner', value: 'owner' },
   { label: 'Gestion', value: 'gestion' },
   { label: 'Recepcion', value: 'recepcion' },
+  { label: 'Televisor', value: 'tv' },
 ];
 
-const BRANCH_ROLES = new Set(['admin', 'coach', 'gestion', 'recepcion']);
+const BRANCH_ROLES = new Set(['admin', 'coach', 'gestion', 'recepcion', 'tv']);
 const needsBranch = computed(() => BRANCH_ROLES.has(form.value.role));
 
 // Phase 110 D-11: roles that need País selector (country-wide scope).
@@ -249,6 +254,7 @@ const ROLE_COLORS: Record<string, string> = {
   coach: 'teal',
   gestion: 'orange',
   recepcion: 'pink',
+  tv: 'grey-8',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -257,6 +263,7 @@ const ROLE_LABELS: Record<string, string> = {
   coach: 'Coach',
   gestion: 'Gestion',
   recepcion: 'Recepcion',
+  tv: 'Televisor',
 };
 
 // =========================================================================
@@ -454,7 +461,7 @@ async function handleSave() {
         lastName: form.value.lastName,
         email: form.value.email,
         password: form.value.password,
-        role: form.value.role as 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion',
+        role: form.value.role as 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion' | 'tv',
         branchId,
       };
       if (countryRequired && form.value.country) {

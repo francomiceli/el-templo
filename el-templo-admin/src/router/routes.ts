@@ -15,13 +15,17 @@ import {
  * canAccessTraining devuelve true para CUALQUIER owner, por eso el coach
  * exclusivo (Fran) se resuelve ANTES del bloque dueño — así el owner NO cae
  * en /sessions sino en /alumnos.
- *   1. coach + canAccessTraining → /sessions (sólo Fran, no el owner)
- *   2. owner/admin               → /alumnos  (dueño)
- *   3. resto (coach no-Fran/gestion/recepcion) → /cobros (empleado)
+ *   1. tv                        → /tv/control (cuenta dedicada del televisor)
+ *   2. coach + canAccessTraining → /sessions (sólo Fran, no el owner)
+ *   3. owner/admin               → /alumnos  (dueño)
+ *   4. resto (coach no-Fran/gestion/recepcion) → /cobros (empleado)
  */
 export function landingForRole(): string {
   const authStore = useAuthStore();
   const user = authStore.user;
+  if (user?.role === 'tv') {
+    return '/tv/control';
+  }
   if (user?.role === 'coach' && canAccessTraining(user)) {
     return '/sessions';
   }

@@ -4,7 +4,7 @@
   <!-- GRANDES, en secciones BLOQUES / NIVELES / TIMER. Cada tap             -->
   <!-- manda un estado ABSOLUTO y el API devuelve el estado nuevo completo,   -->
   <!-- que es lo que redibuja la botonera.                                     -->
-  <q-page padding class="tv-control">
+  <q-page padding class="tv-control" style="position: relative">
     <div class="row items-center q-col-gutter-md q-mb-md">
       <div class="col-12 col-sm">
         <!-- D-11: arranca en la sede del profe, con selector para cambiar. -->
@@ -246,78 +246,98 @@
       </div>
     </template>
 
-    <!-- Selección de sedes del día (1ª entrada del profe al control hoy): -->
-    <!-- una sede por turno, porque un profe puede manejar dos sedes distintas -->
-    <!-- en el día. Confirmar persiste la elección y setea la sede del turno   -->
-    <!-- vigente; ver openSedeSelection/confirmSedeSelection.                 -->
-    <q-dialog v-model="sedeSelectionOpen" persistent>
-      <q-card style="min-width: 340px">
-        <q-card-section>
-          <div class="text-h6">¿Qué sede vas a manejar hoy?</div>
-          <div class="text-body2 text-grey-7 q-mt-xs">
-            Elegí la sede de cada turno. Vas a manejar la pantalla de esa sede, así que revisá que
-            esté bien.
-          </div>
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-select
-            v-model="morningBranchId"
-            :options="branchOptions"
-            label="Turno mañana"
-            outlined
-            emit-value
-            map-options
-            :popup-content-style="branchPopupStyle"
-          >
-            <template v-if="turnoActual === 'morning'" #append>
-              <q-badge color="primary" label="turno actual" />
-            </template>
-          </q-select>
-          <q-select
-            v-model="afternoonBranchId"
-            :options="branchOptions"
-            label="Turno tarde"
-            outlined
-            emit-value
-            map-options
-            :popup-content-style="branchPopupStyle"
-          >
-            <template v-if="turnoActual === 'afternoon'" #append>
-              <q-badge color="primary" label="turno actual" />
-            </template>
-          </q-select>
-        </q-card-section>
-        <q-card-actions>
-          <q-btn
-            class="full-width"
-            unelevated
-            size="lg"
-            color="primary"
-            label="Confirmar sedes del día"
-            @click="confirmSedeSelection"
-          />
-        </q-card-actions>
+    <!-- Capa de entrada dentro de la página (NO q-dialog): así el header y el -->
+    <!-- drawer de AdminLayout quedan usables — si el profe (o la tele) se     -->
+    <!-- equivocó de sección, puede irse por el menú sin quedar atrapado.      -->
+    <!-- Coach/admin/owner: selección de sedes del día + mostrar plani. Cuenta -->
+    <!-- tv (incidente 2026-09): SOLO mostrar plani — ve todas las sedes y no  -->
+    <!-- maneja turnos. Ver openSedeSelection/confirmSedeSelection y el       -->
+    <!-- montaje de isTvAccount en onMounted.                                  -->
+    <div v-if="sedeSelectionOpen" class="tv-control__overlay">
+      <q-card class="tv-control__overlay-card">
+        <template v-if="!isTvAccount">
+          <!-- Selección de sedes del día (1ª entrada del profe al control hoy): -->
+          <!-- una sede por turno, porque un profe puede manejar dos sedes distintas -->
+          <!-- en el día. Confirmar persiste la elección y setea la sede del turno   -->
+          <!-- vigente; ver openSedeSelection/confirmSedeSelection.                 -->
+          <q-card-section>
+            <div class="text-h6">¿Qué sede vas a manejar hoy?</div>
+            <div class="text-body2 text-grey-7 q-mt-xs">
+              Elegí la sede de cada turno. Vas a manejar la pantalla de esa sede, así que revisá
+              que esté bien.
+            </div>
+          </q-card-section>
+          <q-card-section class="q-gutter-md">
+            <q-select
+              v-model="morningBranchId"
+              :options="branchOptions"
+              label="Turno mañana"
+              outlined
+              emit-value
+              map-options
+              :popup-content-style="branchPopupStyle"
+            >
+              <template v-if="turnoActual === 'morning'" #append>
+                <q-badge color="primary" label="turno actual" />
+              </template>
+            </q-select>
+            <q-select
+              v-model="afternoonBranchId"
+              :options="branchOptions"
+              label="Turno tarde"
+              outlined
+              emit-value
+              map-options
+              :popup-content-style="branchPopupStyle"
+            >
+              <template v-if="turnoActual === 'afternoon'" #append>
+                <q-badge color="primary" label="turno actual" />
+              </template>
+            </q-select>
+          </q-card-section>
+          <q-card-actions>
+            <q-btn
+              class="full-width"
+              unelevated
+              size="lg"
+              color="primary"
+              label="Confirmar sedes del día"
+              @click="confirmSedeSelection"
+            />
+          </q-card-actions>
 
-        <q-separator class="q-my-sm" />
+          <q-separator class="q-my-sm" />
+        </template>
 
         <!-- Camino directo del televisor de pared: abrir la pantalla con la plani  -->
         <!-- de una sede puntual (su PROPIO selector, no la del turno), sin entrar  -->
-        <!-- al control. Ver showScreenFromSelection.                               -->
+        <!-- al control. Ver showScreenFromSelection. Para TODOS los roles.        -->
         <q-card-section>
           <div class="text-subtitle1 text-weight-medium">Mostrar plani en el TV</div>
           <div class="text-body2 text-grey-7 q-mt-xs q-mb-md">
             Para el televisor de la sede: abre la pantalla con la plani del día, sin pasar por el
             control.
           </div>
-          <q-select
-            v-model="screenBranchId"
-            :options="branchOptions"
-            label="Sede de la pantalla"
-            outlined
-            emit-value
-            map-options
-            :popup-content-style="branchPopupStyle"
-          />
+          <!-- Botonera grande en vez de dropdown (el select daba problemas en los
+               navegadores de las teles): un botón por sede real, tap directo. -->
+          <div class="row q-col-gutter-sm">
+            <div
+              v-for="opt in branchOptions"
+              :key="opt.value"
+              class="col-6 col-sm-4"
+            >
+              <q-btn
+                class="full-width tv-control__branch-btn"
+                size="lg"
+                no-caps
+                :unelevated="screenBranchId === opt.value"
+                :outline="screenBranchId !== opt.value"
+                color="primary"
+                :label="opt.label"
+                @click="screenBranchId = opt.value"
+              />
+            </div>
+          </div>
         </q-card-section>
         <q-card-actions>
           <q-btn
@@ -332,7 +352,7 @@
           />
         </q-card-actions>
       </q-card>
-    </q-dialog>
+    </div>
 
     <q-dialog v-model="sedeWarningOpen" persistent>
       <q-card style="min-width: 320px">
@@ -426,7 +446,6 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
-import { useMembersApi } from 'src/composables/useMembersApi';
 import {
   useTvApi,
   type TvAvisoActivo,
@@ -442,8 +461,12 @@ const log = createLogger('TvControlPage');
 const $q = useQuasar();
 const router = useRouter();
 const authStore = useAuthStore();
-const membersApi = useMembersApi();
 const tvApi = useTvApi();
+
+/** Cuenta dedicada de televisor (incidente 2026-09): ve todas las sedes y solo
+ *  entra a esta sección — la capa de entrada le muestra únicamente "Mostrar
+ *  plani en el TV", sin la selección de sedes del día (eso es del profe). */
+const isTvAccount = computed(() => authStore.user?.role === 'tv');
 
 /**
  * Refresco de cortesía: el control es ciego (D-13) y no necesita espejo, pero
@@ -541,6 +564,12 @@ let refreshId: ReturnType<typeof setInterval> | null = null;
 
 type Turno = 'morning' | 'afternoon';
 const DAILY_SEDES_KEY = 'tv-control-sedes';
+/** Sede de la pantalla recordada en ESTE dispositivo (cuenta tv, incidente
+ *  2026-09): a diferencia de DAILY_SEDES_KEY no depende del día ni del turno
+ *  — la tele de pared siempre apunta a la misma sede salvo que se cambie a
+ *  mano. También se guarda al usar el camino "Mostrar plani en el TV" desde
+ *  cualquier rol (inerte para coach/admin/owner: solo la lee el montaje tv). */
+const SCREEN_BRANCH_STORAGE_KEY = 'tv.control.screenBranchId';
 
 /** YYYY-MM-DD en hora local del dispositivo (el control está físicamente en la sede). */
 function todayStr(): string {
@@ -622,10 +651,31 @@ function sedeForTurno(turno: Turno, saved: DailySedes | null): number | null {
   return isValidOption(id) ? id : homeSedeFallback();
 }
 
+/** Sede de pantalla guardada en este dispositivo, si sigue siendo una opción válida. */
+function loadScreenBranchId(): number | null {
+  try {
+    const raw = localStorage.getItem(SCREEN_BRANCH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return isValidOption(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveScreenBranchId(id: number): void {
+  try {
+    localStorage.setItem(SCREEN_BRANCH_STORAGE_KEY, String(id));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.warn('no se pudo guardar la sede de la pantalla', { error: message });
+  }
+}
+
 async function fetchBranches(): Promise<void> {
   branchesLoading.value = true;
   try {
-    branches.value = await membersApi.getBranches();
+    branches.value = await tvApi.getBranches();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error cargando sedes', { error: message });
@@ -870,6 +920,7 @@ async function onBranchChange(): Promise<void> {
  * volver, y en el celular del profe da igual.
  */
 function showScreenFromSelection(): void {
+  if (screenBranchId.value !== null) saveScreenBranchId(screenBranchId.value);
   sedeSelectionOpen.value = false;
   openScreen(screenBranchId.value);
 }
@@ -1095,6 +1146,18 @@ async function onEndClass(): Promise<void> {
 
 onMounted(async () => {
   await fetchBranches();
+
+  if (isTvAccount.value) {
+    // Cuenta tv (incidente 2026-09): no maneja clase, no tiene turnos, no
+    // necesita el refresco de cortesía del control — solo entra a elegir la
+    // sede de la pantalla. Nada de getCoachTodaySchedule/loadDailySedes/
+    // sedeWarningOpen ni el setInterval de fetchContext.
+    screenBranchId.value = loadScreenBranchId() ?? homeSedeFallback();
+    initialLoading.value = false;
+    sedeSelectionOpen.value = true;
+    return;
+  }
+
   const saved = loadDailySedes();
   if (saved) {
     // Re-entrada del mismo día: usar la sede del turno vigente y recordar cuál es.
@@ -1135,5 +1198,31 @@ onUnmounted(() => {
   letter-spacing: 0.18em;
   color: var(--q-primary);
   margin-bottom: 8px;
+}
+
+/* Capa de entrada (selección de sedes / mostrar plani): cubre SOLO el
+   contenido de la página (q-page recibe position:relative) — el header y el
+   drawer de AdminLayout, fuera de este contenedor, quedan usables. */
+.tv-control__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 12px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.tv-control__overlay-card {
+  width: 100%;
+  max-width: 420px;
+}
+
+/* Botonera de sede de la pantalla: el dropdown daba problemas en los
+   navegadores de las teles — botones grandes, tap directo. */
+.tv-control__branch-btn {
+  min-height: 64px;
 }
 </style>

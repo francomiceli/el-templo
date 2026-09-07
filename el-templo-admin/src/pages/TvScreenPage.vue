@@ -192,14 +192,36 @@
         </div>
       </div>
     </div>
+
+    <!-- Cartel de error visible (incidente 2026-09): antes un poll fallido se
+         tragaba en silencio (log.warn) y la tele quedaba congelada sin avisar
+         nada. 403 = la cuenta logueada perdió acceso a esta sede (avisa YA,
+         con instrucciones); cualquier otro error tras varios polls seguidos =
+         sin red/servidor (avisa que va a reintentar sola). Dentro de
+         #tvScreenRoot y fuera de #tv a propósito: no toca el contrato de
+         render.ts. -->
+    <div v-if="pollErrorKind" class="tvError">
+      <template v-if="pollErrorKind === 'forbidden'">
+        <div class="tvError__title">ESTA CUENTA NO TIENE ACCESO A LA SEDE</div>
+        <div class="tvError__detail">
+          {{ errorBranchName }}. Cerrá sesión en esta tele y entrá con la cuenta de televisor.
+        </div>
+      </template>
+      <template v-else>
+        <div class="tvError__title">SIN CONEXIÓN CON EL SERVIDOR</div>
+        <div class="tvError__detail">
+          Reintentando… la pantalla vuelve sola cuando recupere la red.
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
+import axios from 'axios';
 import { useAuthStore } from 'src/stores/useAuthStore';
-import { useMembersApi } from 'src/composables/useMembersApi';
 import { useTvApi } from 'src/composables/useTvApi';
 import { applyServerNow } from 'src/tv/poll';
 import {
@@ -269,7 +291,6 @@ const route = useRoute();
    letras, glow, chispas) sin redeploy — válvula de escape si un TV tironea. */
 const modoSobrio = computed(() => route.query.sobrio !== undefined);
 const authStore = useAuthStore();
-const membersApi = useMembersApi();
 const tvApi = useTvApi();
 
 /** Clave del TV elegido para esta pantalla — un televisor de pared lo hace una vez. */
@@ -363,7 +384,7 @@ async function loadPickerBranches(): Promise<void> {
   pickerLoading.value = true;
   pickerError.value = null;
   try {
-    const branches = await membersApi.getBranches();
+    const branches = await tvApi.getBranches();
     // Un televisor cuelga de una pared: las sedes virtuales (online) no aplican.
     // La propia sede del usuario logueado queda primera en la lista (D-11, mismo
     // criterio que TvControlPage.vue).
@@ -418,6 +439,30 @@ async function resolveBranch(): Promise<void> {
 let pollId: ReturnType<typeof setInterval> | null = null;
 let tickId: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * Cartel de error (incidente 2026-09). `forbidden` (403) se muestra al toque:
+ * la cuenta logueada en esta tele perdió acceso a la sede (p. ej. le
+ * recortaron sedes desde Usuarios) y no tiene sentido reintentar solo. Para
+ * cualquier otro error (red caída, servidor abajo) se espera una racha de
+ * fallos seguidos antes de avisar — un blip de red aislado no debe tapar la
+ * pantalla. `pollFailures` cuenta esa racha; se resetea en cada poll exitoso.
+ */
+const pollErrorKind = ref<'forbidden' | 'network' | null>(null);
+const pollFailures = ref(0);
+/** ≈ 15 s a POLL_MS=750ms antes de mostrar el cartel de "sin conexión". */
+const POLL_FAILURE_THRESHOLD = 20;
+/** Nombre de sede del último poll exitoso, para el cartel de 403. */
+const lastBranchName = ref<string | null>(null);
+
+/** Nombre de sede a mostrar en el cartel de error: el del último poll bueno,
+ *  si no lo del selector (pickerBranches), si no un fallback con el id. */
+const errorBranchName = computed(() => {
+  if (lastBranchName.value) return lastBranchName.value;
+  const fromPicker = pickerBranches.value.find((b) => b.id === branchId.value);
+  if (fromPicker) return fromPicker.name;
+  return branchId.value !== null ? `Sede #${branchId.value}` : 'esta sede';
+});
+
 async function pollOnce(): Promise<void> {
   const id = branchId.value;
   if (id === null) return;
@@ -425,10 +470,22 @@ async function pollOnce(): Promise<void> {
     const payload = await tvApi.getScreen(id);
     applyServerNow(payload.serverNow);
     renderState(payload);
+    lastBranchName.value = payload.branch.name;
+    pollFailures.value = 0;
+    pollErrorKind.value = null;
   } catch (err: unknown) {
     // Mismo criterio que tenía el kiosco estático (T-164-49): un poll fallido NO
     // toca el estado en memoria. El timer sigue local con lo último bueno y la
-    // pantalla no se vacía ni parpadea.
+    // pantalla no se vacía ni parpadea — pero ahora, a diferencia de antes, se
+    // avisa con un cartel en vez de quedar congelada en silencio.
+    if (axios.isAxiosError(err) && err.response?.status === 403) {
+      pollErrorKind.value = 'forbidden';
+    } else {
+      pollFailures.value += 1;
+      if (pollFailures.value >= POLL_FAILURE_THRESHOLD) {
+        pollErrorKind.value = 'network';
+      }
+    }
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.warn('Poll de la pantalla TV fallido, sigue el último estado conocido', {
       error: message,
@@ -619,6 +676,35 @@ onUnmounted(() => {
   letter-spacing: 0.08em;
   color: var(--gold);
   text-transform: uppercase;
+}
+
+/* ── Cartel de error del poll (incidente 2026-09) ──────────────────────── */
+#tvScreenRoot .tvError {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(43, 39, 36, 0.96);
+  color: var(--cream);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4vh 6vw;
+}
+#tvScreenRoot .tvError__title {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  font-size: 2.8rem;
+  line-height: 1.25;
+  max-width: 60rem;
+}
+#tvScreenRoot .tvError__detail {
+  margin-top: 1.5rem;
+  font-size: 1.6rem;
+  color: var(--sand);
+  max-width: 50rem;
 }
 
 /* ── Símbolos de nivel ──────────────────────────────────────────────────── */

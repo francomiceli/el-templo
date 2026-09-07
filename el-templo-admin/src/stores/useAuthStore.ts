@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { api } from 'src/boot/axios';
 import type { AdminUser, AdminRole } from 'src/types/admin';
 
-const ADMIN_ROLES: AdminRole[] = ['gestion', 'coach', 'admin', 'owner', 'recepcion'];
+const ADMIN_ROLES: AdminRole[] = ['gestion', 'coach', 'admin', 'owner', 'recepcion', 'tv'];
 
 const ACCESS_KEY = 'adminAccessToken';
 const REFRESH_KEY = 'adminRefreshToken';

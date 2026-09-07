@@ -122,13 +122,16 @@ export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner'];
 export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 
 /**
- * Televisores de sucursal (fase 164): Dueño + coach (D-01). Mirrors
- * TV_CONTROL_ROLES of the API (`shared/permissions.ts`), que es el gate REAL de
- * `/api/admin/tv` — este set solo decide qué se ve (nav + `meta.allowedRoles`).
- * Un rol fuera del set que navegue por URL directa es rebotado por el guard, y
- * aun si llegara, el API le responde 403.
+ * Televisores de sucursal (fase 164): Dueño + coach + cuenta tv (incidente
+ * 2026-09: la tele quedaba logueada con la cuenta de un coach y un cambio de
+ * sedes la dejaba en 403 silencioso — la cuenta `tv` es dedicada, ve TODAS las
+ * sedes y solo entra a esta sección). Mirrors TV_CONTROL_ROLES of the API
+ * (`shared/permissions.ts`), que es el gate REAL de `/api/admin/tv` — este set
+ * solo decide qué se ve (nav + `meta.allowedRoles`). Un rol fuera del set que
+ * navegue por URL directa es rebotado por el guard, y aun si llegara, el API
+ * le responde 403.
  */
-export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner'];
+export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'tv'];
 
 // ---------------------------------------------------------------------------
 // Nav model

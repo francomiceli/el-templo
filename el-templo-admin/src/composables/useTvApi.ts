@@ -25,6 +25,7 @@ import axios from 'axios';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
 import type { TvPollResponse } from 'src/tv/poll';
+import type { BranchOption } from 'src/types/member';
 
 // -- Contrato del control del profe (espeja types.ts del API) ----------------
 //
@@ -150,6 +151,27 @@ export function describeControlError(err: unknown): string {
 export function useTvApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
+
+  /**
+   * GET /admin/tv/branches — sedes disponibles para el selector de sede de la
+   * pantalla/control (incidente 2026-09, rol `tv`): mismo filtro por rol que
+   * `/admin/members/branches` (Plan que agrega el rol `tv`), pero para la
+   * cuenta `tv` devuelve TODAS las sedes en vez de filtrar por alcance
+   * operativo — la tele necesita poder apuntar a cualquier sucursal.
+   */
+  async function getBranches(): Promise<BranchOption[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ branches: BranchOption[] }>('/admin/tv/branches');
+      return data.branches;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando sucursales');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
 
   /**
    * GET /admin/tv/control/screen?branchId=NN — la lectura de la pantalla fullscreen
@@ -282,6 +304,7 @@ export function useTvApi() {
   return {
     loading,
     error,
+    getBranches,
     getScreen,
     getControlContext,
     getTvAvisoActivo,
