@@ -270,6 +270,9 @@ const TABLES_TO_CLEAN = [
   schema.tvClassState,
   schema.tvPairings,
   schema.tvDevices,
+  // staff-attendance (2026-09-07): jornadas de check-in/check-out del staff —
+  // FK a users/branches, sin limpiar se acumularían huérfanas entre archivos.
+  schema.staffShifts,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,
@@ -809,7 +812,12 @@ export async function createStaffUser(
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role as
-          "coach" | "admin" | "owner" | "gestion" | "recepcion" | "tv",
+          | "coach"
+          | "admin"
+          | "owner"
+          | "gestion"
+          | "recepcion"
+          | "tv",
         branchId: data.branchId,
         country,
       }),

@@ -652,6 +652,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
       "Escribe `system_settings` (TENANT_EXEMPT_TABLES): mismo motivo que el GET hermano — valor único de instalación, gateado owner-only server-side.",
   },
 
+  // ── /api/admin/staff-attendance ───────────────────────────────────────────
+  "GET /api/admin/staff-attendance/me": { categoria: "tenant-scoped" },
+  "POST /api/admin/staff-attendance/check-in": { categoria: "tenant-scoped" },
+  "POST /api/admin/staff-attendance/check-out": { categoria: "tenant-scoped" },
+  "GET /api/admin/staff-attendance/shifts": { categoria: "tenant-scoped" },
+
   // ── /api/admin/subscriptions ──────────────────────────────────────────────
   "GET /api/admin/subscriptions/members/:userId/class-usage": {
     categoria: "tenant-scoped",

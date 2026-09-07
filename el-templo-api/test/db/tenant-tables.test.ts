@@ -96,19 +96,21 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 94 gym-owned + 4 exentas y cubren las 98 tablas del schema", () => {
+  it("los conteos son 95 gym-owned + 4 exentas y cubren las 99 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
     // `partner_commissions`: 88 -> 91, 92 -> 95.
     // Fase 193 sumó `avisos`, `aviso_events`, `tv_avisos` (+3 gym-owned,
     // +3 del schema, exentas sin cambio): 91 -> 94, 95 -> 98.
-    expect(GYM_OWNED_TABLES.length).toBe(94);
+    // 2026-09-07 sumó `staff_shifts` (modulo staff-attendance, nace strict):
+    // 94 -> 95, 98 -> 99.
+    expect(GYM_OWNED_TABLES.length).toBe(95);
     expect(TENANT_EXEMPT_TABLES.length).toBe(4);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(98);
+    expect(schemaTables.size).toBe(99);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 

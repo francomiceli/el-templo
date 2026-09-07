@@ -80,3 +80,4 @@ export * from "./improvement-proposals";
 export * from "./wellhub";
 export * from "./tv";
 export * from "./communications";
+export * from "./staff-shifts";

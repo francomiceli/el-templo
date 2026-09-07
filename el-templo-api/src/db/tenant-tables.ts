@@ -143,6 +143,7 @@ export const GYM_OWNED_TABLES = [
   "sessions",
   "spom_config",
   "spom_rules",
+  "staff_shifts",
   "subscription_plans",
   "subscription_schedule_changes",
   "subscription_schedules",
@@ -625,6 +626,9 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "pending_notifications",
   ],
   referrals: ["referral_credits", "referral_cta_clicks", "referrals"],
+  // 2026-09-07: el modulo nace strict, no hay deuda previa que tolerar
+  // (mismo criterio que `communications`, fase 193).
+  "staff-attendance": ["staff_shifts"],
   wellhub: [
     "wellhub_bookings",
     "wellhub_classes",

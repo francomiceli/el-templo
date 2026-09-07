@@ -58,6 +58,7 @@ import { campaignRoutes } from "./modules/campaigns/routes";
 import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
 import { tvControlRoutes } from "./modules/tv";
+import { staffAttendanceRoutes } from "./modules/staff-attendance";
 import { moduleScope } from "./modules/shared/module-registry";
 import { registerModules } from "./modules-boot";
 
@@ -321,6 +322,12 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // TV_CONTROL_ROLES, D-01). `tv_pairings` / `tv_devices` quedan en el schema
   // sin uso hasta que se decida el DROP.
   await app.register(tvControlRoutes, { prefix: "/api/admin/tv" });
+
+  // Check-in/check-out de la jornada laboral del staff (2026-09-07): QR
+  // físico de sede + checklist de cierre. Junto a attendance (mismo QR).
+  await app.register(staffAttendanceRoutes, {
+    prefix: "/api/admin/staff-attendance",
+  });
 
   // User management routes (owner-only staff CRUD)
   await app.register(userRoutes, {

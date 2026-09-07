@@ -273,7 +273,10 @@ import {
 // `GET /api/app/admin/landing-inbox` (pelotitas del grupo Landing), `templo-module`.
 // 2026-09-07: 412 -> 413 por `GET /api/admin/tv/branches` (selector de sedes de
 // la sección TV, para la cuenta dedicada de los televisores), `tenant-scoped`.
-const ENTRADAS_BASELINE = 413;
+// 2026-09-07: 413 -> 417 por el módulo nuevo `staff-attendance` (check-in/
+// check-out de la jornada laboral): `GET /me`, `POST /check-in`,
+// `POST /check-out`, `GET /shifts`, las 4 `tenant-scoped`.
+const ENTRADAS_BASELINE = 417;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
