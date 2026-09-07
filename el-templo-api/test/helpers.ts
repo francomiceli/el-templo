@@ -809,11 +809,7 @@ export async function createStaffUser(
         firstName: data.firstName,
         lastName: data.lastName,
         role: data.role as
-          | "coach"
-          | "admin"
-          | "owner"
-          | "gestion"
-          | "recepcion",
+          "coach" | "admin" | "owner" | "gestion" | "recepcion" | "tv",
         branchId: data.branchId,
         country,
       }),

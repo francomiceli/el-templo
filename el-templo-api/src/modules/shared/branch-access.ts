@@ -86,6 +86,7 @@ import type { CountryScope } from "./country-scope";
 import { assertTenant, type TenantContext } from "./tenant";
 import { resolveBranchDelGimnasio } from "./branch-consistency";
 import { AppError } from "./errors";
+import { TV_ACCOUNT_ROLE } from "./permissions";
 
 export const BRANCH_OUT_OF_SCOPE = "BRANCH_OUT_OF_SCOPE";
 
@@ -96,9 +97,7 @@ export const BRANCH_OUT_OF_SCOPE = "BRANCH_OUT_OF_SCOPE";
  * Routes whose `:id` IS a branchId should rename the param to `:branchId`.
  */
 export type BranchIdLocation =
-  | "query.branchId"
-  | "params.branchId"
-  | "body.branchId";
+  "query.branchId" | "params.branchId" | "body.branchId";
 
 /**
  * Pure async predicate. Returns true iff the actor described by `scope` may
@@ -147,6 +146,15 @@ export async function canAccessBranch(
 
   // Rule 2: owner bypass.
   if (scope.isOwner) {
+    return true;
+  }
+
+  // Rule 2b (2026-09-07): la cuenta dedicada de los televisores ve TODAS las
+  // sedes reales del gimnasio. A propósito NO pasa por `user_branches`: una
+  // pantalla de pared no puede quedar en 403 porque alguien reescribió las
+  // sedes de un usuario desde el admin (incidente TV Alem/Mario Bravo). El
+  // gimnasio ya lo decidió la Regla 0 — esto no cruza tenants.
+  if (scope.role === TV_ACCOUNT_ROLE) {
     return true;
   }
 

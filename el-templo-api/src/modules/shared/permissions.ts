@@ -276,7 +276,24 @@ export const MEMBER_LIFECYCLE_ROLES = ["owner", "admin", "gestion"] as const;
  * sobre `request.scope` (Rule 4 acota al coach a sus sedes operativas), así que
  * un coach de Moreno no puede vincular un TV de Jujuy aunque pase este guard.
  */
-export const TV_CONTROL_ROLES = [...ADMIN_ROLES, "coach"] as const;
+export const TV_CONTROL_ROLES = [...ADMIN_ROLES, "coach", "tv"] as const;
+
+/**
+ * Rol de la cuenta dedicada de los televisores (2026-09-07, migración 0222).
+ *
+ * Nació de un incidente: las pantallas de dos sedes estaban logueadas con la
+ * cuenta de un coach y, al editarle las sedes desde Usuarios, `user_branches`
+ * se reescribió y el poll pasó a 403 (`BRANCH_OUT_OF_SCOPE`) sin que la
+ * pantalla avisara. Con este rol:
+ *   - entra SOLO a `/api/admin/tv` (`TV_CONTROL_ROLES`), a nada más — NO está
+ *     en ALL_STAFF_ROLES ni en MEMBER_ROLES a propósito;
+ *   - `canAccessBranch` (Regla 2b) le da todas las sedes reales del gimnasio
+ *     sin mirar `user_branches`, así que cambiar sedes/horarios de profes no
+ *     lo toca;
+ *   - la lista de sedes la saca de `GET /api/admin/tv/branches`, no del módulo
+ *     de socios.
+ */
+export const TV_ACCOUNT_ROLE = "tv" as const;
 
 /**
  * Roles que ven el "Registro del día" del alumno (energía/sueño/molestias) en la

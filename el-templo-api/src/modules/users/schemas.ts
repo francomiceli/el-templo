@@ -57,7 +57,7 @@ export const createStaffSchema = {
       password: { type: "string", minLength: 6 },
       role: {
         type: "string",
-        enum: ["coach", "admin", "owner", "gestion", "recepcion"],
+        enum: ["coach", "admin", "owner", "gestion", "recepcion", "tv"],
       },
       branchId: { type: "integer" },
       // Phase 110 REQ-1: country of management for admin/gestion (validated
@@ -122,7 +122,7 @@ export const updateStaffSchema = {
       password: { type: "string", minLength: 6 },
       role: {
         type: "string",
-        enum: ["coach", "admin", "owner", "gestion", "recepcion"],
+        enum: ["coach", "admin", "owner", "gestion", "recepcion", "tv"],
       },
       branchId: { type: "integer" },
       // Phase 110 REQ-1 / REQ-2: same additive shape as create.

@@ -11,7 +11,11 @@ import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
 import type { StaffUser, CreateStaffInput, UpdateStaffInput } from "./types";
-import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
 import {
   assertBranchDelGimnasio,
   resolveBranchDelGimnasio,
@@ -23,6 +27,9 @@ import {
  *   - admin / gestion → must have country
  *   - coach / recepcion → must have ≥ 1 branchIds
  *   - owner → must NOT have country (D-12: owner.country=NULL models global)
+ *   - tv (2026-09-07) → must NOT have country nor branchIds: la cuenta de los
+ *     televisores ve todas las sedes por rol (canAccessBranch Regla 2b), una
+ *     fila en user_branches sería basura que alguien podría "editar".
  *   - member → must NOT have any branchIds (defense-in-depth — even though
  *     the staff CRUD route is OWNER_ROLES-only, a malformed payload with
  *     role=member + branchIds=[X] would otherwise silently insert junk
@@ -51,6 +58,16 @@ function validateStaffCardinality(input: {
   }
   if (input.role === "owner" && input.country) {
     const e = new Error("Owner no puede tener país asignado (acceso global)");
+    (e as Error & { statusCode: number }).statusCode = 400;
+    throw e;
+  }
+  if (
+    input.role === "tv" &&
+    (input.country || (input.branchIds && input.branchIds.length > 0))
+  ) {
+    const e = new Error(
+      "La cuenta de televisor no lleva país ni sedes operativas (ve todas las sedes)",
+    );
     (e as Error & { statusCode: number }).statusCode = 400;
     throw e;
   }
@@ -121,7 +138,9 @@ export class UserService {
           eq(schema.users.branchId, schema.branches.id),
         ),
       )
-      .where(and(tenantWhere(schema.users, ctx), ne(schema.users.role, "member")))
+      .where(
+        and(tenantWhere(schema.users, ctx), ne(schema.users.role, "member")),
+      )
       .orderBy(schema.users.createdAt);
 
     // Apply branchId filter in-memory (simpler than dynamic where clause)
@@ -182,7 +201,10 @@ export class UserService {
    * se rechaza la operación ENTERA (T-173-13-02): filtrar en silencio dejaría
    * al operador creyendo que guardó sedes que en realidad no guardó.
    */
-  async createStaff(ctx: TenantContext, input: CreateStaffInput): Promise<number> {
+  async createStaff(
+    ctx: TenantContext,
+    input: CreateStaffInput,
+  ): Promise<number> {
     // Phase 110 REQ-9: cardinality first, before any DB work.
     validateStaffCardinality(input);
 
@@ -190,7 +212,12 @@ export class UserService {
     const [existing] = await this.db
       .select({ id: schema.users.id, role: schema.users.role })
       .from(schema.users)
-      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.email, input.email)))
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.email, input.email),
+        ),
+      )
       .limit(1);
 
     if (existing && existing.role !== "member") {
@@ -232,7 +259,10 @@ export class UserService {
             country,
           })
           .where(
-            and(tenantWhere(schema.users, ctx), eq(schema.users.id, existing.id)),
+            and(
+              tenantWhere(schema.users, ctx),
+              eq(schema.users.id, existing.id),
+            ),
           );
         userId = existing.id;
         // Replace any prior user_branches rows for the promoted user.
@@ -331,7 +361,10 @@ export class UserService {
         .select({ id: schema.users.id })
         .from(schema.users)
         .where(
-          and(tenantWhere(schema.users, ctx), eq(schema.users.email, input.email)),
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.email, input.email),
+          ),
         )
         .limit(1);
 
@@ -379,8 +412,10 @@ export class UserService {
     // Build the fields that don't need DB validation, outside the
     // transaction (argon2.hash is CPU-bound — no reason to hold a tx open).
     const baseUpdateFields: Record<string, unknown> = {};
-    if (input.firstName !== undefined) baseUpdateFields.firstName = input.firstName;
-    if (input.lastName !== undefined) baseUpdateFields.lastName = input.lastName;
+    if (input.firstName !== undefined)
+      baseUpdateFields.firstName = input.firstName;
+    if (input.lastName !== undefined)
+      baseUpdateFields.lastName = input.lastName;
     if (input.email !== undefined) baseUpdateFields.email = input.email;
     if (input.role !== undefined) baseUpdateFields.role = input.role;
     if (input.country !== undefined) baseUpdateFields.country = input.country;
@@ -405,7 +440,9 @@ export class UserService {
         await tx
           .update(schema.users)
           .set(updateFields)
-          .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)));
+          .where(
+            and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)),
+          );
       }
 
       // Phase 110: replace user_branches atomically when caller provides

@@ -149,6 +149,39 @@ const tvClassPayloadSchema = {
  * declararlo aca. El reposo es exactamente
  * `{ serverNow, branch, screen: "idle", class: null }`.
  */
+/**
+ * GET /api/admin/tv/branches
+ *
+ * Sedes que puede elegir la sección TV (selector del control y de la pantalla).
+ * Mismo filtro por rol que `GET /api/admin/members/branches`
+ * (`shared/branch-list.ts`), servido desde el módulo TV para que la cuenta de
+ * los televisores (rol `tv`) no necesite entrar al plugin de socios.
+ */
+export const tvBranchesSchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["branches"],
+      properties: {
+        branches: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["id", "name", "isVirtual", "country", "timezone"],
+            properties: {
+              id: { type: "integer" },
+              name: { type: "string" },
+              isVirtual: { type: "boolean" },
+              country: { type: "string" },
+              timezone: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 export const tvControlScreenSchema = {
   querystring: {
     type: "object",

@@ -2,7 +2,7 @@ import type { FastifyRequest } from "fastify";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { and, eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { OWNER_ROLES } from "./permissions";
+import { OWNER_ROLES, TV_ACCOUNT_ROLE } from "./permissions";
 import { AppError } from "./errors";
 import { tenantWhere, type TenantContext } from "./tenant";
 
@@ -258,6 +258,12 @@ export async function attachScope(
         // Country derived from the actor's own branch (their personal training
         // sede) — mirrors the previous JOIN behavior for consumers like
         // FinanceService that rely on `scope.country`.
+        const branchCountry = await resolveBranchCountry(db, ctx, userId);
+        if (branchCountry) country = branchCountry;
+      } else if (role === TV_ACCOUNT_ROLE) {
+        // Cuenta de los televisores (2026-09-07): sin `user_branches` a
+        // propósito (canAccessBranch Regla 2b le da todas las sedes del
+        // gimnasio). El país sale de su sede de casa, como cualquier otro rol.
         const branchCountry = await resolveBranchCountry(db, ctx, userId);
         if (branchCountry) country = branchCountry;
       } else {

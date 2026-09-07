@@ -722,6 +722,8 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // vista del admin AUTENTICADA, así que se borraron el pairing (`/pair/claim`) y
   // el panel de dispositivos (`/devices`, `/devices/:id/revoke`). `/control/screen`
   // es la proyección TV-facing por sede que reemplaza al viejo device poll.
+  // 2026-09-07: sedes para la sección TV (rol `tv` no entra al plugin de socios).
+  "GET /api/admin/tv/branches": { categoria: "tenant-scoped" },
   "GET /api/admin/tv/control/context": { categoria: "tenant-scoped" },
   "GET /api/admin/tv/control/screen": { categoria: "tenant-scoped" },
   "POST /api/admin/tv/control/end-class": { categoria: "tenant-scoped" },

@@ -79,6 +79,7 @@ import {
   MEMBER_LIFECYCLE_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { listBranchesForScope } from "../shared/branch-list";
 import {
   requireBranchAccess,
   BRANCH_OUT_OF_SCOPE,
@@ -137,69 +138,25 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // (REQ-12). `timezone` backs the per-row "today" of the Vencimiento pill in the
   // all-branches Alumnos list.
   fastify.get("/branches", async (request) => {
-    // 173-20 (T-173-20-01): `tenantWhere` inline. Esta query alimenta el
-    // selector de sedes de TODA la UI de socios — sin filtro, el staff de un
-    // gimnasio ve (y puede elegir) sedes del otro, la puerta de entrada
-    // directa a la divergencia de anclas que ADO-07 protege.
-    const ctx = assertTenant(request.scope, "members.branches");
-    const allRows = await fastify.db
-      .select({
-        id: schema.branches.id,
-        name: schema.branches.name,
-        country: schema.branches.country,
-        isVirtual: schema.branches.isVirtual,
-        timezone: schema.branches.timezone,
-      })
-      .from(schema.branches)
-      .where(
-        and(
-          tenantWhere(schema.branches, ctx),
-          eq(schema.branches.isActive, true),
-        ),
-      )
-      .orderBy(schema.branches.name);
-
-    const { isOwner, country, branchIds, role } = request.scope;
-    let filtered = allRows;
-
-    if (isOwner) {
-      // D-08: owner with ?country= filters; without ?country= sees all (real + virtual).
-      // attachCountryScope already reflects ?country=AR|ES into scope.country for
-      // owners, but to support "no toggle = see all" we check the raw query param.
-      const q = (request.query as Record<string, unknown> | undefined)?.country;
-      if (q === "AR" || q === "ES") {
-        filtered = allRows.filter((b) => b.isVirtual || b.country === country);
-      }
-      // else: owner without ?country= → keep allRows
-    } else if (role === "admin" || role === "gestion") {
-      // When scope.country is null (data-corruption fail-closed), this filter
-      // degenerates to virtual-only — consistent with canAccessBranch Rule 3
-      // which evaluates `country !== null && branch.country === country`.
-      filtered = allRows.filter((b) => b.isVirtual || b.country === country);
-    } else if (role === "coach" || role === "recepcion") {
-      const allowed = new Set(branchIds);
-      filtered = allRows.filter((b) => b.isVirtual || allowed.has(b.id));
-    }
-    // member: leave allRows. Module guard restricts to MEMBER_ROLES (which here
-    // includes coach/admin/owner/gestion/recepcion), so this branch is unreachable
-    // in practice — kept as defensive default.
-
-    return {
-      // country expuesto para que el admin gatee la UI de domiciliación
-      // bancaria (sección SEPA + export) por sucursal de España.
-      // timezone: el admin resuelve "hoy" por fila con la TZ de la sede en la
-      // pill de Vencimiento. Es el ÚNICO lugar que lo expone — omitirlo acá no
-      // rompe tipos (BranchOption lo tiene opcional) ni falla en runtime: el
-      // mapa de TZ del admin queda vacío y toda fila cae al default argentino,
-      // en silencio. Solo lo agarra el test de branch-access.
-      branches: filtered.map(({ id, name, isVirtual, country, timezone }) => ({
-        id,
-        name,
-        isVirtual: !!isVirtual,
-        country,
-        timezone,
-      })),
-    };
+    // 2026-09-07: el filtro por rol vive en `shared/branch-list.ts` (fuente
+    // única con `GET /api/admin/tv/branches`). `tenantWhere` sigue inline allá
+    // (T-173-20-01): esta lista alimenta el selector de sedes de TODA la UI de
+    // socios — sin filtro, el staff de un gimnasio ve sedes del otro.
+    const q = (request.query as Record<string, unknown> | undefined)?.country;
+    const branches = await listBranchesForScope(
+      fastify.db,
+      request.scope,
+      q,
+      "members.branches",
+    );
+    // country expuesto para que el admin gatee la UI de domiciliación
+    // bancaria (sección SEPA + export) por sucursal de España.
+    // timezone: el admin resuelve "hoy" por fila con la TZ de la sede en la
+    // pill de Vencimiento. Es el ÚNICO lugar que lo expone — omitirlo acá no
+    // rompe tipos (BranchOption lo tiene opcional) ni falla en runtime: el
+    // mapa de TZ del admin queda vacío y toda fila cae al default argentino,
+    // en silencio. Solo lo agarra el test de branch-access.
+    return { branches };
   });
 
   // =========================================================================

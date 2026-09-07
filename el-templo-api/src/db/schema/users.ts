@@ -24,6 +24,10 @@ export const roleEnum = mysqlEnum("role", [
   "owner",
   "gestion",
   "recepcion",
+  // 2026-09-07: cuenta dedicada de los televisores de sede (migración 0222).
+  // Solo entra a la sección TV del admin; ve TODAS las sedes del gimnasio sin
+  // pasar por `user_branches` (ver canAccessBranch, Regla 2b).
+  "tv",
 ]);
 // Phase 129 (KAIROS-01, D-01): `kairos` is the new entry-level tier, added FIRST.
 // Order: kairos -> alfa -> delta -> sigma -> omega -> spartan. The column DEFAULT

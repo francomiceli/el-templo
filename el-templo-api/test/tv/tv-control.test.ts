@@ -524,6 +524,134 @@ describe("GET /control/screen — la proyeccion TV-facing, ahora autenticada", (
     expect((await getScreen(ownerToken, branchAId)).statusCode).toBe(200);
     expect((await getScreen(ownerToken, branchBId)).statusCode).toBe(200);
   });
+
+  /**
+   * 2026-09-07 — cuenta dedicada de los televisores (rol `tv`, migración 0222).
+   * Incidente: las pantallas estaban logueadas con la cuenta de un coach y al
+   * editarle las sedes desde Usuarios el poll pasó a 403 (`user_branches`
+   * reescrito). El rol `tv` entra a TODAS las sedes del gimnasio SIN filas en
+   * `user_branches` (canAccessBranch Regla 2b), así que ninguna edición de
+   * horarios/sedes de profes puede volver a congelar una tele.
+   */
+  it("rol tv: entra a la pantalla de cualquier sede sin user_branches", async () => {
+    await seedTuesday();
+    await createStaffUser(app, {
+      email: "tv-ctrl-tele@test.com",
+      password: "tele-pass-123",
+      firstName: "Tele",
+      lastName: "Sede",
+      role: "tv",
+      branchId: branchAId,
+    });
+    const tvToken = await getAuthToken(
+      app,
+      "tv-ctrl-tele@test.com",
+      "tele-pass-123",
+    );
+    // createStaffUser NO inserta user_branches para `tv` (solo coach/recepcion):
+    // el acceso sale del rol, no de la tabla.
+    expect((await getScreen(tvToken, branchAId)).statusCode).toBe(200);
+    expect((await getScreen(tvToken, branchBId)).statusCode).toBe(200);
+    expect((await getContext(tvToken, branchBId)).statusCode).toBe(200);
+  });
+
+  it("rol tv: NO entra al plugin de socios (solo la sección TV)", async () => {
+    await createStaffUser(app, {
+      email: "tv-ctrl-tele-socios@test.com",
+      password: "tele-pass-123",
+      firstName: "Tele",
+      lastName: "Sede",
+      role: "tv",
+      branchId: branchAId,
+    });
+    const tvToken = await getAuthToken(
+      app,
+      "tv-ctrl-tele-socios@test.com",
+      "tele-pass-123",
+    );
+    const socios = await app.inject({
+      method: "GET",
+      url: "/api/admin/members/branches",
+      headers: { authorization: `Bearer ${tvToken}` },
+    });
+    expect(socios.statusCode).toBe(403);
+    const ratings = await app.inject({
+      method: "GET",
+      url: "/api/admin/ratings/roster/coach-today",
+      headers: { authorization: `Bearer ${tvToken}` },
+    });
+    expect(ratings.statusCode).toBe(403);
+  });
+});
+
+describe("GET /api/admin/tv/branches — sedes de la sección TV (2026-09-07)", () => {
+  function getBranches(token: string) {
+    return app.inject({
+      method: "GET",
+      url: "/api/admin/tv/branches",
+      headers: { authorization: `Bearer ${token}` },
+    });
+  }
+
+  it("rol tv ve todas las sedes reales del gimnasio; el coach solo las suyas", async () => {
+    await createStaffUser(app, {
+      email: "tv-branches-tele@test.com",
+      password: "tele-pass-123",
+      firstName: "Tele",
+      lastName: "Sede",
+      role: "tv",
+      branchId: branchAId,
+    });
+    const tvToken = await getAuthToken(
+      app,
+      "tv-branches-tele@test.com",
+      "tele-pass-123",
+    );
+
+    const tele = await getBranches(tvToken);
+    expect(tele.statusCode).toBe(200);
+    const teleIds = (
+      JSON.parse(tele.body) as { branches: { id: number; timezone: string }[] }
+    ).branches;
+    expect(teleIds.map((b) => b.id)).toEqual(
+      expect.arrayContaining([branchAId, branchBId]),
+    );
+    expect(teleIds.find((b) => b.id === branchAId)?.timezone).toBe(AR_TZ);
+
+    // Mismo filtro que /admin/members/branches: el coach A solo ve la A.
+    const coach = await getBranches(coachAToken);
+    expect(coach.statusCode).toBe(200);
+    const coachIds = (
+      JSON.parse(coach.body) as { branches: { id: number }[] }
+    ).branches.map((b) => b.id);
+    expect(coachIds).toContain(branchAId);
+    expect(coachIds).not.toContain(branchBId);
+
+    // El owner ve las dos.
+    const owner = await getBranches(ownerToken);
+    expect(owner.statusCode).toBe(200);
+    const ownerIds = (
+      JSON.parse(owner.body) as { branches: { id: number }[] }
+    ).branches.map((b) => b.id);
+    expect(ownerIds).toEqual(expect.arrayContaining([branchAId, branchBId]));
+  });
+
+  it("gestion/recepcion no entran (TV_CONTROL_ROLES)", async () => {
+    await createStaffUser(app, {
+      email: "tv-branches-gestion@test.com",
+      password: "gestion-pass-123",
+      firstName: "Ges",
+      lastName: "Tion",
+      role: "gestion",
+      branchId: branchAId,
+    });
+    const gestionToken = await getAuthToken(
+      app,
+      "tv-branches-gestion@test.com",
+      "gestion-pass-123",
+    );
+    expect((await getBranches(gestionToken)).statusCode).toBe(403);
+  });
 });
 
 describe("POST /control/state — bloque, nivel y ejercicio (D-15)", () => {

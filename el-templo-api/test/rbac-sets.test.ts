@@ -68,10 +68,11 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
     expect([...PROGRAMAS_LIST_ROLES]).not.toContain("coach");
   });
 
-  it("TV_CONTROL_ROLES is Dueño core + coach (branch TV) — D-01 fase 164", () => {
-    // El profe vincula y maneja el TV de su sede; el resto del staff (gestion,
+  it("TV_CONTROL_ROLES is Dueño core + coach + cuenta tv (branch TV) — D-01 fase 164, 2026-09-07", () => {
+    // El profe vincula y maneja el TV de su sede; la cuenta dedicada `tv`
+    // (2026-09-07) loguea los televisores; el resto del staff (gestion,
     // recepcion) NO. El acceso por sede lo impone requireBranchAccess aparte.
-    expect([...TV_CONTROL_ROLES]).toEqual(["admin", "owner", "coach"]);
+    expect([...TV_CONTROL_ROLES]).toEqual(["admin", "owner", "coach", "tv"]);
     expect([...TV_CONTROL_ROLES]).not.toContain("gestion");
     expect([...TV_CONTROL_ROLES]).not.toContain("recepcion");
   });

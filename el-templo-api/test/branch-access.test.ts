@@ -362,6 +362,26 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       expect(ok).toBe(false);
     });
 
+    it("tv (Regla 2b, 2026-09-07): cualquier sede real del gimnasio → true, sin branchIds", async () => {
+      // La cuenta de los televisores no depende de user_branches: branchIds
+      // vacío y aun así entra a la AR, a la segunda AR y a la ES.
+      for (const id of [arBranchId, arBranchSecondId, esBranchId]) {
+        const ok = await canAccessBranch(
+          {
+            tenantId: 1,
+            country: "AR",
+            branchIds: [],
+            isOwner: false,
+            role: "tv",
+            userBranchId: arBranchId,
+          },
+          id,
+          app.db,
+        );
+        expect(ok).toBe(true);
+      }
+    });
+
     it("member: branchId === scope.userBranchId → true", async () => {
       const ok = await canAccessBranch(
         {
@@ -960,6 +980,86 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
         },
       });
       expect(res.statusCode).toBe(201);
+    });
+
+    it("POST /api/admin/users with role=tv, branchIds=[X] → 400 (la tele no lleva sedes operativas)", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/admin/users",
+        headers: { authorization: `Bearer ${ownerToken}` },
+        payload: {
+          firstName: "Tele",
+          lastName: "Sede",
+          email: `card-tv-branches-${u}@test.local`,
+          password: "test1234",
+          role: "tv",
+          branchId: arBranchId,
+          branchIds: [arBranchId],
+        },
+      });
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body) as { error?: string; message?: string };
+      const text = (body.error ?? "") + (body.message ?? "");
+      expect(text).toMatch(/televisor/i);
+    });
+
+    it("POST /api/admin/users with role=tv, country='AR' → 400", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/admin/users",
+        headers: { authorization: `Bearer ${ownerToken}` },
+        payload: {
+          firstName: "Tele",
+          lastName: "Sede",
+          email: `card-tv-country-${u}@test.local`,
+          password: "test1234",
+          role: "tv",
+          branchId: arBranchId,
+          country: "AR",
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("POST /api/admin/users with role=tv, solo sede de casa → 201, sin user_branches", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/admin/users",
+        headers: { authorization: `Bearer ${ownerToken}` },
+        payload: {
+          firstName: "Tele",
+          lastName: "Sede",
+          email: `card-tv-valid-${u}@test.local`,
+          password: "test1234",
+          role: "tv",
+          branchId: arBranchId,
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body) as { id: number };
+      const ub = await app.db
+        .select({ branchId: schema.userBranches.branchId })
+        .from(schema.userBranches)
+        .where(
+          and(
+            tenantWhere(schema.userBranches, CTX),
+            eq(schema.userBranches.userId, body.id),
+          ),
+        );
+      expect(ub).toHaveLength(0);
+
+      // Y con esa cuenta, /admin/members/branches está cerrado (solo sección TV).
+      const tvToken = await getAuthToken(
+        app,
+        `card-tv-valid-${u}@test.local`,
+        "test1234",
+      );
+      const socios = await app.inject({
+        method: "GET",
+        url: "/api/admin/members/branches",
+        headers: { authorization: `Bearer ${tvToken}` },
+      });
+      expect(socios.statusCode).toBe(403);
     });
 
     it("POST /api/admin/users with role=coach, branchIds=[arBranchId] → 201 + user_branches row created", async () => {

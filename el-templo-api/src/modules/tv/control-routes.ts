@@ -8,7 +8,8 @@
  * schema sin uso hasta que se decida el DROP.
  *
  * Dos capas de autorizacion, independientes:
- *   1. QUE rol  — `TV_CONTROL_ROLES` (Dueño + coach, D-01) en el hook del plugin.
+ *   1. QUE rol  — `TV_CONTROL_ROLES` (Dueño + coach + cuenta `tv`, D-01) en el
+ *      hook del plugin.
  *   2. QUE sede — `requireBranchAccess` sobre `request.scope`.
  *      Sin esta segunda capa, un coach de Moreno podria leer o escribir el
  *      estado de clase de Jujuy con solo mandar otro `branchId` (T-164-12).
@@ -20,7 +21,9 @@ import { handleServiceError } from "../shared/error-handler";
 import { TV_CONTROL_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { requireBranchAccess } from "../shared/branch-access";
+import { listBranchesForScope } from "../shared/branch-list";
 import {
+  tvBranchesSchema,
   tvControlContextSchema,
   tvControlStateSchema,
   tvControlEndClassSchema,
@@ -41,6 +44,36 @@ export const tvControlRoutes: FastifyPluginAsync = async (fastify) => {
     }
     await attachCountryScope(request, fastify.db);
   });
+
+  /**
+   * GET /api/admin/tv/branches
+   *
+   * Sedes para el selector de la sección TV (control + pantalla). Mismo filtro
+   * por rol que `/api/admin/members/branches` (fuente única en
+   * `shared/branch-list.ts`), pero servido desde ACÁ: la cuenta dedicada de los
+   * televisores (rol `tv`, 2026-09-07) solo tiene permitido este plugin y no
+   * puede entrar al de socios, cuyo guard es de plugin entero. Sin `branchId`:
+   * la lista ya viene acotada por el scope.
+   */
+  fastify.get(
+    "/branches",
+    { schema: tvBranchesSchema },
+    async (request, reply) => {
+      try {
+        const q = (request.query as Record<string, unknown> | undefined)
+          ?.country;
+        const branches = await listBranchesForScope(
+          fastify.db,
+          request.scope,
+          q,
+          "tv.branches",
+        );
+        return reply.send({ branches });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "tv branches");
+      }
+    },
+  );
 
   /**
    * GET /api/admin/tv/control/context?branchId=NN
