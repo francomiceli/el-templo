@@ -60,6 +60,12 @@ interface CoachPayPlanBody {
   // si el socio tiene saldo pendiente, se rechaza (primero se salda).
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
+  // Prorrateo hasta fin de mes (2026-09-07, también al renovar): la vigencia
+  // termina el último día del mes y el precio es el proporcional. El monto
+  // editado viaja en priceOverrideAmount SIN motivo (igual que la ficha); sin
+  // él, renewSubscription calcula el proporcional. Excluyente con precio
+  // acordado (el server ignora el motivo en modo prorrateo).
+  prorateToMonthEnd?: boolean;
   paymentMethod: PaymentMethod;
   idempotencyKey: string;
   // Phase 151 (COBRO-04): cuenta banco elegida en la PoS. Obligatoria para
@@ -152,6 +158,8 @@ const coachPayPlanSchema = {
       // lista, con motivo. Sin deuda. Ver CoachPayPlanBody.
       priceOverrideAmount: { type: "integer", minimum: 0 },
       priceOverrideReason: { type: "string", minLength: 1, maxLength: 500 },
+      // Prorrateo hasta fin de mes al renovar (2026-09-07). Ver CoachPayPlanBody.
+      prorateToMonthEnd: { type: "boolean" },
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
       idempotencyKey: { type: "string", minLength: 1, maxLength: 64 },
       // Phase 151 (COBRO-04): opcional en el schema; el requisito transfer/card
@@ -484,6 +492,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         amountReceived,
         priceOverrideAmount,
         priceOverrideReason,
+        prorateToMonthEnd,
         paymentMethod,
         idempotencyKey,
         bankAccountId,
@@ -491,9 +500,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       } = request.body;
       // Precio acordado: el motivo es obligatorio (mismo contrato que la ficha
       // del socio, pricing.ts lo re-exige). Se valida acá para que el 400 sea
-      // claro antes de tocar la suscripción.
+      // claro antes de tocar la suscripción. En modo prorrateo el monto es el
+      // proporcional editado y no lleva motivo (igual que la ficha).
       if (
         priceOverrideAmount !== undefined &&
+        !prorateToMonthEnd &&
         (!priceOverrideReason || priceOverrideReason.trim().length === 0)
       ) {
         return reply.code(400).send({
@@ -535,12 +546,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         if (sub && outstanding > 0) {
           // ── SETTLE the existing debt — no new period (the plan is already
           // assigned/active; the profe is just collecting what's owed). ──
-          if (priceOverrideAmount !== undefined) {
-            // El precio acordado es de la renovación, no del saldo: aplicarlo
-            // acá dejaría la deuda vieja "descontada" sin rastro.
+          if (priceOverrideAmount !== undefined || prorateToMonthEnd) {
+            // El precio acordado y el prorrateo son de la renovación, no del
+            // saldo: aplicarlos acá dejaría la deuda vieja "descontada" sin rastro.
             return reply.code(400).send({
               error: "Solicitud invalida",
-              message: `El socio tiene saldo pendiente ($${outstanding}): primero se cobra la deuda, el precio acordado aplica a la renovación`,
+              message: `El socio tiene saldo pendiente ($${outstanding}): primero se cobra la deuda, el precio acordado o el prorrateo aplican a la renovación`,
             });
           }
           const amount = amountReceived ?? outstanding;
@@ -643,6 +654,9 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
                   priceOverrideReason: priceOverrideReason?.trim(),
                 }
               : {}),
+            // Prorrateo hasta fin de mes (2026-09-07): vence el último día del
+            // mes; el precio es priceOverrideAmount (editado) o el proporcional.
+            ...(prorateToMonthEnd ? { prorateToMonthEnd: true } : {}),
             // Server-derived role → status (coach → pendiente). Not a literal so
             // a future admin-callable variant stays correct.
             recorderRole: request.user.role as AdminRole,

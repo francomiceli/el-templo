@@ -34,7 +34,7 @@
  *   POST   /api/admin/finance/expenses/:id/void
  *
  * Con las 14 del `iso-03-finance-cajas.test.ts` y las 13 del
- * `iso-03-finance-transacciones.test.ts`, la bateria cierra las 38 rutas
+ * `iso-03-finance-transacciones.test.ts`, la bateria cierra las 44 rutas
  * `tenant-scoped` de finance del manifiesto (14 + 13 + 11).
  *
  * EL CONTRATO QUE SE AFIRMA (D-09, para TODO el milestone)

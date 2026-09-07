@@ -511,6 +511,50 @@ describe("coach-load renew", () => {
     expect(bal.amount).toBe(20000);
   });
 
+  it("renew: prorateToMonthEnd → vence el último día del mes, precio = el proporcional enviado, sin motivo", async () => {
+    await seedRenewableSubscription(); // vencida ayer → la renovación arranca hoy
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "cash",
+        prorateToMonthEnd: true,
+        priceOverrideAmount: 40000,
+        amountReceived: 40000,
+        idempotencyKey: `renew-prorate-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body) as {
+      subscription: { id: number; endDate: string };
+      transaction: { amount: number };
+    };
+    expect(body.transaction.amount).toBe(40000);
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const expectedEnd = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, "0")}-${String(lastDay.getDate()).padStart(2, "0")}`;
+    expect(String(body.subscription.endDate).slice(0, 10)).toBe(expectedEnd);
+  });
+
+  it("renew: prorateToMonthEnd con precio mayor al del mes completo → 400", async () => {
+    await seedRenewableSubscription(); // pricePaid 100000
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "cash",
+        prorateToMonthEnd: true,
+        priceOverrideAmount: 150000,
+        idempotencyKey: `renew-prorate-over-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it("renew: 404 when the member has no subscription to renew", async () => {
     const res = await app.inject({
       method: "POST",

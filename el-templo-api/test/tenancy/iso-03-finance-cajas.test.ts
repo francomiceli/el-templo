@@ -13,7 +13,7 @@
  * Es ademas la PLANTILLA que copian las fases 173-175, asi que su forma importa
  * tanto como su cobertura.
  *
- * QUE RUTAS CUBRE (14 de las 38 finance del manifiesto)
+ * QUE RUTAS CUBRE (19 de las 44 finance del manifiesto)
  * ----------------------------------------------------
  * El grupo "cajas y centros de costo" de `test/tenant-manifest.ts`:
  *
@@ -32,8 +32,15 @@
  *   POST   /api/admin/finance/cost-centers/:id/deactivate
  *   POST   /api/admin/finance/cost-centers/:id/reactivate
  *
- * Las otras 24 estan en `iso-03-finance-transacciones.test.ts` (13, plan 172-18)
- * y `iso-03-finance-coach-load.test.ts` (11, plan 172-19).
+ * Retiros de caja (feedback caja/cobros 2026-09-07, 5 rutas):
+ *   GET    /api/admin/finance/withdrawals/pending
+ *   POST   /api/admin/finance/withdrawals
+ *   GET    /api/admin/finance/withdrawals
+ *   GET    /api/admin/finance/withdrawals/:id
+ *   GET    /api/admin/finance/withdrawals/responsibles
+ *
+ * Las otras 25 estan en `iso-03-finance-transacciones.test.ts` (14, plan 172-18
+ * + income-by-branch) y `iso-03-finance-coach-load.test.ts` (11, plan 172-19).
  *
  * EL CONTRATO QUE SE AFIRMA (D-09, para TODO el milestone)
  * -------------------------------------------------------
@@ -90,12 +97,12 @@
  * @see .planning/phases/172-adopci-n-1-piloto-finance/172-CONTEXT.md — D-08/D-09/D-10
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { Workbook } from "exceljs";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
-import { tenantWhere } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
@@ -1149,5 +1156,264 @@ describe("reactivacion de centro de costo — POST /api/admin/finance/cost-cente
       await campoDeLaFila(app, "cost_centers", "is_active", dos.costCenterId),
       `${RUTA} contesto 200 pero el centro propio sigue dado de baja.`,
     ).toBe("1");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Retiros de caja (feedback caja/cobros 2026-09-07) — 5 rutas
+//
+// Un retiro es un `expense` con `responsible_name` y, en efectivo, links a los
+// cobros que se llevo. Lo que se afirma aca: el staff del gimnasio 2 no puede
+// mirar el cajon de una caja ajena, ni retirar un cobro ajeno (ni siquiera
+// "desde" su propia caja), ni ver/leer retiros ajenos, ni enterarse de quien
+// retira en El Templo. Y el control: todo eso funciona sobre lo propio.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const RESPONSABLE_TEMPLO = "ISO03 Responsable Templo";
+const RESPONSABLE_DOS = "ISO03 Responsable Dos";
+const FECHA_RETIRO_TEMPLO = "2026-01-20";
+
+/** `admin@test.com` de El Templo: el unico user que sobrevive a cleanAllTestData. */
+async function idDelAdminDeElTemplo(): Promise<number> {
+  const [fila] = await app.db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(
+      and(
+        tenantWhere(schema.users, { tenantId: TENANT_TEMPLO }),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    )
+    .limit(1);
+  if (!fila) throw new Error("No existe admin@test.com en El Templo");
+  return fila.id;
+}
+
+/**
+ * Un retiro de El Templo escrito a mano (no via la ruta que la bateria pone a
+ * prueba): expense + responsable, imputado a la caja de El Templo.
+ */
+async function sembrarRetiroDeElTemplo(): Promise<number> {
+  const [fila] = await app.db
+    .insert(schema.financialTransactions)
+    .values(
+      tenantValues(
+        { tenantId: TENANT_TEMPLO },
+        {
+          memberId: null,
+          kind: "expense",
+          direction: "outflow",
+          amount: 500,
+          currency: MONEDA_SEMBRADA,
+          paymentMethod: "internal",
+          transactionDate: FECHA_RETIRO_TEMPLO,
+          effectiveDate: FECHA_RETIRO_TEMPLO,
+          branchId: templo.branchId,
+          cashRegisterId: templo.cajaId,
+          costCenterId: templo.costCenterId,
+          recordedBy: await idDelAdminDeElTemplo(),
+          responsibleName: RESPONSABLE_TEMPLO,
+          validationStatus: "validado",
+        },
+      ),
+    )
+    .$returningId();
+  return fila.id;
+}
+
+async function contarTransaccionesDe(tenantId: number): Promise<number> {
+  const [fila] = await app.db
+    .select({ n: sql<number>`COUNT(*)` })
+    .from(schema.financialTransactions)
+    .where(tenantWhere(schema.financialTransactions, { tenantId }));
+  return Number(fila?.n ?? 0);
+}
+
+/** Retiro PROPIO del gimnasio 2 via la ruta (control positivo compartido). */
+async function registrarRetiroPropio(): Promise<{ id: number; amount: number }> {
+  const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
+    cajaId: dos.cajaId,
+    responsibleName: RESPONSABLE_DOS,
+    transactionIds: [dos.transactionId],
+  });
+  expect(
+    res.statusCode,
+    `POST /withdrawals (control) fallo para el gimnasio ${TENANT_DOS}: ${res.body}`,
+  ).toBe(201);
+  const { withdrawal } = JSON.parse(res.body) as {
+    withdrawal: { id: number; amount: number };
+  };
+  return withdrawal;
+}
+
+describe("cobros pendientes de retiro (lo que hay en el cajon) — GET /api/admin/finance/withdrawals/pending", () => {
+  const RUTA = "GET /api/admin/finance/withdrawals/pending";
+
+  it("aislamiento: el cajon de una caja de El Templo no existe para el gimnasio 2", async () => {
+    const res = await getComoGimnasioDos(
+      `/withdrawals/pending?cashRegisterId=${templo.cajaId}`,
+    );
+    expect(
+      res.statusCode,
+      `${RUTA} le mostro al gimnasio ${TENANT_DOS} los cobros en efectivo de la caja ` +
+        `${templo.cajaId} de El Templo (o contesto algo distinto de "no existe"). El guard es ` +
+        `enforceCajaScope en routes.ts. Respuesta: ${res.body}`,
+    ).toBe(404);
+  });
+
+  it("control: SI lista el cobro propio en su caja, y todo lo listado es del gimnasio 2", async () => {
+    const res = await getComoGimnasioDos(
+      `/withdrawals/pending?cashRegisterId=${dos.cajaId}`,
+    );
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const cuerpo = JSON.parse(res.body) as {
+      rows: Array<{ id: number }>;
+      total: number;
+    };
+    expect(
+      cuerpo.rows.map((r) => r.id),
+      porQueImportaElControl(RUTA, dos.transactionId),
+    ).toContain(dos.transactionId);
+    for (const fila of cuerpo.rows) {
+      expect(
+        await tenantDeLaFila(app, "financial_transactions", fila.id),
+        porQueImportaElListado(RUTA, fila.id),
+      ).toBe(TENANT_DOS);
+    }
+    expect(cuerpo.total, `${RUTA}: el total tiene que ser la suma de lo propio`).toBe(
+      IMPORTE_SEMBRADO,
+    );
+  });
+});
+
+describe("alta de retiro — POST /api/admin/finance/withdrawals", () => {
+  const RUTA = "POST /api/admin/finance/withdrawals";
+
+  it("aislamiento: no puede retirar de una caja de El Templo, y no nace ninguna fila", async () => {
+    const antesDos = await contarTransaccionesDe(TENANT_DOS);
+    const antesTemplo = await contarTransaccionesDe(TENANT_TEMPLO);
+    const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
+      cajaId: templo.cajaId,
+      responsibleName: RESPONSABLE_DOS,
+      transactionIds: [templo.transactionId],
+    });
+    expect(
+      res.statusCode,
+      `${RUTA} dejo al gimnasio ${TENANT_DOS} retirar de la caja ${templo.cajaId} de El Templo ` +
+        `(o contesto algo distinto de "no existe"). Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      [await contarTransaccionesDe(TENANT_DOS), await contarTransaccionesDe(TENANT_TEMPLO)],
+      `${RUTA} escribio una fila aunque contesto que la caja no existe.`,
+    ).toEqual([antesDos, antesTemplo]);
+  });
+
+  it("aislamiento: desde su propia caja no puede llevarse un cobro de El Templo", async () => {
+    const antesDos = await contarTransaccionesDe(TENANT_DOS);
+    const antesTemplo = await contarTransaccionesDe(TENANT_TEMPLO);
+    const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
+      cajaId: dos.cajaId,
+      responsibleName: RESPONSABLE_DOS,
+      transactionIds: [templo.transactionId],
+    });
+    expect(
+      res.statusCode,
+      `${RUTA} dejo al gimnasio ${TENANT_DOS} vincular el cobro ${templo.transactionId} de El ` +
+        `Templo a un retiro propio. El SELECT FOR UPDATE de withdrawal-service.ts lleva ` +
+        `tenantWhere y el cobro ajeno tiene que NO EXISTIR. Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      [await contarTransaccionesDe(TENANT_DOS), await contarTransaccionesDe(TENANT_TEMPLO)],
+      `${RUTA} escribio el retiro aunque el cobro no existia: el retiro es todo o nada.`,
+    ).toEqual([antesDos, antesTemplo]);
+  });
+
+  it("control: SI registra un retiro propio con su cobro, estampado en el gimnasio 2", async () => {
+    const retiro = await registrarRetiroPropio();
+    expect(retiro.amount).toBe(IMPORTE_SEMBRADO);
+    expect(
+      await tenantDeLaFila(app, "financial_transactions", retiro.id),
+      `${RUTA} creo el retiro ${retiro.id} en otro gimnasio (tenantValues perdido).`,
+    ).toBe(TENANT_DOS);
+  });
+});
+
+describe("historial de retiros — GET /api/admin/finance/withdrawals", () => {
+  const RUTA = "GET /api/admin/finance/withdrawals";
+
+  it("aislamiento: no devuelve ni un retiro de El Templo", async () => {
+    const ajeno = await sembrarRetiroDeElTemplo();
+    await registrarRetiroPropio();
+    const res = await getComoGimnasioDos("/withdrawals?limit=200");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const cuerpo = JSON.parse(res.body) as { rows: Array<{ id: number }> };
+    expect(cuerpo.rows.map((r) => r.id), porQueImportaElListado(RUTA, ajeno)).not.toContain(
+      ajeno,
+    );
+    for (const fila of cuerpo.rows) {
+      expect(
+        await tenantDeLaFila(app, "financial_transactions", fila.id),
+        porQueImportaElListado(RUTA, fila.id),
+      ).toBe(TENANT_DOS);
+    }
+  });
+
+  it("control: SI devuelve el retiro propio con su responsable", async () => {
+    const propio = await registrarRetiroPropio();
+    const res = await getComoGimnasioDos("/withdrawals?limit=200");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const cuerpo = JSON.parse(res.body) as {
+      rows: Array<{ id: number; responsibleName: string }>;
+    };
+    const fila = cuerpo.rows.find((r) => r.id === propio.id);
+    expect(fila, porQueImportaElControl(RUTA, propio.id)).toBeTruthy();
+    expect(fila?.responsibleName).toBe(RESPONSABLE_DOS);
+  });
+});
+
+describe("detalle de un retiro — GET /api/admin/finance/withdrawals/:id", () => {
+  const RUTA = "GET /api/admin/finance/withdrawals/:id";
+
+  it("aislamiento: un retiro de El Templo no existe para el gimnasio 2", async () => {
+    const ajeno = await sembrarRetiroDeElTemplo();
+    const res = await getComoGimnasioDos(`/withdrawals/${ajeno}`);
+    expect(
+      res.statusCode,
+      `${RUTA} le mostro al gimnasio ${TENANT_DOS} el retiro ${ajeno} de El Templo (o contesto ` +
+        `algo distinto de "no existe"). Respuesta: ${res.body}`,
+    ).toBe(404);
+  });
+
+  it("control: SI devuelve el retiro propio con sus cobros", async () => {
+    const propio = await registrarRetiroPropio();
+    const res = await getComoGimnasioDos(`/withdrawals/${propio.id}`);
+    expect(res.statusCode, porQueImportaElControl(RUTA, propio.id) + ` ${res.body}`).toBe(200);
+    const cuerpo = JSON.parse(res.body) as { payments: Array<{ id: number }> };
+    expect(cuerpo.payments.map((p) => p.id)).toContain(dos.transactionId);
+  });
+});
+
+describe("responsables sugeridos — GET /api/admin/finance/withdrawals/responsibles", () => {
+  const RUTA = "GET /api/admin/finance/withdrawals/responsibles";
+
+  it("aislamiento: no sugiere quien retira en El Templo", async () => {
+    await sembrarRetiroDeElTemplo();
+    const res = await getComoGimnasioDos("/withdrawals/responsibles");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const nombres = JSON.parse(res.body) as string[];
+    expect(
+      nombres,
+      `${RUTA} le sugirio al gimnasio ${TENANT_DOS} un responsable de retiros de El Templo. ` +
+        `Los dos SELECT de listResponsibles (retiros y staff) llevan tenantWhere.`,
+    ).not.toContain(RESPONSABLE_TEMPLO);
+  });
+
+  it("control: SI sugiere el responsable propio y el staff del gimnasio 2", async () => {
+    await registrarRetiroPropio();
+    const res = await getComoGimnasioDos("/withdrawals/responsibles");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const nombres = JSON.parse(res.body) as string[];
+    expect(nombres, porQueImportaElControl(RUTA, dos.cajaId)).toContain(RESPONSABLE_DOS);
+    expect(nombres).toContain("Admin Gimnasio Dos");
   });
 });

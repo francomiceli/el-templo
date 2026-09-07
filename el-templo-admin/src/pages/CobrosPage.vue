@@ -647,7 +647,39 @@
                      del de lista, con motivo, SIN deuda. No es lo mismo que bajar el
                      Monto (eso es un pago parcial y deja deuda por la diferencia). -->
                 <template v-if="mode === 'renew'">
+                  <!-- Prorrateo hasta fin de mes (2026-09-07, también al renovar):
+                       vence el último día del mes y se cobra el proporcional
+                       editable. Excluyente con precio acordado. -->
                   <q-toggle
+                    v-if="!precioAcordado"
+                    v-model="renewProrate"
+                    label="Prorratear hasta fin de mes"
+                    class="q-mt-sm"
+                    @update:model-value="onRenewProrateToggle"
+                  />
+                  <div v-if="renewProrate" class="row q-col-gutter-sm q-mt-xs items-center">
+                    <div class="col-12 col-sm-5">
+                      <q-input
+                        v-model.number="renewProratedPrice"
+                        type="number"
+                        inputmode="numeric"
+                        label="Precio prorrateado"
+                        outlined
+                        dense
+                        :suffix="montoSymbol"
+                        hint="Sugerido según los días restantes. Editable."
+                        @update:model-value="onRenewProratedPriceChange"
+                      />
+                    </div>
+                    <div class="col-12 col-sm-7 text-caption text-grey-7">
+                      Cobra {{ renewMonthEndParts.daysCharged }} de
+                      {{ renewMonthEndParts.daysInMonth }} días · arranca el
+                      {{ formatShortDate(renewStartDate) }} · vence el
+                      {{ formatShortDate(renewMonthEndParts.endDate) }}
+                    </div>
+                  </div>
+                  <q-toggle
+                    v-if="!renewProrate"
                     v-model="precioAcordado"
                     label="Precio acordado (distinto al de lista)"
                     class="q-mt-sm"
@@ -1329,7 +1361,11 @@ const canConfirm = computed(() => {
 
   if (!selectedMember.value) return false;
   if (mode.value === 'renew') {
-    return autocompletar.value?.hasRenewable === true && precioAcordadoValido.value;
+    return (
+      autocompletar.value?.hasRenewable === true &&
+      precioAcordadoValido.value &&
+      renewProrateValido.value
+    );
   }
   if (mode.value === 'misc') {
     return concepto.value.trim().length > 0 && miscReason.value != null;
@@ -1929,6 +1965,67 @@ function resetPrecioAcordado() {
   precioAcordado.value = false;
   precioAcordadoMonto.value = null;
   precioAcordadoMotivo.value = '';
+  renewProrate.value = false;
+  renewProratedPrice.value = null;
+}
+
+// ─── Prorrateo hasta fin de mes (renovación, 2026-09-07) ──────────────────
+// Mismo criterio que la ficha (MemberSubscriptionTab): la renovación arranca
+// al vencimiento actual si es futuro, si no hoy; vence el último día de ESE
+// mes; sugerido = round(mes completo × días cobrados / días del mes). El
+// server recalcula y capea (no puede superar el mes completo).
+const renewProrate = ref(false);
+const renewProratedPrice = ref<number | null>(null);
+
+const renewStartDate = computed(() => {
+  const today = new Date().toISOString().slice(0, 10);
+  const end = autocompletar.value?.currentEndDate?.slice(0, 10);
+  return end && end >= today ? end : today;
+});
+
+const renewMonthEndParts = computed(() => {
+  const [y, m, d] = renewStartDate.value.split('-').map(Number);
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const daysCharged = daysInMonth - d + 1;
+  const endDate = `${y}-${String(m).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+  return { endDate, daysCharged, daysInMonth };
+});
+
+const renewFullMonthPrice = computed(() => autocompletar.value?.amount ?? 0);
+
+const renewSuggestedProrated = computed(() => {
+  const { daysCharged, daysInMonth } = renewMonthEndParts.value;
+  if (daysInMonth === 0) return renewFullMonthPrice.value;
+  return Math.round((renewFullMonthPrice.value * daysCharged) / daysInMonth);
+});
+
+const renewProrateValido = computed(() => {
+  if (!renewProrate.value) return true;
+  if (typeof renewProratedPrice.value !== 'number' || renewProratedPrice.value < 0) return false;
+  if (renewProratedPrice.value > renewFullMonthPrice.value) return false;
+  return (amount.value ?? 0) <= renewProratedPrice.value;
+});
+
+function onRenewProrateToggle(on: boolean) {
+  if (on) {
+    precioAcordado.value = false;
+    precioAcordadoMonto.value = null;
+    precioAcordadoMotivo.value = '';
+    renewProratedPrice.value = renewSuggestedProrated.value;
+    amount.value = renewSuggestedProrated.value;
+  } else {
+    renewProratedPrice.value = null;
+    if (autocompletar.value?.amount != null) amount.value = autocompletar.value.amount;
+  }
+}
+
+function onRenewProratedPriceChange(v: number | string | null) {
+  if (typeof v === 'number') amount.value = v;
+}
+
+function formatShortDate(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
 }
 
 // ─── Selection / mode ─────────────────────────────────────────────────────
@@ -2009,6 +2106,11 @@ async function onConfirm() {
               priceOverrideAmount: precioAcordadoMonto.value,
               priceOverrideReason: precioAcordadoMotivo.value.trim(),
             }
+          : {}),
+        // Prorrateo hasta fin de mes (2026-09-07): el proporcional editado viaja
+        // en priceOverrideAmount sin motivo; el server fija el vencimiento.
+        ...(renewProrate.value && typeof renewProratedPrice.value === 'number'
+          ? { prorateToMonthEnd: true, priceOverrideAmount: renewProratedPrice.value }
           : {}),
         // CR-CAJA: sede del cobro elegida (default = sede del socio).
         ...(sucursalId.value != null ? { branchId: sucursalId.value } : {}),
