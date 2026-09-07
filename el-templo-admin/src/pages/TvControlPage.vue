@@ -263,8 +263,8 @@
           <q-card-section>
             <div class="text-h6">¿Qué sede vas a manejar hoy?</div>
             <div class="text-body2 text-grey-7 q-mt-xs">
-              Elegí la sede de cada turno. Vas a manejar la pantalla de esa sede, así que revisá
-              que esté bien.
+              Elegí la sede de cada turno. Vas a manejar la pantalla de esa sede, así que revisá que
+              esté bien.
             </div>
           </q-card-section>
           <q-card-section class="q-gutter-md">
@@ -321,11 +321,7 @@
           <!-- Botonera grande en vez de dropdown (el select daba problemas en los
                navegadores de las teles): un botón por sede real, tap directo. -->
           <div class="row q-col-gutter-sm">
-            <div
-              v-for="opt in branchOptions"
-              :key="opt.value"
-              class="col-6 col-sm-4"
-            >
+            <div v-for="opt in branchOptions" :key="opt.value" class="col-6">
               <q-btn
                 class="full-width tv-control__branch-btn"
                 size="lg"
@@ -342,6 +338,7 @@
         <q-card-actions>
           <q-btn
             class="full-width"
+            :class="{ 'tv-control__show-btn--off': screenBranchId === null }"
             outline
             size="lg"
             color="secondary"
@@ -564,11 +561,9 @@ let refreshId: ReturnType<typeof setInterval> | null = null;
 
 type Turno = 'morning' | 'afternoon';
 const DAILY_SEDES_KEY = 'tv-control-sedes';
-/** Sede de la pantalla recordada en ESTE dispositivo (cuenta tv, incidente
- *  2026-09): a diferencia de DAILY_SEDES_KEY no depende del día ni del turno
- *  — la tele de pared siempre apunta a la misma sede salvo que se cambie a
- *  mano. También se guarda al usar el camino "Mostrar plani en el TV" desde
- *  cualquier rol (inerte para coach/admin/owner: solo la lee el montaje tv). */
+/** Última sede abierta en la pantalla desde ESTE dispositivo. Se guarda al usar
+ *  "Mostrar plani en el TV" (cualquier rol) como rastro de diagnóstico; desde
+ *  2026-09-07 NO se usa para preseleccionar: la sede se elige a mano cada vez. */
 const SCREEN_BRANCH_STORAGE_KEY = 'tv.control.screenBranchId';
 
 /** YYYY-MM-DD en hora local del dispositivo (el control está físicamente en la sede). */
@@ -651,18 +646,6 @@ function sedeForTurno(turno: Turno, saved: DailySedes | null): number | null {
   return isValidOption(id) ? id : homeSedeFallback();
 }
 
-/** Sede de pantalla guardada en este dispositivo, si sigue siendo una opción válida. */
-function loadScreenBranchId(): number | null {
-  try {
-    const raw = localStorage.getItem(SCREEN_BRANCH_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = Number(raw);
-    return isValidOption(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 function saveScreenBranchId(id: number): void {
   try {
     localStorage.setItem(SCREEN_BRANCH_STORAGE_KEY, String(id));
@@ -703,7 +686,9 @@ async function openSedeSelection(): Promise<void> {
   morningBranchId.value = morning;
   afternoonBranchId.value = afternoon;
   // Pre-carga usable para la pantalla: sede del turno vigente o, si no hay, la de casa.
-  screenBranchId.value = (currentTurno() === 'morning' ? morning : afternoon) ?? homeSedeFallback();
+  // Sin sede preseleccionada a propósito (pedido 2026-09-07): el que abre la
+  // pantalla elige a mano y el botón de abajo queda apagado hasta entonces.
+  screenBranchId.value = null;
   initialLoading.value = false; // el spinner de fondo no tiene sentido detrás del modal
   sedeSelectionOpen.value = true;
 }
@@ -1152,7 +1137,8 @@ onMounted(async () => {
     // necesita el refresco de cortesía del control — solo entra a elegir la
     // sede de la pantalla. Nada de getCoachTodaySchedule/loadDailySedes/
     // sedeWarningOpen ni el setInterval de fetchContext.
-    screenBranchId.value = loadScreenBranchId() ?? homeSedeFallback();
+    // Sin preselección (pedido 2026-09-07): la tele elige la sede a mano cada vez.
+    screenBranchId.value = null;
     initialLoading.value = false;
     sedeSelectionOpen.value = true;
     return;
@@ -1224,5 +1210,12 @@ onUnmounted(() => {
    navegadores de las teles — botones grandes, tap directo. */
 .tv-control__branch-btn {
   min-height: 64px;
+}
+
+/* Sin sede elegida el botón de mostrar plani se ve claramente inaccesible
+   (además del disable de Quasar): opacidad baja y sin puntero. */
+.tv-control__show-btn--off {
+  opacity: 0.35;
+  pointer-events: none;
 }
 </style>

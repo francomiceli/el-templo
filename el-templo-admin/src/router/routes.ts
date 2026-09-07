@@ -177,8 +177,8 @@ const routes: RouteRecordRaw[] = [
       {
         // "Mi jornada" — check-in/check-out del staff con el QR de sede.
         // Roles = JORNADA_ROLES (todo el staff de piso, sin `tv`).
-        path: 'jornada',
-        component: () => import('pages/JornadaPage.vue'),
+        path: 'check-in',
+        component: () => import('pages/CheckInPage.vue'),
         meta: { allowedRoles: JORNADA_ROLES },
       },
       {

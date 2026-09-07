@@ -225,16 +225,6 @@ export const NAV_MODEL: NavCategory[] = [
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
       {
-        // "Mi jornada": check-in/check-out del staff con el QR físico de la
-        // sede (mismo QR que escanean los socios). Vive junto a Horarios (la
-        // otra pantalla operativa del día a día) — NO es `templo` (el
-        // mecanismo es genérico, cualquier white-label lo hereda).
-        path: '/jornada',
-        label: 'Mi jornada',
-        icon: 'schedule',
-        roles: JORNADA_ROLES,
-      },
-      {
         // TV (fase 164, unificado tras el retiro del kiosco anónimo RFC 8628):
         // antes eran dos ítems ("Control TV" + "Televisores"); ahora la
         // pantalla del TV es la ruta autenticada '/pantalla-tv' (se abre
@@ -247,6 +237,16 @@ export const NAV_MODEL: NavCategory[] = [
         icon: 'settings_remote',
         roles: TV_CONTROL_ROLES,
         templo: true,
+      },
+      {
+        // "Mi jornada": check-in/check-out del staff con el QR físico de la
+        // sede (mismo QR que escanean los socios). Va debajo de TV (pedido de
+        // Franco 2026-09-07) — NO es `templo` (el
+        // mecanismo es genérico, cualquier white-label lo hereda).
+        path: '/check-in',
+        label: 'Check-in',
+        icon: 'qr_code_scanner',
+        roles: JORNADA_ROLES,
       },
       {
         // Feedback: la voz del alumno (puntuaciones de clases/profes + sugerencias)

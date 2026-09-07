@@ -119,7 +119,7 @@
           <q-select
             v-model="reportBranchId"
             :options="branchOptions"
-            option-label="label"
+            option-label="name"
             option-value="id"
             emit-value
             map-options
@@ -226,7 +226,7 @@ import { JORNADA_REPORT_ROLES } from 'src/config/templo-config';
 import type { BranchOption } from 'src/types/member';
 import QrScannerDialog from 'src/components/QrScannerDialog.vue';
 
-const log = createLogger('JornadaPage');
+const log = createLogger('CheckInPage');
 const $q = useQuasar();
 const authStore = useAuthStore();
 const attendanceApi = useStaffAttendanceApi();
