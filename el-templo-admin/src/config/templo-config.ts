@@ -138,6 +138,9 @@ export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'tv'];
  * laboral, todo el staff que trabaja en piso. Excluye `tv` (la cuenta
  * dedicada del televisor no marca jornada, D-01 espejado de TV_CONTROL_ROLES).
  */
+// Deploy 2026-09-07: el filtro de rutas de deploy-staging compara contra el
+// push anterior (event.before); este toque fuerza el build del admin junto con
+// el fix de tests de la API.
 export const JORNADA_ROLES: AdminRole[] = ['coach', 'recepcion', 'gestion', 'admin', 'owner'];
 
 /**
