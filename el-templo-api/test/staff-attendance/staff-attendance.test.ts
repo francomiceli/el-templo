@@ -46,6 +46,7 @@ describe("Staff Attendance API", () => {
   let branchAName: string;
 
   let coachAToken: string; // asignado SOLO a branchA (user_branches)
+  let adminToken: string;
   let gestionToken: string;
   let ownerToken: string;
   let tvToken: string;
@@ -112,6 +113,17 @@ describe("Staff Attendance API", () => {
       `gestion-${u}@test.local`,
       "test1234",
     );
+
+    await createStaffUser(app, {
+      email: `admin-${u}@test.local`,
+      password: "test1234",
+      firstName: "Admin",
+      lastName: "Test",
+      role: "admin",
+      branchId: branchAId,
+      country: "AR",
+    });
+    adminToken = await getAuthToken(app, `admin-${u}@test.local`, "test1234");
 
     await createStaffUser(app, {
       email: `owner-${u}@test.local`,
@@ -294,11 +306,11 @@ describe("Staff Attendance API", () => {
   describe("GET /shifts", () => {
     const today = new Date().toISOString().split("T")[0];
 
-    it("gestion ve la fila -> 200", async () => {
+    it("admin ve la fila -> 200", async () => {
       const res = await app.inject({
         method: "GET",
         url: `${SHIFTS_URL}?branchId=${branchAId}&from=${today}&to=${today}`,
-        headers: { Authorization: `Bearer ${gestionToken}` },
+        headers: { Authorization: `Bearer ${adminToken}` },
       });
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
@@ -309,6 +321,21 @@ describe("Staff Attendance API", () => {
       expect(typeof row.userName).toBe("string");
       expect(row.checklist).toEqual(VALID_CHECKLIST);
       expect(row.durationMinutes).toBeGreaterThanOrEqual(0);
+    });
+
+    it("gestion no entra a NADA del plugin (decisión 2026-09-07) -> 403", async () => {
+      const registro = await app.inject({
+        method: "GET",
+        url: `${SHIFTS_URL}?branchId=${branchAId}&from=${today}&to=${today}`,
+        headers: { Authorization: `Bearer ${gestionToken}` },
+      });
+      expect(registro.statusCode).toBe(403);
+      const me = await app.inject({
+        method: "GET",
+        url: ME_URL,
+        headers: { Authorization: `Bearer ${gestionToken}` },
+      });
+      expect(me.statusCode).toBe(403);
     });
 
     it("coach (fuera de STAFF_ATTENDANCE_REPORT_ROLES) -> 403", async () => {
@@ -324,7 +351,7 @@ describe("Staff Attendance API", () => {
       const res = await app.inject({
         method: "GET",
         url: `${SHIFTS_URL}?branchId=${branchAId}`,
-        headers: { Authorization: `Bearer ${gestionToken}` },
+        headers: { Authorization: `Bearer ${adminToken}` },
       });
       expect(res.statusCode).toBe(400);
     });
@@ -333,7 +360,7 @@ describe("Staff Attendance API", () => {
       const res = await app.inject({
         method: "GET",
         url: `${SHIFTS_URL}?branchId=${branchAId}&from=2026-01-01&to=2026-04-15`,
-        headers: { Authorization: `Bearer ${gestionToken}` },
+        headers: { Authorization: `Bearer ${adminToken}` },
       });
       expect(res.statusCode).toBe(400);
     });

@@ -135,20 +135,19 @@ export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'tv'];
 
 /**
  * "Mi jornada" (check-in/check-out de staff con el QR de la sede): jornada
- * laboral, todo el staff que trabaja en piso. Excluye `tv` (la cuenta
- * dedicada del televisor no marca jornada, D-01 espejado de TV_CONTROL_ROLES).
+ * laboral, el staff que trabaja en piso. Excluye `gestion` (decisión de
+ * Franco 2026-09-07: no ve Check-in en absoluto) y `tv` (la cuenta dedicada
+ * del televisor no marca jornada, D-01 espejado de TV_CONTROL_ROLES).
+ * Espeja STAFF_ATTENDANCE_ROLES de la API.
  */
-// Deploy 2026-09-07: el filtro de rutas de deploy-staging compara contra el
-// push anterior (event.before); este toque fuerza el build del admin junto con
-// el fix de tests de la API.
-export const JORNADA_ROLES: AdminRole[] = ['coach', 'recepcion', 'gestion', 'admin', 'owner'];
+export const JORNADA_ROLES: AdminRole[] = ['coach', 'recepcion', 'admin', 'owner'];
 
 /**
  * Registro de jornadas por sede/fechas (sección "Registro" de JornadaPage):
- * Dueño + gestión. Mirrors REPORTES_ROLES — quien administra el negocio ve el
- * registro de todo el staff, no solo el propio.
+ * solo Dueño (admin + owner): es información de gestión del negocio. Espeja
+ * STAFF_ATTENDANCE_REPORT_ROLES de la API.
  */
-export const JORNADA_REPORT_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
+export const JORNADA_REPORT_ROLES: AdminRole[] = ['admin', 'owner'];
 
 // ---------------------------------------------------------------------------
 // Nav model

@@ -312,34 +312,32 @@ export const CHECKIN_ROSTER_ROLES = [...ADMIN_ROLES, "coach"] as const;
 
 /**
  * Roles que pueden abrir/cerrar su propia jornada laboral (check-in/check-out
- * de staff, 2026-09-07): el core Dueño (ADMIN_ROLES) + coach + gestion +
- * recepcion — todo el personal que efectivamente trabaja en una sede y tiene
- * que fichar entrada/salida.
+ * de staff, 2026-09-07): el core Dueño (ADMIN_ROLES) + coach + recepcion —
+ * el personal que efectivamente trabaja en piso y tiene que fichar
+ * entrada/salida.
  *
- * EXCLUYE a propósito `tv` (la cuenta dedicada de los televisores, D-01 de
- * TV_CONTROL_ROLES — una pantalla de pared no ficha jornada) y `member` (un
- * socio no es staff). Se declara como literal (no compone sobre otro set)
- * porque es el único módulo que necesita exactamente esta combinación de 5
+ * EXCLUYE a propósito `gestion` (decisión de Franco 2026-09-07: no ve
+ * Check-in "en absoluto"), `tv` (la cuenta dedicada de los televisores, D-01
+ * de TV_CONTROL_ROLES — una pantalla de pared no ficha jornada) y `member`
+ * (un socio no es staff). Se declara como literal (no compone sobre otro set)
+ * porque es el único módulo que necesita exactamente esta combinación de
  * roles — ensanchar ATTENDANCE_ROLES o MEMBER_ROLES para este caso los
  * acoplaría a un módulo que no tienen por qué conocer.
  */
 export const STAFF_ATTENDANCE_ROLES = [
   "coach",
   "recepcion",
-  "gestion",
   "admin",
   "owner",
 ] as const;
 
 /**
  * Roles que pueden ver el registro de jornadas de TODO el staff
- * (`GET /api/admin/staff-attendance/shifts`) — el core Dueño (ADMIN_ROLES) +
- * gestion. Subconjunto de STAFF_ATTENDANCE_ROLES: coach y recepcion pueden
- * fichar su propia jornada pero NO ven el registro ajeno (mismo criterio de
- * privacidad que FINANCE_READ_ROLES vs FINANCE_LOAD_ROLES).
+ * (`GET /api/admin/staff-attendance/shifts`) — solo el core Dueño
+ * (ADMIN_ROLES): es información de gestión del negocio. Subconjunto de
+ * STAFF_ATTENDANCE_ROLES: coach y recepcion pueden fichar su propia jornada
+ * pero NO ven el registro ajeno (mismo criterio de privacidad que
+ * FINANCE_READ_ROLES vs FINANCE_LOAD_ROLES). Se declara aparte de ADMIN_ROLES
+ * para que ensanchar uno no ensanche el otro.
  */
-export const STAFF_ATTENDANCE_REPORT_ROLES = [
-  "gestion",
-  "admin",
-  "owner",
-] as const;
+export const STAFF_ATTENDANCE_REPORT_ROLES = ["admin", "owner"] as const;

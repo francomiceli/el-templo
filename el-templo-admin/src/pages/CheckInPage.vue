@@ -2,7 +2,7 @@
   "Mi jornada": check-in/check-out del staff con el QR físico de la sede
   (mismo QR que escanean los socios). El staff abre esta página desde el
   celular, escanea al llegar y al irse; al cerrar jornada completa un
-  checklist antes de mandar. Owner/admin/gestion ven además "Registro": el
+  checklist antes de mandar. Owner/admin ven además "Registro": el
   historial de jornadas por sede y fechas de todo el staff.
 -->
 <template>
@@ -108,7 +108,7 @@
     </q-dialog>
 
     <!-- ================================================================ -->
-    <!-- Registro (solo owner/admin/gestion) -->
+    <!-- Registro (solo owner/admin) -->
     <!-- ================================================================ -->
     <template v-if="canSeeReport">
       <q-separator class="q-mb-md" />
@@ -391,7 +391,7 @@ async function confirmCheckOut() {
 }
 
 // =========================================================================
-// Registro (solo owner/admin/gestion)
+// Registro (solo owner/admin)
 // =========================================================================
 
 const canSeeReport = computed(() => {
