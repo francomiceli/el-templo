@@ -20,6 +20,7 @@ import {
   BalanceService,
   CashRegisterService,
   MovementService,
+  WithdrawalService,
 } from ".";
 import { SubscriptionService } from "../subscriptions/service";
 import { EnrollmentService } from "../programs/enrollment-service";
@@ -53,6 +54,11 @@ import {
   renameCostCenterSchema,
   toggleCostCenterSchema,
   costCentersAllSchema,
+  pendingWithdrawalsSchema,
+  registerWithdrawalSchema,
+  listWithdrawalsSchema,
+  withdrawalByIdSchema,
+  incomeByBranchSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
@@ -76,6 +82,8 @@ import type {
   CreateTransactionInput,
   CreateTransactionResponse,
   FinanceSummaryFilters,
+  RegisterWithdrawalInput,
+  WithdrawalListFilters,
   PaymentMethod,
   TransactionKind,
   TransactionListFilters,
@@ -117,6 +125,12 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     transactionService,
     cashRegisterService,
+  );
+  // Retiros (2026-09-07): egreso "Retiros" con responsable + cobros vinculados.
+  const withdrawalService = new WithdrawalService(
+    fastify.db,
+    fastify.log,
+    transactionService,
   );
 
   // Phase 139: resolve the country a caja belongs to via its branch. Returns
@@ -742,6 +756,170 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===================================================================
+  // Retiros de caja (feedback 2026-09-07). Un retiro = expense "Retiros" con
+  // responsable obligatorio y, en efectivo, los cobros que se llevó. La
+  // anulación reusa POST /expenses/:id/void (libera los cobros).
+  // ===================================================================
+
+  // GET /withdrawals/pending?cashRegisterId=&dateTo= — lo que debería estar
+  // en el cajón: cobros en efectivo firmes sin retiro activo. Lectura.
+  fastify.get<{ Querystring: { cashRegisterId: number; dateTo?: string } }>(
+    "/withdrawals/pending",
+    { schema: pendingWithdrawalsSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "finance.withdrawals.pending");
+        const scopeErr = await enforceCajaScope(
+          ctx,
+          request.query.cashRegisterId,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        return await withdrawalService.listPendingPayments(
+          ctx,
+          request.query.cashRegisterId,
+          { dateTo: request.query.dateTo },
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "withdrawals pending");
+        return reply;
+      }
+    },
+  );
+
+  // GET /withdrawals/responsibles — sugerencias para el autocompletado.
+  fastify.get("/withdrawals/responsibles", async (request, reply) => {
+    try {
+      const ctx = assertTenant(request.scope, "finance.withdrawals.responsibles");
+      return await withdrawalService.listResponsibles(ctx);
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "withdrawal responsibles");
+      return reply;
+    }
+  });
+
+  // GET /withdrawals — historial. Country scope igual que /movements-history.
+  fastify.get<{
+    Querystring: {
+      cashRegisterId?: number;
+      branchId?: number;
+      country?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>("/withdrawals", { schema: listWithdrawalsSchema }, async (request, reply) => {
+    try {
+      let country: string | undefined;
+      if (request.scope.isOwner) {
+        country = request.query.country
+          ? request.query.country.toUpperCase()
+          : undefined;
+      } else {
+        country = request.scope.country ?? undefined;
+      }
+      const filters: WithdrawalListFilters = {
+        cashRegisterId: request.query.cashRegisterId,
+        branchId: request.query.branchId,
+        country: country as WithdrawalListFilters["country"],
+        isOwner: request.scope.isOwner,
+        dateFrom: request.query.dateFrom,
+        dateTo: request.query.dateTo,
+        page: request.query.page,
+        limit: request.query.limit,
+      };
+      return await withdrawalService.list(
+        assertTenant(request.scope, "finance.withdrawals.list"),
+        filters,
+      );
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "withdrawals list");
+      return reply;
+    }
+  });
+
+  // GET /withdrawals/:id — detalle con los cobros incluidos.
+  fastify.get<{ Params: { id: number } }>(
+    "/withdrawals/:id",
+    { schema: withdrawalByIdSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "finance.withdrawals.get");
+        const scopeErr = await enforceRowScope(
+          ctx,
+          request.params.id,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        return await withdrawalService.getById(ctx, request.params.id);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "withdrawal detail");
+        return reply;
+      }
+    },
+  );
+
+  // POST /withdrawals — registrar. RBAC: FINANCE_VOID_ROLES (mismo que egresos).
+  fastify.post<{ Body: RegisterWithdrawalInput }>(
+    "/withdrawals",
+    { schema: registerWithdrawalSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para registrar retiros",
+          });
+        }
+        const ctx = assertTenant(request.scope, "finance.withdrawals.create");
+        const scopeErr = await enforceCajaScope(
+          ctx,
+          request.body.cajaId,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        const result = await withdrawalService.registerWithdrawal(
+          ctx,
+          {
+            cajaId: request.body.cajaId,
+            responsibleName: request.body.responsibleName,
+            transactionDate: request.body.transactionDate,
+            notes: request.body.notes ?? null,
+            transactionIds: request.body.transactionIds,
+            amount: request.body.amount,
+          },
+          request.user.userId,
+        );
+        const withdrawal = await withdrawalService.getById(
+          ctx,
+          result.withdrawalTxId,
+        );
+        return reply.code(201).send({ withdrawal });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register withdrawal");
+      }
+    },
+  );
+
+  // ===================================================================
   // Phase 139: POST /movements/:id/void — anular movimiento (MOV-04 / D-08)
   // Voids BOTH legs + the reconciliation adjustment atomically via voidPair.
   // RBAC: FINANCE_VOID_ROLES. Country scope via the target row's caja.
@@ -956,6 +1134,53 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           request.log,
           "finance transactions summary",
         );
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // GET /transactions/income-by-branch — feedback 2026-09-07 (pestaña Saldos):
+  // ingresos firmes por (sede, moneda) abiertos por medio de pago. Misma
+  // querystring y scope que /transactions/summary.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      country?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    };
+  }>(
+    "/transactions/income-by-branch",
+    {
+      schema: incomeByBranchSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country ?? undefined;
+        }
+        const filters: FinanceSummaryFilters = {
+          branchId: request.query.branchId,
+          country: country as FinanceSummaryFilters["country"],
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        return await transactionService.getIncomeByBranch(
+          assertTenant(request.scope, "finance.transactions.income-by-branch"),
+          filters,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "finance income by branch");
         return reply;
       }
     },

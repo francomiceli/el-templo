@@ -1001,7 +1001,11 @@ export class CashRegisterService {
       );
     }
 
-    const name = `Efectivo ${branch.name}`;
+    // Feedback 2026-09-07 (Martín): la caja efectivo de una sede se llama como
+    // la sede ("Alem", "Mario Bravo"), sin prefijo. La migración 0224 renombró
+    // las existentes con el mismo criterio. Si una sede se renombra, la caja
+    // NO se actualiza sola: renombrarla en la misma migración (ver 0224).
+    const name = branch.name;
     const inserted = await this.db.insert(schema.cashRegisters).values(
       tenantValues(ctx, {
         name,

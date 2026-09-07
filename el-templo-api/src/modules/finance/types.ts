@@ -90,6 +90,11 @@ export interface CreateTransactionInput {
   branchId: number | null;
   notes?: string | null;
   /**
+   * Retiros (2026-09-07): responsable del retiro. Solo WithdrawalService lo
+   * setea; el resto de los create paths lo deja undefined → NULL.
+   */
+  responsibleName?: string | null;
+  /**
    * Phase 145 (COBRO-01): structured reason for a cobro suelto. Set ONLY by the
    * POST /coach-load/misc endpoint (the PoS dropdown Motivo); the other 9 create
    * paths leave it undefined → NULL, exactly as today. NOT folded into `notes`
@@ -266,6 +271,14 @@ export interface TransactionListItem {
     targetId: number;
     allocatedAmount: number;
   }>;
+  /**
+   * Retiros (2026-09-07): id del retiro (expense con centro "Retiros", no
+   * anulado) que se llevó este cobro en efectivo. NULL = todavía en la caja
+   * (o no aplica: transferencias, egresos, etc.).
+   */
+  withdrawalId: number | null;
+  /** YYYY-MM-DD del retiro que incluyó este cobro. NULL si withdrawalId es NULL. */
+  withdrawnAt: string | null;
 }
 
 /**
@@ -661,4 +674,101 @@ export interface CashRegisterBalance {
   currency: string;
   firmeBalance: number; // opening_balance + Σ validados desde cutoff (CAJA-03)
   pendienteAmount: number; // Σ pendientes desde cutoff, SEPARADO (CAJA-03)
+}
+
+// -- Retiros de caja (feedback 2026-09-07) ---------------------------------
+// Un retiro es un `expense` con centro de costo "Retiros" + responsable
+// obligatorio. En una caja de efectivo, además, se vincula (transaction_links
+// targetKind='transaction') a los cobros en efectivo que se llevó: el monto
+// del retiro es la suma de esos cobros, y un cobro con un retiro activo no
+// se puede anular ni volver a retirar. Ver withdrawal-service.ts.
+
+export interface RegisterWithdrawalInput {
+  cajaId: number;
+  /** Quién se llevó la plata. Texto libre, obligatorio. */
+  responsibleName: string;
+  /** YYYY-MM-DD. Default hoy. Nunca futura. */
+  transactionDate?: string;
+  notes?: string | null;
+  /**
+   * Caja EFECTIVO: ids de los cobros en efectivo (validados, no anulados, no
+   * retirados) que se retiran. Obligatorio y no vacío. El monto se deriva.
+   */
+  transactionIds?: number[];
+  /** Caja BANCO: monto explícito del retiro. Prohibido para efectivo. */
+  amount?: number;
+}
+
+/** Un cobro en efectivo elegible para retiro (o ya incluido en uno). */
+export interface WithdrawalPaymentItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  memberId: number | null;
+  memberName: string;
+  memberDni: string | null;
+  kind: TransactionKind;
+  amount: number;
+  currency: string;
+  /** Nombre del plan imputado, o las notas del cobro suelto, o null. */
+  concept: string | null;
+  recorderName: string;
+  createdAt: string; // ISO
+}
+
+export interface PendingWithdrawalResult {
+  cashRegisterId: number;
+  cashRegisterName: string;
+  currency: string;
+  rows: WithdrawalPaymentItem[];
+  /** Σ amount de rows. */
+  total: number;
+}
+
+export interface WithdrawalListFilters {
+  cashRegisterId?: number;
+  branchId?: number;
+  /** Non-owner: locked to scope.country (route). Owner: optional override. */
+  country?: CountryCode;
+  isOwner: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface WithdrawalListItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  amount: number;
+  currency: string;
+  cashRegisterId: number;
+  cashRegisterName: string;
+  cashRegisterType: "efectivo" | "banco";
+  branchId: number | null;
+  branchName: string | null;
+  responsibleName: string;
+  recordedBy: number;
+  recorderName: string;
+  notes: string | null;
+  /** Cantidad de cobros vinculados (0 en retiros de cuenta banco). */
+  paymentCount: number;
+  voidedAt: string | null;
+  voidReason: string | null;
+  createdAt: string; // ISO
+}
+
+export interface WithdrawalDetail extends WithdrawalListItem {
+  payments: WithdrawalPaymentItem[];
+}
+
+// -- Ingresos por sede y método (feedback 2026-09-07, pestaña Saldos) --------
+// Misma semántica que FinanceSummary (inflow + plata firme + kinds de socio),
+// agrupado por (sede, moneda) y abierto por medio de pago.
+
+export interface IncomeByBranchRow {
+  branchId: number;
+  branchName: string;
+  currency: string;
+  byMethod: Record<PaymentMethod, number>;
+  total: number;
 }

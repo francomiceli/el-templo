@@ -57,8 +57,17 @@ import { alias } from "drizzle-orm/mysql-core";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
+import {
+  WithdrawalService,
+  activeWithdrawalDateSql,
+  activeWithdrawalIdSql,
+} from "./withdrawal-service";
 import type { PaginatedResult } from "../shared/types";
 import { auditLog } from "../shared/audit-log";
 import {
@@ -95,6 +104,7 @@ import type {
   TransactionListFilters,
   TransactionListItem,
   VoidTransactionInput,
+  IncomeByBranchRow,
 } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -388,6 +398,9 @@ export class TransactionService {
             costCenterId: input.costCenterId ?? null,
             recordedBy,
             notes: input.notes ?? null,
+            // Retiros (2026-09-07): responsable del retiro. NULL salvo en
+            // WithdrawalService.
+            responsibleName: input.responsibleName ?? null,
             // Phase 145 (COBRO-01): structured cobro-suelto reason. NULL for every
             // path except POST /coach-load/misc (the PoS dropdown Motivo). Stored
             // as its own column — NEVER folded into `notes`.
@@ -601,6 +614,23 @@ export class TransactionService {
     }
     if (!input.reason || input.reason.trim().length === 0) {
       throw new BadRequestError("Razon de anulacion requerida");
+    }
+    // Retiros (2026-09-07): un cobro en efectivo que ya se llevó alguien no
+    // se anula por debajo del retiro — el monto del retiro dejaría de cerrar
+    // con los cobros que lo componen. Primero se anula el retiro (libera
+    // sus cobros), después el cobro. Solo aplica a inflows: anular el retiro
+    // mismo (outflow) pasa de largo. correct() también entra por acá.
+    if (existing.direction === "inflow") {
+      const withdrawal = await WithdrawalService.findActiveWithdrawalForPayment(
+        ctx,
+        tx,
+        id,
+      );
+      if (withdrawal) {
+        throw new ConflictError(
+          `Este cobro está incluido en el retiro #${withdrawal.id} del ${withdrawal.transactionDate}. Anulá primero ese retiro.`,
+        );
+      }
     }
 
     await tx
@@ -1492,6 +1522,9 @@ export class TransactionService {
         validatedAt: schema.financialTransactions.validatedAt,
         validatorFirstName: validator.firstName,
         validatorLastName: validator.lastName,
+        // Retiros (2026-09-07): chip "Retirado" del Historial de cobros.
+        withdrawalId: activeWithdrawalIdSql(ctx),
+        withdrawnAt: activeWithdrawalDateSql(ctx),
       })
       .from(schema.financialTransactions)
       .innerJoin(
@@ -1600,6 +1633,8 @@ export class TransactionService {
           ? `${r.validatorFirstName ?? ""} ${r.validatorLastName ?? ""}`.trim()
           : null,
       linkSummary: linksByTx.get(r.id) ?? [],
+      withdrawalId: r.withdrawalId === null ? null : Number(r.withdrawalId),
+      withdrawnAt: r.withdrawnAt === null ? null : String(r.withdrawnAt),
     }));
 
     return { rows, total, page, limit };
@@ -2393,10 +2428,16 @@ export class TransactionService {
    * to 5 keys (cash/transfer/card/aura_credit/internal). revenueByBranch is
    * sorted DESC by revenue.
    */
-  async getSummary(
+  /**
+   * Condiciones compartidas por getSummary y getIncomeByBranch: ingresos de
+   * socio firmes (inflow + validado + no anulado, sin cash_transfer/expense)
+   * acotados por sede/país/rango. Una sola definición para que "Ingresos por
+   * sede" (pestaña Saldos) cierre contra las tarjetas del Historial.
+   */
+  private buildRevenueConditions(
     ctx: TenantContext,
     filters: FinanceSummaryFilters,
-  ): Promise<FinanceSummary> {
+  ): SQL[] {
     // TENANCY: el gimnasio va PRIMERO y en el array que comparten las CUATRO
     // agregaciones (total, por método, por sede, por kind) — si viviera en una
     // sola, las tarjetas de la CajaPage dejarían de sumar entre sí.
@@ -2433,6 +2474,14 @@ export class TransactionService {
         lte(schema.financialTransactions.transactionDate, filters.dateTo),
       );
     }
+    return conds;
+  }
+
+  async getSummary(
+    ctx: TenantContext,
+    filters: FinanceSummaryFilters,
+  ): Promise<FinanceSummary> {
+    const conds = this.buildRevenueConditions(ctx, filters);
 
     // 1) monthlyRevenue — single SUM across matching rows.
     const [totalRow] = await this.db
@@ -2555,6 +2604,75 @@ export class TransactionService {
     }
 
     return { monthlyRevenue, revenueByMethod, revenueByBranch, revenueByKind };
+  }
+
+  /**
+   * Feedback 2026-09-07 (pestaña Saldos): ingresos firmes de socio por
+   * (sede, moneda), abiertos por medio de pago. Misma condición que
+   * getSummary (buildRevenueConditions) — la suma de una fila coincide con
+   * revenueByBranch de esa sede para el mismo rango. Sedes sin ingresos en el
+   * período no aparecen (el front las muestra en 0 si las necesita).
+   */
+  async getIncomeByBranch(
+    ctx: TenantContext,
+    filters: FinanceSummaryFilters,
+  ): Promise<IncomeByBranchRow[]> {
+    const conds = this.buildRevenueConditions(ctx, filters);
+    const rows = await this.db
+      .select({
+        branchId: schema.financialTransactions.branchId,
+        branchName: schema.branches.name,
+        currency: schema.financialTransactions.currency,
+        paymentMethod: schema.financialTransactions.paymentMethod,
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+      })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.financialTransactions.branchId),
+        ),
+      )
+      .where(and(...conds))
+      .groupBy(
+        schema.financialTransactions.branchId,
+        schema.branches.name,
+        schema.financialTransactions.currency,
+        schema.financialTransactions.paymentMethod,
+      );
+
+    const emptyByMethod = (): Record<PaymentMethod, number> => ({
+      cash: 0,
+      transfer: 0,
+      card: 0,
+      aura_credit: 0,
+      internal: 0,
+      direct_debit: 0,
+    });
+    const byKey = new Map<string, IncomeByBranchRow>();
+    for (const r of rows) {
+      if (r.branchId === null) continue;
+      const key = `${r.branchId}:${r.currency}`;
+      let row = byKey.get(key);
+      if (!row) {
+        row = {
+          branchId: r.branchId,
+          branchName: r.branchName,
+          currency: r.currency,
+          byMethod: emptyByMethod(),
+          total: 0,
+        };
+        byKey.set(key, row);
+      }
+      const amount = Number(r.total);
+      row.byMethod[r.paymentMethod] += amount;
+      row.total += amount;
+    }
+    return Array.from(byKey.values()).sort(
+      (a, b) =>
+        b.total - a.total || a.branchName.localeCompare(b.branchName, "es"),
+    );
   }
 
   /**

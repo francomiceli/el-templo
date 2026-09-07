@@ -54,6 +54,12 @@ import type { PaymentMethod, TransactionDetail } from "./types";
 interface CoachPayPlanBody {
   userId: number;
   amountReceived?: number;
+  // Precio acordado (feedback 2026-09-07): la renovación se cobra a este
+  // precio (con motivo obligatorio) en vez del heredado, SIN generar deuda.
+  // Distinto de amountReceived (pago parcial → deja deuda). Solo renovación:
+  // si el socio tiene saldo pendiente, se rechaza (primero se salda).
+  priceOverrideAmount?: number;
+  priceOverrideReason?: string;
   paymentMethod: PaymentMethod;
   idempotencyKey: string;
   // Phase 151 (COBRO-04): cuenta banco elegida en la PoS. Obligatoria para
@@ -142,6 +148,10 @@ const coachPayPlanSchema = {
     properties: {
       userId: { type: "integer", minimum: 1 },
       amountReceived: { type: "integer", minimum: 0 },
+      // Precio acordado (2026-09-07): renovación a precio distinto del de
+      // lista, con motivo. Sin deuda. Ver CoachPayPlanBody.
+      priceOverrideAmount: { type: "integer", minimum: 0 },
+      priceOverrideReason: { type: "string", minLength: 1, maxLength: 500 },
       paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
       idempotencyKey: { type: "string", minLength: 1, maxLength: 64 },
       // Phase 151 (COBRO-04): opcional en el schema; el requisito transfer/card
@@ -472,11 +482,25 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       const {
         userId,
         amountReceived,
+        priceOverrideAmount,
+        priceOverrideReason,
         paymentMethod,
         idempotencyKey,
         bankAccountId,
         branchId: chosenBranchId,
       } = request.body;
+      // Precio acordado: el motivo es obligatorio (mismo contrato que la ficha
+      // del socio, pricing.ts lo re-exige). Se valida acá para que el 400 sea
+      // claro antes de tocar la suscripción.
+      if (
+        priceOverrideAmount !== undefined &&
+        (!priceOverrideReason || priceOverrideReason.trim().length === 0)
+      ) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "Indicá el motivo del precio acordado",
+        });
+      }
       try {
         // Fase 172 (ADO-01): el gimnasio se resuelve UNA vez por handler y se
         // reusa — este handler llama a varios metodos del service y a
@@ -511,6 +535,14 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         if (sub && outstanding > 0) {
           // ── SETTLE the existing debt — no new period (the plan is already
           // assigned/active; the profe is just collecting what's owed). ──
+          if (priceOverrideAmount !== undefined) {
+            // El precio acordado es de la renovación, no del saldo: aplicarlo
+            // acá dejaría la deuda vieja "descontada" sin rastro.
+            return reply.code(400).send({
+              error: "Solicitud invalida",
+              message: `El socio tiene saldo pendiente ($${outstanding}): primero se cobra la deuda, el precio acordado aplica a la renovación`,
+            });
+          }
           const amount = amountReceived ?? outstanding;
           if (amount <= 0) {
             return reply.code(400).send({
@@ -603,6 +635,14 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
           {
             paymentMethod,
             amountReceived,
+            // Precio acordado (2026-09-07): reemplaza el precio heredado de la
+            // sub anterior. undefined → se hereda currentSub.pricePaid.
+            ...(priceOverrideAmount !== undefined
+              ? {
+                  priceOverrideAmount,
+                  priceOverrideReason: priceOverrideReason?.trim(),
+                }
+              : {}),
             // Server-derived role → status (coach → pendiente). Not a literal so
             // a future admin-callable variant stays correct.
             recorderRole: request.user.role as AdminRole,

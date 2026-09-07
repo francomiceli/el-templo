@@ -271,7 +271,9 @@ import {
 // ("Probar en tu teléfono" del editor de notificaciones), `tenant-scoped`.
 // 2026-09-06: 410 -> 412 por `PATCH /api/academy/admin/inquiries/:id/status` y
 // `GET /api/app/admin/landing-inbox` (pelotitas del grupo Landing), `templo-module`.
-const ENTRADAS_BASELINE = 412;
+// 2026-09-07: 412 -> 418 por los retiros de caja (`/api/admin/finance/withdrawals`
+// ×5) e `income-by-branch` (feedback caja/cobros), todas `tenant-scoped`.
+const ENTRADAS_BASELINE = 418;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
