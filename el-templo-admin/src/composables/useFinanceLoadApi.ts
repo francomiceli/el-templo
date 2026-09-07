@@ -36,6 +36,12 @@ export interface CoachPayPlanInput {
    */
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
+  /**
+   * Prorrateo hasta fin de mes al renovar (2026-09-07): vence el último día
+   * del mes y el precio es el proporcional (editado, viaja en
+   * priceOverrideAmount SIN motivo). Excluyente con precio acordado.
+   */
+  prorateToMonthEnd?: boolean;
   paymentMethod: PaymentMethod;
   /**
    * Phase 151 (COBRO-04): chosen cash/bank account when the payment method is

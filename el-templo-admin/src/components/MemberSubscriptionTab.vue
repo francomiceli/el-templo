@@ -403,7 +403,7 @@
             </template>
           </div>
 
-          <!-- Prorrateo hasta fin de mes (solo España / domiciliación) -->
+          <!-- Prorrateo hasta fin de mes (2026-09-07: para toda sub, antes solo EUR) -->
           <div v-if="renewalProrateAvailable && !renewalUseOverride" class="q-mt-md">
             <q-toggle
               v-model="renewalProrate"
@@ -1003,10 +1003,11 @@ const renewalActivationDate = computed(() => {
   return formatDate(renewalEffectiveStartDate.value);
 });
 
-// ── Renovación prorrateada hasta fin de mes (alineación a domiciliación) ──
-// Solo tiene sentido para las subs de España (domiciliación) — el toggle se
-// ofrece únicamente cuando la moneda es EUR, mismo gate que la domiciliación.
-const renewalProrateAvailable = computed(() => renewTarget.value?.currency === 'EUR');
+// ── Renovación prorrateada hasta fin de mes ──
+// Nació gateado a EUR (alineación a domiciliación, `9e1352c8`). Desde el
+// 2026-09-07 (pedido de Franco) se ofrece para toda renovación: alinear al
+// corte de mes también sirve en AR. El backend nunca tuvo el gate.
+const renewalProrateAvailable = computed(() => renewTarget.value !== null);
 
 // Último día del mes del inicio + días cobrados (día del inicio incluido),
 // parseando las partes de la fecha para no depender de la zona horaria — misma
