@@ -8,6 +8,7 @@ import {
   DUENO_ROLES,
   TV_CONTROL_ROLES,
   PARTNERS_ROLES,
+  JORNADA_ROLES,
 } from 'src/config/templo-config';
 
 /**
@@ -172,6 +173,13 @@ const routes: RouteRecordRaw[] = [
         meta: {
           allowedRoles: ['coach', 'gestion', 'admin', 'owner'] as AdminRole[],
         },
+      },
+      {
+        // "Mi jornada" — check-in/check-out del staff con el QR de sede.
+        // Roles = JORNADA_ROLES (todo el staff de piso, sin `tv`).
+        path: 'jornada',
+        component: () => import('pages/JornadaPage.vue'),
+        meta: { allowedRoles: JORNADA_ROLES },
       },
       {
         // Fase 164 — control del TV desde el celular del profe (D-13). El

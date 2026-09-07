@@ -133,6 +133,20 @@ export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
  */
 export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'tv'];
 
+/**
+ * "Mi jornada" (check-in/check-out de staff con el QR de la sede): jornada
+ * laboral, todo el staff que trabaja en piso. Excluye `tv` (la cuenta
+ * dedicada del televisor no marca jornada, D-01 espejado de TV_CONTROL_ROLES).
+ */
+export const JORNADA_ROLES: AdminRole[] = ['coach', 'recepcion', 'gestion', 'admin', 'owner'];
+
+/**
+ * Registro de jornadas por sede/fechas (sección "Registro" de JornadaPage):
+ * Dueño + gestión. Mirrors REPORTES_ROLES — quien administra el negocio ve el
+ * registro de todo el staff, no solo el propio.
+ */
+export const JORNADA_REPORT_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
+
 // ---------------------------------------------------------------------------
 // Nav model
 // ---------------------------------------------------------------------------
@@ -207,6 +221,16 @@ export const NAV_MODEL: NavCategory[] = [
     items: [
       { path: '/alumnos', label: 'Alumnos', icon: 'people', roles: ALL_STAFF_ROLES },
       { path: '/horarios', label: 'Horarios', icon: 'calendar_month', roles: ALL_STAFF_ROLES },
+      {
+        // "Mi jornada": check-in/check-out del staff con el QR físico de la
+        // sede (mismo QR que escanean los socios). Vive junto a Horarios (la
+        // otra pantalla operativa del día a día) — NO es `templo` (el
+        // mecanismo es genérico, cualquier white-label lo hereda).
+        path: '/jornada',
+        label: 'Mi jornada',
+        icon: 'schedule',
+        roles: JORNADA_ROLES,
+      },
       {
         // TV (fase 164, unificado tras el retiro del kiosco anónimo RFC 8628):
         // antes eran dos ítems ("Control TV" + "Televisores"); ahora la
