@@ -439,6 +439,9 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "pending_notifications",
     ],
     referrals: ["referral_credits", "referral_cta_clicks", "referrals"],
+    // 2026-09-07: jornada laboral del staff (check-in/out con el QR de sede).
+    // Nace strict, sin deuda de allowlist previa.
+    "staff-attendance": ["staff_shifts"],
     wellhub: [
       "wellhub_bookings",
       "wellhub_classes",
@@ -447,7 +450,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     ],
   };
 
-  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub)", () => {
+  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub; 2026-09-07: staff-attendance)", () => {
     const normalizar = (registro: Record<string, readonly string[]>) =>
       Object.fromEntries(
         Object.entries(registro).map(([modulo, tablas]) => [
