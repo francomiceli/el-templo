@@ -36,6 +36,7 @@ import {
 } from "../shared/tenant";
 import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
+import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
 import type {
   MovementDetail,
   RegisterExpenseInput,
@@ -319,7 +320,7 @@ export class MovementService {
     // Phase 147 (EGR-02 / T-147-01): el centro de costo debe existir y estar
     // activo. Un solo SELECT — input no confiable (llega del body).
     const [costCenter] = await this.db
-      .select({ id: schema.costCenters.id })
+      .select({ id: schema.costCenters.id, name: schema.costCenters.name })
       .from(schema.costCenters)
       .where(
         and(
@@ -334,6 +335,14 @@ export class MovementService {
     if (!costCenter) {
       throw new BadRequestError(
         "Debés elegir un centro de costo válido para el egreso",
+      );
+    }
+    // Retiros (2026-09-07): un retiro siempre lleva responsable y, en efectivo,
+    // los cobros que se llevó. Entra por POST /withdrawals, nunca como egreso
+    // suelto — si no, el "quién se llevó la plata" queda en blanco.
+    if (costCenter.name === RETIROS_COST_CENTER_NAME) {
+      throw new BadRequestError(
+        "Los retiros se registran desde Caja → Retiros (con responsable), no como egreso",
       );
     }
 

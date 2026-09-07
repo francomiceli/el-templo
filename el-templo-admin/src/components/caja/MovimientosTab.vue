@@ -277,10 +277,19 @@
       <!-- Estado de validación column (Phase 152 CAJA-02) -->
       <template #body-cell-estado="slotProps">
         <q-td :props="slotProps">
-          <q-badge
-            :color="validationColor(slotProps.row.validationStatus)"
-            :label="validationLabel(slotProps.row.validationStatus)"
-          />
+          <div class="row items-center q-gutter-xs no-wrap">
+            <q-badge
+              :color="validationColor(slotProps.row.validationStatus)"
+              :label="validationLabel(slotProps.row.validationStatus)"
+            />
+            <!-- Retiros (2026-09-07): el cobro en efectivo ya salió del cajón. -->
+            <q-badge v-if="slotProps.row.withdrawalId" color="brown-6" label="Retirado">
+              <q-tooltip>
+                Retiro #{{ slotProps.row.withdrawalId }}
+                <span v-if="slotProps.row.withdrawnAt"> · {{ slotProps.row.withdrawnAt }}</span>
+              </q-tooltip>
+            </q-badge>
+          </div>
         </q-td>
       </template>
 

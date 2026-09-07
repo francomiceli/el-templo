@@ -635,9 +635,65 @@
                   :hint="
                     mode === 'alta'
                       ? 'Por defecto se cobra el total. Editá si el cobro es parcial.'
-                      : ''
+                      : mode === 'renew'
+                        ? precioAcordado
+                          ? 'Monto recibido. Si es menor al precio acordado, la diferencia queda como deuda.'
+                          : 'Si cobrás menos que el precio del plan queda deuda. Para un descuento usá Precio acordado.'
+                        : ''
                   "
                 />
+
+                <!-- Precio acordado (feedback 2026-09-07): renovar a un precio distinto
+                     del de lista, con motivo, SIN deuda. No es lo mismo que bajar el
+                     Monto (eso es un pago parcial y deja deuda por la diferencia). -->
+                <template v-if="mode === 'renew'">
+                  <q-toggle
+                    v-model="precioAcordado"
+                    label="Precio acordado (distinto al de lista)"
+                    class="q-mt-sm"
+                    @update:model-value="onPrecioAcordadoToggle"
+                  />
+                  <div v-if="precioAcordado" class="row q-col-gutter-sm q-mt-xs">
+                    <div class="col-12 col-sm-5">
+                      <q-input
+                        v-model.number="precioAcordadoMonto"
+                        type="number"
+                        inputmode="numeric"
+                        label="Precio acordado"
+                        outlined
+                        dense
+                        :suffix="montoSymbol"
+                        @update:model-value="onPrecioAcordadoMontoChange"
+                      />
+                    </div>
+                    <div class="col-12 col-sm-7">
+                      <q-input
+                        v-model="precioAcordadoMotivo"
+                        label="Motivo (requerido)"
+                        outlined
+                        dense
+                        maxlength="500"
+                        placeholder="Ej.: PROMO, alumno aire libre, staff"
+                      />
+                    </div>
+                  </div>
+                  <q-banner
+                    v-if="
+                      precioAcordado &&
+                      autocompletar?.amount != null &&
+                      typeof precioAcordadoMonto === 'number'
+                    "
+                    dense
+                    rounded
+                    class="bg-blue-1 text-grey-9 q-mt-sm"
+                  >
+                    Precio de lista
+                    {{ formatPrice(autocompletar.amount, autocompletar.currency ?? 'ARS') }} →
+                    acordado
+                    {{ formatPrice(precioAcordadoMonto, autocompletar.currency ?? 'ARS') }}.
+                    No genera deuda.
+                  </q-banner>
+                </template>
 
                 <!-- Alta parcial: aviso de deuda remanente -->
                 <q-banner
@@ -1067,6 +1123,7 @@ function onSelectAssociation(m: Mode) {
   amount.value = null;
   concepto.value = '';
   miscReason.value = 'sin_plan';
+  resetPrecioAcordado();
   selectedPlan.value = null;
   zeroPrice.value = false;
   prorateToMonthEnd.value = false;
@@ -1272,7 +1329,7 @@ const canConfirm = computed(() => {
 
   if (!selectedMember.value) return false;
   if (mode.value === 'renew') {
-    return autocompletar.value?.hasRenewable === true;
+    return autocompletar.value?.hasRenewable === true && precioAcordadoValido.value;
   }
   if (mode.value === 'misc') {
     return concepto.value.trim().length > 0 && miscReason.value != null;
@@ -1837,12 +1894,50 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
     });
 }
 
+// ─── Precio acordado (renovación, feedback 2026-09-07) ────────────────────
+// Renovar a un precio distinto del de lista con motivo → el server lo guarda
+// como priceOverrideAmount/Reason y NO genera deuda. El Monto (amountReceived)
+// sigue siendo lo recibido: si es menor al acordado, la diferencia es deuda.
+const precioAcordado = ref(false);
+const precioAcordadoMonto = ref<number | null>(null);
+const precioAcordadoMotivo = ref('');
+
+const precioAcordadoValido = computed(() => {
+  if (!precioAcordado.value) return true;
+  if (typeof precioAcordadoMonto.value !== 'number' || precioAcordadoMonto.value < 0) return false;
+  if (precioAcordadoMotivo.value.trim().length === 0) return false;
+  // El server exige amountReceived <= precio: lo cortamos acá con un mensaje claro.
+  return (amount.value ?? 0) <= precioAcordadoMonto.value;
+});
+
+function onPrecioAcordadoToggle(on: boolean) {
+  if (on) {
+    precioAcordadoMonto.value = amount.value ?? autocompletar.value?.amount ?? null;
+  } else {
+    precioAcordadoMonto.value = null;
+    precioAcordadoMotivo.value = '';
+    if (autocompletar.value?.amount != null) amount.value = autocompletar.value.amount;
+  }
+}
+
+// El monto recibido sigue al precio acordado (el caso común: se cobra lo acordado).
+function onPrecioAcordadoMontoChange(v: number | string | null) {
+  if (typeof v === 'number') amount.value = v;
+}
+
+function resetPrecioAcordado() {
+  precioAcordado.value = false;
+  precioAcordadoMonto.value = null;
+  precioAcordadoMotivo.value = '';
+}
+
 // ─── Selection / mode ─────────────────────────────────────────────────────
 function resetChargeFields() {
   amount.value = null;
   concepto.value = '';
   miscReason.value = 'sin_plan';
   autocompletar.value = null;
+  resetPrecioAcordado();
   // A deliberate change of target = a new charge → new idempotency key.
   currentIdempotencyKey.value = null;
 }
@@ -1908,6 +2003,13 @@ async function onConfirm() {
         amountReceived: amount.value,
         paymentMethod: paymentMethod.value,
         idempotencyKey,
+        // Precio acordado (2026-09-07): renovación a precio distinto, con motivo.
+        ...(precioAcordado.value && typeof precioAcordadoMonto.value === 'number'
+          ? {
+              priceOverrideAmount: precioAcordadoMonto.value,
+              priceOverrideReason: precioAcordadoMotivo.value.trim(),
+            }
+          : {}),
         // CR-CAJA: sede del cobro elegida (default = sede del socio).
         ...(sucursalId.value != null ? { branchId: sucursalId.value } : {}),
         ...(chosenBankAccountId != null ? { bankAccountId: chosenBankAccountId } : {}),

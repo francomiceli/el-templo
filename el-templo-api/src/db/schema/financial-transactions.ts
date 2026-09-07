@@ -104,6 +104,12 @@ export const financialTransactions = mysqlTable(
     validatedBy: int("validated_by").references(() => users.id),
     validatedAt: timestamp("validated_at"),
     notes: text("notes"),
+    // Retiros de caja (feedback 2026-09-07): quién se llevó la plata. Solo los
+    // egresos con centro de costo "Retiros" lo setean (POST /withdrawals lo
+    // exige). Texto libre y no FK a users: los responsables reales (dueños,
+    // socios que retiran por cuenta del dueño) no siempre son usuarios del
+    // admin. Column name byte-for-byte con la migración 0224.
+    responsibleName: varchar("responsible_name", { length: 120 }),
     // Phase 145 (COBRO-01): structured reason for a cobro suelto. NULLABLE —
     // only kind='advance_payment' rows set it ('sin_plan' = socio sin plan
     // activo, 'otro' = otro motivo); every other row stays NULL. NOT folded

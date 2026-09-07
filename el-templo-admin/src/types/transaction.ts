@@ -169,6 +169,13 @@ export interface TransactionListItem {
   validatedAt: string | null;
   validatorName: string | null;
   linkSummary: TransactionLinkSummary[];
+  /**
+   * Retiros (2026-09-07): id del retiro activo que se llevó este cobro en
+   * efectivo, o null (sigue en caja / no aplica). Chip "Retirado" del Historial.
+   */
+  withdrawalId: number | null;
+  /** YYYY-MM-DD del retiro. null si withdrawalId es null. */
+  withdrawnAt: string | null;
 }
 
 export interface TransactionListParams {
@@ -787,4 +794,87 @@ export interface CreateTransactionResponse {
     amount: number;
     updatedAt: string;
   }>;
+}
+
+// -- Retiros de caja (feedback 2026-09-07) ---------------------------------
+// Mirror de el-templo-api/src/modules/finance/types.ts. Un retiro es un
+// `expense` con centro "Retiros" + responsable obligatorio; en efectivo se
+// vincula a los cobros que se llevó (el monto es la suma).
+
+export interface WithdrawalPaymentItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  memberId: number | null;
+  memberName: string;
+  memberDni: string | null;
+  kind: TransactionKind;
+  amount: number;
+  currency: string;
+  /** Nombre del plan imputado, notas del cobro suelto, o null. */
+  concept: string | null;
+  recorderName: string;
+  createdAt: string;
+}
+
+export interface PendingWithdrawalResult {
+  cashRegisterId: number;
+  cashRegisterName: string;
+  currency: string;
+  rows: WithdrawalPaymentItem[];
+  total: number;
+}
+
+export interface WithdrawalListItem {
+  id: number;
+  transactionDate: string;
+  amount: number;
+  currency: string;
+  cashRegisterId: number;
+  cashRegisterName: string;
+  cashRegisterType: 'efectivo' | 'banco';
+  branchId: number | null;
+  branchName: string | null;
+  responsibleName: string;
+  recordedBy: number;
+  recorderName: string;
+  notes: string | null;
+  paymentCount: number;
+  voidedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+}
+
+export interface WithdrawalDetail extends WithdrawalListItem {
+  payments: WithdrawalPaymentItem[];
+}
+
+export interface WithdrawalListParams {
+  cashRegisterId?: number;
+  branchId?: number;
+  country?: 'AR' | 'ES';
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface RegisterWithdrawalInput {
+  cajaId: number;
+  responsibleName: string;
+  transactionDate?: string;
+  notes?: string | null;
+  /** Caja efectivo: cobros que se retiran (el monto se deriva). */
+  transactionIds?: number[];
+  /** Cuenta banco: monto explícito. */
+  amount?: number;
+}
+
+// -- Ingresos por sede y medio de pago (pestaña Saldos) ---------------------
+
+export interface IncomeByBranchRow {
+  branchId: number;
+  branchName: string;
+  currency: string;
+  byMethod: Record<PaymentMethod, number>;
+  total: number;
 }

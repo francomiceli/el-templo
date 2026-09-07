@@ -276,7 +276,9 @@ import {
 // 2026-09-07: 413 -> 417 por el módulo nuevo `staff-attendance` (check-in/
 // check-out de la jornada laboral): `GET /me`, `POST /check-in`,
 // `POST /check-out`, `GET /shifts`, las 4 `tenant-scoped`.
-const ENTRADAS_BASELINE = 417;
+// 2026-09-07: 417 -> 423 por los retiros de caja (`/api/admin/finance/withdrawals`
+// ×5) e `income-by-branch` (feedback caja/cobros), todas `tenant-scoped`.
+const ENTRADAS_BASELINE = 423;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;

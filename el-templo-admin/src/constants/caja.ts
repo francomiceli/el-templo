@@ -24,6 +24,8 @@ export const CAJA_TABS = {
   saldos: 'saldos',
   transacciones: 'transacciones',
   movimientosCaja: 'movimientosCaja',
+  // Retiros de caja (feedback 2026-09-07): pendiente de retiro + historial.
+  retiros: 'retiros',
   cuentas: 'cuentas',
 } as const;
 
@@ -40,6 +42,7 @@ export const CAJA_DEFAULT_TAB: CajaTab = CAJA_TABS.pendientes;
 export const CAJA_TAB_NAMES: readonly CajaTab[] = [
   CAJA_TABS.pendientes,
   CAJA_TABS.movimientosCaja,
+  CAJA_TABS.retiros,
   CAJA_TABS.transacciones,
   CAJA_TABS.saldos,
   CAJA_TABS.cuentas,

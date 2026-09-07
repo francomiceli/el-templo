@@ -405,6 +405,112 @@ describe("coach-load renew", () => {
     expect(charge.kind).toBe("plan_charge");
   });
 
+  // ─── Precio acordado (feedback caja/cobros 2026-09-07) ───
+  it("renew: priceOverrideAmount + motivo → la renovación nace a ese precio, SIN deuda", async () => {
+    await seedRenewableSubscription(); // pricePaid heredado = 100000
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "cash",
+        priceOverrideAmount: 70000,
+        priceOverrideReason: "PROMO renovación",
+        amountReceived: 70000,
+        idempotencyKey: `renew-override-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body) as {
+      subscription: { id: number };
+      transaction: { id: number; amount: number };
+    };
+    expect(body.transaction.amount).toBe(70000);
+
+    const [sub] = await app.db
+      .select({
+        pricePaid: schema.subscriptions.pricePaid,
+        priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
+        priceOverrideReason: schema.subscriptions.priceOverrideReason,
+      })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.id, body.subscription.id),
+        ),
+      )
+      .limit(1);
+    expect(sub.pricePaid).toBe(70000);
+    expect(sub.priceOverrideAmount).toBe(70000);
+    expect(sub.priceOverrideReason).toBe("PROMO renovación");
+
+    // Sin deuda: el precio acordado ES el precio, no un pago parcial.
+    const [bal] = await app.db
+      .select({ amount: schema.balances.amount })
+      .from(schema.balances)
+      .where(
+        and(
+          eq(schema.balances.tenantId, TENANT_TEMPLO),
+          eq(schema.balances.memberId, memberId),
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.balances.targetId, body.subscription.id),
+        ),
+      )
+      .limit(1);
+    expect(bal?.amount ?? 0).toBe(0);
+  });
+
+  it("renew: priceOverrideAmount sin motivo → 400", async () => {
+    await seedRenewableSubscription();
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "cash",
+        priceOverrideAmount: 70000,
+        idempotencyKey: `renew-override-noreason-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).message).toContain("motivo");
+  });
+
+  it("renew: amountReceived menor al precio acordado → deuda por la diferencia (parcial sigue siendo parcial)", async () => {
+    await seedRenewableSubscription();
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "cash",
+        priceOverrideAmount: 70000,
+        priceOverrideReason: "PROMO",
+        amountReceived: 50000,
+        idempotencyKey: `renew-override-partial-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body) as { subscription: { id: number } };
+    const [bal] = await app.db
+      .select({ amount: schema.balances.amount })
+      .from(schema.balances)
+      .where(
+        and(
+          eq(schema.balances.tenantId, TENANT_TEMPLO),
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.balances.targetId, body.subscription.id),
+        ),
+      )
+      .limit(1);
+    expect(bal.amount).toBe(20000);
+  });
+
   it("renew: 404 when the member has no subscription to renew", async () => {
     const res = await app.inject({
       method: "POST",
@@ -422,6 +528,25 @@ describe("coach-load renew", () => {
 
 // ─── pay-plan settle: outstanding debt → debt_settlement, NO new period ──
 describe("coach-load pay-plan settle debt", () => {
+  it("settle: con deuda pendiente el precio acordado se rechaza (aplica a la renovación, no al saldo)", async () => {
+    const subId = await seedCurrentSubscription();
+    await seedSubscriptionDebt(subId, 100000);
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "cash",
+        priceOverrideAmount: 70000,
+        priceOverrideReason: "PROMO",
+        idempotencyKey: `settle-override-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).message).toContain("saldo pendiente");
+  });
+
   it("settle: outstanding debt → debt_settlement born pendiente, balance cleared, no new period", async () => {
     const subId = await seedCurrentSubscription();
     await seedSubscriptionDebt(subId, 100000);

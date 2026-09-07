@@ -227,8 +227,13 @@ async function loadCajas() {
 const costCenters = ref<CostCenterItem[]>([]);
 const loadingCostCenters = ref(false);
 
+// "Retiros" no se ofrece como egreso (2026-09-07): un retiro lleva responsable
+// y, en efectivo, los cobros que se llevó — va por Caja → Retiros. El server
+// también lo rechaza (400) si llega por acá.
 const costCenterOptions = computed(() =>
-  costCenters.value.map((c) => ({ label: c.name, value: c.id }))
+  costCenters.value
+    .filter((c) => c.name !== 'Retiros')
+    .map((c) => ({ label: c.name, value: c.id }))
 );
 
 async function loadCostCenters() {

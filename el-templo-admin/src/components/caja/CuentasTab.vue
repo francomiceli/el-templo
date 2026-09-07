@@ -5,6 +5,7 @@
     <div class="row items-center q-mb-md">
       <div class="text-subtitle1 text-weight-medium col">Cajas de efectivo</div>
       <q-btn
+        v-if="canManage"
         icon="add"
         label="Abrir caja"
         color="primary"
@@ -29,6 +30,19 @@
           {{ formatPrice(cellProps.row.firmeBalance, cellProps.row.currency) }}
         </q-td>
       </template>
+      <template #body-cell-actions="cellProps">
+        <q-td :props="cellProps">
+          <q-btn
+            flat
+            dense
+            no-caps
+            icon="payments"
+            label="Registrar retiro"
+            color="secondary"
+            @click="openRetiroCaja(cellProps.row)"
+          />
+        </q-td>
+      </template>
       <template #no-data>
         <div class="full-width text-center text-grey-6 q-pa-md">
           Todavía no hay cajas de efectivo. Abrí la primera con "Abrir caja".
@@ -41,7 +55,15 @@
     <!-- Header: alta de cuenta (CTA-01) -->
     <div class="row items-center q-mb-md">
       <div class="text-subtitle1 text-weight-medium col">Cuentas bancarias</div>
-      <q-btn icon="add" label="Nueva cuenta" color="primary" unelevated dense @click="openCreate" />
+      <q-btn
+        v-if="canManage"
+        icon="add"
+        label="Nueva cuenta"
+        color="primary"
+        unelevated
+        dense
+        @click="openCreate"
+      />
     </div>
 
     <q-table
@@ -76,11 +98,21 @@
           </q-td>
           <q-td key="actions" :props="tableProps">
             <div class="row items-center q-gutter-xs no-wrap justify-end">
-              <q-btn flat dense round icon="edit" color="primary" @click="openEdit(tableProps.row)">
+              <q-btn
+                v-if="canManage"
+                flat
+                dense
+                round
+                icon="edit"
+                color="primary"
+                @click="openEdit(tableProps.row)"
+              >
                 <q-tooltip>Editar</q-tooltip>
               </q-btn>
+              <!-- Retiro de cuenta banco: monto explícito, con responsable (2026-09-07).
+                   Mismos roles que la API (owner/admin/gestion). -->
               <q-btn
-                v-if="isOwner"
+                v-if="tableProps.row.isActive"
                 flat
                 dense
                 round
@@ -91,7 +123,7 @@
                 <q-tooltip>Registrar retiro</q-tooltip>
               </q-btn>
               <q-btn
-                v-if="tableProps.row.isActive"
+                v-if="canManage && tableProps.row.isActive"
                 flat
                 dense
                 round
@@ -102,7 +134,7 @@
                 <q-tooltip>Cerrar cuenta</q-tooltip>
               </q-btn>
               <q-btn
-                v-else
+                v-else-if="canManage"
                 flat
                 dense
                 round
@@ -131,6 +163,7 @@
     <div class="row items-center q-mb-md">
       <div class="text-subtitle1 text-weight-medium col">Categorías de egreso</div>
       <q-btn
+        v-if="canManage"
         icon="add"
         label="Nueva categoría"
         color="primary"
@@ -167,6 +200,7 @@
           <q-td key="actions" :props="tableProps">
             <div class="row items-center q-gutter-xs no-wrap justify-end">
               <q-btn
+                v-if="canManage"
                 flat
                 dense
                 round
@@ -177,7 +211,7 @@
                 <q-tooltip>Renombrar</q-tooltip>
               </q-btn>
               <q-btn
-                v-if="tableProps.row.isActive"
+                v-if="canManage && tableProps.row.isActive"
                 flat
                 dense
                 round
@@ -188,7 +222,7 @@
                 <q-tooltip>Desactivar categoría</q-tooltip>
               </q-btn>
               <q-btn
-                v-else
+                v-else-if="canManage"
                 flat
                 dense
                 round
@@ -234,22 +268,23 @@
       @saved="onSaved"
     />
 
-    <!-- Retiro del dueño con centro 'Retiros' preseleccionado (CTA-03 / D-10) -->
-    <RegistrarMovEgresoDialog
+    <!-- Registrar retiro (2026-09-07): responsable obligatorio; en efectivo se
+         eligen los cobros que se llevan. Reemplaza al egreso con centro 'Retiros'. -->
+    <RegistrarRetiroDialog
       v-model="showRetiro"
       :selected-country="selectedCountry"
       :is-owner="isOwner"
-      prefill-tab="egreso"
-      :prefill-caja-id="retiroCajaId ?? undefined"
-      prefill-cost-center-name="Retiros"
+      :caja-id="retiroCajaId ?? undefined"
+      lock-caja
       @registered="onRetiroRegistered"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { useQuasar, type QTableColumn } from 'quasar';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
@@ -258,7 +293,7 @@ import type { BankAccount, CajaSaldoRow, CostCenter } from 'src/types/transactio
 import CuentaBancariaFormDialog from 'src/components/caja/CuentaBancariaFormDialog.vue';
 import CajaEfectivoFormDialog from 'src/components/caja/CajaEfectivoFormDialog.vue';
 import CategoriaEgresoFormDialog from 'src/components/caja/CategoriaEgresoFormDialog.vue';
-import RegistrarMovEgresoDialog from 'src/components/caja/RegistrarMovEgresoDialog.vue';
+import RegistrarRetiroDialog from 'src/components/caja/RegistrarRetiroDialog.vue';
 
 const props = defineProps<{
   selectedCountry: 'AR' | 'ES';
@@ -268,6 +303,15 @@ const props = defineProps<{
 const log = createLogger('CuentasTab');
 const $q = useQuasar();
 const transactionsApi = useTransactionsApi();
+const authStore = useAuthStore();
+
+// El ABM de cajas, cuentas y categorías es admin/owner en la API (ADMIN_ROLES).
+// Gestión entra a /caja desde 2026-09-07 para operar (retiros, validar), no
+// para administrar el catálogo: se le ocultan esos botones.
+const canManage = computed(() => {
+  const role = authStore.user?.role;
+  return role === 'admin' || role === 'owner';
+});
 
 const accounts = ref<BankAccount[]>([]);
 const loading = ref(false);
@@ -295,6 +339,7 @@ const cajaColumns: QTableColumn<CajaSaldoRow>[] = [
   { name: 'name', label: 'Caja', field: 'name', align: 'left' },
   { name: 'currency', label: 'Moneda', field: 'currency', align: 'left' },
   { name: 'firmeBalance', label: 'Saldo firme', field: 'firmeBalance', align: 'left' },
+  { name: 'actions', label: '', field: 'cashRegisterId', align: 'right' },
 ];
 
 async function loadCajas() {
@@ -419,8 +464,13 @@ function openRetiro(account: BankAccount) {
   showRetiro.value = true;
 }
 
+function openRetiroCaja(caja: CajaSaldoRow) {
+  retiroCajaId.value = caja.cashRegisterId;
+  showRetiro.value = true;
+}
+
 function onRetiroRegistered() {
-  void load();
+  void Promise.all([load(), loadCajas()]);
 }
 
 // =========================================================================

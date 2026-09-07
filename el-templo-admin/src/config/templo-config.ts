@@ -104,10 +104,11 @@ export const REPORTES_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 export const PLANES_READ_ROLES: AdminRole[] = ['coach', 'gestion', 'recepcion', 'admin', 'owner'];
 
 /**
- * Caja (saldos/arqueo): Dueño-only. Gestión excluded for now (rollout). Mirrors
- * the /caja route allowedRoles (ADMIN_ROLES).
+ * Caja (saldos/arqueo/retiros): gestión + dueño (2026-09-07: gestión opera la
+ * caja a diario). Mirrors the /caja route allowedRoles. El ABM de cuentas y
+ * categorías sigue admin/owner (CuentasTab lo oculta).
  */
-export const CAJA_SALDOS_ROLES: AdminRole[] = ['admin', 'owner'];
+export const CAJA_SALDOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 
 /** Analíticas: Dueño-only. Mirrors the /analiticas route allowedRoles (ADMIN_ROLES). */
 export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner'];

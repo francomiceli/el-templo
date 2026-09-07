@@ -120,6 +120,21 @@
 //   ─────────────────────────
 //   TOTAL          400 → 405   (+5)
 //
+// 2026-09-07 — **418 rutas**: feedback de caja/cobros (Martín) agregó los
+// retiros de caja (`/api/admin/finance/withdrawals` ×5: pending,
+// responsibles, listado, detalle, alta) e `income-by-branch` (ingresos por
+// sede y medio de pago para la pestaña Saldos). Las 6 son `tenant-scoped`:
+// leen/escriben `financial_transactions` del gimnasio vía `assertTenant` y los
+// guards de caja/fila del plugin. Entre 405 y 412 hubo altas que no
+// actualizaron este header (ver el bloque de `ENTRADAS_BASELINE` en
+// `iso-01-manifiesto.test.ts`), así que acá solo se contabiliza esta unidad:
+//
+//   tenant-scoped  +6   (las rutas nuevas)
+//   templo-module  sin cambio
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          412 → 418   (+6)
+//
 // Ese reparto es el APROBADO en el checkpoint del plan 171-06 (Franco,
 // 2026-07-29). El volcado del plan 171-02 había propuesto 221 / 11 / 138; la
 // única diferencia son las 3 rutas de `labs-inquiries`, que pasaron de `global`
@@ -413,6 +428,18 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "POST /api/admin/finance/expenses": { categoria: "tenant-scoped" },
   "POST /api/admin/finance/expenses/:id/void": { categoria: "tenant-scoped" },
+  // Retiros de caja (feedback 2026-09-07): todas leen/escriben el ledger del
+  // gimnasio vía assertTenant + enforceCajaScope/enforceRowScope.
+  "GET /api/admin/finance/withdrawals": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/withdrawals/:id": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/withdrawals/pending": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/withdrawals/responsibles": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/withdrawals": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/transactions/income-by-branch": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/admin/finance/movements": { categoria: "tenant-scoped" },
   "POST /api/admin/finance/movements/:id/void": { categoria: "tenant-scoped" },
   "POST /api/admin/finance/transactions": { categoria: "tenant-scoped" },

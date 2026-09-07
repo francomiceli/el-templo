@@ -41,6 +41,12 @@ import type {
   BankAccount,
   CreateBankAccountInput,
   UpdateBankAccountInput,
+  PendingWithdrawalResult,
+  RegisterWithdrawalInput,
+  WithdrawalDetail,
+  WithdrawalListItem,
+  WithdrawalListParams,
+  IncomeByBranchRow,
 } from 'src/types/transaction';
 import type { PaginatedResult } from 'src/types/report';
 
@@ -873,6 +879,125 @@ export function useTransactionsApi() {
     error.value = null;
   }
 
+  // =========================================================================
+  // Retiros de caja (feedback 2026-09-07). Ver withdrawal-service.ts.
+  // =========================================================================
+
+  /** Cobros en efectivo firmes de la caja sin retiro activo (lo que hay en el cajón). */
+  async function getPendingWithdrawals(
+    cashRegisterId: number,
+    dateTo?: string
+  ): Promise<PendingWithdrawalResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<PendingWithdrawalResult>(
+        '/admin/finance/withdrawals/pending',
+        { params: { cashRegisterId, ...(dateTo ? { dateTo } : {}) } }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando cobros pendientes de retiro');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Registrar retiro (POST /withdrawals). Roles: FINANCE_VOID_ROLES. */
+  async function registerWithdrawal(
+    input: RegisterWithdrawalInput
+  ): Promise<{ withdrawal: WithdrawalDetail }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ withdrawal: WithdrawalDetail }>(
+        '/admin/finance/withdrawals',
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error registrando el retiro');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function listWithdrawals(
+    params: WithdrawalListParams = {}
+  ): Promise<PaginatedResult<WithdrawalListItem>> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<PaginatedResult<WithdrawalListItem>>(
+        '/admin/finance/withdrawals',
+        { params }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando retiros');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getWithdrawal(id: number): Promise<WithdrawalDetail> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<WithdrawalDetail>(`/admin/finance/withdrawals/${id}`);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando el retiro');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Sugerencias de responsable: staff activo + responsables ya usados. */
+  async function getWithdrawalResponsibles(): Promise<string[]> {
+    const { data } = await api.get<string[]>('/admin/finance/withdrawals/responsibles');
+    return data;
+  }
+
+  /** Anular un egreso o retiro (POST /expenses/:id/void). Libera los cobros del retiro. */
+  async function voidExpense(id: number, reason: string): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.post(`/admin/finance/expenses/${id}/void`, { reason });
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error anulando el egreso');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Ingresos firmes por (sede, moneda) y medio de pago (pestaña Saldos).
+   * Misma condición que getSummary — cierra contra revenueByBranch.
+   */
+  async function getIncomeByBranch(params: FinanceSummaryParams = {}): Promise<IncomeByBranchRow[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<IncomeByBranchRow[]>(
+        '/admin/finance/transactions/income-by-branch',
+        { params }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando ingresos por sede');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   return {
     loading,
     error,
@@ -922,6 +1047,15 @@ export function useTransactionsApi() {
     updateBankAccount,
     closeBankAccount,
     reactivateBankAccount,
+    // Retiros de caja (feedback 2026-09-07):
+    getPendingWithdrawals,
+    registerWithdrawal,
+    listWithdrawals,
+    getWithdrawal,
+    getWithdrawalResponsibles,
+    voidExpense,
+    // Ingresos por sede y medio de pago (pestaña Saldos):
+    getIncomeByBranch,
     cleanup,
   };
 }

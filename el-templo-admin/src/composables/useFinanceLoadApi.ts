@@ -29,6 +29,13 @@ export interface CoachPayPlanInput {
   userId: number;
   /** Optional partial/edited amount; omitted = full debt (settle) or plan price (renew). */
   amountReceived?: number;
+  /**
+   * Precio acordado (2026-09-07): la renovación se cobra a este precio, con
+   * motivo, SIN generar deuda. Distinto de amountReceived (parcial → deuda).
+   * El server lo rechaza si el socio tiene saldo pendiente (primero se salda).
+   */
+  priceOverrideAmount?: number;
+  priceOverrideReason?: string;
   paymentMethod: PaymentMethod;
   /**
    * Phase 151 (COBRO-04): chosen cash/bank account when the payment method is

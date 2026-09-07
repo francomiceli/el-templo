@@ -283,6 +283,10 @@ const transactionListItemProperties = {
   },
   validatedAt: { type: ["string", "null"] },
   validatorName: { type: ["string", "null"] },
+  // Retiros (2026-09-07): chip "Retirado". Si no están acá, el serializador
+  // los descarta aunque list() los devuelva.
+  withdrawalId: { type: ["integer", "null"] },
+  withdrawnAt: { type: ["string", "null"] },
   linkSummary: {
     type: "array",
     items: {
@@ -1069,3 +1073,111 @@ export const SHARED_ERROR_SCHEMA = errorSchema;
 export const SHARED_PAGINATION_QUERYSTRING = paginationQuerystring;
 export const SHARED_KIND_ENUM = KIND_ENUM;
 export const SHARED_PAYMENT_METHOD_ENUM = PAYMENT_METHOD_ENUM;
+
+// ===========================================================================
+// Retiros de caja (feedback 2026-09-07) + ingresos por sede
+// ===========================================================================
+
+/** GET /withdrawals/pending — cobros en efectivo de una caja sin retiro activo. */
+export const pendingWithdrawalsSchema = {
+  querystring: {
+    type: "object",
+    required: ["cashRegisterId"],
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+      // Acota "todo lo cobrado hasta X" para cargar retiros históricos.
+      dateTo: { type: "string", format: "date" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /withdrawals — registrar un retiro. Caja efectivo: transactionIds
+ * (no vacío) y SIN amount (se deriva). Caja banco: amount y SIN
+ * transactionIds. La XOR se valida en el service (JSON-Schema no la expresa
+ * limpio con additionalProperties:false).
+ */
+export const registerWithdrawalSchema = {
+  body: {
+    type: "object",
+    required: ["cajaId", "responsibleName"],
+    properties: {
+      cajaId: { type: "integer", minimum: 1 },
+      responsibleName: { type: "string", minLength: 1, maxLength: 120 },
+      transactionDate: { type: "string", format: "date" },
+      notes: { type: ["string", "null"], maxLength: 2000 },
+      transactionIds: {
+        type: "array",
+        items: { type: "integer", minimum: 1 },
+        maxItems: 500,
+      },
+      amount: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/** GET /withdrawals — historial de retiros (paginado). */
+export const listWithdrawalsSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+      branchId: { type: "integer", minimum: 1 },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      ...paginationQuerystring,
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/** GET /withdrawals/:id — detalle con los cobros incluidos. */
+export const withdrawalByIdSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+/**
+ * GET /transactions/income-by-branch — ingresos firmes por (sede, moneda) y
+ * medio de pago. Misma querystring que /transactions/summary, respuesta
+ * passthrough (array de IncomeByBranchRow).
+ */
+export const incomeByBranchSchema = {
+  querystring: transactionsSummarySchema.querystring,
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
