@@ -39,6 +39,7 @@ async function insertPlan(
     name: string;
     planCategory:
       | "presencial"
+      | "paquete"
       | "online_regular"
       | "online_goal"
       | "online_coach";
@@ -251,6 +252,41 @@ describe("Sessions gating (Phase 104 R7 + R8)", () => {
 
     // Seed an approved templo session for the date so we can also assert
     // that the resolved dayId is the W* form (not GP-*).
+    await insertApprovedSession(app, "W1-martes-alfa");
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/sessions/weekly?weekStart=${WEEK_START_MONDAY}&view=templo`,
+      headers: { authorization: `Bearer ${member.token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.view).toBe("templo");
+    expect(body.sessions[WEEKDAY_DATE]).not.toBeNull();
+    expect(body.sessions[WEEKDAY_DATE].dayId).toBe("W1-martes-alfa");
+  });
+
+  it("R7 case 3b (fase 177): paquete de clases (grupo presencial) with ?view=templo returns 200 — no 403 'plan presencial'", async () => {
+    // Regresión 2026-09-07 (Gonzalo Guzmán, Barcelona): el guard usaba el
+    // literal 'presencial' y un paquete activo recibía 403 → "Activá tu plan".
+    const member = await createTestMember(app);
+    await app.db
+      .update(schema.users)
+      .set({ level: "alfa" })
+      .where(
+        and(
+          tenantWhere(schema.users, CTX_TEMPLO),
+          eq(schema.users.id, member.id),
+        ),
+      );
+    const paquete = await insertPlan(app, {
+      name: "Paquete · 2 sem · 3/sem",
+      planCategory: "paquete",
+      planTier: "other",
+      durationDays: 14,
+    });
+    await insertActiveSubscription(app, member.id, paquete);
     await insertApprovedSession(app, "W1-martes-alfa");
 
     const res = await app.inject({

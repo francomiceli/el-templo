@@ -16,6 +16,7 @@ import {
   isOnlinePlan,
   isGoalPlan,
   categoryGroup,
+  memberFacingCategory,
   type PlanCategory,
 } from "./types";
 import { attachCountryScope } from "../shared/country-scope";
@@ -129,7 +130,11 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       endDate: sub.endDate,
       daysRemaining,
       pricePaid: sub.pricePaid,
-      planCategory: plan?.planCategory ?? "presencial",
+      // Contrato de GRUPO con el app: paquete → presencial (ver
+      // `memberFacingCategory`). El app solo gatea por presencial/online/especial.
+      planCategory: plan
+        ? memberFacingCategory(plan.planCategory)
+        : "presencial",
       goalPlanType,
       multiBranch: plan?.multiBranch ?? false,
       currency: sub.currency,

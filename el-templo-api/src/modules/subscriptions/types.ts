@@ -60,6 +60,34 @@ export function categoryGroup(c: PlanCategory): CategoryGroup {
 }
 
 /**
+ * Categorías que integran el grupo presencial, para filtros SQL (`inArray`)
+ * donde `categoryGroup` no puede aplicarse fila por fila. Misma verdad que
+ * `categoryGroup(c) === "presencial"`.
+ */
+export const PRESENCIAL_GROUP_CATEGORIES: readonly PlanCategory[] = [
+  "presencial",
+  "paquete",
+];
+
+/**
+ * Categoría que ve la APP DE SOCIOS en `GET /me/subscription`.
+ *
+ * El contrato con el app es de GRUPO, no de categoría fina: el app solo decide
+ * "presencial / online / especial" (gates `hasPresencialPlan` y
+ * `hasPresencialReservationAccess` en `useUserStore`). Un paquete de clases
+ * (fase 177) es presencial-flexible, así que se expone como `presencial`; con
+ * la categoría cruda el app lo trataba como "sin plan" y mostraba "Activá tu
+ * plan" (caso Gonzalo Guzmán, Barcelona, 2026-09-07). Las demás categorías
+ * salen tal cual (el app distingue online_goal para el programa objetivo).
+ *
+ * NO usar en superficies admin: ahí la categoría fina sí importa (card propia
+ * de paquete, renovación, analytics).
+ */
+export function memberFacingCategory(c: PlanCategory): PlanCategory {
+  return c === "paquete" ? "presencial" : c;
+}
+
+/**
  * NOTA PARA EL PLAN 02: `isOnlinePlan` NO se refina acá a propósito para
  * especial. Callsites a migrar al criterio `categoryGroup` cuando el Plan 02
  * reescriba el conflicto de assign: member-routes.ts, service.ts. Hoy

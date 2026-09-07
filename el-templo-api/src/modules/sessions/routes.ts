@@ -1,7 +1,8 @@
 import { FastifyPluginAsync } from "fastify";
-import { eq, sql, and, or, gte, lte } from "drizzle-orm";
+import { eq, sql, and, or, gte, lte, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
+import { PRESENCIAL_GROUP_CATEGORIES } from "../subscriptions/types";
 import { SessionGeneratorService } from "./service";
 import { ADMIN_ROLES } from "../shared/permissions";
 import {
@@ -221,7 +222,9 @@ async function resolveSessionView(
 ): Promise<ResolveViewResult> {
   // 1. Active presencial subscription? Active OR paused both count — paused
   //    members retain plan access (consistent with rest of app per
-  //    subscription state machine).
+  //    subscription state machine). Por GRUPO presencial (fase 177): el
+  //    paquete de clases es presencial-flexible y también accede a las
+  //    sesiones del Templo — con el literal 'presencial' respondía 403.
   const [presencialSub] = await db
     .select({ id: schema.subscriptions.id })
     .from(schema.subscriptions)
@@ -237,7 +240,10 @@ async function resolveSessionView(
           eq(schema.subscriptions.status, "active"),
           eq(schema.subscriptions.status, "paused"),
         ),
-        eq(schema.subscriptionPlans.planCategory, "presencial"),
+        inArray(
+          schema.subscriptionPlans.planCategory,
+          PRESENCIAL_GROUP_CATEGORIES,
+        ),
       ),
     )
     .limit(1);
