@@ -16,7 +16,7 @@
  * una sola vez. Un export que filtre es la fuga mas silenciosa del sistema: una
  * planilla se manda por mail sin que nadie mire fila por fila.
  *
- * QUE RUTAS CUBRE (13 de las 38 finance del manifiesto)
+ * QUE RUTAS CUBRE (14 de las 44 finance del manifiesto)
  * ----------------------------------------------------
  * El grupo "transacciones, bandeja e historial" de `test/tenant-manifest.ts`:
  *
@@ -33,8 +33,9 @@
  *   POST   /api/admin/finance/transactions/:id/observe
  *   POST   /api/admin/finance/transactions/:id/correct
  *   POST   /api/admin/finance/transactions/:id/void
+ *   GET    /api/admin/finance/transactions/income-by-branch  (feedback 2026-09-07)
  *
- * Las otras 25 estan en `iso-03-finance-cajas.test.ts` (14, plan 172-17) y
+ * Las otras 30 estan en `iso-03-finance-cajas.test.ts` (19, plan 172-17 + retiros) y
  * `iso-03-finance-coach-load.test.ts` (11, plan 172-19).
  *
  * EL CONTRATO QUE SE AFIRMA (D-09, para TODO el milestone)
@@ -1563,5 +1564,48 @@ describe("anulacion de un cobro — POST /api/admin/finance/transactions/:id/voi
       foto.tenantId,
       `La transaccion propia cambio de gimnasio al anularla: el UPDATE esta tocando \`tenant_id\`.`,
     ).toBe(TENANT_DOS);
+  });
+});
+
+describe("ingresos por sede y medio de pago — GET /api/admin/finance/transactions/income-by-branch", () => {
+  const RUTA = "GET /api/admin/finance/transactions/income-by-branch";
+
+  it("aislamiento: no devuelve la sede de El Templo ni su plata", async () => {
+    const res = await getComoGimnasioDos(
+      `/transactions/income-by-branch?${rangoAncho()}`,
+    );
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const filas = JSON.parse(res.body) as Array<{ branchId: number; total: number }>;
+    expect(
+      filas.map((f) => f.branchId),
+      porQueImportaElListado(RUTA, templo.branchId) +
+        ` (aca la fuga es la SEDE: el GROUP BY lleva el INNER JOIN branches con su tenantWhere)`,
+    ).not.toContain(templo.branchId);
+    for (const fila of filas) {
+      expect(
+        fila.branchId,
+        `${RUTA} devolvio la sede ${fila.branchId}, que no es del gimnasio ${TENANT_DOS}.`,
+      ).toBe(gym2.branchId);
+    }
+  });
+
+  it("control: SI devuelve la sede propia con su plata firme en efectivo (sin la pendiente)", async () => {
+    const res = await getComoGimnasioDos(
+      `/transactions/income-by-branch?${rangoAncho()}`,
+    );
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const filas = JSON.parse(res.body) as Array<{
+      branchId: number;
+      byMethod: { cash: number };
+      total: number;
+    }>;
+    const propia = filas.find((f) => f.branchId === gym2.branchId);
+    expect(propia, porQueImportaElControl(RUTA, gym2.branchId)).toBeTruthy();
+    expect(
+      propia?.byMethod.cash,
+      `${RUTA}: el efectivo de la sede ${gym2.branchId} tiene que ser la plata FIRME propia ` +
+        `(${FIRME_DEL_GIMNASIO_DOS}): la pendiente ${pendienteDos} no cuenta.`,
+    ).toBe(FIRME_DEL_GIMNASIO_DOS);
+    expect(propia?.total).toBe(FIRME_DEL_GIMNASIO_DOS);
   });
 });

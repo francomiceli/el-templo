@@ -63,7 +63,7 @@
  * ------------------------------------------------------------------
  * Los tres archivos abren con un docblock que LISTA sus rutas, una por línea,
  * en el mismo formato que la clave del manifiesto. Entre los tres headers están
- * las 38. Un gate que busque por substring sobre el fuente crudo daría verde
+ * las 44. Un gate que busque por substring sobre el fuente crudo daría verde
  * **por los comentarios**, aunque no existiera un solo `it`. Es la misma
  * lección que el 172-16 pagó al revés en `test/setup.ts` (un gate por substring
  * no distingue código de comentario, y ahí lo ponía en ROJO de más). Por eso
@@ -147,7 +147,9 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
 
 /**
  * Las rutas finance `tenant-scoped` que la batería tenía cubiertas cuando este
- * gate se escribió (2026-07-31, planes 172-17/18/19): **38**.
+ * gate se escribió (2026-07-31, planes 172-17/18/19): **38**. 2026-09-07:
+ * 38 → **44** por los retiros de caja (`/withdrawals` ×5, cajas) e
+ * `income-by-branch` (transacciones), cada una con su par aislamiento+control.
  *
  * MOVER ESTE NÚMERO ES UNA DECISIÓN DE DISEÑO, NO UN AJUSTE.
  *
@@ -169,7 +171,7 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
  * un manifiesto vacío y todo pasaría en verde por vacuidad. Este conteo es lo
  * que hace que 0 rutas cubiertas se ponga tan rojo como 37.
  */
-const CASOS_BASELINE = 38;
+const CASOS_BASELINE = 44;
 
 /** Los tres archivos de la batería ISO-03, en el orden en que se escribieron. */
 const ARCHIVOS_BATERIA = [
@@ -187,7 +189,7 @@ const METODOS = "GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS";
 
 /**
  * Borra comentarios de bloque y de línea completa. Ver el docblock de arriba:
- * sin esto el gate mediría los headers de los archivos, que listan las 38
+ * sin esto el gate mediría los headers de los archivos, que listan las 44
  * rutas, en vez de los tests.
  *
  * No pretende ser un parser de TypeScript: no toca comentarios al final de una
@@ -312,7 +314,7 @@ describe("cobertura de la batería ISO-03 — contra el manifiesto real", () => 
     ).toEqual([]);
   });
 
-  it("la batería cubre exactamente las 38 rutas finance del baseline", () => {
+  it("la batería cubre exactamente las 44 rutas finance del baseline", () => {
     expect(
       RUTAS_FINANCE.length,
       `El manifiesto tiene ${RUTAS_FINANCE.length} rutas finance ` +
@@ -427,7 +429,7 @@ describe("cobertura ISO-03 — motor con fixtures sintéticos", () => {
       clavesDeLosDescribe(fuente),
       `El motor contó una ruta que solo aparece en el docblock y en un ` +
         `comentario de línea. Es el modo de falla que más importa de este ` +
-        `archivo: los tres archivos de la batería listan sus 38 rutas en sus ` +
+        `archivo: los tres archivos de la batería listan sus 44 rutas en sus ` +
         `headers, así que un motor que no borre comentarios da el gate entero ` +
         `en verde aunque no exista un solo it.`,
     ).toEqual([]);
