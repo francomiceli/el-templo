@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 95 gym-owned + 4 exentas y cubren las 99 tablas del schema", () => {
+  it("los conteos son 96 gym-owned + 4 exentas y cubren las 100 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -105,12 +105,14 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // +3 del schema, exentas sin cambio): 91 -> 94, 95 -> 98.
     // 2026-09-07 sumó `staff_shifts` (modulo staff-attendance, nace strict):
     // 94 -> 95, 98 -> 99.
-    expect(GYM_OWNED_TABLES.length).toBe(95);
+    // 2026-09-08 sumó `cash_counts` (arqueos de caja, mig 0226, strict en
+    // finance): 95 -> 96, 99 -> 100.
+    expect(GYM_OWNED_TABLES.length).toBe(96);
     expect(TENANT_EXEMPT_TABLES.length).toBe(4);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(99);
+    expect(schemaTables.size).toBe(100);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -400,6 +402,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
   const MODULOS_DECLARADOS: Record<string, readonly string[]> = {
     finance: [
       "balances",
+      "cash_counts",
       "cash_registers",
       "cost_centers",
       "debt_management",

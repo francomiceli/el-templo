@@ -78,6 +78,8 @@ export const GYM_OWNED_TABLES = [
   "aviso_events",
   "avisos",
   "balances",
+  // Arqueos de caja (mig 0226, 2026-09-08): nace con tenant_id y strict en finance.
+  "cash_counts",
   "blog_post_tags",
   "blog_posts",
   "blog_tags",
