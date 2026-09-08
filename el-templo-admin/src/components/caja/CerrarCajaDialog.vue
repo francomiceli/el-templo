@@ -145,6 +145,8 @@ import type { CashCountExpected, CashCountListItem } from 'src/types/transaction
 // efectivo, validados o no), el profe cuenta, y si difiere anota el motivo y
 // cierra igual. No toca el ledger: gestión ve la diferencia y decide.
 //
+// Ship 2026-09-08 (c04b6ea0 + fix gate 0192-0195): este archivo se toca para
+// que el paths-filter del deploy construya el admin junto con la API.
 // Dos modos con el mismo diálogo:
 //   - coach: por sede (la caja se resuelve en el server), desde el check-out de
 //     Mi jornada. Puede saltearlo ("Cerrar jornada sin contar").
