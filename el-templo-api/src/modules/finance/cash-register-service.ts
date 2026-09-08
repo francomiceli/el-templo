@@ -430,6 +430,12 @@ export class CashRegisterService {
     scope?: {
       isOwner: boolean;
       country: string | null;
+      /**
+       * 2026-09-08 — alcance FORZADO por sede (`enforcedBranchIds`, rol
+       * `inversor`). `null`/ausente = sin forzado. Cuando viene, reemplaza al
+       * filtro de país: solo las cajas de esas sedes. Array vacío → ninguna.
+       */
+      branchIds?: number[] | null;
     },
     /** Rango opcional: agrega el movimiento firme del período por caja. */
     period?: { dateFrom: string; dateTo: string },
@@ -468,7 +474,12 @@ export class CashRegisterService {
     for (const c of cajas) {
       // Non-owner scope: branch-less cajas (central/banco) are owner-only, and
       // a branch-scoped caja is visible only when its country matches.
-      if (scope && !scope.isOwner) {
+      if (scope?.branchIds != null) {
+        // Alcance forzado por sede: manda sobre el país. Las cajas sin sede
+        // (Central/banco) tampoco entran — no son "de todas las sedes".
+        if (c.branchId === null) continue;
+        if (!scope.branchIds.includes(c.branchId)) continue;
+      } else if (scope && !scope.isOwner) {
         if (c.branchId === null) continue; // central/banco → owner-only
         if (c.branchCountry !== scope.country) continue; // cross-country → hide
       }

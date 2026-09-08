@@ -12,6 +12,8 @@
  *    captures both subscription balances and `debt_balance` rows for the
  *    coach's local roster — what they will actually collect at the door.
  *    Coaches with no branches see nothing.
+ *  - inversor: igual que coach (por `scope.branchIds`) — alcance forzado, ver
+ *    `isBranchScopedRole` en shared/branch-access.ts.
  *  - gestion/admin: restricted to their `scope.country` via `users.country`.
  *  - owner: unrestricted by scope; sees all countries.
  */
@@ -21,6 +23,7 @@ import { eq, and, gt, inArray, sql, type SQL } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { isBranchScopedRole } from "../shared/branch-access";
 import type {
   CoachOutstandingBalanceRow,
   CoachOutstandingBalancesFilters,
@@ -50,13 +53,18 @@ export class CoachService {
     filters: CoachOutstandingBalancesFilters,
     scope: CoachScope,
   ): Promise<CoachOutstandingBalancesResult> {
-    if (scope.role === "coach" && scope.branchIds.length === 0) {
+    // 2026-09-08: los roles de alcance forzado por sede (`inversor`) se filtran
+    // EXACTAMENTE como el coach — por la sede del socio — y no por país. Sin
+    // esto, un inversor veía la deuda de todos los socios de su país.
+    const porSede = scope.role === "coach" || isBranchScopedRole(scope.role);
+
+    if (porSede && scope.branchIds.length === 0) {
       return { rows: [] };
     }
 
     const conds: SQL[] = [gt(schema.balances.amount, 0)];
 
-    if (scope.role === "coach") {
+    if (porSede) {
       conds.push(inArray(schema.users.branchId, scope.branchIds));
     } else if (!scope.isOwner) {
       if (scope.country === null) return { rows: [] };

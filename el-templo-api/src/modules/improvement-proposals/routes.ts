@@ -21,6 +21,7 @@ import {
   adminProposalsExportQuerySchema,
 } from "./schemas";
 import { MEMBER_LIFECYCLE_ROLES } from "../shared/permissions";
+import { isBranchScopedRole } from "../shared/branch-access";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
 import { styleHeaderRow, sendExcelReply } from "../shared/excel";
@@ -40,6 +41,15 @@ export const improvementProposalsAdminRoutes: FastifyPluginAsync = async (
     if (
       !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(request.user.role)
     ) {
+      return reply.code(403).send({
+        error: "Acceso denegado",
+        message: "No tenés permisos para ver las propuestas de mejora",
+      });
+    }
+    if (isBranchScopedRole(request.user.role)) {
+      // EXCLUIDO para los roles de alcance forzado por sede (`inversor`): esta
+      // superficie es global del gimnasio y no hay un filtro por sede barato ni
+      // seguro que aplicarle. Se deniega en vez de dejarla filtrando por país.
       return reply.code(403).send({
         error: "Acceso denegado",
         message: "No tenés permisos para ver las propuestas de mejora",
@@ -139,10 +149,7 @@ export const improvementProposalsMemberRoutes: FastifyPluginAsync = async (
           request.scope,
           "improvement-proposals.getPromptStatus",
         );
-        const result = await service.getPromptStatus(
-          ctx,
-          request.user.userId,
-        );
+        const result = await service.getPromptStatus(ctx, request.user.userId);
         return reply.send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get proposal prompt");

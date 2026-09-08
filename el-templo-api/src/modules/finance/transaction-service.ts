@@ -1961,6 +1961,38 @@ export class TransactionService {
       conditions.push(sql`1 = 0`);
     }
 
+    // 2026-09-08 — alcance FORZADO por sede (`enforcedBranchIds`, rol
+    // `inversor`). Se SUMA al scope de país de arriba (no lo reemplaza) y sigue
+    // el mismo idioma: un sub-select de cajas, porque el arqueo se imputa a la
+    // caja y no a la sede de la transacción. Las cajas sin sede (Central/banco)
+    // no matchean el INNER JOIN, así que quedan fuera — igual que para
+    // cualquier no-owner.
+    if (filters.branchIds !== undefined) {
+      if (filters.branchIds.length === 0) {
+        conditions.push(sql`1 = 0`);
+      } else {
+        const cajasDeSusSedes = this.db
+          .select({ id: schema.cashRegisters.id })
+          .from(schema.cashRegisters)
+          .innerJoin(
+            schema.branches,
+            and(
+              tenantWhere(schema.branches, ctx),
+              eq(schema.branches.id, schema.cashRegisters.branchId),
+            ),
+          )
+          .where(
+            and(
+              tenantWhere(schema.cashRegisters, ctx),
+              inArray(schema.cashRegisters.branchId, filters.branchIds),
+            ),
+          );
+        conditions.push(
+          inArray(schema.financialTransactions.cashRegisterId, cajasDeSusSedes),
+        );
+      }
+    }
+
     // Los filtros de las tablas joineadas van en el ON y NUNCA en el WHERE: acá
     // son LEFT JOIN a propósito (una fila sin socio, sin sede o sin caja tiene
     // que sobrevivir — egresos y traspasos son justo eso) y en el WHERE se

@@ -14,7 +14,12 @@
  * - HolidayService: holiday CRUD + date queries
  */
 
-import { FastifyPluginAsync } from "fastify";
+import type {
+  FastifyPluginAsync,
+  FastifyReply,
+  FastifyRequest,
+  preHandlerHookHandler,
+} from "fastify";
 import { eq, and } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SchedulingService } from "./service";
@@ -25,7 +30,12 @@ import { TrialService } from "./trials-service";
 import { PartnerWeekService } from "./partner-week-service";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantWhere } from "../shared/tenant";
-import { requireBranchAccess } from "../shared/branch-access";
+import {
+  BRANCH_OUT_OF_SCOPE,
+  canAccessBranch,
+  enforceBranchScope,
+  requireBranchAccess,
+} from "../shared/branch-access";
 import type { TrialShift } from "./trials-service";
 import { SubscriptionService } from "../subscriptions/service";
 import { EnrollmentService } from "../programs/enrollment-service";
@@ -339,6 +349,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       schema: weeklyGridSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -724,6 +735,65 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── Trials (Phase 102 + 103) ───────────────────────────────────────────
 
+  /**
+   * Cierra el gap que el comentario de `POST /trials/:bookingId/reschedule`
+   * (WR-01) dejaba anotado: `POST /trials` se direcciona por `scheduleId` y NO
+   * lleva `branchId` en el body, así que el preHandler estándar
+   * `requireBranchAccess` no lo puede cubrir. Este resuelve la sede DEL HORARIO
+   * (el mismo SELECT que el service hace después — un id, índice primario) y la
+   * valida contra el scope del actor con el MISMO predicado (`canAccessBranch`)
+   * y el mismo cuerpo de 403 que el preHandler compartido.
+   *
+   * Aplica a TODOS los roles, no sólo a los de alcance forzado: hasta acá un
+   * coach de una sede podía agendar una SP en el horario de otra.
+   * Un `scheduleId` inexistente NO se corta acá — sigue de largo y el service
+   * devuelve su 404 de siempre.
+   */
+  const requireScheduleBranchAccess: preHandlerHookHandler = async function (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) {
+    const body = request.body as { scheduleId?: unknown } | undefined;
+    const scheduleId =
+      typeof body?.scheduleId === "number" ? body.scheduleId : null;
+    if (scheduleId === null) return;
+
+    const ctx = assertTenant(request.scope, "scheduling.bookTrial.branchGuard");
+    const [row] = await request.server.db
+      .select({ branchId: schema.schedules.branchId })
+      .from(schema.schedules)
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      )
+      .limit(1);
+    if (!row) return; // horario inexistente → 404 del service, no 403 acá
+
+    const ok = await canAccessBranch(
+      request.scope,
+      row.branchId,
+      request.server.db,
+    );
+    if (!ok) {
+      request.log.warn(
+        {
+          userId: request.user?.userId,
+          role: request.user?.role,
+          branchId: row.branchId,
+          scope: request.scope,
+        },
+        BRANCH_OUT_OF_SCOPE,
+      );
+      return reply.code(403).send({
+        error: "Forbidden",
+        message: "No tenés acceso a esta sede",
+        code: BRANCH_OUT_OF_SCOPE,
+      });
+    }
+  };
+
   // POST /trials — book an existing prueba user into a slot (Phase 103).
   // Full path: /api/admin/scheduling/trials (inherits plugin prefix + guard).
   // The user must be created beforehand via /admin/members (defaults to
@@ -735,15 +805,22 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       scheduleId: number;
       bookingDate: string;
     };
-  }>("/trials", { schema: bookTrialSchema }, async (request, reply) => {
-    try {
-      const ctx = assertTenant(request.scope, "scheduling.bookTrial");
-      const result = await trialService.bookTrial(ctx, request.body);
-      return reply.code(201).send(result);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "book trial");
-    }
-  });
+  }>(
+    "/trials",
+    {
+      schema: bookTrialSchema,
+      preHandler: [requireScheduleBranchAccess],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "scheduling.bookTrial");
+        const result = await trialService.bookTrial(ctx, request.body);
+        return reply.code(201).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "book trial");
+      }
+    },
+  );
 
   // POST /trials/:bookingId/reschedule — reprogramar una sesión de prueba
   // (Phase 164, REPRO-01). In one tx: cancel the old trial booking + create the
@@ -761,7 +838,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       // routes (adminAddBooking, schedules/seed). The service checks
       // branchId↔schedule↔user coherence but not that body.branchId is inside
       // the caller's country scope; this closes that defense-in-depth gap.
-      // (POST /trials / bookTrial shares the same gap — pre-existing, left as-is.)
+      // (2026-09-08: `POST /trials` ya NO comparte el gap — lo cierra
+      // `requireScheduleBranchAccess`, arriba en este archivo.)
       preHandler: [requireBranchAccess({ from: "body.branchId" })],
     },
     async (request, reply) => {
@@ -817,6 +895,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       schema: listTrialsSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {

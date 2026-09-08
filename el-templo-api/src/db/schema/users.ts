@@ -28,6 +28,11 @@ export const roleEnum = mysqlEnum("role", [
   // Solo entra a la sección TV del admin; ve TODAS las sedes del gimnasio sin
   // pasar por `user_branches` (ver canAccessBranch, Regla 2b).
   "tv",
+  // 2026-09-08: inversor de una sucursal (migración 0225). Hereda la superficie
+  // de `gestion` (caja, cobros, alumnos, SP, leads) pero su alcance son las
+  // sedes de `user_branches` (canAccessBranch Regla 4) y los listados le fuerzan
+  // ese filtro server-side (`enforcedBranchIds`, shared/branch-access.ts).
+  "inversor",
 ]);
 // Phase 129 (KAIROS-01, D-01): `kairos` is the new entry-level tier, added FIRST.
 // Order: kairos -> alfa -> delta -> sigma -> omega -> spartan. The column DEFAULT

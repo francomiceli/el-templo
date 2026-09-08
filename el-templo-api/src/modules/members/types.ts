@@ -69,6 +69,14 @@ export interface MemberSearchParams {
   search: string;
   /** Country scope, plumbed from request.scope.country (mirrors listMembers). */
   country?: "AR" | "ES";
+  /**
+   * 2026-09-08 — alcance FORZADO por sede. Se llena desde
+   * `enforcedBranchIds(request.scope)` (shared/branch-access.ts) y sólo para los
+   * roles que lo tienen (hoy `inversor`). Cuando viene, REEMPLAZA al filtro de
+   * país: el typeahead devuelve únicamente socios de esas sedes. Array vacío =
+   * el actor no tiene sedes asignadas → cero resultados (fail-closed).
+   */
+  branchIds?: number[];
   limit: number;
   /**
    * Etiqueta de membresía EFECTIVA (override manual de `users` o, si no hay,

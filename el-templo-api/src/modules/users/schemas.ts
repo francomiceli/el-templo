@@ -57,7 +57,17 @@ export const createStaffSchema = {
       password: { type: "string", minLength: 6 },
       role: {
         type: "string",
-        enum: ["coach", "admin", "owner", "gestion", "recepcion", "tv"],
+        enum: [
+          "coach",
+          "admin",
+          "owner",
+          "gestion",
+          "recepcion",
+          "tv",
+          // 2026-09-08 (migración 0225): inversor de sucursal. Lleva
+          // `branchIds` como coach/recepción y NO lleva `country`.
+          "inversor",
+        ],
       },
       branchId: { type: "integer" },
       // Phase 110 REQ-1: country of management for admin/gestion (validated
@@ -122,7 +132,17 @@ export const updateStaffSchema = {
       password: { type: "string", minLength: 6 },
       role: {
         type: "string",
-        enum: ["coach", "admin", "owner", "gestion", "recepcion", "tv"],
+        enum: [
+          "coach",
+          "admin",
+          "owner",
+          "gestion",
+          "recepcion",
+          "tv",
+          // 2026-09-08 (migración 0225): inversor de sucursal. Lleva
+          // `branchIds` como coach/recepción y NO lleva `country`.
+          "inversor",
+        ],
       },
       branchId: { type: "integer" },
       // Phase 110 REQ-1 / REQ-2: same additive shape as create.

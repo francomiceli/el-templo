@@ -166,7 +166,14 @@ export class MemberService {
             AND (sub.subscription_status = 'active' OR sub.end_date >= CURDATE())
         )`,
       );
-    } else if (branchId !== undefined) {
+    }
+    // 2026-09-08: `if` y no `else if`. Con `else if`, un actor de alcance
+    // forzado por sede (`enforcedBranchIds` — rol `inversor`) pedía
+    // `multiBranch=true` y el `branchId` que le inyecta `enforceBranchScope`
+    // quedaba sin aplicar: veía los multisucursal de TODO el país. El filtro
+    // "Multisucursal" y el de sede son ortogonales y el frontend nunca los manda
+    // juntos, así que para el resto de los roles esto no cambia nada.
+    if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
     }
 
@@ -517,7 +524,7 @@ export class MemberService {
     ctx: TenantContext,
     params: MemberSearchParams,
   ): Promise<MemberSearchItem[]> {
-    const { search, country, limit, membershipKind } = params;
+    const { search, country, branchIds, limit, membershipKind } = params;
 
     const searchCondition = buildMemberNameSearchCondition(ctx, search);
     // No meaningful tokens (e.g. only whitespace) → nothing to search for.
@@ -533,6 +540,19 @@ export class MemberService {
       isNull(schema.users.deletedAt),
       searchCondition,
     ];
+
+    // 2026-09-08: alcance FORZADO por sede (`enforcedBranchIds`, rol
+    // `inversor`). Reemplaza al filtro de país — no lo complementa — y por eso
+    // va ANTES: el typeahead es la puerta de entrada a la ficha de un socio, y
+    // sin esto un inversor podía autocompletar cualquier socio del país. Lista
+    // vacía (inversor sin sedes asignadas) → `1 = 0`, nunca "sin filtro".
+    if (branchIds !== undefined) {
+      conditions.push(
+        branchIds.length === 0
+          ? sql`1 = 0`
+          : inArray(schema.users.branchId, branchIds),
+      );
+    }
 
     // Country scope mirrors listMembers: members on virtual branches (e.g.
     // Templo Online) are cross-country and must stay visible to staff.
@@ -2244,7 +2264,14 @@ export class MemberService {
             AND (sub.subscription_status = 'active' OR sub.end_date >= CURDATE())
         )`,
       );
-    } else if (branchId !== undefined) {
+    }
+    // 2026-09-08: `if` y no `else if`. Con `else if`, un actor de alcance
+    // forzado por sede (`enforcedBranchIds` — rol `inversor`) pedía
+    // `multiBranch=true` y el `branchId` que le inyecta `enforceBranchScope`
+    // quedaba sin aplicar: veía los multisucursal de TODO el país. El filtro
+    // "Multisucursal" y el de sede son ortogonales y el frontend nunca los manda
+    // juntos, así que para el resto de los roles esto no cambia nada.
+    if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
     }
 

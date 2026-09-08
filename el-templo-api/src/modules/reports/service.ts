@@ -23,6 +23,7 @@ import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { activeMemberExists } from "../shared/active-member";
 import { ForbiddenError, NotFoundError } from "../shared/errors";
+import { assertBranchInEnforcedScope } from "../shared/branch-access";
 import {
   tenantValues,
   tenantWhere,
@@ -2138,9 +2139,21 @@ export class ReportsService {
   async getAppTrialsPendingCount(
     ctx: TenantContext,
     country?: "AR" | "ES",
+    /**
+     * 2026-09-08 — alcance forzado por sede (`enforcedBranchIds`, rol
+     * `inversor`). La pelotita tiene que contar lo de SU sede, no lo del país.
+     * El motor (`getTrialSessionsReport`) ya filtra por `branchId`, así que
+     * esto sólo ensancha la firma del wrapper. Se pasa la primera sede porque
+     * el filtro de abajo es de una sola sede — hoy el rol tiene exactamente una
+     * (ver `enforceBranchScope`, que devuelve 400 si tiene más de una y no
+     * eligió), y con la lista vacía el `-1` deja el contador en cero.
+     */
+    branchIds?: number[],
   ): Promise<number> {
+    const branchId = branchIds === undefined ? undefined : (branchIds[0] ?? -1);
     const { total } = await this.getTrialSessionsReport(ctx, {
-      country,
+      country: branchId === undefined ? country : undefined,
+      branchId,
       origin: "app",
       pendingFollowup: true,
       page: 1,
@@ -2706,11 +2719,23 @@ export class ReportsService {
     ctx: TenantContext,
     balanceId: number,
     input: DebtManagementUpdateInput,
-    actor: { userId: number; isOwner: boolean; country: "AR" | "ES" | null },
+    actor: {
+      userId: number;
+      isOwner: boolean;
+      country: "AR" | "ES" | null;
+      /**
+       * 2026-09-08 — alcance forzado por sede (`enforcedBranchIds`, rol
+       * `inversor`). `null`/ausente = sin forzado (comportamiento histórico:
+       * sólo país). Esta ruta se direcciona por `balanceId` y no lleva sede en
+       * el payload, así que el recorte no lo puede hacer un preHandler.
+       */
+      branchIds?: number[] | null;
+    },
   ): Promise<DebtManagementView> {
     const [bal] = await this.db
       .select({
         id: schema.balances.id,
+        branchId: schema.subscriptions.branchId,
         branchCountry: schema.branches.country,
       })
       .from(schema.balances)
@@ -2739,7 +2764,18 @@ export class ReportsService {
     if (!bal) {
       throw new NotFoundError("Deuda no encontrada");
     }
-    if (!actor.isOwner) {
+    if (actor.branchIds != null) {
+      // Alcance forzado por sede: manda sobre el país. 404 y no 403 — mismo
+      // criterio ISO-03 que el `if (!bal)` de arriba: fuera de alcance tiene
+      // que ser indistinguible de inexistente. Una deuda sin sub asociada
+      // (`branchId` NULL, targetKind='debt_balance') NO es de ninguna sede y
+      // por lo tanto tampoco es suya.
+      assertBranchInEnforcedScope(
+        bal.branchId,
+        actor.branchIds,
+        "Deuda no encontrada",
+      );
+    } else if (!actor.isOwner) {
       if (actor.country === null || bal.branchCountry !== actor.country) {
         throw new ForbiddenError("La deuda no pertenece a tu país");
       }

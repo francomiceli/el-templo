@@ -18,6 +18,7 @@ import {
   FINANCE_VOID_ROLES,
   MEMBER_LIFECYCLE_ROLES,
 } from "../shared/permissions";
+import { isBranchScopedRole } from "../shared/branch-access";
 import {
   createPartnerBodySchema,
   updatePartnerBodySchema,
@@ -39,6 +40,15 @@ export const referralPartnersAdminRoutes: FastifyPluginAsync = async (
     if (
       !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(request.user.role)
     ) {
+      return reply.code(403).send({
+        error: "Acceso denegado",
+        message: "No tenés permisos para gestionar partners",
+      });
+    }
+    if (isBranchScopedRole(request.user.role)) {
+      // EXCLUIDO para los roles de alcance forzado por sede (`inversor`): esta
+      // superficie es global del gimnasio y no hay un filtro por sede barato ni
+      // seguro que aplicarle. Se deniega en vez de dejarla filtrando por país.
       return reply.code(403).send({
         error: "Acceso denegado",
         message: "No tenés permisos para gestionar partners",

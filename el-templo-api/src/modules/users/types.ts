@@ -35,12 +35,13 @@ export interface CreateStaffInput {
   lastName: string;
   email: string;
   password: string;
-  role: "coach" | "admin" | "owner" | "gestion" | "recepcion";
+  role: "coach" | "admin" | "owner" | "gestion" | "recepcion" | "inversor";
   branchId: number;
   // Phase 110: required for admin / gestion (validated in service).
   country?: "AR" | "ES" | null;
-  // Phase 110: required (≥ 1) for coach / recepción (validated in service).
-  // MUST be empty/absent for admin / gestion / owner / member (REQ-9 rule 4 for member).
+  // Phase 110: required (≥ 1) for coach / recepción / inversor (validated in
+  // service). MUST be empty/absent for admin / gestion / owner / tv / member
+  // (REQ-9 rule 4 for member).
   branchIds?: number[];
 }
 
@@ -49,7 +50,7 @@ export interface UpdateStaffInput {
   lastName?: string;
   email?: string;
   password?: string;
-  role?: "coach" | "admin" | "owner" | "gestion" | "recepcion";
+  role?: "coach" | "admin" | "owner" | "gestion" | "recepcion" | "inversor";
   branchId?: number;
   country?: "AR" | "ES" | null;
   branchIds?: number[];

@@ -52,7 +52,11 @@ import {
 import { CAJA_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
-import { requireBranchAccess } from "../shared/branch-access";
+import {
+  enforceBranchScope,
+  enforcedBranchIds,
+  requireBranchAccess,
+} from "../shared/branch-access";
 
 export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   const reportsService = new ReportsService(fastify.db, fastify.log);
@@ -92,6 +96,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: accessReportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -131,6 +136,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: chargeReportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -171,6 +177,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: expiringReportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -204,6 +211,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: inactiveReportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -234,6 +242,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: trialConversionReportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -287,6 +296,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: outstandingBalancesSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -361,6 +371,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: expiredMembersSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -414,6 +425,16 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   // scope de sucursal (el preview es global).
   fastify.get("/multibranch-reassignment-preview", async (request, reply) => {
     try {
+      // EXCLUIDO para los roles de alcance forzado por sede (`inversor`): el
+      // preview corre el dry-run del cron sobre TODO el gimnasio y el servicio
+      // no acepta ningún filtro — no hay forma barata ni segura de acotarlo a
+      // una sede, así que se deniega en vez de dejarlo filtrando por país.
+      if (enforcedBranchIds(request.scope) !== null) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Esta vista es de todas las sedes",
+        });
+      }
       return await reportsService.getMultibranchReassignmentPreview();
     } catch (err: unknown) {
       handleServiceError(
@@ -444,6 +465,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: accessExportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -506,6 +528,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: chargeExportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -577,6 +600,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: expiringExportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -644,6 +668,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: inactiveExportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -714,6 +739,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: outstandingBalancesExportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -844,6 +870,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
             userId: request.user.userId,
             isOwner: request.scope.isOwner,
             country: request.scope.country,
+            branchIds: enforcedBranchIds(request.scope),
           },
         );
       } catch (err: unknown) {
@@ -889,6 +916,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: trialSessionsReportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -913,6 +941,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: trialSessionsExportSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -955,6 +984,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       const count = await reportsService.getAppTrialsPendingCount(
         ctx,
         request.scope.country ?? undefined,
+        enforcedBranchIds(request.scope) ?? undefined,
       );
       return { count };
     } catch (err: unknown) {

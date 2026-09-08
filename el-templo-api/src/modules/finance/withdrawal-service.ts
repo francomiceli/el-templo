@@ -41,6 +41,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
+import { assertBranchInEnforcedScope } from "../shared/branch-access";
 import type { PaginatedResult } from "../shared/types";
 import {
   tenantValues,
@@ -73,7 +74,13 @@ const MEMBER_INFLOW_KINDS: ReadonlyArray<TransactionKind> = [
 ];
 
 /** Roles cuyos nombres se ofrecen como sugerencia de responsable. */
-const STAFF_ROLES = ["owner", "admin", "gestion", "recepcion", "coach"] as const;
+const STAFF_ROLES = [
+  "owner",
+  "admin",
+  "gestion",
+  "recepcion",
+  "coach",
+] as const;
 
 interface CajaRef {
   id: number;
@@ -210,9 +217,13 @@ export class WithdrawalService {
     tx: TxHandle,
     caja: CajaRef,
   ): Promise<number> {
-    const country = caja.branchCountry ?? (caja.currency === "EUR" ? "ES" : "AR");
+    const country =
+      caja.branchCountry ?? (caja.currency === "EUR" ? "ES" : "AR");
     const [byCountry] = await tx
-      .select({ id: schema.costCenters.id, isActive: schema.costCenters.isActive })
+      .select({
+        id: schema.costCenters.id,
+        isActive: schema.costCenters.isActive,
+      })
       .from(schema.costCenters)
       .where(
         and(
@@ -269,9 +280,18 @@ export class WithdrawalService {
   async listPendingPayments(
     ctx: TenantContext,
     cajaId: number,
-    opts: { dateTo?: string } = {},
+    opts: { dateTo?: string; branchIds?: number[] } = {},
   ): Promise<PendingWithdrawalResult> {
     const caja = await this.loadCaja(ctx, cajaId);
+    // 2026-09-08 — alcance FORZADO por sede (`enforcedBranchIds`, rol
+    // `inversor`). Esta ruta se direcciona por `cashRegisterId`, no por sede,
+    // así que el recorte va acá. 404 y no 403 (criterio ISO-03): una caja de
+    // otra sede tiene que ser indistinguible de una que no existe.
+    assertBranchInEnforcedScope(
+      caja.branchId,
+      opts.branchIds,
+      "Caja no encontrada",
+    );
     if (caja.type !== "efectivo") {
       throw new BadRequestError(
         "Solo las cajas de efectivo tienen cobros pendientes de retiro",
@@ -331,7 +351,9 @@ export class WithdrawalService {
       )`);
     }
     if (opts.dateTo !== undefined) {
-      conds.push(lte(schema.financialTransactions.transactionDate, opts.dateTo));
+      conds.push(
+        lte(schema.financialTransactions.transactionDate, opts.dateTo),
+      );
     }
 
     const raw = await this.db
@@ -577,6 +599,19 @@ export class WithdrawalService {
     if (filters.branchId !== undefined) {
       conds.push(eq(schema.financialTransactions.branchId, filters.branchId));
     }
+    // 2026-09-08 — alcance FORZADO por sede (`enforcedBranchIds`, rol
+    // `inversor`). Se suma al `branchId` puntual (que ya viene validado por
+    // `requireBranchAccess`) y, sobre todo, cubre el caso "sin branchId": sin
+    // esto el listado caía al filtro de país y mostraba los retiros de TODAS
+    // las sedes. Los retiros de cajas sin sede (Central/banco) tienen
+    // `branchId` NULL y quedan fuera del IN — que es lo correcto acá.
+    if (filters.branchIds !== undefined) {
+      conds.push(
+        filters.branchIds.length === 0
+          ? sql`1 = 0`
+          : inArray(schema.financialTransactions.branchId, filters.branchIds),
+      );
+    }
     if (filters.dateFrom !== undefined) {
       conds.push(
         gte(schema.financialTransactions.transactionDate, filters.dateFrom),
@@ -634,7 +669,10 @@ export class WithdrawalService {
           schema.cashRegisters,
           and(
             tenantWhere(schema.cashRegisters, ctx),
-            eq(schema.cashRegisters.id, schema.financialTransactions.cashRegisterId),
+            eq(
+              schema.cashRegisters.id,
+              schema.financialTransactions.cashRegisterId,
+            ),
           ),
         )
         .leftJoin(
@@ -660,7 +698,10 @@ export class WithdrawalService {
         schema.cashRegisters,
         and(
           tenantWhere(schema.cashRegisters, ctx),
-          eq(schema.cashRegisters.id, schema.financialTransactions.cashRegisterId),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
@@ -728,7 +769,12 @@ export class WithdrawalService {
   }
 
   /** Detalle de un retiro con sus cobros. 404 si no es un retiro del gimnasio. */
-  async getById(ctx: TenantContext, id: number): Promise<WithdrawalDetail> {
+  async getById(
+    ctx: TenantContext,
+    id: number,
+    /** Alcance forzado por sede (rol `inversor`). Ver `assertCajaEnAlcance`. */
+    branchIds?: number[],
+  ): Promise<WithdrawalDetail> {
     const recorder = alias(schema.users, "recorder");
     const [r] = await this.db
       .select({
@@ -761,7 +807,10 @@ export class WithdrawalService {
         schema.cashRegisters,
         and(
           tenantWhere(schema.cashRegisters, ctx),
-          eq(schema.cashRegisters.id, schema.financialTransactions.cashRegisterId),
+          eq(
+            schema.cashRegisters.id,
+            schema.financialTransactions.cashRegisterId,
+          ),
         ),
       )
       .leftJoin(
@@ -790,6 +839,8 @@ export class WithdrawalService {
     if (!r) {
       throw new NotFoundError("Retiro no encontrado");
     }
+    // Mismo criterio que `listPendingPayments`: fuera de alcance = inexistente.
+    assertBranchInEnforcedScope(r.branchId, branchIds, "Retiro no encontrado");
     const payments = await this.queryPayments(ctx, { withdrawalId: id });
     return { ...this.toListItem(r), payments };
   }
@@ -871,6 +922,8 @@ export class WithdrawalService {
         ),
       )
       .limit(1);
-    return row ? { id: row.id, transactionDate: String(row.transactionDate) } : null;
+    return row
+      ? { id: row.id, transactionDate: String(row.transactionDate) }
+      : null;
   }
 }

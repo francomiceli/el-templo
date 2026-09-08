@@ -64,7 +64,10 @@ import { attachCountryScope } from "../shared/country-scope";
 // `assertTenant` lanza `AppError(403, TENANT_UNRESOLVED)`, que el
 // `handleServiceError` de cada handler ya sabe mapear: no hace falta try/catch nuevo.
 import { assertTenant } from "../shared/tenant";
-import { requireBranchAccess } from "../shared/branch-access";
+import {
+  enforceBranchScope,
+  requireBranchAccess,
+} from "../shared/branch-access";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 /**
@@ -141,6 +144,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -172,6 +176,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -202,6 +207,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: attendanceAnalyticsSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -233,6 +239,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -263,6 +270,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: uniqueMembersSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -293,6 +301,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: checkInAdoptionSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -326,6 +335,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       schema: engagementSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -365,6 +375,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -399,6 +410,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -438,6 +450,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -480,6 +493,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -522,6 +536,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -562,6 +577,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -600,6 +616,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -672,6 +689,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -703,6 +721,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -769,6 +788,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -815,6 +835,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -855,6 +876,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -900,6 +922,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -943,6 +966,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -988,6 +1012,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [
         requireAdminAnalytics,
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
