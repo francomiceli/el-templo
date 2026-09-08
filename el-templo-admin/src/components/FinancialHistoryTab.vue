@@ -173,13 +173,19 @@ const hasMore = computed(() => items.value.length < total.value);
 // D-16 — FINANCE_VOID_ROLES = owner | admin | gestion (NO recepcion, NO coach).
 const canVoid = computed(() => {
   const role = authStore.user?.role;
-  return role === 'owner' || role === 'admin' || role === 'gestion';
+  return role === 'owner' || role === 'admin' || role === 'gestion' || role === 'inversor';
 });
 
 // Phase 108 D-23 — FINANCE_WRITE_ROLES = owner | admin | gestion | recepcion.
 const canRegisterPayment = computed(() => {
   const role = authStore.user?.role;
-  return role === 'owner' || role === 'admin' || role === 'gestion' || role === 'recepcion';
+  return (
+    role === 'owner' ||
+    role === 'admin' ||
+    role === 'gestion' ||
+    role === 'recepcion' ||
+    role === 'inversor'
+  );
 });
 
 // Verificación del enum: estos 5 valores se corresponden 1:1 con el union TransactionKind

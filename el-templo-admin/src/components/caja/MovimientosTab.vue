@@ -481,6 +481,8 @@ import {
   type FinanceSummary,
 } from 'src/types/transaction';
 import type { BranchOption } from 'src/types/member';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import { isBranchScopedRole } from 'src/utils/branch-scope';
 
 // =========================================================================
 // Props — selectedCountry / isOwner are owned by the CajaPage hub and passed
@@ -496,6 +498,7 @@ const props = defineProps<{
 const log = createLogger('MovimientosTab');
 const $q = useQuasar();
 const router = useRouter();
+const authStore = useAuthStore();
 const membersApi = useMembersApi();
 const transactionsApi = useTransactionsApi();
 
@@ -692,10 +695,15 @@ function kindColor(kind: TransactionKind): string {
 async function loadBranches() {
   try {
     const branches: BranchOption[] = await membersApi.getBranches();
-    branchFilterOptions.value = [
-      { label: 'Todas', value: null },
-      ...branches.map((b) => ({ label: b.name, value: b.id })),
-    ];
+    // Rol de alcance forzado (inversor): sin "Todas" — el API le exige sede
+    // (400 BRANCH_REQUIRED con más de una) y le preseleccionamos la primera.
+    const scoped = isBranchScopedRole(authStore.user?.role);
+    branchFilterOptions.value = scoped
+      ? branches.map((b) => ({ label: b.name, value: b.id }))
+      : [{ label: 'Todas', value: null }, ...branches.map((b) => ({ label: b.name, value: b.id }))];
+    if (scoped && filters.branchId == null) {
+      filters.branchId = branches[0]?.id ?? null;
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading branches', { error: message });

@@ -230,15 +230,18 @@ const roleOptions = [
   { label: 'Gestion', value: 'gestion' },
   { label: 'Recepcion', value: 'recepcion' },
   { label: 'Televisor', value: 'tv' },
+  // 2026-09-08 (API mig 0225): inversor de sucursal. Lleva sedes operativas
+  // (user_branches) como coach/recepción y NO lleva País.
+  { label: 'Inversor', value: 'inversor' },
 ];
 
-const BRANCH_ROLES = new Set(['admin', 'coach', 'gestion', 'recepcion', 'tv']);
+const BRANCH_ROLES = new Set(['admin', 'coach', 'gestion', 'recepcion', 'tv', 'inversor']);
 const needsBranch = computed(() => BRANCH_ROLES.has(form.value.role));
 
 // Phase 110 D-11: roles that need País selector (country-wide scope).
 const COUNTRY_ROLES = new Set(['admin', 'gestion']);
 // Phase 110 D-11: roles that need multi-sede selector (per-branch scope).
-const OPERATIONAL_BRANCH_ROLES = new Set(['coach', 'recepcion']);
+const OPERATIONAL_BRANCH_ROLES = new Set(['coach', 'recepcion', 'inversor']);
 
 const needsCountry = computed(() => COUNTRY_ROLES.has(form.value.role));
 const needsOperationalBranches = computed(() => OPERATIONAL_BRANCH_ROLES.has(form.value.role));
@@ -255,6 +258,7 @@ const ROLE_COLORS: Record<string, string> = {
   gestion: 'orange',
   recepcion: 'pink',
   tv: 'grey-8',
+  inversor: 'green-8',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -264,6 +268,7 @@ const ROLE_LABELS: Record<string, string> = {
   gestion: 'Gestion',
   recepcion: 'Recepcion',
   tv: 'Televisor',
+  inversor: 'Inversor',
 };
 
 // =========================================================================
@@ -461,7 +466,14 @@ async function handleSave() {
         lastName: form.value.lastName,
         email: form.value.email,
         password: form.value.password,
-        role: form.value.role as 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion' | 'tv',
+        role: form.value.role as
+          | 'coach'
+          | 'admin'
+          | 'owner'
+          | 'gestion'
+          | 'recepcion'
+          | 'tv'
+          | 'inversor',
         branchId,
       };
       if (countryRequired && form.value.country) {

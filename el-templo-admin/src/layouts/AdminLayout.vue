@@ -130,7 +130,7 @@ const canSeeTraining = computed(() => canAccessTraining(authStore.user));
 // admin y dueño. Mismo set que REPORTES_ROLES en templo-config.ts.
 const canSeeReports = computed(() => {
   const role = authStore.user?.role;
-  return role === 'gestion' || role === 'admin' || role === 'owner';
+  return role === 'gestion' || role === 'admin' || role === 'owner' || role === 'inversor';
 });
 
 async function handleLogout() {

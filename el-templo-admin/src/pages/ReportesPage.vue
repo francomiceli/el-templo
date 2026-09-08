@@ -73,7 +73,16 @@
           :label="adminStore.appTrialsPendingCount"
         />
       </q-tab>
-      <q-tab name="recategorizacion" label="Recategorización" icon="sync_alt" />
+      <!-- Recategorización: agregado CROSS-SEDE (dry-run del cron sobre todo
+           el gimnasio). El API se lo deniega a los roles de alcance forzado
+           (inversor), así que la pestaña se oculta en vez de mostrarles un
+           error. -->
+      <q-tab
+        v-if="!branchScoped"
+        name="recategorizacion"
+        label="Recategorización"
+        icon="sync_alt"
+      />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -750,6 +759,7 @@ import { useReportsApi } from 'src/composables/useReportsApi';
 import { useAnalyticsApi } from 'src/composables/useAnalyticsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { isBranchScopedRole } from 'src/utils/branch-scope';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
@@ -862,10 +872,18 @@ async function fetchBranches() {
   loadingBranches.value = true;
   try {
     const branches = await membersApi.getBranches();
-    branchOptions.value = [
-      { label: 'Todas las sedes', value: undefined },
-      ...branches.map((b: BranchOption) => ({ label: b.name, value: b.id })),
-    ];
+    // Rol de alcance forzado (inversor): sin "Todas las sedes" — el API le
+    // exige una sede y le preseleccionamos la primera de las suyas.
+    const scoped = isBranchScopedRole(authStore.user?.role);
+    branchOptions.value = scoped
+      ? branches.map((b: BranchOption) => ({ label: b.name, value: b.id }))
+      : [
+          { label: 'Todas las sedes', value: undefined },
+          ...branches.map((b: BranchOption) => ({ label: b.name, value: b.id })),
+        ];
+    if (scoped && selectedBranchId.value === undefined) {
+      selectedBranchId.value = branches[0]?.id;
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error fetching branches', { error: message });
@@ -951,6 +969,13 @@ const initialTab = (() => {
   return typeof q === 'string' && VALID_TABS.includes(q) ? q : 'accesos';
 })();
 const activeTab = ref(initialTab);
+
+// Rol de alcance forzado por sede (inversor): sin pestaña de Recategorización
+// y sin opción "Todas las sedes" en el selector.
+const branchScoped = computed(() => isBranchScopedRole(authStore.user?.role));
+if (branchScoped.value && activeTab.value === 'recategorizacion') {
+  activeTab.value = 'accesos';
+}
 
 // -- Source filter options ---------------------------------------------------
 
