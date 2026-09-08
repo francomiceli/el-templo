@@ -60,6 +60,7 @@ import {
 } from "./schemas";
 
 import { SUBSCRIPTION_ROLES, PLANES_WRITE_ROLES } from "../shared/permissions";
+import { enforceMemberBranchScope } from "../shared/branch-access";
 import { attachCountryScope } from "../shared/country-scope";
 
 /**
@@ -133,6 +134,13 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     }
     await attachCountryScope(request, fastify.db);
   });
+
+  // 2026-09-08 — alcance FORZADO por sede (rol `inversor`): toda ruta de este
+  // plugin direccionada por `:userId`/`:memberId` responde 404 si el socio es de
+  // otra sede. Hook de plugin a propósito (ver `enforceMemberBranchScope`):
+  // enumerar ruta por ruta era garantía de olvidarse una. No-op para el resto
+  // de los roles.
+  fastify.addHook("preHandler", enforceMemberBranchScope(fastify.db));
 
   // =========================================================================
   // Plans CRUD (prefix /plans)
@@ -701,7 +709,10 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const preview = await subscriptionService.getAssignProrationPreview(
-          assertTenant(request.scope, "subscriptions.getAssignProrationPreview"),
+          assertTenant(
+            request.scope,
+            "subscriptions.getAssignProrationPreview",
+          ),
           request.query.planId,
           request.query.startDate,
           request.query.priceType,

@@ -81,6 +81,9 @@ import {
 import { attachCountryScope } from "../shared/country-scope";
 import { listBranchesForScope } from "../shared/branch-list";
 import {
+  enforceBranchScope,
+  enforcedBranchIds,
+  enforceMemberBranchScope,
   requireBranchAccess,
   BRANCH_OUT_OF_SCOPE,
 } from "../shared/branch-access";
@@ -121,6 +124,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     }
     await attachCountryScope(request, fastify.db);
   });
+
+  // 2026-09-08 — alcance FORZADO por sede (rol `inversor`): toda ruta de este
+  // plugin direccionada por `:userId`/`:memberId` responde 404 si el socio es de
+  // otra sede. Hook de plugin a propósito (ver `enforceMemberBranchScope`):
+  // enumerar ruta por ruta era garantía de olvidarse una. No-op para el resto
+  // de los roles.
+  fastify.addHook("preHandler", enforceMemberBranchScope(fastify.db));
 
   // =========================================================================
   // Branches (must be defined BEFORE :userId param routes)
@@ -224,6 +234,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       schema: exportMembersSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -319,6 +330,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       schema: exportSepaMembersSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request, reply) => {
@@ -426,6 +438,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       schema: listMembersSchema,
       preHandler: [
         requireBranchAccess({ from: "query.branchId", optional: true }),
+        enforceBranchScope({ from: "query.branchId" }),
       ],
     },
     async (request) => {
@@ -489,6 +502,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     const members = await memberService.searchMembers(ctx, {
       search,
       country: request.scope.country ?? undefined,
+      // Alcance forzado por sede (rol `inversor`): esta ruta NO tiene
+      // `branchId` en el query, así que `enforceBranchScope` no la puede
+      // cubrir — el recorte va acá, plumbeado al servicio.
+      branchIds: enforcedBranchIds(request.scope) ?? undefined,
       limit,
       membershipKind,
     });
@@ -506,6 +523,31 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         request.params.userId,
       );
       if (!member) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      // Alcance FORZADO por sede (2026-09-08, rol `inversor`). Va ANTES del
+      // guard de país porque es más estricto y lo subsume. Devuelve 404 y NO
+      // 403 a propósito (criterio ISO-03, el mismo de DELETE /:userId y de
+      // financial-history): para un actor fuera de alcance, un socio de otra
+      // sede tiene que ser indistinguible de uno que no existe — un 403 le
+      // confirmaría que ese id existe en el gimnasio.
+      const enforced = enforcedBranchIds(request.scope);
+      if (
+        enforced !== null &&
+        (member.branchId === null || !enforced.includes(member.branchId))
+      ) {
+        request.log.warn(
+          {
+            userId: request.user?.userId,
+            role: request.user?.role,
+            branchId: member.branchId,
+            scope: request.scope,
+          },
+          BRANCH_OUT_OF_SCOPE,
+        );
         return reply
           .code(404)
           .send({ error: "No encontrado", message: "Miembro no encontrado" });

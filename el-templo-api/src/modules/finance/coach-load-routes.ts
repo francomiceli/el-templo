@@ -49,7 +49,11 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
-import { requireBranchAccess } from "../shared/branch-access";
+import {
+  enforceBranchScope,
+  enforceMemberBranchScope,
+  requireBranchAccess,
+} from "../shared/branch-access";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import * as schema from "../../db/schema";
 import type { PaymentMethod, TransactionDetail } from "./types";
@@ -313,6 +317,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     }
     await attachCountryScope(request, fastify.db);
   });
+
+  // 2026-09-08 — alcance FORZADO por sede (rol `inversor`): mismo hook de
+  // plugin que en finance/routes.ts, members y subscriptions. Cubre
+  // `/autocompletar/:userId` (datos del socio) y cualquier ruta futura de este
+  // plugin direccionada por socio. No-op para el resto de los roles.
+  fastify.addHook("preHandler", enforceMemberBranchScope(fastify.db));
 
   // ── Resolve the member's default branchId server-side (Pitfall 4):
   // users.branchId with the virtual "Templo Online" fallback (mirror of
@@ -703,10 +713,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             idempotencyKey,
           );
           if (existing) {
-            const subscription = await subscriptionService.getMemberSubscription(
-              replayCtx,
-              userId,
-            );
+            const subscription =
+              await subscriptionService.getMemberSubscription(
+                replayCtx,
+                userId,
+              );
             return reply
               .code(200)
               .send({ subscription, transaction: existing });
@@ -1221,6 +1232,14 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Querystring: { currency: string; branchId: number } }>(
     "/caja-efectivo",
     {
+      // 2026-09-08: `branchId` es obligatorio acá y NO estaba gateado — cualquier
+      // staff puede preguntar por la caja efectivo de una sede ajena. Se corta
+      // SOLO para los roles de alcance forzado (`enforceBranchScope`, hoy
+      // `inversor`). A propósito NO se agrega `requireBranchAccess` para todos:
+      // el PoS del profe consulta la sede del SOCIO, que puede no ser una de las
+      // suyas, y cerrarlo acá regresionaría ese flujo vivo. El cobro real sí está
+      // gateado (POST /pay-plan lleva `requireBranchAccess({ from: "body.branchId" })`).
+      preHandler: [enforceBranchScope({ from: "query.branchId" })],
       schema: {
         querystring: {
           type: "object",

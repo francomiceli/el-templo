@@ -2,7 +2,7 @@ import type { FastifyRequest } from "fastify";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { and, eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { OWNER_ROLES, TV_ACCOUNT_ROLE } from "./permissions";
+import { INVERSOR_ROLE, OWNER_ROLES, TV_ACCOUNT_ROLE } from "./permissions";
 import { AppError } from "./errors";
 import { tenantWhere, type TenantContext } from "./tenant";
 
@@ -48,7 +48,7 @@ export interface CountryScope {
    */
   country: CountryCode | null;
   /**
-   * Branch IDs the actor can operate on, populated for coach/recepción
+   * Branch IDs the actor can operate on, populated for coach/recepción/inversor
    * from the `user_branches` join table. Empty array for other roles
    * (admin/gestion use `country` for scope; owner uses isOwner; member
    * uses `userBranchId` directly via canAccessBranch).
@@ -240,8 +240,16 @@ export async function attachScope(
           );
           country = null;
         }
-      } else if (role === "coach" || role === "recepcion") {
+      } else if (
+        role === "coach" ||
+        role === "recepcion" ||
+        role === INVERSOR_ROLE
+      ) {
         // Phase 110 REQ-5: load multi-branch operational scope.
+        // 2026-09-08: `inversor` usa el MISMO mecanismo (`user_branches`) —
+        // canAccessBranch lo resuelve por la Regla 4. La diferencia con
+        // coach/recepción no está acá sino en `enforcedBranchIds`
+        // (branch-access.ts), que además le fuerza el filtro en los listados.
         const ubRows = await db
           .select({ branchId: schema.userBranches.branchId })
           .from(schema.userBranches)

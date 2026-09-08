@@ -587,6 +587,15 @@ export interface MovEgresoItem {
 export interface MovEgresoFilters {
   cashRegisterId?: number;
   country?: CountryCode;
+  /**
+   * 2026-09-08 — alcance FORZADO por sede. Se llena desde
+   * `enforcedBranchIds(request.scope)` (shared/branch-access.ts) y SOLO para los
+   * roles que lo tienen (hoy `inversor`). Cuando viene, acota el resultado a
+   * esas sedes ADEMÁS del filtro de país. Array vacío (actor sin sedes
+   * asignadas) → cero filas, nunca "sin filtro".
+   */
+  branchIds?: number[];
+
   /** true cuando el caller es owner (ve todo; ?country acota por país de caja). */
   isOwner?: boolean;
   dateFrom?: string; // YYYY-MM-DD
@@ -729,6 +738,15 @@ export interface PendingWithdrawalResult {
 export interface WithdrawalListFilters {
   cashRegisterId?: number;
   branchId?: number;
+  /**
+   * 2026-09-08 — alcance FORZADO por sede. Se llena desde
+   * `enforcedBranchIds(request.scope)` (shared/branch-access.ts) y SOLO para los
+   * roles que lo tienen (hoy `inversor`). Cuando viene, acota el resultado a
+   * esas sedes ADEMÁS del filtro de país. Array vacío (actor sin sedes
+   * asignadas) → cero filas, nunca "sin filtro".
+   */
+  branchIds?: number[];
+
   /** Non-owner: locked to scope.country (route). Owner: optional override. */
   country?: CountryCode;
   isOwner: boolean;

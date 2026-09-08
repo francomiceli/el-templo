@@ -14,6 +14,10 @@ export const ALL_STAFF_ROLES = [
   "owner",
   "gestion",
   "recepcion",
+  // 2026-09-08 (migración 0225): el inversor de sucursal entra al admin como
+  // cualquier otro empleado. Su alcance NO lo da este set sino `user_branches`
+  // + `enforcedBranchIds` (shared/branch-access.ts). Ver INVERSOR_ROLE abajo.
+  "inversor",
 ] as const;
 
 /** Roles that can access owner-only features (franchise, users, blog, gladius, academy, app-waitlist, labs). */
@@ -71,13 +75,16 @@ export function canAccessTraining(user: {
  * NEVER core → Templo. This keeps the core free of Templo-isms: a fresh tenant
  * gets the core sets unchanged; El Templo layers `reportes`/`deudas` on top.
  *
- * - `reportes`: extra roles (beyond Dueño) that see Reportes/Caja → gestion.
+ * - `reportes`: extra roles (beyond Dueño) that see Reportes/Caja → gestion +
+ *   inversor (2026-09-08: el inversor de sucursal ve la caja de SU sede — el
+ *   recorte por sede lo hace `enforcedBranchIds`, no este set).
  * - `deudas`: extra roles (beyond Dueño) that see the simplified Deudas tab →
- *   coach + gestion (coach so profes can look up what to collect at the door).
+ *   coach + gestion + inversor (coach so profes can look up what to collect at
+ *   the door).
  */
 export const TEMPLO_RBAC_OVERRIDES = {
-  reportes: ["gestion"],
-  deudas: ["coach", "gestion"],
+  reportes: ["gestion", "inversor"],
+  deudas: ["coach", "gestion", "inversor"],
 } as const;
 
 /**
@@ -101,6 +108,7 @@ export const ANALYTICS_OPERATIONAL_ROLES = [
   "gestion",
   "admin",
   "owner",
+  "inversor",
 ] as const;
 
 /** Roles that can view the simplified Deudas tab for coaches. Coach included
@@ -117,22 +125,24 @@ export const COACH_DEBTS_ROLES = [
   ...ADMIN_ROLES,
 ] as const;
 
-/** Roles that can access attendance features (coach, admin, owner, gestion, recepcion). */
+/** Roles that can access attendance features (coach, admin, owner, gestion, recepcion, inversor). */
 export const ATTENDANCE_ROLES = [
   "coach",
   "admin",
   "owner",
   "gestion",
   "recepcion",
+  "inversor",
 ] as const;
 
-/** Roles that can access member management (coach, admin, owner, gestion, recepcion). */
+/** Roles that can access member management (coach, admin, owner, gestion, recepcion, inversor). */
 export const MEMBER_ROLES = [
   "coach",
   "admin",
   "owner",
   "gestion",
   "recepcion",
+  "inversor",
 ] as const;
 
 /** Roles that can access payment management. */
@@ -142,6 +152,7 @@ export const PAYMENT_ROLES = [
   "owner",
   "gestion",
   "recepcion",
+  "inversor",
 ] as const;
 
 /** Roles that can access subscription management. */
@@ -151,6 +162,7 @@ export const SUBSCRIPTION_ROLES = [
   "owner",
   "gestion",
   "recepcion",
+  "inversor",
 ] as const;
 
 /**
@@ -193,8 +205,10 @@ export const PROGRAMAS_ROLES = ADMIN_ROLES;
  * de escritura en el módulo) y en VALOR a FINANCE_WRITE_ROLES
  * (["owner","admin","gestion","recepcion"]). Se declara con literal (no la
  * referencia FINANCE_WRITE_ROLES) porque esa constante se declara MÁS ABAJO en
- * este archivo — usarla acá caería en la temporal dead zone; la equivalencia de
- * valor queda fijada por rbac-sets.test.ts.
+ * este archivo — usarla acá caería en la temporal dead zone; el valor queda
+ * fijado por rbac-sets.test.ts. (2026-09-08: la equivalencia de valor con
+ * FINANCE_WRITE_ROLES se ROMPIÓ a propósito — `inversor` entra en finanzas pero
+ * NO en Programas, que es superficie de dueño.)
  *
  * Por qué existe: angostar GET /admin/programs a dueño-only (Plan 01) rompió dos
  * consumidores frontend vivos que corren para staff no-dueño — la columna
@@ -227,6 +241,7 @@ export const FINANCE_WRITE_ROLES = [
   "admin",
   "gestion",
   "recepcion",
+  "inversor",
 ] as const;
 
 /**
@@ -241,10 +256,20 @@ export const FINANCE_WRITE_ROLES = [
 export const FINANCE_LOAD_ROLES = [...FINANCE_WRITE_ROLES, "coach"] as const;
 
 /** Roles that can create kind=adjustment (sensitive — Phase 106 D-01). */
-export const FINANCE_ADJUSTMENT_ROLES = ["owner", "admin", "gestion"] as const;
+export const FINANCE_ADJUSTMENT_ROLES = [
+  "owner",
+  "admin",
+  "gestion",
+  "inversor",
+] as const;
 
 /** Roles that can void a finance transaction (Phase 106 D-03 — recepcion excluded for abuse risk). */
-export const FINANCE_VOID_ROLES = ["owner", "admin", "gestion"] as const;
+export const FINANCE_VOID_ROLES = [
+  "owner",
+  "admin",
+  "gestion",
+  "inversor",
+] as const;
 
 /** Roles that can read finance transactions / financial history (Phase 106 D-04 — coach excluded for privacy). */
 export const FINANCE_READ_ROLES = [
@@ -252,10 +277,16 @@ export const FINANCE_READ_ROLES = [
   "admin",
   "gestion",
   "recepcion",
+  "inversor",
 ] as const;
 
 /** Roles that can soft-delete a member and reset member passwords. */
-export const MEMBER_LIFECYCLE_ROLES = ["owner", "admin", "gestion"] as const;
+export const MEMBER_LIFECYCLE_ROLES = [
+  "owner",
+  "admin",
+  "gestion",
+  "inversor",
+] as const;
 
 /**
  * Roles that can operate the branch TV screen (Fase 164 D-01): vincular un
@@ -294,6 +325,27 @@ export const TV_CONTROL_ROLES = [...ADMIN_ROLES, "coach", "tv"] as const;
  *     de socios.
  */
 export const TV_ACCOUNT_ROLE = "tv" as const;
+
+/**
+ * Rol del inversor de sucursal (2026-09-08, migración 0225).
+ *
+ * Un inversor activo de UNA sede que hace gestión administrativa + financiera
+ * de SUS sedes: caja (saldos, movimientos, retiros, bandeja pendiente), cobros,
+ * alumnos, sesiones de prueba y leads. Hereda la superficie de `gestion` (está
+ * en todos los sets donde está `gestion`, salvo los que excluyen a gestión a
+ * propósito: CHECKIN_ROSTER_ROLES, STAFF_ATTENDANCE_ROLES, TV_CONTROL_ROLES, y
+ * los de Programas/Entrenamiento, que son superficie de dueño).
+ *
+ * Lo que lo hace distinto de `gestion` NO es este set sino el ALCANCE:
+ *   - `attachScope` le carga `branchIds` desde `user_branches` (igual que
+ *     coach/recepción), no `users.country`;
+ *   - `canAccessBranch` lo resuelve por la Regla 4 (sede ∈ branchIds);
+ *   - `enforcedBranchIds` (shared/branch-access.ts) FUERZA el filtro por sede
+ *     en los listados y agregados: pedir otra sede es 403 y omitir la sede
+ *     filtra a las suyas, en vez de degenerar a "todo el país" como pasa hoy
+ *     con coach/recepción (gap preexistente que este rol NO cambia).
+ */
+export const INVERSOR_ROLE = "inversor" as const;
 
 /**
  * Roles que ven el "Registro del día" del alumno (energía/sueño/molestias) en la

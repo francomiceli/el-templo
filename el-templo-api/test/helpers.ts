@@ -819,7 +819,8 @@ export async function createStaffUser(
           | "owner"
           | "gestion"
           | "recepcion"
-          | "tv",
+          | "tv"
+          | "inversor",
         branchId: data.branchId,
         country,
       }),
@@ -830,7 +831,14 @@ export async function createStaffUser(
   // their working sede into user_branches (matches migration 0107 semantics
   // so existing tests that rely on cardinality + canAccessBranch continue to
   // work without explicit user_branches setup).
-  if (data.role === "coach" || data.role === "recepcion") {
+  // 2026-09-08: `inversor` usa el MISMO mecanismo de sedes que coach/recepción
+  // (`user_branches`), así que se siembra igual. Para asignarle MÁS de una sede,
+  // insertar las extra a mano después de llamar a este helper.
+  if (
+    data.role === "coach" ||
+    data.role === "recepcion" ||
+    data.role === "inversor"
+  ) {
     await app.db
       .insert(schema.userBranches)
       .values(

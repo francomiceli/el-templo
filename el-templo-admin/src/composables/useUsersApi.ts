@@ -26,7 +26,7 @@ export interface CreateStaffInput {
   lastName: string;
   email: string;
   password: string;
-  role: 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion' | 'tv';
+  role: 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion' | 'tv' | 'inversor';
   branchId: number;
   // Phase 110: required for admin / gestion (validated server-side per REQ-9).
   country?: 'AR' | 'ES' | null;
@@ -39,7 +39,7 @@ export interface UpdateStaffInput {
   lastName?: string;
   email?: string;
   password?: string;
-  role?: 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion' | 'tv';
+  role?: 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion' | 'tv' | 'inversor';
   branchId?: number;
   country?: 'AR' | 'ES' | null;
   branchIds?: number[];

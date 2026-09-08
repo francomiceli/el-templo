@@ -353,6 +353,7 @@ import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useStatusBadge } from 'src/composables/useStatusBadge';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { isBranchScopedRole } from 'src/utils/branch-scope';
 import type {
   MemberListItem,
   MemberProfile,
@@ -399,7 +400,11 @@ const countryOptions = [
 const selectedCountry = ref<'AR' | 'ES'>('AR');
 
 async function onCountryChange() {
-  filters.branchId = null;
+  // El rol de alcance forzado (inversor) no puede quedar en "todas": se le
+  // restituye su primera sede en vez de null.
+  filters.branchId = isBranchScopedRole(authStore.user?.role)
+    ? (branches.value[0]?.id ?? null)
+    : null;
   filters.planId = null;
   tablePagination.value.page = 1;
   await Promise.all([loadBranches(), loadPlans(), loadMembers()]);
@@ -433,7 +438,7 @@ const exportingSepa = ref(false);
 // owner/admin/gestion, y solo si hay sedes ES dentro del scope del usuario.
 const canExportSepa = computed(() => {
   const role = authStore.user?.role;
-  const roleOk = role === 'owner' || role === 'admin' || role === 'gestion';
+  const roleOk = role === 'owner' || role === 'admin' || role === 'gestion' || role === 'inversor';
   if (!roleOk) return false;
   // Owner: su scope incluye todas las sedes, así que respetamos el selector de
   // país — no mostrar el export si está viendo Argentina.
@@ -730,11 +735,20 @@ async function loadBranches() {
     branches.value = await membersApi.getBranches({
       country: isOwner.value ? selectedCountry.value : undefined,
     });
-    branchFilterOptions.value = [
-      { label: 'Todas', value: null },
-      { label: 'Multisucursal', value: 'multi' },
-      ...branches.value.map((b) => ({ label: b.name, value: b.id })),
-    ];
+    // Rol de alcance forzado (inversor): sin "Todas" ni "Multisucursal" — el
+    // API le exige una sede y las opciones sin sede terminan en 400/403. Se le
+    // preselecciona la primera de las suyas.
+    const scoped = isBranchScopedRole(authStore.user?.role);
+    branchFilterOptions.value = scoped
+      ? branches.value.map((b) => ({ label: b.name, value: b.id }))
+      : [
+          { label: 'Todas', value: null },
+          { label: 'Multisucursal', value: 'multi' },
+          ...branches.value.map((b) => ({ label: b.name, value: b.id })),
+        ];
+    if (scoped && filters.branchId == null) {
+      filters.branchId = branches.value[0]?.id ?? null;
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading branches', { error: message });

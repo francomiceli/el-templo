@@ -74,13 +74,29 @@ export const ZERO_PRICE_LABEL_SHORT = TEMPLO_ENABLED ? 'Zero' : 'Promocional';
 export const DUENO_ROLES: AdminRole[] = ['admin', 'owner'];
 
 /** All staff (non-member). Mirrors ALL_STAFF_ROLES of the API. */
-export const ALL_STAFF_ROLES: AdminRole[] = ['coach', 'gestion', 'recepcion', 'admin', 'owner'];
+export const ALL_STAFF_ROLES: AdminRole[] = [
+  'coach',
+  'gestion',
+  'recepcion',
+  'admin',
+  'owner',
+  // `inversor` (2026-09-08): entra a Alumnos/Horarios/Planes como cualquier
+  // empleado. Lo que ve adentro lo acota el API a sus sedes.
+  'inversor',
+];
 
 /**
  * Pagos (PoS): all staff, recepcion INCLUDED. Mirrors FINANCE_LOAD_ROLES
  * (= FINANCE_WRITE_ROLES + coach) of the API.
  */
-export const PAGOS_ROLES: AdminRole[] = ['coach', 'gestion', 'recepcion', 'admin', 'owner'];
+export const PAGOS_ROLES: AdminRole[] = [
+  'coach',
+  'gestion',
+  'recepcion',
+  'admin',
+  'owner',
+  'inversor',
+];
 
 /**
  * Deudas detail tabs ("Por deuda" / "Vencidos"): Dueño + gestion, coach EXCLUDED
@@ -90,25 +106,32 @@ export const PAGOS_ROLES: AdminRole[] = ['coach', 'gestion', 'recepcion', 'admin
  * the tabs — the real gate is the API (reports/outstanding-balances returns 403
  * to coach, plan 153-01 + plugin guard). Do NOT rely on this for security (D-04).
  */
-export const DEUDAS_DETAIL_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
+export const DEUDAS_DETAIL_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'inversor'];
 
 /**
  * Reportes: Dueño + Templo override (gestion). Mirrors CAJA_ROLES of the API.
  */
-export const REPORTES_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
+export const REPORTES_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'inversor'];
 
 /**
  * Planes (read-only for the employee surface): all staff. Mirrors PLANES_READ_ROLES
  * (= SUBSCRIPTION_ROLES) of the API. Edition is hidden in PlanesPage (Plan 04).
  */
-export const PLANES_READ_ROLES: AdminRole[] = ['coach', 'gestion', 'recepcion', 'admin', 'owner'];
+export const PLANES_READ_ROLES: AdminRole[] = [
+  'coach',
+  'gestion',
+  'recepcion',
+  'admin',
+  'owner',
+  'inversor',
+];
 
 /**
  * Caja (saldos/arqueo/retiros): gestión + dueño (2026-09-07: gestión opera la
  * caja a diario). Mirrors the /caja route allowedRoles. El ABM de cuentas y
  * categorías sigue admin/owner (CuentasTab lo oculta).
  */
-export const CAJA_SALDOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
+export const CAJA_SALDOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'inversor'];
 
 /** Analíticas: Dueño-only. Mirrors the /analiticas route allowedRoles (ADMIN_ROLES). */
 export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner'];

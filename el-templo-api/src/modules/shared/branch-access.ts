@@ -9,7 +9,8 @@
  *          abajo. Esto es lo que cierra el bypass histórico de la Regla 1.
  *       1. branch.isVirtual=true        → true (Templo Online, PERO del PROPIO
  *                                          gimnasio: el filtro de arriba ya lo
- *                                          garantiza)
+ *                                          garantiza. NO aplica a los roles de
+ *                                          alcance forzado — isBranchScopedRole)
  *       2. scope.isOwner=true           → true (owner bypass by role)
  *       3. admin/gestion same country   → true (scope.country === branch.country;
  *                                          el gimnasio YA decidió arriba — el
@@ -18,7 +19,7 @@
  *                                          scope.country=null por corrupción de
  *                                          datos, esto es siempre false →
  *                                          default-deny lateral)
- *       4. coach/recepción in branchIds → true
+ *       4. coach/recepción/inversor in branchIds → true
  *       5. member same branch           → true (branchId === scope.userBranchId)
  *       6. default                      → false
  *   - requireBranchAccess({ from, optional? }): Fastify preHandler factory.
@@ -83,12 +84,23 @@ import type {
 import { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type { CountryScope } from "./country-scope";
-import { assertTenant, type TenantContext } from "./tenant";
+import { and, eq } from "drizzle-orm";
+import { assertTenant, tenantWhere, type TenantContext } from "./tenant";
 import { resolveBranchDelGimnasio } from "./branch-consistency";
-import { AppError } from "./errors";
-import { TV_ACCOUNT_ROLE } from "./permissions";
+import { AppError, NotFoundError } from "./errors";
+import { INVERSOR_ROLE, TV_ACCOUNT_ROLE } from "./permissions";
 
 export const BRANCH_OUT_OF_SCOPE = "BRANCH_OUT_OF_SCOPE";
+
+/**
+ * 2026-09-08 — código estable del 400 con el que se corta un listado/agregado
+ * que un actor de alcance forzado (`isBranchScopedRole`) pidió SIN elegir sede
+ * teniendo más de una asignada. Mismo contrato que `BRANCH_OUT_OF_SCOPE`: una
+ * constante exportada para que el frontend matchee exacto en vez de parsear el
+ * mensaje. No es 403 a propósito — el actor SÍ puede ver esas sedes, lo que
+ * falta es que diga cuál.
+ */
+export const BRANCH_REQUIRED = "BRANCH_REQUIRED";
 
 /**
  * Locations where requireBranchAccess can read the branchId from.
@@ -97,7 +109,9 @@ export const BRANCH_OUT_OF_SCOPE = "BRANCH_OUT_OF_SCOPE";
  * Routes whose `:id` IS a branchId should rename the param to `:branchId`.
  */
 export type BranchIdLocation =
-  "query.branchId" | "params.branchId" | "body.branchId";
+  | "query.branchId"
+  | "params.branchId"
+  | "body.branchId";
 
 /**
  * Pure async predicate. Returns true iff the actor described by `scope` may
@@ -140,7 +154,15 @@ export async function canAccessBranch(
   // Rule 1: virtual sedes (Templo Online) DEL PROPIO GIMNASIO son globalmente
   // accesibles (REQ-10). Ya no puede aplicar a una sede ajena — el filtro de
   // arriba garantiza que, si llegamos acá, `branch` es del gimnasio de `ctx`.
-  if (branch.isVirtual) {
+  //
+  // EXCEPCIÓN (2026-09-08): los roles de alcance FORZADO por sede
+  // (`isBranchScopedRole`, hoy `inversor`) NO heredan este atajo. Templo Online
+  // es una sede más y sus socios no son de la sucursal del inversor: dejar
+  // pasar la Regla 1 le abriría, con un `?branchId=<virtual>`, exactamente los
+  // datos que este rol existe para no mostrar. Si algún día un inversor tiene
+  // que ver la sede virtual, se le agrega a su `user_branches` y entra por la
+  // Regla 4 como cualquier otra sede suya.
+  if (branch.isVirtual && !isBranchScopedRole(scope.role)) {
     return true;
   }
 
@@ -167,8 +189,15 @@ export async function canAccessBranch(
     return scope.country !== null && branch.country === scope.country;
   }
 
-  // Rule 4: coach/recepción — branch must be in operational set.
-  if (scope.role === "coach" || scope.role === "recepcion") {
+  // Rule 4: coach/recepción/inversor — branch must be in operational set.
+  // `inversor` (2026-09-08, migración 0225) usa EXACTAMENTE el mismo mecanismo
+  // que coach/recepción (`user_branches`), pero además tiene alcance FORZADO
+  // en los listados — ver `enforcedBranchIds` / `enforceBranchScope` abajo.
+  if (
+    scope.role === "coach" ||
+    scope.role === "recepcion" ||
+    scope.role === INVERSOR_ROLE
+  ) {
     return scope.branchIds.includes(branchId);
   }
 
@@ -259,6 +288,239 @@ export function requireBranchAccess(opts: {
         message: "No tenés acceso a esta sede",
         code: BRANCH_OUT_OF_SCOPE,
       });
+    }
+  };
+}
+
+// ===========================================================================
+// Alcance FORZADO por sede (2026-09-08, rol `inversor`)
+// ===========================================================================
+//
+// EL PROBLEMA QUE RESUELVE. `requireBranchAccess({ optional: true })` sólo mira
+// el `branchId` que vino en el request: si el cliente lo omite, no chequea nada
+// y el listado cae al filtro por PAÍS (`scope.country`). Para admin/gestión eso
+// es correcto (su alcance ES el país). Para un actor cuyo alcance son SUS sedes
+// no lo es: omitir `branchId` le mostraría todas las sedes del país.
+//
+// LA REGLA. Para los roles de `isBranchScopedRole`:
+//   - `branchId` presente y ajeno  → 403 BRANCH_OUT_OF_SCOPE (ya lo hace
+//     `requireBranchAccess` vía la Regla 4 de `canAccessBranch`).
+//   - `branchId` ausente, 1 sede   → se INYECTA su sede en el request.
+//   - `branchId` ausente, 0 sedes  → 403 BRANCH_OUT_OF_SCOPE (fail-closed).
+//   - `branchId` ausente, N sedes  → 400 BRANCH_REQUIRED (que elija cuál).
+//
+// POR QUÉ NO SE APLICA A coach/recepción. Hoy esos roles tienen el mismo gap
+// (omiten `branchId` y ven el país). Cerrarlo acá regresionaría a recepción, que
+// es un flujo vivo en producción — queda documentado como deuda preexistente y
+// NO se toca en este cambio.
+
+/**
+ * ¿El alcance de este rol son SUS sedes (`user_branches`) Y hay que forzárselo
+ * en listados/agregados? Punto ÚNICO de decisión: cualquier rol futuro con
+ * alcance por sede forzado se agrega acá y hereda todo lo de abajo.
+ */
+export function isBranchScopedRole(role: string): boolean {
+  return role === INVERSOR_ROLE;
+}
+
+/**
+ * Sedes a las que hay que acotar sí o sí los datos de este actor.
+ * `null` = sin forzado (todos los demás roles conservan su comportamiento
+ * histórico: país, owner global, etc.). Un array VACÍO es un estado legítimo
+ * (inversor al que todavía no le asignaron sedes) y significa "no ve nada".
+ */
+export function enforcedBranchIds(scope: CountryScope): number[] | null {
+  return isBranchScopedRole(scope.role) ? scope.branchIds : null;
+}
+
+/**
+ * Fastify preHandler. Encadenar SIEMPRE después de
+ * `requireBranchAccess({ from, optional: true })`, que es quien devuelve el 403
+ * cuando el `branchId` pedido no es del actor. Este completa la otra mitad: que
+ * omitirlo no sea "todo el país".
+ *
+ * Inocuo para cualquier rol que no esté en `isBranchScopedRole`.
+ *
+ * Muta `request.query` / `request.params` / `request.body` a propósito: los
+ * handlers ya leen el `branchId` de ahí y se lo pasan a los filtros del
+ * servicio, así que inyectarlo cubre listado, export, summary y agregados sin
+ * tocar una sola query. El cast a `Record<string, unknown>` es el mismo que usa
+ * `readBranchId` para leerlos.
+ */
+export function enforceBranchScope(opts: {
+  from: BranchIdLocation;
+}): preHandlerHookHandler {
+  return async function preHandler(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) {
+    const branchIds = enforcedBranchIds(request.scope);
+    if (branchIds === null) return; // rol sin alcance forzado
+
+    const requested = readBranchId(request, opts.from);
+    if (requested !== null) {
+      // Defensa en profundidad: `requireBranchAccess` ya cortó las sedes
+      // ajenas. Si por algún motivo no corrió, cortamos igual acá.
+      if (!branchIds.includes(requested)) {
+        request.log.warn(
+          {
+            userId: request.user?.userId,
+            role: request.user?.role,
+            branchId: requested,
+            scope: request.scope,
+          },
+          BRANCH_OUT_OF_SCOPE,
+        );
+        return reply.code(403).send({
+          error: "Forbidden",
+          message: "No tenés acceso a esta sede",
+          code: BRANCH_OUT_OF_SCOPE,
+        });
+      }
+      return;
+    }
+
+    if (branchIds.length === 0) {
+      request.log.warn(
+        { userId: request.user?.userId, role: request.user?.role },
+        BRANCH_OUT_OF_SCOPE,
+      );
+      return reply.code(403).send({
+        error: "Forbidden",
+        message: "Tu usuario no tiene ninguna sede asignada",
+        code: BRANCH_OUT_OF_SCOPE,
+      });
+    }
+
+    if (branchIds.length > 1) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "Elegí una sede para ver esta información",
+        code: BRANCH_REQUIRED,
+      });
+    }
+
+    const [bag, key] = opts.from.split(".") as [
+      "query" | "params" | "body",
+      string,
+    ];
+    const target = request[bag] as Record<string, unknown> | undefined;
+    if (target === undefined || target === null) {
+      // Sin contenedor donde inyectar (ej. GET sin querystring parseado): el
+      // criterio del archivo es deny, nunca "sin filtro".
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "Elegí una sede para ver esta información",
+        code: BRANCH_REQUIRED,
+      });
+    }
+    target[key] = branchIds[0];
+  };
+}
+
+/**
+ * Corta un acceso PUNTUAL por id (una caja, un retiro, la ficha de un socio)
+ * cuando el actor tiene alcance forzado y la fila es de otra sede.
+ *
+ * Lanza `NotFoundError` y NO un 403 a propósito — criterio ISO-03, el mismo que
+ * ya usan `DELETE /admin/members/:userId` y el historial financiero: para un
+ * actor fuera de alcance, una fila ajena tiene que ser indistinguible de una
+ * inexistente. Un 403 le confirmaría que ese id existe en el gimnasio.
+ *
+ * `enforced` es lo que devuelve `enforcedBranchIds`: `null`/`undefined` = el rol
+ * no tiene alcance forzado y esto es un no-op. Una fila SIN sede
+ * (`branchId === null`: caja Central, cuenta banco) queda FUERA del alcance de
+ * un rol de sede — nunca es "de todas las sedes".
+ */
+export function assertBranchInEnforcedScope(
+  branchId: number | null,
+  enforced: number[] | null | undefined,
+  message: string,
+): void {
+  if (enforced === null || enforced === undefined) return;
+  if (branchId !== null && enforced.includes(branchId)) return;
+  throw new NotFoundError(message);
+}
+
+/**
+ * Fastify preHandler DE PLUGIN (no de ruta): corta con 404 cualquier request
+ * cuyo `:userId` / `:memberId` sea un usuario de otra sede, para los roles de
+ * alcance forzado (`isBranchScopedRole`).
+ *
+ * Por qué a nivel de plugin y no ruta por ruta: los módulos de socios,
+ * finanzas y suscripciones tienen DECENAS de rutas direccionadas por id de
+ * socio (ficha, notas, baja, reset de contraseña, historial financiero,
+ * referidos, asignar/renovar plan…). Enumerarlas era garantía de olvidarse una,
+ * y el olvido no se nota: la ruta responde 200 con datos de otra sede. Un hook
+ * único es el punto de corte que no se puede omitir.
+ *
+ * Inocuo para el resto de los roles: sale en la primera línea sin tocar la DB.
+ * Para un actor de alcance forzado agrega UN SELECT por request (`users.id`,
+ * índice primario).
+ *
+ * 404 y no 403: criterio ISO-03 — ver `assertBranchInEnforcedScope`. Un usuario
+ * inexistente y uno de otra sede tienen que responder igual.
+ */
+export function enforceMemberBranchScope(
+  db: MySql2Database<typeof schema>,
+): preHandlerHookHandler {
+  return async function preHandler(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) {
+    const enforced = enforcedBranchIds(request.scope);
+    if (enforced === null) return;
+
+    const params = request.params as Record<string, unknown> | undefined;
+    const raw = params?.userId ?? params?.memberId;
+    const targetId =
+      typeof raw === "number"
+        ? raw
+        : typeof raw === "string" &&
+            raw.trim() !== "" &&
+            Number.isFinite(Number(raw))
+          ? Number(raw)
+          : null;
+    if (targetId === null) return;
+
+    let ctx: TenantContext;
+    try {
+      ctx = assertTenant(
+        request.scope,
+        "branch-access.enforceMemberBranchScope",
+      );
+    } catch (err: unknown) {
+      if (err instanceof AppError) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "No encontrado" });
+      }
+      throw err;
+    }
+
+    const [row] = await db
+      .select({ branchId: schema.users.branchId })
+      .from(schema.users)
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, targetId)))
+      .limit(1);
+    // Usuario inexistente: no se corta acá — la ruta ya tiene su propio 404 y
+    // su propio mensaje.
+    if (!row) return;
+
+    if (!enforced.includes(row.branchId)) {
+      request.log.warn(
+        {
+          userId: request.user?.userId,
+          role: request.user?.role,
+          targetUserId: targetId,
+          branchId: row.branchId,
+          scope: request.scope,
+        },
+        BRANCH_OUT_OF_SCOPE,
+      );
+      return reply
+        .code(404)
+        .send({ error: "No encontrado", message: "No encontrado" });
     }
   };
 }
