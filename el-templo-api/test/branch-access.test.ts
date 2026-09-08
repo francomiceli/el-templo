@@ -382,6 +382,69 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       }
     });
 
+    it("inversor (Regla 4, 2026-09-08): sede en branchIds → true, otra sede → false", async () => {
+      const scope = {
+        tenantId: 1,
+        country: "AR" as const,
+        branchIds: [arBranchId],
+        isOwner: false,
+        role: "inversor",
+        userBranchId: arBranchId,
+      };
+      expect(await canAccessBranch(scope, arBranchId, app.db)).toBe(true);
+      expect(await canAccessBranch(scope, arBranchSecondId, app.db)).toBe(
+        false,
+      );
+      expect(await canAccessBranch(scope, esBranchId, app.db)).toBe(false);
+    });
+
+    it("inversor NO hereda el atajo de sede virtual (Regla 1) — 2026-09-08", async () => {
+      // Un coach entra a la virtual por la Regla 1 aunque no la tenga en
+      // user_branches. El inversor NO: Templo Online es otra sede y sus socios
+      // no son los de su sucursal. Si algún día tiene que verla, se le agrega
+      // a user_branches y entra por la Regla 4.
+      const base = {
+        tenantId: 1,
+        country: "AR" as const,
+        branchIds: [arBranchId],
+        isOwner: false,
+        userBranchId: arBranchId,
+      };
+      expect(
+        await canAccessBranch(
+          { ...base, role: "coach" },
+          virtualBranchId,
+          app.db,
+        ),
+      ).toBe(true);
+      expect(
+        await canAccessBranch(
+          { ...base, role: "inversor" },
+          virtualBranchId,
+          app.db,
+        ),
+      ).toBe(false);
+    });
+
+    it("inversor sin sedes asignadas (branchIds=[]) → false en toda sede", async () => {
+      const scope = {
+        tenantId: 1,
+        country: "AR" as const,
+        branchIds: [] as number[],
+        isOwner: false,
+        role: "inversor",
+        userBranchId: arBranchId,
+      };
+      for (const id of [
+        arBranchId,
+        arBranchSecondId,
+        esBranchId,
+        virtualBranchId,
+      ]) {
+        expect(await canAccessBranch(scope, id, app.db)).toBe(false);
+      }
+    });
+
     it("member: branchId === scope.userBranchId → true", async () => {
       const ok = await canAccessBranch(
         {
@@ -915,7 +978,8 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const body = JSON.parse(res.body) as { error?: string; message?: string };
       const text = (body.error ?? "") + (body.message ?? "");
       expect(text).toMatch(
-        /Coach y recepci(ó|o)n requieren al menos una sede operativa/i,
+        // 2026-09-08: el mensaje suma `inversor` (misma regla de cardinalidad).
+        /Coach, recepci(ó|o)n e inversor requieren al menos una sede operativa/i,
       );
     });
 

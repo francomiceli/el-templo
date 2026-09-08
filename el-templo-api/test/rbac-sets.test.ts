@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  ALL_STAFF_ROLES,
+  ANALYTICS_OPERATIONAL_ROLES,
+  ATTENDANCE_ROLES,
   CAJA_ROLES,
   COACH_DEBTS_ROLES,
   PLANES_WRITE_ROLES,
@@ -9,6 +12,20 @@ import {
   TEMPLO_RBAC_OVERRIDES,
   TV_CONTROL_ROLES,
   CHECKIN_ROSTER_ROLES,
+  COACH_ROLES,
+  FINANCE_ADJUSTMENT_ROLES,
+  FINANCE_LOAD_ROLES,
+  FINANCE_READ_ROLES,
+  FINANCE_VOID_ROLES,
+  FINANCE_WRITE_ROLES,
+  INVERSOR_ROLE,
+  MEMBER_LIFECYCLE_ROLES,
+  MEMBER_ROLES,
+  PAYMENT_ROLES,
+  STAFF_ATTENDANCE_ROLES,
+  STAFF_ATTENDANCE_REPORT_ROLES,
+  SUBSCRIPTION_ROLES,
+  TRAINING_ROLES,
 } from "../src/modules/shared/permissions";
 
 /**
@@ -23,14 +40,17 @@ import {
  *    Dueño-only / all-staff surfaces (D-11 / D-15).
  */
 describe("RBAC sets — core white-label + Templo overrides", () => {
-  it("CAJA_ROLES stays byte-identical (composed reportes-override + core)", () => {
-    expect([...CAJA_ROLES]).toEqual(["gestion", "admin", "owner"]);
+  it("CAJA_ROLES = reportes-override (gestion + inversor) + core", () => {
+    // 2026-09-08: `inversor` entra por el override `reportes` — ve la Caja de
+    // SU sede (el recorte lo hace `enforcedBranchIds`, no este set).
+    expect([...CAJA_ROLES]).toEqual(["gestion", "inversor", "admin", "owner"]);
   });
 
   it("COACH_DEBTS_ROLES stays byte-identical (composed deudas-override + core)", () => {
     expect([...COACH_DEBTS_ROLES]).toEqual([
       "coach",
       "gestion",
+      "inversor",
       "admin",
       "owner",
     ]);
@@ -47,6 +67,7 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
       "owner",
       "gestion",
       "recepcion",
+      "inversor",
     ]);
   });
 
@@ -87,7 +108,79 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
   });
 
   it("TEMPLO_RBAC_OVERRIDES holds only the extra roles layered over the core", () => {
-    expect([...TEMPLO_RBAC_OVERRIDES.reportes]).toEqual(["gestion"]);
-    expect([...TEMPLO_RBAC_OVERRIDES.deudas]).toEqual(["coach", "gestion"]);
+    expect([...TEMPLO_RBAC_OVERRIDES.reportes]).toEqual([
+      "gestion",
+      "inversor",
+    ]);
+    expect([...TEMPLO_RBAC_OVERRIDES.deudas]).toEqual([
+      "coach",
+      "gestion",
+      "inversor",
+    ]);
+  });
+});
+
+/**
+ * 2026-09-08 — rol `inversor` (migración 0225).
+ *
+ * La regla del rol es "donde está `gestion`, está `inversor`", con las
+ * excepciones que este bloque fija literalmente. Lo que hace al rol seguro NO es
+ * este archivo sino `enforcedBranchIds` / `enforceBranchScope`
+ * (shared/branch-access.ts), que le acotan los listados a sus `user_branches` —
+ * acá sólo se congela QUÉ superficie le queda habilitada, para que ensanchar un
+ * set en el futuro no le abra Programas o Entrenamiento sin que nadie lo note.
+ */
+describe("RBAC — rol inversor (sede-scoped)", () => {
+  const ENTRA = {
+    ALL_STAFF_ROLES,
+    CAJA_ROLES,
+    COACH_DEBTS_ROLES,
+    ANALYTICS_OPERATIONAL_ROLES,
+    ATTENDANCE_ROLES,
+    MEMBER_ROLES,
+    MEMBER_LIFECYCLE_ROLES,
+    PAYMENT_ROLES,
+    SUBSCRIPTION_ROLES,
+    PLANES_READ_ROLES,
+    FINANCE_READ_ROLES,
+    FINANCE_WRITE_ROLES,
+    FINANCE_LOAD_ROLES,
+    FINANCE_VOID_ROLES,
+    FINANCE_ADJUSTMENT_ROLES,
+  };
+
+  const NO_ENTRA = {
+    OWNER_ROLES: ["owner"],
+    ADMIN_ROLES: ["admin", "owner"],
+    COACH_ROLES,
+    TRAINING_ROLES,
+    PROGRAMAS_ROLES,
+    PROGRAMAS_LIST_ROLES,
+    PLANES_WRITE_ROLES,
+    TV_CONTROL_ROLES,
+    CHECKIN_ROSTER_ROLES,
+    STAFF_ATTENDANCE_ROLES,
+    STAFF_ATTENDANCE_REPORT_ROLES,
+  };
+
+  it.each(Object.entries(ENTRA))(
+    "inversor ∈ %s (hereda la superficie de gestion)",
+    (_name, set) => {
+      expect([...(set as readonly string[])]).toContain(INVERSOR_ROLE);
+    },
+  );
+
+  it.each(Object.entries(NO_ENTRA))(
+    "inversor ∉ %s (dueño / entrenamiento / jornada / TV)",
+    (_name, set) => {
+      expect([...(set as readonly string[])]).not.toContain(INVERSOR_ROLE);
+    },
+  );
+
+  it("PROGRAMAS_LIST_ROLES deja de coincidir en valor con FINANCE_WRITE_ROLES", () => {
+    // Eran byte-idénticos hasta 2026-09-08. `inversor` rompe la coincidencia a
+    // propósito: entra en finanzas, NO en Programas.
+    expect([...FINANCE_WRITE_ROLES]).toContain(INVERSOR_ROLE);
+    expect([...PROGRAMAS_LIST_ROLES]).not.toContain(INVERSOR_ROLE);
   });
 });
