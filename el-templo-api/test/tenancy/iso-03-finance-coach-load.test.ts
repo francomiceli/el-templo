@@ -34,7 +34,7 @@
  *   POST   /api/admin/finance/expenses/:id/void
  *
  * Con las 14 del `iso-03-finance-cajas.test.ts` y las 13 del
- * `iso-03-finance-transacciones.test.ts`, la bateria cierra las 44 rutas
+ * `iso-03-finance-transacciones.test.ts`, la bateria cierra las 50 rutas
  * `tenant-scoped` de finance del manifiesto (14 + 13 + 11).
  *
  * EL CONTRATO QUE SE AFIRMA (D-09, para TODO el milestone)
@@ -1920,5 +1920,77 @@ describe("anulacion de egreso — POST /api/admin/finance/expenses/:id/void (act
       await saldoDeLaCaja(dos.cajaId),
       `${RUTA} anulo el egreso propio pero no le devolvio la plata a la caja.`,
     ).toBe(saldoAntes + MONTO_EGRESO_DOS);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Arqueo del profe (feedback 2026-09-08): el coach solo ve/arquea el cajon
+// de SUS sedes. `requireBranchAccess` corta la sede ajena en el preHandler.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("esperado en el cajon del profe — GET /api/admin/finance/coach-load/caja-expected (actor: COACH, rol minimo real)", () => {
+  const RUTA = "GET /api/admin/finance/coach-load/caja-expected";
+
+  it("aislamiento: pidiendo por una sede de El Templo no ve ningun cajon", async () => {
+    const res = await getComoGimnasioDos(
+      `/coach-load/caja-expected?branchId=${templo.branchId}`,
+      gym2.coachToken,
+    );
+    expect(
+      [403, 404],
+      porQueImportaLaLectura(
+        RUTA,
+        `el cajon de la sede ${templo.branchId} de El Templo (status ${res.statusCode}): ${res.body}`,
+      ),
+    ).toContain(res.statusCode);
+  });
+
+  it("control: con su propia sede SI ve el esperado y su cobro", async () => {
+    const res = await getComoGimnasioDos(
+      `/coach-load/caja-expected?branchId=${gym2.branchId}`,
+      gym2.coachToken,
+    );
+    expect(res.statusCode, porQueImportaElControl(RUTA) + ` ${res.body}`).toBe(200);
+    const cuerpo = JSON.parse(res.body) as {
+      cashRegisterId: number;
+      expectedAmount: number;
+      paymentsSinceLastCount: Array<{ id: number }>;
+    };
+    expect(cuerpo.cashRegisterId).toBe(dos.cajaId);
+    expect(cuerpo.paymentsSinceLastCount.map((p) => p.id)).toContain(dos.transactionId);
+  });
+});
+
+describe("cierre de caja del profe — POST /api/admin/finance/coach-load/cash-count (actor: COACH, rol minimo real)", () => {
+  const RUTA = "POST /api/admin/finance/coach-load/cash-count";
+
+  it("aislamiento: no puede arquear una sede de El Templo, y no nace ningun arqueo", async () => {
+    const res = await postComoGimnasioDos("/coach-load/cash-count", gym2.coachToken, {
+      branchId: templo.branchId,
+      countedAmount: 0,
+      notes: "x",
+    });
+    expect(
+      [403, 404],
+      porQueImportaLaEscritura(
+        RUTA,
+        `arqueara la sede ${templo.branchId} de El Templo (status ${res.statusCode}): ${res.body}`,
+      ),
+    ).toContain(res.statusCode);
+    const filas = await consultar<{ n: number }>(
+      sql`SELECT COUNT(*) AS n FROM cash_counts WHERE tenant_id = ${TENANT_TEMPLO}`,
+    );
+    expect(Number(filas[0]?.n ?? 0), `${RUTA} escribio un arqueo en El Templo.`).toBe(0);
+  });
+
+  it("control: con su propia sede SI registra el arqueo", async () => {
+    const res = await postComoGimnasioDos("/coach-load/cash-count", gym2.coachToken, {
+      branchId: gym2.branchId,
+      countedAmount: 0,
+      notes: "control ISO03",
+    });
+    expect(res.statusCode, porQueImportaElControl(RUTA) + ` ${res.body}`).toBe(201);
+    const cuerpo = JSON.parse(res.body) as { cashCount: { cashRegisterId: number } };
+    expect(cuerpo.cashCount.cashRegisterId).toBe(dos.cajaId);
   });
 });

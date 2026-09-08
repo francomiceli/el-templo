@@ -518,6 +518,8 @@ export interface CajaSaldoRow {
   currency: string;
   firmeBalance: number;
   pendienteAmount: number;
+  /** Arqueo (2026-09-08): fondo de cambio fijo de la caja (0 en banco). */
+  changeFund: number;
   /**
    * Movimiento firme del período pedido (UAT caja/cobros 2026-07-21). null
    * cuando la consulta no pidió rango — el saldo sigue siendo el acumulado
@@ -771,4 +773,81 @@ export interface IncomeByBranchRow {
   currency: string;
   byMethod: Record<PaymentMethod, number>;
   total: number;
+}
+
+// -- Arqueos de caja (feedback 2026-09-08, brief de Nacho / opción A) --------
+// Un arqueo es una observación: cuánto esperaba el sistema en el cajón y cuánto
+// había. No toca el ledger. Ver cash-count-service.ts.
+
+/** Cobro en efectivo cargado desde el último arqueo (lo "nuevo" del turno). */
+export interface CashCountPaymentItem {
+  id: number;
+  transactionDate: string;
+  createdAt: string; // ISO, hora real de carga
+  memberName: string;
+  amount: number;
+  currency: string;
+  concept: string | null;
+  validationStatus: ValidationStatus;
+  recorderName: string;
+}
+
+export interface CashCountSummary {
+  id: number;
+  countedAt: string; // ISO
+  countedBy: number;
+  counterName: string;
+  expectedAmount: number;
+  countedAmount: number;
+  difference: number;
+  notes: string | null;
+}
+
+/** Lo que ve el profe antes de contar. */
+export interface CashCountExpected {
+  cashRegisterId: number;
+  cashRegisterName: string;
+  branchId: number | null;
+  currency: string;
+  changeFund: number;
+  firmeAmount: number;
+  pendienteAmount: number;
+  /** changeFund + firme + pendiente: lo que debería haber en el cajón. */
+  expectedAmount: number;
+  lastCount: CashCountSummary | null;
+  /** Cobros en efectivo cargados desde lastCount (o todos si nunca se contó). */
+  paymentsSinceLastCount: CashCountPaymentItem[];
+  paymentsSinceLastCountTotal: number;
+}
+
+export interface RegisterCashCountInput {
+  cajaId: number;
+  countedAmount: number;
+  notes?: string | null;
+  /** Jornada de Mi jornada en la que se contó (check-out). Opcional. */
+  staffShiftId?: number;
+}
+
+export interface CashCountListFilters {
+  cashRegisterId?: number;
+  branchId?: number;
+  country?: CountryCode;
+  isOwner: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface CashCountListItem extends CashCountSummary {
+  cashRegisterId: number;
+  cashRegisterName: string;
+  branchId: number | null;
+  branchName: string | null;
+  currency: string;
+  changeFund: number;
+  firmeAmount: number;
+  pendienteAmount: number;
+  paymentsCount: number;
+  staffShiftId: number | null;
 }

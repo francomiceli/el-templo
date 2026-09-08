@@ -603,6 +603,10 @@ export async function limpiarFinanzasDeLaBateria(
     );
   // Del gimnasio 2 se van TODAS las cajas (las borra igual
   // `limpiarSegundoGimnasio`, pero esta funcion tiene que poder correr sola).
+  // Arqueos (0225): FK a cash_registers, se van antes que las cajas.
+  await app.db
+    .delete(schema.cashCounts)
+    .where(tenantWhere(schema.cashCounts, CTX_DOS));
   await app.db
     .delete(schema.cashRegisters)
     .where(tenantWhere(schema.cashRegisters, CTX_DOS));

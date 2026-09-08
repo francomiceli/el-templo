@@ -557,6 +557,8 @@ export interface CajaSaldoRow {
   currency: string;
   firmeBalance: number;
   pendienteAmount: number;
+  /** Arqueo (2026-09-08): fondo de cambio fijo de la caja (0 en banco). */
+  changeFund: number;
   /** Movimiento firme del período pedido; null si la consulta no pidió rango. */
   period: CajaPeriodMovement | null;
 }
@@ -877,4 +879,75 @@ export interface IncomeByBranchRow {
   currency: string;
   byMethod: Record<PaymentMethod, number>;
   total: number;
+}
+
+// -- Arqueos / cierre de caja (feedback 2026-09-08, opción A) ----------------
+// Mirror de el-templo-api/src/modules/finance/types.ts. Un arqueo es una
+// observación (esperado vs contado); no toca el ledger.
+
+export interface CashCountPaymentItem {
+  id: number;
+  transactionDate: string;
+  createdAt: string;
+  memberName: string;
+  amount: number;
+  currency: string;
+  concept: string | null;
+  validationStatus: ValidationStatus;
+  recorderName: string;
+}
+
+export interface CashCountSummary {
+  id: number;
+  countedAt: string;
+  countedBy: number;
+  counterName: string;
+  expectedAmount: number;
+  countedAmount: number;
+  difference: number;
+  notes: string | null;
+}
+
+export interface CashCountExpected {
+  cashRegisterId: number;
+  cashRegisterName: string;
+  branchId: number | null;
+  currency: string;
+  changeFund: number;
+  firmeAmount: number;
+  pendienteAmount: number;
+  expectedAmount: number;
+  lastCount: CashCountSummary | null;
+  paymentsSinceLastCount: CashCountPaymentItem[];
+  paymentsSinceLastCountTotal: number;
+}
+
+export interface CashCountListItem extends CashCountSummary {
+  cashRegisterId: number;
+  cashRegisterName: string;
+  branchId: number | null;
+  branchName: string | null;
+  currency: string;
+  changeFund: number;
+  firmeAmount: number;
+  pendienteAmount: number;
+  paymentsCount: number;
+  staffShiftId: number | null;
+}
+
+export interface CashCountListParams {
+  cashRegisterId?: number;
+  branchId?: number;
+  country?: 'AR' | 'ES';
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface RegisterCashCountInput {
+  cajaId: number;
+  countedAmount: number;
+  notes?: string | null;
+  staffShiftId?: number;
 }

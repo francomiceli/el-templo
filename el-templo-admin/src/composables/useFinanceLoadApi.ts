@@ -19,7 +19,12 @@
 import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
-import type { TransactionListItem, PaymentMethod } from 'src/types/transaction';
+import type {
+  TransactionListItem,
+  PaymentMethod,
+  CashCountExpected,
+  CashCountListItem,
+} from 'src/types/transaction';
 import type { PaginatedResult } from 'src/types/report';
 
 // -- Request / response shapes (mirror coach-load-routes.ts) -----------------
@@ -347,6 +352,50 @@ export function useFinanceLoadApi() {
     error.value = null;
   }
 
+  /**
+   * Arqueo (2026-09-08): lo que debería haber en el cajón de la caja de
+   * efectivo de la sede (fondo + firme + pendiente) y los cobros desde el
+   * último cierre. GET /coach-load/caja-expected — gated a las sedes del coach.
+   */
+  async function getCajaExpected(branchId: number): Promise<CashCountExpected> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<CashCountExpected>('/admin/finance/coach-load/caja-expected', {
+        params: { branchId },
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo cargar la caja');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** Arqueo (2026-09-08): registrar el conteo. POST /coach-load/cash-count. */
+  async function registerCashCount(body: {
+    branchId: number;
+    countedAmount: number;
+    notes?: string;
+    staffShiftId?: number;
+  }): Promise<CashCountListItem> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ cashCount: CashCountListItem }>(
+        '/admin/finance/coach-load/cash-count',
+        body
+      );
+      return data.cashCount;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo registrar el cierre de caja');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   return {
     loading,
     error,
@@ -357,6 +406,9 @@ export function useFinanceLoadApi() {
     listMyLoads,
     listBankAccounts,
     getCajaEfectivo,
+    // Arqueo del profe (2026-09-08):
+    getCajaExpected,
+    registerCashCount,
     cleanup,
   };
 }

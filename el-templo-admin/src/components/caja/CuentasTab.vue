@@ -30,6 +30,23 @@
           {{ formatPrice(cellProps.row.firmeBalance, cellProps.row.currency) }}
         </q-td>
       </template>
+      <template #body-cell-changeFund="cellProps">
+        <q-td :props="cellProps">
+          {{ formatPrice(cellProps.row.changeFund, cellProps.row.currency) }}
+          <q-btn
+            v-if="canManage"
+            flat
+            dense
+            round
+            size="sm"
+            icon="edit"
+            color="primary"
+            @click="editChangeFund(cellProps.row)"
+          >
+            <q-tooltip>Editar fondo de cambio</q-tooltip>
+          </q-btn>
+        </q-td>
+      </template>
       <template #body-cell-actions="cellProps">
         <q-td :props="cellProps">
           <q-btn
@@ -339,8 +356,40 @@ const cajaColumns: QTableColumn<CajaSaldoRow>[] = [
   { name: 'name', label: 'Caja', field: 'name', align: 'left' },
   { name: 'currency', label: 'Moneda', field: 'currency', align: 'left' },
   { name: 'firmeBalance', label: 'Saldo firme', field: 'firmeBalance', align: 'left' },
+  // Arqueo (2026-09-08): fondo fijo que se queda en el cajón (entra al esperado
+  // del cierre, nunca al retiro). Editable por admin/owner.
+  { name: 'changeFund', label: 'Fondo de cambio', field: 'changeFund', align: 'left' },
   { name: 'actions', label: '', field: 'cashRegisterId', align: 'right' },
 ];
+
+function editChangeFund(caja: CajaSaldoRow) {
+  $q.dialog({
+    title: `Fondo de cambio · ${caja.name}`,
+    message:
+      'Plata fija que queda siempre en el cajón para dar vuelto. Entra al esperado del cierre de caja y nunca al retiro.',
+    prompt: {
+      model: String(caja.changeFund),
+      type: 'number',
+      isValid: (v: string) => Number.isInteger(Number(v)) && Number(v) >= 0,
+    },
+    cancel: true,
+    persistent: true,
+  }).onOk((value: string) => {
+    void saveChangeFund(caja.cashRegisterId, Number(value));
+  });
+}
+
+async function saveChangeFund(cashRegisterId: number, amount: number) {
+  try {
+    await transactionsApi.setChangeFund(cashRegisterId, amount);
+    $q.notify({ type: 'positive', message: 'Fondo de cambio actualizado' });
+    await loadCajas();
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error actualizando el fondo de cambio');
+    log.error('Error setting change fund', { error: message });
+    $q.notify({ type: 'negative', message });
+  }
+}
 
 async function loadCajas() {
   loadingCajas.value = true;

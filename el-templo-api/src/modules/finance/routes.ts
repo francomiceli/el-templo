@@ -21,6 +21,7 @@ import {
   CashRegisterService,
   MovementService,
   WithdrawalService,
+  CashCountService,
 } from ".";
 import { SubscriptionService } from "../subscriptions/service";
 import { EnrollmentService } from "../programs/enrollment-service";
@@ -59,6 +60,10 @@ import {
   listWithdrawalsSchema,
   withdrawalByIdSchema,
   incomeByBranchSchema,
+  cashCountExpectedSchema,
+  registerCashCountSchema,
+  listCashCountsSchema,
+  setChangeFundSchema,
 } from "./schemas";
 import {
   FINANCE_READ_ROLES,
@@ -84,6 +89,8 @@ import type {
   FinanceSummaryFilters,
   RegisterWithdrawalInput,
   WithdrawalListFilters,
+  RegisterCashCountInput,
+  CashCountListFilters,
   PaymentMethod,
   TransactionKind,
   TransactionListFilters,
@@ -131,6 +138,12 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.db,
     fastify.log,
     transactionService,
+  );
+  // Arqueos (2026-09-08): conteo físico vs esperado, no toca el ledger.
+  const cashCountService = new CashCountService(
+    fastify.db,
+    fastify.log,
+    cashRegisterService,
   );
 
   // Phase 139: resolve the country a caja belongs to via its branch. Returns
@@ -915,6 +928,154 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(201).send({ withdrawal });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "register withdrawal");
+      }
+    },
+  );
+
+  // ===================================================================
+  // Arqueos / cierre de caja (feedback 2026-09-08). Gestión/admin/owner desde
+  // /caja; el profe entra por coach-load (caja-expected / cash-count).
+  // ===================================================================
+
+  fastify.get<{ Querystring: { cashRegisterId: number } }>(
+    "/cash-counts/expected",
+    { schema: cashCountExpectedSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "finance.cash-counts.expected");
+        const scopeErr = await enforceCajaScope(
+          ctx,
+          request.query.cashRegisterId,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        return await cashCountService.getExpected(ctx, request.query.cashRegisterId);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "cash count expected");
+        return reply;
+      }
+    },
+  );
+
+  fastify.get<{
+    Querystring: {
+      cashRegisterId?: number;
+      branchId?: number;
+      country?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>("/cash-counts", { schema: listCashCountsSchema }, async (request, reply) => {
+    try {
+      let country: string | undefined;
+      if (request.scope.isOwner) {
+        country = request.query.country
+          ? request.query.country.toUpperCase()
+          : undefined;
+      } else {
+        country = request.scope.country ?? undefined;
+      }
+      const filters: CashCountListFilters = {
+        cashRegisterId: request.query.cashRegisterId,
+        branchId: request.query.branchId,
+        country: country as CashCountListFilters["country"],
+        isOwner: request.scope.isOwner,
+        dateFrom: request.query.dateFrom,
+        dateTo: request.query.dateTo,
+        page: request.query.page,
+        limit: request.query.limit,
+      };
+      return await cashCountService.list(
+        assertTenant(request.scope, "finance.cash-counts.list"),
+        filters,
+      );
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "cash counts list");
+      return reply;
+    }
+  });
+
+  fastify.post<{ Body: RegisterCashCountInput }>(
+    "/cash-counts",
+    { schema: registerCashCountSchema },
+    async (request, reply) => {
+      try {
+        if (
+          !(FINANCE_VOID_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para registrar arqueos",
+          });
+        }
+        const ctx = assertTenant(request.scope, "finance.cash-counts.create");
+        const scopeErr = await enforceCajaScope(
+          ctx,
+          request.body.cajaId,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        const cashCount = await cashCountService.registerCount(
+          ctx,
+          {
+            cajaId: request.body.cajaId,
+            countedAmount: request.body.countedAmount,
+            notes: request.body.notes ?? null,
+            staffShiftId: request.body.staffShiftId,
+          },
+          request.user.userId,
+        );
+        return reply.code(201).send({ cashCount });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "register cash count");
+      }
+    },
+  );
+
+  // Fondo de cambio de una caja de efectivo. ADMIN_ROLES como el resto del ABM.
+  fastify.patch<{ Params: { id: number }; Body: { amount: number } }>(
+    "/cash-registers/:id/change-fund",
+    { schema: setChangeFundSchema },
+    async (request, reply) => {
+      try {
+        if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo admin/owner puede definir el fondo de cambio",
+          });
+        }
+        const ctx = assertTenant(request.scope, "finance.cash-registers.change-fund");
+        const scopeErr = await enforceCajaScope(
+          ctx,
+          request.params.id,
+          request.scope.isOwner,
+          request.scope.country ?? null,
+        );
+        if (scopeErr) {
+          return reply
+            .code(scopeErr.code)
+            .send({ error: "No encontrado", message: scopeErr.message });
+        }
+        const result = await cashRegisterService.setChangeFund(
+          ctx,
+          request.params.id,
+          request.body.amount,
+        );
+        return reply.send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "set change fund");
       }
     },
   );

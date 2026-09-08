@@ -420,6 +420,10 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM user_branches WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Arqueos (0225): FK a users y cash_registers, se van antes.
+  await app.db.execute(
+    sql`DELETE FROM cash_counts WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(sql`DELETE FROM users WHERE tenant_id = ${TENANT_DOS}`);
   // Defensivo (WR-02): el fixture NO siembra cajas, pero una bateria de finance
   // puede crear la suya via `ensureEfectivoCaja(app, gym2.branchId, "ARS",

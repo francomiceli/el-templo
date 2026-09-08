@@ -13,7 +13,7 @@
  * Es ademas la PLANTILLA que copian las fases 173-175, asi que su forma importa
  * tanto como su cobertura.
  *
- * QUE RUTAS CUBRE (19 de las 44 finance del manifiesto)
+ * QUE RUTAS CUBRE (23 de las 50 finance del manifiesto)
  * ----------------------------------------------------
  * El grupo "cajas y centros de costo" de `test/tenant-manifest.ts`:
  *
@@ -39,8 +39,15 @@
  *   GET    /api/admin/finance/withdrawals/:id
  *   GET    /api/admin/finance/withdrawals/responsibles
  *
- * Las otras 25 estan en `iso-03-finance-transacciones.test.ts` (14, plan 172-18
- * + income-by-branch) y `iso-03-finance-coach-load.test.ts` (11, plan 172-19).
+ * Arqueos / fondo de cambio (feedback 2026-09-08, 4 rutas):
+ *   GET    /api/admin/finance/cash-counts/expected
+ *   POST   /api/admin/finance/cash-counts
+ *   GET    /api/admin/finance/cash-counts
+ *   PATCH  /api/admin/finance/cash-registers/:id/change-fund
+ *
+ * Las otras 27 estan en `iso-03-finance-transacciones.test.ts` (14, plan 172-18
+ * + income-by-branch) y `iso-03-finance-coach-load.test.ts` (13, plan 172-19
+ * + arqueo del profe).
  *
  * EL CONTRATO QUE SE AFIRMA (D-09, para TODO el milestone)
  * -------------------------------------------------------
@@ -1415,5 +1422,165 @@ describe("responsables sugeridos — GET /api/admin/finance/withdrawals/responsi
     const nombres = JSON.parse(res.body) as string[];
     expect(nombres, porQueImportaElControl(RUTA, dos.cajaId)).toContain(RESPONSABLE_DOS);
     expect(nombres).toContain("Admin Gimnasio Dos");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Arqueos / cierre de caja + fondo de cambio (feedback 2026-09-08) — 4 rutas
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function registrarArqueoPropio(countedAmount: number, notes?: string) {
+  const res = await escribirComoGimnasioDos("POST", "/cash-counts", {
+    cajaId: dos.cajaId,
+    countedAmount,
+    ...(notes ? { notes } : {}),
+  });
+  expect(
+    res.statusCode,
+    `POST /cash-counts (control) fallo para el gimnasio ${TENANT_DOS}: ${res.body}`,
+  ).toBe(201);
+  return (JSON.parse(res.body) as { cashCount: { id: number; difference: number } }).cashCount;
+}
+
+describe("esperado en el cajon para el arqueo — GET /api/admin/finance/cash-counts/expected", () => {
+  const RUTA = "GET /api/admin/finance/cash-counts/expected";
+
+  it("aislamiento: el cajon de una caja de El Templo no existe para el gimnasio 2", async () => {
+    const res = await getComoGimnasioDos(`/cash-counts/expected?cashRegisterId=${templo.cajaId}`);
+    expect(
+      res.statusCode,
+      `${RUTA} le mostro al gimnasio ${TENANT_DOS} el esperado de la caja ${templo.cajaId} de ` +
+        `El Templo (o contesto algo distinto de "no existe"). Respuesta: ${res.body}`,
+    ).toBe(404);
+  });
+
+  it("control: SI calcula el esperado de la caja propia con su cobro", async () => {
+    const res = await getComoGimnasioDos(`/cash-counts/expected?cashRegisterId=${dos.cajaId}`);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const cuerpo = JSON.parse(res.body) as {
+      expectedAmount: number;
+      paymentsSinceLastCount: Array<{ id: number }>;
+    };
+    expect(cuerpo.expectedAmount, porQueImportaElControl(RUTA, dos.cajaId)).toBe(IMPORTE_SEMBRADO);
+    expect(cuerpo.paymentsSinceLastCount.map((p) => p.id)).toContain(dos.transactionId);
+  });
+});
+
+describe("alta de arqueo — POST /api/admin/finance/cash-counts", () => {
+  const RUTA = "POST /api/admin/finance/cash-counts";
+
+  it("aislamiento: no puede arquear una caja de El Templo", async () => {
+    const res = await escribirComoGimnasioDos("POST", "/cash-counts", {
+      cajaId: templo.cajaId,
+      countedAmount: 0,
+      notes: "x",
+    });
+    expect(
+      res.statusCode,
+      `${RUTA} dejo al gimnasio ${TENANT_DOS} arquear la caja ${templo.cajaId} de El Templo. ` +
+        `Respuesta: ${res.body}`,
+    ).toBe(404);
+    const [fila] = await app.db
+      .select({ n: sql<number>`COUNT(*)` })
+      .from(schema.cashCounts)
+      .where(tenantWhere(schema.cashCounts, { tenantId: TENANT_TEMPLO }));
+    expect(Number(fila?.n ?? 0), `${RUTA} escribio un arqueo en El Templo.`).toBe(0);
+  });
+
+  it("control: SI registra el arqueo propio, con la diferencia contra el esperado", async () => {
+    const arqueo = await registrarArqueoPropio(IMPORTE_SEMBRADO - 100, "faltan 100");
+    expect(arqueo.difference).toBe(-100);
+    const [fila] = await app.db
+      .select({ tenantId: schema.cashCounts.tenantId })
+      .from(schema.cashCounts)
+      .where(
+        and(
+          tenantWhere(schema.cashCounts, { tenantId: TENANT_DOS }),
+          eq(schema.cashCounts.id, arqueo.id),
+        ),
+      )
+      .limit(1);
+    expect(fila?.tenantId, `${RUTA} estampo el arqueo en otro gimnasio.`).toBe(TENANT_DOS);
+  });
+});
+
+describe("historial de arqueos — GET /api/admin/finance/cash-counts", () => {
+  const RUTA = "GET /api/admin/finance/cash-counts";
+
+  it("aislamiento: no devuelve arqueos de El Templo", async () => {
+    // Arqueo de El Templo escrito a mano (no via la ruta bajo prueba).
+    const [ajeno] = await app.db
+      .insert(schema.cashCounts)
+      .values(
+        tenantValues(
+          { tenantId: TENANT_TEMPLO },
+          {
+            cashRegisterId: templo.cajaId,
+            countedBy: await idDelAdminDeElTemplo(),
+            changeFund: 0,
+            firmeAmount: 1,
+            pendienteAmount: 0,
+            expectedAmount: 1,
+            countedAmount: 1,
+            difference: 0,
+          },
+        ),
+      )
+      .$returningId();
+    await registrarArqueoPropio(IMPORTE_SEMBRADO);
+    const res = await getComoGimnasioDos("/cash-counts?limit=200");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const cuerpo = JSON.parse(res.body) as { rows: Array<{ id: number; cashRegisterId: number }> };
+    expect(cuerpo.rows.map((r) => r.id), porQueImportaElListado(RUTA, ajeno.id)).not.toContain(
+      ajeno.id,
+    );
+    expect(cuerpo.rows.map((r) => r.cashRegisterId)).not.toContain(templo.cajaId);
+  });
+
+  it("control: SI devuelve el arqueo propio", async () => {
+    const propio = await registrarArqueoPropio(IMPORTE_SEMBRADO);
+    const res = await getComoGimnasioDos("/cash-counts?limit=200");
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const cuerpo = JSON.parse(res.body) as { rows: Array<{ id: number }> };
+    expect(cuerpo.rows.map((r) => r.id), porQueImportaElControl(RUTA, propio.id)).toContain(
+      propio.id,
+    );
+  });
+});
+
+describe("fondo de cambio — PATCH /api/admin/finance/cash-registers/:id/change-fund", () => {
+  const RUTA = "PATCH /api/admin/finance/cash-registers/:id/change-fund";
+
+  it("aislamiento: no puede fijar el fondo de una caja de El Templo, y la fila queda intacta", async () => {
+    const res = await escribirComoGimnasioDos("PATCH", `/cash-registers/${templo.cajaId}/change-fund`, {
+      amount: 999,
+    });
+    expect(
+      res.statusCode,
+      `${RUTA} dejo al gimnasio ${TENANT_DOS} tocar la caja ${templo.cajaId} de El Templo. ` +
+        `Respuesta: ${res.body}`,
+    ).toBe(404);
+    const [fila] = await app.db
+      .select({ changeFund: schema.cashRegisters.changeFund })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, { tenantId: TENANT_TEMPLO }),
+          eq(schema.cashRegisters.id, templo.cajaId),
+        ),
+      )
+      .limit(1);
+    expect(fila?.changeFund, `${RUTA} modifico el fondo de la caja ajena.`).toBe(0);
+  });
+
+  it("control: SI fija el fondo de la caja propia y el esperado lo incluye", async () => {
+    const res = await escribirComoGimnasioDos("PATCH", `/cash-registers/${dos.cajaId}/change-fund`, {
+      amount: 20000,
+    });
+    expect(res.statusCode, porQueImportaElControl(RUTA, dos.cajaId) + ` ${res.body}`).toBe(200);
+    const esperado = await getComoGimnasioDos(`/cash-counts/expected?cashRegisterId=${dos.cajaId}`);
+    const cuerpo = JSON.parse(esperado.body) as { changeFund: number; expectedAmount: number };
+    expect(cuerpo.changeFund).toBe(20000);
+    expect(cuerpo.expectedAmount).toBe(20000 + IMPORTE_SEMBRADO);
   });
 });

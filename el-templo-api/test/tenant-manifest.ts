@@ -120,6 +120,18 @@
 //   ─────────────────────────
 //   TOTAL          400 → 405   (+5)
 //
+// 2026-09-08 — **429 rutas**: arqueo / cierre de caja del profe (brief de
+// Nacho, opción A): `coach-load/caja-expected` + `coach-load/cash-count` (el
+// profe), `cash-counts` ×3 (gestión: historial, esperado, alta) y
+// `cash-registers/:id/change-fund` (fondo de cambio, admin/owner). Las 6 son
+// `tenant-scoped` (assertTenant + enforceCajaScope / requireBranchAccess).
+//
+//   tenant-scoped  +6   (las rutas nuevas)
+//   templo-module  sin cambio
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          423 → 429   (+6)
+//
 // 2026-09-07 — **418 rutas**: feedback de caja/cobros (Martín) agregó los
 // retiros de caja (`/api/admin/finance/withdrawals` ×5: pending,
 // responsibles, listado, detalle, alta) e `income-by-branch` (ingresos por
@@ -387,6 +399,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/finance/coach-load/caja-efectivo": {
     categoria: "tenant-scoped",
   },
+  // Arqueo del profe (2026-09-08): esperado en el cajón + registro del conteo.
+  "GET /api/admin/finance/coach-load/caja-expected": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/finance/coach-load/cash-count": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/finance/coach-load/mis-cargas": {
     categoria: "tenant-scoped",
   },
@@ -437,6 +456,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "POST /api/admin/finance/withdrawals": { categoria: "tenant-scoped" },
+  // Arqueos (2026-09-08): historial, esperado, alta (gestión) y fondo de cambio.
+  "GET /api/admin/finance/cash-counts": { categoria: "tenant-scoped" },
+  "GET /api/admin/finance/cash-counts/expected": { categoria: "tenant-scoped" },
+  "POST /api/admin/finance/cash-counts": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/finance/cash-registers/:id/change-fund": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/finance/transactions/income-by-branch": {
     categoria: "tenant-scoped",
   },

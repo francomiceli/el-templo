@@ -278,7 +278,10 @@ import {
 // `POST /check-out`, `GET /shifts`, las 4 `tenant-scoped`.
 // 2026-09-07: 417 -> 423 por los retiros de caja (`/api/admin/finance/withdrawals`
 // ×5) e `income-by-branch` (feedback caja/cobros), todas `tenant-scoped`.
-const ENTRADAS_BASELINE = 423;
+// 2026-09-08: 423 -> 429 por el arqueo / cierre de caja (`coach-load/caja-expected`,
+// `coach-load/cash-count`, `cash-counts` ×3, `cash-registers/:id/change-fund`),
+// todas `tenant-scoped`.
+const ENTRADAS_BASELINE = 429;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -421,7 +424,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 423 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 429 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

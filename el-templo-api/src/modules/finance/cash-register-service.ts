@@ -441,6 +441,7 @@ export class CashRegisterService {
         type: schema.cashRegisters.type,
         branchId: schema.cashRegisters.branchId,
         currency: schema.cashRegisters.currency,
+        changeFund: schema.cashRegisters.changeFund,
         branchCountry: schema.branches.country,
       })
       .from(schema.cashRegisters)
@@ -481,6 +482,7 @@ export class CashRegisterService {
         currency: c.currency,
         firmeBalance: bal.firmeBalance,
         pendienteAmount: bal.pendienteAmount,
+        changeFund: c.changeFund,
         period: period
           ? await this.getPeriodMovement(
               ctx,
@@ -765,6 +767,45 @@ export class CashRegisterService {
 
   // -- Phase 150: ABM de cuentas bancarias (CTA-01 / CTA-02) -----------------
 
+  /**
+   * Arqueo (2026-09-08): fondo de cambio de una caja de EFECTIVO. Admin/owner.
+   * Un banco no tiene cajón → 400.
+   */
+  async setChangeFund(
+    ctx: TenantContext,
+    cashRegisterId: number,
+    amount: number,
+  ): Promise<{ cashRegisterId: number; changeFund: number }> {
+    if (!Number.isInteger(amount) || amount < 0) {
+      throw new BadRequestError("El fondo de cambio no puede ser negativo");
+    }
+    const [caja] = await this.db
+      .select({ id: schema.cashRegisters.id, type: schema.cashRegisters.type })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, cashRegisterId),
+        ),
+      )
+      .limit(1);
+    if (!caja) throw new NotFoundError("Caja no encontrada");
+    if (caja.type !== "efectivo") {
+      throw new BadRequestError("Solo una caja de efectivo tiene fondo de cambio");
+    }
+    await this.db
+      .update(schema.cashRegisters)
+      .set({ changeFund: amount })
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx),
+          eq(schema.cashRegisters.id, cashRegisterId),
+        ),
+      );
+    this.log.info({ cashRegisterId, changeFund: amount }, "Fondo de cambio actualizado");
+    return { cashRegisterId, changeFund: amount };
+  }
+
   /** YYYY-MM-DD de hoy — cutoff_date de una cuenta banco nueva (D-05). */
   private today(): string {
     return new Date().toISOString().slice(0, 10);
@@ -1036,6 +1077,7 @@ export class CashRegisterService {
       currency: input.currency,
       firmeBalance: bal.firmeBalance,
       pendienteAmount: bal.pendienteAmount,
+      changeFund: 0,
       period: null,
     };
   }

@@ -47,6 +47,10 @@ import type {
   WithdrawalListItem,
   WithdrawalListParams,
   IncomeByBranchRow,
+  CashCountExpected,
+  CashCountListItem,
+  CashCountListParams,
+  RegisterCashCountInput,
 } from 'src/types/transaction';
 import type { PaginatedResult } from 'src/types/report';
 
@@ -998,6 +1002,56 @@ export function useTransactionsApi() {
     }
   }
 
+  // =========================================================================
+  // Arqueos / cierre de caja (2026-09-08). Ver cash-count-service.ts.
+  // =========================================================================
+
+  async function getCashCountExpected(cashRegisterId: number): Promise<CashCountExpected> {
+    const { data } = await api.get<CashCountExpected>('/admin/finance/cash-counts/expected', {
+      params: { cashRegisterId },
+    });
+    return data;
+  }
+
+  async function registerCashCount(input: RegisterCashCountInput): Promise<CashCountListItem> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ cashCount: CashCountListItem }>(
+        '/admin/finance/cash-counts',
+        input
+      );
+      return data.cashCount;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error registrando el arqueo');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function listCashCounts(
+    params: CashCountListParams = {}
+  ): Promise<PaginatedResult<CashCountListItem>> {
+    const { data } = await api.get<PaginatedResult<CashCountListItem>>(
+      '/admin/finance/cash-counts',
+      { params }
+    );
+    return data;
+  }
+
+  /** Fondo de cambio de una caja de efectivo (admin/owner). */
+  async function setChangeFund(
+    cashRegisterId: number,
+    amount: number
+  ): Promise<{ cashRegisterId: number; changeFund: number }> {
+    const { data } = await api.patch<{ cashRegisterId: number; changeFund: number }>(
+      `/admin/finance/cash-registers/${cashRegisterId}/change-fund`,
+      { amount }
+    );
+    return data;
+  }
+
   return {
     loading,
     error,
@@ -1056,6 +1110,11 @@ export function useTransactionsApi() {
     voidExpense,
     // Ingresos por sede y medio de pago (pestaña Saldos):
     getIncomeByBranch,
+    // Arqueos / cierre de caja (2026-09-08):
+    getCashCountExpected,
+    registerCashCount,
+    listCashCounts,
+    setChangeFund,
     cleanup,
   };
 }

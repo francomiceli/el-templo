@@ -1181,3 +1181,67 @@ export const incomeByBranchSchema = {
     500: errorSchema,
   },
 } as const;
+
+// ===========================================================================
+// Arqueos / cierre de caja (feedback 2026-09-08)
+// ===========================================================================
+
+/** GET /cash-counts/expected?cashRegisterId= (gestión). */
+export const cashCountExpectedSchema = {
+  querystring: {
+    type: "object",
+    required: ["cashRegisterId"],
+    properties: { cashRegisterId: { type: "integer", minimum: 1 } },
+    additionalProperties: false,
+  },
+  response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
+} as const;
+
+/** POST /cash-counts (gestión) — el esperado se recalcula en el server. */
+export const registerCashCountSchema = {
+  body: {
+    type: "object",
+    required: ["cajaId", "countedAmount"],
+    properties: {
+      cajaId: { type: "integer", minimum: 1 },
+      countedAmount: { type: "integer", minimum: 0 },
+      notes: { type: ["string", "null"], maxLength: 2000 },
+      staffShiftId: { type: "integer", minimum: 1 },
+    },
+    additionalProperties: false,
+  },
+  response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
+} as const;
+
+/** GET /cash-counts — historial de arqueos. */
+export const listCashCountsSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      cashRegisterId: { type: "integer", minimum: 1 },
+      branchId: { type: "integer", minimum: 1 },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      ...paginationQuerystring,
+    },
+    additionalProperties: false,
+  },
+  response: { 401: errorSchema, 403: errorSchema, 500: errorSchema },
+} as const;
+
+/** PATCH /cash-registers/:id/change-fund — fondo de cambio (admin/owner). */
+export const setChangeFundSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["amount"],
+    properties: { amount: { type: "integer", minimum: 0 } },
+    additionalProperties: false,
+  },
+  response: { 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 500: errorSchema },
+} as const;

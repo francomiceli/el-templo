@@ -28,7 +28,12 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { and, desc, eq, or, sql } from "drizzle-orm";
-import { TransactionService, BalanceService, CashRegisterService } from ".";
+import {
+  TransactionService,
+  BalanceService,
+  CashRegisterService,
+  CashCountService,
+} from ".";
 import { SubscriptionService } from "../subscriptions/service";
 import type { PriceType } from "../subscriptions/types";
 import { MemberService } from "../members/service";
@@ -261,6 +266,12 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     cashRegisterService,
   );
   const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
+  // Arqueo (2026-09-08): cierre de caja del profe al check-out.
+  const cashCountService = new CashCountService(
+    fastify.db,
+    fastify.log,
+    cashRegisterService,
+  );
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
@@ -1107,6 +1118,106 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // efectivo resolvible — la PoS muestra el aviso y el 400 real lo da create()
   // al confirmar ("No existe caja efectivo para la sucursal N").
   // ===================================================================
+  // ===================================================================
+  // Arqueo / cierre de caja del profe (feedback 2026-09-08, opción A).
+  //   GET  /caja-expected?branchId=  → lo que debería haber en el cajón de la
+  //        caja de efectivo de ESA sede (fondo + firme + pendiente) y los
+  //        cobros desde el último arqueo. Gated a las sedes del coach.
+  //   POST /cash-count               → registra el conteo (diferencia → nota).
+  // El profe no elige caja: se resuelve por sede (+ moneda de la sede).
+  // ===================================================================
+  const currencyOfBranch = async (
+    ctx: TenantContext,
+    branchId: number,
+  ): Promise<string> => {
+    const [b] = await fastify.db
+      .select({ country: schema.branches.country })
+      .from(schema.branches)
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+      )
+      .limit(1);
+    return b?.country === "ES" ? "EUR" : "ARS";
+  };
+
+  fastify.get<{ Querystring: { branchId: number } }>(
+    "/caja-expected",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          required: ["branchId"],
+          additionalProperties: false,
+          properties: { branchId: { type: "integer", minimum: 1 } },
+        },
+      },
+      preHandler: [requireBranchAccess({ from: "query.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "coach caja-expected");
+        const cajaId = await cashCountService.resolveCajaForBranch(
+          ctx,
+          request.query.branchId,
+          await currencyOfBranch(ctx, request.query.branchId),
+        );
+        return reply.send(await cashCountService.getExpected(ctx, cajaId));
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "coach caja-expected");
+      }
+    },
+  );
+
+  fastify.post<{
+    Body: {
+      branchId: number;
+      countedAmount: number;
+      notes?: string | null;
+      staffShiftId?: number;
+    };
+  }>(
+    "/cash-count",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["branchId", "countedAmount"],
+          additionalProperties: false,
+          properties: {
+            branchId: { type: "integer", minimum: 1 },
+            countedAmount: { type: "integer", minimum: 0 },
+            notes: { type: ["string", "null"], maxLength: 2000 },
+            staffShiftId: { type: "integer", minimum: 1 },
+          },
+        },
+      },
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "coach cash-count");
+        const cajaId = await cashCountService.resolveCajaForBranch(
+          ctx,
+          request.body.branchId,
+          await currencyOfBranch(ctx, request.body.branchId),
+        );
+        const cashCount = await cashCountService.registerCount(
+          ctx,
+          {
+            cajaId,
+            countedAmount: request.body.countedAmount,
+            notes: request.body.notes ?? null,
+            staffShiftId: request.body.staffShiftId,
+          },
+          request.user.userId,
+        );
+        return reply.code(201).send({ cashCount });
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "coach cash-count");
+      }
+    },
+  );
+
   fastify.get<{ Querystring: { currency: string; branchId: number } }>(
     "/caja-efectivo",
     {

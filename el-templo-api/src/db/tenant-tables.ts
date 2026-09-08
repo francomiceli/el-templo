@@ -586,6 +586,7 @@ export function isPlatformPhysicalTable(name: string): boolean {
 export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   finance: [
     "balances",
+    "cash_counts",
     "cash_registers",
     "cost_centers",
     "debt_management",

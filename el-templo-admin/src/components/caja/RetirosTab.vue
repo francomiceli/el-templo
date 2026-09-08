@@ -92,6 +92,82 @@
       </q-slide-transition>
     </q-card>
 
+    <!-- ============================ Arqueos ============================ -->
+    <q-card v-if="selectedCaja && selectedCaja.type === 'efectivo'" flat bordered class="q-mb-lg">
+      <q-card-section class="row items-center">
+        <div class="col">
+          <div class="text-subtitle2 text-grey-7">Último cierre de caja</div>
+          <template v-if="lastCount">
+            <div class="text-body1 q-mt-xs">
+              {{ formatDateTime(lastCount.countedAt) }} · {{ lastCount.counterName }}
+            </div>
+            <div class="text-caption text-grey-7">
+              Esperado {{ formatPrice(lastCount.expectedAmount, lastCount.currency) }} · contado
+              {{ formatPrice(lastCount.countedAmount, lastCount.currency) }} ·
+              <span
+                :class="lastCount.difference === 0 ? 'text-positive' : 'text-negative text-weight-bold'"
+              >
+                {{
+                  lastCount.difference === 0
+                    ? 'sin diferencia'
+                    : `diferencia ${lastCount.difference > 0 ? '+' : '-'}${formatPrice(Math.abs(lastCount.difference), lastCount.currency)}`
+                }}
+              </span>
+              <span v-if="lastCount.notes"> · {{ lastCount.notes }}</span>
+            </div>
+          </template>
+          <div v-else class="text-caption text-grey-6 q-mt-xs">
+            Esta caja todavía no tiene cierres. Fondo de cambio:
+            {{ formatPrice(selectedCaja.changeFund, selectedCaja.currency) }}.
+          </div>
+        </div>
+        <q-btn
+          flat
+          dense
+          no-caps
+          color="primary"
+          icon="point_of_sale"
+          label="Cerrar caja ahora"
+          @click="showCerrarCaja = true"
+        />
+      </q-card-section>
+      <q-slide-transition>
+        <div v-show="recentCounts.length > 1">
+          <q-separator />
+          <q-table
+            :rows="recentCounts"
+            :columns="countColumns"
+            row-key="id"
+            flat
+            dense
+            hide-bottom
+            :pagination="{ rowsPerPage: 0 }"
+          >
+            <template #body-cell-diferencia="cellProps">
+              <q-td
+                :props="cellProps"
+                :class="cellProps.row.difference === 0 ? 'text-positive' : 'text-negative text-weight-bold'"
+              >
+                {{
+                  cellProps.row.difference === 0
+                    ? '—'
+                    : `${cellProps.row.difference > 0 ? '+' : '-'}${formatPrice(Math.abs(cellProps.row.difference), cellProps.row.currency)}`
+                }}
+              </q-td>
+            </template>
+          </q-table>
+        </div>
+      </q-slide-transition>
+    </q-card>
+
+    <CerrarCajaDialog
+      v-model="showCerrarCaja"
+      mode="gestion"
+      :cash-register-id="selectedCajaId ?? undefined"
+      skip-label="Cancelar"
+      @registered="onCountRegistered"
+    />
+
     <!-- ============================ Historial ============================ -->
     <div class="text-subtitle1 text-weight-medium q-mb-sm">Retiros registrados</div>
     <q-table
@@ -248,6 +324,7 @@ import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import DateRangeFilter from 'src/components/caja/DateRangeFilter.vue';
 import RegistrarRetiroDialog from 'src/components/caja/RegistrarRetiroDialog.vue';
+import CerrarCajaDialog from 'src/components/caja/CerrarCajaDialog.vue';
 import { currentMonthRange, type DateRangeValue } from 'src/utils/date-range';
 import type {
   CajaSaldoRow,
@@ -255,6 +332,7 @@ import type {
   WithdrawalDetail,
   WithdrawalListItem,
   WithdrawalPaymentItem,
+  CashCountListItem,
 } from 'src/types/transaction';
 
 // =========================================================================
@@ -348,6 +426,47 @@ async function loadPending() {
   }
 }
 
+// ---------------------------------------------------------------- arqueos
+const recentCounts = ref<CashCountListItem[]>([]);
+const lastCount = computed(() => recentCounts.value[0] ?? null);
+const showCerrarCaja = ref(false);
+
+const countColumns: QTableColumn<CashCountListItem>[] = [
+  { name: 'fecha', label: 'Cierre', field: (r) => formatDateTime(r.countedAt), align: 'left' },
+  { name: 'quien', label: 'Contó', field: 'counterName', align: 'left' },
+  { name: 'esperado', label: 'Esperado', field: (r) => formatPrice(r.expectedAmount, r.currency), align: 'right' },
+  { name: 'contado', label: 'Contado', field: (r) => formatPrice(r.countedAmount, r.currency), align: 'right' },
+  { name: 'diferencia', label: 'Diferencia', field: 'difference', align: 'right' },
+  { name: 'notas', label: 'Notas', field: (r) => r.notes ?? '', align: 'left' },
+];
+
+async function loadCounts() {
+  if (!selectedCaja.value || selectedCaja.value.type !== 'efectivo') {
+    recentCounts.value = [];
+    return;
+  }
+  try {
+    const res = await transactionsApi.listCashCounts({
+      cashRegisterId: selectedCaja.value.cashRegisterId,
+      country: props.isOwner ? props.selectedCountry : undefined,
+      limit: 5,
+    });
+    recentCounts.value = res.rows;
+  } catch (err: unknown) {
+    log.warn('Error loading cash counts', { error: extractError(err, '') });
+    recentCounts.value = [];
+  }
+}
+
+function onCountRegistered() {
+  void loadCounts();
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString('es-AR')} ${d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 // ---------------------------------------------------------------- historial
 const withdrawals = ref<WithdrawalListItem[]>([]);
 const loadingWithdrawals = ref(false);
@@ -413,14 +532,14 @@ function onDateRangeChange(value: DateRangeValue) {
 function onCajaChange() {
   pagination.value.page = 1;
   showPendingRows.value = false;
-  void Promise.all([loadPending(), loadWithdrawals()]);
+  void Promise.all([loadPending(), loadWithdrawals(), loadCounts()]);
 }
 
 // ---------------------------------------------------------------- alta / detalle / anular
 const showRegistrar = ref(false);
 
 function onRegistered() {
-  void Promise.all([loadPending(), loadWithdrawals(), loadCajas()]);
+  void Promise.all([loadPending(), loadWithdrawals(), loadCajas(), loadCounts()]);
 }
 
 const showDetail = ref(false);
@@ -475,7 +594,7 @@ function formatDate(iso: string): string {
 
 onMounted(async () => {
   await loadCajas();
-  await Promise.all([loadPending(), loadWithdrawals()]);
+  await Promise.all([loadPending(), loadWithdrawals(), loadCounts()]);
 });
 
 watch(
@@ -483,7 +602,7 @@ watch(
   async () => {
     selectedCajaId.value = null;
     await loadCajas();
-    await Promise.all([loadPending(), loadWithdrawals()]);
+    await Promise.all([loadPending(), loadWithdrawals(), loadCounts()]);
   }
 );
 

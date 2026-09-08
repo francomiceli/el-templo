@@ -62,10 +62,32 @@
           @click="startCheckOut"
         />
       </div>
+      <!-- Cierre de caja suelto (2026-09-08): contar sin cerrar la jornada. -->
+      <div v-if="openShift" class="col-12 text-center">
+        <q-btn
+          flat
+          no-caps
+          color="primary"
+          icon="point_of_sale"
+          label="Contar la caja ahora"
+          @click="openCajaSuelta"
+        />
+      </div>
     </div>
 
     <!-- Scanner compartido entre check-in y check-out -->
     <QrScannerDialog v-model="showScanner" :title="scannerTitle" @scanned="onScanned" />
+
+    <!-- Cierre de caja (2026-09-08): antes del checklist, si hay jornada abierta,
+         el profe cuenta el efectivo de la caja de su sede. Se puede saltear. -->
+    <CerrarCajaDialog
+      v-model="showCajaDialog"
+      mode="coach"
+      :branch-id="openShift?.branchId"
+      :staff-shift-id="openShift?.id"
+      @registered="onCajaDone"
+      @skipped="onCajaDone"
+    />
 
     <!-- ================================================================ -->
     <!-- Checklist de cierre (previo a mandar el check-out) -->
@@ -225,6 +247,7 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import { JORNADA_REPORT_ROLES } from 'src/config/templo-config';
 import type { BranchOption } from 'src/types/member';
 import QrScannerDialog from 'src/components/QrScannerDialog.vue';
+import CerrarCajaDialog from 'src/components/caja/CerrarCajaDialog.vue';
 
 const log = createLogger('CheckInPage');
 const $q = useQuasar();
@@ -342,10 +365,30 @@ const allChecklistChecked = computed(() =>
   CHECKLIST_KEYS.every((key) => checklistValues.value[key])
 );
 
+// Cierre de caja (2026-09-08): el QR ya validó que el profe está cerrando su
+// jornada; antes del checklist se le pide contar la caja de la sede. Cancelar
+// o saltear el conteo no cancela el check-out: sigue al checklist.
+const showCajaDialog = ref(false);
+
 function openChecklistDialog(qrToken: string) {
   pendingQrToken.value = qrToken;
   checklistValues.value = { cobros: false, espacio: false, lote: false };
-  showChecklistDialog.value = true;
+  if (openShift.value) {
+    showCajaDialog.value = true;
+  } else {
+    showChecklistDialog.value = true;
+  }
+}
+
+function onCajaDone() {
+  if (pendingQrToken.value) showChecklistDialog.value = true;
+}
+
+// Conteo suelto (sin check-out): mismo diálogo, sin QR pendiente → al cerrar
+// no sigue al checklist.
+function openCajaSuelta() {
+  pendingQrToken.value = null;
+  showCajaDialog.value = true;
 }
 
 function toggleChecklistItem(key: string) {

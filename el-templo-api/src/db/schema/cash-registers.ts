@@ -53,6 +53,11 @@ export const cashRegisters = mysqlTable(
     // Conteo físico inicial por caja (D-06/D-07). Arranca en 0 en 138; los
     // valores reales se cargan por migración cuando Franco haga el conteo.
     openingBalance: int("opening_balance").default(0).notNull(),
+    // Arqueo (2026-09-08): fondo de cambio fijo que se queda siempre en el
+    // cajón de una caja de efectivo. Parametrizable por caja (admin/owner),
+    // default 0. Entra al "esperado en el cajón" y nunca al monto a retirar.
+    // Columna byte-for-byte con la migración 0225.
+    changeFund: int("change_fund").default(0).notNull(),
     // Go-live del módulo. transacciones con transaction_date < cutoff_date
     // quedan excluidas del saldo (D-05/D-06). Sembrado con un único valor
     // global; "global" es invariante por convención del seed.
