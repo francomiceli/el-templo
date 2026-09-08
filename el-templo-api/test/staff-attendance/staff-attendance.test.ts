@@ -320,7 +320,15 @@ describe("Staff Attendance API", () => {
       const row = body.shifts[0];
       expect(row.branchId).toBe(branchAId);
       expect(typeof row.userName).toBe("string");
-      expect(row.checklist).toEqual(VALID_CHECKLIST);
+      // El snapshot guarda `lote` solo los días que aplica (mié/sáb, tz sede).
+      const loteAplica = checklistForDow(dowInTz("America/Argentina/Buenos_Aires")).some(
+        (c) => c.key === "lote",
+      );
+      expect(row.checklist).toEqual({
+        cobros: true,
+        espacio: true,
+        lote: loteAplica ? true : null,
+      });
       expect(row.durationMinutes).toBeGreaterThanOrEqual(0);
     });
 
