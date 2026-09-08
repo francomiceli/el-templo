@@ -34,6 +34,7 @@ import {
   BRANCH_OUT_OF_SCOPE,
   canAccessBranch,
   enforceBranchScope,
+  isBranchScopedRole,
   requireBranchAccess,
 } from "../shared/branch-access";
 import type { TrialShift } from "./trials-service";
@@ -744,8 +745,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
    * valida contra el scope del actor con el MISMO predicado (`canAccessBranch`)
    * y el mismo cuerpo de 403 que el preHandler compartido.
    *
-   * Aplica a TODOS los roles, no sólo a los de alcance forzado: hasta acá un
-   * coach de una sede podía agendar una SP en el horario de otra.
+   * Aplica SOLO a los roles de alcance forzado (inversor). Decisión de Franco
+   * 2026-09-08: el coach sigue pudiendo agendar una SP en el horario de otra
+   * sede (flujo operativo real entre sedes), así que para el resto de los
+   * roles este guard es un no-op.
    * Un `scheduleId` inexistente NO se corta acá — sigue de largo y el service
    * devuelve su 404 de siempre.
    */
@@ -753,6 +756,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     request: FastifyRequest,
     reply: FastifyReply,
   ) {
+    if (!isBranchScopedRole(request.scope.role)) return;
     const body = request.body as { scheduleId?: unknown } | undefined;
     const scheduleId =
       typeof body?.scheduleId === "number" ? body.scheduleId : null;
@@ -838,8 +842,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       // routes (adminAddBooking, schedules/seed). The service checks
       // branchId↔schedule↔user coherence but not that body.branchId is inside
       // the caller's country scope; this closes that defense-in-depth gap.
-      // (2026-09-08: `POST /trials` ya NO comparte el gap — lo cierra
-      // `requireScheduleBranchAccess`, arriba en este archivo.)
+      // (2026-09-08: `POST /trials` cierra el gap sólo para el rol inversor
+      // vía `requireScheduleBranchAccess`, arriba en este archivo. Para coach
+      // y demás roles el gap sigue abierto a propósito.)
       preHandler: [requireBranchAccess({ from: "body.branchId" })],
     },
     async (request, reply) => {
