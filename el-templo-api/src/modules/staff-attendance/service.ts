@@ -33,7 +33,11 @@ import { resolveBranchDelGimnasio } from "../shared/branch-consistency";
 import { canAccessBranch, BRANCH_OUT_OF_SCOPE } from "../shared/branch-access";
 import type { CountryScope } from "../shared/country-scope";
 import { todayInTz } from "../shared/date-utils";
-import { STAFF_CHECKOUT_CHECKLIST, STAFF_CHECKLIST_KEYS } from "./checklist";
+import { checklistForDow, requiredKeysForDow } from "./checklist";
+import { dowInTz } from "../shared/date-utils";
+
+/** Zona por defecto cuando no hay sede (sin jornada abierta) o la sede no la tiene. */
+const DEFAULT_TZ = "America/Argentina/Buenos_Aires";
 
 /**
  * 403 con `code = BRANCH_OUT_OF_SCOPE` (mismo código estable que
@@ -81,7 +85,7 @@ export interface StaffShiftListRow {
   checkedInAt: string;
   checkedOutAt: string | null;
   durationMinutes: number | null;
-  checklist: { cobros: boolean; espacio: boolean; lote: boolean } | null;
+  checklist: { cobros: boolean; espacio: boolean; lote: boolean | null } | null;
 }
 
 /** Rango máximo permitido para `GET /shifts` (evita full scans desde el admin sobre un rango sin límite). */
@@ -103,6 +107,7 @@ export class StaffAttendanceService {
         id: schema.staffShifts.id,
         branchId: schema.staffShifts.branchId,
         branchName: schema.branches.name,
+        branchTimezone: schema.branches.timezone,
         checkedInAt: schema.staffShifts.checkedInAt,
       })
       .from(schema.staffShifts)
@@ -120,6 +125,9 @@ export class StaffAttendanceService {
       .orderBy(desc(schema.staffShifts.checkedInAt))
       .limit(1);
 
+    // El checklist depende del día EN LA SEDE (lote solo mié/sáb).
+    const tz = row?.branchTimezone ?? DEFAULT_TZ;
+
     return {
       open: row
         ? {
@@ -129,7 +137,7 @@ export class StaffAttendanceService {
             checkedInAt: row.checkedInAt.toISOString(),
           }
         : null,
-      checklist: STAFF_CHECKOUT_CHECKLIST,
+      checklist: checklistForDow(dowInTz(tz)),
     };
   }
 
@@ -257,18 +265,34 @@ export class StaffAttendanceService {
       );
     }
 
-    const checklistCompleto = STAFF_CHECKLIST_KEYS.every(
+    const now = new Date();
+    // Lote del posnet solo miércoles y sábados, por el día en la zona de la
+    // sede (no la del servidor).
+    const [sede] = await this.db
+      .select({ timezone: schema.branches.timezone })
+      .from(schema.branches)
+      .where(
+        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+      )
+      .limit(1);
+    const requiredKeys = requiredKeysForDow(
+      dowInTz(sede?.timezone ?? DEFAULT_TZ, now),
+    );
+    const checklistCompleto = requiredKeys.every(
       (key) => checklist[key] === true,
     );
     if (!checklistCompleto) {
       throw new BadRequestError("Marcá todos los ítems del checklist");
     }
 
-    const now = new Date();
     // Se reconstruye el objeto en vez de guardar el body tal cual (defensa
-    // contra mass-assignment): ya se probó arriba que las 3 keys son `true`,
-    // así que el snapshot persistido es siempre exactamente estas 3.
-    const checklistSnapshot = { cobros: true, espacio: true, lote: true };
+    // contra mass-assignment): solo las keys exigidas hoy, todas `true`. Un
+    // día sin lote lo guarda como null (no aplicaba), no como false.
+    const checklistSnapshot = {
+      cobros: true,
+      espacio: true,
+      lote: requiredKeys.includes("lote") ? true : null,
+    };
 
     await this.db
       .update(schema.staffShifts)

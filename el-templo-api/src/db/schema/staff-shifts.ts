@@ -50,7 +50,8 @@ export const staffShifts = mysqlTable(
     checklist: json("checklist").$type<{
       cobros: boolean;
       espacio: boolean;
-      lote: boolean;
+      /** Lote del posnet: solo mié/sáb. null = no aplicaba ese día. */
+      lote: boolean | null;
     }>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

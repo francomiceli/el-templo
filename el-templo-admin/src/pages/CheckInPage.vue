@@ -361,8 +361,9 @@ const checklistValues = ref<Record<ChecklistKey, boolean>>({
   lote: false,
 });
 
+// Solo los ítems que el server ofrece hoy (lote: mié/sáb) tienen que estar tildados.
 const allChecklistChecked = computed(() =>
-  CHECKLIST_KEYS.every((key) => checklistValues.value[key])
+  checklistItems.value.every((item) => checklistValues.value[item.key])
 );
 
 // Cierre de caja (2026-09-08): el QR ya validó que el profe está cerrando su
@@ -410,7 +411,10 @@ async function confirmCheckOut() {
     const checklist: StaffAttendanceChecklistValues = {
       cobros: checklistValues.value.cobros,
       espacio: checklistValues.value.espacio,
-      lote: checklistValues.value.lote,
+      // Solo si hoy aplica (mié/sáb): si no está en la lista, no se manda.
+      ...(checklistItems.value.some((i) => i.key === 'lote')
+        ? { lote: checklistValues.value.lote }
+        : {}),
     };
     const shift = await attendanceApi.checkOut(pendingQrToken.value, checklist);
     $q.notify({

@@ -52,7 +52,8 @@ export interface StaffAttendanceClosedShift extends StaffAttendanceShift {
 export interface StaffAttendanceChecklistValues {
   cobros: boolean;
   espacio: boolean;
-  lote: boolean;
+  /** Lote del posnet: solo miércoles y sábados (lo decide el server por sede). */
+  lote?: boolean;
 }
 
 /** Una fila del registro (`GET /admin/staff-attendance/shifts`). */

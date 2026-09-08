@@ -82,7 +82,9 @@ export const staffAttendanceCheckOutSchema = {
       qrToken: { type: "string", minLength: 1, maxLength: 500 },
       checklist: {
         type: "object",
-        required: ["cobros", "espacio", "lote"],
+        // `lote` solo se exige miércoles y sábados (lo decide el service por
+        // el día en la sede): en el schema es opcional.
+        required: ["cobros", "espacio"],
         properties: {
           cobros: { type: "boolean" },
           espacio: { type: "boolean" },
@@ -134,7 +136,7 @@ export const staffAttendanceShiftsSchema = {
                 properties: {
                   cobros: { type: "boolean" },
                   espacio: { type: "boolean" },
-                  lote: { type: "boolean" },
+                  lote: { type: ["boolean", "null"] },
                 },
               },
             },
@@ -156,7 +158,8 @@ export interface StaffCheckOutBody {
   checklist: {
     cobros: boolean;
     espacio: boolean;
-    lote: boolean;
+    /** Solo miércoles y sábados. */
+    lote?: boolean;
   };
 }
 

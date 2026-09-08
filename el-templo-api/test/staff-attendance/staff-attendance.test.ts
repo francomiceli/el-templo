@@ -22,6 +22,8 @@ import {
 import * as schema from "../../src/db/schema";
 import { generateQrToken } from "../../src/modules/shared/qr-token";
 import { BRANCH_OUT_OF_SCOPE } from "../../src/modules/shared/branch-access";
+import { checklistForDow } from "../../src/modules/staff-attendance/checklist";
+import { dowInTz } from "../../src/modules/shared/date-utils";
 
 const ME_URL = "/api/admin/staff-attendance/me";
 const CHECK_IN_URL = "/api/admin/staff-attendance/check-in";
@@ -199,12 +201,11 @@ describe("Staff Attendance API", () => {
       expect(meBody.open.id).toBe(checkInBody.shift.id);
       expect(meBody.open.branchId).toBe(branchAId);
       expect(Array.isArray(meBody.checklist)).toBe(true);
-      expect(meBody.checklist).toHaveLength(3);
-      expect(meBody.checklist.map((c: { key: string }) => c.key)).toEqual([
-        "cobros",
-        "espacio",
-        "lote",
-      ]);
+      // Lote del posnet solo mié/sáb (día en la zona de la sede, AR por default).
+      const esperados = checklistForDow(dowInTz("America/Argentina/Buenos_Aires")).map(
+        (c) => c.key,
+      );
+      expect(meBody.checklist.map((c: { key: string }) => c.key)).toEqual(esperados);
     });
 
     it("segundo check-in con jornada ya abierta -> 409", async () => {

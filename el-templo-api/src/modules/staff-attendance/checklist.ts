@@ -22,3 +22,22 @@ export type StaffChecklistKey =
 export const STAFF_CHECKLIST_KEYS = STAFF_CHECKOUT_CHECKLIST.map(
   (item) => item.key,
 );
+
+/**
+ * Cierre de lote del posnet (2026-09-08, pedido de Franco): solo miércoles y
+ * sábados. ISO day-of-week (1=lun … 7=dom), calculado en la zona horaria de la
+ * sede (`dowInTz(branch.timezone)`), no en la del servidor.
+ */
+export const LOTE_DAYS: readonly number[] = [3, 6];
+
+/** Ítems del checklist que aplican en un día dado (ISO dow). */
+export function checklistForDow(dow: number) {
+  return STAFF_CHECKOUT_CHECKLIST.filter(
+    (item) => item.key !== "lote" || LOTE_DAYS.includes(dow),
+  );
+}
+
+/** Keys obligatorias del check-out en un día dado (ISO dow). */
+export function requiredKeysForDow(dow: number): StaffChecklistKey[] {
+  return checklistForDow(dow).map((item) => item.key);
+}
