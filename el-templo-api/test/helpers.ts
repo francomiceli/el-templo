@@ -202,7 +202,7 @@ const TABLES_TO_CLEAN = [
   schema.wellhubSlots,
   schema.wellhubClasses,
   schema.wellhubEvents,
-  // Arqueos (0225): FK a cash_registers/users/staff_shifts → antes que ellas.
+  // Arqueos (0226): FK a cash_registers/users/staff_shifts → antes que ellas.
   schema.cashCounts,
   // Phase 119 campaign tables. FK ordering (FK checks are disabled below, so
   // strictly cosmetic, but kept correct): events -> sends -> unsubscribes ->

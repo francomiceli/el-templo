@@ -1,4 +1,4 @@
--- 0225_cash_counts_change_fund.sql
+-- 0226_cash_counts_change_fund.sql
 -- Arqueo / cierre de caja del profe (feedback caja/cobros 2026-09-08, brief de
 -- Nacho, opcion A elegida por Franco). Hand-written (db:generate roto).
 --

@@ -420,7 +420,7 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM user_branches WHERE tenant_id = ${TENANT_DOS}`,
   );
-  // Arqueos (0225): FK a users y cash_registers, se van antes.
+  // Arqueos (0226): FK a users y cash_registers, se van antes.
   await app.db.execute(
     sql`DELETE FROM cash_counts WHERE tenant_id = ${TENANT_DOS}`,
   );
