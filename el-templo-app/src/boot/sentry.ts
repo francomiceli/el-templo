@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers'
 import * as Sentry from '@sentry/vue'
+import { NETWORK_ERROR_MESSAGE } from 'src/utils/network-error'
 
 const IGNORED_ERRORS = [
   'Importing a module script failed',
@@ -29,6 +30,19 @@ function shouldDropEvent(event: Sentry.ErrorEvent): boolean {
 
   const frames = event.exception?.values?.[0]?.stacktrace?.frames || []
   if (frames.some((f) => f.filename && DENY_URLS.some((re) => re.test(f.filename!)))) return true
+
+  // Cortes de conexión del cliente: los stores loguean el fallo con
+  // `createLogger().error()`, que llega como captureMessage con el detalle de
+  // red en `extra` (p.ej. `{ error: 'Error de red…' }`). No es un bug de la app
+  // sino falta de internet del alumno, y esas llamadas son fail-open, así que
+  // no reportamos. Se escanea todo `extra` porque distintos call-sites usan
+  // claves distintas (`error`, a veces junto a `avisoId`/`type`).
+  const extraValues = Object.values(event.extra ?? {})
+  if (
+    extraValues.some((v) => typeof v === 'string' && v.includes(NETWORK_ERROR_MESSAGE))
+  ) {
+    return true
+  }
 
   return false
 }

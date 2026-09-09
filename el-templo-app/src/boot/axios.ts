@@ -3,6 +3,7 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 import { Capacitor } from '@capacitor/core'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { createLogger } from 'src/utils/logger'
+import { NETWORK_ERROR_MESSAGE } from 'src/utils/network-error'
 
 declare module '@vue/runtime-core' {
   interface ComponentCustomProperties {
@@ -145,7 +146,7 @@ export function createAuthErrorHandler(instance: AxiosInstance, onRedirect: () =
     // Se excluyen las cancelaciones (ERR_CANCELED), que no son fallas de red y
     // no se muestran al usuario.
     if (!error.response && error.code !== 'ERR_CANCELED') {
-      error.message = 'Error de red. Revisá tu conexión a internet.'
+      error.message = NETWORK_ERROR_MESSAGE
     }
 
     const config = error.config as InternalAxiosRequestConfig | undefined
