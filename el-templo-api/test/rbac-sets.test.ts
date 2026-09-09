@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ALL_STAFF_ROLES,
+  ANALYTICS_ADMIN_ROLES,
   ANALYTICS_OPERATIONAL_ROLES,
   ATTENDANCE_ROLES,
   CAJA_ROLES,
@@ -9,6 +10,7 @@ import {
   PLANES_READ_ROLES,
   PROGRAMAS_ROLES,
   PROGRAMAS_LIST_ROLES,
+  REFERRAL_AB_RESULTS_ROLES,
   TEMPLO_RBAC_OVERRIDES,
   TV_CONTROL_ROLES,
   CHECKIN_ROSTER_ROLES,
@@ -69,6 +71,23 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
       "recepcion",
       "inversor",
     ]);
+  });
+
+  it("ANALYTICS_ADMIN_ROLES is Dueño core + inversor (2026-09-09, UAT) — gestion stays excluded", () => {
+    // El inversor entra a Analíticas admin-only (KPIs/miembros/financiero) pero
+    // SIEMPRE acotado a su sede vía `enforceBranchScope`, encadenado en todas
+    // esas rutas. `gestion` sigue sin acceso: solo ve el set operacional
+    // (ANALYTICS_OPERATIONAL_ROLES).
+    expect([...ANALYTICS_ADMIN_ROLES]).toEqual(["admin", "owner", "inversor"]);
+    expect([...ANALYTICS_ADMIN_ROLES]).not.toContain("gestion");
+  });
+
+  it("REFERRAL_AB_RESULTS_ROLES excluye a inversor (agregado sin dimensión de sede)", () => {
+    // GET /admin/referrals/ab-results es un conteo de TODO el gimnasio, sin
+    // `branchId` para acotar — se separa de ANALYTICS_OPERATIONAL_ROLES (que sí
+    // incluye inversor) a propósito.
+    expect([...REFERRAL_AB_RESULTS_ROLES]).toEqual(["gestion", "admin", "owner"]);
+    expect([...REFERRAL_AB_RESULTS_ROLES]).not.toContain("inversor");
   });
 
   it("PROGRAMAS_ROLES is Dueño-only (owner + admin) — closes D-15", () => {
@@ -136,6 +155,7 @@ describe("RBAC — rol inversor (sede-scoped)", () => {
     CAJA_ROLES,
     COACH_DEBTS_ROLES,
     ANALYTICS_OPERATIONAL_ROLES,
+    ANALYTICS_ADMIN_ROLES,
     ATTENDANCE_ROLES,
     MEMBER_ROLES,
     MEMBER_LIFECYCLE_ROLES,
@@ -161,6 +181,7 @@ describe("RBAC — rol inversor (sede-scoped)", () => {
     CHECKIN_ROSTER_ROLES,
     STAFF_ATTENDANCE_ROLES,
     STAFF_ATTENDANCE_REPORT_ROLES,
+    REFERRAL_AB_RESULTS_ROLES,
   };
 
   it.each(Object.entries(ENTRA))(

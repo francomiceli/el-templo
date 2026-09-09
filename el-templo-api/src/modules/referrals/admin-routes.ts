@@ -16,20 +16,24 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { ReferralService } from "./service";
-import { ANALYTICS_OPERATIONAL_ROLES } from "../shared/permissions";
+import { REFERRAL_AB_RESULTS_ROLES } from "../shared/permissions";
 import { assertTenant } from "../shared/tenant";
 import { attachCountryScope } from "../shared/country-scope";
 
 export const referralAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ReferralService(fastify.db, fastify.log);
 
-  // Guard: autenticar + gate al set operativo de Analíticas (gestion+admin+owner),
-  // el mismo que ya ve las tabs operativas donde vive "Referidos A/B". Coach y
-  // recepción quedan afuera (403), igual que el resto de Analíticas.
+  // Guard: autenticar + gate a REFERRAL_AB_RESULTS_ROLES (gestion+admin+owner).
+  // 2026-09-09: este plugin tiene UNA sola ruta (/ab-results), así que el gate
+  // se puede angostar acá mismo sin arriesgar ensanchar/angostar otra ruta del
+  // plugin sin darse cuenta. Antes usaba ANALYTICS_OPERATIONAL_ROLES (incluía
+  // `inversor`) — se lo saca porque el agregado es de TODO el gimnasio, sin
+  // dimensión de sede, y este rol solo debe ver la suya. Coach y recepción
+  // quedan afuera (403), igual que antes.
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
     if (
-      !(ANALYTICS_OPERATIONAL_ROLES as readonly string[]).includes(
+      !(REFERRAL_AB_RESULTS_ROLES as readonly string[]).includes(
         request.user.role,
       )
     ) {

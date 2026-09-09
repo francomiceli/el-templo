@@ -53,7 +53,7 @@ import {
 import type { FunnelEntryOrigin } from "./types";
 
 import {
-  ADMIN_ROLES,
+  ANALYTICS_ADMIN_ROLES,
   ANALYTICS_OPERATIONAL_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
@@ -74,13 +74,16 @@ import type { FastifyReply, FastifyRequest } from "fastify";
  * Per-route guard for the admin-only analytics endpoints (KPI, members,
  * financial). The plugin-wide onRequest hook only gates access to the
  * operational set (gestion + admin + owner); these routes additionally
- * require ADMIN_ROLES so gestion cannot reach financial/member analytics.
+ * require ANALYTICS_ADMIN_ROLES (Dueño + inversor, 2026-09-09) so gestion
+ * cannot reach financial/member analytics. `inversor` entra acá pero SIEMPRE
+ * ve sus datos acotados a SU sede — todas estas rutas encadenan
+ * `enforceBranchScope` en el `preHandler`.
  */
 const requireAdminAnalytics = async (
   request: FastifyRequest,
   reply: FastifyReply,
 ) => {
-  if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+  if (!(ANALYTICS_ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
     return reply.code(403).send({
       error: "Acceso denegado",
       message: "Acceso de administrador requerido",

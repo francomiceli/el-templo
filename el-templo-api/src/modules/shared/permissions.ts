@@ -103,13 +103,37 @@ export const CAJA_ROLES = [
 /** Roles that can read the operational analytics endpoints surfaced inside
  *  Reportes — attendance, unique members, check-in adoption, and engagement
  *  (Phase 117). Mirrors the Reportes route access (gestion + admin + owner).
- *  The financial/KPI/member analytics endpoints stay admin-only (ADMIN_ROLES). */
+ *  The financial/KPI/member analytics endpoints stay admin-only
+ *  (ANALYTICS_ADMIN_ROLES, below). */
 export const ANALYTICS_OPERATIONAL_ROLES = [
   "gestion",
   "admin",
   "owner",
   "inversor",
 ] as const;
+
+/**
+ * Roles that can read the admin-only analytics endpoints (KPIs, member
+ * analytics, financial analytics, retention/churn/ltv/etc.) — Dueño (ADMIN_ROLES)
+ * + `inversor` (2026-09-08, feedback UAT). El inversor las ve, pero SIEMPRE
+ * acotadas a SU sede: todas esas rutas ya encadenan `enforceBranchScope` (D-14),
+ * así que ensanchar este set no le abre datos de otra sucursal, solo la
+ * pantalla de Analíticas de la suya. `gestion` sigue afuera — literal en vez de
+ * `[...ADMIN_ROLES, "inversor"]` sería equivalente en valor, pero se declara
+ * explícito para que quede fijado byte a byte por `rbac-sets.test.ts` igual
+ * que el resto de los sets nuevos del rol.
+ */
+export const ANALYTICS_ADMIN_ROLES = ["admin", "owner", "inversor"] as const;
+
+/**
+ * Roles que ven los resultados agregados del A/B test de copy de referidos
+ * (`GET /admin/referrals/ab-results`) — 2026-09-09. Superficie SIN dimensión de
+ * sede (números de TODO el gimnasio, no filtrables por branch): el inversor
+ * queda afuera a propósito, a diferencia de `ANALYTICS_OPERATIONAL_ROLES` (del
+ * que este set se separa) — no hay `enforceBranchScope` que lo acote y mostrarle
+ * el agregado global violaría el alcance por sede del rol.
+ */
+export const REFERRAL_AB_RESULTS_ROLES = ["gestion", "admin", "owner"] as const;
 
 /** Roles that can view the simplified Deudas tab for coaches. Coach included
  *  on top of the Dueño core so professors can look up how much to collect from

@@ -11,6 +11,12 @@ const errorSchema = {
   properties: {
     error: { type: "string" },
     message: { type: "string" },
+    // 2026-09-09: los 403 BRANCH_OUT_OF_SCOPE / 400 BRANCH_REQUIRED de
+    // `enforceBranchScope` (rol `inversor`) traen `code` — sin esta propiedad
+    // Fastify lo descarta al serializar contra este schema y el frontend/tests
+    // no pueden matchear el código exacto (mismo gap que finance, ver
+    // test/inversor-scope.test.ts).
+    code: { type: "string" },
   },
 } as const;
 

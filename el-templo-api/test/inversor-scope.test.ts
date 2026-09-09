@@ -525,16 +525,106 @@ describe("Rol inversor — alcance forzado por sede", () => {
   });
 
   // =========================================================================
+  // 3b. Cobros (mis-cargas) — UAT 2026-09-09: el inversor veía cobros de
+  // TODAS las sedes en la portada "Historial de cobros".
+  // =========================================================================
+  describe("Cobros (mis-cargas)", () => {
+    it("GET /finance/coach-load/mis-cargas sin branchId → solo cobros de su sede", async () => {
+      const res = await asInversor(
+        "/api/admin/finance/coach-load/mis-cargas",
+      );
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as { rows: { branchId: number }[] };
+      expect(body.rows.length).toBeGreaterThan(0);
+      expect(body.rows.every((r) => r.branchId === branchA)).toBe(true);
+    });
+
+    it("GET /finance/coach-load/mis-cargas?branchId=<otra sede> → 403 BRANCH_OUT_OF_SCOPE", async () => {
+      const res = await asInversor(
+        `/api/admin/finance/coach-load/mis-cargas?branchId=${branchB}`,
+      );
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res.body).code).toBe(BRANCH_OUT_OF_SCOPE);
+    });
+
+    it("gestion sigue viendo cobros de ambas sedes (mis-cargas no se acota fuera de inversor)", async () => {
+      await createStaffUser(app, {
+        email: `gestion-miscargas-${u}@test.local`,
+        password: pass,
+        firstName: "Gestion",
+        lastName: "MisCargas",
+        role: "gestion",
+        branchId: branchA,
+      });
+      const gestionToken = await getAuthToken(
+        app,
+        `gestion-miscargas-${u}@test.local`,
+        pass,
+      );
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/finance/coach-load/mis-cargas",
+        headers: { authorization: `Bearer ${gestionToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as { rows: { branchId: number }[] };
+      const branchIds = body.rows.map((r) => r.branchId);
+      expect(branchIds).toContain(branchA);
+      expect(branchIds).toContain(branchB);
+    });
+  });
+
+  // =========================================================================
+  // 3c. Analíticas — feedback UAT 2026-09-09: el inversor pidió la sección
+  // "Analíticas" acotada a su sede (ANALYTICS_ADMIN_ROLES).
+  // =========================================================================
+  describe("Analíticas", () => {
+    it("GET /admin/analytics (KPIs) sin branchId → 200, acotado por enforceBranchScope", async () => {
+      const res = await asInversor("/api/admin/analytics");
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        activeMembers: unknown;
+        monthlyRevenue: unknown;
+        dailyAttendanceAvg: unknown;
+      };
+      expect(body).toHaveProperty("activeMembers");
+      expect(body).toHaveProperty("monthlyRevenue");
+      expect(body).toHaveProperty("dailyAttendanceAvg");
+    });
+
+    it("GET /admin/analytics?branchId=<otra sede> → 403 BRANCH_OUT_OF_SCOPE", async () => {
+      const res = await asInversor(`/api/admin/analytics?branchId=${branchB}`);
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res.body).code).toBe(BRANCH_OUT_OF_SCOPE);
+    });
+
+    it("GET /admin/analytics/financial sin branchId → 200 (admin-only, ahora + inversor)", async () => {
+      const res = await asInversor("/api/admin/analytics/financial");
+      expect(res.statusCode).toBe(200);
+    });
+
+    it("GET /admin/analytics/members sin branchId → 200 (admin-only, ahora + inversor)", async () => {
+      const res = await asInversor("/api/admin/analytics/members");
+      expect(res.statusCode).toBe(200);
+    });
+
+    it("GET /admin/referrals/ab-results → 403 (agregado sin dimensión de sede)", async () => {
+      const res = await asInversor("/api/admin/referrals/ab-results");
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("GET /admin/programs/analytics → 403 (PROGRAMAS_ROLES, dueño-only)", async () => {
+      const res = await asInversor("/api/admin/programs/analytics");
+      expect(res.statusCode).toBe(403);
+    });
+  });
+
+  // =========================================================================
   // 4. Superficie de dueño: 403
   // =========================================================================
   describe("Superficies que NO le tocan", () => {
     it("GET /admin/users → 403 (owner-only)", async () => {
       const res = await asInversor("/api/admin/users");
-      expect(res.statusCode).toBe(403);
-    });
-
-    it("GET /admin/analytics (KPIs) → 403 (ADMIN_ROLES)", async () => {
-      const res = await asInversor("/api/admin/analytics");
       expect(res.statusCode).toBe(403);
     });
 

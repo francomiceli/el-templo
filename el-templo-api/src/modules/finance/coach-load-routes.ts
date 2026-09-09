@@ -1308,23 +1308,49 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // Every other FINANCE_LOAD_ROLES role (owner/admin/gestion/recepcion) is
   // already in FINANCE_READ_ROLES, so they see ALL loads — the shared view
   // recepción/gestión need to know what the other person cargó.
+  //
+  // 2026-09-09 (feedback UAT inversor): esta ruta NO tenía gate de sede — el
+  // inversor la usa como portada "Historial de cobros" y veía los últimos 50
+  // cobros de TODO el gimnasio, no solo el de su sucursal. `branchId` es
+  // opcional en el querystring y `enforceBranchScope` (no-op para cualquier rol
+  // que no sea `isBranchScopedRole`) hace el resto: para el inversor, lo
+  // inyecta si lo omite y corta 403 BRANCH_OUT_OF_SCOPE si pide una ajena. Para
+  // owner/admin/gestion/recepcion SIN `?branchId` el comportamiento queda
+  // IDÉNTICO (ven todo, limit 50); CON `?branchId` ahora también pueden acotar
+  // el historial a una sede, como cualquier otro listado de Finanzas.
   // ===================================================================
-  fastify.get("/mis-cargas", async (request, reply) => {
-    try {
-      const result = await transactionService.list(
-        assertTenant(request.scope, "coach-load.mis-cargas"),
-        {
-          ...(request.user.role === "coach"
-            ? { recordedBy: request.user.userId }
-            : {}),
-          limit: 50,
+  fastify.get<{ Querystring: { branchId?: number } }>(
+    "/mis-cargas",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          additionalProperties: false,
+          properties: { branchId: { type: "integer", minimum: 1 } },
         },
-      );
-      return reply.send(result);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "coach mis-cargas");
-    }
-  });
+      },
+      preHandler: [enforceBranchScope({ from: "query.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const result = await transactionService.list(
+          assertTenant(request.scope, "coach-load.mis-cargas"),
+          {
+            ...(request.user.role === "coach"
+              ? { recordedBy: request.user.userId }
+              : {}),
+            ...(request.query.branchId !== undefined
+              ? { branchId: request.query.branchId }
+              : {}),
+            limit: 50,
+          },
+        );
+        return reply.send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "coach mis-cargas");
+      }
+    },
+  );
 };
 
 // Re-export the detail type so route consumers (tests) can import it from here.
