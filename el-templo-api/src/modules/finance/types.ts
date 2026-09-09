@@ -733,6 +733,17 @@ export interface PendingWithdrawalResult {
   rows: WithdrawalPaymentItem[];
   /** Σ amount de rows. */
   total: number;
+  /**
+   * Cobros en efectivo de la caja todavía PENDIENTES de validación por
+   * gestión (no anulados). La plata está en el cajón (el arqueo del profe los
+   * cuenta) pero no se pueden retirar hasta validarlos: sin esto, quien retira
+   * ve menos plata de la que el profe dejó contada y no sabe por qué.
+   */
+  awaitingValidation: {
+    rows: WithdrawalPaymentItem[];
+    /** Σ amount de rows. */
+    total: number;
+  };
 }
 
 export interface WithdrawalListFilters {
@@ -810,6 +821,12 @@ export interface CashCountPaymentItem {
   recorderName: string;
 }
 
+/** Cobro contado en un cierre anterior y anulado después. */
+export interface CashCountVoidedItem extends CashCountPaymentItem {
+  voidedAt: string; // ISO
+  voidReason: string | null;
+}
+
 export interface CashCountSummary {
   id: number;
   countedAt: string; // ISO
@@ -836,6 +853,13 @@ export interface CashCountExpected {
   /** Cobros en efectivo cargados desde lastCount (o todos si nunca se contó). */
   paymentsSinceLastCount: CashCountPaymentItem[];
   paymentsSinceLastCountTotal: number;
+  /**
+   * Cobros que estaban en el cajón al último cierre (cargados antes de
+   * lastCount.countedAt) y se anularon después. Explican por qué el esperado
+   * bajó sin que nadie retirara plata. Vacío si nunca se contó.
+   */
+  voidedSinceLastCount: CashCountVoidedItem[];
+  voidedSinceLastCountTotal: number;
 }
 
 export interface RegisterCashCountInput {

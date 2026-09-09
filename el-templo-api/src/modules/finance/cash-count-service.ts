@@ -15,8 +15,40 @@
 // No hay turno mañana/tarde (opción A, decisión de Franco 2026-09-08): cada
 // arqueo muestra lo cobrado desde el arqueo anterior de ESA caja. Si nadie
 // cerró antes, el siguiente incluye todo. Solo cajas de efectivo.
+//
+// 2026-09-09 — el esperado se recalcula siempre desde el corte de la caja, así
+// que si gestión ANULA un cobro que el profe ya contó en un cierre anterior,
+// el esperado siguiente baja sin que nadie haya retirado plata. Para que ese
+// descuadre no quede mudo, `getExpected` lista además los cobros que estaban
+// en el cajón al último cierre y se anularon después (`voidedSinceLastCount`).
+// Sigue sin tocar el ledger ni el arqueo ya guardado: los arqueos son
+// append-only y lo anulado se deriva por fechas (created_at ≤ último cierre <
+// voided_at), no hace falta una tabla puente.
+//
+// OJO relojes: drizzle escribe los timestamps que vienen de JS (voided_at,
+// validated_at, y desde hoy counted_at) en reloj UTC, mientras que los
+// `defaultNow()` del DB (created_at) van en el reloj de la sesión MySQL. Si el
+// server no está en UTC (WSL local: -03) mezclarlos corre horas. Por eso cada
+// comparación se hace dentro de UNA familia: `created_at` de los cobros contra
+// `created_at` del arqueo (DB vs DB) y `voided_at` contra `counted_at` (JS vs
+// JS). Las dos columnas del arqueo se escriben en el mismo INSERT, así que
+// representan el mismo instante en los dos relojes.
 
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
@@ -35,6 +67,7 @@ import type {
   CashCountListItem,
   CashCountPaymentItem,
   CashCountSummary,
+  CashCountVoidedItem,
   RegisterCashCountInput,
   TransactionKind,
 } from "./types";
@@ -54,6 +87,14 @@ interface CajaRef {
   currency: string;
   branchId: number | null;
   changeFund: number;
+}
+
+interface LastCountRef {
+  summary: CashCountSummary;
+  /** Reloj JS (drizzle → UTC): comparar solo con voided_at / validated_at. */
+  countedAt: Date;
+  /** Reloj del DB (defaultNow): comparar solo con created_at de los cobros. */
+  createdAt: Date;
 }
 
 export class CashCountService {
@@ -118,14 +159,20 @@ export class CashCountService {
     return caja.id;
   }
 
+  /**
+   * Último arqueo de la caja con sus dos marcas del mismo instante:
+   * `countedAt` (escrita desde JS, comparable con voided_at) y `createdAt`
+   * (defaultNow del DB, comparable con created_at de los cobros).
+   */
   private async lastCount(
     ctx: TenantContext,
     cajaId: number,
-  ): Promise<CashCountSummary | null> {
+  ): Promise<LastCountRef | null> {
     const [row] = await this.db
       .select({
         id: schema.cashCounts.id,
         countedAt: schema.cashCounts.countedAt,
+        createdAt: schema.cashCounts.createdAt,
         countedBy: schema.cashCounts.countedBy,
         firstName: schema.users.firstName,
         lastName: schema.users.lastName,
@@ -152,23 +199,70 @@ export class CashCountService {
       .limit(1);
     if (!row) return null;
     return {
-      id: row.id,
-      countedAt: row.countedAt.toISOString(),
-      countedBy: row.countedBy,
-      counterName: `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim(),
-      expectedAmount: row.expectedAmount,
-      countedAmount: row.countedAmount,
-      difference: row.difference,
-      notes: row.notes,
+      summary: {
+        id: row.id,
+        countedAt: row.countedAt.toISOString(),
+        countedBy: row.countedBy,
+        counterName: `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim(),
+        expectedAmount: row.expectedAmount,
+        countedAmount: row.countedAmount,
+        difference: row.difference,
+        notes: row.notes,
+      },
+      countedAt: row.countedAt,
+      createdAt: row.createdAt,
     };
   }
 
-  /** Cobros en efectivo (no anulados, cualquier estado) cargados después de `since`. */
+  /** Cobros en efectivo (no anulados, cualquier estado) cargados después del último arqueo. */
   private async paymentsSince(
     ctx: TenantContext,
     cajaId: number,
-    since: Date | null,
+    last: LastCountRef | null,
   ): Promise<CashCountPaymentItem[]> {
+    const conds = [isNull(schema.financialTransactions.voidedAt)];
+    if (last) conds.push(gt(schema.financialTransactions.createdAt, last.createdAt));
+    const rows = await this.queryCashPayments(ctx, cajaId, conds, "createdAt");
+    return rows.map(({ voidedAt: _voidedAt, voidReason: _voidReason, ...p }) => p);
+  }
+
+  /**
+   * Cobros que ya estaban en el cajón al último cierre (`created_at ≤` el del
+   * arqueo, reloj DB) y se anularon después (`voided_at >` counted_at, reloj
+   * JS). Incluye los "corregidos" (la corrección anula el original y crea
+   * otro, que aparece como nuevo). Sin cierre previo no hay nada que explicar.
+   */
+  private async voidedSince(
+    ctx: TenantContext,
+    cajaId: number,
+    last: LastCountRef | null,
+  ): Promise<CashCountVoidedItem[]> {
+    if (!last) return [];
+    const rows = await this.queryCashPayments(
+      ctx,
+      cajaId,
+      [
+        isNotNull(schema.financialTransactions.voidedAt),
+        gt(schema.financialTransactions.voidedAt, last.countedAt),
+        lte(schema.financialTransactions.createdAt, last.createdAt),
+      ],
+      "voidedAt",
+    );
+    return rows.flatMap((r) =>
+      r.voidedAt === null ? [] : [{ ...r, voidedAt: r.voidedAt }],
+    );
+  }
+
+  /**
+   * Query compartida de cobros en efectivo de socio imputados a la caja.
+   * `extraConds` distingue vivos-desde-X de anulados-después-de-X.
+   */
+  private async queryCashPayments(
+    ctx: TenantContext,
+    cajaId: number,
+    extraConds: SQL[],
+    orderBy: "createdAt" | "voidedAt",
+  ): Promise<Array<CashCountPaymentItem & { voidedAt: string | null; voidReason: string | null }>> {
     const recorder = alias(schema.users, "recorder");
     const conds = [
       tenantWhere(schema.financialTransactions, ctx),
@@ -176,14 +270,15 @@ export class CashCountService {
       eq(schema.financialTransactions.direction, "inflow"),
       eq(schema.financialTransactions.paymentMethod, "cash"),
       inArray(schema.financialTransactions.kind, [...MEMBER_INFLOW_KINDS]),
-      isNull(schema.financialTransactions.voidedAt),
+      ...extraConds,
     ];
-    if (since) conds.push(gt(schema.financialTransactions.createdAt, since));
     const rows = await this.db
       .select({
         id: schema.financialTransactions.id,
         transactionDate: schema.financialTransactions.transactionDate,
         createdAt: schema.financialTransactions.createdAt,
+        voidedAt: schema.financialTransactions.voidedAt,
+        voidReason: schema.financialTransactions.voidReason,
         firstName: schema.users.firstName,
         lastName: schema.users.lastName,
         amount: schema.financialTransactions.amount,
@@ -222,11 +317,18 @@ export class CashCountService {
         ),
       )
       .where(and(...conds))
-      .orderBy(asc(schema.financialTransactions.createdAt));
+      .orderBy(
+        orderBy === "voidedAt"
+          ? asc(schema.financialTransactions.voidedAt)
+          : asc(schema.financialTransactions.createdAt),
+        asc(schema.financialTransactions.id),
+      );
     return rows.map((r) => ({
       id: r.id,
       transactionDate: String(r.transactionDate),
       createdAt: r.createdAt.toISOString(),
+      voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
+      voidReason: r.voidReason,
       memberName: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
       amount: r.amount,
       currency: r.currency,
@@ -245,11 +347,10 @@ export class CashCountService {
     const caja = await this.loadCaja(ctx, cajaId);
     const balance = await this.cashRegisterService.getBalance(ctx, caja.id);
     const last = await this.lastCount(ctx, caja.id);
-    const payments = await this.paymentsSince(
-      ctx,
-      caja.id,
-      last ? new Date(last.countedAt) : null,
-    );
+    const [payments, voided] = await Promise.all([
+      this.paymentsSince(ctx, caja.id, last),
+      this.voidedSince(ctx, caja.id, last),
+    ]);
     return {
       cashRegisterId: caja.id,
       cashRegisterName: caja.name,
@@ -260,9 +361,11 @@ export class CashCountService {
       pendienteAmount: balance.pendienteAmount,
       expectedAmount:
         caja.changeFund + balance.firmeBalance + balance.pendienteAmount,
-      lastCount: last,
+      lastCount: last ? last.summary : null,
       paymentsSinceLastCount: payments,
       paymentsSinceLastCountTotal: payments.reduce((a, p) => a + p.amount, 0),
+      voidedSinceLastCount: voided,
+      voidedSinceLastCountTotal: voided.reduce((a, p) => a + p.amount, 0),
     };
   }
 
@@ -306,6 +409,9 @@ export class CashCountService {
       tenantValues(ctx, {
         cashRegisterId: expected.cashRegisterId,
         countedBy: userId,
+        // Explícito desde JS (no defaultNow) para que viva en el mismo reloj
+        // que voided_at: es contra lo que se compara en voidedSince.
+        countedAt: new Date(),
         staffShiftId,
         changeFund: expected.changeFund,
         firmeAmount: expected.firmeAmount,

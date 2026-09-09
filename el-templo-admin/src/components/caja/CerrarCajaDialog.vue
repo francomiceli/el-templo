@@ -58,6 +58,34 @@
             </div>
           </div>
 
+          <!-- Anulados después del último cierre: explican un esperado que bajó sin retiro -->
+          <div v-if="expected.voidedSinceLastCount.length > 0" class="q-mt-md">
+            <div class="text-subtitle2 text-negative">
+              Anulados después del último cierre
+              <span class="text-grey-7 text-weight-regular">
+                · {{ expected.voidedSinceLastCount.length }} ·
+                {{ formatPrice(expected.voidedSinceLastCountTotal, expected.currency) }}
+              </span>
+            </div>
+            <div class="text-caption text-grey-7">
+              Se contaron en el cierre anterior y gestión los anuló: ya no se esperan en el cajón.
+            </div>
+            <q-list dense separator class="q-mt-xs">
+              <q-item v-for="p in expected.voidedSinceLastCount" :key="`void-${p.id}`">
+                <q-item-section>
+                  <q-item-label class="text-strike text-grey-7">{{ p.memberName || '—' }}</q-item-label>
+                  <q-item-label caption>
+                    Anulado {{ formatDateTime(p.voidedAt) }}
+                    <span v-if="p.voidReason"> · {{ p.voidReason }}</span>
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side class="text-weight-medium text-negative">
+                  −{{ formatPrice(p.amount, p.currency) }}
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+
           <div v-if="expected.lastCount" class="text-caption text-grey-6 q-mt-sm">
             Último cierre: {{ formatDateTime(expected.lastCount.countedAt) }} por
             {{ expected.lastCount.counterName }} ·
@@ -147,6 +175,9 @@ import type { CashCountExpected, CashCountListItem } from 'src/types/transaction
 //
 // Ship 2026-09-08 (c04b6ea0 + fix gate 0192-0195): este archivo se toca para
 // que el paths-filter del deploy construya el admin junto con la API.
+// 2026-09-09: si gestión anuló un cobro que ya se contó en el cierre anterior,
+// el esperado baja sin retiro; el diálogo lo lista tachado para que el profe
+// (o gestión) entienda el descuadre en vez de buscar plata que no falta.
 // Dos modos con el mismo diálogo:
 //   - coach: por sede (la caja se resuelve en el server), desde el check-out de
 //     Mi jornada. Puede saltearlo ("Cerrar jornada sin contar").
