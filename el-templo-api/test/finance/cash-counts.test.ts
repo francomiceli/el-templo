@@ -14,6 +14,10 @@
  *   - Fondo de cambio: PATCH /cash-registers/:id/change-fund (admin) entra al
  *     esperado; coach → 403; banco → 400.
  *   - GET /cash-counts (gestión): historial con el snapshot.
+ *   - Después del cierre (2026-09-09): validar un pendiente no mueve el
+ *     esperado; anular un cobro ya contado lo baja y el siguiente esperado lo
+ *     lista en `voidedSinceLastCount` (nunca un cobro anulado antes del
+ *     cierre ni uno nacido y anulado después).
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
@@ -53,6 +57,13 @@ interface Expected {
   lastCount: { id: number; difference: number; counterName: string } | null;
   paymentsSinceLastCount: Array<{ id: number; validationStatus: string }>;
   paymentsSinceLastCountTotal: number;
+  voidedSinceLastCount: Array<{
+    id: number;
+    amount: number;
+    voidedAt: string;
+    voidReason: string | null;
+  }>;
+  voidedSinceLastCountTotal: number;
 }
 
 async function seedCobro(opts: {
@@ -83,6 +94,30 @@ async function seedCobro(opts: {
     )
     .$returningId();
   return res.id;
+}
+
+async function voidCobro(id: number, reason: string) {
+  await app.db
+    .update(schema.financialTransactions)
+    .set({ voidedAt: new Date(), voidedBy: adminId, voidReason: reason })
+    .where(
+      and(
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        eq(schema.financialTransactions.id, id),
+      ),
+    );
+}
+
+async function validateCobro(id: number) {
+  await app.db
+    .update(schema.financialTransactions)
+    .set({ validationStatus: "validado", validatedBy: adminId, validatedAt: new Date() })
+    .where(
+      and(
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        eq(schema.financialTransactions.id, id),
+      ),
+    );
 }
 
 /** Los timestamps son de resolución 1 s: separar "antes del cierre" de "después". */
@@ -335,6 +370,70 @@ describe("POST /coach-load/cash-count", () => {
     await app.db
       .delete(schema.staffShifts)
       .where(and(tenantWhere(schema.staffShifts, TEMPLO_CTX), eq(schema.staffShifts.id, shift.id)));
+  });
+});
+
+describe("gestión actúa después del cierre", () => {
+  it("validar un pendiente ya contado no mueve el esperado: pasa de pendiente a firme", async () => {
+    const b = await seedCobro({ amount: 80000, validationStatus: "pendiente" });
+    await setChangeFund(cajaId, 20000);
+    await tick();
+    const first = await count({ countedAmount: 100000 });
+    expect(first.statusCode).toBe(201);
+    await tick();
+
+    await validateCobro(b);
+    const e = await expected();
+    expect(e.firmeAmount).toBe(80000);
+    expect(e.pendienteAmount).toBe(0);
+    expect(e.expectedAmount).toBe(100000);
+    expect(e.paymentsSinceLastCount).toEqual([]);
+    expect(e.voidedSinceLastCount).toEqual([]);
+  });
+
+  it("anular un cobro ya contado baja el esperado y el siguiente cierre lo lista como anulado", async () => {
+    const a = await seedCobro({ amount: 65000 });
+    const b = await seedCobro({ amount: 80000, validationStatus: "pendiente" });
+    await seedCobro({ amount: 999, voided: true }); // anulado ANTES del cierre: nunca contó
+    await setChangeFund(cajaId, 20000);
+    await tick();
+    const first = await count({ countedAmount: 165000 });
+    expect(first.statusCode).toBe(201);
+    expect(first.body.cashCount?.expectedAmount).toBe(165000);
+    await tick();
+
+    // Gestión anula el pendiente que el profe ya contó, entra un cobro nuevo y
+    // otro nace y se anula después del cierre (ese no explica nada: no contó).
+    await voidCobro(b, "cargado dos veces");
+    const c = await seedCobro({ amount: 5000 });
+    await seedCobro({ amount: 777, voided: true });
+
+    const e = await expected();
+    expect(e.expectedAmount).toBe(20000 + 65000 + 5000);
+    expect(e.paymentsSinceLastCount.map((p) => p.id)).toEqual([c]);
+    expect(e.voidedSinceLastCount.map((p) => p.id)).toEqual([b]);
+    expect(e.voidedSinceLastCount[0].amount).toBe(80000);
+    expect(e.voidedSinceLastCount[0].voidReason).toBe("cargado dos veces");
+    expect(e.voidedSinceLastCountTotal).toBe(80000);
+    void a;
+
+    // El arqueo guardado no se reescribe: sigue diciendo 165000.
+    const hist = await app.inject({
+      method: "GET",
+      url: `${FIN}/cash-counts?cashRegisterId=${cajaId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(hist.statusCode).toBe(200);
+    const rows = (JSON.parse(hist.body) as { rows: Array<{ id: number; expectedAmount: number }> }).rows;
+    expect(rows.find((r) => r.id === first.body.cashCount?.id)?.expectedAmount).toBe(165000);
+  });
+
+  it("sin cierre previo no hay anulados que explicar", async () => {
+    await seedCobro({ amount: 999, voided: true });
+    const e = await expected();
+    expect(e.lastCount).toBeNull();
+    expect(e.voidedSinceLastCount).toEqual([]);
+    expect(e.voidedSinceLastCountTotal).toBe(0);
   });
 });
 

@@ -80,6 +80,7 @@ interface PendingBody {
   currency: string;
   rows: PaymentRow[];
   total: number;
+  awaitingValidation: { rows: PaymentRow[]; total: number };
 }
 interface WithdrawalBody {
   id: number;
@@ -381,8 +382,8 @@ describe("GET /withdrawals/pending", () => {
       kind: "advance_payment",
       notes: "Salda deuda",
     });
-    // Ruido que NO debe aparecer:
-    await seedCobro({ amount: 1, validationStatus: "pendiente" }); // sin validar
+    // Ruido que NO debe aparecer en rows (el sin validar va aparte):
+    const awaiting = await seedCobro({ amount: 1, validationStatus: "pendiente" });
     await seedCobro({ amount: 2, paymentMethod: "transfer", cashRegisterId: bankCajaId }); // transferencia
     await seedCobro({ amount: 3, cashRegisterId: otherCajaId }); // otra caja
     const voided = await seedCobro({ amount: 4 });
@@ -409,6 +410,38 @@ describe("GET /withdrawals/pending", () => {
     expect(body.rows[1].concept).toBeNull();
     expect(body.rows[2].concept).toBe("Salda deuda");
     expect(body.rows[0].memberName).toBe("Suyai Torres");
+    // 2026-09-09: lo que está en el cajón pero gestión no validó todavía. No
+    // se puede retirar, pero quien retira tiene que saber que existe.
+    expect(body.awaitingValidation.rows.map((r) => r.id)).toEqual([awaiting]);
+    expect(body.awaitingValidation.total).toBe(1);
+  });
+
+  it("awaitingValidation respeta dateTo y no incluye anulados ni validados", async () => {
+    const old = await seedCobro({
+      amount: 100,
+      validationStatus: "pendiente",
+      transactionDate: daysAgo(20),
+    });
+    await seedCobro({ amount: 200, validationStatus: "pendiente", transactionDate: daysAgo(2) });
+    await seedCobro({ amount: 300, transactionDate: daysAgo(20) }); // validado: va en rows
+    const voidedPending = await seedCobro({
+      amount: 400,
+      validationStatus: "pendiente",
+      transactionDate: daysAgo(20),
+    });
+    await app.db
+      .update(schema.financialTransactions)
+      .set({ voidedAt: new Date(), voidedBy: adminId, voidReason: "x" })
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          eq(schema.financialTransactions.id, voidedPending),
+        ),
+      );
+    const { body } = await getPending(adminToken, `?cashRegisterId=${cajaId}&dateTo=${daysAgo(10)}`);
+    expect(body.rows.map((r) => r.amount)).toEqual([300]);
+    expect(body.awaitingValidation.rows.map((r) => r.id)).toEqual([old]);
+    expect(body.awaitingValidation.total).toBe(100);
   });
 
   it("dateTo acota a lo cobrado hasta esa fecha (carga de retiros históricos)", async () => {

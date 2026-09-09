@@ -824,6 +824,8 @@ export interface PendingWithdrawalResult {
   currency: string;
   rows: WithdrawalPaymentItem[];
   total: number;
+  /** En el cajón pero sin validar por gestión: no se puede retirar todavía. */
+  awaitingValidation: { rows: WithdrawalPaymentItem[]; total: number };
 }
 
 export interface WithdrawalListItem {
@@ -897,6 +899,12 @@ export interface CashCountPaymentItem {
   recorderName: string;
 }
 
+/** Cobro contado en un cierre anterior y anulado después. */
+export interface CashCountVoidedItem extends CashCountPaymentItem {
+  voidedAt: string;
+  voidReason: string | null;
+}
+
 export interface CashCountSummary {
   id: number;
   countedAt: string;
@@ -920,6 +928,9 @@ export interface CashCountExpected {
   lastCount: CashCountSummary | null;
   paymentsSinceLastCount: CashCountPaymentItem[];
   paymentsSinceLastCountTotal: number;
+  /** Contados en el último cierre y anulados después: explican por qué bajó el esperado. */
+  voidedSinceLastCount: CashCountVoidedItem[];
+  voidedSinceLastCountTotal: number;
 }
 
 export interface CashCountListItem extends CashCountSummary {

@@ -137,4 +137,14 @@ watch(activeTab, (tab) => {
     void router.replace({ query: { ...route.query, tab } });
   }
 });
+
+// And the other way: a child that navigates with ?tab= (Retiros → "Ir a
+// Pendientes", 2026-09-09) or the browser back button switch the tab too.
+watch(
+  () => route.query.tab,
+  () => {
+    const fromQuery = tabFromQuery();
+    if (fromQuery !== activeTab.value) activeTab.value = fromQuery;
+  }
+);
 </script>

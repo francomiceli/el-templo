@@ -59,6 +59,18 @@
             {{ pending?.rows.length ?? 0 }} cobros en efectivo validados sin retirar
             <span v-if="oldestPending"> · el más viejo del {{ formatDate(oldestPending) }}</span>
           </div>
+          <!-- Lo que está en el cajón pero gestión no validó: el cierre del profe lo cuenta, acá no se retira -->
+          <div
+            v-if="!loadingPending && awaitingValidation.rows.length > 0"
+            class="text-caption text-warning q-mt-xs"
+          >
+            <q-icon name="hourglass_top" size="14px" class="q-mr-xs" />
+            Además hay {{ awaitingValidation.rows.length }}
+            {{ awaitingValidation.rows.length === 1 ? 'cobro' : 'cobros' }} sin validar todavía por
+            {{ formatPrice(awaitingValidation.total, selectedCaja.currency) }}: el cierre del profe los
+            cuenta, pero no se pueden retirar hasta validarlos.
+            <a href="#" class="text-primary" @click.prevent="goToPendientes">Ir a Pendientes</a>
+          </div>
         </div>
         <q-btn
           v-if="(pending?.rows.length ?? 0) > 0"
@@ -114,6 +126,18 @@
                 }}
               </span>
               <span v-if="lastCount.notes"> · {{ lastCount.notes }}</span>
+            </div>
+            <div
+              v-if="expectedNow && expectedNow.voidedSinceLastCount.length > 0"
+              class="text-caption text-negative q-mt-xs"
+            >
+              <q-icon name="block" size="14px" class="q-mr-xs" />
+              {{ expectedNow.voidedSinceLastCount.length }}
+              {{ expectedNow.voidedSinceLastCount.length === 1 ? 'cobro contado' : 'cobros contados' }}
+              en ese cierre se {{ expectedNow.voidedSinceLastCount.length === 1 ? 'anuló' : 'anularon' }}
+              después ({{ formatPrice(expectedNow.voidedSinceLastCountTotal, lastCount.currency) }}):
+              hoy se esperan {{ formatPrice(expectedNow.expectedAmount, lastCount.currency) }} en el
+              cajón.
             </div>
           </template>
           <div v-else class="text-caption text-grey-6 q-mt-xs">
@@ -317,7 +341,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useQuasar, type QTableColumn } from 'quasar';
+import { CAJA_TABS } from 'src/constants/caja';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
@@ -333,6 +359,7 @@ import type {
   WithdrawalListItem,
   WithdrawalPaymentItem,
   CashCountListItem,
+  CashCountExpected,
 } from 'src/types/transaction';
 
 // =========================================================================
@@ -407,6 +434,16 @@ const pendingColumns: QTableColumn<WithdrawalPaymentItem>[] = [
 ];
 
 const oldestPending = computed(() => pending.value?.rows[0]?.transactionDate ?? null);
+// 2026-09-09: el arqueo del profe cuenta los cobros sin validar (la plata está
+// en el cajón) pero acá no se retiran hasta que gestión los valide. Si no se
+// avisa, quien retira ve menos que el último cierre y lo reporta como bug.
+const awaitingValidation = computed(
+  () => pending.value?.awaitingValidation ?? { rows: [], total: 0 }
+);
+const router = useRouter();
+function goToPendientes() {
+  void router.push({ query: { tab: CAJA_TABS.pendientes } });
+}
 
 async function loadPending() {
   if (!selectedCaja.value || selectedCaja.value.type !== 'efectivo') {
@@ -429,6 +466,8 @@ async function loadPending() {
 // ---------------------------------------------------------------- arqueos
 const recentCounts = ref<CashCountListItem[]>([]);
 const lastCount = computed(() => recentCounts.value[0] ?? null);
+/** Esperado HOY de la caja: trae los cobros contados en el último cierre y anulados después. */
+const expectedNow = ref<CashCountExpected | null>(null);
 const showCerrarCaja = ref(false);
 
 const countColumns: QTableColumn<CashCountListItem>[] = [
@@ -443,6 +482,7 @@ const countColumns: QTableColumn<CashCountListItem>[] = [
 async function loadCounts() {
   if (!selectedCaja.value || selectedCaja.value.type !== 'efectivo') {
     recentCounts.value = [];
+    expectedNow.value = null;
     return;
   }
   try {
@@ -455,6 +495,15 @@ async function loadCounts() {
   } catch (err: unknown) {
     log.warn('Error loading cash counts', { error: extractError(err, '') });
     recentCounts.value = [];
+  }
+  try {
+    expectedNow.value =
+      recentCounts.value.length > 0
+        ? await transactionsApi.getCashCountExpected(selectedCaja.value.cashRegisterId)
+        : null;
+  } catch (err: unknown) {
+    log.warn('Error loading cash count expected', { error: extractError(err, '') });
+    expectedNow.value = null;
   }
 }
 

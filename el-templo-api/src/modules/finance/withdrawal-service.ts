@@ -297,22 +297,39 @@ export class WithdrawalService {
         "Solo las cajas de efectivo tienen cobros pendientes de retiro",
       );
     }
-    const rows = await this.queryPayments(ctx, {
-      cashRegisterId: cajaId,
-      onlyPending: true,
-      dateTo: opts.dateTo,
-    });
+    const [rows, awaiting] = await Promise.all([
+      this.queryPayments(ctx, {
+        cashRegisterId: cajaId,
+        onlyPending: true,
+        dateTo: opts.dateTo,
+      }),
+      // 2026-09-09 — el arqueo del profe cuenta los cobros sin validar (la
+      // plata está en el cajón) pero acá no se pueden retirar hasta que
+      // gestión los valide. Se informan aparte para que quien retira sepa
+      // por qué ve menos que el último cierre.
+      this.queryPayments(ctx, {
+        cashRegisterId: cajaId,
+        onlyAwaitingValidation: true,
+        dateTo: opts.dateTo,
+      }),
+    ]);
     return {
       cashRegisterId: caja.id,
       cashRegisterName: caja.name,
       currency: caja.currency,
       rows,
       total: rows.reduce((acc, r) => acc + r.amount, 0),
+      awaitingValidation: {
+        rows: awaiting,
+        total: awaiting.reduce((acc, r) => acc + r.amount, 0),
+      },
     };
   }
 
   /**
-   * Query compartida entre "pendientes de retiro" (onlyPending) y "cobros de
+   * Query compartida entre "pendientes de retiro" (onlyPending), "sin validar
+   * todavía" (onlyAwaitingValidation: validation_status = pendiente, no
+   * anulados, mismo universo que el `pendienteAmount` del saldo) y "cobros de
    * un retiro" (withdrawalId). LEFT JOIN users: un cobro sin socio no existe
    * hoy, pero el listado no debe perder filas si algún kind lo permite mañana.
    */
@@ -321,6 +338,7 @@ export class WithdrawalService {
     opts: {
       cashRegisterId?: number;
       onlyPending?: boolean;
+      onlyAwaitingValidation?: boolean;
       withdrawalId?: number;
       dateTo?: string;
     },
@@ -340,6 +358,12 @@ export class WithdrawalService {
     if (opts.onlyPending) {
       conds.push(...firmMoneyConditions());
       conds.push(sql`${activeWithdrawalIdSql(ctx)} IS NULL`);
+    }
+    if (opts.onlyAwaitingValidation) {
+      conds.push(
+        isNull(schema.financialTransactions.voidedAt),
+        eq(schema.financialTransactions.validationStatus, "pendiente"),
+      );
     }
     if (opts.withdrawalId !== undefined) {
       conds.push(sql`EXISTS (
