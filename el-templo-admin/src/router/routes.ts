@@ -9,6 +9,7 @@ import {
   TV_CONTROL_ROLES,
   PARTNERS_ROLES,
   JORNADA_ROLES,
+  ANALITICAS_ROLES,
 } from 'src/config/templo-config';
 
 /**
@@ -225,7 +226,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'analiticas',
         component: () => import('pages/AnaliticasPage.vue'),
-        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
+        // 2026-09-09: `inversor` entra (ANALITICAS_ROLES = ADMIN_ROLES +
+        // inversor), acotado a su sede por el API + la página (branchScoped).
+        meta: { allowedRoles: ANALITICAS_ROLES },
       },
       {
         path: 'reportes',

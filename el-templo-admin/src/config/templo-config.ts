@@ -133,8 +133,14 @@ export const PLANES_READ_ROLES: AdminRole[] = [
  */
 export const CAJA_SALDOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'inversor'];
 
-/** Analíticas: Dueño-only. Mirrors the /analiticas route allowedRoles (ADMIN_ROLES). */
-export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner'];
+/**
+ * Analíticas: Dueño + inversor (2026-09-09, feedback UAT). Mirrors the
+ * /analiticas route allowedRoles y `ANALYTICS_ADMIN_ROLES` del API. El
+ * inversor la ve, pero SIEMPRE acotada a SU sede — el server la fuerza
+ * (`enforceBranchScope`) y la página oculta el selector "Todas" + las tabs
+ * sin dimensión de sede (Programas, Referidos A/B).
+ */
+export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner', 'inversor'];
 
 /**
  * Partners (fase 179, D-20): comercios/marcas con código de referido propio.

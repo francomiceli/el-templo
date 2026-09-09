@@ -229,9 +229,14 @@
       <q-tab name="ingresos" label="Ingresos" icon="payments" />
       <q-tab name="miembros" label="Miembros" icon="people" />
       <q-tab name="finanzas" label="Finanzas" icon="payments" />
-      <q-tab name="programas" label="Programas" icon="school" />
+      <!-- Programas: 403 para el inversor (ANALYTICS_ADMIN_ROLES no incluye
+           esta superficie, PROGRAMAS_ROLES es dueño-only) — se oculta en vez
+           de mostrarle un error. -->
+      <q-tab v-if="!branchScoped" name="programas" label="Programas" icon="school" />
       <q-tab name="retencion" label="Retención (ciclos)" icon="timeline" />
-      <q-tab name="referidos-ab" label="Referidos A/B" icon="science" />
+      <!-- Referidos A/B: agregado gym-wide sin dimensión de sede
+           (REFERRAL_AB_RESULTS_ROLES excluye al inversor, 403). -->
+      <q-tab v-if="!branchScoped" name="referidos-ab" label="Referidos A/B" icon="science" />
       <q-tab name="especiales" label="Especiales" icon="auto_awesome" />
     </q-tabs>
 
@@ -284,7 +289,7 @@
       </q-tab-panel>
 
       <!-- Programas Tab -->
-      <q-tab-panel name="programas">
+      <q-tab-panel v-if="!branchScoped" name="programas">
         <div class="text-h6 q-mb-md">Programas — Resumen de Inscripciones</div>
 
         <div v-if="loadingProgramAnalytics" class="row q-col-gutter-md">
@@ -347,7 +352,7 @@
 
       <!-- Referidos A/B — copy test de la card de referidos (v5.5 follow-up).
            Métricas gym-wide, no dependen de los filtros globales. -->
-      <q-tab-panel name="referidos-ab">
+      <q-tab-panel v-if="!branchScoped" name="referidos-ab">
         <ReferidosAbTab :data="referralAbData" :loading="loadingReferralAb" />
       </q-tab-panel>
 
@@ -374,6 +379,7 @@ import { useAnalyticsApi } from 'src/composables/useAnalyticsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { isBranchScopedRole } from 'src/utils/branch-scope';
 import { createLogger } from 'src/utils/logger';
 import { formatPrice } from 'src/utils/format-price';
 import MiembrosTab from 'src/components/analytics/MiembrosTab.vue';
@@ -445,12 +451,21 @@ async function fetchBranches() {
     const branches = await membersApi.getBranches({
       country: isOwner.value ? selectedCountry.value : undefined,
     });
-    branchOptions.value = [
-      { label: 'Todas las sedes', value: undefined },
-      ...branches.map((b: BranchOption) => ({ label: b.name, value: b.id })),
-    ];
-    // Si la sede elegida quedó fuera del país seleccionado, volver a "Todas".
+    // Rol de alcance forzado (inversor): sin "Todas las sedes" — el API le
+    // exige una sede y le preseleccionamos la primera de las suyas.
+    branchOptions.value = branchScoped.value
+      ? branches.map((b: BranchOption) => ({ label: b.name, value: b.id }))
+      : [
+          { label: 'Todas las sedes', value: undefined },
+          ...branches.map((b: BranchOption) => ({ label: b.name, value: b.id })),
+        ];
+    if (branchScoped.value && selectedBranchId.value === undefined) {
+      selectedBranchId.value = branches[0]?.id;
+    }
+    // Si la sede elegida quedó fuera del país seleccionado, volver a "Todas"
+    // (no aplica a branchScoped: no tiene "Todas" para volver).
     if (
+      !branchScoped.value &&
       selectedBranchId.value !== undefined &&
       !branchOptions.value.some((o) => o.value === selectedBranchId.value)
     ) {
@@ -610,6 +625,15 @@ const currentFilters = computed<AnalyticsFilters>(() => ({
 // -- Tab state -----------------------------------------------------------
 
 const activeTab = ref('miembros');
+
+// Rol de alcance forzado por sede (inversor, 2026-09-09 feedback UAT): sin
+// "Todas las sedes" en el selector (preseleccionada la suya) y sin las tabs
+// sin dimensión de sede (Programas → 403 ANALYTICS_ADMIN_ROLES; Referidos A/B
+// → gym-wide, REFERRAL_AB_RESULTS_ROLES lo excluye).
+const branchScoped = computed(() => isBranchScopedRole(authStore.user?.role));
+if (branchScoped.value && (activeTab.value === 'programas' || activeTab.value === 'referidos-ab')) {
+  activeTab.value = 'miembros';
+}
 
 // -- Data refs -----------------------------------------------------------
 
@@ -929,13 +953,18 @@ async function fetchTabData() {
       await Promise.all([fetchFinancialData(), fetchAdvancedFinanceData()]);
       break;
     case 'programas':
-      await fetchProgramAnalytics();
+      // 403 ANALYTICS_ADMIN_ROLES para el inversor — la tab está oculta
+      // (branchScoped) y el mount la redirige, pero se guarda igual acá por
+      // si algo la deja seleccionada.
+      if (!branchScoped.value) await fetchProgramAnalytics();
       break;
     case 'retencion':
       await fetchRetentionData();
       break;
     case 'referidos-ab':
-      await fetchReferralAb();
+      // Gym-wide, sin dimensión de sede — REFERRAL_AB_RESULTS_ROLES excluye
+      // al inversor (403). Misma guarda que 'programas'.
+      if (!branchScoped.value) await fetchReferralAb();
       break;
     case 'especiales':
       await fetchEspeciales();
