@@ -10,7 +10,7 @@
  * El check-in/check-out reusa el MISMO QR físico de sede que el check-in de
  * socios (`generateQrToken`/`validateQrToken`, `shared/qr-token.ts`).
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -48,6 +48,8 @@ describe("Staff Attendance API", () => {
   let branchAName: string;
 
   let coachAToken: string; // asignado SOLO a branchA (user_branches)
+  let coachEmail: string;
+  let adminEmail: string;
   let adminToken: string;
   let gestionToken: string;
   let ownerToken: string;
@@ -58,6 +60,8 @@ describe("Staff Attendance API", () => {
     await cleanAllTestData(app);
 
     const u = uniqueSuffix("SA");
+    coachEmail = `coach-a-${u}@test.local`;
+    adminEmail = `admin-${u}@test.local`;
 
     const [a] = await app.db
       .insert(schema.branches)
@@ -202,10 +206,12 @@ describe("Staff Attendance API", () => {
       expect(meBody.open.branchId).toBe(branchAId);
       expect(Array.isArray(meBody.checklist)).toBe(true);
       // Lote del posnet solo mié/sáb (día en la zona de la sede, AR por default).
-      const esperados = checklistForDow(dowInTz("America/Argentina/Buenos_Aires")).map(
-        (c) => c.key,
+      const esperados = checklistForDow(
+        dowInTz("America/Argentina/Buenos_Aires"),
+      ).map((c) => c.key);
+      expect(meBody.checklist.map((c: { key: string }) => c.key)).toEqual(
+        esperados,
       );
-      expect(meBody.checklist.map((c: { key: string }) => c.key)).toEqual(esperados);
     });
 
     it("segundo check-in con jornada ya abierta -> 409", async () => {
@@ -321,9 +327,9 @@ describe("Staff Attendance API", () => {
       expect(row.branchId).toBe(branchAId);
       expect(typeof row.userName).toBe("string");
       // El snapshot guarda `lote` solo los días que aplica (mié/sáb, tz sede).
-      const loteAplica = checklistForDow(dowInTz("America/Argentina/Buenos_Aires")).some(
-        (c) => c.key === "lote",
-      );
+      const loteAplica = checklistForDow(
+        dowInTz("America/Argentina/Buenos_Aires"),
+      ).some((c) => c.key === "lote");
       expect(row.checklist).toEqual({
         cobros: true,
         espacio: true,
@@ -418,6 +424,161 @@ describe("Staff Attendance API", () => {
         headers: { Authorization: `Bearer ${memberToken}` },
       });
       expect(res.statusCode).toBe(403);
+    });
+  });
+  // -------------------------------------------------------------------------
+  // Lote del posnet solo mié/sáb — camino cubierto con reloj falso, porque el
+  // resto del archivo depende del calendario del runner (ver
+  // reference_test_arpu_dependiente_del_calendario). Los tokens se piden
+  // DESPUÉS de cada salto: el JWT emitido en tiempo real vencería.
+  // -------------------------------------------------------------------------
+  describe("lote del posnet por día (mié/sáb, reloj falso)", () => {
+    const TZ_AR = "America/Argentina/Buenos_Aires";
+    const DIA_MS = 24 * 60 * 60 * 1000;
+    let coachTok: string;
+    let adminTok: string;
+
+    /** Siguiente día con ese dow ISO en AR, a las 12:00 AR (15:00Z), SIEMPRE
+     *  hacia adelante respecto del reloj actual (ver
+     *  reference_fake_timers_salto_relativo). */
+    function proximoDia(dowIso: number): Date {
+      let d = new Date(Date.now() + DIA_MS);
+      d.setUTCHours(15, 0, 0, 0);
+      while (dowInTz(TZ_AR, d) !== dowIso) {
+        d = new Date(d.getTime() + DIA_MS);
+      }
+      return d;
+    }
+
+    async function saltarA(dowIso: number) {
+      vi.setSystemTime(proximoDia(dowIso));
+      coachTok = await getAuthToken(app, coachEmail, "test1234");
+      adminTok = await getAuthToken(app, adminEmail, "test1234");
+    }
+
+    function fechaEnAr(): string {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: TZ_AR,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+    }
+
+    async function checkIn() {
+      const res = await app.inject({
+        method: "POST",
+        url: CHECK_IN_URL,
+        headers: { Authorization: `Bearer ${coachTok}` },
+        payload: { qrToken: generateQrToken(branchAId) },
+      });
+      expect(res.statusCode).toBe(201);
+    }
+
+    async function checkOut(checklist: Record<string, boolean>) {
+      return app.inject({
+        method: "POST",
+        url: CHECK_OUT_URL,
+        headers: { Authorization: `Bearer ${coachTok}` },
+        payload: { qrToken: generateQrToken(branchAId), checklist },
+      });
+    }
+
+    async function snapshotDeHoy() {
+      const hoy = fechaEnAr();
+      const res = await app.inject({
+        method: "GET",
+        url: `${SHIFTS_URL}?branchId=${branchAId}&from=${hoy}&to=${hoy}`,
+        headers: { Authorization: `Bearer ${adminTok}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const rows = JSON.parse(res.body).shifts as Array<{
+        checklist: Record<string, boolean | null> | null;
+        checkedOutAt: string | null;
+      }>;
+      const cerradas = rows.filter((r) => r.checkedOutAt !== null);
+      expect(cerradas.length).toBeGreaterThanOrEqual(1);
+      return cerradas[0].checklist;
+    }
+
+    beforeAll(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterAll(() => {
+      vi.useRealTimers();
+    });
+
+    it("miércoles: GET /me ofrece el lote y el check-out sin lote -> 400 que pide recargar", async () => {
+      await saltarA(3);
+      await checkIn();
+
+      const meRes = await app.inject({
+        method: "GET",
+        url: ME_URL,
+        headers: { Authorization: `Bearer ${coachTok}` },
+      });
+      expect(
+        JSON.parse(meRes.body).checklist.map((c: { key: string }) => c.key),
+      ).toEqual(["cobros", "espacio", "lote"]);
+
+      // Cliente con la lista de otro día: no manda `lote`.
+      const sinLote = await checkOut({ cobros: true, espacio: true });
+      expect(sinLote.statusCode).toBe(400);
+      const msg = JSON.parse(sinLote.body).message as string;
+      expect(msg).toContain("Cerré el lote del posnet");
+      expect(msg).toContain("recargá la página");
+
+      // Cliente actualizado que lo dejó sin tildar: falta, pero sin pedir recarga.
+      const loteFalse = await checkOut({
+        cobros: true,
+        espacio: true,
+        lote: false,
+      });
+      expect(loteFalse.statusCode).toBe(400);
+      const msg2 = JSON.parse(loteFalse.body).message as string;
+      expect(msg2).toContain("Cerré el lote del posnet");
+      expect(msg2).not.toContain("recargá");
+
+      const ok = await checkOut({ cobros: true, espacio: true, lote: true });
+      expect(ok.statusCode).toBe(200);
+      expect(await snapshotDeHoy()).toEqual({
+        cobros: true,
+        espacio: true,
+        lote: true,
+      });
+    });
+
+    it("martes: GET /me no ofrece el lote, el check-out sin lote -> 200 y el snapshot lo guarda null", async () => {
+      await saltarA(2);
+      await checkIn();
+
+      const meRes = await app.inject({
+        method: "GET",
+        url: ME_URL,
+        headers: { Authorization: `Bearer ${coachTok}` },
+      });
+      expect(
+        JSON.parse(meRes.body).checklist.map((c: { key: string }) => c.key),
+      ).toEqual(["cobros", "espacio"]);
+
+      // Cliente con la lista del miércoles que manda lote: se ignora.
+      const ok = await checkOut({ cobros: true, espacio: true, lote: true });
+      expect(ok.statusCode).toBe(200);
+      expect(await snapshotDeHoy()).toEqual({
+        cobros: true,
+        espacio: true,
+        lote: null,
+      });
+    });
+
+    it("sábado: el check-out sin lote -> 400 (el otro día del lote)", async () => {
+      await saltarA(6);
+      await checkIn();
+      const sinLote = await checkOut({ cobros: true, espacio: true });
+      expect(sinLote.statusCode).toBe(400);
+      const ok = await checkOut({ cobros: true, espacio: true, lote: true });
+      expect(ok.statusCode).toBe(200);
     });
   });
 });

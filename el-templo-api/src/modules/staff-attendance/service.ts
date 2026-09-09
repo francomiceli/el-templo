@@ -33,7 +33,11 @@ import { resolveBranchDelGimnasio } from "../shared/branch-consistency";
 import { canAccessBranch, BRANCH_OUT_OF_SCOPE } from "../shared/branch-access";
 import type { CountryScope } from "../shared/country-scope";
 import { todayInTz } from "../shared/date-utils";
-import { checklistForDow, requiredKeysForDow } from "./checklist";
+import {
+  checklistForDow,
+  requiredKeysForDow,
+  checklistIncompletoMessage,
+} from "./checklist";
 import { dowInTz } from "../shared/date-utils";
 
 /** Zona por defecto cuando no hay sede (sin jornada abierta) o la sede no la tiene. */
@@ -272,17 +276,22 @@ export class StaffAttendanceService {
       .select({ timezone: schema.branches.timezone })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
       )
       .limit(1);
     const requiredKeys = requiredKeysForDow(
       dowInTz(sede?.timezone ?? DEFAULT_TZ, now),
     );
-    const checklistCompleto = requiredKeys.every(
-      (key) => checklist[key] === true,
-    );
-    if (!checklistCompleto) {
-      throw new BadRequestError("Marcá todos los ítems del checklist");
+    // El 400 nombra lo que falta: si el ítem ni vino en el body, el cliente
+    // armó la lista otro día (o es un bundle viejo) y el mensaje pide recargar.
+    const faltantes = requiredKeys.filter((key) => checklist[key] !== true);
+    if (faltantes.length > 0) {
+      throw new BadRequestError(
+        checklistIncompletoMessage(faltantes, checklist),
+      );
     }
 
     // Se reconstruye el objeto en vez de guardar el body tal cual (defensa

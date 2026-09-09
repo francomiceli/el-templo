@@ -263,12 +263,18 @@ const meLoading = ref(true);
 const openShift = ref<StaffAttendanceOpenShift | null>(null);
 const checklistItems = ref<StaffAttendanceChecklistItem[]>([]);
 
+/** Trae estado + ítems del checklist del server (la lista depende del día EN
+ *  LA SEDE: el lote del posnet solo mié/sáb). */
+async function fetchMe() {
+  const me = await attendanceApi.getMe();
+  openShift.value = me.open;
+  checklistItems.value = me.checklist;
+}
+
 async function loadMe() {
   meLoading.value = true;
   try {
-    const me = await attendanceApi.getMe();
-    openShift.value = me.open;
-    checklistItems.value = me.checklist;
+    await fetchMe();
   } catch (err: unknown) {
     const message = extractError(err, 'No se pudo cargar el estado de tu jornada');
     log.error('Error cargando estado de jornada', { error: message });
@@ -317,7 +323,7 @@ function onScanned(text: string) {
   if (scannerMode.value === 'checkin') {
     void performCheckIn(text);
   } else {
-    openChecklistDialog(text);
+    void openChecklistDialog(text);
   }
 }
 
@@ -371,9 +377,20 @@ const allChecklistChecked = computed(() =>
 // o saltear el conteo no cancela el check-out: sigue al checklist.
 const showCajaDialog = ref(false);
 
-function openChecklistDialog(qrToken: string) {
+async function openChecklistDialog(qrToken: string) {
   pendingQrToken.value = qrToken;
   checklistValues.value = { cobros: false, espacio: false, lote: false };
+  // La lista de ítems se cargó al abrir la página, que puede haber quedado
+  // abierta desde otro día (incidente 2026-09-09: página del martes, cierre
+  // del miércoles → el server exigía el lote y el diálogo no lo ofrecía). Se
+  // refresca acá, al momento de cerrar; si falla, se sigue con la que hay.
+  try {
+    await fetchMe();
+  } catch (err: unknown) {
+    log.warn('No se pudo refrescar el checklist antes del check-out', {
+      error: extractError(err, 'Error desconocido'),
+    });
+  }
   if (openShift.value) {
     showCajaDialog.value = true;
   } else {

@@ -41,3 +41,24 @@ export function checklistForDow(dow: number) {
 export function requiredKeysForDow(dow: number): StaffChecklistKey[] {
   return checklistForDow(dow).map((item) => item.key);
 }
+
+/**
+ * Mensaje del 400 de check-out cuando falta algún ítem exigido hoy, con las
+ * etiquetas de lo que falta. Si un ítem exigido ni siquiera vino en el body,
+ * el cliente armó la lista otro día (la página quedó abierta desde antes de
+ * medianoche) o corre un bundle viejo: se le pide recargar. Incidente
+ * 2026-09-09, primer miércoles con el lote condicional.
+ */
+export function checklistIncompletoMessage(
+  faltantes: readonly StaffChecklistKey[],
+  enviado: Record<string, unknown>,
+): string {
+  const labels = STAFF_CHECKOUT_CHECKLIST.filter((item) =>
+    faltantes.includes(item.key),
+  ).map((item) => item.label);
+  const base = `Falta marcar: ${labels.join(", ")}`;
+  const noVino = faltantes.some((key) => enviado[key] === undefined);
+  return noVino
+    ? `${base}. Hoy también se pide ese ítem: recargá la página y volvé a escanear el QR`
+    : base;
+}
