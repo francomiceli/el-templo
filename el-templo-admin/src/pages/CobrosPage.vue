@@ -310,7 +310,7 @@
                       >
                         {{
                           isAssociationDisabled(opt.value)
-                            ? 'Solo para socios existentes'
+                            ? associationDisabledHint(opt.value)
                             : opt.hint
                         }}
                       </div>
@@ -722,8 +722,8 @@
                     Precio de lista
                     {{ formatPrice(autocompletar.amount, autocompletar.currency ?? 'ARS') }} →
                     acordado
-                    {{ formatPrice(precioAcordadoMonto, autocompletar.currency ?? 'ARS') }}.
-                    No genera deuda.
+                    {{ formatPrice(precioAcordadoMonto, autocompletar.currency ?? 'ARS') }}. No
+                    genera deuda.
                   </q-banner>
                 </template>
 
@@ -1075,15 +1075,30 @@ const associationOptions = computed<
 >(() => {
   const endDate = autocompletar.value?.currentEndDate ?? null;
   const stillCovered = endDate !== null && endDate > new Date().toISOString().split('T')[0];
+  // Con deuda, esta opción NO renueva nada: liquida el saldo del plan que debe
+  // (el API decide settle). Decirlo con todas las letras evita que el staff
+  // busque "cargar el pago" por el alta (casos Zabala/Martínez 2026-09-09).
+  const outstanding = autocompletar.value?.outstanding ?? 0;
+  const renewOption =
+    outstanding > 0
+      ? {
+          value: 'renew' as const,
+          label: 'Cobrar deuda del plan',
+          hint: `Debe ${formatPrice(outstanding, autocompletar.value?.currency ?? 'ARS')}${
+            autocompletar.value?.planName ? ` — Plan ${autocompletar.value.planName}` : ''
+          }`,
+          icon: 'autorenew',
+        }
+      : {
+          value: 'renew' as const,
+          label: stillCovered ? 'Cobrar próximo período' : 'Renovar plan vigente',
+          hint: stillCovered
+            ? `Arranca el ${formatDate(endDate)}, al vencer el actual`
+            : 'Cobrar la renovación del plan activo',
+          icon: 'autorenew',
+        };
   return [
-    {
-      value: 'renew',
-      label: stillCovered ? 'Cobrar próximo período' : 'Renovar plan vigente',
-      hint: stillCovered
-        ? `Arranca el ${formatDate(endDate)}, al vencer el actual`
-        : 'Cobrar la renovación del plan activo',
-      icon: 'autorenew',
-    },
+    renewOption,
     {
       value: 'alta',
       label: 'Asignar plan nuevo',
@@ -1142,7 +1157,21 @@ const isNewStudentContext = computed(() => showNewStudentForm.value && !selected
 // alumno nuevo evita el callejón sin salida (Confirmar permanentemente
 // deshabilitado en misc / paso 2 vacío en renew).
 function isAssociationDisabled(value: Mode): boolean {
-  return isNewStudentContext.value && (value === 'renew' || value === 'misc');
+  if (isNewStudentContext.value && (value === 'renew' || value === 'misc')) return true;
+  // Caso Martínez (2026-09-09): la socia ya tenía el plan cargado con deuda y
+  // el profe fue por "Asignar plan nuevo" para "cargarle el pago" → 409 "ya
+  // tiene una suscripción presencial activa". Con saldo pendiente el alta no
+  // es el camino: se deshabilita y se señala "Cobrar deuda del plan". Sin
+  // deuda queda habilitada (plan online + presencial, pase especial, etc.).
+  return (
+    value === 'alta' && !isNewStudentContext.value && (autocompletar.value?.outstanding ?? 0) > 0
+  );
+}
+
+/** Motivo que se muestra en lugar del hint cuando una asociación está deshabilitada. */
+function associationDisabledHint(value: Mode): string {
+  if (value === 'alta') return 'Ya tiene plan con deuda: cobrala con "Cobrar deuda del plan"';
+  return 'Solo para socios existentes';
 }
 
 // Selecting a step-2 association: set the mode and (re)load its dependencies.
