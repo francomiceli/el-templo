@@ -847,6 +847,166 @@ describe("coach-load autocompletar", () => {
 });
 
 // ─── cobro suelto (CARGA-03 / Pitfall 2): advance_payment pendiente, balance untouched, no firm revenue ──
+/**
+ * Seed the Zabala shape (2026-09-09): the old plan is still active and ends
+ * TODAY, and the renewal loaded from the ficha without payment is `scheduled`
+ * from today with the whole price seeded as debt. `getMemberSubscription`
+ * picks the OLD one (active-first), which has no debt.
+ */
+async function seedScheduledRenewalWithDebt(
+  debt: number,
+): Promise<{ oldSubId: number; renewalSubId: number }> {
+  const today = new Date().toISOString().split("T")[0];
+  const start = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+  const future = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+  const [old] = await app.db
+    .insert(schema.subscriptions)
+    .values({
+      tenantId: TENANT_TEMPLO,
+      userId: memberId,
+      planId,
+      branchId,
+      status: "active",
+      startDate: start,
+      endDate: today,
+      pricePaid: 100000,
+      currency: "ARS",
+      priceTypeApplied: "regular",
+    })
+    .$returningId();
+  const [renewal] = await app.db
+    .insert(schema.subscriptions)
+    .values({
+      tenantId: TENANT_TEMPLO,
+      userId: memberId,
+      planId,
+      branchId,
+      status: "scheduled",
+      startDate: today,
+      endDate: future,
+      pricePaid: 195000,
+      currency: "ARS",
+      priceTypeApplied: "regular",
+      previousSubscriptionId: old.id,
+    })
+    .$returningId();
+  if (debt > 0) await seedSubscriptionDebt(renewal.id, debt);
+  return { oldSubId: old.id, renewalSubId: renewal.id };
+}
+
+describe("coach-load deuda en la renovación programada (caso Zabala 2026-09-09)", () => {
+  it("autocompletar: la deuda del plan programado se muestra aunque el vigente no deba", async () => {
+    await seedScheduledRenewalWithDebt(195000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${COACH_LOAD_URL}/autocompletar/${memberId}`,
+      headers: { authorization: `Bearer ${coachToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.hasRenewable).toBe(true);
+    // Antes: intent 'renew', outstanding 0 — la PoS no mostraba la deuda.
+    expect(body.intent).toBe("settle");
+    expect(body.outstanding).toBe(195000);
+    expect(body.amount).toBe(195000);
+    // El vencimiento que se informa sigue siendo el del plan en curso.
+    expect(body.currentEndDate).toBe(new Date().toISOString().split("T")[0]);
+  });
+
+  it("pay-plan: liquida la deuda contra el plan programado, sin crear otro período ni 409", async () => {
+    const { renewalSubId } = await seedScheduledRenewalWithDebt(195000);
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "cash",
+        idempotencyKey: `settle-scheduled-${Date.now()}`,
+      },
+    });
+    // Antes: 409 "Ya existe una renovacion programada" (caía a renew).
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    const row = await readTx(body.transaction.id);
+    expect(row.kind).toBe("debt_settlement");
+    expect(row.amount).toBe(195000);
+
+    const links = await app.db
+      .select({
+        targetKind: schema.transactionLinks.targetKind,
+        targetId: schema.transactionLinks.targetId,
+      })
+      .from(schema.transactionLinks)
+      .where(
+        and(
+          eq(schema.transactionLinks.transactionId, body.transaction.id),
+          tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+        ),
+      );
+    expect(links).toEqual([
+      { targetKind: "subscription", targetId: renewalSubId },
+    ]);
+
+    const [balance] = await app.db
+      .select({ amount: schema.balances.amount })
+      .from(schema.balances)
+      .where(
+        and(
+          eq(schema.balances.memberId, memberId),
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.balances.targetId, renewalSubId),
+          tenantWhere(schema.balances, TEMPLO_CTX),
+        ),
+      );
+    expect(balance.amount).toBe(0);
+
+    // Siguen siendo los dos planes sembrados: no nació un tercer período.
+    const subs = await app.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.tenantId, TENANT_TEMPLO),
+          eq(schema.subscriptions.userId, memberId),
+        ),
+      );
+    expect(subs.length).toBe(2);
+  });
+
+  it("sin deuda en ningún plan: sigue siendo renew (y con renovación ya programada, el 409 de siempre)", async () => {
+    await seedScheduledRenewalWithDebt(0);
+
+    const auto = await app.inject({
+      method: "GET",
+      url: `${COACH_LOAD_URL}/autocompletar/${memberId}`,
+      headers: { authorization: `Bearer ${coachToken}` },
+    });
+    const body = JSON.parse(auto.body);
+    expect(body.intent).toBe("renew");
+    expect(body.outstanding).toBe(0);
+
+    const res = await app.inject({
+      method: "POST",
+      url: `${COACH_LOAD_URL}/pay-plan`,
+      headers: { authorization: `Bearer ${coachToken}` },
+      payload: {
+        userId: memberId,
+        paymentMethod: "cash",
+        idempotencyKey: `renew-scheduled-${Date.now()}`,
+      },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).message).toMatch(/renovacion programada/i);
+  });
+});
+
 describe("coach-load cobro suelto", () => {
   it("cobro suelto: advance_payment born pendiente, empty links, balance untouched", async () => {
     const res = await app.inject({

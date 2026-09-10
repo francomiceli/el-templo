@@ -35,7 +35,7 @@ import {
   CashCountService,
 } from ".";
 import { SubscriptionService } from "../subscriptions/service";
-import type { PriceType } from "../subscriptions/types";
+import type { PriceType, SubscriptionDetail } from "../subscriptions/types";
 import { MemberService } from "../members/service";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { BookingService } from "../scheduling/booking-service";
@@ -296,6 +296,36 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     notificationService,
   );
   subscriptionService.setBookingService(bookingService);
+
+  /**
+   * El plan del socio contra el que la PoS liquida deuda, si hay alguna.
+   *
+   * Caso Zabala (2026-09-09): la renovación cargada desde la ficha SIN cobro
+   * nace `scheduled` mientras el plan anterior sigue vigente hasta ese mismo
+   * día, y la deuda queda sembrada en la renovación. `getMemberSubscription`
+   * (el "plan vigente") devolvía el viejo —sin deuda—, así que la PoS no
+   * mostraba nada que cobrar y `pay-plan` caía a renovar de nuevo (409 "Ya
+   * existe una renovación programada"). Por eso acá se recorren TODOS los
+   * planes vigentes del socio (activo → pausado → programado, el orden de
+   * `getMemberSubscriptions`) y gana el primero con saldo a cobrar.
+   */
+  async function findSettleTarget(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<{ sub: SubscriptionDetail; outstanding: number } | null> {
+    const subs = await subscriptionService.getMemberSubscriptions(ctx, userId);
+    for (const sub of subs) {
+      const row = await balanceService.getRow(
+        ctx,
+        userId,
+        "subscription",
+        sub.id,
+        sub.currency,
+      );
+      if (row && row.amount > 0) return { sub, outstanding: row.amount };
+    }
+    return null;
+  }
   // Phase 148: el orquestador /alta resuelve/crea el alumno (dedup por DNI) antes
   // de assignPlan. memberService NO estaba wireado en este plugin (solo en
   // members/routes.ts) — se instancia igual que ahí (fastify.db, fastify.log).
@@ -539,30 +569,16 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         // validateBankAccountForCharge, y un solo assertTenant deja un unico
         // 403 TENANT_UNRESOLVED que nombra la ruta.
         const ctx = assertTenant(request.scope, "coach-load.pay-plan");
-        // Outstanding debt on the member's CURRENT sub (active/paused/scheduled)
-        // decides settle vs renew. getMemberSubscription excludes expired subs
-        // (those are the renewal case), so a null sub here just means "nothing
-        // to settle" — fall through to renew, which finds the active/expired sub
-        // and 404s itself if there's truly no plan. The balance row already
-        // exists when an admin assigned the plan con deuda (recordAssignmentCharge
-        // seeds it); amount>0 means there is debt. NOTE: debt on an ALREADY-expired
-        // sub is not surfaced here and falls to renovación (rare; in our flow the
-        // alta con deuda is always an active sub).
-        const sub = await subscriptionService.getMemberSubscription(
-          ctx,
-          userId,
-        );
-        const balanceRow = sub
-          ? await balanceService.getRow(
-              ctx,
-              userId,
-              "subscription",
-              sub.id,
-              sub.currency,
-            )
-          : null;
-        const outstanding =
-          balanceRow && balanceRow.amount > 0 ? balanceRow.amount : 0;
+        // Deuda en CUALQUIER plan vigente del socio (activo/pausado/programado,
+        // ver `findSettleTarget` — caso Zabala) decide settle vs renew. Sin
+        // deuda se cae a renew, que encuentra el plan activo/vencido y 404ea
+        // solo si de verdad no hay plan. La fila de balance ya existe cuando
+        // un admin asignó el plan con deuda (recordAssignmentCharge la
+        // siembra); amount>0 significa que hay deuda. NOTA: la deuda de un
+        // plan YA vencido no se muestra acá y cae a renovación (raro).
+        const settle = await findSettleTarget(ctx, userId);
+        const sub = settle?.sub ?? null;
+        const outstanding = settle?.outstanding ?? 0;
 
         if (sub && outstanding > 0) {
           // ── SETTLE the existing debt — no new period (the plan is already
@@ -1055,21 +1071,18 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
             memberBranchId,
           });
         }
-        const balanceRow = await balanceService.getRow(
-          ctx,
-          request.params.userId,
-          "subscription",
-          sub.id,
-          sub.currency,
-        );
-        const outstanding =
-          balanceRow && balanceRow.amount > 0 ? balanceRow.amount : 0;
+        // La deuda puede estar en otro plan vigente que no es "el actual"
+        // (renovación programada cargada sin cobro — caso Zabala): se busca en
+        // todos y, si hay, el plan que se muestra es el que debe.
+        const settle = await findSettleTarget(ctx, request.params.userId);
+        const shown = settle?.sub ?? sub;
+        const outstanding = settle?.outstanding ?? 0;
         return reply.send({
           hasRenewable: true,
-          planName: sub.planName,
+          planName: shown.planName,
           // Pre-fill the debt when there is one, else the plan price.
           amount: outstanding > 0 ? outstanding : sub.pricePaid,
-          currency: sub.currency,
+          currency: shown.currency,
           intent: outstanding > 0 ? "settle" : "renew",
           outstanding,
           // Vencimiento de la sub vigente (UAT caja/cobros 2026-07-21). La PoS lo
@@ -1145,7 +1158,10 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       .select({ country: schema.branches.country })
       .from(schema.branches)
       .where(
-        and(tenantWhere(schema.branches, ctx), eq(schema.branches.id, branchId)),
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
       )
       .limit(1);
     return b?.country === "ES" ? "EUR" : "ARS";
