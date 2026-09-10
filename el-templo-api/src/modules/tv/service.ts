@@ -22,11 +22,18 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
-import { BadRequestError, ConflictError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import { ROLE_LABELS } from "../shared/role-labels";
 import { assembleVideoUrl } from "../shared/video-url";
+import { isValidIsoDate } from "../shared/week-dates";
 import {
   resolveClassDay,
+  resolveClassDayForDate,
+  resolveWeekSummary,
   type ClassDay,
   type ClassDayBlock,
   type ClassDayPrescription,
@@ -51,6 +58,9 @@ import type {
   TvLevelColumn,
   TvDeuterosGroup,
   TvPollResponse,
+  TvPreviewDay,
+  TvPreviewScreen,
+  TvPreviewWeek,
   TvScreen,
   TvStateWrite,
   TvTimerStatus,
@@ -351,7 +361,7 @@ export class TvService {
     const branchInfo = {
       name: branch.name.toUpperCase(),
       utcOffsetMinutes: utcOffsetMinutes(branch.timezone, now),
-      dateLabel: `${DAY_LABELS[classDay.dayName] ?? classDay.dayName.toUpperCase()} · SEMANA ${classDay.week}`,
+      dateLabel: this.dateLabel(classDay),
     };
 
     // Pattern 6: el sello del server viaja en TODOS los polls. Sin el, un TV
@@ -523,6 +533,77 @@ export class TvService {
       todayInTz(branch.timezone, now),
     );
     return this.toControlContext(branch, classDay, stored);
+  }
+
+  /**
+   * Resumen de la semana para la grilla de "Planis" (vista previa del staff,
+   * 2026-09): que dias ya tienen plani y si esta aprobada. `date` es cualquier
+   * dia de la semana pedida; la semana es calendario (lunes a sabado), la
+   * misma para todas las sedes.
+   */
+  async buildPreviewWeek(date: string): Promise<TvPreviewWeek> {
+    this.assertDate(date);
+    return resolveWeekSummary(this.db, date);
+  }
+
+  /**
+   * La vista previa de UN dia: el payload del kiosco para cada (bloque del
+   * roster × nivel), congelado (timer en cero, ejercicio 0), leyendo tambien
+   * las sesiones `pending_review`. Es lo que reemplaza al PDF que se subia al
+   * Drive: el profe ve la plani de la semana que viene tal cual la va a
+   * mostrar el televisor, sin esperar la aprobacion.
+   *
+   * Mismo `buildClassPayload` que el poll real, a proposito: si la pantalla y
+   * la vista previa divergieran, la vista previa no serviria para nada.
+   */
+  async buildPreviewDay(
+    date: string,
+    now: Date = new Date(),
+  ): Promise<TvPreviewDay> {
+    this.assertDate(date);
+    const classDay = await resolveClassDayForDate(this.db, date, {
+      includePending: true,
+    });
+    const blocks = buildRoster(classDay);
+
+    const screens: TvPreviewScreen[] = [];
+    for (const block of blocks) {
+      for (const level of classDay.levels) {
+        const state: TvControlState = {
+          screen: "class",
+          blockRole: block.role,
+          level,
+          exerciseIndex: 0,
+          ...IDLE_TIMER,
+          soundEnabled: false,
+          tvAvisoId: null,
+        };
+        screens.push({
+          blockRole: block.role,
+          level,
+          class: this.buildClassPayload(classDay, state, now),
+        });
+      }
+    }
+
+    return {
+      date: classDay.date,
+      week: classDay.week,
+      dayName: classDay.dayName,
+      dateLabel: this.dateLabel(classDay),
+      status: classDay.status,
+      mode: classDay.mode,
+      levels: classDay.levels,
+      blocks,
+      screens,
+    };
+  }
+
+  /** El schema valida la forma; esto atrapa "2026-02-30" y compañia. */
+  private assertDate(date: string): void {
+    if (!isValidIsoDate(date)) {
+      throw new BadRequestError("Fecha invalida (se espera YYYY-MM-DD)");
+    }
   }
 
   /**
@@ -838,6 +919,11 @@ export class TvService {
 
     if (!branch) throw new NotFoundError("Esa sede no existe");
     return branch;
+  }
+
+  /** "MARTES · SEMANA 30": rotulo del dia que viaja en el poll y en la vista previa. */
+  private dateLabel(classDay: ClassDay): string {
+    return `${DAY_LABELS[classDay.dayName] ?? classDay.dayName.toUpperCase()} · SEMANA ${classDay.week}`;
   }
 
   /** Contexto del control a partir de datos ya resueltos (sin re-consultar). */

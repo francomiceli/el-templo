@@ -28,8 +28,11 @@ import {
   tvControlStateSchema,
   tvControlEndClassSchema,
   tvControlScreenSchema,
+  tvPreviewDaySchema,
+  tvPreviewWeekSchema,
   type TvControlContextQuery,
   type TvControlEndClassBody,
+  type TvPreviewQuery,
 } from "./schemas";
 import type { TvStateWrite } from "./types";
 
@@ -181,6 +184,53 @@ export const tvControlRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ ok: true });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "tv control end class");
+      }
+    },
+  );
+
+  /**
+   * GET /api/admin/tv/preview/week?date=YYYY-MM-DD
+   *
+   * "Planis" (2026-09): la grilla semanal del profe — que dias de la semana
+   * de `date` ya tienen plani y si esta aprobada. Sin `branchId` a proposito:
+   * la plani es la misma para todas las sedes, y el gate de rol del plugin
+   * (TV_CONTROL_ROLES) es toda la autorizacion que hace falta. Lee tambien
+   * las sesiones `pending_review`: es justamente lo que reemplaza al PDF que
+   * se subia al Drive antes de aprobar.
+   */
+  fastify.get<{ Querystring: TvPreviewQuery }>(
+    "/preview/week",
+    { schema: tvPreviewWeekSchema },
+    async (request, reply) => {
+      try {
+        const service = new TvService(fastify.db, request.log);
+        const week = await service.buildPreviewWeek(request.query.date);
+        return reply.send(week);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "tv preview week");
+      }
+    },
+  );
+
+  /**
+   * GET /api/admin/tv/preview/day?date=YYYY-MM-DD
+   *
+   * La vista previa de un dia: el payload del kiosco (mismo `TvClassPayload`
+   * del poll real, congelado) por cada (bloque, nivel). El admin lo pinta con
+   * el `renderState` de `/pantalla-tv` en modo preview. Incluye pendientes;
+   * nunca lo consume la pantalla de la sede (D-09 sigue intacto en
+   * `/control/screen`).
+   */
+  fastify.get<{ Querystring: TvPreviewQuery }>(
+    "/preview/day",
+    { schema: tvPreviewDaySchema },
+    async (request, reply) => {
+      try {
+        const service = new TvService(fastify.db, request.log);
+        const day = await service.buildPreviewDay(request.query.date);
+        return reply.send(day);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "tv preview day");
       }
     },
   );

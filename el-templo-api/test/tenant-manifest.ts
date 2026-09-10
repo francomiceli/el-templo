@@ -120,6 +120,17 @@
 //   ─────────────────────────
 //   TOTAL          400 → 405   (+5)
 //
+// 2026-09-10 — **431 rutas**: "Planis", vista previa de la plani para el staff
+// (reemplaza el PDF que se subía al Drive): `GET /api/admin/tv/preview/day` +
+// `GET /api/admin/tv/preview/week`. Las 2 son `tenant-scoped` (gate
+// TV_CONTROL_ROLES del plugin; sin `branchId`, la plani es una sola).
+//
+//   tenant-scoped  +2   (las rutas nuevas)
+//   templo-module  sin cambio
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          429 → 431   (+2)
+//
 // 2026-09-08 — **429 rutas**: arqueo / cierre de caja del profe (brief de
 // Nacho, opción A): `coach-load/caja-expected` + `coach-load/cash-count` (el
 // profe), `cash-counts` ×3 (gestión: historial, esperado, alta) y
@@ -785,6 +796,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/tv/branches": { categoria: "tenant-scoped" },
   "GET /api/admin/tv/control/context": { categoria: "tenant-scoped" },
   "GET /api/admin/tv/control/screen": { categoria: "tenant-scoped" },
+  // Planis (2026-09): vista previa de la plani (incluye `pending_review`)
+  // para el staff; misma plani para todas las sedes, gate = TV_CONTROL_ROLES.
+  "GET /api/admin/tv/preview/day": { categoria: "tenant-scoped" },
+  "GET /api/admin/tv/preview/week": { categoria: "tenant-scoped" },
   "POST /api/admin/tv/control/end-class": { categoria: "tenant-scoped" },
   "POST /api/admin/tv/control/state": { categoria: "tenant-scoped" },
 

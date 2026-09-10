@@ -331,3 +331,55 @@ export interface TvStateWrite {
   /** Fase 193 (D-25): el aviso a mostrar cuando `screen === "aviso"`. */
   tvAvisoId?: number | null;
 }
+
+// =============================================================================
+// Vista previa "Planis" (staff, 2026-09)
+// =============================================================================
+
+/**
+ * Una pantalla de la vista previa: el MISMO `TvClassPayload` que el kiosco
+ * pinta en vivo, pero congelado (timer `idle`, ejercicio 0) para un (bloque,
+ * nivel) de un dia elegido. El admin lo mete en un `TvPollResponse` sintetico
+ * y llama al mismo `renderState` de la pantalla real: lo que ve el profe es
+ * exactamente lo que va a ver la sede.
+ */
+export interface TvPreviewScreen {
+  blockRole: string;
+  level: string;
+  class: TvClassPayload;
+}
+
+/** Estado de aprobacion de un dia (espejo de `ClassDayStatus`, class-day.ts). */
+export type TvPreviewStatus = "none" | "pending" | "approved";
+
+/** `GET /api/admin/tv/preview/day?date=YYYY-MM-DD` */
+export interface TvPreviewDay {
+  date: string;
+  week: number;
+  dayName: string;
+  /** "MARTES · SEMANA 30", el mismo rotulo que viaja en el poll real. */
+  dateLabel: string;
+  status: TvPreviewStatus;
+  mode: TvClassMode;
+  levels: string[];
+  blocks: TvBlockSummary[];
+  /** Una entrada por (bloque del roster × nivel del dia). Vacio si `status === "none"`. */
+  screens: TvPreviewScreen[];
+}
+
+/** Un dia del resumen semanal, sin bloques. */
+export interface TvPreviewWeekDay {
+  date: string;
+  dayName: string;
+  status: TvPreviewStatus;
+  mode: TvClassMode;
+  levels: string[];
+}
+
+/** `GET /api/admin/tv/preview/week?date=YYYY-MM-DD` */
+export interface TvPreviewWeek {
+  week: number;
+  weekStart: string;
+  weekEnd: string;
+  days: TvPreviewWeekDay[];
+}

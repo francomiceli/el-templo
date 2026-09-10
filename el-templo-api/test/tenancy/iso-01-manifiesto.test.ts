@@ -281,7 +281,10 @@ import {
 // 2026-09-08: 423 -> 429 por el arqueo / cierre de caja (`coach-load/caja-expected`,
 // `coach-load/cash-count`, `cash-counts` ×3, `cash-registers/:id/change-fund`),
 // todas `tenant-scoped`.
-const ENTRADAS_BASELINE = 429;
+// 2026-09-10: 429 -> 431 por "Planis" (vista previa de la plani para el staff):
+// `GET /api/admin/tv/preview/day` + `GET /api/admin/tv/preview/week`, ambas
+// `tenant-scoped` (gate TV_CONTROL_ROLES del plugin, sin sede).
+const ENTRADAS_BASELINE = 431;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -424,7 +427,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 429 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 431 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

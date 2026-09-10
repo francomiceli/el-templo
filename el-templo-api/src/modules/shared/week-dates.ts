@@ -42,3 +42,35 @@ export function dateToDayName(date: string): string {
   const d = new Date(date + "T00:00:00");
   return DAY_OF_WEEK_MAP[d.getDay()] || "domingo";
 }
+
+/** "YYYY-MM-DD" from a LOCAL wall-clock Date (same convention as the anchor). */
+function formatLocalDate(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/**
+ * Whether `date` is a real calendar date in "YYYY-MM-DD" form. The JSON
+ * schema only checks the shape: "2026-02-30" passes the pattern, and
+ * `new Date("2026-02-30T00:00:00")` silently rolls over to March 2nd, so the
+ * round-trip through `formatLocalDate` is what catches it.
+ */
+export function isValidIsoDate(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const d = new Date(date + "T00:00:00");
+  return !Number.isNaN(d.getTime()) && formatLocalDate(d) === date;
+}
+
+/** Shift a "YYYY-MM-DD" date by `days` (negative allowed). */
+export function shiftDate(date: string, days: number): string {
+  const d = new Date(date + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return formatLocalDate(d);
+}
+
+/** Monday of the week that contains `date` ("YYYY-MM-DD"). Sunday belongs to the week that ENDS on it. */
+export function mondayOf(date: string): string {
+  const d = new Date(date + "T00:00:00");
+  return shiftDate(date, -((d.getDay() + 6) % 7));
+}

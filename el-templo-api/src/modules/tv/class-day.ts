@@ -17,8 +17,17 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type { FormatParams } from "../admin/format-params";
 import { todayInTz } from "../shared/date-utils";
-import { DAY_NAME_TO_NUMBER, parseDayId } from "../shared/training-constants";
-import { dateToDayName, dateToWeekNumber } from "../shared/week-dates";
+import {
+  DAY_NAME_TO_NUMBER,
+  DAY_OF_WEEK_MAP,
+  parseDayId,
+} from "../shared/training-constants";
+import {
+  dateToDayName,
+  dateToWeekNumber,
+  mondayOf,
+  shiftDate,
+} from "../shared/week-dates";
 import type { TvClassMode } from "./types";
 
 /**
@@ -72,7 +81,21 @@ export interface ClassDaySession {
   blocks: ClassDayBlock[];
 }
 
-/** Resultado de `resolveClassDay`. */
+/**
+ * Estado de aprobacion de un dia de plani.
+ *
+ *  - `none`: no hay sesiones (todavia no se genero, o es domingo).
+ *  - `pending`: hay sesiones y al menos una sigue `pending_review`.
+ *  - `approved`: hay sesiones y TODAS estan aprobadas.
+ *
+ * En el camino del TV (`resolveClassDay`, solo aprobadas) nunca sale
+ * `pending`: una sesion sin aprobar directamente no se lee (D-09). `pending`
+ * solo existe para la vista previa de los profes ("Planis", 2026-09), que lee
+ * con `includePending`.
+ */
+export type ClassDayStatus = "none" | "pending" | "approved";
+
+/** Resultado de `resolveClassDay` / `resolveClassDayForDate`. */
 export interface ClassDay {
   /** "YYYY-MM-DD" en la TZ de la sede. */
   date: string;
@@ -80,11 +103,26 @@ export interface ClassDay {
   /** "lunes".."sabado" (o "domingo", que nunca tiene sesiones). */
   dayName: string;
   mode: TvClassMode;
-  /** false => reposo silencioso (D-09), nunca un error visible. */
+  /**
+   * false => reposo silencioso (D-09), nunca un error visible. Equivale a
+   * `status === "approved"`: se conserva porque el servicio y sus tests lo
+   * usan como "hay clase para el TV".
+   */
   approved: boolean;
-  /** Niveles con sesion aprobada, en orden canonico. */
+  status: ClassDayStatus;
+  /** Niveles con sesion (aprobada, o tambien pendiente con `includePending`), en orden canonico. */
   levels: string[];
   sessions: ClassDaySession[];
+}
+
+/** Opciones de `resolveClassDayForDate`. */
+export interface ResolveClassDayOptions {
+  /**
+   * Leer tambien las sesiones `pending_review`. SOLO para la vista previa del
+   * staff (Planis): el TV de la sede jamas pasa esto (D-09, la pared publica
+   * no muestra la cocina interna).
+   */
+  includePending?: boolean;
 }
 
 export interface ClassDayBranch {
@@ -104,9 +142,51 @@ function emptyDay(
     dayName,
     mode,
     approved: false,
+    status: "none",
     levels: [],
     sessions: [],
   };
+}
+
+/**
+ * Modo del dia a partir de las sesiones leidas (fase 159-06 / 160): la fuente
+ * de verdad de "hoy es ROM/combos/tecnica" es la sesion generada, no la
+ * config de `day_modes`. Compartido entre el dia (`resolveClassDayForDate`) y
+ * el resumen semanal (`resolveWeekSummary`) para que no diverjan.
+ */
+function modeFromSessions(rows: { sessionMode: string | null }[]): TvClassMode {
+  return rows.some((s) => s.sessionMode === "rom")
+    ? "rom"
+    : rows.some((s) => s.sessionMode === "combos")
+      ? "combos"
+      : rows.some((s) => s.sessionMode === "tecnica")
+        ? "tecnica"
+        : "regular";
+}
+
+/** Estado de aprobacion a partir de las sesiones leidas (ver `ClassDayStatus`). */
+function statusFromSessions(rows: { status: string }[]): ClassDayStatus {
+  if (rows.length === 0) return "none";
+  return rows.every((s) => s.status === "approved") ? "approved" : "pending";
+}
+
+/**
+ * Niveles presentes en orden canonico. En ROM solo existen dos tiers;
+ * combos/tecnica tienen los 6 tiers de un dia habil (D160-01), asi que usan
+ * REGULAR_LEVEL_ORDER igual que "regular" -- solo "rom" es especial.
+ * Cualquier nivel presente FUERA del orden canonico (dato viejo, o un omega
+ * colado en un sabado) se agrega al final en vez de descartarse: `levels` no
+ * puede quedar vacio mientras haya sesiones, o el clamp del servicio se
+ * quedaria sin nivel al que caer y el TV mostraria una lista en blanco con
+ * una sesion aprobada disponible.
+ */
+function orderLevels(mode: TvClassMode, present: Iterable<string>): string[] {
+  const order = mode === "rom" ? ROM_LEVEL_ORDER : REGULAR_LEVEL_ORDER;
+  const set = new Set(present);
+  return [
+    ...order.filter((lvl) => set.has(lvl)),
+    ...[...set].filter((lvl) => !order.includes(lvl)),
+  ];
 }
 
 /**
@@ -120,7 +200,22 @@ export async function resolveClassDay(
   branch: ClassDayBranch,
   now?: Date,
 ): Promise<ClassDay> {
-  const date = todayInTz(branch.timezone, now);
+  return resolveClassDayForDate(db, todayInTz(branch.timezone, now));
+}
+
+/**
+ * Resolver la clase de una FECHA calendario ("YYYY-MM-DD"), sin sede.
+ *
+ * La plani es la misma para todas las sedes (la sede solo aporta la TZ con la
+ * que `resolveClassDay` decide que dia es "hoy"), asi que la vista previa de
+ * los profes (Planis, 2026-09) entra por aca con la fecha elegida y
+ * `includePending` para ver tambien lo que todavia no se aprobo.
+ */
+export async function resolveClassDayForDate(
+  db: MySql2Database<typeof schema>,
+  date: string,
+  options: ResolveClassDayOptions = {},
+): Promise<ClassDay> {
   const dayName = dateToDayName(date);
   const week = dateToWeekNumber(date);
 
@@ -154,13 +249,14 @@ export async function resolveClassDay(
       id: schema.sessions.id,
       dayId: schema.sessions.dayId,
       sessionMode: schema.sessions.sessionMode,
+      status: schema.sessions.status,
     })
     .from(schema.sessions)
     .where(
       and(
         eq(schema.sessions.week, week),
         eq(schema.sessions.day, dayName),
-        eq(schema.sessions.status, "approved"),
+        statusFilter(options),
         isNull(schema.sessions.goalPlanType),
       ),
     );
@@ -174,13 +270,7 @@ export async function resolveClassDay(
   // de "combos"/"tecnica" (6 tiers, roster propio -- COMBOS_ROLES/
   // TECNICA_ROLES en roster.ts) y de "regular". `day_modes` NUNCA tiene
   // combos/tecnica (D-02): el override viaja solo por sessionMode.
-  const mode: TvClassMode = sessionRows.some((s) => s.sessionMode === "rom")
-    ? "rom"
-    : sessionRows.some((s) => s.sessionMode === "combos")
-      ? "combos"
-      : sessionRows.some((s) => s.sessionMode === "tecnica")
-        ? "tecnica"
-        : "regular";
+  const mode = modeFromSessions(sessionRows);
 
   // 3. Bloques de TODAS las sesiones en una query (sin N+1).
   const sessionIds = sessionRows.map((s) => s.id);
@@ -281,20 +371,13 @@ export async function resolveClassDay(
     blocks: blocksBySession.get(s.id) ?? [],
   }));
 
-  // 6. Niveles disponibles, en orden canonico. En ROM solo existen dos tiers;
-  //    combos/tecnica tienen los 6 tiers de un dia habil (D160-01), asi que
-  //    usan REGULAR_LEVEL_ORDER igual que "regular" -- solo "rom" es especial.
-  //    Cualquier nivel presente FUERA del orden canonico (dato viejo, o un
-  //    omega colado en un sabado) se agrega al final en vez de descartarse:
-  //    `levels` no puede quedar vacio mientras `approved` sea true, o el clamp
-  //    del servicio se quedaria sin nivel al que caer y el TV mostraria una
-  //    lista en blanco con una sesion aprobada disponible.
-  const order = mode === "rom" ? ROM_LEVEL_ORDER : REGULAR_LEVEL_ORDER;
-  const present = new Set(sessions.map((s) => s.memberLevel));
-  const levels = [
-    ...order.filter((lvl) => present.has(lvl)),
-    ...[...present].filter((lvl) => !order.includes(lvl)),
-  ];
+  // 6. Niveles disponibles, en orden canonico (ver `orderLevels`).
+  const levels = orderLevels(
+    mode,
+    sessions.map((s) => s.memberLevel),
+  );
+
+  const status = statusFromSessions(sessionRows);
 
   return {
     date,
@@ -302,9 +385,99 @@ export async function resolveClassDay(
     dayName,
     mode,
     // Si hubo filas aprobadas hay clase, aunque el nivel quede fuera del orden
-    // canonico (dato viejo): el roster se arma igual.
-    approved: sessions.length > 0,
+    // canonico (dato viejo): el roster se arma igual. Con `includePending`
+    // un dia a medio aprobar NO cuenta como aprobado (status "pending").
+    approved: status === "approved",
+    status,
     levels,
     sessions,
   };
+}
+
+/** Filtro de estado: el TV solo lee aprobadas; la vista previa, tambien pendientes. */
+function statusFilter(options: ResolveClassDayOptions) {
+  return options.includePending
+    ? inArray(schema.sessions.status, ["approved", "pending_review"])
+    : eq(schema.sessions.status, "approved");
+}
+
+// =============================================================================
+// Resumen semanal (vista previa "Planis")
+// =============================================================================
+
+/** Un dia de la semana en el resumen: estado y niveles, sin bloques. */
+export interface WeekDaySummary {
+  /** "YYYY-MM-DD". */
+  date: string;
+  /** "lunes".."sabado". */
+  dayName: string;
+  status: ClassDayStatus;
+  mode: TvClassMode;
+  levels: string[];
+}
+
+export interface WeekSummary {
+  week: number;
+  /** Lunes de la semana, "YYYY-MM-DD". */
+  weekStart: string;
+  /** Sabado de la semana, "YYYY-MM-DD". Domingo no se lista (nunca tiene sesiones). */
+  weekEnd: string;
+  /** Exactamente 6 entradas, lunes a sabado. */
+  days: WeekDaySummary[];
+}
+
+/**
+ * Estado de aprobacion de cada dia de la semana que contiene `date`, en UNA
+ * query sobre `sessions` (sin bloques ni prescripciones: el detalle se pide
+ * por dia con `resolveClassDayForDate`). Lee aprobadas Y pendientes: es la
+ * grilla con la que el profe ve que dias ya estan planificados.
+ */
+export async function resolveWeekSummary(
+  db: MySql2Database<typeof schema>,
+  date: string,
+): Promise<WeekSummary> {
+  const weekStart = mondayOf(date);
+  const week = dateToWeekNumber(weekStart);
+
+  const rows = await db
+    .select({
+      day: schema.sessions.day,
+      dayId: schema.sessions.dayId,
+      sessionMode: schema.sessions.sessionMode,
+      status: schema.sessions.status,
+    })
+    .from(schema.sessions)
+    .where(
+      and(
+        eq(schema.sessions.week, week),
+        statusFilter({ includePending: true }),
+        isNull(schema.sessions.goalPlanType),
+      ),
+    );
+
+  const byDay = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const list = byDay.get(row.day) ?? [];
+    list.push(row);
+    byDay.set(row.day, list);
+  }
+
+  const days: WeekDaySummary[] = [];
+  for (let offset = 0; offset < 6; offset++) {
+    const dayName = DAY_OF_WEEK_MAP[offset + 1];
+    const dayRows = byDay.get(dayName) ?? [];
+    const mode = dayRows.length > 0 ? modeFromSessions(dayRows) : "regular";
+    days.push({
+      date: shiftDate(weekStart, offset),
+      dayName,
+      status: statusFromSessions(dayRows),
+      mode,
+      levels: orderLevels(
+        mode,
+        dayRows.map((r) => parseDayId(r.dayId).level),
+      ),
+    });
+  }
+
+  return { week, weekStart, weekEnd: shiftDate(weekStart, 5), days };
 }

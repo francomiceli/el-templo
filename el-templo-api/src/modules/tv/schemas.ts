@@ -335,3 +335,122 @@ export const tvControlEndClassSchema = {
 export interface TvControlEndClassBody {
   branchId: number;
 }
+
+// ---------------------------------------------------------------------------
+// Vista previa "Planis" (staff, 2026-09): GET /api/admin/tv/preview/*
+// ---------------------------------------------------------------------------
+
+/**
+ * `date` = "YYYY-MM-DD" (calendario, sin sede: la plani es la misma para
+ * todas). El pattern acota la forma; que sea una fecha REAL lo valida el
+ * servicio (`isValidIsoDate`), porque "2026-02-30" pasa el pattern.
+ */
+const tvPreviewQuerystring = {
+  type: "object",
+  required: ["date"],
+  properties: {
+    date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+  },
+};
+
+export interface TvPreviewQuery {
+  date: string;
+}
+
+const tvPreviewStatusSchema = {
+  type: "string",
+  enum: ["none", "pending", "approved"],
+};
+
+/**
+ * GET /api/admin/tv/preview/week?date=YYYY-MM-DD
+ *
+ * Estado de cada dia (lunes a sabado) de la semana que contiene `date`.
+ */
+export const tvPreviewWeekSchema = {
+  querystring: tvPreviewQuerystring,
+  response: {
+    200: {
+      type: "object",
+      required: ["week", "weekStart", "weekEnd", "days"],
+      properties: {
+        week: { type: "integer" },
+        weekStart: { type: "string" },
+        weekEnd: { type: "string" },
+        days: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["date", "dayName", "status", "mode", "levels"],
+            properties: {
+              date: { type: "string" },
+              dayName: { type: "string" },
+              status: tvPreviewStatusSchema,
+              mode: { type: "string" },
+              levels: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
+/**
+ * GET /api/admin/tv/preview/day?date=YYYY-MM-DD
+ *
+ * El payload del kiosco por (bloque, nivel), congelado. Reusa
+ * `tvClassPayloadSchema` a proposito: la misma red de contencion del poll
+ * real (T-164-11) aplica a la vista previa — ningun campo no declarado sale.
+ */
+export const tvPreviewDaySchema = {
+  querystring: tvPreviewQuerystring,
+  response: {
+    200: {
+      type: "object",
+      required: [
+        "date",
+        "week",
+        "dayName",
+        "dateLabel",
+        "status",
+        "mode",
+        "levels",
+        "blocks",
+        "screens",
+      ],
+      properties: {
+        date: { type: "string" },
+        week: { type: "integer" },
+        dayName: { type: "string" },
+        dateLabel: { type: "string" },
+        status: tvPreviewStatusSchema,
+        mode: { type: "string" },
+        levels: { type: "array", items: { type: "string" } },
+        blocks: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              role: { type: "string" },
+              title: { type: "string" },
+              shared: { type: "boolean" },
+            },
+          },
+        },
+        screens: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["blockRole", "level", "class"],
+            properties: {
+              blockRole: { type: "string" },
+              level: { type: "string" },
+              class: tvClassPayloadSchema,
+            },
+          },
+        },
+      },
+    },
+  },
+};
