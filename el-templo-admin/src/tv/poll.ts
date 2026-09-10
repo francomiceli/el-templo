@@ -124,12 +124,32 @@ let clockOffsetMs = 0;
 const clockOffsetSamples: number[] = [];
 
 /**
+ * Reloj de la vista previa "Planis" (2026-09): la pantalla en modo preview
+ * pinta un dia ELEGIDO (la semana que viene), no hoy, y `render.ts` saca la
+ * fecha de la topbar de `nowCorrected()`. En vez de meterle un `serverNow`
+ * falso a `applyServerNow` (que promedia muestras y es estado compartido con
+ * la pantalla real), el preview ancla el reloj explicitamente: a partir de
+ * `setPreviewClock(anchorMs)`, `nowCorrected()` avanza desde ese instante al
+ * ritmo normal. `null` lo apaga (la pagina lo hace al desmontar).
+ */
+let previewAnchorMs: number | null = null;
+let previewAnchoredAt = 0;
+
+export function setPreviewClock(anchorMs: number | null): void {
+  previewAnchorMs = anchorMs;
+  previewAnchoredAt = Date.now();
+}
+
+/**
  * Ahora, corregido con el desvio contra el servidor.
  *
  * Todo calculo de tiempo de la pantalla pasa por aca: el reloj de pared de un televisor
  * de sede puede estar corrido, y `startedAt` viene en la escala del servidor.
  */
 export function nowCorrected(): number {
+  if (previewAnchorMs !== null) {
+    return previewAnchorMs + (Date.now() - previewAnchoredAt);
+  }
   return Date.now() + clockOffsetMs;
 }
 

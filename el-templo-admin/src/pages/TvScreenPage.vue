@@ -13,7 +13,10 @@
   -->
   <div
     id="tvScreenRoot"
-    :class="[`tvbg--${bgState}`, { 'tvbg--tapado': fondoTapado, 'tv-sobrio': modoSobrio }]"
+    :class="[
+      `tvbg--${bgState}`,
+      { 'tvbg--tapado': fondoTapado, 'tv-sobrio': modoSobrio, 'tv-preview': previewMode },
+    ]"
     :style="{ '--marble': `url('${MARBLE_BG_BASE64}')`, '--trans-foto': `url('${tvBarsOpen}')` }"
   >
     <!-- Selector de sede: solo la primera vez que se abre esta pantalla en
@@ -180,15 +183,19 @@
             </div>
             <aside class="transIdentidad">
               <img class="transLogo transLogo--noche" :src="tvParthenonBlanco" alt="El Templo" />
-              <img
-                class="transLogo transLogo--dia"
-                :src="tvParthenonCharcoal"
-                alt="El Templo"
-              />
+              <img class="transLogo transLogo--dia" :src="tvParthenonCharcoal" alt="El Templo" />
               <div class="relojXl" id="avisoReloj">--:--</div>
               <div class="fechaXl" id="avisoFecha"></div>
             </aside>
           </div>
+        </div>
+        <!-- Sello de la vista previa (Planis, 2026-09): dentro de #tv para que
+             escale con el marco (rem) y por encima de las pantallas de
+             transición. Fuera del contrato de render.ts (sin id). -->
+        <div v-if="previewMode && previewBadge" class="tvPreviewBadge" aria-live="polite">
+          <span class="tvPreviewBadge__kicker">VISTA PREVIA</span>
+          <span class="tvPreviewBadge__estado">{{ previewBadge.estado }}</span>
+          <span class="tvPreviewBadge__fecha">{{ previewBadge.fecha }}</span>
         </div>
       </div>
     </div>
@@ -207,6 +214,10 @@
           {{ errorBranchName }}. Cerrá sesión en esta tele y entrá con la cuenta de televisor.
         </div>
       </template>
+      <template v-else-if="pollErrorKind === 'preview'">
+        <div class="tvError__title">NO SE PUDO CARGAR LA VISTA PREVIA</div>
+        <div class="tvError__detail">Volvé a Planis y probá de nuevo.</div>
+      </template>
       <template v-else>
         <div class="tvError__title">SIN CONEXIÓN CON EL SERVIDOR</div>
         <div class="tvError__detail">
@@ -218,12 +229,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, shallowRef, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import axios from 'axios';
 import { useAuthStore } from 'src/stores/useAuthStore';
-import { useTvApi } from 'src/composables/useTvApi';
-import { applyServerNow } from 'src/tv/poll';
+import { useTvApi, type TvPreviewDay, type TvPreviewScreen } from 'src/composables/useTvApi';
+import { applyServerNow, setPreviewClock, type TvPollResponse } from 'src/tv/poll';
 import {
   renderState,
   resetRender,
@@ -235,6 +246,7 @@ import {
 import { CAPSULAS } from 'src/tv/capsulas';
 import { scaleTv } from 'src/tv/scale';
 import { QUOTES } from 'src/utils/pdf/quotes';
+import { toIsoDate } from 'src/utils/weekDates';
 import { createLogger } from 'src/utils/logger';
 import tvLogo from 'src/assets/tv-logo.png';
 import tvBarsOpen from 'src/assets/tv-bars-open.webp';
@@ -290,6 +302,10 @@ const route = useRoute();
 /* `?sobrio=1`: apaga los efectos de la pantalla de transición (encendido de
    letras, glow, chispas) sin redeploy — válvula de escape si un TV tironea. */
 const modoSobrio = computed(() => route.query.sobrio !== undefined);
+/* `?preview=1` (Planis, 2026-09): la misma pantalla pintando un día ELEGIDO
+   (aprobado o no) en vez de pollear el estado vivo de una sede. Ver la
+   sección "Modo vista previa" más abajo. */
+const previewMode = computed(() => route.query.preview !== undefined);
 const authStore = useAuthStore();
 const tvApi = useTvApi();
 
@@ -344,7 +360,8 @@ function removeFonts(): void {
 // =========================================================================
 
 const branchId = ref<number | null>(null);
-const ready = computed(() => branchId.value !== null);
+// En vista previa no hay sede: el esqueleto se pinta directo, sin selector.
+const ready = computed(() => previewMode.value || branchId.value !== null);
 
 const pickerBranches = ref<BranchOption[]>([]);
 const pickerLoading = ref(false);
@@ -447,7 +464,7 @@ let tickId: ReturnType<typeof setInterval> | null = null;
  * fallos seguidos antes de avisar — un blip de red aislado no debe tapar la
  * pantalla. `pollFailures` cuenta esa racha; se resetea en cada poll exitoso.
  */
-const pollErrorKind = ref<'forbidden' | 'network' | null>(null);
+const pollErrorKind = ref<'forbidden' | 'network' | 'preview' | null>(null);
 const pollFailures = ref(0);
 /** ≈ 15 s a POLL_MS=750ms antes de mostrar el cartel de "sin conexión". */
 const POLL_FAILURE_THRESHOLD = 20;
@@ -521,6 +538,196 @@ function onResize(): void {
 }
 
 // =========================================================================
+// Modo vista previa (Planis, 2026-09)
+//
+// `?preview=1&date=YYYY-MM-DD&block=ROL&level=nivel`: sin sede, sin poll y sin
+// escribir en localStorage. Se pide UNA vez el día a `/admin/tv/preview/day`
+// (el mismo `TvClassPayload` del poll real, congelado, por cada bloque×nivel)
+// y se pinta con el `renderState` de siempre — por eso lo que ve el profe es
+// exactamente lo que va a mostrar la sede. La página Planis embebe esta ruta
+// en un iframe y la maneja por postMessage (mismo origen):
+//
+//   Planis → pantalla  { type: 'tv-preview', date, blockRole?, level? }
+//   pantalla → Planis  { type: 'tv-preview-ready' }            al montar
+//                      { type: 'tv-preview-state', ... }       tras cada pintado
+//                      { type: 'tv-preview-error', message }   si falla la carga
+//
+// La URL sola también alcanza ("Pantalla completa" abre esta ruta en otra
+// pestaña, sin padre que le hable).
+// =========================================================================
+
+interface PreviewSelection {
+  date: string;
+  blockRole: string | null;
+  level: string | null;
+}
+
+const PREVIEW_MSG = 'tv-preview';
+const PREVIEW_READY_MSG = 'tv-preview-ready';
+const PREVIEW_STATE_MSG = 'tv-preview-state';
+const PREVIEW_ERROR_MSG = 'tv-preview-error';
+
+function queryString(key: string): string | null {
+  const raw = route.query[key];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+function isIsoDate(value: string): boolean {
+  return (
+    /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(value + 'T00:00:00').getTime())
+  );
+}
+
+const initialDate = queryString('date');
+const previewSelection = ref<PreviewSelection>({
+  date: initialDate !== null && isIsoDate(initialDate) ? initialDate : toIsoDate(new Date()),
+  blockRole: queryString('block'),
+  level: queryString('level'),
+});
+// `shallowRef` a propósito: el día se manda entero por `postMessage` (clon
+// estructurado), y un Proxy reactivo de Vue no se puede clonar (DataCloneError).
+const previewDay = shallowRef<TvPreviewDay | null>(null);
+
+/** Texto del sello sobre el marco: estado de aprobación + "MARTES · SEMANA n". */
+const previewBadge = computed(() => {
+  const day = previewDay.value;
+  if (!day) return null;
+  const estado =
+    day.status === 'approved'
+      ? 'APROBADA'
+      : day.status === 'pending'
+        ? 'PENDIENTE DE APROBACIÓN'
+        : 'SIN PLANIFICAR';
+  return { estado, fecha: day.dateLabel };
+});
+
+/**
+ * La pantalla a pintar para la selección: (bloque, nivel) exacto; si el nivel
+ * pedido no existe ese día, el mismo bloque en su primer nivel; si el bloque
+ * tampoco, la primera pantalla del día. `null` = día sin plani (reposo).
+ */
+function pickPreviewScreen(day: TvPreviewDay, sel: PreviewSelection): TvPreviewScreen | null {
+  const screens = day.screens;
+  if (screens.length === 0) return null;
+  const exact = screens.find((s) => s.blockRole === sel.blockRole && s.level === sel.level);
+  if (exact) return exact;
+  const sameBlock = screens.find((s) => s.blockRole === sel.blockRole);
+  return sameBlock ?? screens[0] ?? null;
+}
+
+/**
+ * Reloj anclado al día previsualizado, a la hora actual: `render.ts` saca la
+ * fecha de la topbar de `nowCorrected()`, y sin esto un martes de la semana
+ * que viene aparecería rotulado con la fecha de hoy.
+ */
+function anchorPreviewClock(date: string): void {
+  const now = new Date();
+  const dayStart = new Date(date + 'T00:00:00');
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  setPreviewClock(dayStart.getTime() + (now.getTime() - todayStart.getTime()));
+}
+
+function postToParent(message: Record<string, unknown>): void {
+  if (window.parent === window) return;
+  window.parent.postMessage(message, window.location.origin);
+}
+
+function renderPreview(): void {
+  const day = previewDay.value;
+  if (!day) return;
+  anchorPreviewClock(day.date);
+  const screen = pickPreviewScreen(day, previewSelection.value);
+  const payload: TvPollResponse = {
+    serverNow: Date.now(),
+    branch: {
+      name: 'VISTA PREVIA',
+      // Hora local del navegador: la plani no tiene sede, y el reloj de la
+      // topbar solo tiene que verse coherente con la fecha anclada arriba.
+      utcOffsetMinutes: -new Date().getTimezoneOffset(),
+      dateLabel: day.dateLabel,
+    },
+    screen: screen ? 'class' : 'idle',
+    class: screen ? screen.class : null,
+    aviso: null,
+  };
+  renderState(payload);
+  postToParent({
+    type: PREVIEW_STATE_MSG,
+    date: day.date,
+    dateLabel: day.dateLabel,
+    status: day.status,
+    mode: day.mode,
+    levels: day.levels,
+    blocks: day.blocks,
+    blockRole: screen?.blockRole ?? null,
+    level: screen?.level ?? null,
+  });
+}
+
+async function loadPreviewDay(date: string): Promise<void> {
+  try {
+    const day = await tvApi.getPreviewDay(date);
+    // Respuesta tardía de un día que ya no es el elegido (el profe tocó varias
+    // veces seguidas): se descarta, o pintaría un día viejo sobre el nuevo.
+    if (date !== previewSelection.value.date) return;
+    previewDay.value = day;
+    pollErrorKind.value = null;
+    renderPreview();
+  } catch (err: unknown) {
+    if (date !== previewSelection.value.date) return;
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('No se pudo cargar la vista previa de la plani', { error: message, date });
+    pollErrorKind.value = 'preview';
+    postToParent({ type: PREVIEW_ERROR_MSG, date, message });
+  }
+}
+
+async function applyPreviewSelection(next: PreviewSelection): Promise<void> {
+  const reload = previewDay.value === null || next.date !== previewSelection.value.date;
+  previewSelection.value = next;
+  if (reload) {
+    await loadPreviewDay(next.date);
+  } else {
+    renderPreview();
+  }
+}
+
+function onPreviewMessage(event: MessageEvent): void {
+  // Solo el propio admin (mismo origen) puede manejar la pantalla embebida.
+  if (event.origin !== window.location.origin) return;
+  const data: unknown = event.data;
+  if (typeof data !== 'object' || data === null) return;
+  const msg = data as { type?: unknown; date?: unknown; blockRole?: unknown; level?: unknown };
+  if (msg.type !== PREVIEW_MSG) return;
+  const date =
+    typeof msg.date === 'string' && isIsoDate(msg.date) ? msg.date : previewSelection.value.date;
+  void applyPreviewSelection({
+    date,
+    blockRole: typeof msg.blockRole === 'string' ? msg.blockRole : null,
+    level: typeof msg.level === 'string' ? msg.level : null,
+  });
+}
+
+async function startPreview(): Promise<void> {
+  await nextTick();
+  resetRender();
+  setQuotes(QUOTES);
+  setCapsulas(CAPSULAS);
+  scaleTv();
+  window.addEventListener('message', onPreviewMessage);
+  await loadPreviewDay(previewSelection.value.date);
+  // Solo el tick: el reloj de la topbar sigue andando y el timer queda en cero.
+  tickId = setInterval(() => {
+    tickClock();
+    tickTimer();
+  }, TICK_MS);
+  // Handshake con Planis: si cambió la selección mientras cargaba el iframe,
+  // el padre la reenvía al recibir esto.
+  postToParent({ type: PREVIEW_READY_MSG });
+}
+
+// =========================================================================
 // Montaje / desmontaje
 // =========================================================================
 
@@ -528,6 +735,10 @@ onMounted(async () => {
   installFonts();
   document.body.classList.add(BODY_ACTIVE_CLASS);
   window.addEventListener('resize', onResize);
+  if (previewMode.value) {
+    await startPreview();
+    return;
+  }
   await resolveBranch();
   if (branchId.value !== null) {
     await startScreen();
@@ -544,6 +755,8 @@ onUnmounted(() => {
     tickId = null;
   }
   window.removeEventListener('resize', onResize);
+  window.removeEventListener('message', onPreviewMessage);
+  setPreviewClock(null);
   removeFonts();
   document.body.classList.remove(BODY_ACTIVE_CLASS);
   // scaleTv() escribe el tamaño de fuente raíz en <html> (rem no puede anclarse a
@@ -705,6 +918,44 @@ onUnmounted(() => {
   font-size: 1.6rem;
   color: var(--sand);
   max-width: 50rem;
+}
+
+/* ── Vista previa (Planis, 2026-09) ─────────────────────────────────────── */
+#tvScreenRoot.tv-preview {
+  /* Embebida en el admin: acá sí hay un puntero que mostrar. */
+  cursor: default;
+}
+#tvScreenRoot .tvPreviewBadge {
+  position: absolute;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  /* Por encima de las pantallas de transición (reposo/cierre/aviso). */
+  z-index: 50;
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.5rem;
+  background: rgba(43, 39, 36, 0.86);
+  color: var(--cream);
+  font-family: var(--cinzel);
+  letter-spacing: 0.08em;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#tvScreenRoot .tvPreviewBadge__kicker {
+  color: var(--gold);
+  font-weight: 700;
+}
+#tvScreenRoot .tvPreviewBadge__estado {
+  font-weight: 700;
+}
+#tvScreenRoot .tvPreviewBadge__fecha {
+  color: var(--sand);
+  font-family: var(--nunito);
+  letter-spacing: 0.04em;
 }
 
 /* ── Símbolos de nivel ──────────────────────────────────────────────────── */

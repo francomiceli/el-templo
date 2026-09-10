@@ -7,6 +7,7 @@ import {
   PAGOS_ROLES,
   DUENO_ROLES,
   TV_CONTROL_ROLES,
+  PLANIS_ROLES,
   PARTNERS_ROLES,
   JORNADA_ROLES,
   ANALITICAS_ROLES,
@@ -222,6 +223,15 @@ const routes: RouteRecordRaw[] = [
         path: 'tv/control',
         component: () => import('pages/TvControlPage.vue'),
         meta: { allowedRoles: TV_CONTROL_ROLES },
+      },
+      {
+        // Planis (2026-09): vista previa de la plani semanal tal como la
+        // muestra el TV, aprobada o no. Embebe '/pantalla-tv?preview=1' en un
+        // iframe (misma sesión, mismo render). Roles = PLANIS_ROLES ⊂
+        // TV_CONTROL_ROLES, así el iframe pasa el guard de la pantalla.
+        path: 'planis',
+        component: () => import('pages/PlanisPage.vue'),
+        meta: { allowedRoles: PLANIS_ROLES },
       },
       {
         path: 'analiticas',

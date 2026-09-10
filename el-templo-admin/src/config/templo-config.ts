@@ -164,6 +164,15 @@ export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
 export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'tv'];
 
 /**
+ * "Planis" (2026-09): vista previa de la plani de la semana (esta y la que
+ * viene, aprobada o no) tal cual la muestra el TV. Para el staff de piso que
+ * hoy revisaba el PDF del Drive: coach + Dueño. La cuenta `tv` queda afuera
+ * (es un televisor, no navega el drawer); el API igual la deja pasar porque
+ * el gate real es TV_CONTROL_ROLES.
+ */
+export const PLANIS_ROLES: AdminRole[] = ['coach', 'admin', 'owner'];
+
+/**
  * "Mi jornada" (check-in/check-out de staff con el QR de la sede): jornada
  * laboral, el staff que trabaja en piso. Excluye `gestion` (decisión de
  * Franco 2026-09-07: no ve Check-in en absoluto) y `tv` (la cuenta dedicada
@@ -265,6 +274,17 @@ export const NAV_MODEL: NavCategory[] = [
         label: 'TV',
         icon: 'settings_remote',
         roles: TV_CONTROL_ROLES,
+        templo: true,
+      },
+      {
+        // Planis (2026-09): la plani de la semana que viene, antes de
+        // aprobarse, vista como en el TV — reemplaza el PDF que se subía al
+        // Drive. Va pegado a TV porque es la misma superficie (misma pantalla,
+        // mismo roster). `templo: true` por el mismo motivo que TV.
+        path: '/planis',
+        label: 'Planis',
+        icon: 'preview',
+        roles: PLANIS_ROLES,
         templo: true,
       },
       {

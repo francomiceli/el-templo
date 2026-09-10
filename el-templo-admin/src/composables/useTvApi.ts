@@ -24,7 +24,7 @@ import { ref } from 'vue';
 import axios from 'axios';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
-import type { TvPollResponse } from 'src/tv/poll';
+import type { TvClassPayload, TvPollResponse } from 'src/tv/poll';
 import type { BranchOption } from 'src/types/member';
 
 // -- Contrato del control del profe (espeja types.ts del API) ----------------
@@ -133,6 +133,58 @@ export interface TvStateWrite {
   soundEnabled?: boolean;
   /** Fase 193 (D-25): el aviso a mostrar cuando `screen: 'aviso'`. */
   tvAvisoId?: number | null;
+}
+
+// -- Contrato de la vista previa "Planis" (espeja types.ts del API, 2026-09) --
+
+/** Estado de aprobación de un día de plani (espejo de `ClassDayStatus` del API). */
+export type TvPreviewStatus = 'none' | 'pending' | 'approved';
+
+/** Un día del resumen semanal, sin bloques. */
+export interface TvPreviewWeekDay {
+  date: string;
+  dayName: string;
+  status: TvPreviewStatus;
+  mode: TvClassMode;
+  levels: string[];
+}
+
+/** `GET /admin/tv/preview/week` */
+export interface TvPreviewWeek {
+  week: number;
+  weekStart: string;
+  weekEnd: string;
+  /** Exactamente 6 entradas, lunes a sábado. */
+  days: TvPreviewWeekDay[];
+}
+
+/** Una pantalla congelada del kiosco para un (bloque, nivel). */
+export interface TvPreviewScreen {
+  blockRole: string;
+  level: string;
+  class: TvClassPayload;
+}
+
+/** `GET /admin/tv/preview/day` */
+export interface TvPreviewDay {
+  date: string;
+  week: number;
+  dayName: string;
+  /** "MARTES · SEMANA 30". */
+  dateLabel: string;
+  status: TvPreviewStatus;
+  mode: TvClassMode;
+  levels: string[];
+  blocks: TvControlBlockSummary[];
+  /** Vacío cuando `status === 'none'`. */
+  screens: TvPreviewScreen[];
+}
+
+/** Entrada del roster tal como viaja en la vista previa (sin conteos por nivel). */
+export interface TvControlBlockSummary {
+  role: string;
+  title: string;
+  shared: boolean;
 }
 
 /**
@@ -279,6 +331,50 @@ export function useTvApi() {
   }
 
   /**
+   * GET /admin/tv/preview/week?date=YYYY-MM-DD — la grilla semanal de "Planis":
+   * qué días de la semana de `date` tienen plani y si está aprobada (incluye
+   * `pending_review`: es lo que reemplaza al PDF que se subía al Drive). Sin
+   * sede: la plani es la misma para todas.
+   */
+  async function getPreviewWeek(date: string): Promise<TvPreviewWeek> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<TvPreviewWeek>('/admin/tv/preview/week', {
+        params: { date },
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo cargar la semana');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * GET /admin/tv/preview/day?date=YYYY-MM-DD — la vista previa de un día: el
+   * MISMO `TvClassPayload` del poll real por cada (bloque, nivel), congelado.
+   * La pantalla (`/pantalla-tv?preview=1`) lo mete en un `TvPollResponse`
+   * sintético y lo pinta con el `renderState` de siempre.
+   */
+  async function getPreviewDay(date: string): Promise<TvPreviewDay> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<TvPreviewDay>('/admin/tv/preview/day', {
+        params: { date },
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo cargar la vista previa');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
    * GET /admin/ratings/roster/coach-today — sedes donde el coach autenticado
    * está agendado hoy, una por turno (mañana/tarde). Usado para pre-cargar el
    * modal de selección de sedes del día al abrir el control (`TvControlPage`);
@@ -311,6 +407,8 @@ export function useTvApi() {
     writeState,
     endClass,
     getCoachTodaySchedule,
+    getPreviewWeek,
+    getPreviewDay,
     cleanup,
   };
 }

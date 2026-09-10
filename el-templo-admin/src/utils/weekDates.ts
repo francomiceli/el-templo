@@ -117,3 +117,15 @@ export function qDateToWeek(qDate: string): number {
   const week = Math.floor(diffDays / 7) + 1;
   return Math.max(1, Math.min(52, week));
 }
+
+/** "YYYY-MM-DD" de un Date local (misma convención que WEEK_ONE_MONDAY, sin UTC). */
+export function toIsoDate(date: Date): string {
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${m}-${d}`;
+}
+
+/** Lunes de la semana SPOM `week`, en "YYYY-MM-DD" (lo que piden las rutas de Planis). */
+export function weekToIsoDate(week: number): string {
+  return toIsoDate(weekToDateRange(week).start);
+}

@@ -446,12 +446,19 @@ import { useAuthStore } from 'src/stores/useAuthStore';
 import {
   useTvApi,
   type TvAvisoActivo,
-  type TvControlBlock,
   type TvControlContext,
   type TvStateWrite,
 } from 'src/composables/useTvApi';
 import { createLogger } from 'src/utils/logger';
 import { isExpectedClientError } from 'src/utils/extract-error';
+import {
+  blockName,
+  buildBlockButtons,
+  buildLevelPairs,
+  buttonMatchesRole,
+  type BlockButton,
+  type LevelPairOption,
+} from 'src/tv/control-options';
 import type { BranchOption } from 'src/types/member';
 
 const log = createLogger('TvControlPage');
@@ -473,46 +480,8 @@ const isTvAccount = computed(() => authStore.user?.role === 'tv');
  */
 const REFRESH_MS = 30000;
 
-/**
- * En sesión ROM (sábado) no existe la escalera alfa/delta/sigma: son dos
- * tiers rotulados BÁSICO / AVANZADO (D-23).
- */
-const ROM_LEVEL_LABELS: Record<string, string> = {
-  alfa: 'BÁSICO',
-  delta: 'AVANZADO',
-};
-
-/**
- * Pares de nivel del TV (rediseño fase 164 — el control elige el nivel por
- * PARES, no por nivel individual). Espejo a propósito de `LEVEL_PAIRS` en
- * `el-templo-api/src/modules/tv/roster.ts`: cambiar uno REQUIERE el cambio
- * espejo en el otro.
- */
-const LEVEL_PAIRS: readonly (readonly [string, string])[] = [
-  ['alfa', 'delta'],
-  ['sigma', 'kairos'],
-  ['omega', 'spartan'],
-];
-
-/** Nombre completo de cada nivel (sesión regular), para el label del par. */
-const LEVEL_NAME_LABELS: Record<string, string> = {
-  alfa: 'ALFA',
-  delta: 'DELTA',
-  sigma: 'SIGMA',
-  kairos: 'KAIROS',
-  omega: 'OMEGA',
-  spartan: 'SPARTAN',
-};
-
-/** Un botón de par de nivel: a qué nivel apunta el tap y cómo se rotula. */
-interface LevelPairOption {
-  levels: readonly string[];
-  label: string;
-  /** Primer nivel del par presente hoy — el que manda `onSelectLevel`. */
-  targetLevel: string;
-  /** Si el par tiene al menos un nivel planificado hoy (si no, el botón se ve pero va deshabilitado). */
-  present: boolean;
-}
+// Pares de nivel, rótulos ROM y colapso de DEUTEROS: viven en
+// `src/tv/control-options.ts`, compartidos con la vista previa "Planis".
 
 // =========================================================================
 // Estado
@@ -723,27 +692,8 @@ const currentBlock = computed(() =>
   blockIndex.value >= 0 ? (context.value?.blocks[blockIndex.value] ?? null) : null
 );
 
-/**
- * Botones de bloque del control. El roster real trae DEUTEROS_1 y DEUTEROS_2 por
- * separado, pero en pantalla entran juntos (grilla 2×2), así que se colapsan en
- * UN solo botón "DEUTEROS" (representa a DEUTEROS_1). El resto de los bloques
- * —incluido el alternativo navegable de combos/técnica— conserva su botón propio.
- */
-const blockButtons = computed<{ role: string; label: string }[]>(() => {
-  const blocks = context.value?.blocks ?? [];
-  const out: { role: string; label: string }[] = [];
-  let deuterosDone = false;
-  for (const b of blocks) {
-    if (b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS_2') {
-      if (deuterosDone) continue;
-      deuterosDone = true;
-      out.push({ role: 'DEUTEROS_1', label: 'DEUTEROS' });
-    } else {
-      out.push({ role: b.role, label: blockName(b) });
-    }
-  }
-  return out;
-});
+/** Botones de bloque del control (DEUTEROS_1/2 colapsan en uno, ver control-options.ts). */
+const blockButtons = computed<BlockButton[]>(() => buildBlockButtons(context.value?.blocks ?? []));
 
 /** El botón está activo si es el bloque en curso; el botón DEUTEROS (colapsado)
  *  queda activo con cualquiera de sus dos caminos (DEUTEROS_1/DEUTEROS_2).
@@ -753,12 +703,6 @@ const blockButtons = computed<{ role: string; label: string }[]>(() => {
 function isActiveButton(role: string): boolean {
   if (!hasState.value || isClosingScreen.value || isAvisoScreen.value) return false;
   return buttonMatchesRole(role, currentBlockRole.value);
-}
-
-/** Un botón de la tira "es" el rol en curso (DEUTEROS colapsa sus dos caminos). */
-function buttonMatchesRole(buttonRole: string, cur: string): boolean {
-  if (buttonRole === cur) return true;
-  return buttonRole === 'DEUTEROS_1' && (cur === 'DEUTEROS_1' || cur === 'DEUTEROS_2');
 }
 
 /** Índice del bloque en curso dentro de la botonera colapsada (para prev/next).
@@ -781,47 +725,15 @@ const isClosingScreen = computed(() => context.value?.state?.screen === 'closing
 const isAvisoScreen = computed(() => context.value?.state?.screen === 'aviso');
 
 /**
- * Pares DISPONIBLES hoy: solo los que tienen al menos un nivel presente en
- * `context.levels` (un sábado ROM, por ejemplo, solo tiene alfa/delta — los
- * otros dos pares quedan afuera). El label junta los DOS nombres del par
- * completo, presente o no, unidos por " Y "; el tap manda el primer nivel del
- * par que sí está presente hoy.
+ * Los tres pares de nivel, siempre (fila completa); un par sin ningún nivel
+ * planificado hoy va deshabilitado en vez de esconderse (ver control-options.ts).
  */
-const levelPairs = computed<LevelPairOption[]>(() => {
-  const levels = context.value?.levels ?? [];
-  const mode = context.value?.mode ?? 'regular';
-  // Los tres pares se muestran SIEMPRE (fila completa); un par sin ningún nivel
-  // planificado hoy va deshabilitado en vez de esconderse.
-  return LEVEL_PAIRS.map((pair) => {
-    const present = pair.filter((lvl) => levels.includes(lvl));
-    const names = pair.map((lvl) =>
-      mode === 'rom'
-        ? (ROM_LEVEL_LABELS[lvl] ?? lvl.toUpperCase())
-        : (LEVEL_NAME_LABELS[lvl] ?? lvl.toUpperCase())
-    );
-    return {
-      levels: pair,
-      label: names.join(' Y '),
-      targetLevel: present[0] ?? pair[0],
-      present: present.length > 0,
-    };
-  });
-});
+const levelPairs = computed<LevelPairOption[]>(() =>
+  buildLevelPairs(context.value?.levels ?? [], context.value?.mode ?? 'regular')
+);
 
 function isActivePair(pair: LevelPairOption): boolean {
   return pair.levels.includes(currentLevel.value);
-}
-
-/**
- * Solo el NOMBRE del bloque, sin el formato: el `title` del API viene como
- * "NOMBRE · FORMATO" (ej. "NUCLEUS · AMRAP 10'"), y el botón del control muestra
- * únicamente la parte anterior al separador. Un bloque con customTitle (INITIUM)
- * no trae separador, así que se muestra entero.
- */
-function blockName(block: TvControlBlock): string {
-  const sep = ' · ';
-  const i = block.title.indexOf(sep);
-  return i >= 0 ? block.title.slice(0, i) : block.title;
 }
 
 /** Nombre del bloque destino pendiente de confirmar, para el modal. */
