@@ -904,6 +904,25 @@
                     :loading="loadingMisc"
                     hint="Usá la plata de un cobro suelto del socio para cubrir el alta."
                   />
+                  <!-- Caso German Blanco (2026-09-12): gestión asignó el plan sin aplicar
+                       el anticipo → el cobro se cargó dos veces y el suelto quedó huérfano.
+                       Aviso explícito mientras no haya cobro elegido. -->
+                  <q-banner v-if="!isMiscApplied" dense rounded class="bg-yellow-1 q-mt-sm">
+                    <template #avatar>
+                      <q-icon name="warning" color="warning" />
+                    </template>
+                    <div class="text-body2">
+                      Este socio tiene
+                      {{
+                        pendingMiscItems.length === 1
+                          ? 'un cobro suelto pendiente'
+                          : `${pendingMiscItems.length} cobros sueltos pendientes`
+                      }}
+                      por {{ formatPrice(pendingMiscTotal, displayCurrency) }}. Si el plan ya se
+                      pagó con esa plata, elegilo arriba. Si no lo aplicás, el alta genera un cobro
+                      nuevo y el suelto queda trabado en la bandeja.
+                    </div>
+                  </q-banner>
                   <q-banner v-if="isMiscApplied" dense rounded class="bg-blue-1 q-mt-sm">
                     <template #avatar>
                       <q-icon name="info" color="primary" />
@@ -1299,6 +1318,12 @@ const amountReceived = ref<number | null>(null);
 const pendingMiscItems = ref<PendingMiscItem[]>([]);
 const loadingMisc = ref(false);
 const selectedMiscChargeId = ref<number | null>(null);
+// Caso German Blanco: pre-selección automática del anticipo (una sola vez por
+// apertura) al entrar al step Confirmar — ver el watch de [step, chargeBase].
+const miscAutoSelected = ref(false);
+const pendingMiscTotal = computed(() =>
+  pendingMiscItems.value.reduce((sum, m) => sum + m.amount, 0)
+);
 
 async function loadPendingMisc() {
   pendingMiscItems.value = [];
@@ -2287,6 +2312,7 @@ watch(
       // Phase 146: reset + recarga de cobros sueltos pendientes del socio.
       selectedMiscChargeId.value = null;
       pendingMiscItems.value = [];
+      miscAutoSelected.value = false;
       void loadPendingMisc();
       void loadCardSurchargeRule();
       void loadZeroPriceRule();
@@ -2306,6 +2332,25 @@ watch(
 watch([step, chargeBase], ([newStep, base]: [number, number]) => {
   if (newStep === confirmStep.value && amountReceived.value === null) {
     amountReceived.value = base;
+  }
+  // Caso German Blanco: si el socio tiene EXACTAMENTE un cobro suelto pendiente
+  // que entra en el precio, se pre-selecciona al llegar a Confirmar para que
+  // imputarlo sea el default y cobrar de nuevo sea la acción deliberada
+  // (gestión puede limpiar el selector). Una sola vez por apertura; nunca sobre
+  // planes gratuitos (el selector no se muestra con chargeBase=0).
+  if (
+    newStep === confirmStep.value &&
+    !miscAutoSelected.value &&
+    props.mode !== 'change' &&
+    base > 0 &&
+    selectedMiscChargeId.value === null &&
+    pendingMiscItems.value.length === 1
+  ) {
+    const only = pendingMiscItems.value[0];
+    if (only && only.amount <= base) {
+      selectedMiscChargeId.value = only.id;
+      miscAutoSelected.value = true;
+    }
   }
 });
 

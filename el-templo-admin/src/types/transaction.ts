@@ -520,6 +520,11 @@ export interface PendingTrayItem {
   // alumno queda inactivo). Ambos null para cargas de alumno preexistente.
   createdMemberId: number | null;
   createdMemberName: string | null;
+  // Caso German Blanco (2026-09-12): el socio tiene HOY una membresía vigente.
+  // Con miscReason='sin_plan' el cobro quedó huérfano (plan asignado sin
+  // imputar el anticipo, o motivo mal elegido): la bandeja cambia chip y
+  // tooltip para guiar a anular/re-cargar en vez de "Asigná un plan".
+  hasActivePlan: boolean;
 }
 
 /** PaginatedResult<PendingTrayItem> + the active overdue threshold (D-08). */

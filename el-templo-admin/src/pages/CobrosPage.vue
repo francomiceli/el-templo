@@ -579,6 +579,19 @@
                     outlined
                     class="q-mt-sm"
                   />
+                  <!-- Caso German Blanco: 'sin_plan' sobre un socio con plan vigente
+                       queda trabado en la bandeja (no se valida a mano). -->
+                  <q-banner v-if="miscReasonMismatch" dense rounded class="bg-yellow-1 q-mt-sm">
+                    <template #avatar>
+                      <q-icon name="warning" color="warning" />
+                    </template>
+                    <div class="text-body2">
+                      Este socio ya tiene plan vigente<template v-if="autocompletar?.planName">
+                        ({{ autocompletar.planName }})</template
+                      >. Con motivo "Sin plan activo" el cobro no se puede validar hasta asignarle
+                      un plan. Si es una clase o un extra, elegí "Otro".
+                    </div>
+                  </q-banner>
                 </template>
               </template>
 
@@ -1002,8 +1015,11 @@ const selectedMember = ref<MemberSearchOption | null>(null);
 const amount = ref<number | null>(null);
 const concepto = ref('');
 const paymentMethod = ref<LoadPaymentMethod | null>(null);
-// COBRO-01: motivo estructurado del cobro suelto. Default 'sin_plan' (el caso
-// operativo principal). Se persiste como columna misc_reason, no en notes.
+// COBRO-01: motivo estructurado del cobro suelto. Se persiste como columna
+// misc_reason, no en notes. Default 'sin_plan' SOLO si el socio no tiene plan
+// vigente; con plan vigente el default es 'otro' (caso German Blanco
+// 2026-09-12: un 'sin_plan' sobre un socio con plan queda huérfano en la
+// bandeja — no se valida a mano y ya no hay plan que asignar para imputarlo).
 type MiscReason = 'sin_plan' | 'otro';
 const miscReason = ref<MiscReason | null>('sin_plan');
 const miscReasonOptions: Array<{ label: string; value: MiscReason }> = [
@@ -1013,6 +1029,17 @@ const miscReasonOptions: Array<{ label: string; value: MiscReason }> = [
 function miscReasonLabel(value: MiscReason): string {
   return miscReasonOptions.find((o) => o.value === value)?.label ?? value;
 }
+/** 'otro' cuando el socio tiene plan vigente (autocompletar.hasRenewable), 'sin_plan' si no. */
+function defaultMiscReason(): MiscReason {
+  return autocompletar.value?.hasRenewable ? 'otro' : 'sin_plan';
+}
+/** El operador dejó 'sin_plan' pero el socio SÍ tiene plan vigente → aviso. */
+const miscReasonMismatch = computed(
+  () =>
+    mode.value === 'misc' &&
+    miscReason.value === 'sin_plan' &&
+    autocompletar.value?.hasRenewable === true
+);
 
 // Step-2 associations (D-01, replaces the old mode toggle). Selecting one sets
 // `mode` and drives which endpoint the confirm dispatches.
@@ -1183,7 +1210,7 @@ function onSelectAssociation(m: Mode) {
   mode.value = m;
   amount.value = null;
   concepto.value = '';
-  miscReason.value = 'sin_plan';
+  miscReason.value = defaultMiscReason();
   resetPrecioAcordado();
   selectedPlan.value = null;
   zeroPrice.value = false;
@@ -2087,6 +2114,9 @@ async function loadAutocompletar(userId: number) {
     if (mode.value === 'renew' && res.hasRenewable && res.amount != null) {
       amount.value = res.amount;
     }
+    // El motivo del cobro suelto depende de si el socio tiene plan vigente;
+    // recién acá se conoce (resetChargeFields corre antes con autocompletar=null).
+    miscReason.value = defaultMiscReason();
   } catch (err: unknown) {
     log.error('Error en autocompletar', {
       error: err instanceof Error ? err.message : String(err),
@@ -2153,7 +2183,7 @@ async function onConfirm() {
         paymentMethod: paymentMethod.value,
         currency: autocompletar.value?.currency ?? 'ARS',
         idempotencyKey,
-        miscReason: miscReason.value ?? 'sin_plan',
+        miscReason: miscReason.value ?? defaultMiscReason(),
         // CR-CAJA: sede del cobro elegida (default = sede del socio).
         ...(sucursalId.value != null ? { branchId: sucursalId.value } : {}),
         ...(chosenBankAccountId != null ? { bankAccountId: chosenBankAccountId } : {}),

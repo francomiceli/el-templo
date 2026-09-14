@@ -73,9 +73,26 @@
             {{ slotProps.row.memberName }}
           </span>
           <span v-else class="text-weight-medium">{{ slotProps.row.memberName }}</span>
-          <!-- COBRO-02: cobro suelto sin plan activo → chip que lleva a la ficha a asignar el plan. -->
+          <!-- COBRO-02: cobro suelto sin plan activo → chip que lleva a la ficha a asignar el plan.
+               Caso German Blanco: si el socio YA tiene plan vigente, el cobro quedó huérfano
+               (se asignó el plan sin imputarlo) → chip distinto que pide revisar/anular. -->
           <div v-if="slotProps.row.miscReason === 'sin_plan' && slotProps.row.memberId">
             <q-chip
+              v-if="slotProps.row.hasActivePlan"
+              clickable
+              dense
+              color="negative"
+              text-color="white"
+              icon="warning"
+              size="sm"
+              class="q-mt-xs q-ml-none"
+              @click="goToMember(slotProps.row.memberId)"
+            >
+              Ya tiene plan — revisar
+              <q-tooltip max-width="320px">{{ SIN_PLAN_CON_PLAN_HINT }}</q-tooltip>
+            </q-chip>
+            <q-chip
+              v-else
               clickable
               dense
               color="warning"
@@ -171,8 +188,12 @@
               :loading="actionLoadingId === slotProps.row.id"
               @click="onValidar(slotProps.row)"
             >
-              <q-tooltip v-if="slotProps.row.miscReason === 'sin_plan'">
-                Asigná un plan para imputar este cobro
+              <q-tooltip v-if="slotProps.row.miscReason === 'sin_plan'" max-width="320px">
+                {{
+                  slotProps.row.hasActivePlan
+                    ? SIN_PLAN_CON_PLAN_HINT
+                    : 'Asigná un plan desde la ficha del socio y aplicá este cobro ahí para imputarlo'
+                }}
               </q-tooltip>
             </q-btn>
             <q-btn flat dense round icon="more_vert" size="sm">
@@ -549,6 +570,13 @@ async function loadCashRegisters() {
 
 const validarDialog = ref(false);
 const selectedCajaId = ref<number | null>(null);
+
+// Caso German Blanco (2026-09-12): cobro suelto 'sin_plan' de un socio que ya
+// tiene plan vigente. El server no lo valida (COBRO-05) y ya no se puede
+// imputar (el plan se asignó con su propio cargo) → la salida es anular.
+const SIN_PLAN_CON_PLAN_HINT =
+  'El socio ya tiene un plan vigente. Si este cobro se volvió a cargar al asignar el plan, ' +
+  'anulalo como duplicado. Si es un cobro extra legítimo, anulalo y volvé a cargarlo con motivo "Otro".';
 
 // Opciones filtradas por la moneda de la fila y acotadas por el medio de pago:
 // transferencia/tarjeta → cuentas banco (Galicia / Mercado Pago); efectivo →

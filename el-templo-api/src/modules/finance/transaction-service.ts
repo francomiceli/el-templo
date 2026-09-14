@@ -898,7 +898,8 @@ export class TransactionService {
       // solo de UI.
       if (existing.miscReason === "sin_plan") {
         throw new BadRequestError(
-          "Los cobros sin plan se imputan al asignar un plan, no se validan a mano",
+          "Los cobros sin plan se imputan al asignar un plan, no se validan a mano. " +
+            "Si el plan ya se asignó con su propio cargo, anulá este cobro como duplicado.",
         );
       }
 
@@ -1774,6 +1775,19 @@ export class TransactionService {
         createdMemberId: schema.financialTransactions.createdMemberId,
         createdMemberFirstName: createdMember.firstName,
         createdMemberLastName: createdMember.lastName,
+        // Subquery correlacionada: ¿el socio tiene una membresía vigente HOY?
+        // Referencias externas como literal calificado (financial_transactions.x)
+        // y las internas con alias `s`: dentro de .select() Drizzle DES-califica
+        // las columnas interpoladas y la correlación se pierde
+        // (reference_drizzle_select_unqualified_columns). El predicado
+        // s.tenant_id = financial_transactions.tenant_id mantiene la subquery
+        // acotada al gimnasio (y visible para el sentinel).
+        hasActivePlan: sql<number>`EXISTS (
+          SELECT 1 FROM subscriptions s
+          WHERE s.tenant_id = financial_transactions.tenant_id
+            AND s.user_id = financial_transactions.member_id
+            AND s.subscription_status IN ('active', 'paused', 'scheduled')
+        )`,
       })
       .from(schema.financialTransactions)
       .leftJoin(
@@ -1864,6 +1878,7 @@ export class TransactionService {
                 r.createdMemberLastName ?? ""
               }`.trim()
             : null,
+        hasActivePlan: Number(r.hasActivePlan) === 1,
       };
     });
 

@@ -491,6 +491,13 @@ export interface PendingTrayItem {
   // membresía…"). Ambos null para cargas de alumno preexistente / path admin.
   createdMemberId: number | null;
   createdMemberName: string | null;
+  // Caso German Blanco (2026-09-12): el socio de la fila tiene HOY una
+  // membresía vigente (active/paused/scheduled). Con miscReason='sin_plan' es la
+  // señal de que el cobro quedó huérfano: o se asignó el plan SIN imputar el
+  // anticipo (cargo duplicado en caja) o el profe eligió mal el motivo. La
+  // bandeja cambia el chip/tooltip para guiar a anular o re-cargar, en vez del
+  // genérico "Asigná un plan". false para filas sin socio.
+  hasActivePlan: boolean;
 }
 
 /** Filtros para listPendingTray (REP-01). */

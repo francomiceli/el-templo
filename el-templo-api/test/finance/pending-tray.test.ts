@@ -13,6 +13,8 @@
  *   - thresholdDays === OVERDUE_DAYS in the payload
  *   - status filter: ?status=observados / pendientes / todos
  *   - coach → 403 (FINANCE_READ_ROLES module guard)
+ *   - hasActivePlan: true si el socio tiene membresía vigente HOY, false si
+ *     no tiene o si está vencida (caso German Blanco 2026-09-12)
  *
  * Runs against the per-worker test MySQL DB (eltemplo_test_<POOL_ID>).
  */
@@ -68,6 +70,7 @@ interface PendingTrayRow {
   validationStatus: string;
   transactionDate: string;
   miscReason: "sin_plan" | "otro" | null;
+  hasActivePlan: boolean;
 }
 
 /** Insert a pendiente/observado row directly so the test pins its age + caja. */
@@ -311,6 +314,84 @@ describe("REP-01: GET /pending-tray (bandeja de pendientes)", () => {
     const planCharge = rows.find((r) => r.transactionDate === daysAgo(1));
     expect(misc?.miscReason).toBe("sin_plan");
     expect(planCharge?.miscReason).toBeNull();
+  });
+
+  it("hasActivePlan: true con membresía vigente, false sin membresía o vencida", async () => {
+    const trayId = await seedTrayRow({
+      transactionDate: daysAgo(1),
+      validationStatus: "pendiente",
+      kind: "advance_payment",
+      miscReason: "sin_plan",
+    });
+
+    // Sin membresías → false.
+    let { rows } = await fetchTray(adminToken);
+    expect(rows.find((r) => r.id === trayId)?.hasActivePlan).toBe(false);
+
+    const [planRes] = await app.db
+      .insert(schema.subscriptionPlans)
+      .values({
+        tenantId: TENANT_TEMPLO,
+        name: "Tray Plan",
+        planTier: "flex",
+        bookingMode: "flexible",
+        planCategory: "presencial",
+        priceRegular: 100000,
+        priceZero: 0,
+        durationDays: 30,
+        classesPerWeek: 3,
+        currency: "ARS",
+      })
+      .$returningId();
+    const planId = planRes.id;
+
+    // Membresía vencida (status 'expired') → sigue false: la señal es "tiene
+    // plan HOY", no "alguna vez tuvo".
+    const [expiredRes] = await app.db
+      .insert(schema.subscriptions)
+      .values({
+        tenantId: TENANT_TEMPLO,
+        userId: memberId,
+        planId,
+        branchId,
+        status: "expired",
+        startDate: daysAgo(60),
+        endDate: daysAgo(30),
+        pricePaid: 100000,
+        currency: "ARS",
+        priceTypeApplied: "regular",
+      })
+      .$returningId();
+    ({ rows } = await fetchTray(adminToken));
+    expect(rows.find((r) => r.id === trayId)?.hasActivePlan).toBe(false);
+
+    // Membresía activa → true (caso German Blanco: gestión asignó un plan sin
+    // imputar el anticipo y el cobro suelto quedó huérfano en la bandeja).
+    const [activeRes] = await app.db
+      .insert(schema.subscriptions)
+      .values({
+        tenantId: TENANT_TEMPLO,
+        userId: memberId,
+        planId,
+        branchId,
+        status: "active",
+        startDate: daysAgo(1),
+        endDate: daysAgo(-29),
+        pricePaid: 100000,
+        currency: "ARS",
+        priceTypeApplied: "regular",
+      })
+      .$returningId();
+    ({ rows } = await fetchTray(adminToken));
+    expect(rows.find((r) => r.id === trayId)?.hasActivePlan).toBe(true);
+
+    // Limpieza: este archivo comparte memberId entre tests.
+    await app.db.execute(
+      sql`DELETE FROM subscriptions WHERE tenant_id = ${TENANT_TEMPLO} AND id IN (${expiredRes.id}, ${activeRes.id})`,
+    );
+    await app.db.execute(
+      sql`DELETE FROM subscription_plans WHERE tenant_id = ${TENANT_TEMPLO} AND id = ${planId}`,
+    );
   });
 
   it("coach → 403", async () => {
