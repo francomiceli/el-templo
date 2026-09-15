@@ -99,6 +99,32 @@ export const PLAN_CATEGORY_COLORS: Record<PlanCategory, string> = {
   paquete: 'brown-6',
 };
 
+/**
+ * Sección de la pantalla Planes en la que se lista cada categoría. Espejo del
+ * `categoryGroup` de la API (subscriptions/types.ts) con un cuarto grupo:
+ * `paquete` es presencial-flexible pero son 36 filas sembradas por migración,
+ * así que van en su propia tabla para no tapar los presenciales de verdad.
+ *
+ * Fix 2026-09-15: hasta acá la página usaba un binario `=== 'presencial'` vs.
+ * "todo lo demás", así que `paquete` y `especial` caían en la tabla "Online".
+ */
+export type PlanSection = 'presencial' | 'paquete' | 'especial' | 'online';
+
+export function planSection(category: PlanCategory): PlanSection {
+  if (category === 'presencial') return 'presencial';
+  if (category === 'paquete') return 'paquete';
+  if (category === 'especial') return 'especial';
+  return 'online';
+}
+
+/** Orden y título de las tablas de la pantalla Planes. */
+export const PLAN_SECTIONS: ReadonlyArray<{ key: PlanSection; title: string }> = [
+  { key: 'presencial', title: 'Presenciales' },
+  { key: 'paquete', title: 'Paquetes de clases' },
+  { key: 'especial', title: 'Especiales' },
+  { key: 'online', title: 'Online' },
+];
+
 // Fase 177 (D-01): `paquete` queda OCULTO de este listado a propósito — las 36
 // filas nacen por migración (177-01), no se crean a mano desde
 // PlanFormDialog, y el picker normal de alta (177-03/04) no debe listarlas

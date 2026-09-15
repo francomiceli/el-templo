@@ -53,218 +53,123 @@
           />
         </div>
 
-        <!-- Presenciales Table -->
-        <div class="text-h6 q-mb-sm">Presenciales</div>
-        <q-table
-          :rows="presencialPlans"
-          :columns="planColumns"
-          row-key="id"
-          :loading="loadingPlans"
-          :pagination="{ rowsPerPage: 50 }"
-          :rows-per-page-options="[20, 50, 100]"
-          flat
-          bordered
-          class="q-mb-xl"
-        >
-          <!-- Category column -->
-          <template #body-cell-categoria="props">
-            <q-td :props="props">
-              <q-badge
-                :color="PLAN_CATEGORY_COLORS[props.row.planCategory as PlanCategory]"
-                :label="PLAN_CATEGORY_LABELS[props.row.planCategory as PlanCategory]"
-              />
-              <q-badge
-                v-if="props.row.grantsAllPrograms"
-                color="amber"
-                text-color="black"
-                label="Bundle"
-                class="q-ml-xs"
-              />
-            </q-td>
-          </template>
+        <!-- Una tabla por sección (fix 2026-09-15): antes había dos copias
+             idénticas de este q-table con un filtro binario presencial/no
+             presencial que mandaba Paquetes y Especiales a "Online". -->
+        <template v-for="section in planSections" :key="section.key">
+          <div class="text-h6 q-mb-sm">{{ section.title }}</div>
+          <q-table
+            :rows="section.rows"
+            :columns="planColumns"
+            row-key="id"
+            :loading="loadingPlans"
+            :pagination="{ rowsPerPage: 50 }"
+            :rows-per-page-options="[20, 50, 100]"
+            flat
+            bordered
+            class="q-mb-xl"
+          >
+            <!-- Category column -->
+            <template #body-cell-categoria="props">
+              <q-td :props="props">
+                <q-badge
+                  :color="PLAN_CATEGORY_COLORS[props.row.planCategory as PlanCategory]"
+                  :label="PLAN_CATEGORY_LABELS[props.row.planCategory as PlanCategory]"
+                />
+                <q-badge
+                  v-if="props.row.grantsAllPrograms"
+                  color="amber"
+                  text-color="black"
+                  label="Bundle"
+                  class="q-ml-xs"
+                />
+              </q-td>
+            </template>
 
-          <!-- Tier column -->
-          <template #body-cell-tier="props">
-            <q-td :props="props">
-              <q-badge
-                v-if="props.row.planCategory === 'presencial'"
-                :color="tierColor(props.row.planTier)"
-                :label="tierLabel(props.row.planTier)"
-              />
-              <span v-else class="text-grey-5">—</span>
-            </q-td>
-          </template>
+            <!-- Tier column: solo los presenciales tienen tier real (los
+                 paquetes y online nacen con 'other') -->
+            <template #body-cell-tier="props">
+              <q-td :props="props">
+                <q-badge
+                  v-if="props.row.planCategory === 'presencial'"
+                  :color="tierColor(props.row.planTier)"
+                  :label="tierLabel(props.row.planTier)"
+                />
+                <span v-else class="text-grey-5">—</span>
+              </q-td>
+            </template>
 
-          <!-- Price column -->
-          <template #body-cell-precio="props">
-            <q-td :props="props">
-              {{ formatPrice(props.row.priceRegular, props.row.currency) }}
-            </q-td>
-          </template>
+            <!-- Price column -->
+            <template #body-cell-precio="props">
+              <q-td :props="props">
+                {{ formatPrice(props.row.priceRegular, props.row.currency) }}
+              </q-td>
+            </template>
 
-          <!-- Duration column -->
-          <template #body-cell-duracion="props">
-            <q-td :props="props"> {{ props.row.durationDays }} dias </q-td>
-          </template>
+            <!-- Duration column -->
+            <template #body-cell-duracion="props">
+              <q-td :props="props"> {{ props.row.durationDays }} dias </q-td>
+            </template>
 
-          <!-- Classes column -->
-          <template #body-cell-clases="props">
-            <q-td :props="props">
-              <template v-if="props.row.planCategory === 'presencial'">
-                {{ props.row.classesPerWeek ?? 'Ilimitado' }}
-              </template>
-              <span v-else class="text-grey-5">—</span>
-            </q-td>
-          </template>
+            <!-- Classes column: clases/semana cuando el plan las tiene
+                 (presencial o paquete), "Ilimitado" solo para presenciales -->
+            <template #body-cell-clases="props">
+              <q-td :props="props">
+                <template v-if="props.row.classesPerWeek !== null">
+                  {{ props.row.classesPerWeek }}
+                </template>
+                <template v-else-if="props.row.planCategory === 'presencial'">Ilimitado</template>
+                <span v-else class="text-grey-5">—</span>
+              </q-td>
+            </template>
 
-          <!-- Linked program column -->
-          <template #body-cell-programa="props">
-            <q-td :props="props">
-              {{ programName(props.row.linkedProgramId) }}
-            </q-td>
-          </template>
+            <!-- Linked program column -->
+            <template #body-cell-programa="props">
+              <q-td :props="props">
+                {{ programName(props.row.linkedProgramId) }}
+              </q-td>
+            </template>
 
-          <!-- Status column -->
-          <template #body-cell-estado="props">
-            <q-td :props="props">
-              <q-badge
-                :color="props.row.isActive ? 'positive' : 'grey'"
-                :label="props.row.isActive ? 'Activo' : 'Inactivo'"
-              />
-            </q-td>
-          </template>
+            <!-- Status column -->
+            <template #body-cell-estado="props">
+              <q-td :props="props">
+                <q-badge
+                  :color="props.row.isActive ? 'positive' : 'grey'"
+                  :label="props.row.isActive ? 'Activo' : 'Inactivo'"
+                />
+              </q-td>
+            </template>
 
-          <!-- Actions column -->
-          <template #body-cell-acciones="props">
-            <q-td :props="props">
-              <q-btn
-                v-if="canEditPlans"
-                flat
-                dense
-                round
-                icon="edit"
-                color="primary"
-                @click="openEditDialog(props.row)"
-              >
-                <q-tooltip>Editar</q-tooltip>
-              </q-btn>
-              <q-btn
-                v-if="canEditPlans && props.row.isActive"
-                flat
-                dense
-                round
-                icon="block"
-                color="negative"
-                @click="confirmDeactivate(props.row)"
-              >
-                <q-tooltip>Desactivar</q-tooltip>
-              </q-btn>
-              <span v-if="!canEditPlans" class="text-grey-5">—</span>
-            </q-td>
-          </template>
-        </q-table>
-
-        <!-- Online Table -->
-        <div class="text-h6 q-mb-sm">Online</div>
-        <q-table
-          :rows="onlinePlans"
-          :columns="planColumns"
-          row-key="id"
-          :loading="loadingPlans"
-          :pagination="{ rowsPerPage: 50 }"
-          :rows-per-page-options="[20, 50, 100]"
-          flat
-          bordered
-        >
-          <!-- Category column -->
-          <template #body-cell-categoria="props">
-            <q-td :props="props">
-              <q-badge
-                :color="PLAN_CATEGORY_COLORS[props.row.planCategory as PlanCategory]"
-                :label="PLAN_CATEGORY_LABELS[props.row.planCategory as PlanCategory]"
-              />
-              <q-badge
-                v-if="props.row.grantsAllPrograms"
-                color="amber"
-                text-color="black"
-                label="Bundle"
-                class="q-ml-xs"
-              />
-            </q-td>
-          </template>
-
-          <!-- Tier column -->
-          <template #body-cell-tier="props">
-            <q-td :props="props">
-              <span class="text-grey-5">—</span>
-            </q-td>
-          </template>
-
-          <!-- Price column -->
-          <template #body-cell-precio="props">
-            <q-td :props="props">
-              {{ formatPrice(props.row.priceRegular, props.row.currency) }}
-            </q-td>
-          </template>
-
-          <!-- Duration column -->
-          <template #body-cell-duracion="props">
-            <q-td :props="props"> {{ props.row.durationDays }} dias </q-td>
-          </template>
-
-          <!-- Classes column -->
-          <template #body-cell-clases="props">
-            <q-td :props="props">
-              <span class="text-grey-5">—</span>
-            </q-td>
-          </template>
-
-          <!-- Linked program column -->
-          <template #body-cell-programa="props">
-            <q-td :props="props">
-              {{ programName(props.row.linkedProgramId) }}
-            </q-td>
-          </template>
-
-          <!-- Status column -->
-          <template #body-cell-estado="props">
-            <q-td :props="props">
-              <q-badge
-                :color="props.row.isActive ? 'positive' : 'grey'"
-                :label="props.row.isActive ? 'Activo' : 'Inactivo'"
-              />
-            </q-td>
-          </template>
-
-          <!-- Actions column -->
-          <template #body-cell-acciones="props">
-            <q-td :props="props">
-              <q-btn
-                v-if="canEditPlans"
-                flat
-                dense
-                round
-                icon="edit"
-                color="primary"
-                @click="openEditDialog(props.row)"
-              >
-                <q-tooltip>Editar</q-tooltip>
-              </q-btn>
-              <q-btn
-                v-if="canEditPlans && props.row.isActive"
-                flat
-                dense
-                round
-                icon="block"
-                color="negative"
-                @click="confirmDeactivate(props.row)"
-              >
-                <q-tooltip>Desactivar</q-tooltip>
-              </q-btn>
-              <span v-if="!canEditPlans" class="text-grey-5">—</span>
-            </q-td>
-          </template>
-        </q-table>
+            <!-- Actions column -->
+            <template #body-cell-acciones="props">
+              <q-td :props="props">
+                <q-btn
+                  v-if="canEditPlans"
+                  flat
+                  dense
+                  round
+                  icon="edit"
+                  color="primary"
+                  @click="openEditDialog(props.row)"
+                >
+                  <q-tooltip>Editar</q-tooltip>
+                </q-btn>
+                <q-btn
+                  v-if="canEditPlans && props.row.isActive"
+                  flat
+                  dense
+                  round
+                  icon="block"
+                  color="negative"
+                  @click="confirmDeactivate(props.row)"
+                >
+                  <q-tooltip>Desactivar</q-tooltip>
+                </q-btn>
+                <span v-if="!canEditPlans" class="text-grey-5">—</span>
+              </q-td>
+            </template>
+          </q-table>
+        </template>
 
         <!-- Plan Form Dialog -->
         <PlanFormDialog
@@ -383,6 +288,8 @@ import {
   PLAN_TIER_LABELS,
   PLAN_CATEGORY_LABELS,
   PLAN_CATEGORY_COLORS,
+  PLAN_SECTIONS,
+  planSection,
   type PlanListItem,
   type PlanTier,
   type PlanCategory,
@@ -465,8 +372,15 @@ const programs = ref<Program[]>([]);
 // Computed plan lists
 // =========================================================================
 
-const presencialPlans = computed(() => plans.value.filter((p) => p.planCategory === 'presencial'));
-const onlinePlans = computed(() => plans.value.filter((p) => p.planCategory !== 'presencial'));
+// Cuatro tablas (Presenciales / Paquetes / Especiales / Online) a partir de
+// `planSection`. Los paquetes son 36 filas por migración: en su propia tabla
+// no tapan los presenciales ni terminan listados como "Online".
+const planSections = computed(() =>
+  PLAN_SECTIONS.map((section) => ({
+    ...section,
+    rows: plans.value.filter((p) => planSection(p.planCategory) === section.key),
+  }))
+);
 
 // =========================================================================
 // Promos State
