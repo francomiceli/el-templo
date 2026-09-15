@@ -329,6 +329,21 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     motivo:
       "Invalida el refresh token del portador y no lee ni escribe una sola fila de datos de un gimnasio.",
   },
+  // Olvidé mi contraseña por código de 6 dígitos (2026-09-15). Las dos son el
+  // MISMO caso que /login: públicas, sin sesión ni selector de gimnasio, buscan
+  // por el email pelado (cross-tenant a propósito, .limit(1), misma deuda de
+  // la fase 168) y el tenant sale de la fila encontrada. Todo write posterior
+  // (código hasheado, contraseña nueva) va con tenantWhere derivado de esa fila.
+  "POST /api/auth/forgot-password": {
+    categoria: "global",
+    motivo:
+      "Mismo lookup pre-scope que el login: busca por el email pelado y el tenant sale de la fila encontrada. Escribe el código hasheado en esa fila con tenantWhere derivado de ella.",
+  },
+  "POST /api/auth/reset-password": {
+    categoria: "global",
+    motivo:
+      "Mismo lookup pre-scope que el login: busca por el email pelado y el tenant sale de la fila encontrada. La contraseña nueva se escribe en esa fila con tenantWhere derivado de ella.",
+  },
   // D-04 veredicto (caso 1): confirmada `tenant-scoped`. Es pública y sin sesión
   // como sus tres hermanas `global`, pero CREA una fila gym-owned, y eso manda.
   // Hoy cae en el DEFAULT 1 de la columna porque auth no es tenant-aware hasta la

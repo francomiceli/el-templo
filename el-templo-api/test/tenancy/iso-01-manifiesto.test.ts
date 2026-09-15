@@ -284,7 +284,10 @@ import {
 // 2026-09-10: 429 -> 431 por "Planis" (vista previa de la plani para el staff):
 // `GET /api/admin/tv/preview/day` + `GET /api/admin/tv/preview/week`, ambas
 // `tenant-scoped` (gate TV_CONTROL_ROLES del plugin, sin sede).
-const ENTRADAS_BASELINE = 431;
+// 2026-09-15: 431 -> 433 por "olvidé mi contraseña" (código de 6 dígitos):
+// `POST /api/auth/forgot-password` + `POST /api/auth/reset-password`, ambas
+// `global` con motivo (mismo lookup pre-scope por email pelado que /login).
+const ENTRADAS_BASELINE = 433;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -427,7 +430,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 431 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 433 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
