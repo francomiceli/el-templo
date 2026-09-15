@@ -193,9 +193,11 @@ describe("Olvidé mi contraseña (código de 6 dígitos)", () => {
       expect(row.hash).toBe(hashResetCode(id, code as string));
       expect(row.hash).not.toContain(code);
       expect(row.attempts).toBe(0);
+      // MySQL TIMESTAMP redondea a segundos: el vencimiento guardado puede
+      // quedar hasta 1 s por encima del `now + TTL` exacto.
       const ttl = (row.expiresAt as Date).getTime() - Date.now();
       expect(ttl).toBeGreaterThan(PASSWORD_RESET_CODE_TTL_MS - 10_000);
-      expect(ttl).toBeLessThanOrEqual(PASSWORD_RESET_CODE_TTL_MS);
+      expect(ttl).toBeLessThanOrEqual(PASSWORD_RESET_CODE_TTL_MS + 1_000);
     });
 
     it("anti-enumeración: un email desconocido responde el MISMO 200 sin mandar mail", async () => {
