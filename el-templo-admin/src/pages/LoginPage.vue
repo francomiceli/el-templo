@@ -45,6 +45,17 @@
               </div>
             </q-form>
           </q-card-section>
+
+          <q-card-actions align="center" class="q-pb-md">
+            <q-btn
+              flat
+              dense
+              no-caps
+              color="grey-8"
+              label="Olvidé mi contraseña"
+              :to="{ path: '/forgot-password', query: email ? { email } : {} }"
+            />
+          </q-card-actions>
         </q-card>
       </q-page>
     </q-page-container>
@@ -56,11 +67,14 @@ import { ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 
-const email = ref('');
-const password = ref('');
-const showPassword = ref(false);
 const router = useRouter();
 const route = useRoute();
+
+// Al volver de /forgot-password con la contraseña ya cambiada, el email viene
+// por query para no hacérselo tipear de nuevo.
+const email = ref(typeof route.query.email === 'string' ? route.query.email : '');
+const password = ref('');
+const showPassword = ref(false);
 const authStore = useAuthStore();
 
 /**

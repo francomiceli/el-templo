@@ -50,6 +50,12 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true },
   },
   {
+    // Olvidé mi contraseña (código de 6 dígitos por mail, 2026-09-15).
+    path: '/forgot-password',
+    component: () => import('pages/ForgotPasswordPage.vue'),
+    meta: { public: true },
+  },
+  {
     // Pantalla de sede, fullscreen y AUTENTICADA (reemplaza al kiosco anónimo
     // `/tv/` de RFC 8628, retirado). Top-level y NO child de AdminLayout a
     // propósito: un televisor de pared no necesita (ni debe mostrar) el
