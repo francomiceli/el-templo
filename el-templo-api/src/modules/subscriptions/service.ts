@@ -314,6 +314,99 @@ export async function deriveCoveredUntilBatch(
   return result;
 }
 
+/**
+ * Duración mínima (en días) de un plan para que su vencimiento merezca
+ * recordatorios de renovación. Un plan más corto ("Clase única": 1 día, 1
+ * clase, precio acordado) termina por diseño: avisarle al socio "tu membresía
+ * vence hoy, renovala" no tiene sentido y suena a error.
+ */
+export const EXPIRY_REMINDER_MIN_DURATION_DAYS = 7;
+
+/**
+ * Covered-until PARA RECORDATORIOS DE VENCIMIENTO, batcheado. Misma cadena que
+ * {@link deriveCoveredUntilBatch} (active+scheduled con end_date), con una
+ * regla extra: si la suscripción que define el covered-until (la de mayor
+ * end_date) pertenece a un plan corto (`duration_days` <
+ * {@link EXPIRY_REMINDER_MIN_DURATION_DAYS}), el socio se devuelve con `null`
+ * ("nada que recordar"). Si dos suscripciones empatan en el end_date máximo,
+ * alcanza con que UNA sea de plan normal para recordar.
+ *
+ * Consumidores: el push `plan_renewal_warning_*` (notification-cron), el pop-up
+ * `plan_expiry` del app (communications/prompt-service) y el trigger
+ * `plan_expires_in_days` de las reglas propias (notifications/rules). El
+ * bloqueo de reservas y el pill "Venc" del admin siguen usando la cobertura
+ * cruda: un plan corto sigue venciendo, solo no se anuncia.
+ *
+ * `ctx` OBLIGATORIO: los tres consumidores ya lo threadean (no hay fallback
+ * Pattern D que preservar como en `deriveCoveredUntil`).
+ */
+export async function deriveReminderCoveredUntilBatch(
+  db: MySql2Database<typeof schema>,
+  userIds: number[],
+  ctx: TenantContext,
+): Promise<Map<number, string | null>> {
+  const result = new Map<number, string | null>();
+  if (userIds.length === 0) return result;
+
+  const rows = await db
+    .select({
+      userId: schema.subscriptions.userId,
+      endDate: schema.subscriptions.endDate,
+      durationDays: schema.subscriptionPlans.durationDays,
+    })
+    .from(schema.subscriptions)
+    .innerJoin(
+      schema.subscriptionPlans,
+      eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+    )
+    .where(
+      and(
+        tenantWhere(schema.subscriptions, ctx),
+        inArray(schema.subscriptions.userId, userIds),
+        inArray(schema.subscriptions.status, ["active", "scheduled"]),
+        isNotNull(schema.subscriptions.endDate),
+      ),
+    );
+
+  // Pasada 1: covered-until crudo por socio (MAX(end_date), string
+  // zero-padded YYYY-MM-DD → comparación lexicográfica segura).
+  const coveredUntil = new Map<number, string>();
+  for (const row of rows) {
+    if (row.endDate === null) continue;
+    const prev = coveredUntil.get(row.userId);
+    if (prev === undefined || row.endDate > prev) {
+      coveredUntil.set(row.userId, row.endDate);
+    }
+  }
+
+  // Pasada 2: la cobertura solo se recuerda si alguna suscripción que TERMINA
+  // en el covered-until es de un plan normal (>= mínimo).
+  const remindable = new Set<number>();
+  for (const row of rows) {
+    if (
+      row.endDate === coveredUntil.get(row.userId) &&
+      row.durationDays >= EXPIRY_REMINDER_MIN_DURATION_DAYS
+    ) {
+      remindable.add(row.userId);
+    }
+  }
+
+  for (const [userId, until] of coveredUntil) {
+    result.set(userId, remindable.has(userId) ? until : null);
+  }
+  return result;
+}
+
+/** Versión de a uno de {@link deriveReminderCoveredUntilBatch}. */
+export async function deriveReminderCoveredUntil(
+  db: MySql2Database<typeof schema>,
+  userId: number,
+  ctx: TenantContext,
+): Promise<string | null> {
+  const map = await deriveReminderCoveredUntilBatch(db, [userId], ctx);
+  return map.get(userId) ?? null;
+}
+
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
 
@@ -1253,6 +1346,17 @@ export class SubscriptionService {
     ctx?: TenantContext,
   ): Promise<string | null> {
     return deriveCoveredUntil(this.db, userId, ctx);
+  }
+
+  /**
+   * Covered-until para RECORDATORIOS de vencimiento: `null` cuando la
+   * cobertura la define un plan corto (ver {@link deriveReminderCoveredUntil}).
+   */
+  async getReminderCoveredUntil(
+    userId: number,
+    ctx: TenantContext,
+  ): Promise<string | null> {
+    return deriveReminderCoveredUntil(this.db, userId, ctx);
   }
 
   /**

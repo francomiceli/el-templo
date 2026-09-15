@@ -130,10 +130,11 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     branchId: number,
     status: "active" | "scheduled" | "cancelled" | "expired",
     endDateOffsetDays: number,
+    planIdOverride?: number,
   ): Promise<void> {
     await app.db.insert(schema.subscriptions).values({
       userId,
-      planId,
+      planId: planIdOverride ?? planId,
       branchId,
       status,
       startDate: "2026-01-01",
@@ -267,7 +268,10 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     return { id: Number(res[0].insertId), templateKey };
   }
 
-  async function wasQueued(userId: number, templateId: number): Promise<boolean> {
+  async function wasQueued(
+    userId: number,
+    templateId: number,
+  ): Promise<boolean> {
     const rows = await app.db
       .select({ id: schema.pendingNotifications.id })
       .from(schema.pendingNotifications)
@@ -322,6 +326,42 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     expect(await wasQueued(positivo, rule.id)).toBe(true);
     expect(await wasQueued(otroN, rule.id)).toBe(false);
     expect(await wasQueued(yaRenovo, rule.id)).toBe(false);
+  });
+
+  // Clase única (2026-09-15): un plan corto (< 7 días) no dispara el aviso
+  // previo al vencimiento (mismo criterio que runPlanRenewalWarnings y el
+  // pop-up plan_expiry). El trigger post-vencimiento (plan_expired_days_ago)
+  // queda intacto: recuperar a quien probó una clase suelta sí tiene sentido.
+  it("plan_expires_in_days: NO encola a quien vence con una Clase única (plan de 1 día)", async () => {
+    const rule = await insertCustomRule({
+      triggerType: "plan_expires_in_days",
+      triggerValue: 1,
+    });
+    const shortPlan = await createPlan(app, adminToken, {
+      name: "Clase única",
+      durationDays: 1,
+      classesPerWeek: 1,
+    });
+
+    const claseUnica = await insertMember({});
+    await giveDeviceToken(claseUnica);
+    await insertSubscription(claseUnica, branchAR, "active", 1, shortPlan.id);
+
+    const normal = await insertMember({});
+    await giveDeviceToken(normal);
+    await insertSubscription(normal, branchAR, "active", 1);
+
+    const result = await evaluateCustomRulesForTenant(
+      app.db,
+      newService(),
+      CTX,
+      TODAY,
+      app.log,
+    );
+
+    expect(result.rulesEvaluated).toBe(1);
+    expect(await wasQueued(claseUnica, rule.id)).toBe(false);
+    expect(await wasQueued(normal, rule.id)).toBe(true);
   });
 
   it("plan_expired_days_ago: encola a quien venció hace N días, no a quien ya tiene cobertura hoy", async () => {
@@ -471,7 +511,13 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     const sinPrograma = await insertMember({});
     await giveDeviceToken(sinPrograma);
 
-    await evaluateCustomRulesForTenant(app.db, newService(), CTX, TODAY, app.log);
+    await evaluateCustomRulesForTenant(
+      app.db,
+      newService(),
+      CTX,
+      TODAY,
+      app.log,
+    );
 
     expect(await wasQueued(conPrograma, rule.id)).toBe(true);
     expect(await wasQueued(programaTerminado, rule.id)).toBe(false);
@@ -495,7 +541,13 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     const inactivo = await insertMember({ status: "inactivo" });
     await giveDeviceToken(inactivo);
 
-    await evaluateCustomRulesForTenant(app.db, newService(), CTX, TODAY, app.log);
+    await evaluateCustomRulesForTenant(
+      app.db,
+      newService(),
+      CTX,
+      TODAY,
+      app.log,
+    );
 
     expect(await wasQueued(conPrograma, rule.id)).toBe(false);
     expect(await wasQueued(programaVencido, rule.id)).toBe(true);
@@ -526,7 +578,13 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     await giveDeviceToken(reservaManana);
     await insertBooking(reservaManana, branchAR, 1, "reservado");
 
-    await evaluateCustomRulesForTenant(app.db, newService(), CTX, TODAY, app.log);
+    await evaluateCustomRulesForTenant(
+      app.db,
+      newService(),
+      CTX,
+      TODAY,
+      app.log,
+    );
 
     expect(await wasQueued(reservaHoy, rule.id)).toBe(true);
     expect(await wasQueued(confirmadaHoy, rule.id)).toBe(true);
@@ -545,7 +603,13 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     const presencial = await insertMember({ branchId: branchAR });
     await giveDeviceToken(presencial);
 
-    await evaluateCustomRulesForTenant(app.db, newService(), CTX, TODAY, app.log);
+    await evaluateCustomRulesForTenant(
+      app.db,
+      newService(),
+      CTX,
+      TODAY,
+      app.log,
+    );
 
     expect(await wasQueued(online, rule.id)).toBe(true);
     expect(await wasQueued(presencial, rule.id)).toBe(false);
@@ -673,7 +737,10 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
       .where(
         and(
           tenantWhere(schema.notificationTemplates, CTX),
-          eq(schema.notificationTemplates.templateKey, "plan_renewal_warning_7d"),
+          eq(
+            schema.notificationTemplates.templateKey,
+            "plan_renewal_warning_7d",
+          ),
         ),
       );
     expect(template).toBeDefined();
@@ -694,8 +761,6 @@ describe("motor de reglas custom (notifications/rules.ts)", () => {
     await giveDeviceToken(member);
     await insertSubscription(member, branchAR, "active", 7);
 
-    await expect(
-      runPlanRenewalWarnings(app.db, service, CTX),
-    ).resolves.toBe(0);
+    await expect(runPlanRenewalWarnings(app.db, service, CTX)).resolves.toBe(0);
   });
 });

@@ -25,7 +25,10 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { addDays, todayInTz } from "../shared/date-utils";
-import { deriveCoveredUntilBatch } from "../subscriptions/service";
+import {
+  deriveCoveredUntilBatch,
+  deriveReminderCoveredUntilBatch,
+} from "../subscriptions/service";
 import type { NotificationService } from "./service";
 import type { MemberSegment } from "../segmentation/types";
 
@@ -256,8 +259,16 @@ async function resolveTriggerCandidates(
           ),
         );
 
-      const candidates = rows.map((r) => r.userId).filter((id) => activeIds.has(id));
-      const coverage = await coverageFor(db, candidates, ctx);
+      const candidates = rows
+        .map((r) => r.userId)
+        .filter((id) => activeIds.has(id));
+      // Clase única (2026-09-15): variante "Reminder" — un plan corto (< 7
+      // días) devuelve null y no dispara el aviso de vencimiento, igual que
+      // runPlanRenewalWarnings y el pop-up plan_expiry.
+      const coverage =
+        candidates.length === 0
+          ? new Map<number, string | null>()
+          : await deriveReminderCoveredUntilBatch(db, candidates, ctx);
       const result = new Set<number>();
       for (const userId of candidates) {
         // D-05 (mismo criterio que runPlanRenewalWarnings): si ya renovó, el
@@ -285,7 +296,9 @@ async function resolveTriggerCandidates(
           ),
         );
 
-      const candidates = rows.map((r) => r.userId).filter((id) => activeIds.has(id));
+      const candidates = rows
+        .map((r) => r.userId)
+        .filter((id) => activeIds.has(id));
       const coverage = await coverageFor(db, candidates, ctx);
       const result = new Set<number>();
       for (const userId of candidates) {
@@ -309,7 +322,9 @@ async function resolveTriggerCandidates(
         .groupBy(schema.attendance.memberId)
         .having(sql`MAX(${schema.attendance.sessionDate}) = ${target}`);
 
-      const candidates = rows.map((r) => r.userId).filter((id) => activeIds.has(id));
+      const candidates = rows
+        .map((r) => r.userId)
+        .filter((id) => activeIds.has(id));
       const coverage = await coverageFor(db, candidates, ctx);
       const result = new Set<number>();
       for (const userId of candidates) {

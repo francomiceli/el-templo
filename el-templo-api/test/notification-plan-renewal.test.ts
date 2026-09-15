@@ -60,10 +60,11 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     userId: number,
     status: "active" | "scheduled",
     offsetDays: number,
+    planIdOverride?: number,
   ): Promise<void> {
     await app.db.insert(schema.subscriptions).values({
       userId,
-      planId,
+      planId: planIdOverride ?? planId,
       branchId: 1,
       status,
       startDate: sql`DATE_SUB(CURDATE(), INTERVAL 30 DAY)`,
@@ -172,6 +173,27 @@ describe("Notifications — runPlanRenewalWarnings (plan renewal windows)", () =
     await runPlanRenewalWarnings(app.db, notificationService, TEMPLO_CTX);
 
     expect(await pendingKeysFor(member.id)).toEqual([]);
+  });
+
+  // Clase única (2026-09-15): un plan corto (< 7 días) vence por diseño —
+  // ninguna de las 3 bandas debe pushear "renovala".
+  it("does not queue any band for a short plan (Clase única, 1 day) even on its expiry day", async () => {
+    const shortPlan = await createPlan(app, adminToken, {
+      name: "Clase única",
+      durationDays: 1,
+      classesPerWeek: 1,
+    });
+    const hoy = await createMember(app, { email: "clase-unica-0d@test.com" });
+    await giveDeviceToken(hoy.id);
+    await insertSub(hoy.id, "active", 0, shortPlan.id);
+    const tres = await createMember(app, { email: "clase-unica-3d@test.com" });
+    await giveDeviceToken(tres.id);
+    await insertSub(tres.id, "active", 3, shortPlan.id);
+
+    await runPlanRenewalWarnings(app.db, notificationService, TEMPLO_CTX);
+
+    expect(await pendingKeysFor(hoy.id)).toEqual([]);
+    expect(await pendingKeysFor(tres.id)).toEqual([]);
   });
 
   it("does not queue anything for a member outside all bands (today+5)", async () => {
