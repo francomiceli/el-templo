@@ -40,7 +40,11 @@ import {
 } from "../helpers";
 import { createPlan } from "../subscriptions/_helpers";
 import * as schema from "../../src/db/schema";
-import { tenantWhere, tenantValues, type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import { todayInTz } from "../../src/modules/shared/date-utils";
 import { DEFAULT_WHATSAPP_TEXT } from "../../src/modules/communications/destinations";
@@ -96,7 +100,9 @@ function classDaysAgo(n: number): string {
 
 // ─── Limpieza local (193-03, L5) ───────────────────────────────────────────
 
-async function limpiarAvisosCustomDeLaBateria(app: FastifyInstance): Promise<void> {
+async function limpiarAvisosCustomDeLaBateria(
+  app: FastifyInstance,
+): Promise<void> {
   await app.db.execute(
     sql`/* tenant-safe: limpieza global de prueba (patron cleanAllTestData) — aviso_events no es TABLES_TO_CLEAN a proposito (193-03, L5) */ DELETE FROM aviso_events`,
   );
@@ -256,7 +262,10 @@ describe("prioridad — GET /api/communications/me/prompt (D-06)", () => {
     });
 
     // 2) aviso vigente: custom popup, sin alcance, every_open.
-    const avisoVigenteId = await crearAvisoCustom(app, `${MARCA} Aviso vigente`);
+    const avisoVigenteId = await crearAvisoCustom(
+      app,
+      `${MARCA} Aviso vigente`,
+    );
 
     // 3) rating: clase confirmada dentro de las 48h + coach en el roster.
     const coachId = await createStaffUser(app, {
@@ -318,9 +327,14 @@ describe("prioridad — GET /api/communications/me/prompt (D-06)", () => {
     const planExpiryAvisoId = body1.prompt!.aviso.id;
 
     // Registrar "shown" hoy saca a plan_expiry de carrera (frequencyDays: 1, D-08 diaria).
-    const eventRes = await postComo(app, `/me/avisos/${planExpiryAvisoId}/event`, member.token, {
-      type: "shown",
-    });
+    const eventRes = await postComo(
+      app,
+      `/me/avisos/${planExpiryAvisoId}/event`,
+      member.token,
+      {
+        type: "shown",
+      },
+    );
     expect(eventRes.statusCode, eventRes.body).toBe(200);
 
     // Escalón 2: cae al aviso vigente.
@@ -375,6 +389,32 @@ describe("prioridad — GET /api/communications/me/prompt (D-06)", () => {
 // (2) Frecuencia — D-11
 // ═══════════════════════════════════════════════════════════════════════════
 
+describe("plan corto — GET /api/communications/me/prompt (Clase única 2026-09-15)", () => {
+  it("una Clase única (plan de 1 día) que vence mañana NO dispara plan_expiry", async () => {
+    const member = await createTestMember(app, { branchId: 1 });
+    const shortPlan = await createPlan(app, templeAdminToken, {
+      name: "Clase única",
+      durationDays: 1,
+      classesPerWeek: 1,
+    });
+    await app.db.insert(schema.subscriptions).values({
+      userId: member.id,
+      planId: shortPlan.id,
+      branchId: 1,
+      status: "active",
+      startDate: arDateOffset(0),
+      endDate: arDateOffset(1),
+      pricePaid: 20000,
+      priceTypeApplied: "regular",
+    });
+
+    const res = await getComo(app, "/me/prompt", member.token);
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as PromptBody;
+    expect(body.prompt?.kind).not.toBe("plan_expiry");
+  });
+});
+
 describe("frecuencia — GET /api/communications/me/prompt (D-11)", () => {
   it("every_n_days: no vuelve al día siguiente y sí al octavo", async () => {
     const member = await createTestMember(app, { branchId: 1 });
@@ -387,9 +427,14 @@ describe("frecuencia — GET /api/communications/me/prompt (D-11)", () => {
     const body1 = JSON.parse(res1.body) as PromptBody;
     expect(body1.prompt?.aviso.id).toBe(avisoId);
 
-    const shownRes = await postComo(app, `/me/avisos/${avisoId}/event`, member.token, {
-      type: "shown",
-    });
+    const shownRes = await postComo(
+      app,
+      `/me/avisos/${avisoId}/event`,
+      member.token,
+      {
+        type: "shown",
+      },
+    );
     expect(shownRes.statusCode, shownRes.body).toBe(200);
 
     // Al día siguiente (elapsed ~0 < 7 días) no debería volver a ganar.
@@ -426,7 +471,9 @@ describe("frecuencia — GET /api/communications/me/prompt (D-11)", () => {
     const body1 = JSON.parse(res1.body) as PromptBody;
     expect(body1.prompt?.aviso.id).toBe(avisoId);
 
-    await postComo(app, `/me/avisos/${avisoId}/event`, member.token, { type: "shown" });
+    await postComo(app, `/me/avisos/${avisoId}/event`, member.token, {
+      type: "shown",
+    });
 
     const res2 = await getComo(app, "/me/prompt", member.token);
     const body2 = JSON.parse(res2.body) as PromptBody;
@@ -452,15 +499,21 @@ describe("frecuencia — GET /api/communications/me/prompt (D-11)", () => {
 
   it("every_open: vuelve siempre, incluso mostrado hace un instante", async () => {
     const member = await createTestMember(app, { branchId: 1 });
-    const avisoId = await crearAvisoCustom(app, `${MARCA} Frecuencia every_open`, {
-      frequencyType: "every_open",
-    });
+    const avisoId = await crearAvisoCustom(
+      app,
+      `${MARCA} Frecuencia every_open`,
+      {
+        frequencyType: "every_open",
+      },
+    );
 
     const res1 = await getComo(app, "/me/prompt", member.token);
     const body1 = JSON.parse(res1.body) as PromptBody;
     expect(body1.prompt?.aviso.id).toBe(avisoId);
 
-    await postComo(app, `/me/avisos/${avisoId}/event`, member.token, { type: "shown" });
+    await postComo(app, `/me/avisos/${avisoId}/event`, member.token, {
+      type: "shown",
+    });
 
     const res2 = await getComo(app, "/me/prompt", member.token);
     const body2 = JSON.parse(res2.body) as PromptBody;
@@ -508,14 +561,23 @@ describe("alcance — GET /api/communications/me/prompt (D-13)", () => {
   it("scopeSegments: solo le llega al socio con ese segmento de comportamiento", async () => {
     const memberOptima = await createTestMember(app, { branchId: 1 });
     const memberSinSegmento = await createTestMember(app, { branchId: 1 });
-    await app.db.insert(schema.memberProfiles).values(
-      tenantValues(CTX_TEMPLO, { userId: memberOptima.id, segment: "optima" as const }),
-    );
+    await app.db
+      .insert(schema.memberProfiles)
+      .values(
+        tenantValues(CTX_TEMPLO, {
+          userId: memberOptima.id,
+          segment: "optima" as const,
+        }),
+      );
     const avisoId = await crearAvisoCustom(app, `${MARCA} Solo óptima`, {
       scopeSegments: ["optima"],
     });
 
-    const resSinSegmento = await getComo(app, "/me/prompt", memberSinSegmento.token);
+    const resSinSegmento = await getComo(
+      app,
+      "/me/prompt",
+      memberSinSegmento.token,
+    );
     const bodySinSegmento = JSON.parse(resSinSegmento.body) as PromptBody;
     expect(bodySinSegmento.prompt?.aviso.id).not.toBe(avisoId);
 
@@ -543,7 +605,12 @@ describe("vigencia — GET /api/communications/me/prompt (D-14)", () => {
     await app.db
       .update(schema.avisos)
       .set({ startsOn: arDateOffset(0) })
-      .where(and(tenantWhere(schema.avisos, CTX_TEMPLO), eq(schema.avisos.id, avisoId)));
+      .where(
+        and(
+          tenantWhere(schema.avisos, CTX_TEMPLO),
+          eq(schema.avisos.id, avisoId),
+        ),
+      );
     const resVigente = await getComo(app, "/me/prompt", member.token);
     const bodyVigente = JSON.parse(resVigente.body) as PromptBody;
     expect(bodyVigente.prompt?.aviso.id).toBe(avisoId);
@@ -551,7 +618,12 @@ describe("vigencia — GET /api/communications/me/prompt (D-14)", () => {
     await app.db
       .update(schema.avisos)
       .set({ startsOn: null, endsOn: arDateOffset(-1) })
-      .where(and(tenantWhere(schema.avisos, CTX_TEMPLO), eq(schema.avisos.id, avisoId)));
+      .where(
+        and(
+          tenantWhere(schema.avisos, CTX_TEMPLO),
+          eq(schema.avisos.id, avisoId),
+        ),
+      );
     const resVencida = await getComo(app, "/me/prompt", member.token);
     const bodyVencida = JSON.parse(resVencida.body) as PromptBody;
     expect(bodyVencida.prompt?.aviso.id).not.toBe(avisoId);
@@ -568,13 +640,23 @@ describe("eventos — POST /api/communications/me/avisos/:id/event (D-11)", () =
     const memberB = await createTestMember(app, { branchId: 1 });
     const avisoId = await crearAvisoCustom(app, `${MARCA} Aviso eventos`);
 
-    const r1 = await postComo(app, `/me/avisos/${avisoId}/event`, memberA.token, {
-      type: "shown",
-    });
+    const r1 = await postComo(
+      app,
+      `/me/avisos/${avisoId}/event`,
+      memberA.token,
+      {
+        type: "shown",
+      },
+    );
     expect(r1.statusCode, r1.body).toBe(200);
-    const r2 = await postComo(app, `/me/avisos/${avisoId}/event`, memberA.token, {
-      type: "shown",
-    });
+    const r2 = await postComo(
+      app,
+      `/me/avisos/${avisoId}/event`,
+      memberA.token,
+      {
+        type: "shown",
+      },
+    );
     expect(r2.statusCode, r2.body).toBe(200);
 
     const shownRows = await app.db
@@ -591,13 +673,23 @@ describe("eventos — POST /api/communications/me/avisos/:id/event (D-11)", () =
     expect(shownRows).toHaveLength(1);
     expect(shownRows[0]?.eventCount).toBe(2);
 
-    const c1 = await postComo(app, `/me/avisos/${avisoId}/event`, memberA.token, {
-      type: "clicked",
-    });
+    const c1 = await postComo(
+      app,
+      `/me/avisos/${avisoId}/event`,
+      memberA.token,
+      {
+        type: "clicked",
+      },
+    );
     expect(c1.statusCode, c1.body).toBe(200);
-    const c2 = await postComo(app, `/me/avisos/${avisoId}/event`, memberB.token, {
-      type: "clicked",
-    });
+    const c2 = await postComo(
+      app,
+      `/me/avisos/${avisoId}/event`,
+      memberB.token,
+      {
+        type: "clicked",
+      },
+    );
     expect(c2.statusCode, c2.body).toBe(200);
 
     const clickedRows = await app.db
@@ -617,9 +709,14 @@ describe("eventos — POST /api/communications/me/avisos/:id/event (D-11)", () =
 
   it("un id de aviso inexistente da 404", async () => {
     const member = await createTestMember(app, { branchId: 1 });
-    const res = await postComo(app, "/me/avisos/999999999/event", member.token, {
-      type: "shown",
-    });
+    const res = await postComo(
+      app,
+      "/me/avisos/999999999/event",
+      member.token,
+      {
+        type: "shown",
+      },
+    );
     expect(res.statusCode, res.body).toBe(404);
   });
 });
@@ -652,7 +749,9 @@ describe("config — GET /api/communications/me/config (D-20)", () => {
 
     const resEs = await getComo(app, "/me/config", memberEs.token);
     expect(resEs.statusCode, resEs.body).toBe(200);
-    const bodyEs = JSON.parse(resEs.body) as { salesWhatsappNumber: string | null };
+    const bodyEs = JSON.parse(resEs.body) as {
+      salesWhatsappNumber: string | null;
+    };
     expect(bodyEs.salesWhatsappNumber).toBeNull();
   });
 });
@@ -695,9 +794,16 @@ describe("tarjetas — GET /api/communications/me/tarjetas (D-15b)", () => {
     const body = JSON.parse(res.body) as {
       tarjetas: Array<{ id: number; code: string | null }>;
     };
-    const codesSistema = body.tarjetas.filter((t) => t.id !== freeId).map((t) => t.code);
+    const codesSistema = body.tarjetas
+      .filter((t) => t.id !== freeId)
+      .map((t) => t.code);
     expect(codesSistema.sort()).toEqual(
-      ["card_improvement", "card_program", "card_referral", "card_upsell"].sort(),
+      [
+        "card_improvement",
+        "card_program",
+        "card_referral",
+        "card_upsell",
+      ].sort(),
     );
     const libre = body.tarjetas.find((t) => t.id === freeId);
     expect(libre?.code ?? null).toBeNull();

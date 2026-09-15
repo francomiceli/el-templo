@@ -30,19 +30,17 @@
  * siguientes (T-193-19: cortocircuito, sin barrer las 4 reglas cuando la
  * primera ya resolvió).
  */
-import {
-  and,
-  eq,
-  inArray,
-  isNull,
-  notInArray,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { avisos, avisoEvents, users, memberProfiles, branches } from "../../db/schema";
+import {
+  avisos,
+  avisoEvents,
+  users,
+  memberProfiles,
+  branches,
+} from "../../db/schema";
 import {
   tenantWhere,
   tenantValues,
@@ -135,7 +133,10 @@ export class PromptService {
    * Aplica el orden FIJO de D-06 y corta en el primer escalón que aplica.
    * `null` cuando ninguno de los 4 aplica hoy.
    */
-  async resolvePrompt(ctx: TenantContext, userId: number): Promise<PromptResult> {
+  async resolvePrompt(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<PromptResult> {
     const now = new Date();
 
     const planExpiry = await this.resolvePlanExpiry(ctx, userId, now);
@@ -163,10 +164,15 @@ export class PromptService {
     if (!row || row.status !== "active") return null;
 
     // D-10: la regla de disparo (≤3 días, supresión por cobertura) vive en
-    // `SubscriptionService.getCoveredUntil` (→ `deriveCoveredUntil`, fase
-    // 144-01) — se llama, no se reimplementa.
+    // `SubscriptionService.getReminderCoveredUntil` (→
+    // `deriveReminderCoveredUntil`, fase 144-01 + Clase única 2026-09-15: un
+    // plan corto < 7 días devuelve null y no dispara el pop-up) — se llama,
+    // no se reimplementa.
     const subscriptionService = new SubscriptionService(this.db, this.log);
-    const coveredUntil = await subscriptionService.getCoveredUntil(userId, ctx);
+    const coveredUntil = await subscriptionService.getReminderCoveredUntil(
+      userId,
+      ctx,
+    );
     if (coveredUntil === null) return null;
 
     const daysRemaining = wholeDaysUntil(coveredUntil);
@@ -220,7 +226,11 @@ export class PromptService {
       const lastShown = lastShownByAviso.get(candidate.id) ?? null;
       if (!frequencyAllows(candidate, lastShown, now)) continue;
 
-      const aviso = await this.buildPromptAvisoWithNumber(ctx, userId, candidate);
+      const aviso = await this.buildPromptAvisoWithNumber(
+        ctx,
+        userId,
+        candidate,
+      );
       return { kind: "aviso", aviso };
     }
 
@@ -320,7 +330,10 @@ export class PromptService {
    * Sin frecuencia: el carrusel se ve en cada apertura (los avisos de tarjeta
    * nacen forzados a `every_open` en `createAviso`/`updateAviso`).
    */
-  async listTarjetas(ctx: TenantContext, userId: number): Promise<PromptAviso[]> {
+  async listTarjetas(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<PromptAviso[]> {
     const member = await this.getMemberScopeInfo(ctx, userId);
     if (!member) return [];
 
@@ -535,7 +548,10 @@ export function frequencyAllows(
  * así una sola lectura de `tenant_settings` alcanza para N avisos de la misma
  * llamada (T-193-19).
  */
-function buildPromptAviso(row: AvisoRow, whatsappNumber: string | null): PromptAviso {
+function buildPromptAviso(
+  row: AvisoRow,
+  whatsappNumber: string | null,
+): PromptAviso {
   const destination: Destination = {
     type: row.destinationType,
     section: row.destinationSection as AppSectionKey | null,
