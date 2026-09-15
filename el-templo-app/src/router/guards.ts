@@ -23,7 +23,7 @@
  * inputs planos (`test/router-guard.test.ts`).
  */
 
-export const publicRoutes = ['login', 'register']
+export const publicRoutes = ['login', 'register', 'forgot-password']
 
 /** Rutas que se saltean AMBOS `if` de auth — ni login ni home (D-03/D-04). */
 export const authAgnosticRoutes = ['magic-link']

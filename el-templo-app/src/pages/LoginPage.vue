@@ -85,6 +85,13 @@
 
             <div class="card-links">
               <router-link to="/register" class="card-link"> Crear cuenta </router-link>
+              <span class="card-link-separator">·</span>
+              <router-link
+                :to="{ path: '/forgot-password', query: email ? { email } : {} }"
+                class="card-link"
+              >
+                Olvidé mi contraseña
+              </router-link>
             </div>
           </div>
         </div>

@@ -27,9 +27,21 @@ describe('resolveGuardRedirect — auth', () => {
     expect(result).toEqual({ name: 'login' })
   })
 
-  it('no autenticado + login/register ⇒ true', () => {
+  it('no autenticado + login/register/forgot-password ⇒ true', () => {
     expect(resolveGuardRedirect({ ...BASE, toName: 'login', isAuthenticated: false })).toBe(true)
     expect(resolveGuardRedirect({ ...BASE, toName: 'register', isAuthenticated: false })).toBe(true)
+    expect(
+      resolveGuardRedirect({ ...BASE, toName: 'forgot-password', isAuthenticated: false }),
+    ).toBe(true)
+  })
+
+  it('autenticado + forgot-password ⇒ home (ya tiene sesión, no necesita recuperar nada)', () => {
+    const result = resolveGuardRedirect({
+      ...BASE,
+      toName: 'forgot-password',
+      isAuthenticated: true,
+    })
+    expect(result).toEqual({ name: 'home' })
   })
 
   it('autenticado + login ⇒ home', () => {
