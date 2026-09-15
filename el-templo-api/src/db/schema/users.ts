@@ -280,6 +280,14 @@ export const users = mysqlTable(
     barChallengeCompleted: boolean("bar_challenge_completed"),
     barChallengeSeconds: int("bar_challenge_seconds"),
     barChallengeAttemptedAt: timestamp("bar_challenge_attempted_at"),
+    // Olvidé mi contraseña por código de 6 dígitos (migración 0227). El código
+    // nunca se guarda en claro: solo su HMAC-SHA256 (hex). `expiresAt` marca
+    // el vencimiento (15 min) y `attempts` cuenta los intentos fallidos contra
+    // ese código (al llegar al máximo hay que pedir uno nuevo). Las tres se
+    // limpian al consumir el código. Ver `src/modules/auth/password-reset-service.ts`.
+    passwordResetCodeHash: varchar("password_reset_code_hash", { length: 64 }),
+    passwordResetExpiresAt: timestamp("password_reset_expires_at"),
+    passwordResetAttempts: int("password_reset_attempts").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

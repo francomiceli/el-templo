@@ -4,6 +4,7 @@ import type { RouteOptions } from "fastify";
 import * as Sentry from "@sentry/node";
 import querystring from "node:querystring";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import databasePlugin from "./plugins/database";
 import r2Plugin from "./plugins/r2";
 import authPlugin from "./plugins/auth";
@@ -151,6 +152,20 @@ export async function buildApp(opts: BuildAppOptions = {}) {
     // kiosco de la TV, que pollea cada 2,5 s con header Authorization, manda un OPTIONS
     // por medio. 24 h es el techo que respeta Chromium (lo capea a 2 h por su cuenta).
     maxAge: 86400,
+  });
+
+  // Rate limit por IP, OPT-IN por ruta (`global: false`): solo las rutas que
+  // declaran `config.rateLimit` lo pagan. Hoy: /auth/forgot-password y
+  // /auth/reset-password (código de 6 dígitos por mail, 2026-09-15). Va
+  // antes de todo `register` de rutas: el plugin engancha `onRoute` y solo
+  // ve las rutas registradas después.
+  await app.register(rateLimit, {
+    global: false,
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
+      error: "Demasiados intentos",
+      message: `Demasiados intentos. Probá de nuevo en ${context.after}.`,
+    }),
   });
 
   // Database plugin (decorates fastify.db)

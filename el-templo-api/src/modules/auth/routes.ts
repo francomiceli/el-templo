@@ -18,7 +18,17 @@ import type {
   PartnerBenefitType,
   PartnerSignupResult,
 } from "../referral-partners/types";
-import { registerSchema, loginSchema } from "./schemas";
+import {
+  registerSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "./schemas";
+import {
+  PasswordResetService,
+  PASSWORD_RESET_CODE_TTL_MS,
+} from "./password-reset-service";
+import { EmailService } from "../email";
 import { appBranchName } from "../shared/app-branch-name";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
@@ -1044,6 +1054,66 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         memberSince: user.createdAt.toISOString(),
         enabledModules,
       };
+    },
+  );
+
+  // POST /forgot-password — paso 1 de "olvidé mi contraseña" (código de 6
+  // dígitos por mail, 2026-09-15). Responde SIEMPRE 200 con el mismo mensaje,
+  // exista o no el email (anti-enumeración). Rate limit por IP: un tercero
+  // no puede usar esta ruta para llenarle la casilla a alguien ni para
+  // barrer emails. El cooldown por usuario vive en el servicio.
+  fastify.post<{ Body: { email: string } }>(
+    "/forgot-password",
+    {
+      schema: forgotPasswordSchema,
+      config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
+    },
+    async (request) => {
+      const service = new PasswordResetService(fastify.db, request.log);
+      const issued = await service.requestCode(request.body.email);
+
+      if (issued) {
+        // Si Resend falla, esto lanza → 500. Preferimos que el socio vea un
+        // error y reintente antes que un 200 sin mail (el 500 revela que el
+        // email existe, pero solo mientras el proveedor está caído).
+        await new EmailService(request.log).sendPasswordResetEmail(
+          issued.user.email,
+          issued.user.firstName,
+          issued.code,
+          PASSWORD_RESET_CODE_TTL_MS / 60_000,
+        );
+      }
+
+      return {
+        message:
+          "Si el email está registrado, te enviamos un código para recuperar tu contraseña",
+      };
+    },
+  );
+
+  // POST /reset-password — paso 2: canjea el código por una contraseña
+  // nueva. Cualquier fallo (email desconocido, código incorrecto, vencido o
+  // agotado) devuelve el MISMO 400 genérico. No emite sesión: los frontends
+  // hacen el login normal con la contraseña nueva acto seguido.
+  fastify.post<{ Body: { email: string; code: string; newPassword: string } }>(
+    "/reset-password",
+    {
+      schema: resetPasswordSchema,
+      config: { rateLimit: { max: 10, timeWindow: "15 minutes" } },
+    },
+    async (request, reply) => {
+      const { email, code, newPassword } = request.body;
+      const service = new PasswordResetService(fastify.db, request.log);
+      const outcome = await service.resetPassword(email, code, newPassword);
+
+      if (outcome !== "ok") {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "Código inválido o vencido",
+        });
+      }
+
+      return { message: "Contraseña actualizada" };
     },
   );
 

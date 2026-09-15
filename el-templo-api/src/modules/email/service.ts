@@ -11,6 +11,8 @@ import type { FastifyBaseLogger } from "fastify";
 import {
   passwordSetEmailHtml,
   PASSWORD_SET_SUBJECT,
+  passwordResetEmailHtml,
+  PASSWORD_RESET_SUBJECT,
   trialReminderEmailHtml,
 } from "./templates";
 
@@ -55,6 +57,41 @@ export class EmailService {
     });
 
     this.log.info({ to }, "Password-set email sent");
+  }
+
+  /**
+   * Olvidé mi contraseña (2026-09-15): mail con el código de 6 dígitos.
+   * A diferencia de los hermanos, SIN RESEND_API_KEY lanza: un no-op
+   * silencioso dejaría al socio esperando un mail que nunca llega y la ruta
+   * respondiendo 200 como si todo estuviera bien. Inspecciona además el
+   * `{ error }` de Resend por el mismo motivo (patrón de `sendCampaignTest`).
+   */
+  async sendPasswordResetEmail(
+    to: string,
+    firstName: string | null,
+    code: string,
+    expiresInMinutes: number,
+  ): Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "El servicio de email no está configurado (RESEND_API_KEY)",
+      );
+    }
+
+    const resend = new Resend(apiKey);
+    const { error } = await resend.emails.send({
+      from: EMAIL_FROM,
+      to,
+      subject: PASSWORD_RESET_SUBJECT,
+      html: passwordResetEmailHtml(firstName, code, expiresInMinutes),
+    });
+    if (error) {
+      throw new Error(
+        error.message || "Resend rechazó el mail de recuperación",
+      );
+    }
+    this.log.info({ to }, "Password reset email sent");
   }
 
   /**

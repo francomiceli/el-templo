@@ -39,3 +39,32 @@ export const loginSchema = {
     },
   },
 };
+
+/** POST /forgot-password — solo el email, la respuesta es siempre la misma. */
+export const forgotPasswordSchema = {
+  body: {
+    type: "object",
+    required: ["email"],
+    additionalProperties: false,
+    properties: {
+      email: { type: "string", format: "email", maxLength: 255 },
+    },
+  },
+};
+
+/**
+ * POST /reset-password — email + código de 6 dígitos + contraseña nueva.
+ * `minLength: 6` para la contraseña: mismo piso que `/me/change-password`.
+ */
+export const resetPasswordSchema = {
+  body: {
+    type: "object",
+    required: ["email", "code", "newPassword"],
+    additionalProperties: false,
+    properties: {
+      email: { type: "string", format: "email", maxLength: 255 },
+      code: { type: "string", pattern: "^[0-9]{6}$" },
+      newPassword: { type: "string", minLength: 6, maxLength: 128 },
+    },
+  },
+};
