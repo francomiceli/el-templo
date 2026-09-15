@@ -22,7 +22,7 @@ import type * as schema from "../db/schema";
 import * as s from "../db/schema";
 import { NotificationService } from "../modules/notifications/service";
 import { EmailService } from "../modules/email/service";
-import { deriveCoveredUntil } from "../modules/subscriptions/service";
+import { deriveReminderCoveredUntil } from "../modules/subscriptions/service";
 import { SegmentationService } from "../modules/segmentation/service";
 // segment_transition template keys are defined in SEGMENT_TRANSITION_TEMPLATES
 import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
@@ -313,8 +313,9 @@ const PLAN_RENEWAL_THRESHOLDS = [
  * 7 days, 3 days, or 0 days (expiry day) from today (per D-02, D-03, D-05).
  *
  * Suppression (D-05): a member who already renewed has a `scheduled` successor
- * extending coverage beyond the threshold date, so `deriveCoveredUntil` returns
- * the further date (not the threshold) and the member is skipped. The
+ * extending coverage beyond the threshold date, so `deriveReminderCoveredUntil`
+ * returns the further date (not the threshold) and the member is skipped. A
+ * short plan (< 7 days, e.g. "Clase única") is never reminded at all. The
  * per-category preference gate inside `queueNotification` honors the member's
  * "Planes" opt-out (D-02), so the cron never writes `pending_notifications`
  * directly. Never throws: a bad candidate logs and continues.
@@ -356,7 +357,9 @@ export async function runPlanRenewalWarnings(
         // D-05 suppression: enqueue ONLY when the chain's covered-until equals
         // the threshold date. A scheduled successor pushes covered-until past
         // the threshold → !== target → skip (the member already renewed).
-        const coveredUntil = await deriveCoveredUntil(
+        // Clase única (2026-09-15): la variante "Reminder" devuelve null cuando
+        // la cobertura la define un plan corto (< 7 días) → también se salta.
+        const coveredUntil = await deriveReminderCoveredUntil(
           db,
           candidate.userId,
           ctx,
