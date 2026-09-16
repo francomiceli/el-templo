@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { franchiseApplications } from "../../db/schema/franchise-applications";
+import { TRANSACTIONAL_EMAIL_FROM } from "../email/sender";
 
 const WHATSAPP_URL = "https://wa.link/ci8dpl";
 
@@ -285,7 +286,7 @@ export class FranchiseService {
         .join("\n");
 
       await resend.emails.send({
-        from: "El Templo <noreply@eltemplo.org>",
+        from: TRANSACTIONAL_EMAIL_FROM,
         to: notificationEmail,
         subject: `Nueva solicitud de franquicia: ${data.nombre} - ${data.ciudadPais}`,
         text: body,

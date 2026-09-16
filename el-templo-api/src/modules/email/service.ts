@@ -15,16 +15,10 @@ import {
   PASSWORD_RESET_SUBJECT,
   trialReminderEmailHtml,
 } from "./templates";
-
-const EMAIL_FROM = "El Templo <noreply@eltemplo.org>";
-
-/**
- * Sender address for marketing campaign emails (D-17).
- * Uses a dedicated sending subdomain so campaign deliverability is isolated
- * from transactional mail. Falls back to the transactional `from` when the
- * env var is not yet configured (the prod subdomain is set up in Plan 07).
- */
-const CAMPAIGN_FROM = process.env.CAMPAIGN_EMAIL_FROM || EMAIL_FROM;
+import {
+  CAMPAIGN_EMAIL_FROM as CAMPAIGN_FROM,
+  TRANSACTIONAL_EMAIL_FROM as EMAIL_FROM,
+} from "./sender";
 
 export class EmailService {
   constructor(private log: FastifyBaseLogger) {}
@@ -49,12 +43,22 @@ export class EmailService {
 
     const resend = new Resend(apiKey);
 
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: EMAIL_FROM,
       to,
       subject: PASSWORD_SET_SUBJECT,
       html: passwordSetEmailHtml(firstName, tempPassword),
     });
+    if (error) {
+      // Best-effort: el alta del socio ya se hizo, no se revierte por un
+      // mail. Pero antes se tragaba el `{ error }` de Resend y el rechazo
+      // (remitente fuera del scope de la key) era invisible.
+      this.log.error(
+        { to, resendError: error.message },
+        "Password-set email rejected by Resend",
+      );
+      return;
+    }
 
     this.log.info({ to }, "Password-set email sent");
   }
@@ -116,12 +120,15 @@ export class EmailService {
 
     const resend = new Resend(apiKey);
 
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: EMAIL_FROM,
       to,
       subject,
       html: trialReminderEmailHtml(body),
     });
+    if (error) {
+      throw new Error(error.message || "Resend rechazó el recordatorio");
+    }
 
     this.log.info({ to }, "Trial reminder email sent");
   }

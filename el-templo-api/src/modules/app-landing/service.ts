@@ -7,6 +7,7 @@ import { appWaitlist } from "../../db/schema/app-waitlist";
 import { labsInquiries } from "../../db/schema/labs-inquiries";
 import { academyInquiries } from "../../db/schema/academy-inquiries";
 import { franchiseApplications } from "../../db/schema/franchise-applications";
+import { TRANSACTIONAL_EMAIL_FROM } from "../email/sender";
 
 /**
  * Conteo de leads del sitio publico que nadie atendio todavia, por seccion
@@ -203,7 +204,7 @@ export class AppLandingService {
       const resend = new Resend(apiKey);
 
       await resend.emails.send({
-        from: "El Templo <noreply@eltemplo.org>",
+        from: TRANSACTIONAL_EMAIL_FROM,
         to: notificationEmail,
         subject,
         text: body,
