@@ -72,13 +72,22 @@ describe("sender.ts — resolución de remitentes", () => {
     expect(CAMPAIGN_EMAIL_FROM).toBe("El Templo <noreply@eltemplo.org>");
   });
 
-  it("EMAIL_FROM manda en el transaccional y es el fallback de campañas", async () => {
+  it("solo CAMPAIGN_EMAIL_FROM seteada → el transaccional cae al de campañas (estado prod 2026-09)", async () => {
+    process.env.CAMPAIGN_EMAIL_FROM = "El Templo <comunidad@send.eltemplo.org>";
+    const { TRANSACTIONAL_EMAIL_FROM, CAMPAIGN_EMAIL_FROM } = await loadFresh();
+    expect(CAMPAIGN_EMAIL_FROM).toBe("El Templo <comunidad@send.eltemplo.org>");
+    expect(TRANSACTIONAL_EMAIL_FROM).toBe(
+      "El Templo <comunidad@send.eltemplo.org>",
+    );
+  });
+
+  it("solo EMAIL_FROM seteada → transaccional la usa, campañas NO la heredan", async () => {
     process.env.EMAIL_FROM = "El Templo <noreply@mail.eltemplo.org>";
     const { TRANSACTIONAL_EMAIL_FROM, CAMPAIGN_EMAIL_FROM } = await loadFresh();
     expect(TRANSACTIONAL_EMAIL_FROM).toBe(
       "El Templo <noreply@mail.eltemplo.org>",
     );
-    expect(CAMPAIGN_EMAIL_FROM).toBe("El Templo <noreply@mail.eltemplo.org>");
+    expect(CAMPAIGN_EMAIL_FROM).toBe("El Templo <noreply@eltemplo.org>");
   });
 
   it("con las dos seteadas, cada una es independiente (subdominios distintos)", async () => {
