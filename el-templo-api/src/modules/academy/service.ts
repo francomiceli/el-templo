@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { academyInquiries } from "../../db/schema/academy-inquiries";
+import { TRANSACTIONAL_EMAIL_FROM } from "../email/sender";
 
 const WHATSAPP_URL = "https://wa.link/ci8dpl";
 
@@ -122,7 +123,7 @@ export class AcademyService {
         .join("\n");
 
       await resend.emails.send({
-        from: "El Templo <noreply@eltemplo.org>",
+        from: TRANSACTIONAL_EMAIL_FROM,
         to: notificationEmail,
         subject: `Nueva consulta Academy: ${data.nombre} \u2014 Nivel: ${data.nivelInteres}`,
         text: body,

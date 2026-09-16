@@ -386,6 +386,7 @@ jobs:
           R2_BUCKET_NAME=${{ secrets.R2_BUCKET_NAME }}
           R2_PUBLIC_URL=${{ secrets.R2_PUBLIC_URL }}
           RESEND_API_KEY=${{ secrets.STAGING_RESEND_API_KEY }}
+          EMAIL_FROM=${{ secrets.STAGING_EMAIL_FROM }}
           CAMPAIGN_EMAIL_FROM=${{ secrets.STAGING_CAMPAIGN_EMAIL_FROM }}
           WELLHUB_API_KEY=${{ secrets.STAGING_WELLHUB_API_KEY }}
           WELLHUB_WEBHOOK_SECRET=${{ secrets.STAGING_WELLHUB_WEBHOOK_SECRET }}

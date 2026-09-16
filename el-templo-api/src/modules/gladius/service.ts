@@ -5,6 +5,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { gladiusProducts } from "../../db/schema/gladius-products";
 import { gladiusInquiries } from "../../db/schema/gladius-inquiries";
+import { TRANSACTIONAL_EMAIL_FROM } from "../email/sender";
 
 const WHATSAPP_URL = "https://wa.link/ci8dpl";
 
@@ -201,7 +202,7 @@ export class GladiusService {
         .join("\n");
 
       await resend.emails.send({
-        from: "El Templo <noreply@eltemplo.org>",
+        from: TRANSACTIONAL_EMAIL_FROM,
         to: notificationEmail,
         subject: `Nueva consulta Gladius: ${data.nombre} — ${data.productoInteres}`,
         text: body,
