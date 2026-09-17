@@ -1715,9 +1715,9 @@ const calculatedEndDate = computed(() => {
   return end.toISOString().split('T')[0];
 });
 
-// Mirrors backend assertStartDateWithinLimits (-90 / +60 from today).
+// Mirrors backend assertStartDateWithinLimits (-90 / +90 from today).
 const PAST_LIMIT_DAYS = 90;
-const FUTURE_LIMIT_DAYS = 60;
+const FUTURE_LIMIT_DAYS = 90;
 
 function offsetIso(days: number): string {
   const d = new Date();
@@ -1746,10 +1746,10 @@ const afterCurrentStartDate = ref('');
 // backend rechazaría el solapamiento).
 const afterCurrentStartDateMin = computed(() => props.currentSubEndDate ?? '');
 
-// Techo del date-picker. El backend sólo aplica el límite +60 días a una fecha
+// Techo del date-picker. El backend sólo aplica el límite +90 días a una fecha
 // EMPUJADA (posterior al vencimiento); el default (= vencimiento) siempre es
-// válido aunque el plan actual sea largo y venza más allá de +60. Por eso el
-// techo es el mayor entre el vencimiento y hoy+60: en planes largos la fecha
+// válido aunque el plan actual sea largo y venza más allá de +90. Por eso el
+// techo es el mayor entre el vencimiento y hoy+90: en planes largos la fecha
 // queda anclada al vencimiento (min = max), sin romper el flujo previo.
 const afterCurrentStartDateMax = computed(() => {
   const floor = props.currentSubEndDate ?? '';
@@ -1770,7 +1770,7 @@ const afterCurrentHasGap = computed(
 );
 
 // Bloquea "Continuar" si la fecha 'después' es inválida (vacía, anterior al
-// vencimiento actual, o fuera del límite +60).
+// vencimiento actual, o fuera del límite +90).
 const afterCurrentDateInvalid = computed<boolean>(() => {
   if (!isAfterCurrentMode.value) return false;
   if (!afterCurrentStartDate.value) return true;

@@ -118,10 +118,18 @@ type BookingServiceType =
  * begin in the coming weeks. Tighter than "no bound" — typo guardrail.
  */
 export const START_DATE_PAST_LIMIT_DAYS = 90;
-export const START_DATE_FUTURE_LIMIT_DAYS = 60;
+// 90 hacia adelante (era 60): "arranco en diciembre" dicho en septiembre tiene
+// que entrar sin cancelar y recargar (pedido de Lean, 2026-09-17).
+export const START_DATE_FUTURE_LIMIT_DAYS = 90;
 
 function todayDateString(): string {
   return new Date().toISOString().split("T")[0];
+}
+
+/** "YYYY-MM-DD" → "DD/MM/YYYY" para notas legibles en la ficha. */
+function formatDateAr(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}/${m}/${y}`;
 }
 
 function daysBetween(fromIso: string, toIso: string): number {
@@ -2891,6 +2899,11 @@ export class SubscriptionService {
     const previousStartDate = sub.startDate;
     const previousStatus = sub.status;
 
+    // Rastro en la ficha: mover la fecha ya no pasa por cancelar + recargar,
+    // así que la nota es lo que conserva la historia (quién, cuándo, de qué
+    // fecha a cuál). Misma tx que el update para no dejar una sin la otra.
+    const noteContent = `Fecha de inicio movida del ${formatDateAr(previousStartDate)} al ${formatDateAr(newStartDate)}. Vence el ${formatDateAr(newEndDate)}.`;
+
     await this.db.transaction(async (tx) => {
       await tx
         .update(schema.subscriptions)
@@ -2905,6 +2918,14 @@ export class SubscriptionService {
             eq(schema.subscriptions.id, subscriptionId),
           ),
         );
+
+      await tx.insert(schema.memberNotes).values(
+        tenantValues(ctx, {
+          userId: sub.userId,
+          authorId: actorId,
+          content: noteContent,
+        }),
+      );
 
       await this.recomputeUserStatus(ctx, sub.userId, tx);
     });
