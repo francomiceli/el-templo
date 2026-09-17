@@ -51,6 +51,9 @@ export interface SlotAttendanceItem {
   // Aniversario de permanencia: frase lista ("Cumple 1 año en El Templo") o
   // null. Aparece el día del hito o en la próxima clase si cayó en falta.
   anniversaryLabel: string | null;
+  // Cumpleaños: frase lista ("Cumple 30 años") si la clase cae el día del
+  // cumpleaños del alumno, null si no o si no cargó fecha de nacimiento.
+  birthdayLabel: string | null;
   // Registro del día del alumno (cómo llegó a la clase). Sólo lo completa el
   // server para coach + admin/dueño; null para gestión/recepción.
   checkIn: DayCheckIn | null;
