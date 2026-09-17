@@ -119,7 +119,8 @@ type BookingServiceType =
  */
 export const START_DATE_PAST_LIMIT_DAYS = 90;
 // 90 hacia adelante (era 60): "arranco en diciembre" dicho en septiembre tiene
-// que entrar sin cancelar y recargar (pedido de Lean, 2026-09-17).
+// que entrar sin cancelar y recargar (pedido de Lean, 2026-09-17). Los tests
+// que prueban el tope importan esta constante en vez de hardcodear el número.
 export const START_DATE_FUTURE_LIMIT_DAYS = 90;
 
 function todayDateString(): string {
