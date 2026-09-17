@@ -66,6 +66,16 @@
                   :label="getStatusLabel(memberProfile.status, memberProfile.hasUsedTrial)"
                   class="text-body2"
                 />
+                <!-- Cumpleaños: sólo el día exacto, derivado de dateOfBirth -->
+                <q-badge
+                  v-if="birthdayLabel"
+                  color="pink-1"
+                  text-color="pink-9"
+                  :label="`🎂 ${birthdayLabel}`"
+                  class="text-body2"
+                >
+                  <q-tooltip>¡Hoy es su cumpleaños!</q-tooltip>
+                </q-badge>
                 <q-badge
                   v-if="memberProfile.segment"
                   :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
@@ -789,6 +799,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
+import { birthdayLabelOn } from 'src/utils/birthdays';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useGoalPlanAdminApi } from 'src/composables/useGoalPlanAdminApi';
 import { useMembersApi, type LeadStatusValue } from 'src/composables/useMembersApi';
@@ -848,6 +859,11 @@ const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
 const pageLoading = ref(true);
 const pageError = ref<string | null>(null);
 const memberProfile = ref<MemberProfile | null>(null);
+
+/** "Cumple N años" si HOY (fecha local del navegador) es su cumpleaños. */
+const birthdayLabel = computed(() =>
+  birthdayLabelOn(memberProfile.value?.dateOfBirth, new Date().toLocaleDateString('en-CA'))
+);
 const goalPlanDetail = ref<MemberGoalPlanDetail | null>(null);
 const goalPlanLoading = ref(false);
 const branches = ref<BranchOption[]>([]);

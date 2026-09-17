@@ -1,7 +1,8 @@
 /**
  * Anniversary API Routes (registradas en /api/admin/anniversaries)
  *
- * Cartelera de aniversarios de permanencia de una sede para admin/recepción.
+ * Cartelera de aniversarios de permanencia y cumpleaños de una sede para
+ * admin/recepción.
  */
 import { FastifyPluginAsync } from "fastify";
 import { AnniversaryService } from "./service";
@@ -31,7 +32,7 @@ export const anniversaryAdminRoutes: FastifyPluginAsync = async (fastify) => {
     await attachCountryScope(request, fastify.db);
   });
 
-  // GET / — Aniversarios de hoy (y opcionalmente mañana) de una sede.
+  // GET / — Aniversarios y cumpleaños de hoy (y opcionalmente mañana) de una sede.
   fastify.get<{
     Querystring: { branchId: number; date?: string; includeTomorrow?: boolean };
   }>(
@@ -44,15 +45,15 @@ export const anniversaryAdminRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const ctx = assertTenant(request.scope, "anniversaries.list");
         const today = request.query.date ?? todayInTz(AR_TZ);
-        const anniversaries = await service.getBranchAnniversaries(
-          ctx,
-          request.query.branchId,
-          {
-            today,
-            includeTomorrow: request.query.includeTomorrow ?? false,
-          },
-        );
-        return { anniversaries };
+        const window = {
+          today,
+          includeTomorrow: request.query.includeTomorrow ?? false,
+        };
+        const [anniversaries, birthdays] = await Promise.all([
+          service.getBranchAnniversaries(ctx, request.query.branchId, window),
+          service.getBranchBirthdays(ctx, request.query.branchId, window),
+        ]);
+        return { anniversaries, birthdays };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "branch anniversaries");
       }

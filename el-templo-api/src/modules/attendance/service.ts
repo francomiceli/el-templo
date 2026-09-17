@@ -26,6 +26,7 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { milestoneInWindow, toUtcDateStr } from "../shared/tenure-milestones";
+import { birthdayLabelOn } from "../shared/birthdays";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
@@ -593,6 +594,9 @@ export class AttendanceService {
       // El Templo") cuando el alumno cruza un hito entre su clase anterior y
       // ésta. Null si no cae ningún hito en la ventana. Ver tenure-milestones.
       anniversaryLabel: string | null;
+      // Cumpleaños: frase lista ("Cumple 30 años") si la clase cae el día del
+      // cumpleaños del alumno (users.dateOfBirth); null si no o si no la cargó.
+      birthdayLabel: string | null;
       // Registro del día del alumno (energía/sueño/molestias), su dato más
       // reciente en los últimos 7 días — cómo llegó a la clase. Sólo se completa
       // cuando `opts.includeCheckIns` (coach + admin/dueño); null para el resto
@@ -614,6 +618,7 @@ export class AttendanceService {
         bookingStatus: schema.bookings.status,
         segment: schema.memberProfiles.segment,
         createdAt: schema.users.createdAt,
+        dateOfBirth: schema.users.dateOfBirth,
         endDate: endDateExpr,
       })
       .from(schema.bookings)
@@ -650,6 +655,7 @@ export class AttendanceService {
         source: schema.attendance.source,
         segment: schema.memberProfiles.segment,
         createdAt: schema.users.createdAt,
+        dateOfBirth: schema.users.dateOfBirth,
         endDate: endDateExpr,
       })
       .from(schema.attendance)
@@ -689,6 +695,7 @@ export class AttendanceService {
         seniority: MemberSeniority | null;
         endDate: string | null;
         anniversaryLabel: string | null;
+        birthdayLabel: string | null;
         checkIn: DayCheckIn | null;
       }
     >();
@@ -712,6 +719,7 @@ export class AttendanceService {
         seniority: computeSeniority(b.createdAt),
         endDate: b.endDate ?? null,
         anniversaryLabel: null,
+        birthdayLabel: birthdayLabelOn(b.dateOfBirth, date),
         checkIn: null,
       });
       createdAtByMember.set(b.memberId, b.createdAt);
@@ -745,6 +753,7 @@ export class AttendanceService {
           seniority: computeSeniority(a.createdAt),
           endDate: a.endDate ?? null,
           anniversaryLabel: null,
+          birthdayLabel: birthdayLabelOn(a.dateOfBirth, date),
           checkIn: null,
         });
       }

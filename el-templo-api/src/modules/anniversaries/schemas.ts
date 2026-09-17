@@ -11,6 +11,17 @@ const anniversaryEntrySchema = {
   },
 } as const;
 
+const birthdayEntrySchema = {
+  type: "object",
+  properties: {
+    memberId: { type: "integer" },
+    memberName: { type: "string" },
+    age: { type: "integer" },
+    label: { type: "string" },
+    when: { type: "string", enum: ["today", "tomorrow"] },
+  },
+} as const;
+
 export const branchAnniversariesSchema = {
   querystring: {
     type: "object",
@@ -29,6 +40,8 @@ export const branchAnniversariesSchema = {
       type: "object",
       properties: {
         anniversaries: { type: "array", items: anniversaryEntrySchema },
+        // Cumpleaños del día (y de mañana) de la misma sede, misma ventana.
+        birthdays: { type: "array", items: birthdayEntrySchema },
       },
     },
   },

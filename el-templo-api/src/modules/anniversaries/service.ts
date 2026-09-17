@@ -7,12 +7,13 @@
  * lectura, calculada on-the-fly desde users.createdAt (misma fuente y tolerancia
  * que la línea de la lista de asistencia y el sello de la app).
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays } from "../shared/date-utils";
 import { milestoneOnDate } from "../shared/tenure-milestones";
+import { birthdayLabelOn, ageOnBirthday } from "../shared/birthdays";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 
 export interface AnniversaryEntry {
@@ -23,6 +24,17 @@ export interface AnniversaryEntry {
   /** Label corto ("6 meses", "1 año"). */
   label: string;
   /** Si el hito cae hoy o mañana (anticipo). */
+  when: "today" | "tomorrow";
+}
+
+export interface BirthdayEntry {
+  memberId: number;
+  memberName: string;
+  /** Edad que cumple ese día. */
+  age: number;
+  /** Frase lista ("Cumple 30 años"), misma copy que el roster de clase. */
+  label: string;
+  /** Si el cumpleaños cae hoy o mañana (anticipo). */
   when: "today" | "tomorrow";
 }
 
@@ -95,6 +107,61 @@ export class AnniversaryService {
     const order = { today: 0, tomorrow: 1 };
     entries.sort(
       (a, b) => order[a.when] - order[b.when] || b.months - a.months,
+    );
+    return entries;
+  }
+
+  /**
+   * Cumpleaños de los alumnos activos de la sede para `today` (y `today+1` si
+   * includeTomorrow). Sólo alumnos con fecha de nacimiento cargada (no es
+   * obligatoria en el alta). Orden: primero HOY, y dentro de cada día por nombre.
+   */
+  async getBranchBirthdays(
+    ctx: TenantContext,
+    branchId: number,
+    opts: { today: string; includeTomorrow?: boolean },
+  ): Promise<BirthdayEntry[]> {
+    const { today, includeTomorrow = false } = opts;
+    const tomorrow = addDays(today, 1);
+
+    const members = await this.db
+      .select({
+        id: schema.users.id,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        dateOfBirth: schema.users.dateOfBirth,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.role, "member"),
+          eq(schema.users.status, "activo"),
+          eq(schema.users.branchId, branchId),
+          isNotNull(schema.users.dateOfBirth),
+        ),
+      );
+
+    const entries: BirthdayEntry[] = [];
+    const days: Array<"today" | "tomorrow"> = includeTomorrow
+      ? ["today", "tomorrow"]
+      : ["today"];
+    for (const m of members) {
+      const name = [m.firstName, m.lastName].filter(Boolean).join(" ");
+      for (const when of days) {
+        const date = when === "today" ? today : tomorrow;
+        const age = ageOnBirthday(m.dateOfBirth, date);
+        const label = birthdayLabelOn(m.dateOfBirth, date);
+        if (age === null || label === null) continue;
+        entries.push({ memberId: m.id, memberName: name, age, label, when });
+      }
+    }
+
+    const order = { today: 0, tomorrow: 1 };
+    entries.sort(
+      (a, b) =>
+        order[a.when] - order[b.when] ||
+        a.memberName.localeCompare(b.memberName, "es"),
     );
     return entries;
   }

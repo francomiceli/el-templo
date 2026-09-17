@@ -613,6 +613,62 @@ describe("Attendance API", () => {
       // La cobertura más lejana (la programada), no el vencimiento de la activa.
       expect(row.endDate).toBe(scheduled.endDate);
     });
+
+    it("GET /slot marca birthdayLabel cuando la clase cae el día del cumpleaños", async () => {
+      const { member } = await setupMemberWithSubscription();
+      // La clase del slot es el 2026-03-11 (faked today): nacido un 11/03.
+      await app.db
+        .update(users)
+        .set({ dateOfBirth: "1990-03-11" })
+        .where(eq(users.id, member.id));
+
+      const { scheduleId } = await createBookingForNow(member.id, testBranchId);
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_ATTENDANCE_URL}/slot/${scheduleId}/2026-03-11`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const row = JSON.parse(res.body).members.find(
+        (m: { memberId: number }) => m.memberId === member.id,
+      );
+      expect(row).toBeTruthy();
+      expect(row.birthdayLabel).toBe("Cumple 36 años");
+    });
+
+    it("GET /slot birthdayLabel es null si no es su cumpleaños o no cargó fecha", async () => {
+      const { member } = await setupMemberWithSubscription();
+      const { scheduleId } = await createBookingForNow(member.id, testBranchId);
+
+      // Sin fecha de nacimiento → null.
+      let res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_ATTENDANCE_URL}/slot/${scheduleId}/2026-03-11`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      let row = JSON.parse(res.body).members.find(
+        (m: { memberId: number }) => m.memberId === member.id,
+      );
+      expect(row.birthdayLabel).toBeNull();
+
+      // Con fecha pero otro día → null.
+      await app.db
+        .update(users)
+        .set({ dateOfBirth: "1990-03-12" })
+        .where(eq(users.id, member.id));
+      res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_ATTENDANCE_URL}/slot/${scheduleId}/2026-03-11`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      row = JSON.parse(res.body).members.find(
+        (m: { memberId: number }) => m.memberId === member.id,
+      );
+      expect(row.birthdayLabel).toBeNull();
+    });
   });
 
   // =========================================================================

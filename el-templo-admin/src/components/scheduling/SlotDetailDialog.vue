@@ -327,10 +327,11 @@
                     <span class="text-grey-5">Reservado</span>
                   </template>
                 </q-item-label>
+                <q-item-label v-if="member.birthdayLabel" caption>
+                  <span class="anniversary-line"> 🎂 {{ member.birthdayLabel }} </span>
+                </q-item-label>
                 <q-item-label v-if="member.anniversaryLabel" caption>
-                  <span class="anniversary-line">
-                    🎉 {{ member.anniversaryLabel }}
-                  </span>
+                  <span class="anniversary-line"> 🎉 {{ member.anniversaryLabel }} </span>
                 </q-item-label>
                 <q-item-label v-if="member.checkIn" caption class="q-mt-xs">
                   <CheckInChips :check-in="member.checkIn" />

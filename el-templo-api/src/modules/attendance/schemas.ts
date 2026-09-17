@@ -122,6 +122,9 @@ const slotAttendanceItemSchema = {
     // Aniversario de permanencia: frase lista ("Cumple 1 año en El Templo") o
     // null. Aparece el día del hito o en la próxima clase si cayó en falta.
     anniversaryLabel: { type: ["string", "null"] },
+    // Cumpleaños: frase lista ("Cumple 30 años") si la clase cae el día del
+    // cumpleaños del alumno, null si no o si no cargó fecha de nacimiento.
+    birthdayLabel: { type: ["string", "null"] },
     // Registro del día del alumno (energía/sueño/molestias), su dato más
     // reciente en los últimos 7 días. Sólo lo completa el server para coach +
     // admin/dueño; null para el resto del staff. `daysAgo` 0 = del día.
