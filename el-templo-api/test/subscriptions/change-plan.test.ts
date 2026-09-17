@@ -17,6 +17,7 @@ import {
 } from "./_helpers";
 import { tenantWhere } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { START_DATE_FUTURE_LIMIT_DAYS } from "../../src/modules/subscriptions/service";
 
 /**
  * 172-15: `TEMPLO_CTX` es el gimnasio de este archivo. Las queries directas de
@@ -884,7 +885,7 @@ describe("Subscriptions API — Change plan", () => {
       expect(body.endDate).toBe(dateOffsetStr(60));
     });
 
-    it("fecha custom más allá de +60 días devuelve 400", async () => {
+    it("fecha custom más allá del tope futuro (+90 días) devuelve 400", async () => {
       const { planB, member } = await setupActiveMember(30);
 
       const res = await app.inject({
@@ -894,7 +895,7 @@ describe("Subscriptions API — Change plan", () => {
         payload: {
           planId: planB.id,
           branchId: 1,
-          startDate: dateOffsetStr(70),
+          startDate: dateOffsetStr(START_DATE_FUTURE_LIMIT_DAYS + 10),
           priceTypeApplied: "regular",
           paymentMethod: "cash",
           startMode: "after_current",

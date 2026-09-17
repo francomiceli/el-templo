@@ -7,9 +7,11 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import {
   SUBSCRIPTIONS_URL,
   createPlan,
@@ -18,6 +20,10 @@ import {
   dateOffsetStr,
 } from "./_helpers";
 import { START_DATE_FUTURE_LIMIT_DAYS } from "../../src/modules/subscriptions/service";
+
+// Gimnasio de este archivo: las queries directas a tablas ya migradas al
+// sentinel de tenancy (users, member_notes) van filtradas con tenantWhere.
+const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
 describe("Subscriptions — editar fecha de inicio de una programada", () => {
   let app: FastifyInstance;
@@ -31,7 +37,12 @@ describe("Subscriptions — editar fecha de inicio de una programada", () => {
     const [admin] = await app.db
       .select({ id: schema.users.id })
       .from(schema.users)
-      .where(eq(schema.users.email, "admin@test.com"));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.email, "admin@test.com"),
+        ),
+      );
     adminUserId = admin.id;
   });
 
@@ -87,7 +98,12 @@ describe("Subscriptions — editar fecha de inicio de una programada", () => {
         authorId: schema.memberNotes.authorId,
       })
       .from(schema.memberNotes)
-      .where(eq(schema.memberNotes.userId, memberId));
+      .where(
+        and(
+          tenantWhere(schema.memberNotes, TEMPLO_CTX),
+          eq(schema.memberNotes.userId, memberId),
+        ),
+      );
     expect(notes).toHaveLength(1);
     expect(notes[0].content).toContain("Fecha de inicio movida del");
     expect(notes[0].authorId).toBe(adminUserId);
@@ -106,7 +122,12 @@ describe("Subscriptions — editar fecha de inicio de una programada", () => {
     const [user] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
-      .where(eq(schema.users.id, memberId));
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, memberId),
+        ),
+      );
     expect(user.status).toBe("activo");
   });
 
