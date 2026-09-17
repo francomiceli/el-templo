@@ -210,6 +210,16 @@
           color="primary"
           @click="emit('change-turnos')"
         />
+        <!-- Sólo en programadas (se ocultó en d39cef9c1 por trazabilidad): acá
+             no hay asistencias ni días consumidos que falsear, el cobro queda
+             donde estaba y el cambio deja nota en la ficha. -->
+        <q-btn
+          flat
+          icon="event"
+          label="Editar fecha"
+          color="primary"
+          @click="emit('edit-start-date')"
+        />
         <q-btn flat icon="cancel" label="Cancelar" color="negative" @click="emit('cancel')" />
       </template>
       <template v-else-if="subscription.status === 'expired'">

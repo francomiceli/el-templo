@@ -104,8 +104,9 @@ import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import type { SubscriptionDetail } from 'src/types/subscription';
 
+// Espejo de assertStartDateWithinLimits del backend (-90 / +90).
 const PAST_LIMIT_DAYS = 90;
-const FUTURE_LIMIT_DAYS = 60;
+const FUTURE_LIMIT_DAYS = 90;
 
 const log = createLogger('EditSubscriptionStartDateDialog');
 const $q = useQuasar();
