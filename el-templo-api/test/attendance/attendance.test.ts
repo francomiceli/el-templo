@@ -620,7 +620,7 @@ describe("Attendance API", () => {
       await app.db
         .update(users)
         .set({ dateOfBirth: "1990-03-11" })
-        .where(eq(users.id, member.id));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id)));
 
       const { scheduleId } = await createBookingForNow(member.id, testBranchId);
 
@@ -657,7 +657,7 @@ describe("Attendance API", () => {
       await app.db
         .update(users)
         .set({ dateOfBirth: "1990-03-12" })
-        .where(eq(users.id, member.id));
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, member.id)));
       res = await app.inject({
         method: "GET",
         url: `${ADMIN_ATTENDANCE_URL}/slot/${scheduleId}/2026-03-11`,
