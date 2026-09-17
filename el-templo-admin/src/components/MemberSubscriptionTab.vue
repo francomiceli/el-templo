@@ -962,12 +962,12 @@ const renewalEffectiveStartDate = computed(() =>
 );
 
 // Límites de la fecha custom: no antes del piso automático (evita solapar con la
-// sub vigente y el backdating) y hasta 60 días en el futuro (igual que el backend).
+// sub vigente y el backdating) y hasta 90 días en el futuro (igual que el backend).
 const renewalStartDateMin = computed(() => renewalAutoStartDate.value);
 const renewalStartDateMax = computed(() => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 60);
+  d.setDate(d.getDate() + 90);
   return d.toISOString().split('T')[0];
 });
 
