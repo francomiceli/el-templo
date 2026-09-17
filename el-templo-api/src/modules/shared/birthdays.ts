@@ -8,6 +8,7 @@
  * comparan a nivel de fecha calendario.
  *
  * Regla del 29 de febrero: en años no bisiestos el cumpleaños se festeja el 28.
+ * Tests: test/unit/birthdays.test.ts (puro) + anniversaries y attendance (integración).
  */
 
 /** ¿`year` es bisiesto? */
