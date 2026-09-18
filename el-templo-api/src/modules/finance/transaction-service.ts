@@ -1977,7 +1977,7 @@ export class TransactionService {
     }
 
     // 2026-09-08 — alcance FORZADO por sede (`enforcedBranchIds`, rol
-    // `inversor`). Se SUMA al scope de país de arriba (no lo reemplaza) y sigue
+    // `admin_sede`). Se SUMA al scope de país de arriba (no lo reemplaza) y sigue
     // el mismo idioma: un sub-select de cajas, porque el arqueo se imputa a la
     // caja y no a la sede de la transacción. Las cajas sin sede (Central/banco)
     // no matchean el INNER JOIN, así que quedan fuera — igual que para

@@ -19,7 +19,7 @@
  *                                          scope.country=null por corrupción de
  *                                          datos, esto es siempre false →
  *                                          default-deny lateral)
- *       4. coach/recepción/inversor in branchIds → true
+ *       4. coach/recepción/admin_sede in branchIds → true
  *       5. member same branch           → true (branchId === scope.userBranchId)
  *       6. default                      → false
  *   - requireBranchAccess({ from, optional? }): Fastify preHandler factory.
@@ -88,7 +88,7 @@ import { and, eq } from "drizzle-orm";
 import { assertTenant, tenantWhere, type TenantContext } from "./tenant";
 import { resolveBranchDelGimnasio } from "./branch-consistency";
 import { AppError, NotFoundError } from "./errors";
-import { INVERSOR_ROLE, TV_ACCOUNT_ROLE } from "./permissions";
+import { ADMIN_SEDE_ROLE, TV_ACCOUNT_ROLE } from "./permissions";
 
 export const BRANCH_OUT_OF_SCOPE = "BRANCH_OUT_OF_SCOPE";
 
@@ -156,10 +156,10 @@ export async function canAccessBranch(
   // arriba garantiza que, si llegamos acá, `branch` es del gimnasio de `ctx`.
   //
   // EXCEPCIÓN (2026-09-08): los roles de alcance FORZADO por sede
-  // (`isBranchScopedRole`, hoy `inversor`) NO heredan este atajo. Templo Online
-  // es una sede más y sus socios no son de la sucursal del inversor: dejar
+  // (`isBranchScopedRole`, hoy `admin_sede`) NO heredan este atajo. Templo Online
+  // es una sede más y sus socios no son de la sucursal del admin_sede: dejar
   // pasar la Regla 1 le abriría, con un `?branchId=<virtual>`, exactamente los
-  // datos que este rol existe para no mostrar. Si algún día un inversor tiene
+  // datos que este rol existe para no mostrar. Si algún día un admin_sede tiene
   // que ver la sede virtual, se le agrega a su `user_branches` y entra por la
   // Regla 4 como cualquier otra sede suya.
   if (branch.isVirtual && !isBranchScopedRole(scope.role)) {
@@ -189,14 +189,14 @@ export async function canAccessBranch(
     return scope.country !== null && branch.country === scope.country;
   }
 
-  // Rule 4: coach/recepción/inversor — branch must be in operational set.
-  // `inversor` (2026-09-08, migración 0225) usa EXACTAMENTE el mismo mecanismo
+  // Rule 4: coach/recepción/admin_sede — branch must be in operational set.
+  // `admin_sede` (2026-09-08, migración 0225) usa EXACTAMENTE el mismo mecanismo
   // que coach/recepción (`user_branches`), pero además tiene alcance FORZADO
   // en los listados — ver `enforcedBranchIds` / `enforceBranchScope` abajo.
   if (
     scope.role === "coach" ||
     scope.role === "recepcion" ||
-    scope.role === INVERSOR_ROLE
+    scope.role === ADMIN_SEDE_ROLE
   ) {
     return scope.branchIds.includes(branchId);
   }
@@ -293,7 +293,7 @@ export function requireBranchAccess(opts: {
 }
 
 // ===========================================================================
-// Alcance FORZADO por sede (2026-09-08, rol `inversor`)
+// Alcance FORZADO por sede (2026-09-08, rol `admin_sede`)
 // ===========================================================================
 //
 // EL PROBLEMA QUE RESUELVE. `requireBranchAccess({ optional: true })` sólo mira
@@ -320,14 +320,14 @@ export function requireBranchAccess(opts: {
  * alcance por sede forzado se agrega acá y hereda todo lo de abajo.
  */
 export function isBranchScopedRole(role: string): boolean {
-  return role === INVERSOR_ROLE;
+  return role === ADMIN_SEDE_ROLE;
 }
 
 /**
  * Sedes a las que hay que acotar sí o sí los datos de este actor.
  * `null` = sin forzado (todos los demás roles conservan su comportamiento
  * histórico: país, owner global, etc.). Un array VACÍO es un estado legítimo
- * (inversor al que todavía no le asignaron sedes) y significa "no ve nada".
+ * (admin_sede al que todavía no le asignaron sedes) y significa "no ve nada".
  */
 export function enforcedBranchIds(scope: CountryScope): number[] | null {
   return isBranchScopedRole(scope.role) ? scope.branchIds : null;

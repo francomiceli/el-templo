@@ -47,7 +47,7 @@ export const improvementProposalsAdminRoutes: FastifyPluginAsync = async (
       });
     }
     if (isBranchScopedRole(request.user.role)) {
-      // EXCLUIDO para los roles de alcance forzado por sede (`inversor`): esta
+      // EXCLUIDO para los roles de alcance forzado por sede (`admin_sede`): esta
       // superficie es global del gimnasio y no hay un filtro por sede barato ni
       // seguro que aplicarle. Se deniega en vez de dejarla filtrando por país.
       return reply.code(403).send({

@@ -74,8 +74,8 @@ import type { FastifyReply, FastifyRequest } from "fastify";
  * Per-route guard for the admin-only analytics endpoints (KPI, members,
  * financial). The plugin-wide onRequest hook only gates access to the
  * operational set (gestion + admin + owner); these routes additionally
- * require ANALYTICS_ADMIN_ROLES (Dueño + inversor, 2026-09-09) so gestion
- * cannot reach financial/member analytics. `inversor` entra acá pero SIEMPRE
+ * require ANALYTICS_ADMIN_ROLES (Dueño + admin_sede, 2026-09-09) so gestion
+ * cannot reach financial/member analytics. `admin_sede` entra acá pero SIEMPRE
  * ve sus datos acotados a SU sede — todas estas rutas encadenan
  * `enforceBranchScope` en el `preHandler`.
  */

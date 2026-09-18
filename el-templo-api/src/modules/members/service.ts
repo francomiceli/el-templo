@@ -168,7 +168,7 @@ export class MemberService {
       );
     }
     // 2026-09-08: `if` y no `else if`. Con `else if`, un actor de alcance
-    // forzado por sede (`enforcedBranchIds` — rol `inversor`) pedía
+    // forzado por sede (`enforcedBranchIds` — rol `admin_sede`) pedía
     // `multiBranch=true` y el `branchId` que le inyecta `enforceBranchScope`
     // quedaba sin aplicar: veía los multisucursal de TODO el país. El filtro
     // "Multisucursal" y el de sede son ortogonales y el frontend nunca los manda
@@ -542,10 +542,10 @@ export class MemberService {
     ];
 
     // 2026-09-08: alcance FORZADO por sede (`enforcedBranchIds`, rol
-    // `inversor`). Reemplaza al filtro de país — no lo complementa — y por eso
+    // `admin_sede`). Reemplaza al filtro de país — no lo complementa — y por eso
     // va ANTES: el typeahead es la puerta de entrada a la ficha de un socio, y
-    // sin esto un inversor podía autocompletar cualquier socio del país. Lista
-    // vacía (inversor sin sedes asignadas) → `1 = 0`, nunca "sin filtro".
+    // sin esto un admin_sede podía autocompletar cualquier socio del país. Lista
+    // vacía (admin_sede sin sedes asignadas) → `1 = 0`, nunca "sin filtro".
     if (branchIds !== undefined) {
       conditions.push(
         branchIds.length === 0
@@ -2266,7 +2266,7 @@ export class MemberService {
       );
     }
     // 2026-09-08: `if` y no `else if`. Con `else if`, un actor de alcance
-    // forzado por sede (`enforcedBranchIds` — rol `inversor`) pedía
+    // forzado por sede (`enforcedBranchIds` — rol `admin_sede`) pedía
     // `multiBranch=true` y el `branchId` que le inyecta `enforceBranchScope`
     // quedaba sin aplicar: veía los multisucursal de TODO el país. El filtro
     // "Multisucursal" y el de sede son ortogonales y el frontend nunca los manda

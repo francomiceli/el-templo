@@ -35,9 +35,9 @@ export function landingForRole(): string {
   if (user && DUENO_ROLES.includes(user.role)) {
     return '/alumnos';
   }
-  // El inversor de sucursal aterriza en Caja: es la razón por la que entra
+  // El admin_sede de sucursal aterriza en Caja: es la razón por la que entra
   // (saldos, movimientos y retiros de SU sede).
-  if (user?.role === 'inversor') {
+  if (user?.role === 'admin_sede') {
     return '/caja';
   }
   return '/cobros';
@@ -126,7 +126,7 @@ const routes: RouteRecordRaw[] = [
             'owner',
             'gestion',
             'recepcion',
-            'inversor',
+            'admin_sede',
           ] as AdminRole[],
         },
       },
@@ -140,7 +140,7 @@ const routes: RouteRecordRaw[] = [
             'owner',
             'gestion',
             'recepcion',
-            'inversor',
+            'admin_sede',
           ] as AdminRole[],
         },
       },
@@ -176,7 +176,7 @@ const routes: RouteRecordRaw[] = [
         // registra retiros, concilia. La API ya lo permitía (FINANCE_VOID_ROLES);
         // el ABM de cuentas/categorías sigue admin/owner (se oculta en la UI).
         meta: {
-          allowedRoles: ['gestion', 'admin', 'owner', 'inversor'] as AdminRole[],
+          allowedRoles: ['gestion', 'admin', 'owner', 'admin_sede'] as AdminRole[],
         },
       },
       {
@@ -201,7 +201,7 @@ const routes: RouteRecordRaw[] = [
             'owner',
             'gestion',
             'recepcion',
-            'inversor',
+            'admin_sede',
           ] as AdminRole[],
         },
       },
@@ -209,7 +209,7 @@ const routes: RouteRecordRaw[] = [
         path: 'deudas',
         component: () => import('pages/DeudasPage.vue'),
         meta: {
-          allowedRoles: ['coach', 'gestion', 'admin', 'owner', 'inversor'] as AdminRole[],
+          allowedRoles: ['coach', 'gestion', 'admin', 'owner', 'admin_sede'] as AdminRole[],
         },
       },
       {
@@ -242,19 +242,19 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'analiticas',
         component: () => import('pages/AnaliticasPage.vue'),
-        // 2026-09-09: `inversor` entra (ANALITICAS_ROLES = ADMIN_ROLES +
-        // inversor), acotado a su sede por el API + la página (branchScoped).
+        // 2026-09-09: `admin_sede` entra (ANALITICAS_ROLES = ADMIN_ROLES +
+        // admin_sede), acotado a su sede por el API + la página (branchScoped).
         meta: { allowedRoles: ANALITICAS_ROLES },
       },
       {
         path: 'reportes',
         component: () => import('pages/ReportesPage.vue'),
-        // `inversor` entra por Sesiones de Prueba + Leads (los dos viven acá
+        // `admin_sede` entra por Sesiones de Prueba + Leads (los dos viven acá
         // como pestañas). El resto de las pestañas le llegan ya acotadas a su
         // sede por el API; la de Recategorización se le oculta (agregado
         // cross-sede que el API le deniega).
         meta: {
-          allowedRoles: ['gestion', 'admin', 'owner', 'inversor'] as AdminRole[],
+          allowedRoles: ['gestion', 'admin', 'owner', 'admin_sede'] as AdminRole[],
         },
       },
       {

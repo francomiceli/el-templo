@@ -1,8 +1,8 @@
-// `inversor` (2026-09-08, API mig 0225): inversor de UNA sucursal. Ve la misma
+// `admin_sede` (2026-09-08, API mig 0225): admin_sede de UNA sucursal. Ve la misma
 // superficie que `gestion` (Alumnos, Caja, Cobros, Reportes/SP/Leads) pero
 // SOLO de las sedes que tiene asignadas — el recorte real lo hace el API
 // (`enforcedBranchIds`); acá sólo se evita ofrecerle lo que le va a dar 403.
-export type AdminRole = 'gestion' | 'coach' | 'admin' | 'owner' | 'recepcion' | 'tv' | 'inversor';
+export type AdminRole = 'gestion' | 'coach' | 'admin' | 'owner' | 'recepcion' | 'tv' | 'admin_sede';
 
 declare module 'vue-router' {
   interface RouteMeta {

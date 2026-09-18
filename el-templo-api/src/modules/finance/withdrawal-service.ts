@@ -284,7 +284,7 @@ export class WithdrawalService {
   ): Promise<PendingWithdrawalResult> {
     const caja = await this.loadCaja(ctx, cajaId);
     // 2026-09-08 — alcance FORZADO por sede (`enforcedBranchIds`, rol
-    // `inversor`). Esta ruta se direcciona por `cashRegisterId`, no por sede,
+    // `admin_sede`). Esta ruta se direcciona por `cashRegisterId`, no por sede,
     // así que el recorte va acá. 404 y no 403 (criterio ISO-03): una caja de
     // otra sede tiene que ser indistinguible de una que no existe.
     assertBranchInEnforcedScope(
@@ -624,7 +624,7 @@ export class WithdrawalService {
       conds.push(eq(schema.financialTransactions.branchId, filters.branchId));
     }
     // 2026-09-08 — alcance FORZADO por sede (`enforcedBranchIds`, rol
-    // `inversor`). Se suma al `branchId` puntual (que ya viene validado por
+    // `admin_sede`). Se suma al `branchId` puntual (que ya viene validado por
     // `requireBranchAccess`) y, sobre todo, cubre el caso "sin branchId": sin
     // esto el listado caía al filtro de país y mostraba los retiros de TODAS
     // las sedes. Los retiros de cajas sin sede (Central/banco) tienen
@@ -796,7 +796,7 @@ export class WithdrawalService {
   async getById(
     ctx: TenantContext,
     id: number,
-    /** Alcance forzado por sede (rol `inversor`). Ver `assertCajaEnAlcance`. */
+    /** Alcance forzado por sede (rol `admin_sede`). Ver `assertCajaEnAlcance`. */
     branchIds?: number[],
   ): Promise<WithdrawalDetail> {
     const recorder = alias(schema.users, "recorder");

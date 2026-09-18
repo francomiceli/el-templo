@@ -432,7 +432,7 @@ export class CashRegisterService {
       country: string | null;
       /**
        * 2026-09-08 — alcance FORZADO por sede (`enforcedBranchIds`, rol
-       * `inversor`). `null`/ausente = sin forzado. Cuando viene, reemplaza al
+       * `admin_sede`). `null`/ausente = sin forzado. Cuando viene, reemplaza al
        * filtro de país: solo las cajas de esas sedes. Array vacío → ninguna.
        */
       branchIds?: number[] | null;

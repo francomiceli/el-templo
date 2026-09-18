@@ -2141,7 +2141,7 @@ export class ReportsService {
     country?: "AR" | "ES",
     /**
      * 2026-09-08 — alcance forzado por sede (`enforcedBranchIds`, rol
-     * `inversor`). La pelotita tiene que contar lo de SU sede, no lo del país.
+     * `admin_sede`). La pelotita tiene que contar lo de SU sede, no lo del país.
      * El motor (`getTrialSessionsReport`) ya filtra por `branchId`, así que
      * esto sólo ensancha la firma del wrapper. Se pasa la primera sede porque
      * el filtro de abajo es de una sola sede — hoy el rol tiene exactamente una
@@ -2725,7 +2725,7 @@ export class ReportsService {
       country: "AR" | "ES" | null;
       /**
        * 2026-09-08 — alcance forzado por sede (`enforcedBranchIds`, rol
-       * `inversor`). `null`/ausente = sin forzado (comportamiento histórico:
+       * `admin_sede`). `null`/ausente = sin forzado (comportamiento histórico:
        * sólo país). Esta ruta se direcciona por `balanceId` y no lleva sede en
        * el payload, así que el recorte no lo puede hacer un preHandler.
        */

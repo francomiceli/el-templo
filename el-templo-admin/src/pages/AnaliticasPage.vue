@@ -229,13 +229,13 @@
       <q-tab name="ingresos" label="Ingresos" icon="payments" />
       <q-tab name="miembros" label="Miembros" icon="people" />
       <q-tab name="finanzas" label="Finanzas" icon="payments" />
-      <!-- Programas: 403 para el inversor (ANALYTICS_ADMIN_ROLES no incluye
+      <!-- Programas: 403 para el admin_sede (ANALYTICS_ADMIN_ROLES no incluye
            esta superficie, PROGRAMAS_ROLES es dueño-only) — se oculta en vez
            de mostrarle un error. -->
       <q-tab v-if="!branchScoped" name="programas" label="Programas" icon="school" />
       <q-tab name="retencion" label="Retención (ciclos)" icon="timeline" />
       <!-- Referidos A/B: agregado gym-wide sin dimensión de sede
-           (REFERRAL_AB_RESULTS_ROLES excluye al inversor, 403). -->
+           (REFERRAL_AB_RESULTS_ROLES excluye al admin_sede, 403). -->
       <q-tab v-if="!branchScoped" name="referidos-ab" label="Referidos A/B" icon="science" />
       <q-tab name="especiales" label="Especiales" icon="auto_awesome" />
     </q-tabs>
@@ -451,7 +451,7 @@ async function fetchBranches() {
     const branches = await membersApi.getBranches({
       country: isOwner.value ? selectedCountry.value : undefined,
     });
-    // Rol de alcance forzado (inversor): sin "Todas las sedes" — el API le
+    // Rol de alcance forzado (admin_sede): sin "Todas las sedes" — el API le
     // exige una sede y le preseleccionamos la primera de las suyas.
     branchOptions.value = branchScoped.value
       ? branches.map((b: BranchOption) => ({ label: b.name, value: b.id }))
@@ -626,7 +626,7 @@ const currentFilters = computed<AnalyticsFilters>(() => ({
 
 const activeTab = ref('miembros');
 
-// Rol de alcance forzado por sede (inversor, 2026-09-09 feedback UAT): sin
+// Rol de alcance forzado por sede (admin_sede, 2026-09-09 feedback UAT): sin
 // "Todas las sedes" en el selector (preseleccionada la suya) y sin las tabs
 // sin dimensión de sede (Programas → 403 ANALYTICS_ADMIN_ROLES; Referidos A/B
 // → gym-wide, REFERRAL_AB_RESULTS_ROLES lo excluye).
@@ -953,7 +953,7 @@ async function fetchTabData() {
       await Promise.all([fetchFinancialData(), fetchAdvancedFinanceData()]);
       break;
     case 'programas':
-      // 403 ANALYTICS_ADMIN_ROLES para el inversor — la tab está oculta
+      // 403 ANALYTICS_ADMIN_ROLES para el admin_sede — la tab está oculta
       // (branchScoped) y el mount la redirige, pero se guarda igual acá por
       // si algo la deja seleccionada.
       if (!branchScoped.value) await fetchProgramAnalytics();
@@ -963,7 +963,7 @@ async function fetchTabData() {
       break;
     case 'referidos-ab':
       // Gym-wide, sin dimensión de sede — REFERRAL_AB_RESULTS_ROLES excluye
-      // al inversor (403). Misma guarda que 'programas'.
+      // al admin_sede (403). Misma guarda que 'programas'.
       if (!branchScoped.value) await fetchReferralAb();
       break;
     case 'especiales':

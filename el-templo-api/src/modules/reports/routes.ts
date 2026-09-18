@@ -425,7 +425,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   // scope de sucursal (el preview es global).
   fastify.get("/multibranch-reassignment-preview", async (request, reply) => {
     try {
-      // EXCLUIDO para los roles de alcance forzado por sede (`inversor`): el
+      // EXCLUIDO para los roles de alcance forzado por sede (`admin_sede`): el
       // preview corre el dry-run del cron sobre TODO el gimnasio y el servicio
       // no acepta ningún filtro — no hay forma barata ni segura de acotarlo a
       // una sede, así que se deniega en vez de dejarlo filtrando por país.
