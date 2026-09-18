@@ -604,6 +604,118 @@ describe("MovementService", () => {
   });
 
   // ─── RBAC: route-level 403 for non-privileged roles ─────────────────────
+  // ─── Guard 2026-09-18: una caja de efectivo no queda en negativo ─────────
+  describe("guard saldo efectivo: egresos y movimientos no dejan la caja en negativo", () => {
+    async function firme(cajaId: number): Promise<number> {
+      return (await cashRegisterService.getBalance(TEMPLO_CTX, cajaId))
+        .firmeBalance;
+    }
+
+    it("registerExpense mayor al saldo firme → 400 con monto y saldo; nada se escribe", async () => {
+      const cajaId = await newCaja(1000);
+      await expect(
+        movementService.registerExpense(
+          TEMPLO_CTX,
+          { cajaId, amount: 1001, costCenterId, notes: "demasiado" },
+          adminId,
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message:
+          "El egreso de 1001 supera el saldo de la caja de efectivo (1000): la caja quedaría en negativo",
+      });
+      expect(await firme(cajaId)).toBe(1000);
+      // Justo el saldo completo sí se puede egresar (queda en 0, no en negativo).
+      await movementService.registerExpense(
+        TEMPLO_CTX,
+        { cajaId, amount: 1000, costCenterId, notes: "todo" },
+        adminId,
+      );
+      expect(await firme(cajaId)).toBe(0);
+      await expect(
+        movementService.registerExpense(
+          TEMPLO_CTX,
+          { cajaId, amount: 1, costCenterId, notes: "uno mas" },
+          adminId,
+        ),
+      ).rejects.toMatchObject({ statusCode: 400 });
+    });
+
+    it("una cuenta banco no pasa por el guard (puede quedar en negativo)", async () => {
+      const [row] = await app.db.insert(schema.cashRegisters).values(
+        tenantValues(TEMPLO_CTX, {
+          name: `MOV-Test banco ${Date.now()}`,
+          type: "banco" as const,
+          branchId: null,
+          currency: "ARS",
+          openingBalance: 0,
+          cutoffDate: CUTOFF,
+        }),
+      );
+      const bancoId = Number(row.insertId);
+      seededCajaIds.push(bancoId);
+      const { expenseTxId } = await movementService.registerExpense(
+        TEMPLO_CTX,
+        { cajaId: bancoId, amount: 500, costCenterId, notes: "comision" },
+        adminId,
+      );
+      expect(expenseTxId).toBeGreaterThan(0);
+      expect(await firme(bancoId)).toBe(-500);
+    });
+
+    it("registerMovement desde efectivo mayor al saldo firme → 400 y ninguna pata escrita", async () => {
+      const origen = await newCaja(300);
+      const destino = await newCaja(0);
+      await expect(
+        movementService.registerMovement(
+          TEMPLO_CTX,
+          { origenCajaId: origen, destinoCajaId: destino, amount: 301 },
+          adminId,
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message:
+          "El movimiento de 301 supera el saldo de la caja de efectivo (300): la caja quedaría en negativo",
+      });
+      expect(await firme(origen)).toBe(300);
+      expect(await firme(destino)).toBe(0);
+    });
+
+    it("registerMovement con countedAmount declarado usa el conteo como tope", async () => {
+      const origen = await newCaja(1000);
+      const destino = await newCaja(0);
+      // Contó menos de lo que dice el ledger: el tope es lo contado.
+      await expect(
+        movementService.registerMovement(
+          TEMPLO_CTX,
+          {
+            origenCajaId: origen,
+            destinoCajaId: destino,
+            amount: 500,
+            countedAmount: 400,
+          },
+          adminId,
+        ),
+      ).rejects.toMatchObject({ statusCode: 400 });
+      expect(await firme(origen)).toBe(1000);
+      // Contó más de lo que dice el ledger: el conteo habilita el monto y la
+      // reconciliación (D-04) deja el saldo en contado - movido.
+      const detail = await movementService.registerMovement(
+        TEMPLO_CTX,
+        {
+          origenCajaId: origen,
+          destinoCajaId: destino,
+          amount: 1100,
+          countedAmount: 1200,
+        },
+        adminId,
+      );
+      expect(detail).toBeTruthy();
+      expect(await firme(origen)).toBe(100);
+      expect(await firme(destino)).toBe(1100);
+    });
+  });
+
   describe("RBAC (T-139-06): coach/recepcion get 403 on the routes", () => {
     it("a coach token gets 403 on POST /movements and POST /expenses", async () => {
       // Create a coach user + token (FINANCE_VOID_ROLES excludes coach).
