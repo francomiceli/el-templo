@@ -89,6 +89,8 @@ interface CajaRef {
   currency: string;
   branchId: number | null;
   branchCountry: string | null;
+  /** YYYY-MM-DD. Piso del saldo derivado (D-08): lo anterior no cuenta. */
+  cutoffDate: string;
 }
 
 /**
@@ -172,6 +174,7 @@ export class WithdrawalService {
         currency: schema.cashRegisters.currency,
         branchId: schema.cashRegisters.branchId,
         isActive: schema.cashRegisters.isActive,
+        cutoffDate: schema.cashRegisters.cutoffDate,
         branchCountry: schema.branches.country,
       })
       .from(schema.cashRegisters)
@@ -204,6 +207,7 @@ export class WithdrawalService {
       currency: caja.currency,
       branchId: caja.branchId,
       branchCountry: caja.branchCountry,
+      cutoffDate: String(caja.cutoffDate),
     };
   }
 
@@ -297,10 +301,16 @@ export class WithdrawalService {
         "Solo las cajas de efectivo tienen cobros pendientes de retiro",
       );
     }
+    // 2026-09-18 — piso en el corte de la caja. El saldo firme (D-08) solo
+    // cuenta cobros desde `cutoff_date`, pero este listado ofrecía TODO el
+    // historial: en prod se retiraron cobros de abril a junio que el saldo ya
+    // excluía y las 5 cajas de efectivo quedaron en negativo (migración 0234).
+    // Lo anterior al corte no está en el cajón, así que no se puede retirar.
     const [rows, awaiting] = await Promise.all([
       this.queryPayments(ctx, {
         cashRegisterId: cajaId,
         onlyPending: true,
+        dateFrom: caja.cutoffDate,
         dateTo: opts.dateTo,
       }),
       // 2026-09-09 — el arqueo del profe cuenta los cobros sin validar (la
@@ -310,6 +320,7 @@ export class WithdrawalService {
       this.queryPayments(ctx, {
         cashRegisterId: cajaId,
         onlyAwaitingValidation: true,
+        dateFrom: caja.cutoffDate,
         dateTo: opts.dateTo,
       }),
     ]);
@@ -340,6 +351,8 @@ export class WithdrawalService {
       onlyPending?: boolean;
       onlyAwaitingValidation?: boolean;
       withdrawalId?: number;
+      /** Inclusive. Se usa para el piso del corte de la caja. */
+      dateFrom?: string;
       dateTo?: string;
     },
   ): Promise<WithdrawalPaymentItem[]> {
@@ -373,6 +386,11 @@ export class WithdrawalService {
           AND tlw.target_kind = 'transaction'
           AND tlw.target_id = financial_transactions.id
       )`);
+    }
+    if (opts.dateFrom !== undefined) {
+      conds.push(
+        gte(schema.financialTransactions.transactionDate, opts.dateFrom),
+      );
     }
     if (opts.dateTo !== undefined) {
       conds.push(
@@ -549,6 +567,13 @@ export class WithdrawalService {
           if (String(row.transactionDate) > transactionDate) {
             throw new BadRequestError(
               `El cobro #${id} es posterior a la fecha del retiro (${transactionDate})`,
+            );
+          }
+          // Mismo piso que listPendingPayments: un cobro anterior al corte de
+          // la caja no forma parte del saldo, retirarlo lo deja en negativo.
+          if (String(row.transactionDate) < caja.cutoffDate) {
+            throw new BadRequestError(
+              `El cobro #${id} es anterior al corte de la caja ${caja.name} (${caja.cutoffDate}): no forma parte del saldo y no se puede retirar`,
             );
           }
           links.push({
