@@ -38,7 +38,16 @@
       <q-tab :name="CAJA_TABS.retiros" label="Retiros" icon="payments" />
       <q-tab :name="CAJA_TABS.transacciones" label="Historial de cobros" icon="receipt_long" />
       <q-tab :name="CAJA_TABS.saldos" label="Saldos" icon="account_balance_wallet" />
-      <q-tab :name="CAJA_TABS.cuentas" label="Cuentas" icon="account_balance" />
+      <!-- Cuentas: ABM de cajas, cuentas bancarias y categorías. Todo su
+           contenido es admin/owner en el API (ADMIN_ROLES), así que a gestión
+           y admin_sede se les oculta la pestaña entera en vez de mostrarles
+           "No tienes permiso…" (feedback UAT admin_sede 2026-09-18). -->
+      <q-tab
+        v-if="canManageCatalog"
+        :name="CAJA_TABS.cuentas"
+        label="Cuentas"
+        icon="account_balance"
+      />
     </q-tabs>
 
     <q-separator />
@@ -74,7 +83,7 @@
       </q-tab-panel>
 
       <!-- Cuentas — ABM de cuentas bancarias flexibles (CTA-01/02/03, fase 150) -->
-      <q-tab-panel :name="CAJA_TABS.cuentas" class="q-px-none">
+      <q-tab-panel v-if="canManageCatalog" :name="CAJA_TABS.cuentas" class="q-px-none">
         <CuentasTab :selected-country="selectedCountry" :is-owner="isOwner" />
       </q-tab-panel>
     </q-tab-panels>
@@ -104,6 +113,13 @@ const authStore = useAuthStore();
 
 const isOwner = computed(() => authStore.user?.role === 'owner');
 
+// Mirrors ADMIN_ROLES del API: únicos roles que pueden cargar el ABM de la
+// pestaña Cuentas (cajas, cuentas bancarias, categorías de egreso).
+const canManageCatalog = computed(() => {
+  const role = authStore.user?.role;
+  return role === 'admin' || role === 'owner';
+});
+
 const countryOptions = [
   { label: 'Argentina', value: 'AR' as const },
   { label: 'España', value: 'ES' as const },
@@ -124,6 +140,8 @@ const vencidoCount = ref(0);
 function tabFromQuery(): CajaTab {
   const q = route.query.tab;
   if (typeof q === 'string' && (CAJA_TAB_NAMES as readonly string[]).includes(q)) {
+    // ?tab=cuentas pegado en la URL por un rol sin ABM: cae al default.
+    if (q === CAJA_TABS.cuentas && !canManageCatalog.value) return CAJA_DEFAULT_TAB;
     return q as CajaTab;
   }
   return CAJA_DEFAULT_TAB;
