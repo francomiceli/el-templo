@@ -1,5 +1,5 @@
 /**
- * Rol `inversor` (2026-09-08, migración 0225) — alcance FORZADO por sede.
+ * Rol `admin_sede` (2026-09-08, migración 0225) — alcance FORZADO por sede.
  *
  * El rol hereda la superficie de `gestion` (caja, cobros, alumnos, SP, leads),
  * pero su alcance NO es el país sino sus `user_branches`. Lo que este archivo
@@ -31,15 +31,15 @@ import { TENANT_TEMPLO } from "./fixtures/second-tenant";
 const CTX = { tenantId: TENANT_TEMPLO };
 const ADMIN_SCHED = "/api/admin/scheduling";
 
-describe("Rol inversor — alcance forzado por sede", () => {
+describe("Rol admin_sede — alcance forzado por sede", () => {
   let app: FastifyInstance;
 
-  let branchA: number; // la sede del inversor
+  let branchA: number; // la sede del admin_sede
   let branchB: number; // otra sede del mismo país
 
   let ownerToken: string;
-  let inversorToken: string;
-  let inversorId: number;
+  let adminSedeToken: string;
+  let adminSedeId: number;
 
   let memberAId: number;
   let memberBId: number;
@@ -89,7 +89,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
           effectiveDate: todayStr(),
           branchId,
           cashRegisterId,
-          recordedBy: inversorId,
+          recordedBy: adminSedeId,
           validationStatus: "validado" as const,
         }),
       )
@@ -117,7 +117,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
           effectiveDate: todayStr(),
           branchId,
           cashRegisterId,
-          recordedBy: inversorId,
+          recordedBy: adminSedeId,
           validationStatus: "pendiente" as const,
         }),
       )
@@ -143,7 +143,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
           effectiveDate: todayStr(),
           branchId,
           cashRegisterId,
-          recordedBy: inversorId,
+          recordedBy: adminSedeId,
           responsibleName: `Responsable ${branchId}`,
           validationStatus: "validado" as const,
         }),
@@ -159,7 +159,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     const [a] = await app.db
       .insert(schema.branches)
       .values({
-        name: `Inversor A ${u}`,
+        name: `Admin sede A ${u}`,
         code: `INA-${u}`.slice(0, 20),
         country: "AR",
         isActive: true,
@@ -172,7 +172,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     const [b] = await app.db
       .insert(schema.branches)
       .values({
-        name: `Inversor B ${u}`,
+        name: `Admin sede B ${u}`,
         code: `INB-${u}`.slice(0, 20),
         country: "AR",
         isActive: true,
@@ -192,15 +192,15 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
     ownerToken = await getAuthToken(app, `owner-inv-${u}@test.local`, pass);
 
-    inversorId = await createStaffUser(app, {
-      email: `inversor-${u}@test.local`,
+    adminSedeId = await createStaffUser(app, {
+      email: `admin_sede-${u}@test.local`,
       password: pass,
       firstName: "Inver",
       lastName: "Sor",
-      role: "inversor",
+      role: "admin_sede",
       branchId: branchA,
     });
-    inversorToken = await getAuthToken(app, `inversor-${u}@test.local`, pass);
+    adminSedeToken = await getAuthToken(app, `admin_sede-${u}@test.local`, pass);
 
     const mA = await createTestMember(app, { branchId: branchA });
     memberAId = mA.id;
@@ -225,11 +225,11 @@ describe("Rol inversor — alcance forzado por sede", () => {
     await app.close();
   });
 
-  function asInversor(url: string) {
+  function asAdminSede(url: string) {
     return app.inject({
       method: "GET",
       url,
-      headers: { authorization: `Bearer ${inversorToken}` },
+      headers: { authorization: `Bearer ${adminSedeToken}` },
     });
   }
 
@@ -238,7 +238,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
   // =========================================================================
   describe("Alumnos", () => {
     it("GET /admin/members sin branchId → SOLO socios de su sede", async () => {
-      const res = await asInversor("/api/admin/members?page=1&limit=100");
+      const res = await asAdminSede("/api/admin/members?page=1&limit=100");
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as {
         members: { id: number; branchId: number }[];
@@ -250,7 +250,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /admin/members?branchId=<otra sede> → 403 BRANCH_OUT_OF_SCOPE", async () => {
-      const res = await asInversor(`/api/admin/members?branchId=${branchB}`);
+      const res = await asAdminSede(`/api/admin/members?branchId=${branchB}`);
       expect(res.statusCode).toBe(403);
       expect(JSON.parse(res.body).code).toBe(BRANCH_OUT_OF_SCOPE);
     });
@@ -258,7 +258,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     it("GET /admin/members?multiBranch=true NO evade el filtro de sede", async () => {
       // Regresión: `multiBranch` compartía un `else if` con `branchId`, así que
       // el filtro inyectado quedaba sin aplicar y el listado volvía al país.
-      const res = await asInversor(
+      const res = await asAdminSede(
         "/api/admin/members?multiBranch=true&page=1&limit=100",
       );
       expect(res.statusCode).toBe(200);
@@ -267,17 +267,17 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /admin/members/:id de otra sede → 404 (nunca 403: ISO-03)", async () => {
-      const res = await asInversor(`/api/admin/members/${memberBId}`);
+      const res = await asAdminSede(`/api/admin/members/${memberBId}`);
       expect(res.statusCode).toBe(404);
     });
 
     it("GET /admin/members/:id de su sede → 200", async () => {
-      const res = await asInversor(`/api/admin/members/${memberAId}`);
+      const res = await asAdminSede(`/api/admin/members/${memberAId}`);
       expect(res.statusCode).toBe(200);
     });
 
     it("GET /admin/members/search NO devuelve socios de otra sede", async () => {
-      const res = await asInversor("/api/admin/members/search?search=Test");
+      const res = await asAdminSede("/api/admin/members/search?search=Test");
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as { members: { id: number }[] };
       const ids = body.members.map((m) => m.id);
@@ -285,7 +285,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /admin/members/branches → SOLO su sede (ni la otra, ni la virtual)", async () => {
-      const res = await asInversor("/api/admin/members/branches");
+      const res = await asAdminSede("/api/admin/members/branches");
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as { branches: { id: number }[] };
       const ids = body.branches.map((b) => b.id);
@@ -298,7 +298,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
   // =========================================================================
   describe("Caja", () => {
     it("GET /finance/transactions sin branchId → solo su sede", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         "/api/admin/finance/transactions?page=1&limit=100",
       );
       expect(res.statusCode).toBe(200);
@@ -310,7 +310,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /finance/transactions?branchId=<otra> → 403", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         `/api/admin/finance/transactions?branchId=${branchB}`,
       );
       // Sin `code` en el assert: `listTransactionsSchema` declara
@@ -321,7 +321,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /finance/pending-tray → solo pendientes de su sede", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         "/api/admin/finance/pending-tray?status=pendientes&page=1&limit=100",
       );
       expect(res.statusCode).toBe(200);
@@ -335,7 +335,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /finance/cash-registers/balances → solo la caja de su sede", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         "/api/admin/finance/cash-registers/balances",
       );
       expect(res.statusCode).toBe(200);
@@ -350,7 +350,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /finance/withdrawals → solo retiros de su sede", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         "/api/admin/finance/withdrawals?page=1&limit=100",
       );
       expect(res.statusCode).toBe(200);
@@ -361,21 +361,21 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /finance/withdrawals/:id de otra sede → 404", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         `/api/admin/finance/withdrawals/${retiroBId}`,
       );
       expect(res.statusCode).toBe(404);
     });
 
     it("GET /finance/withdrawals/:id de su sede → 200", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         `/api/admin/finance/withdrawals/${retiroAId}`,
       );
       expect(res.statusCode).toBe(200);
     });
 
     it("GET /finance/movements-history → solo movimientos de su caja", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         "/api/admin/finance/movements-history?page=1&limit=100",
       );
       expect(res.statusCode).toBe(200);
@@ -469,7 +469,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
       const res = await app.inject({
         method: "POST",
         url: `${ADMIN_SCHED}/trials`,
-        headers: { authorization: `Bearer ${inversorToken}` },
+        headers: { authorization: `Bearer ${adminSedeToken}` },
         payload: {
           userId: pruebaB,
           scheduleId: scheduleB,
@@ -484,7 +484,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
       const res = await app.inject({
         method: "POST",
         url: `${ADMIN_SCHED}/trials`,
-        headers: { authorization: `Bearer ${inversorToken}` },
+        headers: { authorization: `Bearer ${adminSedeToken}` },
         payload: {
           userId: pruebaA,
           scheduleId: scheduleA,
@@ -508,7 +508,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
       });
       expect(seed.statusCode).toBe(201);
 
-      const res = await asInversor(`${ADMIN_SCHED}/trials?date=${fecha}`);
+      const res = await asAdminSede(`${ADMIN_SCHED}/trials?date=${fecha}`);
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as {
         groups: { branchId: number }[];
@@ -517,7 +517,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /trials?branchId=<otra> → 403", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         `${ADMIN_SCHED}/trials?date=${fecha}&branchId=${branchB}`,
       );
       expect(res.statusCode).toBe(403);
@@ -525,12 +525,12 @@ describe("Rol inversor — alcance forzado por sede", () => {
   });
 
   // =========================================================================
-  // 3b. Cobros (mis-cargas) — UAT 2026-09-09: el inversor veía cobros de
+  // 3b. Cobros (mis-cargas) — UAT 2026-09-09: el admin_sede veía cobros de
   // TODAS las sedes en la portada "Historial de cobros".
   // =========================================================================
   describe("Cobros (mis-cargas)", () => {
     it("GET /finance/coach-load/mis-cargas sin branchId → solo cobros de su sede", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         "/api/admin/finance/coach-load/mis-cargas",
       );
       expect(res.statusCode).toBe(200);
@@ -540,14 +540,14 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /finance/coach-load/mis-cargas?branchId=<otra sede> → 403 BRANCH_OUT_OF_SCOPE", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         `/api/admin/finance/coach-load/mis-cargas?branchId=${branchB}`,
       );
       expect(res.statusCode).toBe(403);
       expect(JSON.parse(res.body).code).toBe(BRANCH_OUT_OF_SCOPE);
     });
 
-    it("gestion sigue viendo cobros de ambas sedes (mis-cargas no se acota fuera de inversor)", async () => {
+    it("gestion sigue viendo cobros de ambas sedes (mis-cargas no se acota fuera de admin_sede)", async () => {
       await createStaffUser(app, {
         email: `gestion-miscargas-${u}@test.local`,
         password: pass,
@@ -575,12 +575,12 @@ describe("Rol inversor — alcance forzado por sede", () => {
   });
 
   // =========================================================================
-  // 3c. Analíticas — feedback UAT 2026-09-09: el inversor pidió la sección
+  // 3c. Analíticas — feedback UAT 2026-09-09: el admin_sede pidió la sección
   // "Analíticas" acotada a su sede (ANALYTICS_ADMIN_ROLES).
   // =========================================================================
   describe("Analíticas", () => {
     it("GET /admin/analytics (KPIs) sin branchId → 200, acotado por enforceBranchScope", async () => {
-      const res = await asInversor("/api/admin/analytics");
+      const res = await asAdminSede("/api/admin/analytics");
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as {
         activeMembers: unknown;
@@ -593,28 +593,28 @@ describe("Rol inversor — alcance forzado por sede", () => {
     });
 
     it("GET /admin/analytics?branchId=<otra sede> → 403 BRANCH_OUT_OF_SCOPE", async () => {
-      const res = await asInversor(`/api/admin/analytics?branchId=${branchB}`);
+      const res = await asAdminSede(`/api/admin/analytics?branchId=${branchB}`);
       expect(res.statusCode).toBe(403);
       expect(JSON.parse(res.body).code).toBe(BRANCH_OUT_OF_SCOPE);
     });
 
-    it("GET /admin/analytics/financial sin branchId → 200 (admin-only, ahora + inversor)", async () => {
-      const res = await asInversor("/api/admin/analytics/financial");
+    it("GET /admin/analytics/financial sin branchId → 200 (admin-only, ahora + admin_sede)", async () => {
+      const res = await asAdminSede("/api/admin/analytics/financial");
       expect(res.statusCode).toBe(200);
     });
 
-    it("GET /admin/analytics/members sin branchId → 200 (admin-only, ahora + inversor)", async () => {
-      const res = await asInversor("/api/admin/analytics/members");
+    it("GET /admin/analytics/members sin branchId → 200 (admin-only, ahora + admin_sede)", async () => {
+      const res = await asAdminSede("/api/admin/analytics/members");
       expect(res.statusCode).toBe(200);
     });
 
     it("GET /admin/referrals/ab-results → 403 (agregado sin dimensión de sede)", async () => {
-      const res = await asInversor("/api/admin/referrals/ab-results");
+      const res = await asAdminSede("/api/admin/referrals/ab-results");
       expect(res.statusCode).toBe(403);
     });
 
     it("GET /admin/programs/analytics → 403 (PROGRAMAS_ROLES, dueño-only)", async () => {
-      const res = await asInversor("/api/admin/programs/analytics");
+      const res = await asAdminSede("/api/admin/programs/analytics");
       expect(res.statusCode).toBe(403);
     });
   });
@@ -624,24 +624,24 @@ describe("Rol inversor — alcance forzado por sede", () => {
   // =========================================================================
   describe("Superficies que NO le tocan", () => {
     it("GET /admin/users → 403 (owner-only)", async () => {
-      const res = await asInversor("/api/admin/users");
+      const res = await asAdminSede("/api/admin/users");
       expect(res.statusCode).toBe(403);
     });
 
     it("GET /admin/reports/multibranch-reassignment-preview → 403 (agregado cross-sede)", async () => {
-      const res = await asInversor(
+      const res = await asAdminSede(
         "/api/admin/reports/multibranch-reassignment-preview",
       );
       expect(res.statusCode).toBe(403);
     });
 
     it("GET /admin/improvement-proposals → 403 (superficie global del gimnasio)", async () => {
-      const res = await asInversor("/api/admin/improvement-proposals");
+      const res = await asAdminSede("/api/admin/improvement-proposals");
       expect(res.statusCode).toBe(403);
     });
 
     it("GET /admin/referral-partners → 403 (superficie global del gimnasio)", async () => {
-      const res = await asInversor("/api/admin/referral-partners");
+      const res = await asAdminSede("/api/admin/referral-partners");
       expect(res.statusCode).toBe(403);
     });
   });
@@ -649,11 +649,11 @@ describe("Rol inversor — alcance forzado por sede", () => {
   // =========================================================================
   // 5. Alta/edición del propio rol desde Usuarios
   // =========================================================================
-  describe("PUT /admin/users/:id — sedes del inversor", () => {
+  describe("PUT /admin/users/:id — sedes del admin_sede", () => {
     it("persiste branchIds en user_branches (reemplazo completo)", async () => {
       const res = await app.inject({
         method: "PUT",
-        url: `/api/admin/users/${inversorId}`,
+        url: `/api/admin/users/${adminSedeId}`,
         headers: { authorization: `Bearer ${ownerToken}` },
         payload: { branchIds: [branchA, branchB] },
       });
@@ -665,7 +665,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
         .where(
           and(
             tenantWhere(schema.userBranches, CTX),
-            eq(schema.userBranches.userId, inversorId),
+            eq(schema.userBranches.userId, adminSedeId),
           ),
         );
       expect(rows.map((r) => r.branchId).sort((x, y) => x - y)).toEqual(
@@ -674,11 +674,11 @@ describe("Rol inversor — alcance forzado por sede", () => {
 
       // Con DOS sedes y sin elegir una, los agregados piden que elija (400
       // BRANCH_REQUIRED) en vez de mostrarle las dos mezcladas.
-      const listado = await asInversor("/api/admin/members?page=1&limit=10");
+      const listado = await asAdminSede("/api/admin/members?page=1&limit=10");
       expect(listado.statusCode).toBe(400);
 
       // Y elegir cualquiera de las suyas sigue funcionando.
-      const conSede = await asInversor(
+      const conSede = await asAdminSede(
         `/api/admin/members?branchId=${branchB}&page=1&limit=10`,
       );
       expect(conSede.statusCode).toBe(200);
@@ -686,7 +686,7 @@ describe("Rol inversor — alcance forzado por sede", () => {
       // Se restituye el estado de una sola sede para no contaminar otros tests.
       const restore = await app.inject({
         method: "PUT",
-        url: `/api/admin/users/${inversorId}`,
+        url: `/api/admin/users/${adminSedeId}`,
         headers: { authorization: `Bearer ${ownerToken}` },
         payload: { branchIds: [branchA] },
       });

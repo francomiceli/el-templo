@@ -745,7 +745,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
    * valida contra el scope del actor con el MISMO predicado (`canAccessBranch`)
    * y el mismo cuerpo de 403 que el preHandler compartido.
    *
-   * Aplica SOLO a los roles de alcance forzado (inversor). Decisión de Franco
+   * Aplica SOLO a los roles de alcance forzado (admin_sede). Decisión de Franco
    * 2026-09-08: el coach sigue pudiendo agendar una SP en el horario de otra
    * sede (flujo operativo real entre sedes), así que para el resto de los
    * roles este guard es un no-op.
@@ -842,7 +842,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       // routes (adminAddBooking, schedules/seed). The service checks
       // branchId↔schedule↔user coherence but not that body.branchId is inside
       // the caller's country scope; this closes that defense-in-depth gap.
-      // (2026-09-08: `POST /trials` cierra el gap sólo para el rol inversor
+      // (2026-09-08: `POST /trials` cierra el gap sólo para el rol admin_sede
       // vía `requireScheduleBranchAccess`, arriba en este archivo. Para coach
       // y demás roles el gap sigue abierto a propósito.)
       preHandler: [requireBranchAccess({ from: "body.branchId" })],

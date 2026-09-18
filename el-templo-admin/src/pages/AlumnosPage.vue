@@ -400,7 +400,7 @@ const countryOptions = [
 const selectedCountry = ref<'AR' | 'ES'>('AR');
 
 async function onCountryChange() {
-  // El rol de alcance forzado (inversor) no puede quedar en "todas": se le
+  // El rol de alcance forzado (admin_sede) no puede quedar en "todas": se le
   // restituye su primera sede en vez de null.
   filters.branchId = isBranchScopedRole(authStore.user?.role)
     ? (branches.value[0]?.id ?? null)
@@ -438,7 +438,7 @@ const exportingSepa = ref(false);
 // owner/admin/gestion, y solo si hay sedes ES dentro del scope del usuario.
 const canExportSepa = computed(() => {
   const role = authStore.user?.role;
-  const roleOk = role === 'owner' || role === 'admin' || role === 'gestion' || role === 'inversor';
+  const roleOk = role === 'owner' || role === 'admin' || role === 'gestion' || role === 'admin_sede';
   if (!roleOk) return false;
   // Owner: su scope incluye todas las sedes, así que respetamos el selector de
   // país — no mostrar el export si está viendo Argentina.
@@ -735,7 +735,7 @@ async function loadBranches() {
     branches.value = await membersApi.getBranches({
       country: isOwner.value ? selectedCountry.value : undefined,
     });
-    // Rol de alcance forzado (inversor): sin "Todas" ni "Multisucursal" — el
+    // Rol de alcance forzado (admin_sede): sin "Todas" ni "Multisucursal" — el
     // API le exige una sede y las opciones sin sede terminan en 400/403. Se le
     // preselecciona la primera de las suyas.
     const scoped = isBranchScopedRole(authStore.user?.role);

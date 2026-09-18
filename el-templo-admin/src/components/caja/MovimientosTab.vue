@@ -695,7 +695,7 @@ function kindColor(kind: TransactionKind): string {
 async function loadBranches() {
   try {
     const branches: BranchOption[] = await membersApi.getBranches();
-    // Rol de alcance forzado (inversor): sin "Todas" — el API le exige sede
+    // Rol de alcance forzado (admin_sede): sin "Todas" — el API le exige sede
     // (400 BRANCH_REQUIRED con más de una) y le preseleccionamos la primera.
     const scoped = isBranchScopedRole(authStore.user?.role);
     branchFilterOptions.value = scoped

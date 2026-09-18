@@ -135,7 +135,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     await attachCountryScope(request, fastify.db);
   });
 
-  // 2026-09-08 — alcance FORZADO por sede (rol `inversor`): toda ruta de este
+  // 2026-09-08 — alcance FORZADO por sede (rol `admin_sede`): toda ruta de este
   // plugin direccionada por `:userId`/`:memberId` responde 404 si el socio es de
   // otra sede. Hook de plugin a propósito (ver `enforceMemberBranchScope`):
   // enumerar ruta por ruta era garantía de olvidarse una. No-op para el resto

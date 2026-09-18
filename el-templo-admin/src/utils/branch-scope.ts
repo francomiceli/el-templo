@@ -2,7 +2,7 @@
  * Roles cuyo alcance son SUS sedes y a los que el API les FUERZA ese filtro
  * (`enforcedBranchIds` en `el-templo-api/src/modules/shared/branch-access.ts`).
  *
- * Hoy: `inversor` (2026-09-08, migración 0225).
+ * Hoy: `admin_sede` (2026-09-08, migración 0225).
  *
  * Para qué sirve acá: los selectores de sede ofrecen "Todas" y arrancan sin
  * filtro. Para estos roles eso es una opción que el API rechaza — con una sola
@@ -12,8 +12,8 @@
  *
  * ESTO NO ES SEGURIDAD. El recorte real vive en el API; acá sólo se evita
  * ofrecer algo que va a fallar. Punto único de decisión para no repartir
- * `role === 'inversor'` por diez componentes.
+ * `role === 'admin_sede'` por diez componentes.
  */
 export function isBranchScopedRole(role: string | undefined | null): boolean {
-  return role === 'inversor';
+  return role === 'admin_sede';
 }

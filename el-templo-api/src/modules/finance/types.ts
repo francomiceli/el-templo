@@ -597,7 +597,7 @@ export interface MovEgresoFilters {
   /**
    * 2026-09-08 — alcance FORZADO por sede. Se llena desde
    * `enforcedBranchIds(request.scope)` (shared/branch-access.ts) y SOLO para los
-   * roles que lo tienen (hoy `inversor`). Cuando viene, acota el resultado a
+   * roles que lo tienen (hoy `admin_sede`). Cuando viene, acota el resultado a
    * esas sedes ADEMÁS del filtro de país. Array vacío (actor sin sedes
    * asignadas) → cero filas, nunca "sin filtro".
    */
@@ -759,7 +759,7 @@ export interface WithdrawalListFilters {
   /**
    * 2026-09-08 — alcance FORZADO por sede. Se llena desde
    * `enforcedBranchIds(request.scope)` (shared/branch-access.ts) y SOLO para los
-   * roles que lo tienen (hoy `inversor`). Cuando viene, acota el resultado a
+   * roles que lo tienen (hoy `admin_sede`). Cuando viene, acota el resultado a
    * esas sedes ADEMÁS del filtro de país. Array vacío (actor sin sedes
    * asignadas) → cero filas, nunca "sin filtro".
    */

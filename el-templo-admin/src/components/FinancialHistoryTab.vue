@@ -173,7 +173,7 @@ const hasMore = computed(() => items.value.length < total.value);
 // D-16 — FINANCE_VOID_ROLES = owner | admin | gestion (NO recepcion, NO coach).
 const canVoid = computed(() => {
   const role = authStore.user?.role;
-  return role === 'owner' || role === 'admin' || role === 'gestion' || role === 'inversor';
+  return role === 'owner' || role === 'admin' || role === 'gestion' || role === 'admin_sede';
 });
 
 // Phase 108 D-23 — FINANCE_WRITE_ROLES = owner | admin | gestion | recepcion.
@@ -184,7 +184,7 @@ const canRegisterPayment = computed(() => {
     role === 'admin' ||
     role === 'gestion' ||
     role === 'recepcion' ||
-    role === 'inversor'
+    role === 'admin_sede'
   );
 });
 

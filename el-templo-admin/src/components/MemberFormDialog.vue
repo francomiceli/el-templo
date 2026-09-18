@@ -653,7 +653,7 @@ const isEditMode = computed(() => !!props.member);
 const canResetPassword = computed(() => {
   if (!isEditMode.value) return false;
   const role = authStore.user?.role;
-  return role === 'owner' || role === 'admin' || role === 'gestion' || role === 'inversor';
+  return role === 'owner' || role === 'admin' || role === 'gestion' || role === 'admin_sede';
 });
 
 async function onResetPasswordClick(): Promise<void> {

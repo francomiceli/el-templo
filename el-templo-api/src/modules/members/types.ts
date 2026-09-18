@@ -72,7 +72,7 @@ export interface MemberSearchParams {
   /**
    * 2026-09-08 — alcance FORZADO por sede. Se llena desde
    * `enforcedBranchIds(request.scope)` (shared/branch-access.ts) y sólo para los
-   * roles que lo tienen (hoy `inversor`). Cuando viene, REEMPLAZA al filtro de
+   * roles que lo tienen (hoy `admin_sede`). Cuando viene, REEMPLAZA al filtro de
    * país: el typeahead devuelve únicamente socios de esas sedes. Array vacío =
    * el actor no tiene sedes asignadas → cero resultados (fail-closed).
    */

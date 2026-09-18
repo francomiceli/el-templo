@@ -348,7 +348,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     await attachCountryScope(request, fastify.db);
   });
 
-  // 2026-09-08 — alcance FORZADO por sede (rol `inversor`): mismo hook de
+  // 2026-09-08 — alcance FORZADO por sede (rol `admin_sede`): mismo hook de
   // plugin que en finance/routes.ts, members y subscriptions. Cubre
   // `/autocompletar/:userId` (datos del socio) y cualquier ruta futura de este
   // plugin direccionada por socio. No-op para el resto de los roles.
@@ -1251,7 +1251,7 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       // 2026-09-08: `branchId` es obligatorio acá y NO estaba gateado — cualquier
       // staff puede preguntar por la caja efectivo de una sede ajena. Se corta
       // SOLO para los roles de alcance forzado (`enforceBranchScope`, hoy
-      // `inversor`). A propósito NO se agrega `requireBranchAccess` para todos:
+      // `admin_sede`). A propósito NO se agrega `requireBranchAccess` para todos:
       // el PoS del profe consulta la sede del SOCIO, que puede no ser una de las
       // suyas, y cerrarlo acá regresionaría ese flujo vivo. El cobro real sí está
       // gateado (POST /pay-plan lleva `requireBranchAccess({ from: "body.branchId" })`).
@@ -1325,11 +1325,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // already in FINANCE_READ_ROLES, so they see ALL loads — the shared view
   // recepción/gestión need to know what the other person cargó.
   //
-  // 2026-09-09 (feedback UAT inversor): esta ruta NO tenía gate de sede — el
-  // inversor la usa como portada "Historial de cobros" y veía los últimos 50
+  // 2026-09-09 (feedback UAT admin_sede): esta ruta NO tenía gate de sede — el
+  // admin_sede la usa como portada "Historial de cobros" y veía los últimos 50
   // cobros de TODO el gimnasio, no solo el de su sucursal. `branchId` es
   // opcional en el querystring y `enforceBranchScope` (no-op para cualquier rol
-  // que no sea `isBranchScopedRole`) hace el resto: para el inversor, lo
+  // que no sea `isBranchScopedRole`) hace el resto: para el admin_sede, lo
   // inyecta si lo omite y corta 403 BRANCH_OUT_OF_SCOPE si pide una ajena. Para
   // owner/admin/gestion/recepcion SIN `?branchId` el comportamiento queda
   // IDÉNTICO (ven todo, limit 50); CON `?branchId` ahora también pueden acotar

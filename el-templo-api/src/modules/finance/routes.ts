@@ -278,7 +278,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     await attachCountryScope(request, fastify.db);
   });
 
-  // 2026-09-08 — alcance FORZADO por sede (rol `inversor`): toda ruta de este
+  // 2026-09-08 — alcance FORZADO por sede (rol `admin_sede`): toda ruta de este
   // plugin direccionada por `:userId`/`:memberId` responde 404 si el socio es de
   // otra sede. Hook de plugin a propósito (ver `enforceMemberBranchScope`):
   // enumerar ruta por ruta era garantía de olvidarse una. No-op para el resto
@@ -808,7 +808,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           request.query.cashRegisterId,
           {
             dateTo: request.query.dateTo,
-            // Alcance forzado por sede (rol `inversor`): la ruta se direcciona
+            // Alcance forzado por sede (rol `admin_sede`): la ruta se direcciona
             // por caja, así que el recorte lo hace el service (404 si la caja
             // es de otra sede).
             branchIds: enforcedBranchIds(request.scope) ?? undefined,

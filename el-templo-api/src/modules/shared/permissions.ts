@@ -14,10 +14,10 @@ export const ALL_STAFF_ROLES = [
   "owner",
   "gestion",
   "recepcion",
-  // 2026-09-08 (migración 0225): el inversor de sucursal entra al admin como
+  // 2026-09-08 (migración 0225): el admin_sede de sucursal entra al admin como
   // cualquier otro empleado. Su alcance NO lo da este set sino `user_branches`
-  // + `enforcedBranchIds` (shared/branch-access.ts). Ver INVERSOR_ROLE abajo.
-  "inversor",
+  // + `enforcedBranchIds` (shared/branch-access.ts). Ver ADMIN_SEDE_ROLE abajo.
+  "admin_sede",
 ] as const;
 
 /** Roles that can access owner-only features (franchise, users, blog, gladius, academy, app-waitlist, labs). */
@@ -76,15 +76,15 @@ export function canAccessTraining(user: {
  * gets the core sets unchanged; El Templo layers `reportes`/`deudas` on top.
  *
  * - `reportes`: extra roles (beyond Dueño) that see Reportes/Caja → gestion +
- *   inversor (2026-09-08: el inversor de sucursal ve la caja de SU sede — el
+ *   admin_sede (2026-09-08: el admin_sede de sucursal ve la caja de SU sede — el
  *   recorte por sede lo hace `enforcedBranchIds`, no este set).
  * - `deudas`: extra roles (beyond Dueño) that see the simplified Deudas tab →
- *   coach + gestion + inversor (coach so profes can look up what to collect at
+ *   coach + gestion + admin_sede (coach so profes can look up what to collect at
  *   the door).
  */
 export const TEMPLO_RBAC_OVERRIDES = {
-  reportes: ["gestion", "inversor"],
-  deudas: ["coach", "gestion", "inversor"],
+  reportes: ["gestion", "admin_sede"],
+  deudas: ["coach", "gestion", "admin_sede"],
 } as const;
 
 /**
@@ -109,26 +109,26 @@ export const ANALYTICS_OPERATIONAL_ROLES = [
   "gestion",
   "admin",
   "owner",
-  "inversor",
+  "admin_sede",
 ] as const;
 
 /**
  * Roles that can read the admin-only analytics endpoints (KPIs, member
  * analytics, financial analytics, retention/churn/ltv/etc.) — Dueño (ADMIN_ROLES)
- * + `inversor` (2026-09-08, feedback UAT). El inversor las ve, pero SIEMPRE
+ * + `admin_sede` (2026-09-08, feedback UAT). El admin_sede las ve, pero SIEMPRE
  * acotadas a SU sede: todas esas rutas ya encadenan `enforceBranchScope` (D-14),
  * así que ensanchar este set no le abre datos de otra sucursal, solo la
  * pantalla de Analíticas de la suya. `gestion` sigue afuera — literal en vez de
- * `[...ADMIN_ROLES, "inversor"]` sería equivalente en valor, pero se declara
+ * `[...ADMIN_ROLES, "admin_sede"]` sería equivalente en valor, pero se declara
  * explícito para que quede fijado byte a byte por `rbac-sets.test.ts` igual
  * que el resto de los sets nuevos del rol.
  */
-export const ANALYTICS_ADMIN_ROLES = ["admin", "owner", "inversor"] as const;
+export const ANALYTICS_ADMIN_ROLES = ["admin", "owner", "admin_sede"] as const;
 
 /**
  * Roles que ven los resultados agregados del A/B test de copy de referidos
  * (`GET /admin/referrals/ab-results`) — 2026-09-09. Superficie SIN dimensión de
- * sede (números de TODO el gimnasio, no filtrables por branch): el inversor
+ * sede (números de TODO el gimnasio, no filtrables por branch): el admin_sede
  * queda afuera a propósito, a diferencia de `ANALYTICS_OPERATIONAL_ROLES` (del
  * que este set se separa) — no hay `enforceBranchScope` que lo acote y mostrarle
  * el agregado global violaría el alcance por sede del rol.
@@ -149,24 +149,24 @@ export const COACH_DEBTS_ROLES = [
   ...ADMIN_ROLES,
 ] as const;
 
-/** Roles that can access attendance features (coach, admin, owner, gestion, recepcion, inversor). */
+/** Roles that can access attendance features (coach, admin, owner, gestion, recepcion, admin_sede). */
 export const ATTENDANCE_ROLES = [
   "coach",
   "admin",
   "owner",
   "gestion",
   "recepcion",
-  "inversor",
+  "admin_sede",
 ] as const;
 
-/** Roles that can access member management (coach, admin, owner, gestion, recepcion, inversor). */
+/** Roles that can access member management (coach, admin, owner, gestion, recepcion, admin_sede). */
 export const MEMBER_ROLES = [
   "coach",
   "admin",
   "owner",
   "gestion",
   "recepcion",
-  "inversor",
+  "admin_sede",
 ] as const;
 
 /** Roles that can access payment management. */
@@ -176,7 +176,7 @@ export const PAYMENT_ROLES = [
   "owner",
   "gestion",
   "recepcion",
-  "inversor",
+  "admin_sede",
 ] as const;
 
 /** Roles that can access subscription management. */
@@ -186,7 +186,7 @@ export const SUBSCRIPTION_ROLES = [
   "owner",
   "gestion",
   "recepcion",
-  "inversor",
+  "admin_sede",
 ] as const;
 
 /**
@@ -231,7 +231,7 @@ export const PROGRAMAS_ROLES = ADMIN_ROLES;
  * referencia FINANCE_WRITE_ROLES) porque esa constante se declara MÁS ABAJO en
  * este archivo — usarla acá caería en la temporal dead zone; el valor queda
  * fijado por rbac-sets.test.ts. (2026-09-08: la equivalencia de valor con
- * FINANCE_WRITE_ROLES se ROMPIÓ a propósito — `inversor` entra en finanzas pero
+ * FINANCE_WRITE_ROLES se ROMPIÓ a propósito — `admin_sede` entra en finanzas pero
  * NO en Programas, que es superficie de dueño.)
  *
  * Por qué existe: angostar GET /admin/programs a dueño-only (Plan 01) rompió dos
@@ -265,7 +265,7 @@ export const FINANCE_WRITE_ROLES = [
   "admin",
   "gestion",
   "recepcion",
-  "inversor",
+  "admin_sede",
 ] as const;
 
 /**
@@ -284,7 +284,7 @@ export const FINANCE_ADJUSTMENT_ROLES = [
   "owner",
   "admin",
   "gestion",
-  "inversor",
+  "admin_sede",
 ] as const;
 
 /** Roles that can void a finance transaction (Phase 106 D-03 — recepcion excluded for abuse risk). */
@@ -292,7 +292,7 @@ export const FINANCE_VOID_ROLES = [
   "owner",
   "admin",
   "gestion",
-  "inversor",
+  "admin_sede",
 ] as const;
 
 /** Roles that can read finance transactions / financial history (Phase 106 D-04 — coach excluded for privacy). */
@@ -301,7 +301,7 @@ export const FINANCE_READ_ROLES = [
   "admin",
   "gestion",
   "recepcion",
-  "inversor",
+  "admin_sede",
 ] as const;
 
 /** Roles that can soft-delete a member and reset member passwords. */
@@ -309,7 +309,7 @@ export const MEMBER_LIFECYCLE_ROLES = [
   "owner",
   "admin",
   "gestion",
-  "inversor",
+  "admin_sede",
 ] as const;
 
 /**
@@ -351,9 +351,9 @@ export const TV_CONTROL_ROLES = [...ADMIN_ROLES, "coach", "tv"] as const;
 export const TV_ACCOUNT_ROLE = "tv" as const;
 
 /**
- * Rol del inversor de sucursal (2026-09-08, migración 0225).
+ * Rol del admin_sede de sucursal (2026-09-08, migración 0225).
  *
- * Un inversor activo de UNA sede que hace gestión administrativa + financiera
+ * Un admin_sede activo de UNA sede que hace gestión administrativa + financiera
  * de SUS sedes: caja (saldos, movimientos, retiros, bandeja pendiente), cobros,
  * alumnos, sesiones de prueba y leads. Hereda la superficie de `gestion` (está
  * en todos los sets donde está `gestion`, salvo los que excluyen a gestión a
@@ -369,7 +369,7 @@ export const TV_ACCOUNT_ROLE = "tv" as const;
  *     filtra a las suyas, en vez de degenerar a "todo el país" como pasa hoy
  *     con coach/recepción (gap preexistente que este rol NO cambia).
  */
-export const INVERSOR_ROLE = "inversor" as const;
+export const ADMIN_SEDE_ROLE = "admin_sede" as const;
 
 /**
  * Roles que ven el "Registro del día" del alumno (energía/sueño/molestias) en la
