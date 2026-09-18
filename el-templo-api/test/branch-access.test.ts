@@ -382,13 +382,13 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       }
     });
 
-    it("inversor (Regla 4, 2026-09-08): sede en branchIds → true, otra sede → false", async () => {
+    it("admin_sede (Regla 4, 2026-09-08): sede en branchIds → true, otra sede → false", async () => {
       const scope = {
         tenantId: 1,
         country: "AR" as const,
         branchIds: [arBranchId],
         isOwner: false,
-        role: "inversor",
+        role: "admin_sede",
         userBranchId: arBranchId,
       };
       expect(await canAccessBranch(scope, arBranchId, app.db)).toBe(true);
@@ -398,9 +398,9 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       expect(await canAccessBranch(scope, esBranchId, app.db)).toBe(false);
     });
 
-    it("inversor NO hereda el atajo de sede virtual (Regla 1) — 2026-09-08", async () => {
+    it("admin_sede NO hereda el atajo de sede virtual (Regla 1) — 2026-09-08", async () => {
       // Un coach entra a la virtual por la Regla 1 aunque no la tenga en
-      // user_branches. El inversor NO: Templo Online es otra sede y sus socios
+      // user_branches. El admin_sede NO: Templo Online es otra sede y sus socios
       // no son los de su sucursal. Si algún día tiene que verla, se le agrega
       // a user_branches y entra por la Regla 4.
       const base = {
@@ -419,20 +419,20 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       ).toBe(true);
       expect(
         await canAccessBranch(
-          { ...base, role: "inversor" },
+          { ...base, role: "admin_sede" },
           virtualBranchId,
           app.db,
         ),
       ).toBe(false);
     });
 
-    it("inversor sin sedes asignadas (branchIds=[]) → false en toda sede", async () => {
+    it("admin_sede sin sedes asignadas (branchIds=[]) → false en toda sede", async () => {
       const scope = {
         tenantId: 1,
         country: "AR" as const,
         branchIds: [] as number[],
         isOwner: false,
-        role: "inversor",
+        role: "admin_sede",
         userBranchId: arBranchId,
       };
       for (const id of [
@@ -978,8 +978,8 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const body = JSON.parse(res.body) as { error?: string; message?: string };
       const text = (body.error ?? "") + (body.message ?? "");
       expect(text).toMatch(
-        // 2026-09-08: el mensaje suma `inversor` (misma regla de cardinalidad).
-        /Coach, recepci(ó|o)n e inversor requieren al menos una sede operativa/i,
+        // 2026-09-08: el mensaje suma `admin_sede` (misma regla de cardinalidad).
+        /Coach, recepci(ó|o)n e admin_sede requieren al menos una sede operativa/i,
       );
     });
 

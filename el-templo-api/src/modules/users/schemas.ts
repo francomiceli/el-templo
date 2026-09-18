@@ -64,9 +64,9 @@ export const createStaffSchema = {
           "gestion",
           "recepcion",
           "tv",
-          // 2026-09-08 (migración 0225): inversor de sucursal. Lleva
+          // 2026-09-08 (migración 0225): admin_sede de sucursal. Lleva
           // `branchIds` como coach/recepción y NO lleva `country`.
-          "inversor",
+          "admin_sede",
         ],
       },
       branchId: { type: "integer" },
@@ -139,9 +139,9 @@ export const updateStaffSchema = {
           "gestion",
           "recepcion",
           "tv",
-          // 2026-09-08 (migración 0225): inversor de sucursal. Lleva
+          // 2026-09-08 (migración 0225): admin_sede de sucursal. Lleva
           // `branchIds` como coach/recepción y NO lleva `country`.
-          "inversor",
+          "admin_sede",
         ],
       },
       branchId: { type: "integer" },

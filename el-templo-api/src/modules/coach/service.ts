@@ -12,7 +12,7 @@
  *    captures both subscription balances and `debt_balance` rows for the
  *    coach's local roster — what they will actually collect at the door.
  *    Coaches with no branches see nothing.
- *  - inversor: igual que coach (por `scope.branchIds`) — alcance forzado, ver
+ *  - admin_sede: igual que coach (por `scope.branchIds`) — alcance forzado, ver
  *    `isBranchScopedRole` en shared/branch-access.ts.
  *  - gestion/admin: restricted to their `scope.country` via `users.country`.
  *  - owner: unrestricted by scope; sees all countries.
@@ -53,9 +53,9 @@ export class CoachService {
     filters: CoachOutstandingBalancesFilters,
     scope: CoachScope,
   ): Promise<CoachOutstandingBalancesResult> {
-    // 2026-09-08: los roles de alcance forzado por sede (`inversor`) se filtran
+    // 2026-09-08: los roles de alcance forzado por sede (`admin_sede`) se filtran
     // EXACTAMENTE como el coach — por la sede del socio — y no por país. Sin
-    // esto, un inversor veía la deuda de todos los socios de su país.
+    // esto, un admin_sede veía la deuda de todos los socios de su país.
     const porSede = scope.role === "coach" || isBranchScopedRole(scope.role);
 
     if (porSede && scope.branchIds.length === 0) {

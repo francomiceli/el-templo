@@ -1066,7 +1066,7 @@ const currentUser = computed(() => authStore.user);
 // Espejo de MEMBER_LIFECYCLE_ROLES en la API: coach y recepción quedan afuera.
 const isLifecycleRole = computed(() => {
   const role = currentUser.value?.role;
-  return role === 'admin' || role === 'owner' || role === 'gestion' || role === 'inversor';
+  return role === 'admin' || role === 'owner' || role === 'gestion' || role === 'admin_sede';
 });
 
 const canDeleteMember = computed(() => isLifecycleRole.value);

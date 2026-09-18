@@ -10,7 +10,7 @@ const ADMIN_ROLES: AdminRole[] = [
   'owner',
   'recepcion',
   'tv',
-  'inversor',
+  'admin_sede',
 ];
 
 const ACCESS_KEY = 'adminAccessToken';

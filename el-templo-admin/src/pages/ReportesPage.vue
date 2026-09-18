@@ -75,7 +75,7 @@
       </q-tab>
       <!-- Recategorización: agregado CROSS-SEDE (dry-run del cron sobre todo
            el gimnasio). El API se lo deniega a los roles de alcance forzado
-           (inversor), así que la pestaña se oculta en vez de mostrarles un
+           (admin_sede), así que la pestaña se oculta en vez de mostrarles un
            error. -->
       <q-tab
         v-if="!branchScoped"
@@ -872,7 +872,7 @@ async function fetchBranches() {
   loadingBranches.value = true;
   try {
     const branches = await membersApi.getBranches();
-    // Rol de alcance forzado (inversor): sin "Todas las sedes" — el API le
+    // Rol de alcance forzado (admin_sede): sin "Todas las sedes" — el API le
     // exige una sede y le preseleccionamos la primera de las suyas.
     const scoped = isBranchScopedRole(authStore.user?.role);
     branchOptions.value = scoped
@@ -970,7 +970,7 @@ const initialTab = (() => {
 })();
 const activeTab = ref(initialTab);
 
-// Rol de alcance forzado por sede (inversor): sin pestaña de Recategorización
+// Rol de alcance forzado por sede (admin_sede): sin pestaña de Recategorización
 // y sin opción "Todas las sedes" en el selector.
 const branchScoped = computed(() => isBranchScopedRole(authStore.user?.role));
 if (branchScoped.value && activeTab.value === 'recategorizacion') {

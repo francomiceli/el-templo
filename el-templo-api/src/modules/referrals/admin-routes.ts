@@ -27,7 +27,7 @@ export const referralAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // 2026-09-09: este plugin tiene UNA sola ruta (/ab-results), así que el gate
   // se puede angostar acá mismo sin arriesgar ensanchar/angostar otra ruta del
   // plugin sin darse cuenta. Antes usaba ANALYTICS_OPERATIONAL_ROLES (incluía
-  // `inversor`) — se lo saca porque el agregado es de TODO el gimnasio, sin
+  // `admin_sede`) — se lo saca porque el agregado es de TODO el gimnasio, sin
   // dimensión de sede, y este rol solo debe ver la suya. Coach y recepción
   // quedan afuera (403), igual que antes.
   fastify.addHook("onRequest", async (request, reply) => {

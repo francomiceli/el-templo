@@ -3,7 +3,7 @@
  *
  * Business logic for staff user CRUD (create, list, update, toggle active).
  * Owner-only operations for managing coach, admin, owner, gestion, recepción,
- * tv e inversor users.
+ * tv e admin_sede users.
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
@@ -26,10 +26,10 @@ import {
  * Phase 110 REQ-9: per-role cardinality validation. Throws Error with
  * statusCode=400 on violation. The FOUR shape rules:
  *   - admin / gestion → must have country
- *   - coach / recepcion / inversor (2026-09-08) → must have ≥ 1 branchIds. El
- *     inversor de sucursal usa el MISMO mecanismo de sedes que coach/recepción
+ *   - coach / recepcion / admin_sede (2026-09-08) → must have ≥ 1 branchIds. El
+ *     admin_sede de sucursal usa el MISMO mecanismo de sedes que coach/recepción
  *     (`user_branches`) y su alcance ADEMÁS se le fuerza en los listados
- *     (`enforcedBranchIds`, shared/branch-access.ts) — un inversor sin sedes no
+ *     (`enforcedBranchIds`, shared/branch-access.ts) — un admin_sede sin sedes no
  *     vería absolutamente nada, así que exigir ≥ 1 es lo mismo que para ellos.
  *     Tampoco lleva `country`: el país sale de su sede de casa.
  *   - owner → must NOT have country (D-12: owner.country=NULL models global)
@@ -55,11 +55,11 @@ function validateStaffCardinality(input: {
   if (
     (input.role === "coach" ||
       input.role === "recepcion" ||
-      input.role === "inversor") &&
+      input.role === "admin_sede") &&
     (!input.branchIds || input.branchIds.length === 0)
   ) {
     const e = new Error(
-      "Coach, recepción e inversor requieren al menos una sede operativa",
+      "Coach, recepción e admin_sede requieren al menos una sede operativa",
     );
     (e as Error & { statusCode: number }).statusCode = 400;
     throw e;

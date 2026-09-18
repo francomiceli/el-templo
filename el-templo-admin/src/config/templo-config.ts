@@ -80,9 +80,9 @@ export const ALL_STAFF_ROLES: AdminRole[] = [
   'recepcion',
   'admin',
   'owner',
-  // `inversor` (2026-09-08): entra a Alumnos/Horarios/Planes como cualquier
+  // `admin_sede` (2026-09-08): entra a Alumnos/Horarios/Planes como cualquier
   // empleado. Lo que ve adentro lo acota el API a sus sedes.
-  'inversor',
+  'admin_sede',
 ];
 
 /**
@@ -95,7 +95,7 @@ export const PAGOS_ROLES: AdminRole[] = [
   'recepcion',
   'admin',
   'owner',
-  'inversor',
+  'admin_sede',
 ];
 
 /**
@@ -106,12 +106,12 @@ export const PAGOS_ROLES: AdminRole[] = [
  * the tabs — the real gate is the API (reports/outstanding-balances returns 403
  * to coach, plan 153-01 + plugin guard). Do NOT rely on this for security (D-04).
  */
-export const DEUDAS_DETAIL_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'inversor'];
+export const DEUDAS_DETAIL_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'admin_sede'];
 
 /**
  * Reportes: Dueño + Templo override (gestion). Mirrors CAJA_ROLES of the API.
  */
-export const REPORTES_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'inversor'];
+export const REPORTES_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'admin_sede'];
 
 /**
  * Planes (read-only for the employee surface): all staff. Mirrors PLANES_READ_ROLES
@@ -123,7 +123,7 @@ export const PLANES_READ_ROLES: AdminRole[] = [
   'recepcion',
   'admin',
   'owner',
-  'inversor',
+  'admin_sede',
 ];
 
 /**
@@ -131,16 +131,16 @@ export const PLANES_READ_ROLES: AdminRole[] = [
  * caja a diario). Mirrors the /caja route allowedRoles. El ABM de cuentas y
  * categorías sigue admin/owner (CuentasTab lo oculta).
  */
-export const CAJA_SALDOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'inversor'];
+export const CAJA_SALDOS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner', 'admin_sede'];
 
 /**
- * Analíticas: Dueño + inversor (2026-09-09, feedback UAT). Mirrors the
+ * Analíticas: Dueño + admin_sede (2026-09-09, feedback UAT). Mirrors the
  * /analiticas route allowedRoles y `ANALYTICS_ADMIN_ROLES` del API. El
- * inversor la ve, pero SIEMPRE acotada a SU sede — el server la fuerza
+ * admin_sede la ve, pero SIEMPRE acotada a SU sede — el server la fuerza
  * (`enforceBranchScope`) y la página oculta el selector "Todas" + las tabs
  * sin dimensión de sede (Programas, Referidos A/B).
  */
-export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner', 'inversor'];
+export const ANALITICAS_ROLES: AdminRole[] = ['admin', 'owner', 'admin_sede'];
 
 /**
  * Partners (fase 179, D-20): comercios/marcas con código de referido propio.
