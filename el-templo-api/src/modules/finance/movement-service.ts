@@ -49,8 +49,30 @@ type DbInstance = MySql2Database<typeof schema>;
  *  same-currency guard and the per-leg branchId stamp. */
 interface CajaRef {
   id: number;
+  type: "efectivo" | "banco";
   currency: string;
   branchId: number | null;
+}
+
+/**
+ * Guard de saldo para cajas de EFECTIVO: un egreso (gasto, movimiento) no
+ * puede superar la plata disponible en el cajon. `available` es el saldo firme
+ * derivado (D-08) o el conteo fisico declarado. Las cuentas banco no pasan por
+ * aca. Lanza 400 con el monto y el saldo para que el admin vea de cuanto se
+ * paso.
+ */
+function assertEfectivoCoversOutflow(
+  caja: Pick<CajaRef, "type">,
+  amount: number,
+  available: number,
+  what: string,
+): void {
+  if (caja.type !== "efectivo") return;
+  if (amount > available) {
+    throw new BadRequestError(
+      `${what} de ${amount} supera el saldo de la caja de efectivo (${available}): la caja quedaría en negativo`,
+    );
+  }
 }
 
 export class MovementService {
@@ -70,6 +92,7 @@ export class MovementService {
     const [caja] = await this.db
       .select({
         id: schema.cashRegisters.id,
+        type: schema.cashRegisters.type,
         currency: schema.cashRegisters.currency,
         branchId: schema.cashRegisters.branchId,
       })
@@ -133,6 +156,17 @@ export class MovementService {
     const expectedAmount = (
       await this.cashRegisterService.getBalance(ctx, origenCajaId)
     ).firmeBalance;
+
+    // 2026-09-18 — una caja de efectivo no puede quedar en negativo: el
+    // cajon no tiene mas plata que la que cuenta el saldo (o la contada, si
+    // el que mueve la declaro). Las cuentas banco no se tocan (pueden tener
+    // fondos que el ledger no ve, ej. antes del corte).
+    assertEfectivoCoversOutflow(
+      origen,
+      amount,
+      countedAmount ?? expectedAmount,
+      "El movimiento",
+    );
 
     return await this.db.transaction(async (tx) => {
       // Pata A: outflow en origen. cashRegisterId explícito (override) — NO se
@@ -344,6 +378,18 @@ export class MovementService {
       throw new BadRequestError(
         "Los retiros se registran desde Caja → Retiros (con responsable), no como egreso",
       );
+    }
+
+    // 2026-09-18 — mismo guard que en registerMovement: un egreso de efectivo
+    // mayor al saldo firme dejaria la caja en negativo (en prod paso con los
+    // retiros del 09/09, migracion 0234). Snapshot ANTES del insert, fuera de
+    // tx, igual que el patron de expectedAmount en registerMovement.
+    if (caja.type === "efectivo") {
+      const { firmeBalance } = await this.cashRegisterService.getBalance(
+        ctx,
+        cajaId,
+      );
+      assertEfectivoCoversOutflow(caja, amount, firmeBalance, "El egreso");
     }
 
     const expense = await this.txnService.create(

@@ -455,6 +455,25 @@ describe("GET /withdrawals/pending", () => {
     expect(body.total).toBe(100);
   });
 
+  it("excluye cobros anteriores al corte de la caja: no forman parte del saldo (fix 2026-09-18)", async () => {
+    // ensureEfectivoCaja siembra la caja con cutoff_date 2020-01-01. Un cobro
+    // firme anterior al corte no esta en el saldo derivado (D-08), asi que
+    // ofrecerlo como "pendiente de retiro" deja la caja en negativo (fue el
+    // origen del Balanceo a cero del 09/09 en prod, migracion 0234).
+    await seedCobro({ amount: 100, transactionDate: "2019-12-31" });
+    await seedCobro({
+      amount: 40,
+      transactionDate: "2019-12-30",
+      validationStatus: "pendiente",
+    });
+    const post = await seedCobro({ amount: 200, transactionDate: daysAgo(2) });
+    const { body } = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
+    expect(body.rows.map((r) => r.id)).toEqual([post]);
+    expect(body.total).toBe(200);
+    expect(body.awaitingValidation.rows).toHaveLength(0);
+    expect(body.awaitingValidation.total).toBe(0);
+  });
+
   it("cuenta banco → 400", async () => {
     const { statusCode } = await getPending(
       adminToken,
@@ -630,6 +649,27 @@ describe("POST /withdrawals — caja efectivo", () => {
     expect(pending.body.rows.map((r) => r.id)).toEqual([ok]);
   });
 
+  it("rechaza un cobro anterior al corte de la caja aunque se pida por id", async () => {
+    const ok = await seedCobro({ amount: 100 });
+    const pre = await seedCobro({ amount: 100, transactionDate: "2019-12-31" });
+    const res = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "X",
+      transactionIds: [ok, pre],
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toContain(`El cobro #${pre} es anterior al corte de la caja`);
+    // Todo o nada: el cobro valido sigue pendiente y nada quedo registrado.
+    const pending = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
+    expect(pending.body.rows.map((r) => r.id)).toEqual([ok]);
+    const list = await app.inject({
+      method: "GET",
+      url: `${BASE}/withdrawals`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect((JSON.parse(list.body) as { rows: unknown[] }).rows).toHaveLength(0);
+  });
+
   it("un cobro ya retirado no se retira dos veces", async () => {
     const a = await seedCobro({ amount: 100 });
     const first = await postWithdrawal(adminToken, {
@@ -797,6 +837,8 @@ describe("egresos manuales con centro Retiros", () => {
   });
 
   it("un egreso con otro centro sigue funcionando y NO aparece como retiro", async () => {
+    // Guard 2026-09-18: un egreso de efectivo necesita saldo firme que lo cubra.
+    await seedCobro({ amount: 100 });
     const res = await app.inject({
       method: "POST",
       url: `${BASE}/expenses`,
