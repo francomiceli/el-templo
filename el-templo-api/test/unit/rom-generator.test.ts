@@ -376,7 +376,7 @@ describe("ROM Generator", () => {
       }
     });
 
-    it("ROM zone blocks have format { type: 'rom', rounds: 3 } and rest=30", async () => {
+    it("ROM zone blocks have format { type: 'rom' } with rest=30 and no rounds", async () => {
       const { generateRomSession } =
         await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
@@ -393,7 +393,6 @@ describe("ROM Generator", () => {
       for (const block of romBlocks) {
         expect(block.formatParams).toEqual({
           type: "rom",
-          rounds: 3,
           restSeconds: 30,
         });
 

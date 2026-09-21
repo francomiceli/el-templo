@@ -510,6 +510,36 @@ export const updateScheduleActivitySchema = {
   },
 };
 
+// Feedback profes (2026-09): Open Gym es de las pocas actividades con
+// cambio de sucursal/horario editable, pero no había forma de tocar la
+// HORA de un slot ya creado — solo desactivalo y creá uno nuevo. Mismo
+// molde que updateScheduleActivitySchema (params.scheduleId + body +
+// scheduleSlotSchema de vuelta), agregando el 409 que createScheduleSchema
+// ya declara (solapamiento) y que acá también cubre "tiene reservas futuras".
+export const updateScheduleTimeSchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId"],
+    properties: {
+      scheduleId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["startTime", "endTime"],
+    properties: {
+      startTime: { type: "string", pattern: "^\\d{2}:\\d{2}$" },
+      endTime: { type: "string", pattern: "^\\d{2}:\\d{2}$" },
+    },
+  },
+  response: {
+    200: scheduleSlotSchema,
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+};
+
 export const seedSchedulesSchema = {
   body: {
     type: "object",

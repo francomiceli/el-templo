@@ -267,13 +267,20 @@ describe("getDefaultFormatParams", () => {
     ).toBe("standard");
   });
 
-  it("gives Combos editable rounds with a default of 3", () => {
-    const combos = getDefaultFormatParams("Combos", DEFAULT_CONTEXT) as {
-      type: string;
-      rounds: number;
-    };
-    expect(combos.type).toBe("combos");
-    expect(combos.rounds).toBe(3);
+  it("gives Combos and For Quality no params (rounds removed 2026-09-21)", () => {
+    expect(getDefaultFormatParams("Combos", DEFAULT_CONTEXT)).toEqual({
+      type: "combos",
+    });
+    expect(getDefaultFormatParams("For Quality", DEFAULT_CONTEXT)).toEqual({
+      type: "for_quality",
+    });
+  });
+
+  it("gives ROM only a rest default (no rounds)", () => {
+    expect(getDefaultFormatParams("ROM", DEFAULT_CONTEXT)).toEqual({
+      type: "rom",
+      restSeconds: 30,
+    });
   });
 
   it("provides default values for configurable params", () => {
@@ -424,6 +431,15 @@ describe("formatNameWithParams", () => {
     expect(
       formatNameWithParams("ROM", { type: "rom", rounds: 3, restSeconds: 30 }),
     ).toBe("ROM");
+    // Combos / For Quality: sin rondas en la etiqueta, ni siquiera con un
+    // `rounds` legado guardado en el bloque.
+    expect(
+      formatNameWithParams("COMBOS", { type: "combos", rounds: 3 }),
+    ).toBe("COMBOS");
+    expect(
+      formatNameWithParams("FOR QUALITY", { type: "for_quality", rounds: 3 }),
+    ).toBe("FOR QUALITY");
+    expect(formatNameWithParams("COMBOS", { type: "combos" })).toBe("COMBOS");
     expect(
       formatNameWithParams("OPEN STYLE", { type: "open_style", minutes: 20 }),
     ).toBe("OPEN STYLE");

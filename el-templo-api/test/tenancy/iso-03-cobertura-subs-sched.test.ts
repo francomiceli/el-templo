@@ -179,14 +179,17 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
  * contra un manifiesto vacío y todo pasaría en verde por vacuidad. Este
  * conteo es lo que hace que 0 rutas cubiertas se ponga tan rojo como 63.
  */
-const CASOS_BASELINE = 67;
+// 2026-09-21: 67 -> 68 por "Cambiar hora" de un horario existente (feedback
+// profes): PATCH /api/admin/scheduling/schedules/:scheduleId/time,
+// tenant-scoped, caso agregado a iso-03-sched-escritura.test.ts.
+const CASOS_BASELINE = 68;
 
 /** Los cuatro archivos de la batería ISO-03 de subs+scheduling. */
 const ARCHIVOS_BATERIA = [
   "iso-03-subs-lecturas.test.ts", // plan 174.1-01 — 14 rutas (subs lectura)
   "iso-03-subs-escritura.test.ts", // plan 174.1-06 — 16 rutas (subs escritura)
   "iso-03-sched-lecturas.test.ts", // plan 174.1-07 — 14 rutas (sched lectura, +1 fase 180: GET class-label-descriptions)
-  "iso-03-sched-escritura.test.ts", // plan 174.1-08 — 20 rutas (sched escritura, +1 fase 180: PUT class-label-descriptions)
+  "iso-03-sched-escritura.test.ts", // plan 174.1-08 — 21 rutas (sched escritura, +1 fase 180: PUT class-label-descriptions, +1 2026-09-21: PATCH .../time)
 ] as const;
 
 /**
@@ -324,7 +327,7 @@ describe("cobertura de la batería ISO-03 de subs+scheduling — contra el manif
     ).toEqual([]);
   });
 
-  it("la batería cubre exactamente las 62 rutas de subscriptions/scheduling del baseline", () => {
+  it("la batería cubre exactamente las 68 rutas de subscriptions/scheduling del baseline", () => {
     expect(
       RUTAS_SUBS_SCHED.length,
       `El manifiesto tiene ${RUTAS_SUBS_SCHED.length} rutas de ` +

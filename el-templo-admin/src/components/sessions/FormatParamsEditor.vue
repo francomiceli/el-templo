@@ -183,21 +183,9 @@
       />
     </div>
 
-    <!-- ROM (rounds + rest) -->
+    <!-- ROM (sólo descanso: las rondas se sacaron a pedido de los profes,
+         2026-09-21 — un `rounds` legado guardado en el bloque se ignora) -->
     <div v-else-if="localParams && localParams.type === 'rom'" class="row items-center q-gutter-sm">
-      <q-input
-        v-model.number="localParams.rounds"
-        type="number"
-        dense
-        outlined
-        :dark="dark"
-        :min="1"
-        :max="10"
-        label="Rondas"
-        style="min-width: 100px"
-        @blur="onBlur"
-        @keyup.enter="onBlur"
-      />
       <q-input
         v-model.number="localParams.restSeconds"
         type="number"
@@ -213,11 +201,10 @@
       />
     </div>
 
-    <!-- Complex / Combos / For Quality (rounds only) -->
+    <!-- Complex (rounds only). Combos / For Quality ya no tienen parámetros
+         (NO_PARAMS_FORMATS) — la caja de parámetros ni se muestra para ellos. -->
     <div
-      v-else-if="
-        localParams && ['complex', 'combos', 'for_quality'].includes(String(localParams.type))
-      "
+      v-else-if="localParams && localParams.type === 'complex'"
       class="row items-center q-gutter-sm"
     >
       <q-input
@@ -792,9 +779,9 @@ const defaultsMap: Record<string, FormatParamsLocal> = {
 
   // Technical
   complex: { type: 'complex', rounds: 3 },
-  combos: { type: 'combos', rounds: 3 },
-  rom: { type: 'rom', rounds: 3, restSeconds: 30 },
-  for_quality: { type: 'for_quality', rounds: 3 },
+  combos: { type: 'combos' },
+  rom: { type: 'rom', restSeconds: 30 },
+  for_quality: { type: 'for_quality' },
   for_tech: { type: 'for_tech', minutes: 12 },
   tempo_sets: { type: 'tempo_sets', tempo: '3-1-1-0' },
   flow_guiado: { type: 'flow_guiado' },

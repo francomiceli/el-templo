@@ -20,9 +20,68 @@
                 <q-tooltip>Cambiar actividad</q-tooltip>
               </q-btn>
             </div>
-            <div class="text-subtitle2 text-grey-7">
-              {{ headerDayLabel }} {{ headerDateLabel }} · {{ headerStartTime }}
-            </div>
+            <template v-if="!editingTime">
+              <div class="text-subtitle2 text-grey-7 row items-center no-wrap q-gutter-xs">
+                <span>{{ headerDayLabel }} {{ headerDateLabel }} · {{ headerStartTime }}</span>
+                <q-btn
+                  v-if="canEditTime"
+                  flat
+                  dense
+                  round
+                  icon="edit"
+                  size="xs"
+                  color="primary"
+                  @click="startEditTime"
+                >
+                  <q-tooltip>Cambiar hora</q-tooltip>
+                </q-btn>
+              </div>
+            </template>
+            <template v-else>
+              <div class="row items-center no-wrap q-gutter-xs q-mt-xs">
+                <q-input
+                  v-model="editTimeStart"
+                  label="Inicio (HH:MM)"
+                  mask="##:##"
+                  dense
+                  outlined
+                  class="col"
+                />
+                <q-input
+                  v-model="editTimeEnd"
+                  label="Fin (HH:MM)"
+                  mask="##:##"
+                  dense
+                  outlined
+                  class="col"
+                />
+                <q-btn
+                  flat
+                  dense
+                  round
+                  icon="check"
+                  color="positive"
+                  size="sm"
+                  :loading="savingTime"
+                  :disable="!canSaveTime"
+                  @click="saveTimeChange"
+                >
+                  <q-tooltip>Guardar</q-tooltip>
+                </q-btn>
+                <q-btn
+                  flat
+                  dense
+                  round
+                  icon="close"
+                  color="grey-7"
+                  size="sm"
+                  @click="editingTime = false"
+                >
+                  <q-tooltip>Cancelar</q-tooltip>
+                </q-btn>
+              </div>
+              <div class="text-caption text-grey-7 q-mt-xs">Solo si no hay reservas futuras.</div>
+            </template>
           </template>
           <template v-else>
             <div class="row items-center no-wrap q-gutter-xs">
@@ -723,6 +782,15 @@ const selectedActivityId = ref<number | null>(null);
 const availableActivities = ref<ActivityRecord[]>([]);
 const savingActivity = ref(false);
 
+// Time edit (feedback profes 2026-09): Open Gym tenía sede/actividad
+// editables in-place pero no la hora — el único camino era desactivar y
+// crear un horario nuevo. Bloqueado server-side con 409 si hay reservas
+// futuras (SchedulingService.updateScheduleTime).
+const editingTime = ref(false);
+const editTimeStart = ref('');
+const editTimeEnd = ref('');
+const savingTime = ref(false);
+
 // Slot deactivation (closure). Scope 'date' cancels only this occurrence
 // (schedule_exceptions); 'all' deactivates the recurring template.
 const deactivateDialogOpen = ref(false);
@@ -813,6 +881,25 @@ const summaryText = computed(() => {
 });
 
 const canEditActivity = computed(() => !!slotDetail.value);
+
+const canEditTime = computed(() => !!slotDetail.value);
+
+const timeRangeValid = computed(() => {
+  const start = editTimeStart.value;
+  const end = editTimeEnd.value;
+  if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) return false;
+  return end > start;
+});
+
+const timeChanged = computed(() => {
+  if (!slotDetail.value) return false;
+  return (
+    editTimeStart.value !== slotDetail.value.schedule.startTime ||
+    editTimeEnd.value !== slotDetail.value.schedule.endTime
+  );
+});
+
+const canSaveTime = computed(() => timeRangeValid.value && timeChanged.value);
 
 const isSlotInactive = computed(
   () => slotDetail.value !== null && !slotDetail.value.schedule.isActive
@@ -1210,6 +1297,7 @@ async function onRemoveBooking(bookingId: number) {
 // ─── Activity edit ─────────────────────────────────────────────────────────
 
 async function startEditActivity() {
+  editingTime.value = false;
   if (availableActivities.value.length === 0) {
     try {
       availableActivities.value = await schedulingApi.listActivities();
@@ -1244,6 +1332,37 @@ async function saveActivityChange() {
     $q.notify({ type: 'negative', message: 'Error actualizando actividad' });
   } finally {
     savingActivity.value = false;
+  }
+}
+
+// ─── Time edit ──────────────────────────────────────────────────────────────
+
+function startEditTime() {
+  if (!slotDetail.value) return;
+  editingActivity.value = false;
+  editTimeStart.value = slotDetail.value.schedule.startTime;
+  editTimeEnd.value = slotDetail.value.schedule.endTime;
+  editingTime.value = true;
+}
+
+async function saveTimeChange() {
+  if (!slotDetail.value || !canSaveTime.value) return;
+  const scheduleId = slotDetail.value.schedule.id;
+  const startTime = editTimeStart.value;
+  const endTime = editTimeEnd.value;
+  savingTime.value = true;
+  try {
+    await schedulingApi.updateScheduleTime(scheduleId, startTime, endTime);
+    $q.notify({ type: 'positive', message: 'Hora actualizada' });
+    editingTime.value = false;
+    await refreshAll();
+    emit('bookings-changed');
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error cambiando la hora del horario');
+    log.error('Error updating schedule time', { error: message });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    savingTime.value = false;
   }
 }
 

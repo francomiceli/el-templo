@@ -122,10 +122,14 @@ function formatNameWithParams(
     case 'rom':
       return name;
 
-    // Rounds-only formats
-    case 'complex':
+    // Combos / For Quality: sin rondas en la etiqueta aunque el bloque guardado
+    // traiga un `rounds` legado (los profes las sacaron, 2026-09-21).
     case 'combos':
     case 'for_quality':
+      return name;
+
+    // Rounds-only formats
+    case 'complex':
       return p.rounds ? `${name} X${p.rounds}` : name;
 
     // Tabata: las rondas son fijas (8 = 4 min) y el coach no las elige — el

@@ -154,7 +154,7 @@ describe("Combos Generator", () => {
           intensity: 60,
           repsBudget: 100,
           format: options.forcedFormat ?? { formatId: 1, name: "Straight Sets" },
-          formatParams: { type: "combos", rounds: 3 },
+          formatParams: { type: "combos" },
           exercises: [
             {
               exerciseId: idOffset,

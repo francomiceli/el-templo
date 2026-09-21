@@ -301,6 +301,27 @@ export function useSchedulingApi() {
     }
   }
 
+  async function updateScheduleTime(
+    scheduleId: number,
+    startTime: string,
+    endTime: string
+  ): Promise<ScheduleSlot> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<ScheduleSlot>(`/admin/scheduling/schedules/${scheduleId}/time`, {
+        startTime,
+        endTime,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cambiando la hora del horario');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function seedSchedules(branchId: number): Promise<{ created: number }> {
     loading.value = true;
     error.value = null;
@@ -590,6 +611,7 @@ export function useSchedulingApi() {
     previewScheduleDeletion,
     deleteScheduleFromDate,
     updateScheduleActivity,
+    updateScheduleTime,
     seedSchedules,
     getNextAvailableDate,
     adminAddBooking,

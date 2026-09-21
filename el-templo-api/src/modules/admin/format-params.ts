@@ -75,12 +75,16 @@ export type FormatParams =
   | { type: "ub_test" }
 
   // ── ROM (Range of Motion) ────────────────────────────────────────────────
-  | { type: "rom"; rounds: number; restSeconds: number }
+  // ROM: sólo descanso. `rounds` es legado (bloques guardados antes de
+  // 2026-09-21 traen `rounds: 3`); se ignora en editor, título, timer y app.
+  | { type: "rom"; restSeconds: number; rounds?: number }
 
   // ── Technical / Skill-focused ───────────────────────────────────────────
   | { type: "complex"; rounds: number }
-  | { type: "combos"; rounds: number }
-  | { type: "for_quality"; rounds: number }
+  // Combos / For Quality: sin parámetros (pedido de los profes, 2026-09-21).
+  // `rounds` es legado de bloques ya guardados y se ignora en todos lados.
+  | { type: "combos"; rounds?: number }
+  | { type: "for_quality"; rounds?: number }
   | { type: "for_tech"; minutes: number }
   | { type: "tempo_sets"; tempo: string }
   | { type: "flow_guiado" }
@@ -131,7 +135,6 @@ const DEFAULTS = {
   AMRAP_SERIES_ROUNDS: 3,
   EMOM_INTERVAL_SECONDS: 60,
   COMPLEX_ROUNDS: 3,
-  COMBOS_ROUNDS: 3,
   TABATA_WORK_SECONDS: 20,
   TABATA_REST_SECONDS: 10,
   TABATA_ROUNDS: 8,
@@ -159,7 +162,6 @@ const DEFAULTS = {
   BROKEN_LADDER_BREAK_AFTER: 3,
   LADDER_HIGH_INTENSITY_THRESHOLD: 75,
   TIME_CAP_MINUTES: 10,
-  FOR_QUALITY_ROUNDS: 3,
   FOR_TECH_MINUTES: 12,
   TEMPO_DEFAULT: "3-1-1-0",
   RFT_ROUNDS: 5,
@@ -321,15 +323,12 @@ function buildExactMap(
     ub_test: () => ({ type: "ub_test" }),
 
     // ROM
-    rom: () => ({ type: "rom", rounds: 3, restSeconds: 30 }),
+    rom: () => ({ type: "rom", restSeconds: 30 }),
 
     // Technical
     complex: () => ({ type: "complex", rounds: DEFAULTS.COMPLEX_ROUNDS }),
-    combos: () => ({ type: "combos", rounds: DEFAULTS.COMBOS_ROUNDS }),
-    for_quality: () => ({
-      type: "for_quality",
-      rounds: DEFAULTS.FOR_QUALITY_ROUNDS,
-    }),
+    combos: () => ({ type: "combos" }),
+    for_quality: () => ({ type: "for_quality" }),
     for_tech: () => ({
       type: "for_tech",
       minutes: DEFAULTS.FOR_TECH_MINUTES,
@@ -657,10 +656,14 @@ export function formatNameWithParams(
     case "rom":
       return name;
 
-    // Rounds-only formats
-    case "complex":
+    // Combos / For Quality: sin rondas en la etiqueta aunque el bloque guardado
+    // traiga un `rounds` legado (los profes las sacaron, 2026-09-21).
     case "combos":
     case "for_quality":
+      return name;
+
+    // Rounds-only formats
+    case "complex":
       return formatParams.rounds ? `${name} X${formatParams.rounds}` : name;
 
     // Tabata: las rondas son fijas y no se imprimen (ver espejo del PDF).

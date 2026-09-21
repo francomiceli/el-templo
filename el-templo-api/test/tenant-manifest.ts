@@ -679,6 +679,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PATCH /api/admin/scheduling/schedules/:scheduleId/activity": {
     categoria: "tenant-scoped",
   },
+  "PATCH /api/admin/scheduling/schedules/:scheduleId/time": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/admin/scheduling/activities": { categoria: "tenant-scoped" },
   "POST /api/admin/scheduling/bookings": { categoria: "tenant-scoped" },
   "POST /api/admin/scheduling/holidays": { categoria: "tenant-scoped" },

@@ -212,7 +212,7 @@ export async function generateRomSession(
       intensity: ROM_INTENSITY,
       repsBudget: ROM_REPS_BUDGET,
       format: { formatId: 0, name: "ROM" },
-      formatParams: { type: "rom", rounds: 3, restSeconds: ROM_REST_SECONDS },
+      formatParams: { type: "rom", restSeconds: ROM_REST_SECONDS },
       exercises,
       trace: [],
       mobilityExercise: undefined,
