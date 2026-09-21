@@ -38,6 +38,10 @@ export const NO_PARAMS_FORMATS: string[] = [
   // no se configura. I Go You Go: una sola ronda, no se eligen rondas.
   'open_style',
   'i_go_you_go',
+  // Combos / For Quality: los profes sacaron las rondas (2026-09-21); no
+  // queda ningún parámetro configurable.
+  'combos',
+  'for_quality',
 ];
 
 /**
@@ -74,6 +78,8 @@ export const NO_PARAMS_FORMAT_NAMES: string[] = [
   'broken_ladder',
   'open_style',
   'i_go,_you_go',
+  'combos',
+  'for_quality',
 ];
 
 /**
