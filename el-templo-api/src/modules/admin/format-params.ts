@@ -144,7 +144,12 @@ const DEFAULTS = {
   INTERVAL_MEDIUM_REST: 20,
   INTERVAL_LOW_WORK: 45,
   INTERVAL_LOW_REST: 15,
-  INTERVAL_DEFAULT_ROUNDS: 8,
+  // 2 vueltas del circuito, no 8. Desde 2026-08-17 `rounds` en interval/hiit
+  // es "vueltas al circuito completo" (el timer del TV multiplica por la
+  // cantidad de ejercicios): 4 ejercicios x 8 vueltas x 60" son 32 minutos de
+  // entrada en calor. En prod (2026-09-21) Interval Training solo se usa en
+  // INITIUM y el profe corregía a mano a 2 en todas las planis aprobadas.
+  INTERVAL_DEFAULT_ROUNDS: 2,
   CLUSTER_SIZE: 3,
   CLUSTER_REST_SECONDS: 90,
   PYRAMID_STEP: 2,

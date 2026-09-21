@@ -746,9 +746,11 @@ const defaultsMap: Record<string, FormatParamsLocal> = {
   amrap_series: { type: 'amrap_series', minutes: 10, rounds: 3 },
   emom: { type: 'emom', intervalSeconds: 60, totalMinutes: 5 },
   tabata: { type: 'tabata', workSeconds: 20, restSeconds: 10, rounds: 8 },
-  interval: { type: 'interval', workSeconds: 40, restSeconds: 20, rounds: 8 },
-  interval_training: { type: 'interval', workSeconds: 40, restSeconds: 20, rounds: 8 },
-  hiit: { type: 'hiit', workSeconds: 30, restSeconds: 30, rounds: 8 },
+  // rounds = vueltas al circuito completo (el timer del TV multiplica por la
+  // cantidad de ejercicios). 2 espeja INTERVAL_DEFAULT_ROUNDS de la API.
+  interval: { type: 'interval', workSeconds: 40, restSeconds: 20, rounds: 2 },
+  interval_training: { type: 'interval', workSeconds: 40, restSeconds: 20, rounds: 2 },
+  hiit: { type: 'hiit', workSeconds: 30, restSeconds: 30, rounds: 2 },
   time_cap: { type: 'time_cap', minutes: 10 },
   every_x_seconds: { type: 'every_x_seconds', intervalSeconds: 45, totalMinutes: 10 },
   on_the_x: { type: 'on_the_x', intervalSeconds: 120, rounds: 6 },
