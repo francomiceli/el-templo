@@ -954,6 +954,100 @@ export class SchedulingService {
   }
 
   /**
+   * Change the start/end time of a schedule slot (e.g. Open Gym 18:00-19:00
+   * moved to 19:00-20:00). Feedback profes (2026-09): every other field of a
+   * slot could be edited in place except the time — the only option was
+   * deactivate + recreate, which loses the slot's booking history/id.
+   *
+   * Blocked (409) when the slot has FUTURE bookings — "today" resolved in
+   * the branch's timezone, same technique as cancelScheduleDate/toggleSchedule
+   * — in a non-cancelled/no-show state. The member reserved a specific time;
+   * silently moving them isn't safe, so the admin has to cancel the bookings
+   * or fall back to deactivate+recreate. Past bookings are historical and
+   * never block.
+   *
+   * Reuses the same activity-scoped overlap probe as createSchedule/
+   * updateScheduleActivity against the NEW time window, excluding this slot.
+   */
+  async updateScheduleTime(
+    ctx: TenantContext,
+    scheduleId: number,
+    startTime: string,
+    endTime: string,
+  ): Promise<ScheduleSlot> {
+    const existing = await this.getScheduleSlot(ctx, scheduleId);
+    if (!existing) throw new NotFoundError("Horario no encontrado");
+
+    if (endTime <= startTime) {
+      throw new BadRequestError("La hora de fin debe ser posterior al inicio");
+    }
+
+    const overlapping = await this.findOverlappingSchedule(ctx, {
+      branchId: existing.branchId,
+      dayOfWeek: existing.dayOfWeek,
+      activityId: existing.activityId,
+      startTime,
+      endTime,
+      excludeScheduleId: scheduleId,
+    });
+
+    if (overlapping) {
+      throw new ConflictError(
+        `Ya existe un horario de ${existing.activityName} ${overlapping.startTime}-${overlapping.endTime} que se solapa en esta sede y dia`,
+      );
+    }
+
+    const [branch] = await this.db
+      .select({ timezone: schema.branches.timezone })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, existing.branchId),
+        ),
+      );
+    const today = todayInTz(
+      branch?.timezone ?? "America/Argentina/Buenos_Aires",
+    );
+
+    const [futureRow] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.bookings)
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.scheduleId, scheduleId),
+          gte(schema.bookings.bookingDate, today),
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
+        ),
+      );
+    const futureBookings = Number(futureRow?.count ?? 0);
+    if (futureBookings > 0) {
+      const plural = futureBookings === 1 ? "" : "s";
+      throw new ConflictError(
+        `Este horario tiene ${futureBookings} reserva${plural} futura${plural}. ` +
+          `Cancelalas o desactivá el horario y creá uno nuevo.`,
+      );
+    }
+
+    await this.db
+      .update(schema.schedules)
+      .set({ startTime, endTime })
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
+
+    this.log.info({ scheduleId, startTime, endTime }, "Schedule time updated");
+
+    const updated = await this.getScheduleSlot(ctx, scheduleId);
+    if (!updated) throw new Error("Failed to retrieve updated schedule");
+    return updated;
+  }
+
+  /**
    * Delete a schedule slot. Fails if it has confirmed bookings.
    *
    * Fase 174 (D-02, plan 174-04): `ctx` PRIMERO.

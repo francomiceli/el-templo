@@ -287,7 +287,11 @@ import {
 // 2026-09-15: 431 -> 433 por "olvidé mi contraseña" (código de 6 dígitos):
 // `POST /api/auth/forgot-password` + `POST /api/auth/reset-password`, ambas
 // `global` con motivo (mismo lookup pre-scope por email pelado que /login).
-const ENTRADAS_BASELINE = 433;
+// 2026-09-21: 433 -> 434 por "Cambiar hora" de un horario existente
+// (feedback profes: Open Gym tenía sede/actividad editables pero no la
+// hora): `PATCH /api/admin/scheduling/schedules/:scheduleId/time`,
+// `tenant-scoped`.
+const ENTRADAS_BASELINE = 434;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -430,7 +434,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 433 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 434 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

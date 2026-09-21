@@ -4,7 +4,8 @@
       <q-card-section>
         <div class="text-h6">Crear horario</div>
         <div class="text-caption text-grey-7">
-          Para cambiar el horario de un slot existente, desactivalo y crea uno nuevo.
+          Para cambiar la hora de un horario existente, abrilo desde la grilla (solo sin reservas
+          futuras).
         </div>
       </q-card-section>
 

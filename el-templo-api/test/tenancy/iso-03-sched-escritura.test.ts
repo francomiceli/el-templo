@@ -378,6 +378,11 @@ interface FotoDeSchedule {
   active: boolean | null;
   activityId: number | null;
   updatedAt: string | null;
+  // T-feedback-editor (PATCH .../time): startTime/endTime sumados a la foto
+  // para que el caso de aislamiento pueda afirmar "la hora NO cambio" sin
+  // un helper aparte.
+  startTime: string | null;
+  endTime: string | null;
 }
 
 async function fotoDeSchedule(scheduleId: number): Promise<FotoDeSchedule> {
@@ -386,18 +391,29 @@ async function fotoDeSchedule(scheduleId: number): Promise<FotoDeSchedule> {
     is_active: number | null;
     activity_id: number | null;
     updated_at: string | null;
+    start_time: string | null;
+    end_time: string | null;
   }>(
-    sql`SELECT /* tenant-safe: releer la fila (ajena o propia) es la asercion de tampering; filtrarla por gimnasio la volveria tautologica */ tenant_id, is_active, activity_id, updated_at FROM schedules WHERE id = ${scheduleId}`,
+    sql`SELECT /* tenant-safe: releer la fila (ajena o propia) es la asercion de tampering; filtrarla por gimnasio la volveria tautologica */ tenant_id, is_active, activity_id, updated_at, start_time, end_time FROM schedules WHERE id = ${scheduleId}`,
   );
   const f = filas[0];
   if (f === undefined) {
-    return { tenantId: null, active: null, activityId: null, updatedAt: null };
+    return {
+      tenantId: null,
+      active: null,
+      activityId: null,
+      updatedAt: null,
+      startTime: null,
+      endTime: null,
+    };
   }
   return {
     tenantId: f.tenant_id === null ? null : Number(f.tenant_id),
     active: f.is_active === null ? null : Boolean(f.is_active),
     activityId: f.activity_id === null ? null : Number(f.activity_id),
     updatedAt: f.updated_at === null ? null : String(f.updated_at),
+    startTime: f.start_time === null ? null : String(f.start_time),
+    endTime: f.end_time === null ? null : String(f.end_time),
   };
 }
 
@@ -778,6 +794,61 @@ describe("cambiar actividad del horario — PATCH /api/admin/scheduling/schedule
     expect([despues.tenantId, despues.activityId]).toEqual([
       TENANT_DOS,
       gym2.activityId,
+    ]);
+  });
+});
+
+describe("cambiar hora del horario — PATCH /api/admin/scheduling/schedules/:scheduleId/time", () => {
+  const RUTA = "PATCH /api/admin/scheduling/schedules/:scheduleId/time";
+
+  it("aislamiento: un scheduleId de El Templo se rechaza, y su hora NO cambia", async () => {
+    const antes = await fotoDeSchedule(fx.templo.scheduleId);
+    const res = await comoAdminGimnasioDos(
+      "PATCH",
+      `/schedules/${fx.templo.scheduleId}/time`,
+      { startTime: "09:00", endTime: "10:00" },
+    );
+    expect(
+      res.statusCode,
+      porQueImporta(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    const despues = await fotoDeSchedule(fx.templo.scheduleId);
+    expect(despues).toEqual(antes);
+  });
+
+  it("control: cambiar la hora del horario propio SI funciona", async () => {
+    // fx.dos.bookingId nace con bookingDate = hoy+3 (reserva futura, D-01 de
+    // sembrarSubsSchedGimnasioDos) — el guard de "reservas futuras" de ESTA
+    // ruta la bloquearia, y eso no es lo que este caso prueba (aislamiento/
+    // control de escritura). Se cancela antes con un UPDATE directo, mismo
+    // idioma que el resto del archivo con app.db para fixtures.
+    await app.db
+      .update(schema.bookings)
+      .set({ status: "cancelado", cancelledAt: new Date() })
+      .where(
+        and(
+          tenantWhere(schema.bookings, CTX_DOS),
+          eq(schema.bookings.id, fx.dos.bookingId),
+        ),
+      );
+
+    // fx.dos nace 18:00-19:00 (dayOfWeek 4) — mover la ventana una hora no
+    // choca con nada mas sembrado ese dia para ese gimnasio.
+    const res = await comoAdminGimnasioDos(
+      "PATCH",
+      `/schedules/${fx.dos.scheduleId}/time`,
+      { startTime: "19:00", endTime: "20:00" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const despues = await fotoDeSchedule(fx.dos.scheduleId);
+    expect([despues.tenantId, despues.startTime, despues.endTime]).toEqual([
+      TENANT_DOS,
+      "19:00",
+      "20:00",
     ]);
   });
 });

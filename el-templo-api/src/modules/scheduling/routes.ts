@@ -63,6 +63,7 @@ import {
   previewScheduleDeletionSchema,
   deleteScheduleFromDateSchema,
   updateScheduleActivitySchema,
+  updateScheduleTimeSchema,
   seedSchedulesSchema,
   adminAddBookingSchema,
   adminRemoveBookingSchema,
@@ -751,6 +752,13 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
    * roles este guard es un no-op.
    * Un `scheduleId` inexistente NO se corta acá — sigue de largo y el service
    * devuelve su 404 de siempre.
+   *
+   * Extendido para `PATCH /schedules/:scheduleId/time` (feedback profes
+   * 2026-09): esa ruta direcciona el `scheduleId` por PARAMS, no por body
+   * (es un recurso by-id, no una acción con scheduleId como campo del
+   * payload). Body gana si ambos estuvieran presentes (no pasa hoy — ninguna
+   * ruta que usa este guard tiene las dos cosas a la vez), y se prueba
+   * primero para no romper el uso existente de `/trials`.
    */
   const requireScheduleBranchAccess: preHandlerHookHandler = async function (
     request: FastifyRequest,
@@ -758,8 +766,13 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   ) {
     if (!isBranchScopedRole(request.scope.role)) return;
     const body = request.body as { scheduleId?: unknown } | undefined;
+    const params = request.params as { scheduleId?: unknown } | undefined;
     const scheduleId =
-      typeof body?.scheduleId === "number" ? body.scheduleId : null;
+      typeof body?.scheduleId === "number"
+        ? body.scheduleId
+        : typeof params?.scheduleId === "number"
+          ? params.scheduleId
+          : null;
     if (scheduleId === null) return;
 
     const ctx = assertTenant(request.scope, "scheduling.bookTrial.branchGuard");
@@ -797,6 +810,39 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
   };
+
+  // PATCH /schedules/:scheduleId/time — change start/end time of a slot.
+  // Feedback profes (2026-09): Open Gym tenía sede y actividad editables
+  // in-place, pero no la hora — la única salida era desactivar y crear un
+  // horario nuevo. Bloqueado con 409 si tiene reservas futuras (ver
+  // SchedulingService.updateScheduleTime); pasadas no bloquean.
+  fastify.patch<{
+    Params: { scheduleId: number };
+    Body: { startTime: string; endTime: string };
+  }>(
+    "/schedules/:scheduleId/time",
+    {
+      schema: updateScheduleTimeSchema,
+      preHandler: [requireScheduleBranchAccess],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.updateScheduleTime",
+        );
+        const slot = await schedulingService.updateScheduleTime(
+          ctx,
+          request.params.scheduleId,
+          request.body.startTime,
+          request.body.endTime,
+        );
+        return slot;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "update schedule time");
+      }
+    },
+  );
 
   // POST /trials — book an existing prueba user into a slot (Phase 103).
   // Full path: /api/admin/scheduling/trials (inherits plugin prefix + guard).
