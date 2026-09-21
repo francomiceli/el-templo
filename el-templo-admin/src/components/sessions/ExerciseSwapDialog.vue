@@ -262,6 +262,7 @@ import {
   contractionLabel,
   contractionColor,
 } from 'src/utils/contraction-helpers';
+import { filterAndSortByRelevance } from 'src/utils/exercise-search-rank';
 import ExercisePoolItem from './ExercisePoolItem.vue';
 
 interface PoolExerciseWithSource extends PoolExercise {
@@ -380,8 +381,11 @@ const displayedExercises = computed(() => {
   }
 
   if (searchText.value) {
-    const term = searchText.value.toLowerCase();
-    result = result.filter((ex) => ex.exercise.toLowerCase().includes(term));
+    // Ranking de relevancia (prefijo > inicio de palabra > substring,
+    // desempate alfabético) en vez de un `includes` puro: ver
+    // src/utils/exercise-search-rank.ts. Reemplaza el orden por dificultad
+    // de más abajo mientras hay un término de búsqueda activo.
+    return filterAndSortByRelevance(result, searchText.value, (ex) => ex.exercise);
   }
 
   if (props.mobilityMode) {

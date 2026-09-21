@@ -11,12 +11,13 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, like, lte, asc, notInArray } from "drizzle-orm";
+import { eq, and, or, like, lte, asc, notInArray, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { PrescribeService } from "./prescribe-service";
 import { ROUTE_TO_MOBILITY_ROUTES } from "../sessions/pipeline/utils/mobility-routes";
 import { revertToPendingIfApproved, logEdit } from "./session-edit-helpers";
 import { assembleVideoUrl } from "../shared/video-url";
+import { escapeLikeTerm } from "../shared/sql-like";
 import type {
   ExercisePoolParams,
   ExercisePoolItem,
@@ -203,7 +204,23 @@ export class ExerciseSwapService {
   }): Promise<ExercisePoolItem[]> {
     const { query, contraction, excludeExerciseIds = [], limit } = params;
 
-    const conditions = [like(schema.exercises.exercise, `%${query}%`)];
+    // Feedback de profes: buscar "remo" traía primero ejercicios que sólo
+    // contienen esas letras en el medio de otra palabra ("Tapiz rodante"),
+    // porque el orden era puramente alfabético. Normalizamos el término y
+    // escapamos los metacaracteres de LIKE (%, _, \) para que el texto del
+    // usuario se busque literal, nunca como patrón.
+    const term = query.trim();
+    const escapedTerm = escapeLikeTerm(term);
+    const startsWithTerm = `${escapedTerm}%`;
+    const wordStartsWithTerm = `% ${escapedTerm}%`;
+    const containsTerm = `%${escapedTerm}%`;
+
+    const conditions = [
+      or(
+        like(schema.exercises.exercise, containsTerm),
+        like(schema.exercises.exercise2, containsTerm),
+      )!,
+    ];
 
     if (contraction) {
       conditions.push(eq(schema.exercises.effort, contraction.toUpperCase()));
@@ -212,6 +229,18 @@ export class ExerciseSwapService {
     if (excludeExerciseIds.length > 0) {
       conditions.push(notInArray(schema.exercises.id, excludeExerciseIds));
     }
+
+    // Ranking de relevancia, después alfabético como desempate:
+    // 0) el nombre EMPIEZA con el término
+    // 1) alguna PALABRA del nombre empieza con el término
+    // 2) substring en cualquier lado del nombre
+    // 3) sólo matchea en exercise2 (nombre secundario)
+    const relevanceRank = sql<number>`CASE
+      WHEN ${schema.exercises.exercise} LIKE ${startsWithTerm} THEN 0
+      WHEN ${schema.exercises.exercise} LIKE ${wordStartsWithTerm} THEN 1
+      WHEN ${schema.exercises.exercise} LIKE ${containsTerm} THEN 2
+      ELSE 3
+    END`;
 
     const results = await this.db
       .select({
@@ -226,7 +255,7 @@ export class ExerciseSwapService {
       })
       .from(schema.exercises)
       .where(and(...conditions))
-      .orderBy(asc(schema.exercises.exercise))
+      .orderBy(relevanceRank, asc(schema.exercises.exercise))
       .limit(limit);
 
     return results.map((ex) => ({
