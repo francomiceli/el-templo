@@ -261,6 +261,20 @@ describe("getDefaultFormatParams", () => {
     expect((low as { workSeconds: number }).workSeconds).toBe(45);
   });
 
+  it("defaults Interval Training and HIIT to 2 circuit laps (not 8)", () => {
+    // rounds = vueltas al circuito completo (timer TV: rounds x ejercicios).
+    // El profe corregía 8 -> 2 a mano en todas las planis (prod, 2026-09-21).
+    const interval = getDefaultFormatParams(
+      "Interval Training",
+      DEFAULT_CONTEXT,
+    ) as { rounds: number };
+    const hiit = getDefaultFormatParams("HIIT", DEFAULT_CONTEXT) as {
+      rounds: number;
+    };
+    expect(interval.rounds).toBe(2);
+    expect(hiit.rounds).toBe(2);
+  });
+
   it("falls back to standard for unknown format names", () => {
     expect(
       getDefaultFormatParams("Something Unknown", DEFAULT_CONTEXT).type,
