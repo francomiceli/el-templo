@@ -695,6 +695,206 @@ describe("Subscriptions API — Plans CRUD", () => {
   // inherit pricePaid BY DESIGN (Pomilio rule, ~service.ts:3517) — the test
   // documents that inheritance, it does NOT "fix" it.
   // =========================================================================
+  describe("Pase especial — cupo total del pase (fix 2026-09-22)", () => {
+    // Antes el form del admin y assertPlanInvariants trataban `especial` como
+    // online: exigían programa vinculado y no dejaban cargar clases/semana, así
+    // que un especial creado a mano quedaba SIN tope (budget y clases NULL).
+    const especialBase = {
+      ...basePlan,
+      name: "Pase Especial Test",
+      planCategory: "especial",
+      classesPerWeek: undefined,
+      durationDays: 30,
+    };
+
+    async function getPlan(planId: number) {
+      const res = await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/plans/${planId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      return JSON.parse(res.body) as Record<string, unknown>;
+    }
+
+    async function putPlan(planId: number, payload: Record<string, unknown>) {
+      return app.inject({
+        method: "PUT",
+        url: `${SUBSCRIPTIONS_URL}/plans/${planId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload,
+      });
+    }
+
+    it("POST especial sin programa vinculado ni grantsAllPrograms → 201 (no es online)", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: especialBase,
+      });
+      expect(res.statusCode).toBe(201);
+      const created = JSON.parse(res.body);
+      expect(created.planCategory).toBe("especial");
+      expect(created.linkedProgramId).toBeNull();
+      expect(created.grantsAllPrograms).toBe(false);
+      // Defaults del pase: sin tope explícito, pase Externo
+      expect(created.monthlyClassBudget).toBeNull();
+      expect(created.requiresPresencial).toBe(false);
+    });
+
+    it("especial con classesPerWeek: el total del pase deriva semanas × clases al asignar", async () => {
+      // ceil(30/7) * 2 = 10 clases en total
+      const plan = await createPlan(app, adminToken, {
+        ...especialBase,
+        classesPerWeek: 2,
+      });
+      expect(plan.classesPerWeek).toBe(2);
+      expect(plan.monthlyClassBudget).toBeNull();
+
+      const member = await createMember(app);
+      const { statusCode, body } = await assignPlan(
+        app,
+        adminToken,
+        member.id,
+        {
+          planId: plan.id,
+        },
+      );
+      expect(statusCode).toBe(201);
+      expect(body.classesRemaining).toBe(10);
+    });
+
+    it("especial sin classesPerWeek: monthlyClassBudget es el total del pase al asignar", async () => {
+      const plan = await createPlan(app, adminToken, {
+        ...especialBase,
+        monthlyClassBudget: 8,
+      });
+      expect(plan.classesPerWeek).toBeNull();
+      expect(plan.monthlyClassBudget).toBe(8);
+
+      const member = await createMember(app);
+      const { statusCode, body } = await assignPlan(
+        app,
+        adminToken,
+        member.id,
+        {
+          planId: plan.id,
+        },
+      );
+      expect(statusCode).toBe(201);
+      expect(body.classesRemaining).toBe(8);
+    });
+
+    it("POST/PUT persisten requiresPresencial (pase Socio) y se lee por GET", async () => {
+      const plan = await createPlan(app, adminToken, {
+        ...especialBase,
+        monthlyClassBudget: 4,
+        requiresPresencial: true,
+      });
+      expect((await getPlan(plan.id)).requiresPresencial).toBe(true);
+
+      const res = await putPlan(plan.id, { requiresPresencial: false });
+      expect(res.statusCode).toBe(200);
+      expect((await getPlan(plan.id)).requiresPresencial).toBe(false);
+    });
+
+    it("PUT especial: pasar de tope explícito a clases/semana (budget null) y viceversa", async () => {
+      const plan = await createPlan(app, adminToken, {
+        ...especialBase,
+        monthlyClassBudget: 8,
+      });
+
+      let res = await putPlan(plan.id, {
+        classesPerWeek: 3,
+        monthlyClassBudget: null,
+      });
+      expect(res.statusCode).toBe(200);
+      let read = await getPlan(plan.id);
+      expect(read.classesPerWeek).toBe(3);
+      expect(read.monthlyClassBudget).toBeNull();
+
+      res = await putPlan(plan.id, {
+        classesPerWeek: null,
+        monthlyClassBudget: 6,
+      });
+      expect(res.statusCode).toBe(200);
+      read = await getPlan(plan.id);
+      expect(read.classesPerWeek).toBeNull();
+      expect(read.monthlyClassBudget).toBe(6);
+    });
+
+    it("PUT que saca el plan de especial limpia budget y requiresPresencial solo", async () => {
+      const plan = await createPlan(app, adminToken, {
+        ...especialBase,
+        monthlyClassBudget: 8,
+        requiresPresencial: true,
+      });
+
+      const res = await putPlan(plan.id, {
+        planCategory: "presencial",
+        classesPerWeek: 2,
+      });
+      expect(res.statusCode).toBe(200);
+      const read = await getPlan(plan.id);
+      expect(read.planCategory).toBe("presencial");
+      expect(read.monthlyClassBudget).toBeNull();
+      expect(read.requiresPresencial).toBe(false);
+    });
+
+    it("monthlyClassBudget / requiresPresencial fuera de especial → 400", async () => {
+      for (const extra of [
+        { monthlyClassBudget: 8 },
+        { requiresPresencial: true },
+      ]) {
+        const res = await app.inject({
+          method: "POST",
+          url: `${SUBSCRIPTIONS_URL}/plans`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: { ...basePlan, name: "Presencial con budget", ...extra },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body).message).toMatch(
+          /Solo los planes especiales/,
+        );
+      }
+
+      // Y por PUT sobre un presencial existente
+      const plan = await createPlan(app, adminToken, {
+        name: "Presencial PUT",
+      });
+      const res = await putPlan(plan.id, { monthlyClassBudget: 5 });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toMatch(
+        /Solo los planes especiales/,
+      );
+    });
+
+    it("monthlyClassBudget < 1 es rechazado por el schema", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { ...especialBase, monthlyClassBudget: 0 },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("online sin programa sigue siendo 400 (el invariante no se relajó para online)", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          ...basePlan,
+          name: "Online sin programa",
+          planCategory: "online_goal",
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
   describe("PLAN-04 — price update does not rewrite history", () => {
     it("update price: same plan id, historical pricePaid + transactions intact, new assign uses new price, renewal inherits", async () => {
       const plan = await createPlan(app, adminToken, {
