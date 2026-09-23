@@ -23,7 +23,7 @@
 // NO toca los `balances` del socio: cash_transfer/expense/adjustment van con
 // links: [] y applyDelta los ignora (Plan 01 MUST-FIX B / D-07).
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -37,6 +37,7 @@ import {
 import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
 import { RETIROS_COST_CENTER_NAME } from "./withdrawal-service";
+import { assertEfectivoCoversOutflow } from "./efectivo-guard";
 import type {
   MovementDetail,
   RegisterExpenseInput,
@@ -52,27 +53,6 @@ interface CajaRef {
   type: "efectivo" | "banco";
   currency: string;
   branchId: number | null;
-}
-
-/**
- * Guard de saldo para cajas de EFECTIVO: un egreso (gasto, movimiento) no
- * puede superar la plata disponible en el cajon. `available` es el saldo firme
- * derivado (D-08) o el conteo fisico declarado. Las cuentas banco no pasan por
- * aca. Lanza 400 con el monto y el saldo para que el admin vea de cuanto se
- * paso.
- */
-function assertEfectivoCoversOutflow(
-  caja: Pick<CajaRef, "type">,
-  amount: number,
-  available: number,
-  what: string,
-): void {
-  if (caja.type !== "efectivo") return;
-  if (amount > available) {
-    throw new BadRequestError(
-      `${what} de ${amount} supera el saldo de la caja de efectivo (${available}): la caja quedaría en negativo`,
-    );
-  }
 }
 
 export class MovementService {
@@ -501,8 +481,36 @@ export class MovementService {
     if (!reason || reason.trim().length === 0) {
       throw new BadRequestError("Razon de anulacion requerida");
     }
-    await this.txnService.voidPair(ctx, [expenseRowId], voidedBy, { reason });
-    this.log.info({ expenseRowId, voidedBy, reason }, "Expense voided");
+    // 2026-09-23 — un retiro con conteo nace con un ajuste (faltante/sobrante)
+    // linkeado a él (adjustment → retiro). Si se anula el retiro para cargarlo
+    // de nuevo, el ajuste tiene que caer con él: si no, el recuento del
+    // segundo retiro asienta la misma diferencia otra vez. Un egreso común no
+    // tiene ajustes linkeados y esto no encuentra nada.
+    const adjustments = await this.db
+      .select({ id: schema.financialTransactions.id })
+      .from(schema.transactionLinks)
+      .innerJoin(
+        schema.financialTransactions,
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(
+            schema.financialTransactions.id,
+            schema.transactionLinks.transactionId,
+          ),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, ctx),
+          eq(schema.transactionLinks.targetKind, "transaction"),
+          eq(schema.transactionLinks.targetId, expenseRowId),
+          eq(schema.financialTransactions.kind, "adjustment"),
+          isNull(schema.financialTransactions.voidedAt),
+        ),
+      );
+    const ids = [expenseRowId, ...adjustments.map((a) => a.id)];
+    await this.txnService.voidPair(ctx, ids, voidedBy, { reason });
+    this.log.info({ expenseRowId, voidedIds: ids, voidedBy, reason }, "Expense voided");
   }
 
   /** YYYY-MM-DD today (local). Movimientos/egresos nacen con fecha de hoy. */

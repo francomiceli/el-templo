@@ -1241,7 +1241,7 @@ async function registrarRetiroPropio(): Promise<{ id: number; amount: number }> 
   const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
     cajaId: dos.cajaId,
     responsibleName: RESPONSABLE_DOS,
-    transactionIds: [dos.transactionId],
+    amount: IMPORTE_SEMBRADO,
   });
   expect(
     res.statusCode,
@@ -1302,7 +1302,7 @@ describe("alta de retiro — POST /api/admin/finance/withdrawals", () => {
     const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
       cajaId: templo.cajaId,
       responsibleName: RESPONSABLE_DOS,
-      transactionIds: [templo.transactionId],
+      amount: 1,
     });
     expect(
       res.statusCode,
@@ -1315,24 +1315,33 @@ describe("alta de retiro — POST /api/admin/finance/withdrawals", () => {
     ).toEqual([antesDos, antesTemplo]);
   });
 
-  it("aislamiento: desde su propia caja no puede llevarse un cobro de El Templo", async () => {
-    const antesDos = await contarTransaccionesDe(TENANT_DOS);
-    const antesTemplo = await contarTransaccionesDe(TENANT_TEMPLO);
-    const res = await escribirComoGimnasioDos("POST", "/withdrawals", {
-      cajaId: dos.cajaId,
-      responsibleName: RESPONSABLE_DOS,
-      transactionIds: [templo.transactionId],
-    });
+  it("aislamiento: el auto-vinculo de su retiro nunca agarra un cobro de El Templo", async () => {
+    // 2026-09-23 — el retiro en efectivo ya no recibe ids de cobros: vincula
+    // solo los cobros firmes sin retiro de SU caja. El SELECT FOR UPDATE de
+    // withdrawal-service.ts lleva tenantWhere; sin el, un cobro ajeno
+    // imputado (por error de siembra o de datos) a la misma caja podria
+    // quedar "retirado" por el gimnasio 2.
+    const retiro = await registrarRetiroPropio();
+    const vinculos = await app.db
+      .select({ targetId: schema.transactionLinks.targetId })
+      .from(schema.transactionLinks)
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, { tenantId: TENANT_DOS }),
+          eq(schema.transactionLinks.transactionId, retiro.id),
+        ),
+      );
     expect(
-      res.statusCode,
-      `${RUTA} dejo al gimnasio ${TENANT_DOS} vincular el cobro ${templo.transactionId} de El ` +
-        `Templo a un retiro propio. El SELECT FOR UPDATE de withdrawal-service.ts lleva ` +
-        `tenantWhere y el cobro ajeno tiene que NO EXISTIR. Respuesta: ${res.body}`,
-    ).toBe(404);
-    expect(
-      [await contarTransaccionesDe(TENANT_DOS), await contarTransaccionesDe(TENANT_TEMPLO)],
-      `${RUTA} escribio el retiro aunque el cobro no existia: el retiro es todo o nada.`,
-    ).toEqual([antesDos, antesTemplo]);
+      vinculos.map((v) => v.targetId),
+      `${RUTA} vinculo al retiro ${retiro.id} del gimnasio ${TENANT_DOS} el cobro ` +
+        `${templo.transactionId} de El Templo.`,
+    ).not.toContain(templo.transactionId);
+    for (const v of vinculos) {
+      expect(
+        await tenantDeLaFila(app, "financial_transactions", v.targetId),
+        `${RUTA} vinculo al retiro ${retiro.id} un cobro de otro gimnasio.`,
+      ).toBe(TENANT_DOS);
+    }
   });
 
   it("control: SI registra un retiro propio con su cobro, estampado en el gimnasio 2", async () => {

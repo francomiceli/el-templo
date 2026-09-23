@@ -1,35 +1,33 @@
 /**
- * Retiros de caja (feedback caja/cobros 2026-09-07).
+ * Retiros de caja (feedback caja/cobros 2026-09-07, rediseño 2026-09-23).
  *
  * Un retiro es un `expense` con centro de costo "Retiros" + `responsible_name`
- * obligatorio. En una caja EFECTIVO se vincula (transaction_links,
- * targetKind='transaction') a los cobros en efectivo que se llevó y el monto
- * es la suma de esos cobros. En una cuenta BANCO lleva monto explícito.
+ * obligatorio. Desde 2026-09-23 el retiro en EFECTIVO es "una masa de plata":
+ * monto libre con tope en el saldo firme (que ya resta las salidas), conteo
+ * opcional con ajuste por faltante/sobrante, y auto-vínculo a los cobros
+ * firmes sin retiro (procedencia). En una cuenta BANCO lleva monto explícito.
  *
  * Cubre:
- *   - GET /withdrawals/pending: solo cobros de socio en efectivo, firmes
- *     (validados, no anulados), de ESA caja, sin retiro activo; orden por fecha;
- *     total; concepto (nombre del plan por link, o notas); filtro dateTo;
- *     400 en cuenta banco.
- *   - POST /withdrawals (efectivo): 201, monto = Σ cobros, links, cost center
- *     "Retiros", responsable, fecha; los cobros desaparecen de pending; el
- *     Historial de cobros los marca con withdrawalId; el saldo firme baja.
- *   - Validaciones: cobro ya retirado, pendiente de validación, transferencia,
- *     de otra caja, anulado, ids vacíos, amount en efectivo, fecha futura,
- *     fecha del retiro anterior al cobro, responsable vacío (schema).
- *   - Guard de anulación: anular un cobro retirado → 409; anular el retiro
- *     (POST /expenses/:id/void) libera los cobros y entonces sí se anula.
- *   - Banco: amount obligatorio, transactionIds prohibidos, paymentCount 0.
+ *   - GET /withdrawals/pending: listado de cobros sin retiro (filtros, orden,
+ *     concepto, dateTo, corte, sin validar aparte, banco 400) y el `summary`
+ *     del cajón: quedó al último retiro + ingresos − salidas = disponible;
+ *     fondo de cambio y esperado en el cajón.
+ *   - POST /withdrawals (efectivo): monto libre; el caso de Martín (un gasto
+ *     pagado desde la caja baja el tope); retiro parcial y lo que queda;
+ *     auto-vínculo (solo firmes, de la caja, hasta la fecha, desde el corte,
+ *     nunca dos veces); conteo (igual, faltante sin/con nota, sobrante) con
+ *     ajuste + arqueo; fechas; validaciones de forma; RBAC coach 403.
+ *   - Anulación: cobro retirado → 409; anular el retiro libera cobros y anula
+ *     su ajuste.
+ *   - Banco: monto explícito, sin vínculos ni conteo.
  *   - POST /expenses con centro "Retiros" → 400 (los retiros van por acá).
- *   - GET /withdrawals (filtro por caja, incluye anulados), GET /withdrawals/:id
- *     (404 para un egreso que no es retiro), GET /withdrawals/responsibles.
- *   - RBAC: coach → 403 en POST.
+ *   - GET /withdrawals, /withdrawals/:id, /withdrawals/responsibles.
  *
  * Runs against the per-worker test MySQL DB (eltemplo_test_<POOL_ID>).
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql, eq, and, inArray } from "drizzle-orm";
+import { sql, eq, and, inArray, isNull } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -74,6 +72,25 @@ interface PaymentRow {
   amount: number;
   concept: string | null;
 }
+interface FlowRow {
+  id: number;
+  kind: string;
+  direction: "inflow" | "outflow";
+  amount: number;
+  description: string;
+  detail: string | null;
+}
+interface SummaryBody {
+  lastWithdrawal: { id: number; amount: number; responsibleName: string } | null;
+  previousBalance: number;
+  inflows: FlowRow[];
+  inflowTotal: number;
+  outflows: FlowRow[];
+  outflowTotal: number;
+  firmeBalance: number;
+  changeFund: number;
+  expectedInDrawer: number;
+}
 interface PendingBody {
   cashRegisterId: number;
   cashRegisterName: string;
@@ -81,6 +98,7 @@ interface PendingBody {
   rows: PaymentRow[];
   total: number;
   awaitingValidation: { rows: PaymentRow[]; total: number };
+  summary: SummaryBody;
 }
 interface WithdrawalBody {
   id: number;
@@ -189,6 +207,104 @@ async function firmeBalance(id: number): Promise<number> {
     firmeBalance: number;
   }>;
   return rows.find((r) => r.cashRegisterId === id)?.firmeBalance ?? NaN;
+}
+
+/** Gasto pagado desde una caja (la yerba de la administrativa). */
+async function postExpense(
+  amount: number,
+  notes: string,
+  cashRegisterId = cajaId,
+): Promise<number> {
+  const res = await app.inject({
+    method: "POST",
+    url: `${BASE}/expenses`,
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { cajaId: cashRegisterId, amount, costCenterId: variosCostCenterId, notes },
+  });
+  expect(res.statusCode, res.body).toBe(201);
+  return (JSON.parse(res.body) as { expense: { expenseTxId: number } }).expense
+    .expenseTxId;
+}
+
+async function postMovement(
+  origenCajaId: number,
+  destinoCajaId: number,
+  amount: number,
+): Promise<void> {
+  const res = await app.inject({
+    method: "POST",
+    url: `${BASE}/movements`,
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { origenCajaId, destinoCajaId, amount },
+  });
+  expect(res.statusCode, res.body).toBe(201);
+}
+
+async function setChangeFund(amount: number): Promise<void> {
+  await app.db
+    .update(schema.cashRegisters)
+    .set({ changeFund: amount })
+    .where(
+      and(
+        tenantWhere(schema.cashRegisters, TEMPLO_CTX),
+        eq(schema.cashRegisters.id, cajaId),
+      ),
+    );
+}
+
+/** Filas no anuladas de un kind en la caja (ajustes, gastos…). */
+async function liveRowsOfKind(
+  kind: "adjustment" | "expense",
+): Promise<Array<{ id: number; direction: string; amount: number; notes: string | null }>> {
+  return app.db
+    .select({
+      id: schema.financialTransactions.id,
+      direction: schema.financialTransactions.direction,
+      amount: schema.financialTransactions.amount,
+      notes: schema.financialTransactions.notes,
+    })
+    .from(schema.financialTransactions)
+    .where(
+      and(
+        tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+        eq(schema.financialTransactions.cashRegisterId, cajaId),
+        eq(schema.financialTransactions.kind, kind),
+        isNull(schema.financialTransactions.voidedAt),
+      ),
+    );
+}
+
+async function cashCountsOfCaja(): Promise<
+  Array<{ expectedAmount: number; countedAmount: number; difference: number; notes: string | null }>
+> {
+  return app.db
+    .select({
+      expectedAmount: schema.cashCounts.expectedAmount,
+      countedAmount: schema.cashCounts.countedAmount,
+      difference: schema.cashCounts.difference,
+      notes: schema.cashCounts.notes,
+    })
+    .from(schema.cashCounts)
+    .where(
+      and(
+        tenantWhere(schema.cashCounts, TEMPLO_CTX),
+        eq(schema.cashCounts.cashRegisterId, cajaId),
+      ),
+    );
+}
+
+async function linkedPaymentIds(withdrawalId: number): Promise<number[]> {
+  const rows = await app.db
+    .select({ targetId: schema.transactionLinks.targetId })
+    .from(schema.transactionLinks)
+    .where(
+      and(
+        tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+        eq(schema.transactionLinks.transactionId, withdrawalId),
+        eq(schema.transactionLinks.targetKind, "transaction"),
+      ),
+    );
+  return rows.map((r) => r.targetId).sort((a, b) => a - b);
 }
 
 beforeAll(async () => {
@@ -335,6 +451,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await app.db.execute(sql`DELETE FROM cash_counts WHERE tenant_id = ${TENANT_TEMPLO}`);
+  await setChangeFund(0);
   await app.db.execute(
     sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
   );
@@ -358,6 +476,10 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  // Los retiros con conteo dejan arqueos; el fondo de cambio entra en el
+  // esperado. Cada caso arranca con los dos en cero.
+  await app.db.execute(sql`DELETE FROM cash_counts WHERE tenant_id = ${TENANT_TEMPLO}`);
+  await setChangeFund(0);
   await app.db.execute(
     sql`DELETE FROM transaction_links WHERE tenant_id = ${TENANT_TEMPLO}`,
   );
@@ -488,27 +610,138 @@ describe("GET /withdrawals/pending", () => {
   });
 });
 
+describe("GET /withdrawals/pending — summary del cajón (2026-09-23)", () => {
+  it("sin retiro previo: ingresos (cobros + movimiento entrante) − salidas (gasto + movimiento saliente) = disponible; fondo y sin validar aparte", async () => {
+    await setChangeFund(20000);
+    const a = await seedCobro({ amount: 65000, transactionDate: daysAgo(13) });
+    const b = await seedCobro({ amount: 30000, transactionDate: daysAgo(7) });
+    await seedCobro({ amount: 10000, validationStatus: "pendiente" });
+    await seedCobro({ amount: 5000, cashRegisterId: otherCajaId });
+    await postMovement(otherCajaId, cajaId, 5000);
+    const yerba = await postExpense(12000, "Yerba");
+    await postMovement(cajaId, bankCajaId, 8000);
+
+    const { statusCode, body } = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
+    expect(statusCode).toBe(200);
+    const sm = body.summary;
+    expect(sm.lastWithdrawal).toBeNull();
+    expect(sm.inflows.slice(0, 2).map((f) => f.id)).toEqual([a, b]);
+    expect(sm.inflows[0].description).toBe("Suyai Torres");
+    expect(sm.inflows[2].kind).toBe("cash_transfer");
+    expect(sm.inflows[2].description).toMatch(/^Movimiento desde Retiros-Other/);
+    expect(sm.inflowTotal).toBe(100000);
+    expect(sm.outflows).toHaveLength(2);
+    expect(sm.outflows[0]).toMatchObject({
+      id: yerba,
+      kind: "expense",
+      amount: 12000,
+      description: "Varios",
+      detail: "Yerba",
+    });
+    expect(sm.outflows[1].description).toMatch(/^Movimiento a Retiros-Bank/);
+    expect(sm.outflowTotal).toBe(20000);
+    expect(sm.previousBalance).toBe(0);
+    expect(sm.firmeBalance).toBe(80000);
+    expect(sm.firmeBalance).toBe(await firmeBalance(cajaId));
+    expect(sm.changeFund).toBe(20000);
+    // Fondo + firme + sin validar: lo que debería haber físicamente.
+    expect(sm.expectedInDrawer).toBe(110000);
+  });
+
+  it("después de un retiro: 'quedó' = lo que no se llevó; solo cuenta lo posterior; un cobro validado después del retiro entra como ingreso", async () => {
+    await seedCobro({ amount: 100000, transactionDate: daysAgo(5) });
+    await postExpense(10000, "Remís");
+    const late = await seedCobro({
+      amount: 7000,
+      transactionDate: daysAgo(3),
+      validationStatus: "pendiente",
+    });
+    const w = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "Martín Figueras",
+      amount: 60000,
+    });
+    expect(w.statusCode).toBe(201);
+
+    await app.db
+      .update(schema.financialTransactions)
+      .set({ validationStatus: "validado" })
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, TEMPLO_CTX),
+          eq(schema.financialTransactions.id, late),
+        ),
+      );
+    const c = await seedCobro({ amount: 20000, transactionDate: daysAgo(0) });
+    await postExpense(5000, "Viático");
+
+    const sm = (await getPending(adminToken, `?cashRegisterId=${cajaId}`)).body.summary;
+    expect(sm.lastWithdrawal).toMatchObject({
+      id: w.body.withdrawal!.id,
+      amount: 60000,
+      responsibleName: "Martín Figueras",
+    });
+    expect(sm.inflows.map((f) => f.id)).toEqual([late, c]);
+    expect(sm.inflowTotal).toBe(27000);
+    expect(sm.outflows.map((f) => f.detail)).toEqual(["Viático"]);
+    expect(sm.outflowTotal).toBe(5000);
+    expect(sm.previousBalance).toBe(30000);
+    expect(sm.firmeBalance).toBe(52000);
+  });
+});
+
 describe("POST /withdrawals — caja efectivo", () => {
-  it("registra el retiro: monto = Σ cobros elegidos, links, centro Retiros, responsable; los cobros salen de pending y el saldo baja", async () => {
+  it("caso Martín: un gasto pagado desde la caja baja el tope del retiro", async () => {
+    await seedCobro({ amount: 50000, transactionDate: daysAgo(3) });
+    await seedCobro({ amount: 30000, transactionDate: daysAgo(2) });
+    await seedCobro({ amount: 20000, transactionDate: daysAgo(1) });
+    await postExpense(12000, "Yerba");
+
+    const tooMuch = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "Martín Figueras",
+      amount: 100000,
+    });
+    expect(tooMuch.statusCode).toBe(400);
+    expect(tooMuch.body.message).toContain("supera el saldo de la caja de efectivo (88000)");
+    expect(await liveRowsOfKind("expense")).toHaveLength(1); // solo la yerba
+
+    const ok = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "Martín Figueras",
+      amount: 88000,
+    });
+    expect(ok.statusCode).toBe(201);
+    expect(ok.body.withdrawal!.paymentCount).toBe(3);
+    expect(await firmeBalance(cajaId)).toBe(0);
+  });
+
+  it("registra por monto: centro Retiros, responsable, notas; auto-vincula solo cobros firmes de la caja desde el corte; el saldo baja por el monto", async () => {
     const a = await seedCobro({ amount: 65000, transactionDate: daysAgo(13) });
     const b = await seedCobro({ amount: 65000, transactionDate: daysAgo(11) });
-    const c = await seedCobro({ amount: 65000, transactionDate: daysAgo(7) });
-    expect(await firmeBalance(cajaId)).toBe(195000);
+    // Ruido que NO se vincula:
+    await seedCobro({ amount: 1, validationStatus: "pendiente" });
+    await seedCobro({ amount: 2, paymentMethod: "transfer", cashRegisterId: bankCajaId });
+    await seedCobro({ amount: 3, cashRegisterId: otherCajaId });
+    const voided = await seedCobro({ amount: 4 });
+    await voidTx(voided, "transactions");
+    await seedCobro({ amount: 5, transactionDate: "2019-12-31" }); // antes del corte
+    expect(await firmeBalance(cajaId)).toBe(130000);
 
     const { statusCode, body } = await postWithdrawal(adminToken, {
       cajaId,
       responsibleName: "  Matías Mamana ",
-      transactionIds: [a, b, a], // duplicado: se ignora
+      amount: 100000,
       notes: "Retiro semanal",
     });
     expect(statusCode).toBe(201);
     const w = body.withdrawal!;
-    expect(w.amount).toBe(130000);
+    expect(w.amount).toBe(100000);
     expect(w.paymentCount).toBe(2);
     expect(w.responsibleName).toBe("Matías Mamana");
     expect(w.cashRegisterType).toBe("efectivo");
     expect(w.transactionDate).toBe(daysAgo(0));
-    expect(w.payments.map((p) => p.id).sort()).toEqual([a, b].sort());
+    expect(w.payments.map((p) => p.id).sort((x, y) => x - y)).toEqual([a, b].sort((x, y) => x - y));
 
     const [row] = await app.db
       .select({
@@ -528,41 +761,29 @@ describe("POST /withdrawals — caja efectivo", () => {
           eq(schema.financialTransactions.id, w.id),
         ),
       );
-    expect(row.kind).toBe("expense");
-    expect(row.direction).toBe("outflow");
-    expect(row.amount).toBe(130000);
-    expect(row.costCenterId).toBe(retirosCostCenterId);
-    expect(row.responsibleName).toBe("Matías Mamana");
-    expect(row.cashRegisterId).toBe(cajaId);
-    expect(row.validationStatus).toBe("validado");
-    expect(row.notes).toBe("Retiro semanal");
+    expect(row).toMatchObject({
+      kind: "expense",
+      direction: "outflow",
+      amount: 100000,
+      costCenterId: retirosCostCenterId,
+      responsibleName: "Matías Mamana",
+      cashRegisterId: cajaId,
+      validationStatus: "validado",
+      notes: "Retiro semanal",
+    });
+    expect(await linkedPaymentIds(w.id)).toEqual([a, b].sort((x, y) => x - y));
 
-    const links = await app.db
-      .select({
-        targetKind: schema.transactionLinks.targetKind,
-        targetId: schema.transactionLinks.targetId,
-        allocatedAmount: schema.transactionLinks.allocatedAmount,
-      })
-      .from(schema.transactionLinks)
-      .where(
-        and(
-          tenantWhere(schema.transactionLinks, TEMPLO_CTX),
-          eq(schema.transactionLinks.transactionId, w.id),
-        ),
-      );
-    expect(links).toHaveLength(2);
-    expect(links.every((l) => l.targetKind === "transaction")).toBe(true);
-    expect(links.reduce((s, l) => s + l.allocatedAmount, 0)).toBe(130000);
-
-    // Solo queda c pendiente de retiro.
+    // Todo vinculado: no quedan cobros sin retiro; queda el remanente.
     const pending = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
-    expect(pending.body.rows.map((r) => r.id)).toEqual([c]);
-    expect(pending.body.total).toBe(65000);
+    expect(pending.body.rows).toHaveLength(0);
+    expect(pending.body.summary.previousBalance).toBe(30000);
+    expect(pending.body.summary.inflows).toHaveLength(0);
+    expect(await firmeBalance(cajaId)).toBe(30000);
+    // Sin conteo no hay arqueo ni ajuste.
+    expect(await cashCountsOfCaja()).toHaveLength(0);
+    expect(await liveRowsOfKind("adjustment")).toHaveLength(0);
 
-    // Saldo firme: 195000 - 130000.
-    expect(await firmeBalance(cajaId)).toBe(65000);
-
-    // Historial de cobros: a y b marcados, c no.
+    // Historial de cobros: a y b marcados como retirados.
     const list = await app.inject({
       method: "GET",
       url: `${BASE}/transactions?paymentMethod=cash&dateFrom=${daysAgo(30)}&dateTo=${daysAgo(0)}&limit=200`,
@@ -570,162 +791,197 @@ describe("POST /withdrawals — caja efectivo", () => {
     });
     const rows = (
       JSON.parse(list.body) as {
-        rows: Array<{
-          id: number;
-          withdrawalId: number | null;
-          withdrawnAt: string | null;
-        }>;
+        rows: Array<{ id: number; withdrawalId: number | null; withdrawnAt: string | null }>;
       }
     ).rows;
     const byId = new Map(rows.map((r) => [r.id, r]));
     expect(byId.get(a)?.withdrawalId).toBe(w.id);
     expect(byId.get(a)?.withdrawnAt).toBe(daysAgo(0));
     expect(byId.get(b)?.withdrawalId).toBe(w.id);
-    expect(byId.get(c)?.withdrawalId).toBeNull();
-    expect(byId.get(c)?.withdrawnAt).toBeNull();
   });
 
-  it("acepta fecha pasada (retiro histórico) y rechaza fecha futura o anterior a un cobro", async () => {
+  it("retiro parcial: el remanente queda en la caja y un cobro nunca se vincula dos veces", async () => {
+    const a = await seedCobro({ amount: 100 });
+    const w1 = await postWithdrawal(adminToken, { cajaId, responsibleName: "A", amount: 40 });
+    expect(w1.statusCode).toBe(201);
+    expect(await firmeBalance(cajaId)).toBe(60);
+
+    const b = await seedCobro({ amount: 50 });
+    const w2 = await postWithdrawal(adminToken, { cajaId, responsibleName: "B", amount: 110 });
+    expect(w2.statusCode).toBe(201);
+    expect(await linkedPaymentIds(w1.body.withdrawal!.id)).toEqual([a]);
+    expect(await linkedPaymentIds(w2.body.withdrawal!.id)).toEqual([b]);
+    expect(await firmeBalance(cajaId)).toBe(0);
+  });
+
+  it("fecha pasada vincula solo lo cobrado hasta esa fecha; rechaza fecha futura y anterior al corte", async () => {
     const a = await seedCobro({ amount: 100, transactionDate: daysAgo(10) });
+    await seedCobro({ amount: 100, transactionDate: daysAgo(3) });
     const past = await postWithdrawal(adminToken, {
       cajaId,
       responsibleName: "Martín Figueras",
-      transactionIds: [a],
+      amount: 100,
       transactionDate: daysAgo(5),
     });
     expect(past.statusCode).toBe(201);
     expect(past.body.withdrawal!.transactionDate).toBe(daysAgo(5));
+    expect(await linkedPaymentIds(past.body.withdrawal!.id)).toEqual([a]);
 
-    const b = await seedCobro({ amount: 100, transactionDate: daysAgo(3) });
     const future = await postWithdrawal(adminToken, {
       cajaId,
       responsibleName: "Martín Figueras",
-      transactionIds: [b],
+      amount: 10,
       transactionDate: daysAgo(-1),
     });
     expect(future.statusCode).toBe(400);
     expect(future.body.message).toContain("futura");
 
-    const before = await postWithdrawal(adminToken, {
+    const preCutoff = await postWithdrawal(adminToken, {
       cajaId,
       responsibleName: "Martín Figueras",
-      transactionIds: [b],
-      transactionDate: daysAgo(4),
+      amount: 10,
+      transactionDate: "2019-12-31",
     });
-    expect(before.statusCode).toBe(400);
-    expect(before.body.message).toContain("posterior a la fecha del retiro");
+    expect(preCutoff.statusCode).toBe(400);
+    expect(preCutoff.body.message).toContain("anterior al corte");
   });
 
-  it("rechaza cobros no elegibles con un mensaje que nombra el cobro", async () => {
-    const ok = await seedCobro({ amount: 100 });
-    const pendiente = await seedCobro({ amount: 100, validationStatus: "pendiente" });
-    const transfer = await seedCobro({
-      amount: 100,
-      paymentMethod: "transfer",
-      cashRegisterId: bankCajaId,
-    });
-    const otra = await seedCobro({ amount: 100, cashRegisterId: otherCajaId });
-    const voided = await seedCobro({ amount: 100 });
-    await voidTx(voided, "transactions");
-
-    const cases: Array<[number, string]> = [
-      [pendiente, "no está validado"],
-      [transfer, "no es un cobro de socio en efectivo"],
-      [otra, "no está imputado a la caja"],
-      [voided, "anulado"],
-      [999999999, "no existe"],
-    ];
-    for (const [id, fragment] of cases) {
-      const res = await postWithdrawal(adminToken, {
-        cajaId,
-        responsibleName: "X",
-        transactionIds: [ok, id],
-      });
-      expect([400, 404]).toContain(res.statusCode);
-      expect(res.body.message).toContain(fragment);
-    }
-    // Nada quedó registrado: el retiro es todo o nada.
-    const pending = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
-    expect(pending.body.rows.map((r) => r.id)).toEqual([ok]);
-  });
-
-  it("rechaza un cobro anterior al corte de la caja aunque se pida por id", async () => {
-    const ok = await seedCobro({ amount: 100 });
-    const pre = await seedCobro({ amount: 100, transactionDate: "2019-12-31" });
+  it("conteo igual al esperado (fondo + firme + sin validar): sin ajuste, queda el arqueo", async () => {
+    await setChangeFund(20000);
+    await seedCobro({ amount: 50000 });
+    await seedCobro({ amount: 5000, validationStatus: "pendiente" });
     const res = await postWithdrawal(adminToken, {
       cajaId,
-      responsibleName: "X",
-      transactionIds: [ok, pre],
+      responsibleName: "A",
+      amount: 50000,
+      countedAmount: 75000,
+    });
+    expect(res.statusCode).toBe(201);
+    expect(await liveRowsOfKind("adjustment")).toHaveLength(0);
+    const counts = await cashCountsOfCaja();
+    expect(counts).toHaveLength(1);
+    expect(counts[0]).toMatchObject({ expectedAmount: 75000, countedAmount: 75000, difference: 0 });
+    expect(counts[0].notes).toContain(`retiro #${res.body.withdrawal!.id}`);
+    expect(await firmeBalance(cajaId)).toBe(0);
+  });
+
+  it("faltante: sin nota → 400; con nota → ajuste de salida linkeado al retiro, el tope baja a lo contado, queda el arqueo", async () => {
+    await seedCobro({ amount: 50000 });
+
+    const noNote = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "A",
+      amount: 45000,
+      countedAmount: 45000,
+    });
+    expect(noNote.statusCode).toBe(400);
+    expect(noNote.body.message).toContain("difiere de lo esperado en -5000");
+
+    // Con nota pero llevándose más de lo contado: rollback total (ni ajuste
+    // ni arqueo ni retiro).
+    const overCounted = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "A",
+      amount: 50000,
+      countedAmount: 45000,
+      notes: "Faltó cambio",
+    });
+    expect(overCounted.statusCode).toBe(400);
+    expect(overCounted.body.message).toContain("supera el saldo");
+    expect(await liveRowsOfKind("adjustment")).toHaveLength(0);
+    expect(await cashCountsOfCaja()).toHaveLength(0);
+
+    const ok = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "A",
+      amount: 45000,
+      countedAmount: 45000,
+      notes: "Faltó cambio",
+    });
+    expect(ok.statusCode).toBe(201);
+    const w = ok.body.withdrawal!;
+    const adjustments = await liveRowsOfKind("adjustment");
+    expect(adjustments).toHaveLength(1);
+    expect(adjustments[0]).toMatchObject({ direction: "outflow", amount: 5000 });
+    expect(adjustments[0].notes).toContain("Faltante al retirar");
+    expect(adjustments[0].notes).toContain("Faltó cambio");
+    // El ajuste nace antes que el retiro y cuelga de él.
+    expect(adjustments[0].id).toBeLessThan(w.id);
+    const [link] = await app.db
+      .select({ targetId: schema.transactionLinks.targetId })
+      .from(schema.transactionLinks)
+      .where(
+        and(
+          tenantWhere(schema.transactionLinks, TEMPLO_CTX),
+          eq(schema.transactionLinks.transactionId, adjustments[0].id),
+        ),
+      );
+    expect(link.targetId).toBe(w.id);
+    // El ajuste no es un "cobro vinculado".
+    expect(w.paymentCount).toBe(1);
+    expect(await firmeBalance(cajaId)).toBe(0);
+    const counts = await cashCountsOfCaja();
+    expect(counts).toHaveLength(1);
+    expect(counts[0]).toMatchObject({ expectedAmount: 50000, countedAmount: 45000, difference: -5000 });
+
+    // El próximo resumen arranca de cero: el ajuste es de este retiro.
+    const sm = (await getPending(adminToken, `?cashRegisterId=${cajaId}`)).body.summary;
+    expect(sm.outflows).toHaveLength(0);
+    expect(sm.previousBalance).toBe(0);
+  });
+
+  it("sobrante: ajuste de entrada y se puede retirar lo contado", async () => {
+    await seedCobro({ amount: 50000 });
+    const res = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "A",
+      amount: 52000,
+      countedAmount: 52000,
+      notes: "Propina que dejaron",
+    });
+    expect(res.statusCode).toBe(201);
+    const adjustments = await liveRowsOfKind("adjustment");
+    expect(adjustments).toHaveLength(1);
+    expect(adjustments[0]).toMatchObject({ direction: "inflow", amount: 2000 });
+    expect(adjustments[0].notes).toContain("Sobrante al retirar");
+    expect(await firmeBalance(cajaId)).toBe(0);
+  });
+
+  it("el conteo solo va en un retiro de hoy", async () => {
+    await seedCobro({ amount: 100, transactionDate: daysAgo(5) });
+    const res = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "A",
+      amount: 100,
+      countedAmount: 100,
+      transactionDate: daysAgo(2),
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.message).toContain(`El cobro #${pre} es anterior al corte de la caja`);
-    // Todo o nada: el cobro valido sigue pendiente y nada quedo registrado.
-    const pending = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
-    expect(pending.body.rows.map((r) => r.id)).toEqual([ok]);
-    const list = await app.inject({
-      method: "GET",
-      url: `${BASE}/withdrawals`,
-      headers: { authorization: `Bearer ${adminToken}` },
-    });
-    expect((JSON.parse(list.body) as { rows: unknown[] }).rows).toHaveLength(0);
+    expect(res.body.message).toContain("retiro de hoy");
   });
 
-  it("un cobro ya retirado no se retira dos veces", async () => {
-    const a = await seedCobro({ amount: 100 });
-    const first = await postWithdrawal(adminToken, {
-      cajaId,
-      responsibleName: "A",
-      transactionIds: [a],
-    });
-    expect(first.statusCode).toBe(201);
-    const second = await postWithdrawal(adminToken, {
-      cajaId,
-      responsibleName: "B",
-      transactionIds: [a],
-    });
-    expect(second.statusCode).toBe(400);
-    expect(second.body.message).toContain(`ya fue retirado (retiro #${first.body.withdrawal!.id})`);
-  });
-
-  it("validaciones de forma: ids vacíos, amount en efectivo, responsable vacío", async () => {
-    const a = await seedCobro({ amount: 100 });
-    const empty = await postWithdrawal(adminToken, {
-      cajaId,
-      responsibleName: "A",
-      transactionIds: [],
-    });
-    expect(empty.statusCode).toBe(400);
-    expect(empty.body.message).toContain("al menos un cobro");
-
-    const withAmount = await postWithdrawal(adminToken, {
-      cajaId,
-      responsibleName: "A",
-      transactionIds: [a],
-      amount: 100,
-    });
-    expect(withAmount.statusCode).toBe(400);
-    expect(withAmount.body.message).toContain("suma de los cobros");
-
-    const blank = await postWithdrawal(adminToken, {
-      cajaId,
-      responsibleName: "   ",
-      transactionIds: [a],
-    });
-    expect(blank.statusCode).toBe(400);
-
-    const missing = await postWithdrawal(adminToken, {
-      cajaId,
-      transactionIds: [a],
-    });
-    expect(missing.statusCode).toBe(400);
+  it("validaciones de forma: sin monto, monto 0, responsable vacío o ausente", async () => {
+    await seedCobro({ amount: 100 });
+    const cases: Array<Record<string, unknown>> = [
+      { cajaId, responsibleName: "A" },
+      { cajaId, responsibleName: "A", amount: 0 },
+      { cajaId, responsibleName: "   ", amount: 10 },
+      { cajaId, amount: 10 },
+      { cajaId, responsibleName: "A", amount: 10, countedAmount: -1 },
+    ];
+    for (const payload of cases) {
+      const res = await postWithdrawal(adminToken, payload);
+      expect(res.statusCode, JSON.stringify(payload)).toBe(400);
+    }
+    expect(await firmeBalance(cajaId)).toBe(100);
   });
 
   it("coach → 403", async () => {
-    const a = await seedCobro({ amount: 100 });
+    await seedCobro({ amount: 100 });
     const res = await postWithdrawal(coachToken, {
       cajaId,
       responsibleName: "A",
-      transactionIds: [a],
+      amount: 100,
     });
     expect(res.statusCode).toBe(403);
   });
@@ -736,11 +992,7 @@ describe("anulación y retiros", () => {
     const a = await seedCobro({ amount: 100 });
     const b = await seedCobro({ amount: 200 });
     const w = (
-      await postWithdrawal(adminToken, {
-        cajaId,
-        responsibleName: "A",
-        transactionIds: [a, b],
-      })
+      await postWithdrawal(adminToken, { cajaId, responsibleName: "A", amount: 300 })
     ).body.withdrawal!;
 
     const blocked = await voidTx(a, "transactions");
@@ -750,15 +1002,15 @@ describe("anulación y retiros", () => {
     const voidW = await voidTx(w.id, "expenses");
     expect(voidW.statusCode).toBe(200);
 
-    // El retiro anulado libera los cobros: vuelven a pending y el saldo vuelve.
     const pending = await getPending(adminToken, `?cashRegisterId=${cajaId}`);
-    expect(pending.body.rows.map((r) => r.id).sort()).toEqual([a, b].sort());
+    expect(pending.body.rows.map((r) => r.id).sort((x, y) => x - y)).toEqual(
+      [a, b].sort((x, y) => x - y),
+    );
     expect(await firmeBalance(cajaId)).toBe(300);
 
     const nowOk = await voidTx(a, "transactions");
     expect(nowOk.statusCode).toBe(200);
 
-    // El retiro anulado sigue en el historial, marcado.
     const list = await app.inject({
       method: "GET",
       url: `${BASE}/withdrawals?cashRegisterId=${cajaId}`,
@@ -771,18 +1023,45 @@ describe("anulación y retiros", () => {
     expect(rows[0].paymentCount).toBe(2);
   });
 
-  it("los cobros de un retiro anulado se pueden volver a retirar", async () => {
+  it("anular un retiro con faltante anula también su ajuste (recargarlo no duplica la diferencia)", async () => {
+    await seedCobro({ amount: 1000 });
+    const w = (
+      await postWithdrawal(adminToken, {
+        cajaId,
+        responsibleName: "A",
+        amount: 900,
+        countedAmount: 900,
+        notes: "Faltan 100",
+      })
+    ).body.withdrawal!;
+    expect(await liveRowsOfKind("adjustment")).toHaveLength(1);
+
+    expect((await voidTx(w.id, "expenses")).statusCode).toBe(200);
+    expect(await liveRowsOfKind("adjustment")).toHaveLength(0);
+    expect(await firmeBalance(cajaId)).toBe(1000);
+
+    // Recargado: la misma diferencia, una sola vez.
+    const again = await postWithdrawal(adminToken, {
+      cajaId,
+      responsibleName: "A",
+      amount: 900,
+      countedAmount: 900,
+      notes: "Faltan 100",
+    });
+    expect(again.statusCode).toBe(201);
+    expect(await liveRowsOfKind("adjustment")).toHaveLength(1);
+    expect(await firmeBalance(cajaId)).toBe(0);
+  });
+
+  it("los cobros de un retiro anulado se vuelven a vincular en el siguiente", async () => {
     const a = await seedCobro({ amount: 100 });
     const w1 = (
-      await postWithdrawal(adminToken, { cajaId, responsibleName: "A", transactionIds: [a] })
+      await postWithdrawal(adminToken, { cajaId, responsibleName: "A", amount: 100 })
     ).body.withdrawal!;
     await voidTx(w1.id, "expenses");
-    const w2 = await postWithdrawal(adminToken, {
-      cajaId,
-      responsibleName: "B",
-      transactionIds: [a],
-    });
+    const w2 = await postWithdrawal(adminToken, { cajaId, responsibleName: "B", amount: 100 });
     expect(w2.statusCode).toBe(201);
+    expect(await linkedPaymentIds(w2.body.withdrawal!.id)).toEqual([a]);
   });
 });
 
@@ -806,21 +1085,20 @@ describe("POST /withdrawals — cuenta banco", () => {
     expect(await firmeBalance(bankCajaId)).toBe(200);
   });
 
-  it("sin amount → 400; con transactionIds → 400", async () => {
+  it("sin amount → 400; con conteo → 400", async () => {
     const noAmount = await postWithdrawal(adminToken, {
       cajaId: bankCajaId,
       responsibleName: "A",
     });
     expect(noAmount.statusCode).toBe(400);
-    expect(noAmount.body.message).toContain("monto");
-    const withIds = await postWithdrawal(adminToken, {
+    const counted = await postWithdrawal(adminToken, {
       cajaId: bankCajaId,
       responsibleName: "A",
       amount: 100,
-      transactionIds: [1],
+      countedAmount: 100,
     });
-    expect(withIds.statusCode).toBe(400);
-    expect(withIds.body.message).toContain("no se vincula a cobros");
+    expect(counted.statusCode).toBe(400);
+    expect(counted.body.message).toContain("no se cuenta");
   });
 });
 
@@ -872,7 +1150,7 @@ describe("GET /withdrawals, /withdrawals/:id, /withdrawals/responsibles", () => 
       await postWithdrawal(adminToken, {
         cajaId,
         responsibleName: "Candela Daibes",
-        transactionIds: [a],
+        amount: 100,
       })
     ).body.withdrawal!;
     await postWithdrawal(adminToken, {

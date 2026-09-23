@@ -831,6 +831,46 @@ export interface PendingWithdrawalResult {
   total: number;
   /** En el cajón pero sin validar por gestión: no se puede retirar todavía. */
   awaitingValidation: { rows: WithdrawalPaymentItem[]; total: number };
+  /** Cuenta del cajón desde el último retiro (siempre a hoy). */
+  summary: WithdrawalSummary;
+}
+
+/** Fila de la caja entre el último retiro y ahora (cobro, gasto, movimiento, ajuste). */
+export interface WithdrawalFlowItem {
+  id: number;
+  transactionDate: string;
+  kind: TransactionKind;
+  direction: 'inflow' | 'outflow';
+  amount: number;
+  /** Socio del cobro, categoría del gasto, caja del movimiento… */
+  description: string;
+  /** Plan del cobro o notas. */
+  detail: string | null;
+  recorderName: string;
+  createdAt: string;
+}
+
+/**
+ * previousBalance + inflowTotal − outflowTotal = firmeBalance (disponible).
+ * Mirror de el-templo-api/src/modules/finance/types.ts.
+ */
+export interface WithdrawalSummary {
+  lastWithdrawal: {
+    id: number;
+    transactionDate: string;
+    amount: number;
+    responsibleName: string;
+    createdAt: string;
+  } | null;
+  previousBalance: number;
+  inflows: WithdrawalFlowItem[];
+  inflowTotal: number;
+  outflows: WithdrawalFlowItem[];
+  outflowTotal: number;
+  firmeBalance: number;
+  changeFund: number;
+  /** Fondo + firme + sin validar: lo que debería haber físicamente. */
+  expectedInDrawer: number;
 }
 
 export interface WithdrawalListItem {
@@ -872,10 +912,10 @@ export interface RegisterWithdrawalInput {
   responsibleName: string;
   transactionDate?: string;
   notes?: string | null;
-  /** Caja efectivo: cobros que se retiran (el monto se deriva). */
-  transactionIds?: number[];
-  /** Cuenta banco: monto explícito. */
-  amount?: number;
+  /** Lo que se lleva. Efectivo: tope en el disponible (saldo firme). */
+  amount: number;
+  /** Solo efectivo y retiro de hoy: plata contada en el cajón. */
+  countedAmount?: number;
 }
 
 // -- Ingresos por sede y medio de pago (pestaña Saldos) ---------------------
