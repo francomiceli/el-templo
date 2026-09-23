@@ -136,11 +136,13 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     transactionService,
     cashRegisterService,
   );
-  // Retiros (2026-09-07): egreso "Retiros" con responsable + cobros vinculados.
+  // Retiros (2026-09-07, masa de plata 2026-09-23): egreso "Retiros" con
+  // responsable, tope en el saldo firme, conteo opcional + cobros vinculados.
   const withdrawalService = new WithdrawalService(
     fastify.db,
     fastify.log,
     transactionService,
+    cashRegisterService,
   );
   // Arqueos (2026-09-08): conteo físico vs esperado, no toca el ledger.
   const cashCountService = new CashCountService(
@@ -950,8 +952,8 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             responsibleName: request.body.responsibleName,
             transactionDate: request.body.transactionDate,
             notes: request.body.notes ?? null,
-            transactionIds: request.body.transactionIds,
             amount: request.body.amount,
+            countedAmount: request.body.countedAmount,
           },
           request.user.userId,
         );

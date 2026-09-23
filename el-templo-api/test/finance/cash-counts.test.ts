@@ -259,13 +259,13 @@ describe("GET /coach-load/caja-expected", () => {
   });
 
   it("un retiro baja el esperado (la plata salió del cajón)", async () => {
-    const a = await seedCobro({ amount: 65000 });
+    await seedCobro({ amount: 65000 });
     await seedCobro({ amount: 65000 });
     const w = await app.inject({
       method: "POST",
       url: `${FIN}/withdrawals`,
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { cajaId, responsibleName: "Martín", transactionIds: [a] },
+      payload: { cajaId, responsibleName: "Martín", amount: 65000 },
     });
     expect(w.statusCode).toBe(201);
     const e = await expected();

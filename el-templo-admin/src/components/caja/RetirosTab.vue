@@ -6,8 +6,9 @@
         <q-icon name="info" color="primary" />
       </template>
       Un <strong>retiro</strong> es la plata que alguien se lleva de una caja. En efectivo se
-      eligen los cobros que se retiran (el monto es la suma) y siempre queda registrado
-      <strong>quién</strong> se la llevó. Lo que no se retiró es lo que debería haber en el cajón.
+      parte de lo que quedó en el último retiro, se suma lo que entró y se resta lo que salió
+      (gastos, movimientos): eso es lo disponible. Siempre queda registrado
+      <strong>quién</strong> se la llevó.
     </q-banner>
 
     <div class="row items-center q-col-gutter-md q-mb-md">
@@ -44,64 +45,23 @@
       </div>
     </div>
 
-    <!-- ====================== En caja, pendiente de retiro ====================== -->
+    <!-- ====================== En caja: desde el último retiro ====================== -->
     <q-card v-if="selectedCaja && selectedCaja.type === 'efectivo'" flat bordered class="q-mb-lg">
-      <q-card-section class="row items-center">
-        <div class="col">
-          <div class="text-subtitle2 text-grey-7">En caja, pendiente de retiro</div>
-          <div v-if="loadingPending" class="q-mt-xs">
-            <q-skeleton type="text" width="140px" />
-          </div>
-          <div v-else class="text-h5 text-weight-bold q-mt-xs">
-            {{ formatPrice(pending?.total ?? 0, selectedCaja.currency) }}
-          </div>
-          <div v-if="!loadingPending" class="text-caption text-grey-7">
-            {{ pending?.rows.length ?? 0 }} cobros en efectivo validados sin retirar
-            <span v-if="oldestPending"> · el más viejo del {{ formatDate(oldestPending) }}</span>
-          </div>
-          <!-- Lo que está en el cajón pero gestión no validó: el cierre del profe lo cuenta, acá no se retira -->
-          <div
-            v-if="!loadingPending && awaitingValidation.rows.length > 0"
-            class="text-caption text-warning q-mt-xs"
-          >
-            <q-icon name="hourglass_top" size="14px" class="q-mr-xs" />
-            Además hay {{ awaitingValidation.rows.length }}
-            {{ awaitingValidation.rows.length === 1 ? 'cobro' : 'cobros' }} sin validar todavía por
-            {{ formatPrice(awaitingValidation.total, selectedCaja.currency) }}: el cierre del profe los
-            cuenta, pero no se pueden retirar hasta validarlos.
-            <a href="#" class="text-primary" @click.prevent="goToPendientes">Ir a Pendientes</a>
-          </div>
+      <q-card-section>
+        <div class="text-subtitle2 text-grey-7 q-mb-xs">En caja, desde el último retiro</div>
+        <div v-if="loadingPending">
+          <q-skeleton type="text" width="60%" />
+          <q-skeleton type="text" width="40%" />
         </div>
-        <q-btn
-          v-if="(pending?.rows.length ?? 0) > 0"
-          flat
-          dense
-          no-caps
-          color="primary"
-          :icon="showPendingRows ? 'expand_less' : 'expand_more'"
-          :label="showPendingRows ? 'Ocultar cobros' : 'Ver cobros'"
-          @click="showPendingRows = !showPendingRows"
+        <CajaResumenRetiro
+          v-else-if="pending"
+          :summary="pending.summary"
+          :awaiting-validation="pending.awaitingValidation"
+          :currency="selectedCaja.currency"
+          show-pendientes-link
+          @go-pendientes="goToPendientes"
         />
       </q-card-section>
-      <q-slide-transition>
-        <div v-show="showPendingRows && (pending?.rows.length ?? 0) > 0">
-          <q-separator />
-          <q-table
-            :rows="pending?.rows ?? []"
-            :columns="pendingColumns"
-            row-key="id"
-            flat
-            dense
-            :pagination="{ rowsPerPage: 10 }"
-          >
-            <template #body-cell-monto="cellProps">
-              <q-td :props="cellProps" class="text-weight-medium">
-                {{ formatPrice(cellProps.row.amount, cellProps.row.currency) }}
-              </q-td>
-            </template>
-          </q-table>
-        </div>
-      </q-slide-transition>
     </q-card>
 
     <!-- ============================ Arqueos ============================ -->
@@ -257,7 +217,7 @@
               color="negative"
               @click="confirmVoid(cellProps.row)"
             >
-              <q-tooltip>Anular retiro (libera sus cobros)</q-tooltip>
+              <q-tooltip>Anular retiro (la plata vuelve a la caja)</q-tooltip>
             </q-btn>
           </div>
         </q-td>
@@ -351,6 +311,7 @@ import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import DateRangeFilter from 'src/components/caja/DateRangeFilter.vue';
 import RegistrarRetiroDialog from 'src/components/caja/RegistrarRetiroDialog.vue';
 import CerrarCajaDialog from 'src/components/caja/CerrarCajaDialog.vue';
+import CajaResumenRetiro from 'src/components/caja/CajaResumenRetiro.vue';
 import { currentMonthRange, type DateRangeValue } from 'src/utils/date-range';
 import type {
   CajaSaldoRow,
@@ -363,10 +324,10 @@ import type {
 } from 'src/types/transaction';
 
 // =========================================================================
-// Pestaña Retiros (feedback caja/cobros 2026-09-07). Por caja: lo que está
-// en el cajón pendiente de retiro (el "hay 3 pagos de 65.000 desde el 25/8"
-// del Excel de Martín), el botón para registrar el retiro eligiendo cobros, y
-// el historial de retiros con responsable, cobros vinculados y anulación.
+// Pestaña Retiros (feedback caja/cobros 2026-09-07, rediseño 2026-09-23). Por
+// caja: la cuenta del cajón desde el último retiro (CajaResumenRetiro), el
+// botón para registrar el retiro (monto, con conteo opcional), y el historial
+// de retiros con responsable, cobros vinculados y anulación.
 // =========================================================================
 
 const props = defineProps<{
@@ -422,7 +383,6 @@ async function loadCajas() {
 // ---------------------------------------------------------------- pendiente de retiro
 const pending = ref<PendingWithdrawalResult | null>(null);
 const loadingPending = ref(false);
-const showPendingRows = ref(false);
 
 const pendingColumns: QTableColumn<WithdrawalPaymentItem>[] = [
   { name: 'fecha', label: 'Fecha', field: 'transactionDate', align: 'left', sortable: true },
@@ -433,13 +393,6 @@ const pendingColumns: QTableColumn<WithdrawalPaymentItem>[] = [
   { name: 'monto', label: 'Monto', field: 'amount', align: 'right' },
 ];
 
-const oldestPending = computed(() => pending.value?.rows[0]?.transactionDate ?? null);
-// 2026-09-09: el arqueo del profe cuenta los cobros sin validar (la plata está
-// en el cajón) pero acá no se retiran hasta que gestión los valide. Si no se
-// avisa, quien retira ve menos que el último cierre y lo reporta como bug.
-const awaitingValidation = computed(
-  () => pending.value?.awaitingValidation ?? { rows: [], total: 0 }
-);
 const router = useRouter();
 function goToPendientes() {
   void router.push({ query: { tab: CAJA_TABS.pendientes } });
@@ -580,7 +533,6 @@ function onDateRangeChange(value: DateRangeValue) {
 
 function onCajaChange() {
   pagination.value.page = 1;
-  showPendingRows.value = false;
   void Promise.all([loadPending(), loadWithdrawals(), loadCounts()]);
 }
 
@@ -614,7 +566,7 @@ async function openDetail(row: WithdrawalListItem) {
 function confirmVoid(row: WithdrawalListItem) {
   $q.dialog({
     title: `Anular retiro #${row.id}`,
-    message: `${formatPrice(row.amount, row.currency)} · ${row.responsibleName}. Los cobros vinculados vuelven a quedar "en caja". Indicá el motivo:`,
+    message: `${formatPrice(row.amount, row.currency)} · ${row.responsibleName}. La plata vuelve a figurar en la caja (y si el retiro asentó un faltante o sobrante, ese ajuste también se anula). Indicá el motivo:`,
     prompt: { model: '', type: 'text', isValid: (v: string) => v.trim().length > 0 },
     cancel: true,
     persistent: true,

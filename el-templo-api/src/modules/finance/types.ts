@@ -694,12 +694,12 @@ export interface CashRegisterBalance {
   pendienteAmount: number; // Σ pendientes desde cutoff, SEPARADO (CAJA-03)
 }
 
-// -- Retiros de caja (feedback 2026-09-07) ---------------------------------
+// -- Retiros de caja (feedback 2026-09-07, rediseño 2026-09-23) -------------
 // Un retiro es un `expense` con centro de costo "Retiros" + responsable
-// obligatorio. En una caja de efectivo, además, se vincula (transaction_links
-// targetKind='transaction') a los cobros en efectivo que se llevó: el monto
-// del retiro es la suma de esos cobros, y un cobro con un retiro activo no
-// se puede anular ni volver a retirar. Ver withdrawal-service.ts.
+// obligatorio. En efectivo lleva monto libre con tope en el saldo firme,
+// conteo opcional (ajuste por faltante/sobrante) y se auto-vincula a los
+// cobros firmes sin retiro (procedencia: un cobro retirado no se anula ni se
+// vuelve a retirar). Ver withdrawal-service.ts.
 
 export interface RegisterWithdrawalInput {
   cajaId: number;
@@ -707,14 +707,65 @@ export interface RegisterWithdrawalInput {
   responsibleName: string;
   /** YYYY-MM-DD. Default hoy. Nunca futura. */
   transactionDate?: string;
+  /** Obligatoria (en efectivo) si el conteo difiere del esperado. */
   notes?: string | null;
   /**
-   * Caja EFECTIVO: ids de los cobros en efectivo (validados, no anulados, no
-   * retirados) que se retiran. Obligatorio y no vacío. El monto se deriva.
+   * Monto que se lleva. Efectivo: tope en el saldo firme (después del ajuste
+   * por conteo, si lo hubo). Banco: libre.
    */
-  transactionIds?: number[];
-  /** Caja BANCO: monto explícito del retiro. Prohibido para efectivo. */
-  amount?: number;
+  amount: number;
+  /**
+   * Solo EFECTIVO y retiros de HOY: la plata contada en el cajón antes de
+   * retirar (incluye fondo de cambio y cobros sin validar). Si difiere del
+   * esperado se asienta un ajuste y queda un arqueo en `cash_counts`.
+   */
+  countedAmount?: number;
+}
+
+/**
+ * Una fila de la caja entre el último retiro y ahora: cobros, gastos,
+ * movimientos entre cajas, ajustes. Solo plata firme.
+ */
+export interface WithdrawalFlowItem {
+  id: number;
+  transactionDate: string; // YYYY-MM-DD
+  kind: TransactionKind;
+  direction: "inflow" | "outflow";
+  amount: number;
+  /** Socio del cobro, centro de costo del gasto, caja del movimiento… */
+  description: string;
+  /** Plan del cobro o notas de la fila. */
+  detail: string | null;
+  recorderName: string;
+  createdAt: string; // ISO
+}
+
+/**
+ * La cuenta que hace quien abre el cajón para retirar (2026-09-23):
+ * previousBalance + inflowTotal − outflowTotal = firmeBalance (el
+ * disponible). previousBalance es DERIVADO de esa igualdad, así los números
+ * cierran siempre.
+ */
+export interface WithdrawalSummary {
+  lastWithdrawal: {
+    id: number;
+    transactionDate: string;
+    amount: number;
+    responsibleName: string;
+    createdAt: string;
+  } | null;
+  /** Lo que quedó en la caja al último retiro (o el saldo inicial). */
+  previousBalance: number;
+  inflows: WithdrawalFlowItem[];
+  inflowTotal: number;
+  outflows: WithdrawalFlowItem[];
+  outflowTotal: number;
+  /** Disponible para retirar = saldo firme de la caja. */
+  firmeBalance: number;
+  /** Queda siempre en el cajón; no es parte del saldo. */
+  changeFund: number;
+  /** Lo que debería haber físicamente: fondo + firme + sin validar. */
+  expectedInDrawer: number;
 }
 
 /** Un cobro en efectivo elegible para retiro (o ya incluido en uno). */
@@ -751,6 +802,8 @@ export interface PendingWithdrawalResult {
     /** Σ amount de rows. */
     total: number;
   };
+  /** Cuenta del cajón desde el último retiro (independiente de dateTo). */
+  summary: WithdrawalSummary;
 }
 
 export interface WithdrawalListFilters {

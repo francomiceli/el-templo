@@ -3,19 +3,32 @@
 // Un retiro es la plata que alguien (el dueño, o quien retira por su cuenta)
 // se lleva de una caja. Contablemente sigue siendo un `expense` con el centro
 // de costo "Retiros" (así lo quiso Martín: "los retiros son una categoría
-// dentro de egresos, lo veo ok"), pero con dos cosas que un egreso común no
-// tiene:
+// dentro de egresos, lo veo ok"), con `responsible_name` obligatorio — quién
+// se llevó la plata.
 //
-//   1. `responsible_name` obligatorio — quién se llevó la plata.
-//   2. En una caja de EFECTIVO, vínculos (transaction_links, targetKind
-//      'transaction') a los cobros en efectivo que se retiraron. El monto del
-//      retiro es la suma de esos cobros: replica el Excel "Control de caja
-//      efectivo" (tildar Check/Retiro por cobro y acumular). Un cobro con un
-//      retiro activo está "retirado": no se puede anular ni volver a retirar.
-//      Anular el retiro (POST /expenses/:id/void) libera sus cobros.
+// 2026-09-23 — el retiro en EFECTIVO pasó a ser "una masa de plata" (feedback
+// de Martín en staging). Antes se tildaban cobros y el monto era su suma, así
+// que las salidas pagadas desde la misma caja (la yerba, un remís) no se
+// restaban y se leían como faltante. Ahora:
 //
-// En una cuenta BANCO no hay cajón que contar: el retiro lleva monto explícito
-// y sin vínculos.
+//   1. El resumen (`listPendingPayments().summary`) arma la cuenta que hace
+//      quien abre el cajón: quedó al último retiro + ingresos − salidas desde
+//      entonces = disponible (el saldo firme). Aparte, fondo de cambio y
+//      cobros sin validar: están en el cajón pero no se retiran.
+//   2. El retiro lleva MONTO libre, con tope en el disponible (mismo guard que
+//      egresos y movimientos: la caja no queda en negativo).
+//   3. Opcionalmente, el conteo físico (`countedAmount`, solo retiros de hoy).
+//      Si difiere del esperado exige nota y asienta un `adjustment`
+//      (faltante/sobrante) linkeado al retiro — la caja queda igual a la
+//      realidad — y el conteo queda además como arqueo en `cash_counts`.
+//   4. Se auto-vinculan (transaction_links, targetKind 'transaction') TODOS
+//      los cobros firmes de la caja sin retiro hasta la fecha del retiro:
+//      procedencia, no suma (el monto ya no es Σ cobros). Un cobro con un
+//      retiro activo está "retirado": no se puede anular hasta anular el
+//      retiro (POST /expenses/:id/void libera sus cobros y su ajuste).
+//
+// En una cuenta BANCO no hay cajón que contar: monto explícito, sin vínculos
+// ni conteo.
 //
 // Los egresos manuales con centro "Retiros" quedan bloqueados en
 // MovementService.registerExpense — un retiro siempre entra por acá.
@@ -28,11 +41,13 @@ import {
   asc,
   desc,
   eq,
+  gt,
   gte,
   inArray,
   isNotNull,
   isNull,
   lte,
+  not,
   or,
   sql,
 } from "drizzle-orm";
@@ -49,16 +64,20 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import type { TxHandle } from "./balance-service";
+import type { CashRegisterService } from "./cash-register-service";
 import type { TransactionService } from "./transaction-service";
+import { assertEfectivoCoversOutflow } from "./efectivo-guard";
 import { firmMoneyConditions } from "./firm-money";
 import type {
   PendingWithdrawalResult,
   RegisterWithdrawalInput,
   TransactionKind,
   WithdrawalDetail,
+  WithdrawalFlowItem,
   WithdrawalListFilters,
   WithdrawalListItem,
   WithdrawalPaymentItem,
+  WithdrawalSummary,
 } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -91,6 +110,8 @@ interface CajaRef {
   branchCountry: string | null;
   /** YYYY-MM-DD. Piso del saldo derivado (D-08): lo anterior no cuenta. */
   cutoffDate: string;
+  /** Fondo de cambio: queda en el cajón, fuera del saldo firme. */
+  changeFund: number;
 }
 
 /**
@@ -154,11 +175,40 @@ function planNameSql(ctx: TenantContext) {
 
 export { activeWithdrawalIdSql, activeWithdrawalDateSql };
 
+/** Texto de una fila del resumen del cajón: quién pagó, en qué se gastó, etc. */
+function describeFlow(r: {
+  kind: TransactionKind;
+  direction: "inflow" | "outflow";
+  memberName: string;
+  costCenterName: string | null;
+  counterpartCaja: string | null;
+}): string {
+  switch (r.kind) {
+    case "plan_charge":
+    case "debt_settlement":
+    case "advance_payment":
+      return r.memberName || "Cobro";
+    case "expense":
+      return r.costCenterName ?? "Gasto";
+    case "cash_transfer":
+      return r.direction === "inflow"
+        ? `Movimiento desde ${r.counterpartCaja ?? "otra caja"}`
+        : `Movimiento a ${r.counterpartCaja ?? "otra caja"}`;
+    case "adjustment":
+      return r.direction === "inflow"
+        ? "Ajuste de caja (sobrante)"
+        : "Ajuste de caja (faltante)";
+    case "refund":
+      return r.memberName ? `Devolución a ${r.memberName}` : "Devolución";
+  }
+}
+
 export class WithdrawalService {
   constructor(
     private readonly db: DbInstance,
     private readonly log: FastifyBaseLogger,
     private readonly txnService: TransactionService,
+    private readonly cashRegisterService: CashRegisterService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -175,6 +225,7 @@ export class WithdrawalService {
         branchId: schema.cashRegisters.branchId,
         isActive: schema.cashRegisters.isActive,
         cutoffDate: schema.cashRegisters.cutoffDate,
+        changeFund: schema.cashRegisters.changeFund,
         branchCountry: schema.branches.country,
       })
       .from(schema.cashRegisters)
@@ -208,6 +259,7 @@ export class WithdrawalService {
       branchId: caja.branchId,
       branchCountry: caja.branchCountry,
       cutoffDate: String(caja.cutoffDate),
+      changeFund: caja.changeFund,
     };
   }
 
@@ -324,6 +376,7 @@ export class WithdrawalService {
         dateTo: opts.dateTo,
       }),
     ]);
+    const summary = await this.buildSummary(ctx, caja);
     return {
       cashRegisterId: caja.id,
       cashRegisterName: caja.name,
@@ -334,7 +387,188 @@ export class WithdrawalService {
         rows: awaiting,
         total: awaiting.reduce((acc, r) => acc + r.amount, 0),
       },
+      summary,
     };
+  }
+
+  // ---------------------------------------------------------------------
+  // Resumen del cajón desde el último retiro (2026-09-23)
+  // ---------------------------------------------------------------------
+
+  /** Último retiro ACTIVO de la caja (el de id más alto), o null. */
+  private async lastActiveWithdrawal(
+    ctx: TenantContext,
+    cajaId: number,
+  ): Promise<WithdrawalSummary["lastWithdrawal"]> {
+    const [row] = await this.db
+      .select({
+        id: schema.financialTransactions.id,
+        transactionDate: schema.financialTransactions.transactionDate,
+        amount: schema.financialTransactions.amount,
+        responsibleName: schema.financialTransactions.responsibleName,
+        createdAt: schema.financialTransactions.createdAt,
+      })
+      .from(schema.financialTransactions)
+      .where(
+        and(
+          tenantWhere(schema.financialTransactions, ctx),
+          eq(schema.financialTransactions.cashRegisterId, cajaId),
+          eq(schema.financialTransactions.kind, "expense"),
+          isNotNull(schema.financialTransactions.responsibleName),
+          isNull(schema.financialTransactions.voidedAt),
+        ),
+      )
+      .orderBy(desc(schema.financialTransactions.id))
+      .limit(1);
+    if (!row) return null;
+    return {
+      id: row.id,
+      transactionDate: String(row.transactionDate),
+      amount: row.amount,
+      responsibleName: row.responsibleName ?? "",
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  /**
+   * La cuenta del cajón: quedó al último retiro + ingresos − salidas =
+   * disponible (saldo firme). Siempre "a hoy": no depende del `dateTo` del
+   * listado de cobros.
+   *
+   * ¿Qué es "desde el último retiro"?
+   *   - Un COBRO de socio en efectivo entra si no tiene retiro activo. Criterio
+   *     por vínculo y no por id porque un cobro cargado antes del retiro pero
+   *     validado después no estaba en la plata retirable de ese momento: si
+   *     se contara por id, el "quedó al último retiro" lo absorbería.
+   *   - Todo lo demás (gastos, movimientos, ajustes, devoluciones) entra si
+   *     nació después del retiro (id mayor). El ajuste por conteo de un retiro
+   *     se inserta ANTES que el retiro, así que nunca aparece como "después".
+   *   - Sin retiro previo: todo lo firme desde el corte.
+   *
+   * `previousBalance` se DERIVA (firme − ingresos + salidas) para que la cuenta
+   * cierre siempre. Si después del retiro se anuló algo que ya estaba
+   * contado, el anterior baja: es lo que efectivamente queda en el saldo.
+   */
+  private async buildSummary(
+    ctx: TenantContext,
+    caja: CajaRef,
+  ): Promise<WithdrawalSummary> {
+    const [balance, lastWithdrawal] = await Promise.all([
+      this.cashRegisterService.getBalance(ctx, caja.id),
+      this.lastActiveWithdrawal(ctx, caja.id),
+    ]);
+    const flow = await this.queryFlowSince(ctx, caja, lastWithdrawal?.id ?? 0);
+    const inflows = flow.filter((f) => f.direction === "inflow");
+    const outflows = flow.filter((f) => f.direction === "outflow");
+    const inflowTotal = inflows.reduce((acc, f) => acc + f.amount, 0);
+    const outflowTotal = outflows.reduce((acc, f) => acc + f.amount, 0);
+    return {
+      lastWithdrawal,
+      previousBalance: balance.firmeBalance - inflowTotal + outflowTotal,
+      inflows,
+      inflowTotal,
+      outflows,
+      outflowTotal,
+      firmeBalance: balance.firmeBalance,
+      changeFund: caja.changeFund,
+      expectedInDrawer:
+        caja.changeFund + balance.firmeBalance + balance.pendienteAmount,
+    };
+  }
+
+  /** Filas firmes de la caja posteriores al retiro `lastWithdrawalId` (0 = ninguno). */
+  private async queryFlowSince(
+    ctx: TenantContext,
+    caja: CajaRef,
+    lastWithdrawalId: number,
+  ): Promise<WithdrawalFlowItem[]> {
+    const ft = schema.financialTransactions;
+    const recorder = alias(schema.users, "recorder");
+    const isMemberCashCobro = and(
+      eq(ft.direction, "inflow"),
+      eq(ft.paymentMethod, "cash"),
+      inArray(ft.kind, [...MEMBER_INFLOW_KINDS]),
+    );
+    if (!isMemberCashCobro) {
+      throw new Error("Condición de cobro de socio vacía");
+    }
+    const raw = await this.db
+      .select({
+        id: ft.id,
+        transactionDate: ft.transactionDate,
+        kind: ft.kind,
+        direction: ft.direction,
+        amount: ft.amount,
+        notes: ft.notes,
+        createdAt: ft.createdAt,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        costCenterName: schema.costCenters.name,
+        planName: planNameSql(ctx),
+        // Caja de la otra pata de un movimiento. Literal por la misma razón
+        // que activeWithdrawalIdSql (correlación sin calificar en .select()).
+        counterpartCaja: sql<string | null>`(
+          SELECT cr.name FROM transaction_links tlm
+          JOIN financial_transactions o ON o.id = tlm.target_id
+          JOIN cash_registers cr ON cr.id = o.cash_register_id
+          WHERE tlm.tenant_id = ${ctx.tenantId}
+            AND o.tenant_id = ${ctx.tenantId}
+            AND cr.tenant_id = ${ctx.tenantId}
+            AND tlm.target_kind = 'transaction'
+            AND tlm.transaction_id = financial_transactions.id
+            AND o.kind = 'cash_transfer'
+          LIMIT 1
+        )`,
+        recorderFirstName: recorder.firstName,
+        recorderLastName: recorder.lastName,
+      })
+      .from(ft)
+      .leftJoin(
+        schema.users,
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, ft.memberId)),
+      )
+      .leftJoin(
+        schema.costCenters,
+        and(
+          tenantWhere(schema.costCenters, ctx),
+          eq(schema.costCenters.id, ft.costCenterId),
+        ),
+      )
+      .leftJoin(
+        recorder,
+        and(tenantWhere(recorder, ctx), eq(recorder.id, ft.recordedBy)),
+      )
+      .where(
+        and(
+          tenantWhere(ft, ctx),
+          eq(ft.cashRegisterId, caja.id),
+          ...firmMoneyConditions(),
+          gte(ft.transactionDate, caja.cutoffDate),
+          or(
+            and(isMemberCashCobro, sql`${activeWithdrawalIdSql(ctx)} IS NULL`),
+            and(not(isMemberCashCobro), gt(ft.id, lastWithdrawalId)),
+          ),
+        ),
+      )
+      .orderBy(asc(ft.transactionDate), asc(ft.id));
+
+    return raw.map((r) => {
+      const memberName =
+        `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim();
+      const isCobro = MEMBER_INFLOW_KINDS.includes(r.kind);
+      return {
+        id: r.id,
+        transactionDate: String(r.transactionDate),
+        kind: r.kind,
+        direction: r.direction,
+        amount: r.amount,
+        description: describeFlow({ ...r, memberName }),
+        detail: isCobro ? (r.planName ?? r.notes ?? null) : r.notes,
+        recorderName:
+          `${r.recorderFirstName ?? ""} ${r.recorderLastName ?? ""}`.trim(),
+        createdAt: r.createdAt.toISOString(),
+      };
+    });
   }
 
   /**
@@ -465,124 +699,139 @@ export class WithdrawalService {
     if (responsibleName.length === 0) {
       throw new BadRequestError("Indicá quién se lleva la plata (responsable)");
     }
-    const transactionDate = input.transactionDate ?? this.today();
-    if (transactionDate > this.today()) {
+    if (!Number.isInteger(input.amount) || input.amount <= 0) {
+      throw new BadRequestError("El monto del retiro debe ser mayor a 0");
+    }
+    const today = this.today();
+    const transactionDate = input.transactionDate ?? today;
+    if (transactionDate > today) {
       throw new BadRequestError("La fecha del retiro no puede ser futura");
     }
+    const notes = input.notes?.trim() ? input.notes.trim() : null;
     const caja = await this.loadCaja(ctx, input.cajaId);
+    const counted = input.countedAmount;
 
-    // Dedup preservando orden. El schema ya exige enteros >= 1.
-    const requestedIds = Array.from(new Set(input.transactionIds ?? []));
-
-    if (caja.type === "efectivo") {
-      if (requestedIds.length === 0) {
+    if (caja.type === "banco") {
+      if (counted !== undefined) {
         throw new BadRequestError(
-          "Elegí al menos un cobro en efectivo para retirar",
-        );
-      }
-      if (input.amount !== undefined) {
-        throw new BadRequestError(
-          "En una caja de efectivo el monto del retiro es la suma de los cobros elegidos",
+          "Una cuenta banco no se cuenta: el conteo es solo para cajas de efectivo",
         );
       }
     } else {
-      if (requestedIds.length > 0) {
+      // El saldo firme solo existe desde el corte: un retiro anterior no
+      // saldría de ninguna plata que el sistema conozca.
+      if (transactionDate < caja.cutoffDate) {
         throw new BadRequestError(
-          "Un retiro de cuenta banco no se vincula a cobros",
+          `La fecha del retiro es anterior al corte de la caja ${caja.name} (${caja.cutoffDate})`,
         );
       }
-      if (input.amount === undefined || input.amount <= 0) {
-        throw new BadRequestError("El monto del retiro debe ser mayor a 0");
+      if (counted !== undefined && transactionDate !== today) {
+        throw new BadRequestError(
+          "El conteo de la caja solo se carga en un retiro de hoy: la plata contada es la de ahora",
+        );
       }
     }
 
     return await this.db.transaction(async (tx) => {
+      // Candado sobre la caja: dos retiros simultáneos se serializan acá y el
+      // segundo lee el saldo con el primero ya commiteado (getBalance corre en
+      // otra conexión y ve lo commiteado). Mismo candado para los cobros que
+      // se vinculan, más abajo.
+      await tx
+        .select({ id: schema.cashRegisters.id })
+        .from(schema.cashRegisters)
+        .where(
+          and(
+            tenantWhere(schema.cashRegisters, ctx),
+            eq(schema.cashRegisters.id, caja.id),
+          ),
+        )
+        .for("update");
+
       const costCenterId = await this.resolveRetirosCostCenter(ctx, tx, caja);
 
-      let amount = input.amount ?? 0;
-      const links: Array<{
-        targetKind: "transaction";
-        targetId: number;
-        allocatedAmount: number;
-      }> = [];
+      let adjustmentTxId: number | null = null;
+      let links: Array<{ id: number; amount: number }> = [];
+      let countSnapshot: {
+        firme: number;
+        pendiente: number;
+        expected: number;
+        difference: number;
+      } | null = null;
 
       if (caja.type === "efectivo") {
-        // FOR UPDATE: dos retiros simultáneos sobre el mismo cobro se
-        // serializan acá y el segundo ve el link del primero.
-        const rows = await tx
-          .select({
-            id: schema.financialTransactions.id,
-            amount: schema.financialTransactions.amount,
-            direction: schema.financialTransactions.direction,
-            paymentMethod: schema.financialTransactions.paymentMethod,
-            kind: schema.financialTransactions.kind,
-            cashRegisterId: schema.financialTransactions.cashRegisterId,
-            validationStatus: schema.financialTransactions.validationStatus,
-            voidedAt: schema.financialTransactions.voidedAt,
-            transactionDate: schema.financialTransactions.transactionDate,
-            withdrawalId: activeWithdrawalIdSql(ctx),
-          })
-          .from(schema.financialTransactions)
+        const balance = await this.cashRegisterService.getBalance(ctx, caja.id);
+        let available = balance.firmeBalance;
+
+        if (counted !== undefined) {
+          // Mismo esperado que el arqueo del profe: la plata sin validar está
+          // en el cajón aunque no esté en el saldo firme.
+          const expected =
+            caja.changeFund + balance.firmeBalance + balance.pendienteAmount;
+          const difference = counted - expected;
+          if (difference !== 0 && !notes) {
+            throw new BadRequestError(
+              `La plata contada difiere de lo esperado en ${difference > 0 ? "+" : ""}${difference}: explicá la diferencia en las notas`,
+            );
+          }
+          if (difference !== 0) {
+            // Se inserta ANTES que el retiro (id menor): el resumen del
+            // próximo retiro toma "lo posterior al retiro" por id y este
+            // ajuste pertenece a éste. Mismo asiento que la reconciliación
+            // de movimientos (movement-service.ts, D-04).
+            const adjustment = await this.txnService.create(
+              ctx,
+              {
+                memberId: null,
+                kind: "adjustment",
+                direction: difference > 0 ? "inflow" : "outflow",
+                amount: Math.abs(difference),
+                currency: caja.currency,
+                paymentMethod: "internal",
+                transactionDate,
+                effectiveDate: transactionDate,
+                branchId: caja.branchId,
+                cashRegisterId: caja.id,
+                notes: `${difference > 0 ? "Sobrante" : "Faltante"} al retirar: esperado ${expected}, contado ${counted}. ${notes}`,
+                links: [],
+              },
+              adminId,
+              tx,
+            );
+            adjustmentTxId = adjustment.id;
+            available += difference;
+          }
+          countSnapshot = {
+            firme: balance.firmeBalance,
+            pendiente: balance.pendienteAmount,
+            expected,
+            difference,
+          };
+        }
+
+        assertEfectivoCoversOutflow(caja, input.amount, available, "El retiro");
+
+        // Procedencia: TODOS los cobros firmes sin retiro hasta la fecha del
+        // retiro y desde el corte. FOR UPDATE para que dos retiros no se
+        // lleven el mismo cobro.
+        const ft = schema.financialTransactions;
+        links = await tx
+          .select({ id: ft.id, amount: ft.amount })
+          .from(ft)
           .where(
             and(
-              tenantWhere(schema.financialTransactions, ctx),
-              inArray(schema.financialTransactions.id, requestedIds),
+              tenantWhere(ft, ctx),
+              eq(ft.cashRegisterId, caja.id),
+              eq(ft.direction, "inflow"),
+              eq(ft.paymentMethod, "cash"),
+              inArray(ft.kind, [...MEMBER_INFLOW_KINDS]),
+              ...firmMoneyConditions(),
+              gte(ft.transactionDate, caja.cutoffDate),
+              lte(ft.transactionDate, transactionDate),
+              sql`${activeWithdrawalIdSql(ctx)} IS NULL`,
             ),
           )
           .for("update");
-
-        const byId = new Map(rows.map((r) => [r.id, r]));
-        for (const id of requestedIds) {
-          const row = byId.get(id);
-          if (!row) {
-            throw new NotFoundError(`El cobro #${id} no existe`);
-          }
-          if (
-            row.direction !== "inflow" ||
-            row.paymentMethod !== "cash" ||
-            !MEMBER_INFLOW_KINDS.includes(row.kind)
-          ) {
-            throw new BadRequestError(
-              `El cobro #${id} no es un cobro de socio en efectivo`,
-            );
-          }
-          if (row.cashRegisterId !== caja.id) {
-            throw new BadRequestError(
-              `El cobro #${id} no está imputado a la caja ${caja.name}`,
-            );
-          }
-          if (row.voidedAt !== null) {
-            throw new BadRequestError(`El cobro #${id} está anulado`);
-          }
-          if (row.validationStatus !== "validado") {
-            throw new BadRequestError(
-              `El cobro #${id} todavía no está validado: validalo antes de retirarlo`,
-            );
-          }
-          if (row.withdrawalId !== null) {
-            throw new BadRequestError(
-              `El cobro #${id} ya fue retirado (retiro #${row.withdrawalId})`,
-            );
-          }
-          if (String(row.transactionDate) > transactionDate) {
-            throw new BadRequestError(
-              `El cobro #${id} es posterior a la fecha del retiro (${transactionDate})`,
-            );
-          }
-          // Mismo piso que listPendingPayments: un cobro anterior al corte de
-          // la caja no forma parte del saldo, retirarlo lo deja en negativo.
-          if (String(row.transactionDate) < caja.cutoffDate) {
-            throw new BadRequestError(
-              `El cobro #${id} es anterior al corte de la caja ${caja.name} (${caja.cutoffDate}): no forma parte del saldo y no se puede retirar`,
-            );
-          }
-          links.push({
-            targetKind: "transaction",
-            targetId: id,
-            allocatedAmount: row.amount,
-          });
-          amount += row.amount;
-        }
       }
 
       const expense = await this.txnService.create(
@@ -591,7 +840,7 @@ export class WithdrawalService {
           memberId: null,
           kind: "expense",
           direction: "outflow",
-          amount,
+          amount: input.amount,
           currency: caja.currency,
           paymentMethod: "internal",
           transactionDate,
@@ -599,26 +848,77 @@ export class WithdrawalService {
           branchId: caja.branchId,
           cashRegisterId: caja.id,
           costCenterId,
-          notes: input.notes?.trim() ? input.notes.trim() : null,
+          notes,
           responsibleName,
-          links,
+          // Los vínculos a cobros van aparte: ya no suman el monto (TXN-06
+          // exige Σ allocated = amount cuando hay links en el create).
+          links: [],
         },
         adminId,
         tx,
       );
 
+      if (links.length > 0) {
+        await tx.insert(schema.transactionLinks).values(
+          links.map((l) =>
+            tenantValues(ctx, {
+              transactionId: expense.id,
+              targetKind: "transaction" as const,
+              targetId: l.id,
+              allocatedAmount: l.amount,
+            }),
+          ),
+        );
+      }
+      if (adjustmentTxId !== null) {
+        // El ajuste cuelga del retiro: anular el retiro lo anula (voidExpense).
+        await tx.insert(schema.transactionLinks).values(
+          tenantValues(ctx, {
+            transactionId: adjustmentTxId,
+            targetKind: "transaction",
+            targetId: expense.id,
+            allocatedAmount: 0,
+          }),
+        );
+      }
+
+      if (counted !== undefined && countSnapshot !== null) {
+        // El retiro con conteo es también un cierre de caja: el próximo
+        // arqueo del profe arranca desde acá. La diferencia ya quedó
+        // asentada como ajuste; el arqueo la registra igual (es una foto).
+        await tx.insert(schema.cashCounts).values(
+          tenantValues(ctx, {
+            cashRegisterId: caja.id,
+            countedBy: adminId,
+            // Desde JS, como registerCount: mismo reloj que voided_at.
+            countedAt: new Date(),
+            staffShiftId: null,
+            changeFund: caja.changeFund,
+            firmeAmount: countSnapshot.firme,
+            pendienteAmount: countSnapshot.pendiente,
+            expectedAmount: countSnapshot.expected,
+            countedAmount: counted,
+            difference: countSnapshot.difference,
+            paymentsCount: links.length,
+            notes: `Conteo al retirar (retiro #${expense.id})${notes ? `. ${notes}` : ""}`,
+          }),
+        );
+      }
+
       this.log.info(
         {
           withdrawalTxId: expense.id,
           cajaId: caja.id,
-          amount,
+          amount: input.amount,
+          countedAmount: counted ?? null,
+          adjustmentTxId,
           paymentCount: links.length,
           responsibleName,
           adminId,
         },
         "Withdrawal registered",
       );
-      return { withdrawalTxId: expense.id, amount };
+      return { withdrawalTxId: expense.id, amount: input.amount };
     });
   }
 

@@ -1100,26 +1100,24 @@ export const pendingWithdrawalsSchema = {
 } as const;
 
 /**
- * POST /withdrawals — registrar un retiro. Caja efectivo: transactionIds
- * (no vacío) y SIN amount (se deriva). Caja banco: amount y SIN
- * transactionIds. La XOR se valida en el service (JSON-Schema no la expresa
- * limpio con additionalProperties:false).
+ * POST /withdrawals — registrar un retiro. `amount` siempre (2026-09-23: el
+ * retiro en efectivo es una masa de plata, ya no la suma de cobros tildados).
+ * `countedAmount` (conteo físico) solo en efectivo y con fecha de hoy — se
+ * valida en el service. `transactionIds` ya no existe (Fastify descarta las
+ * props extra); un cliente viejo, que no manda `amount`, recibe 400 en vez de
+ * un retiro distinto al que creyó cargar.
  */
 export const registerWithdrawalSchema = {
   body: {
     type: "object",
-    required: ["cajaId", "responsibleName"],
+    required: ["cajaId", "responsibleName", "amount"],
     properties: {
       cajaId: { type: "integer", minimum: 1 },
       responsibleName: { type: "string", minLength: 1, maxLength: 120 },
       transactionDate: { type: "string", format: "date" },
       notes: { type: ["string", "null"], maxLength: 2000 },
-      transactionIds: {
-        type: "array",
-        items: { type: "integer", minimum: 1 },
-        maxItems: 500,
-      },
       amount: { type: "integer", minimum: 1 },
+      countedAmount: { type: "integer", minimum: 0 },
     },
     additionalProperties: false,
   },

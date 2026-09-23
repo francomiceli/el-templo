@@ -33,8 +33,7 @@
                 dense
                 outlined
                 :max="today"
-                hint="Puede ser pasada, para cargar retiros ya hechos."
-                @update:model-value="onDateChange"
+                hint="Puede ser pasada, para cargar retiros ya hechos (sin conteo)."
               />
             </div>
             <div class="col-12 col-sm-8">
@@ -66,76 +65,94 @@
             </div>
           </div>
 
-          <!-- ======================= EFECTIVO: cobros a retirar ======================= -->
+          <!-- ======================= EFECTIVO: masa de plata ======================= -->
           <template v-if="selectedCaja && selectedCaja.type === 'efectivo'">
-            <q-banner dense rounded class="bg-blue-1 text-grey-9">
-              <template #avatar>
-                <q-icon name="info" color="primary" />
-              </template>
-              Tildá los cobros en efectivo que te llevás. El monto del retiro es la suma de
-              los tildados. Lo que quede sin tildar sigue "en caja".
-            </q-banner>
+            <div v-if="loadingPending" class="text-center q-pa-md text-grey-6">
+              <q-spinner size="24px" /> Calculando lo que hay en la caja…
+            </div>
+            <q-card v-else-if="pending" flat bordered class="q-pa-sm">
+              <CajaResumenRetiro
+                :summary="pending.summary"
+                :awaiting-validation="pending.awaitingValidation"
+                :currency="selectedCaja.currency"
+              />
+            </q-card>
 
-            <q-table
-              :rows="pending"
-              :columns="pendingColumns"
-              row-key="id"
-              flat
-              bordered
+            <div v-if="pending" class="row q-col-gutter-sm">
+              <div v-if="isToday" class="col-12 col-sm-6">
+                <q-input
+                  v-model.number="countedAmount"
+                  type="number"
+                  label="¿Cuánto contaste en la caja?"
+                  dense
+                  outlined
+                  clearable
+                  min="0"
+                  :prefix="currencySymbol(selectedCaja.currency)"
+                  :hint="`Todo lo del cajón, fondo de cambio incluido. Esperado: ${formatPrice(pending.summary.expectedInDrawer, selectedCaja.currency)}`"
+                />
+              </div>
+              <div class="col-12" :class="isToday ? 'col-sm-6' : ''">
+                <q-input
+                  :model-value="amount"
+                  type="number"
+                  label="¿Cuánto te llevás? *"
+                  dense
+                  outlined
+                  min="1"
+                  :prefix="currencySymbol(selectedCaja.currency)"
+                  :error="amountError !== null"
+                  :error-message="amountError ?? undefined"
+                  :hint="`Disponible: ${formatPrice(available, selectedCaja.currency)}`"
+                  @update:model-value="onAmountInput"
+                />
+              </div>
+            </div>
+
+            <q-banner
+              v-if="difference !== null && difference !== 0"
               dense
-              selection="multiple"
-              v-model:selected="selected"
-              :loading="loadingPending"
-              :pagination="{ rowsPerPage: 0 }"
-              hide-bottom
-              style="max-height: 340px"
-              virtual-scroll
+              rounded
+              :class="difference < 0 ? 'bg-red-1 text-negative' : 'bg-orange-1 text-grey-9'"
             >
-              <template #body-cell-monto="cellProps">
-                <q-td :props="cellProps" class="text-weight-medium">
-                  {{ formatPrice(cellProps.row.amount, cellProps.row.currency) }}
-                </q-td>
+              <template #avatar>
+                <q-icon :name="difference < 0 ? 'error_outline' : 'info'" />
               </template>
-              <template #no-data>
-                <div class="full-width text-center text-grey-6 q-pa-md">
-                  No hay cobros en efectivo pendientes de retiro hasta la fecha elegida.
-                </div>
-              </template>
-            </q-table>
-
-            <div class="row items-center justify-between q-mt-sm">
-              <div class="text-caption text-grey-7">
-                {{ selected.length }} de {{ pending.length }} cobros tildados
-                <span v-if="pending.length > 0">
-                  ·
-                  <a href="#" class="text-primary" @click.prevent="selectAll">todos</a> /
-                  <a href="#" class="text-primary" @click.prevent="selected = []">ninguno</a>
-                </span>
-              </div>
-              <div class="text-subtitle1 text-weight-bold">
-                Retiro: {{ formatPrice(selectedTotal, selectedCaja.currency) }}
-              </div>
+              <strong>
+                {{ difference < 0 ? 'Faltante' : 'Sobrante' }} de
+                {{ formatPrice(Math.abs(difference), selectedCaja.currency) }}
+              </strong>
+              contra lo esperado. Se asienta como ajuste de caja junto con el retiro: explicá la
+              diferencia en las notas.
+            </q-banner>
+            <div v-if="pending && amountError === null && amountValue !== null" class="text-caption text-grey-8">
+              Después del retiro quedan
+              <strong>{{ formatPrice(available - amountValue, selectedCaja.currency) }}</strong>
+              en la caja<span v-if="pending.summary.changeFund > 0">
+                más el fondo de cambio</span
+              >.
             </div>
           </template>
 
           <!-- ======================= BANCO: monto explícito ======================= -->
           <template v-else-if="selectedCaja">
             <q-input
-              v-model.number="amount"
+              :model-value="amount"
               type="number"
               label="Monto *"
               dense
               outlined
               min="1"
               :suffix="currencySymbol(selectedCaja.currency)"
-              hint="En una cuenta banco el retiro no se vincula a cobros."
+              @update:model-value="onAmountInput"
             />
           </template>
 
           <q-input
             v-model="notes"
             type="textarea"
-            label="Notas (opcional)"
+            :label="notesRequired ? 'Notas * (explicá la diferencia)' : 'Notas (opcional)'"
+            :error="notesRequired && notes.trim().length === 0"
             dense
             outlined
             autogrow
@@ -161,24 +178,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
-import { useQuasar, type QTableColumn } from 'quasar';
+import { ref, computed, watch, onUnmounted } from 'vue';
+import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
+import CajaResumenRetiro from 'src/components/caja/CajaResumenRetiro.vue';
 import type {
   CajaSaldoRow,
+  PendingWithdrawalResult,
   WithdrawalDetail,
-  WithdrawalPaymentItem,
 } from 'src/types/transaction';
 
 // =========================================================================
-// Registrar retiro (feedback caja/cobros 2026-09-07). Replica el Excel
-// "Control de caja efectivo" de Martín: por caja, la lista de cobros en
-// efectivo que todavía están en el cajón, tildar los que se retiran, el monto
-// es la suma, y un responsable obligatorio. Para cuentas banco, monto
-// explícito. La API (POST /withdrawals) es la autoridad de todas las reglas.
+// Registrar retiro (feedback caja/cobros 2026-09-07, rediseño 2026-09-23).
+// En efectivo el retiro es una masa de plata, no una lista de cobros: se
+// muestra la cuenta del cajón (quedó al último retiro + ingresos − salidas =
+// disponible), quien retira puede cargar cuánto contó (si no coincide con lo
+// esperado, la diferencia se asienta como ajuste y pide nota) y cuánto se
+// lleva, con tope en el disponible. Los cobros se vinculan solos en la API.
+// Para cuentas banco, monto explícito. La API (POST /withdrawals) es la
+// autoridad de todas las reglas; acá solo se anticipan para no mandar algo
+// que va a rebotar.
 // =========================================================================
 
 const props = defineProps<{
@@ -245,7 +267,18 @@ const transactionDate = ref(today);
 const responsibleName = ref<string | null>(null);
 const notes = ref('');
 const amount = ref<number | null>(null);
+/** Si el usuario escribió el monto, no se lo pisamos con la sugerencia. */
+const amountTouched = ref(false);
+const countedAmount = ref<number | null>(null);
 const submitting = ref(false);
+
+/** El conteo es de la plata de AHORA: solo en un retiro con fecha de hoy. */
+const isToday = computed(() => transactionDate.value === today);
+
+/** q-input number entrega '' al borrar: todo lo que no sea entero ≥ 0 es "vacío". */
+function toInt(v: unknown): number | null {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null;
+}
 
 // ---------------------------------------------------------------- responsables
 const allResponsibles = ref<string[]>([]);
@@ -279,57 +312,79 @@ function onResponsibleInput(val: string) {
   if (val.trim()) responsibleName.value = val;
 }
 
-// ---------------------------------------------------------------- pending (efectivo)
-const pending = ref<WithdrawalPaymentItem[]>([]);
-const selected = ref<WithdrawalPaymentItem[]>([]);
+// ---------------------------------------------------------------- resumen (efectivo)
+const pending = ref<PendingWithdrawalResult | null>(null);
 const loadingPending = ref(false);
-
-const pendingColumns: QTableColumn<WithdrawalPaymentItem>[] = [
-  { name: 'fecha', label: 'Fecha', field: 'transactionDate', align: 'left', sortable: true },
-  { name: 'socio', label: 'Socio', field: 'memberName', align: 'left' },
-  { name: 'dni', label: 'DNI', field: (r) => r.memberDni ?? '—', align: 'left' },
-  { name: 'concepto', label: 'Concepto', field: (r) => r.concept ?? '—', align: 'left' },
-  { name: 'monto', label: 'Monto', field: 'amount', align: 'right' },
-];
 
 async function loadPending() {
   if (!selectedCaja.value || selectedCaja.value.type !== 'efectivo') {
-    pending.value = [];
-    selected.value = [];
+    pending.value = null;
     return;
   }
   loadingPending.value = true;
   try {
-    const res = await transactionsApi.getPendingWithdrawals(
-      selectedCaja.value.cashRegisterId,
-      transactionDate.value || undefined
-    );
-    pending.value = res.rows;
-    // Default: todo tildado (el caso común es "me llevo todo lo que hay").
-    selected.value = [...res.rows];
+    // Sin dateTo: la cuenta del cajón es siempre a hoy, también para cargar
+    // un retiro con fecha pasada (la API vincula solo lo cobrado hasta esa fecha).
+    pending.value = await transactionsApi.getPendingWithdrawals(selectedCaja.value.cashRegisterId);
+    suggestAmount();
   } catch (err: unknown) {
-    const message = extractError(err, 'Error cargando cobros pendientes de retiro');
-    log.error('Error loading pending withdrawals', { error: message });
+    const message = extractError(err, 'Error cargando lo que hay en la caja');
+    log.error('Error loading withdrawal summary', { error: message });
     $q.notify({ type: 'negative', message });
-    pending.value = [];
-    selected.value = [];
+    pending.value = null;
   } finally {
     loadingPending.value = false;
   }
 }
 
-const selectedTotal = computed(() => selected.value.reduce((acc, r) => acc + r.amount, 0));
+const counted = computed(() => (isToday.value ? toInt(countedAmount.value) : null));
 
-function selectAll() {
-  selected.value = [...pending.value];
+/** Contado − esperado (fondo + firme + sin validar). null sin conteo. */
+const difference = computed(() =>
+  pending.value && counted.value !== null
+    ? counted.value - pending.value.summary.expectedInDrawer
+    : null
+);
+
+/** Tope del retiro: el saldo firme, corregido por la diferencia del conteo. */
+const available = computed(() =>
+  pending.value ? pending.value.summary.firmeBalance + (difference.value ?? 0) : 0
+);
+
+const notesRequired = computed(() => difference.value !== null && difference.value !== 0);
+
+const amountValue = computed(() => {
+  const v = toInt(amount.value);
+  return v !== null && v > 0 ? v : null;
+});
+
+const amountError = computed(() => {
+  if (!selectedCaja.value || selectedCaja.value.type !== 'efectivo' || !pending.value) return null;
+  if (amount.value === null) return null;
+  if (amountValue.value === null) return 'Ingresá un monto mayor a 0';
+  if (amountValue.value > available.value) {
+    return `Supera lo disponible (${formatPrice(available.value, selectedCaja.value.currency)})`;
+  }
+  return null;
+});
+
+/** Sugerencia: llevarse todo lo disponible, mientras el usuario no escriba otro monto. */
+function suggestAmount() {
+  if (amountTouched.value) return;
+  amount.value = available.value > 0 ? available.value : null;
 }
+
+function onAmountInput(v: string | number | null) {
+  amountTouched.value = true;
+  amount.value = typeof v === 'number' ? v : v === null || v === '' ? null : Number(v);
+}
+
+watch([countedAmount, isToday], () => suggestAmount());
 
 function onCajaChange() {
   amount.value = null;
-  void loadPending();
-}
-
-function onDateChange() {
+  amountTouched.value = false;
+  countedAmount.value = null;
   void loadPending();
 }
 
@@ -338,20 +393,22 @@ const canSubmit = computed(() => {
   if (!selectedCaja.value) return false;
   if (!responsibleName.value || responsibleName.value.trim().length === 0) return false;
   if (!transactionDate.value || transactionDate.value > today) return false;
-  if (selectedCaja.value.type === 'efectivo') return selected.value.length > 0;
-  return typeof amount.value === 'number' && amount.value > 0;
+  if (amountValue.value === null) return false;
+  if (selectedCaja.value.type === 'efectivo') {
+    if (!pending.value || amountError.value !== null) return false;
+    if (notesRequired.value && notes.value.trim().length === 0) return false;
+  }
+  return true;
 });
 
-const submitLabel = computed(() => {
-  if (!selectedCaja.value) return 'Registrar retiro';
-  const total = selectedCaja.value.type === 'efectivo' ? selectedTotal.value : (amount.value ?? 0);
-  return total > 0
-    ? `Registrar retiro · ${formatPrice(total, selectedCaja.value.currency)}`
-    : 'Registrar retiro';
-});
+const submitLabel = computed(() =>
+  selectedCaja.value && amountValue.value !== null
+    ? `Registrar retiro · ${formatPrice(amountValue.value, selectedCaja.value.currency)}`
+    : 'Registrar retiro'
+);
 
 async function submit() {
-  if (!canSubmit.value || !selectedCaja.value) return;
+  if (!canSubmit.value || !selectedCaja.value || amountValue.value === null) return;
   submitting.value = true;
   try {
     const isEfectivo = selectedCaja.value.type === 'efectivo';
@@ -359,10 +416,9 @@ async function submit() {
       cajaId: selectedCaja.value.cashRegisterId,
       responsibleName: (responsibleName.value ?? '').trim(),
       transactionDate: transactionDate.value,
+      amount: amountValue.value,
       ...(notes.value.trim() ? { notes: notes.value.trim() } : {}),
-      ...(isEfectivo
-        ? { transactionIds: selected.value.map((r) => r.id) }
-        : { amount: amount.value as number }),
+      ...(isEfectivo && counted.value !== null ? { countedAmount: counted.value } : {}),
     });
     $q.notify({
       type: 'positive',
@@ -402,8 +458,9 @@ function resetAll() {
   responsibleName.value = null;
   notes.value = '';
   amount.value = null;
-  pending.value = [];
-  selected.value = [];
+  amountTouched.value = false;
+  countedAmount.value = null;
+  pending.value = null;
 }
 
 function currencySymbol(currency: string): string {
