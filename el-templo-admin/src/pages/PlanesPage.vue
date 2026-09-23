@@ -112,13 +112,24 @@
             </template>
 
             <!-- Classes column: clases/semana cuando el plan las tiene
-                 (presencial o paquete), "Ilimitado" solo para presenciales -->
+                 (presencial, paquete o especial), tope total para especiales
+                 sin clases/semana, "Ilimitado" solo para presenciales -->
             <template #body-cell-clases="props">
               <q-td :props="props">
                 <template v-if="props.row.classesPerWeek !== null">
                   {{ props.row.classesPerWeek }}
+                  <span
+                    v-if="props.row.planCategory === 'especial'"
+                    class="text-caption text-grey-7"
+                  >
+                    /sem ({{ passTotalClasses(props.row) }} en total)
+                  </span>
                 </template>
                 <template v-else-if="props.row.planCategory === 'presencial'">Ilimitado</template>
+                <template v-else-if="props.row.monthlyClassBudget !== null">
+                  {{ props.row.monthlyClassBudget }}
+                  <span class="text-caption text-grey-7">en total</span>
+                </template>
                 <span v-else class="text-grey-5">—</span>
               </q-td>
             </template>
@@ -290,6 +301,7 @@ import {
   PLAN_CATEGORY_COLORS,
   PLAN_SECTIONS,
   planSection,
+  planTotalClasses,
   type PlanListItem,
   type PlanTier,
   type PlanCategory,
@@ -542,6 +554,11 @@ function programName(programId: number | null): string {
   if (!programId) return '—';
   const program = programs.value.find((p) => p.id === programId);
   return program?.name ?? '—';
+}
+
+/** Total de clases del pase especial (semanas × clases/semana). */
+function passTotalClasses(plan: PlanListItem): number | string {
+  return planTotalClasses(plan) ?? '—';
 }
 
 // =========================================================================
