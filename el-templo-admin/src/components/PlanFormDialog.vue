@@ -108,10 +108,7 @@
           </div>
 
           <!-- Weekly price display for online plans -->
-          <div
-            v-if="form.planCategory !== 'presencial' && weeklyPrice"
-            class="text-caption text-grey-7 q-mt-xs"
-          >
+          <div v-if="isOnlineCategory && weeklyPrice" class="text-caption text-grey-7 q-mt-xs">
             Precio semanal: {{ formatPrice(weeklyPrice, derivedCurrency) }}/sem
           </div>
 
@@ -130,14 +127,41 @@
                 :rules="[requiredNumberRule('Duracion')]"
               />
             </div>
-            <div v-if="form.planCategory === 'presencial'" class="col-12 col-sm-6">
+            <div v-if="hasWeeklyClasses" class="col-12 col-sm-6">
               <q-input
                 v-model.number="form.classesPerWeek"
                 label="Clases por semana"
                 type="number"
                 dense
                 outlined
-                hint="Dejar vacio = ilimitado"
+                :hint="classesPerWeekHint"
+              />
+            </div>
+          </div>
+
+          <!-- Pase especial (fix 2026-09-22): antes el form trataba `especial` como
+               online y escondía clases/semana. El cupo del pase es un TOTAL:
+               semanas × clases/semana, o un tope explícito si no hay clases/semana. -->
+          <div v-if="isEspecial" class="row q-col-gutter-sm q-mt-sm">
+            <div class="col-12 col-sm-6">
+              <q-input
+                v-model.number="form.monthlyClassBudget"
+                label="Tope total de clases del pase"
+                type="number"
+                dense
+                outlined
+                :disable="classesPerWeekValue !== null"
+                :hint="
+                  classesPerWeekValue !== null
+                    ? 'Se calcula desde clases por semana'
+                    : 'Dejar vacio = sin tope'
+                "
+              />
+            </div>
+            <div class="col-12 col-sm-6">
+              <q-toggle
+                v-model="form.requiresPresencial"
+                label="Solo para socios con plan presencial vigente"
               />
             </div>
           </div>
@@ -173,7 +197,8 @@
           <!-- Programa Vinculado -->
           <!-- Para presencial es opcional (default Foundation — Cuerpo Completo, -->
           <!-- editable). Para planes online es obligatorio (o usar el bundle). -->
-          <div class="q-mt-lg">
+          <!-- El pase especial no otorga programa: la sección no aplica. -->
+          <div v-if="!isEspecial" class="q-mt-lg">
             <div class="text-subtitle2 text-weight-bold q-mb-sm">Programa Vinculado</div>
             <q-select
               v-model="form.linkedProgramId"
@@ -186,7 +211,7 @@
               clearable
               :rules="[
                 (val) =>
-                  form.planCategory === 'presencial' ||
+                  !isOnlineCategory ||
                   form.grantsAllPrograms ||
                   !!val ||
                   'Programa es requerido para planes online',
@@ -279,6 +304,7 @@ import {
   PLAN_TIER_LABELS,
   BOOKING_MODE_LABELS,
   PLAN_CATEGORY_OPTIONS,
+  planTotalClasses,
   type PlanListItem,
   type PlanTier,
   type BookingMode,
@@ -383,6 +409,8 @@ const form = ref({
   priceCreditCard: null as number | null,
   durationDays: null as number | null,
   classesPerWeek: null as number | null,
+  monthlyClassBudget: null as number | null,
+  requiresPresencial: false,
   linkedProgramId: null as number | null,
   grantsAllPrograms: false,
   programIds: [] as number[],
@@ -403,6 +431,37 @@ const derivedCurrency = computed<Currency>(() => (form.value.country === 'ES' ? 
 const weeklyPrice = computed(() =>
   form.value.priceRegular ? Math.round(form.value.priceRegular / 4.33) : null
 );
+
+// Fix 2026-09-22: el form era binario presencial / "todo lo demás" y el pase
+// `especial` caía en la rama online (sin clases/semana, programa obligatorio).
+// Espejo de planSection(): presencial | especial | online.
+const isEspecial = computed(() => form.value.planCategory === 'especial');
+const isOnlineCategory = computed(
+  () => form.value.planCategory !== 'presencial' && form.value.planCategory !== 'especial'
+);
+/** Presencial y especial cargan clases por semana; online nunca. */
+const hasWeeklyClasses = computed(() => !isOnlineCategory.value);
+
+/** Un q-input numérico vaciado puede emitir '' en vez de null: normalizar. */
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+const classesPerWeekValue = computed(() => numberOrNull(form.value.classesPerWeek));
+const monthlyClassBudgetValue = computed(() => numberOrNull(form.value.monthlyClassBudget));
+
+const passTotalClasses = computed(() =>
+  planTotalClasses({
+    durationDays: numberOrNull(form.value.durationDays),
+    classesPerWeek: classesPerWeekValue.value,
+  })
+);
+
+const classesPerWeekHint = computed(() => {
+  if (!isEspecial.value) return 'Dejar vacio = ilimitado';
+  return passTotalClasses.value !== null
+    ? `Total del pase: ${passTotalClasses.value} clases`
+    : 'Dejar vacio y usar el tope total';
+});
 
 const programOptions = computed(() =>
   programs.value
@@ -486,10 +545,15 @@ watch(
       // grantsAllPrograms ni un linkedProgramId que el admin ya haya elegido.
       prefillFoundationProgram();
     } else {
-      // Switching to online: set defaults, clear presencial-specific fields
+      // Online y especial: sin tier ni modo de reserva propios
       form.value.planTier = 'other';
       form.value.bookingMode = 'flexible';
-      form.value.classesPerWeek = null;
+      // Solo online pierde clases/semana — el pase especial las conserva
+      if (newCategory !== 'especial') form.value.classesPerWeek = null;
+    }
+    if (newCategory !== 'especial') {
+      form.value.monthlyClassBudget = null;
+      form.value.requiresPresencial = false;
     }
   }
 );
@@ -556,6 +620,8 @@ watch(
         priceCreditCard: props.plan.priceCreditCard,
         durationDays: props.plan.durationDays,
         classesPerWeek: props.plan.classesPerWeek,
+        monthlyClassBudget: props.plan.monthlyClassBudget ?? null,
+        requiresPresencial: props.plan.requiresPresencial ?? false,
         linkedProgramId: props.plan.linkedProgramId,
         grantsAllPrograms: props.plan.grantsAllPrograms ?? false,
         programIds: props.plan.programIds ?? [],
@@ -578,6 +644,8 @@ watch(
         priceCreditCard: null,
         durationDays: null,
         classesPerWeek: null,
+        monthlyClassBudget: null,
+        requiresPresencial: false,
         linkedProgramId: null,
         grantsAllPrograms: false,
         programIds: [],
@@ -605,8 +673,7 @@ async function onSubmit() {
     // WR-04 (156): 'da acceso a TODOS' solo tiene sentido en planes NO
     // presenciales; coaccionar la categoría en un único lugar mantiene toggle
     // y lista coherentes (presencial nunca envía la lista como []).
-    const effectiveGrantsAll =
-      form.value.planCategory !== 'presencial' && form.value.grantsAllPrograms;
+    const effectiveGrantsAll = isOnlineCategory.value && form.value.grantsAllPrograms;
     const payload = {
       name: form.value.name,
       description: form.value.description || undefined,
@@ -626,10 +693,21 @@ async function onSubmit() {
         : (form.value.priceZero ?? form.value.priceRegular ?? 0),
       priceCreditCard: form.value.priceCreditCard ?? undefined,
       durationDays: form.value.durationDays!,
-      classesPerWeek:
-        form.value.planCategory === 'presencial'
-          ? (form.value.classesPerWeek ?? undefined)
-          : undefined,
+      // Presencial y especial: en edición se manda null para poder VACIAR el
+      // campo (antes `?? undefined` no persistía el borrado). Online: nunca.
+      classesPerWeek: hasWeeklyClasses.value
+        ? (classesPerWeekValue.value ?? (isEditMode.value ? null : undefined))
+        : undefined,
+      // Solo el pase especial (el API rechaza estos campos en otras categorías).
+      // El tope explícito solo vale sin clases/semana — con ellas el total deriva.
+      monthlyClassBudget: isEspecial.value
+        ? classesPerWeekValue.value !== null
+          ? isEditMode.value
+            ? null
+            : undefined
+          : (monthlyClassBudgetValue.value ?? (isEditMode.value ? null : undefined))
+        : undefined,
+      requiresPresencial: isEspecial.value ? form.value.requiresPresencial : undefined,
       linkedProgramId: form.value.grantsAllPrograms
         ? undefined
         : (form.value.linkedProgramId ?? undefined),
@@ -651,7 +729,13 @@ async function onSubmit() {
       await subscriptionsApi.updatePlan(props.plan.id, payload);
     } else {
       // Create: attach the owner-selected country; server derives currency.
-      await subscriptionsApi.createPlan({ ...payload, country: form.value.country });
+      // Los null son solo para VACIAR en edición — en alta se omiten.
+      await subscriptionsApi.createPlan({
+        ...payload,
+        classesPerWeek: payload.classesPerWeek ?? undefined,
+        monthlyClassBudget: payload.monthlyClassBudget ?? undefined,
+        country: form.value.country,
+      });
     }
 
     emit('saved');

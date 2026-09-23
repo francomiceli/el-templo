@@ -231,6 +231,14 @@ export interface CreatePlanInput {
   priceCreditCard?: number;
   durationDays: number;
   classesPerWeek?: number;
+  /**
+   * Solo `especial` (fix 2026-09-22): tope TOTAL de clases del pase cuando no
+   * se define classesPerWeek. Con classesPerWeek el total deriva
+   * (ceil(durationDays/7) * classesPerWeek) y este campo se ignora.
+   */
+  monthlyClassBudget?: number;
+  /** Solo `especial`: pase Socio (exige presencial activo) vs Externo. */
+  requiresPresencial?: boolean;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
@@ -253,6 +261,10 @@ export interface UpdatePlanInput {
   priceCreditCard?: number | null;
   durationDays?: number;
   classesPerWeek?: number | null;
+  /** Solo `especial` — ver CreatePlanInput. */
+  monthlyClassBudget?: number | null;
+  /** Solo `especial` — ver CreatePlanInput. */
+  requiresPresencial?: boolean;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;

@@ -117,6 +117,19 @@ export function planSection(category: PlanCategory): PlanSection {
   return 'online';
 }
 
+/**
+ * Total de clases que otorga un plan con `classesPerWeek`: espejo de la
+ * derivación del API al asignar (`ceil(durationDays / 7) * classesPerWeek`,
+ * subscriptions/service.ts). Para el pase especial es "el total del pase".
+ */
+export function planTotalClasses(plan: {
+  durationDays: number | null;
+  classesPerWeek: number | null;
+}): number | null {
+  if (plan.classesPerWeek === null || plan.durationDays === null) return null;
+  return Math.ceil(plan.durationDays / 7) * plan.classesPerWeek;
+}
+
 /** Orden y título de las tablas de la pantalla Planes. */
 export const PLAN_SECTIONS: ReadonlyArray<{ key: PlanSection; title: string }> = [
   { key: 'presencial', title: 'Presenciales' },
@@ -151,6 +164,13 @@ export interface PlanListItem {
   priceCreditCard: number | null;
   durationDays: number;
   classesPerWeek: number | null;
+  /**
+   * Solo `especial`: tope TOTAL de clases del pase cuando no hay classesPerWeek.
+   * Con classesPerWeek el total deriva (semanas × clases) y este campo se ignora.
+   */
+  monthlyClassBudget: number | null;
+  /** Solo `especial`: pase Socio (exige presencial activo) vs Externo. */
+  requiresPresencial: boolean;
   multiBranch: boolean;
   isTrial: boolean;
   isGroup: boolean;
@@ -187,6 +207,8 @@ export interface CreatePlanInput {
   priceCreditCard?: number;
   durationDays: number;
   classesPerWeek?: number;
+  monthlyClassBudget?: number;
+  requiresPresencial?: boolean;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
@@ -209,6 +231,8 @@ export interface UpdatePlanInput {
   priceCreditCard?: number | null;
   durationDays?: number;
   classesPerWeek?: number | null;
+  monthlyClassBudget?: number | null;
+  requiresPresencial?: boolean;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;

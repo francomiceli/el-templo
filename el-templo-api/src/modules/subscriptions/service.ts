@@ -51,7 +51,7 @@ import type {
   UpdatePromoInput,
   AuraDiscountTier,
 } from "./types";
-import { isOnlinePlan, categoryGroup, excludedFromReferrals } from "./types";
+import { categoryGroup, excludedFromReferrals } from "./types";
 import { resolvePlanPrice, readModuleColumns } from "./pricing";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
@@ -466,15 +466,28 @@ export class SubscriptionService {
     linkedProgramId: number | null;
     grantsAllPrograms: boolean;
     hasProgramList: boolean;
+    monthlyClassBudget: number | null;
+    requiresPresencial: boolean;
   }): void {
+    // Fix 2026-09-22: el pase `especial` NO es online — no otorga programa, su
+    // cupo lo gobierna el budget del pase. Antes `isOnlinePlan` lo colapsaba con
+    // online y el admin no podía crear un especial sin vincular un programa.
     if (
-      isOnlinePlan(plan.planCategory) &&
+      categoryGroup(plan.planCategory) === "online" &&
       !plan.linkedProgramId &&
       !plan.grantsAllPrograms &&
       !plan.hasProgramList
     ) {
       throw new BadRequestError(
         "Planes online deben vincular un programa (linkedProgramId) o dar acceso a todos los programas (grantsAllPrograms)",
+      );
+    }
+    if (
+      plan.planCategory !== "especial" &&
+      (plan.monthlyClassBudget !== null || plan.requiresPresencial)
+    ) {
+      throw new BadRequestError(
+        "Solo los planes especiales aceptan tope total de clases (monthlyClassBudget) o 'solo socios' (requiresPresencial)",
       );
     }
   }
@@ -1151,12 +1164,16 @@ export class SubscriptionService {
     const linkedProgramId = input.linkedProgramId ?? null;
     const grantsAllPrograms = input.grantsAllPrograms ?? false;
     const programIds = input.programIds ?? [];
+    const monthlyClassBudget = input.monthlyClassBudget ?? null;
+    const requiresPresencial = input.requiresPresencial ?? false;
 
     this.assertPlanInvariants({
       planCategory,
       linkedProgramId,
       grantsAllPrograms,
       hasProgramList: programIds.length > 0,
+      monthlyClassBudget,
+      requiresPresencial,
     });
 
     const country = input.country ?? "AR";
@@ -1182,6 +1199,8 @@ export class SubscriptionService {
             priceCreditCard: input.priceCreditCard ?? null,
             durationDays: input.durationDays,
             classesPerWeek: input.classesPerWeek ?? null,
+            monthlyClassBudget,
+            requiresPresencial,
             multiBranch: input.multiBranch ?? false,
             isTrial: input.isTrial ?? false,
             isGroup: input.isGroup ?? false,
@@ -1242,6 +1261,10 @@ export class SubscriptionService {
       updateData.durationDays = input.durationDays;
     if (input.classesPerWeek !== undefined)
       updateData.classesPerWeek = input.classesPerWeek;
+    if (input.monthlyClassBudget !== undefined)
+      updateData.monthlyClassBudget = input.monthlyClassBudget;
+    if (input.requiresPresencial !== undefined)
+      updateData.requiresPresencial = input.requiresPresencial;
     if (input.multiBranch !== undefined)
       updateData.multiBranch = input.multiBranch;
     if (input.isTrial !== undefined) updateData.isTrial = input.isTrial;
@@ -1262,11 +1285,25 @@ export class SubscriptionService {
         ? input.programIds
         : await this.getPlanProgramIds(ctx, planId);
 
+    const effectiveCategory =
+      input.planCategory !== undefined
+        ? input.planCategory
+        : existing.planCategory;
+
+    // Al sacar un plan de `especial` los campos exclusivos del pase se limpian
+    // solos (no tiene sentido pedirle al admin que los mande en null).
+    if (
+      effectiveCategory !== "especial" &&
+      existing.planCategory === "especial"
+    ) {
+      if (input.monthlyClassBudget === undefined)
+        updateData.monthlyClassBudget = null;
+      if (input.requiresPresencial === undefined)
+        updateData.requiresPresencial = false;
+    }
+
     this.assertPlanInvariants({
-      planCategory:
-        input.planCategory !== undefined
-          ? input.planCategory
-          : existing.planCategory,
+      planCategory: effectiveCategory,
       linkedProgramId:
         input.linkedProgramId !== undefined
           ? input.linkedProgramId
@@ -1276,6 +1313,14 @@ export class SubscriptionService {
           ? input.grantsAllPrograms
           : existing.grantsAllPrograms,
       hasProgramList: effectiveProgramIds.length > 0,
+      monthlyClassBudget:
+        updateData.monthlyClassBudget !== undefined
+          ? updateData.monthlyClassBudget
+          : existing.monthlyClassBudget,
+      requiresPresencial:
+        updateData.requiresPresencial !== undefined
+          ? updateData.requiresPresencial
+          : existing.requiresPresencial,
     });
 
     // updatePlan ONLY touches subscription_plans and (optionally) plan_programs
