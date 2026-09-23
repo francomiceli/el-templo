@@ -287,6 +287,7 @@
 </template>
 
 <script setup lang="ts">
+// deploy 2026-09-23: redeploy del admin tras el CI rojo de `85f27512` (fix de test de staff-attendance)
 import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
