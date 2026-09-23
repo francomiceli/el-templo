@@ -23,7 +23,7 @@ import * as schema from "../../src/db/schema";
 import { generateQrToken } from "../../src/modules/shared/qr-token";
 import { BRANCH_OUT_OF_SCOPE } from "../../src/modules/shared/branch-access";
 import { checklistForDow } from "../../src/modules/staff-attendance/checklist";
-import { dowInTz } from "../../src/modules/shared/date-utils";
+import { dowInTz, todayInTz } from "../../src/modules/shared/date-utils";
 
 const ME_URL = "/api/admin/staff-attendance/me";
 const CHECK_IN_URL = "/api/admin/staff-attendance/check-in";
@@ -311,7 +311,11 @@ describe("Staff Attendance API", () => {
   });
 
   describe("GET /shifts", () => {
-    const today = new Date().toISOString().split("T")[0];
+    // `shiftDate` se guarda en la tz de la SEDE (`todayInTz(branch.timezone)`),
+    // no en UTC: entre las 21:00 y las 24:00 de Buenos Aires ambas fechas
+    // difieren y un `toISOString()` deja el filtro `from/to` sin filas (CI
+    // rojo 2026-09-22 en `85f27512`).
+    const today = todayInTz("America/Argentina/Buenos_Aires");
 
     it("admin ve la fila -> 200", async () => {
       const res = await app.inject({
