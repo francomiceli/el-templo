@@ -618,6 +618,24 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // ── /api/admin/referrals ──────────────────────────────────────────────────
   "GET /api/admin/referrals/ab-results": { categoria: "tenant-scoped" },
 
+  // ── /api/admin/renewals ───────────────────────────────────────────────────
+  // Módulo de Renovaciones (brief Nacho, 2026-09-24): pantalla operativa de
+  // seguimiento de vencimientos, reemplaza el Excel semanal. Las 6
+  // tenant-scoped: leen/escriben `renewal_followups`/`renewal_reasons`
+  // (gym-owned, módulo strict) y `subscriptions`/`member_notes` del gimnasio
+  // — el tenant sale SIEMPRE de `assertTenant(request.scope, …)`, nunca del
+  // body/query. Sin `/templates`: el negocio manda WhatsApp desde su CRM
+  // (Kommo), no desde el admin — el listado expone `phoneE164` para ese
+  // copy/paste en vez de plantillas server-side.
+  "GET /api/admin/renewals": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/renewals/:subscriptionId": { categoria: "tenant-scoped" },
+  "POST /api/admin/renewals/:subscriptionId/notes": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/renewals/reasons": { categoria: "tenant-scoped" },
+  "POST /api/admin/renewals/reasons": { categoria: "tenant-scoped" },
+  "PATCH /api/admin/renewals/reasons/:id": { categoria: "tenant-scoped" },
+
   // ── /api/admin/reports ────────────────────────────────────────────────────
   "GET /api/admin/reports/access": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/access/export": { categoria: "tenant-scoped" },

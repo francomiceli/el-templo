@@ -942,7 +942,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { onBeforeRouteLeave, useRoute } from 'vue-router';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
@@ -970,6 +970,7 @@ import CuentaBancariaFormDialog from 'src/components/caja/CuentaBancariaFormDial
 const log = createLogger('cobros');
 const $q = useQuasar();
 const route = useRoute();
+const router = useRouter();
 const membersApi = useMembersApi();
 const financeApi = useFinanceLoadApi();
 const subsApi = useSubscriptionsApi();
@@ -2228,6 +2229,10 @@ async function onConfirm() {
     await refreshMyLoads();
     resetForm();
     resetToPortada();
+    // Renovaciones: con `?returnTo=` válido, vuelve sola a la pantalla de
+    // origen (la fila ya muestra "Renovó" al recargar). Después del reset,
+    // para que el guard de "abandonar cobro" no salte.
+    if (returnTo.value) await router.push(returnTo.value);
   } catch (err: unknown) {
     // Retry re-uses the SAME key, so a load that actually succeeded server-side
     // before a timeout is a safe idempotent no-op on the next tap.
@@ -2371,6 +2376,16 @@ async function loadZeroPriceRule() {
     });
   }
 }
+
+// Renovaciones (SPEC 2026-09-24): deep-link opcional `?returnTo=` — ruta a
+// ofrecer tras un cobro exitoso (ver `onConfirm`). Validado acá (arranca con
+// '/' y no con '//') para no armar un `router.push` con una URL externa.
+const returnTo = computed<string | null>(() => {
+  const raw = route.query.returnTo;
+  const value = typeof raw === 'string' ? raw : '';
+  if (!value.startsWith('/') || value.startsWith('//')) return null;
+  return value;
+});
 
 // ALUM-02 / D-02: deep-link `/cobros?memberId={id}`. Preselecciona el socio y
 // entra al paso Socio del wizard. Un id inexistente/ajeno → toast + flujo normal

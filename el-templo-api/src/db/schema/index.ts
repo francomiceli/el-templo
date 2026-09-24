@@ -82,3 +82,4 @@ export * from "./wellhub";
 export * from "./tv";
 export * from "./communications";
 export * from "./staff-shifts";
+export * from "./renewals";

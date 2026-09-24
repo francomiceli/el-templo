@@ -344,6 +344,15 @@ export const NAV_MODEL: NavCategory[] = [
         roles: REPORTES_ROLES,
         badge: 'app-trials',
       },
+      {
+        // Renovaciones (2026-09-24): capa operativa de vencimientos, mismos
+        // roles que Reportes (REPORTES_ROLES = CAJA_ROLES del API) — va
+        // pegada a Reportes porque reemplaza el Excel que hoy se baja de ahí.
+        path: '/renovaciones',
+        label: 'Renovaciones',
+        icon: 'autorenew',
+        roles: REPORTES_ROLES,
+      },
       { path: '/analiticas', label: 'Analíticas', icon: 'analytics', roles: ANALITICAS_ROLES },
     ],
   },

@@ -37,3 +37,56 @@ export function sanitizePhoneForStorage(input: string): string {
   const hasPlus = input.trimStart().startsWith("+");
   return (hasPlus ? "+" + digits : digits).slice(0, 30);
 }
+
+/**
+ * Módulo de Renovaciones (2026-09-24): normaliza un teléfono a E.164
+ * (`+<código de país><número>`) para el botón de WhatsApp del admin, o
+ * `null` si no se puede normalizar con confianza.
+ *
+ * Reglas (mismo espíritu que `whatsappUrl` en
+ * `el-templo-admin/src/utils/whatsapp.ts`, pero explícitas por país de la
+ * SEDE en vez de asumir siempre Argentina, y con un `null` fail-closed en
+ * vez de "usar tal cual" — acá el resultado viaja como dato estructurado,
+ * no como texto libre de un link):
+ *   - Si el input YA trae un `+` explícito: se respeta tal cual (solo se le
+ *     sacan los caracteres que no son dígito, conservando el `+`).
+ *   - Si el input YA trae el código de país argentino sin `+` (`54`/`549`,
+ *     más largo que un número nacional de 10 dígitos — para no confundir un
+ *     número español que arranque casualmente con "54"): se respeta,
+ *     anteponiendo solo el `+`.
+ *   - Si no, se interpreta como número NACIONAL de la sede:
+ *     - AR: exactamente 10 dígitos → `+549` + número (móvil AR).
+ *     - ES: exactamente 9 dígitos → `+34` + número.
+ *   - Cualquier otro largo → `null` (no se adivina).
+ *
+ * `null` de entrada (sin teléfono cargado) → `null`.
+ */
+export function normalizePhoneE164(
+  phone: string | null,
+  branchCountry: "AR" | "ES",
+): string | null {
+  if (phone === null) return null;
+  const trimmed = phone.trim();
+  if (trimmed.length === 0) return null;
+
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 0) return null;
+
+  if (hasPlus) return `+${digits}`;
+
+  // Ya trae el código de país AR sin '+' — más largo que un número nacional
+  // de 10 dígitos, así que no puede ser un 9/10-dígitos español que arranque
+  // "coincidentemente" con 54.
+  if (
+    digits.length > 10 &&
+    (digits.startsWith("549") || digits.startsWith("54"))
+  ) {
+    return `+${digits}`;
+  }
+
+  if (branchCountry === "AR") {
+    return digits.length === 10 ? `+549${digits}` : null;
+  }
+  return digits.length === 9 ? `+34${digits}` : null;
+}

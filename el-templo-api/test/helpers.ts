@@ -275,6 +275,14 @@ const TABLES_TO_CLEAN = [
   // staff-attendance (2026-09-07): jornadas de check-in/check-out del staff —
   // FK a users/branches, sin limpiar se acumularían huérfanas entre archivos.
   schema.staffShifts,
+  // Renovaciones (2026-09-24): followups es basura de test genuina (FK a
+  // subscriptions/users/renewal_reasons) — se limpia como member_notes/
+  // staff_shifts. `renewal_reasons` NO va acá: es catálogo SEMBRADO por la
+  // migración 0237 (una vez por tenant, no por test) — mismo criterio que
+  // `branches`/`spom_config`, que tampoco están en esta lista. Un `DELETE`
+  // global lo borraría en el primer `beforeEach` de CUALQUIER archivo del
+  // worker y ningún camino lo siembra de nuevo.
+  schema.renewalFollowups,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,
