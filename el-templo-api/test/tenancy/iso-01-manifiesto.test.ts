@@ -291,7 +291,13 @@ import {
 // (feedback profes: Open Gym tenía sede/actividad editables pero no la
 // hora): `PATCH /api/admin/scheduling/schedules/:scheduleId/time`,
 // `tenant-scoped`.
-const ENTRADAS_BASELINE = 434;
+// 2026-09-24: 434 -> 440 por el módulo nuevo de Renovaciones (brief Nacho):
+// `GET /api/admin/renewals`, `PATCH /api/admin/renewals/:subscriptionId`,
+// `POST /api/admin/renewals/:subscriptionId/notes`,
+// `GET /api/admin/renewals/reasons`, `POST /api/admin/renewals/reasons`,
+// `PATCH /api/admin/renewals/reasons/:id` — las 6 `tenant-scoped` (sin
+// `/templates`: WhatsApp se manda desde el CRM, no el admin).
+const ENTRADAS_BASELINE = 440;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -434,7 +440,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 434 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 440 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

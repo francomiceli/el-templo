@@ -613,7 +613,7 @@ describe("Verificador de uniques e índices por tenant — gate fail-closed (CON
     ).toEqual([]);
   });
 
-  it("Test 10: el reporte cierra en 0 discrepancias y cubre las 96 tablas gym-owned", () => {
+  it("Test 10: el reporte cierra en 0 discrepancias y cubre las 98 tablas gym-owned", () => {
     // El reporte completo va DENTRO del mensaje: un fallo en CI trae el detalle
     // en el log y nadie tiene que reproducirlo local para saber qué pasó.
     expect(
@@ -628,14 +628,18 @@ describe("Verificador de uniques e índices por tenant — gate fail-closed (CON
     // + 3 tablas de comunicaciones (avisos/aviso_events/tv_avisos, fase 193,
     //   tenancy-native en la 0216)
     // + staff_shifts (jornada del staff, 2026-09-07, tenancy-native en la 0223) = 95
-    // + cash_counts (arqueos de caja, 2026-09-08, tenancy-native en la 0226) = 96.
+    // + cash_counts (arqueos de caja, 2026-09-08, tenancy-native en la 0226) = 96
+    // + renewal_followups/renewal_reasons (módulo de Renovaciones,
+    //   2026-09-24, tenancy-native en la 0237; `renewal_message_templates`
+    //   se descartó el mismo día — WhatsApp se manda desde el CRM) = 98.
     expect(
       report.gymOwnedChecked,
-      `El verificador solo pudo mirar ${report.gymOwnedChecked} de las 96 tablas gym-owned ` +
+      `El verificador solo pudo mirar ${report.gymOwnedChecked} de las 98 tablas gym-owned ` +
         `(87 de la fase 167 + session_week_regime de la 159 + 3 de partners de la 179 ` +
-        `+ 3 de comunicaciones de la 193 + staff_shifts de la 0223 + cash_counts de la 0226): ` +
-        `faltan tablas en ${report.database} y el resultado no es concluyente.`,
-    ).toBe(96);
+        `+ 3 de comunicaciones de la 193 + staff_shifts de la 0223 + cash_counts de la 0226 ` +
+        `+ 2 de renovaciones de la 0237): faltan tablas en ${report.database} y el resultado ` +
+        `no es concluyente.`,
+    ).toBe(98);
     expect(
       report.uniquesChecked,
       `El verificador evaluó ${report.uniquesChecked} uniques de tablas gym-owned. Tienen que ` +

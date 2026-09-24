@@ -43,9 +43,16 @@ export type AuditAction =
   // already exists below — no change there.
   | "transaction_validated"
   | "transaction_observed"
-  | "transaction_corrected";
+  | "transaction_corrected"
+  // Módulo de Renovaciones (2026-09-24): cualquier cambio manual sobre un
+  // renewal_followup (mensaje, no_renovo+motivo, volver a en_proceso).
+  | "renewal_followup_updated";
 
-export type AuditTargetKind = "subscription" | "transaction" | "member";
+export type AuditTargetKind =
+  | "subscription"
+  | "transaction"
+  | "member"
+  | "renewal_followup";
 
 export interface AuditWriteParams {
   actorId: number;
