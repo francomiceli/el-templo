@@ -133,6 +133,9 @@ export const GYM_OWNED_TABLES = [
   "referral_partners",
   "referrals",
   "refresh_tokens",
+  "renewal_followups",
+  "renewal_message_templates",
+  "renewal_reasons",
   "routes",
   "saved_blocks",
   "schedule_exceptions",
@@ -629,6 +632,14 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "pending_notifications",
   ],
   referrals: ["referral_credits", "referral_cta_clicks", "referrals"],
+  // 2026-09-24: modulo de Renovaciones (brief Nacho) — nace strict, no hay
+  // deuda previa que tolerar (mismo criterio que `communications`/
+  // `staff-attendance`).
+  renewals: [
+    "renewal_followups",
+    "renewal_message_templates",
+    "renewal_reasons",
+  ],
   // 2026-09-07: el modulo nace strict, no hay deuda previa que tolerar
   // (mismo criterio que `communications`, fase 193).
   "staff-attendance": ["staff_shifts"],

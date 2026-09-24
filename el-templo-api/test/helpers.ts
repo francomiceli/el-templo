@@ -275,6 +275,12 @@ const TABLES_TO_CLEAN = [
   // staff-attendance (2026-09-07): jornadas de check-in/check-out del staff —
   // FK a users/branches, sin limpiar se acumularían huérfanas entre archivos.
   schema.staffShifts,
+  // Renovaciones (2026-09-24): followups (FK a subscriptions/users/
+  // renewal_reasons) antes que sus padres; motivos/plantillas son catálogo
+  // por tenant, sin dependientes propios.
+  schema.renewalFollowups,
+  schema.renewalReasons,
+  schema.renewalMessageTemplates,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,

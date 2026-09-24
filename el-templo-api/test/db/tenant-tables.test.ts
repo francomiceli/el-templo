@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 96 gym-owned + 4 exentas y cubren las 100 tablas del schema", () => {
+  it("los conteos son 99 gym-owned + 4 exentas y cubren las 103 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -107,12 +107,15 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // 94 -> 95, 98 -> 99.
     // 2026-09-08 sumó `cash_counts` (arqueos de caja, mig 0226, strict en
     // finance): 95 -> 96, 99 -> 100.
-    expect(GYM_OWNED_TABLES.length).toBe(96);
+    // 2026-09-24 sumó `renewal_followups`, `renewal_message_templates`,
+    // `renewal_reasons` (módulo de Renovaciones, mig 0237, nace strict):
+    // 96 -> 99, 100 -> 103.
+    expect(GYM_OWNED_TABLES.length).toBe(99);
     expect(TENANT_EXEMPT_TABLES.length).toBe(4);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(100);
+    expect(schemaTables.size).toBe(103);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -442,6 +445,13 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "pending_notifications",
     ],
     referrals: ["referral_credits", "referral_cta_clicks", "referrals"],
+    // 2026-09-24: módulo de Renovaciones (brief Nacho). Nace strict, sin
+    // deuda de allowlist previa.
+    renewals: [
+      "renewal_followups",
+      "renewal_message_templates",
+      "renewal_reasons",
+    ],
     // 2026-09-07: jornada laboral del staff (check-in/out con el QR de sede).
     // Nace strict, sin deuda de allowlist previa.
     "staff-attendance": ["staff_shifts"],
@@ -453,7 +463,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     ],
   };
 
-  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub; 2026-09-07: staff-attendance)", () => {
+  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub; 2026-09-07: staff-attendance; 2026-09-24: renewals)", () => {
     const normalizar = (registro: Record<string, readonly string[]>) =>
       Object.fromEntries(
         Object.entries(registro).map(([modulo, tablas]) => [
