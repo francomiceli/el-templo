@@ -35,6 +35,8 @@
               <q-input
                 v-model="email"
                 type="email"
+                name="email"
+                autocomplete="username"
                 label="Email"
                 :rules="emailRules"
                 lazy-rules
@@ -48,6 +50,8 @@
               <q-input
                 v-model="password"
                 :type="showPassword ? 'text' : 'password'"
+                name="password"
+                autocomplete="current-password"
                 label="Contraseña"
                 :rules="passwordRules"
                 lazy-rules
@@ -101,16 +105,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
+import { useLastLoginEmail } from 'src/composables/useLastLoginEmail'
 import { extractError } from 'src/utils/extract-error'
 
 const router = useRouter()
 const $q = useQuasar()
 const authStore = useAuthStore()
+const { get: getLastLoginEmail, set: setLastLoginEmail } = useLastLoginEmail()
 
 const email = ref('')
 const password = ref('')
@@ -157,6 +163,16 @@ const emailRules = [
 
 const passwordRules = [(val: string) => !!val || 'La contraseña es requerida']
 
+// App 1.7.9 (recordar email, D-2): prellena con el último email logueado en
+// este dispositivo. Nunca la contraseña — eso lo maneja el gestor de
+// contraseñas del sistema vía los `autocomplete` de los inputs de arriba.
+onMounted(async () => {
+  const savedEmail = await getLastLoginEmail()
+  if (savedEmail) {
+    email.value = savedEmail
+  }
+})
+
 function togglePassword() {
   showPassword.value = !showPassword.value
   eyeBounce.value = true
@@ -170,6 +186,9 @@ async function onSubmit() {
   loginFailed.value = false
   try {
     await authStore.login(email.value, password.value)
+    // Recordar email (App 1.7.9): se guarda solo tras un login OK, y no se
+    // borra en logout — esa persistencia es la idea del feature.
+    void setLastLoginEmail(email.value)
 
     // Navigate directly to onboarding if not completed (avoids white flash from redirect chain)
     const userStore = useUserStore()

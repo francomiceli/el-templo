@@ -15,12 +15,15 @@ import {
   registerUser,
   cleanAllTestData,
   dateOffsetStr,
+  createStaffUser,
 } from "../helpers";
 import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
 import { attendance } from "../../src/db/schema/attendance";
+import { classCoachAssignments } from "../../src/db/schema/class-coach-assignments";
+import type { WeeklySlotView } from "../../src/modules/scheduling/types";
 import { completedSessions } from "../../src/db/schema/completed-sessions";
 import { financialTransactions } from "../../src/db/schema/financial-transactions";
 import { transactionLinks } from "../../src/db/schema/transaction-links";
@@ -2298,6 +2301,162 @@ describe("Scheduling API", () => {
       expect(body.slots.length).toBeGreaterThanOrEqual(1);
       expect(body.myBookings.length).toBeGreaterThanOrEqual(1);
       expect(body).toHaveProperty("holidays");
+    });
+  });
+
+  // =========================================================================
+  // Profe por turno (App 1.7.9): coachFirstName en la grilla semanal
+  // =========================================================================
+  describe("Weekly grid — coachFirstName por turno (App 1.7.9)", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+      // cleanAllTestData no cubre class_coach_assignments (mismo patron que
+      // ratings.test.ts): limpiar acá para que un roster de un test no
+      // contamine el siguiente en la misma sucursal.
+      await app.db
+        .delete(classCoachAssignments)
+        .where(eq(classCoachAssignments.branchId, testBranchId));
+    });
+
+    /** Lunes ISO de `weeks` semanas antes de la semana actual (fake timer). */
+    function mondayMinusWeeks(weeks: number): string {
+      const monday = new Date(`${getCurrentMonday()}T12:00:00Z`);
+      monday.setUTCDate(monday.getUTCDate() - weeks * 7);
+      return monday.toISOString().split("T")[0];
+    }
+
+    async function createCoach(firstName: string): Promise<number> {
+      const email = `coach-${firstName.toLowerCase()}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}@test.com`;
+      return createStaffUser(app, {
+        email,
+        password: "coach-pass-123",
+        firstName,
+        lastName: "Profe",
+        role: "coach",
+        branchId: testBranchId,
+      });
+    }
+
+    function findSlot(
+      slots: WeeklySlotView[],
+      dayOfWeek: number,
+      startTime: string,
+    ): WeeklySlotView | undefined {
+      return slots.find(
+        (s) => s.dayOfWeek === dayOfWeek && s.startTime === startTime,
+      );
+    }
+
+    it("resuelve distinto profe para el turno mañana y el turno tarde", async () => {
+      const activity = await createActivity();
+      await createScheduleSlot(activity.id, 1, "09:00", "10:00"); // mañana
+      await createScheduleSlot(activity.id, 1, "18:00", "19:00"); // tarde
+
+      const carlaId = await createCoach("Carla");
+      const diegoId = await createCoach("Diego");
+      const weekStart = getCurrentMonday();
+
+      await app.db.insert(classCoachAssignments).values([
+        {
+          branchId: testBranchId,
+          weekStartDate: weekStart,
+          dayOfWeek: 1,
+          slot: "morning",
+          coachId: carlaId,
+        },
+        {
+          branchId: testBranchId,
+          weekStartDate: weekStart,
+          dayOfWeek: 1,
+          slot: "afternoon",
+          coachId: diegoId,
+        },
+      ]);
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/schedules/weekly?branchId=${testBranchId}&weekStart=${weekStart}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as { slots: WeeklySlotView[] };
+      const morningSlot = findSlot(body.slots, 1, "09:00");
+      const afternoonSlot = findSlot(body.slots, 1, "18:00");
+
+      expect(morningSlot?.coachFirstName).toBe("Carla");
+      expect(afternoonSlot?.coachFirstName).toBe("Diego");
+    });
+
+    it("sin asignación de roster para el (día, turno), coachFirstName es null", async () => {
+      const activity = await createActivity();
+      await createScheduleSlot(activity.id, 2, "09:00", "10:00");
+
+      const weekStart = getCurrentMonday();
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/schedules/weekly?branchId=${testBranchId}&weekStart=${weekStart}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as { slots: WeeklySlotView[] };
+      const slot = findSlot(body.slots, 2, "09:00");
+      expect(slot?.coachFirstName).toBeNull();
+    });
+
+    it("effective-dated: una asignación posterior reemplaza a la vigente desde su semana en adelante, sin reescribir semanas anteriores", async () => {
+      const activity = await createActivity();
+      await createScheduleSlot(activity.id, 3, "09:00", "10:00");
+
+      const carlaId = await createCoach("Carla");
+      const diegoId = await createCoach("Diego");
+
+      const earlierWeek = mondayMinusWeeks(2);
+      const laterWeek = mondayMinusWeeks(0); // semana actual
+
+      // Change-point mas viejo (Carla desde earlierWeek) y uno mas nuevo
+      // (Diego desde laterWeek) que la reemplaza de ahi en adelante.
+      await app.db.insert(classCoachAssignments).values([
+        {
+          branchId: testBranchId,
+          weekStartDate: earlierWeek,
+          dayOfWeek: 3,
+          slot: "morning",
+          coachId: carlaId,
+        },
+        {
+          branchId: testBranchId,
+          weekStartDate: laterWeek,
+          dayOfWeek: 3,
+          slot: "morning",
+          coachId: diegoId,
+        },
+      ]);
+
+      const resEarlier = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/schedules/weekly?branchId=${testBranchId}&weekStart=${earlierWeek}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const bodyEarlier = JSON.parse(resEarlier.body) as {
+        slots: WeeklySlotView[];
+      };
+      expect(findSlot(bodyEarlier.slots, 3, "09:00")?.coachFirstName).toBe(
+        "Carla",
+      );
+
+      const resLater = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/schedules/weekly?branchId=${testBranchId}&weekStart=${laterWeek}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const bodyLater = JSON.parse(resLater.body) as {
+        slots: WeeklySlotView[];
+      };
+      expect(findSlot(bodyLater.slots, 3, "09:00")?.coachFirstName).toBe(
+        "Diego",
+      );
     });
   });
 

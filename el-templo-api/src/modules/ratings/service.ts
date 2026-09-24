@@ -37,6 +37,7 @@ import {
   isoDayOfWeek,
   isoWeekStart,
   slotFromStartTime,
+  getEffectiveRosterCells,
 } from "./roster-attribution";
 import type {
   RosterAssignmentInput,
@@ -117,46 +118,26 @@ export class RatingsService {
     branchId: number,
     weekStartDate: string,
   ): Promise<RosterWeekRow[]> {
-    const result = await this.db.execute(sql`
-      SELECT t.id AS id,
-             t.day_of_week AS dayOfWeek,
-             t.slot AS slot,
-             t.coach_id AS coachId,
-             u.first_name AS firstName,
-             u.last_name AS lastName
-      FROM (
-        SELECT id, day_of_week, slot, coach_id,
-               ROW_NUMBER() OVER (
-                 PARTITION BY day_of_week, slot
-                 ORDER BY week_start_date DESC
-               ) AS rn
-        FROM class_coach_assignments
-        WHERE branch_id = ${branchId}
-          AND week_start_date <= ${weekStartDate}
-      ) t
-      JOIN users u ON u.id = t.coach_id AND u.tenant_id = ${ctx.tenantId}
-      WHERE t.rn = 1
-    `);
+    // La query effective-dated (window function) vive en roster-attribution.ts
+    // — fuente única, reusada también por SchedulingService.getWeeklyGrid
+    // (App 1.7.9, encabezado de turno "profe por turno").
+    const cells = await getEffectiveRosterCells(
+      this.db,
+      ctx,
+      branchId,
+      weekStartDate,
+    );
 
-    const rows = result[0] as unknown as Array<{
-      id: number;
-      dayOfWeek: number;
-      slot: string;
-      coachId: number;
-      firstName: string | null;
-      lastName: string | null;
-    }>;
-
-    return rows.map((r) => ({
-      id: r.id,
+    return cells.map((c) => ({
+      id: c.id,
       branchId,
       // The cell belongs to the viewed week, not the (possibly earlier) week the
       // change-point was created — the grid renders "who teaches this week".
       weekStartDate,
-      dayOfWeek: r.dayOfWeek,
-      slot: r.slot as ClassSlot,
-      coachId: r.coachId,
-      coachName: [r.firstName, r.lastName].filter(Boolean).join(" "),
+      dayOfWeek: c.dayOfWeek,
+      slot: c.slot,
+      coachId: c.coachId,
+      coachName: [c.firstName, c.lastName].filter(Boolean).join(" "),
     }));
   }
 

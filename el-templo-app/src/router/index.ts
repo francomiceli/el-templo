@@ -28,6 +28,15 @@ export default defineRouter(function () {
     const authStore = useAuthStore()
     const userStore = useUserStore()
 
+    // App 1.7.9 (boot optimista): si el boot arrancó la sesión sin poder
+    // cargar el perfil rico (corte de red/5xx en el refresh o en /auth/me),
+    // reintentarlo acá, en la primera navegación disponible — fire-and-forget,
+    // nunca bloquea la decisión del guard. No-op si no hace falta (ver
+    // useUserStore.retryProfileLoad).
+    if (authStore.isAuthenticated && userStore.profileStale) {
+      void userStore.retryProfileLoad()
+    }
+
     // Adaptador delgado: lee stores + persistencia y delega la decisión en
     // la función pura `resolveGuardRedirect` (Phase 180, D-21). Sin lógica
     // de decisión acá — ver src/router/guards.ts.

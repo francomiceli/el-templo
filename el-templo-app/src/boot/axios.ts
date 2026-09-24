@@ -49,22 +49,46 @@ const refreshClient = axios.create({
 // The first 401 of a storm triggers one POST /auth/refresh; concurrent requests
 // await the same promise and retry once with the new access token.
 // ---------------------------------------------------------------------------
-let refreshPromise: Promise<string | null> | null = null
+
+/**
+ * Discriminated result of a refresh attempt (App 1.7.9, causa raíz de
+ * deslogueos): un refresh puede fallar por dos motivos MUY distintos, y
+ * solo uno de ellos significa "la sesión terminó":
+ *  - 'rejected': el servidor respondió 401/403 — el refresh token está
+ *    revocado, expiró, o fue detectado como replay. Ahí sí no hay sesión.
+ *  - 'network': la llamada no pudo completarse (sin respuesta — sin
+ *    internet, timeout — o 5xx del server). El refresh token PODRÍA seguir
+ *    siendo válido; nunca lo sabemos porque el server nunca contestó. No es
+ *    motivo para cerrar sesión.
+ */
+export type RefreshResult = { kind: 'ok'; token: string } | { kind: 'rejected' } | { kind: 'network' }
+
+/** 401/403 = el servidor rechazó explícitamente la sesión. Cualquier otro
+ * código (o ausencia de respuesta) es un problema transitorio, no una
+ * decisión del servidor sobre la sesión. */
+export function isSessionRejectedStatus(status: number | undefined): boolean {
+  return status === 401 || status === 403
+}
+
+let refreshPromise: Promise<RefreshResult> | null = null
 
 /**
  * Returns the shared in-flight refresh promise, creating it on first call.
- * Resolves to the new access token on success, or null on failure.
  * Always resets the lock in `finally` so the next storm can refresh again.
  */
-export function runRefresh(): Promise<string | null> {
+export function runRefresh(): Promise<RefreshResult> {
   if (refreshPromise) {
     return refreshPromise
   }
   const { getRefreshToken, setTokens, clearTokens } = useTokenStorage()
-  refreshPromise = (async (): Promise<string | null> => {
+  refreshPromise = (async (): Promise<RefreshResult> => {
     const refreshToken = await getRefreshToken()
     if (!refreshToken) {
-      return null
+      // Nada que intentar — no es un rechazo del servidor, pero tampoco hay
+      // refresh posible. Los call sites de runRefresh ya filtran este caso
+      // antes de llamar (interceptor rama (c), boot chequea refreshToken),
+      // así que en la práctica no se alcanza; se cubre por completitud.
+      return { kind: 'rejected' }
     }
     try {
       const { data } = await refreshClient.post('/auth/refresh', {
@@ -75,17 +99,24 @@ export function runRefresh(): Promise<string | null> {
       if (!accessToken || !newRefresh) {
         log.warn('Refresh response missing tokens')
         await clearTokens()
-        return null
+        return { kind: 'rejected' }
       }
       await setTokens(accessToken, newRefresh)
-      return accessToken
+      return { kind: 'ok', token: accessToken }
     } catch (err: unknown) {
-      // 401 (revoked/expired/reuse) or network error after the call.
-      log.warn('Silent refresh failed', {
-        status: err instanceof AxiosError ? err.response?.status : undefined,
+      const status = err instanceof AxiosError ? err.response?.status : undefined
+      if (isSessionRejectedStatus(status)) {
+        log.warn('Refresh rechazado por el servidor', { status })
+        await clearTokens()
+        return { kind: 'rejected' }
+      }
+      // Sin response (red/timeout) o 5xx: transitorio. NO se borran los
+      // tokens — el próximo intento (próxima request o próxima oleada de
+      // 401s) vuelve a refrescar con la red ya recuperada.
+      log.warn('Refresh no se pudo completar (red/servidor); se mantiene la sesión', {
+        status,
       })
-      await clearTokens()
-      return null
+      return { kind: 'network' }
     }
   })().finally(() => {
     refreshPromise = null
@@ -178,13 +209,27 @@ export function createAuthErrorHandler(instance: AxiosInstance, onRedirect: () =
     }
 
     // (d) Normal case: run the shared refresh, then retry this request once.
-    const newAccess = await runRefresh()
-    if (newAccess) {
+    const result = await runRefresh()
+
+    if (result.kind === 'ok') {
       config.__isRetry = true
-      config.headers.Authorization = `Bearer ${newAccess}`
+      config.headers.Authorization = `Bearer ${result.token}`
       return instance(config)
     }
 
+    if (result.kind === 'network') {
+      // El refresh no se pudo completar por un problema transitorio (sin
+      // response, timeout, o 5xx) — NO es el servidor diciendo "esta sesión
+      // terminó". Se rechaza SOLO la request original, sin tocar tokens ni
+      // redirigir a login: el socio sigue logueado y el próximo intento
+      // vuelve a refrescar. Se traduce el mensaje para que se lea como lo
+      // que es (una falla de red), no como una sesión inválida.
+      error.message = NETWORK_ERROR_MESSAGE
+      return Promise.reject(error)
+    }
+
+    // result.kind === 'rejected': el servidor rechazó explícitamente el
+    // refresh (401/403) — ahí sí no hay sesión que mantener.
     await onRedirect()
     return Promise.reject(error)
   }
