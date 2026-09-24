@@ -574,7 +574,7 @@ export class NotificationService {
    *
    * La fila de `pending_notifications` nace directamente como `sent`
    * (optimista) y se degrada a `failed` si ningún token aceptó — así el
-   * barrido de `processQueue` (cada 15 min) nunca la ve como `pending` y no
+   * barrido de `processQueue` (cada 5 min) nunca la ve como `pending` y no
    * puede reenviarla en paralelo.
    */
   async sendTestNotification(
@@ -664,7 +664,7 @@ export class NotificationService {
   // ── Queue Processing ────────────────────────────────────────────────────
 
   /**
-   * Process the notification queue — called by cron every 15 min (per D-10).
+   * Process the notification queue — called by cron every 5 min (antes 15, D-10).
    * Selects pending notifications where scheduledAt <= now, sends via FCM.
    *
    * T-175-03: barrido GENUINAMENTE cross-tenant — no recibe `ctx` y procesa

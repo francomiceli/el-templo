@@ -349,7 +349,9 @@ export async function runClassReminderForTenant(
         continue;
       }
 
-      const titleOverride = `Tu clase de las ${booking.startTime} arranca en ${offsetMinutes} min`;
+      const titleOverride = `Tu clase de las ${booking.startTime} arranca en ${
+        offsetMinutes === 60 ? "1 hora" : `${offsetMinutes} min`
+      }`;
       const notifId = await notificationService.queueNotification({
         userId: booking.userId,
         templateKey: CLASS_REMINDER_TEMPLATE_KEY,
@@ -888,7 +890,7 @@ export async function runBatchSegmentRecalculation(
 export async function startNotificationJobs(
   db: MySql2Database<typeof schema>,
 ): Promise<void> {
-  // ── 1. Queue Processor — every 15 minutes (per D-10) ─────────────────
+  // ── 1. Queue Processor + recordatorio de clase — cada 5 minutos ───────
   //
   // Los cuatro callbacks de acá abajo no tienen lógica de negocio: llaman a su
   // función pura y contienen el error. Los schedules 1 y 2 NO loguean un total
@@ -897,7 +899,21 @@ export async function startNotificationJobs(
   // misma línea sin atribución de tenant (mismo criterio que el summary de
   // `wellhub-sync`, deviation 1 del plan 169-02). Los schedules 3 y 4 sí
   // conservan su log agregado por timezone, porque ya lo tenían.
-  cron.schedule("*/15 * * * *", async () => {
+  //
+  // Cada 5 min (antes 15): el recordatorio de clase promete "arranca en 30
+  // min", y con un despacho cada 15 llegaba hasta 15 min tarde. Encolar y
+  // despachar van en el MISMO callback y en ese orden (ver 2b): dos schedules
+  // separados podían solaparse y competir por la misma fila pendiente.
+  cron.schedule("*/5 * * * *", async () => {
+    try {
+      const { candidates, queued } = await runClassReminders(db);
+      if (queued > 0) {
+        log.info({ candidates, queued }, "Class reminders processed");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      log.error({ err: message }, "Class reminder cron failed");
+    }
     try {
       await runNotificationQueueTick(db);
     } catch (err: unknown) {
@@ -920,22 +936,10 @@ export async function startNotificationJobs(
     { timezone: "America/Argentina/Buenos_Aires" },
   );
 
-  // ── 2b. Class Reminder — every 5 minutes, tz-agnostic sweep (fix 2026-09-24) ──
-  // Cada reserva resuelve su propio horario de envío con la tz de SU sede
-  // (adentro de anticipatedBookingsToday) — no hay un huso único por corrida
-  // como en morning_energy/weekly_summary, así que este schedule no itera
-  // timezones: barre los gimnasios activos directamente.
-  cron.schedule("*/5 * * * *", async () => {
-    try {
-      const { candidates, queued } = await runClassReminders(db);
-      if (queued > 0) {
-        log.info({ candidates, queued }, "Class reminders processed");
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      log.error({ err: message }, "Class reminder cron failed");
-    }
-  });
+  // ── 2b. Class Reminder — corre dentro del schedule 1 (cada 5 min), antes
+  // del despacho de la cola. Cada reserva resuelve su propio horario de envío
+  // con la tz de SU sede (adentro de anticipatedBookingsToday), así que no
+  // itera timezones: barre los gimnasios activos directamente.
 
   // ── 3. Morning Energy Reminder — 08:00 in each branch's local time ────
   // ── 4. Weekly Summary — Saturday 15:00 in each branch's local time ────
