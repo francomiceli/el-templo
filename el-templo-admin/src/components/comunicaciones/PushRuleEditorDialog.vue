@@ -296,6 +296,7 @@ import type {
   UpdateTemplateInput,
 } from 'src/composables/useCommunicationsApi';
 import DestinoSelector from 'src/components/comunicaciones/DestinoSelector.vue';
+import { APP_SECTIONS } from 'src/config/destinations';
 import type { Destination } from 'src/config/destinations';
 import {
   RULE_TRIGGER_OPTIONS,
@@ -385,7 +386,19 @@ function resetForm(): void {
     form.bodyFemale = t.bodyFemale ?? '';
     form.destination = {
       type: t.destinationType,
-      section: t.destinationSection,
+      // Fix "sección de destino no es válida" (2026-09-24, Sentry NODE-5V):
+      // una plantilla vieja (sembrada antes del backfill de la migración
+      // 0239, o con datos corruptos) puede traer `destinationSection: null`
+      // con `destinationType: 'app_section'`. `DestinoSelector` ya mostraba
+      // `APP_SECTIONS[0]` como default visual en ese caso (su `selectedKey`
+      // cae a eso cuando `section` es null) — pero el form seguía guardando
+      // `null`, así que "lo mostrado" y "lo enviado" divergían y el guardado
+      // sin tocar nada volvía con 400 de `validateDestination`. Normalizamos
+      // acá para que coincidan.
+      section:
+        t.destinationType === 'app_section' && t.destinationSection === null
+          ? APP_SECTIONS[0]!.key
+          : t.destinationSection,
       whatsappText: t.whatsappText,
     };
     form.triggerType = t.triggerType;

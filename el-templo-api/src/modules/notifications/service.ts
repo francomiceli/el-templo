@@ -27,6 +27,7 @@ import type { EmailService } from "../email/service";
 // resuelve el payload FCM con fallback (route) + destino nuevo, nunca lanza.
 import {
   fallbackRouteFor,
+  appSectionForRoute,
   DEFAULT_WHATSAPP_TEXT,
   type Destination,
   type DestinationType,
@@ -997,12 +998,19 @@ export class NotificationService {
     const keys: string[] = [];
     for (const seed of TEMPLATE_SEEDS) {
       // `kind` NO va en el INSERT: la columna trae DEFAULT 'system'
-      // (migración 0219) — las 17 filas de TEMPLATE_SEEDS son siempre
+      // (migración 0219) — todas las filas de TEMPLATE_SEEDS son siempre
       // 'system', nunca una regla propia.
+      //
+      // Fix "sección de destino no es válida" (2026-09-24): `destination_type`/
+      // `destination_section` SÍ van en el INSERT desde acá en adelante — antes
+      // el seed solo escribía `route` y las 2 columnas de destino quedaban en
+      // su DEFAULT (`app_section`/NULL), así que un tenant nuevo nacía con el
+      // mismo bug que arregla el backfill de la migración 0239 (ver
+      // `appSectionForRoute`, mismo mapeo route→section que usó ese backfill).
       const [result] = await this.db.execute(
         sql`INSERT IGNORE INTO notification_templates
-            (tenant_id, template_key, notification_category, title, body, title_female, body_female, route)
-            VALUES (${ctx.tenantId}, ${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.titleFemale}, ${seed.bodyFemale}, ${seed.route})`,
+            (tenant_id, template_key, notification_category, title, body, title_female, body_female, route, destination_type, destination_section)
+            VALUES (${ctx.tenantId}, ${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.titleFemale}, ${seed.bodyFemale}, ${seed.route}, 'app_section', ${appSectionForRoute(seed.route)})`,
       );
       if ((result as { affectedRows?: number }).affectedRows === 1) {
         keys.push(seed.templateKey);

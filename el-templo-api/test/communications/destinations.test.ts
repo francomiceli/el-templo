@@ -8,6 +8,7 @@ import {
   DEFAULT_WHATSAPP_TEXT,
   WHATSAPP_TEXT_MAX_LENGTH,
   isAppSectionKey,
+  appSectionForRoute,
   resolveDestinationRoute,
   fallbackRouteFor,
   validateWhatsAppText,
@@ -65,6 +66,26 @@ describe("communications/destinations", () => {
     expect(isAppSectionKey("no-existe")).toBe(false);
     expect(isAppSectionKey(42)).toBe(false);
     expect(isAppSectionKey(null)).toBe(false);
+  });
+
+  describe("appSectionForRoute (fix destino NULL, 2026-09-24)", () => {
+    it("mapea las 4 rutas conocidas a su sección curada", () => {
+      expect(appSectionForRoute("/mi-templo")).toBe("mi_templo");
+      expect(appSectionForRoute("/reservas")).toBe("reservas");
+      expect(appSectionForRoute("/mis-referidos")).toBe("referidos");
+      expect(appSectionForRoute("/mi-camino")).toBe("programas");
+    });
+
+    it("cualquier otra ruta (o desconocida) cae a mi_templo", () => {
+      expect(appSectionForRoute("/no-existe")).toBe("mi_templo");
+      expect(appSectionForRoute("")).toBe("mi_templo");
+    });
+
+    it("el resultado siempre es una AppSectionKey válida (nunca rompe validateDestination)", () => {
+      for (const route of ["/mi-templo", "/reservas", "/mis-referidos", "/mi-camino", "/otra"]) {
+        expect(isAppSectionKey(appSectionForRoute(route))).toBe(true);
+      }
+    });
   });
 
   describe("validateWhatsAppText", () => {
