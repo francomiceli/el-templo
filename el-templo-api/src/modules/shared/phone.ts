@@ -86,7 +86,12 @@ export function normalizePhoneE164(
   }
 
   if (branchCountry === "AR") {
-    return digits.length === 10 ? `+549${digits}` : null;
+    // Prefijo troncal "0" del formato nacional ("(011) 2345-6789",
+    // "0223 555-3487"): se descarta antes de contar los 10 dígitos. Un "15"
+    // sin característica ("15 5622097") no alcanza para saber la ciudad:
+    // queda null y la pantalla pide revisarlo en la ficha.
+    const national = digits.startsWith("0") ? digits.slice(1) : digits;
+    return national.length === 10 ? `+549${national}` : null;
   }
   return digits.length === 9 ? `+34${digits}` : null;
 }
