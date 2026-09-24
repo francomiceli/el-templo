@@ -258,6 +258,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // Renovaciones (SPEC 2026-09-24): mismos roles que Reportes — es su
+        // capa operativa (gestión fila por fila de los vencimientos que hoy
+        // se descargan a Excel desde esa pantalla).
+        path: 'renovaciones',
+        component: () => import('pages/RenovacionesPage.vue'),
+        meta: {
+          allowedRoles: ['gestion', 'admin', 'owner', 'admin_sede'] as AdminRole[],
+        },
+      },
+      {
         path: 'campanias',
         component: () => import('pages/CampaniasPage.vue'),
         meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
