@@ -141,18 +141,30 @@ export const MEMBER_SEGMENT_OPTIONS: ReadonlyArray<{
 ];
 
 // ── Descripción fija del disparador de cada plantilla de SISTEMA ──────────
-// Las 17 `TEMPLATE_SEEDS` (el-templo-api/src/modules/notifications/types.ts)
+// Las 18 `TEMPLATE_SEEDS` (el-templo-api/src/modules/notifications/types.ts)
 // no tienen `triggerType` en la DB (son lógica de negocio hardcodeada en
 // distintos jobs/servicios, no el motor de reglas) — este mapa es SOLO texto
 // informativo para el editor ("Disparador del sistema: …"), nunca se manda
 // al server ni se usa para validar nada.
+//
+// Fix recordatorio de clase (2026-09-24): `morning_energy` describía mal su
+// propio disparo ("antes de una sesión reservada para hoy" — el job nunca
+// miró reservas). Corregido acá + agregado `class_reminder`, su
+// complementaria: cada socio recibe UNA de las dos por día (ver
+// `SYSTEM_TEMPLATE_ALTERNATES` abajo). Los offsets de `class_reminder` (30
+// min turno mañana / 60 min turno tarde) son ESPEJO manual de
+// `CLASS_REMINDER_MINUTES_MORNING`/`CLASS_REMINDER_MINUTES_AFTERNOON`
+// (el-templo-api/src/jobs/notification-cron.ts) — el admin no importa código
+// del API, así que este texto hay que mantenerlo sincronizado a mano si esos
+// valores cambian.
 export const SYSTEM_TEMPLATE_TRIGGER_DESCRIPTIONS: Readonly<Record<string, string>> = {
   segment_transition_en_riesgo: 'Automático: el socio pasó a segmento Alerta.',
   segment_transition_ghost: 'Automático: el socio pasó de Alerta a Ausente.',
   segment_transition_recovery: 'Automático: el socio volvió a entrenar tras estar inactivo.',
   segment_transition_espartano: 'Automático: el socio pasó a segmento Óptima.',
   ghost_monthly_reattempt: 'Automático: reintento mensual a socios Ausentes de largo plazo.',
-  morning_energy: 'Automático: antes de una sesión reservada para hoy.',
+  morning_energy:
+    'Automático: 8:00, socios SIN reserva anticipada para hoy que no registraron su energía.',
   post_session_soreness: 'Automático: después de registrar una sesión.',
   weekly_summary: 'Automático: resumen semanal de entrenamiento.',
   program_enrollment: 'Automático: se activó un programa para el socio.',
@@ -164,6 +176,8 @@ export const SYSTEM_TEMPLATE_TRIGGER_DESCRIPTIONS: Readonly<Record<string, strin
   plan_renewal_warning_expired: 'Automático: la cuota vence hoy o ya venció.',
   referral_link_activated: 'Automático: un referido del socio pagó su primer plan.',
   trial_session_reminder: 'Automático: recordatorio ~24 h antes de una sesión de prueba reservada.',
+  class_reminder:
+    'Automático: socios CON reserva anticipada (hecha antes del día de la clase) — turno mañana 30 min antes, turno tarde 1 h antes de su clase.',
 };
 
 export function systemTriggerDescription(templateKey: string): string {
@@ -171,6 +185,21 @@ export function systemTriggerDescription(templateKey: string): string {
     SYSTEM_TEMPLATE_TRIGGER_DESCRIPTIONS[templateKey] ??
     'Disparador automático del sistema (lógica interna, no editable).'
   );
+}
+
+// ── Plantillas excluyentes/complementarias ────────────────────────────────
+// Fix recordatorio de clase (2026-09-24, pedido de Franco: "es un booleano
+// medio raro: si pasa una cosa se manda una y si no, otra"). Sin editor de
+// reglas nuevo: solo hacemos explícita la relación en el dashboard con un
+// indicador cruzado. Mapa simétrico a mano (2 entradas) — no vale la pena una
+// estructura de grafo genérica para un par.
+export const SYSTEM_TEMPLATE_ALTERNATES: Readonly<Record<string, string>> = {
+  morning_energy: '¿Cómo arrancás hoy?',
+  class_reminder: 'Recordatorio de clase',
+};
+
+export function systemTemplateAlternate(templateKey: string): string | undefined {
+  return SYSTEM_TEMPLATE_ALTERNATES[templateKey];
 }
 
 // ── Condiciones que pisan una plantilla fija de vencimiento de cuota ──────

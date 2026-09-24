@@ -11,7 +11,7 @@
  * homogeneidad sistema/propias (borrar y restaurar).
  *
  * LIMPIEZA: `notification_templates` SÍ está en `TABLES_TO_CLEAN`
- * (`cleanAllTestData` la vacía entera, incluidas las 17 filas de sistema) —
+ * (`cleanAllTestData` la vacía entera, incluidas las 18 filas de sistema) —
  * los tests que necesitan el catálogo de sistema lo re-siembran con
  * `service.seedTemplates(CTX)` en su propio `beforeEach` local o inline.
  *
@@ -419,13 +419,13 @@ describe("notifications/custom-rules — PUT/DELETE (homogeneidad sistema/propia
   it("(10) POST /admin/seed-templates restaura SOLO lo que falta, sin pisar un título editado", async () => {
     const service = new NotificationService(app.db, app.log);
     const seedResult = await service.seedTemplates(CTX_TEMPLO);
-    expect(seedResult.inserted).toBe(17);
+    expect(seedResult.inserted).toBe(18);
 
     const rows = await app.db
       .select({ id: schema.notificationTemplates.id, templateKey: schema.notificationTemplates.templateKey })
       .from(schema.notificationTemplates)
       .where(tenantWhere(schema.notificationTemplates, CTX_TEMPLO));
-    expect(rows.length).toBe(17);
+    expect(rows.length).toBe(18);
 
     const [aEditar, aBorrar] = rows;
 
@@ -448,7 +448,7 @@ describe("notifications/custom-rules — PUT/DELETE (homogeneidad sistema/propia
     expect(restoreBody.keys).toEqual([aBorrar.templateKey]);
 
     const templates = await getTemplates(adminToken);
-    expect(templates.length).toBe(17);
+    expect(templates.length).toBe(18);
     const editado = templates.find((t) => t.id === aEditar.id);
     expect(editado?.title).toBe("Editado a mano por el admin");
     expect(templates.some((t) => t.templateKey === aBorrar.templateKey)).toBe(true);

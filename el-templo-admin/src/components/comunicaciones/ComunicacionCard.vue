@@ -70,6 +70,7 @@
       <div v-for="(m, idx) in meta" :key="idx" class="comm-card__meta-line">
         <q-icon :name="m.icon" size="16px" />
         <span>{{ m.text }}</span>
+        <q-tooltip v-if="m.hint">{{ m.hint }}</q-tooltip>
       </div>
     </q-card-section>
 
@@ -102,7 +103,7 @@ withDefaults(
     audience: Audience;
     enabled: boolean;
     toggleDisabled?: boolean;
-    meta?: Array<{ icon: string; text: string }>;
+    meta?: Array<{ icon: string; text: string; hint?: string }>;
     metrics?: Array<{ label: string; value: string | number; hint?: string }>;
   }>(),
   {

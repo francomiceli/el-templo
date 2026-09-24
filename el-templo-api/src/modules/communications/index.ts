@@ -12,6 +12,7 @@ export {
   FALLBACK_ROUTE,
   WHATSAPP_TEXT_MAX_LENGTH,
   isAppSectionKey,
+  appSectionForRoute,
   resolveDestinationRoute,
   fallbackRouteFor,
   validateWhatsAppText,
