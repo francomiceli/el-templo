@@ -31,7 +31,7 @@
         color="primary"
         icon="directions"
         label="Cómo llegar"
-        class="q-mt-sm"
+        class="q-mt-sm branch-maps-link"
         @click="openBranchMaps(trialBooking.mapsUrl)"
       />
 
@@ -180,7 +180,7 @@
           </div>
 
           <template v-if="morningSlots.length > 0">
-            <p v-if="afternoonSlots.length > 0" class="day-slots__period">Turno Mañana</p>
+            <TurnoHeader turno="morning" :slots="morningSlots" />
             <div
               v-for="slot in morningSlots"
               :key="slot.id"
@@ -221,7 +221,7 @@
           </template>
 
           <template v-if="afternoonSlots.length > 0">
-            <p v-if="morningSlots.length > 0" class="day-slots__period">Turno Tarde</p>
+            <TurnoHeader turno="afternoon" :slots="afternoonSlots" />
             <div
               v-for="slot in afternoonSlots"
               :key="slot.id"
@@ -379,7 +379,7 @@
           size="sm"
           color="primary"
           label="Cómo llegar"
-          class="q-ml-sm"
+          class="q-ml-sm branch-maps-link"
           @click="openBranchMaps(mapsUrlForBranch(trialBranchId)!)"
         />
       </div>
@@ -434,7 +434,7 @@
           </div>
 
           <template v-if="morningSlots.length > 0">
-            <p v-if="afternoonSlots.length > 0" class="day-slots__period">Turno Mañana</p>
+            <TurnoHeader turno="morning" :slots="morningSlots" />
             <div
               v-for="slot in morningSlots"
               :key="slot.id"
@@ -480,7 +480,7 @@
           </template>
 
           <template v-if="afternoonSlots.length > 0">
-            <p v-if="morningSlots.length > 0" class="day-slots__period">Turno Tarde</p>
+            <TurnoHeader turno="afternoon" :slots="afternoonSlots" />
             <div
               v-for="slot in afternoonSlots"
               :key="slot.id"
@@ -583,7 +583,7 @@
           size="sm"
           color="primary"
           label="Cómo llegar"
-          class="q-ml-sm"
+          class="q-ml-sm branch-maps-link"
           @click="openBranchMaps(mapsUrlForBranch(selectedBranchId)!)"
         />
       </div>
@@ -690,7 +690,7 @@
 
         <!-- Morning section -->
         <template v-if="morningSlots.length > 0">
-          <p v-if="afternoonSlots.length > 0" class="day-slots__period">Turno Mañana</p>
+          <TurnoHeader turno="morning" :slots="morningSlots" />
           <div
             v-for="slot in morningSlots"
             :key="slot.id"
@@ -795,7 +795,7 @@
 
         <!-- Afternoon section -->
         <template v-if="afternoonSlots.length > 0">
-          <p v-if="morningSlots.length > 0" class="day-slots__period">Turno Tarde</p>
+          <TurnoHeader turno="afternoon" :slots="afternoonSlots" />
           <div
             v-for="slot in afternoonSlots"
             :key="slot.id"
@@ -1150,6 +1150,7 @@ import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
+import TurnoHeader from 'src/components/TurnoHeader.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
 import type {
   TrialEligibility,
@@ -2668,6 +2669,18 @@ onBeforeUnmount(() => cleanup())
   }
 }
 
+// App 1.7.9: "Cómo llegar" — subrayado y centrado vertical respecto del
+// selector de sede, mismo tratamiento en los 3 lugares que lo usan
+// (confirmación de sesión de prueba + junto al selector de sede ×2).
+.branch-maps-link {
+  align-self: center;
+  text-decoration: underline;
+
+  :deep(.q-btn__content) {
+    text-decoration: underline;
+  }
+}
+
 // ─── Next class hero ────────────────────────────────────────────────
 
 .next-class-card {
@@ -2841,20 +2854,6 @@ onBeforeUnmount(() => cleanup())
   font-size: 14px;
   color: $accent;
   margin-bottom: 12px;
-}
-
-.day-slots__period {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba($accent, 0.4);
-  margin: 16px 0 6px;
-
-  &:first-child {
-    margin-top: 0;
-  }
 }
 
 .day-slots__empty {
