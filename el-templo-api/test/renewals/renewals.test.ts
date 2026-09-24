@@ -163,6 +163,8 @@ describe("Renewals API (módulo de Renovaciones)", () => {
     startDate: string;
     endDate: string | null;
     pauseEndDate?: string | null;
+    /** Cuándo se registró la sub (default: ahora, como en la DB). */
+    createdAt?: Date;
   }): Promise<number> {
     const [result] = await app.db.insert(schema.subscriptions).values({
       tenantId: TENANT_TEMPLO,
@@ -173,6 +175,7 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       startDate: opts.startDate,
       endDate: opts.endDate,
       pauseEndDate: opts.pauseEndDate ?? null,
+      ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
       pricePaid: 15000,
       currency: "ARS",
       priceTypeApplied: "regular",
@@ -265,25 +268,50 @@ describe("Renewals API (módulo de Renovaciones)", () => {
 
     it("renovó FUERA de la ventana (+6 días) → volvio_tarde", async () => {
       const userId = await insertMember();
-      const endDate = dateOffsetStr(-2);
+      const endDate = dateOffsetStr(-7);
       const subId = await insertSub({
         userId,
         planId: planPresencialId,
-        startDate: dateOffsetStr(-32),
+        startDate: dateOffsetStr(-37),
         endDate,
         status: "expired",
       });
+      // Registrada Y arrancando en end + 6 días.
       await insertSub({
         userId,
         planId: planPresencialId,
-        startDate: dateOffsetStr(4), // end + 6 días
-        endDate: dateOffsetStr(34),
+        startDate: dateOffsetStr(-1),
+        endDate: dateOffsetStr(29),
         status: "active",
+        createdAt: new Date(`${dateOffsetStr(-1)}T15:00:00Z`),
       });
 
       const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
       const row = findRow(body, subId);
       expect(row?.status).toBe("volvio_tarde");
+    });
+
+    it("renovó ANTES de vencer con inicio diferido (+6 días) → renovo (cuenta el registro)", async () => {
+      const userId = await insertMember();
+      const endDate = todayStr();
+      const subId = await insertSub({
+        userId,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate,
+      });
+      // Caso real del Excel 22-28/09: renueva 2 días antes, arranca 6 días después.
+      await insertSub({
+        userId,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(6),
+        endDate: dateOffsetStr(36),
+        status: "scheduled",
+        createdAt: new Date(`${dateOffsetStr(-2)}T15:00:00Z`),
+      });
+
+      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      expect(findRow(body, subId)?.status).toBe("renovo");
     });
 
     it("cambio de sede SÍ cuenta como renovación", async () => {
@@ -518,7 +546,14 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       // 3) volvio_tarde
       const u3 = await insertMember();
       const s3 = await insertSub({ userId: u3, planId: planPresencialId, startDate: dateOffsetStr(-30), endDate });
-      await insertSub({ userId: u3, planId: planPresencialId, startDate: dateOffsetStr(6), endDate: dateOffsetStr(36), status: "active" });
+      await insertSub({
+        userId: u3,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(6),
+        endDate: dateOffsetStr(36),
+        status: "active",
+        createdAt: new Date(`${dateOffsetStr(6)}T15:00:00Z`),
+      });
 
       // 4) no_renovo (manual, con motivo)
       const u4 = await insertMember();
