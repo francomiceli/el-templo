@@ -33,6 +33,10 @@ import {
 } from "../shared/tenant";
 import { dateToWeekNumber } from "../shared/week-dates";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
+import {
+  getEffectiveRosterCells,
+  slotFromStartTime,
+} from "../ratings/roster-attribution";
 import { deriveActivityLabel } from "./derived-label";
 import {
   getDerivedLabelDescriptions,
@@ -304,6 +308,27 @@ export class SchedulingService {
     // modeByDay/bookingCountMap/holidayDates, nunca dentro del loop de slots.
     const derivedDescriptions = await getDerivedLabelDescriptions(this.db, ctx);
 
+    // App 1.7.9 (reservas: profe por turno): profe efectivo por (día, turno)
+    // para la semana pedida, UNA sola query batch (mismo patrón que
+    // modeByDay/derivedDescriptions/holidayDates) — reusa la fuente única de
+    // la regla effective-dated (ver ratings/roster-attribution.ts), no la
+    // reimplementa acá.
+    const rosterCells = await getEffectiveRosterCells(
+      this.db,
+      ctx,
+      branchId,
+      weekStartDate,
+    );
+    const coachFirstNameByDaySlot = new Map<string, string | null>();
+    for (const cell of rosterCells) {
+      const key = `${cell.dayOfWeek}|${cell.slot}`;
+      const trimmedFirst = cell.firstName?.trim() ?? "";
+      // Nombre de pila = solo la primera palabra de users.first_name (puede
+      // traer más de un nombre, p.ej. "Juan Pablo").
+      const firstWord = trimmedFirst.split(/\s+/)[0] ?? "";
+      coachFirstNameByDaySlot.set(key, firstWord === "" ? null : firstWord);
+    }
+
     // Batch-fetch confirmed booking counts (single GROUP BY instead of N+1).
     // Phase 102-06: compute bookedCount (non-trials, drives capacity) and
     // trialCount (trials walking in, displayed separately) in one query —
@@ -428,6 +453,13 @@ export class SchedulingService {
       const activityDescription =
         rawDescription && rawDescription.trim() !== "" ? rawDescription : null;
 
+      // App 1.7.9: mismo turno (mañana/tarde) que usa el roster — derivado
+      // del startTime del slot, no duplicado (slotFromStartTime vive en
+      // roster-attribution.ts, fuente única).
+      const coachSlot = slotFromStartTime(row.startTime);
+      const coachFirstName =
+        coachFirstNameByDaySlot.get(`${row.dayOfWeek}|${coachSlot}`) ?? null;
+
       slots.push({
         id: row.id,
         branchId: row.branchId,
@@ -456,6 +488,7 @@ export class SchedulingService {
         exceptionReason: exception?.reason ?? null,
         unconfirmedAttendance: 0,
         isSpecial: row.isSpecial,
+        coachFirstName,
       });
     }
 

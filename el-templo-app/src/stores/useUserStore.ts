@@ -126,6 +126,11 @@ export const useUserStore = defineStore('user', () => {
   // State
   const profile = ref<UserProfile | null>(null)
   const loading = ref(false)
+  // App 1.7.9 (boot optimista): true cuando el boot arrancó la sesión con el
+  // `AuthUser` mínimo decodificado del token (sin red para verificar/traer el
+  // perfil rico). El router reintenta `retryProfileLoad()` en la primera
+  // navegación mientras esto sea true.
+  const profileStale = ref(false)
   const subscription = ref<MemberSubscription | null>(null)
   const subscriptionLoading = ref(false)
   // Phase 162 (APP-02): pase especial. AISLADO del singular `subscription`
@@ -285,6 +290,41 @@ export const useUserStore = defineStore('user', () => {
     currentProgram.value = { enrollmentId: null, program: null }
     allActiveEnrollments.value = []
     isUpdatingCurrentProgram.value = false
+    profileStale.value = false
+  }
+
+  /** App 1.7.9: boot dejó la sesión sin perfil rico (ver boot/auth.ts, D-network). */
+  function markProfileStale() {
+    profileStale.value = true
+  }
+
+  let profileRetryInFlight = false
+
+  /**
+   * Reintenta cargar `/auth/me` cuando el boot arrancó de forma optimista
+   * (sin red). Disparado desde el router en la primera navegación
+   * (router/index.ts) — no-op si no hace falta o si ya hay un intento en
+   * vuelo. Best-effort y silencioso: si vuelve a fallar, `profileStale`
+   * queda en true para el próximo intento. El interceptor de axios (D-c/D-d
+   * de createAuthErrorHandler) ya decide si el fallo amerita desloguear
+   * (401/403) o no (red) — acá no se duplica esa decisión, solo se loguea.
+   */
+  async function retryProfileLoad(): Promise<void> {
+    if (!profileStale.value || profileRetryInFlight) return
+    profileRetryInFlight = true
+    try {
+      const response = await api.get<UserProfile>('/auth/me')
+      setProfile(response.data)
+      profileStale.value = false
+      await hydrateSelection()
+      void loadSubscription()
+    } catch (err: unknown) {
+      log.warn('Reintento de perfil sin éxito, se reintentará en la próxima navegación', {
+        message: err instanceof Error ? err.message : String(err),
+      })
+    } finally {
+      profileRetryInFlight = false
+    }
   }
 
   function setLoading(state: boolean) {
@@ -518,10 +558,14 @@ export const useUserStore = defineStore('user', () => {
     hasOnlyEspecialPass,
     viewOptionsCount,
     showProgramSelector,
+    // App 1.7.9: boot optimista
+    profileStale,
     // Actions
     setProfile,
     markOnboardingComplete,
     clearProfile,
+    markProfileStale,
+    retryProfileLoad,
     setLoading,
     loadSubscription,
     loadEspecialPass,

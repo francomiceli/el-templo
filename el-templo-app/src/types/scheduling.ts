@@ -34,6 +34,10 @@ export interface WeeklySlotView {
   // Fase 180 Plan 10 (RES-05, D-23): descripción coherente con la etiqueta
   // MOSTRADA (activityName). null = sin copy cargado por el admin.
   activityDescription: string | null
+  // App 1.7.9 (reservas: profe por turno): nombre de pila del profe
+  // atribuido al slot para la semana pedida (roster effective-dated). null
+  // sin change-point vigente.
+  coachFirstName: string | null
 }
 
 export interface BookingRecord {

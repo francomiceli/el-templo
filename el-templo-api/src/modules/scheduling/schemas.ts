@@ -83,6 +83,10 @@ const weeklySlotViewSchema = {
     // Fase 180 Plan 10 (RES-05, D-23): declarado aquí o fast-json-stringify
     // lo strippea y el bottom sheet de actividad nunca recibe el copy.
     activityDescription: { type: ["string", "null"] },
+    // App 1.7.9 (reservas: profe por turno): nombre de pila del profe
+    // atribuido al slot (class_coach_assignments, effective-dated), o null
+    // sin roster vigente. Declarado aquí o fast-json-stringify lo strippea.
+    coachFirstName: { type: ["string", "null"] },
   },
 } as const;
 
