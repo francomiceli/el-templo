@@ -43,6 +43,7 @@ import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant"
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import { auditLog } from "../shared/audit-log";
 import { normalizePhoneE164 } from "../shared/phone";
+import { todayInTz } from "../shared/date-utils";
 import type { TxHandle } from "../finance/balance-service";
 import { MemberService } from "../members/service";
 import type { MemberNote } from "../members/types";
@@ -124,6 +125,7 @@ interface ExpiringRow {
   branchId: number;
   branchName: string;
   branchCountry: "AR" | "ES";
+  branchTimezone: string;
   planId: number;
   planName: string;
   planCategory: string;
@@ -150,13 +152,15 @@ function addDaysISO(iso: string, days: number): string {
 }
 
 /**
- * "Hoy" a medianoche UTC, en ms. Base de `daysRemaining` — normalizar evita
- * que el resultado dependa de la HORA del día en que corre el request (mismo
- * criterio que `computeAgeInDaysOB`, `reports/service.ts`).
+ * Días calendario entre "hoy" EN LA TZ DE LA SEDE y `endDate`. Con "hoy" en
+ * UTC, de 21 a 24 h en Argentina el contador ya mostraba un día menos.
  */
-function todayUtcMidnight(): number {
-  const now = new Date();
-  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+function daysUntil(endDate: string, tz: string): number {
+  const today = todayInTz(tz);
+  return Math.round(
+    (new Date(endDate + "T00:00:00Z").getTime() - new Date(today + "T00:00:00Z").getTime()) /
+      86_400_000,
+  );
 }
 
 /**
@@ -236,15 +240,7 @@ function deriveRow(
     planId: e.planId,
     planName: e.planName,
     endDate: e.endDate,
-    // "Hoy" normalizado a medianoche UTC (no `Date.now()` crudo): comparar
-    // contra el instante exacto haría que `daysRemaining` bajara de 1 a 0
-    // según la HORA del día en que corre el request, aunque falte el mismo
-    // día calendario (mismo criterio que `computeAgeInDaysOB`,
-    // `reports/service.ts`).
-    daysRemaining: Math.round(
-      (new Date(e.endDate + "T00:00:00Z").getTime() - todayUtcMidnight()) /
-        86_400_000,
-    ),
+    daysRemaining: daysUntil(e.endDate, e.branchTimezone),
     status,
     pauseEndDate,
     newPlanId,
@@ -412,6 +408,7 @@ export class RenewalsService {
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         branchCountry: schema.branches.country,
+        branchTimezone: schema.branches.timezone,
         planId: schema.subscriptions.planId,
         planName: schema.subscriptionPlans.name,
         planCategory: schema.subscriptionPlans.planCategory,
@@ -489,6 +486,9 @@ export class RenewalsService {
           tenantWhere(schema.subscriptions, ctx),
           inArray(schema.subscriptions.userId, userIds),
           ne(schema.subscriptions.status, "cancelled"),
+          // Mismo corte que la fila que vence: comprar una CLASE ÚNICA/SUELTA
+          // después de vencer NO es renovar el plan.
+          gte(schema.subscriptionPlans.durationDays, MIN_RENEWAL_PLAN_DURATION_DAYS),
         ),
       );
     return rows;
@@ -642,6 +642,12 @@ export class RenewalsService {
     actor: RenewalActorScope,
   ): Promise<RenewalRow> {
     const subRow = await this.assertSubscriptionInScope(ctx, subscriptionId, actor);
+    // Solo subs que la pantalla lista (estado/plan elegibles): sin esto se
+    // podía escribir un followup sobre una sub cancelada y recién después
+    // responder 404.
+    if (!(await this.fetchSingleRow(ctx, subscriptionId))) {
+      throw new NotFoundError("Suscripción no encontrada");
+    }
 
     const [before] = await this.db
       .select()

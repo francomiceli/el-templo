@@ -331,6 +331,27 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       expect(row?.status).toBe("en_proceso");
     });
 
+    it("comprar una CLASE ÚNICA/SUELTA después de vencer NO cuenta como renovación", async () => {
+      const userId = await insertMember();
+      const subId = await insertSub({
+        userId,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      await insertSub({
+        userId,
+        planId: planClaseUnicaId,
+        startDate: dateOffsetStr(1),
+        endDate: dateOffsetStr(6),
+      });
+
+      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const row = findRow(body, subId);
+      expect(row?.status).toBe("en_proceso");
+      expect(row?.newPlanId).toBeNull();
+    });
+
     it("sub ONLINE no cuenta como renovación de una PRESENCIAL", async () => {
       const userId = await insertMember();
       const endDate = todayStr();
@@ -581,6 +602,35 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         endDate: todayStr(),
       });
     }
+
+    it("sub CANCELADA (fuera del listado) → 404 y no escribe followup", async () => {
+      const userId = await insertMember();
+      const subId = await insertSub({
+        userId,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+        status: "cancelled",
+      });
+      const res = await app.inject({
+        method: "PATCH",
+        url: `${BASE}/${subId}`,
+        headers: { Authorization: `Bearer ${adminToken}` },
+        payload: { messageCount: 1 },
+      });
+      expect(res.statusCode).toBe(404);
+
+      const followups = await app.db
+        .select({ id: schema.renewalFollowups.id })
+        .from(schema.renewalFollowups)
+        .where(
+          and(
+            tenantWhere(schema.renewalFollowups, TEMPLO_CTX),
+            eq(schema.renewalFollowups.subscriptionId, subId),
+          ),
+        );
+      expect(followups).toHaveLength(0);
+    });
 
     it("manualStatus=no_renovo SIN motivo → 400 REASON_REQUIRED", async () => {
       const subId = await makeExpiringRow();
