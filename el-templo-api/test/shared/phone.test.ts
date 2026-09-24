@@ -47,6 +47,14 @@ describe("normalizePhoneE164 (módulo de Renovaciones — botón WhatsApp)", () 
     expect(normalizePhoneE164("(011) 2345-6789", "AR")).toBe("+5491123456789");
   });
 
+  it("AR: prefijo troncal 0 de característica del interior se descarta", () => {
+    expect(normalizePhoneE164("0223 555-3487", "AR")).toBe("+5492235553487");
+  });
+
+  it("AR: '15' sin característica no se puede normalizar → null", () => {
+    expect(normalizePhoneE164("155622097", "AR")).toBeNull();
+  });
+
   it("ES: 9 dígitos nacionales → +34 + número", () => {
     expect(normalizePhoneE164("612345678", "ES")).toBe("+34612345678");
   });
