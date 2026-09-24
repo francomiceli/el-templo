@@ -102,6 +102,7 @@ import {
   categoryLabel,
   findRuleTrigger,
   systemTriggerDescription,
+  systemTemplateAlternate,
 } from 'src/config/rule-triggers';
 import type { BranchOption } from 'src/types/member';
 import { audienceOfTemplate, groupByAudience } from 'src/utils/comunicaciones-audience';
@@ -136,12 +137,25 @@ function alcanceLabel(row: TemplateRow): string {
   return parts.length ? parts.join(' · ') : 'Todos los socios';
 }
 
-function cardMeta(row: TemplateRow): Array<{ icon: string; text: string }> {
+function cardMeta(row: TemplateRow): Array<{ icon: string; text: string; hint?: string }> {
   if (row.kind === 'system') {
-    return [
+    const meta: Array<{ icon: string; text: string; hint?: string }> = [
       { icon: 'bolt', text: systemTriggerDescription(row.templateKey) },
       { icon: 'category', text: categoryLabel(row.category) },
     ];
+    // Fix recordatorio de clase (2026-09-24): `morning_energy` y
+    // `class_reminder` son excluyentes/complementarias — cada socio recibe
+    // una u otra por día. Indicador explícito con tooltip (pedido de Franco:
+    // "es un booleano medio raro"), sin inventar un editor de reglas nuevo.
+    const alternate = systemTemplateAlternate(row.templateKey);
+    if (alternate) {
+      meta.push({
+        icon: 'sync_alt',
+        text: `Alterna con «${alternate}»`,
+        hint: 'Cada socio recibe una u otra por día, según si tiene una reserva anticipada para hoy.',
+      });
+    }
+    return meta;
   }
   const trigger = row.triggerType ? findRuleTrigger(row.triggerType) : undefined;
   const conditionText = trigger

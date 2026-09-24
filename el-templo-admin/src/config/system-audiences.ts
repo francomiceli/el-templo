@@ -16,11 +16,19 @@
 //    `card_upsell` → `showUpsellBadge = profile.branchIsVirtual` en
 //    `el-templo-app/src/modules/progression/pages/MiTemplo.vue` (~L311-312).
 //    `card_program` → `showProgramCta = !showProgramProgress` (~L264).
-//  - Las 17 `templateKey` de plantillas push: `TEMPLATE_SEEDS` en
+//  - Las 18 `templateKey` de plantillas push: `TEMPLATE_SEEDS` en
 //    `el-templo-api/src/modules/notifications/types.ts`. Sin `triggerType`
 //    en DB (lógica de negocio hardcodeada en jobs/servicios) — acá el label
 //    es SOLO texto informativo para el admin, igual que
 //    `systemTriggerDescription()` en `src/config/rule-triggers.ts`.
+//
+//  - Fix recordatorio de clase (2026-09-24): `morning_energy` y
+//    `class_reminder` son EXCLUYENTES y COMPLEMENTARIAS — cada socio recibe
+//    una u otra por día, según si tiene una reserva anticipada para hoy
+//    (`anticipatedBookingsToday`, notifications/anticipated-bookings.ts en
+//    el API). El label de `morning_energy` se corrige acá: antes decía "Con
+//    sesión reservada hoy" (el job NUNCA miró reservas — bug de descripción,
+//    no de comportamiento) y ahora dice lo que realmente hace.
 
 export type AudienceBreadth = 'todos' | 'grupo' | 'evento';
 
@@ -71,7 +79,11 @@ export const SYSTEM_TEMPLATE_AUDIENCES: Readonly<Record<string, Audience>> = {
     icon: 'insights',
     breadth: 'grupo',
   },
-  morning_energy: { label: 'Con sesión reservada hoy', icon: 'wb_sunny', breadth: 'grupo' },
+  morning_energy: {
+    label: 'Sin reserva anticipada, sin energía registrada — 8:00',
+    icon: 'wb_sunny',
+    breadth: 'grupo',
+  },
   post_session_soreness: { label: 'Después de una sesión', icon: 'bolt', breadth: 'evento' },
   weekly_summary: { label: 'Todos los socios', icon: 'groups', breadth: 'todos' },
   program_enrollment: { label: 'Al activar un programa', icon: 'bolt', breadth: 'evento' },
@@ -89,6 +101,11 @@ export const SYSTEM_TEMPLATE_AUDIENCES: Readonly<Record<string, Audience>> = {
   trial_session_reminder: {
     label: 'Con sesión de prueba reservada',
     icon: 'event_busy',
+    breadth: 'grupo',
+  },
+  class_reminder: {
+    label: 'Con reserva anticipada para hoy',
+    icon: 'event_available',
     breadth: 'grupo',
   },
 };
