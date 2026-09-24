@@ -33,6 +33,7 @@ import {
   dateOffsetStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
+import type { RenewalRow } from "../../src/modules/renewals/types";
 import { tenantWhere, type TenantContext } from "../../src/modules/shared/tenant";
 import {
   TENANT_TEMPLO,
@@ -199,7 +200,7 @@ describe("Renewals API (módulo de Renovaciones)", () => {
     return { statusCode: res.statusCode, body: JSON.parse(res.body) };
   }
 
-  function findRow(body: { rows: Array<{ subscriptionId: number }> }, subId: number) {
+  function findRow(body: { rows: RenewalRow[] }, subId: number): RenewalRow | undefined {
     return body.rows.find((r) => r.subscriptionId === subId);
   }
 
