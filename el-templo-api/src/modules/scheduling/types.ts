@@ -83,6 +83,14 @@ export interface WeeklySlotView extends ScheduleSlot {
    * `null` = sin copy cargado (el cliente no muestra el affordance de tap).
    */
   activityDescription: string | null;
+  /**
+   * App 1.7.9 (reservas: profe por turno): nombre de pila del profe
+   * atribuido a este slot para la semana pedida, resuelto por
+   * (branchId, dayOfWeek, slot) vía el roster effective-dated
+   * (class_coach_assignments — ver ratings/roster-attribution.ts, fuente
+   * única de la regla). `null` cuando no hay change-point vigente.
+   */
+  coachFirstName: string | null;
 }
 
 export interface BookingRecord {
