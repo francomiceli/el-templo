@@ -28,6 +28,12 @@ import { SegmentationService } from "../modules/segmentation/service";
 import { SEGMENT_TRANSITION_TEMPLATES } from "../modules/notifications/types";
 import type { MemberSegment } from "../modules/segmentation/types";
 import {
+  anticipatedBookingsToday,
+  type AnticipatedBooking,
+} from "../modules/notifications/anticipated-bookings";
+import { slotFromStartTime } from "../modules/ratings/roster-attribution";
+import { buildClassDateTime } from "../modules/shared/date-utils";
+import {
   forEachActiveTenant,
   tenantWhere,
   type TenantContext,
@@ -165,8 +171,15 @@ async function runMorningEnergyForTz(
  * branch timezone who haven't answered today's check-in, for a single gym
  * (tenant). "Today" is the date in `tz` so BCN and AR each evaluate their own
  * day boundary.
+ *
+ * Fix recordatorio de clase (2026-09-24, decisión de Franco): un socio con
+ * una reserva ANTICIPADA para hoy (ver `anticipatedBookingsToday`,
+ * notifications/anticipated-bookings.ts) queda EXCLUIDO de acá — recibe el
+ * recordatorio de clase (`class_reminder`, más abajo) en su lugar, nunca las
+ * dos el mismo día. La exclusión corre aunque la clase de esa reserva sea a
+ * la tarde y el recordatorio todavía no haya salido a las 8:00.
  */
-async function runMorningEnergyForTenantTz(
+export async function runMorningEnergyForTenantTz(
   db: MySql2Database<typeof schema>,
   ctx: TenantContext,
   tz: string,
@@ -177,7 +190,7 @@ async function runMorningEnergyForTenantTz(
   const notificationService = new NotificationService(db, log);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: tz });
 
-  const eligibleMembers = await db
+  const eligibleMembersRaw = await db
     .select({ userId: s.memberProfiles.userId })
     .from(s.memberProfiles)
     .innerJoin(
@@ -199,6 +212,13 @@ async function runMorningEnergyForTenantTz(
       ),
     );
 
+  const anticipatedUserIds = new Set(
+    (await anticipatedBookingsToday(db, ctx)).map((b) => b.userId),
+  );
+  const eligibleMembers = eligibleMembersRaw.filter(
+    (m) => !anticipatedUserIds.has(m.userId),
+  );
+
   let queued = 0;
   for (const member of eligibleMembers) {
     try {
@@ -218,6 +238,165 @@ async function runMorningEnergyForTenantTz(
   }
 
   return { eligible: eligibleMembers.length, queued };
+}
+
+// ── Recordatorio de clase (fix 2026-09-24, decisión de Franco) ─────────────
+//
+// Reemplaza a `morning_energy` para quien tiene una reserva ANTICIPADA para
+// hoy (ver `anticipatedBookingsToday`): turno mañana (clase antes de las
+// 12:00, `slotFromStartTime`) sale 30 min antes de la clase; turno tarde, 60
+// min antes. Un socio recibe UN recordatorio POR RESERVA — si tiene dos
+// clases el mismo día, dos recordatorios independientes (uno por bookingId).
+//
+// Corre cada 5 minutos, tz-agnóstico a nivel schedule (a diferencia de
+// morning_energy/weekly_summary no hay un solo huso por corrida: cada
+// reserva resuelve su propio horario de envío con la tz de SU sede, adentro
+// de `anticipatedBookingsToday`). Por eso el barrido de acá es un
+// `forEachActiveTenant` liso, sin el loop de timezones de arriba.
+
+/** Turno mañana: recordatorio 30 min antes de la clase. */
+export const CLASS_REMINDER_MINUTES_MORNING = 30;
+/** Turno tarde: recordatorio 60 min antes de la clase. Espejo manual (mismo
+ * patrón de `communications/destinations.ts`) en
+ * `el-templo-admin/src/config/rule-triggers.ts`
+ * (`SYSTEM_TEMPLATE_TRIGGER_DESCRIPTIONS.class_reminder`) — el admin no
+ * importa código del API, así que el texto que describe el offset se escribe
+ * a mano ahí y hay que mantenerlo sincronizado con estas dos constantes. */
+export const CLASS_REMINDER_MINUTES_AFTERNOON = 60;
+
+const CLASS_REMINDER_TEMPLATE_KEY = "class_reminder";
+
+/**
+ * Tolerancia hacia atrás del job (corre cada 5 min): una reserva cuyo
+ * horario de envío cayó hasta 10 min atrás todavía se manda — cubre un tick
+ * demorado o un reinicio del proceso sin perder el recordatorio. Más allá de
+ * 10 min ya no tiene sentido (la clase podría haber arrancado).
+ */
+const CLASS_REMINDER_LOOKBACK_MS = 10 * 60 * 1000;
+
+/**
+ * true si ya existe una fila en `pending_notifications` para este booking
+ * (dedupe robusto: el mismo booking nunca vuelve a encolarse, sea que el
+ * tick anterior lo haya mandado, lo tenga pending, o incluso failed —
+ * reintentar un recordatorio de clase fallido no vale la pena, la ventana ya
+ * pasó). `booking_id` es NULL para cualquier otro template — sin ambigüedad.
+ */
+async function classReminderAlreadyQueued(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  bookingId: number,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: s.pendingNotifications.id })
+    .from(s.pendingNotifications)
+    .where(
+      and(
+        tenantWhere(s.pendingNotifications, ctx),
+        eq(s.pendingNotifications.bookingId, bookingId),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
+/** Minutos de anticipación del recordatorio según el turno de la clase. */
+function classReminderOffsetMinutes(startTime: string): number {
+  return slotFromStartTime(startTime) === "morning"
+    ? CLASS_REMINDER_MINUTES_MORNING
+    : CLASS_REMINDER_MINUTES_AFTERNOON;
+}
+
+/**
+ * Recordatorio de clase para UN gimnasio: evalúa cada reserva anticipada de
+ * hoy y encola la que cae en la ventana de envío. Nunca lanza por candidato:
+ * un fallo de encolado o de dedupe se loguea y sigue con el resto (D-03).
+ */
+export async function runClassReminderForTenant(
+  db: MySql2Database<typeof schema>,
+  ctx: TenantContext,
+  now: Date = new Date(),
+): Promise<{ candidates: number; queued: number }> {
+  const notificationService = new NotificationService(db, log);
+  const anticipated: AnticipatedBooking[] = await anticipatedBookingsToday(
+    db,
+    ctx,
+    now,
+  );
+
+  let queued = 0;
+  for (const booking of anticipated) {
+    const classTime = buildClassDateTime(
+      booking.bookingDate,
+      booking.startTime,
+      booking.branchTimezone,
+    );
+    const offsetMinutes = classReminderOffsetMinutes(booking.startTime);
+    const reminderAt = new Date(
+      classTime.getTime() - offsetMinutes * 60 * 1000,
+    );
+
+    // Fuera de ventana: todavía no llegó su hora, o ya pasó de largo
+    // (CLASS_REMINDER_LOOKBACK_MS) — ninguno de los dos casos se encola.
+    if (
+      reminderAt.getTime() > now.getTime() ||
+      reminderAt.getTime() <= now.getTime() - CLASS_REMINDER_LOOKBACK_MS
+    ) {
+      continue;
+    }
+
+    try {
+      if (await classReminderAlreadyQueued(db, ctx, booking.bookingId)) {
+        continue;
+      }
+
+      const titleOverride = `Tu clase de las ${booking.startTime} arranca en ${offsetMinutes} min`;
+      const notifId = await notificationService.queueNotification({
+        userId: booking.userId,
+        templateKey: CLASS_REMINDER_TEMPLATE_KEY,
+        titleOverride,
+        bookingId: booking.bookingId,
+      });
+      if (notifId >= 0) queued++;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      log.warn(
+        {
+          err: message,
+          userId: booking.userId,
+          bookingId: booking.bookingId,
+        },
+        "Failed to queue class reminder",
+      );
+    }
+  }
+
+  return { candidates: anticipated.length, queued };
+}
+
+/**
+ * Recordatorio de clase para TODOS los gimnasios activos. Expuesta (no
+ * `export` en las demás `runXForTz` de arriba, pero acá hace falta un
+ * equivalente testeable de punta a punta) con el mismo idioma `runX(db)` que
+ * `runNotificationQueueTick`/`runBatchSegmentRecalculation`.
+ */
+export async function runClassReminders(
+  db: MySql2Database<typeof schema>,
+): Promise<{ candidates: number; queued: number }> {
+  let candidates = 0;
+  let queued = 0;
+
+  await forEachActiveTenant(
+    db,
+    log,
+    "notification-class-reminder",
+    async (ctx) => {
+      const r = await runClassReminderForTenant(db, ctx);
+      candidates += r.candidates;
+      queued += r.queued;
+    },
+  );
+
+  return { candidates, queued };
 }
 
 /**
@@ -740,6 +919,23 @@ export async function startNotificationJobs(
     },
     { timezone: "America/Argentina/Buenos_Aires" },
   );
+
+  // ── 2b. Class Reminder — every 5 minutes, tz-agnostic sweep (fix 2026-09-24) ──
+  // Cada reserva resuelve su propio horario de envío con la tz de SU sede
+  // (adentro de anticipatedBookingsToday) — no hay un huso único por corrida
+  // como en morning_energy/weekly_summary, así que este schedule no itera
+  // timezones: barre los gimnasios activos directamente.
+  cron.schedule("*/5 * * * *", async () => {
+    try {
+      const { candidates, queued } = await runClassReminders(db);
+      if (queued > 0) {
+        log.info({ candidates, queued }, "Class reminders processed");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      log.error({ err: message }, "Class reminder cron failed");
+    }
+  });
 
   // ── 3. Morning Energy Reminder — 08:00 in each branch's local time ────
   // ── 4. Weekly Summary — Saturday 15:00 in each branch's local time ────

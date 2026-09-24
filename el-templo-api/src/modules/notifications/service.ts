@@ -370,6 +370,7 @@ export class NotificationService {
       titleOverride,
       bodyOverride,
       routeOverride,
+      bookingId,
     } = input;
 
     // T-175-03: deriva el tenant real del destinatario ANTES del lookup de
@@ -458,6 +459,10 @@ export class NotificationService {
       tenantValues(ctx, {
         userId,
         templateId: template.id,
+        // Fix "recordatorio de clase" (2026-09-24): `undefined` (default) es
+        // `null` en la columna — dedupe por reserva SOLO aplica a callers que
+        // pasan `bookingId` explícito (hoy: el job `class_reminder`).
+        bookingId: bookingId ?? null,
         title: resolvedTitle,
         body: resolvedBody,
         route: routeOverride ?? template.route ?? "/mi-templo",
