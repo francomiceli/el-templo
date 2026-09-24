@@ -208,7 +208,13 @@ function deriveRow(
 
   if (nextSub) {
     const threshold = addDaysISO(e.endDate, windowDays);
-    status = nextSub.startDate <= threshold ? "renovo" : "volvio_tarde";
+    // Cuenta cuándo se REGISTRÓ la renovación, no solo cuándo arranca: quien
+    // renueva antes de vencer pero con inicio diferido (vence 24/09, renueva
+    // el 22/09 con arranque el 30/09) renovó a tiempo. Validado contra el
+    // Excel de la semana 22-28/09 (caso real marcado "Sí").
+    const registeredOn = todayInTz(e.branchTimezone, nextSub.createdAt);
+    status =
+      nextSub.startDate <= threshold || registeredOn <= threshold ? "renovo" : "volvio_tarde";
     newPlanId = nextSub.planId;
     newPlanName = nextSub.planName;
     renewedAt = nextSub.createdAt.toISOString();
