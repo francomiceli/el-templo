@@ -8,8 +8,9 @@
  * sobre `GET /shifts`).
  */
 import { FastifyPluginAsync } from "fastify";
-import { RenewalsService } from "./service";
+import { RenewalsService, REASON_REQUIRED } from "./service";
 import { handleServiceError } from "../shared/error-handler";
+import { AppError } from "../shared/errors";
 import { CAJA_ROLES, ADMIN_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
@@ -113,6 +114,16 @@ export const renewalsRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.send(row);
       } catch (err: unknown) {
+        // El default handleServiceError solo emite { error, message } — el
+        // code REASON_REQUIRED se agrega acá explícitamente, mismo patrón
+        // que BRANCH_OUT_OF_SCOPE en staff-attendance/routes.ts.
+        if (err instanceof AppError && err.code === REASON_REQUIRED) {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: err.message,
+            code: err.code,
+          });
+        }
         handleServiceError(err, reply, request.log, "update renewal followup");
       }
     },

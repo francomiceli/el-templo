@@ -12,6 +12,21 @@ const errorSchema = {
   },
 } as const;
 
+/**
+ * fast-json-stringify solo serializa las propiedades DECLARADAS (ver
+ * docblock de `staff-attendance/schemas.ts`) — el `code` que `routes.ts`
+ * agrega a mano para `REASON_REQUIRED` necesita su propio schema de error,
+ * o se lo comería la serialización.
+ */
+const errorSchemaWithCode = {
+  type: "object",
+  properties: {
+    error: { type: "string" },
+    message: { type: "string" },
+    code: { type: "string" },
+  },
+} as const;
+
 const renewalRowSchema = {
   type: "object",
   properties: {
@@ -124,7 +139,8 @@ export const renewalFollowupUpdateSchema = {
   },
   response: {
     200: renewalRowSchema,
-    400: errorSchema,
+    // REASON_REQUIRED (routes.ts) viaja acá con `code` — ver errorSchemaWithCode.
+    400: errorSchemaWithCode,
     401: errorSchema,
     403: errorSchema,
     404: errorSchema,
