@@ -27,7 +27,7 @@ import type { FastifyInstance } from "fastify";
 import { and, eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, createTestMember, cleanAllTestData } from "./helpers";
 import * as schema from "../src/db/schema";
-import { tenantValues } from "../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../src/modules/shared/tenant";
 import { NotificationService } from "../src/modules/notifications/service";
 import {
   runClassReminderForTenant,
@@ -566,14 +566,20 @@ describe("Recordatorio de clase — job (fix 2026-09-24)", () => {
       expect(resultGym2.candidates).toBe(1);
       expect(resultGym2.queued).toBe(1);
 
-      // `limpiarSegundoGimnasio` borra `schedules` del gimnasio 2 pero no
-      // sabe de la reserva que ESTE test insertó a mano sobre esa fila --
-      // sin este delete previo, el borrado de abajo (en el `finally`) choca
-      // con la FK `bookings.schedule_id`.
-      await app.db
-        .delete(schema.bookings)
-        .where(eq(schema.bookings.scheduleId, scheduleGym2));
     } finally {
+      // `limpiarSegundoGimnasio` no conoce las filas que ESTE test crea en el
+      // gimnasio 2 (reserva, cola, token, plantillas): se borran acá, en el
+      // `finally`, para que una aserción fallida no quede tapada por un
+      // `ER_ROW_IS_REFERENCED_2` de la limpieza.
+      const dos = { tenantId: TENANT_DOS };
+      await app.db
+        .delete(schema.pendingNotifications)
+        .where(tenantWhere(schema.pendingNotifications, dos));
+      await app.db.delete(schema.bookings).where(tenantWhere(schema.bookings, dos));
+      await app.db.delete(schema.deviceTokens).where(tenantWhere(schema.deviceTokens, dos));
+      await app.db
+        .delete(schema.notificationTemplates)
+        .where(tenantWhere(schema.notificationTemplates, dos));
       await limpiarSegundoGimnasio(app);
     }
   });
