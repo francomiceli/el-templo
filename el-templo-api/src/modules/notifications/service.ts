@@ -27,6 +27,7 @@ import type { EmailService } from "../email/service";
 // resuelve el payload FCM con fallback (route) + destino nuevo, nunca lanza.
 import {
   fallbackRouteFor,
+  appSectionForRoute,
   DEFAULT_WHATSAPP_TEXT,
   type Destination,
   type DestinationType,
@@ -369,6 +370,7 @@ export class NotificationService {
       titleOverride,
       bodyOverride,
       routeOverride,
+      bookingId,
     } = input;
 
     // T-175-03: deriva el tenant real del destinatario ANTES del lookup de
@@ -457,6 +459,10 @@ export class NotificationService {
       tenantValues(ctx, {
         userId,
         templateId: template.id,
+        // Fix "recordatorio de clase" (2026-09-24): `undefined` (default) es
+        // `null` en la columna — dedupe por reserva SOLO aplica a callers que
+        // pasan `bookingId` explícito (hoy: el job `class_reminder`).
+        bookingId: bookingId ?? null,
         title: resolvedTitle,
         body: resolvedBody,
         route: routeOverride ?? template.route ?? "/mi-templo",
@@ -568,7 +574,7 @@ export class NotificationService {
    *
    * La fila de `pending_notifications` nace directamente como `sent`
    * (optimista) y se degrada a `failed` si ningún token aceptó — así el
-   * barrido de `processQueue` (cada 15 min) nunca la ve como `pending` y no
+   * barrido de `processQueue` (cada 5 min) nunca la ve como `pending` y no
    * puede reenviarla en paralelo.
    */
   async sendTestNotification(
@@ -658,7 +664,7 @@ export class NotificationService {
   // ── Queue Processing ────────────────────────────────────────────────────
 
   /**
-   * Process the notification queue — called by cron every 15 min (per D-10).
+   * Process the notification queue — called by cron every 5 min (antes 15, D-10).
    * Selects pending notifications where scheduledAt <= now, sends via FCM.
    *
    * T-175-03: barrido GENUINAMENTE cross-tenant — no recibe `ctx` y procesa
@@ -997,12 +1003,19 @@ export class NotificationService {
     const keys: string[] = [];
     for (const seed of TEMPLATE_SEEDS) {
       // `kind` NO va en el INSERT: la columna trae DEFAULT 'system'
-      // (migración 0219) — las 17 filas de TEMPLATE_SEEDS son siempre
+      // (migración 0219) — todas las filas de TEMPLATE_SEEDS son siempre
       // 'system', nunca una regla propia.
+      //
+      // Fix "sección de destino no es válida" (2026-09-24): `destination_type`/
+      // `destination_section` SÍ van en el INSERT desde acá en adelante — antes
+      // el seed solo escribía `route` y las 2 columnas de destino quedaban en
+      // su DEFAULT (`app_section`/NULL), así que un tenant nuevo nacía con el
+      // mismo bug que arregla el backfill de la migración 0239 (ver
+      // `appSectionForRoute`, mismo mapeo route→section que usó ese backfill).
       const [result] = await this.db.execute(
         sql`INSERT IGNORE INTO notification_templates
-            (tenant_id, template_key, notification_category, title, body, title_female, body_female, route)
-            VALUES (${ctx.tenantId}, ${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.titleFemale}, ${seed.bodyFemale}, ${seed.route})`,
+            (tenant_id, template_key, notification_category, title, body, title_female, body_female, route, destination_type, destination_section)
+            VALUES (${ctx.tenantId}, ${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.titleFemale}, ${seed.bodyFemale}, ${seed.route}, 'app_section', ${appSectionForRoute(seed.route)})`,
       );
       if ((result as { affectedRows?: number }).affectedRows === 1) {
         keys.push(seed.templateKey);

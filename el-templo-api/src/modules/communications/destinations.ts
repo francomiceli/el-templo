@@ -133,6 +133,34 @@ export function isAppSectionKey(value: unknown): value is AppSectionKey {
 }
 
 /**
+ * Fix "sección de destino no es válida" (2026-09-24, Sentry NODE-5V, template
+ * 2312): mapea la `route` de fallback de una plantilla de sistema a la
+ * `AppSectionKey` curada que le corresponde, para que `seedTemplates` (y el
+ * backfill de la migración 0239) nazcan con `destination_section` poblado en
+ * vez de NULL — `PushRuleEditorDialog.vue` cargaba ese NULL, el selector lo
+ * mostraba como `APP_SECTIONS[0]` por default, y al guardar sin tocar nada
+ * `validateDestination` rechazaba el NULL con 400.
+ *
+ * Pura, sin `db`: mismo criterio que el resto de este módulo. `/mi-camino` ya
+ * no es una ruta real de la app (las 3 plantillas de programas la usaban) —
+ * mapea a `programas`, que hoy resuelve a `/planes` (ver el comentario de
+ * `APP_SECTIONS`). Cualquier ruta no listada cae a `mi_templo`, igual que
+ * `resolveDestinationRoute` cae a `FALLBACK_ROUTE` ante una key desconocida.
+ */
+export function appSectionForRoute(route: string): AppSectionKey {
+  switch (route) {
+    case "/reservas":
+      return "reservas";
+    case "/mis-referidos":
+      return "referidos";
+    case "/mi-camino":
+      return "programas";
+    default:
+      return "mi_templo";
+  }
+}
+
+/**
  * Ruta interna a la que resuelve un destino ya validado. Nunca lanza
  * (D-04/T-193-04): una `section` desconocida cae a {@link FALLBACK_ROUTE}.
  */

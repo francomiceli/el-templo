@@ -44,6 +44,15 @@ export interface QueueNotificationInput {
    * errores reales de FCM.
    */
   allowWithoutDeviceToken?: boolean;
+  /**
+   * Fix "recordatorio de clase" (2026-09-24): vincula la fila encolada a la
+   * reserva que la originó. Único consumidor hoy: el job `class_reminder`
+   * (jobs/notification-cron.ts) — lo usa para dedupe robusto (una reserva,
+   * un recordatorio, sobrevive a que el cron de 5 min la vuelva a ver en el
+   * próximo tick) y para que `pending_notifications` conserve de qué reserva
+   * salió. El resto de los templates no lo pasa y la columna queda NULL.
+   */
+  bookingId?: number;
 }
 
 export interface QueueAdHocInput {
@@ -264,6 +273,25 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     titleFemale: "Mañana entrenás con nosotros",
     bodyFemale:
       "Tu sesion de prueba es mañana. Llega 10 minutos antes para que te recibamos bien.",
+    route: "/reservas",
+  },
+  {
+    // Fix "recordatorio de clase" (2026-09-24, decisión de Franco): reemplaza
+    // a `morning_energy` para quien YA tiene una reserva anticipada para hoy
+    // (turno mañana: 30 min antes; turno tarde: 60 min antes — ver
+    // CLASS_REMINDER_MINUTES_MORNING/AFTERNOON en jobs/notification-cron.ts).
+    // El título/body de acá son el fallback genérico del seed — el job
+    // SIEMPRE encola con `titleOverride` (hora exacta + minutos de
+    // anticipación, mismo mecanismo de bodyOverride/titleOverride que ya usa
+    // `trial_session_reminder`, sin motor de variables nuevo). El body NO
+    // menciona el check-in de energía a propósito: sale aunque el socio ya
+    // haya registrado la suya hoy, y sonar a reclamo sería un bug de copy.
+    templateKey: "class_reminder",
+    category: "entrenamiento",
+    title: "Tu clase arranca pronto",
+    body: "Te esperamos. Si podés, registrá cómo llegás antes de entrenar.",
+    titleFemale: "Tu clase arranca pronto",
+    bodyFemale: "Te esperamos. Si podes, registra como llegas antes de entrenar.",
     route: "/reservas",
   },
 ];

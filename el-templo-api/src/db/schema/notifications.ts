@@ -14,6 +14,7 @@ import {
 import { relations } from "drizzle-orm";
 import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
 import { users } from "./users";
+import { bookings } from "./bookings";
 import { tenantIdColumn } from "./tenant-column";
 
 // Shared enum: used by both notification_templates and notification_preferences
@@ -38,7 +39,7 @@ export const devicePlatformEnum = mysqlEnum("device_platform", [
 ]);
 
 // Pedido de Franco (2026-09-03): homogeneidad sistema/propias -- 'system'
-// son las 17 filas de TEMPLATE_SEEDS (types.ts), 'custom' las que crea el
+// son las 18 filas de TEMPLATE_SEEDS (types.ts), 'custom' las que crea el
 // admin con una condicion recetada (ver notificationTriggerTypeEnum abajo).
 export const notificationTemplateKindEnum = mysqlEnum(
   "kind",
@@ -232,6 +233,17 @@ export const pendingNotifications = mysqlTable(
       () => notificationTemplates.id,
       { onDelete: "set null" },
     ),
+    // Fix "recordatorio de clase" (2026-09-24, migración 0239): vincula la
+    // fila a la reserva que la originó -- dedupe robusto del job
+    // `class_reminder` (jobs/notification-cron.ts: corre cada 5 min y no debe
+    // reencolar la misma reserva en el próximo tick). NULL para todo el resto
+    // de los templates (no vienen de una reserva). ON DELETE SET NULL, mismo
+    // criterio que `template_id`: un hard-delete de la reserva (raro, ej.
+    // regenerar bookings de un plan fijo) no debe tumbar el historial de
+    // `pending_notifications`.
+    bookingId: int("booking_id").references(() => bookings.id, {
+      onDelete: "set null",
+    }),
     title: varchar("title", { length: 200 }).notNull(),
     body: text("body").notNull(),
     // Fase 193 (D-04): `route` NO se borra — es la ruta de FALLBACK que
@@ -254,6 +266,10 @@ export const pendingNotifications = mysqlTable(
       table.scheduledAt,
     ),
     index("idx_pending_notifications_user_id").on(table.userId),
+    // Migración 0239: dedupe del job `class_reminder` -- "¿ya existe una fila
+    // encolada para esta reserva?", una consulta puntual cada 5 min por cada
+    // reserva anticipada candidata.
+    index("idx_pending_notifications_booking_id").on(table.bookingId),
   ],
 );
 
@@ -267,6 +283,10 @@ export const pendingNotificationsRelations = relations(
     template: one(notificationTemplates, {
       fields: [pendingNotifications.templateId],
       references: [notificationTemplates.id],
+    }),
+    booking: one(bookings, {
+      fields: [pendingNotifications.bookingId],
+      references: [bookings.id],
     }),
   }),
 );
