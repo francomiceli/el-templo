@@ -1,0 +1,845 @@
+/**
+ * RenewalsService — módulo de Renovaciones (2026-09-24, brief Nacho).
+ *
+ * Pantalla operativa que reemplaza el Excel semanal de vencimientos: lista
+ * las membresías que vencen en un rango, con un estado de renovación
+ * (mayormente DERIVADO), avance de contacto (mensaje 0–4) y motivos de no
+ * renovación.
+ *
+ * PRINCIPIO CENTRAL (SPEC §"derivado vs. persistido") — LEER ANTES DE TOCAR
+ * ESTE ARCHIVO:
+ *   - Renovó / Volvió tarde / Pausada se DERIVAN en cada lectura desde
+ *     `subscriptions`. NUNCA se persisten — no hay columna para ellos.
+ *   - Solo se persiste lo MANUAL: `messageCount`, `manualStatus`
+ *     ('en_proceso'|'no_renovo'), `reasonId`/`reasonNote` y quién/cuándo
+ *     (`renewal_followups`).
+ *   - Un "No renovó" manual queda PISADO por una renovación derivada: se
+ *     muestra 'renovo'/'volvio_tarde' + `manualOverridden=true`. El registro
+ *     manual NUNCA se borra ni se pisa en la base — solo se re-etiqueta en la
+ *     lectura.
+ *
+ * CÓMO SE ARMA LA "SUB SIGUIENTE" (continuación) — decisión de diseño
+ * ---------------------------------------------------------------------
+ * `expiry-cohort.ts` (`retainedExpr`) resuelve esto con una subquery
+ * correlacionada en SQL. Acá se resuelve DIFERENTE, a propósito: se trae el
+ * universo de subs candidatas de los socios del listado en UNA query batch
+ * (`fetchNextSubCandidates`) y el emparejamiento (mismo user, mismo grupo de
+ * categoría, `end_date` posterior, `start_date` más temprano) se hace en
+ * TypeScript (`pickNextSubscription`). Motivo: esta pantalla es un reporte
+ * acotado (una semana de vencimientos, rango máximo 93 días — pocas decenas/
+ * cientos de filas), y la trampa documentada en `expiry-cohort.ts` (columnas
+ * SIN calificar dentro de `.select()` en subqueries correlacionadas, que ya
+ * rompió analytics dos veces — ver skill `el-templo-db-migrations`) no tiene
+ * forma de reproducirse si la lógica de matching nunca vive en un fragmento
+ * `sql` correlacionado. Explicit over clever.
+ */
+import { and, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
+import { MySql2Database } from "drizzle-orm/mysql2";
+import type { FastifyBaseLogger } from "fastify";
+import * as schema from "../../db/schema";
+import { BadRequestError, ConflictError, NotFoundError } from "../shared/errors";
+import { assertBranchInEnforcedScope } from "../shared/branch-access";
+import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import { isDuplicateKeyError } from "../shared/sql-errors";
+import { auditLog } from "../shared/audit-log";
+import type { TxHandle } from "../finance/balance-service";
+import { MemberService } from "../members/service";
+import type { MemberNote } from "../members/types";
+import type {
+  RenewalActorScope,
+  RenewalFollowupUpdateInput,
+  RenewalKpis,
+  RenewalListFilters,
+  RenewalListResult,
+  RenewalManualStatus,
+  RenewalPlanDistributionEntry,
+  RenewalReason,
+  RenewalReasonCreateInput,
+  RenewalReasonUpdateInput,
+  RenewalRow,
+  RenewalStatus,
+  RenewalTemplate,
+} from "./types";
+
+/**
+ * Ventana de seguimiento de renovación de ESTE módulo — 5 días fijos (SPEC
+ * §"Ventana"). El tablero de Analíticas (`expiry-cohort.ts`,
+ * `RENOVATION_WINDOW_DEFAULT_DAYS = 15`) es una constante DISTINTA y no se
+ * toca: comparten la idea de "ventana de renovación" pero son dos productos
+ * con dos configuraciones independientes.
+ */
+export const RENEWAL_FOLLOWUP_WINDOW_DAYS = 5;
+
+/** Rango máximo de días entre dateFrom/dateTo (SPEC §"GET /api/admin/renewals"). */
+export const RENEWAL_MAX_RANGE_DAYS = 93;
+
+/** Duración mínima de plan para contar como renovación (SPEC — excluye clase única/suelta). */
+const MIN_RENEWAL_PLAN_DURATION_DAYS = 7;
+
+const EXPIRING_STATUSES = ["active", "paused", "expired", "completed"] as const;
+
+/** Candidato a "sub siguiente" — universo batch, sin filtrar por fila todavía. */
+interface NextSubCandidate {
+  id: number;
+  userId: number;
+  planId: number;
+  planName: string;
+  planCategory: string;
+  startDate: string;
+  endDate: string | null;
+  createdAt: Date;
+}
+
+/** Una fila cruda de la query principal, antes de derivar el estado. */
+interface ExpiringRow {
+  subscriptionId: number;
+  userId: number;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  branchId: number;
+  branchName: string;
+  planId: number;
+  planName: string;
+  planCategory: string;
+  status: string;
+  endDate: string;
+  pauseEndDate: string | null;
+  messageCount: number | null;
+  lastMessageAt: Date | null;
+  manualStatus: RenewalManualStatus | null;
+  reasonId: number | null;
+  reasonNote: string | null;
+  reasonLabel: string | null;
+}
+
+/** `sp.plan_category = 'presencial'` vs cualquier otro valor — mismo criterio que `coverageExists` (reports/service.ts). */
+function isPresencial(category: string): boolean {
+  return category === "presencial";
+}
+
+/** `YYYY-MM-DD` + N días, aritmética UTC pura (mismo patrón que `isoWeekRange`, reports/service.ts). */
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(iso + "T00:00:00Z");
+  return new Date(d.getTime() + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Elige la "sub siguiente" de una fila E entre el universo de candidatas del
+ * mismo socio (SPEC §"Sub siguiente"): distinto id, `status <> 'cancelled'`,
+ * mismo grupo de categoría (presencial vs no-presencial), `end_date` posterior
+ * a la de E. Desempate: `start_date` más temprano, luego `id` menor.
+ */
+function pickNextSubscription(
+  candidates: NextSubCandidate[],
+  e: Pick<ExpiringRow, "subscriptionId" | "userId" | "planCategory" | "endDate">,
+): NextSubCandidate | null {
+  const matches = candidates.filter(
+    (c) =>
+      c.userId === e.userId &&
+      c.id !== e.subscriptionId &&
+      c.endDate !== null &&
+      c.endDate > e.endDate &&
+      isPresencial(c.planCategory) === isPresencial(e.planCategory),
+  );
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => {
+    if (a.startDate !== b.startDate) return a.startDate < b.startDate ? -1 : 1;
+    return a.id - b.id;
+  });
+  return matches[0];
+}
+
+/** Deriva el `RenewalRow` completo de una fila cruda (SPEC §"Estado derivado"). */
+function deriveRow(
+  e: ExpiringRow,
+  nextSub: NextSubCandidate | null,
+  lastNote: { content: string; createdAt: string } | null,
+  windowDays: number,
+): RenewalRow {
+  const messageCount = e.messageCount ?? 0;
+  const manualStatus: RenewalManualStatus = e.manualStatus ?? "en_proceso";
+
+  let status: RenewalStatus;
+  let newPlanId: number | null = null;
+  let newPlanName: string | null = null;
+  let renewedAt: string | null = null;
+  let nextStartDate: string | null = null;
+  let pauseEndDate: string | null = null;
+
+  if (nextSub) {
+    const threshold = addDaysISO(e.endDate, windowDays);
+    status = nextSub.startDate <= threshold ? "renovo" : "volvio_tarde";
+    newPlanId = nextSub.planId;
+    newPlanName = nextSub.planName;
+    renewedAt = nextSub.createdAt.toISOString();
+    nextStartDate = nextSub.startDate;
+  } else if (e.status === "paused") {
+    status = "pausada";
+    pauseEndDate = e.pauseEndDate;
+  } else if (manualStatus === "no_renovo") {
+    status = "no_renovo";
+  } else {
+    status = "en_proceso";
+  }
+
+  const manualOverridden =
+    manualStatus === "no_renovo" && (status === "renovo" || status === "volvio_tarde");
+  const paraCerrar = status === "en_proceso" && messageCount >= 4;
+
+  return {
+    subscriptionId: e.subscriptionId,
+    userId: e.userId,
+    memberName: `${e.firstName ?? ""} ${e.lastName ?? ""}`.trim(),
+    phone: e.phone,
+    branchId: e.branchId,
+    branchName: e.branchName,
+    planId: e.planId,
+    planName: e.planName,
+    endDate: e.endDate,
+    daysRemaining: Math.floor(
+      (new Date(e.endDate + "T00:00:00Z").getTime() - Date.now()) / 86_400_000,
+    ),
+    status,
+    pauseEndDate,
+    newPlanId,
+    newPlanName,
+    renewedAt,
+    nextStartDate,
+    messageCount,
+    lastMessageAt: e.lastMessageAt ? e.lastMessageAt.toISOString() : null,
+    reasonId: status === "no_renovo" ? e.reasonId : null,
+    reasonLabel: status === "no_renovo" ? e.reasonLabel : null,
+    reasonNote: status === "no_renovo" ? e.reasonNote : null,
+    manualStatus,
+    manualOverridden,
+    paraCerrar,
+    lastNote,
+  };
+}
+
+/** KPIs sobre las filas ya derivadas (SPEC §"KPIs"). */
+function computeKpis(rows: RenewalRow[]): RenewalKpis {
+  let renovo = 0;
+  let volvioTarde = 0;
+  let noRenovo = 0;
+  let enProceso = 0;
+  let sinContactar = 0;
+  let pausadas = 0;
+  let paraCerrar = 0;
+  const planCounts = new Map<number, { planName: string; count: number }>();
+
+  for (const r of rows) {
+    switch (r.status) {
+      case "renovo":
+        renovo += 1;
+        if (r.newPlanId !== null) {
+          const entry = planCounts.get(r.newPlanId) ?? {
+            planName: r.newPlanName ?? "",
+            count: 0,
+          };
+          entry.count += 1;
+          planCounts.set(r.newPlanId, entry);
+        }
+        break;
+      case "volvio_tarde":
+        volvioTarde += 1;
+        break;
+      case "no_renovo":
+        noRenovo += 1;
+        break;
+      case "pausada":
+        pausadas += 1;
+        break;
+      case "en_proceso":
+        enProceso += 1;
+        if (r.messageCount === 0) sinContactar += 1;
+        break;
+    }
+    if (r.paraCerrar) paraCerrar += 1;
+  }
+
+  const gestionados = renovo + noRenovo + volvioTarde;
+  const renewalRate = gestionados === 0 ? null : (renovo / gestionados) * 100;
+
+  const newPlanDistribution: RenewalPlanDistributionEntry[] = [...planCounts.entries()]
+    .map(([planId, { planName, count }]) => ({
+      planId,
+      planName,
+      count,
+      percentage: renovo === 0 ? 0 : (count / renovo) * 100,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    total: rows.length,
+    renovo,
+    volvioTarde,
+    noRenovo,
+    enProceso,
+    sinContactar,
+    pausadas,
+    paraCerrar,
+    renewalRate,
+    newPlanDistribution,
+  };
+}
+
+export class RenewalsService {
+  private memberService: MemberService;
+
+  constructor(
+    private db: MySql2Database<typeof schema>,
+    private log: FastifyBaseLogger,
+  ) {
+    // Facade (CLAUDE.md §Patterns): las notas del socio son responsabilidad de
+    // `MemberService` — este módulo NO duplica esa lógica (SPEC §"POST notes").
+    this.memberService = new MemberService(db, log);
+  }
+
+  /**
+   * `GET /api/admin/renewals` (SPEC): filas + KPIs para el rango de vencimiento.
+   */
+  async listRenewals(
+    ctx: TenantContext,
+    filters: RenewalListFilters,
+  ): Promise<RenewalListResult> {
+    if (filters.dateFrom > filters.dateTo) {
+      throw new BadRequestError("dateFrom no puede ser posterior a dateTo");
+    }
+    const spanDays = Math.round(
+      (new Date(filters.dateTo + "T00:00:00Z").getTime() -
+        new Date(filters.dateFrom + "T00:00:00Z").getTime()) /
+        86_400_000,
+    );
+    if (spanDays > RENEWAL_MAX_RANGE_DAYS) {
+      throw new BadRequestError(
+        `El rango no puede superar los ${RENEWAL_MAX_RANGE_DAYS} días`,
+      );
+    }
+
+    const eRows = await this.fetchExpiringRows(ctx, filters);
+    if (eRows.length === 0) {
+      return { rows: [], kpis: computeKpis([]), windowDays: RENEWAL_FOLLOWUP_WINDOW_DAYS };
+    }
+
+    const userIds = [...new Set(eRows.map((r) => r.userId))];
+    const [candidates, lastNotes] = await Promise.all([
+      this.fetchNextSubCandidates(ctx, userIds),
+      this.fetchLastNotes(ctx, userIds),
+    ]);
+
+    const rows = eRows.map((e) => {
+      const nextSub = pickNextSubscription(candidates, e);
+      const lastNote = lastNotes.get(e.userId) ?? null;
+      return deriveRow(e, nextSub, lastNote, RENEWAL_FOLLOWUP_WINDOW_DAYS);
+    });
+
+    return { rows, kpis: computeKpis(rows), windowDays: RENEWAL_FOLLOWUP_WINDOW_DAYS };
+  }
+
+  /** El universo de subs que vencen en el rango, con su followup manual (si existe). */
+  private async fetchExpiringRows(
+    ctx: TenantContext,
+    filters: RenewalListFilters,
+  ): Promise<ExpiringRow[]> {
+    const conditions = [
+      tenantWhere(schema.subscriptions, ctx),
+      inArray(schema.subscriptions.status, EXPIRING_STATUSES),
+      gte(schema.subscriptions.endDate, filters.dateFrom),
+      lte(schema.subscriptions.endDate, filters.dateTo),
+      gte(schema.subscriptionPlans.durationDays, MIN_RENEWAL_PLAN_DURATION_DAYS),
+      ...(filters.branchId !== undefined
+        ? [eq(schema.subscriptions.branchId, filters.branchId)]
+        : []),
+      ...(filters.country !== undefined
+        ? [eq(schema.branches.country, filters.country)]
+        : []),
+    ];
+
+    const rows = await this.db
+      .select({
+        subscriptionId: schema.subscriptions.id,
+        userId: schema.subscriptions.userId,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        phone: schema.users.phone,
+        branchId: schema.subscriptions.branchId,
+        branchName: schema.branches.name,
+        planId: schema.subscriptions.planId,
+        planName: schema.subscriptionPlans.name,
+        planCategory: schema.subscriptionPlans.planCategory,
+        status: schema.subscriptions.status,
+        endDate: schema.subscriptions.endDate,
+        pauseEndDate: schema.subscriptions.pauseEndDate,
+        messageCount: schema.renewalFollowups.messageCount,
+        lastMessageAt: schema.renewalFollowups.lastMessageAt,
+        manualStatus: schema.renewalFollowups.manualStatus,
+        reasonId: schema.renewalFollowups.reasonId,
+        reasonNote: schema.renewalFollowups.reasonNote,
+        reasonLabel: schema.renewalReasons.label,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.users,
+        and(tenantWhere(schema.users, ctx), eq(schema.users.id, schema.subscriptions.userId)),
+      )
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.subscriptions.branchId))
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .leftJoin(
+        schema.renewalFollowups,
+        and(
+          tenantWhere(schema.renewalFollowups, ctx),
+          eq(schema.renewalFollowups.subscriptionId, schema.subscriptions.id),
+        ),
+      )
+      .leftJoin(
+        schema.renewalReasons,
+        and(
+          tenantWhere(schema.renewalReasons, ctx),
+          eq(schema.renewalReasons.id, schema.renewalFollowups.reasonId),
+        ),
+      )
+      .where(and(...conditions))
+      .orderBy(schema.subscriptions.endDate, schema.users.firstName, schema.users.lastName);
+
+    return rows.map((r) => ({
+      ...r,
+      endDate: r.endDate ?? "",
+    }));
+  }
+
+  /** Universo batch de subs candidatas a "sub siguiente" — ver docblock del archivo. */
+  private async fetchNextSubCandidates(
+    ctx: TenantContext,
+    userIds: number[],
+  ): Promise<NextSubCandidate[]> {
+    const rows = await this.db
+      .select({
+        id: schema.subscriptions.id,
+        userId: schema.subscriptions.userId,
+        planId: schema.subscriptions.planId,
+        planName: schema.subscriptionPlans.name,
+        planCategory: schema.subscriptionPlans.planCategory,
+        startDate: schema.subscriptions.startDate,
+        endDate: schema.subscriptions.endDate,
+        createdAt: schema.subscriptions.createdAt,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          inArray(schema.subscriptions.userId, userIds),
+          ne(schema.subscriptions.status, "cancelled"),
+        ),
+      );
+    return rows;
+  }
+
+  /** Última `member_notes` por socio — reducido en JS (ver docblock del archivo). */
+  private async fetchLastNotes(
+    ctx: TenantContext,
+    userIds: number[],
+  ): Promise<Map<number, { content: string; createdAt: string }>> {
+    const rows = await this.db
+      .select({
+        userId: schema.memberNotes.userId,
+        content: schema.memberNotes.content,
+        createdAt: schema.memberNotes.createdAt,
+      })
+      .from(schema.memberNotes)
+      .where(
+        and(tenantWhere(schema.memberNotes, ctx), inArray(schema.memberNotes.userId, userIds)),
+      )
+      .orderBy(desc(schema.memberNotes.createdAt), desc(schema.memberNotes.id));
+
+    const map = new Map<number, { content: string; createdAt: string }>();
+    for (const r of rows) {
+      if (!map.has(r.userId)) {
+        map.set(r.userId, { content: r.content, createdAt: r.createdAt.toISOString() });
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Resuelve la fila derivada de UNA sub puntual — reusa `fetchExpiringRows`
+   * con un rango de UN día (`[endDate, endDate]`) para no duplicar la query
+   * principal, y agrega la sub misma como candidata (por si vive fuera del
+   * rango de vencimiento consultado, algo irrelevante para el matching de
+   * "sub siguiente"). Usado por `updateFollowup`/`addNote` para devolver la
+   * fila recalculada después de escribir.
+   */
+  private async fetchSingleRow(
+    ctx: TenantContext,
+    subscriptionId: number,
+  ): Promise<RenewalRow | null> {
+    const [sub] = await this.db
+      .select({ endDate: schema.subscriptions.endDate })
+      .from(schema.subscriptions)
+      .where(and(tenantWhere(schema.subscriptions, ctx), eq(schema.subscriptions.id, subscriptionId)))
+      .limit(1);
+    if (!sub || sub.endDate === null) return null;
+
+    const [eRows, candidates, lastNotes] = await Promise.all([
+      this.fetchExpiringRows(ctx, { dateFrom: sub.endDate, dateTo: sub.endDate }),
+      this.fetchNextSubCandidatesForSubscription(ctx, subscriptionId),
+      this.fetchLastNotesForSubscription(ctx, subscriptionId),
+    ]);
+    const e = eRows.find((r) => r.subscriptionId === subscriptionId);
+    if (!e) return null;
+
+    const nextSub = pickNextSubscription(candidates, e);
+    const lastNote = lastNotes.get(e.userId) ?? null;
+    return deriveRow(e, nextSub, lastNote, RENEWAL_FOLLOWUP_WINDOW_DAYS);
+  }
+
+  private async fetchNextSubCandidatesForSubscription(
+    ctx: TenantContext,
+    subscriptionId: number,
+  ): Promise<NextSubCandidate[]> {
+    const [sub] = await this.db
+      .select({ userId: schema.subscriptions.userId })
+      .from(schema.subscriptions)
+      .where(and(tenantWhere(schema.subscriptions, ctx), eq(schema.subscriptions.id, subscriptionId)))
+      .limit(1);
+    if (!sub) return [];
+    return this.fetchNextSubCandidates(ctx, [sub.userId]);
+  }
+
+  private async fetchLastNotesForSubscription(
+    ctx: TenantContext,
+    subscriptionId: number,
+  ): Promise<Map<number, { content: string; createdAt: string }>> {
+    const [sub] = await this.db
+      .select({ userId: schema.subscriptions.userId })
+      .from(schema.subscriptions)
+      .where(and(tenantWhere(schema.subscriptions, ctx), eq(schema.subscriptions.id, subscriptionId)))
+      .limit(1);
+    if (!sub) return new Map();
+    return this.fetchLastNotes(ctx, [sub.userId]);
+  }
+
+  /**
+   * Resuelve `subscriptions.branchId` de una sub del tenant, o `null` si no
+   * existe/no es del tenant. Fail-closed cross-tenant: 404, nunca 403 (SPEC
+   * §"PATCH .../:subscriptionId" — "Recurso ajeno ⇒ 404, nunca 403").
+   */
+  private async resolveSubscriptionBranch(
+    ctx: TenantContext,
+    subscriptionId: number,
+  ): Promise<{ branchId: number; userId: number } | null> {
+    const [row] = await this.db
+      .select({
+        branchId: schema.subscriptions.branchId,
+        userId: schema.subscriptions.userId,
+      })
+      .from(schema.subscriptions)
+      .where(and(tenantWhere(schema.subscriptions, ctx), eq(schema.subscriptions.id, subscriptionId)))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Chequea que `subscriptionId` exista en el tenant y en el alcance de sede
+   * del actor. Recurso ajeno (inexistente O fuera de sede) ⇒ 404 SIEMPRE
+   * (SPEC), nunca 403 — mismo criterio ISO-03 que
+   * `ReportsService.updateDebtManagement`.
+   */
+  private async assertSubscriptionInScope(
+    ctx: TenantContext,
+    subscriptionId: number,
+    actor: RenewalActorScope,
+  ): Promise<{ branchId: number; userId: number }> {
+    const sub = await this.resolveSubscriptionBranch(ctx, subscriptionId);
+    if (!sub) {
+      throw new NotFoundError("Suscripción no encontrada");
+    }
+    if (actor.branchIds != null) {
+      assertBranchInEnforcedScope(sub.branchId, actor.branchIds, "Suscripción no encontrada");
+    }
+    return sub;
+  }
+
+  /**
+   * `PATCH /api/admin/renewals/:subscriptionId` (SPEC): upsert del followup
+   * manual, dentro de una transacción con el `audit_log`.
+   */
+  async updateFollowup(
+    ctx: TenantContext,
+    subscriptionId: number,
+    input: RenewalFollowupUpdateInput,
+    actor: RenewalActorScope,
+  ): Promise<RenewalRow> {
+    await this.assertSubscriptionInScope(ctx, subscriptionId, actor);
+
+    if (input.manualStatus === "no_renovo" && input.reasonId === undefined) {
+      // Solo exige motivo cuando el PATCH está SETEANDO no_renovo en este
+      // request. Si el followup YA estaba en no_renovo con motivo y este PATCH
+      // solo toca messageCount, no hace falta repetirlo.
+      const [existing] = await this.db
+        .select({ manualStatus: schema.renewalFollowups.manualStatus, reasonId: schema.renewalFollowups.reasonId })
+        .from(schema.renewalFollowups)
+        .where(
+          and(
+            tenantWhere(schema.renewalFollowups, ctx),
+            eq(schema.renewalFollowups.subscriptionId, subscriptionId),
+          ),
+        )
+        .limit(1);
+      if (!existing || existing.reasonId === null) {
+        throw new BadRequestError("El motivo es obligatorio para marcar No renovó", );
+      }
+    }
+
+    let resolvedReasonId: number | null | undefined = input.reasonId;
+    if (input.manualStatus === "no_renovo") {
+      const reasonIdToCheck = input.reasonId;
+      if (reasonIdToCheck !== undefined && reasonIdToCheck !== null) {
+        const [reason] = await this.db
+          .select({ id: schema.renewalReasons.id, isActive: schema.renewalReasons.isActive })
+          .from(schema.renewalReasons)
+          .where(
+            and(tenantWhere(schema.renewalReasons, ctx), eq(schema.renewalReasons.id, reasonIdToCheck)),
+          )
+          .limit(1);
+        if (!reason || !reason.isActive) {
+          throw new BadRequestError("Motivo inválido o inactivo");
+        }
+      }
+    }
+    if (input.manualStatus === "en_proceso") {
+      // Volver a en_proceso limpia el motivo (SPEC).
+      resolvedReasonId = null;
+    }
+
+    const [before] = await this.db
+      .select()
+      .from(schema.renewalFollowups)
+      .where(
+        and(
+          tenantWhere(schema.renewalFollowups, ctx),
+          eq(schema.renewalFollowups.subscriptionId, subscriptionId),
+        ),
+      )
+      .limit(1);
+
+    const subRow = await this.resolveSubscriptionBranch(ctx, subscriptionId);
+    if (!subRow) throw new NotFoundError("Suscripción no encontrada");
+
+    await this.db.transaction(async (tx: TxHandle) => {
+      const messageChanged =
+        input.messageCount !== undefined && input.messageCount !== (before?.messageCount ?? 0);
+
+      await tx
+        .insert(schema.renewalFollowups)
+        .values(
+          tenantValues(ctx, {
+            subscriptionId,
+            userId: subRow.userId,
+            messageCount: input.messageCount ?? 0,
+            lastMessageAt: messageChanged ? new Date() : null,
+            manualStatus: input.manualStatus ?? "en_proceso",
+            reasonId: resolvedReasonId ?? null,
+            reasonNote: input.reasonNote ?? null,
+            updatedBy: actor.userId,
+          }),
+        )
+        .onDuplicateKeyUpdate({
+          set: {
+            ...(input.messageCount !== undefined ? { messageCount: input.messageCount } : {}),
+            ...(messageChanged ? { lastMessageAt: new Date() } : {}),
+            ...(input.manualStatus !== undefined ? { manualStatus: input.manualStatus } : {}),
+            ...(resolvedReasonId !== undefined ? { reasonId: resolvedReasonId } : {}),
+            ...(input.reasonNote !== undefined ? { reasonNote: input.reasonNote } : {}),
+            updatedBy: actor.userId,
+          },
+        });
+
+      const [after] = await tx
+        .select()
+        .from(schema.renewalFollowups)
+        .where(
+          and(
+            tenantWhere(schema.renewalFollowups, ctx),
+            eq(schema.renewalFollowups.subscriptionId, subscriptionId),
+          ),
+        )
+        .limit(1);
+
+      await auditLog.write(ctx, tx, {
+        actorId: actor.userId,
+        action: "renewal_followup_updated",
+        targetKind: "renewal_followup",
+        targetId: after?.id ?? 0,
+        payload: { before: before ?? null, after: after ?? null },
+      });
+    });
+
+    const row = await this.fetchSingleRow(ctx, subscriptionId);
+    if (!row) throw new NotFoundError("Suscripción no encontrada");
+    return row;
+  }
+
+  /** `POST /api/admin/renewals/:subscriptionId/notes` (SPEC): reusa `MemberService.createNote`. */
+  async addNote(
+    ctx: TenantContext,
+    subscriptionId: number,
+    content: string,
+    actor: RenewalActorScope,
+  ): Promise<MemberNote> {
+    const sub = await this.assertSubscriptionInScope(ctx, subscriptionId, actor);
+    return this.memberService.createNote(ctx, actor.userId, { userId: sub.userId, content });
+  }
+
+  // ─── Motivos ────────────────────────────────────────────────────────────
+
+  async listReasons(ctx: TenantContext, includeInactive: boolean): Promise<RenewalReason[]> {
+    const rows = await this.db
+      .select({
+        id: schema.renewalReasons.id,
+        label: schema.renewalReasons.label,
+        sortOrder: schema.renewalReasons.sortOrder,
+        isActive: schema.renewalReasons.isActive,
+      })
+      .from(schema.renewalReasons)
+      .where(
+        and(
+          tenantWhere(schema.renewalReasons, ctx),
+          ...(includeInactive ? [] : [eq(schema.renewalReasons.isActive, true)]),
+        ),
+      )
+      .orderBy(schema.renewalReasons.sortOrder, schema.renewalReasons.label);
+    return rows;
+  }
+
+  async createReason(ctx: TenantContext, input: RenewalReasonCreateInput): Promise<RenewalReason> {
+    const label = input.label.trim();
+    if (label.length === 0) {
+      throw new BadRequestError("La etiqueta no puede estar vacía");
+    }
+
+    const [{ maxSort }] = await this.db
+      .select({
+        maxSort: schema.renewalReasons.sortOrder,
+      })
+      .from(schema.renewalReasons)
+      .where(tenantWhere(schema.renewalReasons, ctx))
+      .orderBy(desc(schema.renewalReasons.sortOrder))
+      .limit(1)
+      .then((rows) => (rows.length > 0 ? rows : [{ maxSort: -1 }]));
+
+    try {
+      const result = await this.db
+        .insert(schema.renewalReasons)
+        .values(tenantValues(ctx, { label, sortOrder: maxSort + 1 }));
+      const id = Number(result[0].insertId);
+      return { id, label, sortOrder: maxSort + 1, isActive: true };
+    } catch (err: unknown) {
+      const { isDuplicate } = isDuplicateKeyError(err);
+      if (isDuplicate) {
+        throw new ConflictError("Ya existe un motivo con esa etiqueta");
+      }
+      throw err;
+    }
+  }
+
+  async updateReason(
+    ctx: TenantContext,
+    reasonId: number,
+    input: RenewalReasonUpdateInput,
+  ): Promise<RenewalReason> {
+    const [existing] = await this.db
+      .select({ id: schema.renewalReasons.id })
+      .from(schema.renewalReasons)
+      .where(and(tenantWhere(schema.renewalReasons, ctx), eq(schema.renewalReasons.id, reasonId)))
+      .limit(1);
+    if (!existing) {
+      throw new NotFoundError("Motivo no encontrado");
+    }
+
+    const label = input.label?.trim();
+    if (label !== undefined && label.length === 0) {
+      throw new BadRequestError("La etiqueta no puede estar vacía");
+    }
+
+    try {
+      await this.db
+        .update(schema.renewalReasons)
+        .set({
+          ...(label !== undefined ? { label } : {}),
+          ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+          ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+        })
+        .where(and(tenantWhere(schema.renewalReasons, ctx), eq(schema.renewalReasons.id, reasonId)));
+    } catch (err: unknown) {
+      const { isDuplicate } = isDuplicateKeyError(err);
+      if (isDuplicate) {
+        throw new ConflictError("Ya existe un motivo con esa etiqueta");
+      }
+      throw err;
+    }
+
+    const [updated] = await this.db
+      .select({
+        id: schema.renewalReasons.id,
+        label: schema.renewalReasons.label,
+        sortOrder: schema.renewalReasons.sortOrder,
+        isActive: schema.renewalReasons.isActive,
+      })
+      .from(schema.renewalReasons)
+      .where(and(tenantWhere(schema.renewalReasons, ctx), eq(schema.renewalReasons.id, reasonId)))
+      .limit(1);
+    if (!updated) throw new NotFoundError("Motivo no encontrado");
+    return updated;
+  }
+
+  // ─── Plantillas ─────────────────────────────────────────────────────────
+
+  async listTemplates(ctx: TenantContext): Promise<RenewalTemplate[]> {
+    const rows = await this.db
+      .select({
+        step: schema.renewalMessageTemplates.step,
+        body: schema.renewalMessageTemplates.body,
+        updatedAt: schema.renewalMessageTemplates.updatedAt,
+      })
+      .from(schema.renewalMessageTemplates)
+      .where(tenantWhere(schema.renewalMessageTemplates, ctx))
+      .orderBy(schema.renewalMessageTemplates.step);
+    return rows.map((r) => ({ step: r.step, body: r.body, updatedAt: r.updatedAt.toISOString() }));
+  }
+
+  async updateTemplate(ctx: TenantContext, step: number, body: string): Promise<RenewalTemplate> {
+    if (step < 1 || step > 4) {
+      throw new BadRequestError("El paso debe estar entre 1 y 4");
+    }
+    await this.db
+      .insert(schema.renewalMessageTemplates)
+      .values(tenantValues(ctx, { step, body }))
+      .onDuplicateKeyUpdate({ set: { body } });
+
+    const [row] = await this.db
+      .select({
+        step: schema.renewalMessageTemplates.step,
+        body: schema.renewalMessageTemplates.body,
+        updatedAt: schema.renewalMessageTemplates.updatedAt,
+      })
+      .from(schema.renewalMessageTemplates)
+      .where(
+        and(
+          tenantWhere(schema.renewalMessageTemplates, ctx),
+          eq(schema.renewalMessageTemplates.step, step),
+        ),
+      )
+      .limit(1);
+    if (!row) throw new NotFoundError("Plantilla no encontrada");
+    return { step: row.step, body: row.body, updatedAt: row.updatedAt.toISOString() };
+  }
+}

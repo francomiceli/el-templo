@@ -35,6 +35,7 @@ import {
 } from "./modules/scheduling";
 import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
+import { renewalsRoutes } from "./modules/renewals";
 import { coachRoutes } from "./modules/coach";
 import { ratingsAdminRoutes, ratingsMemberRoutes } from "./modules/ratings";
 import {
@@ -294,6 +295,12 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // Reports routes (access log, charges, expiring, inactive + Excel exports)
   await app.register(reportsRoutes, {
     prefix: "/api/admin/reports",
+  });
+
+  // Renovaciones (2026-09-24, brief Nacho): pantalla operativa de seguimiento
+  // de vencimientos, reemplaza el Excel semanal.
+  await app.register(renewalsRoutes, {
+    prefix: "/api/admin/renewals",
   });
 
   // Coach routes (simplified Deudas tab for professors at the door)
