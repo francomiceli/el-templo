@@ -620,11 +620,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
 
   // ── /api/admin/renewals ───────────────────────────────────────────────────
   // Módulo de Renovaciones (brief Nacho, 2026-09-24): pantalla operativa de
-  // seguimiento de vencimientos, reemplaza el Excel semanal. Las 8
-  // tenant-scoped: leen/escriben `renewal_followups`/`renewal_reasons`/
-  // `renewal_message_templates` (gym-owned, módulo strict) y `subscriptions`/
-  // `member_notes` del gimnasio — el tenant sale SIEMPRE de
-  // `assertTenant(request.scope, …)`, nunca del body/query.
+  // seguimiento de vencimientos, reemplaza el Excel semanal. Las 6
+  // tenant-scoped: leen/escriben `renewal_followups`/`renewal_reasons`
+  // (gym-owned, módulo strict) y `subscriptions`/`member_notes` del gimnasio
+  // — el tenant sale SIEMPRE de `assertTenant(request.scope, …)`, nunca del
+  // body/query. Sin `/templates`: el negocio manda WhatsApp desde su CRM
+  // (Kommo), no desde el admin — el listado expone `phoneE164` para ese
+  // copy/paste en vez de plantillas server-side.
   "GET /api/admin/renewals": { categoria: "tenant-scoped" },
   "PATCH /api/admin/renewals/:subscriptionId": { categoria: "tenant-scoped" },
   "POST /api/admin/renewals/:subscriptionId/notes": {
@@ -633,8 +635,6 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/renewals/reasons": { categoria: "tenant-scoped" },
   "POST /api/admin/renewals/reasons": { categoria: "tenant-scoped" },
   "PATCH /api/admin/renewals/reasons/:id": { categoria: "tenant-scoped" },
-  "GET /api/admin/renewals/templates": { categoria: "tenant-scoped" },
-  "PUT /api/admin/renewals/templates/:step": { categoria: "tenant-scoped" },
 
   // ── /api/admin/reports ────────────────────────────────────────────────────
   "GET /api/admin/reports/access": { categoria: "tenant-scoped" },

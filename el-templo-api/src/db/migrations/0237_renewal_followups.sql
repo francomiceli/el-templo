@@ -5,20 +5,21 @@
 -- migraciones 0216/0215/0223) -- el modulo entero nace strict en
 -- TENANT_STRICT_MODULES, sin deuda de allowlist previa.
 --
--- Tres tablas:
+-- Dos tablas:
 --   renewal_reasons -- motivos configurables de "No renovo" (brief S7).
---   renewal_message_templates -- las 4 plantillas de WhatsApp (pasos 1-4).
 --   renewal_followups -- lo MANUAL de cada fila (mensaje, no_renovo+motivo,
 --     quien/cuando). Renovo / Volvio tarde / Pausada se DERIVAN en cada
 --     lectura desde subscriptions y NUNCA se persisten acá (ver SPEC
 --     "derivado vs. persistido").
 --
--- Seeds (idempotentes por NOT EXISTS, para TODOS los tenants existentes via
+-- Cambio de alcance (mismo dia, antes de aplicarse en ningun ambiente
+-- compartido): se descarto `renewal_message_templates` (las 4 plantillas de
+-- WhatsApp) -- el negocio no manda mensajes desde el admin, copian el
+-- telefono a su CRM (Kommo), que ya usa plantillas aprobadas por Meta.
+--
+-- Seed (idempotente por NOT EXISTS, para TODOS los tenants existentes via
 -- INSERT ... SELECT FROM tenants, cero ids hardcodeados):
 --   renewal_reasons: Lesion, Viaje, Precio, Se muda, Cambio de gimnasio, Otro.
---   renewal_message_templates: 4 textos neutros (no asumen "El Templo" como
---     nombre del gimnasio -- se usa {gimnasio} resuelto por tenants.name en
---     el propio INSERT), con placeholders {nombre}/{plan}/{vencimiento}.
 --
 -- Hand-written: db:generate pega contra el drift interactivo preexistente de
 -- sessions.goal_plan_type (mismo motivo que 0184/0188/0189/0202/0215/0216/0223).
@@ -43,18 +44,6 @@ CREATE TABLE `renewal_reasons` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_renewal_reasons_tenant_label` (`tenant_id`, `label`),
   CONSTRAINT `fk_renewal_reasons_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
-);
---> statement-breakpoint
-
-CREATE TABLE `renewal_message_templates` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `tenant_id` int NOT NULL DEFAULT 1,
-  `step` tinyint NOT NULL,
-  `body` text NOT NULL,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_renewal_message_templates_tenant_step` (`tenant_id`, `step`),
-  CONSTRAINT `fk_renewal_message_templates_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 );
 --> statement-breakpoint
 
@@ -127,40 +116,4 @@ SELECT t.id, 'Otro', 5
 FROM tenants t
 WHERE NOT EXISTS (
   SELECT 1 FROM renewal_reasons r WHERE r.tenant_id = t.id AND r.label = 'Otro'
-);
---> statement-breakpoint
-
-INSERT INTO renewal_message_templates (`tenant_id`, `step`, `body`)
-SELECT t.id, 1,
-  CONCAT('Hola {nombre}! Te escribimos de ', t.name, ': tu plan {plan} vence el {vencimiento}. ¿Querés que te lo renovemos?')
-FROM tenants t
-WHERE NOT EXISTS (
-  SELECT 1 FROM renewal_message_templates m WHERE m.tenant_id = t.id AND m.step = 1
-);
---> statement-breakpoint
-
-INSERT INTO renewal_message_templates (`tenant_id`, `step`, `body`)
-SELECT t.id, 2,
-  'Hola {nombre}! Te recordamos que tu plan {plan} vence el {vencimiento}. Cualquier consulta para renovarlo, escribinos.'
-FROM tenants t
-WHERE NOT EXISTS (
-  SELECT 1 FROM renewal_message_templates m WHERE m.tenant_id = t.id AND m.step = 2
-);
---> statement-breakpoint
-
-INSERT INTO renewal_message_templates (`tenant_id`, `step`, `body`)
-SELECT t.id, 3,
-  'Hola {nombre}! Tu plan {plan} vence hoy ({vencimiento}) o ya venció. ¿Te ayudamos a renovarlo para que no pierdas tu lugar?'
-FROM tenants t
-WHERE NOT EXISTS (
-  SELECT 1 FROM renewal_message_templates m WHERE m.tenant_id = t.id AND m.step = 3
-);
---> statement-breakpoint
-
-INSERT INTO renewal_message_templates (`tenant_id`, `step`, `body`)
-SELECT t.id, 4,
-  'Hola {nombre}! Seguimos a tu disposición para renovar tu plan {plan} (venció el {vencimiento}). Contanos si te podemos ayudar en algo.'
-FROM tenants t
-WHERE NOT EXISTS (
-  SELECT 1 FROM renewal_message_templates m WHERE m.tenant_id = t.id AND m.step = 4
 );

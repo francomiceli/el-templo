@@ -2,10 +2,14 @@
  * Rutas del módulo de Renovaciones (prefijo `/api/admin/renewals`), 2026-09-24.
  *
  * Guard de rol: `CAJA_ROLES` (gestion/admin_sede/admin/owner) — el mismo que
- * `reports`, que hoy genera el Excel (SPEC). Escrituras de motivos y
- * plantillas son `ADMIN_ROLES`-only (owner/admin) — preHandler por-ruta más
- * angosto, mismo patrón que `staff-attendance` (`STAFF_ATTENDANCE_REPORT_ROLES`
- * sobre `GET /shifts`).
+ * `reports`, que hoy genera el Excel (SPEC). Escrituras de motivos son
+ * `ADMIN_ROLES`-only (owner/admin) — preHandler por-ruta más angosto, mismo
+ * patrón que `staff-attendance` (`STAFF_ATTENDANCE_REPORT_ROLES` sobre
+ * `GET /shifts`).
+ *
+ * Cambio de alcance (2026-09-24, mismo día): sin `/templates` — el negocio no
+ * manda WhatsApp desde el admin, usa su CRM (Kommo). El listado expone
+ * `phoneE164` para ese copy/paste (ver `service.ts`).
  */
 import { FastifyPluginAsync } from "fastify";
 import { RenewalsService, REASON_REQUIRED } from "./service";
@@ -26,8 +30,6 @@ import {
   renewalReasonListSchema,
   renewalReasonCreateSchema,
   renewalReasonUpdateSchema,
-  renewalTemplateListSchema,
-  renewalTemplateUpdateSchema,
   type RenewalListQuery,
   type RenewalFollowupParams,
   type RenewalFollowupBody,
@@ -36,8 +38,6 @@ import {
   type RenewalReasonCreateBody,
   type RenewalReasonParams,
   type RenewalReasonUpdateBody,
-  type RenewalTemplateParams,
-  type RenewalTemplateUpdateBody,
 } from "./schemas";
 import type { FastifyRequest, FastifyReply } from "fastify";
 
@@ -204,38 +204,4 @@ export const renewalsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // GET /templates — lectura, CAJA_ROLES.
-  fastify.get(
-    "/templates",
-    { schema: renewalTemplateListSchema },
-    async (request, reply) => {
-      try {
-        const ctx = assertTenant(request.scope, "renewals.listTemplates");
-        const templates = await service.listTemplates(ctx);
-        return reply.send(templates);
-      } catch (err: unknown) {
-        handleServiceError(err, reply, request.log, "list renewal templates");
-      }
-    },
-  );
-
-  // PUT /templates/:step — escritura, ADMIN_ROLES only.
-  fastify.put<{ Params: RenewalTemplateParams; Body: RenewalTemplateUpdateBody }>(
-    "/templates/:step",
-    { schema: renewalTemplateUpdateSchema, preHandler: [requireAdminRole] },
-    async (request, reply) => {
-      if (reply.sent) return;
-      try {
-        const ctx = assertTenant(request.scope, "renewals.updateTemplate");
-        const template = await service.updateTemplate(
-          ctx,
-          request.params.step,
-          request.body.body,
-        );
-        return reply.send(template);
-      } catch (err: unknown) {
-        handleServiceError(err, reply, request.log, "update renewal template");
-      }
-    },
-  );
 };

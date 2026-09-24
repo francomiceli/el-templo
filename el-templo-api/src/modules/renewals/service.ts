@@ -42,6 +42,7 @@ import { assertBranchInEnforcedScope } from "../shared/branch-access";
 import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import { auditLog } from "../shared/audit-log";
+import { normalizePhoneE164 } from "../shared/phone";
 import type { TxHandle } from "../finance/balance-service";
 import { MemberService } from "../members/service";
 import type { MemberNote } from "../members/types";
@@ -58,7 +59,6 @@ import type {
   RenewalReasonUpdateInput,
   RenewalRow,
   RenewalStatus,
-  RenewalTemplate,
 } from "./types";
 
 /**
@@ -123,6 +123,7 @@ interface ExpiringRow {
   phone: string | null;
   branchId: number;
   branchName: string;
+  branchCountry: "AR" | "ES";
   planId: number;
   planName: string;
   planCategory: string;
@@ -226,6 +227,10 @@ function deriveRow(
     userId: e.userId,
     memberName: `${e.firstName ?? ""} ${e.lastName ?? ""}`.trim(),
     phone: e.phone,
+    // Botón de WhatsApp (cambio de alcance 2026-09-24): normalizado a E.164
+    // según el país de la SEDE de la sub que vence — `null` si no se puede
+    // normalizar con confianza (ver `normalizePhoneE164`).
+    phoneE164: normalizePhoneE164(e.phone, e.branchCountry),
     branchId: e.branchId,
     branchName: e.branchName,
     planId: e.planId,
@@ -406,6 +411,7 @@ export class RenewalsService {
         phone: schema.users.phone,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
+        branchCountry: schema.branches.country,
         planId: schema.subscriptions.planId,
         planName: schema.subscriptionPlans.name,
         planCategory: schema.subscriptionPlans.planCategory,
@@ -449,6 +455,11 @@ export class RenewalsService {
     return rows.map((r) => ({
       ...r,
       endDate: r.endDate ?? "",
+      // `branches.country` es varchar(2) sin enum en el schema (Drizzle lo
+      // infiere como `string`) — se angosta acá al literal, mismo patrón que
+      // `resolveBranchCountry` (shared/country-scope.ts): cualquier valor que
+      // no sea 'ES' cae en 'AR' (default de la propia columna en el schema).
+      branchCountry: r.branchCountry === "ES" ? ("ES" as const) : ("AR" as const),
     }));
   }
 
@@ -859,47 +870,5 @@ export class RenewalsService {
       .limit(1);
     if (!updated) throw new NotFoundError("Motivo no encontrado");
     return updated;
-  }
-
-  // ─── Plantillas ─────────────────────────────────────────────────────────
-
-  async listTemplates(ctx: TenantContext): Promise<RenewalTemplate[]> {
-    const rows = await this.db
-      .select({
-        step: schema.renewalMessageTemplates.step,
-        body: schema.renewalMessageTemplates.body,
-        updatedAt: schema.renewalMessageTemplates.updatedAt,
-      })
-      .from(schema.renewalMessageTemplates)
-      .where(tenantWhere(schema.renewalMessageTemplates, ctx))
-      .orderBy(schema.renewalMessageTemplates.step);
-    return rows.map((r) => ({ step: r.step, body: r.body, updatedAt: r.updatedAt.toISOString() }));
-  }
-
-  async updateTemplate(ctx: TenantContext, step: number, body: string): Promise<RenewalTemplate> {
-    if (step < 1 || step > 4) {
-      throw new BadRequestError("El paso debe estar entre 1 y 4");
-    }
-    await this.db
-      .insert(schema.renewalMessageTemplates)
-      .values(tenantValues(ctx, { step, body }))
-      .onDuplicateKeyUpdate({ set: { body } });
-
-    const [row] = await this.db
-      .select({
-        step: schema.renewalMessageTemplates.step,
-        body: schema.renewalMessageTemplates.body,
-        updatedAt: schema.renewalMessageTemplates.updatedAt,
-      })
-      .from(schema.renewalMessageTemplates)
-      .where(
-        and(
-          tenantWhere(schema.renewalMessageTemplates, ctx),
-          eq(schema.renewalMessageTemplates.step, step),
-        ),
-      )
-      .limit(1);
-    if (!row) throw new NotFoundError("Plantilla no encontrada");
-    return { step: row.step, body: row.body, updatedAt: row.updatedAt.toISOString() };
   }
 }

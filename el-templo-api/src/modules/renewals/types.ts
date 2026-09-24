@@ -23,6 +23,13 @@ export interface RenewalRow {
   userId: number;
   memberName: string;
   phone: string | null;
+  /**
+   * Teléfono normalizado a E.164 para el botón de WhatsApp del admin
+   * (cambio de alcance 2026-09-24: sin plantillas server-side, el negocio
+   * copia esto a su CRM), o `null` si no se pudo normalizar con confianza
+   * (ver `modules/shared/phone.ts` `normalizePhoneE164`).
+   */
+  phoneE164: string | null;
   branchId: number;
   branchName: string;
   planId: number;
@@ -129,14 +136,4 @@ export interface RenewalReasonUpdateInput {
   label?: string;
   sortOrder?: number;
   isActive?: boolean;
-}
-
-export interface RenewalTemplate {
-  step: number;
-  body: string;
-  updatedAt: string;
-}
-
-export interface RenewalTemplateUpdateInput {
-  body: string;
 }

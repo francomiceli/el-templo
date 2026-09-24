@@ -34,6 +34,7 @@ const renewalRowSchema = {
     userId: { type: "integer" },
     memberName: { type: "string" },
     phone: { type: ["string", "null"] },
+    phoneE164: { type: ["string", "null"] },
     branchId: { type: "integer" },
     branchName: { type: "string" },
     planId: { type: "integer" },
@@ -254,49 +255,6 @@ export const renewalReasonUpdateSchema = {
   },
 } as const;
 
-const renewalTemplateSchema = {
-  type: "object",
-  properties: {
-    step: { type: "integer" },
-    body: { type: "string" },
-    updatedAt: { type: "string" },
-  },
-} as const;
-
-export const renewalTemplateListSchema = {
-  response: {
-    200: { type: "array", items: renewalTemplateSchema },
-    401: errorSchema,
-    403: errorSchema,
-    500: errorSchema,
-  },
-} as const;
-
-export const renewalTemplateUpdateSchema = {
-  params: {
-    type: "object",
-    required: ["step"],
-    properties: {
-      step: { type: "integer" },
-    },
-  },
-  body: {
-    type: "object",
-    required: ["body"],
-    properties: {
-      body: { type: "string", minLength: 1, maxLength: 1000 },
-    },
-  },
-  response: {
-    200: renewalTemplateSchema,
-    400: errorSchema,
-    401: errorSchema,
-    403: errorSchema,
-    404: errorSchema,
-    500: errorSchema,
-  },
-} as const;
-
 // ─── Tipos de request ───────────────────────────────────────────────────────
 
 export interface RenewalListQuery {
@@ -336,12 +294,4 @@ export interface RenewalReasonUpdateBody {
   label?: string;
   sortOrder?: number;
   isActive?: boolean;
-}
-
-export interface RenewalTemplateParams {
-  step: number;
-}
-
-export interface RenewalTemplateUpdateBody {
-  body: string;
 }

@@ -52,8 +52,9 @@
  * tenant_id + FK en la 0216 -- así que `report.gymOwnedChecked` pasa de 91 a 94.
  * 2026-09-07: staff_shifts (0223) nace tenancy-native -> 95.
  * 2026-09-08: cash_counts (0226, arqueos de caja) nace tenancy-native -> 96.
- * 2026-09-24: renewal_followups/renewal_message_templates/renewal_reasons
- * (módulo de Renovaciones, 0237) nacen tenancy-native -> 99.
+ * 2026-09-24: renewal_followups/renewal_reasons (módulo de Renovaciones,
+ * 0237) nacen tenancy-native -> 98 (`renewal_message_templates` se descartó
+ * el mismo día antes de mergear — WhatsApp se manda desde el CRM, no el admin).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { sql, eq } from "drizzle-orm";
@@ -156,7 +157,7 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
   });
 
   // ─── 2. Cobertura ───────────────────────────────────────────────────────
-  it("Test 2: la verificacion cubre las 99 tablas gym-owned, no un subconjunto", () => {
+  it("Test 2: la verificacion cubre las 98 tablas gym-owned, no un subconjunto", () => {
     // 87 de la tanda C (fase 167) + session_week_regime (fase 159, SEM-05)
     // + 3 tablas de partners (referral_partners/partner_referrals/
     // partner_commissions, fase 179, tenancy-native en la 0215)
@@ -164,9 +165,9 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
     // tenancy-native en la 0216)
     // + staff_shifts (jornada del staff, 2026-09-07, tenancy-native en la 0223) = 95
     // + cash_counts (arqueos de caja, 2026-09-08, tenancy-native en la 0226) = 96
-    // + renewal_followups/renewal_message_templates/renewal_reasons (módulo de
-    //   Renovaciones, 2026-09-24, tenancy-native en la 0237) = 99.
-    expect(report.gymOwnedChecked).toBe(99);
+    // + renewal_followups/renewal_reasons (módulo de Renovaciones,
+    //   2026-09-24, tenancy-native en la 0237) = 98.
+    expect(report.gymOwnedChecked).toBe(98);
   });
 
   // ─── 3. Exclusiones de diseño ───────────────────────────────────────────

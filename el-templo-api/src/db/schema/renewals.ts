@@ -3,10 +3,16 @@
 //
 // Principio central (SPEC §"derivado vs. persistido"): Renovó / Volvió tarde /
 // Pausada se DERIVAN en cada lectura desde `subscriptions` (ver
-// `src/modules/renewals/service.ts`) — NUNCA se persisten. Estas tres tablas
+// `src/modules/renewals/service.ts`) — NUNCA se persisten. Estas dos tablas
 // solo guardan lo manual: número de mensaje, "No renovó" + motivo + nota, y
 // quién/cuándo. Un "No renovó" manual queda pisado por una renovación
 // derivada (manualOverridden=true) — el registro manual nunca se borra.
+//
+// Cambio de alcance (2026-09-24, mismo día): se descartaron las plantillas de
+// WhatsApp (`renewal_message_templates`) — el negocio no manda mensajes desde
+// el admin, copian el teléfono a su CRM (Kommo), que ya usa plantillas
+// aprobadas por Meta. El admin solo expone `phoneE164` (normalizado, ver
+// `modules/shared/phone.ts` `normalizePhoneE164`) para ese copy/paste.
 //
 // Nace tenancy-native (tenant_id desde el arranque, mismo criterio que
 // avisos/referral_partners/staff_shifts) y el módulo entero nace STRICT en
@@ -15,7 +21,6 @@ import {
   mysqlTable,
   int,
   varchar,
-  text,
   boolean,
   timestamp,
   tinyint,
@@ -59,29 +64,6 @@ export const renewalReasons = mysqlTable(
     uniqueIndex("uq_renewal_reasons_tenant_label").on(
       table.tenantId,
       table.label,
-    ),
-  ],
-);
-
-/**
- * Las 4 plantillas de WhatsApp (paso 1..4) por tenant, con placeholders
- * `{nombre}` / `{plan}` / `{vencimiento}` (SPEC §"Base de datos" punto 2).
- * Seed inicial en la migración 0237, un texto neutro por tenant (no asume
- * "El Templo" como nombre de gimnasio).
- */
-export const renewalMessageTemplates = mysqlTable(
-  "renewal_message_templates",
-  {
-    id: int("id").primaryKey().autoincrement(),
-    tenantId: tenantIdColumn(),
-    step: tinyint("step").notNull(),
-    body: text("body").notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-  },
-  (table) => [
-    uniqueIndex("uq_renewal_message_templates_tenant_step").on(
-      table.tenantId,
-      table.step,
     ),
   ],
 );
