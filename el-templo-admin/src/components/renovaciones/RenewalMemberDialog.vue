@@ -181,7 +181,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { useRenewalsApi } from 'src/composables/useRenewalsApi';
@@ -190,6 +190,7 @@ import type { RenewalRow, RenewalReason } from 'src/types/renewals';
 
 const log = createLogger('RenewalMemberDialog');
 const $q = useQuasar();
+const route = useRoute();
 const router = useRouter();
 const renewalsApi = useRenewalsApi();
 
@@ -350,8 +351,8 @@ function onRenovar() {
     path: '/cobros',
     query: {
       memberId: String(row.userId),
-      planId: String(row.planId),
-      returnTo: '/renovaciones',
+      // fullPath conserva semana y sede (?from=&to=&branch=) al volver.
+      returnTo: route.fullPath,
     },
   });
 }

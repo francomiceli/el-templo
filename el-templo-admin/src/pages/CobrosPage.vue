@@ -2225,27 +2225,14 @@ async function onConfirm() {
       mode.value === 'alta'
         ? 'Alumno y plan cargados — pendiente de validación'
         : 'Cobro registrado — pendiente de validación';
-    // Renovaciones (SPEC 2026-09-24): con `?returnTo=` válido, ofrece volver
-    // (no fuerza la navegación — el operador puede seguir cargando cobros).
-    if (returnTo.value) {
-      const destination = returnTo.value;
-      $q.notify({
-        type: 'positive',
-        message: successMsg,
-        actions: [
-          {
-            label: 'Volver',
-            color: 'white',
-            handler: () => void router.push(destination),
-          },
-        ],
-      });
-    } else {
-      $q.notify({ type: 'positive', message: successMsg });
-    }
+    $q.notify({ type: 'positive', message: successMsg });
     await refreshMyLoads();
     resetForm();
     resetToPortada();
+    // Renovaciones: con `?returnTo=` válido, vuelve sola a la pantalla de
+    // origen (la fila ya muestra "Renovó" al recargar). Después del reset,
+    // para que el guard de "abandonar cobro" no salte.
+    if (returnTo.value) await router.push(returnTo.value);
   } catch (err: unknown) {
     // Retry re-uses the SAME key, so a load that actually succeeded server-side
     // before a timeout is a safe idempotent no-op on the next tap.
@@ -2390,27 +2377,6 @@ async function loadZeroPriceRule() {
   }
 }
 
-// Renovaciones (SPEC 2026-09-24): deep-link opcional `?planId=` — preselecciona
-// el plan sugerido (el vigente) en el paso "¿Qué se cobra?" bajo la asociación
-// 'alta' (catálogo de planes), NO 'renew': "renovar no implica el mismo
-// plan" (brief Nacho §1), así que se deja elegir del catálogo con ese preset
-// en vez de forzar la renovación al plan actual. Si el plan no existe o no
-// está activo para la sede del socio, se ignora sin romper el flujo (SPEC).
-async function applyPlanDeepLink() {
-  const raw = route.query.planId;
-  const planIdStr = typeof raw === 'string' ? raw.trim() : '';
-  if (!planIdStr) return;
-  const planId = Number(planIdStr);
-  if (!Number.isInteger(planId) || planId <= 0) return;
-  onSelectAssociation('alta');
-  // `onSelectAssociation` no-opea si 'alta' está deshabilitada (p.ej. deuda
-  // pendiente, CR-01) — en ese caso no hay plan que precargar.
-  if (mode.value !== 'alta') return;
-  await loadAltaPlans();
-  const plan = plans.value.find((p) => p.id === planId);
-  if (plan) selectPlan(plan);
-}
-
 // Renovaciones (SPEC 2026-09-24): deep-link opcional `?returnTo=` — ruta a
 // ofrecer tras un cobro exitoso (ver `onConfirm`). Validado acá (arranca con
 // '/' y no con '//') para no armar un `router.push` con una URL externa.
@@ -2435,7 +2401,6 @@ async function applyMemberDeepLink() {
     selectedMember.value = buildMemberOption(m);
     resetAltaFields();
     await loadAutocompletar(m.id);
-    await applyPlanDeepLink();
     // Entrar al paso Socio (no dejar el wizard en la portada 0).
     slideDir.value = 'forward';
     currentStep.value = 1;

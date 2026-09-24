@@ -326,6 +326,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useQuasar, type QTableColumn } from 'quasar';
+import { useRoute, useRouter } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { useRenewalsApi } from 'src/composables/useRenewalsApi';
@@ -381,7 +382,8 @@ async function fetchBranches() {
           { label: 'Todas las sedes', value: undefined },
           ...branches.map((b: BranchOption) => ({ label: b.name, value: b.id })),
         ];
-    if (scoped && selectedBranchId.value === undefined) {
+    // admin_sede: su sede forzada, aunque la URL traiga otra.
+    if (scoped && !branches.some((b: BranchOption) => b.id === selectedBranchId.value)) {
       selectedBranchId.value = branches[0]?.id;
     }
   } catch (err: unknown) {
@@ -408,13 +410,53 @@ const weekPresets: WeekPreset[] = [
   { label: 'Semana que viene', offsetWeeks: 1 },
 ];
 
-const initialWeek = getWeekRange(0);
-const dateFrom = ref(initialWeek.dateFrom);
-const dateTo = ref(initialWeek.dateTo);
-const presetLabel = ref('Esta semana');
+// Los filtros viven en la URL (?from=&to=&branch=) para que al volver de
+// Cobros (returnTo = fullPath) la pantalla quede en la misma semana y sede.
+const route = useRoute();
+const router = useRouter();
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function queryString(key: string): string | null {
+  const raw = route.query[key];
+  return typeof raw === 'string' ? raw : null;
+}
+
+function initialRange(): { dateFrom: string; dateTo: string; label: string } {
+  const from = queryString('from');
+  const to = queryString('to');
+  if (from && to && ISO_DATE.test(from) && ISO_DATE.test(to) && from <= to) {
+    const preset = weekPresets.find((p) => {
+      const r = getWeekRange(p.offsetWeeks);
+      return r.dateFrom === from && r.dateTo === to;
+    });
+    return { dateFrom: from, dateTo: to, label: preset?.label ?? '' };
+  }
+  const week = getWeekRange(0);
+  return { ...week, label: 'Esta semana' };
+}
+
+const initial = initialRange();
+const dateFrom = ref(initial.dateFrom);
+const dateTo = ref(initial.dateTo);
+const presetLabel = ref(initial.label);
 const showCustomRange = ref(false);
-const customFrom = ref(initialWeek.dateFrom);
-const customTo = ref(initialWeek.dateTo);
+const customFrom = ref(initial.dateFrom);
+const customTo = ref(initial.dateTo);
+
+const initialBranch = Number(queryString('branch'));
+if (Number.isInteger(initialBranch) && initialBranch > 0) {
+  selectedBranchId.value = initialBranch;
+}
+
+function syncQuery() {
+  void router.replace({
+    query: {
+      from: dateFrom.value,
+      to: dateTo.value,
+      ...(selectedBranchId.value !== undefined ? { branch: String(selectedBranchId.value) } : {}),
+    },
+  });
+}
 
 const dateRangeLabel = computed(() => presetLabel.value || `${dateFrom.value} - ${dateTo.value}`);
 
@@ -472,6 +514,7 @@ const reasons = ref<RenewalReason[]>([]);
 const loading = ref(false);
 
 async function fetchRows() {
+  syncQuery();
   loading.value = true;
   try {
     const result = await renewalsApi.listRenewals({
