@@ -11,6 +11,12 @@ const tokenState = {
 }
 let refreshCallCount = 0
 
+// Controls what POST /auth/refresh does in the mocked axios below:
+//  - 'ok': succeeds with a rotated token pair (default).
+//  - 'network': throws an AxiosError with NO `.response` (no internet/timeout).
+//  - 'rejected': throws an AxiosError with `.response.status = 401`.
+let refreshBehavior: 'ok' | 'network' | 'rejected' = 'ok'
+
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isNativePlatform: () => false },
 }))
@@ -48,16 +54,37 @@ vi.mock('src/utils/logger', () => ({
 vi.mock('axios', async () => {
   const actual = await vi.importActual<typeof import('axios')>('axios')
 
+  // Shared by both the callable-instance form and `.post` — one place
+  // decides what a POST /auth/refresh does for the current test.
+  async function respondToRefresh(): Promise<{ data: unknown }> {
+    refreshCallCount += 1
+    // small async delay so concurrent callers share the in-flight promise
+    await new Promise((r) => setTimeout(r, 10))
+    if (refreshBehavior === 'network') {
+      const err = new actual.AxiosError('Network Error')
+      err.code = 'ERR_NETWORK'
+      // No `.response` — this is the defining trait of a network failure.
+      throw err
+    }
+    if (refreshBehavior === 'rejected') {
+      const err = new actual.AxiosError('Unauthorized')
+      err.response = {
+        status: 401,
+        data: {},
+        statusText: '',
+        headers: {},
+        config: {} as never,
+      }
+      throw err
+    }
+    return { data: { accessToken: 'new-access', refreshToken: 'refresh-2' } }
+  }
+
   function makeInstance() {
     const instance = (async (config: Record<string, unknown>) => {
       const url = String(config.url)
       if (url.includes('/auth/refresh')) {
-        refreshCallCount += 1
-        // small async delay so concurrent callers share the in-flight promise
-        await new Promise((r) => setTimeout(r, 10))
-        return {
-          data: { accessToken: 'new-access', refreshToken: 'refresh-2' },
-        }
+        return respondToRefresh()
       }
       // protected endpoints succeed once the access token has rotated
       if ((config.headers as Record<string, string>)?.Authorization?.includes('new-access')) {
@@ -82,11 +109,7 @@ vi.mock('axios', async () => {
     }
     instance.post = async (url: string) => {
       if (url.includes('/auth/refresh')) {
-        refreshCallCount += 1
-        await new Promise((r) => setTimeout(r, 10))
-        return {
-          data: { accessToken: 'new-access', refreshToken: 'refresh-2' },
-        }
+        return respondToRefresh()
       }
       return { data: {} }
     }
@@ -126,6 +149,7 @@ function make401(url: string): AxiosError {
 describe('axios refresh lock (D-02, Req 9)', () => {
   beforeEach(() => {
     refreshCallCount = 0
+    refreshBehavior = 'ok'
     tokenState.access = 'old-access'
     tokenState.refresh = 'refresh-1'
     tokenState.legacyOnly = false
@@ -170,13 +194,61 @@ describe('axios refresh lock (D-02, Req 9)', () => {
 
   it('runRefresh resetea el lock para permitir un refresh en la siguiente oleada', async () => {
     const a = await runRefresh()
-    expect(a).toBe('new-access')
+    expect(a).toEqual({ kind: 'ok', token: 'new-access' })
     expect(refreshCallCount).toBe(1)
     // lock reset -> a fresh refresh is allowed
     tokenState.refresh = 'refresh-2'
     const b = await runRefresh()
-    expect(b).toBe('new-access')
+    expect(b).toEqual({ kind: 'ok', token: 'new-access' })
     expect(refreshCallCount).toBe(2)
+  })
+
+  // ── App 1.7.9: causa raíz de deslogueos — network vs. rejected ───────────
+
+  it('runRefresh: un error de red en /auth/refresh devuelve {kind: "network"} y NO borra tokens', async () => {
+    refreshBehavior = 'network'
+    const result = await runRefresh()
+    expect(result).toEqual({ kind: 'network' })
+    expect(tokenState.access).toBe('old-access')
+    expect(tokenState.refresh).toBe('refresh-1')
+  })
+
+  it('runRefresh: un 401 en /auth/refresh devuelve {kind: "rejected"} y SÍ borra tokens', async () => {
+    refreshBehavior = 'rejected'
+    const result = await runRefresh()
+    expect(result).toEqual({ kind: 'rejected' })
+    expect(tokenState.access).toBeNull()
+    expect(tokenState.refresh).toBeNull()
+  })
+
+  it('el handler: red en el refresh NO redirige ni borra tokens, rechaza la request original como error de red', async () => {
+    refreshBehavior = 'network'
+    const onRedirect = vi.fn(async () => {})
+    const retryInstance = (async () => ({ data: { ok: true } })) as unknown as AxiosInstance
+    const handler = createAuthErrorHandler(retryInstance, onRedirect)
+
+    const originalError = make401('/protected/x')
+    await expect(handler(originalError)).rejects.toBe(originalError)
+
+    expect(originalError.message).toBe('Error de red. Revisá tu conexión a internet.')
+    expect(onRedirect).not.toHaveBeenCalled()
+    // La sesión sigue viva: los tokens NO se tocaron.
+    expect(tokenState.access).toBe('old-access')
+    expect(tokenState.refresh).toBe('refresh-1')
+  })
+
+  it('el handler: 401 en el refresh SÍ redirige y borra tokens', async () => {
+    refreshBehavior = 'rejected'
+    const onRedirect = vi.fn(async () => {})
+    const retryInstance = (async () => ({ data: { ok: true } })) as unknown as AxiosInstance
+    const handler = createAuthErrorHandler(retryInstance, onRedirect)
+
+    const originalError = make401('/protected/x')
+    await expect(handler(originalError)).rejects.toBe(originalError)
+
+    expect(onRedirect).toHaveBeenCalledTimes(1)
+    expect(tokenState.access).toBeNull()
+    expect(tokenState.refresh).toBeNull()
   })
 
   it('sin refreshToken disponible, el handler hace clear+redirect', async () => {
