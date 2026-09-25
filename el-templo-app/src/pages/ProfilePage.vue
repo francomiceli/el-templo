@@ -69,19 +69,10 @@
     <!-- Ajustes -->
     <p class="section-title">Ajustes</p>
     <div class="settings-card q-mb-md">
-      <!-- SPEC "Empezá acá" B — acceso (b): entrada en el menú principal
-           (acá, en el menú de perfil). -->
-      <div
-        class="settings-card__item settings-card__item--clickable"
-        @click="router.push('/empeza-aca')"
-      >
-        <q-icon name="auto_stories" size="22px" color="primary" />
-        <span class="settings-card__label">Empezá acá</span>
-        <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
-      </div>
-
-      <div class="settings-card__divider" />
-
+      <!-- SPEC "La Guía pasa a ser las historias" (2026-09-24): se retira la
+           entrada "Empezá acá" de Ajustes — la Guía (con las historias
+           adentro) ya tiene su propio tab en el nav, no hace falta un
+           segundo acceso acá. -->
       <div
         class="settings-card__item settings-card__item--clickable"
         @click="router.push('/change-password')"

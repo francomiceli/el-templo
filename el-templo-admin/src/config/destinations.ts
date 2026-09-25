@@ -65,10 +65,15 @@ export const APP_SECTIONS: readonly AppSection[] = [
     label: 'Guía',
     route: '/training/guia',
   },
+  // SPEC "La Guía pasa a ser las historias" (2026-09-24): las historias de
+  // bienvenida ya no tienen pantalla propia — viven DENTRO de la Guía
+  // (`/training/guia`). La key `empeza_aca` NO se borra (puede haber avisos
+  // ya guardados con este destino) pero ahora resuelve a la MISMA ruta que
+  // `guia` — ambas quedan como sinónimos de un mismo lugar.
   {
     key: 'empeza_aca',
     label: 'Empezá acá',
-    route: '/empeza-aca',
+    route: '/training/guia',
   },
 ];
 

@@ -11,14 +11,19 @@
  * `TRAINING_LEVELS` en `../training/level-display.ts`, que es también la
  * fuente de los glifos (☉ α Δ Σ Ω), no hardcodeados acá.
  *
- * `theme` por slide sigue el criterio de UI-SPEC-historias.md §4.1: oscuro
- * para intro/cierre, claro para las dos slides con listas largas
- * (bloques/niveles) que necesitan más legibilidad.
+ * `theme` por slide sigue el criterio de SPEC "La Guía pasa a ser las
+ * historias" (2026-09-24) punto 3: misma semántica que la pantalla de TV de
+ * sede (`TvScreenPage.vue`) — `'noche'` (reposo/cierre, velo oscuro) para
+ * Bienvenida y Cierre, `'dia'` (pre-clase/contenido, velo claro) para el
+ * resto. `semana` y `avanzar` pasan de oscuro a `'dia'` respecto a la versión
+ * anterior de este archivo (eran las únicas 2 de las 5 slides "de contenido"
+ * que estaban en oscuro) — el criterio ahora es 100% "reposo/cierre vs.
+ * contenido", no alternancia visual.
  */
 import type { BlockRole } from '../training/types/session'
 import type { Level } from '../training/level-display'
 
-export type StorySlideTheme = 'dark' | 'light'
+export type StorySlideTheme = 'dia' | 'noche'
 
 /** Bullet con un lead en negrita (p. ej. "Reservas") + el resto del texto. */
 export interface StoryBullet {
@@ -74,7 +79,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
   {
     id: 'bienvenida',
     type: 'text',
-    theme: 'dark',
+    theme: 'noche',
     kicker: 'TE DAMOS LA BIENVENIDA',
     title: 'Una escuela de calistenia. No un gimnasio.',
     body: [
@@ -85,7 +90,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
   {
     id: 'semana',
     type: 'text',
-    theme: 'dark',
+    theme: 'dia',
     kicker: 'TU SEMANA',
     title: 'Cada día tiene su foco',
     bullets: [
@@ -114,7 +119,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
   {
     id: 'clase',
     type: 'blocks',
-    theme: 'light',
+    theme: 'dia',
     kicker: 'CADA CLASE',
     title: '1 hora, 4 bloques',
     footnote: 'En Entrenar, tocá ⓘ en cada bloque para ver para qué sirve.',
@@ -144,7 +149,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
   {
     id: 'niveles',
     type: 'levels',
-    theme: 'light',
+    theme: 'dia',
     kicker: 'TU CAMINO',
     title: 'Cinco niveles, un solo método',
     levels: [
@@ -158,7 +163,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
   {
     id: 'avanzar',
     type: 'text',
-    theme: 'dark',
+    theme: 'dia',
     kicker: 'SUBIR DE NIVEL',
     title: 'Tus profes te evalúan',
     body: [
@@ -169,7 +174,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
   {
     id: 'app',
     type: 'text',
-    theme: 'light',
+    theme: 'dia',
     kicker: 'LA APP',
     title: 'Todo en tu bolsillo',
     bullets: [
@@ -194,7 +199,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
   {
     id: 'cierre',
     type: 'cta',
-    theme: 'dark',
+    theme: 'noche',
     kicker: 'EMPEZÁ',
     title: 'El método funciona si vos venís.',
     body: ['Nos vemos en la próxima clase.'],
