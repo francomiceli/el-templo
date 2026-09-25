@@ -231,6 +231,10 @@ const reasonOptions = computed(() =>
 const selectedReasonId = ref<number | null>(null);
 const reasonNoteDraft = ref('');
 const savingFollowup = ref(false);
+// Estado de "Observación": declarado ANTES del watch inmediato de abajo, que lo
+// resetea en setup (declararlo después tiraba TDZ y rompía el diálogo).
+const noteDraft = ref('');
+const addingNote = ref(false);
 
 // Resetea el borrador al cambiar de fila (abrir el diálogo sobre otro socio).
 watch(
@@ -290,9 +294,6 @@ async function onBackToEnProceso() {
 }
 
 // ─── Observación ────────────────────────────────────────────────────────
-const noteDraft = ref('');
-const addingNote = ref(false);
-
 async function onAddNote() {
   const row = props.row;
   if (!row) return;
