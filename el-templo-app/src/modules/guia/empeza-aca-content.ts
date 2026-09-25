@@ -6,7 +6,8 @@
  * (`EmpezaAcaPage.vue`) no cambia.
  *
  * CONTENIDO FINAL aprobado texto por texto por Franco 2026-09-24 (usado
- * LITERAL — ver CONTENIDO-empeza-aca.md). Niveles visibles: Kairos, Alfa,
+ * LITERAL — ver CONTENIDO-empeza-aca.md), con la revisión de textos de
+ * Franco del 2026-09-25 (Pyros, niveles, Planes, cierre en dos líneas). Niveles visibles: Kairos, Alfa,
  * Delta, Sigma, Omega (NO Spartan, NO Olympic) — mismo orden que
  * `TRAINING_LEVELS` en `../training/level-display.ts`, que es también la
  * fuente de los glifos (☉ α Δ Σ Ω), no hardcodeados acá.
@@ -46,8 +47,11 @@ interface SlideBase {
   id: string
   theme: StorySlideTheme
   kicker: string
+  /** `\n` = salto de línea en el título (se respeta al renderizar). */
   title: string
   footnote?: string
+  /** Pista al pie para que se entienda que tocando se pasa a la siguiente. */
+  tapHint?: string
 }
 
 export interface TextSlide extends SlideBase {
@@ -81,9 +85,10 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     type: 'text',
     theme: 'noche',
     kicker: 'TE DAMOS LA BIENVENIDA',
-    title: 'Una escuela de calistenia. No un gimnasio.',
+    title: 'Más que un gimnasio, una escuela de calistenia',
+    tapHint: 'Tocá para seguir',
     body: [
-      'Acá entrenás con tu propio cuerpo, con un método progresivo diseñado por Ignacio Bordón. Cada clase tiene estructura y cada nivel, un propósito.',
+      'Acá entrenás con tu propio cuerpo, con un método progresivo diseñado por Ignacio Bordón. Cada clase tiene su estructura y cada nivel, un propósito.',
       'En un minuto te contamos cómo funciona.',
     ],
   },
@@ -96,15 +101,15 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     bullets: [
       {
         bold: 'Calistenia general',
-        rest: ' · 3 días — la base del método: fuerza, control y resistencia.',
+        rest: ' — la base del método: fuerza, control y resistencia.',
       },
       {
         bold: 'Técnica',
-        rest: ' · 1 día — un skill por día (handstand, muscle up, front lever, planche…): dos bloques del skill y uno de stretching.',
+        rest: ' — un skill por día (handstand, muscle up, front lever, planche…): dos bloques del skill y uno de stretching.',
       },
       {
         bold: 'Combos',
-        rest: ' · 1 día — ejercicios encadenados, sin pausa.',
+        rest: ' — bloques de ejercicios encadenados entre sí.',
       },
       {
         bold: 'ROM',
@@ -112,7 +117,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
       },
       {
         bold: 'Open gym',
-        rest: ' · algunos sábados a la tarde — encuentros libres en alguna sede. Estate atento a los avisos de la app.',
+        rest: ' · sábados a la tarde — encuentros libres en alguna sede. Estate atento a los avisos de la app.',
       },
     ],
   },
@@ -126,8 +131,8 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     blocks: [
       {
         role: 'INITIUM',
-        label: 'Initium',
-        description: 'movilidad, activación y entrada en calor. Se empieza con intención, no con apuro.',
+        label: 'Pyros',
+        description: 'movilidad, activación y entrada en calor.',
       },
       {
         role: 'NUCLEUS',
@@ -142,7 +147,8 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
       {
         role: 'ATHLOS',
         label: 'Athlos / Epikos',
-        description: 'el desafío final. Se termina con energía, no con agotamiento.',
+        description:
+          'el desafío final. Retos, trabajo en equipo y juegos de fuerza para terminar la clase.',
       },
     ],
   },
@@ -153,11 +159,15 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     kicker: 'TU CAMINO',
     title: 'Cinco niveles, un solo método',
     levels: [
-      { level: 'kairos', phrase: 'La puerta de entrada. Ejercicios de Alfa en formatos simples, para arrancar sin miedo.' },
-      { level: 'alfa', phrase: 'Donde todo empieza. Patrones básicos de fuerza, movilidad y control.' },
-      { level: 'delta', phrase: 'El cambio se siente.' },
-      { level: 'sigma', phrase: 'La fuerza se vuelve lenguaje.' },
-      { level: 'omega', phrase: 'Donde los límites se reescriben.' },
+      {
+        level: 'kairos',
+        phrase:
+          'La puerta de entrada. Ejercicios de Alfa en formatos simples, para empezar con confianza.',
+      },
+      { level: 'alfa', phrase: 'Patrones básicos de fuerza, movilidad y control.' },
+      { level: 'delta', phrase: 'Dominio de movimientos esenciales.' },
+      { level: 'sigma', phrase: 'Dominio de movimientos avanzados.' },
+      { level: 'omega', phrase: 'Control absoluto, los límites se reescriben.' },
     ],
   },
   {
@@ -180,10 +190,10 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     bullets: [
       {
         bold: 'Reservas',
-        rest: ' — reservá tu lugar. Si reservás con anticipación, te avisamos antes de que empiece la clase.',
+        rest: ' — reservá tu lugar. Al reservar con anticipación, recibís una notificación previo a comenzar la clase, a modo de recordatorio.',
       },
       {
-        bold: 'Dar presente',
+        bold: 'Dar el presente',
         rest: ' — al llegar, escaneá el QR de la entrada de tu sede con el botón ▣ de Mi Templo.',
       },
       {
@@ -191,8 +201,8 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
         rest: ' — la sesión del día, bloque por bloque, con los mismos ejercicios de la clase presencial. Para repasar o no cortar la racha cuando no podés venir.',
       },
       {
-        bold: 'Guía',
-        rest: ' — formatos, rutas e intensidad.',
+        bold: 'Planes',
+        rest: ' — nuestra oferta de suscripciones para entrenar presencialmente o desde donde te encuentres.',
       },
     ],
   },
@@ -201,7 +211,7 @@ export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
     type: 'cta',
     theme: 'noche',
     kicker: 'EMPEZÁ',
-    title: 'El método funciona si vos venís.',
+    title: 'EL MÉTODO FUNCIONA\nSI ENTRENÁS',
     body: ['Nos vemos en la próxima clase.'],
     cta: { label: 'Reservá tu próxima clase', routeName: 'reservas' },
     secondaryCta: { label: 'Ver la Guía', routeName: 'guia' },
