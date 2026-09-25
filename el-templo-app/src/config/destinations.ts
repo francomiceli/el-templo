@@ -15,6 +15,8 @@ export type AppSectionKey =
   | 'proponer_mejora'
   | 'mi_plan'
   | 'volver'
+  | 'guia'
+  | 'empeza_aca'
 
 export interface AppSection {
   key: AppSectionKey
@@ -57,6 +59,16 @@ export const APP_SECTIONS: readonly AppSection[] = [
     key: 'volver',
     label: 'Volver',
     route: '/volver',
+  },
+  {
+    key: 'guia',
+    label: 'Guía',
+    route: '/training/guia',
+  },
+  {
+    key: 'empeza_aca',
+    label: 'Empezá acá',
+    route: '/empeza-aca',
   },
 ]
 
