@@ -34,7 +34,10 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import type { RenewalRow } from "../../src/modules/renewals/types";
-import { tenantWhere, type TenantContext } from "../../src/modules/shared/tenant";
+import {
+  tenantWhere,
+  type TenantContext,
+} from "../../src/modules/shared/tenant";
 import {
   TENANT_TEMPLO,
   seedSecondTenant,
@@ -55,6 +58,7 @@ describe("Renewals API (módulo de Renovaciones)", () => {
   let planFlexId: number; // durationDays 30, "Flex" — para el cambio de plan
   let planOnlineId: number; // planCategory online_regular
   let planClaseUnicaId: number; // durationDays 5 (< 7, excluida)
+  let planAuraId: number; // planCategory especial ("Actividades con Aura")
 
   let memberSeq = 0;
 
@@ -109,13 +113,14 @@ describe("Renewals API (módulo de Renovaciones)", () => {
     planFlexId = await insertPlan("Flex", "presencial", 30);
     planOnlineId = await insertPlan("Online Regular", "online_regular", 30);
     planClaseUnicaId = await insertPlan("Clase Suelta", "presencial", 5);
+    planAuraId = await insertPlan("Actividades con Aura", "especial", 30);
   });
 
   // ─── Helpers ────────────────────────────────────────────────────────────
 
   async function insertPlan(
     name: string,
-    planCategory: "presencial" | "online_regular",
+    planCategory: "presencial" | "online_regular" | "especial",
     durationDays: number,
   ): Promise<number> {
     const [result] = await app.db.insert(schema.subscriptionPlans).values({
@@ -183,9 +188,15 @@ describe("Renewals API (módulo de Renovaciones)", () => {
     return (result as unknown as { insertId: number }).insertId;
   }
 
-  function listUrl(dateFrom: string, dateTo: string, branchId?: number): string {
+  function listUrl(
+    dateFrom: string,
+    dateTo: string,
+    branchId?: number,
+    activityType?: string,
+  ): string {
     const params = new URLSearchParams({ dateFrom, dateTo });
     if (branchId !== undefined) params.set("branchId", String(branchId));
+    if (activityType !== undefined) params.set("activityType", activityType);
     return `${BASE}?${params.toString()}`;
   }
 
@@ -194,16 +205,20 @@ describe("Renewals API (módulo de Renovaciones)", () => {
     dateFrom: string,
     dateTo: string,
     branchId?: number,
+    activityType?: string,
   ) {
     const res = await app.inject({
       method: "GET",
-      url: listUrl(dateFrom, dateTo, branchId),
+      url: listUrl(dateFrom, dateTo, branchId, activityType),
       headers: { Authorization: `Bearer ${token}` },
     });
     return { statusCode: res.statusCode, body: JSON.parse(res.body) };
   }
 
-  function findRow(body: { rows: RenewalRow[] }, subId: number): RenewalRow | undefined {
+  function findRow(
+    body: { rows: RenewalRow[] },
+    subId: number,
+  ): RenewalRow | undefined {
     return body.rows.find((r) => r.subscriptionId === subId);
   }
 
@@ -261,7 +276,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         status: "active",
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.status).toBe("renovo");
     });
@@ -286,7 +305,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         createdAt: new Date(`${dateOffsetStr(-1)}T15:00:00Z`),
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.status).toBe("volvio_tarde");
     });
@@ -310,7 +333,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         createdAt: new Date(`${dateOffsetStr(-2)}T15:00:00Z`),
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       expect(findRow(body, subId)?.status).toBe("renovo");
     });
 
@@ -333,7 +360,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         status: "active",
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.status).toBe("renovo");
     });
@@ -355,7 +386,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         status: "cancelled",
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.status).toBe("en_proceso");
     });
@@ -375,7 +410,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         endDate: dateOffsetStr(6),
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.status).toBe("en_proceso");
       expect(row?.newPlanId).toBeNull();
@@ -398,7 +437,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         status: "active",
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.status).toBe("en_proceso");
     });
@@ -416,7 +459,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         pauseEndDate,
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.status).toBe("pausada");
       expect(row?.pauseEndDate).toBe(pauseEndDate);
@@ -460,7 +507,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         status: "scheduled",
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       expect(findRow(body, subCompleted)).toBeDefined();
       expect(findRow(body, subCancelled)).toBeUndefined();
       expect(findRow(body, subChanged)).toBeUndefined();
@@ -476,7 +527,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         endDate: todayStr(),
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       expect(findRow(body, subId)).toBeUndefined();
     });
 
@@ -518,12 +573,167 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       expect(findRow(body, subFrom)).toBeDefined();
       expect(findRow(body, subTo)).toBeDefined();
 
-      const ids = body.rows.map((r: { subscriptionId: number }) => r.subscriptionId);
+      const ids = body.rows.map(
+        (r: { subscriptionId: number }) => r.subscriptionId,
+      );
       const idxFrom = ids.indexOf(subFrom);
       const idxMid = ids.indexOf(subMid);
       const idxTo = ids.indexOf(subTo);
       expect(idxFrom).toBeLessThan(idxMid);
       expect(idxMid).toBeLessThan(idxTo);
+    });
+  });
+
+  // ─── Tipo de actividad (membresía vs Actividades con Aura) ──────────────
+
+  describe("GET /api/admin/renewals — activityType", () => {
+    /** Un socio con membresía presencial Y pase Aura que vencen en el rango. */
+    async function seedMembresiaYAura(): Promise<{
+      subMembresia: number;
+      subAura: number;
+    }> {
+      const userId = await insertMember();
+      const subMembresia = await insertSub({
+        userId,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      const subAura = await insertSub({
+        userId,
+        planId: planAuraId,
+        startDate: dateOffsetStr(-29),
+        endDate: dateOffsetStr(1),
+      });
+      return { subMembresia, subAura };
+    }
+
+    it("activityType=membresia excluye el pase Aura (filas Y KPIs)", async () => {
+      const { subMembresia, subAura } = await seedMembresiaYAura();
+
+      const { statusCode, body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+        undefined,
+        "membresia",
+      );
+      expect(statusCode).toBe(200);
+      expect(findRow(body, subMembresia)).toBeDefined();
+      expect(findRow(body, subAura)).toBeUndefined();
+      expect(body.kpis.total).toBe(body.rows.length);
+      expect(body.kpis.total).toBe(1);
+    });
+
+    it("activityType=aura trae SOLO el pase Aura (filas Y KPIs)", async () => {
+      const { subMembresia, subAura } = await seedMembresiaYAura();
+
+      const { statusCode, body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+        undefined,
+        "aura",
+      );
+      expect(statusCode).toBe(200);
+      expect(findRow(body, subAura)).toBeDefined();
+      expect(findRow(body, subMembresia)).toBeUndefined();
+      expect(body.kpis.total).toBe(1);
+    });
+
+    it("sin activityType trae ambos (compatibilidad)", async () => {
+      const { subMembresia, subAura } = await seedMembresiaYAura();
+
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(findRow(body, subMembresia)).toBeDefined();
+      expect(findRow(body, subAura)).toBeDefined();
+      expect(body.kpis.total).toBe(2);
+    });
+
+    it("activityType inválido → 400", async () => {
+      const { statusCode } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+        undefined,
+        "yoga",
+      );
+      expect(statusCode).toBe(400);
+    });
+
+    it("un plan ONLINE no cuenta como renovación de un pase Aura", async () => {
+      const userId = await insertMember();
+      const subAura = await insertSub({
+        userId,
+        planId: planAuraId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      await insertSub({
+        userId,
+        planId: planOnlineId,
+        startDate: dateOffsetStr(1),
+        endDate: dateOffsetStr(31),
+      });
+
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(findRow(body, subAura)?.status).toBe("en_proceso");
+    });
+
+    it("un pase Aura no cuenta como renovación de un plan ONLINE", async () => {
+      const userId = await insertMember();
+      const subOnline = await insertSub({
+        userId,
+        planId: planOnlineId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      await insertSub({
+        userId,
+        planId: planAuraId,
+        startDate: dateOffsetStr(1),
+        endDate: dateOffsetStr(31),
+      });
+
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(findRow(body, subOnline)?.status).toBe("en_proceso");
+    });
+
+    it("un pase Aura nuevo SÍ renueva el pase Aura que vence", async () => {
+      const userId = await insertMember();
+      const subAura = await insertSub({
+        userId,
+        planId: planAuraId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+      await insertSub({
+        userId,
+        planId: planAuraId,
+        startDate: dateOffsetStr(1),
+        endDate: dateOffsetStr(31),
+      });
+
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      const row = findRow(body, subAura);
+      expect(row?.status).toBe("renovo");
+      expect(row?.newPlanId).toBe(planAuraId);
     });
   });
 
@@ -535,17 +745,44 @@ describe("Renewals API (módulo de Renovaciones)", () => {
 
       // 1) renovo (mismo plan)
       const u1 = await insertMember();
-      const s1 = await insertSub({ userId: u1, planId: planPresencialId, startDate: dateOffsetStr(-30), endDate });
-      await insertSub({ userId: u1, planId: planPresencialId, startDate: dateOffsetStr(1), endDate: dateOffsetStr(31), status: "active" });
+      const s1 = await insertSub({
+        userId: u1,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate,
+      });
+      await insertSub({
+        userId: u1,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(1),
+        endDate: dateOffsetStr(31),
+        status: "active",
+      });
 
       // 2) renovo (cambia a Flex) — para newPlanDistribution
       const u2 = await insertMember();
-      const s2 = await insertSub({ userId: u2, planId: planPresencialId, startDate: dateOffsetStr(-30), endDate });
-      await insertSub({ userId: u2, planId: planFlexId, startDate: dateOffsetStr(1), endDate: dateOffsetStr(31), status: "active" });
+      const s2 = await insertSub({
+        userId: u2,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate,
+      });
+      await insertSub({
+        userId: u2,
+        planId: planFlexId,
+        startDate: dateOffsetStr(1),
+        endDate: dateOffsetStr(31),
+        status: "active",
+      });
 
       // 3) volvio_tarde
       const u3 = await insertMember();
-      const s3 = await insertSub({ userId: u3, planId: planPresencialId, startDate: dateOffsetStr(-30), endDate });
+      const s3 = await insertSub({
+        userId: u3,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate,
+      });
       await insertSub({
         userId: u3,
         planId: planPresencialId,
@@ -557,11 +794,21 @@ describe("Renewals API (módulo de Renovaciones)", () => {
 
       // 4) no_renovo (manual, con motivo)
       const u4 = await insertMember();
-      const s4 = await insertSub({ userId: u4, planId: planPresencialId, startDate: dateOffsetStr(-30), endDate });
+      const s4 = await insertSub({
+        userId: u4,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate,
+      });
       const [reasonRow] = await app.db
         .select({ id: schema.renewalReasons.id })
         .from(schema.renewalReasons)
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.label, "Precio")))
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.label, "Precio"),
+          ),
+        )
         .limit(1);
       await app.inject({
         method: "PATCH",
@@ -572,13 +819,29 @@ describe("Renewals API (módulo de Renovaciones)", () => {
 
       // 5) pausada (fuera del denominador)
       const u5 = await insertMember();
-      await insertSub({ userId: u5, planId: planPresencialId, startDate: dateOffsetStr(-30), endDate, status: "paused", pauseEndDate: dateOffsetStr(5) });
+      await insertSub({
+        userId: u5,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate,
+        status: "paused",
+        pauseEndDate: dateOffsetStr(5),
+      });
 
       // 6) en_proceso, sin contactar
       const u6 = await insertMember();
-      await insertSub({ userId: u6, planId: planPresencialId, startDate: dateOffsetStr(-30), endDate });
+      await insertSub({
+        userId: u6,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate,
+      });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       expect(findRow(body, s1)?.status).toBe("renovo");
       expect(findRow(body, s2)?.status).toBe("renovo");
       expect(findRow(body, s3)?.status).toBe("volvio_tarde");
@@ -697,12 +960,22 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       const [reasonRow] = await app.db
         .select({ id: schema.renewalReasons.id })
         .from(schema.renewalReasons)
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.label, "Otro")))
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.label, "Otro"),
+          ),
+        )
         .limit(1);
       await app.db
         .update(schema.renewalReasons)
         .set({ isActive: false })
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.id, reasonRow.id)));
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.id, reasonRow.id),
+          ),
+        );
 
       const res = await app.inject({
         method: "PATCH",
@@ -720,7 +993,12 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       await app.db
         .update(schema.renewalReasons)
         .set({ isActive: true })
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.id, reasonRow.id)));
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.id, reasonRow.id),
+          ),
+        );
     });
 
     it("manualStatus=no_renovo CON motivo → persiste, audita y devuelve la fila", async () => {
@@ -728,14 +1006,23 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       const [reasonRow] = await app.db
         .select({ id: schema.renewalReasons.id })
         .from(schema.renewalReasons)
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.label, "Viaje")))
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.label, "Viaje"),
+          ),
+        )
         .limit(1);
 
       const res = await app.inject({
         method: "PATCH",
         url: `${BASE}/${subId}`,
         headers: { Authorization: `Bearer ${adminToken}` },
-        payload: { manualStatus: "no_renovo", reasonId: reasonRow.id, reasonNote: "Se va 2 meses" },
+        payload: {
+          manualStatus: "no_renovo",
+          reasonId: reasonRow.id,
+          reasonNote: "Se va 2 meses",
+        },
       });
       expect(res.statusCode).toBe(200);
       const row = JSON.parse(res.body);
@@ -761,12 +1048,22 @@ describe("Renewals API (módulo de Renovaciones)", () => {
     it("no_renovo pisado por una renovación derivada → renovo + manualOverridden=true", async () => {
       const userId = await insertMember();
       const endDate = todayStr();
-      const subId = await insertSub({ userId, planId: planPresencialId, startDate: dateOffsetStr(-30), endDate });
+      const subId = await insertSub({
+        userId,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate,
+      });
 
       const [reasonRow] = await app.db
         .select({ id: schema.renewalReasons.id })
         .from(schema.renewalReasons)
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.label, "Precio")))
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.label, "Precio"),
+          ),
+        )
         .limit(1);
       await app.inject({
         method: "PATCH",
@@ -776,9 +1073,19 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       });
 
       // Aparece el pago/renovación DESPUÉS.
-      await insertSub({ userId, planId: planPresencialId, startDate: dateOffsetStr(1), endDate: dateOffsetStr(31), status: "active" });
+      await insertSub({
+        userId,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(1),
+        endDate: dateOffsetStr(31),
+        status: "active",
+      });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.status).toBe("renovo");
       expect(row?.manualOverridden).toBe(true);
@@ -805,7 +1112,12 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       const [reasonRow] = await app.db
         .select({ id: schema.renewalReasons.id })
         .from(schema.renewalReasons)
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.label, "Lesión")))
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.label, "Lesión"),
+          ),
+        )
         .limit(1);
       await app.inject({
         method: "PATCH",
@@ -842,20 +1154,32 @@ describe("Renewals API (módulo de Renovaciones)", () => {
   describe("POST /api/admin/renewals/:subscriptionId/notes", () => {
     it("crea una member_note y aparece como lastNote en el listado", async () => {
       const userId = await insertMember();
-      const subId = await insertSub({ userId, planId: planPresencialId, startDate: dateOffsetStr(-30), endDate: todayStr() });
+      const subId = await insertSub({
+        userId,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
 
       const res = await app.inject({
         method: "POST",
         url: `${BASE}/${subId}/notes`,
         headers: { Authorization: `Bearer ${adminToken}` },
-        payload: { content: "Contactada por WhatsApp, dice que renueva la semana que viene" },
+        payload: {
+          content:
+            "Contactada por WhatsApp, dice que renueva la semana que viene",
+        },
       });
       expect(res.statusCode).toBe(201);
       const note = JSON.parse(res.body);
       expect(note.userId).toBe(userId);
       expect(note.content).toContain("WhatsApp");
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.lastNote?.content).toContain("WhatsApp");
     });
@@ -883,7 +1207,9 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       expect(res.statusCode).toBe(200);
       const reasons = JSON.parse(res.body);
       expect(reasons.length).toBe(6);
-      expect(reasons.every((r: { isActive: boolean }) => r.isActive)).toBe(true);
+      expect(reasons.every((r: { isActive: boolean }) => r.isActive)).toBe(
+        true,
+      );
     });
 
     it("POST crea un motivo nuevo (ADMIN_ROLES)", async () => {
@@ -902,14 +1228,24 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       // unique (tenant_id, label) del PRÓXIMO run.
       await app.db
         .delete(schema.renewalReasons)
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.label, "Horarios")));
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.label, "Horarios"),
+          ),
+        );
     });
 
     it("PATCH desactiva un motivo; queda afuera del listado default (includeInactive=false)", async () => {
       const [reasonRow] = await app.db
         .select({ id: schema.renewalReasons.id })
         .from(schema.renewalReasons)
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.label, "Otro")))
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.label, "Otro"),
+          ),
+        )
         .limit(1);
 
       const patchRes = await app.inject({
@@ -926,7 +1262,9 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       const reasons = JSON.parse(listRes.body);
-      expect(reasons.find((r: { id: number }) => r.id === reasonRow.id)).toBeUndefined();
+      expect(
+        reasons.find((r: { id: number }) => r.id === reasonRow.id),
+      ).toBeUndefined();
 
       const listAllRes = await app.inject({
         method: "GET",
@@ -944,7 +1282,12 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       await app.db
         .update(schema.renewalReasons)
         .set({ isActive: true })
-        .where(and(tenantWhere(schema.renewalReasons, TEMPLO_CTX), eq(schema.renewalReasons.id, reasonRow.id)));
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, TEMPLO_CTX),
+            eq(schema.renewalReasons.id, reasonRow.id),
+          ),
+        );
     });
 
     it("gestion NO puede crear/editar motivos → 403 (pero SÍ puede leerlos)", async () => {
@@ -985,7 +1328,12 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       await app.db
         .update(schema.users)
         .set({ phone: "1123456789" })
-        .where(and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)));
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, userId),
+          ),
+        );
       const subId = await insertSub({
         userId,
         planId: planPresencialId,
@@ -994,7 +1342,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         endDate: todayStr(),
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.phone).toBe("1123456789");
       expect(row?.phoneE164).toBe("+5491123456789");
@@ -1005,7 +1357,12 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       await app.db
         .update(schema.users)
         .set({ phone: "12345" })
-        .where(and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)));
+        .where(
+          and(
+            tenantWhere(schema.users, TEMPLO_CTX),
+            eq(schema.users.id, userId),
+          ),
+        );
       const subId = await insertSub({
         userId,
         planId: planPresencialId,
@@ -1014,7 +1371,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         endDate: todayStr(),
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.phoneE164).toBeNull();
     });
@@ -1028,7 +1389,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         endDate: todayStr(),
       });
 
-      const { body } = await getList(adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       const row = findRow(body, subId);
       expect(row?.phone).toBeNull();
       expect(row?.phoneE164).toBeNull();
@@ -1069,7 +1434,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         endDate: todayStr(),
       });
 
-      const { body } = await getList(adminSedeToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        adminSedeToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       expect(findRow(body, subOwn)).toBeDefined();
       expect(findRow(body, subOther)).toBeUndefined();
 
@@ -1102,7 +1471,11 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         endDate: todayStr(),
       });
 
-      const { body } = await getList(gym2.adminToken, dateOffsetStr(-7), dateOffsetStr(7));
+      const { body } = await getList(
+        gym2.adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
       expect(findRow(body, subId)).toBeUndefined();
 
       const patchRes = await app.inject({
