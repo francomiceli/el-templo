@@ -27,6 +27,16 @@ const routes: RouteRecordRaw[] = [
     name: 'magic-link',
     component: () => import('pages/MagicLinkPage.vue'),
   },
+  // "Empezá acá" (SPEC B): historias de bienvenida, pantalla completa SIN el
+  // chrome de MainLayout (header/footer/FAB) — por eso vive FUERA del árbol
+  // 'layout', como magic-link. Protegida igual: no está en `publicRoutes` de
+  // router/guards.ts, así que un usuario no autenticado va a login.
+  {
+    path: '/empeza-aca',
+    name: 'empeza-aca',
+    component: () => import('src/modules/guia/pages/EmpezaAcaPage.vue'),
+    meta: { requiresAuth: true },
+  },
 
   // Protected routes (with MainLayout)
   {

@@ -249,7 +249,9 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
 // iso-03-notifications.test.ts.
 // 2026-09-04: 55 -> 56 por POST /api/notifications/admin/templates/send-test
 // ("Probar en tu teléfono"), con su caso + control en iso-03-notifications.test.ts.
-const CASOS_BASELINE = 56;
+// 2026-09-24: 56 -> 57 por POST /api/auth/me/intro-stories ("Empezá acá"),
+// con su caso + control en iso-03-auth.test.ts.
+const CASOS_BASELINE = 57;
 
 /** Los seis archivos de la batería ISO-03 de analytics + resto del core. */
 const ARCHIVOS_BATERIA = [
@@ -258,7 +260,7 @@ const ARCHIVOS_BATERIA = [
   "iso-03-notifications.test.ts", // plan 175.1-04 — 8 rutas
   "iso-03-referrals.test.ts", // plan 175.1-05 — 3 rutas (2 más ya cubiertas por members, ver EXCEPCIONES_NOMBRADAS)
   "iso-03-improvement-proposals.test.ts", // plan 175.1-05 — 4 rutas
-  "iso-03-auth.test.ts", // plan 175.1-05 — 4 rutas
+  "iso-03-auth.test.ts", // plan 175.1-05 — 4 rutas (+1 "Empezá acá": POST /me/intro-stories)
 ] as const;
 
 /**
@@ -400,7 +402,7 @@ describe("cobertura de la batería ISO-03 de analytics+resto — contra el manif
     ).toEqual([]);
   });
 
-  it("la batería cubre exactamente las 56 rutas de analytics+resto del baseline", () => {
+  it("la batería cubre exactamente las 57 rutas de analytics+resto del baseline", () => {
     expect(
       RUTAS_ANALYTICS_RESTO.length,
       `El manifiesto tiene ${RUTAS_ANALYTICS_RESTO.length} rutas de ` +

@@ -17,8 +17,8 @@ import {
 } from "../../src/modules/communications/destinations";
 
 describe("communications/destinations", () => {
-  it("APP_SECTIONS tiene exactamente 7 entradas", () => {
-    expect(APP_SECTIONS).toHaveLength(7);
+  it("APP_SECTIONS tiene exactamente 9 entradas", () => {
+    expect(APP_SECTIONS).toHaveLength(9);
   });
 
   it("cada key de app_section resuelve su ruta curada", () => {

@@ -1,5 +1,8 @@
 <template>
   <q-page class="reservas" padding>
+    <!-- SPEC "Empezá acá" C — tip de primera vez en Reservas. -->
+    <FirstVisitTipBanner v-if="!loading" tip-id="reservas-anticipacion" />
+
     <!-- Loading -->
     <div v-if="loading" class="reservas__loading">
       <TemploLoader size="lg" />
@@ -1148,6 +1151,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import axios from 'axios'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import FirstVisitTipBanner from 'src/components/FirstVisitTipBanner.vue'
 import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import TurnoHeader from 'src/components/TurnoHeader.vue'

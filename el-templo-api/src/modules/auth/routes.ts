@@ -1000,9 +1000,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Check onboarding status
+      // SPEC "Empezá acá" B: se suman las 3 columnas de intro-stories a esta
+      // MISMA lectura (ya trae la fila de member_profiles del socio) en vez
+      // de una query aparte.
       const profileRows = await fastify.db
         .select({
           completedAt: memberProfiles.onboardingCompletedAt,
+          introStoriesSeenAt: memberProfiles.introStoriesSeenAt,
+          introStoriesCompletedAt: memberProfiles.introStoriesCompletedAt,
+          introStoriesLastSlide: memberProfiles.introStoriesLastSlide,
         })
         .from(memberProfiles)
         .where(
@@ -1014,6 +1020,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         .limit(1);
       const onboardingCompleted =
         profileRows.length > 0 && profileRows[0].completedAt !== null;
+      const introStoriesSeenAt =
+        profileRows[0]?.introStoriesSeenAt?.toISOString() ?? null;
+      const introStoriesCompletedAt =
+        profileRows[0]?.introStoriesCompletedAt?.toISOString() ?? null;
+      const introStoriesLastSlide = profileRows[0]?.introStoriesLastSlide ?? null;
 
       // Fase 176 (D-08, MOD-01/MOD-02): campo aditivo, ordenado
       // alfabéticamente para que la respuesta sea determinística (el `Set`
@@ -1043,6 +1054,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         dateOfBirth: user.dateOfBirth,
         segment,
         onboardingCompleted,
+        // SPEC "Empezá acá" B: null hasta la primera apertura de las
+        // historias. El front usa `introStoriesSeenAt` para decidir si las
+        // abre solas (MainLayout.vue) — ver POST /me/intro-stories abajo.
+        introStoriesSeenAt,
+        introStoriesCompletedAt,
+        introStoriesLastSlide,
         // Phase 115 (R1, D-15): bar challenge attempt fields. Always present
         // in the response — null for users who haven't participated.
         barChallengeCompleted: user.barChallengeCompleted,
@@ -1192,6 +1209,114 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const refreshToken = await refreshTokenService.issue(userId);
 
       return { message: "Contraseña actualizada", accessToken, refreshToken };
+    },
+  );
+
+  // POST /me/intro-stories — SPEC "Empezá acá" B (persistencia y métrica).
+  // Registra que el socio abrió ("seen") o terminó ("completed") las
+  // historias de bienvenida, junto con el slide donde quedó. Pre-scope por
+  // diseño, MISMO criterio T-175-03 que /me/change-password y
+  // /me/delete-account (userId sale SIEMPRE de `request.user`, el JWT — ver
+  // test/tenancy/iso-03-auth.test.ts).
+  fastify.post<{ Body: { event: "seen" | "completed"; lastSlide: number } }>(
+    "/me/intro-stories",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        body: {
+          type: "object",
+          required: ["event", "lastSlide"],
+          properties: {
+            event: { type: "string", enum: ["seen", "completed"] },
+            lastSlide: { type: "integer", minimum: 0 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = request.user;
+      const { event, lastSlide } = request.body;
+
+      // T-173-15: mismo patrón que GET /me — ctx propio del socio autenticado.
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "auth.intro-stories");
+
+      const [existing] = await fastify.db
+        .select({
+          seenAt: memberProfiles.introStoriesSeenAt,
+          completedAt: memberProfiles.introStoriesCompletedAt,
+        })
+        .from(memberProfiles)
+        .where(
+          and(
+            tenantWhere(memberProfiles, ctx),
+            eq(memberProfiles.userId, userId),
+          ),
+        )
+        .limit(1);
+
+      // Redondeado al segundo: `member_profiles.intro_stories_*` son TIMESTAMP
+      // sin fracción de segundo — MySQL REDONDEA (no trunca) al persistir un
+      // valor con milisegundos. Si acá quedara el `Date.now()` crudo, la
+      // respuesta de ESTA request (que nunca vuelve a leer la fila) podría
+      // diferir en ±0.5s de lo que después lee una request posterior desde la
+      // DB. Redondear acá hace que ambos coincidan siempre.
+      const now = new Date(Math.round(Date.now() / 1000) * 1000);
+
+      // Un socio freemium (D-21 de la fase 180) llega a la app SIN pasar por
+      // el onboarding que crea la fila member_profiles — igual puede abrir
+      // "Empezá acá" desde la Guía o el menú de perfil. En vez de 404,
+      // creamos la fila acá (mismo patrón que un onboarding tardío la
+      // crearía, solo que con los campos de intro-stories poblados).
+      if (!existing) {
+        await fastify.db.insert(memberProfiles).values(
+          tenantValues(ctx, {
+            userId,
+            introStoriesSeenAt: event === "seen" ? now : null,
+            introStoriesCompletedAt: event === "completed" ? now : null,
+            introStoriesLastSlide: lastSlide,
+          }),
+        );
+
+        return {
+          introStoriesSeenAt: event === "seen" ? now.toISOString() : null,
+          introStoriesCompletedAt: event === "completed" ? now.toISOString() : null,
+          introStoriesLastSlide: lastSlide,
+        };
+      }
+
+      const updates: {
+        introStoriesLastSlide: number;
+        introStoriesSeenAt?: Date;
+        introStoriesCompletedAt?: Date;
+      } = { introStoriesLastSlide: lastSlide };
+      // Idempotente: una vez estampado, un evento repetido (reintento de red,
+      // doble apertura) no lo pisa — solo el slide "último visto" se
+      // actualiza siempre, para que la métrica refleje el progreso real.
+      if (event === "seen" && !existing.seenAt) {
+        updates.introStoriesSeenAt = now;
+      }
+      if (event === "completed" && !existing.completedAt) {
+        updates.introStoriesCompletedAt = now;
+      }
+
+      await fastify.db
+        .update(memberProfiles)
+        .set(updates)
+        .where(
+          and(
+            tenantWhere(memberProfiles, ctx),
+            eq(memberProfiles.userId, userId),
+          ),
+        );
+
+      return {
+        introStoriesSeenAt: (updates.introStoriesSeenAt ?? existing.seenAt)?.toISOString() ?? null,
+        introStoriesCompletedAt:
+          (updates.introStoriesCompletedAt ?? existing.completedAt)?.toISOString() ?? null,
+        introStoriesLastSlide: lastSlide,
+      };
     },
   );
 
