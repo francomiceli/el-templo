@@ -37,9 +37,17 @@ import { and, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError, ConflictError, NotFoundError } from "../shared/errors";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 import { assertBranchInEnforcedScope } from "../shared/branch-access";
-import { tenantValues, tenantWhere, type TenantContext } from "../shared/tenant";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import { isDuplicateKeyError } from "../shared/sql-errors";
 import { auditLog } from "../shared/audit-log";
 import { normalizePhoneE164 } from "../shared/phone";
@@ -140,9 +148,22 @@ interface ExpiringRow {
   reasonLabel: string | null;
 }
 
-/** `sp.plan_category = 'presencial'` vs cualquier otro valor — mismo criterio que `coverageExists` (reports/service.ts). */
-function isPresencial(category: string): boolean {
-  return category === "presencial";
+/** Categoría del pase "Actividades con Aura" (fase 161) — ver `RenewalActivityType`. */
+const AURA_PLAN_CATEGORY = "especial";
+
+/**
+ * Grupo de categoría para emparejar la "sub siguiente": presencial vs pase
+ * Aura vs el resto (online/paquete). Presencial vs resto es el mismo criterio
+ * que `coverageExists` (reports/service.ts). Aura va en su propio grupo
+ * (2026-09-25): es un pase que CONVIVE con la membresía, así que comprar un
+ * plan online no renueva un pase Aura ni comprar un pase Aura renueva un plan
+ * online.
+ */
+type RenewalGroup = "presencial" | "aura" | "otro";
+function renewalGroup(category: string): RenewalGroup {
+  if (category === "presencial") return "presencial";
+  if (category === AURA_PLAN_CATEGORY) return "aura";
+  return "otro";
 }
 
 /** `YYYY-MM-DD` + N días, aritmética UTC pura (mismo patrón que `isoWeekRange`, reports/service.ts). */
@@ -158,7 +179,8 @@ function addDaysISO(iso: string, days: number): string {
 function daysUntil(endDate: string, tz: string): number {
   const today = todayInTz(tz);
   return Math.round(
-    (new Date(endDate + "T00:00:00Z").getTime() - new Date(today + "T00:00:00Z").getTime()) /
+    (new Date(endDate + "T00:00:00Z").getTime() -
+      new Date(today + "T00:00:00Z").getTime()) /
       86_400_000,
   );
 }
@@ -166,12 +188,15 @@ function daysUntil(endDate: string, tz: string): number {
 /**
  * Elige la "sub siguiente" de una fila E entre el universo de candidatas del
  * mismo socio (SPEC §"Sub siguiente"): distinto id, `status <> 'cancelled'`,
- * mismo grupo de categoría (presencial vs no-presencial), `end_date` posterior
+ * mismo grupo de categoría (`renewalGroup`), `end_date` posterior
  * a la de E. Desempate: `start_date` más temprano, luego `id` menor.
  */
 function pickNextSubscription(
   candidates: NextSubCandidate[],
-  e: Pick<ExpiringRow, "subscriptionId" | "userId" | "planCategory" | "endDate">,
+  e: Pick<
+    ExpiringRow,
+    "subscriptionId" | "userId" | "planCategory" | "endDate"
+  >,
 ): NextSubCandidate | null {
   const matches = candidates.filter(
     (c) =>
@@ -179,7 +204,7 @@ function pickNextSubscription(
       c.id !== e.subscriptionId &&
       c.endDate !== null &&
       c.endDate > e.endDate &&
-      isPresencial(c.planCategory) === isPresencial(e.planCategory),
+      renewalGroup(c.planCategory) === renewalGroup(e.planCategory),
   );
   if (matches.length === 0) return null;
   matches.sort((a, b) => {
@@ -214,7 +239,9 @@ function deriveRow(
     // Excel de la semana 22-28/09 (caso real marcado "Sí").
     const registeredOn = todayInTz(e.branchTimezone, nextSub.createdAt);
     status =
-      nextSub.startDate <= threshold || registeredOn <= threshold ? "renovo" : "volvio_tarde";
+      nextSub.startDate <= threshold || registeredOn <= threshold
+        ? "renovo"
+        : "volvio_tarde";
     newPlanId = nextSub.planId;
     newPlanName = nextSub.planName;
     renewedAt = nextSub.createdAt.toISOString();
@@ -229,7 +256,8 @@ function deriveRow(
   }
 
   const manualOverridden =
-    manualStatus === "no_renovo" && (status === "renovo" || status === "volvio_tarde");
+    manualStatus === "no_renovo" &&
+    (status === "renovo" || status === "volvio_tarde");
   const paraCerrar = status === "en_proceso" && messageCount >= 4;
 
   return {
@@ -309,7 +337,9 @@ function computeKpis(rows: RenewalRow[]): RenewalKpis {
   const gestionados = renovo + noRenovo + volvioTarde;
   const renewalRate = gestionados === 0 ? null : (renovo / gestionados) * 100;
 
-  const newPlanDistribution: RenewalPlanDistributionEntry[] = [...planCounts.entries()]
+  const newPlanDistribution: RenewalPlanDistributionEntry[] = [
+    ...planCounts.entries(),
+  ]
     .map(([planId, { planName, count }]) => ({
       planId,
       planName,
@@ -367,7 +397,11 @@ export class RenewalsService {
 
     const eRows = await this.fetchExpiringRows(ctx, filters);
     if (eRows.length === 0) {
-      return { rows: [], kpis: computeKpis([]), windowDays: RENEWAL_FOLLOWUP_WINDOW_DAYS };
+      return {
+        rows: [],
+        kpis: computeKpis([]),
+        windowDays: RENEWAL_FOLLOWUP_WINDOW_DAYS,
+      };
     }
 
     const userIds = [...new Set(eRows.map((r) => r.userId))];
@@ -382,7 +416,11 @@ export class RenewalsService {
       return deriveRow(e, nextSub, lastNote, RENEWAL_FOLLOWUP_WINDOW_DAYS);
     });
 
-    return { rows, kpis: computeKpis(rows), windowDays: RENEWAL_FOLLOWUP_WINDOW_DAYS };
+    return {
+      rows,
+      kpis: computeKpis(rows),
+      windowDays: RENEWAL_FOLLOWUP_WINDOW_DAYS,
+    };
   }
 
   /** El universo de subs que vencen en el rango, con su followup manual (si existe). */
@@ -395,13 +433,21 @@ export class RenewalsService {
       inArray(schema.subscriptions.status, EXPIRING_STATUSES),
       gte(schema.subscriptions.endDate, filters.dateFrom),
       lte(schema.subscriptions.endDate, filters.dateTo),
-      gte(schema.subscriptionPlans.durationDays, MIN_RENEWAL_PLAN_DURATION_DAYS),
+      gte(
+        schema.subscriptionPlans.durationDays,
+        MIN_RENEWAL_PLAN_DURATION_DAYS,
+      ),
       ...(filters.branchId !== undefined
         ? [eq(schema.subscriptions.branchId, filters.branchId)]
         : []),
       ...(filters.country !== undefined
         ? [eq(schema.branches.country, filters.country)]
         : []),
+      ...(filters.activityType === "aura"
+        ? [eq(schema.subscriptionPlans.planCategory, AURA_PLAN_CATEGORY)]
+        : filters.activityType === "membresia"
+          ? [ne(schema.subscriptionPlans.planCategory, AURA_PLAN_CATEGORY)]
+          : []),
     ];
 
     const rows = await this.db
@@ -431,9 +477,15 @@ export class RenewalsService {
       .from(schema.subscriptions)
       .innerJoin(
         schema.users,
-        and(tenantWhere(schema.users, ctx), eq(schema.users.id, schema.subscriptions.userId)),
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.subscriptions.userId),
+        ),
       )
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.subscriptions.branchId))
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
       .innerJoin(
         schema.subscriptionPlans,
         eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
@@ -453,7 +505,11 @@ export class RenewalsService {
         ),
       )
       .where(and(...conditions))
-      .orderBy(schema.subscriptions.endDate, schema.users.firstName, schema.users.lastName);
+      .orderBy(
+        schema.subscriptions.endDate,
+        schema.users.firstName,
+        schema.users.lastName,
+      );
 
     return rows.map((r) => ({
       ...r,
@@ -462,7 +518,8 @@ export class RenewalsService {
       // infiere como `string`) — se angosta acá al literal, mismo patrón que
       // `resolveBranchCountry` (shared/country-scope.ts): cualquier valor que
       // no sea 'ES' cae en 'AR' (default de la propia columna en el schema).
-      branchCountry: r.branchCountry === "ES" ? ("ES" as const) : ("AR" as const),
+      branchCountry:
+        r.branchCountry === "ES" ? ("ES" as const) : ("AR" as const),
     }));
   }
 
@@ -494,7 +551,10 @@ export class RenewalsService {
           ne(schema.subscriptions.status, "cancelled"),
           // Mismo corte que la fila que vence: comprar una CLASE ÚNICA/SUELTA
           // después de vencer NO es renovar el plan.
-          gte(schema.subscriptionPlans.durationDays, MIN_RENEWAL_PLAN_DURATION_DAYS),
+          gte(
+            schema.subscriptionPlans.durationDays,
+            MIN_RENEWAL_PLAN_DURATION_DAYS,
+          ),
         ),
       );
     return rows;
@@ -513,14 +573,20 @@ export class RenewalsService {
       })
       .from(schema.memberNotes)
       .where(
-        and(tenantWhere(schema.memberNotes, ctx), inArray(schema.memberNotes.userId, userIds)),
+        and(
+          tenantWhere(schema.memberNotes, ctx),
+          inArray(schema.memberNotes.userId, userIds),
+        ),
       )
       .orderBy(desc(schema.memberNotes.createdAt), desc(schema.memberNotes.id));
 
     const map = new Map<number, { content: string; createdAt: string }>();
     for (const r of rows) {
       if (!map.has(r.userId)) {
-        map.set(r.userId, { content: r.content, createdAt: r.createdAt.toISOString() });
+        map.set(r.userId, {
+          content: r.content,
+          createdAt: r.createdAt.toISOString(),
+        });
       }
     }
     return map;
@@ -541,12 +607,20 @@ export class RenewalsService {
     const [sub] = await this.db
       .select({ endDate: schema.subscriptions.endDate })
       .from(schema.subscriptions)
-      .where(and(tenantWhere(schema.subscriptions, ctx), eq(schema.subscriptions.id, subscriptionId)))
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, subscriptionId),
+        ),
+      )
       .limit(1);
     if (!sub || sub.endDate === null) return null;
 
     const [eRows, candidates, lastNotes] = await Promise.all([
-      this.fetchExpiringRows(ctx, { dateFrom: sub.endDate, dateTo: sub.endDate }),
+      this.fetchExpiringRows(ctx, {
+        dateFrom: sub.endDate,
+        dateTo: sub.endDate,
+      }),
       this.fetchNextSubCandidatesForSubscription(ctx, subscriptionId),
       this.fetchLastNotesForSubscription(ctx, subscriptionId),
     ]);
@@ -565,7 +639,12 @@ export class RenewalsService {
     const [sub] = await this.db
       .select({ userId: schema.subscriptions.userId })
       .from(schema.subscriptions)
-      .where(and(tenantWhere(schema.subscriptions, ctx), eq(schema.subscriptions.id, subscriptionId)))
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, subscriptionId),
+        ),
+      )
       .limit(1);
     if (!sub) return [];
     return this.fetchNextSubCandidates(ctx, [sub.userId]);
@@ -578,7 +657,12 @@ export class RenewalsService {
     const [sub] = await this.db
       .select({ userId: schema.subscriptions.userId })
       .from(schema.subscriptions)
-      .where(and(tenantWhere(schema.subscriptions, ctx), eq(schema.subscriptions.id, subscriptionId)))
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, subscriptionId),
+        ),
+      )
       .limit(1);
     if (!sub) return new Map();
     return this.fetchLastNotes(ctx, [sub.userId]);
@@ -592,7 +676,11 @@ export class RenewalsService {
   private async resolveSubscriptionBranch(
     ctx: TenantContext,
     subscriptionId: number,
-  ): Promise<{ branchId: number; userId: number; branchCountry: string } | null> {
+  ): Promise<{
+    branchId: number;
+    userId: number;
+    branchCountry: string;
+  } | null> {
     const [row] = await this.db
       .select({
         branchId: schema.subscriptions.branchId,
@@ -600,8 +688,16 @@ export class RenewalsService {
         branchCountry: schema.branches.country,
       })
       .from(schema.subscriptions)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.subscriptions.branchId))
-      .where(and(tenantWhere(schema.subscriptions, ctx), eq(schema.subscriptions.id, subscriptionId)))
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, subscriptionId),
+        ),
+      )
       .limit(1);
     return row ?? null;
   }
@@ -624,7 +720,11 @@ export class RenewalsService {
       throw new NotFoundError("Suscripción no encontrada");
     }
     if (actor.branchIds != null) {
-      assertBranchInEnforcedScope(sub.branchId, actor.branchIds, "Suscripción no encontrada");
+      assertBranchInEnforcedScope(
+        sub.branchId,
+        actor.branchIds,
+        "Suscripción no encontrada",
+      );
     } else if (!actor.isOwner) {
       // admin/gestion: sin alcance forzado por sede, pero SÍ por país (mismo
       // recorte que `listRenewals` aplica vía `filters.country`) — sin esto,
@@ -647,7 +747,11 @@ export class RenewalsService {
     input: RenewalFollowupUpdateInput,
     actor: RenewalActorScope,
   ): Promise<RenewalRow> {
-    const subRow = await this.assertSubscriptionInScope(ctx, subscriptionId, actor);
+    const subRow = await this.assertSubscriptionInScope(
+      ctx,
+      subscriptionId,
+      actor,
+    );
     // Solo subs que la pantalla lista (estado/plan elegibles): sin esto se
     // podía escribir un followup sobre una sub cancelada y recién después
     // responder 404.
@@ -678,7 +782,9 @@ export class RenewalsService {
       // puede colarse sin motivo con solo pasar `null` en vez de omitir el
       // campo (el `!== undefined` de la versión anterior lo dejaba pasar).
       resolvedReasonId =
-        input.reasonId !== undefined ? input.reasonId : (before?.reasonId ?? null);
+        input.reasonId !== undefined
+          ? input.reasonId
+          : (before?.reasonId ?? null);
       if (resolvedReasonId === null) {
         throw new ReasonRequiredError();
       }
@@ -689,7 +795,8 @@ export class RenewalsService {
       // algo que este PATCH deba rechazar retroactivamente).
       const debeValidarMotivo =
         input.reasonId !== undefined ||
-        (input.manualStatus === "no_renovo" && before?.manualStatus !== "no_renovo");
+        (input.manualStatus === "no_renovo" &&
+          before?.manualStatus !== "no_renovo");
       if (debeValidarMotivo) {
         const [reason] = await this.db
           .select({ id: schema.renewalReasons.id })
@@ -707,7 +814,9 @@ export class RenewalsService {
         }
       }
       resolvedReasonNote =
-        input.reasonNote !== undefined ? input.reasonNote : (before?.reasonNote ?? null);
+        input.reasonNote !== undefined
+          ? input.reasonNote
+          : (before?.reasonNote ?? null);
     } else {
       // Volver a en_proceso limpia el motivo (SPEC línea 33), sin importar lo
       // que venga en el body.
@@ -717,8 +826,11 @@ export class RenewalsService {
 
     const finalMessageCount = input.messageCount ?? before?.messageCount ?? 0;
     const messageChanged =
-      input.messageCount !== undefined && input.messageCount !== (before?.messageCount ?? 0);
-    const finalLastMessageAt = messageChanged ? new Date() : (before?.lastMessageAt ?? null);
+      input.messageCount !== undefined &&
+      input.messageCount !== (before?.messageCount ?? 0);
+    const finalLastMessageAt = messageChanged
+      ? new Date()
+      : (before?.lastMessageAt ?? null);
 
     await this.db.transaction(async (tx: TxHandle) => {
       await tx
@@ -778,13 +890,23 @@ export class RenewalsService {
     content: string,
     actor: RenewalActorScope,
   ): Promise<MemberNote> {
-    const sub = await this.assertSubscriptionInScope(ctx, subscriptionId, actor);
-    return this.memberService.createNote(ctx, actor.userId, { userId: sub.userId, content });
+    const sub = await this.assertSubscriptionInScope(
+      ctx,
+      subscriptionId,
+      actor,
+    );
+    return this.memberService.createNote(ctx, actor.userId, {
+      userId: sub.userId,
+      content,
+    });
   }
 
   // ─── Motivos ────────────────────────────────────────────────────────────
 
-  async listReasons(ctx: TenantContext, includeInactive: boolean): Promise<RenewalReason[]> {
+  async listReasons(
+    ctx: TenantContext,
+    includeInactive: boolean,
+  ): Promise<RenewalReason[]> {
     const rows = await this.db
       .select({
         id: schema.renewalReasons.id,
@@ -796,14 +918,19 @@ export class RenewalsService {
       .where(
         and(
           tenantWhere(schema.renewalReasons, ctx),
-          ...(includeInactive ? [] : [eq(schema.renewalReasons.isActive, true)]),
+          ...(includeInactive
+            ? []
+            : [eq(schema.renewalReasons.isActive, true)]),
         ),
       )
       .orderBy(schema.renewalReasons.sortOrder, schema.renewalReasons.label);
     return rows;
   }
 
-  async createReason(ctx: TenantContext, input: RenewalReasonCreateInput): Promise<RenewalReason> {
+  async createReason(
+    ctx: TenantContext,
+    input: RenewalReasonCreateInput,
+  ): Promise<RenewalReason> {
     const label = input.label.trim();
     if (label.length === 0) {
       throw new BadRequestError("La etiqueta no puede estar vacía");
@@ -842,7 +969,12 @@ export class RenewalsService {
     const [existing] = await this.db
       .select({ id: schema.renewalReasons.id })
       .from(schema.renewalReasons)
-      .where(and(tenantWhere(schema.renewalReasons, ctx), eq(schema.renewalReasons.id, reasonId)))
+      .where(
+        and(
+          tenantWhere(schema.renewalReasons, ctx),
+          eq(schema.renewalReasons.id, reasonId),
+        ),
+      )
       .limit(1);
     if (!existing) {
       throw new NotFoundError("Motivo no encontrado");
@@ -858,10 +990,17 @@ export class RenewalsService {
         .update(schema.renewalReasons)
         .set({
           ...(label !== undefined ? { label } : {}),
-          ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+          ...(input.sortOrder !== undefined
+            ? { sortOrder: input.sortOrder }
+            : {}),
           ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
         })
-        .where(and(tenantWhere(schema.renewalReasons, ctx), eq(schema.renewalReasons.id, reasonId)));
+        .where(
+          and(
+            tenantWhere(schema.renewalReasons, ctx),
+            eq(schema.renewalReasons.id, reasonId),
+          ),
+        );
     } catch (err: unknown) {
       const { isDuplicate } = isDuplicateKeyError(err);
       if (isDuplicate) {
@@ -878,7 +1017,12 @@ export class RenewalsService {
         isActive: schema.renewalReasons.isActive,
       })
       .from(schema.renewalReasons)
-      .where(and(tenantWhere(schema.renewalReasons, ctx), eq(schema.renewalReasons.id, reasonId)))
+      .where(
+        and(
+          tenantWhere(schema.renewalReasons, ctx),
+          eq(schema.renewalReasons.id, reasonId),
+        ),
+      )
       .limit(1);
     if (!updated) throw new NotFoundError("Motivo no encontrado");
     return updated;

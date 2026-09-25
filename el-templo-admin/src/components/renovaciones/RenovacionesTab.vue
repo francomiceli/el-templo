@@ -31,7 +31,8 @@
     </div>
 
     <!-- ============================================================== -->
-    <!-- Filtros: solo semana — la sede es el selector global de Reportes -->
+    <!-- Filtros: semana + tipo de actividad — la sede es el selector
+         global de Reportes -->
     <!-- ============================================================== -->
     <div class="row items-center q-gutter-sm q-mb-md">
       <div class="col-auto">
@@ -80,6 +81,20 @@
           </q-list>
         </q-btn-dropdown>
       </div>
+      <div class="col-auto">
+        <q-select
+          v-model="activityType"
+          :options="activityTypeOptions"
+          emit-value
+          map-options
+          outlined
+          dense
+          options-dense
+          label="Tipo de actividad"
+          style="min-width: 220px"
+          @update:model-value="fetchRows()"
+        />
+      </div>
     </div>
 
     <!-- ============================================================== -->
@@ -123,6 +138,7 @@
     <!-- Tabla -->
     <!-- ============================================================== -->
     <q-table
+      class="renewals-table"
       :rows="filteredRows"
       :columns="columns"
       row-key="subscriptionId"
@@ -136,11 +152,17 @@
     >
       <!-- ── Desktop/tablet: celdas custom ───────────────────────────── -->
       <template #body-cell-memberName="props">
-        <q-td :props="props">
+        <q-td :props="props" class="sticky-nombre">
           <q-btn flat dense no-caps color="primary" @click="openDialog(props.row)">
             {{ props.row.memberName }}
           </q-btn>
-          <q-icon v-if="props.row.manualOverridden" name="history" color="warning" size="16px" class="q-ml-xs">
+          <q-icon
+            v-if="props.row.manualOverridden"
+            name="history"
+            color="warning"
+            size="16px"
+            class="q-ml-xs"
+          >
             <q-tooltip>Estaba marcado No renovó; se detectó una renovación</q-tooltip>
           </q-icon>
         </q-td>
@@ -152,7 +174,10 @@
 
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-badge :color="renewalStatusMeta(props.row.status).color" :label="renewalStatusLabel(props.row)" />
+          <q-badge
+            :color="renewalStatusMeta(props.row.status).color"
+            :label="renewalStatusLabel(props.row)"
+          />
           <q-icon
             v-if="renewalStatusMeta(props.row.status).tooltip"
             name="info"
@@ -332,6 +357,7 @@ import type {
   RenewalKpis,
   RenewalReason,
   RenewalFollowupUpdateInput,
+  RenewalActivityType,
 } from 'src/types/renewals';
 
 // La sede viene del selector global de Reportes (`selectedBranchId`), no de
@@ -364,7 +390,7 @@ const weekPresets: WeekPreset[] = [
   { label: 'Semana que viene', offsetWeeks: 1 },
 ];
 
-// Los filtros viven en la URL (?tab=renovaciones&from=&to=&branch=) para que
+// Los filtros viven en la URL (?tab=renovaciones&from=&to=&branch=&tipo=) para que
 // al volver de Cobros (returnTo = fullPath) la pantalla quede en la misma
 // semana, sede Y tab. `syncQuery` mergea con la query existente de Reportes
 // (no la pisa) y siempre reafirma `tab=renovaciones`.
@@ -399,6 +425,25 @@ const showCustomRange = ref(false);
 const customFrom = ref(initial.dateFrom);
 const customTo = ref(initial.dateTo);
 
+// Tipo de actividad (feedback Nacho 2026-09-25): el pase "Actividades con
+// Aura" se gestiona aparte de la membresía. Default = Membresías, lo que se
+// gestiona todas las semanas. Filtra server-side para que los KPIs también
+// queden acotados al tipo elegido.
+type ActivityTypeFilter = RenewalActivityType | 'todas';
+
+const activityTypeOptions: { label: string; value: ActivityTypeFilter }[] = [
+  { label: 'Membresías', value: 'membresia' },
+  { label: 'Actividades con Aura', value: 'aura' },
+  { label: 'Todas', value: 'todas' },
+];
+
+function initialActivityType(): ActivityTypeFilter {
+  const raw = queryString('tipo');
+  return activityTypeOptions.find((o) => o.value === raw)?.value ?? 'membresia';
+}
+
+const activityType = ref<ActivityTypeFilter>(initialActivityType());
+
 function syncQuery() {
   void router.replace({
     query: {
@@ -407,6 +452,7 @@ function syncQuery() {
       from: dateFrom.value,
       to: dateTo.value,
       branch: props.branchId !== undefined ? String(props.branchId) : undefined,
+      tipo: activityType.value,
     },
   });
 }
@@ -466,14 +512,35 @@ const kpis = ref<RenewalKpis | null>(null);
 const reasons = ref<RenewalReason[]>([]);
 const loading = ref(false);
 
+/**
+ * Carga por cambio de filtros (semana/sede/tipo): escribe la URL y muestra el
+ * loading. OJO: cualquier `router.replace` dispara el `scrollBehavior` del
+ * router (vuelve arriba de todo) — por eso las recargas después de editar
+ * una fila llaman directo a `loadRows`, que NO toca la URL.
+ */
 async function fetchRows() {
   syncQuery();
   loading.value = true;
+  try {
+    await loadRows();
+  } finally {
+    loading.value = false;
+  }
+}
+
+/**
+ * Pide listado + KPIs sin tocar la URL ni el loading. Llamada directa =
+ * recarga silenciosa después de editar mensaje/estado de una fila, así la
+ * página queda donde estaba (feedback 2026-09-25: al marcar un mensaje abajo
+ * de todo, saltaba arriba).
+ */
+async function loadRows() {
   try {
     const result = await renewalsApi.listRenewals({
       dateFrom: dateFrom.value,
       dateTo: dateTo.value,
       branchId: props.branchId,
+      activityType: activityType.value === 'todas' ? undefined : activityType.value,
     });
     rows.value = result.rows;
     kpis.value = result.kpis;
@@ -482,8 +549,6 @@ async function fetchRows() {
       error: err instanceof Error ? err.message : String(err),
     });
     $q.notify({ type: 'negative', message: 'No se pudieron cargar las renovaciones' });
-  } finally {
-    loading.value = false;
   }
 }
 
@@ -491,7 +556,9 @@ async function fetchReasons() {
   try {
     reasons.value = await renewalsApi.listReasons(false);
   } catch (err: unknown) {
-    log.error('Error cargando motivos', { error: err instanceof Error ? err.message : String(err) });
+    log.error('Error cargando motivos', {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -573,7 +640,13 @@ const kpiCards = computed<KpiCardConfig[]>(() => {
 // ============================================================================
 
 const columns: QTableColumn[] = [
-  { name: 'memberName', label: 'Nombre', field: 'memberName', align: 'left' },
+  {
+    name: 'memberName',
+    label: 'Nombre',
+    field: 'memberName',
+    align: 'left',
+    headerClasses: 'sticky-nombre',
+  },
   { name: 'planName', label: 'Membresía vigente', field: 'planName', align: 'left' },
   { name: 'endDate', label: 'Vencimiento', field: 'endDate', align: 'left', sortable: true },
   { name: 'branchName', label: 'Sucursal', field: 'branchName', align: 'left' },
@@ -604,7 +677,7 @@ async function patchFollowup(row: RenewalRow, input: RenewalFollowupUpdateInput)
     replaceRow(updated);
     // KPIs dependen de estado/mensaje — recargar el listado es lo más simple
     // y consistente (SPEC: "recalcular KPIs volviendo a pedir el listado").
-    await fetchRows();
+    await loadRows();
   } catch (err: unknown) {
     log.error('Error actualizando seguimiento', {
       error: err instanceof Error ? err.message : String(err),
@@ -640,7 +713,9 @@ async function copyPhone(row: RenewalRow) {
   }
   $q.notify({
     type: row.phoneE164 ? 'positive' : 'warning',
-    message: row.phoneE164 ? 'Copiado' : 'Número inválido: revisalo en la ficha (copiado el original)',
+    message: row.phoneE164
+      ? 'Copiado'
+      : 'Número inválido: revisalo en la ficha (copiado el original)',
   });
 }
 
@@ -662,7 +737,7 @@ async function onRowUpdated(row: RenewalRow, refreshKpis: boolean) {
   if (selectedRow.value?.subscriptionId === row.subscriptionId) {
     selectedRow.value = row;
   }
-  if (refreshKpis) await fetchRows();
+  if (refreshKpis) await loadRows();
 }
 
 // ============================================================================
@@ -700,5 +775,42 @@ onUnmounted(() => {
 :deep(.renewal-row--para-cerrar) {
   background-color: rgba($warning, 0.12);
   box-shadow: inset 3px 0 0 $warning;
+}
+
+/*
+ * Tabla con alto propio (feedback 2026-09-25): el scroll horizontal y el
+ * vertical viven DENTRO de la tabla, así la barra horizontal queda siempre
+ * a la vista abajo y no hace falta bajar al pie de la página para moverse a
+ * la derecha. Header pegado arriba y Nombre fijo a la izquierda — mismo
+ * patrón que `PorDeudaTab.vue` (scroller nativo de q-table, .q-table__middle).
+ * En mobile la tabla es grid de cards (sin scroll horizontal): no aplica.
+ */
+:deep(.renewals-table:not(.q-table--grid)) {
+  max-height: calc(100vh - 140px);
+}
+
+:deep(.renewals-table thead tr th) {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: #fff;
+}
+
+:deep(.renewals-table .sticky-nombre) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: #fff;
+  box-shadow: 6px 0 8px -8px rgba(0, 0, 0, 0.3);
+}
+
+:deep(.renewals-table thead .sticky-nombre) {
+  z-index: 3;
+}
+
+// La celda fija necesita fondo opaco: en filas "para cerrar" replica el
+// tinte de la fila (12% de $warning sobre blanco) para no cortarlo.
+:deep(.renewals-table .renewal-row--para-cerrar .sticky-nombre) {
+  background-color: mix($warning, #fff, 12%);
 }
 </style>
