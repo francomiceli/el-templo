@@ -9,6 +9,20 @@
       <q-item-section>
         <q-item-label class="choice-role-name text-body1">
           {{ title }}
+          <q-btn
+            v-if="guiaLink"
+            flat
+            round
+            dense
+            size="xs"
+            icon="help_outline"
+            color="primary"
+            class="block-guia-link"
+            :aria-label="guiaLink.question"
+            @click.stop="openGuia"
+          >
+            <q-tooltip>{{ guiaLink.question }}</q-tooltip>
+          </q-btn>
         </q-item-label>
         <div class="choice-meta__hint">A elección</div>
         <div class="choice-meta__count">{{ optionCountLabel }} opciones</div>
@@ -56,8 +70,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import type { Block, Prescription } from '../types/session'
 import { getRouteName } from '../utils/routeNames'
+import { getGuiaLinkForRole } from '../guia-role-map'
+
+const router = useRouter()
 
 export interface BlockChoiceOption {
   /** Unique identifier */
@@ -81,6 +99,19 @@ const WORD_NUMBERS = ['Cero', 'Una', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis']
 const optionCountLabel = computed(
   () => WORD_NUMBERS[props.options.length] ?? `${props.options.length}`,
 )
+
+/**
+ * SPEC "Empezá acá" A1: este componente SIEMPRE representa la elección entre
+ * DEUTEROS_1/DEUTEROS_2 (único uso hoy — ver DayCard.vue), así que el link de
+ * Guía es fijo en vez de derivarse de una prop de rol que el componente no
+ * recibe.
+ */
+const guiaLink = getGuiaLinkForRole('DEUTEROS_1')
+
+function openGuia() {
+  if (!guiaLink) return
+  void router.push({ name: 'guia', query: { seccion: guiaLink.seccion, item: guiaLink.item } })
+}
 
 /**
  * Format prescription inline (compact format for exercise list)
@@ -141,6 +172,12 @@ function formatPrescription(exercise: Prescription): string {
   font-weight: 700;
   letter-spacing: 0.08em;
   color: $primary;
+}
+
+.block-guia-link {
+  vertical-align: middle;
+  margin-left: 2px;
+  opacity: 0.7;
 }
 
 .choice-meta__hint {

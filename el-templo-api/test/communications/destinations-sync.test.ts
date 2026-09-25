@@ -59,16 +59,16 @@ describe("communications/destinations-sync", () => {
   const adminSections = extractSections(adminPath);
   const appSections = extractSections(appPath);
 
-  it("la API tiene exactamente 7 secciones", () => {
-    expect(apiSections).toHaveLength(7);
+  it("la API tiene exactamente 9 secciones", () => {
+    expect(apiSections).toHaveLength(9);
   });
 
-  it("el espejo del admin tiene exactamente 7 secciones", () => {
-    expect(adminSections).toHaveLength(7);
+  it("el espejo del admin tiene exactamente 9 secciones", () => {
+    expect(adminSections).toHaveLength(9);
   });
 
-  it("el espejo de la app tiene exactamente 7 secciones", () => {
-    expect(appSections).toHaveLength(7);
+  it("el espejo de la app tiene exactamente 9 secciones", () => {
+    expect(appSections).toHaveLength(9);
   });
 
   it("el espejo del admin es profundamente igual a la API", () => {

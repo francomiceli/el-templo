@@ -155,6 +155,14 @@ export function useMagicLink() {
           branchCountry: (user.branchCountry as UserProfile['branchCountry']) ?? 'AR',
           segment: null,
           onboardingCompleted: user.onboardingCompleted,
+          // SPEC "Empezá acá" B: el canje de magic-link no trae estos 3
+          // campos (no son parte de ExchangeResponseData) — nulos acá, el
+          // próximo GET /auth/me (retryProfileLoad / primera navegación) los
+          // hidrata con el valor real. Mismo criterio que `segment: null`
+          // arriba.
+          introStoriesSeenAt: null,
+          introStoriesCompletedAt: null,
+          introStoriesLastSlide: null,
           gender: user.gender as UserProfile['gender'],
           dateOfBirth: user.dateOfBirth,
           barChallengeCompleted: null,

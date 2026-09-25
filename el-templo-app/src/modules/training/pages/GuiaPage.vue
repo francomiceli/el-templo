@@ -6,9 +6,34 @@
 
     <p class="guia-page__subtitle">Guía de Entrenamiento</p>
 
+    <!-- "Empezá acá" — historias de bienvenida (SPEC B). Tarjeta destacada
+         ARRIBA de todo, siempre visible (aunque ya se hayan visto: es el
+         punto de re-entrada manual una vez que la apertura automática ya
+         no vuelve a dispararse sola — ver MainLayout.vue). -->
+    <q-card
+      flat
+      bordered
+      class="empeza-aca-card q-mx-md q-mb-md"
+      role="link"
+      tabindex="0"
+      aria-label="Sos nuevo? Empezá acá"
+      @click="goToEmpezaAca"
+      @keyup.enter="goToEmpezaAca"
+    >
+      <q-card-section class="row items-center no-wrap">
+        <q-icon name="auto_stories" size="32px" color="primary" class="q-mr-md" />
+        <div class="col">
+          <div class="empeza-aca-card__title">¿Sos nuevo?</div>
+          <div class="empeza-aca-card__subtitle">Empezá acá</div>
+        </div>
+        <q-icon name="chevron_right" size="24px" color="primary" />
+      </q-card-section>
+    </q-card>
+
     <q-list class="guia-page__content">
       <!-- Bloques Section -->
       <q-expansion-item
+        ref="bloquesRef"
         group="guia"
         icon="view_module"
         label="Bloques"
@@ -16,7 +41,11 @@
       >
         <q-card>
           <q-card-section>
-            <div class="guia-item">
+            <div
+              id="guia-item-initium"
+              class="guia-item"
+              :class="{ 'guia-item--highlighted': highlightedItem === 'initium' }"
+            >
               <div class="guia-item__title">Initium</div>
               <div class="guia-item__description">
                 Bloque de calentamiento. Prepara tu cuerpo para la sesión con movilidad y activación
@@ -26,7 +55,11 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="guia-item">
+            <div
+              id="guia-item-nucleus"
+              class="guia-item"
+              :class="{ 'guia-item--highlighted': highlightedItem === 'nucleus' }"
+            >
               <div class="guia-item__title">Nucleus</div>
               <div class="guia-item__description">
                 Bloque principal de trabajo. Aquí se concentra el mayor volumen e intensidad de la
@@ -36,7 +69,11 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="guia-item">
+            <div
+              id="guia-item-deuteros"
+              class="guia-item"
+              :class="{ 'guia-item--highlighted': highlightedItem === 'deuteros' }"
+            >
               <div class="guia-item__title">Deuteros</div>
               <div class="guia-item__description">
                 Bloque complementario. Eliges entre dos opciones para trabajar aspectos adicionales
@@ -46,7 +83,11 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="guia-item">
+            <div
+              id="guia-item-athlos-epikos"
+              class="guia-item"
+              :class="{ 'guia-item--highlighted': highlightedItem === 'athlos-epikos' }"
+            >
               <div class="guia-item__title">Athlos / Epikos</div>
               <div class="guia-item__description">
                 Bloque de desafío final. Athlos es un reto corto e intenso. Epikos es un desafío más
@@ -191,6 +232,53 @@
  * - Formatos: Workout formats (EMOM, AMRAP, etc.)
  * - Intensidad: Intensity percentages and effort levels
  */
+import { ref, onMounted, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import type { QExpansionItem } from 'quasar'
+
+const route = useRoute()
+const router = useRouter()
+
+function goToEmpezaAca() {
+  void router.push({ name: 'empeza-aca' })
+}
+
+// SPEC A1: deep-link desde las tarjetas de bloque ("¿Qué es Nucleus?") vía
+// `/training/guia?seccion=bloques&item=nucleus`. Solo "bloques" está
+// implementado hoy (es la única sección con links entrantes — ver
+// `guia-role-map.ts`); si se agregan links a Rutas/Formatos/Intensidad más
+// adelante, este switch crece con ellos.
+const bloquesRef = ref<QExpansionItem>()
+const highlightedItem = ref<string | null>(null)
+let highlightTimer: ReturnType<typeof setTimeout> | null = null
+
+async function openFromQuery() {
+  const { seccion, item } = route.query
+  if (seccion !== 'bloques') return
+
+  bloquesRef.value?.show()
+  await nextTick()
+
+  if (typeof item !== 'string') return
+  highlightedItem.value = item
+  if (highlightTimer) clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => {
+    highlightedItem.value = null
+  }, 2500)
+
+  // Pequeño delay para que la animación de expansión de Quasar termine antes
+  // de medir la posición del ítem — si no, el scroll apunta a donde el
+  // contenido va a estar, no a donde está todavía.
+  setTimeout(() => {
+    document.getElementById(`guia-item-${item}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  }, 300)
+}
+
+onMounted(openFromQuery)
+watch(() => route.query, openFromQuery)
 
 const FORMATS = [
   {
@@ -328,5 +416,48 @@ const FORMATS = [
 .guia-item__description {
   color: #666;
   line-height: 1.5;
+}
+
+.guia-item--highlighted {
+  animation: guia-item-highlight 2.5s ease-out;
+  border-radius: 8px;
+}
+
+@keyframes guia-item-highlight {
+  0%,
+  60% {
+    background: rgba($secondary, 0.18);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.empeza-aca-card {
+  cursor: pointer;
+  border-color: rgba($primary, 0.3);
+  background: linear-gradient(135deg, rgba($primary, 0.08) 0%, $cream 100%);
+  transition: box-shadow 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    box-shadow: 0 2px 10px rgba($primary, 0.15);
+  }
+}
+
+.empeza-aca-card__title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba($primary, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.empeza-aca-card__subtitle {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: $primary;
 }
 </style>

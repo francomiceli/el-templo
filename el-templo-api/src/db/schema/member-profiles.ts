@@ -72,6 +72,15 @@ export const memberProfiles = mysqlTable(
     streakUpdatedAt: timestamp("streak_updated_at"),
     ghostReattemptCount: int("ghost_reattempt_count").default(0),
     lastGhostReattemptAt: timestamp("last_ghost_reattempt_at"),
+    // SPEC "Empezá acá" B (persistencia y métrica), migración 0240:
+    // `introStoriesSeenAt` se estampa la PRIMERA vez que el socio abrió las
+    // historias (aunque las haya cerrado antes de terminar);
+    // `introStoriesCompletedAt` solo si llegó al último slide;
+    // `introStoriesLastSlide` es el índice donde quedó (métrica, no gatea
+    // nada). Los tres NULL hasta la primera apertura.
+    introStoriesSeenAt: timestamp("intro_stories_seen_at"),
+    introStoriesCompletedAt: timestamp("intro_stories_completed_at"),
+    introStoriesLastSlide: int("intro_stories_last_slide"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

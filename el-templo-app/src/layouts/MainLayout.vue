@@ -65,6 +65,15 @@
             color="primary"
             class="desktop-rail__badge"
           />
+          <q-badge
+            v-else-if="tab.introBadge && showIntroBadge"
+            floating
+            rounded
+            color="negative"
+            label="1"
+            class="desktop-rail__badge desktop-rail__badge--count"
+            aria-label="Novedad: Empezá acá"
+          />
         </router-link>
       </nav>
 
@@ -110,6 +119,27 @@
       <q-tooltip>Registrar asistencia</q-tooltip>
     </q-btn>
 
+    <!-- Tip de primer uso del QR (SPEC "Empezá acá" A2): globo persistente
+         anclado al FAB, una sola vez por socio (useTipsSeenStorage). -->
+    <transition name="fade">
+      <div
+        v-if="showQrTip"
+        class="check-in-fab-tip"
+        :class="{ 'check-in-fab-tip--with-footer': !isDesktop }"
+        role="status"
+      >
+        <p class="check-in-fab-tip__text">{{ qrTipMessage }}</p>
+        <q-btn
+          flat
+          dense
+          no-caps
+          label="Entendido"
+          class="check-in-fab-tip__btn"
+          @click="dismissQrTip"
+        />
+      </div>
+    </transition>
+
     <div class="app-bg" />
 
     <!-- Mobile bottom tab bar -->
@@ -130,6 +160,15 @@
             rounded
             color="primary"
             class="mobile-tab__badge"
+          />
+          <q-badge
+            v-else-if="tab.introBadge && showIntroBadge"
+            floating
+            rounded
+            color="negative"
+            label="1"
+            class="mobile-tab__badge mobile-tab__badge--count"
+            aria-label="Novedad: Empezá acá"
           />
         </router-link>
       </div>
@@ -157,7 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
@@ -172,6 +211,9 @@ import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import AvisoPromptDialog from 'src/components/AvisoPromptDialog.vue'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
 import VeteranSeal from 'src/components/VeteranSeal.vue'
+import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
+import { TIPS_CONTENT } from 'src/config/tips-content'
+import { isNewMember } from 'src/modules/guia/new-member'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -214,6 +256,33 @@ watch(
   { immediate: true },
 )
 
+// SPEC "Empezá acá" B — apertura automática: la primera vez que un socio
+// entra DESPUÉS de completar el onboarding (o ya lo tenía completo) y nunca
+// vio las historias, se abren solas una vez. `introStoriesChecked` acota la
+// decisión a la primera vez que el perfil está disponible en esta sesión —
+// MainLayout persiste durante toda la sesión (no se remonta entre
+// navegaciones), así que esto nunca se re-evalúa hasta el próximo login.
+// Si el socio las cierra antes del final, EmpezaAcaPage ya registró "seen" y
+// actualizó `userStore.profile` — no vuelven a abrirse solas.
+let introStoriesChecked = false
+watch(
+  () => userStore.profile,
+  (profile) => {
+    if (!profile || introStoriesChecked) return
+    introStoriesChecked = true
+    if (
+      profile.role === 'member' &&
+      profile.onboardingCompleted &&
+      !profile.introStoriesSeenAt &&
+      isNewMember(profile.memberSince) &&
+      route.name !== 'empeza-aca'
+    ) {
+      void router.push({ name: 'empeza-aca' })
+    }
+  },
+  { immediate: true },
+)
+
 const isDesktop = computed(() => $q.screen.width >= 768)
 const isMiTemplo = computed(() => route.path === '/mi-templo')
 
@@ -242,18 +311,60 @@ const showCheckInFab = computed(() => {
   return route.path === '/mi-templo' || route.path === '/reservas'
 })
 
+// "Empezá acá" (Franco, 2026-09-24): TODOS los socios ven un "1" rojo sobre
+// Guía hasta que abren las historias; al abrirlas, EmpezaAcaPage registra
+// `introStoriesSeenAt` en el perfil y la pelotita desaparece.
+const showIntroBadge = computed(() => {
+  const profile = userStore.profile
+  return !!profile && profile.role === 'member' && !profile.introStoriesSeenAt
+})
+
+// SPEC "Empezá acá" A2 — tip de primer uso del QR de check-in: se muestra
+// una sola vez por socio (useTipsSeenStorage), la primera vez que el FAB se
+// vuelve visible. `qrTipChecked` evita re-consultar el storage en cada
+// recomputo de `showCheckInFab` (cambia de página en página) — solo importa
+// la PRIMERA vez que se hizo visible en esta sesión.
+const tipsStorage = useTipsSeenStorage()
+const qrTipMessage = TIPS_CONTENT['qr-checkin'].message
+const showQrTip = ref(false)
+let qrTipChecked = false
+
+watch(
+  showCheckInFab,
+  (visible) => {
+    if (!visible || qrTipChecked) return
+    const userId = userStore.profile?.id
+    if (!userId) return
+    qrTipChecked = true
+    // Globos de primer uso: solo socios nuevos (ver new-member.ts).
+    if (!isNewMember(userStore.profile?.memberSince)) return
+    void tipsStorage.hasSeen(userId, 'qr-checkin').then((seen) => {
+      if (!seen) showQrTip.value = true
+    })
+  },
+  { immediate: true },
+)
+
+async function dismissQrTip() {
+  showQrTip.value = false
+  const userId = userStore.profile?.id
+  if (userId) await tipsStorage.markSeen(userId, 'qr-checkin')
+}
+
 interface MobileTab {
   to: string
   icon: string
   label: string
   size?: string
   badge?: boolean
+  /** Pelotita roja con "1" mientras el socio no abrió "Empezá acá". */
+  introBadge?: boolean
 }
 
 const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
     { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
-    { to: '/training/guia', icon: 'menu_book', label: 'Guía', size: '26px' },
+    { to: '/training/guia', icon: 'menu_book', label: 'Guía', size: '26px', introBadge: true },
     { to: '/training', icon: 'img:/icons/entrenar.svg', label: 'Entrenar', size: '26px' },
   ]
   tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
@@ -554,6 +665,18 @@ async function onLogout() {
   left: 38px;
 }
 
+// "1" rojo de "Empezá acá" sobre Guía: un número legible, no un punto.
+.desktop-rail__badge--count,
+.mobile-tab__badge--count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  justify-content: center;
+}
+
 .with-desktop-rail {
   padding-left: 64px !important;
 
@@ -645,5 +768,59 @@ async function onLogout() {
     // Above mobile footer tabs (56px height + safe area)
     bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 16px);
   }
+}
+
+/* ------------------------------------------------------------------
+   Check-in FAB — tip de primer uso (SPEC "Empezá acá" A2)
+   ------------------------------------------------------------------ */
+.check-in-fab-tip {
+  position: fixed;
+  bottom: 100px;
+  right: 16px;
+  z-index: 101; // por encima del FAB
+  max-width: 220px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: $primary;
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+
+  // Flechita apuntando al FAB
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    right: 28px;
+    border-width: 8px 8px 0;
+    border-style: solid;
+    border-color: $primary transparent transparent;
+  }
+
+  &--with-footer {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 92px);
+  }
+}
+
+.check-in-fab-tip__text {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.check-in-fab-tip__btn {
+  color: white;
+  font-weight: 600;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

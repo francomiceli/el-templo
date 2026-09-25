@@ -297,7 +297,10 @@ import {
 // `GET /api/admin/renewals/reasons`, `POST /api/admin/renewals/reasons`,
 // `PATCH /api/admin/renewals/reasons/:id` — las 6 `tenant-scoped` (sin
 // `/templates`: WhatsApp se manda desde el CRM, no el admin).
-const ENTRADAS_BASELINE = 440;
+// 2026-09-24: 440 -> 441 por SPEC "Empezá acá":
+// `POST /api/auth/me/intro-stories`, `tenant-scoped` (pre-scope por diseño,
+// mismo criterio que sus 2 hermanas de /api/auth/me).
+const ENTRADAS_BASELINE = 441;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -440,7 +443,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 440 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 441 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

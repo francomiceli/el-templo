@@ -174,6 +174,26 @@ async function filaUsuario(id: number) {
 }
 
 /**
+ * Fila cruda de `member_profiles` por `user_id` — evidencia del caso de
+ * intro-stories (SPEC "Empezá acá"). Mismo criterio CROSS-TENANT que
+ * `filaUsuario`: releer sin `tenantWhere` es la evidencia de a qué tenant
+ * quedó estampada la fila.
+ */
+async function filaMemberProfile(userId: number) {
+  const resultado = (await app.db.execute(
+    sql`SELECT /* tenant-safe: releer por user_id ES la evidencia de a que tenant quedo estampada la fila; filtrar por ctx aca volveria el caso tautologico */ tenant_id AS tenantId, user_id AS userId, intro_stories_seen_at AS introStoriesSeenAt, intro_stories_completed_at AS introStoriesCompletedAt FROM member_profiles WHERE user_id = ${userId} LIMIT 1`,
+  )) as unknown as [
+    Array<{
+      tenantId: number;
+      userId: number;
+      introStoriesSeenAt: Date | null;
+      introStoriesCompletedAt: Date | null;
+    }>,
+  ];
+  return resultado[0]?.[0] ?? null;
+}
+
+/**
  * Fila de `users` por email (el usuario recién creado por register — antes
  * de esta lectura no tenemos su id). UNIQUE global (M8): sin ambigüedad
  * posible entre gimnasios.
@@ -210,15 +230,16 @@ function porQueImportaElAislamiento(ruta: string, detalle: string): string {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("precondiciones de la batería", () => {
-  it("las 4 rutas tenant-scoped de /api/auth coinciden con las 4 de este archivo (login/refresh/logout son global, fuera de alcance)", () => {
+  it("las 5 rutas tenant-scoped de /api/auth coinciden con las 5 de este archivo (login/refresh/logout son global, fuera de alcance)", () => {
     const RUTAS_MANIFIESTO = [
       "GET /api/auth/me",
       "POST /api/auth/me/change-password",
       "POST /api/auth/me/delete-account",
+      "POST /api/auth/me/intro-stories",
       "POST /api/auth/register",
     ];
-    expect(RUTAS_MANIFIESTO.length).toBe(4);
-    expect(new Set(RUTAS_MANIFIESTO).size).toBe(4);
+    expect(RUTAS_MANIFIESTO.length).toBe(5);
+    expect(new Set(RUTAS_MANIFIESTO).size).toBe(5);
   });
 });
 
@@ -302,6 +323,68 @@ describe("cambiar contraseña — POST /api/auth/me/change-password", () => {
 
     const despuesDos = await filaUsuario(dos.id);
     expect(despuesDos?.passwordHash).toBe(antesDos?.passwordHash);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/auth/me/intro-stories — pre-scope por diseño (SPEC "Empezá acá")
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("historias de bienvenida — POST /api/auth/me/intro-stories", () => {
+  const RUTA = "POST /api/auth/me/intro-stories";
+
+  it("aislamiento: registrar la apertura del socio del gimnasio 2 solo estampa SU fila, la de El Templo queda intacta", async () => {
+    // Ninguno de los dos llamó antes al endpoint: sin fila member_profiles
+    // todavía (mismo caso freemium que el handler contempla — ver docblock).
+    const antesTemplo = await filaMemberProfile(templo.id);
+    expect(antesTemplo).toBeNull();
+
+    const res = await postComo("/api/auth/me/intro-stories", dos.token, {
+      event: "seen",
+      lastSlide: 0,
+    });
+    expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as { introStoriesSeenAt: string | null };
+    expect(
+      body.introStoriesSeenAt,
+      porQueImportaElAislamiento(RUTA, "no se estampó introStoriesSeenAt del socio propio"),
+    ).not.toBeNull();
+
+    const filaDos = await filaMemberProfile(dos.id);
+    expect(filaDos?.tenantId).toBe(TENANT_DOS);
+
+    const despuesTemplo = await filaMemberProfile(templo.id);
+    expect(
+      despuesTemplo,
+      porQueImportaElAislamiento(
+        RUTA,
+        "se creó/estampó una fila member_profiles de El Templo por un POST del gimnasio 2",
+      ),
+    ).toBeNull();
+  });
+
+  it("control: registrar la apertura del socio de El Templo solo estampa SU fila, el gimnasio 2 queda intacto", async () => {
+    const antesDos = await filaMemberProfile(dos.id);
+    expect(antesDos).toBeNull();
+
+    const res = await postComo("/api/auth/me/intro-stories", templo.token, {
+      event: "seen",
+      lastSlide: 0,
+    });
+    expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
+
+    const filaTemplo = await filaMemberProfile(templo.id);
+    expect(filaTemplo?.introStoriesSeenAt).not.toBeNull();
+    expect(filaTemplo?.tenantId).toBe(TENANT_TEMPLO);
+
+    const despuesDos = await filaMemberProfile(dos.id);
+    expect(
+      despuesDos,
+      porQueImportaElAislamiento(
+        RUTA,
+        "se creó/estampó una fila member_profiles del gimnasio 2 por un POST de El Templo",
+      ),
+    ).toBeNull();
   });
 });
 

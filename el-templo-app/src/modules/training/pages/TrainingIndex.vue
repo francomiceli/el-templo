@@ -1,5 +1,8 @@
 <template>
   <q-page class="training-index">
+    <!-- SPEC "Empezá acá" C — tip de primera vez en Entrenar. -->
+    <FirstVisitTipBanner v-if="!userStore.subscriptionLoading" tip-id="entrenar-bloques" />
+
     <!-- Loading (while subscription loads) -->
     <div v-if="userStore.subscriptionLoading" class="training-index__loading">
       <TemploLoader size="lg" />
@@ -39,6 +42,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import FirstVisitTipBanner from 'src/components/FirstVisitTipBanner.vue'
 import { useUserStore } from 'src/stores/useUserStore'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 import WeeklyView from './WeeklyView.vue'
