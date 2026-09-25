@@ -3,8 +3,9 @@
      este diálogo). Sin lugar de "Configuración" natural para este dominio
      específico (Usuarios/Reglas de precio/Comunicaciones/Partners no
      encajan) — mismo patrón de "engranaje con diálogo" que Comunicaciones
-     (`AjustesDialog.vue`), abierto desde el ícono de la cabecera de
-     RenovacionesPage. Sin DELETE: desactivar en vez de borrar. -->
+     (`AjustesDialog.vue`), abierto desde el ícono de la cabecera del tab
+     Renovaciones (RenovacionesTab.vue, dentro de ReportesPage). Sin DELETE:
+     desactivar en vez de borrar. -->
 <template>
   <q-dialog v-model="localOpen" @show="onShow">
     <q-card style="min-width: 420px; max-width: 560px; width: 100%">

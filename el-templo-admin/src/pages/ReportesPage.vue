@@ -59,6 +59,7 @@
       <q-tab name="asistencia" label="Asistencia" icon="how_to_reg" />
       <q-tab name="cobros" label="Cobros" icon="payments" />
       <q-tab name="vencimientos" label="Vencimientos" icon="event_busy" />
+      <q-tab name="renovaciones" label="Renovaciones" icon="autorenew" />
       <q-tab name="inactivos" label="Inactivos" icon="person_off" />
       <q-tab name="deudas" label="Deudas" icon="request_quote" />
       <q-tab name="conversion" label="Conversión" icon="trending_up" />
@@ -472,6 +473,15 @@
       </q-tab-panel>
 
       <!-- ================================================================ -->
+      <!-- Renovaciones Tab (SPEC 2026-09-24 — ex página propia /renovaciones,
+           mudada acá el mismo día: capa operativa de vencimientos, mismos
+           roles que Reportes). Sede/tab/semana viven en la query -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="renovaciones">
+        <RenovacionesTab :branch-id="selectedBranchId" />
+      </q-tab-panel>
+
+      <!-- ================================================================ -->
       <!-- Inactivos Tab -->
       <!-- ================================================================ -->
       <q-tab-panel name="inactivos">
@@ -787,6 +797,7 @@ import TrialSessionsReport from 'src/components/reports/TrialSessionsReport.vue'
 import RecategorizacionReport from 'src/components/reports/RecategorizacionReport.vue';
 import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 import PorDeudaTab from 'src/components/deudas/PorDeudaTab.vue';
+import RenovacionesTab from 'src/components/renovaciones/RenovacionesTab.vue';
 
 // -- Setup -------------------------------------------------------------------
 
@@ -857,7 +868,24 @@ function toIsoDate(d: Date): string {
 
 // -- Branch filter -----------------------------------------------------------
 
-const selectedBranchId = ref<number | undefined>(undefined);
+const route = useRoute();
+
+// Renovaciones (SPEC 2026-09-24): al volver de Cobros con `?branch=` (deep
+// link del tab), el prop tiene que estar listo en el MISMO render que monta
+// el tab — el tab activo se monta de una (q-tab-panels no espera). Por eso
+// esto se lee de forma SÍNCRONA acá (no en el `fetchBranches` async de abajo):
+// si esperáramos a que resuelva `getBranches()`, el tab ya habría hecho su
+// propio `fetchRows()`/`syncQuery()` con `branchId=undefined` y pisado el
+// `?branch=` de la URL antes de que este efecto corriera. Se valida (existe
+// en `branchOptions`, admin_sede forzado a la suya) una vez que `fetchBranches`
+// resuelve, más abajo.
+function initialBranchIdFromQuery(): number | undefined {
+  const raw = route.query.branch;
+  const value = typeof raw === 'string' ? Number(raw) : NaN;
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+const selectedBranchId = ref<number | undefined>(initialBranchIdFromQuery());
 const branchOptions = ref<Array<{ label: string; value: number | undefined }>>([
   { label: 'Todas las sedes', value: undefined },
 ]);
@@ -881,8 +909,18 @@ async function fetchBranches() {
           { label: 'Todas las sedes', value: undefined },
           ...branches.map((b: BranchOption) => ({ label: b.name, value: b.id })),
         ];
-    if (scoped && selectedBranchId.value === undefined) {
-      selectedBranchId.value = branches[0]?.id;
+    if (scoped) {
+      // admin_sede: su sede forzada, aunque la URL (o el `?branch=` de un
+      // deep link de Renovaciones) traiga otra.
+      if (!branches.some((b: BranchOption) => b.id === selectedBranchId.value)) {
+        selectedBranchId.value = branches[0]?.id;
+      }
+    } else if (
+      selectedBranchId.value !== undefined &&
+      !branches.some((b: BranchOption) => b.id === selectedBranchId.value)
+    ) {
+      // `?branch=` inválido / de una sede que ya no existe: cae a "Todas las sedes".
+      selectedBranchId.value = undefined;
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -952,12 +990,12 @@ const datePresets: DatePreset[] = [
 
 // -- Tab state ---------------------------------------------------------------
 
-const route = useRoute();
 const VALID_TABS = [
   'accesos',
   'asistencia',
   'cobros',
   'vencimientos',
+  'renovaciones',
   'inactivos',
   'deudas',
   'conversion',
