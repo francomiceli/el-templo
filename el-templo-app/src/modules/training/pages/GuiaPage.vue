@@ -26,13 +26,16 @@
           <div class="guia-page__top">
             <p class="story-slide__kicker">{{ currentSlide.kicker }}</p>
             <h1 class="story-slide__title">
-              <span
-                v-for="(word, i) in titleWords"
-                :key="i"
-                class="story-slide__word"
-                :style="{ animationDelay: `${i * 40}ms` }"
-                >{{ word }}&nbsp;</span
-              >
+              <template v-for="(line, li) in titleLines" :key="li">
+                <br v-if="li > 0" />
+                <span
+                  v-for="w in line"
+                  :key="w.index"
+                  class="story-slide__word"
+                  :style="{ animationDelay: `${w.index * 40}ms` }"
+                  >{{ w.word }}&nbsp;</span
+                >
+              </template>
             </h1>
           </div>
 
@@ -108,6 +111,13 @@
             <p v-if="currentSlide.footnote" class="story-slide__footnote">
               {{ currentSlide.footnote }}
             </p>
+          </div>
+
+          <!-- Pista "Tocá para seguir" (primer slide): no es un botón — el
+               toque cae en la escena y avanza como cualquier otro. -->
+          <div v-if="currentSlide.tapHint" class="guia-page__bottom guia-page__tap-hint">
+            <span>{{ currentSlide.tapHint }}</span>
+            <q-icon name="chevron_right" size="20px" />
           </div>
 
           <!-- CTA: fuera de las zonas de tap (botón real, no compite con
@@ -205,10 +215,19 @@ const currentIndex = computed(() => storyNav.currentIndex.value)
 const isFirst = computed(() => storyNav.isFirst.value)
 const currentSlide = computed(() => slides[storyNav.currentIndex.value]!)
 
-const titleWords = computed(() => currentSlide.value.title.split(' '))
+// El título admite `\n` como salto de línea (p. ej. el cierre, en dos
+// líneas). Cada palabra lleva un índice global para que la animación
+// escalonada siga corriendo de corrido entre líneas.
+const titleLines = computed(() => {
+  let index = 0
+  return currentSlide.value.title
+    .split('\n')
+    .map((line) => line.split(' ').map((word) => ({ word, index: index++ })))
+})
 
 const ariaAnnouncement = computed(
-  () => `Paso ${currentIndex.value + 1} de ${slides.length}: ${currentSlide.value.title}`,
+  () =>
+    `Paso ${currentIndex.value + 1} de ${slides.length}: ${currentSlide.value.title.replace(/\n/g, ' ')}`,
 )
 
 // Fondo: la MISMA foto que ya usa el resto de la app (`.app-bg`/login/
@@ -659,6 +678,40 @@ $story-glyph-size: 56px;
   margin: 2px 0 0;
 }
 
+// ─── Pista "Tocá para seguir" ───────────────────────────────────────────
+.guia-page__tap-hint {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  animation: story-tap-hint 1.8s ease-in-out infinite;
+
+  .guia-page--noche & {
+    color: $story-dark-accent;
+  }
+
+  .guia-page--dia & {
+    color: $story-light-accent;
+  }
+}
+
+@keyframes story-tap-hint {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translateX(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(4px);
+  }
+}
+
 // ─── Tipo D: CTA ────────────────────────────────────────────────────────
 .story-cta {
   font-family: 'Nunito Sans', sans-serif;
@@ -721,7 +774,8 @@ $story-glyph-size: 56px;
 
 @media (prefers-reduced-motion: reduce) {
   .story-slide__word,
-  .story-slide__item {
+  .story-slide__item,
+  .guia-page__tap-hint {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
