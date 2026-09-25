@@ -69,9 +69,22 @@
     <!-- Ajustes -->
     <p class="section-title">Ajustes</p>
     <div class="settings-card q-mb-md">
+      <!-- SPEC "Empezá acá" B — acceso (b): entrada en el menú principal
+           (acá, en el menú de perfil). -->
       <div
         class="settings-card__item settings-card__item--clickable"
-        @click="$router.push('/change-password')"
+        @click="router.push('/empeza-aca')"
+      >
+        <q-icon name="auto_stories" size="22px" color="primary" />
+        <span class="settings-card__label">Empezá acá</span>
+        <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
+      </div>
+
+      <div class="settings-card__divider" />
+
+      <div
+        class="settings-card__item settings-card__item--clickable"
+        @click="router.push('/change-password')"
       >
         <q-icon name="lock" size="22px" color="primary" />
         <span class="settings-card__label">Cambiar contraseña</span>
