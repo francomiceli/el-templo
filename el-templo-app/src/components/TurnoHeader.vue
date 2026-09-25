@@ -41,9 +41,9 @@ const coachName = computed(() => {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-// Antes era un solo <p class="day-slots__period"> con rgba($accent, 0.4) —
-// bajo contraste. App 1.7.9: bold + contraste pleno, y el profe a la derecha
-// en la misma fila.
+// Mismo estilo que el <p class="day-slots__period"> original (600,
+// rgba($accent, 0.4)) — el bold + contraste pleno de la 1.7.9 se revirtió a
+// pedido de Franco. El profe va a la derecha en la misma fila, mismo estilo.
 .turno-header {
   display: flex;
   align-items: center;
@@ -51,18 +51,14 @@ const coachName = computed(() => {
   gap: 8px;
   font-family: 'Montserrat', sans-serif;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: $accent;
+  color: rgba($accent, 0.4);
   margin: 16px 0 6px;
 
   &:first-child {
     margin-top: 0;
   }
-}
-
-.turno-header__coach {
-  font-weight: 700;
 }
 </style>
