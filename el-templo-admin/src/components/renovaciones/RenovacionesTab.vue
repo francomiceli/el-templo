@@ -1,15 +1,20 @@
 <!-- Renovaciones — pantalla operativa que reemplaza el Excel semanal (SPEC
      Admin). Lista las membresías que vencen en el rango filtrado, con estado
      derivado (Renovó/Volvió tarde/Pausada se calculan solos; No renovó y el
-     avance de contacto son manuales) y KPIs recalculados server-side. -->
+     avance de contacto son manuales) y KPIs recalculados server-side.
+
+     Movido a tab de ReportesPage (2026-09-24): la sede YA NO tiene selector
+     propio acá — viene de `branchId` (el selector global de Reportes). El
+     API de renovaciones no acepta un override de país por query (siempre usa
+     `request.scope.country` resuelto server-side, ver
+     el-templo-api/src/modules/renewals/routes.ts), así que a diferencia de
+     otros tabs este no recibe/reenvía un prop de país — no habría nada que
+     hacer con él del lado del cliente. -->
 <template>
-  <q-page class="q-pa-md">
+  <div>
     <div class="row items-center q-mb-md">
-      <div class="col">
-        <div class="text-h5">Renovaciones</div>
-        <div class="text-caption text-grey-7">
-          Vencimientos de membresía y su seguimiento — reemplaza la planilla semanal
-        </div>
+      <div class="col text-caption text-grey-7">
+        Vencimientos de membresía y su seguimiento — reemplaza la planilla semanal
       </div>
       <div class="col-auto">
         <q-btn
@@ -26,7 +31,7 @@
     </div>
 
     <!-- ============================================================== -->
-    <!-- Filtros -->
+    <!-- Filtros: solo semana — la sede es el selector global de Reportes -->
     <!-- ============================================================== -->
     <div class="row items-center q-gutter-sm q-mb-md">
       <div class="col-auto">
@@ -74,21 +79,6 @@
             </template>
           </q-list>
         </q-btn-dropdown>
-      </div>
-
-      <div class="col-12 col-sm-3">
-        <q-select
-          v-model="selectedBranchId"
-          :options="branchOptions"
-          :display-value="selectedBranchLabel"
-          label="Sucursal"
-          dense
-          outlined
-          emit-value
-          map-options
-          :loading="loadingBranches"
-          @update:model-value="fetchRows"
-        />
       </div>
     </div>
 
@@ -320,22 +310,21 @@
       @row-updated="onRowUpdated"
     />
     <RenewalReasonsDialog v-model="reasonsDialogOpen" />
-  </q-page>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useQuasar, type QTableColumn } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { useRenewalsApi } from 'src/composables/useRenewalsApi';
-import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
-import { isBranchScopedRole } from 'src/utils/branch-scope';
 import { DUENO_ROLES } from 'src/config/templo-config';
 import { getWeekRange } from 'src/utils/renewals-week';
 import { renewalStatusMeta, renewalStatusLabel } from 'src/utils/renewal-status';
+import KpiCard from 'src/components/comunicaciones/KpiCard.vue';
 import RenewalMemberDialog from 'src/components/renovaciones/RenewalMemberDialog.vue';
 import RenewalReasonsDialog from 'src/components/renovaciones/RenewalReasonsDialog.vue';
 import type {
@@ -344,56 +333,21 @@ import type {
   RenewalReason,
   RenewalFollowupUpdateInput,
 } from 'src/types/renewals';
-import type { BranchOption } from 'src/types/member';
 
-const log = createLogger('RenovacionesPage');
+// La sede viene del selector global de Reportes (`selectedBranchId`), no de
+// un selector propio — ver nota de arriba sobre por qué no hay prop de país.
+const props = defineProps<{
+  branchId?: number | undefined;
+}>();
+
+const log = createLogger('RenovacionesTab');
 const $q = useQuasar();
 const renewalsApi = useRenewalsApi();
-const membersApi = useMembersApi();
 const authStore = useAuthStore();
 
 const canManageReasons = computed(() =>
   (DUENO_ROLES as readonly string[]).includes(authStore.user?.role ?? '')
 );
-
-// ============================================================================
-// Filtros — sucursal (mismo patrón que ReportesPage)
-// ============================================================================
-
-const selectedBranchId = ref<number | undefined>(undefined);
-const branchOptions = ref<Array<{ label: string; value: number | undefined }>>([
-  { label: 'Todas las sedes', value: undefined },
-]);
-const loadingBranches = ref(false);
-
-const selectedBranchLabel = computed(() => {
-  const match = branchOptions.value.find((o) => o.value === selectedBranchId.value);
-  return match?.label ?? 'Todas las sedes';
-});
-
-async function fetchBranches() {
-  loadingBranches.value = true;
-  try {
-    const branches = await membersApi.getBranches();
-    const scoped = isBranchScopedRole(authStore.user?.role);
-    branchOptions.value = scoped
-      ? branches.map((b: BranchOption) => ({ label: b.name, value: b.id }))
-      : [
-          { label: 'Todas las sedes', value: undefined },
-          ...branches.map((b: BranchOption) => ({ label: b.name, value: b.id })),
-        ];
-    // admin_sede: su sede forzada, aunque la URL traiga otra.
-    if (scoped && !branches.some((b: BranchOption) => b.id === selectedBranchId.value)) {
-      selectedBranchId.value = branches[0]?.id;
-    }
-  } catch (err: unknown) {
-    log.error('Error cargando sucursales', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  } finally {
-    loadingBranches.value = false;
-  }
-}
 
 // ============================================================================
 // Filtros — rango de fechas (semana en curso por default, hora de Argentina)
@@ -410,8 +364,10 @@ const weekPresets: WeekPreset[] = [
   { label: 'Semana que viene', offsetWeeks: 1 },
 ];
 
-// Los filtros viven en la URL (?from=&to=&branch=) para que al volver de
-// Cobros (returnTo = fullPath) la pantalla quede en la misma semana y sede.
+// Los filtros viven en la URL (?tab=renovaciones&from=&to=&branch=) para que
+// al volver de Cobros (returnTo = fullPath) la pantalla quede en la misma
+// semana, sede Y tab. `syncQuery` mergea con la query existente de Reportes
+// (no la pisa) y siempre reafirma `tab=renovaciones`.
 const route = useRoute();
 const router = useRouter();
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -443,17 +399,14 @@ const showCustomRange = ref(false);
 const customFrom = ref(initial.dateFrom);
 const customTo = ref(initial.dateTo);
 
-const initialBranch = Number(queryString('branch'));
-if (Number.isInteger(initialBranch) && initialBranch > 0) {
-  selectedBranchId.value = initialBranch;
-}
-
 function syncQuery() {
   void router.replace({
     query: {
+      ...route.query,
+      tab: 'renovaciones',
       from: dateFrom.value,
       to: dateTo.value,
-      ...(selectedBranchId.value !== undefined ? { branch: String(selectedBranchId.value) } : {}),
+      branch: props.branchId !== undefined ? String(props.branchId) : undefined,
     },
   });
 }
@@ -520,7 +473,7 @@ async function fetchRows() {
     const result = await renewalsApi.listRenewals({
       dateFrom: dateFrom.value,
       dateTo: dateTo.value,
-      branchId: selectedBranchId.value,
+      branchId: props.branchId,
     });
     rows.value = result.rows;
     kpis.value = result.kpis;
@@ -716,14 +669,20 @@ async function onRowUpdated(row: RenewalRow, refreshKpis: boolean) {
 // Lifecycle
 // ============================================================================
 
+// La sede es un prop (selector global de Reportes) — recargar cuando cambia.
+watch(
+  () => props.branchId,
+  () => {
+    void fetchRows();
+  }
+);
+
 onMounted(async () => {
-  await fetchBranches();
   await Promise.all([fetchRows(), fetchReasons()]);
 });
 
 onUnmounted(() => {
   renewalsApi.cleanup();
-  membersApi.cleanup();
 });
 </script>
 

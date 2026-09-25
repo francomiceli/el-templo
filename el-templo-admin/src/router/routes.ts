@@ -258,14 +258,12 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        // Renovaciones (SPEC 2026-09-24): mismos roles que Reportes — es su
-        // capa operativa (gestión fila por fila de los vencimientos que hoy
-        // se descargan a Excel desde esa pantalla).
+        // Renovaciones (SPEC 2026-09-24; mudada a tab de Reportes el mismo
+        // día): la pantalla ahora vive en '/reportes' (q-tab "renovaciones").
+        // Redirect función (no objeto estático) para conservar `?from=&to=&
+        // branch=` de links/favoritos viejos — sólo se pisa/agrega `tab`.
         path: 'renovaciones',
-        component: () => import('pages/RenovacionesPage.vue'),
-        meta: {
-          allowedRoles: ['gestion', 'admin', 'owner', 'admin_sede'] as AdminRole[],
-        },
+        redirect: (to) => ({ path: '/reportes', query: { ...to.query, tab: 'renovaciones' } }),
       },
       {
         path: 'campanias',
