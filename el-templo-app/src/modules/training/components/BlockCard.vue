@@ -10,6 +10,20 @@
       <q-item-section>
         <q-item-label class="block-role-name text-body1">
           {{ formatRole(block.role) }}
+          <q-btn
+            v-if="guiaLink"
+            flat
+            round
+            dense
+            size="xs"
+            icon="help_outline"
+            color="primary"
+            class="block-guia-link"
+            :aria-label="guiaLink.question"
+            @click.stop="openGuia"
+          >
+            <q-tooltip>{{ guiaLink.question }}</q-tooltip>
+          </q-btn>
         </q-item-label>
         <div class="block-meta">
           <div class="block-meta__row">
@@ -57,9 +71,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import type { Block, BlockRole, Prescription } from '../types/session'
 import { getRouteName } from '../utils/routeNames'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
+import { getGuiaLinkForRole } from '../guia-role-map'
+
+const router = useRouter()
 
 interface Props {
   block: Block
@@ -94,6 +112,19 @@ const ROM_ZONE_LABELS: Partial<Record<string, string>> = {
 }
 function romZoneLabel(role: BlockRole): string {
   return ROM_ZONE_LABELS[role] || role
+}
+
+/**
+ * SPEC "Empezá acá" A1: link "¿Qué es X?" hacia el ítem de la Guía que
+ * corresponde a este rol. `null` para roles sin ítem documentado — la
+ * tarjeta simplemente no muestra el botón (ver guia-role-map.ts).
+ */
+const guiaLink = computed(() => getGuiaLinkForRole(props.block.role))
+
+function openGuia() {
+  const link = guiaLink.value
+  if (!link) return
+  void router.push({ name: 'guia', query: { seccion: link.seccion, item: link.item } })
 }
 
 /**
@@ -196,6 +227,12 @@ function formatPrescriptionInline(exercise: Prescription): string {
   font-weight: 700;
   letter-spacing: 0.08em;
   color: $primary;
+}
+
+.block-guia-link {
+  vertical-align: middle;
+  margin-left: 2px;
+  opacity: 0.7;
 }
 
 .block-meta {
