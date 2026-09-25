@@ -36,6 +36,12 @@ export interface UserProfile {
   branchCountry: 'AR' | 'ES'
   segment: MemberSegment | null
   onboardingCompleted: boolean
+  // SPEC "Empezá acá" B (persistencia y métrica): null hasta la primera
+  // apertura de las historias de bienvenida. MainLayout.vue las abre solas
+  // una vez cuando `onboardingCompleted && !introStoriesSeenAt`.
+  introStoriesSeenAt: string | null
+  introStoriesCompletedAt: string | null
+  introStoriesLastSlide: number | null
   gender: 'male' | 'female' | 'other' | 'unspecified' | null
   dateOfBirth: string | null
   // Phase 115 (Desafío de la Barra): set por GET /me cuando el usuario ya hizo
@@ -277,6 +283,21 @@ export const useUserStore = defineStore('user', () => {
   function markOnboardingComplete() {
     if (profile.value) {
       profile.value = { ...profile.value, onboardingCompleted: true }
+    }
+  }
+
+  /**
+   * SPEC "Empezá acá" B: actualiza el perfil en memoria con lo que el
+   * servidor confirmó al registrar apertura/finalización de las historias
+   * (evita esperar un GET /auth/me completo solo para reflejar 3 campos).
+   */
+  function setIntroStoriesProgress(progress: {
+    introStoriesSeenAt: string | null
+    introStoriesCompletedAt: string | null
+    introStoriesLastSlide: number | null
+  }) {
+    if (profile.value) {
+      profile.value = { ...profile.value, ...progress }
     }
   }
 
@@ -563,6 +584,7 @@ export const useUserStore = defineStore('user', () => {
     // Actions
     setProfile,
     markOnboardingComplete,
+    setIntroStoriesProgress,
     clearProfile,
     markProfileStale,
     retryProfileLoad,

@@ -359,6 +359,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/auth/me": { categoria: "tenant-scoped" },
   "POST /api/auth/me/change-password": { categoria: "tenant-scoped" },
   "POST /api/auth/me/delete-account": { categoria: "tenant-scoped" },
+  // SPEC "Empezá acá" B (2026-09-24): mismo criterio que sus 2 hermanas de
+  // arriba — self-scoped por el token del portador, userId sale SIEMPRE de
+  // request.user.
+  "POST /api/auth/me/intro-stories": { categoria: "tenant-scoped" },
 
   // ── /api/admin/analytics ──────────────────────────────────────────────────
   "GET /api/admin/analytics": { categoria: "tenant-scoped" },

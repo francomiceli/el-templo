@@ -237,6 +237,32 @@ watch(
   { immediate: true },
 )
 
+// SPEC "Empezá acá" B — apertura automática: la primera vez que un socio
+// entra DESPUÉS de completar el onboarding (o ya lo tenía completo) y nunca
+// vio las historias, se abren solas una vez. `introStoriesChecked` acota la
+// decisión a la primera vez que el perfil está disponible en esta sesión —
+// MainLayout persiste durante toda la sesión (no se remonta entre
+// navegaciones), así que esto nunca se re-evalúa hasta el próximo login.
+// Si el socio las cierra antes del final, EmpezaAcaPage ya registró "seen" y
+// actualizó `userStore.profile` — no vuelven a abrirse solas.
+let introStoriesChecked = false
+watch(
+  () => userStore.profile,
+  (profile) => {
+    if (!profile || introStoriesChecked) return
+    introStoriesChecked = true
+    if (
+      profile.role === 'member' &&
+      profile.onboardingCompleted &&
+      !profile.introStoriesSeenAt &&
+      route.name !== 'empeza-aca'
+    ) {
+      void router.push({ name: 'empeza-aca' })
+    }
+  },
+  { immediate: true },
+)
+
 const isDesktop = computed(() => $q.screen.width >= 768)
 const isMiTemplo = computed(() => route.path === '/mi-templo')
 

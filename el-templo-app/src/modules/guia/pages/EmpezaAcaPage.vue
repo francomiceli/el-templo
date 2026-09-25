@@ -99,11 +99,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from 'src/stores/useUserStore'
 import { EMPEZA_ACA_SLIDES } from '../empeza-aca-content'
 import { reduceStoryNav, type StoryAction } from '../story-navigation'
 import { useIntroStoriesApi } from '../composables/useIntroStoriesApi'
 
 const router = useRouter()
+const userStore = useUserStore()
 const introStoriesApi = useIntroStoriesApi()
 
 const slides = EMPEZA_ACA_SLIDES
@@ -111,9 +113,13 @@ const currentIndex = ref(0)
 const currentSlide = computed(() => slides[currentIndex.value]!)
 
 // SPEC B: registrar "vista" apenas se abre (no solo al cerrar) — si el
-// socio la cierra antes del final igual queda registrado que la abrió.
+// socio la cierra antes del final igual queda registrado que la abrió. El
+// perfil en memoria se actualiza con la respuesta real del servidor para que
+// MainLayout no vuelva a abrir las historias solas en esta misma sesión.
 onMounted(() => {
-  void introStoriesApi.reportSeen(currentIndex.value)
+  void introStoriesApi.reportSeen(currentIndex.value).then((progress) => {
+    if (progress) userStore.setIntroStoriesProgress(progress)
+  })
 })
 
 // ─── Autoavance opcional (ningún slide lo usa hoy — ver docblock del
@@ -189,7 +195,9 @@ function handleAction(action: StoryAction) {
   currentIndex.value = result.index
 
   if (result.completed) {
-    void introStoriesApi.reportCompleted(result.index)
+    void introStoriesApi.reportCompleted(result.index).then((progress) => {
+      if (progress) userStore.setIntroStoriesProgress(progress)
+    })
   }
   if (result.closed) {
     finish()
@@ -211,7 +219,9 @@ function onCtaClick() {
   if (!cta) return
   const wasLast = currentIndex.value === slides.length - 1
   if (wasLast) {
-    void introStoriesApi.reportCompleted(currentIndex.value)
+    void introStoriesApi.reportCompleted(currentIndex.value).then((progress) => {
+      if (progress) userStore.setIntroStoriesProgress(progress)
+    })
   }
   clearAutoAdvanceTimer()
   void router.push({ name: cta.routeName })
