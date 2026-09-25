@@ -4,7 +4,7 @@
          accesibilidad que tenía EmpezaAcaPage.vue). -->
     <div class="sr-only" aria-live="polite">{{ ariaAnnouncement }}</div>
 
-    <div class="guia-page__scene" :style="sceneStyle">
+    <div class="guia-page__scene" :style="sceneStyle" @click="onSceneTap">
       <!-- Header: progreso segmentado. Ya no hay botón "cerrar" — esta
            pantalla es un tab más del nav (el tab bar inferior sigue visible
            y navegable), no un diálogo que haya que cerrar; ver nota en el
@@ -54,7 +54,8 @@
                   class="story-slide__item"
                   :style="itemDelay(i)"
                 >
-                  <strong>{{ bullet.bold }}</strong>{{ bullet.rest }}
+                  <strong>{{ bullet.bold }}</strong
+                  >{{ bullet.rest }}
                 </li>
               </ul>
             </template>
@@ -131,24 +132,23 @@
         </div>
       </Transition>
 
-      <!-- Zonas de avance — botones semánticos invisibles (el <button> ES la
-           zona de tap, con reset de estilos, en vez de una capa duplicada).
-           Cubren TODO el alto/ancho del área de historias salvo el header
-           (arriba) y el CTA (abajo en el slide final, que no compite con el
-           tap-to-advance). -->
+      <!-- Anterior/Siguiente para lectores de pantalla y teclado. El tap
+           visual NO pasa por acá: lo resuelve `onSceneTap` sobre toda la
+           escena (ver script). `.stop` evita que el click burbujee a la
+           escena y avance dos veces. -->
       <button
         type="button"
-        class="guia-page__tap-zone guia-page__tap-zone--left"
+        class="sr-only"
         aria-label="Anterior"
         :disabled="isFirst"
-        @click="goPrev"
+        @click.stop="goPrev"
       />
       <button
         v-if="currentSlide.type !== 'cta'"
         type="button"
-        class="guia-page__tap-zone guia-page__tap-zone--right"
+        class="sr-only"
         aria-label="Siguiente"
-        @click="goNext"
+        @click.stop="goNext"
       />
     </div>
   </q-page>
@@ -288,6 +288,27 @@ function goPrev() {
   storyNav.prev()
 }
 
+// ─── Tap en cualquier parte de la pantalla: 30% izquierdo = anterior, 70%
+// derecho = siguiente (mismo reparto que las tap-zones del DayPlayer,
+// `StoryExerciseCard.vue`). Antes eran dos <button> absolutos DEBAJO del
+// contenido (z-index 1 vs 2) y el contenido, con `pointer-events: auto` en
+// sus franjas de alto completo, se comía todos los toques → no se podía
+// pasar de historia tocando. Se resuelve con un solo handler en la escena
+// en vez de subir las zonas encima del contenido: así el cuerpo sigue
+// pudiendo scrollear en pantallas chicas (un swipe de scroll no dispara
+// click) y los botones reales (CTA) no quedan tapados.
+function onSceneTap(e: MouseEvent) {
+  const target = e.target as HTMLElement | null
+  if (target?.closest('button, a')) return
+  const scene = e.currentTarget as HTMLElement
+  const rect = scene.getBoundingClientRect()
+  if (e.clientX - rect.left < rect.width * 0.3) {
+    goPrev()
+  } else if (currentSlide.value.type !== 'cta') {
+    goNext()
+  }
+}
+
 // El secondaryCta del cierre ("Ver la Guía") apuntaba a la ruta `guia` de
 // cuando era un glosario SEPARADO de las historias — con la fusión (SPEC "La
 // Guía pasa a ser las historias") esa ruta es la que ya estamos viendo:
@@ -360,11 +381,11 @@ onUnmounted(() => {
 // Tokens de color por tema (mismos valores de marca que ya usaba el viewer
 // anterior — sin token nuevo en quasar.variables.scss).
 $story-dark-text: $cream; // #f2ede5
-$story-dark-muted: rgba($cream, 0.62);
+$story-dark-muted: rgba($cream, 0.9);
 $story-dark-accent: $bronze-light; // #d4b896
 
 $story-light-text: $accent; // #3d3732
-$story-light-muted: rgba($accent, 0.55);
+$story-light-muted: rgba($accent, 0.88);
 $story-light-accent: $primary; // #96593a
 
 // Escala tipográfica (TV → mobile, ver SPEC punto 4): título domina, kicker
@@ -412,12 +433,14 @@ $story-glyph-size: 56px;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
   transition: background-image 0.25s ease;
 }
 
 .guia-page__header {
   position: relative;
-  z-index: 5; // gana a las tap-zones (position:absolute más abajo en el DOM)
   padding-top: 8px;
 }
 
@@ -427,7 +450,6 @@ $story-glyph-size: 56px;
 
 .guia-page__content {
   position: relative;
-  z-index: 2; // ídem — gana a las tap-zones
   flex: 1;
   min-height: 0;
   display: flex;
@@ -437,11 +459,6 @@ $story-glyph-size: 56px;
   width: 100%;
   margin: 0 auto;
   overflow-y: auto; // 360x640: scroll interno antes que recortar texto
-  pointer-events: none; // los botones/CTA se reactivan explícitamente abajo
-
-  > * {
-    pointer-events: auto;
-  }
 }
 
 // Franja superior: kicker + título, pegados arriba del todo (no centrado).
@@ -501,10 +518,15 @@ $story-glyph-size: 56px;
   line-height: 1.2;
   margin: 0 0 18px;
 
-  // Sombra sutil de apoyo SOLO en noche (mismo criterio que
-  // `TvScreenPage.vue`: el velo diurno no la necesita, el nocturno la usa
-  // como red de contraste contra el detalle de la foto que se filtra en los
-  // tramos menos densos del velo).
+  // Sombreado mínimo de fondo para despegar el título de la foto. En noche,
+  // el mismo halo que `TvScreenPage.vue`; en día, uno claro y corto (una
+  // sombra oscura ensuciaría la tipografía sobre el velo claro).
+  .guia-page--dia & {
+    text-shadow:
+      0 1px 2px rgba(255, 255, 255, 0.7),
+      0 0 0.8rem rgba(242, 236, 226, 0.9);
+  }
+
   .guia-page--noche & {
     text-shadow:
       0 0 0.6rem rgba(20, 18, 16, 0.7),
@@ -541,7 +563,7 @@ $story-glyph-size: 56px;
   font-size: 13px;
   font-style: italic;
   margin-top: 16px;
-  opacity: 0.75;
+  opacity: 0.9;
 }
 
 .story-bullets {
@@ -593,7 +615,7 @@ $story-glyph-size: 56px;
   font-family: 'Nunito Sans', sans-serif;
   font-size: 14px;
   line-height: 1.4;
-  opacity: 0.85;
+  opacity: 0.95;
   margin-top: 2px;
 }
 
@@ -633,7 +655,7 @@ $story-glyph-size: 56px;
   font-family: 'Nunito Sans', sans-serif;
   font-size: 14px;
   line-height: 1.4;
-  opacity: 0.75;
+  opacity: 0.95;
   margin: 2px 0 0;
 }
 
@@ -653,35 +675,6 @@ $story-glyph-size: 56px;
   font-weight: 600;
   color: inherit;
   opacity: 0.85;
-}
-
-// ─── Tap-zones (botones semánticos invisibles) — cubren el 100% del alto y
-// ancho del área de historias (debajo del header) salvo los botones reales.
-.guia-page__tap-zone {
-  position: absolute;
-  top: 48px; // debajo del header — no tapa el progreso
-  bottom: 0;
-  border: none;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  z-index: 1;
-  -webkit-tap-highlight-color: transparent;
-
-  &:disabled {
-    cursor: default;
-  }
-
-  &--left {
-    left: 0;
-    width: 30%;
-  }
-
-  &--right {
-    right: 0;
-    width: 70%;
-  }
 }
 
 // ─── Transición entre slides: opacity+translateY, NUNCA blur/filter/scale.
