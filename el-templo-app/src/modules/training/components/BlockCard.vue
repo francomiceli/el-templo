@@ -124,7 +124,7 @@ const guiaLink = computed(() => getGuiaLinkForRole(props.block.role))
 function openGuia() {
   const link = guiaLink.value
   if (!link) return
-  void router.push({ name: 'guia', query: { seccion: link.seccion, item: link.item } })
+  void router.push({ name: 'guia', query: { slide: link.slide } })
 }
 
 /**

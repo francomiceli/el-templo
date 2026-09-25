@@ -110,7 +110,7 @@ const guiaLink = getGuiaLinkForRole('DEUTEROS_1')
 
 function openGuia() {
   if (!guiaLink) return
-  void router.push({ name: 'guia', query: { seccion: guiaLink.seccion, item: guiaLink.item } })
+  void router.push({ name: 'guia', query: { slide: guiaLink.slide } })
 }
 
 /**
