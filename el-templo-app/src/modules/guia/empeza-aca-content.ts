@@ -2,117 +2,203 @@
  * "Empezá acá" — contenido de las historias de bienvenida (SPEC B).
  *
  * ARCHIVO DE DATOS ÚNICO: todo el texto que ve el socio en `/empeza-aca` vive
- * acá. Reemplazar el contenido final (marcado `// TODO-CONTENIDO`) es editar
- * SOLO este archivo — el componente (`EmpezaAcaPage.vue`) no cambia.
+ * acá. Reemplazar contenido es editar SOLO este archivo — el componente
+ * (`EmpezaAcaPage.vue`) no cambia.
  *
- * Los textos de hoy son PROVISORIOS: se basan en lo que ya dice la Guía
- * (`GuiaPage.vue`) y en el inventario de la SPEC, para que la funcionalidad
- * sea probable de punta a punta antes de que Franco pase el contenido final.
+ * CONTENIDO FINAL aprobado texto por texto por Franco 2026-09-24 (usado
+ * LITERAL — ver CONTENIDO-empeza-aca.md). Niveles visibles: Kairos, Alfa,
+ * Delta, Sigma, Omega (NO Spartan, NO Olympic) — mismo orden que
+ * `TRAINING_LEVELS` en `../training/level-display.ts`, que es también la
+ * fuente de los glifos (☉ α Δ Σ Ω), no hardcodeados acá.
  *
- * `durationMs` es OPCIONAL y hoy ningún slide lo usa (SPEC: "por defecto SIN
- * autoavance, el socio avanza a su ritmo porque son textos"). El componente
- * SÍ soporta autoavance + mantener-apretado-para-pausar si en el futuro un
- * slide define `durationMs` — no hace falta tocar `EmpezaAcaPage.vue`.
+ * `theme` por slide sigue el criterio de UI-SPEC-historias.md §4.1: oscuro
+ * para intro/cierre, claro para las dos slides con listas largas
+ * (bloques/niveles) que necesitan más legibilidad.
  */
+import type { BlockRole } from '../training/types/session'
+import type { Level } from '../training/level-display'
 
-export interface EmpezaAcaSlide {
-  id: string
-  kicker?: string
-  title: string
-  body: string[]
-  bullets?: string[]
-  /** Nombre de ícono de Quasar/Material (`<q-icon name="...">`). */
-  icon?: string
-  cta?: {
-    label: string
-    /** Nombre de ruta (`router.push({ name })`). */
-    routeName: string
-  }
-  /** Autoavance opcional en ms. `undefined` = sin autoavance (default). */
-  durationMs?: number
+export type StorySlideTheme = 'dark' | 'light'
+
+/** Bullet con un lead en negrita (p. ej. "Reservas") + el resto del texto. */
+export interface StoryBullet {
+  bold: string
+  rest: string
 }
+
+export interface StoryBlockRow {
+  role: BlockRole
+  label: string
+  description: string
+}
+
+export interface StoryLevelRow {
+  level: Level
+  phrase: string
+}
+
+interface SlideBase {
+  id: string
+  theme: StorySlideTheme
+  kicker: string
+  title: string
+  footnote?: string
+}
+
+export interface TextSlide extends SlideBase {
+  type: 'text'
+  body?: string[]
+  bullets?: StoryBullet[]
+}
+
+export interface BlocksSlide extends SlideBase {
+  type: 'blocks'
+  blocks: StoryBlockRow[]
+}
+
+export interface LevelsSlide extends SlideBase {
+  type: 'levels'
+  levels: StoryLevelRow[]
+}
+
+export interface CtaSlide extends SlideBase {
+  type: 'cta'
+  body?: string[]
+  cta: { label: string; routeName: string }
+  secondaryCta?: { label: string; routeName: string }
+}
+
+export type EmpezaAcaSlide = TextSlide | BlocksSlide | LevelsSlide | CtaSlide
 
 export const EMPEZA_ACA_SLIDES: EmpezaAcaSlide[] = [
   {
     id: 'bienvenida',
-    // TODO-CONTENIDO
-    kicker: 'Bienvenido/a',
-    title: 'Empezá acá',
+    type: 'text',
+    theme: 'dark',
+    kicker: 'TE DAMOS LA BIENVENIDA',
+    title: 'Una escuela de calistenia. No un gimnasio.',
     body: [
-      'En El Templo entrenamos distinto: cada clase tiene una estructura clara y un plan pensado para vos.',
-      'Estas pantallas te cuentan lo básico en un minuto — después las volvés a ver cuando quieras desde la Guía.',
+      'Acá entrenás con tu propio cuerpo, con un método progresivo diseñado por Ignacio Bordón. Cada clase tiene estructura y cada nivel, un propósito.',
+      'En un minuto te contamos cómo funciona.',
     ],
-    icon: 'auto_stories',
   },
   {
     id: 'semana',
-    // TODO-CONTENIDO
-    kicker: 'Tu semana',
-    title: 'Cómo es una semana',
-    body: [
-      'Tu semana de entrenamiento tiene un plan armado día por día, con una ruta distinta según tu nivel y tus objetivos.',
-      'No hace falta que la memorices: cada día que entrás a Entrenar te mostramos exactamente qué toca hoy.',
+    type: 'text',
+    theme: 'dark',
+    kicker: 'TU SEMANA',
+    title: 'Cada día tiene su foco',
+    bullets: [
+      {
+        bold: 'Calistenia general',
+        rest: ' · 3 días — la base del método: fuerza, control y resistencia.',
+      },
+      {
+        bold: 'Técnica',
+        rest: ' · 1 día — un skill por día (handstand, muscle up, front lever, planche…): dos bloques del skill y uno de stretching.',
+      },
+      {
+        bold: 'Combos',
+        rest: ' · 1 día — ejercicios encadenados, sin pausa.',
+      },
+      {
+        bold: 'ROM',
+        rest: ' · sábados a la mañana — movilidad y rango de movimiento.',
+      },
+      {
+        bold: 'Open gym',
+        rest: ' · algunos sábados a la tarde — encuentros libres en alguna sede. Estate atento a los avisos de la app.',
+      },
     ],
-    icon: 'calendar_month',
   },
   {
     id: 'clase',
-    // TODO-CONTENIDO
-    kicker: 'La clase',
-    title: 'Qué pasa en una clase',
-    body: [
-      'Cada sesión se arma en bloques: Initium (entrada en calor), Nucleus (el trabajo principal), Deuteros (elegís entre dos opciones) y Athlos o Epikos (el desafío final).',
+    type: 'blocks',
+    theme: 'light',
+    kicker: 'CADA CLASE',
+    title: '1 hora, 4 bloques',
+    footnote: 'En Entrenar, tocá ⓘ en cada bloque para ver para qué sirve.',
+    blocks: [
+      {
+        role: 'INITIUM',
+        label: 'Initium',
+        description: 'movilidad, activación y entrada en calor. Se empieza con intención, no con apuro.',
+      },
+      {
+        role: 'NUCLEUS',
+        label: 'Nucleus',
+        description: 'el corazón de la sesión: el movimiento principal del día.',
+      },
+      {
+        role: 'DEUTEROS_1',
+        label: 'Deuteros',
+        description: 'técnica y control. Elegís entre dos opciones.',
+      },
+      {
+        role: 'ATHLOS',
+        label: 'Athlos / Epikos',
+        description: 'el desafío final. Se termina con energía, no con agotamiento.',
+      },
     ],
-    bullets: [
-      'Initium: activación y movilidad',
-      'Nucleus: el bloque principal de la sesión',
-      'Deuteros: elegís una de dos opciones',
-      'Athlos / Epikos: el desafío final',
-    ],
-    icon: 'view_module',
-    cta: { label: 'Ver la Guía completa', routeName: 'guia' },
   },
   {
     id: 'niveles',
-    // TODO-CONTENIDO
-    kicker: 'Tu progreso',
-    title: 'Los niveles y cómo se avanza',
-    body: [
-      'Arrancás en un nivel y vas subiendo a medida que entrenás: Kairos, Alfa, Delta, Sigma, Omega y Spartan.',
-      'Podés MIRAR un nivel distinto al tuyo para ver cómo sigue el camino, pero el que cuenta para tu progreso es siempre el que te asignamos — lo vas a ver aclarado arriba, en el selector de nivel.',
+    type: 'levels',
+    theme: 'light',
+    kicker: 'TU CAMINO',
+    title: 'Cinco niveles, un solo método',
+    levels: [
+      { level: 'kairos', phrase: 'La puerta de entrada. Ejercicios de Alfa en formatos simples, para arrancar sin miedo.' },
+      { level: 'alfa', phrase: 'Donde todo empieza. Patrones básicos de fuerza, movilidad y control.' },
+      { level: 'delta', phrase: 'El cambio se siente.' },
+      { level: 'sigma', phrase: 'La fuerza se vuelve lenguaje.' },
+      { level: 'omega', phrase: 'Donde los límites se reescriben.' },
     ],
-    icon: 'military_tech',
+  },
+  {
+    id: 'avanzar',
+    type: 'text',
+    theme: 'dark',
+    kicker: 'SUBIR DE NIVEL',
+    title: 'Tus profes te evalúan',
+    body: [
+      'No se sube por antigüedad: se sube cuando tu cuerpo está listo, y eso lo deciden tus profes en una evaluación.',
+      'Cuando tus sesiones te resultan cómodas (esfuerzo promedio de 6 o menos durante dos semanas), vas a poder pedir tu evaluación desde Mi Templo.',
+    ],
   },
   {
     id: 'app',
-    // TODO-CONTENIDO
-    kicker: 'La app',
-    title: 'Cómo usar la app',
-    body: [
-      'Desde Reservas anotate a tus clases con anticipación.',
-      'Cuando llegás a la sede, escaneá el QR de la recepción para dar presente — el botón redondo con la cámara te lleva directo ahí.',
-      'Y en Entrenar siempre vas a ver la sesión del día lista para arrancar.',
+    type: 'text',
+    theme: 'light',
+    kicker: 'LA APP',
+    title: 'Todo en tu bolsillo',
+    bullets: [
+      {
+        bold: 'Reservas',
+        rest: ' — reservá tu lugar. Si reservás con anticipación, te avisamos antes de que empiece la clase.',
+      },
+      {
+        bold: 'Dar presente',
+        rest: ' — al llegar, escaneá el QR de la entrada de tu sede con el botón ▣ de Mi Templo.',
+      },
+      {
+        bold: 'Entrenar',
+        rest: ' — la sesión del día, bloque por bloque, con los mismos ejercicios de la clase presencial. Para repasar o no cortar la racha cuando no podés venir.',
+      },
+      {
+        bold: 'Guía',
+        rest: ' — formatos, rutas e intensidad.',
+      },
     ],
-    icon: 'smartphone',
-  },
-  {
-    id: 'online',
-    // TODO-CONTENIDO
-    kicker: 'Además',
-    title: 'Curso online',
-    body: [
-      'También tenés disponible contenido online para entrenar por tu cuenta o complementar lo que hacés en sede.',
-      'Lo encontrás en Planes, dentro de la sección de programas.',
-    ],
-    icon: 'ondemand_video',
   },
   {
     id: 'cierre',
-    // TODO-CONTENIDO
-    kicker: 'Listo',
-    title: 'Ahora sí, ¡a entrenar!',
-    body: ['Reservá tu primera clase y te vemos en la sede.'],
-    icon: 'celebration',
-    cta: { label: 'Reservá tu primera clase', routeName: 'reservas' },
+    type: 'cta',
+    theme: 'dark',
+    kicker: 'EMPEZÁ',
+    title: 'El método funciona si vos venís.',
+    body: ['Nos vemos en la próxima clase.'],
+    cta: { label: 'Reservá tu próxima clase', routeName: 'reservas' },
+    secondaryCta: { label: 'Ver la Guía', routeName: 'guia' },
   },
 ]
