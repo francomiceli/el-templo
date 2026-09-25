@@ -21,9 +21,8 @@
       </div>
 
       <p class="scanner-hint">Apunta la camara al codigo QR de tu sede</p>
-      <!-- SPEC "Empezá acá" A2 — TODO-CONTENIDO: confirmar la ubicación
-           física exacta del QR en cada sede (hoy es un texto genérico). -->
-      <p class="scanner-help">El QR está en la recepción de tu sede</p>
+      <!-- SPEC "Empezá acá" A2 — contenido final aprobado (CONTENIDO-empeza-aca.md). -->
+      <p class="scanner-help">El QR está a la entrada de tu sede.</p>
     </div>
 
     <!-- Camera permission denied -->
