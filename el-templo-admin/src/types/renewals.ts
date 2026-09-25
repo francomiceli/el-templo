@@ -81,10 +81,17 @@ export interface RenewalListResult {
   windowDays: number;
 }
 
+/**
+ * `membresia` = todo menos el pase "Actividades con Aura"; `aura` = solo ese
+ * pase; sin valor = todo. Espejo de `RenewalActivityType` de la API.
+ */
+export type RenewalActivityType = 'membresia' | 'aura';
+
 export interface RenewalListParams {
   dateFrom: string;
   dateTo: string;
   branchId?: number;
+  activityType?: RenewalActivityType;
 }
 
 /** PATCH parcial — solo los campos provistos cambian. */

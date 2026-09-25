@@ -3,6 +3,7 @@
  * (2026-09-24). Mismo patrón que `reports/schemas.ts`: el schema de
  * validación y la interfaz que lo describe viven juntos.
  */
+import type { RenewalActivityType } from "./types";
 
 const errorSchema = {
   type: "object",
@@ -103,6 +104,7 @@ export const renewalListSchema = {
       dateFrom: { type: "string", format: "date" },
       dateTo: { type: "string", format: "date" },
       branchId: { type: "integer" },
+      activityType: { type: "string", enum: ["membresia", "aura"] },
     },
   },
   response: {
@@ -261,6 +263,7 @@ export interface RenewalListQuery {
   dateFrom: string;
   dateTo: string;
   branchId?: number;
+  activityType?: RenewalActivityType;
 }
 
 export interface RenewalFollowupParams {

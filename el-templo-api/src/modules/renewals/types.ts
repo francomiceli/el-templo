@@ -86,11 +86,20 @@ export interface RenewalPlanDistributionEntry {
   percentage: number;
 }
 
+/**
+ * Tipo de actividad del listado (feedback Nacho 2026-09-25): el pase
+ * "Actividades con Aura" (`plan_category = 'especial'`) convive con la
+ * membresía del socio y se gestiona aparte. `membresia` = todo lo que NO es
+ * `especial`; `aura` = solo `especial`; sin valor = todo.
+ */
+export type RenewalActivityType = "membresia" | "aura";
+
 export interface RenewalListFilters {
   dateFrom: string;
   dateTo: string;
   branchId?: number;
   country?: "AR" | "ES";
+  activityType?: RenewalActivityType;
 }
 
 export interface RenewalListResult {

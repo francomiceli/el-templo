@@ -86,6 +86,7 @@ export const renewalsRoutes: FastifyPluginAsync = async (fastify) => {
           dateTo: request.query.dateTo,
           branchId: request.query.branchId,
           country: request.scope.country ?? undefined,
+          activityType: request.query.activityType,
         });
         return reply.send(result);
       } catch (err: unknown) {
@@ -196,12 +197,15 @@ export const renewalsRoutes: FastifyPluginAsync = async (fastify) => {
       if (reply.sent) return;
       try {
         const ctx = assertTenant(request.scope, "renewals.updateReason");
-        const reason = await service.updateReason(ctx, request.params.id, request.body);
+        const reason = await service.updateReason(
+          ctx,
+          request.params.id,
+          request.body,
+        );
         return reply.send(reason);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "update renewal reason");
       }
     },
   );
-
 };
