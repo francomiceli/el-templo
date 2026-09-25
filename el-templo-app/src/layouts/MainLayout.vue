@@ -258,12 +258,14 @@ watch(
 
 // SPEC "Empezá acá" B — apertura automática: la primera vez que un socio
 // entra DESPUÉS de completar el onboarding (o ya lo tenía completo) y nunca
-// vio las historias, se abren solas una vez. `introStoriesChecked` acota la
-// decisión a la primera vez que el perfil está disponible en esta sesión —
-// MainLayout persiste durante toda la sesión (no se remonta entre
-// navegaciones), así que esto nunca se re-evalúa hasta el próximo login.
-// Si el socio las cierra antes del final, EmpezaAcaPage ya registró "seen" y
-// actualizó `userStore.profile` — no vuelven a abrirse solas.
+// vio las historias, se abren solas una vez navegando a la Guía
+// (`/training/guia`, SPEC "La Guía pasa a ser las historias" 2026-09-24: ya
+// no hay una pantalla `empeza-aca` separada, las historias SON la Guía).
+// `introStoriesChecked` acota la decisión a la primera vez que el perfil está
+// disponible en esta sesión — MainLayout persiste durante toda la sesión (no
+// se remonta entre navegaciones), así que esto nunca se re-evalúa hasta el
+// próximo login. Si el socio cambia de tab antes del final, GuiaPage ya
+// registró "seen" y actualizó `userStore.profile` — no vuelven a abrirse solas.
 let introStoriesChecked = false
 watch(
   () => userStore.profile,
@@ -275,9 +277,9 @@ watch(
       profile.onboardingCompleted &&
       !profile.introStoriesSeenAt &&
       isNewMember(profile.memberSince) &&
-      route.name !== 'empeza-aca'
+      route.name !== 'guia'
     ) {
-      void router.push({ name: 'empeza-aca' })
+      void router.push({ name: 'guia' })
     }
   },
   { immediate: true },

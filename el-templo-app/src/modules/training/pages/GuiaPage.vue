@@ -1,463 +1,746 @@
 <template>
-  <q-page class="guia-page">
-    <div class="guia-page__header">
-      <!--       <q-btn flat round dense icon="arrow_back" color="grey-8" @click="$router.back()" /> -->
-    </div>
+  <q-page class="guia-page" :class="`guia-page--${currentSlide.theme}`">
+    <!-- Anuncio para lectores de pantalla del cambio de slide (misma pieza de
+         accesibilidad que tenía EmpezaAcaPage.vue). -->
+    <div class="sr-only" aria-live="polite">{{ ariaAnnouncement }}</div>
 
-    <p class="guia-page__subtitle">Guía de Entrenamiento</p>
+    <div class="guia-page__scene" :style="sceneStyle">
+      <!-- Header: progreso segmentado. Ya no hay botón "cerrar" — esta
+           pantalla es un tab más del nav (el tab bar inferior sigue visible
+           y navegable), no un diálogo que haya que cerrar; ver nota en el
+           script sobre esta decisión. -->
+      <div class="guia-page__header">
+        <SegmentedProgressBar
+          :total-segments="slides.length"
+          :active-index="currentIndex"
+          :theme="currentSlide.theme === 'noche' ? 'story-dark' : 'story-light'"
+          class="guia-page__progress"
+        />
+      </div>
 
-    <!-- "Empezá acá" — historias de bienvenida (SPEC B). Tarjeta destacada
-         ARRIBA de todo, siempre visible (aunque ya se hayan visto: es el
-         punto de re-entrada manual una vez que la apertura automática ya
-         no vuelve a dispararse sola — ver MainLayout.vue). -->
-    <q-card
-      flat
-      bordered
-      class="empeza-aca-card q-mx-md q-mb-md"
-      role="link"
-      tabindex="0"
-      aria-label="Sos nuevo? Empezá acá"
-      @click="goToEmpezaAca"
-      @keyup.enter="goToEmpezaAca"
-    >
-      <q-card-section class="row items-center no-wrap">
-        <q-icon name="auto_stories" size="32px" color="primary" class="q-mr-md" />
-        <div class="col">
-          <div class="empeza-aca-card__title">¿Sos nuevo?</div>
-          <div class="empeza-aca-card__subtitle">Empezá acá</div>
-        </div>
-        <q-icon name="chevron_right" size="24px" color="primary" />
-      </q-card-section>
-    </q-card>
+      <!-- Contenido: transición corte-y-entra (opacity+translateY). El alto
+           se reparte en 3 franjas (kicker+título arriba, cuerpo con aire,
+           CTA abajo) — nada centrado con bandas vacías. -->
+      <Transition name="story-slide" mode="out-in">
+        <div :key="currentSlide.id" class="guia-page__content">
+          <div class="guia-page__top">
+            <p class="story-slide__kicker">{{ currentSlide.kicker }}</p>
+            <h1 class="story-slide__title">
+              <span
+                v-for="(word, i) in titleWords"
+                :key="i"
+                class="story-slide__word"
+                :style="{ animationDelay: `${i * 40}ms` }"
+                >{{ word }}&nbsp;</span
+              >
+            </h1>
+          </div>
 
-    <q-list class="guia-page__content">
-      <!-- Bloques Section -->
-      <q-expansion-item
-        ref="bloquesRef"
-        group="guia"
-        icon="view_module"
-        label="Bloques"
-        header-class="guia-section-header"
-      >
-        <q-card>
-          <q-card-section>
-            <div
-              id="guia-item-initium"
-              class="guia-item"
-              :class="{ 'guia-item--highlighted': highlightedItem === 'initium' }"
-            >
-              <div class="guia-item__title">Initium</div>
-              <div class="guia-item__description">
-                Bloque de calentamiento. Prepara tu cuerpo para la sesión con movilidad y activación
-                muscular progresiva.
-              </div>
-            </div>
+          <div class="guia-page__body">
+            <!-- Tipo A — texto + bullets -->
+            <template v-if="currentSlide.type === 'text'">
+              <p
+                v-for="(paragraph, i) in currentSlide.body"
+                :key="i"
+                class="story-slide__item story-slide__paragraph"
+                :style="itemDelay(i)"
+              >
+                {{ paragraph }}
+              </p>
+              <ul v-if="currentSlide.bullets?.length" class="story-bullets">
+                <li
+                  v-for="(bullet, i) in currentSlide.bullets"
+                  :key="i"
+                  class="story-slide__item"
+                  :style="itemDelay(i)"
+                >
+                  <strong>{{ bullet.bold }}</strong>{{ bullet.rest }}
+                </li>
+              </ul>
+            </template>
 
-            <q-separator class="q-my-md" />
-
-            <div
-              id="guia-item-nucleus"
-              class="guia-item"
-              :class="{ 'guia-item--highlighted': highlightedItem === 'nucleus' }"
-            >
-              <div class="guia-item__title">Nucleus</div>
-              <div class="guia-item__description">
-                Bloque principal de trabajo. Aquí se concentra el mayor volumen e intensidad de la
-                sesión según tu ruta del día.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div
-              id="guia-item-deuteros"
-              class="guia-item"
-              :class="{ 'guia-item--highlighted': highlightedItem === 'deuteros' }"
-            >
-              <div class="guia-item__title">Deuteros</div>
-              <div class="guia-item__description">
-                Bloque complementario. Eliges entre dos opciones para trabajar aspectos adicionales
-                según tus objetivos.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div
-              id="guia-item-athlos-epikos"
-              class="guia-item"
-              :class="{ 'guia-item--highlighted': highlightedItem === 'athlos-epikos' }"
-            >
-              <div class="guia-item__title">Athlos / Epikos</div>
-              <div class="guia-item__description">
-                Bloque de desafío final. Athlos es un reto corto e intenso. Epikos es un desafío más
-                largo que aparece alternadamente.
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </q-expansion-item>
-
-      <!-- Rutas Section -->
-      <q-expansion-item group="guia" icon="route" label="Rutas" header-class="guia-section-header">
-        <q-card>
-          <q-card-section>
-            <div class="guia-item">
-              <div class="guia-item__title">Strength (Fuerza)</div>
-              <div class="guia-item__description">
-                Desarrollo de fuerza máxima. Ejercicios con menor número de repeticiones y mayor
-                intensidad.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div class="guia-item">
-              <div class="guia-item__title">Power (Potencia)</div>
-              <div class="guia-item__description">
-                Trabajo explosivo. Combina fuerza y velocidad para desarrollar potencia muscular.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div class="guia-item">
-              <div class="guia-item__title">Endurance (Resistencia)</div>
-              <div class="guia-item__description">
-                Resistencia muscular. Mayor volumen con intensidad moderada para mejorar capacidad
-                de trabajo.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div class="guia-item">
-              <div class="guia-item__title">Hypertrophy (Hipertrofia)</div>
-              <div class="guia-item__description">
-                Crecimiento muscular. Rango medio de repeticiones con enfoque en tensión muscular
-                sostenida.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div class="guia-item">
-              <div class="guia-item__title">Skill (Habilidad)</div>
-              <div class="guia-item__description">
-                Desarrollo técnico. Práctica de movimientos avanzados y progresiones de calistenia.
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </q-expansion-item>
-
-      <!-- Formatos Section -->
-      <q-expansion-item
-        group="guia"
-        icon="timer"
-        label="Formatos"
-        header-class="guia-section-header"
-      >
-        <q-card>
-          <q-card-section>
-            <template v-for="(fmt, idx) in FORMATS" :key="fmt.name">
-              <q-separator v-if="idx > 0" class="q-my-md" />
-              <div class="guia-item">
-                <div class="guia-item__title">{{ fmt.name }}</div>
-                <div class="guia-item__description">{{ fmt.description }}</div>
+            <!-- Tipo C — bloques -->
+            <template v-else-if="currentSlide.type === 'blocks'">
+              <div class="story-blocks">
+                <div
+                  v-for="(row, i) in currentSlide.blocks"
+                  :key="row.role"
+                  class="story-blocks__row story-slide__item"
+                  :style="{ borderColor: getBlockCSSColor(row.role), ...itemDelay(i) }"
+                >
+                  <div class="story-blocks__label">{{ row.label }}</div>
+                  <div class="story-blocks__desc">{{ row.description }}</div>
+                </div>
               </div>
             </template>
-          </q-card-section>
-        </q-card>
-      </q-expansion-item>
 
-      <!-- Intensidad Section -->
-      <q-expansion-item
-        group="guia"
-        icon="speed"
-        label="Intensidad"
-        header-class="guia-section-header"
-      >
-        <q-card>
-          <q-card-section>
-            <div class="guia-item">
-              <div class="guia-item__title">30-50% (Baja)</div>
-              <div class="guia-item__description">
-                Esfuerzo bajo. Ideal para calentamiento, técnica y recuperación activa.
+            <!-- Tipo B — niveles -->
+            <template v-else-if="currentSlide.type === 'levels'">
+              <div class="story-levels">
+                <div
+                  v-for="(row, i) in currentSlide.levels"
+                  :key="row.level"
+                  class="story-levels__row story-slide__item"
+                  :style="itemDelay(i)"
+                >
+                  <span class="story-levels__glyph">{{ LEVEL_GREEK_MAP[row.level] }}</span>
+                  <div class="story-levels__info">
+                    <div class="story-levels__name">{{ LEVEL_DISPLAY_MAP[row.level] }}</div>
+                    <p class="story-levels__phrase">{{ row.phrase }}</p>
+                  </div>
+                </div>
               </div>
-            </div>
+            </template>
 
-            <q-separator class="q-my-md" />
+            <!-- Tipo D — CTA final -->
+            <template v-else-if="currentSlide.type === 'cta'">
+              <p
+                v-for="(paragraph, i) in currentSlide.body"
+                :key="i"
+                class="story-slide__item story-slide__paragraph"
+                :style="itemDelay(i)"
+              >
+                {{ paragraph }}
+              </p>
+            </template>
 
-            <div class="guia-item">
-              <div class="guia-item__title">50-70% (Moderada)</div>
-              <div class="guia-item__description">
-                Esfuerzo moderado. Zona de trabajo para resistencia y volumen. Puedes mantener
-                conversación.
-              </div>
-            </div>
+            <p v-if="currentSlide.footnote" class="story-slide__footnote">
+              {{ currentSlide.footnote }}
+            </p>
+          </div>
 
-            <q-separator class="q-my-md" />
+          <!-- CTA: fuera de las zonas de tap (botón real, no compite con
+               tap-to-advance — mismo criterio que .story-card__block-done). -->
+          <div v-if="currentSlide.type === 'cta'" class="guia-page__bottom">
+            <q-btn
+              unelevated
+              no-caps
+              class="story-cta"
+              :label="currentSlide.cta.label"
+              @click="onCtaClick(currentSlide.cta.routeName)"
+            />
+            <q-btn
+              v-if="currentSlide.secondaryCta"
+              flat
+              no-caps
+              class="story-cta-secondary"
+              :label="currentSlide.secondaryCta.label"
+              @click="onCtaClick(currentSlide.secondaryCta.routeName)"
+            />
+          </div>
+        </div>
+      </Transition>
 
-            <div class="guia-item">
-              <div class="guia-item__title">70-85% (Alta)</div>
-              <div class="guia-item__description">
-                Esfuerzo alto. Zona de hipertrofia y fuerza. Requiere concentración y buena técnica.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div class="guia-item">
-              <div class="guia-item__title">85-100% (Máxima)</div>
-              <div class="guia-item__description">
-                Esfuerzo máximo. Para trabajo de fuerza máxima y potencia. Requiere descansos
-                largos.
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </q-expansion-item>
-    </q-list>
+      <!-- Zonas de avance — botones semánticos invisibles (el <button> ES la
+           zona de tap, con reset de estilos, en vez de una capa duplicada).
+           Cubren TODO el alto/ancho del área de historias salvo el header
+           (arriba) y el CTA (abajo en el slide final, que no compite con el
+           tap-to-advance). -->
+      <button
+        type="button"
+        class="guia-page__tap-zone guia-page__tap-zone--left"
+        aria-label="Anterior"
+        :disabled="isFirst"
+        @click="goPrev"
+      />
+      <button
+        v-if="currentSlide.type !== 'cta'"
+        type="button"
+        class="guia-page__tap-zone guia-page__tap-zone--right"
+        aria-label="Siguiente"
+        @click="goNext"
+      />
+    </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
 /**
- * Guía Page
+ * Guía — historias de bienvenida ("Empezá acá")
  *
- * Educational guide explaining key training concepts:
- * - Bloques: Block types and their purpose
- * - Rutas: Training routes (Strength, Power, etc.)
- * - Formatos: Workout formats (EMOM, AMRAP, etc.)
- * - Intensidad: Intensity percentages and effort levels
+ * SPEC "La Guía pasa a ser las historias" (2026-09-24): entrar a la Guía
+ * (tab del nav, `/training/guia`) muestra DIRECTAMENTE las historias — ya no
+ * hay un glosario separado ni una tarjeta "Empezá acá" intermedia (ver
+ * ROADMAP/SUMMARY de la fase). Esta página REEMPLAZA a la vieja GuiaPage.vue
+ * (glosario de bloques/rutas/formatos/intensidad, eliminado) reusando el
+ * viewer que antes vivía en `modules/guia/pages/EmpezaAcaPage.vue` (también
+ * eliminado — todo el contenido/lógica que no es específico de esta página
+ * sigue viviendo en `modules/guia/` como fuente única: contenido en
+ * `empeza-aca-content.ts`, "socio nuevo" en `new-member.ts`, persistencia en
+ * `useIntroStoriesApi.ts`).
+ *
+ * DECISIÓN — sin botón "cerrar" ni `role="dialog"`: la versión anterior era
+ * un overlay fullscreen fuera de MainLayout (con su propio X y swipe-down
+ * para cerrar) porque se abría sola sobre lo que el socio estuviera haciendo.
+ * Ahora es un tab más (`/training/guia`, dentro de MainLayout, con el tab bar
+ * inferior siempre visible) — no hay nada que "cerrar": para salir, el socio
+ * toca otro tab, igual que en Reservas/Entrenar/Mi Templo. Mantener un X acá
+ * sería redundante con el tab bar y, peor, ambiguo (¿a dónde lleva? ¿por qué
+ * un tab tiene botón de cierre?). Por el mismo motivo se retira el swipe-down
+ * para cerrar y los botones de flecha visibles que tenía el overlay: el
+ * patrón "historia" (tap invisible + accesible) ya cubre navegación, y una
+ * fila de flechas justo encima del tab bar real duplicaría la navegación.
+ * ArrowLeft/ArrowRight de teclado SÍ se mantienen (navegación entre slides,
+ * no "cerrar" — Escape se retira porque no hay overlay que cerrar).
  */
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import type { QExpansionItem } from 'quasar'
+import { useUserStore } from 'src/stores/useUserStore'
+import { useStoryNavigation } from '../composables/useStoryNavigation'
+import SegmentedProgressBar from '../components/player/SegmentedProgressBar.vue'
+import { LEVEL_GREEK_MAP, LEVEL_DISPLAY_MAP } from '../level-display'
+import { getBlockCSSColor } from '../utils/blockColors'
+import { EMPEZA_ACA_SLIDES } from '../../guia/empeza-aca-content'
+import { useIntroStoriesApi } from '../../guia/composables/useIntroStoriesApi'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+const introStoriesApi = useIntroStoriesApi()
 
-function goToEmpezaAca() {
-  void router.push({ name: 'empeza-aca' })
+const slides = EMPEZA_ACA_SLIDES
+const totalSlides = computed(() => slides.length)
+const storyNav = useStoryNavigation(totalSlides)
+const currentIndex = computed(() => storyNav.currentIndex.value)
+const isFirst = computed(() => storyNav.isFirst.value)
+const currentSlide = computed(() => slides[storyNav.currentIndex.value]!)
+
+const titleWords = computed(() => currentSlide.value.title.split(' '))
+
+const ariaAnnouncement = computed(
+  () => `Paso ${currentIndex.value + 1} de ${slides.length}: ${currentSlide.value.title}`,
+)
+
+// Fondo: la MISMA foto que ya usa el resto de la app (`.app-bg`/login/
+// register, `public/bars-open.webp` — el mismo templo con anillas y relieve
+// de Hércules que porta la pantalla de TV de sede como `tv-bars-open.webp`,
+// solo que esta ya vive en el app, así que se reusa en vez de duplicar el
+// asset — ver reporte final). Velo por tema: mismos colores/opacidades que
+// `TvScreenPage.vue` (diurno/nocturno), gradiente adaptado a vertical
+// (180deg, más denso arriba detrás de kicker+título) en vez del 100deg de la
+// TV (pensado para texto a la izquierda en horizontal).
+const DIA_GRADIENT =
+  'linear-gradient(180deg, rgba(242,236,226,0.9) 0%, rgba(242,236,226,0.82) 42%, rgba(240,232,220,0.66) 68%, rgba(238,229,214,0.55) 100%)'
+const NOCHE_GRADIENT =
+  'linear-gradient(180deg, rgba(20,18,16,0.87) 0%, rgba(20,18,16,0.78) 42%, rgba(26,23,20,0.55) 68%, rgba(33,30,27,0.4) 100%)'
+
+const sceneStyle = computed(() => ({
+  backgroundImage: `${currentSlide.value.theme === 'noche' ? NOCHE_GRADIENT : DIA_GRADIENT}, url(/bars-open.webp)`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundRepeat: 'no-repeat',
+}))
+
+// Entrada escalonada de bullets/filas: 150ms después del título + 80ms por
+// ítem. `prefers-reduced-motion` anula todo esto vía CSS puro (media query
+// en <style>), así que este delay no necesita una rama JS aparte.
+function itemDelay(index: number) {
+  return { animationDelay: `${150 + index * 80}ms` }
 }
 
-// SPEC A1: deep-link desde las tarjetas de bloque ("¿Qué es Nucleus?") vía
-// `/training/guia?seccion=bloques&item=nucleus`. Solo "bloques" está
-// implementado hoy (es la única sección con links entrantes — ver
-// `guia-role-map.ts`); si se agregan links a Rutas/Formatos/Intensidad más
-// adelante, este switch crece con ellos.
-const bloquesRef = ref<QExpansionItem>()
-const highlightedItem = ref<string | null>(null)
-let highlightTimer: ReturnType<typeof setTimeout> | null = null
+// ─── Slide inicial: por query (?slide=<id>, deep-link "¿Qué es X?" desde
+// Entrenar) o slide 1 si no hay query — nunca retoma dónde quedó la vez
+// anterior (SPEC: "al volver a entrar a la Guía, arrancar en el slide 1").
+// `watch` con `immediate` cubre tanto el mount inicial como una navegación
+// posterior con otro `?slide=` mientras el componente sigue montado (mismo
+// patrón que la vieja GuiaPage.vue con `seccion`/`item`).
+function resolveSlideIndexFromQuery(): number {
+  const { slide } = route.query
+  if (typeof slide === 'string') {
+    const idx = slides.findIndex((s) => s.id === slide)
+    if (idx >= 0) return idx
+  }
+  return 0
+}
+watch(
+  () => route.query.slide,
+  () => storyNav.goTo(resolveSlideIndexFromQuery()),
+  { immediate: true },
+)
 
-async function openFromQuery() {
-  const { seccion, item } = route.query
-  if (seccion !== 'bloques') return
+// Registrar "vista" apenas se abre (no solo al cerrar) — si el socio cambia
+// de tab antes del final igual queda registrado que la abrió. El perfil en
+// memoria se actualiza con la respuesta real del servidor para que
+// MainLayout no vuelva a abrir las historias solas en esta misma sesión y
+// para apagar el "1" rojo del nav.
+onMounted(() => {
+  void introStoriesApi.reportSeen(storyNav.currentIndex.value).then((progress) => {
+    if (progress) userStore.setIntroStoriesProgress(progress)
+  })
+})
 
-  bloquesRef.value?.show()
-  await nextTick()
-
-  if (typeof item !== 'string') return
-  highlightedItem.value = item
-  if (highlightTimer) clearTimeout(highlightTimer)
-  highlightTimer = setTimeout(() => {
-    highlightedItem.value = null
-  }, 2500)
-
-  // Pequeño delay para que la animación de expansión de Quasar termine antes
-  // de medir la posición del ítem — si no, el scroll apunta a donde el
-  // contenido va a estar, no a donde está todavía.
-  setTimeout(() => {
-    document.getElementById(`guia-item-${item}`)?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    })
-  }, 300)
+// ─── Navegación ─────────────────────────────────────────────────────────
+function reportCompletion() {
+  void introStoriesApi.reportCompleted(storyNav.currentIndex.value).then((progress) => {
+    if (progress) userStore.setIntroStoriesProgress(progress)
+  })
 }
 
-onMounted(openFromQuery)
-watch(() => route.query, openFromQuery)
+function goNext() {
+  if (storyNav.isLast.value) {
+    reportCompletion()
+    return
+  }
+  storyNav.next()
+}
 
-const FORMATS = [
-  {
-    name: 'EMOM (Every Minute On the Minute)',
-    description:
-      'Realiza los ejercicios al inicio de cada minuto. El tiempo restante es tu descanso.',
-  },
-  {
-    name: 'AMRAP (As Many Rounds As Possible)',
-    description: 'Completa tantas rondas como puedas en el tiempo establecido.',
-  },
-  {
-    name: 'For Time',
-    description: 'Completa todos los ejercicios lo más rápido posible con buena técnica.',
-  },
-  {
-    name: 'Tabata',
-    description: '20 segundos de trabajo máximo, 10 de descanso. Repite 8 rondas por ejercicio.',
-  },
-  {
-    name: 'Series',
-    description:
-      'Formato tradicional. Realiza las series y repeticiones indicadas con descanso entre series.',
-  },
-  {
-    name: 'Complex',
-    description: 'Ejercicios encadenados sin soltar la barra. Se ejecutan de forma consecutiva.',
-  },
-  {
-    name: 'Combos',
-    description:
-      'Combo de ejercicios encadenados sin descanso entre ellos. Repetí el combo la cantidad de rondas indicada.',
-  },
-  {
-    name: 'Stretching',
-    description:
-      'Bloque de estiramiento y movilidad guiado por el profe. Sin repeticiones prescritas.',
-  },
-  {
-    name: 'Chipper',
-    description: 'Lista larga de ejercicios. Se completan uno tras otro sin repetir.',
-  },
-  {
-    name: 'Ladder',
-    description: 'Las repeticiones suben o bajan con cada ronda.',
-  },
-  {
-    name: 'Couplet',
-    description: 'Dos ejercicios que se alternan por rondas.',
-  },
-  {
-    name: 'Triplet',
-    description: 'Tres ejercicios que se alternan por rondas.',
-  },
-  {
-    name: 'HIIT',
-    description: 'Intervalos de alta intensidad seguidos de descanso breve.',
-  },
-  {
-    name: 'Interval Training',
-    description: 'Intervalos de trabajo y descanso con duracion configurable.',
-  },
-  {
-    name: 'Death By',
-    description: 'Cada minuto agregas una repeticion hasta que no puedas completar en el minuto.',
-  },
-  {
-    name: 'Buy-in / Cash-out',
-    description:
-      'Empieza y termina con un ejercicio especifico. El trabajo principal va en el medio.',
-  },
-  {
-    name: 'Cluster',
-    description: 'Grupos cortos de repeticiones con pausas breves entre cada grupo.',
-  },
-]
+function goPrev() {
+  storyNav.prev()
+}
+
+// El secondaryCta del cierre ("Ver la Guía") apuntaba a la ruta `guia` de
+// cuando era un glosario SEPARADO de las historias — con la fusión (SPEC "La
+// Guía pasa a ser las historias") esa ruta es la que ya estamos viendo:
+// `router.push` a la misma ruta es un no-op silencioso de vue-router. Sin
+// tocar el texto aprobado del botón, se reinterpreta como "reiniciar la
+// historia desde el slide 1" cuando el destino es la ruta actual — mismo
+// espíritu ("volver a ver la Guía") sin un click que no hace nada.
+function onCtaClick(routeName: string) {
+  if (storyNav.isLast.value) {
+    reportCompletion()
+  }
+  if (routeName === route.name) {
+    storyNav.goTo(0)
+    return
+  }
+  void router.push({ name: routeName })
+}
+
+// ─── Teclado: ArrowLeft/ArrowRight navegan entre slides (sin Escape — no hay
+// overlay que cerrar, ver docblock de arriba). ──────────────────────────
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'ArrowRight') goNext()
+  else if (e.key === 'ArrowLeft') goPrev()
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  storyNav.cleanup()
+})
 </script>
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
+// ─── Fuentes de la TV, SOLO para esta página (SPEC punto 4) — extraídas de
+// los base64 de `el-templo-admin/src/utils/pdf/pdf-assets.ts` a archivos
+// locales (sin import cruzado entre apps). `@font-face` se registra a nivel
+// de documento aunque el bloque sea `scoped` (Vue no scopea at-rules), pero
+// el USO (`font-family` en selectores de abajo) queda acotado a esta página
+// — el resto de la app sigue con Montserrat/Geologica. ──────────────────
+@font-face {
+  font-family: 'Cinzel';
+  src: url('../../../assets/fonts/Cinzel-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cinzel';
+  src: url('../../../assets/fonts/Cinzel-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito Sans';
+  src: url('../../../assets/fonts/NunitoSans-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito Sans';
+  src: url('../../../assets/fonts/NunitoSans-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+// Tokens de color por tema (mismos valores de marca que ya usaba el viewer
+// anterior — sin token nuevo en quasar.variables.scss).
+$story-dark-text: $cream; // #f2ede5
+$story-dark-muted: rgba($cream, 0.62);
+$story-dark-accent: $bronze-light; // #d4b896
+
+$story-light-text: $accent; // #3d3732
+$story-light-muted: rgba($accent, 0.55);
+$story-light-accent: $primary; // #96593a
+
+// Escala tipográfica (TV → mobile, ver SPEC punto 4): título domina, kicker
+// chico con tracking amplio, cuerpo legible sin achicarse en pantallas
+// grandes (clamp por ancho de viewport).
+$story-kicker-size: clamp(11px, 2.6vw, 13px);
+$story-title-size: clamp(26px, 7.5vw, 38px);
+$story-body-size: clamp(16px, 4vw, 18px);
+$story-bullet-size: clamp(15px, 3.8vw, 17px);
+$story-glyph-size: 56px;
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+// El propio q-page ya reserva el alto correcto entre header y footer (Quasar
+// calcula el min-height a partir de q-header/q-footer) — así "ocupar todo el
+// alto disponible dentro del layout" es automático, sin recalcular safe-area
+// acá (header/footer ya la manejan, ver MainLayout.vue).
 .guia-page {
-  background: $cream;
-  min-height: var(--app-vh);
-  padding-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.guia-page--dia {
+  color: $story-light-text;
+}
+
+.guia-page--noche {
+  color: $story-dark-text;
+}
+
+.guia-page__scene {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: background-image 0.25s ease;
 }
 
 .guia-page__header {
-  display: flex;
-  align-items: center;
-  padding: 8px 16px;
-  gap: 8px;
+  position: relative;
+  z-index: 5; // gana a las tap-zones (position:absolute más abajo en el DOM)
+  padding-top: 8px;
 }
 
-.guia-page__title {
-  font-family: 'Montserrat', sans-serif;
-  color: $primary;
-  letter-spacing: 0.1em;
-}
-
-.guia-page__subtitle {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 20px;
-  font-weight: 800;
-  color: $primary;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0;
-  padding: 0 16px 12px;
+.guia-page__progress {
+  width: 100%;
 }
 
 .guia-page__content {
-  padding: 0 16px;
-}
+  position: relative;
+  z-index: 2; // ídem — gana a las tap-zones
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 24px 20px;
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  overflow-y: auto; // 360x640: scroll interno antes que recortar texto
+  pointer-events: none; // los botones/CTA se reactivan explícitamente abajo
 
-:deep(.guia-section-header) {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 600;
-  color: $primary;
-  background: rgba($secondary, 0.1);
-  border-radius: 8px;
-  margin-bottom: 8px;
-}
-
-.guia-item {
-  padding: 4px 0;
-}
-
-.guia-item__title {
-  font-weight: 600;
-  color: $primary;
-  margin-bottom: 4px;
-}
-
-.guia-item__description {
-  color: #666;
-  line-height: 1.5;
-}
-
-.guia-item--highlighted {
-  animation: guia-item-highlight 2.5s ease-out;
-  border-radius: 8px;
-}
-
-@keyframes guia-item-highlight {
-  0%,
-  60% {
-    background: rgba($secondary, 0.18);
-  }
-  100% {
-    background: transparent;
+  > * {
+    pointer-events: auto;
   }
 }
 
-.empeza-aca-card {
-  cursor: pointer;
-  border-color: rgba($primary, 0.3);
-  background: linear-gradient(135deg, rgba($primary, 0.08) 0%, $cream 100%);
-  transition: box-shadow 0.15s ease;
-
-  &:hover,
-  &:focus-visible {
-    box-shadow: 0 2px 10px rgba($primary, 0.15);
-  }
+// Franja superior: kicker + título, pegados arriba del todo (no centrado).
+.guia-page__top {
+  flex-shrink: 0;
+  text-align: left;
 }
 
-.empeza-aca-card__title {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba($primary, 0.7);
+// Franja media: cuerpo/bullets/bloques/niveles — ocupa el espacio restante
+// con aire (justify-content: center SOLO dentro de esta franja, nunca en
+// toda la pantalla, así no vuelve el problema de "contenido apretado al
+// medio con bandas vacías arriba/abajo").
+.guia-page__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: left;
+  gap: 4px;
+}
+
+// Franja inferior: CTA — pegada abajo, nunca flotando en el medio.
+.guia-page__bottom {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+.story-slide__kicker {
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: $story-kicker-size;
+  font-weight: 700;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  margin: 0 0 10px;
+
+  .guia-page--noche & {
+    color: $story-dark-accent;
+  }
+
+  .guia-page--dia & {
+    // $bronze-light sobre el velo claro no tiene contraste suficiente (ambos
+    // clarps) — el kicker en tema día usa el acento terracotta.
+    color: $story-light-accent;
+  }
 }
 
-.empeza-aca-card__subtitle {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 18px;
-  font-weight: 800;
-  color: $primary;
+.story-slide__title {
+  font-family: 'Cinzel', serif;
+  font-size: $story-title-size;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  margin: 0 0 18px;
+
+  // Sombra sutil de apoyo SOLO en noche (mismo criterio que
+  // `TvScreenPage.vue`: el velo diurno no la necesita, el nocturno la usa
+  // como red de contraste contra el detalle de la foto que se filtra en los
+  // tramos menos densos del velo).
+  .guia-page--noche & {
+    text-shadow:
+      0 0 0.6rem rgba(20, 18, 16, 0.7),
+      0 0 1.4rem rgba(20, 18, 16, 0.5);
+  }
+}
+
+.story-slide__word {
+  display: inline-block;
+  animation: story-word-in 0.35s ease both;
+}
+
+.story-slide__item {
+  animation: story-item-in 0.3s cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+
+.story-slide__paragraph {
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: $story-body-size;
+  line-height: 1.5;
+  margin: 0 0 14px;
+
+  .guia-page--noche & {
+    color: $story-dark-muted;
+  }
+
+  .guia-page--dia & {
+    color: $story-light-muted;
+  }
+}
+
+.story-slide__footnote {
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 13px;
+  font-style: italic;
+  margin-top: 16px;
+  opacity: 0.75;
+}
+
+.story-bullets {
+  text-align: left;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: $story-bullet-size;
+  font-weight: 500;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  strong {
+    .guia-page--noche & {
+      color: $story-dark-text;
+    }
+
+    .guia-page--dia & {
+      color: $story-light-accent;
+    }
+  }
+}
+
+// ─── Tipo C: bloques ────────────────────────────────────────────────────
+.story-blocks {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.story-blocks__row {
+  border-left: 4px solid;
+  padding: 4px 0 4px 12px;
+}
+
+.story-blocks__label {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.story-blocks__desc {
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+// ─── Tipo B: niveles ────────────────────────────────────────────────────
+.story-levels {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.story-levels__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.story-levels__glyph {
+  flex-shrink: 0;
+  width: $story-glyph-size;
+  font-family: 'Segoe UI', Arial, 'Noto Sans', sans-serif;
+  font-size: $story-glyph-size;
+  line-height: 1;
+  text-align: center;
+  color: $story-light-accent;
+}
+
+.story-levels__name {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.story-levels__phrase {
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  opacity: 0.75;
+  margin: 2px 0 0;
+}
+
+// ─── Tipo D: CTA ────────────────────────────────────────────────────────
+.story-cta {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+  font-size: 19px;
+  border-radius: 26px;
+  padding: 12px 32px;
+  background: $primary;
+  color: $cream;
+}
+
+.story-cta-secondary {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.85;
+}
+
+// ─── Tap-zones (botones semánticos invisibles) — cubren el 100% del alto y
+// ancho del área de historias (debajo del header) salvo los botones reales.
+.guia-page__tap-zone {
+  position: absolute;
+  top: 48px; // debajo del header — no tapa el progreso
+  bottom: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &--left {
+    left: 0;
+    width: 30%;
+  }
+
+  &--right {
+    right: 0;
+    width: 70%;
+  }
+}
+
+// ─── Transición entre slides: opacity+translateY, NUNCA blur/filter/scale.
+.story-slide-enter-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.story-slide-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.story-slide-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.story-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+@keyframes story-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.14em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes story-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story-slide__word,
+  .story-slide__item {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .story-slide-enter-active,
+  .story-slide-leave-active {
+    transition: opacity 0.15s ease !important;
+  }
+  .story-slide-enter-from,
+  .story-slide-leave-to {
+    transform: none !important;
+  }
 }
 </style>
