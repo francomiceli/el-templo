@@ -7,10 +7,11 @@ vi.mock('src/utils/logger', () => ({
 
 import { useStoryNavigation } from '../useStoryNavigation'
 
-// SPEC "Empezá acá" B — UI-SPEC-historias.md §2/§9: EmpezaAcaPage.vue reusa
-// esta composable (ya usada por BlockProgressionView.vue) en vez de
-// reimplementar la navegación de historias. No tenía test propio todavía.
-describe('useStoryNavigation (reusada por EmpezaAcaPage — historias "Empezá acá")', () => {
+// SPEC "Empezá acá" B — UI-SPEC-historias.md §2/§9: la Guía (`GuiaPage.vue`,
+// SPEC "La Guía pasa a ser las historias" 2026-09-24) reusa esta composable
+// (ya usada por BlockProgressionView.vue) en vez de reimplementar la
+// navegación de historias. No tenía test propio todavía.
+describe('useStoryNavigation (reusada por GuiaPage — historias "Empezá acá")', () => {
   it('arranca en el índice 0, isFirst true', () => {
     const nav = useStoryNavigation(ref(7))
     expect(nav.currentIndex.value).toBe(0)
