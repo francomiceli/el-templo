@@ -11,6 +11,21 @@
     </div>
     <q-menu fit anchor="bottom right" self="top right" class="level-menu" :offset="[0, 8]">
       <q-list class="level-menu__list">
+        <!-- SPEC "Empezá acá" A3: aclarar la diferencia entre el nivel que
+             se está VIENDO y el nivel real del socio, sin cambiar la
+             lógica de selección de abajo. -->
+        <div class="level-menu__banner">
+          <div class="level-menu__banner-row">
+            <span class="level-menu__banner-label">Tu nivel:</span>
+            <span class="level-menu__banner-value">{{ ownDisplayName }}</span>
+          </div>
+          <div v-if="isViewingOther" class="level-menu__banner-row level-menu__banner-row--viewing">
+            <span class="level-menu__banner-label">Estás viendo:</span>
+            <span class="level-menu__banner-value">{{ displayName }}</span>
+          </div>
+        </div>
+        <q-separator class="level-menu__banner-separator" />
+
         <q-item
           v-for="lvl in TRAINING_LEVELS"
           :key="lvl"
@@ -54,6 +69,14 @@ const ownLevel = computed<Level | null>(() => {
 })
 const greek = computed(() => (activeLevel.value ? LEVEL_GREEK_MAP[activeLevel.value] : ''))
 const displayName = computed(() => (activeLevel.value ? LEVEL_DISPLAY_MAP[activeLevel.value] : ''))
+
+// SPEC "Empezá acá" A3: el badge del header YA muestra `activeLevel` (lo que
+// se está viendo); el menú aclara además cuál es el nivel REAL del socio y,
+// si difiere, que está viendo otro. Pura presentación — no toca setLevel.
+const ownDisplayName = computed(() => (ownLevel.value ? LEVEL_DISPLAY_MAP[ownLevel.value] : ''))
+const isViewingOther = computed(
+  () => !!activeLevel.value && !!ownLevel.value && activeLevel.value !== ownLevel.value,
+)
 
 async function onSelect(lvl: Level): Promise<void> {
   if (lvl === activeLevel.value) return
@@ -123,6 +146,40 @@ async function onSelect(lvl: Level): Promise<void> {
   padding: 6px 0;
   background: $brand-cream;
   border: 1px solid rgba($brand-aged-gold, 0.25);
+}
+
+.level-menu__banner {
+  padding: 8px 14px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.level-menu__banner-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+
+  &--viewing {
+    color: $brand-terracotta;
+  }
+}
+
+.level-menu__banner-label {
+  font-size: 11px;
+  color: rgba(#96593a, 0.7);
+  font-family: 'Montserrat', sans-serif;
+}
+
+.level-menu__banner-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #96593a;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.level-menu__banner-separator {
+  margin: 4px 0;
 }
 
 .level-menu__item {
