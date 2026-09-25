@@ -31,6 +31,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT, type TipId } from 'src/config/tips-content'
+import { isNewMember } from 'src/modules/guia/new-member'
 
 const props = defineProps<{ tipId: TipId }>()
 
@@ -43,6 +44,8 @@ const visible = ref(false)
 onMounted(async () => {
   const userId = userStore.profile?.id
   if (!userId) return
+  // Globos de primer uso: solo socios nuevos (ver new-member.ts).
+  if (!isNewMember(userStore.profile?.memberSince)) return
   const seen = await tipsStorage.hasSeen(userId, props.tipId)
   if (!seen) visible.value = true
 })

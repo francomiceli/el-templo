@@ -65,6 +65,15 @@
             color="primary"
             class="desktop-rail__badge"
           />
+          <q-badge
+            v-else-if="tab.introBadge && showIntroBadge"
+            floating
+            rounded
+            color="negative"
+            label="1"
+            class="desktop-rail__badge desktop-rail__badge--count"
+            aria-label="Novedad: Empezá acá"
+          />
         </router-link>
       </nav>
 
@@ -152,6 +161,15 @@
             color="primary"
             class="mobile-tab__badge"
           />
+          <q-badge
+            v-else-if="tab.introBadge && showIntroBadge"
+            floating
+            rounded
+            color="negative"
+            label="1"
+            class="mobile-tab__badge mobile-tab__badge--count"
+            aria-label="Novedad: Empezá acá"
+          />
         </router-link>
       </div>
     </q-footer>
@@ -195,6 +213,7 @@ import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDrop
 import VeteranSeal from 'src/components/VeteranSeal.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
+import { isNewMember } from 'src/modules/guia/new-member'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -255,6 +274,7 @@ watch(
       profile.role === 'member' &&
       profile.onboardingCompleted &&
       !profile.introStoriesSeenAt &&
+      isNewMember(profile.memberSince) &&
       route.name !== 'empeza-aca'
     ) {
       void router.push({ name: 'empeza-aca' })
@@ -291,6 +311,14 @@ const showCheckInFab = computed(() => {
   return route.path === '/mi-templo' || route.path === '/reservas'
 })
 
+// "Empezá acá" (Franco, 2026-09-24): TODOS los socios ven un "1" rojo sobre
+// Guía hasta que abren las historias; al abrirlas, EmpezaAcaPage registra
+// `introStoriesSeenAt` en el perfil y la pelotita desaparece.
+const showIntroBadge = computed(() => {
+  const profile = userStore.profile
+  return !!profile && profile.role === 'member' && !profile.introStoriesSeenAt
+})
+
 // SPEC "Empezá acá" A2 — tip de primer uso del QR de check-in: se muestra
 // una sola vez por socio (useTipsSeenStorage), la primera vez que el FAB se
 // vuelve visible. `qrTipChecked` evita re-consultar el storage en cada
@@ -308,6 +336,8 @@ watch(
     const userId = userStore.profile?.id
     if (!userId) return
     qrTipChecked = true
+    // Globos de primer uso: solo socios nuevos (ver new-member.ts).
+    if (!isNewMember(userStore.profile?.memberSince)) return
     void tipsStorage.hasSeen(userId, 'qr-checkin').then((seen) => {
       if (!seen) showQrTip.value = true
     })
@@ -327,12 +357,14 @@ interface MobileTab {
   label: string
   size?: string
   badge?: boolean
+  /** Pelotita roja con "1" mientras el socio no abrió "Empezá acá". */
+  introBadge?: boolean
 }
 
 const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
     { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
-    { to: '/training/guia', icon: 'menu_book', label: 'Guía', size: '26px' },
+    { to: '/training/guia', icon: 'menu_book', label: 'Guía', size: '26px', introBadge: true },
     { to: '/training', icon: 'img:/icons/entrenar.svg', label: 'Entrenar', size: '26px' },
   ]
   tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
@@ -631,6 +663,18 @@ async function onLogout() {
   position: absolute;
   top: 8px;
   left: 38px;
+}
+
+// "1" rojo de "Empezá acá" sobre Guía: un número legible, no un punto.
+.desktop-rail__badge--count,
+.mobile-tab__badge--count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  justify-content: center;
 }
 
 .with-desktop-rail {
