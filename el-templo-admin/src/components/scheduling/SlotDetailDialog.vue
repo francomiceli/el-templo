@@ -698,7 +698,7 @@ import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import { extractError } from 'src/utils/extract-error';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
 import MemberTags from 'src/components/scheduling/MemberTags.vue';
 import CheckInChips from 'src/components/scheduling/CheckInChips.vue';
@@ -1430,7 +1430,10 @@ async function onBookTrial() {
   } catch (err: unknown) {
     const fallback = err instanceof Error ? err.message : 'Error reservando sesión de prueba';
     const msg = schedulingApi.error.value ?? fallback;
-    log.error('Error booking trial', { error: msg });
+    // 4xx = validación de negocio (sin cupo de prueba, sede, etc.): el admin ya ve
+    // el motivo en el notify, no es un bug → warn (no va a Sentry).
+    if (isExpectedClientError(err)) log.warn('Error booking trial', { error: msg });
+    else log.error('Error booking trial', { error: msg });
     $q.notify({ type: 'negative', message: msg, timeout: 5000 });
   } finally {
     bookingTrial.value = false;
@@ -1484,7 +1487,10 @@ async function onTrialMemberCreated(member: MemberProfile): Promise<void> {
     // retry via the "Buscar alumno en prueba" picker.
     const fallback = err instanceof Error ? err.message : 'Error reservando sesión de prueba';
     const msg = schedulingApi.error.value ?? fallback;
-    log.error('Error booking trial after soft register', { error: msg });
+    // 4xx = validación de negocio (sin cupo de prueba, sede, etc.): el admin ya ve
+    // el motivo en el notify, no es un bug → warn (no va a Sentry).
+    if (isExpectedClientError(err)) log.warn('Error booking trial after soft register', { error: msg });
+    else log.error('Error booking trial after soft register', { error: msg });
     $q.notify({
       type: 'warning',
       message: `Alumno creado pero la reserva falló: ${msg}. Buscalo en la lista para reservar.`,
