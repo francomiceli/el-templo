@@ -21,6 +21,9 @@
       </div>
 
       <p class="scanner-hint">Apunta la camara al codigo QR de tu sede</p>
+      <!-- SPEC "Empezá acá" A2 — TODO-CONTENIDO: confirmar la ubicación
+           física exacta del QR en cada sede (hoy es un texto genérico). -->
+      <p class="scanner-help">El QR está en la recepción de tu sede</p>
     </div>
 
     <!-- Camera permission denied -->
@@ -319,6 +322,14 @@ onBeforeUnmount(() => {
   margin-top: 24px;
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  padding: 0 24px;
+}
+
+.scanner-help {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
   text-align: center;
   padding: 0 24px;
 }

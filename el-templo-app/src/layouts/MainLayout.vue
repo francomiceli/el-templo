@@ -110,6 +110,27 @@
       <q-tooltip>Registrar asistencia</q-tooltip>
     </q-btn>
 
+    <!-- Tip de primer uso del QR (SPEC "Empezá acá" A2): globo persistente
+         anclado al FAB, una sola vez por socio (useTipsSeenStorage). -->
+    <transition name="fade">
+      <div
+        v-if="showQrTip"
+        class="check-in-fab-tip"
+        :class="{ 'check-in-fab-tip--with-footer': !isDesktop }"
+        role="status"
+      >
+        <p class="check-in-fab-tip__text">{{ qrTipMessage }}</p>
+        <q-btn
+          flat
+          dense
+          no-caps
+          label="Entendido"
+          class="check-in-fab-tip__btn"
+          @click="dismissQrTip"
+        />
+      </div>
+    </transition>
+
     <div class="app-bg" />
 
     <!-- Mobile bottom tab bar -->
@@ -157,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
@@ -172,6 +193,8 @@ import PlanExpiryDialog from 'src/components/PlanExpiryDialog.vue'
 import AvisoPromptDialog from 'src/components/AvisoPromptDialog.vue'
 import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
 import VeteranSeal from 'src/components/VeteranSeal.vue'
+import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
+import { TIPS_CONTENT } from 'src/config/tips-content'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -241,6 +264,36 @@ const showCheckInFab = computed(() => {
   if (!userStore.hasActiveSubscription) return false
   return route.path === '/mi-templo' || route.path === '/reservas'
 })
+
+// SPEC "Empezá acá" A2 — tip de primer uso del QR de check-in: se muestra
+// una sola vez por socio (useTipsSeenStorage), la primera vez que el FAB se
+// vuelve visible. `qrTipChecked` evita re-consultar el storage en cada
+// recomputo de `showCheckInFab` (cambia de página en página) — solo importa
+// la PRIMERA vez que se hizo visible en esta sesión.
+const tipsStorage = useTipsSeenStorage()
+const qrTipMessage = TIPS_CONTENT['qr-checkin'].message
+const showQrTip = ref(false)
+let qrTipChecked = false
+
+watch(
+  showCheckInFab,
+  (visible) => {
+    if (!visible || qrTipChecked) return
+    const userId = userStore.profile?.id
+    if (!userId) return
+    qrTipChecked = true
+    void tipsStorage.hasSeen(userId, 'qr-checkin').then((seen) => {
+      if (!seen) showQrTip.value = true
+    })
+  },
+  { immediate: true },
+)
+
+async function dismissQrTip() {
+  showQrTip.value = false
+  const userId = userStore.profile?.id
+  if (userId) await tipsStorage.markSeen(userId, 'qr-checkin')
+}
 
 interface MobileTab {
   to: string
@@ -645,5 +698,59 @@ async function onLogout() {
     // Above mobile footer tabs (56px height + safe area)
     bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 16px);
   }
+}
+
+/* ------------------------------------------------------------------
+   Check-in FAB — tip de primer uso (SPEC "Empezá acá" A2)
+   ------------------------------------------------------------------ */
+.check-in-fab-tip {
+  position: fixed;
+  bottom: 100px;
+  right: 16px;
+  z-index: 101; // por encima del FAB
+  max-width: 220px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: $primary;
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+
+  // Flechita apuntando al FAB
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    right: 28px;
+    border-width: 8px 8px 0;
+    border-style: solid;
+    border-color: $primary transparent transparent;
+  }
+
+  &--with-footer {
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 92px);
+  }
+}
+
+.check-in-fab-tip__text {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.check-in-fab-tip__btn {
+  color: white;
+  font-weight: 600;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
