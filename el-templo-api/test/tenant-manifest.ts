@@ -667,6 +667,16 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/reports/trial-sessions/export": {
     categoria: "tenant-scoped",
   },
+  // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26).
+  "PATCH /api/admin/reports/trial-sessions/:bookingId/followup": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/reports/trial-sessions/shifts": {
+    categoria: "tenant-scoped",
+  },
+  "PUT /api/admin/reports/trial-sessions/shifts/:branchId": {
+    categoria: "tenant-scoped",
+  },
   "PATCH /api/admin/reports/outstanding-balances/:balanceId/management": {
     categoria: "tenant-scoped",
   },

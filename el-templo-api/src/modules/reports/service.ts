@@ -35,6 +35,18 @@ import {
   RosterAttributionIndex,
   isoWeekStart,
 } from "../ratings/roster-attribution";
+import { buildClassDateTime } from "../shared/date-utils";
+import { normalizePhoneE164 } from "../shared/phone";
+import { SettingsService } from "../settings/service";
+import {
+  computeNextAction,
+  deriveSessionStatus,
+  resolveActiveShiftEnd,
+  type TrialCadenceSession,
+  type TrialMessageCode,
+  type TrialNextAction,
+  type TrialShiftConfig,
+} from "./trial-cadence";
 import type {
   AccessReportFilters,
   AccessReportRow,
@@ -59,10 +71,144 @@ import type {
   PaginatedResult,
   TrialConversionFilters,
   TrialConversionReport,
+  TrialFollowupSummary,
+  TrialLostReason,
+  TrialRescheduleLinkedSession,
+  TrialSessionKpis,
   TrialSessionsFilters,
   TrialSessionsReport,
   TrialSessionsRow,
+  TrialShiftsRow,
 } from "./types";
+
+/**
+ * Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26): cap de
+ * seguridad para el fetch SIN paginar en SQL (ver docblock de
+ * `getTrialSessionsReport`). Mismo espíritu que el `HARD_CAP` de
+ * `exportTrialSessions` — un gimnasio no genera decenas de miles de sesiones
+ * de prueba activas/recientes a la vez.
+ */
+const TRIAL_SESSIONS_FETCH_CAP = 5000;
+
+/** Una fila cruda del reporte de sesiones de prueba, antes de derivar. */
+interface TrialSessionRawRow {
+  booking_id: number;
+  user_id: number;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  booking_date: string | Date;
+  booked_at: string | Date;
+  booking_status: string;
+  start_time: string;
+  end_time: string;
+  branch_id: number;
+  branch_name: string;
+  branch_timezone: string;
+  branch_country: string;
+  trial_morning_start: string;
+  trial_morning_end: string;
+  trial_afternoon_start: string;
+  trial_afternoon_end: string;
+  attendance_id: number | null;
+  lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
+  lead_notes: string | null;
+  purchased_plan_id: number | null;
+  purchased_plan_name: string | null;
+  converted_at: string | Date | null;
+  creator_id: number | null;
+  creator_first_name: string | null;
+  creator_last_name: string | null;
+  lead_status_source: "auto" | "manual" | null;
+  booking_source: string | null;
+  trial_followup_started_at: string | Date | null;
+  reschedules: number | string;
+  followup_id: number | null;
+  m1_sent_at: string | Date | null;
+  m1_sent_by: number | null;
+  m1_sent_by_first_name: string | null;
+  m1_sent_by_last_name: string | null;
+  m2_kind: "venta" | "reagenda" | null;
+  m2_sent_at: string | Date | null;
+  m2_sent_by: number | null;
+  m2_sent_by_first_name: string | null;
+  m2_sent_by_last_name: string | null;
+  m3_sent_at: string | Date | null;
+  m3_sent_by: number | null;
+  m3_sent_by_first_name: string | null;
+  m3_sent_by_last_name: string | null;
+  responded_at: string | Date | null;
+  responded_by: number | null;
+  responded_by_first_name: string | null;
+  responded_by_last_name: string | null;
+  lost_reason: TrialLostReason | null;
+  lost_note: string | null;
+  rescheduled_from_booking_id: number | null;
+}
+
+/**
+ * `TrialSessionsRow` + `isPendingThisShift` — campo interno usado por el
+ * filtro `pendingThisShift` y por `computeTrialSessionKpis`, despojado antes
+ * de responder (ver `getTrialSessionsReport`/`getTrialSessionRowByBookingId`).
+ */
+type TrialSessionRowInternal = TrialSessionsRow & {
+  isPendingThisShift: boolean;
+};
+
+/** `string|Date` (columna timestamp de MySQL) a `Date`. */
+function toDate(v: string | Date): Date {
+  if (v instanceof Date) return v;
+  return new Date(v.replace(" ", "T") + "Z");
+}
+
+/** Igual que {@link toDate}, pasando por `null`. */
+function toDateOrNull(v: string | Date | null): Date | null {
+  return v === null ? null : toDate(v);
+}
+
+/**
+ * KPIs de la cadencia de Sesiones de Prueba (brief §9), sobre el set ya
+ * filtrado + derivado (mismo patrón que `RenewalsService` → `computeKpis`:
+ * "sobre el set filtrado por sede+período").
+ *
+ * `attendanceRate`/`recoveryRate` usan `attended` CRUDO (hecho de asistencia,
+ * ver `deriveSessionStatus`), no el `sessionStatus` final — una sesión que
+ * derivó a "Perdida" por faltar a la última reagenda permitida sigue siendo,
+ * como HECHO, una sesión no asistida.
+ */
+function computeTrialSessionKpis(
+  rows: TrialSessionRowInternal[],
+): TrialSessionKpis {
+  let asistio = 0;
+  let noAsistio = 0;
+  let ganadaConAsistio = 0;
+  let reagendada = 0;
+  let pendingThisShift = 0;
+
+  for (const r of rows) {
+    if (r.attended === "si") asistio += 1;
+    if (r.attended === "no") noAsistio += 1;
+    if (r.sessionStatus === "ganada" && r.attended === "si") {
+      ganadaConAsistio += 1;
+    }
+    if (r.sessionStatus === "reagendada") reagendada += 1;
+    if (r.isPendingThisShift) pendingThisShift += 1;
+  }
+
+  const attendanceDenominator = asistio + noAsistio;
+  const attendanceRate =
+    attendanceDenominator === 0 ? null : (asistio / attendanceDenominator) * 100;
+  const conversionRate = asistio === 0 ? null : (ganadaConAsistio / asistio) * 100;
+  const recoveryRate = noAsistio === 0 ? null : (reagendada / noAsistio) * 100;
+
+  return {
+    total: rows.length,
+    pendingThisShift,
+    attendanceRate,
+    conversionRate,
+    recoveryRate,
+  };
+}
 
 const DAY_LABELS: Record<number, string> = {
   1: "Lun",
@@ -336,10 +482,17 @@ function deriveEffectiveDateAndLabelOB(input: {
 }
 
 export class ReportsService {
+  private settingsService: SettingsService;
+
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
-  ) {}
+  ) {
+    // Facade (CLAUDE.md §Patterns): los parámetros de la cadencia de Sesiones
+    // de Prueba (`trials.*` en system_settings) son responsabilidad de
+    // `SettingsService` — este módulo no duplica esa lógica.
+    this.settingsService = new SettingsService(db, log);
+  }
 
   // ─── Recategorización multisucursal (preview del cron) ─────────────────────
 
@@ -1965,125 +2118,176 @@ export class ReportsService {
   // schema layer is the first defense (integer/enum enforcement); this is
   // defense-in-depth (T-114-05-04).
 
-  // Fase 173 (ADO-02, D-02 acotado): `ctx` PRIMERO — deuda documentada por la
-  // 173-05 (`users` sin filtro en este método, 2 alias `u`/`creator`) que
-  // este plan cierra con cirugía mínima: único call site en routes.ts, sin
-  // tocar el resto del archivo.
+  /**
+   * `GET /api/admin/reports/trial-sessions` (brief Nacho, 2026-09-26,
+   * "cadencia de mensajes en Sesiones de Prueba"). Granularidad: **1 fila por
+   * SESIÓN** (booking `is_trial=1`), no por lead — cambio intencional desde
+   * la Fase 114-05, que deduplicaba por lead vía una derived table
+   * `latest_trial` (`MAX(booking.id)` por `member_id`). Incluye las sesiones
+   * canceladas que tienen una hija de reagenda (se muestran como
+   * "Reagendada"); las canceladas por cualquier otro motivo siguen fuera.
+   *
+   * SIN paginar en SQL: `sessionStatus`/`nextAction`/`pendingThisShift` son
+   * DERIVADOS (motor `trial-cadence.ts`) y dependen de contexto que no vive
+   * en una sola fila (cadena de reagendas, parámetros de `system_settings`,
+   * `now`), así que el fetch trae TODO lo que matchea los filtros "de SQL"
+   * (sede/país/fecha/turno/lead/búsqueda/origen — ver
+   * `buildTrialSessionsConditions`) hasta `TRIAL_SESSIONS_FETCH_CAP`, deriva
+   * cada fila en JS, aplica ahí los filtros derivados
+   * (`attended`/`sessionStatus`/`pendingThisShift`), calcula los KPIs sobre
+   * ESE set filtrado completo (mismo patrón que `RenewalsService.
+   * listRenewals` → `computeKpis`) y recién ahí pagina en memoria. Un
+   * gimnasio no genera decenas de miles de sesiones de prueba activas o
+   * recientes a la vez — ver `exportTrialSessions`, que ya usaba el mismo
+   * cap de seguridad para su propio "traer todo".
+   */
   async getTrialSessionsReport(
     ctx: TenantContext,
     filters: TrialSessionsFilters,
   ): Promise<TrialSessionsReport> {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 50;
-    const offset = (page - 1) * limit;
 
-    // Build the list of WHERE predicates as SQL fragments. Each filter that
-    // injects user input does so via drizzle's `${...}` parameter binding —
-    // never string concat.
     const conds = this.buildTrialSessionsConditions(filters);
-    // Mismos filtros de sede/fecha/turno, pero con los alias de la derived
-    // table: acotan de QUÉ SP se elige el representativo de cada lead.
-    const bookingScope = this.buildTrialSessionsBookingScope(filters);
+    const dbRows = await this.fetchTrialSessionRawRows(
+      ctx,
+      conds,
+      TRIAL_SESSIONS_FETCH_CAP,
+    );
+    const allRows = await this.buildTrialSessionRows(ctx, dbRows);
 
-    // Total count: SAME `latest_trial` derived table + SAME predicates as
-    // the row query, so `total` reflects deduplicated leads — not raw
-    // booking rows. Two separate queries (count + page) per the precedent
-    // set by getChargeHistory.
-    const countRows = await this.db.execute<{ total: number }>(sql`
-      SELECT COUNT(*) AS total
-      FROM (
-        SELECT b2.member_id, MAX(b2.id) AS booking_id
-        FROM ${schema.bookings} AS b2
-        JOIN ${schema.schedules} AS s2  ON s2.id = b2.schedule_id
-        JOIN ${schema.branches}  AS br2 ON br2.id = s2.branch_id
-        WHERE b2.is_trial = 1 AND b2.booking_status <> 'cancelado'
-          ${bookingScope}
-        GROUP BY b2.member_id
-      ) AS lt
-      JOIN ${schema.bookings} AS b      ON b.id = lt.booking_id
-      JOIN ${schema.users}    AS u      ON u.id = lt.member_id AND u.tenant_id = ${ctx.tenantId}
-      JOIN ${schema.schedules} AS s     ON s.id = b.schedule_id
-      JOIN ${schema.branches}  AS br    ON br.id = s.branch_id
-      LEFT JOIN ${schema.attendance} AS a
-        ON a.member_id = b.member_id
-       AND a.schedule_id = b.schedule_id
-       AND a.session_date = b.booking_date
-       AND a.attendance_status = 'confirmado'
-      LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by AND creator.tenant_id = ${ctx.tenantId}
-      WHERE u.deleted_at IS NULL
-        ${conds}
-    `);
-    const countResult = countRows[0] as unknown as Array<{ total: number }>;
-    const total = Number(countResult[0]?.total ?? 0);
+    const filtered = allRows.filter((row) => {
+      if (filters.attended !== undefined) {
+        // D-08: 'true'→"si", 'false'→"no", 'pending'→null (clase sin terminar).
+        const wantedAttended =
+          filters.attended === "true"
+            ? "si"
+            : filters.attended === "false"
+              ? "no"
+              : null;
+        if (row.attended !== wantedAttended) return false;
+      }
+      if (
+        filters.sessionStatus !== undefined &&
+        filters.sessionStatus.length > 0 &&
+        !filters.sessionStatus.includes(row.sessionStatus)
+      ) {
+        return false;
+      }
+      if (filters.pendingThisShift === true && !row.isPendingThisShift) {
+        return false;
+      }
+      return true;
+    });
 
-    // Page query — same JOIN graph, returns the raw columns we'll derive
-    // the response rows from in JS. Sort: most recent representative
-    // trial first.
-    const rawRows = await this.db.execute<{
-      booking_id: number;
-      user_id: number;
-      first_name: string | null;
-      last_name: string | null;
-      booking_date: string | Date;
-      booked_at: string | Date;
-      start_time: string;
-      branch_id: number;
-      branch_name: string;
-      attendance_id: number | null;
-      lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
-      lead_notes: string | null;
-      purchased_plan_id: number | null;
-      purchased_plan_name: string | null;
-      converted_at: string | Date | null;
-      creator_id: number | null;
-      creator_first_name: string | null;
-      creator_last_name: string | null;
-      lead_status_source: "auto" | "manual" | null;
-      booking_source: string | null;
-      trial_followup_started_at: string | Date | null;
-      reschedules: number | string;
-      phone: string | null;
-    }>(sql`
+    const kpis = computeTrialSessionKpis(filtered);
+    const total = filtered.length;
+    const start = (page - 1) * limit;
+    const rows = filtered
+      .slice(start, start + limit)
+      // `isPendingThisShift` es un campo auxiliar interno (filtro/KPI) — no es
+      // parte del contrato público de `TrialSessionsRow`.
+      .map(({ isPendingThisShift: _p, ...row }) => row);
+
+    return { rows, total, page, limit, kpis };
+  }
+
+  /**
+   * Resuelve UNA fila del reporte de sesiones de prueba por `bookingId` —
+   * usado por `TrialFollowupService` para devolver la fila recalculada tras
+   * un PATCH de followup o una reagenda (mismo patrón que
+   * `RenewalsService.fetchSingleRow`). `null` si la sesión no existe en el
+   * tenant (el caller ya validó alcance de sede antes de llamar acá).
+   */
+  async getTrialSessionRowByBookingId(
+    ctx: TenantContext,
+    bookingId: number,
+  ): Promise<TrialSessionsRow | null> {
+    const dbRows = await this.fetchTrialSessionRawRows(
+      ctx,
+      sql` AND b.id = ${bookingId}`,
+      1,
+    );
+    if (dbRows.length === 0) return null;
+    const [row] = await this.buildTrialSessionRows(ctx, dbRows);
+    if (!row) return null;
+    const { isPendingThisShift: _p, ...rest } = row;
+    return rest;
+  }
+
+  /**
+   * SELECT + JOINs base del reporte de sesiones de prueba, compartido entre
+   * `getTrialSessionsReport` (con TODOS los filtros de usuario) y
+   * `getTrialSessionRowByBookingId` (con un `WHERE b.id = ?` puntual) — DRY:
+   * un solo lugar con el grafo de JOINs (booking → schedule → branch → user →
+   * followup + 4 users de "quién mandó cada mensaje").
+   */
+  private async fetchTrialSessionRawRows(
+    ctx: TenantContext,
+    extraConds: SQL,
+    limit: number,
+  ): Promise<TrialSessionRawRow[]> {
+    const rawRows = await this.db.execute<TrialSessionRawRow>(sql`
       SELECT
-        b.id              AS booking_id,
-        u.id              AS user_id,
-        u.first_name      AS first_name,
-        u.last_name       AS last_name,
-        u.phone           AS phone,
-        b.booking_date    AS booking_date,
-        b.booked_at       AS booked_at,
-        s.start_time      AS start_time,
-        br.id             AS branch_id,
-        br.name           AS branch_name,
-        a.id              AS attendance_id,
-        u.lead_status     AS lead_status,
-        u.lead_notes      AS lead_notes,
+        b.id                AS booking_id,
+        u.id                AS user_id,
+        u.first_name        AS first_name,
+        u.last_name         AS last_name,
+        u.phone             AS phone,
+        b.booking_date      AS booking_date,
+        b.booked_at         AS booked_at,
+        b.booking_status    AS booking_status,
+        s.start_time        AS start_time,
+        s.end_time          AS end_time,
+        br.id               AS branch_id,
+        br.name             AS branch_name,
+        br.timezone         AS branch_timezone,
+        br.country          AS branch_country,
+        br.trial_morning_start   AS trial_morning_start,
+        br.trial_morning_end     AS trial_morning_end,
+        br.trial_afternoon_start AS trial_afternoon_start,
+        br.trial_afternoon_end   AS trial_afternoon_end,
+        a.id                AS attendance_id,
+        u.lead_status       AS lead_status,
+        u.lead_notes        AS lead_notes,
         u.purchased_plan_id AS purchased_plan_id,
-        pp.name           AS purchased_plan_name,
-        u.converted_at    AS converted_at,
-        creator.id        AS creator_id,
-        creator.first_name AS creator_first_name,
-        creator.last_name  AS creator_last_name,
+        pp.name             AS purchased_plan_name,
+        u.converted_at      AS converted_at,
+        creator.id          AS creator_id,
+        creator.first_name  AS creator_first_name,
+        creator.last_name   AS creator_last_name,
         u.lead_status_source AS lead_status_source,
-        b.source          AS booking_source,
+        b.source            AS booking_source,
         u.trial_followup_started_at AS trial_followup_started_at,
         (SELECT COUNT(*) FROM ${schema.bookings} AS rc
           WHERE rc.member_id = u.id
             AND rc.is_trial = 1
-            AND rc.booking_status = 'cancelado') AS reschedules
-      FROM (
-        SELECT b2.member_id, MAX(b2.id) AS booking_id
-        FROM ${schema.bookings} AS b2
-        JOIN ${schema.schedules} AS s2  ON s2.id = b2.schedule_id
-        JOIN ${schema.branches}  AS br2 ON br2.id = s2.branch_id
-        WHERE b2.is_trial = 1 AND b2.booking_status <> 'cancelado'
-          ${bookingScope}
-        GROUP BY b2.member_id
-      ) AS lt
-      JOIN ${schema.bookings}  AS b      ON b.id = lt.booking_id
-      JOIN ${schema.users}     AS u      ON u.id = lt.member_id AND u.tenant_id = ${ctx.tenantId}
-      JOIN ${schema.schedules} AS s      ON s.id = b.schedule_id
-      JOIN ${schema.branches}  AS br     ON br.id = s.branch_id
+            AND rc.booking_status = 'cancelado') AS reschedules,
+        tf.id                          AS followup_id,
+        tf.m1_sent_at                  AS m1_sent_at,
+        tf.m1_sent_by                  AS m1_sent_by,
+        m1u.first_name                 AS m1_sent_by_first_name,
+        m1u.last_name                  AS m1_sent_by_last_name,
+        tf.m2_kind                     AS m2_kind,
+        tf.m2_sent_at                  AS m2_sent_at,
+        tf.m2_sent_by                  AS m2_sent_by,
+        m2u.first_name                 AS m2_sent_by_first_name,
+        m2u.last_name                  AS m2_sent_by_last_name,
+        tf.m3_sent_at                  AS m3_sent_at,
+        tf.m3_sent_by                  AS m3_sent_by,
+        m3u.first_name                 AS m3_sent_by_first_name,
+        m3u.last_name                  AS m3_sent_by_last_name,
+        tf.responded_at                AS responded_at,
+        tf.responded_by                AS responded_by,
+        respu.first_name               AS responded_by_first_name,
+        respu.last_name                AS responded_by_last_name,
+        tf.lost_reason                 AS lost_reason,
+        tf.lost_note                   AS lost_note,
+        tf.rescheduled_from_booking_id AS rescheduled_from_booking_id
+      FROM ${schema.bookings} AS b
+      JOIN ${schema.schedules} AS s ON s.id = b.schedule_id
+      JOIN ${schema.branches}  AS br ON br.id = s.branch_id
+      JOIN ${schema.users}     AS u ON u.id = b.member_id AND u.tenant_id = ${ctx.tenantId}
       LEFT JOIN ${schema.attendance} AS a
         ON a.member_id = b.member_id
        AND a.schedule_id = b.schedule_id
@@ -2091,43 +2295,26 @@ export class ReportsService {
        AND a.attendance_status = 'confirmado'
       LEFT JOIN ${schema.users} AS creator ON creator.id = u.created_by AND creator.tenant_id = ${ctx.tenantId}
       LEFT JOIN ${schema.subscriptionPlans} AS pp ON pp.id = u.purchased_plan_id
+      LEFT JOIN ${schema.trialFollowups} AS tf ON tf.tenant_id = ${ctx.tenantId} AND tf.booking_id = b.id
+      LEFT JOIN ${schema.users} AS m1u ON m1u.id = tf.m1_sent_by AND m1u.tenant_id = ${ctx.tenantId}
+      LEFT JOIN ${schema.users} AS m2u ON m2u.id = tf.m2_sent_by AND m2u.tenant_id = ${ctx.tenantId}
+      LEFT JOIN ${schema.users} AS m3u ON m3u.id = tf.m3_sent_by AND m3u.tenant_id = ${ctx.tenantId}
+      LEFT JOIN ${schema.users} AS respu ON respu.id = tf.responded_by AND respu.tenant_id = ${ctx.tenantId}
       WHERE u.deleted_at IS NULL
-        ${conds}
+        AND b.tenant_id = ${ctx.tenantId}
+        AND b.is_trial = 1
+        AND (
+          b.booking_status <> 'cancelado'
+          OR EXISTS (
+            SELECT 1 FROM ${schema.trialFollowups} AS ctf
+            WHERE ctf.tenant_id = ${ctx.tenantId} AND ctf.rescheduled_from_booking_id = b.id
+          )
+        )
+        ${extraConds}
       ORDER BY b.booking_date DESC, b.id DESC
-      LIMIT ${limit} OFFSET ${offset}
+      LIMIT ${limit}
     `);
-
-    const dbRows = rawRows[0] as unknown as Array<{
-      booking_id: number;
-      user_id: number;
-      first_name: string | null;
-      last_name: string | null;
-      booking_date: string | Date;
-      booked_at: string | Date;
-      start_time: string;
-      branch_id: number;
-      branch_name: string;
-      attendance_id: number | null;
-      lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
-      lead_notes: string | null;
-      purchased_plan_id: number | null;
-      purchased_plan_name: string | null;
-      converted_at: string | Date | null;
-      creator_id: number | null;
-      creator_first_name: string | null;
-      creator_last_name: string | null;
-      lead_status_source: "auto" | "manual" | null;
-      booking_source: string | null;
-      trial_followup_started_at: string | Date | null;
-      reschedules: number | string;
-      phone: string | null;
-    }>;
-
-    const rows: TrialSessionsRow[] = dbRows.map((r) =>
-      this.mapTrialSessionRow(r),
-    );
-
-    return { rows, total, page, limit };
+    return rawRows[0] as unknown as TrialSessionRawRow[];
   }
 
   /**
@@ -2330,52 +2517,16 @@ export class ReportsService {
    * Returned shape: a single SQL fragment of the form ` AND <p1> AND <p2>...`
    * (note the leading ` AND ` so it composes cleanly after `u.deleted_at IS
    * NULL` in the caller). Empty filters yield an empty fragment.
+   *
+   * Cadencia de mensajes (2026-09-26): la granularidad pasó de "1 fila por
+   * lead" a "1 fila por sesión" (ver docblock de `getTrialSessionsReport`),
+   * así que la vieja derived table `latest_trial` (b2/s2/br2) desapareció —
+   * ya no hace falta elegir "cuál SP representa al lead", cada booking es su
+   * propia fila. `attended`/`sessionStatus`/`pendingThisShift` NO viven acá:
+   * son derivados que dependen de contexto fuera de una sola fila (cadena de
+   * reagendas, `system_settings`, `now`) y se filtran en JS después de
+   * `buildTrialSessionRows` — ver `getTrialSessionsReport`.
    */
-  /**
-   * Predicados que definen QUÉ sesión de prueba interesa (sede, país, fecha,
-   * turno), con los alias de la derived table `latest_trial` (b2/s2/br2).
-   *
-   * Van DENTRO de la subquery que elige el booking representativo de cada lead.
-   * Antes se aplicaban solo afuera, y eso subregistraba en silencio: el
-   * representativo se elegía como "la SP más reciente del lead" sin mirar los
-   * filtros, así que un lead con SP en la sede filtrada pero cuya última SP fue
-   * en OTRA sede (u otra fecha) perdía su fila entera. Medido en prod: Barcelona
-   * devolvía 85 filas para 95 leads con SP ahí.
-   *
-   * Con esto el representativo pasa a ser "la SP más reciente de las que entran
-   * en el filtro", y se mantiene la promesa de una sola fila por lead.
-   *
-   * Los predicados de LEAD (estado, gestiona, búsqueda, origen) y el de
-   * asistencia NO van acá a propósito: no definen cuál SP representa al lead,
-   * filtran al lead ya elegido. Moverlos cambiaría qué booking se muestra.
-   */
-  private buildTrialSessionsBookingScope(filters: TrialSessionsFilters): SQL {
-    const preds: SQL[] = [];
-
-    if (filters.country !== undefined) {
-      preds.push(sql`(br2.country = ${filters.country} OR br2.is_virtual = 1)`);
-    }
-    if (filters.branchId !== undefined) {
-      preds.push(sql`br2.id = ${filters.branchId}`);
-    }
-    if (filters.dateFrom !== undefined) {
-      preds.push(sql`b2.booking_date >= ${filters.dateFrom}`);
-    }
-    if (filters.dateTo !== undefined) {
-      preds.push(sql`b2.booking_date <= ${filters.dateTo}`);
-    }
-    if (filters.shift !== undefined) {
-      preds.push(
-        filters.shift === "TM"
-          ? sql`s2.start_time < '12:00'`
-          : sql`s2.start_time >= '12:00'`,
-      );
-    }
-
-    if (preds.length === 0) return sql``;
-    return sql` AND ${sql.join(preds, sql` AND `)}`;
-  }
-
   private buildTrialSessionsConditions(filters: TrialSessionsFilters): SQL {
     const preds: SQL[] = [];
 
@@ -2418,19 +2569,10 @@ export class ReportsService {
       preds.push(sql`(${sql.join(orParts, sql` OR `)})`);
     }
 
-    if (filters.attended !== undefined) {
-      // D-08 derivation as filter predicates. The LEFT JOIN on attendance
-      // gives `a.id IS NULL` for "no row matching" — exactly the same gate
-      // used to render 'no' vs null in JS.
-      if (filters.attended === "true") {
-        preds.push(sql`a.id IS NOT NULL`);
-      } else if (filters.attended === "false") {
-        preds.push(sql`a.id IS NULL AND b.booking_date < CURDATE()`);
-      } else {
-        // pending
-        preds.push(sql`a.id IS NULL AND b.booking_date >= CURDATE()`);
-      }
-    }
+    // `attended` YA NO es un predicado SQL (2026-09-26): la derivación D-01
+    // ahora depende de "clase terminada" (inicio+duración en tz de sede), no
+    // de una comparación de fecha calendario — se filtra en JS después de
+    // `buildTrialSessionRows` (ver `getTrialSessionsReport`).
 
     if (filters.shift !== undefined) {
       if (filters.shift === "TM") {
@@ -2518,10 +2660,21 @@ export class ReportsService {
       // Pendiente de seguimiento: nadie lo tomó todavía Y el lead sigue en juego
       // (en_seguimiento explícito, o NULL sin convertir; excluye ganado/perdido).
       // Es la misma derivación de leadStatusEffective usada para 'en_seguimiento'.
+      //
+      // 2026-09-26 (cadencia): con granularidad por SESIÓN, un lead reagendado
+      // deja una fila ancestro "Reagendada" que también matchea estos campos
+      // de `users` (son a nivel usuario, no de sesión) — sin excluirla, la
+      // "pelotita" de pendientes contaría de más. Se excluyen las filas que
+      // YA tienen una hija de reagenda: solo la sesión ACTIVA de la cadena
+      // cuenta para este contador.
       preds.push(
         sql`u.trial_followup_started_at IS NULL
           AND (u.lead_status = 'en_seguimiento'
-               OR (u.lead_status IS NULL AND u.converted_at IS NULL))`,
+               OR (u.lead_status IS NULL AND u.converted_at IS NULL))
+          AND NOT EXISTS (
+            SELECT 1 FROM ${schema.trialFollowups} AS pftf
+            WHERE pftf.tenant_id = b.tenant_id AND pftf.rescheduled_from_booking_id = b.id
+          )`,
       );
     }
 
@@ -2530,108 +2683,330 @@ export class ReportsService {
   }
 
   /**
-   * D-04..D-14 row derivations. Booking-level fields (`bookingDate`,
-   * `startTime`, `branchName`, `attended`) come from the chosen
-   * latest-non-cancelado trial booking. User-level fields (`leadStatus`,
-   * `leadNotes`, `createdBy`, `converted`, `leadStatusEffective`) come
-   * directly from the user row.
+   * Deriva TODAS las filas del reporte de sesiones de prueba a partir de las
+   * filas crudas de `fetchTrialSessionRawRows` (brief Nacho, 2026-09-26).
+   *
+   * Resuelve en batch (sin N+1):
+   *   1. Los 3 parámetros de `system_settings` (`trials.*`) — UNA sola vez.
+   *   2. El mapa de vínculos de reagenda de TODO el tenant
+   *      (`trial_followups.booking_id → rescheduled_from_booking_id`) — tabla
+   *      chica, se resuelve la cadena en JS (Explicit over clever, mismo
+   *      criterio que `RenewalsService.pickNextSubscription`) en vez de un
+   *      `WITH RECURSIVE`.
+   *   3. Las bookings enlazadas (hija/padre de una reagenda) que hace falta
+   *      mostrar como link pero que pueden no estar en el set ya traído
+   *      (p.ej. la hija cae fuera del rango de fecha filtrado).
    */
-  private mapTrialSessionRow(r: {
-    booking_id: number;
-    user_id: number;
-    first_name: string | null;
-    last_name: string | null;
-    booking_date: string | Date;
-    booked_at: string | Date;
-    start_time: string;
-    branch_id: number;
-    branch_name: string;
-    attendance_id: number | null;
-    lead_status: "en_seguimiento" | "ganado" | "perdido" | null;
-    lead_notes: string | null;
-    purchased_plan_id: number | null;
-    purchased_plan_name: string | null;
-    converted_at: string | Date | null;
-    creator_id: number | null;
-    creator_first_name: string | null;
-    creator_last_name: string | null;
-    lead_status_source: "auto" | "manual" | null;
-    booking_source: string | null;
-    trial_followup_started_at: string | Date | null;
-    reschedules: number | string;
-    phone: string | null;
-  }): TrialSessionsRow {
-    const bookingDate = normalizeISODate(r.booking_date);
-    // Fecha de creación de la SP (sesión de prueba) = cuándo se registró el booking.
-    const bookingCreatedAt = normalizeISODate(r.booked_at);
-    const startTime = r.start_time.slice(0, 5);
-    const lead = trimJoin(r.first_name, r.last_name);
-    const converted = r.converted_at !== null;
+  private async buildTrialSessionRows(
+    ctx: TenantContext,
+    dbRows: TrialSessionRawRow[],
+  ): Promise<TrialSessionRowInternal[]> {
+    if (dbRows.length === 0) return [];
 
-    // D-08 attended derivation.
-    let attended: "si" | "no" | null;
-    if (r.attendance_id !== null) {
-      attended = "si";
-    } else {
-      // Compare booking_date < today (UTC, day-level) — past sessions w/o
-      // attendance row count as "no", future/today w/o attendance is null.
-      const today = todayISO();
-      attended = bookingDate < today ? "no" : null;
+    const [retryHours, maxReschedules, cadenceStartDate] = await Promise.all([
+      this.settingsService.getFollowupRetryHours(),
+      this.settingsService.getMaxReschedules(),
+      this.settingsService.getCadenceStartDate(),
+    ]);
+
+    const linkRows = await this.db
+      .select({
+        bookingId: schema.trialFollowups.bookingId,
+        rescheduledFromBookingId: schema.trialFollowups.rescheduledFromBookingId,
+      })
+      .from(schema.trialFollowups)
+      .where(tenantWhere(schema.trialFollowups, ctx));
+
+    const parentOf = new Map<number, number>();
+    const childOf = new Map<number, number>();
+    for (const l of linkRows) {
+      if (l.rescheduledFromBookingId !== null) {
+        parentOf.set(l.bookingId, l.rescheduledFromBookingId);
+        childOf.set(l.rescheduledFromBookingId, l.bookingId);
+      }
     }
 
-    // D-09 effective lead status.
-    const leadStatusEffective: "en_seguimiento" | "ganado" | "perdido" =
-      r.lead_status ?? (converted ? "ganado" : "en_seguimiento");
+    const chainDepth = (bookingId: number): number => {
+      let depth = 0;
+      let cursor = bookingId;
+      for (let i = 0; i < 20; i++) {
+        const parent = parentOf.get(cursor);
+        if (parent === undefined) return depth;
+        depth += 1;
+        cursor = parent;
+      }
+      return depth;
+    };
 
-    // D-12 shift.
-    const shift: "TM" | "TT" = startTime < "12:00" ? "TM" : "TT";
+    const linkedInfo = new Map<number, TrialRescheduleLinkedSession>();
+    for (const r of dbRows) {
+      linkedInfo.set(r.booking_id, {
+        bookingId: r.booking_id,
+        date: normalizeISODate(r.booking_date),
+        startTime: r.start_time.slice(0, 5),
+        branchName: r.branch_name,
+      });
+    }
+    const knownIds = new Set(dbRows.map((r) => r.booking_id));
+    const neededIds = new Set<number>();
+    for (const r of dbRows) {
+      const childId = childOf.get(r.booking_id);
+      if (childId !== undefined && !knownIds.has(childId)) {
+        neededIds.add(childId);
+      }
+      if (
+        r.rescheduled_from_booking_id !== null &&
+        !knownIds.has(r.rescheduled_from_booking_id)
+      ) {
+        neededIds.add(r.rescheduled_from_booking_id);
+      }
+    }
+    if (neededIds.size > 0) {
+      const extra = await this.db
+        .select({
+          bookingId: schema.bookings.id,
+          date: schema.bookings.bookingDate,
+          startTime: schema.schedules.startTime,
+          branchName: schema.branches.name,
+        })
+        .from(schema.bookings)
+        .innerJoin(
+          schema.schedules,
+          eq(schema.schedules.id, schema.bookings.scheduleId),
+        )
+        .innerJoin(
+          schema.branches,
+          eq(schema.branches.id, schema.schedules.branchId),
+        )
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            inArray(schema.bookings.id, [...neededIds]),
+          ),
+        );
+      for (const e of extra) {
+        linkedInfo.set(e.bookingId, {
+          bookingId: e.bookingId,
+          date: e.date ?? "",
+          startTime: e.startTime.slice(0, 5),
+          branchName: e.branchName,
+        });
+      }
+    }
 
-    // D-13 period.
-    const period = bookingDate.slice(0, 7);
+    const now = new Date();
 
-    // D-14 week range — ISO Mon..Sun for the booking_date.
-    const weekRange = isoWeekRange(bookingDate);
+    return dbRows.map((r) => {
+      const bookingDate = normalizeISODate(r.booking_date);
+      const bookingCreatedAt = normalizeISODate(r.booked_at);
+      const startTime = r.start_time.slice(0, 5);
+      const endTime = r.end_time.slice(0, 5);
+      const lead = trimJoin(r.first_name, r.last_name);
+      const converted = r.converted_at !== null;
+      const branchCountry: "AR" | "ES" = r.branch_country === "ES" ? "ES" : "AR";
 
-    // daysSinceTrial — floor((today - bookingDate) / 1d). Negative for future.
-    const daysSinceTrial = daysBetweenISO(bookingDate, todayISO());
+      const shifts: TrialShiftConfig = {
+        morningStart: r.trial_morning_start,
+        morningEnd: r.trial_morning_end,
+        afternoonStart: r.trial_afternoon_start,
+        afternoonEnd: r.trial_afternoon_end,
+      };
 
-    const createdBy =
-      r.creator_id !== null
+      // D-01 (SPEC decisión #1): Asistió si hay presente; si no, No asistió
+      // SOLO cuando la clase YA TERMINÓ (inicio+duración, tz de sede) — NO
+      // existe "asistencia sin cargar". Antes de eso, Agendada (null).
+      const classEnd = buildClassDateTime(bookingDate, endTime, r.branch_timezone);
+      const attendedBool: boolean | null =
+        r.attendance_id !== null
+          ? true
+          : now.getTime() >= classEnd.getTime()
+            ? false
+            : null;
+      const attended: "si" | "no" | null =
+        attendedBool === null ? null : attendedBool ? "si" : "no";
+
+      const leadStatusEffective: "en_seguimiento" | "ganado" | "perdido" =
+        r.lead_status ?? (converted ? "ganado" : "en_seguimiento");
+
+      const shift: "TM" | "TT" = startTime < "12:00" ? "TM" : "TT";
+      const period = bookingDate.slice(0, 7);
+      const weekRange = isoWeekRange(bookingDate);
+      const daysSinceTrial = daysBetweenISO(bookingDate, todayISO());
+      const createdBy =
+        r.creator_id !== null
+          ? {
+              userId: r.creator_id,
+              name: trimJoin(r.creator_first_name, r.creator_last_name),
+            }
+          : null;
+
+      const hasRescheduleChild = childOf.has(r.booking_id);
+      const depth = chainDepth(r.booking_id);
+      const isFinalAllowedSession = depth >= maxReschedules;
+
+      const sessionStatus = deriveSessionStatus({
+        hasRescheduleChild,
+        leadStatus: leadStatusEffective,
+        attended: attendedBool,
+        isFinalAllowedSession,
+      });
+
+      const resolution =
+        sessionStatus === "ganada" ||
+        sessionStatus === "perdida" ||
+        sessionStatus === "reagendada"
+          ? sessionStatus
+          : null;
+
+      const cadenceSession: TrialCadenceSession = {
+        bookingDate,
+        startTime,
+        endTime,
+        bookedAt: toDate(r.booked_at),
+        timezone: r.branch_timezone,
+      };
+
+      const nextAction = computeNextAction({
+        session: cadenceSession,
+        followup: {
+          m1SentAt: toDateOrNull(r.m1_sent_at),
+          m2SentAt: toDateOrNull(r.m2_sent_at),
+          m3SentAt: toDateOrNull(r.m3_sent_at),
+          respondedAt: toDateOrNull(r.responded_at),
+        },
+        attended: attendedBool,
+        resolution,
+        shifts,
+        retryHours,
+        isFinalAllowedSession,
+        cadenceStartDate,
+        now,
+      });
+
+      const messages: Array<{
+        code: TrialMessageCode;
+        sentAt: Date;
+        sentBy: { userId: number; name: string } | null;
+      }> = [];
+      if (r.m1_sent_at !== null) {
+        messages.push({
+          code: "M1",
+          sentAt: toDate(r.m1_sent_at),
+          sentBy:
+            r.m1_sent_by !== null
+              ? {
+                  userId: r.m1_sent_by,
+                  name: trimJoin(r.m1_sent_by_first_name, r.m1_sent_by_last_name),
+                }
+              : null,
+        });
+      }
+      if (r.m2_sent_at !== null) {
+        messages.push({
+          code: r.m2_kind === "reagenda" ? "M2b" : "M2a",
+          sentAt: toDate(r.m2_sent_at),
+          sentBy:
+            r.m2_sent_by !== null
+              ? {
+                  userId: r.m2_sent_by,
+                  name: trimJoin(r.m2_sent_by_first_name, r.m2_sent_by_last_name),
+                }
+              : null,
+        });
+      }
+      if (r.m3_sent_at !== null) {
+        messages.push({
+          code: r.m2_kind === "reagenda" ? "M3b" : "M3a",
+          sentAt: toDate(r.m3_sent_at),
+          sentBy:
+            r.m3_sent_by !== null
+              ? {
+                  userId: r.m3_sent_by,
+                  name: trimJoin(r.m3_sent_by_first_name, r.m3_sent_by_last_name),
+                }
+              : null,
+        });
+      }
+      messages.sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime());
+      const lastMessage = messages[0]
         ? {
-            userId: r.creator_id,
-            name: trimJoin(r.creator_first_name, r.creator_last_name),
+            code: messages[0].code,
+            sentAt: messages[0].sentAt.toISOString(),
+            sentBy: messages[0].sentBy,
           }
         : null;
 
-    return {
-      bookingId: r.booking_id,
-      userId: r.user_id,
-      lead,
-      bookingDate,
-      bookingCreatedAt,
-      startTime,
-      branchId: r.branch_id,
-      branchName: r.branch_name,
-      attended,
-      leadStatus: r.lead_status,
-      leadStatusEffective,
-      createdBy,
-      leadNotes: r.lead_notes,
-      purchasedPlanId: r.purchased_plan_id,
-      purchasedPlanName: r.purchased_plan_name,
-      shift,
-      period,
-      weekRange,
-      daysSinceTrial,
-      converted,
-      reschedules: Number(r.reschedules),
-      leadStatusSource: r.lead_status_source ?? null,
-      phone: r.phone ?? null,
-      // Origen: 'app' sólo cuando el booking representativo es self-service; el
-      // resto (staff o legacy con source NULL) es 'admin'.
-      origin: r.booking_source === "self_service" ? "app" : "admin",
-      followupStartedAt: normalizeISOTimestamp(r.trial_followup_started_at),
-    };
+      const followup: TrialFollowupSummary | null =
+        r.followup_id === null
+          ? null
+          : {
+              lastMessage,
+              m2Kind: r.m2_kind,
+              respondedAt: normalizeISOTimestamp(r.responded_at),
+              respondedBy:
+                r.responded_by !== null
+                  ? {
+                      userId: r.responded_by,
+                      name: trimJoin(
+                        r.responded_by_first_name,
+                        r.responded_by_last_name,
+                      ),
+                    }
+                  : null,
+              lostReason: r.lost_reason,
+              lostNote: r.lost_note,
+            };
+
+      const rescheduledTo = hasRescheduleChild
+        ? (linkedInfo.get(childOf.get(r.booking_id)!) ?? null)
+        : null;
+      const rescheduledFrom =
+        r.rescheduled_from_booking_id !== null
+          ? (linkedInfo.get(r.rescheduled_from_booking_id) ?? null)
+          : null;
+
+      let isPendingThisShift = false;
+      if (nextAction !== null) {
+        const shiftEnd = resolveActiveShiftEnd(now, r.branch_timezone, shifts);
+        isPendingThisShift =
+          new Date(nextAction.dueAt).getTime() <= shiftEnd.getTime();
+      }
+
+      return {
+        bookingId: r.booking_id,
+        userId: r.user_id,
+        lead,
+        bookingDate,
+        bookingCreatedAt,
+        startTime,
+        branchId: r.branch_id,
+        branchName: r.branch_name,
+        attended,
+        leadStatus: r.lead_status,
+        leadStatusEffective,
+        createdBy,
+        leadNotes: r.lead_notes,
+        purchasedPlanId: r.purchased_plan_id,
+        purchasedPlanName: r.purchased_plan_name,
+        shift,
+        period,
+        weekRange,
+        daysSinceTrial,
+        converted,
+        reschedules: Number(r.reschedules),
+        leadStatusSource: r.lead_status_source ?? null,
+        phone: r.phone ?? null,
+        origin: r.booking_source === "self_service" ? "app" : "admin",
+        followupStartedAt: normalizeISOTimestamp(r.trial_followup_started_at),
+        sessionStatus,
+        followup,
+        nextAction,
+        phoneE164: normalizePhoneE164(r.phone, branchCountry),
+        rescheduledTo,
+        rescheduledFrom,
+        isPendingThisShift,
+      };
+    });
   }
 
   // ─── Export Methods (no pagination) ───────────────────────────────────────

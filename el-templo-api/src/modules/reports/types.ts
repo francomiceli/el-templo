@@ -5,6 +5,11 @@
  * expiring memberships, and inactive members reports.
  */
 
+import type {
+  TrialSessionStatus,
+  TrialNextAction,
+} from "./trial-cadence";
+
 // -- Filters -----------------------------------------------------------------
 
 export interface AccessReportFilters {
@@ -226,6 +231,21 @@ export interface TrialSessionsFilters {
    * Alimenta la bandeja "pendientes" y el contador de la pelotita.
    */
   pendingFollowup?: boolean;
+  /**
+   * Cadencia de mensajes (brief Nacho, 2026-09-26): filtro multi-valor sobre
+   * el estado DERIVADO de la sesión (ver `trial-cadence.ts`
+   * `deriveSessionStatus`). Distinto de `leadStatus` (que filtra
+   * `users.lead_status` crudo) — `sessionStatus` filtra el estado ya resuelto
+   * por fila (incluye 'agendada'/'asistio'/'no_asistio'/'reagendada', además
+   * de 'ganada'/'perdida').
+   */
+  sessionStatus?: TrialSessionStatus[];
+  /**
+   * "Pendientes de este turno" (brief §4.3): solo filas cuya `nextAction`
+   * tenga `dueAt` <= fin del turno actual-o-próximo DE LA SEDE de esa fila
+   * (incluye vencidos). Ver `trial-cadence.ts` `resolveActiveShiftEnd`.
+   */
+  pendingThisShift?: boolean;
   page?: number;
   limit?: number;
 }
@@ -298,6 +318,63 @@ export interface TrialSessionsRow {
    * relevante para SP con origin='app'.
    */
   followupStartedAt: string | null;
+  // ── Cadencia de mensajes (brief Nacho, 2026-09-26) ──────────────────────
+  /** Estado derivado de ESTA sesión (ver `trial-cadence.ts` `deriveSessionStatus`). */
+  sessionStatus: TrialSessionStatus;
+  /** Último mensaje + respuesta + motivo de Perdida manual, o `null` si nunca se marcó nada. */
+  followup: TrialFollowupSummary | null;
+  /** Próxima acción calculada por el motor, o `null` si no corresponde ninguna. */
+  nextAction: TrialNextAction | null;
+  /** Teléfono normalizado a E.164 (mismo criterio que Renovaciones), `null` si no se pudo normalizar. */
+  phoneE164: string | null;
+  /** Presente solo cuando `sessionStatus === 'reagendada'`: la sesión nueva de la cadena. */
+  rescheduledTo: TrialRescheduleLinkedSession | null;
+  /** Presente cuando esta sesión VINO de una reagenda: la sesión de la que viene. */
+  rescheduledFrom: TrialRescheduleLinkedSession | null;
+}
+
+/** Info mínima de la sesión enlazada por una reagenda (origen o destino), para el link en la fila. */
+export interface TrialRescheduleLinkedSession {
+  bookingId: number;
+  date: string;
+  startTime: string;
+  branchName: string;
+}
+
+/** Último mensaje enviado de la cadencia (M1/M2a/M2b/M3a/M3b) + quién + cuándo. */
+export interface TrialFollowupLastMessage {
+  code: "M1" | "M2a" | "M2b" | "M3a" | "M3b";
+  sentAt: string;
+  sentBy: { userId: number; name: string } | null;
+}
+
+export type TrialLostReason =
+  | "no_responde"
+  | "precio"
+  | "horario"
+  | "distancia"
+  | "otro";
+
+/** Lo MANUAL persistido de una sesión (`trial_followups`), resumido para la fila. */
+export interface TrialFollowupSummary {
+  lastMessage: TrialFollowupLastMessage | null;
+  /** 'venta' (rama Asistió) | 'reagenda' (rama No asistió), solo si ya se marcó M2. */
+  m2Kind: "venta" | "reagenda" | null;
+  respondedAt: string | null;
+  respondedBy: { userId: number; name: string } | null;
+  lostReason: TrialLostReason | null;
+  lostNote: string | null;
+}
+
+export interface TrialSessionKpis {
+  total: number;
+  pendingThisShift: number;
+  /** asistió / (asistió + no asistió), sobre `attended` crudo. `null` si el denominador es 0. */
+  attendanceRate: number | null;
+  /** ganadas CON asistió / asistió (brief §9 — excluye "ganada sin haber asistido"). `null` si el denominador es 0. */
+  conversionRate: number | null;
+  /** reagendadas / no asistió (crudo). `null` si el denominador es 0. */
+  recoveryRate: number | null;
 }
 
 export interface TrialSessionsReport {
@@ -305,6 +382,30 @@ export interface TrialSessionsReport {
   total: number;
   page: number;
   limit: number;
+  kpis: TrialSessionKpis;
+}
+
+// ── Cadencia de mensajes — followup mutations + franjas por sede ───────────
+// (brief Nacho, 2026-09-26). Ver `modules/reports/trial-followup-service.ts`.
+
+/** Acción discriminada del PATCH de followup — una sola por request (SPEC guardrails). */
+export type TrialFollowupAction =
+  | { type: "mark_sent"; code: "M1" | "M2a" | "M2b" | "M3a" | "M3b" }
+  | { type: "unmark_sent"; code: "M1" | "M2a" | "M2b" | "M3a" | "M3b" }
+  | { type: "responded"; value: boolean }
+  | { type: "lost"; reason: TrialLostReason; note?: string | null };
+
+export interface TrialFollowupUpdateInput {
+  action: TrialFollowupAction;
+}
+
+export interface TrialShiftsRow {
+  branchId: number;
+  branchName: string;
+  morningStart: string;
+  morningEnd: string;
+  afternoonStart: string;
+  afternoonEnd: string;
 }
 
 // -- CAJA-03 — Outstanding balances (aging report) -------------------------

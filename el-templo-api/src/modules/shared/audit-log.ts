@@ -46,13 +46,18 @@ export type AuditAction =
   | "transaction_corrected"
   // Módulo de Renovaciones (2026-09-24): cualquier cambio manual sobre un
   // renewal_followup (mensaje, no_renovo+motivo, volver a en_proceso).
-  | "renewal_followup_updated";
+  | "renewal_followup_updated"
+  // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26):
+  // cualquier cambio manual sobre un trial_followup (marcar/desmarcar
+  // M1/M2/M3, Respondió, Perdida+motivo).
+  | "trial_followup_updated";
 
 export type AuditTargetKind =
   | "subscription"
   | "transaction"
   | "member"
-  | "renewal_followup";
+  | "renewal_followup"
+  | "trial_followup";
 
 export interface AuditWriteParams {
   actorId: number;

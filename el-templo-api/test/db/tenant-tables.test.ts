@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 98 gym-owned + 4 exentas y cubren las 102 tablas del schema", () => {
+  it("los conteos son 99 gym-owned + 4 exentas y cubren las 103 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -111,12 +111,14 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // Renovaciones, mig 0237, nace strict; `renewal_message_templates` se
     // descartó el mismo día antes de mergear — el negocio manda WhatsApp
     // desde su CRM, no desde el admin): 96 -> 98, 100 -> 102.
-    expect(GYM_OWNED_TABLES.length).toBe(98);
+    // 2026-09-26 sumó `trial_followups` (cadencia de mensajes en Sesiones de
+    // Prueba, brief Nacho, mig 0241, nace strict): 98 -> 99, 102 -> 103.
+    expect(GYM_OWNED_TABLES.length).toBe(99);
     expect(TENANT_EXEMPT_TABLES.length).toBe(4);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(102);
+    expect(schemaTables.size).toBe(103);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -452,6 +454,9 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     // 2026-09-07: jornada laboral del staff (check-in/out con el QR de sede).
     // Nace strict, sin deuda de allowlist previa.
     "staff-attendance": ["staff_shifts"],
+    // 2026-09-26: cadencia de mensajes en Sesiones de Prueba (brief Nacho).
+    // Nace strict, sin deuda de allowlist previa.
+    "trial-followups": ["trial_followups"],
     wellhub: [
       "wellhub_bookings",
       "wellhub_classes",
@@ -460,7 +465,7 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     ],
   };
 
-  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub; 2026-09-07: staff-attendance; 2026-09-24: renewals)", () => {
+  it("declara exactamente los módulos ya adoptados, con sus tablas exactas (172-21: finance; 173-30: members; 174.1-10: subscriptions+scheduling; 175.1-07: auth+campaigns+improvement-proposals+notifications+referrals+wellhub; 2026-09-07: staff-attendance; 2026-09-24: renewals; 2026-09-26: trial-followups)", () => {
     const normalizar = (registro: Record<string, readonly string[]>) =>
       Object.fromEntries(
         Object.entries(registro).map(([modulo, tablas]) => [

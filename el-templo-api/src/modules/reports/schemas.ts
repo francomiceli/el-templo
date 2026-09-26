@@ -14,6 +14,21 @@ const errorSchema = {
   },
 } as const;
 
+/**
+ * Cadencia de mensajes en Sesiones de Prueba (2026-09-26): los guardrails 409
+ * del PATCH de followup viajan con un `code` estable (mismo patrón que
+ * `REASON_REQUIRED` en Renovaciones) — `errorSchema` no lo serializaría
+ * (fast-json-stringify solo emite propiedades declaradas).
+ */
+const errorSchemaWithCode = {
+  type: "object",
+  properties: {
+    error: { type: "string" },
+    message: { type: "string" },
+    code: { type: "string" },
+  },
+} as const;
+
 const paginationQuerystring = {
   page: { type: "integer", minimum: 1 },
   limit: { type: "integer", minimum: 1, maximum: 100 },
@@ -565,6 +580,15 @@ export const expiredMembersSchema = {
 // fast-json-stringify does not silently strip the `userId` / `name` fields
 // (mirrors the Plan 106-04 SUMMARY note).
 
+const TRIAL_SESSION_STATUS_VALUES = [
+  "agendada",
+  "asistio",
+  "no_asistio",
+  "reagendada",
+  "ganada",
+  "perdida",
+] as const;
+
 const trialSessionsQuerystringProps = {
   branchId: { type: "integer", minimum: 1 },
   country: { type: "string", enum: ["AR", "ES"] },
@@ -590,6 +614,27 @@ const trialSessionsQuerystringProps = {
   leadStatusSource: { type: "string", enum: ["auto", "manual"] },
   origin: { type: "string", enum: ["app", "admin"] },
   pendingFollowup: { type: "boolean" },
+  // Cadencia de mensajes (brief Nacho, 2026-09-26).
+  sessionStatus: {
+    anyOf: [
+      { type: "string", enum: TRIAL_SESSION_STATUS_VALUES },
+      {
+        type: "array",
+        items: { type: "string", enum: TRIAL_SESSION_STATUS_VALUES },
+      },
+    ],
+  },
+  pendingThisShift: { type: "boolean" },
+} as const;
+
+const trialRescheduleLinkedSessionSchema = {
+  type: "object",
+  properties: {
+    bookingId: { type: "integer" },
+    date: { type: "string" },
+    startTime: { type: "string" },
+    branchName: { type: "string" },
+  },
 } as const;
 
 const trialSessionsRowSchema = {
@@ -647,6 +692,111 @@ const trialSessionsRowSchema = {
     phone: { type: ["string", "null"] },
     origin: { type: "string", enum: ["app", "admin"] },
     followupStartedAt: { type: ["string", "null"] },
+    // Cadencia de mensajes (brief Nacho, 2026-09-26).
+    sessionStatus: { type: "string", enum: TRIAL_SESSION_STATUS_VALUES },
+    followup: {
+      anyOf: [
+        {
+          type: "object",
+          properties: {
+            lastMessage: {
+              anyOf: [
+                {
+                  type: "object",
+                  properties: {
+                    code: {
+                      type: "string",
+                      enum: ["M1", "M2a", "M2b", "M3a", "M3b"],
+                    },
+                    sentAt: { type: "string" },
+                    sentBy: {
+                      anyOf: [
+                        {
+                          type: "object",
+                          properties: {
+                            userId: { type: "integer" },
+                            name: { type: "string" },
+                          },
+                          additionalProperties: true,
+                        },
+                        { type: "null" },
+                      ],
+                    },
+                  },
+                  additionalProperties: true,
+                },
+                { type: "null" },
+              ],
+            },
+            m2Kind: {
+              anyOf: [
+                { type: "string", enum: ["venta", "reagenda"] },
+                { type: "null" },
+              ],
+            },
+            respondedAt: { type: ["string", "null"] },
+            respondedBy: {
+              anyOf: [
+                {
+                  type: "object",
+                  properties: {
+                    userId: { type: "integer" },
+                    name: { type: "string" },
+                  },
+                  additionalProperties: true,
+                },
+                { type: "null" },
+              ],
+            },
+            lostReason: {
+              anyOf: [
+                {
+                  type: "string",
+                  enum: ["no_responde", "precio", "horario", "distancia", "otro"],
+                },
+                { type: "null" },
+              ],
+            },
+            lostNote: { type: ["string", "null"] },
+          },
+          additionalProperties: true,
+        },
+        { type: "null" },
+      ],
+    },
+    nextAction: {
+      anyOf: [
+        {
+          type: "object",
+          properties: {
+            code: { type: "string", enum: ["M1", "M2a", "M2b", "M3a", "M3b"] },
+            dueAt: { type: "string" },
+            windowEnd: { type: ["string", "null"] },
+            status: { type: "string", enum: ["upcoming", "due", "overdue"] },
+          },
+          additionalProperties: true,
+        },
+        { type: "null" },
+      ],
+    },
+    phoneE164: { type: ["string", "null"] },
+    rescheduledTo: {
+      anyOf: [trialRescheduleLinkedSessionSchema, { type: "null" }],
+    },
+    rescheduledFrom: {
+      anyOf: [trialRescheduleLinkedSessionSchema, { type: "null" }],
+    },
+  },
+} as const;
+
+const trialSessionKpisSchema = {
+  type: "object",
+  properties: {
+    total: { type: "integer" },
+    pendingThisShift: { type: "integer" },
+    attendanceRate: { type: ["number", "null"] },
+    conversionRate: { type: ["number", "null"] },
+    recoveryRate: { type: ["number", "null"] },
   },
 } as const;
 
@@ -670,6 +820,7 @@ export const trialSessionsReportSchema = {
         total: { type: "integer" },
         page: { type: "integer" },
         limit: { type: "integer" },
+        kpis: trialSessionKpisSchema,
       },
     },
     401: errorSchema,
@@ -686,6 +837,96 @@ export const trialSessionsExportSchema = {
   response: {
     401: errorSchema,
     403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
+// Cadencia de mensajes — PATCH de followup + franjas por sede (2026-09-26)
+// =============================================================================
+
+export const trialFollowupUpdateSchema = {
+  params: {
+    type: "object",
+    required: ["bookingId"],
+    properties: { bookingId: { type: "integer" } },
+  },
+  body: {
+    type: "object",
+    required: ["action"],
+    properties: {
+      action: {
+        type: "object",
+        required: ["type"],
+        properties: {
+          type: {
+            type: "string",
+            enum: ["mark_sent", "unmark_sent", "responded", "lost"],
+          },
+          code: { type: "string", enum: ["M1", "M2a", "M2b", "M3a", "M3b"] },
+          value: { type: "boolean" },
+          reason: {
+            type: "string",
+            enum: ["no_responde", "precio", "horario", "distancia", "otro"],
+          },
+          note: { type: ["string", "null"], maxLength: 500 },
+        },
+      },
+    },
+  },
+  response: {
+    200: trialSessionsRowSchema,
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    409: errorSchemaWithCode,
+    500: errorSchema,
+  },
+} as const;
+
+const trialShiftsRowSchema = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    branchName: { type: "string" },
+    morningStart: { type: "string" },
+    morningEnd: { type: "string" },
+    afternoonStart: { type: "string" },
+    afternoonEnd: { type: "string" },
+  },
+} as const;
+
+export const trialShiftsListSchema = {
+  response: {
+    200: { type: "array", items: trialShiftsRowSchema },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+export const trialShiftsUpdateSchema = {
+  params: {
+    type: "object",
+    required: ["branchId"],
+    properties: { branchId: { type: "integer" } },
+  },
+  body: {
+    type: "object",
+    properties: {
+      morningStart: { type: "string", pattern: "^\\d{2}:\\d{2}(:\\d{2})?$" },
+      morningEnd: { type: "string", pattern: "^\\d{2}:\\d{2}(:\\d{2})?$" },
+      afternoonStart: { type: "string", pattern: "^\\d{2}:\\d{2}(:\\d{2})?$" },
+      afternoonEnd: { type: "string", pattern: "^\\d{2}:\\d{2}(:\\d{2})?$" },
+    },
+  },
+  response: {
+    200: trialShiftsRowSchema,
+    400: errorSchema,
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
     500: errorSchema,
   },
 } as const;
