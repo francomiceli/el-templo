@@ -69,6 +69,24 @@ export function isWallClockPast(
 }
 
 /**
+ * "DD/MM HH:mm" of an ISO instant in the given IANA timezone (cadencia de
+ * mensajes en Sesiones de Prueba — "Último mensaje" column: sentAt timestamps
+ * are shown in the branch's local time, same rationale as `todayInTz`).
+ */
+export function formatDateTimeInTz(iso: string, tz: string): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: tz,
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(iso));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('day')}/${get('month')} ${get('hour')}:${get('minute')}`;
+}
+
+/**
  * Compute the Monday (ISO week start) of the current week for the given
  * timezone, returned as "YYYY-MM-DD".
  */
