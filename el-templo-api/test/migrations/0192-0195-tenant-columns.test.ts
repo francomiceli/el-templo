@@ -167,7 +167,7 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
     // + cash_counts (arqueos de caja, 2026-09-08, tenancy-native en la 0226) = 96
     // + renewal_followups/renewal_reasons (módulo de Renovaciones,
     //   2026-09-24, tenancy-native en la 0237) = 98.
-    expect(report.gymOwnedChecked).toBe(98);
+    expect(report.gymOwnedChecked).toBe(99); // 2026-09-26: +trial_followups (mig 0241)
   });
 
   // ─── 3. Exclusiones de diseño ───────────────────────────────────────────

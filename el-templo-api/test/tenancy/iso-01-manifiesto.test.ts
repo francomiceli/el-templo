@@ -300,7 +300,12 @@ import {
 // 2026-09-24: 440 -> 441 por SPEC "Empezá acá":
 // `POST /api/auth/me/intro-stories`, `tenant-scoped` (pre-scope por diseño,
 // mismo criterio que sus 2 hermanas de /api/auth/me).
-const ENTRADAS_BASELINE = 441;
+// 2026-09-26: 441 -> 444 por la cadencia de mensajes en Sesiones de Prueba
+// (brief Nacho): `PATCH /api/admin/reports/trial-sessions/:bookingId/followup`,
+// `GET /api/admin/reports/trial-sessions/shifts`,
+// `PUT /api/admin/reports/trial-sessions/shifts/:branchId`
+// — las 3 `tenant-scoped` (mismo criterio que el resto de /api/admin/reports).
+const ENTRADAS_BASELINE = 444;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -443,7 +448,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 441 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 444 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

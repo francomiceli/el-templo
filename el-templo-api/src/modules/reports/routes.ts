@@ -43,13 +43,16 @@ import {
   trialConversionReportSchema,
   trialSessionsReportSchema,
   trialSessionsExportSchema,
+  trialFollowupUpdateSchema,
+  trialShiftsListSchema,
+  trialShiftsUpdateSchema,
   accessExportSchema,
   chargeExportSchema,
   expiringExportSchema,
   inactiveExportSchema,
 } from "./schemas";
 
-import { CAJA_ROLES } from "../shared/permissions";
+import { CAJA_ROLES, ADMIN_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
 import {
@@ -57,9 +60,34 @@ import {
   enforcedBranchIds,
   requireBranchAccess,
 } from "../shared/branch-access";
+import {
+  TrialFollowupService,
+  TrialFollowupGuardrailError,
+} from "./trial-followup-service";
+import type { TrialFollowupUpdateInput } from "./types";
+import type { TrialSessionStatus } from "./trial-cadence";
 
 export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   const reportsService = new ReportsService(fastify.db, fastify.log);
+  const trialFollowupService = new TrialFollowupService(fastify.db, fastify.log);
+
+  /**
+   * Preferido a un preHandler inline repetido — 403 con el mismo formato que
+   * el resto del repo (mismo patrón que `renewals/routes.ts`
+   * `requireAdminRole`). Usado por las franjas de turno de la cadencia de
+   * Sesiones de Prueba: "solo owner/admin" (SPEC).
+   */
+  async function requireAdminRole(
+    request: import("fastify").FastifyRequest,
+    reply: import("fastify").FastifyReply,
+  ): Promise<void> {
+    if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+      await reply.code(403).send({
+        error: "Acceso denegado",
+        message: "Acceso requerido",
+      });
+    }
+  }
 
   /**
    * Guard: require gestion/admin/owner role on all routes.
@@ -906,6 +934,8 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     gestionaUserId?: number;
     daysWithoutConvertingMin?: number;
     search?: string;
+    sessionStatus?: TrialSessionStatus | TrialSessionStatus[];
+    pendingThisShift?: boolean;
     page?: number;
     limit?: number;
   };
@@ -996,6 +1026,96 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       );
     }
   });
+
+  // ===========================================================================
+  // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26)
+  // ===========================================================================
+  //
+  // PATCH /trial-sessions/:bookingId/followup — acción discriminada (marcar/
+  //   desmarcar M1-M3, Respondió, Perdida+motivo). Mismos roles que el
+  //   reporte (CAJA_ROLES, hook de arriba) — el alcance de sede/país lo
+  //   resuelve el service (fail-closed 404, mismo criterio que Renovaciones).
+  // GET/PUT /trial-sessions/shifts[/:branchId] — franjas por sede, SOLO
+  //   owner/admin (SPEC).
+
+  fastify.patch<{
+    Params: { bookingId: number };
+    Body: TrialFollowupUpdateInput;
+  }>(
+    "/trial-sessions/:bookingId/followup",
+    { schema: trialFollowupUpdateSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "reports.trial-followup");
+        const row = await trialFollowupService.updateFollowup(
+          ctx,
+          request.params.bookingId,
+          request.body,
+          {
+            userId: request.user.userId,
+            isOwner: request.scope.isOwner,
+            country: request.scope.country,
+            branchIds: enforcedBranchIds(request.scope),
+          },
+        );
+        return reply.send(row);
+      } catch (err: unknown) {
+        // El default handleServiceError solo emite { error, message } — el
+        // `code` de guardrail viaja acá explícito, mismo patrón que
+        // REASON_REQUIRED en renewals/routes.ts.
+        if (err instanceof TrialFollowupGuardrailError) {
+          return reply.code(409).send({
+            error: "Conflicto",
+            message: err.message,
+            code: err.code,
+          });
+        }
+        handleServiceError(err, reply, request.log, "update trial followup");
+      }
+    },
+  );
+
+  fastify.get(
+    "/trial-sessions/shifts",
+    { schema: trialShiftsListSchema, preHandler: [requireAdminRole] },
+    async (request, reply) => {
+      if (reply.sent) return;
+      try {
+        const ctx = assertTenant(request.scope, "reports.trial-shifts.list");
+        const rows = await trialFollowupService.getShifts(ctx);
+        return reply.send(rows);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "list trial shifts");
+      }
+    },
+  );
+
+  fastify.put<{
+    Params: { branchId: number };
+    Body: Partial<{
+      morningStart: string;
+      morningEnd: string;
+      afternoonStart: string;
+      afternoonEnd: string;
+    }>;
+  }>(
+    "/trial-sessions/shifts/:branchId",
+    { schema: trialShiftsUpdateSchema, preHandler: [requireAdminRole] },
+    async (request, reply) => {
+      if (reply.sent) return;
+      try {
+        const ctx = assertTenant(request.scope, "reports.trial-shifts.update");
+        const row = await trialFollowupService.updateShifts(
+          ctx,
+          request.params.branchId,
+          request.body,
+        );
+        return reply.send(row);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "update trial shifts");
+      }
+    },
+  );
 };
 
 // =============================================================================
@@ -1084,6 +1204,8 @@ function buildTrialSessionsFilters(
       leadStatusSource?: "auto" | "manual";
       origin?: "app" | "admin";
       pendingFollowup?: boolean;
+      sessionStatus?: TrialSessionStatus | TrialSessionStatus[];
+      pendingThisShift?: boolean;
       page?: number;
       limit?: number;
     };
@@ -1114,6 +1236,15 @@ function buildTrialSessionsFilters(
     if (leadStatus.length === 0) leadStatus = undefined;
   }
 
+  // Cadencia de mensajes (2026-09-26): mismo patrón anyOf que leadStatus.
+  let sessionStatus: TrialSessionStatus[] | undefined;
+  if (q.sessionStatus !== undefined) {
+    sessionStatus = Array.isArray(q.sessionStatus)
+      ? q.sessionStatus
+      : [q.sessionStatus];
+    if (sessionStatus.length === 0) sessionStatus = undefined;
+  }
+
   return {
     branchId: q.branchId,
     country: request.scope.country ?? undefined,
@@ -1128,6 +1259,8 @@ function buildTrialSessionsFilters(
     leadStatusSource: q.leadStatusSource,
     origin: q.origin,
     pendingFollowup: q.pendingFollowup,
+    sessionStatus,
+    pendingThisShift: q.pendingThisShift,
     page: q.page,
     limit: q.limit,
   };

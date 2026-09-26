@@ -6,6 +6,7 @@ import {
   varchar,
   boolean,
   timestamp,
+  time,
   index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
@@ -56,6 +57,17 @@ export const branches = mysqlTable(
     romEnabled: boolean("rom_enabled").default(false).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     isVirtual: boolean("is_virtual").default(false).notNull(),
+    // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26,
+    // migración 0241): franjas de turno mañana/tarde, parametrizables por
+    // sede. Defaults 07-11 / 17-21 (brief §3). Editables desde el diálogo
+    // "Turnos" del tab Reportes › Sesiones de prueba (solo owner/admin) — ver
+    // `modules/reports/trial-followup-service.ts`.
+    trialMorningStart: time("trial_morning_start").default("07:00:00").notNull(),
+    trialMorningEnd: time("trial_morning_end").default("11:00:00").notNull(),
+    trialAfternoonStart: time("trial_afternoon_start")
+      .default("17:00:00")
+      .notNull(),
+    trialAfternoonEnd: time("trial_afternoon_end").default("21:00:00").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

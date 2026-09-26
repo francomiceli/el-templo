@@ -283,6 +283,10 @@ const TABLES_TO_CLEAN = [
   // global lo borraría en el primer `beforeEach` de CUALQUIER archivo del
   // worker y ningún camino lo siembra de nuevo.
   schema.renewalFollowups,
+  // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26):
+  // followups es basura de test genuina (FK a bookings/users) — se limpia
+  // como renewal_followups/member_notes.
+  schema.trialFollowups,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,

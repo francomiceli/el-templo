@@ -22,6 +22,20 @@ export const LEADS_SETTINGS_KEYS = {
   perdidoWindowDays: "leads.perdido_window_days",
 } as const;
 
+// Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26,
+// migración 0241): parámetros GLOBALES del motor (`modules/reports/
+// trial-cadence.ts`). Sin UI para estos dos — se ajustan por soporte si hace
+// falta (SPEC "DECISIONES DE FRANCO" §3). `cadenceStartDate` es el corte
+// go-live: sesiones anteriores no generan próxima acción.
+export const TRIALS_SETTINGS_KEYS = {
+  /** Horas entre M2 y M3 (reintento). */
+  followupRetryHours: "trials.followup_retry_hours",
+  /** Máximo de reagendas permitidas por cadena (original → r1 → r2...). */
+  maxReschedules: "trials.max_reschedules",
+  /** Fecha (YYYY-MM-DD) desde la que el motor calcula próxima acción. */
+  cadenceStartDate: "trials.cadence_start_date",
+} as const;
+
 // Phase 179-12 (D-01/D-04/D-20): URLs de las tiendas que codifican los QRs de
 // la tarjeta física de partners. Franco las carga desde el admin sin deploy
 // (la de iOS necesita el Apple ID numérico, que no vive en el repo). Ambas
