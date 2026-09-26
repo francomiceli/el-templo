@@ -153,6 +153,10 @@ export const GYM_OWNED_TABLES = [
   "subscription_schedules",
   "subscriptions",
   "transaction_links",
+  // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26,
+  // migración 0241): nace con tenant_id y strict (ver TENANT_STRICT_MODULES
+  // ["trial-followups"] más abajo).
+  "trial_followups",
   "tv_avisos",
   "tv_class_state",
   "tv_devices",
@@ -638,6 +642,10 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   // 2026-09-07: el modulo nace strict, no hay deuda previa que tolerar
   // (mismo criterio que `communications`, fase 193).
   "staff-attendance": ["staff_shifts"],
+  // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26) —
+  // nace strict, sin deuda previa que tolerar (mismo criterio que
+  // `renewals`/`communications`/`staff-attendance`).
+  "trial-followups": ["trial_followups"],
   wellhub: [
     "wellhub_bookings",
     "wellhub_classes",

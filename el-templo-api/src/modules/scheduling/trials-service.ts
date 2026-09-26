@@ -55,6 +55,8 @@ import {
 import type { BookingService } from "./booking-service";
 import type { NotificationService } from "../notifications/service";
 import { assertTrialSlotCapacity } from "./capacity";
+import { SettingsService } from "../settings/service";
+import { canRescheduleAtDepth } from "../reports/trial-cadence";
 
 /**
  * Phase 119 (D-03 revised): a self-service trial can be cancelled or changed up
@@ -1131,6 +1133,41 @@ export class TrialService {
    *
    * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `users`.
    */
+  /**
+   * Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26):
+   * resuelve la cadena de reagendas de `bookingId` hacia atrás siguiendo
+   * `trial_followups.rescheduled_from_booking_id`, más cercano primero
+   * (`[bookingId, padre, abuelo, ...]`). La sesión original (sin followup o
+   * con `rescheduledFromBookingId=null`) devuelve `[bookingId]` — profundidad
+   * 0. Guard de 20 pasos: nunca hay más de `max_reschedules` (típicamente 2)
+   * saltos reales; si los datos ya tuvieran un ciclo, corta en vez de loopear
+   * infinito.
+   */
+  private async resolveRescheduleChain(
+    ctx: TenantContext,
+    bookingId: number,
+  ): Promise<number[]> {
+    const chain: number[] = [bookingId];
+    let current = bookingId;
+    for (let i = 0; i < 20; i++) {
+      const [row] = await this.db
+        .select({ parent: schema.trialFollowups.rescheduledFromBookingId })
+        .from(schema.trialFollowups)
+        .where(
+          and(
+            tenantWhere(schema.trialFollowups, ctx),
+            eq(schema.trialFollowups.bookingId, current),
+          ),
+        )
+        .limit(1);
+      const parent = row?.parent ?? null;
+      if (parent === null || chain.includes(parent)) break;
+      chain.push(parent);
+      current = parent;
+    }
+    return chain;
+  }
+
   async rescheduleTrial(
     ctx: TenantContext,
     input: RescheduleTrialInput,
@@ -1246,6 +1283,24 @@ export class TrialService {
       userId,
     );
 
+    // 4c. Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26,
+    //     SPEC "Reagenda"): límite de profundidad de la cadena
+    //     (original → r1 → r2...), parametrizable vía
+    //     `system_settings trials.max_reschedules` (default 2). La cadena se
+    //     resuelve ANTES de la tx — es de solo lectura y determina si vale la
+    //     pena seguir.
+    const settingsService = new SettingsService(this.db, this.log);
+    const [maxReschedules, ancestorChain] = await Promise.all([
+      settingsService.getMaxReschedules(),
+      this.resolveRescheduleChain(ctx, input.bookingId),
+    ]);
+    const oldBookingDepth = ancestorChain.length - 1; // 0 = sesión original.
+    if (!canRescheduleAtDepth(oldBookingDepth, maxReschedules)) {
+      throw new ConflictError(
+        `Alcanzaste el límite de ${maxReschedules} reagenda(s) para esta sesión`,
+      );
+    }
+
     // 5. Cancel-old + reset-lead + create-new, all in ONE tx (D-01/D-04).
     const bookingId = await this.db.transaction(async (tx) => {
       // (a) Soft-cancel the old trial booking (adminRemoveBooking semantics).
@@ -1295,6 +1350,15 @@ export class TrialService {
         .limit(1);
 
       if (existing) {
+        // Anti-ciclo (SPEC "Reagenda"): si el booking reactivado es un
+        // ANCESTRO de la cadena de `input.bookingId` (incluido él mismo),
+        // reagendar hacia acá formaría un loop — 409 en vez de reactivarlo.
+        if (ancestorChain.includes(existing.id)) {
+          throw new ConflictError(
+            "No se puede reagendar a una sesión anterior de la misma cadena",
+          );
+        }
+
         await tx
           .update(schema.bookings)
           .set({
@@ -1309,6 +1373,36 @@ export class TrialService {
               eq(schema.bookings.id, existing.id),
             ),
           );
+
+        // El booking reactivado puede traer un followup viejo (de un ciclo de
+        // vida anterior, ya cerrado) — se resetea completo y se vincula a la
+        // cadena actual (SPEC: "resetear su followup (mensajes en null) y
+        // vincularlo").
+        await tx
+          .insert(schema.trialFollowups)
+          .values(
+            tenantValues(ctx, {
+              bookingId: existing.id,
+              rescheduledFromBookingId: input.bookingId,
+            }),
+          )
+          .onDuplicateKeyUpdate({
+            set: {
+              m1SentAt: null,
+              m1SentBy: null,
+              m2Kind: null,
+              m2SentAt: null,
+              m2SentBy: null,
+              m3SentAt: null,
+              m3SentBy: null,
+              respondedAt: null,
+              respondedBy: null,
+              lostReason: null,
+              lostNote: null,
+              rescheduledFromBookingId: input.bookingId,
+              updatedBy: null,
+            },
+          });
         return existing.id;
       }
 
@@ -1321,7 +1415,19 @@ export class TrialService {
           isTrial: true,
         }),
       );
-      return Number(inserted[0].insertId);
+      const newBookingId = Number(inserted[0].insertId);
+
+      // Followup de la sesión nueva, vinculado a la vieja en la MISMA tx
+      // (SPEC "Reagenda": "escribe en la misma tx el followup de la sesión
+      // nueva con rescheduled_from_booking_id"). Arranca con todos los
+      // mensajes en null — la nueva sesión corre el ciclo completo desde M1.
+      await tx.insert(schema.trialFollowups).values(
+        tenantValues(ctx, {
+          bookingId: newBookingId,
+          rescheduledFromBookingId: input.bookingId,
+        }),
+      );
+      return newBookingId;
     });
 
     this.log.info(

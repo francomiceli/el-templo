@@ -4,11 +4,26 @@
  *   GET /api/admin/reports/trial-sessions
  *   GET /api/admin/reports/trial-sessions/export
  *
+ * ACTUALIZADO 2026-09-26 (cadencia de mensajes en Sesiones de Prueba, brief
+ * Nacho): la granularidad pasó de "1 fila por LEAD" (dedupe vía derived table
+ * `latest_trial`, MAX(booking.id) por member_id) a "1 fila por SESIÓN"
+ * (booking) — SPEC lo pide explícitamente para poder ver la cadena completa
+ * de reagendas. Los tests 4 y 4-bis, que cubrían específicamente el dedupe
+ * por lead, se reescribieron para documentar el nuevo comportamiento (sin
+ * dedupe: dos bookings no-cancelados del mismo lead son 2 filas). El resto
+ * de la batería (1, 2, 3, 5-19) sigue pasando sin cambios: cada test siembra
+ * UN booking por lead, así que "1 fila por sesión" y "1 fila por lead" dan el
+ * mismo resultado ahí. Cobertura nueva del PATCH de followup, las franjas por
+ * sede y los guardrails de la cadencia vive en
+ * `test/reports/trial-followups.test.ts`; el motor puro en
+ * `test/reports/trial-cadence.test.ts`.
+ *
  * Coverage (≥14 tests):
  *   1.  Happy path — multiple leads return correctly derived rows.
  *   2.  Cancelled-only lead is excluded entirely (D-43).
  *   3.  One-row-per-lead: cancelled + active → 1 row from the active booking.
- *   4.  One-row-per-lead: multiple active → 1 row from the latest booking.
+ *   4.  (2026-09-26) Ya NO deduplica por lead: dos trials no-cancelados del
+ *       mismo lead ahora son 2 filas independientes.
  *   5.  Country scope: non-owner sees only own-country rows + virtual branches.
  *   6.  Branch filter narrows the row set.
  *   7.  Date range filter.
@@ -460,13 +475,20 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     expect(body.rows[0].shift).toBe("TT"); // 16:00 schedule
   });
 
-  // 4. One row per lead — multiple active → latest wins.
-  it("returns latest active booking when user has multiple non-cancelled trials (D-42)", async () => {
+  // 4. Cadencia de mensajes (2026-09-26): granularidad pasó de "1 fila por
+  // lead" a "1 fila por SESIÓN" — el dedupe-por-lead (MAX(booking.id) por
+  // member_id, derived table `latest_trial`) desapareció por diseño (SPEC
+  // "GET /trial-sessions": necesitamos ver la cadena completa de reagendas,
+  // no solo "la última"). Dos bookings NO-cancelados del mismo lead (caso
+  // raro que bypassea "una prueba por vida", posible solo por seed directo)
+  // ahora aparecen como DOS filas independientes — ya no se elige "la más
+  // reciente" y se descarta la otra.
+  it("ya NO deduplica por lead: dos trials no-cancelados del mismo lead son 2 filas (2026-09-26)", async () => {
     const u = await seedLead({
       firstName: "Repetido",
       branchId: ctx.arBranchId,
     });
-    await seedBooking({
+    const older = await seedBooking({
       userId: u,
       scheduleId: ctx.scheduleArMorning,
       bookingDateOffsetDays: -20,
@@ -483,15 +505,18 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
       headers: { authorization: `Bearer ${ctx.ownerToken}` },
     });
     const body = JSON.parse(res.body);
-    expect(body.total).toBe(1);
-    expect(body.rows[0].bookingId).toBe(newer);
+    const ids = body.rows
+      .filter((r: { userId: number }) => r.userId === u)
+      .map((r: { bookingId: number }) => r.bookingId)
+      .sort((a: number, b: number) => a - b);
+    expect(ids).toEqual([older, newer].sort((a, b) => a - b));
   });
 
-  // 4-bis. El representativo se elige DENTRO del filtro, no antes.
-  it("con filtro de sede muestra la SP de esa sede aunque la ultima sea de otra", async () => {
-    // Lead con SP vieja en AR y SP mas nueva en ES. Filtrando por la sede AR,
-    // antes desaparecia entero: el representativo se elegia como "su SP mas
-    // reciente" (la de ES) y despues el filtro de sede lo descartaba.
+  // 4-bis. Cada sesión se filtra por SU PROPIA sede/país — ya no hay "cuál SP
+  // representa al lead" que el filtro pudiera descartar por completo (el bug
+  // de la Fase 114-05 que este test cubría dejó de ser posible por diseño:
+  // sin dedupe, no hay "representativo" que elegir).
+  it("cada sesión se filtra independientemente por su propia sede (sin dedupe por lead)", async () => {
     const u = await seedLead({
       firstName: "Cruzado",
       branchId: ctx.arBranchId,
@@ -507,6 +532,7 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
       bookingDateOffsetDays: -2,
     });
 
+    // Filtrando por la sede AR: solo la sesión AR de Cruzado.
     const arRes = await ctx.app.inject({
       method: "GET",
       url: `${REPORTS_URL}/trial-sessions?branchId=${ctx.arBranchId}`,
@@ -520,36 +546,54 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     expect(cruzadoAr).toHaveLength(1);
     expect(cruzadoAr[0].bookingId).toBe(arBooking);
 
-    // Corazon del fix: SIN filtro de sede, el owner de test tiene scope AR (su
-    // sede es la TEST y branches.country default 'AR'), asi que la SP mas
-    // reciente del lead -- la de ES -- no le corresponde ver. Antes el lead
-    // desaparecia entero: se elegia la de ES como representativa y el scope de
-    // pais la descartaba despues. Ahora aparece con la SP que si entra.
-    const scopeRes = await ctx.app.inject({
+    // Como admin de país AR (scope acotado): solo ve la sesión AR, nunca la ES.
+    const asAr = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions`,
+      headers: { authorization: `Bearer ${ctx.adminArToken}` },
+    });
+    const asArBody = JSON.parse(asAr.body);
+    const cruzadoAsAr = asArBody.rows.filter(
+      (r: { userId: number }) => r.userId === u,
+    );
+    expect(cruzadoAsAr).toHaveLength(1);
+    expect(cruzadoAsAr[0].bookingId).toBe(arBooking);
+
+    // Como admin de país ES: solo ve la sesión ES.
+    const asEs = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions`,
+      headers: { authorization: `Bearer ${ctx.adminEsToken}` },
+    });
+    const asEsBody = JSON.parse(asEs.body);
+    const cruzadoAsEs = asEsBody.rows.filter(
+      (r: { userId: number }) => r.userId === u,
+    );
+    expect(cruzadoAsEs).toHaveLength(1);
+    expect(cruzadoAsEs[0].bookingId).toBe(esBooking);
+
+    // El owner SIN toggle resuelve al país de su sede (AR, Phase 98 D-18): ve
+    // solo la sesión AR. Con `?country=ES` ve solo la ES. Con 1 fila por
+    // sesión ya no hay "representativa" que esconda a la otra.
+    const asOwner = await ctx.app.inject({
       method: "GET",
       url: `${REPORTS_URL}/trial-sessions`,
       headers: { authorization: `Bearer ${ctx.ownerToken}` },
     });
-    const scopeBody = JSON.parse(scopeRes.body);
-    const cruzadoScope = scopeBody.rows.filter(
-      (r: { userId: number }) => r.userId === u,
-    );
-    expect(cruzadoScope).toHaveLength(1);
-    expect(cruzadoScope[0].bookingId).toBe(arBooking);
+    const ownerIds = JSON.parse(asOwner.body)
+      .rows.filter((r: { userId: number }) => r.userId === u)
+      .map((r: { bookingId: number }) => r.bookingId);
+    expect(ownerIds).toEqual([arBooking]);
 
-    // Con el toggle de pais en ES aparece con la otra SP -- una fila por lead
-    // en cada vista, nunca las dos juntas.
-    const esRes = await ctx.app.inject({
+    const asOwnerEs = await ctx.app.inject({
       method: "GET",
       url: `${REPORTS_URL}/trial-sessions?country=ES`,
       headers: { authorization: `Bearer ${ctx.ownerToken}` },
     });
-    const esBody = JSON.parse(esRes.body);
-    const cruzadoEs = esBody.rows.filter(
-      (r: { userId: number }) => r.userId === u,
-    );
-    expect(cruzadoEs).toHaveLength(1);
-    expect(cruzadoEs[0].bookingId).toBe(esBooking);
+    const ownerEsIds = JSON.parse(asOwnerEs.body)
+      .rows.filter((r: { userId: number }) => r.userId === u)
+      .map((r: { bookingId: number }) => r.bookingId);
+    expect(ownerEsIds).toEqual([esBooking]);
   });
 
   // 5. Country scope.

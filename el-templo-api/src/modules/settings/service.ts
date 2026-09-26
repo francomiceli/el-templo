@@ -20,6 +20,7 @@ import {
   PRICING_SETTINGS_KEYS,
   LEADS_SETTINGS_KEYS,
   APP_STORE_SETTINGS_KEYS,
+  TRIALS_SETTINGS_KEYS,
 } from "./keys";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -137,6 +138,44 @@ export class SettingsService {
       .onDuplicateKeyUpdate({ set: { settingValue: value } });
 
     this.log.info({ settingKey: key }, "store url setting updated");
+  }
+
+  /**
+   * Cadencia de Sesiones de Prueba (brief Nacho, 2026-09-26, migración 0241):
+   * horas entre M2 y M3 (reintento). Fallback 24 cuando la fila falta o el
+   * valor no es un entero positivo — mismo patrón que `getPerdidoWindowDays`.
+   */
+  async getFollowupRetryHours(): Promise<number> {
+    const raw = await this.getStringValue(
+      TRIALS_SETTINGS_KEYS.followupRetryHours,
+    );
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 24;
+  }
+
+  /**
+   * Cadencia de Sesiones de Prueba: máximo de reagendas permitidas por cadena
+   * (original → r1 → r2...). Fallback 2 (brief §6).
+   */
+  async getMaxReschedules(): Promise<number> {
+    const raw = await this.getStringValue(TRIALS_SETTINGS_KEYS.maxReschedules);
+    // Ojo: `Number(null)` y `Number("")` dan 0, que pasaría como límite válido
+    // y dejaría a toda sesión sin reagenda. Fila faltante/vacía → fallback.
+    if (raw === null || raw.trim() === "") return 2;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 2;
+  }
+
+  /**
+   * Cadencia de Sesiones de Prueba: fecha de corte go-live (`YYYY-MM-DD`)
+   * sembrada por la migración 0241 con `CURDATE()` al momento de aplicarse.
+   * Sesiones cuyo `bookingDate` sea ANTERIOR a esta fecha no generan próxima
+   * acción (SPEC "DECISIONES DE FRANCO" §"Corte go-live") — no hay mensajes
+   * retroactivos. `null` solo si la fila falta (no debería pasar tras la
+   * migración; el motor lo trata como "sin corte" — ningún filtro aplica).
+   */
+  async getCadenceStartDate(): Promise<string | null> {
+    return this.getStringValue(TRIALS_SETTINGS_KEYS.cadenceStartDate);
   }
 
   /**
