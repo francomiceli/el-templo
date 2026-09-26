@@ -125,6 +125,11 @@ export interface BookingRecord {
   seniority: 'nuevo' | '1-3m' | '3-6m' | '6m+' | null;
   // Active/paused subscription end date (YYYY-MM-DD) for the Vencimiento pill.
   endDate: string | null;
+  // 2026-09-26 (feat/admin-sede-visitantes): sede DE ORIGEN del socio
+  // reservado — null cuando coincide con la fuente del lookup (ver el
+  // docblock del mismo campo en el backend, scheduling/types.ts).
+  memberBranchId: number | null;
+  memberBranchName: string | null;
 }
 
 export interface HolidayRecord {

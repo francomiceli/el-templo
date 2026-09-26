@@ -460,9 +460,20 @@ export function assertBranchInEnforcedScope(
  *
  * 404 y no 403: criterio ISO-03 — ver `assertBranchInEnforcedScope`. Un usuario
  * inexistente y uno de otra sede tienen que responder igual.
+ *
+ * `opts.allowVisitorRoutes` (2026-09-26, feat/admin-sede-visitantes): EXCEPCIÓN
+ * EXPLÍCITA Y NOMBRADA, no un agujero genérico. Lista blanca opt-in de rutas
+ * REGISTRADAS (el patrón `request.routeOptions.url`, ej. "/autocompletar/:userId"
+ * — NUNCA la URL resuelta, que trae el id real) donde un admin_sede puede leer
+ * el dato MÍNIMO de un socio de otra sede para poder cobrarle (Franco
+ * 2026-09-26: "el admin de sede también pueda cobrarle a alumnos de otras
+ * sedes"). Vacío por default: cada plugin que la necesita la pasa explícita
+ * en su propio `enforceMemberBranchScope(db, { allowVisitorRoutes: new Set([...]) })`
+ * — no hay default compartido que alguien pueda ensanchar sin querer.
  */
 export function enforceMemberBranchScope(
   db: MySql2Database<typeof schema>,
+  opts: { allowVisitorRoutes?: ReadonlySet<string> } = {},
 ): preHandlerHookHandler {
   return async function preHandler(
     request: FastifyRequest,
@@ -508,6 +519,20 @@ export function enforceMemberBranchScope(
     if (!row) return;
 
     if (!enforced.includes(row.branchId)) {
+      const routeUrl = request.routeOptions.url;
+      if (routeUrl !== undefined && opts.allowVisitorRoutes?.has(routeUrl)) {
+        request.log.info(
+          {
+            userId: request.user?.userId,
+            role: request.user?.role,
+            targetUserId: targetId,
+            branchId: row.branchId,
+            route: request.routeOptions.url,
+          },
+          "VISITOR_ACCESS_GRANTED",
+        );
+        return;
+      }
       request.log.warn(
         {
           userId: request.user?.userId,

@@ -19,7 +19,7 @@ import {
   TRAINING_FOCUS_LABELS,
   MOTIVATION_LABELS,
 } from "../onboarding/types";
-import { MemberService } from "./service";
+import { MemberService, meetsVisitorSearchThreshold } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
 import { ReferralService } from "../referrals/service";
 import { PartnerReferralService } from "../referral-partners/service";
@@ -84,6 +84,7 @@ import {
   enforceBranchScope,
   enforcedBranchIds,
   enforceMemberBranchScope,
+  isBranchScopedRole,
   requireBranchAccess,
   BRANCH_OUT_OF_SCOPE,
 } from "../shared/branch-access";
@@ -495,22 +496,51 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       search: string;
       limit?: number;
       membershipKind?: MembershipKind;
+      includeOtherBranches?: boolean;
     };
-  }>("/search", { schema: searchMembersSchema }, async (request) => {
-    const ctx = assertTenant(request.scope, "members.search");
-    const { search, limit = 10, membershipKind } = request.query;
-    const members = await memberService.searchMembers(ctx, {
-      search,
-      country: request.scope.country ?? undefined,
-      // Alcance forzado por sede (rol `admin_sede`): esta ruta NO tiene
-      // `branchId` en el query, así que `enforceBranchScope` no la puede
-      // cubrir — el recorte va acá, plumbeado al servicio.
-      branchIds: enforcedBranchIds(request.scope) ?? undefined,
-      limit,
-      membershipKind,
-    });
-    return { members };
-  });
+  }>(
+    "/search",
+    { schema: searchMembersSchema },
+    async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.search");
+      const { search, limit = 10, membershipKind, includeOtherBranches } =
+        request.query;
+
+      // 2026-09-26 (feat/admin-sede-visitantes) — flag explícito del picker.
+      // Solo tiene sentido (y solo se valida) para un rol de alcance forzado;
+      // para el resto de los roles el flag es un no-op silencioso (ya buscan
+      // sin filtro de sede).
+      if (includeOtherBranches && isBranchScopedRole(request.scope.role)) {
+        if (!meetsVisitorSearchThreshold(search)) {
+          return reply.code(400).send({
+            error: "Bad Request",
+            message:
+              "Para buscar en otras sedes escribí el DNI completo o al menos 3 letras del nombre.",
+          });
+        }
+      }
+      // Capeado a 10 SIEMPRE que se cruce de sede, sin importar el `limit`
+      // pedido — el picker de visitantes no es un directorio (Franco
+      // 2026-09-26).
+      const effectiveLimit =
+        includeOtherBranches && isBranchScopedRole(request.scope.role)
+          ? Math.min(limit, 10)
+          : limit;
+
+      const members = await memberService.searchMembers(ctx, {
+        search,
+        country: request.scope.country ?? undefined,
+        // Alcance forzado por sede (rol `admin_sede`): esta ruta NO tiene
+        // `branchId` en el query, así que `enforceBranchScope` no la puede
+        // cubrir — el recorte va acá, plumbeado al servicio.
+        branchIds: enforcedBranchIds(request.scope) ?? undefined,
+        limit: effectiveLimit,
+        membershipKind,
+        includeOtherBranches,
+      });
+      return { members };
+    },
+  );
 
   // GET /admin/members/:userId — Get member profile
   fastify.get<{ Params: { userId: number } }>(

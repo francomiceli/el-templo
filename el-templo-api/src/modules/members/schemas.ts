@@ -253,6 +253,9 @@ export const searchMembersSchema = {
       search: { type: "string", minLength: 1 },
       limit: { type: "integer", minimum: 1, maximum: 50, default: 10 },
       membershipKind: { type: "string", enum: ["paga", "bonificada", "staff"] },
+      // 2026-09-26 (feat/admin-sede-visitantes): flag explícito del picker —
+      // ver MemberSearchParams.includeOtherBranches.
+      includeOtherBranches: { type: "boolean" },
     },
   },
   response: {
@@ -270,11 +273,15 @@ export const searchMembersSchema = {
               dni: { type: ["string", "null"] },
               planName: { type: ["string", "null"] },
               status: { type: ["string", "null"] },
+              isOtherBranch: { type: "boolean" },
+              visitorBranchId: { type: "integer" },
+              visitorBranchName: { type: ["string", "null"] },
             },
           },
         },
       },
     },
+    400: errorSchema,
   },
 };
 

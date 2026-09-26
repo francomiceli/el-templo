@@ -136,6 +136,147 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
+   * Cierra el gap que el comentario de `POST /trials/:bookingId/reschedule`
+   * (WR-01) dejaba anotado: `POST /trials` se direcciona por `scheduleId` y NO
+   * lleva `branchId` en el body, así que el preHandler estándar
+   * `requireBranchAccess` no lo puede cubrir. Este resuelve la sede DEL HORARIO
+   * (el mismo SELECT que el service hace después — un id, índice primario) y la
+   * valida contra el scope del actor con el MISMO predicado (`canAccessBranch`)
+   * y el mismo cuerpo de 403 que el preHandler compartido.
+   *
+   * Aplica SOLO a los roles de alcance forzado (admin_sede). Decisión de Franco
+   * 2026-09-08: el coach sigue pudiendo agendar una SP en el horario de otra
+   * sede (flujo operativo real entre sedes), así que para el resto de los
+   * roles este guard es un no-op.
+   * Un `scheduleId` inexistente NO se corta acá — sigue de largo y el service
+   * devuelve su 404 de siempre.
+   *
+   * Extendido para `PATCH /schedules/:scheduleId/time` (feedback profes
+   * 2026-09): esa ruta direcciona el `scheduleId` por PARAMS, no por body
+   * (es un recurso by-id, no una acción con scheduleId como campo del
+   * payload). Body gana si ambos estuvieran presentes (no pasa hoy — ninguna
+   * ruta que usa este guard tiene las dos cosas a la vez), y se prueba
+   * primero para no romper el uso existente de `/trials`.
+   *
+   * 2026-09-26 (feat/admin-sede-visitantes, relevamiento de Franco): movida
+   * ARRIBA del archivo (antes vivía junto a `/trials`) porque ahora también
+   * gatea `GET /schedules/:scheduleId/detail` y `POST /bookings`, declaradas
+   * más arriba en este plugin — el hueco que Franco reportó ("un admin de
+   * sede podría reservar en clases de otra sede pegándole a la API"): ninguna
+   * de las dos validaba la sede DE LA CLASE contra el scope del actor.
+   */
+  const requireScheduleBranchAccess: preHandlerHookHandler = async function (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) {
+    if (!isBranchScopedRole(request.scope.role)) return;
+    const body = request.body as { scheduleId?: unknown } | undefined;
+    const params = request.params as { scheduleId?: unknown } | undefined;
+    const scheduleId =
+      typeof body?.scheduleId === "number"
+        ? body.scheduleId
+        : typeof params?.scheduleId === "number"
+          ? params.scheduleId
+          : null;
+    if (scheduleId === null) return;
+
+    const ctx = assertTenant(request.scope, "scheduling.bookTrial.branchGuard");
+    const [row] = await request.server.db
+      .select({ branchId: schema.schedules.branchId })
+      .from(schema.schedules)
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      )
+      .limit(1);
+    if (!row) return; // horario inexistente → 404 del service, no 403 acá
+
+    const ok = await canAccessBranch(
+      request.scope,
+      row.branchId,
+      request.server.db,
+    );
+    if (!ok) {
+      request.log.warn(
+        {
+          userId: request.user?.userId,
+          role: request.user?.role,
+          branchId: row.branchId,
+          scope: request.scope,
+        },
+        BRANCH_OUT_OF_SCOPE,
+      );
+      return reply.code(403).send({
+        error: "Forbidden",
+        message: "No tenés acceso a esta sede",
+        code: BRANCH_OUT_OF_SCOPE,
+      });
+    }
+  };
+
+  /**
+   * 2026-09-26 (feat/admin-sede-visitantes) — hermano de
+   * `requireScheduleBranchAccess` para `DELETE /bookings/:bookingId`: esa
+   * ruta direcciona por `bookingId`, NO por `scheduleId`, así que resuelve un
+   * salto más (booking → schedule → branchId) antes del mismo chequeo.
+   * `bookingId` inexistente/de otro gimnasio NO se corta acá — sigue de largo
+   * y el service da su propio 404.
+   */
+  const requireBookingScheduleBranchAccess: preHandlerHookHandler =
+    async function (request: FastifyRequest, reply: FastifyReply) {
+      if (!isBranchScopedRole(request.scope.role)) return;
+      const params = request.params as { bookingId?: unknown } | undefined;
+      const bookingId =
+        typeof params?.bookingId === "number" ? params.bookingId : null;
+      if (bookingId === null) return;
+
+      const ctx = assertTenant(
+        request.scope,
+        "scheduling.adminRemoveBooking.branchGuard",
+      );
+      const [row] = await request.server.db
+        .select({ branchId: schema.schedules.branchId })
+        .from(schema.bookings)
+        .innerJoin(
+          schema.schedules,
+          eq(schema.schedules.id, schema.bookings.scheduleId),
+        )
+        .where(
+          and(
+            tenantWhere(schema.bookings, ctx),
+            eq(schema.bookings.id, bookingId),
+          ),
+        )
+        .limit(1);
+      if (!row) return; // reserva inexistente → 404 del service, no 403 acá
+
+      const ok = await canAccessBranch(
+        request.scope,
+        row.branchId,
+        request.server.db,
+      );
+      if (!ok) {
+        request.log.warn(
+          {
+            userId: request.user?.userId,
+            role: request.user?.role,
+            bookingId,
+            branchId: row.branchId,
+            scope: request.scope,
+          },
+          BRANCH_OUT_OF_SCOPE,
+        );
+        return reply.code(403).send({
+          error: "Forbidden",
+          message: "No tenés acceso a esta sede",
+          code: BRANCH_OUT_OF_SCOPE,
+        });
+      }
+    };
+
+  /**
    * Guard: require admin/coach role on all routes in this plugin.
    *
    * Phase 110 (Rule 3 — Plan 06 blocker): attach country scope here so
@@ -373,12 +514,17 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // GET /schedules/:scheduleId/detail — slot detail with member list
+  //
+  // 2026-09-26 (feat/admin-sede-visitantes): sin guard, un admin_sede podía
+  // pedir el roster completo de una clase de OTRA sede pegándole directo a
+  // esta ruta con un `scheduleId` ajeno — la grilla semanal (que sí está
+  // acotada) nunca le ofrece ese id, pero la API no lo impedía.
   fastify.get<{
     Params: { scheduleId: number };
     Querystring: { date: string };
   }>(
     "/schedules/:scheduleId/detail",
-    { schema: slotDetailSchema },
+    { schema: slotDetailSchema, preHandler: [requireScheduleBranchAccess] },
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "scheduling.slotDetail");
@@ -700,27 +846,46 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // ─── Admin Bookings ─────────────────────────────────────────────────────
 
   // POST /bookings — admin add booking to slot
+  //
+  // 2026-09-26 (feat/admin-sede-visitantes, relevamiento de Franco): "el hueco
+  // real" — no validaba la sede DE LA CLASE (ni la del alumno) para
+  // isBranchScopedRole. Reservar un alumno de otra sede (visitante) sigue
+  // andando: lo que se corta es la sede del `scheduleId`.
   fastify.post<{
     Body: { scheduleId: number; memberId: number; date: string };
-  }>("/bookings", { schema: adminAddBookingSchema }, async (request, reply) => {
-    try {
-      const ctx = assertTenant(request.scope, "scheduling.adminAddBooking");
-      const result = await bookingService.adminAddBooking(
-        ctx,
-        request.body.scheduleId,
-        request.body.memberId,
-        request.body.date,
-      );
-      return reply.code(201).send(result);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "admin add booking");
-    }
-  });
+  }>(
+    "/bookings",
+    {
+      schema: adminAddBookingSchema,
+      preHandler: [requireScheduleBranchAccess],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "scheduling.adminAddBooking");
+        const result = await bookingService.adminAddBooking(
+          ctx,
+          request.body.scheduleId,
+          request.body.memberId,
+          request.body.date,
+        );
+        return reply.code(201).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "admin add booking");
+      }
+    },
+  );
 
   // DELETE /bookings/:bookingId — admin remove booking
+  //
+  // 2026-09-26 (feat/admin-sede-visitantes): mismo cierre que POST /bookings,
+  // resuelto por bookingId → schedule → branchId (ver
+  // `requireBookingScheduleBranchAccess`).
   fastify.delete<{ Params: { bookingId: number } }>(
     "/bookings/:bookingId",
-    { schema: adminRemoveBookingSchema },
+    {
+      schema: adminRemoveBookingSchema,
+      preHandler: [requireBookingScheduleBranchAccess],
+    },
     async (request, reply) => {
       try {
         const ctx = assertTenant(
@@ -736,80 +901,6 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ─── Trials (Phase 102 + 103) ───────────────────────────────────────────
-
-  /**
-   * Cierra el gap que el comentario de `POST /trials/:bookingId/reschedule`
-   * (WR-01) dejaba anotado: `POST /trials` se direcciona por `scheduleId` y NO
-   * lleva `branchId` en el body, así que el preHandler estándar
-   * `requireBranchAccess` no lo puede cubrir. Este resuelve la sede DEL HORARIO
-   * (el mismo SELECT que el service hace después — un id, índice primario) y la
-   * valida contra el scope del actor con el MISMO predicado (`canAccessBranch`)
-   * y el mismo cuerpo de 403 que el preHandler compartido.
-   *
-   * Aplica SOLO a los roles de alcance forzado (admin_sede). Decisión de Franco
-   * 2026-09-08: el coach sigue pudiendo agendar una SP en el horario de otra
-   * sede (flujo operativo real entre sedes), así que para el resto de los
-   * roles este guard es un no-op.
-   * Un `scheduleId` inexistente NO se corta acá — sigue de largo y el service
-   * devuelve su 404 de siempre.
-   *
-   * Extendido para `PATCH /schedules/:scheduleId/time` (feedback profes
-   * 2026-09): esa ruta direcciona el `scheduleId` por PARAMS, no por body
-   * (es un recurso by-id, no una acción con scheduleId como campo del
-   * payload). Body gana si ambos estuvieran presentes (no pasa hoy — ninguna
-   * ruta que usa este guard tiene las dos cosas a la vez), y se prueba
-   * primero para no romper el uso existente de `/trials`.
-   */
-  const requireScheduleBranchAccess: preHandlerHookHandler = async function (
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) {
-    if (!isBranchScopedRole(request.scope.role)) return;
-    const body = request.body as { scheduleId?: unknown } | undefined;
-    const params = request.params as { scheduleId?: unknown } | undefined;
-    const scheduleId =
-      typeof body?.scheduleId === "number"
-        ? body.scheduleId
-        : typeof params?.scheduleId === "number"
-          ? params.scheduleId
-          : null;
-    if (scheduleId === null) return;
-
-    const ctx = assertTenant(request.scope, "scheduling.bookTrial.branchGuard");
-    const [row] = await request.server.db
-      .select({ branchId: schema.schedules.branchId })
-      .from(schema.schedules)
-      .where(
-        and(
-          tenantWhere(schema.schedules, ctx),
-          eq(schema.schedules.id, scheduleId),
-        ),
-      )
-      .limit(1);
-    if (!row) return; // horario inexistente → 404 del service, no 403 acá
-
-    const ok = await canAccessBranch(
-      request.scope,
-      row.branchId,
-      request.server.db,
-    );
-    if (!ok) {
-      request.log.warn(
-        {
-          userId: request.user?.userId,
-          role: request.user?.role,
-          branchId: row.branchId,
-          scope: request.scope,
-        },
-        BRANCH_OUT_OF_SCOPE,
-      );
-      return reply.code(403).send({
-        error: "Forbidden",
-        message: "No tenés acceso a esta sede",
-        code: BRANCH_OUT_OF_SCOPE,
-      });
-    }
-  };
 
   // PATCH /schedules/:scheduleId/time — change start/end time of a slot.
   // Feedback profes (2026-09): Open Gym tenía sede y actividad editables
