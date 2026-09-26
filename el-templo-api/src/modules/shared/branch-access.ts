@@ -519,8 +519,17 @@ export function enforceMemberBranchScope(
     if (!row) return;
 
     if (!enforced.includes(row.branchId)) {
+      // `routeOptions.url` trae el prefijo del plugin
+      // (p. ej. "/api/admin/finance/coach-load/autocompletar/:userId"), así que
+      // la lista blanca se declara RELATIVA al plugin y se compara por sufijo.
+      // Es seguro: el hook solo corre dentro del plugin que lo registró.
       const routeUrl = request.routeOptions.url;
-      if (routeUrl !== undefined && opts.allowVisitorRoutes?.has(routeUrl)) {
+      const allowed =
+        routeUrl !== undefined &&
+        [...(opts.allowVisitorRoutes ?? [])].some((pattern) =>
+          routeUrl.endsWith(pattern),
+        );
+      if (allowed) {
         request.log.info(
           {
             userId: request.user?.userId,
