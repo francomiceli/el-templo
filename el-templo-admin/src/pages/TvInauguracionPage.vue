@@ -26,7 +26,7 @@
           </template>
         </div>
         <div class="bajada bajada--dia aparece" :style="delay(3.6)">
-          Ya somos <span class="acento--terracotta">seis</span> en Mar del Plata.
+          Un <span class="acento--terracotta">nuevo espacio</span> para que entrenes y te superes.
         </div>
         <div class="descarga descarga--dia aparece" :style="delay(4.4)">
           <div class="descarga__label">Descargá la app y reservá tu clase</div>
@@ -64,7 +64,7 @@
           </template>
         </div>
         <div class="bajada bajada--noche aparece" :style="delay(4)">
-          Ya somos <span class="acento--bronce">seis</span> en Mar del Plata.
+          Un <span class="acento--bronce">nuevo espacio</span> para que entrenes y te superes.
         </div>
         <div class="descarga descarga--noche aparece" :style="delay(4.8)">
           <div class="descarga__label">Descargá la app y reservá tu clase</div>
@@ -127,12 +127,12 @@ interface LineaTitulo {
 
 const TITULO_BIENVENIDA: LineaTitulo[] = [
   { palabras: ['BIENVENIDOS', 'A'] },
-  { palabras: ['LA', 'SEXTA', 'SEDE'], remarcada: true },
+  { palabras: ['JUAN', 'B.', 'JUSTO'], remarcada: true },
 ];
 
 const TITULO_ENCUENTRO: LineaTitulo[] = [
-  { palabras: ['EL', 'TEMPLO', 'SUMA'] },
-  { palabras: ['UNA', 'NUEVA', 'SEDE'], remarcada: true },
+  { palabras: ['EL', 'TEMPLO', 'ESTRENA'] },
+  { palabras: ['NUEVA', 'CASA'], remarcada: true },
 ];
 
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.eltemplo.app';
