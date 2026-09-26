@@ -56,6 +56,7 @@ import type { BookingService } from "./booking-service";
 import type { NotificationService } from "../notifications/service";
 import { assertTrialSlotCapacity } from "./capacity";
 import { SettingsService } from "../settings/service";
+import { canRescheduleAtDepth } from "../reports/trial-cadence";
 
 /**
  * Phase 119 (D-03 revised): a self-service trial can be cancelled or changed up
@@ -1294,7 +1295,7 @@ export class TrialService {
       this.resolveRescheduleChain(ctx, input.bookingId),
     ]);
     const oldBookingDepth = ancestorChain.length - 1; // 0 = sesión original.
-    if (oldBookingDepth + 1 > maxReschedules) {
+    if (!canRescheduleAtDepth(oldBookingDepth, maxReschedules)) {
       throw new ConflictError(
         `Alcanzaste el límite de ${maxReschedules} reagenda(s) para esta sesión`,
       );

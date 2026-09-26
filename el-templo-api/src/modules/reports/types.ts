@@ -331,6 +331,18 @@ export interface TrialSessionsRow {
   rescheduledTo: TrialRescheduleLinkedSession | null;
   /** Presente cuando esta sesión VINO de una reagenda: la sesión de la que viene. */
   rescheduledFrom: TrialRescheduleLinkedSession | null;
+  /**
+   * Profundidad de ESTA sesión en su cadena de reagendas (original=0, r1=1,
+   * r2=2...) — ver `trial-cadence.ts` `canRescheduleAtDepth`.
+   */
+  rescheduleDepth: number;
+  /**
+   * `true` si el admin puede reagendar esta fila: sesión no cerrada (no
+   * Ganada/Perdida/Reagendada) Y `rescheduleDepth < trials.max_reschedules`.
+   * MISMA lógica de límite que el guard 409 de `rescheduleTrial`
+   * (`canRescheduleAtDepth`, `trial-cadence.ts`).
+   */
+  canReschedule: boolean;
 }
 
 /** Info mínima de la sesión enlazada por una reagenda (origen o destino), para el link en la fila. */

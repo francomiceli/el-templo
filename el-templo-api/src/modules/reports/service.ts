@@ -39,6 +39,7 @@ import { buildClassDateTime } from "../shared/date-utils";
 import { normalizePhoneE164 } from "../shared/phone";
 import { SettingsService } from "../settings/service";
 import {
+  canRescheduleAtDepth,
   computeNextAction,
   deriveSessionStatus,
   resolveActiveShiftEnd,
@@ -2851,7 +2852,7 @@ export class ReportsService {
 
       const hasRescheduleChild = childOf.has(r.booking_id);
       const depth = chainDepth(r.booking_id);
-      const isFinalAllowedSession = depth >= maxReschedules;
+      const isFinalAllowedSession = !canRescheduleAtDepth(depth, maxReschedules);
 
       const sessionStatus = deriveSessionStatus({
         hasRescheduleChild,
@@ -2981,6 +2982,13 @@ export class ReportsService {
           new Date(nextAction.dueAt).getTime() <= shiftEnd.getTime();
       }
 
+      // Habilita/deshabilita "Reagendar" en la fila (admin): sesión no
+      // cerrada (Ganada/Perdida/Reagendada tienen `resolution !== null`) Y
+      // todavía no llegó a la profundidad máxima — MISMA lógica de límite
+      // que el guard 409 de `rescheduleTrial` (`canRescheduleAtDepth`).
+      const canReschedule =
+        resolution === null && canRescheduleAtDepth(depth, maxReschedules);
+
       return {
         bookingId: r.booking_id,
         userId: r.user_id,
@@ -3013,6 +3021,8 @@ export class ReportsService {
         phoneE164: normalizePhoneE164(r.phone, branchCountry),
         rescheduledTo,
         rescheduledFrom,
+        rescheduleDepth: depth,
+        canReschedule,
         isPendingThisShift,
       };
     });

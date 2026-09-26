@@ -777,6 +777,65 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
     expect(newRow?.rescheduledTo).toBeNull();
   });
 
+  it("canReschedule/rescheduleDepth: true en la original sin reagendar, false en la fila Reagendada y al llegar al límite (mismo guard que rescheduleTrial)", async () => {
+    // Original sin ninguna reagenda: depth 0, habilitada.
+    const soloUser = await seedLead({ firstName: "SoloOriginal" });
+    const soloBooking = await seedBooking({
+      userId: soloUser,
+      bookingDateOffsetDays: 7,
+    });
+
+    // Cadena original(b0, cancelado) → r1(b1, cancelado) → r2(b2, agendada) —
+    // `trials.max_reschedules` fallback = 2 (system_settings vacío en test),
+    // así que b2 (depth 2) ya está en el límite aunque no esté cerrada.
+    const chainUser = await seedLead({ firstName: "LimiteReagenda" });
+    const [b0] = await ctx.app.db
+      .insert(schema.bookings)
+      .values({
+        memberId: chainUser,
+        scheduleId: ctx.scheduleMorning,
+        bookingDate: dateOffset(-30),
+        status: "cancelado",
+        isTrial: true,
+      })
+      .$returningId();
+    const [b1] = await ctx.app.db
+      .insert(schema.bookings)
+      .values({
+        memberId: chainUser,
+        scheduleId: ctx.scheduleMorning,
+        bookingDate: dateOffset(-20),
+        status: "cancelado",
+        isTrial: true,
+      })
+      .$returningId();
+    await linkReschedule(b0.id, b1.id);
+    const b2 = await seedBooking({
+      userId: chainUser,
+      bookingDateOffsetDays: 7,
+    });
+    await linkReschedule(b1.id, b2);
+
+    const { body } = await getReport(ctx.ownerToken);
+    const row = (id: number): Record<string, unknown> | undefined =>
+      body.rows.find((r) => r.bookingId === id);
+
+    expect(row(soloBooking)?.rescheduleDepth).toBe(0);
+    expect(row(soloBooking)?.canReschedule).toBe(true);
+
+    // b1: fila "Reagendada" (tiene hijo b2) — cerrada, sin importar su
+    // profundidad (1 < 2).
+    expect(row(b1.id)?.sessionStatus).toBe("reagendada");
+    expect(row(b1.id)?.rescheduleDepth).toBe(1);
+    expect(row(b1.id)?.canReschedule).toBe(false);
+
+    // b2: última reagenda permitida (depth 2 === max_reschedules 2), sesión
+    // abierta (agendada) pero ya en el límite.
+    expect(row(b2)?.sessionStatus).toBe("agendada");
+    expect(row(b2)?.rescheduleDepth).toBe(2);
+    expect(row(b2)?.canReschedule).toBe(false);
+  });
+
   it("phoneE164: la fila expone el teléfono normalizado (mismo criterio que Renovaciones)", async () => {
     const userId = await seedLead({ firstName: "TelefonoE164" });
     const bookingId = await seedBooking({

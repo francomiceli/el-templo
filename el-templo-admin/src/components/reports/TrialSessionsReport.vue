@@ -400,8 +400,19 @@
                           <q-item-section>Respondió</q-item-section>
                         </q-item>
                         <q-separator />
-                        <q-item clickable @click="openRescheduleDialog(props.row)">
+                        <q-item
+                          clickable
+                          :disable="!props.row.canReschedule"
+                          @click="openRescheduleDialog(props.row)"
+                        >
                           <q-item-section>Reagendar…</q-item-section>
+                          <q-tooltip v-if="!props.row.canReschedule">
+                            {{
+                              isTrialSessionOpen(props.row.sessionStatus)
+                                ? 'Llegó al límite de reagendas'
+                                : 'La sesión está cerrada'
+                            }}
+                          </q-tooltip>
                         </q-item>
                         <q-item clickable @click="openLostDialog(props.row)">
                           <q-item-section class="text-negative">Marcar perdida…</q-item-section>

@@ -361,3 +361,24 @@ export function deriveSessionStatus(
   }
   return "agendada";
 }
+
+// ─── Límite de reagendas ────────────────────────────────────────────────────
+
+/**
+ * `true` cuando una sesión en la profundidad `depth` de su cadena
+ * (original=0, r1=1, r2=2...) todavía puede reagendarse de nuevo, dado
+ * `trials.max_reschedules` (`SettingsService.getMaxReschedules`, fallback 2).
+ *
+ * Única fuente de la regla de límite — usada por
+ * `trials-service.ts rescheduleTrial` (guard 409 antes de reagendar) y por
+ * `reports/service.ts buildTrialSessionRows` (`canReschedule`/
+ * `isFinalAllowedSession` de cada fila). Antes vivía duplicada como dos
+ * comparaciones equivalentes (`oldBookingDepth + 1 > maxReschedules` vs.
+ * `depth >= maxReschedules`) — DRY (2026-09-26).
+ */
+export function canRescheduleAtDepth(
+  depth: number,
+  maxReschedules: number,
+): boolean {
+  return depth < maxReschedules;
+}

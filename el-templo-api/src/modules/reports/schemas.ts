@@ -786,6 +786,8 @@ const trialSessionsRowSchema = {
     rescheduledFrom: {
       anyOf: [trialRescheduleLinkedSessionSchema, { type: "null" }],
     },
+    rescheduleDepth: { type: "integer" },
+    canReschedule: { type: "boolean" },
   },
 } as const;
 
