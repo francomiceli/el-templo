@@ -572,19 +572,28 @@ describe("Reports API — Trial Sessions (Phase 114-05)", () => {
     expect(cruzadoAsEs).toHaveLength(1);
     expect(cruzadoAsEs[0].bookingId).toBe(esBooking);
 
-    // El owner (sin scope de país) ve las DOS — ya no hay "una sola fila por
-    // lead" que esconda la otra sesión.
+    // El owner SIN toggle resuelve al país de su sede (AR, Phase 98 D-18): ve
+    // solo la sesión AR. Con `?country=ES` ve solo la ES. Con 1 fila por
+    // sesión ya no hay "representativa" que esconda a la otra.
     const asOwner = await ctx.app.inject({
       method: "GET",
       url: `${REPORTS_URL}/trial-sessions`,
       headers: { authorization: `Bearer ${ctx.ownerToken}` },
     });
-    const ownerBody = JSON.parse(asOwner.body);
-    const cruzadoOwner = ownerBody.rows
-      .filter((r: { userId: number }) => r.userId === u)
-      .map((r: { bookingId: number }) => r.bookingId)
-      .sort((a: number, b: number) => a - b);
-    expect(cruzadoOwner).toEqual([arBooking, esBooking].sort((a, b) => a - b));
+    const ownerIds = JSON.parse(asOwner.body)
+      .rows.filter((r: { userId: number }) => r.userId === u)
+      .map((r: { bookingId: number }) => r.bookingId);
+    expect(ownerIds).toEqual([arBooking]);
+
+    const asOwnerEs = await ctx.app.inject({
+      method: "GET",
+      url: `${REPORTS_URL}/trial-sessions?country=ES`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    const ownerEsIds = JSON.parse(asOwnerEs.body)
+      .rows.filter((r: { userId: number }) => r.userId === u)
+      .map((r: { bookingId: number }) => r.bookingId);
+    expect(ownerEsIds).toEqual([esBooking]);
   });
 
   // 5. Country scope.

@@ -159,6 +159,9 @@ export class SettingsService {
    */
   async getMaxReschedules(): Promise<number> {
     const raw = await this.getStringValue(TRIALS_SETTINGS_KEYS.maxReschedules);
+    // Ojo: `Number(null)` y `Number("")` dan 0, que pasaría como límite válido
+    // y dejaría a toda sesión sin reagenda. Fila faltante/vacía → fallback.
+    if (raw === null || raw.trim() === "") return 2;
     const n = Number(raw);
     return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 2;
   }

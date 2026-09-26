@@ -533,7 +533,7 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
     const [row] = await ctx.app.db
       .select({ email: schema.users.email })
       .from(schema.users)
-      .where(eq(schema.users.id, adminArId));
+      .where(and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, adminArId)));
     const adminArToken = await getAuthToken(
       ctx.app,
       row.email as string,
@@ -845,7 +845,7 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
     const [user] = await ctx.app.db
       .select({ phone: schema.users.phone })
       .from(schema.users)
-      .where(eq(schema.users.id, userId));
+      .where(and(tenantWhere(schema.users, TEMPLO_CTX), eq(schema.users.id, userId)));
 
     const { body } = await getReport(ctx.ownerToken);
     const row = body.rows.find((r) => r.bookingId === bookingId);

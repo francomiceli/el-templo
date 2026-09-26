@@ -2937,12 +2937,15 @@ export class ReportsService {
               : null,
         });
       }
-      messages.sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime());
-      const lastMessage = messages[0]
+      // El último mensaje es el PASO más avanzado (M1 → M2 → M3, se pushean en
+      // ese orden y los guardrails impiden saltearlos), no el de timestamp más
+      // nuevo: dos marcas en el mismo segundo empataban y ganaba el M2.
+      const latest = messages.at(-1);
+      const lastMessage = latest
         ? {
-            code: messages[0].code,
-            sentAt: messages[0].sentAt.toISOString(),
-            sentBy: messages[0].sentBy,
+            code: latest.code,
+            sentAt: latest.sentAt.toISOString(),
+            sentBy: latest.sentBy,
           }
         : null;
 
