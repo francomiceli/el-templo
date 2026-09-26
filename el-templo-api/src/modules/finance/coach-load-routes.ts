@@ -352,7 +352,23 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   // plugin que en finance/routes.ts, members y subscriptions. Cubre
   // `/autocompletar/:userId` (datos del socio) y cualquier ruta futura de este
   // plugin direccionada por socio. No-op para el resto de los roles.
-  fastify.addHook("preHandler", enforceMemberBranchScope(fastify.db));
+  //
+  // 2026-09-26 (feat/admin-sede-visitantes) — Franco pidió que el admin_sede
+  // pueda COBRARLE a un alumno de otra sede. `/autocompletar/:userId` es
+  // exactamente el dato mínimo que ese cobro necesita (plan vigente + deuda,
+  // sin teléfono/historial/notas) — se abre con una excepción NOMBRADA
+  // (`allowVisitorRoutes`, ver branch-access.ts), no aflojando el hook
+  // genérico. `/pay-plan` y `/misc` llevan el id del socio en el BODY
+  // (`userId`/`memberId`), no en `:params`, así que este hook ya no los
+  // tocaba — ahí el corte real es `requireBranchAccess({ from: "body.branchId" })`
+  // de cada ruta (abajo): la transacción SIEMPRE queda en una sede del scope
+  // del admin_sede, nunca en la del alumno.
+  fastify.addHook(
+    "preHandler",
+    enforceMemberBranchScope(fastify.db, {
+      allowVisitorRoutes: new Set(["/autocompletar/:userId"]),
+    }),
+  );
 
   // ── Resolve the member's default branchId server-side (Pitfall 4):
   // users.branchId with the virtual "Templo Online" fallback (mirror of
@@ -532,10 +548,18 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
       schema: coachPayPlanSchema,
       // CR-CAJA: gatea la sede del cobro cuando el operador la eligió (optional →
       // sin branchId, default a la sede del socio, sin check).
-      preHandler: requireBranchAccess({
-        from: "body.branchId",
-        optional: true,
-      }),
+      //
+      // 2026-09-26 (feat/admin-sede-visitantes): ese default ("sede del socio",
+      // `resolveMemberBranchId` más abajo) es exactamente la sede que un
+      // admin_sede NO puede tocar cuando el socio es un visitante de otra
+      // sede. `enforceBranchScope` cierra ese hueco — para `isBranchScopedRole`
+      // fuerza `body.branchId` a SU sede (o 400 BRANCH_REQUIRED con más de
+      // una) ANTES de que el handler llegue al fallback; para el resto de los
+      // roles es un no-op.
+      preHandler: [
+        requireBranchAccess({ from: "body.branchId", optional: true }),
+        enforceBranchScope({ from: "body.branchId" }),
+      ],
     },
     async (request, reply) => {
       const {
@@ -754,10 +778,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     {
       schema: coachMiscLoadSchema,
       // CR-CAJA: gatea la sede del cobro si el operador la eligió (optional).
-      preHandler: requireBranchAccess({
-        from: "body.branchId",
-        optional: true,
-      }),
+      // 2026-09-26: mismo cierre que /pay-plan — ver comentario ahí.
+      preHandler: [
+        requireBranchAccess({ from: "body.branchId", optional: true }),
+        enforceBranchScope({ from: "body.branchId" }),
+      ],
     },
     async (request, reply) => {
       const today = new Date().toISOString().split("T")[0];

@@ -10,6 +10,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
+import { alias } from "drizzle-orm/mysql-core";
 import {
   eq,
   and,
@@ -543,6 +544,13 @@ export class SchedulingService {
     // Implementación única compartida — ver shared/covered-until.ts.
     const endDateExpr = memberCoveredUntilSql(ctx);
 
+    // 2026-09-26 (feat/admin-sede-visitantes): sede DE ORIGEN del socio
+    // reservado, para el chip "Visita · <Sede>" del roster cuando difiere de
+    // la sede del slot (Franco: un admin_sede ahora puede reservar alumnos de
+    // otra sede — la UI necesita poder distinguirlos). Alias propio porque
+    // `schema.branches` ya podría estar en uso en otro JOIN de este archivo.
+    const memberBranch = alias(schema.branches, "member_branch");
+
     const bookingRows = await this.db
       .select({
         id: schema.bookings.id,
@@ -559,6 +567,8 @@ export class SchedulingService {
         segment: schema.memberProfiles.segment,
         createdAt: schema.users.createdAt,
         endDate: endDateExpr,
+        memberBranchId: schema.users.branchId,
+        memberBranchName: memberBranch.name,
       })
       .from(schema.bookings)
       .innerJoin(
@@ -573,6 +583,13 @@ export class SchedulingService {
         and(
           tenantWhere(schema.memberProfiles, ctx),
           eq(schema.memberProfiles.userId, schema.bookings.memberId),
+        ),
+      )
+      .leftJoin(
+        memberBranch,
+        and(
+          tenantWhere(memberBranch, ctx),
+          eq(memberBranch.id, schema.users.branchId),
         ),
       )
       .where(
@@ -605,6 +622,8 @@ export class SchedulingService {
       endDate: r.endDate ?? null,
       // Todas las reservas de este roster son del mismo slot.
       isSpecial: slot.isSpecial,
+      memberBranchId: r.memberBranchId,
+      memberBranchName: r.memberBranchName ?? null,
     }));
 
     // Query attendance records for this branch + date

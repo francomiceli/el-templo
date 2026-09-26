@@ -693,4 +693,313 @@ describe("Rol admin_sede — alcance forzado por sede", () => {
       expect(restore.statusCode).toBe(200);
     });
   });
+
+  // =========================================================================
+  // 6. Visitantes de otra sede (feat/admin-sede-visitantes, 2026-09-26)
+  //
+  // Queja de Franco: un alumno de OTRA sede vino a Alberti y el admin_sede no
+  // lo podía reservar; además pidió que también pueda COBRARLE. Este bloque
+  // prueba las 3 patas: buscador acotado (flag explícito + proyección
+  // mínima), reserva (cerrando el hueco de POST /bookings) y cobro
+  // (imputado SIEMPRE a la sede del admin_sede, nunca a la del visitante).
+  // La ficha/historial/listado del visitante siguen 404 — eso NO cambia acá.
+  // =========================================================================
+  describe("Visitantes de otra sede (feat/admin-sede-visitantes)", () => {
+    let visitorId: number;
+    let visitorDni: string;
+    let visitorFirstName: string;
+    let scheduleVisitA: number; // clase en SU sede (branchA)
+    let scheduleVisitB: number; // clase en OTRA sede (branchB)
+    let fecha: string;
+
+    function proximaFecha(dow: number): string {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      while (d.getDay() !== dow) d.setDate(d.getDate() + 1);
+      return d.toISOString().slice(0, 10);
+    }
+
+    beforeAll(async () => {
+      visitorFirstName = `Visitante${u}`;
+      visitorDni = `70${u.slice(0, 6)}`;
+      const visitor = await createTestMember(app, {
+        branchId: branchB,
+        firstName: visitorFirstName,
+        lastName: "DeOtraSede",
+        dni: visitorDni,
+      });
+      visitorId = visitor.id;
+
+      const actRes = await app.inject({
+        method: "POST",
+        url: `${ADMIN_SCHED}/activities`,
+        headers: { authorization: `Bearer ${ownerToken}` },
+        payload: { name: `Visitantes ${u}`, description: "Clase" },
+      });
+      expect(actRes.statusCode).toBe(201);
+      const activityId = (JSON.parse(actRes.body) as { id: number }).id;
+
+      const dow = ((new Date().getDay() + 3) % 7 || 2) as number;
+      fecha = proximaFecha(dow);
+
+      for (const [branchId, sink] of [
+        [branchA, "A"],
+        [branchB, "B"],
+      ] as const) {
+        const res = await app.inject({
+          method: "POST",
+          url: `${ADMIN_SCHED}/schedules`,
+          headers: { authorization: `Bearer ${ownerToken}` },
+          payload: {
+            branchId,
+            activityId,
+            dayOfWeek: dow,
+            startTime: "18:00",
+            endTime: "19:00",
+          },
+        });
+        expect(res.statusCode).toBe(201);
+        const id = (JSON.parse(res.body) as { id: number }).id;
+        if (sink === "A") scheduleVisitA = id;
+        else scheduleVisitB = id;
+      }
+    });
+
+    describe("Buscador cross-sede (GET /admin/members/search)", () => {
+      it("sin flag NO devuelve al visitante de otra sede", async () => {
+        const res = await asAdminSede(
+          `/api/admin/members/search?search=${visitorFirstName}`,
+        );
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body) as { members: { id: number }[] };
+        expect(body.members.map((m) => m.id)).not.toContain(visitorId);
+      });
+
+      it("con includeOtherBranches=true devuelve proyección MINIMA del visitante", async () => {
+        const res = await asAdminSede(
+          `/api/admin/members/search?search=${visitorFirstName}&includeOtherBranches=true`,
+        );
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body) as {
+          members: {
+            id: number;
+            dni: string | null;
+            planName: string | null;
+            status: string | null;
+            isOtherBranch?: boolean;
+            visitorBranchId?: number;
+            visitorBranchName?: string | null;
+          }[];
+        };
+        const visitor = body.members.find((m) => m.id === visitorId);
+        expect(visitor).toBeDefined();
+        expect(visitor?.isOtherBranch).toBe(true);
+        expect(visitor?.visitorBranchId).toBe(branchB);
+        expect(visitor?.visitorBranchName).toBeTruthy();
+        // DNI enmascarado: termina en los mismos 3 dígitos pero NO es el DNI completo.
+        expect(visitor?.dni).not.toBe(visitorDni);
+        expect(visitor?.dni?.endsWith(visitorDni.slice(-3))).toBe(true);
+        // SIN plan/estado — proyección mínima (Franco: sin teléfono/plan/deuda).
+        expect(visitor?.planName).toBeNull();
+        expect(visitor?.status).toBeNull();
+      });
+
+      it("con includeOtherBranches=true y <3 letras de nombre → 400", async () => {
+        const res = await asAdminSede(
+          "/api/admin/members/search?search=Vi&includeOtherBranches=true",
+        );
+        expect(res.statusCode).toBe(400);
+      });
+
+      it("con includeOtherBranches=true capea el resultado a 10 aunque pida más", async () => {
+        const token = `Cap${u}`;
+        for (let i = 0; i < 11; i++) {
+          await createTestMember(app, {
+            branchId: branchB,
+            firstName: `${token}${i}`,
+            lastName: "Visitante",
+            dni: `71${u.slice(0, 4)}${i.toString().padStart(2, "0")}`,
+          });
+        }
+        const res = await asAdminSede(
+          `/api/admin/members/search?search=${token}&includeOtherBranches=true&limit=50`,
+        );
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body) as { members: unknown[] };
+        expect(body.members.length).toBeLessThanOrEqual(10);
+        expect(body.members.length).toBe(10);
+      });
+    });
+
+    describe("Reservas (POST /admin/scheduling/bookings)", () => {
+      it("reservar al visitante en una clase de SU sede (branchA) → 201", async () => {
+        const res = await app.inject({
+          method: "POST",
+          url: `${ADMIN_SCHED}/bookings`,
+          headers: { authorization: `Bearer ${adminSedeToken}` },
+          payload: {
+            scheduleId: scheduleVisitA,
+            memberId: visitorId,
+            date: fecha,
+          },
+        });
+        expect(res.statusCode).toBe(201);
+
+        // Cleanup: no contaminar el cupo para el resto del describe.
+        const bookingId = (
+          JSON.parse(res.body) as { booking: { id: number } }
+        ).booking.id;
+        await app.inject({
+          method: "DELETE",
+          url: `${ADMIN_SCHED}/bookings/${bookingId}`,
+          headers: { authorization: `Bearer ${ownerToken}` },
+        });
+      });
+
+      it("reservar en una clase de OTRA sede (branchB) → 403 BRANCH_OUT_OF_SCOPE", async () => {
+        const res = await app.inject({
+          method: "POST",
+          url: `${ADMIN_SCHED}/bookings`,
+          headers: { authorization: `Bearer ${adminSedeToken}` },
+          payload: {
+            scheduleId: scheduleVisitB,
+            memberId: visitorId,
+            date: fecha,
+          },
+        });
+        expect(res.statusCode).toBe(403);
+        expect(JSON.parse(res.body).code).toBe(BRANCH_OUT_OF_SCOPE);
+      });
+
+      it("GET /schedules/:scheduleId/detail de OTRA sede → 403", async () => {
+        const res = await asAdminSede(
+          `${ADMIN_SCHED}/schedules/${scheduleVisitB}/detail?date=${fecha}`,
+        );
+        expect(res.statusCode).toBe(403);
+      });
+
+      it("GET /schedules/:scheduleId/detail de SU sede → 200", async () => {
+        const res = await asAdminSede(
+          `${ADMIN_SCHED}/schedules/${scheduleVisitA}/detail?date=${fecha}`,
+        );
+        expect(res.statusCode).toBe(200);
+      });
+    });
+
+    describe("Cobro a un visitante (POST /admin/finance/coach-load/*)", () => {
+      it("GET /autocompletar/:userId de un visitante → 200 (no 404)", async () => {
+        const res = await app.inject({
+          method: "GET",
+          url: `/api/admin/finance/coach-load/autocompletar/${visitorId}`,
+          headers: { authorization: `Bearer ${adminSedeToken}` },
+        });
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body) as { memberBranchId: number };
+        expect(body.memberBranchId).toBe(branchB);
+      });
+
+      it("POST /misc a un visitante → 201, transacción imputada a la sede del admin_sede (branchA), NUNCA branchB", async () => {
+        const res = await app.inject({
+          method: "POST",
+          url: "/api/admin/finance/coach-load/misc",
+          headers: { authorization: `Bearer ${adminSedeToken}` },
+          payload: {
+            memberId: visitorId,
+            amount: 5000,
+            concepto: "Clase suelta - visitante",
+            paymentMethod: "cash",
+            miscReason: "otro",
+            idempotencyKey: `visitor-misc-${u}`,
+            // Sin branchId: ejercita el default server-side — NO debe caer a
+            // la sede del visitante (branchB).
+          },
+        });
+        expect(res.statusCode).toBe(201);
+        const body = JSON.parse(res.body) as {
+          transaction: { branchId: number };
+        };
+        expect(body.transaction.branchId).toBe(branchA);
+      });
+
+      it("GET /admin/members/:id del visitante sigue 404 (ficha)", async () => {
+        const res = await asAdminSede(`/api/admin/members/${visitorId}`);
+        expect(res.statusCode).toBe(404);
+      });
+
+      it("GET /admin/members/:id/financial-history del visitante sigue 404", async () => {
+        const res = await asAdminSede(
+          `/api/admin/members/${visitorId}/financial-history`,
+        );
+        expect(res.statusCode).toBe(404);
+      });
+
+      it("GET /admin/members (listado) sigue sin incluir al visitante", async () => {
+        const res = await asAdminSede("/api/admin/members?page=1&limit=100");
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body) as { members: { id: number }[] };
+        expect(body.members.map((m) => m.id)).not.toContain(visitorId);
+      });
+    });
+
+    describe("Otros roles sin cambios", () => {
+      it("gestion sigue viendo otras sedes en el buscador SIN necesitar el flag", async () => {
+        await createStaffUser(app, {
+          email: `gestion-visit-${u}@test.local`,
+          password: pass,
+          firstName: "Gestion",
+          lastName: "Visit",
+          role: "gestion",
+          branchId: branchA,
+        });
+        const gestionToken = await getAuthToken(
+          app,
+          `gestion-visit-${u}@test.local`,
+          pass,
+        );
+        const res = await app.inject({
+          method: "GET",
+          url: `/api/admin/members/search?search=${visitorFirstName}`,
+          headers: { authorization: `Bearer ${gestionToken}` },
+        });
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body) as { members: { id: number }[] };
+        expect(body.members.map((m) => m.id)).toContain(visitorId);
+      });
+
+      it("coach: reservar en OTRA sede sigue permitido (comportamiento preexistente)", async () => {
+        await createStaffUser(app, {
+          email: `coach-visit-${u}@test.local`,
+          password: pass,
+          firstName: "Coach",
+          lastName: "Visit",
+          role: "coach",
+          branchId: branchA,
+        });
+        const coachToken = await getAuthToken(
+          app,
+          `coach-visit-${u}@test.local`,
+          pass,
+        );
+        const res = await app.inject({
+          method: "POST",
+          url: `${ADMIN_SCHED}/bookings`,
+          headers: { authorization: `Bearer ${coachToken}` },
+          payload: {
+            scheduleId: scheduleVisitB,
+            memberId: visitorId,
+            date: fecha,
+          },
+        });
+        expect(res.statusCode).toBe(201);
+        const bookingId = (
+          JSON.parse(res.body) as { booking: { id: number } }
+        ).booking.id;
+        await app.inject({
+          method: "DELETE",
+          url: `${ADMIN_SCHED}/bookings/${bookingId}`,
+          headers: { authorization: `Bearer ${ownerToken}` },
+        });
+      });
+    });
+  });
 });

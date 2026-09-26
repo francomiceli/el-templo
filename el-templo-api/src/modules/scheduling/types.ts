@@ -124,6 +124,14 @@ export interface BookingRecord {
   // el server (reserve() 8b): una especial (pase Aura) no choca con una
   // regular del mismo día.
   isSpecial: boolean;
+  // 2026-09-26 (feat/admin-sede-visitantes): sede DE ORIGEN del socio
+  // reservado (`users.branch_id`), para el chip "Visita · <Sede>" del roster
+  // admin cuando difiere de la sede del slot. Poblado por `getSlotDetail`
+  // (roster); los lookups de UNA reserva puntual (`adminAddBooking`/
+  // `adminRemoveBooking`, que no renderizan roster) lo dejan en `null`, mismo
+  // criterio que `segment`/`seniority`/`endDate` en ese path.
+  memberBranchId: number | null;
+  memberBranchName: string | null;
 }
 
 export interface HolidayRecord {

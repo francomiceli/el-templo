@@ -85,6 +85,17 @@ export interface MemberSearchParams {
    * Lo usa "Probar en tu teléfono" (Comunicaciones) para ofrecer solo staff.
    */
   membershipKind?: MembershipKind;
+  /**
+   * 2026-09-26 (feat/admin-sede-visitantes) — flag EXPLÍCITO del picker
+   * (SlotDetailDialog / CobrosPage). Solo tiene efecto cuando `branchIds` viene
+   * poblado (`isBranchScopedRole`): en vez de reemplazar el filtro de país por
+   * `branchIds`, lo QUITA por completo — el admin_sede puede encontrar un
+   * visitante de cualquier sede del país para reservarlo o cobrarle. La ruta
+   * (`members/routes.ts`) exige DNI completo o ≥3 caracteres de nombre y capea
+   * el resultado a 10 antes de llegar acá; el service se limita a proyectar
+   * MINIMO para las filas de otra sede (ver `MemberSearchItem.isOtherBranch`).
+   */
+  includeOtherBranches?: boolean;
 }
 
 /**
@@ -100,6 +111,17 @@ export interface MemberSearchItem {
   dni: string | null;
   planName: string | null;
   status: UserStatus | null;
+  /**
+   * 2026-09-26 (feat/admin-sede-visitantes) — presentes SOLO cuando la fila es
+   * de OTRA sede que la del actor (`includeOtherBranches`). `dni` viaja
+   * enmascarado a los últimos 3 dígitos, `planName`/`status` viajan null — la
+   * proyección mínima que pidió Franco (id, nombre, sede de origen, DNI
+   * parcial; SIN teléfono/plan/deuda). `false`/`undefined` para el resto de
+   * resultados (comportamiento histórico, sin cambios).
+   */
+  isOtherBranch?: boolean;
+  visitorBranchId?: number;
+  visitorBranchName?: string | null;
 }
 
 export interface MemberListItem {

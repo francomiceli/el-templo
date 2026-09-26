@@ -77,6 +77,37 @@ import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MemberSegment } from "../segmentation/types";
 
+/**
+ * 2026-09-26 (feat/admin-sede-visitantes) — gate del picker cross-sede
+ * (`GET /admin/members/search?includeOtherBranches=true`). Sin este mínimo,
+ * un admin_sede podría autocompletar/hojear cualquier nombre común de
+ * CUALQUIER sede del país (el mismo riesgo de "Martin"/"Garcia" que
+ * `buildMemberNameSearchCondition` documenta para el cross-tenant, acá
+ * cross-sede). Exportada para que la ruta la use ANTES de pegarle al service
+ * (400 explícito) y para que el test la ejercite sin loguear un socio real.
+ *
+ * Regla: DNI completo (≥6 dígitos — el AR más corto son 7, el ES-DNI/NIE 8;
+ * 6 es el piso conservador) O ≥3 caracteres no numéricos de nombre/apellido.
+ */
+export function meetsVisitorSearchThreshold(search: string): boolean {
+  const trimmed = search.trim();
+  if (trimmed.length === 0) return false;
+  const digitsOnly = /^\d+$/.test(trimmed);
+  if (digitsOnly) return trimmed.length >= 6;
+  return trimmed.length >= 3;
+}
+
+/**
+ * Enmascara un DNI a sus últimos 3 dígitos ("···123") para la proyección
+ * mínima de un resultado de OTRA sede (feat/admin-sede-visitantes). DNIs de
+ * 3 caracteres o menos no tienen nada que enmascarar — se devuelven tal cual.
+ */
+function maskDniLast3(dni: string | null): string | null {
+  if (!dni) return dni;
+  if (dni.length <= 3) return dni;
+  return `···${dni.slice(-3)}`;
+}
+
 export class MemberService {
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -524,11 +555,24 @@ export class MemberService {
     ctx: TenantContext,
     params: MemberSearchParams,
   ): Promise<MemberSearchItem[]> {
-    const { search, country, branchIds, limit, membershipKind } = params;
+    const {
+      search,
+      country,
+      branchIds,
+      limit,
+      membershipKind,
+      includeOtherBranches,
+    } = params;
 
     const searchCondition = buildMemberNameSearchCondition(ctx, search);
     // No meaningful tokens (e.g. only whitespace) → nothing to search for.
     if (!searchCondition) return [];
+
+    // 2026-09-26 (feat/admin-sede-visitantes): `includeOtherBranches` sólo
+    // tiene efecto cuando el actor tiene alcance forzado (`branchIds` viene
+    // poblado). Para cualquier otro rol es un no-op — ya buscan sin filtro de
+    // sede (país, más abajo).
+    const crossBranch = includeOtherBranches === true && branchIds !== undefined;
 
     // Fase 173-19 (T-173-19-01): PRIMER elemento — `buildMemberNameSearchCondition`
     // ya filtra `users` puertas adentro (173-05/173-17), pero el resto del
@@ -546,7 +590,15 @@ export class MemberService {
     // va ANTES: el typeahead es la puerta de entrada a la ficha de un socio, y
     // sin esto un admin_sede podía autocompletar cualquier socio del país. Lista
     // vacía (admin_sede sin sedes asignadas) → `1 = 0`, nunca "sin filtro".
-    if (branchIds !== undefined) {
+    //
+    // `crossBranch` (2026-09-26): flag EXPLÍCITO del picker (Franco: "vino un
+    // alumno de otra sede a Alberti y no lo puede reservar"/"que le pueda
+    // cobrar"). En vez de reemplazar el país por `branchIds`, LO QUITA — el
+    // resto de sedes del país queda visible para este search puntual. La ruta
+    // ya validó DNI completo / ≥3 caracteres + limit≤10 antes de llegar acá;
+    // el corte de qué datos se exponen para una fila ajena es el mapeo de
+    // abajo (proyección mínima), no el WHERE.
+    if (branchIds !== undefined && !crossBranch) {
       conditions.push(
         branchIds.length === 0
           ? sql`1 = 0`
@@ -602,7 +654,7 @@ export class MemberService {
       END
     )`;
 
-    return this.db
+    const rows = await this.db
       .select({
         id: schema.users.id,
         firstName: schema.users.firstName,
@@ -610,6 +662,8 @@ export class MemberService {
         dni: schema.users.dni,
         planName: planNameSubquery,
         status: effectiveStatusExpr,
+        branchId: schema.users.branchId,
+        branchName: schema.branches.name,
       })
       .from(schema.users)
       .innerJoin(
@@ -622,6 +676,48 @@ export class MemberService {
       .where(and(...conditions))
       .orderBy(schema.users.firstName, schema.users.lastName)
       .limit(limit);
+
+    if (!crossBranch) {
+      return rows.map((r) => ({
+        id: r.id,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        dni: r.dni,
+        planName: r.planName,
+        status: r.status,
+      }));
+    }
+
+    // `branchIds` no puede ser undefined acá: `crossBranch` lo exige arriba.
+    const ownBranchIds = branchIds as number[];
+    return rows.map((r) => {
+      const isOtherBranch = !ownBranchIds.includes(r.branchId);
+      if (!isOtherBranch) {
+        return {
+          id: r.id,
+          firstName: r.firstName,
+          lastName: r.lastName,
+          dni: r.dni,
+          planName: r.planName,
+          status: r.status,
+        };
+      }
+      // Proyección MINIMA para un visitante (Franco 2026-09-26): id, nombre,
+      // sede de origen, DNI a los últimos 3 dígitos. SIN plan ni estado —
+      // esos son datos de SU sede, no algo que un admin_sede de otra sede
+      // necesite para reservarlo/cobrarle.
+      return {
+        id: r.id,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        dni: maskDniLast3(r.dni),
+        planName: null,
+        status: null,
+        isOtherBranch: true,
+        visitorBranchId: r.branchId,
+        visitorBranchName: r.branchName,
+      };
+    });
   }
 
   /**

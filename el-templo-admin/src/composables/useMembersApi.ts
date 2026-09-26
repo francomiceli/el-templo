@@ -81,6 +81,15 @@ export interface MemberSearchResult {
   dni: string | null;
   planName: string | null;
   status: 'freemium' | 'prueba' | 'activo' | 'inactivo' | null;
+  /**
+   * 2026-09-26 (feat/admin-sede-visitantes) — presentes SOLO cuando el
+   * caller pasó `includeOtherBranches: true` (admin_sede) Y esta fila es de
+   * OTRA sede. `dni` viene enmascarado a los últimos 3 dígitos y
+   * `planName`/`status` en null (proyección mínima, ver members/service.ts).
+   */
+  isOtherBranch?: boolean;
+  visitorBranchId?: number;
+  visitorBranchName?: string | null;
 }
 
 // Phase 158-04 (VIS-03): shape de GET /admin/members/:id/referrals. Espeja
@@ -139,13 +148,17 @@ export function useMembersApi() {
   async function searchMembers(
     search: string,
     limit = 10,
-    opts: { membershipKind?: MembershipKind } = {}
+    opts: { membershipKind?: MembershipKind; includeOtherBranches?: boolean } = {}
   ): Promise<MemberSearchResult[]> {
     const { data } = await api.get<{ members: MemberSearchResult[] }>('/admin/members/search', {
       params: {
         search,
         limit,
         ...(opts.membershipKind ? { membershipKind: opts.membershipKind } : {}),
+        // 2026-09-26 (feat/admin-sede-visitantes): flag explícito del picker —
+        // solo lo pasan SlotDetailDialog/CobrosPage cuando el admin_sede activó
+        // el toggle "Buscar en otras sedes". No-op server-side para el resto.
+        ...(opts.includeOtherBranches ? { includeOtherBranches: true } : {}),
       },
     });
     return data.members;

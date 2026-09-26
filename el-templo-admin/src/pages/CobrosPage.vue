@@ -156,6 +156,18 @@
               <template v-if="currentStep === 1">
                 <div class="text-h5 q-mb-md">Socio</div>
 
+                <!-- Visitantes de otra sede (feat/admin-sede-visitantes, Franco
+                     2026-09-26): flag EXPLÍCITO, apagado por default — el
+                     buscador no cruza de sede salvo que el admin lo pida. -->
+                <q-toggle
+                  v-if="isAdminSede"
+                  v-model="searchOtherBranches"
+                  label="Buscar en otras sedes (visitante)"
+                  color="primary"
+                  dense
+                  class="q-mb-sm"
+                />
+
                 <q-select
                   v-model="selectedMember"
                   :options="memberSearchResults"
@@ -173,7 +185,13 @@
                   <template #no-option>
                     <q-item>
                       <q-item-section class="text-grey-5 text-italic">
-                        {{ searchQuery ? 'Sin resultados' : 'Escribí para buscar' }}
+                        {{
+                          searchOtherBranches && searchQuery.trim().length < 3
+                            ? 'Escribí el DNI completo o al menos 3 letras del nombre'
+                            : searchQuery
+                              ? 'Sin resultados'
+                              : 'Escribí para buscar'
+                        }}
                       </q-item-section>
                     </q-item>
                   </template>
@@ -186,11 +204,32 @@
                         </q-item-label>
                       </q-item-section>
                       <q-item-section side>
-                        <q-badge :color="scope.opt.statusColor" :label="scope.opt.statusLabel" />
+                        <q-badge
+                          v-if="scope.opt.isOtherBranch"
+                          color="warning"
+                          :label="`Visita · ${scope.opt.visitorBranchName}`"
+                        />
+                        <q-badge v-else :color="scope.opt.statusColor" :label="scope.opt.statusLabel" />
                       </q-item-section>
                     </q-item>
                   </template>
                 </q-select>
+
+                <!-- Visitante elegido: aviso — la ficha/historial completo NO
+                     está disponible (404, otra sede); acá solo se puede
+                     cobrarle. -->
+                <q-banner
+                  v-if="isVisitorSelected"
+                  dense
+                  rounded
+                  class="bg-blue-1 text-grey-9 q-mt-sm"
+                >
+                  <template #avatar>
+                    <q-icon name="info" color="primary" />
+                  </template>
+                  Alumno de otra sede — podés cobrarle, pero no ver su ficha completa. El cobro
+                  queda imputado a tu sede.
+                </q-banner>
 
                 <!-- Nuevo alumno: crea un alumno nuevo (mini-form + Sede). -->
                 <q-btn
@@ -957,6 +996,7 @@ import {
 } from 'src/composables/useFinanceLoadApi';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { isBranchScopedRole } from 'src/utils/branch-scope';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from 'src/types/transaction';
 import { PLAN_TIER_LABELS } from 'src/types/subscription';
 import type { PaymentMethod, TransactionListItem } from 'src/types/transaction';
@@ -992,6 +1032,10 @@ interface MemberSearchOption {
    *  sabía QUÉ plan estaba por cobrar). El dato ya venía en el payload de
    *  /members/search — sólo faltaba renderizarlo. */
   planLabel: string | null;
+  /** 2026-09-26 (feat/admin-sede-visitantes): true cuando la fila es de OTRA
+   *  sede que la del admin_sede (picker con `includeOtherBranches`). */
+  isOtherBranch: boolean;
+  visitorBranchName: string | null;
 }
 
 // ─── Wizard step state ──────────────────────────────────────────────────────
@@ -1080,6 +1124,14 @@ const createdNewTicketIds = ref<Set<number>>(new Set());
 const memberSearchResults = ref<MemberSearchOption[]>([]);
 const searchQuery = ref('');
 const searchingMembers = ref(false);
+// Visitantes de otra sede (feat/admin-sede-visitantes, 2026-09-26): único
+// punto de decisión de rol para esta página — ver utils/branch-scope.ts.
+const isAdminSede = computed(() => isBranchScopedRole(authStore.user?.role));
+// Toggle EXPLÍCITO del picker cross-sede — arranca apagado siempre.
+const searchOtherBranches = ref(false);
+// ¿El socio elegido es un visitante (otra sede)? Solo puede ser true cuando
+// isAdminSede Y el toggle de arriba estaba prendido al buscarlo.
+const isVisitorSelected = computed(() => selectedMember.value?.isOtherBranch === true);
 
 // ─── Autocompletar (Mode A) ───────────────────────────────────────────────
 const autocompletar = ref<AutocompletarResult | null>(null);
@@ -1186,6 +1238,11 @@ const isNewStudentContext = computed(() => showNewStudentForm.value && !selected
 // deshabilitado en misc / paso 2 vacío en renew).
 function isAssociationDisabled(value: Mode): boolean {
   if (isNewStudentContext.value && (value === 'renew' || value === 'misc')) return true;
+  // 2026-09-26 (feat/admin-sede-visitantes): "asignar plan nuevo" a un
+  // visitante NO es "cobrarle" (Franco pidió cobro, no alta/enrolamiento) —
+  // opción MÁS RESTRICTIVA a propósito, ver reporte de la fase. Solo cobro
+  // (renovar/cobro suelto) para un socio de otra sede.
+  if (value === 'alta' && isVisitorSelected.value) return true;
   // Caso Martínez (2026-09-09): la socia ya tenía el plan cargado con deuda y
   // el profe fue por "Asignar plan nuevo" para "cargarle el pago" → 409 "ya
   // tiene una suscripción presencial activa". Con saldo pendiente el alta no
@@ -1198,6 +1255,9 @@ function isAssociationDisabled(value: Mode): boolean {
 
 /** Motivo que se muestra en lugar del hint cuando una asociación está deshabilitada. */
 function associationDisabledHint(value: Mode): string {
+  if (value === 'alta' && isVisitorSelected.value) {
+    return 'Es un alumno de otra sede: solo se le puede cobrar, no asignarle un plan nuevo';
+  }
   if (value === 'alta') return 'Ya tiene plan con deuda: cobrala con "Cobrar deuda del plan"';
   return 'Solo para socios existentes';
 }
@@ -1636,6 +1696,10 @@ function onUsarExistente() {
     // El match de dedup no trae el plan; el banner del paso 1 lo resuelve vía
     // autocompletar, que se dispara justo abajo.
     planLabel: null,
+    // El dedup de "Nuevo alumno" no pasa por el picker cross-sede — nunca es
+    // un visitante (feat/admin-sede-visitantes).
+    isOtherBranch: false,
+    visitorBranchName: null,
   };
   resetAltaFields();
   // WR-02: adoptar un socio existente vía dedup debe cargar su autocompletar
@@ -1936,6 +2000,8 @@ function buildMemberOption(m: {
   dni: string | null;
   planName: string | null;
   status: UserStatus | null;
+  isOtherBranch?: boolean;
+  visitorBranchName?: string | null;
 }): MemberSearchOption {
   let statusLabel = 'Sin plan';
   let statusColor = 'grey';
@@ -1955,12 +2021,18 @@ function buildMemberOption(m: {
     statusLabel,
     statusColor,
     planLabel: m.planName,
+    isOtherBranch: m.isOtherBranch === true,
+    visitorBranchName: m.visitorBranchName ?? null,
   };
 }
 
 function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
   searchQuery.value = val;
-  if (!val || val.length < 2) {
+  const crossBranch = isAdminSede.value && searchOtherBranches.value;
+  // Mismo piso que el server (meetsVisitorSearchThreshold): evita un 400
+  // apenas el admin_sede tipeó 1-2 letras con el toggle prendido.
+  const minLength = crossBranch ? 3 : 2;
+  if (!val || val.length < minLength) {
     update(() => {
       memberSearchResults.value = [];
     });
@@ -1968,7 +2040,7 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
   }
   searchingMembers.value = true;
   membersApi
-    .searchMembers(val, 15)
+    .searchMembers(val, 15, { includeOtherBranches: crossBranch })
     .then((members) => {
       update(() => {
         memberSearchResults.value = members.map((m) => buildMemberOption(m));
@@ -2111,7 +2183,17 @@ async function loadAutocompletar(userId: number) {
     // CR-CAJA: default de la sede del cobro = la sede del SOCIO. El operador
     // puede cambiarla en el select de Sede (alta: paso 2; renovación/suelto:
     // paso 3). Mueve la recaudación (branch_id) Y la caja de efectivo.
-    sucursalId.value = res.memberBranchId;
+    //
+    // 2026-09-26 (feat/admin-sede-visitantes): para un VISITANTE (socio de
+    // otra sede) `res.memberBranchId` NO está en `branchOptions` (acotado a
+    // las sedes del admin_sede) — el server rechazaría ese branchId igual
+    // (`requireBranchAccess`), pero además el requisito de Franco es que la
+    // transacción NUNCA quede en la sede de origen del alumno. Si el default
+    // no es seleccionable, cae a la primera sede del operador en vez de a la
+    // del socio.
+    sucursalId.value = branchOptions.value.some((b) => b.id === res.memberBranchId)
+      ? res.memberBranchId
+      : (branchOptions.value[0]?.id ?? sucursalId.value);
     if (mode.value === 'renew' && res.hasRenewable && res.amount != null) {
       amount.value = res.amount;
     }
@@ -2262,6 +2344,9 @@ function resetForm() {
   selectedBankAccountId.value = null;
   memberSearchResults.value = [];
   searchQuery.value = '';
+  // Toggle EXPLÍCITO del picker cross-sede — vuelve a apagado en cada cobro
+  // nuevo (feat/admin-sede-visitantes).
+  searchOtherBranches.value = false;
 }
 
 // ─── Mis cargas list ──────────────────────────────────────────────────────

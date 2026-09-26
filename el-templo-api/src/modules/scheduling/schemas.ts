@@ -131,6 +131,11 @@ const bookingRecordSchema = {
     // usa para aplicar la regla diaria por categoría igual que la guarda 8b
     // del server — sin esta propiedad fast-json-stringify la strippea.
     isSpecial: { type: "boolean" },
+    // 2026-09-26 (feat/admin-sede-visitantes): sede DE ORIGEN del socio
+    // reservado, para el chip "Visita · <Sede>" del roster admin. `null` en
+    // los lookups de una sola reserva (adminAddBooking/adminRemoveBooking).
+    memberBranchId: { type: ["integer", "null"] },
+    memberBranchName: { type: ["string", "null"] },
   },
 } as const;
 
