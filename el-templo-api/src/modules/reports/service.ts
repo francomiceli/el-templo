@@ -2548,7 +2548,7 @@ export class ReportsService {
 
     if (filters.leadStatus !== undefined && filters.leadStatus.length > 0) {
       // The UI shows `leadStatusEffective` which is derived (see
-      // mapTrialSessionRow): `lead_status ?? (converted ? 'ganado' : 'en_seguimiento')`.
+      // buildTrialSessionRows): `lead_status ?? (converted ? 'ganado' : 'en_seguimiento')`.
       // Filtering must match the same derivation, otherwise rows with
       // `lead_status IS NULL` (which display as 'en_seguimiento' or 'ganado'
       // depending on converted_at) get excluded from their own filter.
