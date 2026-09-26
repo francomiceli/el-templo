@@ -2154,6 +2154,15 @@ export class ReportsService {
       conds,
       TRIAL_SESSIONS_FETCH_CAP,
     );
+    if (dbRows.length >= TRIAL_SESSIONS_FETCH_CAP) {
+      // El tope de seguridad se alcanzó: `total`/`kpis` de abajo se calculan
+      // SOLO sobre estas filas — hay sesiones que matchean los filtros de SQL
+      // y no llegaron a verse. No truncar en silencio (revisión 2026-09-26).
+      this.log.warn(
+        { tenantId: ctx.tenantId, cap: TRIAL_SESSIONS_FETCH_CAP, filters },
+        "trial sessions report: fetch cap reached, results may be truncated",
+      );
+    }
     const allRows = await this.buildTrialSessionRows(ctx, dbRows);
 
     const filtered = allRows.filter((row) => {

@@ -282,6 +282,9 @@ describe("computeNextAction — M3a / M3b (reintento a las retryHours)", () => {
     expect(upcoming!.code).toBe("M3a");
     expect(upcoming!.status).toBe("upcoming");
     expect(upcoming!.dueAt).toBe("2026-09-23T12:00:00.000Z");
+    // dueAt 09:00 AR (12:00 UTC) cae DENTRO del turno mañana (07-11 AR) del
+    // 23/09 → windowEnd = fin de ESE turno (11:00 AR = 14:00 UTC).
+    expect(upcoming!.windowEnd).toBe("2026-09-23T14:00:00.000Z");
 
     const due = computeNextAction({
       ...withM2,
@@ -291,14 +294,33 @@ describe("computeNextAction — M3a / M3b (reintento a las retryHours)", () => {
     expect(due!.status).toBe("due");
   });
 
-  it("M3b usa el mismo dueAt para la rama No asistió", () => {
+  it("M3 pasa a 'overdue' al terminar el turno en el que vence (2026-09-26: ya NO se queda en 'due' para siempre)", () => {
+    // dueAt = 2026-09-23T12:00:00Z (09:00 AR) → mismo turno mañana que arriba,
+    // windowEnd = 2026-09-23T14:00:00Z (11:00 AR).
+    const stillDue = computeNextAction({
+      ...withM2,
+      attended: false,
+      now: new Date("2026-09-23T14:00:00.000Z"), // exactamente en windowEnd.
+    });
+    expect(stillDue!.status).toBe("due");
+
+    const overdue = computeNextAction({
+      ...withM2,
+      attended: false,
+      now: new Date("2026-09-23T14:00:00.001Z"), // 1ms después de windowEnd.
+    });
+    expect(overdue!.status).toBe("overdue");
+  });
+
+  it("M3b usa el mismo dueAt para la rama No asistió, y queda 'overdue' bien pasado el turno de vencimiento", () => {
     const action = computeNextAction({
       ...withM2,
       attended: false,
       now: new Date("2026-09-24T00:00:00.000Z"),
     });
     expect(action!.code).toBe("M3b");
-    expect(action!.status).toBe("due"); // sin ventana de cierre — ver docblock
+    expect(action!.windowEnd).toBe("2026-09-23T14:00:00.000Z");
+    expect(action!.status).toBe("overdue"); // 2026-09-26: ya NO queda en 'due' indefinidamente.
   });
 
   it('"Respondió" corta el reintento — sin M3 aunque no se haya enviado', () => {

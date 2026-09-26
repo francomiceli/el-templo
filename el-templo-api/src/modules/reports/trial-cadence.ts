@@ -132,13 +132,12 @@ export interface TrialNextAction {
   /** ISO instant desde cuando corresponde el mensaje. */
   dueAt: string;
   /**
-   * ISO instant del cierre "duro" de la ventana (fin de turno), o `null`
-   * cuando el mensaje no tiene ventana propia (M3: "sin próxima acción" recién
-   * después de enviarlo, no hay un cierre automático — SPEC no define uno).
-   * Deviación documentada: `status` solo puede ser 'overdue' cuando
-   * `windowEnd` existe y ya pasó; para M3 el status se mantiene en 'due'
-   * indefinidamente tras `dueAt` — el front decide cómo mostrar "vencido hace
-   * X" a partir del propio `dueAt`.
+   * ISO instant del cierre "duro" de la ventana (fin de turno). Para M1/M2 es
+   * el fin del turno de referencia; para M3 es el fin del turno EN EL QUE
+   * VENCE el reintento (`resolveActiveShiftEnd(dueAt, ...)` — mismo criterio
+   * que M1/M2: decisión del orquestador 2026-09-26, reemplaza la deviación
+   * previa donde M3 nunca pasaba a 'overdue'). Solo `null` si algún día
+   * existiera un mensaje sin ventana — hoy no ocurre para ningún código.
    */
   windowEnd: string | null;
   status: TrialActionStatus;
@@ -294,14 +293,20 @@ export function computeNextAction(
     const dueAt = new Date(
       followup.m2SentAt!.getTime() + retryHours * 60 * 60 * 1000,
     );
-    // Deviación documentada (ver TrialNextAction.windowEnd): M3 no tiene
-    // ventana de cierre — status queda en 'due' indefinidamente tras dueAt.
+    // Decisión del orquestador 2026-09-26: M3 pasa a 'overdue' al terminar el
+    // turno en el que vence (mismo criterio que M1/M2), en vez de quedar en
+    // 'due' para siempre.
+    const windowEnd = resolveActiveShiftEnd(dueAt, session.timezone, shifts);
     const status: TrialActionStatus =
-      now.getTime() < dueAt.getTime() ? "upcoming" : "due";
+      now.getTime() < dueAt.getTime()
+        ? "upcoming"
+        : now.getTime() > windowEnd.getTime()
+          ? "overdue"
+          : "due";
     return {
       code: attended ? "M3a" : "M3b",
       dueAt: dueAt.toISOString(),
-      windowEnd: null,
+      windowEnd: windowEnd.toISOString(),
       status,
     };
   }
