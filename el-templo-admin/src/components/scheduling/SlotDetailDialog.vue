@@ -181,9 +181,14 @@
               </q-item-label>
               <q-item v-for="booking in pendingRestorationBookings" :key="booking.id">
                 <q-item-section>
-                  <q-item-label class="member-name-link" @click="goToMember(booking.memberId)">{{
-                    booking.memberName
-                  }}</q-item-label>
+                  <q-item-label
+                    :class="{ 'member-name-link': !isVisitorBooking(booking) }"
+                    @click="onMemberNameClick(booking)"
+                    >{{ booking.memberName }}</q-item-label
+                  >
+                  <q-item-label v-if="isVisitorBooking(booking)" caption>
+                    <q-badge color="warning" :label="`Visita · ${booking.memberBranchName}`" />
+                  </q-item-label>
                 </q-item-section>
                 <q-item-section side>
                   <q-badge color="grey-6" label="Cancelada" />
@@ -219,15 +224,23 @@
             </template>
             <q-item v-for="booking in activeRegularBookings" :key="booking.id">
               <q-item-section>
-                <q-item-label class="member-name-link" @click="goToMember(booking.memberId)">{{
-                  booking.memberName
-                }}</q-item-label>
+                <q-item-label
+                  :class="{ 'member-name-link': !isVisitorBooking(booking) }"
+                  @click="onMemberNameClick(booking)"
+                  >{{ booking.memberName }}</q-item-label
+                >
                 <q-item-label caption>
                   <MemberTags
                     :segment="booking.segment"
                     :seniority="booking.seniority"
                     :end-date="booking.endDate"
                     :timezone="branchTimezone"
+                  />
+                  <q-badge
+                    v-if="isVisitorBooking(booking)"
+                    color="warning"
+                    :label="`Visita · ${booking.memberBranchName}`"
+                    class="q-ml-xs"
                   />
                 </q-item-label>
               </q-item-section>
@@ -259,15 +272,23 @@
               </q-item-label>
               <q-item v-for="booking in activeTrialBookings" :key="booking.id">
                 <q-item-section>
-                  <q-item-label class="member-name-link" @click="goToMember(booking.memberId)">{{
-                    booking.memberName
-                  }}</q-item-label>
+                  <q-item-label
+                    :class="{ 'member-name-link': !isVisitorBooking(booking) }"
+                    @click="onMemberNameClick(booking)"
+                    >{{ booking.memberName }}</q-item-label
+                  >
                   <q-item-label caption>
                     <MemberTags
                       :segment="booking.segment"
                       :seniority="booking.seniority"
                       :end-date="booking.endDate"
                       :timezone="branchTimezone"
+                    />
+                    <q-badge
+                      v-if="isVisitorBooking(booking)"
+                      color="warning"
+                      :label="`Visita · ${booking.memberBranchName}`"
+                      class="q-ml-xs"
                     />
                   </q-item-label>
                 </q-item-section>
@@ -299,9 +320,11 @@
               <q-item-label header> Lista de Espera ({{ waitlistBookings.length }}) </q-item-label>
               <q-item v-for="booking in waitlistBookings" :key="booking.id">
                 <q-item-section>
-                  <q-item-label class="member-name-link" @click="goToMember(booking.memberId)">{{
-                    booking.memberName
-                  }}</q-item-label>
+                  <q-item-label
+                    :class="{ 'member-name-link': !isVisitorBooking(booking) }"
+                    @click="onMemberNameClick(booking)"
+                    >{{ booking.memberName }}</q-item-label
+                  >
                   <q-item-label v-if="booking.waitlistPosition" caption>
                     Posición {{ booking.waitlistPosition }}
                   </q-item-label>
@@ -311,6 +334,12 @@
                       :seniority="booking.seniority"
                       :end-date="booking.endDate"
                       :timezone="branchTimezone"
+                    />
+                    <q-badge
+                      v-if="isVisitorBooking(booking)"
+                      color="warning"
+                      :label="`Visita · ${booking.memberBranchName}`"
+                      class="q-ml-xs"
                     />
                   </q-item-label>
                 </q-item-section>
@@ -459,6 +488,19 @@
           ]"
         />
         <div class="text-subtitle2 q-mb-sm">{{ addSectionLabel }}</div>
+        <!-- Visitantes de otra sede (feat/admin-sede-visitantes, Franco
+             2026-09-26): flag EXPLÍCITO — el buscador NO cruza de sede por
+             default, hay que prender este toggle a propósito. Solo visible
+             para admin_sede; para el resto de los roles el comportamiento no
+             cambia (siempre buscaron sin filtro de sede). -->
+        <q-toggle
+          v-if="isAdminSede"
+          v-model="searchOtherBranches"
+          label="Buscar en otras sedes (visitante)"
+          color="primary"
+          dense
+          class="q-mb-xs"
+        />
         <q-select
           v-model="slotAddMember"
           :options="memberSearchResults"
@@ -476,7 +518,23 @@
           <template #no-option>
             <q-item>
               <q-item-section class="text-grey-5 text-italic">
-                {{ memberSearchQuery ? 'Sin resultados' : 'Escribe para buscar' }}
+                {{
+                  searchOtherBranches && memberSearchQuery.trim().length < 3
+                    ? 'Escribí el DNI completo o al menos 3 letras del nombre'
+                    : memberSearchQuery
+                      ? 'Sin resultados'
+                      : 'Escribe para buscar'
+                }}
+              </q-item-section>
+            </q-item>
+          </template>
+          <template #option="scope">
+            <q-item v-bind="scope.itemProps">
+              <q-item-section>
+                <q-item-label>{{ scope.opt.displayLabel }}</q-item-label>
+              </q-item-section>
+              <q-item-section v-if="scope.opt.isOtherBranch" side>
+                <q-badge color="warning" :label="`Visita · ${scope.opt.branchName}`" />
               </q-item-section>
             </q-item>
           </template>
@@ -712,6 +770,8 @@ import type {
 import { DAY_LABELS, BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS } from 'src/types/scheduling';
 import type { SlotAttendanceItem } from 'src/types/attendance';
 import { todayInTz } from 'src/utils/tz';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import { isBranchScopedRole } from 'src/utils/branch-scope';
 
 const log = createLogger('SlotDetailDialog');
 const $q = useQuasar();
@@ -719,6 +779,11 @@ const router = useRouter();
 const schedulingApi = useSchedulingApi();
 const attendanceApi = useAttendanceApi();
 const membersApi = useMembersApi();
+const authStore = useAuthStore();
+
+// Visitantes de otra sede (feat/admin-sede-visitantes, 2026-09-26): único
+// punto de decisión de rol para este componente — ver utils/branch-scope.ts.
+const isAdminSede = computed(() => isBranchScopedRole(authStore.user?.role));
 
 // ─── Props & Emits ──────────────────────────────────────────────────────────
 
@@ -751,10 +816,19 @@ const loadingAttendance = ref(false);
 const loading = computed(() => loadingSlotDetail.value || loadingAttendance.value);
 
 // Add-member form
-const slotAddMember = ref<{ id: number; displayLabel: string } | null>(null);
-const memberSearchResults = ref<Array<{ id: number; displayLabel: string }>>([]);
+interface MemberSearchOption {
+  id: number;
+  displayLabel: string;
+  isOtherBranch: boolean;
+  branchName: string | null;
+}
+const slotAddMember = ref<MemberSearchOption | null>(null);
+const memberSearchResults = ref<MemberSearchOption[]>([]);
 const searchingMembers = ref(false);
 const memberSearchQuery = ref('');
+// Toggle EXPLÍCITO del picker cross-sede (feat/admin-sede-visitantes) — se
+// resetea a false cada vez que se abre el diálogo (watch de props.show).
+const searchOtherBranches = ref(false);
 const checkInReason = ref('');
 const submitting = ref(false);
 const addMode = ref<'checkin' | 'reserve'>('checkin');
@@ -964,6 +1038,26 @@ function goToMember(memberId: number): void {
   void router.push(`/alumnos/${memberId}`);
 }
 
+// 2026-09-26 (feat/admin-sede-visitantes): ¿esta reserva es de un socio de
+// OTRA sede que la del slot? Solo importa para admin_sede — para el resto de
+// los roles la ficha de cualquier socio sigue abriendo igual que siempre.
+function isVisitorBooking(booking: { memberBranchId: number | null }): boolean {
+  if (!isAdminSede.value || !slotDetail.value) return false;
+  return (
+    booking.memberBranchId !== null &&
+    booking.memberBranchId !== slotDetail.value.schedule.branchId
+  );
+}
+
+// Igual que goToMember, pero sin link a la ficha para un visitante: la ruta
+// `/admin/members/:userId` le da 404 a un admin_sede sobre un socio de otra
+// sede (enforceMemberBranchScope), así que ofrecer el link ahí sería un
+// callejón sin salida.
+function onMemberNameClick(booking: { memberId: number; memberBranchId: number | null }): void {
+  if (isVisitorBooking(booking)) return;
+  goToMember(booking.memberId);
+}
+
 function formatTime(dateStr: string): string {
   try {
     return new Date(dateStr).toLocaleTimeString('es-AR', {
@@ -1115,7 +1209,12 @@ async function applyReactivate() {
 
 function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
   memberSearchQuery.value = val;
-  if (!val || val.length < 2) {
+  const crossBranch = isAdminSede.value && searchOtherBranches.value;
+  // Mismo piso que el server (meetsVisitorSearchThreshold): evita un request
+  // que el backend va a rechazar con 400 apenas el admin_sede tipeó 1-2
+  // letras con el toggle prendido.
+  const minLength = crossBranch ? 3 : 2;
+  if (!val || val.length < minLength) {
     update(() => {
       memberSearchResults.value = [];
     });
@@ -1123,12 +1222,14 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
   }
   searchingMembers.value = true;
   membersApi
-    .searchMembers(val, 10)
+    .searchMembers(val, 10, { includeOtherBranches: crossBranch })
     .then((members) => {
       update(() => {
         memberSearchResults.value = members.map((m) => ({
           id: m.id,
           displayLabel: `${m.firstName} ${m.lastName}${m.dni ? ` (${m.dni})` : ''}`,
+          isOtherBranch: m.isOtherBranch === true,
+          branchName: m.visitorBranchName ?? null,
         }));
       });
     })
@@ -1519,6 +1620,7 @@ watch(
     if (val && props.scheduleId) {
       slotAddMember.value = null;
       memberSearchResults.value = [];
+      searchOtherBranches.value = false;
       checkInReason.value = '';
       editingActivity.value = false;
       trialFormOpen.value = false;

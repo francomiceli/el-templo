@@ -2620,6 +2620,9 @@ export class BookingService {
       seniority: null,
       endDate: null,
       isSpecial: row.isSpecial,
+      // No roster acá (single-booking lookup) — ver BookingRecord.memberBranchId.
+      memberBranchId: null,
+      memberBranchName: null,
     };
   }
 }
