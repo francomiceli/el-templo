@@ -15,6 +15,17 @@
  *
  * Fechas: bookings ±7 días de "hoy" (sin fake timers) para que "clase
  * terminada" / "clase futura" sean inequívocos en cualquier huso horario.
+ *
+ * `trials.cadence_start_date`: `cleanAllTestData` vacía `system_settings`
+ * SIN filtro (helpers.ts TABLES_TO_CLEAN) antes de CADA test, así que la
+ * semilla `CURDATE()` de la migración 0241 nunca sobrevive hasta acá — sin
+ * reseed, `getCadenceStartDate()` devuelve `null` ("sin corte") y las
+ * aserciones de `nextAction===null` tras M3/Respondió ya prueban lo correcto
+ * (el cierre de rama, no un corte de fecha trivial). Igual se resiembra acá
+ * a una fecha vieja fija, defensivo: no depende de esa mecánica de limpieza
+ * ni dejar pasar un futuro cambio de orden de hooks sin que se note (ver
+ * también el test dedicado de "corte go-live" más abajo, que sí ejercita el
+ * corte de verdad).
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
@@ -27,9 +38,16 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { tenantWhere } from "../../src/modules/shared/tenant";
+import { normalizePhoneE164 } from "../../src/modules/shared/phone";
+import {
+  seedSecondTenant,
+  limpiarSegundoGimnasio,
+  type SegundoGimnasio,
+} from "../fixtures/second-tenant";
 
 const REPORTS_URL = "/api/admin/reports";
 const TEMPLO_CTX = { tenantId: 1 };
+const OLD_CADENCE_START_DATE = "2000-01-01";
 
 interface Ctx {
   app: FastifyInstance;
@@ -168,10 +186,58 @@ async function seedBooking(opts: SeedBookingOpts): Promise<number> {
   return b.id;
 }
 
+/** `trials.cadence_start_date` — ver el docblock del archivo. */
+async function seedCadenceStartDate(dateStr: string): Promise<void> {
+  await ctx.app.db
+    .insert(schema.systemSettings)
+    .values({
+      settingKey: "trials.cadence_start_date",
+      settingValue: dateStr,
+    })
+    .onDuplicateKeyUpdate({ set: { settingValue: dateStr } });
+}
+
+/**
+ * Reagenda: vincula `newBookingId` como sucesor de `oldBookingId` insertando
+ * directamente en `trial_followups` (sin pasar por el endpoint de reagenda —
+ * ese flujo ya está cubierto en `test/scheduling/reschedule-trial.test.ts`).
+ * Alcanza para que `buildTrialSessionRows` derive `oldBookingId` como
+ * "Reagendada" con `rescheduledTo` y `newBookingId` con `rescheduledFrom`.
+ */
+async function linkReschedule(
+  oldBookingId: number,
+  newBookingId: number,
+): Promise<void> {
+  await ctx.app.db.insert(schema.trialFollowups).values({
+    tenantId: TEMPLO_CTX.tenantId,
+    bookingId: newBookingId,
+    rescheduledFromBookingId: oldBookingId,
+  });
+}
+
+async function getReport(
+  token: string,
+  query = "",
+): Promise<{
+  statusCode: number;
+  body: {
+    rows: Array<Record<string, unknown>>;
+    total: number;
+    kpis: Record<string, unknown>;
+  };
+}> {
+  const res = await ctx.app.inject({
+    method: "GET",
+    url: `${REPORTS_URL}/trial-sessions${query}`,
+    headers: { authorization: `Bearer ${token}` },
+  });
+  return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+}
+
 async function followupUpdate(
   token: string,
   bookingId: number,
-  body: unknown,
+  body: Record<string, unknown>,
 ): Promise<{ statusCode: number; body: Record<string, unknown> }> {
   const res = await ctx.app.inject({
     method: "PATCH",
@@ -206,6 +272,10 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
   });
 
   afterAll(async () => {
+    // Defensivo: solo el test de aislamiento de tenant siembra el gimnasio 2,
+    // pero la DB la comparten los archivos del worker — limpiarlo siempre acá
+    // evita ensuciar el siguiente archivo si ese test corrió.
+    await limpiarSegundoGimnasio(ctx.app);
     await ctx.app.close();
   });
 
@@ -229,6 +299,7 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
       country: "AR",
     });
     ctx.gestionToken = await getAuthToken(ctx.app, gestionEmail, "pass123456");
+    await seedCadenceStartDate(OLD_CADENCE_START_DATE);
   });
 
   // ─── mark_sent / unmark_sent ────────────────────────────────────────────
@@ -371,7 +442,9 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
       action: { type: "unmark_sent", code: "M2a" },
     });
     expect(undoM2.statusCode).toBe(200);
-    expect(undoM2.body.followup.lastMessage).toMatchObject({ code: "M1" });
+    expect(
+      (undoM2.body.followup as { lastMessage: unknown }).lastMessage,
+    ).toMatchObject({ code: "M1" });
   });
 
   // ─── Perdida manual (reusa el PATCH de leads) ───────────────────────────
@@ -560,5 +633,282 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
       payload: { morningStart: "08:00" },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  // ─── GET /trial-sessions — nextAction / sessionStatus / kpis / filtros ──
+
+  it("nextAction trae el código correcto por rama (Asistió → M2a, No asistió → M2b)", async () => {
+    const attendedUser = await seedLead({ firstName: "RamaAsistio" });
+    const attendedBooking = await seedBooking({
+      userId: attendedUser,
+      bookingDateOffsetDays: -7,
+      withAttendance: true,
+    });
+    const absentUser = await seedLead({ firstName: "RamaNoAsistio" });
+    const absentBooking = await seedBooking({
+      userId: absentUser,
+      bookingDateOffsetDays: -7,
+      withAttendance: false,
+    });
+
+    const { statusCode, body } = await getReport(ctx.ownerToken);
+    expect(statusCode).toBe(200);
+
+    const attendedRow = body.rows.find((r) => r.bookingId === attendedBooking);
+    const absentRow = body.rows.find((r) => r.bookingId === absentBooking);
+    expect(attendedRow?.sessionStatus).toBe("asistio");
+    expect((attendedRow?.nextAction as { code: string }).code).toBe("M2a");
+    expect((attendedRow?.nextAction as { status: string }).status).toBe(
+      "overdue",
+    ); // clase terminó hace 7 días, turno de esa fecha ya cerró hace rato.
+
+    expect(absentRow?.sessionStatus).toBe("no_asistio");
+    expect((absentRow?.nextAction as { code: string }).code).toBe("M2b");
+    expect((absentRow?.nextAction as { status: string }).status).toBe(
+      "overdue",
+    );
+  });
+
+  it("sessionStatus cubre agendada/asistio/no_asistio/ganada/perdida", async () => {
+    const agendadaUser = await seedLead({ firstName: "Agendada" });
+    const agendadaBooking = await seedBooking({
+      userId: agendadaUser,
+      bookingDateOffsetDays: 7,
+    });
+    const asistioUser = await seedLead({ firstName: "AsistioEstado" });
+    const asistioBooking = await seedBooking({
+      userId: asistioUser,
+      bookingDateOffsetDays: -7,
+      withAttendance: true,
+    });
+    const noAsistioUser = await seedLead({ firstName: "NoAsistioEstado" });
+    const noAsistioBooking = await seedBooking({
+      userId: noAsistioUser,
+      bookingDateOffsetDays: -7,
+      withAttendance: false,
+    });
+    const ganadaUser = await seedLead({
+      firstName: "GanadaEstado",
+      leadStatus: "ganado",
+    });
+    const ganadaBooking = await seedBooking({
+      userId: ganadaUser,
+      bookingDateOffsetDays: -7,
+      withAttendance: true,
+    });
+    const perdidaUser = await seedLead({
+      firstName: "PerdidaEstado",
+      leadStatus: "perdido",
+    });
+    const perdidaBooking = await seedBooking({
+      userId: perdidaUser,
+      bookingDateOffsetDays: -7,
+      withAttendance: false,
+    });
+
+    const { body } = await getReport(ctx.ownerToken);
+    const statusOf = (bookingId: number): unknown =>
+      body.rows.find((r) => r.bookingId === bookingId)?.sessionStatus;
+
+    expect(statusOf(agendadaBooking)).toBe("agendada");
+    expect(statusOf(asistioBooking)).toBe("asistio");
+    expect(statusOf(noAsistioBooking)).toBe("no_asistio");
+    expect(statusOf(ganadaBooking)).toBe("ganada");
+    expect(statusOf(perdidaBooking)).toBe("perdida");
+  });
+
+  it("sessionStatus[] filtra multi-valor (ganada + perdida, sin las demás)", async () => {
+    const ganadaUser = await seedLead({
+      firstName: "FiltroGanada",
+      leadStatus: "ganado",
+    });
+    await seedBooking({
+      userId: ganadaUser,
+      bookingDateOffsetDays: -7,
+      withAttendance: true,
+    });
+    const perdidaUser = await seedLead({
+      firstName: "FiltroPerdida",
+      leadStatus: "perdido",
+    });
+    await seedBooking({
+      userId: perdidaUser,
+      bookingDateOffsetDays: -7,
+      withAttendance: false,
+    });
+    const agendadaUser = await seedLead({ firstName: "FiltroAgendada" });
+    await seedBooking({ userId: agendadaUser, bookingDateOffsetDays: 7 });
+
+    const { body } = await getReport(
+      ctx.ownerToken,
+      "?sessionStatus=ganada&sessionStatus=perdida",
+    );
+    const statuses = body.rows.map((r) => r.sessionStatus);
+    expect(statuses.sort()).toEqual(["ganada", "perdida"]);
+  });
+
+  it('fila "Reagendada" muestra rescheduledTo; la sesión nueva muestra rescheduledFrom', async () => {
+    const userId = await seedLead({ firstName: "Encadenada2" });
+    const [oldBooking] = await ctx.app.db
+      .insert(schema.bookings)
+      .values({
+        memberId: userId,
+        scheduleId: ctx.scheduleMorning,
+        bookingDate: dateOffset(-10),
+        status: "cancelado",
+        isTrial: true,
+      })
+      .$returningId();
+    const newBookingId = await seedBooking({
+      userId,
+      bookingDateOffsetDays: 5,
+    });
+    await linkReschedule(oldBooking.id, newBookingId);
+
+    const { body } = await getReport(ctx.ownerToken);
+    const oldRow = body.rows.find((r) => r.bookingId === oldBooking.id);
+    const newRow = body.rows.find((r) => r.bookingId === newBookingId);
+
+    expect(oldRow?.sessionStatus).toBe("reagendada");
+    expect(oldRow?.rescheduledTo).toMatchObject({ bookingId: newBookingId });
+    expect(oldRow?.rescheduledFrom).toBeNull();
+
+    expect(newRow?.rescheduledFrom).toMatchObject({ bookingId: oldBooking.id });
+    expect(newRow?.rescheduledTo).toBeNull();
+  });
+
+  it("phoneE164: la fila expone el teléfono normalizado (mismo criterio que Renovaciones)", async () => {
+    const userId = await seedLead({ firstName: "TelefonoE164" });
+    const bookingId = await seedBooking({
+      userId,
+      bookingDateOffsetDays: 7,
+    });
+    const [user] = await ctx.app.db
+      .select({ phone: schema.users.phone })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+
+    const { body } = await getReport(ctx.ownerToken);
+    const row = body.rows.find((r) => r.bookingId === bookingId);
+    expect(row?.phoneE164).toBe(normalizePhoneE164(user.phone, "AR"));
+    expect(row?.phoneE164).not.toBeNull();
+  });
+
+  it("kpis exactos sobre un set sembrado (total/attendanceRate/conversionRate/recoveryRate)", async () => {
+    // A: Asistió + Ganada (asistio=1, ganadaConAsistio=1).
+    const userA = await seedLead({
+      firstName: "KpiGanada",
+      leadStatus: "ganado",
+    });
+    await seedBooking({
+      userId: userA,
+      bookingDateOffsetDays: -7,
+      withAttendance: true,
+    });
+
+    // B: No asistió, sin marcar nada (noAsistio=1). Al haber terminado hace
+    // 7 días, su M2b quedó OVERDUE — dueAt en el pasado siempre cae dentro
+    // de "el turno actual-o-próximo" (isPendingThisShift=true), sea cual sea
+    // la hora en que corra el test.
+    const userB = await seedLead({ firstName: "KpiNoAsistio" });
+    const bookingB = await seedBooking({
+      userId: userB,
+      bookingDateOffsetDays: -7,
+      withAttendance: false,
+    });
+
+    // D → E: reagenda. D cerrado como "Reagendada" (resolution ≠ null, no
+    // cuenta ni pending ni attended porque su clase todavía no pasó). E queda
+    // Agendada (booking a +7d): su M1 vence recién dentro de varios días, así
+    // que NUNCA cae en "el turno actual-o-próximo" (ventana muy lejana).
+    const userDE = await seedLead({ firstName: "KpiReagendada" });
+    const [bookingD] = await ctx.app.db
+      .insert(schema.bookings)
+      .values({
+        memberId: userDE,
+        scheduleId: ctx.scheduleMorning,
+        bookingDate: dateOffset(2),
+        status: "cancelado",
+        isTrial: true,
+      })
+      .$returningId();
+    const bookingE = await seedBooking({
+      userId: userDE,
+      bookingDateOffsetDays: 7,
+    });
+    await linkReschedule(bookingD.id, bookingE);
+
+    const { body } = await getReport(ctx.ownerToken);
+    expect(body.total).toBe(4);
+    expect(body.kpis).toMatchObject({
+      total: 4,
+      pendingThisShift: 1,
+      attendanceRate: 50,
+      conversionRate: 100,
+      recoveryRate: 100,
+    });
+
+    // El pendiente del turno es justamente B (M2b vencido, nunca marcado).
+    const { body: pendingBody } = await getReport(
+      ctx.ownerToken,
+      "?pendingThisShift=true",
+    );
+    expect(pendingBody.rows.map((r) => r.bookingId)).toEqual([bookingB]);
+  });
+
+  it("corte go-live: sesión ANTERIOR a trials.cadence_start_date no genera nextAction; posterior al corte sí", async () => {
+    const userId = await seedLead({ firstName: "CorteGoLive" });
+    const bookingId = await seedBooking({
+      userId,
+      bookingDateOffsetDays: -7,
+      withAttendance: true,
+    });
+
+    // Corte DESPUÉS de la sesión (mañana) → nextAction null pese a que Asistió
+    // sin M2 marcado sería M2a en cualquier otra circunstancia.
+    await seedCadenceStartDate(dateOffset(1));
+    const cut = await getReport(ctx.ownerToken);
+    const cutRow = cut.body.rows.find((r) => r.bookingId === bookingId);
+    expect(cutRow?.nextAction).toBeNull();
+    // El corte NO inventa un estado — sessionStatus sigue siendo el real.
+    expect(cutRow?.sessionStatus).toBe("asistio");
+
+    // Corte ANTES de la sesión (vuelve al default de la suite) → nextAction
+    // reaparece.
+    await seedCadenceStartDate(OLD_CADENCE_START_DATE);
+    const noCut = await getReport(ctx.ownerToken);
+    const noCutRow = noCut.body.rows.find((r) => r.bookingId === bookingId);
+    expect((noCutRow?.nextAction as { code: string } | null)?.code).toBe(
+      "M2a",
+    );
+  });
+
+  // ─── Aislamiento de tenant — franjas por sede ───────────────────────────
+
+  it("GET/PUT shifts: un gimnasio no ve ni puede tocar las franjas de otro (aislamiento de tenant)", async () => {
+    const gym2: SegundoGimnasio = await seedSecondTenant(ctx.app);
+    try {
+      const listAsGym2 = await ctx.app.inject({
+        method: "GET",
+        url: `${REPORTS_URL}/trial-sessions/shifts`,
+        headers: { authorization: `Bearer ${gym2.adminToken}` },
+      });
+      expect(listAsGym2.statusCode).toBe(200);
+      const branchIds = (
+        JSON.parse(listAsGym2.body) as Array<{ branchId: number }>
+      ).map((r) => r.branchId);
+      expect(branchIds).toContain(gym2.branchId);
+      expect(branchIds).not.toContain(ctx.arBranchId);
+
+      const putOtherTenant = await ctx.app.inject({
+        method: "PUT",
+        url: `${REPORTS_URL}/trial-sessions/shifts/${ctx.arBranchId}`,
+        headers: { authorization: `Bearer ${gym2.adminToken}` },
+        payload: { morningStart: "08:00" },
+      });
+      expect(putOtherTenant.statusCode).toBe(404);
+    } finally {
+      await limpiarSegundoGimnasio(ctx.app);
+    }
   });
 });
