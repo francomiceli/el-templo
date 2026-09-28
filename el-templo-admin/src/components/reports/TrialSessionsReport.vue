@@ -55,10 +55,10 @@
         <KpiCard
           :label="card.label"
           :value="card.value"
+          :hint="card.hint"
           :icon="card.icon"
-          :active="card.active"
+          :active="false"
           :loading="loading"
-          @click="card.onClick ? card.onClick() : null"
         />
       </div>
     </div>
@@ -67,6 +67,57 @@
     <!-- Filters -->
     <!-- ================================================================== -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
+      <!-- Período (fecha de la sesión): acota tabla Y KPIs. Mismo patrón que
+           el dropdown de Renovaciones. -->
+      <div class="col-auto">
+        <q-btn-dropdown outline :label="dateRangeLabel" icon="date_range" dense>
+          <q-list dense>
+            <q-item
+              v-for="preset in DATE_PRESETS"
+              :key="preset.label"
+              clickable
+              v-close-popup
+              :active="presetLabel === preset.label"
+              @click="applyDatePreset(preset)"
+            >
+              <q-item-section>{{ preset.label }}</q-item-section>
+            </q-item>
+            <q-separator />
+            <q-item clickable @click="showCustomRange = !showCustomRange">
+              <q-item-section>Personalizado</q-item-section>
+              <q-item-section side>
+                <q-icon :name="showCustomRange ? 'expand_less' : 'expand_more'" />
+              </q-item-section>
+            </q-item>
+            <template v-if="showCustomRange">
+              <q-item>
+                <q-item-section>
+                  <q-input v-model="customFrom" type="date" label="Desde" dense outlined />
+                </q-item-section>
+              </q-item>
+              <q-item>
+                <q-item-section>
+                  <q-input v-model="customTo" type="date" label="Hasta" dense outlined />
+                </q-item-section>
+              </q-item>
+              <q-item>
+                <q-item-section>
+                  <q-btn
+                    label="Aplicar"
+                    color="primary"
+                    dense
+                    flat
+                    v-close-popup
+                    :disable="!isCustomRangeValid"
+                    @click="applyCustomRange"
+                  />
+                </q-item-section>
+              </q-item>
+            </template>
+          </q-list>
+        </q-btn-dropdown>
+      </div>
+
       <div class="col-12 col-sm-3 col-md-2">
         <q-input v-model="filters.search" label="Buscar" dense outlined clearable debounce="300">
           <template #prepend>
@@ -121,6 +172,16 @@
       <!-- Sólo SP de app que nadie tomó todavía (mismo criterio que la pelotita) -->
       <div class="col-auto self-center">
         <q-toggle v-model="filters.pendingFollowup" label="Solo pendientes de seguimiento" dense />
+      </div>
+
+      <!-- Mensajes que vencen en el turno actual (antes era la tarjeta
+           "Pendientes del turno" — feedback Nacho 2026-09-28). -->
+      <div class="col-auto self-center">
+        <q-toggle
+          v-model="filters.pendingThisShift"
+          :label="`Pendientes de este turno (${kpis?.pendingThisShift ?? 0})`"
+          dense
+        />
       </div>
 
       <!-- D-44: Gestiona filter is OWNER-ONLY. For admin/gestion the SELECT
@@ -555,7 +616,9 @@ import { extractError } from 'src/utils/extract-error';
 import { DUENO_ROLES } from 'src/config/templo-config';
 import { trialSessionStatusMeta, isTrialSessionOpen } from 'src/utils/trial-session-status';
 import { formatNextAction } from 'src/utils/trial-next-action';
-import { formatDateTimeInTz } from 'src/utils/tz';
+import { formatDateTimeInTz, todayInTz } from 'src/utils/tz';
+import { getWeekRange, RENEWALS_TZ } from 'src/utils/renewals-week';
+import { monthToRange } from 'src/utils/date-range';
 import type { BranchOption } from 'src/types/member';
 import type { TrialListItem } from 'src/types/scheduling';
 import RescheduleTrialDialog from 'src/components/scheduling/RescheduleTrialDialog.vue';
@@ -645,6 +708,8 @@ interface Filters {
   origin: OriginFilter | null;
   pendingFollowup: boolean;
   pendingThisShift: boolean;
+  dateFrom: string | null;
+  dateTo: string | null;
 }
 
 const filters = reactive<Filters>({
@@ -656,7 +721,62 @@ const filters = reactive<Filters>({
   origin: null,
   pendingFollowup: false,
   pendingThisShift: false,
+  dateFrom: null,
+  dateTo: null,
 });
+
+// ─── Período (fecha de la sesión) ───────────────────────────────────────
+// Default "Todas las fechas": la tabla es operativa (recepción necesita ver
+// las sesiones que vienen), así que no se acota salvo que el usuario elija.
+
+interface DatePreset {
+  label: string;
+  range: () => { dateFrom: string | null; dateTo: string | null };
+}
+
+function monthRangeInAr(offsetMonths: number): { dateFrom: string; dateTo: string } {
+  const [y, m] = todayInTz(RENEWALS_TZ).split('-').map(Number);
+  const d = new Date(Date.UTC(y!, m! - 1 + offsetMonths, 1));
+  const { dateFrom, dateTo } = monthToRange(d.toISOString().slice(0, 7));
+  return { dateFrom: dateFrom!, dateTo: dateTo! };
+}
+
+const DATE_PRESETS: DatePreset[] = [
+  { label: 'Todas las fechas', range: () => ({ dateFrom: null, dateTo: null }) },
+  { label: 'Esta semana', range: () => getWeekRange(0) },
+  { label: 'Semana pasada', range: () => getWeekRange(-1) },
+  { label: 'Este mes', range: () => monthRangeInAr(0) },
+  { label: 'Mes pasado', range: () => monthRangeInAr(-1) },
+];
+
+const presetLabel = ref('Todas las fechas');
+const showCustomRange = ref(false);
+const customFrom = ref('');
+const customTo = ref('');
+
+const isCustomRangeValid = computed(
+  () => !!customFrom.value && !!customTo.value && customFrom.value <= customTo.value
+);
+
+const dateRangeLabel = computed(
+  () =>
+    presetLabel.value ||
+    `${formatDateDdMmYyyy(filters.dateFrom ?? '')} - ${formatDateDdMmYyyy(filters.dateTo ?? '')}`
+);
+
+function applyDatePreset(preset: DatePreset): void {
+  const { dateFrom, dateTo } = preset.range();
+  filters.dateFrom = dateFrom;
+  filters.dateTo = dateTo;
+  presetLabel.value = preset.label;
+  showCustomRange.value = false;
+}
+
+function applyCustomRange(): void {
+  filters.dateFrom = customFrom.value;
+  filters.dateTo = customTo.value;
+  presetLabel.value = '';
+}
 
 // ─── Table state ────────────────────────────────────────────────────────
 
@@ -686,58 +806,40 @@ interface KpiCardConfig {
   key: string;
   label: string;
   value: number | string;
+  hint?: string;
   icon: string;
-  active: boolean;
-  onClick: (() => void) | null;
 }
 
+// Embudo Reservas → Asistieron → Compraron (feedback Nacho 2026-09-28). Los
+// cálculos viven en la API (`computeTrialSessionKpis`): 1 reserva = 1 persona
+// (las sesiones "Reagendada" no suman) y los % solo cuentan clases que ya
+// terminaron. Siguen el período/sede/filtros, pero NO el filtro de Estado.
 const kpiCards = computed<KpiCardConfig[]>(() => {
   const k = kpis.value;
   return [
-    {
-      key: 'pendingThisShift',
-      label: 'Pendientes del turno',
-      value: k?.pendingThisShift ?? 0,
-      icon: 'notifications_active',
-      active: filters.pendingThisShift,
-      onClick: () => {
-        filters.pendingThisShift = !filters.pendingThisShift;
-      },
-    },
-    {
-      key: 'total',
-      label: 'Total sesiones',
-      value: k?.total ?? 0,
-      icon: 'event_note',
-      active: !filters.pendingThisShift && filters.sessionStatus.length === 0,
-      onClick: () => {
-        filters.pendingThisShift = false;
-        filters.sessionStatus = [];
-      },
-    },
+    { key: 'reservations', label: 'Reservas', value: k?.reservations ?? 0, icon: 'event_note' },
+    { key: 'attended', label: 'Asistieron', value: k?.attended ?? 0, icon: 'how_to_reg' },
+    { key: 'purchased', label: 'Compraron', value: k?.purchased ?? 0, icon: 'shopping_bag' },
     {
       key: 'attendanceRate',
       label: '% Asistencia',
       value: formatPct(k?.attendanceRate),
-      icon: 'how_to_reg',
-      active: false,
-      onClick: null,
+      hint: 'Asistieron / Reservas',
+      icon: 'percent',
     },
     {
-      key: 'conversionRate',
-      label: '% Conversión',
-      value: formatPct(k?.conversionRate),
+      key: 'closeRate',
+      label: '% Cierre',
+      value: formatPct(k?.closeRate),
+      hint: 'Compraron / Asistieron',
+      icon: 'handshake',
+    },
+    {
+      key: 'totalConversionRate',
+      label: '% Conversión total',
+      value: formatPct(k?.totalConversionRate),
+      hint: 'Compraron / Reservas',
       icon: 'trending_up',
-      active: false,
-      onClick: null,
-    },
-    {
-      key: 'recoveryRate',
-      label: '% Recuperación',
-      value: formatPct(k?.recoveryRate),
-      icon: 'restart_alt',
-      active: false,
-      onClick: null,
     },
   ];
 });
@@ -1137,6 +1239,8 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
     align: 'left',
     sortable: false,
   },
+  // Acciones al lado de Próxima acción (feedback Nacho 2026-09-28).
+  { name: 'acciones', label: 'Acciones', field: 'bookingId', align: 'center', sortable: false },
   { name: 'reagenda', label: 'Reagenda', field: 'bookingId', align: 'left', sortable: false },
   {
     name: 'purchasedPlan',
@@ -1153,7 +1257,6 @@ const columns: QTableColumn<TrialSessionsRowClient>[] = [
     sortable: false,
   },
   { name: 'leadNotes', label: 'Comentarios', field: 'leadNotes', align: 'left', sortable: false },
-  { name: 'acciones', label: 'Acciones', field: 'bookingId', align: 'center', sortable: false },
 ];
 
 // ─── Build server-side filter payload ───────────────────────────────────
@@ -1162,6 +1265,8 @@ function buildServerFilters() {
   return {
     branchId: props.branchId,
     country: props.country,
+    dateFrom: filters.dateFrom ?? undefined,
+    dateTo: filters.dateTo ?? undefined,
     shift: filters.shift ?? undefined,
     gestionaUserId:
       isOwner.value && filters.gestionaUserId !== null ? filters.gestionaUserId : undefined,

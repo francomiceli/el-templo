@@ -794,11 +794,13 @@ const trialSessionsRowSchema = {
 const trialSessionKpisSchema = {
   type: "object",
   properties: {
-    total: { type: "integer" },
     pendingThisShift: { type: "integer" },
+    reservations: { type: "integer" },
+    attended: { type: "integer" },
+    purchased: { type: "integer" },
     attendanceRate: { type: ["number", "null"] },
-    conversionRate: { type: ["number", "null"] },
-    recoveryRate: { type: ["number", "null"] },
+    closeRate: { type: ["number", "null"] },
+    totalConversionRate: { type: ["number", "null"] },
   },
 } as const;
 

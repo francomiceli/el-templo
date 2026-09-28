@@ -853,7 +853,7 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
     expect(row?.phoneE164).not.toBeNull();
   });
 
-  it("kpis exactos sobre un set sembrado (total/attendanceRate/conversionRate/recoveryRate)", async () => {
+  it("kpis del embudo exactos sobre un set sembrado (reservas/asistieron/compraron + %)", async () => {
     // A: Asistió + Ganada (asistio=1, ganadaConAsistio=1).
     const userA = await seedLead({
       firstName: "KpiGanada",
@@ -897,14 +897,56 @@ describe("Cadencia de mensajes en Sesiones de Prueba — followup + franjas (202
     });
     await linkReschedule(bookingD.id, bookingE);
 
+    // Embudo: D (ancestro "Reagendada") no cuenta como reserva — la persona
+    // cuenta una vez, en E. Porcentajes solo sobre clases ya terminadas (A, B):
+    // E todavía no ocurrió, así que suma a Reservas pero no a los %.
+    const expectedKpis = {
+      pendingThisShift: 1,
+      reservations: 3,
+      attended: 1,
+      purchased: 1,
+      attendanceRate: 50,
+      closeRate: 100,
+      totalConversionRate: 50,
+    };
     const { body } = await getReport(ctx.ownerToken);
     expect(body.total).toBe(4);
-    expect(body.kpis).toMatchObject({
-      total: 4,
-      pendingThisShift: 1,
+    expect(body.kpis).toMatchObject(expectedKpis);
+
+    // El filtro de Estado acota la tabla pero NO deforma el embudo.
+    const { body: ganadaBody } = await getReport(
+      ctx.ownerToken,
+      "?sessionStatus=ganada",
+    );
+    expect(ganadaBody.total).toBe(1);
+    expect(ganadaBody.kpis).toMatchObject(expectedKpis);
+
+    // El filtro de fecha SÍ recalcula: solo la semana pasada → A y B.
+    const { body: pastBody } = await getReport(
+      ctx.ownerToken,
+      `?dateFrom=${dateOffset(-8)}&dateTo=${dateOffset(-1)}`,
+    );
+    expect(pastBody.kpis).toMatchObject({
+      reservations: 2,
+      attended: 1,
+      purchased: 1,
       attendanceRate: 50,
-      conversionRate: 100,
-      recoveryRate: 100,
+      closeRate: 100,
+      totalConversionRate: 50,
+    });
+
+    // Solo futuro → D (ancestro, no cuenta) + E (sin clase ocurrida): % en null.
+    const { body: futureBody } = await getReport(
+      ctx.ownerToken,
+      `?dateFrom=${dateOffset(1)}`,
+    );
+    expect(futureBody.kpis).toMatchObject({
+      reservations: 1,
+      attended: 0,
+      purchased: 0,
+      attendanceRate: null,
+      closeRate: null,
+      totalConversionRate: null,
     });
 
     // El pendiente del turno es justamente B (M2b vencido, nunca marcado).

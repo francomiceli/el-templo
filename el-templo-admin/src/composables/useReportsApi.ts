@@ -89,11 +89,13 @@ export interface TrialRescheduleLinkedSession {
 }
 
 export interface TrialSessionKpis {
-  total: number;
   pendingThisShift: number;
+  reservations: number;
+  attended: number;
+  purchased: number;
   attendanceRate: number | null;
-  conversionRate: number | null;
-  recoveryRate: number | null;
+  closeRate: number | null;
+  totalConversionRate: number | null;
 }
 
 /** Acción discriminada del PATCH de followup — una sola por request. */
