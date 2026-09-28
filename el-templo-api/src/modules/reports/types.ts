@@ -379,14 +379,20 @@ export interface TrialFollowupSummary {
 }
 
 export interface TrialSessionKpis {
-  total: number;
+  /** Sesiones cuyo mensaje vence en el turno actual-o-próximo (toggle "Pendientes de este turno"). */
   pendingThisShift: number;
-  /** asistió / (asistió + no asistió), sobre `attended` crudo. `null` si el denominador es 0. */
+  /** Personas con sesión en el período (excluye sesiones ancestro de una reagenda). */
+  reservations: number;
+  /** De esas, las que asistieron (`attended` crudo). */
+  attended: number;
+  /** De esas, las ganadas (lead que compró). */
+  purchased: number;
+  /** asistieron / reservas cuya clase ya terminó. `null` si el denominador es 0. */
   attendanceRate: number | null;
-  /** ganadas CON asistió / asistió (brief §9 — excluye "ganada sin haber asistido"). `null` si el denominador es 0. */
-  conversionRate: number | null;
-  /** reagendadas / no asistió (crudo). `null` si el denominador es 0. */
-  recoveryRate: number | null;
+  /** compraron con asistencia / asistieron. `null` si el denominador es 0. */
+  closeRate: number | null;
+  /** compraron / reservas cuya clase ya terminó. `null` si el denominador es 0. */
+  totalConversionRate: number | null;
 }
 
 export interface TrialSessionsReport {

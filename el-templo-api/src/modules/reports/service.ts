@@ -168,46 +168,68 @@ function toDateOrNull(v: string | Date | null): Date | null {
 }
 
 /**
- * KPIs de la cadencia de Sesiones de Prueba (brief §9), sobre el set ya
- * filtrado + derivado (mismo patrón que `RenewalsService` → `computeKpis`:
- * "sobre el set filtrado por sede+período").
+ * KPIs de Sesiones de Prueba — embudo Reservas → Asistieron → Compraron
+ * (feedback Nacho 2026-09-28, reemplaza a pendientes/total/recuperación del
+ * brief §9). Se calculan sobre el set filtrado por SQL (sede, período,
+ * turno, origen, búsqueda...) pero ANTES de los filtros de Estado /
+ * "pendientes de este turno", para que filtrar la tabla no deforme el embudo
+ * (mismo espíritu que `RenewalsService` → `computeKpis`: "sobre el set
+ * filtrado por sede+período").
  *
- * `attendanceRate`/`recoveryRate` usan `attended` CRUDO (hecho de asistencia,
- * ver `deriveSessionStatus`), no el `sessionStatus` final — una sesión que
- * derivó a "Perdida" por faltar a la última reagenda permitida sigue siendo,
- * como HECHO, una sesión no asistida.
+ * Grano: 1 reserva = 1 persona en el período. Las sesiones ancestro de una
+ * reagenda (`sessionStatus === "reagendada"`) no cuentan — la persona cuenta
+ * una sola vez, en la última sesión de su cadena. Así una reagenda anticipada
+ * (booking cancelado, sin presente) no suma una "reserva que faltó".
+ *
+ * Los porcentajes usan solo sesiones cuya clase YA TERMINÓ (`attended` no
+ * null), así un período que incluye días futuros no hunde el % de asistencia.
+ * `attended` es el hecho CRUDO de asistencia (ver `deriveSessionStatus`): una
+ * sesión que derivó a "Perdida" por faltar a la última reagenda permitida
+ * sigue contando como no asistida.
+ *
+ *   - % Asistencia       = asistieron / reservas ya ocurridas
+ *   - % Cierre           = compraron CON asistencia / asistieron
+ *   - % Conversión total = compraron (clase ya ocurrida) / reservas ya ocurridas
  */
 function computeTrialSessionKpis(
   rows: TrialSessionRowInternal[],
 ): TrialSessionKpis {
-  let asistio = 0;
-  let noAsistio = 0;
-  let ganadaConAsistio = 0;
-  let reagendada = 0;
+  let reservations = 0;
+  let occurred = 0;
+  let attended = 0;
+  let purchased = 0;
+  let purchasedOccurred = 0;
+  let purchasedAttended = 0;
   let pendingThisShift = 0;
 
   for (const r of rows) {
-    if (r.attended === "si") asistio += 1;
-    if (r.attended === "no") noAsistio += 1;
-    if (r.sessionStatus === "ganada" && r.attended === "si") {
-      ganadaConAsistio += 1;
-    }
-    if (r.sessionStatus === "reagendada") reagendada += 1;
     if (r.isPendingThisShift) pendingThisShift += 1;
+    if (r.sessionStatus === "reagendada") continue;
+
+    reservations += 1;
+    const isPurchased = r.sessionStatus === "ganada";
+    if (isPurchased) purchased += 1;
+    if (r.attended === null) continue;
+
+    occurred += 1;
+    if (isPurchased) purchasedOccurred += 1;
+    if (r.attended === "si") {
+      attended += 1;
+      if (isPurchased) purchasedAttended += 1;
+    }
   }
 
-  const attendanceDenominator = asistio + noAsistio;
-  const attendanceRate =
-    attendanceDenominator === 0 ? null : (asistio / attendanceDenominator) * 100;
-  const conversionRate = asistio === 0 ? null : (ganadaConAsistio / asistio) * 100;
-  const recoveryRate = noAsistio === 0 ? null : (reagendada / noAsistio) * 100;
+  const pct = (num: number, den: number): number | null =>
+    den === 0 ? null : (num / den) * 100;
 
   return {
-    total: rows.length,
     pendingThisShift,
-    attendanceRate,
-    conversionRate,
-    recoveryRate,
+    reservations,
+    attended,
+    purchased,
+    attendanceRate: pct(attended, occurred),
+    closeRate: pct(purchasedAttended, attended),
+    totalConversionRate: pct(purchasedOccurred, occurred),
   };
 }
 
@@ -2136,8 +2158,8 @@ export class ReportsService {
    * `buildTrialSessionsConditions`) hasta `TRIAL_SESSIONS_FETCH_CAP`, deriva
    * cada fila en JS, aplica ahí los filtros derivados
    * (`attended`/`sessionStatus`/`pendingThisShift`), calcula los KPIs sobre
-   * ESE set filtrado completo (mismo patrón que `RenewalsService.
-   * listRenewals` → `computeKpis`) y recién ahí pagina en memoria. Un
+   * el set de SQL completo, antes de esos filtros derivados (ver
+   * `computeTrialSessionKpis`), y recién ahí pagina en memoria. Un
    * gimnasio no genera decenas de miles de sesiones de prueba activas o
    * recientes a la vez — ver `exportTrialSessions`, que ya usaba el mismo
    * cap de seguridad para su propio "traer todo".
@@ -2190,7 +2212,9 @@ export class ReportsService {
       return true;
     });
 
-    const kpis = computeTrialSessionKpis(filtered);
+    // KPIs sobre `allRows` (pre filtros de Estado/pendientes) — ver
+    // `computeTrialSessionKpis`.
+    const kpis = computeTrialSessionKpis(allRows);
     const total = filtered.length;
     const start = (page - 1) * limit;
     const rows = filtered
