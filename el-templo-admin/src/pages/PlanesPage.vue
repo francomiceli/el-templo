@@ -83,6 +83,14 @@
                   label="Bundle"
                   class="q-ml-xs"
                 />
+                <!-- Línea del pase especial (null = Aura) -->
+                <q-badge
+                  v-if="props.row.planCategory === 'especial'"
+                  outline
+                  color="deep-purple"
+                  :label="props.row.specialLine ?? 'Aura'"
+                  class="q-ml-xs"
+                />
               </q-td>
             </template>
 
