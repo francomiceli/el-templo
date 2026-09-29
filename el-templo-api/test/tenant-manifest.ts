@@ -711,6 +711,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PATCH /api/admin/scheduling/schedules/:scheduleId/activity": {
     categoria: "tenant-scoped",
   },
+  "PATCH /api/admin/scheduling/schedules/:scheduleId/coach": {
+    categoria: "tenant-scoped",
+  },
   "PATCH /api/admin/scheduling/schedules/:scheduleId/time": {
     categoria: "tenant-scoped",
   },

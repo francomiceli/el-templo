@@ -362,6 +362,7 @@ export class RatingsService {
 
       // No-orphan (D-Q3): there must be a coach assigned in the roster.
       const coachId = await this.resolveRosterCoachId(
+        ctx,
         c.branchId,
         c.sessionDate,
         c.startTime,
@@ -466,6 +467,7 @@ export class RatingsService {
 
     // Attribution (D-Q1): resolve the coach from the roster for this class.
     const coachId = await this.resolveRosterCoachId(
+      ctx,
       attendanceRow.branchId,
       sessionDate,
       attendanceRow.startTime,
@@ -529,6 +531,7 @@ export class RatingsService {
       // (slotFromStartTime: <12:00 = morning).
       if (morning === null) {
         const c = await this.resolveRosterCoachId(
+          ctx,
           b.branchId,
           today,
           "09:00",
@@ -538,6 +541,7 @@ export class RatingsService {
       }
       if (afternoon === null) {
         const c = await this.resolveRosterCoachId(
+          ctx,
           b.branchId,
           today,
           "15:00",
@@ -565,19 +569,22 @@ export class RatingsService {
    * (TV login: "¿estoy agendado hoy en este turno?") consulta solo el roster.
    */
   private async resolveRosterCoachId(
+    ctx: TenantContext,
     branchId: number,
     sessionDate: string,
     startTime: string,
     scheduleId: number | null,
   ): Promise<number | null> {
     if (scheduleId !== null) {
-      /* tenant-safe: lookup por PK de un horario que el caller ya resolvió
-         desde una asistencia del propio socio (mismo nivel de confianza que
-         la consulta al roster de abajo, que tampoco filtra por tenant) */
       const [slot] = await this.db
         .select({ coachUserId: schema.schedules.coachUserId })
         .from(schema.schedules)
-        .where(eq(schema.schedules.id, scheduleId))
+        .where(
+          and(
+            tenantWhere(schema.schedules, ctx),
+            eq(schema.schedules.id, scheduleId),
+          ),
+        )
         .limit(1);
       if (slot?.coachUserId) return slot.coachUserId;
     }

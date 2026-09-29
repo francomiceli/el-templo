@@ -114,6 +114,8 @@ import {
   createTestApp,
   cleanAllTestData,
   createTestMember,
+  createStaffUser,
+  getAuthToken,
   todayStr,
   dateOffsetStr,
 } from "../helpers";
@@ -383,6 +385,9 @@ interface FotoDeSchedule {
   // un helper aparte.
   startTime: string | null;
   endTime: string | null;
+  // 2026-09-29 (PATCH .../coach): profe propio del horario, para afirmar que
+  // el rechazo cross-tenant no lo escribió.
+  coachUserId: number | null;
 }
 
 async function fotoDeSchedule(scheduleId: number): Promise<FotoDeSchedule> {
@@ -393,8 +398,9 @@ async function fotoDeSchedule(scheduleId: number): Promise<FotoDeSchedule> {
     updated_at: string | null;
     start_time: string | null;
     end_time: string | null;
+    coach_user_id: number | null;
   }>(
-    sql`SELECT /* tenant-safe: releer la fila (ajena o propia) es la asercion de tampering; filtrarla por gimnasio la volveria tautologica */ tenant_id, is_active, activity_id, updated_at, start_time, end_time FROM schedules WHERE id = ${scheduleId}`,
+    sql`SELECT /* tenant-safe: releer la fila (ajena o propia) es la asercion de tampering; filtrarla por gimnasio la volveria tautologica */ tenant_id, is_active, activity_id, updated_at, start_time, end_time, coach_user_id FROM schedules WHERE id = ${scheduleId}`,
   );
   const f = filas[0];
   if (f === undefined) {
@@ -405,6 +411,7 @@ async function fotoDeSchedule(scheduleId: number): Promise<FotoDeSchedule> {
       updatedAt: null,
       startTime: null,
       endTime: null,
+      coachUserId: null,
     };
   }
   return {
@@ -414,6 +421,7 @@ async function fotoDeSchedule(scheduleId: number): Promise<FotoDeSchedule> {
     updatedAt: f.updated_at === null ? null : String(f.updated_at),
     startTime: f.start_time === null ? null : String(f.start_time),
     endTime: f.end_time === null ? null : String(f.end_time),
+    coachUserId: f.coach_user_id === null ? null : Number(f.coach_user_id),
   };
 }
 
@@ -849,6 +857,93 @@ describe("cambiar hora del horario — PATCH /api/admin/scheduling/schedules/:sc
       TENANT_DOS,
       "19:00",
       "20:00",
+    ]);
+  });
+});
+
+describe("profe propio del horario — PATCH /api/admin/scheduling/schedules/:scheduleId/coach", () => {
+  const RUTA = "PATCH /api/admin/scheduling/schedules/:scheduleId/coach";
+
+  /**
+   * La ruta es OWNER-ONLY (403 para el resto del staff): el caso usa un owner
+   * de cada gimnasio, no el coach que usan las demas rutas del archivo. El
+   * owner de El Templo es `admin@test.com` (sembrado por test/setup.ts); el
+   * del gimnasio 2 se crea acá (el fixture del gimnasio 2 no trae owner).
+   */
+  async function ownerGimnasioDos(): Promise<string> {
+    const email = `owner-g2-${sufijo()}@test.com`;
+    await createStaffUser(app, {
+      email,
+      password: "gym2-owner-123",
+      firstName: "Owner",
+      lastName: "Gimnasio Dos",
+      role: "owner",
+      branchId: gym2.branchId,
+      tenantId: TENANT_DOS,
+    });
+    return getAuthToken(app, email, "gym2-owner-123");
+  }
+
+  it("aislamiento: un scheduleId de El Templo se rechaza (404, nunca 403), y su profe NO cambia", async () => {
+    const ownerDos = await ownerGimnasioDos();
+    const antes = await fotoDeSchedule(fx.templo.scheduleId);
+    const res = await comoAdminGimnasioDos(
+      "PATCH",
+      `/schedules/${fx.templo.scheduleId}/coach`,
+      { coachUserId: gym2.coachId },
+      ownerDos,
+    );
+    expect(
+      res.statusCode,
+      porQueImporta(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    const despues = await fotoDeSchedule(fx.templo.scheduleId);
+    expect(despues).toEqual(antes);
+    expect(despues.coachUserId).toBeNull();
+  });
+
+  it("aislamiento: un coach de El Templo no se puede asignar a un horario propio del gimnasio 2 (400) y nada se escribe", async () => {
+    const ownerDos = await ownerGimnasioDos();
+    const coachTemploId = await createStaffUser(app, {
+      email: `coach-templo-${sufijo()}@test.com`,
+      password: "templo-coach-123",
+      firstName: "Coach",
+      lastName: "Templo",
+      role: "coach",
+      branchId: fx.templo.branchId,
+    });
+    const antes = await fotoDeSchedule(fx.dos.scheduleId);
+    const res = await comoAdminGimnasioDos(
+      "PATCH",
+      `/schedules/${fx.dos.scheduleId}/coach`,
+      { coachUserId: coachTemploId },
+      ownerDos,
+    );
+    expect(
+      res.statusCode,
+      `${RUTA}: el coach ${coachTemploId} es de El Templo (${TENANT_TEMPLO}) y el horario es del gimnasio ${TENANT_DOS}: ` +
+        `el owner del gimnasio 2 no puede asignarlo. Respuesta: ${res.body}`,
+    ).toBe(400);
+    expect(await fotoDeSchedule(fx.dos.scheduleId)).toEqual(antes);
+  });
+
+  it("control: el owner del gimnasio 2 asigna un coach propio a su horario SI funciona", async () => {
+    const ownerDos = await ownerGimnasioDos();
+    const res = await comoAdminGimnasioDos(
+      "PATCH",
+      `/schedules/${fx.dos.scheduleId}/coach`,
+      { coachUserId: gym2.coachId },
+      ownerDos,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, fx.dos.scheduleId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const despues = await fotoDeSchedule(fx.dos.scheduleId);
+    expect([despues.tenantId, despues.coachUserId]).toEqual([
+      TENANT_DOS,
+      gym2.coachId,
     ]);
   });
 });
