@@ -1101,6 +1101,32 @@ export const reservePartnerWeekSchema = {
 } as const;
 
 /**
+ * POST /api/members/scheduling/especial-trial (2026-09-29, yoga de Moreno)
+ *
+ * "Probá una clase gratis": asigna el pase de prueba de la línea del horario
+ * y reserva ese turno en un solo request. La línea y el plan salen del
+ * horario, server-side: el body no lleva planId ni línea
+ * (`additionalProperties: false`). Devuelve el mismo booking que `/reserve`.
+ */
+export const reserveEspecialTrialSchema = {
+  body: {
+    type: "object",
+    required: ["scheduleId", "date"],
+    properties: {
+      scheduleId: { type: "integer", minimum: 1 },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    201: bookingRecordSchema,
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+} as const;
+
+/**
  * Phase 119 (D-03 revised): POST /cancel-trial — no body; the caller is
  * identified by the member JWT. Reverts prueba→freemium when outside 24h.
  */

@@ -310,6 +310,9 @@ export const especialPassSchema = {
         classesBudget: { type: ["integer", "null"] },
         endDate: { type: ["string", "null"] },
         isSocio: { type: "boolean" },
+        // 2026-09-29 (clase de prueba de Yoga): líneas de pase especial donde
+        // el socio puede tomar UNA clase de prueba gratis (ej. ["Yoga"]).
+        trialLines: { type: "array", items: { type: "string" } },
         // 2026-09-29 (línea del pase): TODOS los pases activos del socio, uno
         // por línea (Aura, Yoga...). Los campos de arriba siguen describiendo
         // el primero para los builds viejos del app.

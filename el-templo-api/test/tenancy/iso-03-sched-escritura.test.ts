@@ -1967,3 +1967,150 @@ describe("activar semana de partner (socio) — POST /api/members/scheduling/res
     ).toBe("consumed");
   });
 });
+
+describe("clase de prueba gratis de un pase especial (socio) — POST /api/members/scheduling/especial-trial", () => {
+  const RUTA = "POST /api/members/scheduling/especial-trial";
+
+  /** Socio fresco del gimnasio 2 con un plan presencial ACTIVO PROPIO (la
+   * prueba exige presencial vigente). */
+  async function socioDelDosConPresencial() {
+    const socio = await createTestMember(app, {
+      email: `especial-trial-${sufijo()}@test.com`,
+      branchId: gym2.branchId,
+      tenantId: TENANT_DOS,
+      phone: telefonoUnico(),
+    });
+    const [plan] = await app.db
+      .insert(schema.subscriptionPlans)
+      .values(
+        tenantValues(CTX_DOS, {
+          name: `Presencial Prueba ${sufijo()}`,
+          planTier: "flex" as const,
+          bookingMode: "flexible" as const,
+          planCategory: "presencial" as const,
+          priceRegular: 30000,
+          priceZero: 30000,
+          durationDays: 30,
+          classesPerWeek: 3,
+          country: "AR" as const,
+        }),
+      )
+      .$returningId();
+    await app.db.insert(schema.subscriptions).values(
+      tenantValues(CTX_DOS, {
+        userId: socio.id,
+        planId: plan.id,
+        branchId: gym2.branchId,
+        status: "active" as const,
+        startDate: dateOffsetStr(-3),
+        endDate: dateOffsetStr(27),
+        pricePaid: 30000,
+        priceTypeApplied: "regular" as const,
+      }),
+    );
+    return socio;
+  }
+
+  async function contarSubsDeMiembro(memberId: number): Promise<number> {
+    const filas = await consultar<{ c: number }>(
+      sql`SELECT /* tenant-safe: contar subscriptions de un userId (sin filtro de gimnasio) es la asercion de "cero suscripciones nuevas" — filtrar la volveria tautologica */ COUNT(*) AS c FROM subscriptions WHERE user_id = ${memberId}`,
+    );
+    return Number(filas[0]?.c ?? 0);
+  }
+
+  it("aislamiento: un horario de El Templo se rechaza — 404 y CERO suscripciones/reservas nuevas", async () => {
+    const socio = await socioDelDosConPresencial();
+    const subsAntes = await contarSubsDeMiembro(socio.id);
+    const bookingsAntes = await contarBookingsDeMiembro(socio.id);
+
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/especial-trial",
+      socio.token,
+      { scheduleId: fx.templo.scheduleId, date: dateOffsetStr(1) },
+    );
+    expect(
+      res.statusCode,
+      porQueImporta(RUTA, fx.templo.scheduleId) + ` Respuesta: ${res.body}`,
+    ).toBe(404);
+    expect(
+      await contarSubsDeMiembro(socio.id),
+      `${RUTA}: el horario ajeno no puede dejar un pase de prueba creado.`,
+    ).toBe(subsAntes);
+    expect(
+      await contarBookingsDeMiembro(socio.id),
+      `${RUTA}: el horario ajeno no puede dejar NINGUNA fila en bookings.`,
+    ).toBe(bookingsAntes);
+  });
+
+  it("control: con actividad especial, horario, plan de prueba y presencial PROPIOS el flujo completo funciona — 201 y todo nace TENANT_DOS", async () => {
+    const socio = await socioDelDosConPresencial();
+    const [actividad] = await app.db
+      .insert(schema.activities)
+      .values(
+        tenantValues(CTX_DOS, {
+          name: `Yoga Dos ${sufijo()}`,
+          isActive: true,
+          isSpecial: true,
+          specialLine: "Yoga",
+        }),
+      )
+      .$returningId();
+    await app.db.insert(schema.subscriptionPlans).values(
+      tenantValues(CTX_DOS, {
+        name: `Yoga — Clase de prueba ${sufijo()}`,
+        planTier: "other" as const,
+        bookingMode: "flexible" as const,
+        planCategory: "especial" as const,
+        priceRegular: 0,
+        priceZero: 0,
+        durationDays: 7,
+        classesPerWeek: null,
+        monthlyClassBudget: 1,
+        requiresPresencial: true,
+        specialLine: "Yoga",
+        isTrial: true,
+        multiBranch: true,
+        country: "AR" as const,
+      }),
+    );
+    const dow = isoDayOfWeekFor(dateOffsetStr(1));
+    const [horario] = await app.db
+      .insert(schema.schedules)
+      .values(
+        tenantValues(CTX_DOS, {
+          branchId: gym2.branchId,
+          activityId: actividad.id,
+          dayOfWeek: dow,
+          startTime: "23:00",
+          endTime: "23:59",
+          isActive: true,
+        }),
+      )
+      .$returningId();
+
+    const res = await comoMemberGimnasioDos(
+      "POST",
+      "/especial-trial",
+      socio.token,
+      { scheduleId: horario.id, date: dateOffsetStr(1) },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, socio.id) + ` Respuesta: ${res.body}`,
+    ).toBe(201);
+    const body = JSON.parse(res.body) as { id: number };
+    expect(
+      await tenantDeLaFila(app, "bookings", body.id),
+      `${RUTA}: la reserva de la prueba tiene que nacer con tenant_id = ${TENANT_DOS}.`,
+    ).toBe(TENANT_DOS);
+    const filas = await consultar<{ id: number }>(
+      sql`SELECT /* tenant-safe: leer la sub de prueba recien creada por userId para verificar su tenant_id */ s.id AS id FROM subscriptions s JOIN subscription_plans p ON p.id = s.plan_id WHERE s.user_id = ${socio.id} AND p.plan_category = 'especial'`,
+    );
+    expect(filas).toHaveLength(1);
+    expect(
+      await tenantDeLaFila(app, "subscriptions", filas[0].id),
+      `${RUTA}: el pase de prueba tiene que nacer con tenant_id = ${TENANT_DOS}.`,
+    ).toBe(TENANT_DOS);
+  });
+});

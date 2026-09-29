@@ -33,7 +33,7 @@
  * forma de reproducirse si la lógica de matching nunca vive en un fragmento
  * `sql` correlacionado. Explicit over clever.
  */
-import { and, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, ne, or } from "drizzle-orm";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -108,6 +108,20 @@ export const RENEWAL_MAX_RANGE_DAYS = 93;
 
 /** Duración mínima de plan para contar como renovación (SPEC — excluye clase única/suelta). */
 const MIN_RENEWAL_PLAN_DURATION_DAYS = 7;
+
+/**
+ * La clase de prueba gratis de un pase especial (Yoga, 2026-09-29) dura 7
+ * días, así que entra en el corte de `MIN_RENEWAL_PLAN_DURATION_DAYS` pero no
+ * es una membresía que haya que renovar. Se excluye SOLO el pase especial de
+ * prueba (`is_trial=1` + categoría especial): los planes `is_trial` de otras
+ * categorías (promo gratuito online) conservan su comportamiento.
+ */
+function notEspecialTrialPlan() {
+  return or(
+    ne(schema.subscriptionPlans.planCategory, AURA_PLAN_CATEGORY),
+    eq(schema.subscriptionPlans.isTrial, false),
+  );
+}
 
 const EXPIRING_STATUSES = ["active", "paused", "expired", "completed"] as const;
 
@@ -437,6 +451,7 @@ export class RenewalsService {
         schema.subscriptionPlans.durationDays,
         MIN_RENEWAL_PLAN_DURATION_DAYS,
       ),
+      notEspecialTrialPlan(),
       ...(filters.branchId !== undefined
         ? [eq(schema.subscriptions.branchId, filters.branchId)]
         : []),
@@ -555,6 +570,10 @@ export class RenewalsService {
             schema.subscriptionPlans.durationDays,
             MIN_RENEWAL_PLAN_DURATION_DAYS,
           ),
+          // La prueba de un pase especial tampoco cuenta como "sub siguiente"
+          // (renewalGroup no distingue líneas: un pase Aura que vence no se
+          // renovó por haber tomado una prueba de Yoga).
+          notEspecialTrialPlan(),
         ),
       );
     return rows;

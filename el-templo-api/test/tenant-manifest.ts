@@ -994,6 +994,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/members/scheduling/reserve-partner-week": {
     categoria: "tenant-scoped",
   },
+  // 2026-09-29 (yoga de Moreno): clase de prueba gratis de un pase especial —
+  // asigna el pase de $0 (subscriptions) y reserva el turno (bookings) en un
+  // request, tenant desde `assertTenant`.
+  "POST /api/members/scheduling/especial-trial": {
+    categoria: "tenant-scoped",
+  },
   "POST /api/members/scheduling/reserve-trial": { categoria: "tenant-scoped" },
 
   // ── /api/members/subscription ─────────────────────────────────────────────

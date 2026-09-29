@@ -2063,9 +2063,23 @@ export class SubscriptionService {
     const startDate = new Date(input.startDate);
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + plan.durationDays);
-    const endDateStr = input.prorateToMonthEnd
-      ? computeMonthEndProration(input.startDate).endDate
-      : endDate.toISOString().split("T")[0];
+    // `endDateOverride` (opcional, server-side): fija el vencimiento en vez de
+    // startDate + durationDays. Lo usa la clase de prueba gratis de un pase
+    // especial (EspecialTrialService) para que el pase nunca dure más que el
+    // plan presencial del alumno. Las rutas admin no lo exponen en el body.
+    if (
+      input.endDateOverride !== undefined &&
+      input.endDateOverride < input.startDate
+    ) {
+      throw new BadRequestError(
+        "El vencimiento no puede ser anterior a la fecha de inicio",
+      );
+    }
+    const endDateStr =
+      input.endDateOverride ??
+      (input.prorateToMonthEnd
+        ? computeMonthEndProration(input.startDate).endDate
+        : endDate.toISOString().split("T")[0]);
 
     // Status: scheduled when startDate is in the future, active otherwise.
     // The status drives recomputeUserStatus (only active/paused count for

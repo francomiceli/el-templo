@@ -24,6 +24,7 @@ import { assertTenant, tenantWhere } from "../shared/tenant";
 import { todayInTz } from "../shared/date-utils";
 import { especialPassSchema } from "./schemas";
 import { specialLineLabel } from "../scheduling/special-line";
+import { getEspecialTrialLines } from "../scheduling/especial-trial-service";
 
 const AR_TIMEZONE = "America/Argentina/Buenos_Aires";
 
@@ -206,8 +207,16 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           (s.status === "active" || s.status === "paused"),
       );
 
+      // 2026-09-29 (clase de prueba de Yoga): líneas donde el socio puede
+      // tomar una clase gratis. Campo aditivo, los builds viejos lo ignoran.
+      const trialLines = await getEspecialTrialLines(
+        fastify.db,
+        ctx,
+        request.user.userId,
+      );
+
       if (activePasses.length === 0) {
-        return { hasPass: false, passes: [] };
+        return { hasPass: false, passes: [], trialLines };
       }
 
       const passes = await Promise.all(
@@ -236,6 +245,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         endDate: first.endDate,
         isSocio: first.isSocio,
         passes,
+        trialLines,
       };
     },
   );

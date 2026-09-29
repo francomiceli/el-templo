@@ -28,6 +28,7 @@ import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
 import { TrialService } from "./trials-service";
 import { PartnerWeekService } from "./partner-week-service";
+import { EspecialTrialService } from "./especial-trial-service";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantWhere } from "../shared/tenant";
 import {
@@ -86,6 +87,7 @@ import {
   updateClassLabelDescriptionSchema,
   partnerBenefitSchema,
   reservePartnerWeekSchema,
+  reserveEspecialTrialSchema,
 } from "./schemas";
 import type { DayOfWeek, AffectedScheduleRef } from "./types";
 
@@ -1207,6 +1209,15 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     bookingService,
   );
 
+  // 2026-09-29 (yoga de Moreno): clase de prueba gratis de un pase especial.
+  // Mismo molde que partner-week: assignPlan a $0 + reserve.
+  const especialTrialService = new EspecialTrialService(
+    fastify.db,
+    fastify.log,
+    subscriptionService,
+    bookingService,
+  );
+
   /**
    * Guard: require authentication (any role) on all routes in this plugin.
    *
@@ -1445,6 +1456,28 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
           request.log,
           "member reserve partner week",
         );
+      }
+    },
+  );
+
+  // POST /especial-trial — 2026-09-29: "Probá una clase gratis" en una línea de
+  // pase especial (Yoga). Asigna el pase de prueba y reserva el turno en un
+  // solo request; elegibilidad y plan resueltos server-side.
+  fastify.post<{
+    Body: { scheduleId: number; date: string };
+  }>(
+    "/especial-trial",
+    { schema: reserveEspecialTrialSchema },
+    async (request, reply) => {
+      try {
+        const booking = await especialTrialService.activateAndReserve(
+          assertTenant(request.scope, "scheduling.especialTrial"),
+          request.user.userId,
+          request.body,
+        );
+        return reply.code(201).send(booking);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member especial trial");
       }
     },
   );

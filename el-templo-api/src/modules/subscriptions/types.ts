@@ -426,6 +426,11 @@ export interface AssignPlanInput {
    * instead of starting a fresh `startDate + durationDays` period, and the
    * class budget is prorated to the inherited window. Ignored by
    * changePlanAfterCurrent. Format: YYYY-MM-DD, must be after startDate.
+   *
+   * assignPlan también lo honra (2026-09-29, clase de prueba de Yoga): fija el
+   * vencimiento del alta en vez de startDate + durationDays. Solo lo setean
+   * servicios server-side (EspecialTrialService), nunca el body del admin.
+   * Ahí alcanza con `>= startDate` (una prueba puede vencer el mismo día).
    */
   endDateOverride?: string;
   /**
