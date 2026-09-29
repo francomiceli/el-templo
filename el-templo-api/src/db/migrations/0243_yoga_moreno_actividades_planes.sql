@@ -13,7 +13,7 @@
 --   3. Seis pases especiales AR/ARS, 30 dias, multi_branch = 1, linea 'Yoga'.
 --      General = requires_presencial 0. Alumnos = requires_presencial 1 (exige
 --      plan presencial activo, 20 por ciento menos):
---        Clase suelta     1 clase    12000 / 10000
+--        Clase suelta     1 clase    18000 / 14400
 --        Pack 4 clases    4 clases   40000 / 32000
 --        2 x semana       8 clases   65000 / 52000
 --      classes_per_week NULL a proposito: si se carga, pisa el budget
@@ -80,8 +80,8 @@ SELECT v.name, v.description, 'other', 'flexible', 'especial', v.price, v.price,
        30, NULL, v.budget, v.requires_presencial, 'Yoga',
        1, 1, 'AR', 'ARS'
 FROM (
-  SELECT 'Yoga — Clase suelta · General' AS name, 'Pase Yoga: 1 clase, válido 30 días.' AS description, 12000 AS price, 1 AS budget, 0 AS requires_presencial
-  UNION ALL SELECT 'Yoga — Clase suelta · Alumnos', 'Pase Yoga para alumnos de El Templo: 1 clase, válido 30 días.', 10000, 1, 1
+  SELECT 'Yoga — Clase suelta · General' AS name, 'Pase Yoga: 1 clase, válido 30 días.' AS description, 18000 AS price, 1 AS budget, 0 AS requires_presencial
+  UNION ALL SELECT 'Yoga — Clase suelta · Alumnos', 'Pase Yoga para alumnos de El Templo: 1 clase, válido 30 días.', 14400, 1, 1
   UNION ALL SELECT 'Yoga — Pack 4 clases · General', 'Pase Yoga: 4 clases, vencen a los 30 días.', 40000, 4, 0
   UNION ALL SELECT 'Yoga — Pack 4 clases · Alumnos', 'Pase Yoga para alumnos de El Templo: 4 clases, vencen a los 30 días.', 32000, 4, 1
   UNION ALL SELECT 'Yoga — 2 x semana · General', 'Pase Yoga: 2 clases por semana (8 en 30 días).', 65000, 8, 0
