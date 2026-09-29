@@ -365,6 +365,7 @@ export class RatingsService {
         c.branchId,
         c.sessionDate,
         c.startTime,
+        c.scheduleId,
       );
       if (coachId === null) continue;
 
@@ -468,6 +469,7 @@ export class RatingsService {
       attendanceRow.branchId,
       sessionDate,
       attendanceRow.startTime,
+      scheduleId,
     );
     if (coachId === null) {
       throw new BadRequestError("No hay profe asignado a esta clase");
@@ -526,11 +528,21 @@ export class RatingsService {
       // "09:00" cae en el slot morning y "15:00" en afternoon
       // (slotFromStartTime: <12:00 = morning).
       if (morning === null) {
-        const c = await this.resolveRosterCoachId(b.branchId, today, "09:00");
+        const c = await this.resolveRosterCoachId(
+          b.branchId,
+          today,
+          "09:00",
+          null,
+        );
         if (c === coachId) morning = b.branchId;
       }
       if (afternoon === null) {
-        const c = await this.resolveRosterCoachId(b.branchId, today, "15:00");
+        const c = await this.resolveRosterCoachId(
+          b.branchId,
+          today,
+          "15:00",
+          null,
+        );
         if (c === coachId) afternoon = b.branchId;
       }
       if (morning !== null && afternoon !== null) break;
@@ -546,12 +558,30 @@ export class RatingsService {
    *
    * A LATER change-point (a future roster edit) never affects a past class,
    * because its week is > the class's week and is excluded by the <= filter.
+   *
+   * 2026-09-29: si el horario tiene profe propio (schedules.coach_user_id),
+   * ése gana sobre el roster — la yoga de Moreno cae dentro del turno de otro
+   * profe y sus calificaciones son de la profe de yoga. `scheduleId` null
+   * (TV login: "¿estoy agendado hoy en este turno?") consulta solo el roster.
    */
   private async resolveRosterCoachId(
     branchId: number,
     sessionDate: string,
     startTime: string,
+    scheduleId: number | null,
   ): Promise<number | null> {
+    if (scheduleId !== null) {
+      /* tenant-safe: lookup por PK de un horario que el caller ya resolvió
+         desde una asistencia del propio socio (mismo nivel de confianza que
+         la consulta al roster de abajo, que tampoco filtra por tenant) */
+      const [slot] = await this.db
+        .select({ coachUserId: schema.schedules.coachUserId })
+        .from(schema.schedules)
+        .where(eq(schema.schedules.id, scheduleId))
+        .limit(1);
+      if (slot?.coachUserId) return slot.coachUserId;
+    }
+
     const weekStartDate = isoWeekStart(sessionDate);
     const dayOfWeek = isoDayOfWeek(sessionDate);
     const slot = slotFromStartTime(startTime);

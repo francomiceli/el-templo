@@ -29,6 +29,8 @@ const planSchema = {
     classesPerWeek: { type: ["integer", "null"] },
     monthlyClassBudget: { type: ["integer", "null"] },
     requiresPresencial: { type: "boolean" },
+    // Línea del pase especial (2026-09-29). NULL = Aura.
+    specialLine: { type: ["string", "null"] },
     multiBranch: { type: "boolean" },
     isTrial: { type: "boolean" },
     isGroup: { type: "boolean" },
@@ -66,6 +68,7 @@ const subscriptionDetailSchema = {
     planName: { type: "string" },
     planTier: { type: "string" },
     planCategory: { type: "string" },
+    specialLine: { type: ["string", "null"] },
     branchId: { type: "integer" },
     branchName: { type: "string" },
     status: { type: "string" },
@@ -193,6 +196,7 @@ export const createPlanSchema = {
       classesPerWeek: { type: "integer", minimum: 1 },
       monthlyClassBudget: { type: "integer", minimum: 1 },
       requiresPresencial: { type: "boolean" },
+      specialLine: { type: ["string", "null"], maxLength: 50 },
       multiBranch: { type: "boolean" },
       isTrial: { type: "boolean" },
       isGroup: { type: "boolean" },
@@ -243,6 +247,7 @@ export const updatePlanSchema = {
       classesPerWeek: { type: ["integer", "null"] },
       monthlyClassBudget: { type: ["integer", "null"], minimum: 1 },
       requiresPresencial: { type: "boolean" },
+      specialLine: { type: ["string", "null"], maxLength: 50 },
       multiBranch: { type: "boolean" },
       isTrial: { type: "boolean" },
       isGroup: { type: "boolean" },
@@ -305,6 +310,24 @@ export const especialPassSchema = {
         classesBudget: { type: ["integer", "null"] },
         endDate: { type: ["string", "null"] },
         isSocio: { type: "boolean" },
+        // 2026-09-29 (línea del pase): TODOS los pases activos del socio, uno
+        // por línea (Aura, Yoga...). Los campos de arriba siguen describiendo
+        // el primero para los builds viejos del app.
+        passes: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              specialLine: { type: ["string", "null"] },
+              lineLabel: { type: "string" },
+              planName: { type: "string" },
+              classesRemaining: { type: ["integer", "null"] },
+              classesBudget: { type: ["integer", "null"] },
+              endDate: { type: ["string", "null"] },
+              isSocio: { type: "boolean" },
+            },
+          },
+        },
       },
     },
   },

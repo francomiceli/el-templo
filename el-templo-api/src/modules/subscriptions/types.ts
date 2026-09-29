@@ -183,6 +183,12 @@ export interface PlanListItem {
    * planes no-especiales lo tienen en false y no lo consultan.
    */
   requiresPresencial: boolean;
+  /**
+   * Línea del pase especial (2026-09-29): el pase solo habilita actividades
+   * especiales con la misma línea. NULL = "Actividades con Aura". Siempre NULL
+   * en planes no-especiales. Ver scheduling/special-line.ts.
+   */
+  specialLine: string | null;
   multiBranch: boolean;
   isTrial: boolean;
   isGroup: boolean;
@@ -239,6 +245,8 @@ export interface CreatePlanInput {
   monthlyClassBudget?: number;
   /** Solo `especial`: pase Socio (exige presencial activo) vs Externo. */
   requiresPresencial?: boolean;
+  /** Solo `especial`: línea del pase (NULL/vacío = "Actividades con Aura"). */
+  specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
@@ -265,6 +273,8 @@ export interface UpdatePlanInput {
   monthlyClassBudget?: number | null;
   /** Solo `especial` — ver CreatePlanInput. */
   requiresPresencial?: boolean;
+  /** Solo `especial` — ver CreatePlanInput. */
+  specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
@@ -288,6 +298,8 @@ export interface SubscriptionDetail {
   planName: string;
   planTier: PlanTier;
   planCategory: PlanCategory;
+  /** Línea del pase especial del plan (NULL = Aura / no-especial). */
+  specialLine: string | null;
   branchId: number;
   branchName: string;
   status: SubscriptionStatus;

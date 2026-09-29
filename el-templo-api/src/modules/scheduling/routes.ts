@@ -64,6 +64,7 @@ import {
   deleteScheduleFromDateSchema,
   updateScheduleActivitySchema,
   updateScheduleTimeSchema,
+  updateScheduleCoachSchema,
   seedSchedulesSchema,
   adminAddBookingSchema,
   adminRemoveBookingSchema,
@@ -305,6 +306,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       description?: string;
       maxCapacity?: number | null;
       isSpecial?: boolean;
+      specialLine?: string | null;
     };
   }>(
     "/activities",
@@ -318,6 +320,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
           request.body.description,
           request.body.maxCapacity,
           request.body.isSpecial,
+          request.body.specialLine,
         );
         return reply.code(201).send(activity);
       } catch (err: unknown) {
@@ -346,6 +349,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       isActive?: boolean;
       maxCapacity?: number | null;
       isSpecial?: boolean;
+      specialLine?: string | null;
     };
   }>(
     "/activities/:activityId",
@@ -896,6 +900,42 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         return { cancelled: true };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "admin remove booking");
+      }
+    },
+  );
+
+  // PATCH /schedules/:scheduleId/coach — profe propio del horario
+  // (2026-09-29, yoga de Moreno): pisa al profe del turno solo para este
+  // horario; `null` vuelve a heredarlo. Owner-only, igual que el roster
+  // (POST /api/admin/ratings/roster): solo el owner asigna profes.
+  fastify.patch<{
+    Params: { scheduleId: number };
+    Body: { coachUserId: number | null };
+  }>(
+    "/schedules/:scheduleId/coach",
+    {
+      schema: updateScheduleCoachSchema,
+      preHandler: [requireScheduleBranchAccess],
+    },
+    async (request, reply) => {
+      try {
+        if (request.user.role !== "owner") {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo el owner puede asignar profes",
+          });
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.updateScheduleCoach",
+        );
+        return await schedulingService.updateScheduleCoach(
+          ctx,
+          request.params.scheduleId,
+          request.body.coachUserId,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "update schedule coach");
       }
     },
   );
