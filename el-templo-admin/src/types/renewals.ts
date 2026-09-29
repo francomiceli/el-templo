@@ -50,7 +50,22 @@ export interface RenewalRow {
   manualOverridden: boolean;
   /** `status === 'en_proceso' && messageCount >= 4` (disparador de cierre). */
   paraCerrar: boolean;
-  lastNote: { content: string; createdAt: string } | null;
+  /**
+   * Quién tocó el seguimiento por última vez (mensaje o estado) y cuándo —
+   * para que dos personas trabajando la misma planilla no contacten dos
+   * veces al mismo alumno. `null` = nunca se gestionó.
+   */
+  followupUpdatedAt: string | null;
+  followupUpdatedByName: string | null;
+  lastNote: RenewalLastNote | null;
+}
+
+/** Última nota del socio (columna "Observación"). */
+export interface RenewalLastNote {
+  content: string;
+  createdAt: string;
+  /** `null` si el autor ya no existe. */
+  authorName: string | null;
 }
 
 export interface RenewalPlanDistributionEntry {

@@ -61,7 +61,23 @@ export interface RenewalRow {
   manualOverridden: boolean;
   /** `status === 'en_proceso' && messageCount >= 4` (disparador de cierre). */
   paraCerrar: boolean;
-  lastNote: { content: string; createdAt: string } | null;
+  /**
+   * Quién tocó el seguimiento por última vez (mensaje o estado manual) y
+   * cuándo — feedback 2026-09-29: dos administrativas trabajan la misma
+   * planilla y necesitan ver quién ya contactó a quién. `null` = nunca se
+   * gestionó (sin fila en `renewal_followups`).
+   */
+  followupUpdatedAt: string | null;
+  followupUpdatedByName: string | null;
+  lastNote: RenewalLastNote | null;
+}
+
+/** Última `member_notes` del socio (columna "Observación"), con autor. */
+export interface RenewalLastNote {
+  content: string;
+  createdAt: string;
+  /** `null` si el autor ya no existe en el tenant. */
+  authorName: string | null;
 }
 
 export interface RenewalKpis {

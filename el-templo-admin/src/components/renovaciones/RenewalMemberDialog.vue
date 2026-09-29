@@ -16,7 +16,7 @@
 
       <q-banner v-if="row.manualOverridden" class="bg-warning text-white" dense rounded>
         <template #avatar><q-icon name="history" /></template>
-        Estaba marcado "No renovó" a mano; el sistema detectó una renovación y la reemplazó.
+        Estaba marcado "No renueva" a mano; el sistema detectó una renovación y la reemplazó.
       </q-banner>
 
       <q-card-section class="q-gutter-y-xs">
@@ -64,6 +64,7 @@
             (último {{ formatDate(row.lastMessageAt) }})
           </span>
         </div>
+        <div v-if="lastTouch"><span class="text-grey-7">Última gestión:</span> {{ lastTouch }}</div>
       </q-card-section>
 
       <q-separator />
@@ -77,8 +78,8 @@
           @click="onRenovar"
         />
         <div class="text-caption text-grey-6">
-          Renovó y Pausada se detectan solas (pago dentro de la ventana / estado de la
-          membresía) — no se marcan a mano acá.
+          Renovó y Pausada se detectan solas (pago dentro de la ventana / estado de la membresía) —
+          no se marcan a mano acá.
         </div>
         <q-btn
           flat
@@ -93,7 +94,7 @@
       <q-separator />
 
       <q-card-section v-if="row.manualStatus === 'no_renovo'">
-        <div class="text-subtitle2 q-mb-xs">No renovó</div>
+        <div class="text-subtitle2 q-mb-xs">No renueva</div>
         <div class="text-body2">{{ row.reasonLabel ?? 'Sin motivo' }}</div>
         <div v-if="row.reasonNote" class="text-caption text-grey-7">{{ row.reasonNote }}</div>
         <q-btn
@@ -108,7 +109,7 @@
       </q-card-section>
 
       <q-card-section v-else>
-        <div class="text-subtitle2 q-mb-sm">Marcar No renovó</div>
+        <div class="text-subtitle2 q-mb-sm">Marcar No renueva</div>
         <q-select
           v-model="selectedReasonId"
           :options="reasonOptions"
@@ -133,7 +134,7 @@
         />
         <q-btn
           color="negative"
-          label="Marcar No renovó"
+          label="Marcar No renueva"
           :disable="selectedReasonId == null"
           :loading="savingFollowup"
           @click="onMarkNoRenovo"
@@ -146,7 +147,10 @@
         <div class="text-subtitle2 q-mb-sm">Observación</div>
         <div v-if="row.lastNote" class="text-body2 q-mb-sm" style="white-space: pre-wrap">
           {{ row.lastNote.content }}
-          <div class="text-caption text-grey-6">{{ formatDate(row.lastNote.createdAt) }}</div>
+          <div class="text-caption text-grey-6">
+            {{ formatDate(row.lastNote.createdAt) }}
+            <template v-if="row.lastNote.authorName"> · {{ row.lastNote.authorName }}</template>
+          </div>
         </div>
         <q-input
           v-model="noteDraft"
@@ -185,7 +189,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { useRenewalsApi } from 'src/composables/useRenewalsApi';
-import { renewalStatusMeta, renewalStatusLabel } from 'src/utils/renewal-status';
+import {
+  renewalStatusMeta,
+  renewalStatusLabel,
+  renewalLastTouchLabel,
+} from 'src/utils/renewal-status';
 import type { RenewalRow, RenewalReason } from 'src/types/renewals';
 
 const log = createLogger('RenewalMemberDialog');
@@ -216,6 +224,8 @@ const localOpen = computed({
   set: (value: boolean) => emit('update:modelValue', value),
 });
 
+const lastTouch = computed(() => (props.row ? renewalLastTouchLabel(props.row) : null));
+
 const daysRemainingLabel = computed(() => {
   const d = props.row?.daysRemaining ?? 0;
   if (d > 0) return `en ${d}d`;
@@ -223,9 +233,7 @@ const daysRemainingLabel = computed(() => {
   return `vencido hace ${Math.abs(d)}d`;
 });
 
-const reasonOptions = computed(() =>
-  props.reasons.map((r) => ({ label: r.label, value: r.id }))
-);
+const reasonOptions = computed(() => props.reasons.map((r) => ({ label: r.label, value: r.id })));
 
 // ─── Estado del form "No renovó" ────────────────────────────────────────
 const selectedReasonId = ref<number | null>(null);
@@ -259,14 +267,14 @@ async function onMarkNoRenovo() {
       reasonNote: reasonNoteDraft.value.trim() || null,
     });
     emit('row-updated', updated, true);
-    $q.notify({ type: 'positive', message: 'Marcado como No renovó' });
+    $q.notify({ type: 'positive', message: 'Marcado como No renueva' });
   } catch (err: unknown) {
     log.error('Error marcando No renovó', {
       error: err instanceof Error ? err.message : String(err),
     });
     $q.notify({
       type: 'negative',
-      message: renewalsApi.error.value ?? 'No se pudo marcar No renovó',
+      message: renewalsApi.error.value ?? 'No se pudo marcar No renueva',
     });
   } finally {
     savingFollowup.value = false;
@@ -304,7 +312,14 @@ async function onAddNote() {
     const note = await renewalsApi.addNote(row.subscriptionId, content);
     emit(
       'row-updated',
-      { ...row, lastNote: { content: note.content, createdAt: note.createdAt } },
+      {
+        ...row,
+        lastNote: {
+          content: note.content,
+          createdAt: note.createdAt,
+          authorName: note.authorName || null,
+        },
+      },
       false
     );
     noteDraft.value = '';
@@ -339,7 +354,9 @@ async function onCopyPhone() {
   }
   $q.notify({
     type: row.phoneE164 ? 'positive' : 'warning',
-    message: row.phoneE164 ? 'Copiado' : 'Número inválido: revisalo en la ficha (copiado el original)',
+    message: row.phoneE164
+      ? 'Copiado'
+      : 'Número inválido: revisalo en la ficha (copiado el original)',
   });
 }
 
