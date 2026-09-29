@@ -158,6 +158,10 @@ export const useUserStore = defineStore('user', () => {
   // (D-06): sus capabilities son aditivas y NO alteran hasPresencialPlan /
   // hasPresencialReservationAccess. null = sin pase (o error/204).
   const especialPass = ref<EspecialPass | null>(null)
+  // Líneas especiales (ej. ['Yoga']) donde el socio puede tomar UNA clase de prueba
+  // gratis. Viene en ambas ramas de /me/especial-pass (con y sin pase). Builds viejos
+  // del server no lo mandan → [].
+  const trialLines = ref<string[]>([])
   const hasActiveProgramEnrollment = ref(false)
   const enrolledGoalPlanType = ref<string | null>(null)
 
@@ -330,6 +334,7 @@ export const useUserStore = defineStore('user', () => {
     subscription.value = null
     // Phase 162: limpiar el pase especial junto al singular en logout / reset.
     especialPass.value = null
+    trialLines.value = []
     // Phase 104: also clear current-program state on logout / profile reset
     // so a fresh login does not see stale enrollments from a prior session.
     currentProgram.value = { enrollmentId: null, program: null }
@@ -408,10 +413,13 @@ export const useUserStore = defineStore('user', () => {
    */
   async function loadEspecialPass(): Promise<void> {
     try {
-      const response = await api.get<Partial<EspecialPass> & { hasPass: boolean }>(
-        '/members/subscription/me/especial-pass',
-      )
+      const response = await api.get<
+        Partial<EspecialPass> & { hasPass: boolean; trialLines?: string[] }
+      >('/members/subscription/me/especial-pass')
       const data = response.data
+      trialLines.value = Array.isArray(data?.trialLines)
+        ? data.trialLines.filter((l): l is string => typeof l === 'string')
+        : []
       // 204 No Content, sin data, o { hasPass:false } → sin pase.
       if (response.status === 204 || !data || data.hasPass !== true) {
         especialPass.value = null
@@ -454,6 +462,7 @@ export const useUserStore = defineStore('user', () => {
     } catch {
       // 204/404 o error de red — sin pase.
       especialPass.value = null
+      trialLines.value = []
     }
   }
 
@@ -601,6 +610,7 @@ export const useUserStore = defineStore('user', () => {
     subscription,
     subscriptionLoading,
     especialPass,
+    trialLines,
     selectedLevel,
     // Phase 104: current-program state
     currentProgram,

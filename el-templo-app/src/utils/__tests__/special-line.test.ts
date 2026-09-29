@@ -5,6 +5,7 @@ import {
   fullLineLabel,
   passHasBalance,
   specialSlotState,
+  canClaimTrial,
   passChipLabel,
   passBalanceText,
 } from 'src/utils/special-line'
@@ -111,5 +112,28 @@ describe('special-line — passBalanceText', () => {
     expect(
       passBalanceText({ specialLine: null, classesRemaining: null, classesBudget: null }),
     ).toBe('Accesos ilimitados')
+  })
+})
+
+describe('special-line — canClaimTrial', () => {
+  it('línea propia elegible: muestra la prueba (sin importar mayúsculas/espacios)', () => {
+    expect(canClaimTrial(['Yoga'], 'Yoga')).toBe(true)
+    expect(canClaimTrial(['Yoga'], ' yoga ')).toBe(true)
+  })
+
+  it('línea que no está en trialLines: no', () => {
+    expect(canClaimTrial(['Yoga'], 'Pilates')).toBe(false)
+    expect(canClaimTrial([], 'Yoga')).toBe(false)
+  })
+
+  it('Aura (null) nunca ofrece prueba, aunque trialLines venga con algo', () => {
+    expect(canClaimTrial(['Yoga'], null)).toBe(false)
+    expect(canClaimTrial([''], null)).toBe(false)
+    expect(canClaimTrial(['Yoga'], undefined)).toBe(false)
+  })
+
+  it('trialLines ausente (build viejo del server): no', () => {
+    expect(canClaimTrial(undefined, 'Yoga')).toBe(false)
+    expect(canClaimTrial(null, 'Yoga')).toBe(false)
   })
 })

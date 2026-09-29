@@ -1136,18 +1136,63 @@
          (code PASS_REQUIRED). Consciente de la LÍNEA (Aura, Yoga...) que lo abrió y sin
          precios (cambian). SIN pago in-app ni CTA de compra — la venta es por
          gestión/PoS. Un único botón "Entendido". Acento dorado (Aura). NOT persistent. -->
-    <q-dialog v-model="showAuraInfoDialog">
+    <q-dialog v-model="showAuraInfoDialog" :persistent="trialClaimLoading">
       <q-card class="aura-dialog">
         <q-card-section class="aura-dialog__body">
           <q-icon class="aura-dialog__icon" name="auto_awesome" size="2.5em" />
           <h3 class="aura-dialog__title">{{ passInfoTitle }}</h3>
-          <p class="aura-dialog__text">
+          <p v-if="trialConfirming" class="aura-dialog__text">
+            Tu primera clase de <strong>{{ passInfoLine }}</strong> es gratis. Te reservamos este
+            turno.
+          </p>
+          <p v-else class="aura-dialog__text">
             Esta clase se reserva con el pase de <strong>{{ passInfoLine }}</strong
             >, aparte de tu plan. Pedilo en la recepción de tu sede.
           </p>
         </q-card-section>
 
-        <q-card-actions class="aura-dialog__actions">
+        <!-- Clase de prueba gratis (2026-09-29): si el server marcó la línea como elegible
+             (trialLines) y hay un turno concreto detrás del tap, el CTA primario es probarla.
+             En dos pasos (ofrecer → confirmar) dentro del mismo dialog. Sin turno o sin
+             elegibilidad queda el "Entendido" de siempre. -->
+        <q-card-actions v-if="passInfoTrialSlot && trialConfirming" class="aura-dialog__actions">
+          <q-btn
+            unelevated
+            no-caps
+            class="aura-dialog__primary full-width"
+            label="Confirmar"
+            :loading="trialClaimLoading"
+            :disable="trialClaimLoading"
+            @click="confirmEspecialTrial"
+          />
+          <q-btn
+            flat
+            no-caps
+            dense
+            class="coverage-dialog__secondary"
+            label="Ahora no"
+            :disable="trialClaimLoading"
+            v-close-popup
+          />
+        </q-card-actions>
+        <q-card-actions v-else-if="passInfoTrialSlot" class="aura-dialog__actions">
+          <q-btn
+            unelevated
+            no-caps
+            class="aura-dialog__primary full-width"
+            label="Probá una clase gratis"
+            @click="trialConfirming = true"
+          />
+          <q-btn
+            flat
+            no-caps
+            dense
+            class="coverage-dialog__secondary"
+            label="Entendido"
+            v-close-popup
+          />
+        </q-card-actions>
+        <q-card-actions v-else class="aura-dialog__actions">
           <q-btn
             unelevated
             no-caps
@@ -1193,6 +1238,7 @@ import {
   sameSpecialLine,
   shortLineLabel,
   specialSlotState,
+  canClaimTrial,
 } from 'src/utils/special-line'
 import { extractError } from 'src/utils/extract-error'
 import type {
@@ -1221,6 +1267,7 @@ const {
   cancelTrial,
   getPartnerBenefit,
   reservePartnerWeek,
+  reserveEspecialTrial,
   cleanup,
 } = useSchedulingApi()
 const bonusUsage = ref<{
@@ -1476,9 +1523,52 @@ const passInfoSpecialLine = ref<string | null>(null)
 const passInfoTitle = computed(() => fullLineLabel(passInfoSpecialLine.value))
 const passInfoLine = computed(() => shortLineLabel(passInfoSpecialLine.value))
 
-function openPassInfoDialog(line: string | null) {
+// Turno concreto (id + fecha) detrás del tap, para ofrecer la clase de prueba gratis.
+// Solo se setea si el server marcó la línea como elegible (`trialLines`); si no, el
+// dialog queda informativo como siempre.
+const passInfoTrialSlot = ref<{ scheduleId: number; date: string } | null>(null)
+// Paso 2 del CTA: confirmación ("Tu primera clase de Yoga es gratis...").
+const trialConfirming = ref(false)
+const trialClaimLoading = ref(false)
+
+function openPassInfoDialog(line: string | null, target?: { scheduleId: number; date: string }) {
   passInfoSpecialLine.value = line
+  passInfoTrialSlot.value =
+    target && canClaimTrial(userStore.trialLines, line) ? { ...target } : null
+  trialConfirming.value = false
   showAuraInfoDialog.value = true
+}
+
+async function confirmEspecialTrial() {
+  const target = passInfoTrialSlot.value
+  if (!target || trialClaimLoading.value) return
+  trialClaimLoading.value = true
+  try {
+    await reserveEspecialTrial(target.scheduleId, target.date)
+    showAuraInfoDialog.value = false
+    $q.notify({
+      type: 'positive',
+      message: `Reserva confirmada. ¡Disfrutá tu clase de prueba de ${passInfoLine.value}!`,
+    })
+    await loadGrid()
+    // El pase de prueba recién asignado tiene que aparecer en el chip y la línea deja de
+    // ser elegible (trialLines).
+    await userStore.loadEspecialPass()
+  } catch (err: unknown) {
+    const message = extractError(err, 'No pudimos reservar tu clase de prueba. Probá de nuevo.')
+    if (axios.isAxiosError(err) && err.response?.status === 409) {
+      // Regla de negocio (ya usada, plan vence antes, turno completo...): el server
+      // manda el mensaje listo. Se cierra el dialog y se refresca la elegibilidad.
+      showAuraInfoDialog.value = false
+      $q.notify({ type: 'warning', message })
+      await userStore.loadEspecialPass()
+    } else {
+      $q.notify({ type: 'negative', message })
+      log.error('Especial trial reserve failed', { error: message })
+    }
+  } finally {
+    trialClaimLoading.value = false
+  }
 }
 
 // Plan 180-13 (D-18/RES-05): hoja de detalle de actividad. El título viaja
@@ -1925,7 +2015,10 @@ function onSlotTap(slot: WeeklySlotView) {
   if (slot.isSpecial) {
     const state = slotSpecialState(slot)
     if (state === 'no-pass') {
-      openPassInfoDialog(slot.specialLine ?? null)
+      openPassInfoDialog(slot.specialLine ?? null, {
+        scheduleId: slot.id,
+        date: dateForDay(slot.dayOfWeek as DayOfWeek),
+      })
       return
     }
     if (state === 'exhausted') {
@@ -2041,7 +2134,10 @@ async function confirmReserve() {
       // La línea sale del slot que se intentó reservar (el server nombra la línea
       // en el mensaje, pero acá la resolvemos por scheduleId).
       const blocked = slots.value.find((s) => s.id === reserveDialog.value.scheduleId)
-      openPassInfoDialog(blocked?.specialLine ?? null)
+      openPassInfoDialog(blocked?.specialLine ?? null, {
+        scheduleId: reserveDialog.value.scheduleId,
+        date: reserveDialog.value.date,
+      })
       log.info('Reserve blocked: especial pass required')
       return
     }

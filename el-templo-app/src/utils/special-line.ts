@@ -57,6 +57,20 @@ export function specialSlotState(
   return passHasBalance(pass) ? 'reservable' : 'exhausted'
 }
 
+/**
+ * ¿Se le ofrece "Probá una clase gratis" al socio para una clase de esta línea?
+ * Solo líneas propias (la clase de prueba no existe para Aura: `null`) y solo si
+ * el server la marcó elegible en `trialLines`. La elegibilidad real la decide el
+ * server; esto solo evita mostrar un botón que seguro fallaría.
+ */
+export function canClaimTrial(
+  trialLines: readonly string[] | null | undefined,
+  line: string | null | undefined,
+): boolean {
+  if (normalizeSpecialLine(line) == null) return false
+  return (trialLines ?? []).some((l) => sameSpecialLine(l, line))
+}
+
 /** Datos mínimos de un pase para armar el texto del chip. */
 export interface PassChipData extends PassBalance {
   specialLine: string | null

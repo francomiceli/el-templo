@@ -187,6 +187,19 @@ export function useSchedulingApi() {
     return response.data
   }
 
+  /**
+   * Clase de prueba gratis de una línea especial (Yoga): el server asigna un pase de
+   * $0 y reserva el turno en el mismo paso. Devuelve el booking, igual que `reserve`.
+   */
+  async function reserveEspecialTrial(scheduleId: number, date: string): Promise<BookingRecord> {
+    const response = await api.post<BookingRecord>(
+      '/members/scheduling/especial-trial',
+      { scheduleId, date },
+      { signal: getSignal() },
+    )
+    return response.data
+  }
+
   async function getBonusUsage(): Promise<BonusUsage> {
     const response = await api.get<BonusUsage>('/members/scheduling/bonus-usage', {
       signal: getSignal(),
@@ -213,6 +226,7 @@ export function useSchedulingApi() {
     cancelTrial,
     getPartnerBenefit,
     reservePartnerWeek,
+    reserveEspecialTrial,
     cleanup,
   }
 }
