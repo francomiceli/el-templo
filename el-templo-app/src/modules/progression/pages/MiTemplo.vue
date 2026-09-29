@@ -44,11 +44,7 @@
             <ProgramCtaCard :segment="userStore.segment" />
           </div>
           <!-- D-15b: tarjetas libres del admin, DESPUÉS de las fijas visibles. -->
-          <div
-            v-for="t in avisosStore.tarjetasLibres"
-            :key="t.id"
-            class="premium-carousel__slide"
-          >
+          <div v-for="t in avisosStore.tarjetasLibres" :key="t.id" class="premium-carousel__slide">
             <AvisoCard
               :aviso-id="t.id"
               :title="t.title"
@@ -60,16 +56,21 @@
         </div>
       </div>
 
-      <!-- Phase 162 (APP-02): plan especial "Actividades con Aura" — saldo x/2 del mes.
-           Visible sólo si el usuario tiene el plan especial. Informativa, sin CTA (D-02).
-           Ícono dorado (acento Aura, RESERVADO); espeja la estética de mi-arbol-card. -->
-      <div v-if="userStore.hasEspecialPass" class="especial-card">
+      <!-- Phase 162 (APP-02): pase especial — UNA card por pase (línea Aura, Yoga...) con
+           su saldo. Visible sólo si el usuario tiene algún pase (sin pases, el v-for no
+           renderiza nada). Informativa, sin CTA (D-02). Ícono dorado (acento Aura,
+           RESERVADO); espeja la estética de mi-arbol-card. -->
+      <div
+        v-for="pass in userStore.especialPasses"
+        :key="pass.specialLine ?? '__aura__'"
+        class="especial-card"
+      >
         <q-icon name="auto_awesome" class="especial-card__icon" />
         <span class="especial-card__text">
-          <span class="especial-card__title">Actividades con Aura</span>
-          <span class="especial-card__value">{{ especialBalanceText }}</span>
-          <span v-if="especialPeriodEnd" class="especial-card__meta"
-            >Se renuevan el {{ especialPeriodEnd }}</span
+          <span class="especial-card__title">{{ pass.lineLabel }}</span>
+          <span class="especial-card__value">{{ passBalanceText(pass) }}</span>
+          <span v-if="passEndDate(pass.endDate)" class="especial-card__meta"
+            >Vence el {{ passEndDate(pass.endDate) }}</span
           >
         </span>
       </div>
@@ -201,6 +202,7 @@ import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
+import { passBalanceText } from 'src/utils/special-line'
 
 const log = createLogger('MiTemplo')
 const notificationStore = useNotificationStore()
@@ -221,22 +223,12 @@ function goToMiArbol() {
   void router.push('/mi-arbol')
 }
 
-// Phase 162 (APP-02): vencimiento del período del plan especial (D/M), si el
-// backend lo expone en especialPass.endDate.
-const especialPeriodEnd = computed(() => {
-  const end = userStore.especialPass?.endDate
+// Phase 162 (APP-02): vencimiento del pase (D/M), si el backend expone su endDate.
+function passEndDate(end: string | null): string | null {
   if (!end) return null
   const d = new Date(end + 'T12:00:00')
   return `${d.getDate()}/${d.getMonth() + 1}`
-})
-
-// Saldo del pase: ilimitado → sin contador; con cupo → "x de N clases este mes".
-// El budget viene del plan (2/4), ya no hardcodeado.
-const especialBalanceText = computed(() =>
-  userStore.especialUnlimited
-    ? 'Accesos ilimitados este mes'
-    : `${userStore.especialClassesRemaining} de ${userStore.especialClassesBudget} clases este mes`,
-)
+}
 
 function scrollCheckIns(direction: 'left' | 'right') {
   const el = checkInsRowRef.value

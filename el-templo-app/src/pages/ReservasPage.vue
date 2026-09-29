@@ -194,6 +194,9 @@
               <div class="slot-card__time">
                 <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
                 <span class="slot-card__activity">{{ slot.activityName }}</span>
+                <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
+                  >Profe {{ slot.coachFirstName }}</span
+                >
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
@@ -235,6 +238,9 @@
               <div class="slot-card__time">
                 <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
                 <span class="slot-card__activity">{{ slot.activityName }}</span>
+                <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
+                  >Profe {{ slot.coachFirstName }}</span
+                >
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
@@ -453,6 +459,9 @@
                   @click="onActivityNameTap(slot, $event)"
                   >{{ slot.activityName }}</span
                 >
+                <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
+                  >Profe {{ slot.coachFirstName }}</span
+                >
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
@@ -498,6 +507,9 @@
                   :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
                   @click="onActivityNameTap(slot, $event)"
                   >{{ slot.activityName }}</span
+                >
+                <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
+                  >Profe {{ slot.coachFirstName }}</span
                 >
               </div>
               <div class="slot-card__right">
@@ -595,19 +607,21 @@
         {{ userStore.branchDisplayName }}
       </p>
 
-      <!-- Phase 162 (APP-02): contador x/2 del plan especial — chip único dorado,
-           visible sólo si el usuario tiene el plan especial. En 0/2 pasa a tono apagado. -->
+      <!-- Phase 162 (APP-02): contador del pase especial — un chip dorado POR PASE
+           (línea Aura, Yoga...), visible sólo si el usuario tiene algún pase. En 0/N
+           pasa a tono apagado. -->
       <div v-if="userStore.hasEspecialPass" class="especial-chip-row q-mb-md">
         <q-chip
+          v-for="pass in userStore.especialPasses"
+          :key="pass.specialLine ?? '__aura__'"
           dense
           class="especial-chip"
           :class="{
-            'especial-chip--exhausted':
-              !userStore.especialUnlimited && userStore.especialClassesRemaining <= 0,
+            'especial-chip--exhausted': !passHasBalance(pass),
           }"
         >
           <q-icon name="auto_awesome" size="14px" class="q-mr-xs" />
-          {{ especialChipLabel }}
+          {{ passChipLabel(pass) }}
         </q-chip>
       </div>
 
@@ -709,9 +723,14 @@
                 @click="onActivityNameTap(slot, $event)"
                 >{{ slot.activityName }}</span
               >
+              <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
+                >Profe {{ slot.coachFirstName }}</span
+              >
               <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
               <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
-                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
+                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />{{
+                  specialBadgeLabel(slot)
+                }}
               </q-badge>
             </div>
             <div class="slot-card__right">
@@ -744,7 +763,7 @@
               <!-- Phase 162 (APP-01): estados de la actividad especial. Se evalúan
                    DESPUÉS de holiday/attended/booked/full/past (que conservan prioridad).
                    Bloqueo en olive/grey, nunca rojo (no es error, es condición de acceso). -->
-              <template v-else-if="slot.isSpecial && especialReservable">
+              <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'reservable'">
                 <!-- E1/E4: plan especial con saldo → flujo de reserva normal -->
                 <span v-if="slot.isFull" class="slot-card__avail slot-card__avail--full"
                   >Completo</span
@@ -766,14 +785,14 @@
                   />
                 </template>
               </template>
-              <template v-else-if="slot.isSpecial && userStore.hasEspecialPass">
-                <!-- E2: plan especial sin saldo (0/2) — pill apagada, sin botón -->
-                <span class="slot-card__pill slot-card__pill--muted">Usaste tus 2 clases</span>
+              <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'exhausted'">
+                <!-- E2: pase de la línea sin saldo (0/N) — pill apagada, sin botón -->
+                <span class="slot-card__pill slot-card__pill--muted">Usaste tus clases</span>
               </template>
               <template v-else-if="slot.isSpecial">
-                <!-- E3: socio sin plan especial — afordancia informativa, abre el dialog al tocar -->
+                <!-- E3: socio sin el pase de ESTA línea — afordancia informativa, abre el dialog al tocar -->
                 <span class="slot-card__pill slot-card__pill--locked">
-                  <q-icon name="lock" size="13px" class="q-mr-xs" />Requiere plan especial
+                  <q-icon name="lock" size="13px" class="q-mr-xs" />{{ specialLockedLabel(slot) }}
                 </span>
               </template>
               <template v-else>
@@ -814,9 +833,14 @@
                 @click="onActivityNameTap(slot, $event)"
                 >{{ slot.activityName }}</span
               >
+              <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
+                >Profe {{ slot.coachFirstName }}</span
+              >
               <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
               <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
-                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
+                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />{{
+                  specialBadgeLabel(slot)
+                }}
               </q-badge>
             </div>
             <div class="slot-card__right">
@@ -849,7 +873,7 @@
               <!-- Phase 162 (APP-01): estados de la actividad especial. Se evalúan
                    DESPUÉS de holiday/attended/booked/full/past (que conservan prioridad).
                    Bloqueo en olive/grey, nunca rojo (no es error, es condición de acceso). -->
-              <template v-else-if="slot.isSpecial && especialReservable">
+              <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'reservable'">
                 <!-- E1/E4: plan especial con saldo → flujo de reserva normal -->
                 <span v-if="slot.isFull" class="slot-card__avail slot-card__avail--full"
                   >Completo</span
@@ -871,14 +895,14 @@
                   />
                 </template>
               </template>
-              <template v-else-if="slot.isSpecial && userStore.hasEspecialPass">
-                <!-- E2: plan especial sin saldo (0/2) — pill apagada, sin botón -->
-                <span class="slot-card__pill slot-card__pill--muted">Usaste tus 2 clases</span>
+              <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'exhausted'">
+                <!-- E2: pase de la línea sin saldo (0/N) — pill apagada, sin botón -->
+                <span class="slot-card__pill slot-card__pill--muted">Usaste tus clases</span>
               </template>
               <template v-else-if="slot.isSpecial">
-                <!-- E3: socio sin plan especial — afordancia informativa, abre el dialog al tocar -->
+                <!-- E3: socio sin el pase de ESTA línea — afordancia informativa, abre el dialog al tocar -->
                 <span class="slot-card__pill slot-card__pill--locked">
-                  <q-icon name="lock" size="13px" class="q-mr-xs" />Requiere plan especial
+                  <q-icon name="lock" size="13px" class="q-mr-xs" />{{ specialLockedLabel(slot) }}
                 </span>
               </template>
               <template v-else>
@@ -1107,21 +1131,20 @@
       </q-card>
     </q-dialog>
 
-    <!-- Phase 162-05 (APP-03/D-02): dialog informativo de "Actividades con Aura".
-         Se dispara desde E3 (tap en especial sin plan especial) y desde el backend
-         (code PASS_REQUIRED). SIN pago in-app ni CTA de compra — la venta es por
+    <!-- Phase 162-05 (APP-03/D-02): dialog informativo del pase especial. Se dispara
+         desde E3 (tap en especial sin el pase de su línea) y desde el backend
+         (code PASS_REQUIRED). Consciente de la LÍNEA (Aura, Yoga...) que lo abrió y sin
+         precios (cambian). SIN pago in-app ni CTA de compra — la venta es por
          gestión/PoS. Un único botón "Entendido". Acento dorado (Aura). NOT persistent. -->
     <q-dialog v-model="showAuraInfoDialog">
       <q-card class="aura-dialog">
         <q-card-section class="aura-dialog__body">
           <q-icon class="aura-dialog__icon" name="auto_awesome" size="2.5em" />
-          <h3 class="aura-dialog__title">Actividades con Aura</h3>
+          <h3 class="aura-dialog__title">{{ passInfoTitle }}</h3>
           <p class="aura-dialog__text">
-            Son clases especiales de nuestros profes, además de tu plan. Con el plan especial
-            reservás <strong>2 clases por mes</strong>.
+            Esta clase se reserva con el pase de <strong>{{ passInfoLine }}</strong
+            >, aparte de tu plan. Pedilo en la recepción de tu sede.
           </p>
-          <p class="aura-dialog__price">Socios: $10.000 · No socios: $20.000 por mes.</p>
-          <p class="aura-dialog__text">Consultá en recepción o con tu profe para sumarte.</p>
         </q-card-section>
 
         <q-card-actions class="aura-dialog__actions">
@@ -1163,6 +1186,14 @@ import type {
 } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
+import {
+  fullLineLabel,
+  passChipLabel,
+  passHasBalance,
+  sameSpecialLine,
+  shortLineLabel,
+  specialSlotState,
+} from 'src/utils/special-line'
 import { extractError } from 'src/utils/extract-error'
 import type {
   WeeklySlotView,
@@ -1226,20 +1257,25 @@ const canAccessGrid = computed(
   () => userStore.hasPresencialReservationAccess || userStore.hasEspecialPass,
 )
 
-// E1/E4: hay saldo del plan especial para reservar (user-level, no depende del slot).
-const especialReservable = computed(
-  () =>
-    userStore.hasEspecialPass &&
-    (userStore.especialUnlimited || userStore.especialClassesRemaining > 0),
-)
+// Estado de una clase especial según el pase de SU línea (2026-09-29): un pase de
+// Yoga no habilita una clase Aura ni al revés. E1/E4 reservable · E2 sin saldo · E3
+// sin pase de esa línea.
+function slotSpecialState(slot: WeeklySlotView) {
+  return specialSlotState(userStore.especialPasses, slot.specialLine ?? null)
+}
 
-// Chip contador. Ilimitado → "Ilimitado"; con cupo x/budget; en 0/budget copy apagado.
-const especialChipLabel = computed(() => {
-  if (userStore.especialUnlimited) return 'Especiales · Ilimitado'
-  return userStore.especialClassesRemaining <= 0
-    ? `Especiales · 0/${userStore.especialClassesBudget} · se renuevan el próximo mes`
-    : `Especiales · ${userStore.especialClassesRemaining}/${userStore.especialClassesBudget}`
-})
+// Texto del distintivo dorado: la línea Aura conserva "Especial"; las demás muestran
+// su nombre (ej. "Yoga").
+function specialBadgeLabel(slot: WeeklySlotView): string {
+  return slot.specialLine ? shortLineLabel(slot.specialLine) : 'Especial'
+}
+
+// Afordancia E3: la línea Aura conserva "Requiere plan especial".
+function specialLockedLabel(slot: WeeklySlotView): string {
+  return slot.specialLine
+    ? `Requiere pase de ${shortLineLabel(slot.specialLine)}`
+    : 'Requiere plan especial'
+}
 
 // Differentiated empty-state copy: "no plan at all" vs "wrong plan type".
 const emptyTitle = computed(() =>
@@ -1435,6 +1471,15 @@ const showCoverageDialog = ref(false)
 // (tap en una especial sin plan) y desde el catch de confirmReserve ante code
 // PASS_REQUIRED (espejo de COVERAGE_EXPIRED). Informativo, SIN pago in-app.
 const showAuraInfoDialog = ref(false)
+// Línea (null = Aura) de la clase que abrió el dialog — define título y texto.
+const passInfoSpecialLine = ref<string | null>(null)
+const passInfoTitle = computed(() => fullLineLabel(passInfoSpecialLine.value))
+const passInfoLine = computed(() => shortLineLabel(passInfoSpecialLine.value))
+
+function openPassInfoDialog(line: string | null) {
+  passInfoSpecialLine.value = line
+  showAuraInfoDialog.value = true
+}
 
 // Plan 180-13 (D-18/RES-05): hoja de detalle de actividad. El título viaja
 // TAL CUAL la etiqueta visible del slot (activityName, ya derivada server-side
@@ -1727,8 +1772,7 @@ function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
   return {
     'slot-card--booked': isSlotBooked(slot) && !isSlotAttended(slot),
     'slot-card--attended': isSlotAttended(slot),
-    'slot-card--full':
-      slotIsFull(slot) && !isSlotBooked(slot) && !isSlotAttended(slot),
+    'slot-card--full': slotIsFull(slot) && !isSlotBooked(slot) && !isSlotAttended(slot),
     'slot-card--holiday': isSlotHoliday(slot),
     'slot-card--past': isSlotPast(slot) && !isSlotBooked(slot) && !isSlotAttended(slot),
     'slot-card--available':
@@ -1877,15 +1921,19 @@ function onSlotTap(slot: WeeklySlotView) {
 
   // Phase 162 (APP-01): estados del plan especial. E3 (sin plan) → dialog informativo;
   // E2 (0/2) → toast; E1 (con saldo) cae al flujo de reserva normal de abajo.
+  // El estado es POR LÍNEA: el pase de Yoga no habilita una clase Aura ni al revés.
   if (slot.isSpecial) {
-    if (!userStore.hasEspecialPass) {
-      showAuraInfoDialog.value = true
+    const state = slotSpecialState(slot)
+    if (state === 'no-pass') {
+      openPassInfoDialog(slot.specialLine ?? null)
       return
     }
-    if (!userStore.especialUnlimited && userStore.especialClassesRemaining <= 0) {
+    if (state === 'exhausted') {
       $q.notify({
         type: 'info',
-        message: 'Ya usaste tus accesos especiales del mes. Se renuevan con tu próximo período.',
+        message: slot.specialLine
+          ? `Ya usaste todas las clases de tu pase de ${shortLineLabel(slot.specialLine)}.`
+          : 'Ya usaste tus accesos especiales del mes. Se renuevan con tu próximo período.',
         timeout: 3000,
       })
       return
@@ -1901,11 +1949,13 @@ function onSlotTap(slot: WeeklySlotView) {
   // El choque diario es POR CATEGORÍA, igual que la guarda 8b del server: una
   // especial (pase Aura) no colisiona con una regular del mismo día — el socio
   // puede tener ROM el sábado y la clase con Aura ese mismo sábado. Sin este
-  // filtro la app ofrecía "Cambiar horario" y le cancelaba la otra reserva.
+  // filtro la app ofrecía "Cambiar horario" y le cancelaba la otra reserva. Entre
+  // especiales el choque es POR LÍNEA (yoga + Aura el mismo día están permitidos).
   const existingBooking = myBookings.value.find(
     (b) =>
       b.bookingDate === date &&
       b.isSpecial === slot.isSpecial &&
+      (!slot.isSpecial || sameSpecialLine(b.specialLine, slot.specialLine)) &&
       ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
   )
 
@@ -1988,7 +2038,10 @@ async function confirmReserve() {
     // (161-06). Espeja COVERAGE_EXPIRED: abre el dialog informativo, sin pago (D-02).
     if (axios.isAxiosError(err) && err.response?.data?.code === 'PASS_REQUIRED') {
       reserveDialog.value.show = false
-      showAuraInfoDialog.value = true
+      // La línea sale del slot que se intentó reservar (el server nombra la línea
+      // en el mensaje, pero acá la resolvemos por scheduleId).
+      const blocked = slots.value.find((s) => s.id === reserveDialog.value.scheduleId)
+      openPassInfoDialog(blocked?.specialLine ?? null)
       log.info('Reserve blocked: especial pass required')
       return
     }
@@ -2450,6 +2503,7 @@ onBeforeUnmount(() => cleanup())
 // Acento dorado "Aura" (RESERVADO). En 0/2 pasa a olive apagado.
 .especial-chip-row {
   display: flex;
+  flex-wrap: wrap; // un chip por pase (Aura, Yoga...)
   justify-content: center;
 }
 
@@ -2925,6 +2979,14 @@ onBeforeUnmount(() => cleanup())
   &__time {
     display: flex;
     flex-direction: column;
+  }
+
+  // 2026-09-29: profe propio del horario (ej. la profe de yoga dentro del turno de
+  // otro profe). Línea secundaria discreta bajo el nombre de la actividad.
+  &__coach {
+    font-size: 11px;
+    color: $grey-6;
+    margin-top: 1px;
   }
 
   &__hour {

@@ -236,3 +236,105 @@ describe('useUserStore — pase especial (APP-02)', () => {
     expect(store.hasEspecialPass).toBe(false)
   })
 })
+
+describe('useUserStore — pases por línea (2026-09-29)', () => {
+  const auraPass = {
+    specialLine: null,
+    lineLabel: 'Actividades con Aura',
+    planName: 'Aura 2 clases',
+    classesRemaining: 0,
+    classesBudget: 2,
+    endDate: '2026-10-31',
+    isSocio: true,
+  }
+  const yogaPass = {
+    specialLine: 'Yoga',
+    lineLabel: 'Yoga',
+    planName: 'Yoga pack 4',
+    classesRemaining: 3,
+    classesBudget: 4,
+    endDate: '2026-11-15',
+    isSocio: false,
+  }
+
+  it('expone un pase por línea y especialPassForLine resuelve por línea (case-insensitive)', async () => {
+    routeApi({
+      [ESPECIAL_PASS_URL]: {
+        status: 200,
+        data: {
+          hasPass: true,
+          classesRemaining: auraPass.classesRemaining,
+          classesBudget: auraPass.classesBudget,
+          endDate: auraPass.endDate,
+          isSocio: true,
+          passes: [auraPass, yogaPass],
+        },
+      },
+    })
+    const { useUserStore } = await import('src/stores/useUserStore')
+    const store = useUserStore()
+    await store.loadEspecialPass()
+
+    expect(store.especialPasses).toHaveLength(2)
+    expect(store.especialPassForLine(null)?.planName).toBe('Aura 2 clases')
+    expect(store.especialPassForLine('yoga')?.classesRemaining).toBe(3)
+    expect(store.especialPassForLine(' YOGA ')?.planName).toBe('Yoga pack 4')
+    expect(store.especialPassForLine('Pilates')).toBeNull()
+  })
+
+  it('solo pase de Yoga: no hay pase de la línea Aura (null solo matchea null)', async () => {
+    routeApi({
+      [ESPECIAL_PASS_URL]: {
+        status: 200,
+        data: {
+          hasPass: true,
+          classesRemaining: 3,
+          classesBudget: 4,
+          endDate: null,
+          isSocio: false,
+          passes: [yogaPass],
+        },
+      },
+    })
+    const { useUserStore } = await import('src/stores/useUserStore')
+    const store = useUserStore()
+    await store.loadEspecialPass()
+
+    expect(store.hasEspecialPass).toBe(true)
+    expect(store.especialPassForLine(null)).toBeNull()
+    expect(store.especialPassForLine('Yoga')).not.toBeNull()
+  })
+
+  it('payload viejo sin `passes` → un único pase de la línea Aura con los campos sueltos', async () => {
+    routeApi({
+      [ESPECIAL_PASS_URL]: {
+        status: 200,
+        data: {
+          hasPass: true,
+          classesRemaining: null,
+          classesBudget: null,
+          endDate: null,
+          isSocio: false,
+        },
+      },
+    })
+    const { useUserStore } = await import('src/stores/useUserStore')
+    const store = useUserStore()
+    await store.loadEspecialPass()
+
+    expect(store.especialPasses).toHaveLength(1)
+    const pass = store.especialPassForLine(null)
+    expect(pass?.classesRemaining).toBeNull() // ilimitado se preserva
+    expect(pass?.lineLabel).toBe('Actividades con Aura')
+  })
+
+  it('sin pase → especialPasses vacío', async () => {
+    routeApi({ [ESPECIAL_PASS_URL]: { status: 200, data: { hasPass: false, passes: [] } } })
+    const { useUserStore } = await import('src/stores/useUserStore')
+    const store = useUserStore()
+    await store.loadEspecialPass()
+
+    expect(store.especialPasses).toEqual([])
+    expect(store.especialPassForLine(null)).toBeNull()
+  })
+})
