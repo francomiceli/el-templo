@@ -35,6 +35,7 @@ import {
 import { dateToWeekNumber } from "../shared/week-dates";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
 import {
+  firstNameOnly,
   getEffectiveRosterCells,
   slotFromStartTime,
 } from "../ratings/roster-attribution";
@@ -227,6 +228,7 @@ export class SchedulingService {
           eq(schema.schedules.isActive, true),
         );
 
+    const slotCoach = alias(schema.users, "slot_coach");
     const scheduleRows = await this.db
       .select({
         id: schema.schedules.id,
@@ -242,6 +244,10 @@ export class SchedulingService {
         activityMaxCapacity: schema.activities.maxCapacity,
         // Phase 162-01 (APP-01): special-activity flag for the member badge.
         isSpecial: schema.activities.isSpecial,
+        specialLine: schema.activities.specialLine,
+        // 2026-09-29: profe propio del horario (pisa al del turno).
+        coachUserId: schema.schedules.coachUserId,
+        slotCoachFirstName: slotCoach.firstName,
         dayOfWeek: schema.schedules.dayOfWeek,
         startTime: schema.schedules.startTime,
         endTime: schema.schedules.endTime,
@@ -262,6 +268,13 @@ export class SchedulingService {
         and(
           tenantWhere(schema.activities, ctx),
           eq(schema.activities.id, schema.schedules.activityId),
+        ),
+      )
+      .leftJoin(
+        slotCoach,
+        and(
+          tenantWhere(slotCoach, ctx),
+          eq(slotCoach.id, schema.schedules.coachUserId),
         ),
       )
       .where(scheduleFilter)
@@ -323,11 +336,7 @@ export class SchedulingService {
     const coachFirstNameByDaySlot = new Map<string, string | null>();
     for (const cell of rosterCells) {
       const key = `${cell.dayOfWeek}|${cell.slot}`;
-      const trimmedFirst = cell.firstName?.trim() ?? "";
-      // Nombre de pila = solo la primera palabra de users.first_name (puede
-      // traer más de un nombre, p.ej. "Juan Pablo").
-      const firstWord = trimmedFirst.split(/\s+/)[0] ?? "";
-      coachFirstNameByDaySlot.set(key, firstWord === "" ? null : firstWord);
+      coachFirstNameByDaySlot.set(key, firstNameOnly(cell.firstName));
     }
 
     // Batch-fetch confirmed booking counts (single GROUP BY instead of N+1).
@@ -457,9 +466,16 @@ export class SchedulingService {
       // App 1.7.9: mismo turno (mañana/tarde) que usa el roster — derivado
       // del startTime del slot, no duplicado (slotFromStartTime vive en
       // roster-attribution.ts, fuente única).
+      //
+      // 2026-09-29: el profe propio del horario (schedules.coach_user_id)
+      // pisa al del turno SOLO para este horario (yoga de Moreno dentro del
+      // turno de otro profe). Sin profe propio, sigue la regla del roster.
       const coachSlot = slotFromStartTime(row.startTime);
-      const coachFirstName =
-        coachFirstNameByDaySlot.get(`${row.dayOfWeek}|${coachSlot}`) ?? null;
+      const coachOverride = row.coachUserId !== null;
+      const coachFirstName = coachOverride
+        ? firstNameOnly(row.slotCoachFirstName)
+        : (coachFirstNameByDaySlot.get(`${row.dayOfWeek}|${coachSlot}`) ??
+          null);
 
       slots.push({
         id: row.id,
@@ -489,7 +505,10 @@ export class SchedulingService {
         exceptionReason: exception?.reason ?? null,
         unconfirmedAttendance: 0,
         isSpecial: row.isSpecial,
+        specialLine: row.specialLine ?? null,
+        coachUserId: row.coachUserId ?? null,
         coachFirstName,
+        coachOverride,
       });
     }
 
@@ -622,6 +641,7 @@ export class SchedulingService {
       endDate: r.endDate ?? null,
       // Todas las reservas de este roster son del mismo slot.
       isSpecial: slot.isSpecial,
+      specialLine: slot.specialLine,
       memberBranchId: r.memberBranchId,
       memberBranchName: r.memberBranchName ?? null,
     }));
@@ -999,6 +1019,65 @@ export class SchedulingService {
       { scheduleId, activityId },
       "Schedule activity updated (bookings retained)",
     );
+
+    const updated = await this.getScheduleSlot(ctx, scheduleId);
+    if (!updated) throw new Error("Failed to retrieve updated schedule");
+    return updated;
+  }
+
+  /**
+   * Profe propio del horario (2026-09-29, yoga de Moreno). Pisa al profe del
+   * turno del roster (class_coach_assignments, por día y mañana/tarde) SOLO
+   * para este horario: grilla del app, calificaciones y reportes lo toman de
+   * acá. `null` vuelve a heredar el del turno.
+   *
+   * Mismo criterio de "asignable" que el roster (RatingsService.upsertRoster):
+   * usuario con rol coach y con acceso a la sede del horario.
+   */
+  async updateScheduleCoach(
+    ctx: TenantContext,
+    scheduleId: number,
+    coachUserId: number | null,
+  ): Promise<ScheduleSlot> {
+    const existing = await this.getScheduleSlot(ctx, scheduleId);
+    if (!existing) throw new NotFoundError("Horario no encontrado");
+
+    if (coachUserId !== null) {
+      const [coachRow] = await this.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .innerJoin(
+          schema.userBranches,
+          and(
+            tenantWhere(schema.userBranches, ctx),
+            eq(schema.userBranches.userId, schema.users.id),
+          ),
+        )
+        .where(
+          and(
+            tenantWhere(schema.users, ctx),
+            eq(schema.users.id, coachUserId),
+            eq(schema.users.role, "coach"),
+            eq(schema.userBranches.branchId, existing.branchId),
+          ),
+        )
+        .limit(1);
+      if (!coachRow) {
+        throw new BadRequestError("El profe no pertenece a esta sucursal");
+      }
+    }
+
+    await this.db
+      .update(schema.schedules)
+      .set({ coachUserId })
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
+
+    this.log.info({ scheduleId, coachUserId }, "Schedule coach updated");
 
     const updated = await this.getScheduleSlot(ctx, scheduleId);
     if (!updated) throw new Error("Failed to retrieve updated schedule");
@@ -1398,6 +1477,8 @@ export class SchedulingService {
         inactiveReason: schema.schedules.inactiveReason,
         deactivatedAt: schema.schedules.deactivatedAt,
         isSpecial: schema.activities.isSpecial,
+        specialLine: schema.activities.specialLine,
+        coachUserId: schema.schedules.coachUserId,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -1435,6 +1516,8 @@ export class SchedulingService {
       inactiveReason: row.inactiveReason,
       deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
       isSpecial: row.isSpecial,
+      specialLine: row.specialLine ?? null,
+      coachUserId: row.coachUserId ?? null,
     };
   }
 }

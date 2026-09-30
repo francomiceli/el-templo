@@ -26,6 +26,11 @@ export interface ActivityRecord {
   maxCapacity: number | null;
   // ACT-01 (fase 161): flag de gating del pase "Actividades con Aura".
   isSpecial: boolean;
+  /**
+   * Línea del pase especial (2026-09-29): solo la habilita un pase de la misma
+   * línea. NULL = "Actividades con Aura". Siempre NULL si no es especial.
+   */
+  specialLine: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,6 +56,13 @@ export interface ScheduleSlot {
   deactivatedAt: string | null;
   /** Categoría de la actividad del slot (activities.is_special). */
   isSpecial: boolean;
+  /** Línea del pase especial de la actividad (NULL = Aura / regular). */
+  specialLine: string | null;
+  /**
+   * Profe propio del horario (schedules.coach_user_id, 2026-09-29). Pisa al
+   * profe del turno del roster solo para este horario. NULL = hereda el turno.
+   */
+  coachUserId: number | null;
 }
 
 export interface WeeklySlotView extends ScheduleSlot {
@@ -91,6 +103,12 @@ export interface WeeklySlotView extends ScheduleSlot {
    * única de la regla). `null` cuando no hay change-point vigente.
    */
   coachFirstName: string | null;
+  /**
+   * 2026-09-29: true cuando `coachFirstName` sale del profe propio del
+   * horario (`coachUserId`) y no del turno. La app lo usa para no mezclar ese
+   * profe en el encabezado del turno y mostrarlo en la tarjeta del horario.
+   */
+  coachOverride: boolean;
 }
 
 export interface BookingRecord {
@@ -124,6 +142,9 @@ export interface BookingRecord {
   // el server (reserve() 8b): una especial (pase Aura) no choca con una
   // regular del mismo día.
   isSpecial: boolean;
+  // Línea del pase especial de la actividad reservada (NULL = Aura/regular):
+  // la regla diaria de especiales es por línea (yoga no choca con Aura).
+  specialLine: string | null;
   // 2026-09-26 (feat/admin-sede-visitantes): sede DE ORIGEN del socio
   // reservado (`users.branch_id`), para el chip "Visita · <Sede>" del roster
   // admin cuando difiere de la sede del slot. Poblado por `getSlotDetail`

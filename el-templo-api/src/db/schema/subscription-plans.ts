@@ -55,6 +55,10 @@ export const subscriptionPlans = mysqlTable(
     // (exige presencial activo al asignar/renovar), false = Externo. Default false → planes
     // no-especiales no lo usan (cero cambio de comportamiento).
     requiresPresencial: boolean("requires_presencial").default(false).notNull(),
+  // Línea del pase especial (2026-09-29): el pase solo sirve para las
+  // actividades especiales con la misma línea. NULL = "Actividades con Aura".
+  // Solo aplica a planCategory 'especial' (ver scheduling/special-line.ts).
+  specialLine: varchar("special_line", { length: 50 }),
     multiBranch: boolean("multi_branch").default(false).notNull(),
     isTrial: boolean("is_trial").default(false).notNull(),
     isGroup: boolean("is_group").default(false).notNull(),

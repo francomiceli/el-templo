@@ -37,6 +37,15 @@ export function isoWeekStart(dateStr: string): string {
   return getWeekRange(new Date(dateStr + "T12:00:00Z")).monday;
 }
 
+/**
+ * Nombre de pila para mostrar: solo la primera palabra de users.first_name
+ * (puede traer más de un nombre, p.ej. "Juan Pablo"). Vacío → null.
+ */
+export function firstNameOnly(firstName: string | null | undefined): string | null {
+  const firstWord = (firstName?.trim() ?? "").split(/\s+/)[0] ?? "";
+  return firstWord === "" ? null : firstWord;
+}
+
 /** Turno derivado del startTime "HH:MM" del schedule: <12:00 = morning (D-A1). */
 export function slotFromStartTime(startTime: string): ClassSlot {
   return startTime < "12:00" ? "morning" : "afternoon";

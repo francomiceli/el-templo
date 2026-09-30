@@ -26,6 +26,7 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../modules/shared/tenant";
+import { normalizeSpecialLine } from "../modules/scheduling/special-line";
 
 const log = pino({ name: "mark-no-shows" });
 
@@ -150,6 +151,7 @@ async function runMarkNoShowsForTenantTz(
       id: bookings.id,
       memberId: bookings.memberId,
       isSpecial: schema.activities.isSpecial,
+      specialLine: schema.activities.specialLine,
     })
     .from(bookings)
     .innerJoin(schema.schedules, eq(schema.schedules.id, bookings.scheduleId))
@@ -184,19 +186,27 @@ async function runMarkNoShowsForTenantTz(
     .set({ status: "no_show" })
     .where(and(tenantWhere(bookings, ctx), inArray(bookings.id, ids)));
 
-  // Group no-shows by (member, is-special) so each bucket decrements the right
-  // subscription. A member with a regular AND a special no-show on the same
-  // sweep gets both subs decremented independently.
+  // Group no-shows by (member, is-special, línea) so each bucket decrements
+  // the right subscription. A member with a regular AND a special no-show on
+  // the same sweep gets both subs decremented independently, and a yoga
+  // no-show never touches the Aura pass (2026-09-29, línea del pase).
   const memberCounts = new Map<
     string,
-    { memberId: number; isSpecial: boolean; count: number }
+    {
+      memberId: number;
+      isSpecial: boolean;
+      specialLine: string | null;
+      count: number;
+    }
   >();
   for (const b of toMark) {
     const isSpecial = !!b.isSpecial;
-    const key = `${b.memberId}:${isSpecial ? 1 : 0}`;
+    const specialLine = isSpecial ? normalizeSpecialLine(b.specialLine) : null;
+    const key = `${b.memberId}:${isSpecial ? 1 : 0}:${specialLine?.toLowerCase() ?? ""}`;
     const entry = memberCounts.get(key) ?? {
       memberId: b.memberId,
       isSpecial,
+      specialLine,
       count: 0,
     };
     entry.count += 1;
@@ -206,11 +216,17 @@ async function runMarkNoShowsForTenantTz(
   const subscriptionService = buildSubscriptionService(db);
 
   let decremented = 0;
-  for (const { memberId, isSpecial, count } of memberCounts.values()) {
+  for (const {
+    memberId,
+    isSpecial,
+    specialLine,
+    count,
+  } of memberCounts.values()) {
     const sub = await subscriptionService.pickSubscriptionForActivity(
       ctx,
       memberId,
       isSpecial,
+      specialLine,
     );
 
     if (!sub || sub.classesRemaining === null || sub.classesRemaining <= 0) {

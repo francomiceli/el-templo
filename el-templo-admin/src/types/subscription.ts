@@ -171,6 +171,11 @@ export interface PlanListItem {
   monthlyClassBudget: number | null;
   /** Solo `especial`: pase Socio (exige presencial activo) vs Externo. */
   requiresPresencial: boolean;
+  /**
+   * Solo `especial`: línea del pase. Solo habilita actividades especiales de la
+   * misma línea. `null` = "Actividades con Aura".
+   */
+  specialLine: string | null;
   multiBranch: boolean;
   isTrial: boolean;
   isGroup: boolean;
@@ -209,6 +214,8 @@ export interface CreatePlanInput {
   classesPerWeek?: number;
   monthlyClassBudget?: number;
   requiresPresencial?: boolean;
+  /** Solo `especial` (el server responde 400 en otra categoría). */
+  specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
@@ -233,6 +240,8 @@ export interface UpdatePlanInput {
   classesPerWeek?: number | null;
   monthlyClassBudget?: number | null;
   requiresPresencial?: boolean;
+  /** Solo `especial` (el server responde 400 en otra categoría). */
+  specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
@@ -255,6 +264,8 @@ export interface SubscriptionDetail {
   planName: string;
   planTier: PlanTier;
   planCategory: PlanCategory;
+  /** Solo `especial`: línea del pase (`null` = "Actividades con Aura"). */
+  specialLine?: string | null;
   branchId: number;
   branchName: string;
   status: SubscriptionStatus;

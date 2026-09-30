@@ -28,6 +28,11 @@ export interface ActivityRecord {
    * (enforcement server-side, fase 161). Mirrors the API (phase 161-05).
    */
   isSpecial: boolean;
+  /**
+   * Línea del pase especial: solo la habilita un pase de la misma línea.
+   * `null` = "Actividades con Aura". Siempre `null` si no es especial.
+   */
+  specialLine: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +54,13 @@ export interface ScheduleSlot {
    * scope "bookings that will be restored" to the deactivation window.
    */
   deactivatedAt: string | null;
+  /** Línea del pase especial de la actividad (`null` = Aura / regular). */
+  specialLine: string | null;
+  /**
+   * Profe propio del horario. Pisa al profe del turno del roster solo para
+   * este horario. `null` = hereda el turno.
+   */
+  coachUserId: number | null;
 }
 
 /**
@@ -77,6 +89,10 @@ export interface WeeklySlotView extends ScheduleSlot {
    */
   cancelledForDate: boolean;
   exceptionReason: string | null;
+  /** Nombre efectivo del profe: el propio del horario si tiene, si no el del turno. */
+  coachFirstName: string | null;
+  /** `true` cuando `coachFirstName` sale del profe propio del horario (`coachUserId`). */
+  coachOverride: boolean;
 }
 
 /** Phase 102-06: coach-facing trial list response, grouped by branch. */

@@ -711,6 +711,9 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PATCH /api/admin/scheduling/schedules/:scheduleId/activity": {
     categoria: "tenant-scoped",
   },
+  "PATCH /api/admin/scheduling/schedules/:scheduleId/coach": {
+    categoria: "tenant-scoped",
+  },
   "PATCH /api/admin/scheduling/schedules/:scheduleId/time": {
     categoria: "tenant-scoped",
   },
@@ -989,6 +992,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // Fase 179-08 (D-05/D-06): activa la semana de regalo (subscriptions) y
   // consume el beneficio (partner_referrals) en el mismo request.
   "POST /api/members/scheduling/reserve-partner-week": {
+    categoria: "tenant-scoped",
+  },
+  // 2026-09-29 (yoga de Moreno): clase de prueba gratis de un pase especial —
+  // asigna el pase de $0 (subscriptions) y reserva el turno (bookings) en un
+  // request, tenant desde `assertTenant`.
+  "POST /api/members/scheduling/especial-trial": {
     categoria: "tenant-scoped",
   },
   "POST /api/members/scheduling/reserve-trial": { categoria: "tenant-scoped" },

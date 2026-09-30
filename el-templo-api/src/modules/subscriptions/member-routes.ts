@@ -23,6 +23,8 @@ import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantWhere } from "../shared/tenant";
 import { todayInTz } from "../shared/date-utils";
 import { especialPassSchema } from "./schemas";
+import { specialLineLabel } from "../scheduling/special-line";
+import { getEspecialTrialLines } from "../scheduling/especial-trial-service";
 
 const AR_TIMEZONE = "America/Argentina/Buenos_Aires";
 
@@ -196,26 +198,54 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         request.user.userId,
       );
 
-      const pass = subs.find(
+      // 2026-09-29 (línea del pase): puede haber un pase por línea (Aura,
+      // Yoga...). Se devuelven todos en `passes`; los campos sueltos siguen
+      // describiendo el primero para los builds del app anteriores a 1.8.0.
+      const activePasses = subs.filter(
         (s) =>
           categoryGroup(s.planCategory) === "especial" &&
           (s.status === "active" || s.status === "paused"),
       );
 
-      if (!pass) {
-        return { hasPass: false };
+      // 2026-09-29 (clase de prueba de Yoga): líneas donde el socio puede
+      // tomar una clase gratis. Campo aditivo, los builds viejos lo ignoran.
+      const trialLines = await getEspecialTrialLines(
+        fastify.db,
+        ctx,
+        request.user.userId,
+      );
+
+      if (activePasses.length === 0) {
+        return { hasPass: false, passes: [], trialLines };
       }
 
-      const plan = await subscriptionService.getPlanById(ctx, pass.planId);
+      const passes = await Promise.all(
+        activePasses.map(async (pass) => {
+          const plan = await subscriptionService.getPlanById(ctx, pass.planId);
+          return {
+            specialLine: pass.specialLine,
+            lineLabel: specialLineLabel(pass.specialLine),
+            planName: pass.planName,
+            // null = acceso ilimitado (plan con monthly_class_budget NULL). NO
+            // colapsar a 0 — el 0 significaría "cupo agotado" y la app
+            // bloquearía la reserva.
+            classesRemaining: pass.classesRemaining ?? null,
+            classesBudget: pass.classesBudget ?? null,
+            endDate: pass.endDate,
+            isSocio: plan?.requiresPresencial ?? false,
+          };
+        }),
+      );
+      const first = passes[0];
 
       return {
         hasPass: true,
-        // null = acceso ilimitado (plan con monthly_class_budget NULL). NO colapsar
-        // a 0 — el 0 significaría "cupo agotado" y la app bloquearía la reserva.
-        classesRemaining: pass.classesRemaining ?? null,
-        classesBudget: pass.classesBudget ?? null,
-        endDate: pass.endDate,
-        isSocio: plan?.requiresPresencial ?? false,
+        classesRemaining: first.classesRemaining,
+        classesBudget: first.classesBudget,
+        endDate: first.endDate,
+        isSocio: first.isSocio,
+        passes,
+        trialLines,
       };
     },
   );

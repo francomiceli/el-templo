@@ -305,7 +305,12 @@ import {
 // `GET /api/admin/reports/trial-sessions/shifts`,
 // `PUT /api/admin/reports/trial-sessions/shifts/:branchId`
 // — las 3 `tenant-scoped` (mismo criterio que el resto de /api/admin/reports).
-const ENTRADAS_BASELINE = 444;
+// 2026-09-29: 444 -> 445 por el profe propio del horario (yoga de Moreno):
+// `PATCH /api/admin/scheduling/schedules/:scheduleId/coach` (owner-only),
+// `tenant-scoped`.
+// 2026-09-29: 445 -> 446 por la clase de prueba gratis de Yoga:
+// `POST /api/members/scheduling/especial-trial`, `tenant-scoped`.
+const ENTRADAS_BASELINE = 446;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -448,7 +453,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 444 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 446 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

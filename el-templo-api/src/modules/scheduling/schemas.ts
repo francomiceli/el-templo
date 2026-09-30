@@ -42,6 +42,8 @@ const activityRecordSchema = {
     // ACT-01 (fase 161): flag de gating del pase. Declarado aquí o
     // fast-json-stringify lo strippea y no llega al cliente/admin.
     isSpecial: { type: "boolean" },
+    // Línea del pase especial (2026-09-29). Declarada o se strippea.
+    specialLine: { type: ["string", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
   },
@@ -61,6 +63,10 @@ const scheduleSlotSchema = {
     isActive: { type: "boolean" },
     inactiveReason: { type: ["string", "null"] },
     deactivatedAt: { type: ["string", "null"] },
+    // 2026-09-29: línea del pase especial y profe propio del horario.
+    // Declarados aquí o fast-json-stringify los strippea.
+    specialLine: { type: ["string", "null"] },
+    coachUserId: { type: ["integer", "null"] },
   },
 } as const;
 
@@ -87,6 +93,8 @@ const weeklySlotViewSchema = {
     // atribuido al slot (class_coach_assignments, effective-dated), o null
     // sin roster vigente. Declarado aquí o fast-json-stringify lo strippea.
     coachFirstName: { type: ["string", "null"] },
+    // 2026-09-29: coachFirstName viene del profe propio del horario.
+    coachOverride: { type: "boolean" },
   },
 } as const;
 
@@ -131,6 +139,8 @@ const bookingRecordSchema = {
     // usa para aplicar la regla diaria por categoría igual que la guarda 8b
     // del server — sin esta propiedad fast-json-stringify la strippea.
     isSpecial: { type: "boolean" },
+    // Línea del pase especial (2026-09-29): la regla diaria es por línea.
+    specialLine: { type: ["string", "null"] },
     // 2026-09-26 (feat/admin-sede-visitantes): sede DE ORIGEN del socio
     // reservado, para el chip "Visita · <Sede>" del roster admin. `null` en
     // los lookups de una sola reserva (adminAddBooking/adminRemoveBooking).
@@ -178,6 +188,8 @@ export const createActivitySchema = {
       maxCapacity: { type: ["integer", "null"], minimum: 1, maximum: 500 },
       // ACT-01 (fase 161): marcar la actividad como especial (requiere pase).
       isSpecial: { type: "boolean" },
+      // Línea del pase especial (2026-09-29). Vacío/null = Aura.
+      specialLine: { type: ["string", "null"], maxLength: 50 },
     },
   },
   response: {
@@ -217,6 +229,8 @@ export const updateActivitySchema = {
       maxCapacity: { type: ["integer", "null"], minimum: 1, maximum: 500 },
       // ACT-01 (fase 161): editar el flag de gating del pase.
       isSpecial: { type: "boolean" },
+      // Línea del pase especial (2026-09-29). Vacío/null = Aura.
+      specialLine: { type: ["string", "null"], maxLength: 50 },
     },
   },
   response: {
@@ -546,6 +560,30 @@ export const updateScheduleTimeSchema = {
     400: errorSchema,
     404: errorSchema,
     409: errorSchema,
+  },
+};
+
+// 2026-09-29: profe propio del horario. `null` vuelve a heredar el del turno.
+export const updateScheduleCoachSchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId"],
+    properties: {
+      scheduleId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["coachUserId"],
+    properties: {
+      coachUserId: { type: ["integer", "null"] },
+    },
+  },
+  response: {
+    200: scheduleSlotSchema,
+    400: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
   },
 };
 
@@ -1056,6 +1094,32 @@ export const reservePartnerWeekSchema = {
         classesRemaining: { type: ["integer", "null"] },
       },
     },
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+} as const;
+
+/**
+ * POST /api/members/scheduling/especial-trial (2026-09-29, yoga de Moreno)
+ *
+ * "Probá una clase gratis": asigna el pase de prueba de la línea del horario
+ * y reserva ese turno en un solo request. La línea y el plan salen del
+ * horario, server-side: el body no lleva planId ni línea
+ * (`additionalProperties: false`). Devuelve el mismo booking que `/reserve`.
+ */
+export const reserveEspecialTrialSchema = {
+  body: {
+    type: "object",
+    required: ["scheduleId", "date"],
+    properties: {
+      scheduleId: { type: "integer", minimum: 1 },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    201: bookingRecordSchema,
     400: errorSchema,
     404: errorSchema,
     409: errorSchema,

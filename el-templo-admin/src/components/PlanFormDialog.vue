@@ -164,6 +164,19 @@
                 label="Solo para socios con plan presencial vigente"
               />
             </div>
+            <!-- Línea del pase (2026-09-29): el pase solo habilita actividades
+                 especiales de su misma línea (Aura, Yoga...). -->
+            <div class="col-12 col-sm-6">
+              <q-input
+                v-model="form.specialLine"
+                label="Línea del pase"
+                dense
+                outlined
+                clearable
+                maxlength="50"
+                hint="Vacío = Actividades con Aura. El pase solo habilita actividades de esta línea."
+              />
+            </div>
           </div>
 
           <!-- Tier and Booking Mode (presencial only) -->
@@ -411,6 +424,7 @@ const form = ref({
   classesPerWeek: null as number | null,
   monthlyClassBudget: null as number | null,
   requiresPresencial: false,
+  specialLine: null as string | null,
   linkedProgramId: null as number | null,
   grantsAllPrograms: false,
   programIds: [] as number[],
@@ -554,6 +568,7 @@ watch(
     if (newCategory !== 'especial') {
       form.value.monthlyClassBudget = null;
       form.value.requiresPresencial = false;
+      form.value.specialLine = null;
     }
   }
 );
@@ -622,6 +637,7 @@ watch(
         classesPerWeek: props.plan.classesPerWeek,
         monthlyClassBudget: props.plan.monthlyClassBudget ?? null,
         requiresPresencial: props.plan.requiresPresencial ?? false,
+        specialLine: props.plan.specialLine ?? null,
         linkedProgramId: props.plan.linkedProgramId,
         grantsAllPrograms: props.plan.grantsAllPrograms ?? false,
         programIds: props.plan.programIds ?? [],
@@ -646,6 +662,7 @@ watch(
         classesPerWeek: null,
         monthlyClassBudget: null,
         requiresPresencial: false,
+        specialLine: null,
         linkedProgramId: null,
         grantsAllPrograms: false,
         programIds: [],
@@ -708,6 +725,9 @@ async function onSubmit() {
           : (monthlyClassBudgetValue.value ?? (isEditMode.value ? null : undefined))
         : undefined,
       requiresPresencial: isEspecial.value ? form.value.requiresPresencial : undefined,
+      // Solo el pase especial (el server responde 400 en otra categoría). Vacío
+      // = null (línea Aura); en edición el null también vacía una línea previa.
+      specialLine: isEspecial.value ? form.value.specialLine?.trim() || null : undefined,
       linkedProgramId: form.value.grantsAllPrograms
         ? undefined
         : (form.value.linkedProgramId ?? undefined),
