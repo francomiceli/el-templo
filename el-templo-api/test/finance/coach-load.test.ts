@@ -834,6 +834,44 @@ describe("coach-load autocompletar", () => {
     expect(body.amount).toBe(30000);
   });
 
+  it("autocompletar: período prorrateado hasta fin de mes → precarga el mes completo, no el proporcional", async () => {
+    // Alta prorrateada: vence el último día del mes del inicio y cobró solo
+    // los días sueltos. Inicio = hoy, salvo el día 1 (un alta el 1° de un mes
+    // de 31 días dura 30 días = el plan completo) → ayer. Calendario-seguro.
+    const today = new Date().toISOString().split("T")[0];
+    const start = today.endsWith("-01")
+      ? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+      : today;
+    const [y, m] = start.split("-").map(Number);
+    const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const monthEnd = `${start.slice(0, 7)}-${String(daysInMonth).padStart(2, "0")}`;
+    await app.db.insert(schema.subscriptions).values(
+      tenantValues(TEMPLO_CTX, {
+        userId: memberId,
+        planId,
+        branchId,
+        status: "active" as const,
+        startDate: start,
+        endDate: monthEnd,
+        pricePaid: 12000,
+        currency: "ARS",
+        priceTypeApplied: "regular" as const,
+      }),
+    );
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${COACH_LOAD_URL}/autocompletar/${memberId}`,
+      headers: { authorization: `Bearer ${coachToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.intent).toBe("renew");
+    // Precio de lista del plan (priceRegular 100000), no los 12000 prorrateados:
+    // es lo que cobra la renovación del server (resolveRenewalBase).
+    expect(body.amount).toBe(100000);
+  });
+
   it("autocompletar: hasRenewable=false when the member has no active sub", async () => {
     const res = await app.inject({
       method: "GET",

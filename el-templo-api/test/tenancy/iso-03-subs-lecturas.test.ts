@@ -20,6 +20,7 @@
  *   GET /api/admin/subscriptions/members/:userId/subscription/history
  *   GET /api/admin/subscriptions/members/:userId/subscription/change-plan-preview
  *   GET /api/admin/subscriptions/members/:userId/subscription/pricing-preview
+ *   GET /api/admin/subscriptions/members/:userId/subscription/renewal-preview
  *   GET /api/admin/subscriptions/members/:userId/class-usage
  *   GET /api/admin/subscriptions/subscriptions/:subscriptionId/schedule-changes
  *   GET /api/members/subscription/coverage
@@ -230,8 +231,16 @@ describe("precondiciones de la bateria", () => {
         await tenantDeLaFila(app, "bookings", t.bookingId),
         await tenantDeLaFila(app, "schedule_exceptions", t.scheduleExceptionId),
         await tenantDeLaFila(app, "holidays", t.holidayId),
-        await tenantDeLaFila(app, "subscription_schedule_changes", t.scheduleChangeId),
-        await tenantDeLaFila(app, "subscription_schedules", t.subscriptionScheduleId),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedule_changes",
+          t.scheduleChangeId,
+        ),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedules",
+          t.subscriptionScheduleId,
+        ),
       ],
       `Alguna fila ajena no quedo en El Templo (${TENANT_TEMPLO}). Sin recurso ajeno ` +
         `vivo, todos los casos de aislamiento de este archivo pasan probando nada. ` +
@@ -251,8 +260,16 @@ describe("precondiciones de la bateria", () => {
         await tenantDeLaFila(app, "bookings", d.bookingId),
         await tenantDeLaFila(app, "schedule_exceptions", d.scheduleExceptionId),
         await tenantDeLaFila(app, "holidays", d.holidayId),
-        await tenantDeLaFila(app, "subscription_schedule_changes", d.scheduleChangeId),
-        await tenantDeLaFila(app, "subscription_schedules", d.subscriptionScheduleId),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedule_changes",
+          d.scheduleChangeId,
+        ),
+        await tenantDeLaFila(
+          app,
+          "subscription_schedules",
+          d.subscriptionScheduleId,
+        ),
       ],
       `Alguna fila del gimnasio 2 nacio en otro gimnasio. Si el valor es ${TENANT_TEMPLO}, ` +
         `ese INSERT perdio su \`tenantValues(CTX_DOS, …)\` y cayo en el DEFAULT 1: el ` +
@@ -304,10 +321,9 @@ describe("catalogo de planes — GET /api/admin/subscriptions/plans", () => {
     expect(ids, porQueImportaElControl(RUTA, gym2.planId)).toContain(
       gym2.planId,
     );
-    expect(
-      ids,
-      porQueImportaElControl(RUTA, fx.dos.planEspecialId),
-    ).toContain(fx.dos.planEspecialId);
+    expect(ids, porQueImportaElControl(RUTA, fx.dos.planEspecialId)).toContain(
+      fx.dos.planEspecialId,
+    );
   });
 });
 
@@ -318,7 +334,8 @@ describe("detalle de plan — GET /api/admin/subscriptions/plans/:planId", () =>
     const res = await getAdminComoGimnasioDos(`/plans/${fx.templo.planId}`);
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.planId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.planId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -378,14 +395,16 @@ describe("catalogo de promo-plans — GET /api/admin/subscriptions/promo-plans",
       promoCode: string;
     }>;
     const propio = promos.find((p) => p.id === fx.dos.promoPlanId);
-    expect(propio, porQueImportaElControl(RUTA, fx.dos.promoPlanId)).toBeDefined();
+    expect(
+      propio,
+      porQueImportaElControl(RUTA, fx.dos.promoPlanId),
+    ).toBeDefined();
     expect(propio?.promoCode).toBe(fx.dos.promoCode);
   });
 });
 
 describe("suscripcion actual del socio — GET /api/admin/subscriptions/members/:userId/subscription", () => {
-  const RUTA =
-    "GET /api/admin/subscriptions/members/:userId/subscription";
+  const RUTA = "GET /api/admin/subscriptions/members/:userId/subscription";
 
   it("aislamiento: pedir el userId de El Templo da 404 (no la suscripcion ajena)", async () => {
     const res = await getAdminComoGimnasioDos(
@@ -393,7 +412,8 @@ describe("suscripcion actual del socio — GET /api/admin/subscriptions/members/
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.userId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.userId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -403,7 +423,8 @@ describe("suscripcion actual del socio — GET /api/admin/subscriptions/members/
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as { id: number; pricePaid: number };
     expect(body.id).toBe(fx.dos.subscriptionId);
@@ -412,8 +433,7 @@ describe("suscripcion actual del socio — GET /api/admin/subscriptions/members/
 });
 
 describe("TODAS las suscripciones del socio — GET /api/admin/subscriptions/members/:userId/subscriptions", () => {
-  const RUTA =
-    "GET /api/admin/subscriptions/members/:userId/subscriptions";
+  const RUTA = "GET /api/admin/subscriptions/members/:userId/subscriptions";
 
   it("aislamiento: pedir el userId de El Templo da un arreglo VACIO, nunca la suscripcion ajena", async () => {
     const res = await getAdminComoGimnasioDos(
@@ -489,7 +509,8 @@ describe("preview de cambio de plan — GET /api/admin/subscriptions/members/:us
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.userId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.userId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -499,7 +520,8 @@ describe("preview de cambio de plan — GET /api/admin/subscriptions/members/:us
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as {
       targetPlan: { id: number };
@@ -520,7 +542,8 @@ describe("preview de prorrateo de alta — GET /api/admin/subscriptions/members/
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.planId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.planId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -538,6 +561,50 @@ describe("preview de prorrateo de alta — GET /api/admin/subscriptions/members/
     };
     expect(body.daysInMonth).toBeGreaterThan(0);
     expect(body.currency).toBeTruthy();
+  });
+});
+
+describe("preview de renovación — GET /api/admin/subscriptions/members/:userId/subscription/renewal-preview", () => {
+  const RUTA =
+    "GET /api/admin/subscriptions/members/:userId/subscription/renewal-preview";
+
+  it("aislamiento: la suscripcion de El Templo da 404 (ni por userId ni por subscriptionId)", async () => {
+    // (a) socio ajeno, selección automática de la sub a renovar.
+    const resSocioAjeno = await getAdminComoGimnasioDos(
+      `/members/${fx.templo.userId}/subscription/renewal-preview`,
+    );
+    expect(
+      resSocioAjeno.statusCode,
+      porQueImportaLaLectura(RUTA, fx.templo.userId) +
+        ` (socio ajeno) Respuesta: ${resSocioAjeno.body}`,
+    ).toBe(404);
+
+    // (b) socio propio + subscriptionId ajeno: no revela el precio de El Templo.
+    const resSubAjena = await getAdminComoGimnasioDos(
+      `/members/${gym2.socios[0].id}/subscription/renewal-preview?subscriptionId=${fx.templo.subscriptionId}`,
+    );
+    expect(
+      resSubAjena.statusCode,
+      porQueImportaLaLectura(RUTA, fx.templo.subscriptionId) +
+        ` (subscriptionId ajeno) Respuesta: ${resSubAjena.body}`,
+    ).toBe(404);
+  });
+
+  it("control: con la suscripcion propia del gimnasio 2 SI devuelve la base", async () => {
+    const res = await getAdminComoGimnasioDos(
+      `/members/${gym2.socios[0].id}/subscription/renewal-preview?subscriptionId=${fx.dos.subscriptionId}`,
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, fx.dos.subscriptionId) +
+        ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    const body = JSON.parse(res.body) as {
+      subscriptionId: number;
+      base: number;
+    };
+    expect(body.subscriptionId).toBe(fx.dos.subscriptionId);
+    expect(body.base).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -574,7 +641,8 @@ describe("preview de pricing — GET /api/admin/subscriptions/members/:userId/su
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as { basePrice: number };
     const precioReal = await campoDeLaFila(
@@ -596,7 +664,8 @@ describe("uso de clases de la semana — GET /api/admin/subscriptions/members/:u
     );
     expect(
       res.statusCode,
-      porQueImportaLaLectura(RUTA, fx.templo.userId) + ` Respuesta: ${res.body}`,
+      porQueImportaLaLectura(RUTA, fx.templo.userId) +
+        ` Respuesta: ${res.body}`,
     ).toBe(404);
   });
 
@@ -606,7 +675,8 @@ describe("uso de clases de la semana — GET /api/admin/subscriptions/members/:u
     );
     expect(
       res.statusCode,
-      porQueImportaElControl(RUTA, gym2.socios[0].id) + ` Respuesta: ${res.body}`,
+      porQueImportaElControl(RUTA, gym2.socios[0].id) +
+        ` Respuesta: ${res.body}`,
     ).toBe(200);
     const body = JSON.parse(res.body) as {
       weeklyLimit: number | null;
@@ -693,9 +763,10 @@ describe("cobertura del socio — GET /api/members/subscription/coverage", () =>
       body.coveredUntil,
       porQueImportaElControl(RUTA, gym2.socios[0].id),
     ).toBe(fx.dos.subscriptionEndDate);
-    expect(body.daysRemaining, porQueImportaElControl(RUTA, gym2.socios[0].id)).toBeGreaterThanOrEqual(
-      0,
-    );
+    expect(
+      body.daysRemaining,
+      porQueImportaElControl(RUTA, gym2.socios[0].id),
+    ).toBeGreaterThanOrEqual(0);
   });
 });
 

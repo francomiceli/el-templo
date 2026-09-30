@@ -35,6 +35,8 @@ import type {
   SubscriptionDetail,
   AssignPlanInput,
   RenewSubscriptionInput,
+  RenewalBaseSource,
+  RenewalPreview,
   PricingPreview,
   BulkMigrateInput,
   BulkMigrateResult,
@@ -180,6 +182,34 @@ function computeProratedPrice(basePrice: number, startDate: string): number {
   const { daysCharged, daysInMonth } = computeMonthEndProration(startDate);
   return Math.round((basePrice * daysCharged) / daysInMonth);
 }
+
+/**
+ * ¿El período [startDate, endDate] es un prorrateo hasta fin de mes (alta o
+ * renovación)? Su huella: vence el último día del mes de su inicio y dura menos
+ * que el plan. Un período normal vence exactamente a `startDate + durationDays`,
+ * y las pausas y compensaciones de días solo lo alargan. Exigir las DOS
+ * condiciones evita confundir con un prorrateo a una sub corta por otro motivo
+ * (import legacy, edición manual), que debe seguir heredando su precio. En un
+ * período prorrateado `pricePaid` es un proporcional, no el mes completo.
+ */
+function isMonthEndProratedPeriod(
+  startDate: string,
+  endDate: string | null,
+  durationDays: number,
+): boolean {
+  return (
+    endDate !== null &&
+    endDate === computeMonthEndProration(startDate).endDate &&
+    daysBetween(startDate, endDate) < durationDays
+  );
+}
+
+/**
+ * Tope de saltos hacia atrás por `previousSubscriptionId` al buscar el último
+ * período completo (resolveRenewalBase). Dos períodos parciales seguidos ya son
+ * raros; el tope solo acota el peor caso de una cadena corrupta.
+ */
+const MAX_RENEWAL_BASE_HOPS = 6;
 
 /**
  * Throws BadRequestError if startDate is outside the allowed window
@@ -5236,37 +5266,15 @@ export class SubscriptionService {
   }
 
   /**
-   * Renew an existing subscription (active or expired).
-   * Creates a NEW subscription record for the new period. If the current sub
-   * is still active, the new sub is created as "scheduled" (queued).
-   * For fixed plans, copies schedule assignments and generates bookings.
+   * Suscripción que renueva `renewSubscription` (y que previsualiza
+   * `getRenewalPreview`, misma selección para que el preview no diverja).
    */
-  async renewSubscription(
+  private async findRenewableSubscription(
     ctx: TenantContext,
     userId: number,
-    input: RenewSubscriptionInput,
-    adminId: number,
-  ): Promise<SubscriptionDetail> {
-    // Block if there's already a scheduled renewal
-    const [existingScheduled] = await this.db
-      .select({ id: schema.subscriptions.id })
-      .from(schema.subscriptions)
-      .where(
-        and(
-          tenantWhere(schema.subscriptions, ctx),
-          eq(schema.subscriptions.userId, userId),
-          eq(schema.subscriptions.status, "scheduled"),
-        ),
-      )
-      .limit(1);
-
-    if (existingScheduled) {
-      throw new ConflictError(
-        "Ya existe una renovacion programada. Cancele la existente antes de renovar nuevamente.",
-      );
-    }
-
-    // Find current subscription. Dos caminos:
+    subscriptionId: number | undefined,
+  ) {
+    // Dos caminos:
     //  - subscriptionId explícito (fase 161, PASE-04): renueva ESA sub tras
     //    validar que pertenece al userId (T-161-04 — evita renovar sub ajena).
     //    Resuelve la ambigüedad de un socio con presencial + pase especial
@@ -5282,21 +5290,23 @@ export class SubscriptionService {
       planId: schema.subscriptions.planId,
       branchId: schema.subscriptions.branchId,
       status: schema.subscriptions.status,
+      startDate: schema.subscriptions.startDate,
       endDate: schema.subscriptions.endDate,
       pricePaid: schema.subscriptions.pricePaid,
       priceTypeApplied: schema.subscriptions.priceTypeApplied,
       referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
       membershipKind: schema.subscriptions.membershipKind,
+      previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
     };
     let currentSub;
-    if (input.subscriptionId !== undefined) {
+    if (subscriptionId !== undefined) {
       [currentSub] = await this.db
         .select(subFields)
         .from(schema.subscriptions)
         .where(
           and(
             tenantWhere(schema.subscriptions, ctx),
-            eq(schema.subscriptions.id, input.subscriptionId),
+            eq(schema.subscriptions.id, subscriptionId),
             eq(schema.subscriptions.userId, userId),
           ),
         )
@@ -5328,6 +5338,169 @@ export class SubscriptionService {
         throw new NotFoundError("No se encontro suscripcion para renovar");
       }
     }
+    return currentSub;
+  }
+
+  /**
+   * Base PRE-descuento de referido del MES COMPLETO que hereda una renovación,
+   * antes de la normalización WR-04 y de cualquier override o prorrateo de ESTA
+   * renovación.
+   *
+   * Por defecto es lo que el socio venía pagando (`pricePaid` + add-back del
+   * referido — caso Pomilio: preserva precios negociados). Excepción: si el
+   * período actual fue PARCIAL (alta o renovación prorrateada hasta fin de mes)
+   * su `pricePaid` es un proporcional, y heredarlo renovaba el mes completo al
+   * precio de los días sueltos (caso BCN sept 2026: alta del 25 al 30/9 por 12 €
+   * y la renovación ofrecía 12 € por el mes, con el prorrateo topeado en 12).
+   * Ahí se busca hacia atrás el último período COMPLETO del mismo plan y tipo de
+   * precio (preserva el negociado de quien pasó por una renovación prorrateada);
+   * si no hay (el parcial fue el alta), el precio de lista del plan.
+   */
+  private async resolveRenewalBase(
+    ctx: TenantContext,
+    userId: number,
+    currentSub: {
+      planId: number;
+      startDate: string;
+      endDate: string | null;
+      pricePaid: number;
+      priceTypeApplied: string;
+      referralDiscountAmount: number | null;
+      previousSubscriptionId: number | null;
+    },
+    plan: PlanDetail,
+  ): Promise<{ base: number; source: RenewalBaseSource }> {
+    const inheritedBase = (sub: {
+      pricePaid: number;
+      referralDiscountAmount: number | null;
+    }) => sub.pricePaid + (sub.referralDiscountAmount ?? 0);
+
+    if (
+      !isMonthEndProratedPeriod(
+        currentSub.startDate,
+        currentSub.endDate,
+        plan.durationDays,
+      )
+    ) {
+      return { base: inheritedBase(currentSub), source: "inherited" };
+    }
+
+    let previousId = currentSub.previousSubscriptionId;
+    for (
+      let hop = 0;
+      previousId !== null && hop < MAX_RENEWAL_BASE_HOPS;
+      hop++
+    ) {
+      const [previous] = await this.db
+        .select({
+          planId: schema.subscriptions.planId,
+          startDate: schema.subscriptions.startDate,
+          endDate: schema.subscriptions.endDate,
+          pricePaid: schema.subscriptions.pricePaid,
+          priceTypeApplied: schema.subscriptions.priceTypeApplied,
+          referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
+          previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
+        })
+        .from(schema.subscriptions)
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx),
+            eq(schema.subscriptions.id, previousId),
+            eq(schema.subscriptions.userId, userId),
+          ),
+        )
+        .limit(1);
+      // Otro plan u otro tipo de precio: lo que pagaba ahí no es la base de
+      // este plan → precio de lista.
+      if (
+        !previous ||
+        previous.planId !== currentSub.planId ||
+        previous.priceTypeApplied !== currentSub.priceTypeApplied
+      ) {
+        break;
+      }
+      if (
+        !isMonthEndProratedPeriod(
+          previous.startDate,
+          previous.endDate,
+          plan.durationDays,
+        )
+      ) {
+        return { base: inheritedBase(previous), source: "previous_period" };
+      }
+      previousId = previous.previousSubscriptionId;
+    }
+
+    return {
+      base: this.getBasePrice(plan, currentSub.priceTypeApplied as PriceType),
+      source: "plan_price",
+    };
+  }
+
+  /**
+   * Preview de la base del mes completo de una renovación (ver
+   * `resolveRenewalBase`). El diálogo de renovar del admin la usa como precio
+   * del mes completo en vez de reconstruirla desde `pricePaid`. No muta nada.
+   */
+  async getRenewalPreview(
+    ctx: TenantContext,
+    userId: number,
+    subscriptionId: number | undefined,
+  ): Promise<RenewalPreview> {
+    const currentSub = await this.findRenewableSubscription(
+      ctx,
+      userId,
+      subscriptionId,
+    );
+    const plan = await this.getPlanById(ctx, currentSub.planId);
+    if (!plan) {
+      throw new NotFoundError("Plan no encontrado");
+    }
+    const { base, source } = await this.resolveRenewalBase(
+      ctx,
+      userId,
+      currentSub,
+      plan,
+    );
+    return { subscriptionId: currentSub.id, base, source };
+  }
+
+  /**
+   * Renew an existing subscription (active or expired).
+   * Creates a NEW subscription record for the new period. If the current sub
+   * is still active, the new sub is created as "scheduled" (queued).
+   * For fixed plans, copies schedule assignments and generates bookings.
+   */
+  async renewSubscription(
+    ctx: TenantContext,
+    userId: number,
+    input: RenewSubscriptionInput,
+    adminId: number,
+  ): Promise<SubscriptionDetail> {
+    // Block if there's already a scheduled renewal
+    const [existingScheduled] = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+          eq(schema.subscriptions.status, "scheduled"),
+        ),
+      )
+      .limit(1);
+
+    if (existingScheduled) {
+      throw new ConflictError(
+        "Ya existe una renovacion programada. Cancele la existente antes de renovar nuevamente.",
+      );
+    }
+
+    const currentSub = await this.findRenewableSubscription(
+      ctx,
+      userId,
+      input.subscriptionId,
+    );
 
     // Get the plan to know durationDays
     const plan = await this.getPlanById(ctx, currentSub.planId);
@@ -5441,8 +5614,13 @@ export class SubscriptionService {
     // descuento componía renovación tras renovación (72000 → 64800 → 58320…) y
     // además quedaba perpetuado aunque el vínculo se suspendiera. El bloque de
     // referidos de abajo re-aplica el % vigente sobre esta base limpia.
-    let renewalPrice =
-      currentSub.pricePaid + (currentSub.referralDiscountAmount ?? 0);
+    //
+    // Excepción: si el período actual fue PARCIAL (prorrateado hasta fin de mes)
+    // su pricePaid es un proporcional → resolveRenewalBase usa el último período
+    // completo o el precio de lista del plan.
+    let renewalPrice = (
+      await this.resolveRenewalBase(ctx, userId, currentSub, plan)
+    ).base;
     let renewalOverrideAmount: number | null = null;
     let renewalOverrideReason: string | null = null;
     // Referidos (fase 157): materialización del descuento en columnas nuevas.

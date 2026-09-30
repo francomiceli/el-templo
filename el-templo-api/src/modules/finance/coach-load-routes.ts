@@ -1052,6 +1052,31 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  /**
+   * Monto de renovación a precargar en la PoS: lo que venía pagando, salvo que
+   * el período actual haya sido prorrateado (alta o renovación hasta fin de
+   * mes) — ahí `pricePaid` es un proporcional y la renovación cobra el mes
+   * completo (`getRenewalPreview`, misma selección de sub que el renew de
+   * pay-plan). Si no hay sub renovable (ej. solo pausada) queda lo heredado.
+   */
+  async function renewAmountFor(
+    ctx: TenantContext,
+    userId: number,
+    pricePaid: number,
+  ): Promise<number> {
+    try {
+      const preview = await subscriptionService.getRenewalPreview(
+        ctx,
+        userId,
+        undefined,
+      );
+      return preview.source === "inherited" ? pricePaid : preview.base;
+    } catch (err: unknown) {
+      if (err instanceof NotFoundError) return pricePaid;
+      throw err;
+    }
+  }
+
   // ===================================================================
   // GET /autocompletar/:userId — the member's current plan + amount + currency
   // for the typeahead pre-fill (CARGA-01). Reuses getMemberSubscription (no new
@@ -1105,8 +1130,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({
           hasRenewable: true,
           planName: shown.planName,
-          // Pre-fill the debt when there is one, else the plan price.
-          amount: outstanding > 0 ? outstanding : sub.pricePaid,
+          // Pre-fill the debt when there is one, else the renewal price.
+          amount:
+            outstanding > 0
+              ? outstanding
+              : await renewAmountFor(ctx, request.params.userId, sub.pricePaid),
           currency: shown.currency,
           intent: outstanding > 0 ? "settle" : "renew",
           outstanding,

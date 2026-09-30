@@ -43,6 +43,7 @@ import {
   changePlanSchema,
   changePlanPreviewSchema,
   renewSubscriptionSchema,
+  renewalPreviewSchema,
   pauseSubscriptionSchema,
   resumeSubscriptionSchema,
   cancelSubscriptionSchema,
@@ -693,6 +694,29 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         return preview;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "pricing preview");
+      }
+    },
+  );
+
+  // GET /members/:userId/subscription/renewal-preview
+  // Base del mes completo de la renovación (heredada, o del último período
+  // completo / precio de lista si el período actual fue prorrateado).
+  fastify.get<{
+    Params: { userId: number };
+    Querystring: { subscriptionId?: number };
+  }>(
+    "/members/:userId/subscription/renewal-preview",
+    { schema: renewalPreviewSchema },
+    async (request, reply) => {
+      try {
+        const preview = await subscriptionService.getRenewalPreview(
+          assertTenant(request.scope, "subscriptions.getRenewalPreview"),
+          request.params.userId,
+          request.query.subscriptionId,
+        );
+        return preview;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "renewal preview");
       }
     },
   );

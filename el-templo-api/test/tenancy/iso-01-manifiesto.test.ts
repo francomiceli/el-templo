@@ -310,7 +310,10 @@ import {
 // `tenant-scoped`.
 // 2026-09-29: 445 -> 446 por la clase de prueba gratis de Yoga:
 // `POST /api/members/scheduling/especial-trial`, `tenant-scoped`.
-const ENTRADAS_BASELINE = 446;
+// 2026-09-30: 446 -> 447 por la base de renovación tras un período prorrateado:
+// `GET /api/admin/subscriptions/members/:userId/subscription/renewal-preview`,
+// `tenant-scoped`.
+const ENTRADAS_BASELINE = 447;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -453,7 +456,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 446 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 447 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

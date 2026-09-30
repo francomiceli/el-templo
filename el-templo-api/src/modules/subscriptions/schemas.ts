@@ -858,6 +858,35 @@ export const pricingPreviewSchema = {
   },
 };
 
+export const renewalPreviewSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  querystring: {
+    type: "object",
+    properties: {
+      subscriptionId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        subscriptionId: { type: "integer" },
+        base: { type: "integer" },
+        source: {
+          type: "string",
+          enum: ["inherited", "previous_period", "plan_price"],
+        },
+      },
+    },
+  },
+};
+
 export const assignProrationPreviewSchema = {
   params: {
     type: "object",

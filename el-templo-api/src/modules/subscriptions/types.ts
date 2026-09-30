@@ -486,6 +486,28 @@ export interface AssignPlanInput {
   createdMemberId?: number | null;
 }
 
+/**
+ * De dónde sale la base del MES COMPLETO de una renovación (ver
+ * `SubscriptionService.resolveRenewalBase`):
+ *  - `inherited`: lo que el socio venía pagando en el período actual.
+ *  - `previous_period`: el período actual fue parcial (prorrateado hasta fin de
+ *    mes) → lo que pagó en el último período completo del mismo plan.
+ *  - `plan_price`: el período actual fue parcial y no hay período completo
+ *    anterior (fue el alta prorrateada) → precio de lista del plan.
+ */
+export type RenewalBaseSource = "inherited" | "previous_period" | "plan_price";
+
+/**
+ * Preview de la base de una renovación, PRE-descuento de referido y PRE
+ * normalización de recargo por tarjeta (WR-04). El admin la usa como precio
+ * del mes completo del diálogo de renovar.
+ */
+export interface RenewalPreview {
+  subscriptionId: number;
+  base: number;
+  source: RenewalBaseSource;
+}
+
 export interface RenewSubscriptionInput {
   paymentMethod: PaymentMethod;
   /**
@@ -504,7 +526,8 @@ export interface RenewSubscriptionInput {
   /**
    * Precio personalizado para esta renovación. Si se provee (>= 0), reemplaza
    * el precio heredado de la suscripción anterior y requiere
-   * `priceOverrideReason`. undefined → se hereda `currentSub.pricePaid`.
+   * `priceOverrideReason`. undefined → se hereda la base del mes completo
+   * (`resolveRenewalBase`: normalmente `currentSub.pricePaid`).
    */
   priceOverrideAmount?: number;
   /** Razón del precio personalizado. Requerida si hay `priceOverrideAmount`. */
