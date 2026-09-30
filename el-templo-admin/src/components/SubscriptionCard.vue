@@ -21,6 +21,13 @@
           :label="categoryLabel(subscription.planCategory)"
           outline
         />
+        <!-- Línea del pase especial (null = Aura): distingue Aura de Yoga -->
+        <q-badge
+          v-if="subscription.planCategory === 'especial'"
+          color="deep-purple"
+          :label="subscription.specialLine ?? 'Aura'"
+          outline
+        />
       </div>
 
       <!-- Dates row -->

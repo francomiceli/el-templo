@@ -52,6 +52,12 @@ import type {
   AuraDiscountTier,
 } from "./types";
 import { categoryGroup, excludedFromReferrals } from "./types";
+import {
+  normalizeSpecialLine,
+  sameSpecialLine,
+  specialLineCondition,
+  specialLineLabel,
+} from "../scheduling/special-line";
 import { resolvePlanPrice, readModuleColumns } from "./pricing";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
@@ -468,6 +474,7 @@ export class SubscriptionService {
     hasProgramList: boolean;
     monthlyClassBudget: number | null;
     requiresPresencial: boolean;
+    specialLine: string | null;
   }): void {
     // Fix 2026-09-22: el pase `especial` NO es online — no otorga programa, su
     // cupo lo gobierna el budget del pase. Antes `isOnlinePlan` lo colapsaba con
@@ -484,10 +491,12 @@ export class SubscriptionService {
     }
     if (
       plan.planCategory !== "especial" &&
-      (plan.monthlyClassBudget !== null || plan.requiresPresencial)
+      (plan.monthlyClassBudget !== null ||
+        plan.requiresPresencial ||
+        plan.specialLine !== null)
     ) {
       throw new BadRequestError(
-        "Solo los planes especiales aceptan tope total de clases (monthlyClassBudget) o 'solo socios' (requiresPresencial)",
+        "Solo los planes especiales aceptan tope total de clases (monthlyClassBudget), 'solo socios' (requiresPresencial) o línea de pase (specialLine)",
       );
     }
   }
@@ -1166,6 +1175,7 @@ export class SubscriptionService {
     const programIds = input.programIds ?? [];
     const monthlyClassBudget = input.monthlyClassBudget ?? null;
     const requiresPresencial = input.requiresPresencial ?? false;
+    const specialLine = normalizeSpecialLine(input.specialLine);
 
     this.assertPlanInvariants({
       planCategory,
@@ -1174,6 +1184,7 @@ export class SubscriptionService {
       hasProgramList: programIds.length > 0,
       monthlyClassBudget,
       requiresPresencial,
+      specialLine,
     });
 
     const country = input.country ?? "AR";
@@ -1201,6 +1212,7 @@ export class SubscriptionService {
             classesPerWeek: input.classesPerWeek ?? null,
             monthlyClassBudget,
             requiresPresencial,
+            specialLine,
             multiBranch: input.multiBranch ?? false,
             isTrial: input.isTrial ?? false,
             isGroup: input.isGroup ?? false,
@@ -1265,6 +1277,8 @@ export class SubscriptionService {
       updateData.monthlyClassBudget = input.monthlyClassBudget;
     if (input.requiresPresencial !== undefined)
       updateData.requiresPresencial = input.requiresPresencial;
+    if (input.specialLine !== undefined)
+      updateData.specialLine = normalizeSpecialLine(input.specialLine);
     if (input.multiBranch !== undefined)
       updateData.multiBranch = input.multiBranch;
     if (input.isTrial !== undefined) updateData.isTrial = input.isTrial;
@@ -1300,6 +1314,7 @@ export class SubscriptionService {
         updateData.monthlyClassBudget = null;
       if (input.requiresPresencial === undefined)
         updateData.requiresPresencial = false;
+      if (input.specialLine === undefined) updateData.specialLine = null;
     }
 
     this.assertPlanInvariants({
@@ -1321,6 +1336,10 @@ export class SubscriptionService {
         updateData.requiresPresencial !== undefined
           ? updateData.requiresPresencial
           : existing.requiresPresencial,
+      specialLine:
+        updateData.specialLine !== undefined
+          ? (updateData.specialLine ?? null)
+          : (existing.specialLine ?? null),
     });
 
     // updatePlan ONLY touches subscription_plans and (optionally) plan_programs
@@ -1444,6 +1463,7 @@ export class SubscriptionService {
         planName: schema.subscriptionPlans.name,
         planTier: schema.subscriptionPlans.planTier,
         planCategory: schema.subscriptionPlans.planCategory,
+        specialLine: schema.subscriptionPlans.specialLine,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         status: schema.subscriptions.status,
@@ -1544,6 +1564,7 @@ export class SubscriptionService {
         planName: schema.subscriptionPlans.name,
         planTier: schema.subscriptionPlans.planTier,
         planCategory: schema.subscriptionPlans.planCategory,
+        specialLine: schema.subscriptionPlans.specialLine,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         status: schema.subscriptions.status,
@@ -1647,12 +1668,16 @@ export class SubscriptionService {
     ctx: TenantContext | null,
     userId: number,
     isSpecialActivity: boolean,
+    // Línea de la actividad especial (2026-09-29): el pase tiene que ser de la
+    // misma línea (NULL = Aura). Ignorado para actividades regulares.
+    specialLine: string | null = null,
   ): Promise<SubscriptionDetail | null> {
     const subs = await this.getMemberSubscriptions(ctx, userId);
 
     const candidates = subs.filter((s) => {
       const isEspecial = categoryGroup(s.planCategory) === "especial";
-      return isSpecialActivity ? isEspecial : !isEspecial;
+      if (!isSpecialActivity) return !isEspecial;
+      return isEspecial && sameSpecialLine(s.specialLine, specialLine);
     });
     if (candidates.length === 0) return null;
 
@@ -1697,6 +1722,7 @@ export class SubscriptionService {
         planName: schema.subscriptionPlans.name,
         planTier: schema.subscriptionPlans.planTier,
         planCategory: schema.subscriptionPlans.planCategory,
+        specialLine: schema.subscriptionPlans.specialLine,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         status: schema.subscriptions.status,
@@ -1765,6 +1791,7 @@ export class SubscriptionService {
         planName: schema.subscriptionPlans.name,
         planTier: schema.subscriptionPlans.planTier,
         planCategory: schema.subscriptionPlans.planCategory,
+        specialLine: schema.subscriptionPlans.specialLine,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         status: schema.subscriptions.status,
@@ -1955,7 +1982,16 @@ export class SubscriptionService {
             "paquete",
           ])
         : planGroup === "especial"
-          ? eq(schema.subscriptionPlans.planCategory, "especial")
+          ? // Línea del pase (2026-09-29): un pase de yoga no choca con uno de
+            // Aura — solo dos pases de la MISMA línea se solapan (NULL, la
+            // línea Aura, choca con NULL).
+            and(
+              eq(schema.subscriptionPlans.planCategory, "especial"),
+              specialLineCondition(
+                schema.subscriptionPlans.specialLine,
+                plan.specialLine,
+              ),
+            )
           : and(
               ne(schema.subscriptionPlans.planCategory, "presencial"),
               ne(schema.subscriptionPlans.planCategory, "especial"),
@@ -1995,7 +2031,7 @@ export class SubscriptionService {
         planGroup === "presencial"
           ? "El miembro ya tiene una suscripcion presencial activa"
           : planGroup === "especial"
-            ? "El miembro ya tiene un pase de actividades activo"
+            ? `El miembro ya tiene un pase de ${specialLineLabel(plan.specialLine)} activo`
             : "El miembro ya tiene una suscripcion online activa",
       );
     }
@@ -2027,9 +2063,23 @@ export class SubscriptionService {
     const startDate = new Date(input.startDate);
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + plan.durationDays);
-    const endDateStr = input.prorateToMonthEnd
-      ? computeMonthEndProration(input.startDate).endDate
-      : endDate.toISOString().split("T")[0];
+    // `endDateOverride` (opcional, server-side): fija el vencimiento en vez de
+    // startDate + durationDays. Lo usa la clase de prueba gratis de un pase
+    // especial (EspecialTrialService) para que el pase nunca dure más que el
+    // plan presencial del alumno. Las rutas admin no lo exponen en el body.
+    if (
+      input.endDateOverride !== undefined &&
+      input.endDateOverride < input.startDate
+    ) {
+      throw new BadRequestError(
+        "El vencimiento no puede ser anterior a la fecha de inicio",
+      );
+    }
+    const endDateStr =
+      input.endDateOverride ??
+      (input.prorateToMonthEnd
+        ? computeMonthEndProration(input.startDate).endDate
+        : endDate.toISOString().split("T")[0]);
 
     // Status: scheduled when startDate is in the future, active otherwise.
     // The status drives recomputeUserStatus (only active/paused count for
@@ -6711,6 +6761,7 @@ export class SubscriptionService {
       classesPerWeek: row.classesPerWeek,
       monthlyClassBudget: row.monthlyClassBudget ?? null,
       requiresPresencial: row.requiresPresencial,
+      specialLine: row.specialLine ?? null,
       multiBranch: row.multiBranch,
       isTrial: row.isTrial,
       isGroup: row.isGroup,
@@ -6941,6 +6992,7 @@ export class SubscriptionService {
     planName: string;
     planTier: string;
     planCategory: string;
+    specialLine: string | null;
     branchId: number;
     branchName: string;
     status: string;
@@ -6975,6 +7027,7 @@ export class SubscriptionService {
       planName: row.planName,
       planTier: row.planTier as PlanTier,
       planCategory: row.planCategory as PlanCategory,
+      specialLine: row.specialLine ?? null,
       branchId: row.branchId,
       branchName: row.branchName,
       status: row.status as SubscriptionStatus,

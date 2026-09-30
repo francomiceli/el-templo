@@ -237,6 +237,9 @@
               </q-item-section>
               <q-item-section>
                 <q-item-label class="text-weight-medium">{{ slot.activityName }}</q-item-label>
+                <q-item-label v-if="slot.coachOverride && slot.coachFirstName" caption>
+                  Profe: {{ slot.coachFirstName }}
+                </q-item-label>
                 <q-item-label
                   v-if="!slot.isActive"
                   caption
@@ -343,6 +346,14 @@
                     >
                       <div class="cell-activity text-caption ellipsis">
                         {{ slot.activityName }}
+                      </div>
+                      <!-- Profe propio del horario (pisa al del turno): solo se
+                           rotula cuando difiere del profe del turno. -->
+                      <div
+                        v-if="slot.coachOverride && slot.coachFirstName"
+                        class="cell-coach ellipsis"
+                      >
+                        Profe: {{ slot.coachFirstName }}
                       </div>
                       <div v-if="isCellHoliday(day.date)" class="cell-holiday text-weight-bold">
                         FERIADO
@@ -1311,6 +1322,13 @@ watch(selectedBranchId, (val) => {
 .cell-activity {
   font-size: 0.7rem;
   color: #666;
+  max-width: 100%;
+  text-align: center;
+}
+
+.cell-coach {
+  font-size: 0.65rem;
+  color: #888;
   max-width: 100%;
   text-align: center;
 }

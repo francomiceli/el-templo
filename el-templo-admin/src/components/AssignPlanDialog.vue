@@ -142,6 +142,9 @@
                           · {{ plan.classesPerWeek }} clases/sem
                         </template>
                         <template v-else> · Ilimitado </template>
+                        <template v-if="plan.planCategory === 'especial'">
+                          · Línea: {{ plan.specialLine ?? 'Aura' }}
+                        </template>
                       </q-item-label>
                     </q-item-section>
                     <q-item-section side>
@@ -185,6 +188,9 @@
                       ? `${selectedPlan.classesPerWeek} clases/sem`
                       : 'Ilimitado'
                   }}
+                  <template v-if="selectedPlan.planCategory === 'especial'">
+                    · Línea: {{ selectedPlan.specialLine ?? 'Aura' }}
+                  </template>
                 </div>
               </q-card-section>
             </q-card>

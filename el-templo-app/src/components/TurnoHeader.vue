@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { WeeklySlotView } from 'src/types/scheduling'
+import { turnoCoachName } from 'src/utils/turno-coach'
 
 /**
  * Encabezado de turno de la grilla de Reservas (App 1.7.9). Extraído porque
@@ -23,19 +24,8 @@ const props = defineProps<{
 
 const label = computed(() => (props.turno === 'morning' ? 'Turno Mañana' : 'Turno Tarde'))
 
-/**
- * El profe se muestra solo si TODOS los slots del turno comparten el mismo
- * coachFirstName no nulo — un turno con horarios de distintas actividades
- * dando clase con profes distintos no tiene un "el profe de este turno"
- * único que anunciar.
- */
-const coachName = computed(() => {
-  if (props.slots.length === 0) return null
-  const first = props.slots[0]?.coachFirstName ?? null
-  if (!first) return null
-  const allSame = props.slots.every((s) => s.coachFirstName === first)
-  return allSame ? first : null
-})
+/** Profe único del turno (ignora los slots con profe propio) — ver turnoCoachName. */
+const coachName = computed(() => turnoCoachName(props.slots))
 </script>
 
 <style scoped lang="scss">

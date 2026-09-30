@@ -37,7 +37,17 @@ export interface WeeklySlotView {
   // App 1.7.9 (reservas: profe por turno): nombre de pila del profe
   // atribuido al slot para la semana pedida (roster effective-dated). null
   // sin change-point vigente.
+  // 2026-09-29: ahora es el profe EFECTIVO — el propio del horario si lo
+  // tiene (coachOverride=true, ej. la profe de yoga dentro de un turno de
+  // otro profe), si no el del turno del roster.
   coachFirstName: string | null
+  // Línea del pase especial (NULL = Aura / regular): la clase solo la habilita
+  // un pase de la MISMA línea.
+  specialLine: string | null
+  // Profe propio del horario (schedules.coach_user_id). NULL = hereda el turno.
+  coachUserId: number | null
+  // true cuando coachFirstName sale del profe propio del horario y no del turno.
+  coachOverride: boolean
 }
 
 export interface BookingRecord {
@@ -57,6 +67,9 @@ export interface BookingRecord {
   // diaria del cliente compara solo contra reservas del mismo tipo, igual
   // que la guarda 8b del server.
   isSpecial: boolean
+  // Línea del pase especial de la actividad reservada (NULL = Aura/regular):
+  // la regla diaria de especiales es por línea (yoga no choca con Aura).
+  specialLine: string | null
 }
 
 export interface AttendanceWeekRecord {

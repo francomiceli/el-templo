@@ -739,6 +739,129 @@ describe("Renewals API (módulo de Renovaciones)", () => {
 
   // ─── KPIs ───────────────────────────────────────────────────────────────
 
+  describe("GET /api/admin/renewals — clase de prueba de un pase especial", () => {
+    /** Plan is_trial de 7 días (entra en el corte de duración mínima). */
+    async function insertTrialPlan(
+      category: "especial" | "online_regular",
+      specialLine: string | null,
+    ): Promise<number> {
+      const [result] = await app.db.insert(schema.subscriptionPlans).values({
+        tenantId: TENANT_TEMPLO,
+        name: `Prueba ${category} ${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        planTier: "other",
+        bookingMode: "flexible",
+        planCategory: category,
+        priceRegular: 0,
+        priceZero: 0,
+        durationDays: 7,
+        classesPerWeek: null,
+        monthlyClassBudget: 1,
+        specialLine,
+        isTrial: true,
+        country: "AR",
+        currency: "ARS",
+      });
+      return (result as unknown as { insertId: number }).insertId;
+    }
+
+    it("la prueba de Yoga (is_trial especial, 7 días) vencida NO aparece, pero el pase Aura normal sí", async () => {
+      const trialPlanId = await insertTrialPlan("especial", "Yoga");
+      const userId = await insertMember();
+      const trialSub = await insertSub({
+        userId,
+        planId: trialPlanId,
+        startDate: dateOffsetStr(-6),
+        endDate: todayStr(),
+        status: "active",
+      });
+      const auraSub = await insertSub({
+        userId,
+        planId: planAuraId,
+        startDate: dateOffsetStr(-29),
+        endDate: todayStr(),
+      });
+
+      const { statusCode, body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(statusCode).toBe(200);
+      expect(findRow(body, trialSub)).toBeUndefined();
+      expect(findRow(body, auraSub)).toBeDefined();
+      expect(body.kpis.total).toBe(body.rows.length);
+    });
+
+    it("tampoco aparece filtrando por activityType=aura", async () => {
+      const trialPlanId = await insertTrialPlan("especial", "Yoga");
+      const userId = await insertMember();
+      const trialSub = await insertSub({
+        userId,
+        planId: trialPlanId,
+        startDate: dateOffsetStr(-6),
+        endDate: dateOffsetStr(1),
+        status: "expired",
+      });
+
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+        undefined,
+        "aura",
+      );
+      expect(findRow(body, trialSub)).toBeUndefined();
+    });
+
+    it("una prueba de Yoga posterior NO cuenta como renovación de un pase Aura que vence", async () => {
+      const trialPlanId = await insertTrialPlan("especial", "Yoga");
+      const userId = await insertMember();
+      const auraSub = await insertSub({
+        userId,
+        planId: planAuraId,
+        startDate: dateOffsetStr(-29),
+        endDate: todayStr(),
+      });
+      await insertSub({
+        userId,
+        planId: trialPlanId,
+        startDate: dateOffsetStr(1),
+        endDate: dateOffsetStr(7),
+        status: "active",
+      });
+
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      const row = findRow(body, auraSub);
+      expect(row).toBeDefined();
+      expect(row?.status).not.toBe("renovo");
+      expect(row?.status).not.toBe("volvio_tarde");
+      expect(row?.newPlanId).toBeNull();
+    });
+
+    it("la exclusión es acotada: un plan is_trial de OTRA categoría (promo online) conserva su comportamiento", async () => {
+      const promoPlanId = await insertTrialPlan("online_regular", null);
+      const userId = await insertMember();
+      const promoSub = await insertSub({
+        userId,
+        planId: promoPlanId,
+        startDate: dateOffsetStr(-6),
+        endDate: todayStr(),
+        status: "active",
+      });
+
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(findRow(body, promoSub)).toBeDefined();
+    });
+  });
+
   describe("GET /api/admin/renewals — KPIs y distribución de plan", () => {
     it("cuenta renovo/volvioTarde/noRenovo/pausada/enProceso, renewalRate y newPlanDistribution", async () => {
       const endDate = todayStr();

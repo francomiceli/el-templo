@@ -28,6 +28,7 @@ export function useSchedulingApi() {
     description?: string;
     maxCapacity?: number | null;
     isSpecial?: boolean;
+    specialLine?: string | null;
   }): Promise<ActivityRecord> {
     loading.value = true;
     error.value = null;
@@ -66,6 +67,7 @@ export function useSchedulingApi() {
       isActive?: boolean;
       maxCapacity?: number | null;
       isSpecial?: boolean;
+      specialLine?: string | null;
     }
   ): Promise<ActivityRecord> {
     loading.value = true;
@@ -309,13 +311,36 @@ export function useSchedulingApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.patch<ScheduleSlot>(`/admin/scheduling/schedules/${scheduleId}/time`, {
-        startTime,
-        endTime,
-      });
+      const { data } = await api.patch<ScheduleSlot>(
+        `/admin/scheduling/schedules/${scheduleId}/time`,
+        {
+          startTime,
+          endTime,
+        }
+      );
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cambiando la hora del horario');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function updateScheduleCoach(
+    scheduleId: number,
+    coachUserId: number | null
+  ): Promise<ScheduleSlot> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<ScheduleSlot>(
+        `/admin/scheduling/schedules/${scheduleId}/coach`,
+        { coachUserId }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error asignando el profe del horario');
       throw err;
     } finally {
       loading.value = false;
@@ -612,6 +637,7 @@ export function useSchedulingApi() {
     deleteScheduleFromDate,
     updateScheduleActivity,
     updateScheduleTime,
+    updateScheduleCoach,
     seedSchedules,
     getNextAvailableDate,
     adminAddBooking,

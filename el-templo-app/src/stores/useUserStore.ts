@@ -4,6 +4,7 @@ import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { useLevelSelectionStorage } from 'src/composables/useLevelSelectionStorage'
 import { isTrainingLevel, type Level } from 'src/modules/training/level-display'
+import { fullLineLabel, sameSpecialLine } from 'src/utils/special-line'
 
 // Re-export Level for backward compatibility with existing imports.
 export type { Level }
@@ -73,8 +74,22 @@ export interface MemberSubscription {
 // con pase → hasPass:true + saldo x/budget + discriminador socio/externo.
 // AISLADO del `subscription` singular a propósito (D-06: capabilities aditivas):
 // un socio con presencial+pase NO debe perder acceso a la grilla presencial.
+// 2026-09-29 (línea del pase): puede haber un pase por línea (Aura, Yoga...).
+// `passes` trae uno por línea; los campos sueltos describen el primero (compat).
+export interface EspecialPassLine {
+  // NULL = "Actividades con Aura"; otro texto = línea propia (ej. "Yoga").
+  specialLine: string | null
+  lineLabel: string
+  planName: string
+  classesRemaining: number | null
+  classesBudget: number | null
+  endDate: string | null
+  isSocio: boolean
+}
+
 export interface EspecialPass {
   hasPass: boolean
+  passes: EspecialPassLine[]
   // null = acceso ilimitado (plan con monthly_class_budget NULL). Los tiers con
   // cupo (2/4 accesos) traen el entero.
   classesRemaining: number | null
@@ -143,6 +158,10 @@ export const useUserStore = defineStore('user', () => {
   // (D-06): sus capabilities son aditivas y NO alteran hasPresencialPlan /
   // hasPresencialReservationAccess. null = sin pase (o error/204).
   const especialPass = ref<EspecialPass | null>(null)
+  // Líneas especiales (ej. ['Yoga']) donde el socio puede tomar UNA clase de prueba
+  // gratis. Viene en ambas ramas de /me/especial-pass (con y sin pase). Builds viejos
+  // del server no lo mandan → [].
+  const trialLines = ref<string[]>([])
   const hasActiveProgramEnrollment = ref(false)
   const enrolledGoalPlanType = ref<string | null>(null)
 
@@ -247,6 +266,15 @@ export const useUserStore = defineStore('user', () => {
 
   const especialClassesBudget = computed(() => especialPass.value?.classesBudget ?? 0)
 
+  // 2026-09-29 (línea del pase): un pase por línea. La lógica por clase usa
+  // estos, no los agregados de arriba (que describen "cualquier/primer pase").
+  const especialPasses = computed<EspecialPassLine[]>(() => especialPass.value?.passes ?? [])
+
+  /** Pase del socio para una línea (`null` = Aura), o null si no tiene. */
+  function especialPassForLine(line: string | null): EspecialPassLine | null {
+    return especialPasses.value.find((p) => sameSpecialLine(p.specialLine, line)) ?? null
+  }
+
   // Externo-solo-pase: tiene pase pero NO acceso presencial. Distingue al
   // socio-con-pase (que conserva la grilla presencial) del externo cuyo único
   // acceso es a las clases especiales.
@@ -306,6 +334,7 @@ export const useUserStore = defineStore('user', () => {
     subscription.value = null
     // Phase 162: limpiar el pase especial junto al singular en logout / reset.
     especialPass.value = null
+    trialLines.value = []
     // Phase 104: also clear current-program state on logout / profile reset
     // so a fresh login does not see stale enrollments from a prior session.
     currentProgram.value = { enrollmentId: null, program: null }
@@ -384,16 +413,44 @@ export const useUserStore = defineStore('user', () => {
    */
   async function loadEspecialPass(): Promise<void> {
     try {
-      const response = await api.get<Partial<EspecialPass> & { hasPass: boolean }>(
-        '/members/subscription/me/especial-pass',
-      )
+      const response = await api.get<
+        Partial<EspecialPass> & { hasPass: boolean; trialLines?: string[] }
+      >('/members/subscription/me/especial-pass')
       const data = response.data
+      trialLines.value = Array.isArray(data?.trialLines)
+        ? data.trialLines.filter((l): l is string => typeof l === 'string')
+        : []
       // 204 No Content, sin data, o { hasPass:false } → sin pase.
       if (response.status === 204 || !data || data.hasPass !== true) {
         especialPass.value = null
       } else {
+        // Defensivo: sin `passes` (payload viejo) se arma un único pase de la
+        // línea Aura con los campos sueltos.
+        const legacy: EspecialPassLine = {
+          specialLine: null,
+          lineLabel: fullLineLabel(null),
+          planName: '',
+          classesRemaining: data.classesRemaining ?? null,
+          classesBudget: data.classesBudget ?? null,
+          endDate: data.endDate ?? null,
+          isSocio: data.isSocio ?? false,
+        }
+        const passes: EspecialPassLine[] =
+          Array.isArray(data.passes) && data.passes.length > 0
+            ? data.passes.map((p) => ({
+                specialLine: p.specialLine ?? null,
+                lineLabel: p.lineLabel || fullLineLabel(p.specialLine ?? null),
+                planName: p.planName ?? '',
+                // Preservar null (= ilimitado) también por línea.
+                classesRemaining: p.classesRemaining ?? null,
+                classesBudget: p.classesBudget ?? null,
+                endDate: p.endDate ?? null,
+                isSocio: p.isSocio ?? false,
+              }))
+            : [legacy]
         especialPass.value = {
           hasPass: true,
+          passes,
           // Preservar null (= ilimitado). NO colapsar a 0/2 o se perdería la
           // semántica de acceso ilimitado y la app lo trataría como agotado.
           classesRemaining: data.classesRemaining ?? null,
@@ -405,6 +462,7 @@ export const useUserStore = defineStore('user', () => {
     } catch {
       // 204/404 o error de red — sin pase.
       especialPass.value = null
+      trialLines.value = []
     }
   }
 
@@ -552,6 +610,7 @@ export const useUserStore = defineStore('user', () => {
     subscription,
     subscriptionLoading,
     especialPass,
+    trialLines,
     selectedLevel,
     // Phase 104: current-program state
     currentProgram,
@@ -576,6 +635,8 @@ export const useUserStore = defineStore('user', () => {
     especialUnlimited,
     especialClassesRemaining,
     especialClassesBudget,
+    especialPasses,
+    especialPassForLine,
     hasOnlyEspecialPass,
     viewOptionsCount,
     showProgramSelector,

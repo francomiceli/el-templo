@@ -34,7 +34,7 @@
                 <q-badge
                   v-if="act.isSpecial"
                   color="deep-purple"
-                  label="Especial"
+                  :label="act.specialLine ? `Especial · ${act.specialLine}` : 'Especial'"
                   class="q-ml-sm"
                 />
               </q-item-label>
@@ -121,6 +121,21 @@
             </q-tooltip>
           </q-icon>
         </div>
+        <q-input
+          v-if="activityForm.isSpecial"
+          v-model="activityForm.specialLine"
+          label="Línea del pase"
+          dense
+          outlined
+          clearable
+          maxlength="50"
+          class="q-mt-sm"
+          style="max-width: 360px"
+          hint="Vacío = Actividades con Aura. Solo la reservan los pases de la misma línea."
+        />
+        <div v-if="activityForm.isSpecial && linesInUse.length > 0" class="text-caption q-mt-xs">
+          En uso: {{ linesInUse.join(', ') }}
+        </div>
       </q-card-section>
     </q-card>
 
@@ -181,7 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import axios from 'axios';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
@@ -221,8 +236,19 @@ const activityForm = ref<{
   description: string;
   maxCapacity: number | string | null;
   isSpecial: boolean;
-}>({ name: '', description: '', maxCapacity: null, isSpecial: false });
+  // Línea del pase especial. q-input clearable deja `null` al limpiar.
+  specialLine: string | null;
+}>({ name: '', description: '', maxCapacity: null, isSpecial: false, specialLine: null });
 const editingActivity = ref<ActivityRecord | null>(null);
+
+// Líneas ya usadas por actividades especiales (para no equivocarse al tipear).
+const linesInUse = computed(() => {
+  const lines = new Set<string>();
+  for (const act of activities.value) {
+    if (act.isSpecial && act.specialLine) lines.add(act.specialLine);
+  }
+  return [...lines].sort((a, b) => a.localeCompare(b, 'es'));
+});
 
 // Descripciones de clases derivadas (Combos/Técnica) — Plan 180-15, RES-05,
 // D-23. No confundir con `activityForm.description` de arriba: esto es el
@@ -288,18 +314,29 @@ function startEditActivity(act: ActivityRecord) {
     description: act.description ?? '',
     maxCapacity: act.maxCapacity ?? null,
     isSpecial: act.isSpecial,
+    specialLine: act.specialLine ?? null,
   };
 }
 
 function cancelEditActivity() {
   editingActivity.value = null;
-  activityForm.value = { name: '', description: '', maxCapacity: null, isSpecial: false };
+  activityForm.value = {
+    name: '',
+    description: '',
+    maxCapacity: null,
+    isSpecial: false,
+    specialLine: null,
+  };
 }
 
 async function onSaveActivity() {
   if (!activityForm.value.name.trim()) return;
   if (validateCapacity(activityForm.value.maxCapacity) !== true) return;
   const maxCapacity = normalizeCapacity(activityForm.value.maxCapacity);
+  // Solo aplica a especiales; vacío = null (línea Aura). El server igual la limpia si no es especial.
+  const specialLine = activityForm.value.isSpecial
+    ? activityForm.value.specialLine?.trim() || null
+    : null;
   try {
     if (editingActivity.value) {
       await schedulingApi.updateActivity(editingActivity.value.id, {
@@ -307,6 +344,7 @@ async function onSaveActivity() {
         description: activityForm.value.description || undefined,
         maxCapacity,
         isSpecial: activityForm.value.isSpecial,
+        specialLine,
       });
       $q.notify({ type: 'positive', message: 'Actividad actualizada' });
     } else {
@@ -315,10 +353,17 @@ async function onSaveActivity() {
         description: activityForm.value.description || undefined,
         maxCapacity,
         isSpecial: activityForm.value.isSpecial,
+        specialLine,
       });
       $q.notify({ type: 'positive', message: 'Actividad creada' });
     }
-    activityForm.value = { name: '', description: '', maxCapacity: null, isSpecial: false };
+    activityForm.value = {
+      name: '',
+      description: '',
+      maxCapacity: null,
+      isSpecial: false,
+      specialLine: null,
+    };
     editingActivity.value = null;
     await loadActivities();
   } catch (err: unknown) {

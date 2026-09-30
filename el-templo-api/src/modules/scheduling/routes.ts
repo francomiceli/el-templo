@@ -28,6 +28,7 @@ import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
 import { TrialService } from "./trials-service";
 import { PartnerWeekService } from "./partner-week-service";
+import { EspecialTrialService } from "./especial-trial-service";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantWhere } from "../shared/tenant";
 import {
@@ -64,6 +65,7 @@ import {
   deleteScheduleFromDateSchema,
   updateScheduleActivitySchema,
   updateScheduleTimeSchema,
+  updateScheduleCoachSchema,
   seedSchedulesSchema,
   adminAddBookingSchema,
   adminRemoveBookingSchema,
@@ -85,6 +87,7 @@ import {
   updateClassLabelDescriptionSchema,
   partnerBenefitSchema,
   reservePartnerWeekSchema,
+  reserveEspecialTrialSchema,
 } from "./schemas";
 import type { DayOfWeek, AffectedScheduleRef } from "./types";
 
@@ -305,6 +308,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       description?: string;
       maxCapacity?: number | null;
       isSpecial?: boolean;
+      specialLine?: string | null;
     };
   }>(
     "/activities",
@@ -318,6 +322,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
           request.body.description,
           request.body.maxCapacity,
           request.body.isSpecial,
+          request.body.specialLine,
         );
         return reply.code(201).send(activity);
       } catch (err: unknown) {
@@ -346,6 +351,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       isActive?: boolean;
       maxCapacity?: number | null;
       isSpecial?: boolean;
+      specialLine?: string | null;
     };
   }>(
     "/activities/:activityId",
@@ -900,6 +906,42 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // PATCH /schedules/:scheduleId/coach — profe propio del horario
+  // (2026-09-29, yoga de Moreno): pisa al profe del turno solo para este
+  // horario; `null` vuelve a heredarlo. Owner-only, igual que el roster
+  // (POST /api/admin/ratings/roster): solo el owner asigna profes.
+  fastify.patch<{
+    Params: { scheduleId: number };
+    Body: { coachUserId: number | null };
+  }>(
+    "/schedules/:scheduleId/coach",
+    {
+      schema: updateScheduleCoachSchema,
+      preHandler: [requireScheduleBranchAccess],
+    },
+    async (request, reply) => {
+      try {
+        if (request.user.role !== "owner") {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "Solo el owner puede asignar profes",
+          });
+        }
+        const ctx = assertTenant(
+          request.scope,
+          "scheduling.updateScheduleCoach",
+        );
+        return await schedulingService.updateScheduleCoach(
+          ctx,
+          request.params.scheduleId,
+          request.body.coachUserId,
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "update schedule coach");
+      }
+    },
+  );
+
   // ─── Trials (Phase 102 + 103) ───────────────────────────────────────────
 
   // PATCH /schedules/:scheduleId/time — change start/end time of a slot.
@@ -1167,6 +1209,15 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     bookingService,
   );
 
+  // 2026-09-29 (yoga de Moreno): clase de prueba gratis de un pase especial.
+  // Mismo molde que partner-week: assignPlan a $0 + reserve.
+  const especialTrialService = new EspecialTrialService(
+    fastify.db,
+    fastify.log,
+    subscriptionService,
+    bookingService,
+  );
+
   /**
    * Guard: require authentication (any role) on all routes in this plugin.
    *
@@ -1405,6 +1456,28 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
           request.log,
           "member reserve partner week",
         );
+      }
+    },
+  );
+
+  // POST /especial-trial — 2026-09-29: "Probá una clase gratis" en una línea de
+  // pase especial (Yoga). Asigna el pase de prueba y reserva el turno en un
+  // solo request; elegibilidad y plan resueltos server-side.
+  fastify.post<{
+    Body: { scheduleId: number; date: string };
+  }>(
+    "/especial-trial",
+    { schema: reserveEspecialTrialSchema },
+    async (request, reply) => {
+      try {
+        const booking = await especialTrialService.activateAndReserve(
+          assertTenant(request.scope, "scheduling.especialTrial"),
+          request.user.userId,
+          request.body,
+        );
+        return reply.code(201).send(booking);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "member especial trial");
       }
     },
   );

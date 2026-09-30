@@ -183,6 +183,12 @@ export interface PlanListItem {
    * planes no-especiales lo tienen en false y no lo consultan.
    */
   requiresPresencial: boolean;
+  /**
+   * Línea del pase especial (2026-09-29): el pase solo habilita actividades
+   * especiales con la misma línea. NULL = "Actividades con Aura". Siempre NULL
+   * en planes no-especiales. Ver scheduling/special-line.ts.
+   */
+  specialLine: string | null;
   multiBranch: boolean;
   isTrial: boolean;
   isGroup: boolean;
@@ -239,6 +245,8 @@ export interface CreatePlanInput {
   monthlyClassBudget?: number;
   /** Solo `especial`: pase Socio (exige presencial activo) vs Externo. */
   requiresPresencial?: boolean;
+  /** Solo `especial`: línea del pase (NULL/vacío = "Actividades con Aura"). */
+  specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
@@ -265,6 +273,8 @@ export interface UpdatePlanInput {
   monthlyClassBudget?: number | null;
   /** Solo `especial` — ver CreatePlanInput. */
   requiresPresencial?: boolean;
+  /** Solo `especial` — ver CreatePlanInput. */
+  specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
@@ -288,6 +298,8 @@ export interface SubscriptionDetail {
   planName: string;
   planTier: PlanTier;
   planCategory: PlanCategory;
+  /** Línea del pase especial del plan (NULL = Aura / no-especial). */
+  specialLine: string | null;
   branchId: number;
   branchName: string;
   status: SubscriptionStatus;
@@ -414,6 +426,11 @@ export interface AssignPlanInput {
    * instead of starting a fresh `startDate + durationDays` period, and the
    * class budget is prorated to the inherited window. Ignored by
    * changePlanAfterCurrent. Format: YYYY-MM-DD, must be after startDate.
+   *
+   * assignPlan también lo honra (2026-09-29, clase de prueba de Yoga): fija el
+   * vencimiento del alta en vez de startDate + durationDays. Solo lo setean
+   * servicios server-side (EspecialTrialService), nunca el body del admin.
+   * Ahí alcanza con `>= startDate` (una prueba puede vencer el mismo día).
    */
   endDateOverride?: string;
   /**

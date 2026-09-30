@@ -111,28 +111,31 @@
       <!-- ========================================== -->
       <!-- Pase de Actividades Especiales (Plan 161) -->
       <!-- ========================================== -->
+      <!-- Un card por pase: el socio puede tener un pase por línea (Aura, Yoga…). -->
       <SubscriptionCard
-        v-if="especialSub"
-        :subscription="especialSub"
+        v-for="sub in especialSubs"
+        :key="sub.id"
+        :subscription="sub"
         label="Pase de Actividades"
         show-category-badge
-        @renew="openRenewal(especialSub!)"
-        @edit-start-date="openEditStartDate(especialSub!)"
-        @cancel="confirmCancelEspecial"
+        @renew="openRenewal(sub)"
+        @edit-start-date="openEditStartDate(sub)"
+        @cancel="confirmCancelEspecial(sub)"
       />
 
-      <!-- Vender pase de actividades (cuando no hay uno activo) -->
-      <q-card v-else flat bordered class="q-mb-md">
+      <!-- Vender pase de actividades: siempre visible, porque con un pase de una
+           línea (p. ej. Aura) el socio todavía puede comprar el de otra (Yoga). -->
+      <q-card flat bordered class="q-mb-md">
         <q-card-section class="row items-center justify-between q-py-sm">
           <div>
             <div class="text-body2 text-weight-medium">Pase de Actividades Especiales</div>
             <div class="text-caption text-grey-7">
-              Socio (requiere presencial activo) o Externo — 2 asistencias por mes.
+              Aura, Yoga… Un pase por línea. Los de socio/alumno requieren presencial activo.
             </div>
           </div>
           <q-btn
             icon="local_activity"
-            label="Vender pase"
+            :label="especialSubs.length > 0 ? 'Vender otro pase' : 'Vender pase'"
             color="pink-8"
             outline
             dense
@@ -872,7 +875,7 @@ const programaSub = computed(
 // a la presencial (el overlap-conflict gap conocido en service.ts permite
 // que coexistan hoy — ver types.ts categoryGroup NOTA); se muestra en su
 // propio card y se renueva/cambia por subscriptionId, mismo patrón que
-// especialSub. Preferimos active/paused; si no hay, la scheduled.
+// especialSubs. Preferimos active/paused; si no hay, la scheduled.
 const paqueteSub = computed(
   () =>
     allSubscriptions.value.find(
@@ -882,17 +885,23 @@ const paqueteSub = computed(
     null
 );
 
-// Pase de actividades especiales (Plan 161). Corre en paralelo a la presencial
-// y a los programas online; se muestra en su propio card y se renueva por
-// subscriptionId. Preferimos active/paused; si no hay, la scheduled.
-const especialSub = computed(
-  () =>
-    allSubscriptions.value.find(
-      (s) => s.planCategory === 'especial' && (s.status === 'active' || s.status === 'paused')
-    ) ??
-    allSubscriptions.value.find((s) => s.planCategory === 'especial' && s.status === 'scheduled') ??
-    null
-);
+// Pases de actividades especiales (Plan 161). Corren en paralelo a la
+// presencial y a los programas online; cada uno en su propio card y se renueva
+// por subscriptionId. Desde 2026-09-29 puede haber uno por línea del pase
+// (Aura, Yoga…): por línea preferimos active/paused; si no hay, la scheduled.
+const especialSubs = computed(() => {
+  const byLine = new Map<string, (typeof allSubscriptions.value)[number]>();
+  const especiales = allSubscriptions.value.filter((s) => s.planCategory === 'especial');
+  const ordered = [
+    ...especiales.filter((s) => s.status === 'active' || s.status === 'paused'),
+    ...especiales.filter((s) => s.status === 'scheduled'),
+  ];
+  for (const s of ordered) {
+    const line = (s.specialLine ?? '').trim().toLowerCase();
+    if (!byLine.has(line)) byLine.set(line, s);
+  }
+  return [...byLine.values()];
+});
 
 const showAssignEspecialDialog = ref(false);
 
@@ -1684,9 +1693,7 @@ function confirmCancelPrograma() {
   });
 }
 
-function confirmCancelEspecial() {
-  const sub = especialSub.value;
-  if (!sub) return;
+function confirmCancelEspecial(sub: (typeof allSubscriptions.value)[number]) {
   $q.dialog({
     title: 'Cancelar pase de actividades',
     message: 'Cancelar el pase? Esta accion no se puede deshacer.',

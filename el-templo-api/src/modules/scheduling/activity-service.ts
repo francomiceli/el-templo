@@ -12,6 +12,7 @@ import * as schema from "../../db/schema";
 import { ConflictError, NotFoundError } from "../shared/errors";
 import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
 import type { ActivityRecord, AffectedScheduleRef } from "./types";
+import { normalizeSpecialLine } from "./special-line";
 
 export class ActivityService {
   constructor(
@@ -31,6 +32,7 @@ export class ActivityService {
     description?: string,
     maxCapacity?: number | null,
     isSpecial?: boolean,
+    specialLine?: string | null,
   ): Promise<ActivityRecord> {
     // Phase 113 (D-16): reject duplicate name across ACTIVE activities.
     // Inactive activities don't block reuse — admins can recreate by name
@@ -61,6 +63,8 @@ export class ActivityService {
         // ACT-01 (fase 161): flag de gating del pase "Actividades con Aura".
         // Default false → cero cambio de comportamiento para actividades regulares.
         isSpecial: isSpecial ?? false,
+        // Línea del pase (2026-09-29): solo en especiales, NULL = Aura.
+        specialLine: isSpecial ? normalizeSpecialLine(specialLine) : null,
       }),
     );
 
@@ -102,6 +106,7 @@ export class ActivityService {
       isActive?: boolean;
       maxCapacity?: number | null;
       isSpecial?: boolean;
+      specialLine?: string | null;
     },
   ): Promise<ActivityRecord> {
     const existing = await this.getActivity(ctx, id);
@@ -186,6 +191,15 @@ export class ActivityService {
     // ACT-01 (fase 161): editar el flag de gating; ausencia de la key deja el
     // valor existente intacto (mismo patrón que maxCapacity).
     if (data.isSpecial !== undefined) updateData.isSpecial = data.isSpecial;
+    // Línea del pase (2026-09-29): solo vive en especiales. Si la actividad
+    // queda NO especial se limpia sola, así una regular nunca arrastra línea.
+    const effectiveIsSpecial = data.isSpecial ?? existing.isSpecial;
+    if (!effectiveIsSpecial) {
+      if (existing.specialLine !== null || data.specialLine !== undefined)
+        updateData.specialLine = null;
+    } else if (data.specialLine !== undefined) {
+      updateData.specialLine = normalizeSpecialLine(data.specialLine);
+    }
 
     if (Object.keys(updateData).length > 0) {
       await this.db
@@ -230,6 +244,7 @@ export class ActivityService {
       isActive: row.isActive,
       maxCapacity: row.maxCapacity,
       isSpecial: row.isSpecial,
+      specialLine: row.specialLine ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

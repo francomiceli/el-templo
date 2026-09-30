@@ -28,6 +28,7 @@ import {
 import { milestoneInWindow, toUtcDateStr } from "../shared/tenure-milestones";
 import { birthdayLabelOn } from "../shared/birthdays";
 import { SubscriptionService } from "../subscriptions/service";
+import { sameActivityKindSql } from "../scheduling/special-line";
 import { AuraService } from "../aura/service";
 import { CheckInService } from "../check-ins/service";
 import type { DayCheckIn } from "../check-ins/types";
@@ -127,6 +128,7 @@ export class AttendanceService {
         startTime: schema.schedules.startTime,
         activityName: schema.activities.name,
         isSpecial: schema.activities.isSpecial,
+        specialLine: schema.activities.specialLine,
       })
       .from(schema.bookings)
       .innerJoin(
@@ -156,6 +158,11 @@ export class AttendanceService {
     // is no matching booking (yet), default to a regular (non-especial) activity;
     // the hard "no booking" block below still rejects the check-in.
     const isSpecialActivity = matchingBooking?.isSpecial ?? false;
+    // Línea del pase (2026-09-29): descuenta del pase de la línea de la
+    // actividad (yoga ≠ Aura). NULL = Aura / regular.
+    const specialLine = isSpecialActivity
+      ? (matchingBooking?.specialLine ?? null)
+      : null;
 
     // Check subscription for this activity's category (auto-expire catches
     // expired subs, returns null = hard block).
@@ -164,6 +171,7 @@ export class AttendanceService {
         ctx,
         memberId,
         isSpecialActivity,
+        specialLine,
       );
     if (!subscription) {
       throw new BadRequestError("No tenes una suscripcion activa");
@@ -244,7 +252,7 @@ export class AttendanceService {
           tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, memberId),
           sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
-          sql`COALESCE(${schema.activities.isSpecial}, false) = ${isSpecialActivity}`,
+          sameActivityKindSql(isSpecialActivity, specialLine),
         ),
       )
       .limit(1);
@@ -295,7 +303,7 @@ export class AttendanceService {
             tenantWhere(schema.attendance, ctx),
             eq(schema.attendance.memberId, memberId),
             eq(schema.attendance.sessionDate, todayStr),
-            sql`COALESCE(${schema.activities.isSpecial}, false) = ${isSpecialActivity}`,
+            sameActivityKindSql(isSpecialActivity, specialLine),
           ),
         )
         .limit(1);
@@ -841,6 +849,7 @@ export class AttendanceService {
       .select({
         branchId: schema.schedules.branchId,
         isSpecial: schema.activities.isSpecial,
+        specialLine: schema.activities.specialLine,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -882,7 +891,7 @@ export class AttendanceService {
           tenantWhere(schema.attendance, ctx),
           eq(schema.attendance.memberId, memberId),
           eq(schema.attendance.sessionDate, date),
-          sql`COALESCE(${schema.activities.isSpecial}, false) = ${schedule.isSpecial}`,
+          sameActivityKindSql(schedule.isSpecial, schedule.specialLine),
         ),
       )
       .limit(1);
@@ -900,6 +909,7 @@ export class AttendanceService {
         ctx,
         memberId,
         schedule.isSpecial,
+        schedule.isSpecial ? schedule.specialLine : null,
       );
     if (!subscription) {
       warnings.push("Sin suscripcion activa");
@@ -1004,7 +1014,7 @@ export class AttendanceService {
    * Fase 174.1 (174.1-02, D-04): `ctx` es REQUERIDO — su único caller
    * (`attendance/routes.ts`, DELETE /:attendanceId) ahora deriva
    * `assertTenant(request.scope, "attendance.removeCheckIn")` como el resto
-   * de las rutas del archivo. `isSpecialSchedule` (único caller de este
+   * de las rutas del archivo. `resolveScheduleKind` (único caller de este
    * método) queda con `ctx` opcional y su guard Pattern D — diferido a 175
    * (D-05), fuera del alcance de este plan.
    */
@@ -1040,15 +1050,13 @@ export class AttendanceService {
     // Restore classesRemaining +1.
     // Fase 161 (GATE-02): restaurar la clase a la sub correcta según si la
     // actividad era especial. scheduleId null (force check-in) → regular.
-    const isSpecialActivity = await this.isSpecialSchedule(
-      ctx,
-      attRecord.scheduleId,
-    );
+    const kind = await this.resolveScheduleKind(ctx, attRecord.scheduleId);
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
         ctx,
         attRecord.memberId,
-        isSpecialActivity,
+        kind.isSpecial,
+        kind.specialLine,
       );
     if (subscription && subscription.classesRemaining !== null) {
       await this.db
@@ -1124,19 +1132,24 @@ export class AttendanceService {
 
   /**
    * Fase 161 (GATE-02): resuelve si la actividad de un scheduleId es especial
-   * (activities.is_special) para rutear el consumo a la sub correcta. Devuelve
-   * false si scheduleId es null o el horario no existe (defensivo: regular).
+   * (activities.is_special) y de qué línea (2026-09-29) para rutear el consumo
+   * a la sub correcta. Devuelve regular si scheduleId es null o el horario no
+   * existe (defensivo).
    *
    * Fase 174 (174-05): `ctx` opcional (ver `removeCheckIn`, su único caller) —
    * mismo guard provisorio Pattern D cuando no llega.
    */
-  private async isSpecialSchedule(
+  private async resolveScheduleKind(
     ctx: TenantContext | undefined,
     scheduleId: number | null,
-  ): Promise<boolean> {
-    if (scheduleId === null) return false;
+  ): Promise<{ isSpecial: boolean; specialLine: string | null }> {
+    const regular = { isSpecial: false, specialLine: null };
+    if (scheduleId === null) return regular;
     const [row] = await this.db
-      .select({ isSpecial: schema.activities.isSpecial })
+      .select({
+        isSpecial: schema.activities.isSpecial,
+        specialLine: schema.activities.specialLine,
+      })
       .from(schema.schedules)
       .innerJoin(
         schema.activities,
@@ -1154,7 +1167,8 @@ export class AttendanceService {
             ),
       )
       .limit(1);
-    return row?.isSpecial ?? false;
+    if (!row?.isSpecial) return regular;
+    return { isSpecial: true, specialLine: row.specialLine ?? null };
   }
 
   /**

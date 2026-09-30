@@ -45,6 +45,7 @@ import {
   CoverageExpiredError,
   PassRequiredError,
 } from "../shared/errors";
+import { sameActivityKindSql, specialLineLabel } from "./special-line";
 import { categoryGroup } from "../subscriptions/types";
 import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
 import { getScheduleException } from "./schedule-exceptions";
@@ -102,6 +103,9 @@ export class BookingService {
     // Fase 161 (ACT-02): flag de gating resuelto SERVER-side (JOIN a activities
     // en getScheduleSlotRaw), nunca del request (T-161-12).
     const isSpecialActivity = scheduleRow.isSpecial;
+    // Línea del pase (2026-09-29): el pase tiene que ser de la línea de la
+    // actividad (yoga ≠ Aura). NULL = Aura. Solo cuenta si es especial.
+    const specialLine = isSpecialActivity ? scheduleRow.specialLine : null;
 
     // "Hoy" en la zona horaria de la sede — reutilizado por la ventana extendida
     // (D-06) y el conteo de reservas futuras del pase (D-04).
@@ -143,11 +147,15 @@ export class BookingService {
         ctx,
         memberId,
         isSpecialActivity,
+        specialLine,
       );
     if (!subscription) {
-      // GATE-01/03: member sin pase reservando una especial → pedir el pase.
+      // GATE-01/03: member sin pase reservando una especial → pedir el pase
+      // (de la línea de la actividad: un pase de Aura no habilita yoga).
       if (isSpecialActivity && actorRole === "member") {
-        throw new PassRequiredError();
+        throw new PassRequiredError(
+          `Necesitás el pase de ${specialLineLabel(specialLine)} para reservar esta clase`,
+        );
       }
       // GATE-04: member con SOLO pase (especial) reservando una regular → aviso
       //          específico de que el pase no habilita las actividades regulares.
@@ -263,6 +271,7 @@ export class BookingService {
         ctx,
         memberId,
         today,
+        specialLine,
       );
       if (committed >= subscription.classesRemaining) {
         throw new BadRequestError(
@@ -381,7 +390,8 @@ export class BookingService {
     //     Aura) no chocan con las regulares: un socio puede tener la especial
     //     y su clase regular (p. ej. ROM) el mismo día — la regla diaria
     //     compara solo contra reservas del mismo tipo (mismo criterio que la
-    //     exención del límite semanal de fase 161).
+    //     exención del límite semanal de fase 161). Entre especiales, la
+    //     regla es por línea (2026-09-29): yoga no choca con Aura.
     const [sameDayBooking] = await this.db
       .select({ id: schema.bookings.id })
       .from(schema.bookings)
@@ -399,7 +409,7 @@ export class BookingService {
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.bookingDate, date),
           sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
-          eq(schema.activities.isSpecial, isSpecialActivity),
+          sameActivityKindSql(isSpecialActivity, specialLine),
         ),
       )
       .limit(1);
@@ -661,6 +671,7 @@ export class BookingService {
         cancelledAt: schema.bookings.cancelledAt,
         isTrial: schema.bookings.isTrial,
         isSpecial: schema.activities.isSpecial,
+        specialLine: schema.activities.specialLine,
       })
       .from(schema.bookings)
       .innerJoin(
@@ -828,16 +839,18 @@ export class BookingService {
     // PassRequiredError / GATE-04) es exclusivo del self-booking de members en
     // reserve(). La sub se rutea por actividad igual que en reserve().
     const isSpecialActivity = scheduleRow.isSpecial;
+    const specialLine = isSpecialActivity ? scheduleRow.specialLine : null;
     const subscription =
       await this.subscriptionService.pickSubscriptionForActivity(
         ctx,
         memberId,
         isSpecialActivity,
+        specialLine,
       );
     if (!subscription) {
       warnings.push(
         isSpecialActivity
-          ? "El alumno no tiene un pase de actividades activo"
+          ? `El alumno no tiene un pase de ${specialLineLabel(specialLine)} activo`
           : "Sin suscripcion activa",
       );
     } else {
@@ -2055,7 +2068,7 @@ export class BookingService {
     const promoted = await this.db.transaction(async (tx) => {
       // Fase 174.1-05b: filtro INLINE en cada `.where()` (no una variable
       // `tenantFilter` extraída) — el lint juzga por statement (PATTERNS
-      // §2.6, mismo idioma que `isSpecialSchedule` en attendance/service.ts),
+      // §2.6, mismo idioma que `resolveScheduleKind` en attendance/service.ts),
       // y una variable compartida entre las 4 queries de abajo dejaría cada
       // una sin el marcador `tenantWhere(`/`.tenantId` en su propio texto.
       // Find the first waitlisted booking (lowest position)
@@ -2347,12 +2360,15 @@ export class BookingService {
    * actividades especiales (status reservado/lista_espera, fecha >= fromDate,
    * JOIN a activities.is_special). qr_escaneado/confirmado ya descontaron
    * classesRemaining en el check-in, así que se excluyen para no doble-contar.
+   * Solo cuentan las de la MISMA línea (2026-09-29): las reservas de yoga no
+   * comprometen el saldo del pase de Aura ni al revés.
    */
   // Fase 174.1-05b: `ctx` REQUERIDO — su único caller (`reserve`) ya lo trae.
   private async countFuturePendingSpecialBookings(
     ctx: TenantContext,
     memberId: number,
     fromDate: string,
+    specialLine: string | null,
   ): Promise<number> {
     const [result] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
@@ -2371,7 +2387,7 @@ export class BookingService {
           eq(schema.bookings.memberId, memberId),
           sql`${schema.bookings.status} IN ('reservado', 'lista_espera')`,
           gte(schema.bookings.bookingDate, fromDate),
-          eq(schema.activities.isSpecial, true),
+          sameActivityKindSql(true, specialLine),
         ),
       );
     return Number(result?.count ?? 0);
@@ -2494,6 +2510,8 @@ export class BookingService {
     // activities. Contrato que consume el gating de reserva (Plan 06) — se
     // deriva de la actividad, nunca del request (T-161-11).
     isSpecial: boolean;
+    // Línea del pase especial (2026-09-29), también resuelta server-side.
+    specialLine: string | null;
   } | null> {
     const [row] = await this.db
       .select({
@@ -2507,6 +2525,7 @@ export class BookingService {
         isActive: schema.schedules.isActive,
         inactiveReason: schema.schedules.inactiveReason,
         isSpecial: schema.activities.isSpecial,
+        specialLine: schema.activities.specialLine,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -2554,6 +2573,7 @@ export class BookingService {
         cancelledAt: schema.bookings.cancelledAt,
         isTrial: schema.bookings.isTrial,
         isSpecial: schema.activities.isSpecial,
+        specialLine: schema.activities.specialLine,
       })
       .from(schema.bookings)
       .innerJoin(
@@ -2596,6 +2616,7 @@ export class BookingService {
     cancelledAt: Date | null;
     isTrial: boolean;
     isSpecial: boolean;
+    specialLine: string | null;
   }): BookingRecord {
     return {
       id: row.id,
@@ -2620,6 +2641,7 @@ export class BookingService {
       seniority: null,
       endDate: null,
       isSpecial: row.isSpecial,
+      specialLine: row.specialLine ?? null,
       // No roster acá (single-booking lookup) — ver BookingRecord.memberBranchId.
       memberBranchId: null,
       memberBranchName: null,

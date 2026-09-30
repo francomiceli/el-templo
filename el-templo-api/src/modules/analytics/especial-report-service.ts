@@ -131,7 +131,10 @@ export class EspecialReportService {
     // duplicar por fanout de subs (Pitfall 4):
     //  - `especialRequiresPresencial`: requires_presencial (1/0) de la sub especial
     //    que cubre session_date; si hay varias (renovación solapada/contigua) se
-    //    elige la de start_date más reciente. NULL si no hay ninguna.
+    //    elige la de start_date más reciente. NULL si no hay ninguna. Solo
+    //    cuenta el pase de la MISMA línea que la actividad (2026-09-29): un
+    //    socio con pase de Aura Externo y pase de Yoga Alumnos se clasifica
+    //    por el pase que corresponde a cada clase.
     //  - `hasCoveringPresencial`: existe una sub PRESENCIAL active/paused que cubre
     //    session_date (input de la regla de fallback).
     // Fase 174.1-03 (D-02): `s`/`sp` son `subscriptions`/`subscription_plans`
@@ -145,6 +148,7 @@ export class EspecialReportService {
         AND s.tenant_id = ${ctx.tenantId}
         AND sp.tenant_id = ${ctx.tenantId}
         AND sp.plan_category = 'especial'
+        AND sp.special_line <=> ${schema.activities.specialLine}
         AND s.subscription_status <> 'cancelled'
         AND s.start_date <= ${schema.attendance.sessionDate}
         AND (s.end_date IS NULL OR s.end_date >= ${schema.attendance.sessionDate})

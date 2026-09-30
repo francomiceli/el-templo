@@ -128,6 +128,64 @@
         <div class="text-caption text-grey-7 q-mt-xs">
           {{ summaryText }}
         </div>
+        <!-- Profe propio del horario (yoga Moreno): pisa al profe del turno del
+             roster solo para este horario. Edición solo owner (server-side 403). -->
+        <div v-if="slotDetail" class="q-mt-xs">
+          <div v-if="!editingCoach" class="text-caption text-grey-7 row items-center no-wrap">
+            <span>Profe del horario: {{ coachDisplayName }}</span>
+            <q-btn
+              v-if="canEditCoach"
+              flat
+              dense
+              round
+              icon="edit"
+              size="xs"
+              color="primary"
+              class="q-ml-xs"
+              @click="startEditCoach"
+            >
+              <q-tooltip>Cambiar profe del horario</q-tooltip>
+            </q-btn>
+          </div>
+          <div v-else class="row items-center no-wrap q-gutter-xs">
+            <q-select
+              v-model="selectedCoachId"
+              :options="coachOptions"
+              option-value="id"
+              option-label="label"
+              emit-value
+              map-options
+              label="Profe del horario"
+              dense
+              outlined
+              class="col"
+            />
+            <q-btn
+              flat
+              dense
+              round
+              icon="check"
+              color="positive"
+              size="sm"
+              :loading="savingCoach"
+              :disable="selectedCoachId === (slotDetail.schedule.coachUserId ?? null)"
+              @click="saveCoachChange"
+            >
+              <q-tooltip>Guardar</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              round
+              icon="close"
+              color="grey-7"
+              size="sm"
+              @click="editingCoach = false"
+            >
+              <q-tooltip>Cancelar</q-tooltip>
+            </q-btn>
+          </div>
+        </div>
         <q-banner v-if="isSlotInactive" class="bg-red-1 text-red-9 q-mt-sm" rounded dense>
           <template #avatar>
             <q-icon name="block" color="negative" />
@@ -755,6 +813,8 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
+import { useRatingsApi } from 'src/composables/useRatingsApi';
+import type { CoachOption } from 'src/composables/useRatingsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
@@ -779,6 +839,7 @@ const router = useRouter();
 const schedulingApi = useSchedulingApi();
 const attendanceApi = useAttendanceApi();
 const membersApi = useMembersApi();
+const ratingsApi = useRatingsApi();
 const authStore = useAuthStore();
 
 // Visitantes de otra sede (feat/admin-sede-visitantes, 2026-09-26): único
@@ -855,6 +916,13 @@ const editingActivity = ref(false);
 const selectedActivityId = ref<number | null>(null);
 const availableActivities = ref<ActivityRecord[]>([]);
 const savingActivity = ref(false);
+
+// Coach edit (profe por horario, 2026-09-29): NULL = hereda el profe del turno.
+const editingCoach = ref(false);
+const selectedCoachId = ref<number | null>(null);
+const savingCoach = ref(false);
+const coaches = ref<CoachOption[]>([]);
+const coachesBranchId = ref<number | null>(null);
 
 // Time edit (feedback profes 2026-09): Open Gym tenía sede/actividad
 // editables in-place pero no la hora — el único camino era desactivar y
@@ -958,6 +1026,24 @@ const canEditActivity = computed(() => !!slotDetail.value);
 
 const canEditTime = computed(() => !!slotDetail.value);
 
+// El server responde 403 a no-owners; el lápiz se oculta para no ofrecer algo que falla.
+const canEditCoach = computed(() => authStore.user?.role === 'owner');
+
+const coachDisplayName = computed(() => {
+  const coachId = slotDetail.value?.schedule.coachUserId ?? null;
+  if (coachId === null) return 'Profe del turno';
+  const coach = coaches.value.find((c) => c.id === coachId);
+  return coach ? `${coach.firstName} ${coach.lastName}`.trim() : 'Profe propio';
+});
+
+const coachOptions = computed(() => [
+  { id: null as number | null, label: 'Profe del turno (sin profe propio)' },
+  ...coaches.value.map((c) => ({
+    id: c.id as number | null,
+    label: `${c.firstName} ${c.lastName}`,
+  })),
+]);
+
 const timeRangeValid = computed(() => {
   const start = editTimeStart.value;
   const end = editTimeEnd.value;
@@ -1044,8 +1130,7 @@ function goToMember(memberId: number): void {
 function isVisitorBooking(booking: { memberBranchId: number | null }): boolean {
   if (!isAdminSede.value || !slotDetail.value) return false;
   return (
-    booking.memberBranchId !== null &&
-    booking.memberBranchId !== slotDetail.value.schedule.branchId
+    booking.memberBranchId !== null && booking.memberBranchId !== slotDetail.value.schedule.branchId
   );
 }
 
@@ -1399,6 +1484,7 @@ async function onRemoveBooking(bookingId: number) {
 
 async function startEditActivity() {
   editingTime.value = false;
+  editingCoach.value = false;
   if (availableActivities.value.length === 0) {
     try {
       availableActivities.value = await schedulingApi.listActivities();
@@ -1441,6 +1527,7 @@ async function saveActivityChange() {
 function startEditTime() {
   if (!slotDetail.value) return;
   editingActivity.value = false;
+  editingCoach.value = false;
   editTimeStart.value = slotDetail.value.schedule.startTime;
   editTimeEnd.value = slotDetail.value.schedule.endTime;
   editingTime.value = true;
@@ -1464,6 +1551,55 @@ async function saveTimeChange() {
     $q.notify({ type: 'negative', message });
   } finally {
     savingTime.value = false;
+  }
+}
+
+// ─── Coach edit ─────────────────────────────────────────────────────────────
+
+/** Carga (una vez por sede) los profes asignables al horario. */
+async function ensureCoachesLoaded(): Promise<boolean> {
+  const branchId = slotDetail.value?.schedule.branchId;
+  if (branchId === undefined) return false;
+  if (coachesBranchId.value === branchId) return true;
+  try {
+    coaches.value = await ratingsApi.getCoachesForBranch(branchId);
+    coachesBranchId.value = branchId;
+    return true;
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error cargando profes');
+    log.error('Error loading coaches', { error: message });
+    return false;
+  }
+}
+
+async function startEditCoach() {
+  if (!slotDetail.value) return;
+  if (!(await ensureCoachesLoaded())) {
+    $q.notify({ type: 'negative', message: 'Error cargando profes' });
+    return;
+  }
+  editingActivity.value = false;
+  editingTime.value = false;
+  selectedCoachId.value = slotDetail.value?.schedule.coachUserId ?? null;
+  editingCoach.value = true;
+}
+
+async function saveCoachChange() {
+  if (!slotDetail.value) return;
+  const scheduleId = slotDetail.value.schedule.id;
+  savingCoach.value = true;
+  try {
+    await schedulingApi.updateScheduleCoach(scheduleId, selectedCoachId.value);
+    $q.notify({ type: 'positive', message: 'Profe del horario actualizado' });
+    editingCoach.value = false;
+    await refreshAll();
+    emit('bookings-changed');
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error asignando el profe del horario');
+    log.error('Error updating schedule coach', { error: message });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    savingCoach.value = false;
   }
 }
 
@@ -1590,7 +1726,8 @@ async function onTrialMemberCreated(member: MemberProfile): Promise<void> {
     const msg = schedulingApi.error.value ?? fallback;
     // 4xx = validación de negocio (sin cupo de prueba, sede, etc.): el admin ya ve
     // el motivo en el notify, no es un bug → warn (no va a Sentry).
-    if (isExpectedClientError(err)) log.warn('Error booking trial after soft register', { error: msg });
+    if (isExpectedClientError(err))
+      log.warn('Error booking trial after soft register', { error: msg });
     else log.error('Error booking trial after soft register', { error: msg });
     $q.notify({
       type: 'warning',
@@ -1614,6 +1751,14 @@ watch(trialFormOpen, (open) => {
 
 // ─── Watchers ───────────────────────────────────────────────────────────────
 
+// Resolver el nombre del profe propio (solo lectura) sin esperar al editor.
+watch(
+  () => slotDetail.value?.schedule.coachUserId ?? null,
+  (coachId) => {
+    if (coachId !== null) void ensureCoachesLoaded();
+  }
+);
+
 watch(
   () => props.show,
   (val) => {
@@ -1623,6 +1768,8 @@ watch(
       searchOtherBranches.value = false;
       checkInReason.value = '';
       editingActivity.value = false;
+      editingTime.value = false;
+      editingCoach.value = false;
       trialFormOpen.value = false;
       selectedTrialUser.value = null;
       eligibleTrialsAll.value = [];

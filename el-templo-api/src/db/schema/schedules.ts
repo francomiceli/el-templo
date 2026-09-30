@@ -12,6 +12,7 @@ import { relations } from "drizzle-orm";
 import { branches } from "./branches";
 import { activities } from "./activities";
 import { bookings } from "./bookings";
+import { users } from "./users";
 import { tenantIdColumn } from "./tenant-column";
 
 export const schedules = mysqlTable(
@@ -31,6 +32,11 @@ export const schedules = mysqlTable(
     endTime: varchar("end_time", { length: 5 }).notNull(), // HH:MM
     isActive: boolean("is_active").default(true).notNull(),
     inactiveReason: varchar("inactive_reason", { length: 255 }),
+    // Profe del horario (2026-09-29): pisa al profe del turno del roster
+    // (class_coach_assignments, por día y mañana/tarde) SOLO para este horario.
+    // NULL = hereda el profe del turno. Pensado para actividades con un profe
+    // propio dentro de un turno de otro (yoga de Moreno, Verticales).
+    coachUserId: int("coach_user_id").references(() => users.id),
     deactivatedAt: timestamp("deactivated_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

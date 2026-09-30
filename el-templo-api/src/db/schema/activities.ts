@@ -25,6 +25,12 @@ export const activities = mysqlTable("activities", {
   // con Aura" (Verticales, Acrobacias, Open Gym). Default false → actividades existentes
   // NO son especiales y su reserva no cambia (cero cambio de comportamiento).
   isSpecial: boolean("is_special").default(false).notNull(),
+  // Línea del pase especial (2026-09-29, yoga de Moreno): el pase solo habilita
+  // las actividades especiales de SU línea. NULL = línea "Actividades con Aura"
+  // (todas las especiales previas). Solo tiene sentido con isSpecial=true — el
+  // servicio la limpia en las no-especiales. Mismo valor en
+  // subscription_plans.special_line (ver scheduling/special-line.ts).
+  specialLine: varchar("special_line", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
