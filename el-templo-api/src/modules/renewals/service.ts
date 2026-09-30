@@ -34,6 +34,7 @@
  * `sql` correlacionado. Explicit over clever.
  */
 import { and, desc, eq, gte, inArray, lte, ne, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -59,6 +60,7 @@ import type {
   RenewalActorScope,
   RenewalFollowupUpdateInput,
   RenewalKpis,
+  RenewalLastNote,
   RenewalListFilters,
   RenewalListResult,
   RenewalManualStatus,
@@ -97,7 +99,7 @@ export class ReasonRequiredError extends BadRequestError {
   readonly code = REASON_REQUIRED;
 
   constructor(
-    message = "El motivo es obligatorio para marcar 'No renovó' y tiene que estar activo",
+    message = "El motivo es obligatorio para marcar 'No renueva' y tiene que estar activo",
   ) {
     super(message);
   }
@@ -160,6 +162,18 @@ interface ExpiringRow {
   reasonId: number | null;
   reasonNote: string | null;
   reasonLabel: string | null;
+  followupUpdatedAt: Date | null;
+  editorFirstName: string | null;
+  editorLastName: string | null;
+}
+
+/** "Nombre Apellido" de un staff — mismo formato que `authorName` de `MemberService.getNotes`. */
+function staffName(
+  firstName: string | null,
+  lastName: string | null,
+): string | null {
+  const name = [firstName, lastName].filter(Boolean).join(" ");
+  return name === "" ? null : name;
 }
 
 /** Categoría del pase "Actividades con Aura" (fase 161) — ver `RenewalActivityType`. */
@@ -232,7 +246,7 @@ function pickNextSubscription(
 function deriveRow(
   e: ExpiringRow,
   nextSub: NextSubCandidate | null,
-  lastNote: { content: string; createdAt: string } | null,
+  lastNote: RenewalLastNote | null,
   windowDays: number,
 ): RenewalRow {
   const messageCount = e.messageCount ?? 0;
@@ -303,6 +317,10 @@ function deriveRow(
     manualStatus,
     manualOverridden,
     paraCerrar,
+    followupUpdatedAt: e.followupUpdatedAt
+      ? e.followupUpdatedAt.toISOString()
+      : null,
+    followupUpdatedByName: staffName(e.editorFirstName, e.editorLastName),
     lastNote,
   };
 }
@@ -465,6 +483,10 @@ export class RenewalsService {
           : []),
     ];
 
+    // Staff que tocó el followup por última vez (`updated_by`) — alias
+    // porque `users` ya está joineado como el socio.
+    const editor = alias(schema.users, "renewal_editor");
+
     const rows = await this.db
       .select({
         subscriptionId: schema.subscriptions.id,
@@ -488,6 +510,9 @@ export class RenewalsService {
         reasonId: schema.renewalFollowups.reasonId,
         reasonNote: schema.renewalFollowups.reasonNote,
         reasonLabel: schema.renewalReasons.label,
+        followupUpdatedAt: schema.renewalFollowups.updatedAt,
+        editorFirstName: editor.firstName,
+        editorLastName: editor.lastName,
       })
       .from(schema.subscriptions)
       .innerJoin(
@@ -517,6 +542,13 @@ export class RenewalsService {
         and(
           tenantWhere(schema.renewalReasons, ctx),
           eq(schema.renewalReasons.id, schema.renewalFollowups.reasonId),
+        ),
+      )
+      .leftJoin(
+        editor,
+        and(
+          tenantWhere(editor, ctx),
+          eq(editor.id, schema.renewalFollowups.updatedBy),
         ),
       )
       .where(and(...conditions))
@@ -583,14 +615,23 @@ export class RenewalsService {
   private async fetchLastNotes(
     ctx: TenantContext,
     userIds: number[],
-  ): Promise<Map<number, { content: string; createdAt: string }>> {
+  ): Promise<Map<number, RenewalLastNote>> {
     const rows = await this.db
       .select({
         userId: schema.memberNotes.userId,
         content: schema.memberNotes.content,
         createdAt: schema.memberNotes.createdAt,
+        authorFirstName: schema.users.firstName,
+        authorLastName: schema.users.lastName,
       })
       .from(schema.memberNotes)
+      .leftJoin(
+        schema.users,
+        and(
+          tenantWhere(schema.users, ctx),
+          eq(schema.users.id, schema.memberNotes.authorId),
+        ),
+      )
       .where(
         and(
           tenantWhere(schema.memberNotes, ctx),
@@ -599,12 +640,13 @@ export class RenewalsService {
       )
       .orderBy(desc(schema.memberNotes.createdAt), desc(schema.memberNotes.id));
 
-    const map = new Map<number, { content: string; createdAt: string }>();
+    const map = new Map<number, RenewalLastNote>();
     for (const r of rows) {
       if (!map.has(r.userId)) {
         map.set(r.userId, {
           content: r.content,
           createdAt: r.createdAt.toISOString(),
+          authorName: staffName(r.authorFirstName, r.authorLastName),
         });
       }
     }
@@ -672,7 +714,7 @@ export class RenewalsService {
   private async fetchLastNotesForSubscription(
     ctx: TenantContext,
     subscriptionId: number,
-  ): Promise<Map<number, { content: string; createdAt: string }>> {
+  ): Promise<Map<number, RenewalLastNote>> {
     const [sub] = await this.db
       .select({ userId: schema.subscriptions.userId })
       .from(schema.subscriptions)

@@ -59,11 +59,14 @@ const renewalRowSchema = {
     manualStatus: { type: "string", enum: ["en_proceso", "no_renovo"] },
     manualOverridden: { type: "boolean" },
     paraCerrar: { type: "boolean" },
+    followupUpdatedAt: { type: ["string", "null"] },
+    followupUpdatedByName: { type: ["string", "null"] },
     lastNote: {
       type: ["object", "null"],
       properties: {
         content: { type: "string" },
         createdAt: { type: "string" },
+        authorName: { type: ["string", "null"] },
       },
     },
   },

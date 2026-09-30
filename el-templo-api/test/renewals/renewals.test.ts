@@ -215,6 +215,24 @@ describe("Renewals API (módulo de Renovaciones)", () => {
     return { statusCode: res.statusCode, body: JSON.parse(res.body) };
   }
 
+  /** "Nombre Apellido" del admin de los tests, leído de la DB (sin hardcodear). */
+  async function adminDisplayName(): Promise<string> {
+    const [u] = await app.db
+      .select({
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, adminUserId),
+        ),
+      )
+      .limit(1);
+    return [u.firstName, u.lastName].filter(Boolean).join(" ");
+  }
+
   function findRow(
     body: { rows: RenewalRow[] },
     subId: number,
@@ -1261,6 +1279,42 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       expect(row.reasonId).toBeNull();
     });
 
+    it("expone quién y cuándo gestionó el seguimiento por última vez", async () => {
+      const subId = await makeExpiringRow();
+
+      // Sin gestionar todavía: sin fila en renewal_followups.
+      const before = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      const untouched = findRow(before.body, subId);
+      expect(untouched?.followupUpdatedAt).toBeNull();
+      expect(untouched?.followupUpdatedByName).toBeNull();
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `${BASE}/${subId}`,
+        headers: { Authorization: `Bearer ${adminToken}` },
+        payload: { messageCount: 1 },
+      });
+      expect(res.statusCode).toBe(200);
+      const expectedName = await adminDisplayName();
+      const patched = JSON.parse(res.body);
+      expect(patched.followupUpdatedByName).toBe(expectedName);
+      expect(patched.followupUpdatedAt).not.toBeNull();
+
+      // El listado (lo que ve la otra administrativa al refrescar) también.
+      const after = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      const row = findRow(after.body, subId);
+      expect(row?.followupUpdatedByName).toBe(expectedName);
+      expect(row?.followupUpdatedAt).toBe(patched.followupUpdatedAt);
+    });
+
     it("subscriptionId inexistente → 404", async () => {
       const res = await app.inject({
         method: "PATCH",
@@ -1305,6 +1359,36 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       );
       const row = findRow(body, subId);
       expect(row?.lastNote?.content).toContain("WhatsApp");
+      expect(row?.lastNote?.authorName).toBe(await adminDisplayName());
+    });
+
+    it("lastNote es la nota más reciente cuando se agregan varias", async () => {
+      const userId = await insertMember();
+      const subId = await insertSub({
+        userId,
+        planId: planPresencialId,
+        startDate: dateOffsetStr(-30),
+        endDate: todayStr(),
+      });
+
+      for (const content of ["Primer contacto", "Dice que no renueva"]) {
+        const res = await app.inject({
+          method: "POST",
+          url: `${BASE}/${subId}/notes`,
+          headers: { Authorization: `Bearer ${adminToken}` },
+          payload: { content },
+        });
+        expect(res.statusCode).toBe(201);
+      }
+
+      const { body } = await getList(
+        adminToken,
+        dateOffsetStr(-7),
+        dateOffsetStr(7),
+      );
+      expect(findRow(body, subId)?.lastNote?.content).toBe(
+        "Dice que no renueva",
+      );
     });
 
     it("subscriptionId inexistente → 404", async () => {

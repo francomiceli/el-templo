@@ -25,7 +25,9 @@ const STATUS_META: Record<RenewalStatus, RenewalStatusMeta> = {
     tooltip: 'Renovó después de la ventana de 5 días: cuenta como no renovación en el %',
   },
   pausada: { label: 'Pausada', color: 'info' },
-  no_renovo: { label: 'No renovó', color: 'negative' },
+  // Label "No renueva" (feedback 2026-09-29): se marca como decisión a futuro,
+  // antes de que venza. El valor persistido sigue siendo 'no_renovo'.
+  no_renovo: { label: 'No renueva', color: 'negative' },
   en_proceso: { label: 'En proceso', color: 'grey-7' },
 };
 
@@ -44,9 +46,30 @@ export function formatDayMonth(dateStr: string): string {
 }
 
 /** Label completo a mostrar en el badge — "Pausada hasta dd/MM" para pausada (SPEC). */
-export function renewalStatusLabel(row: { status: RenewalStatus; pauseEndDate: string | null }): string {
+export function renewalStatusLabel(row: {
+  status: RenewalStatus;
+  pauseEndDate: string | null;
+}): string {
   if (row.status === 'pausada' && row.pauseEndDate) {
     return `Pausada hasta ${formatDayMonth(row.pauseEndDate)}`;
   }
   return renewalStatusMeta(row.status).label;
+}
+
+/**
+ * "Nombre · dd/MM HH:mm" de la última gestión del seguimiento (mensaje o
+ * estado), o `null` si nunca se gestionó. Hora local del navegador: es para
+ * que la otra administrativa vea "esto ya lo tocó alguien hoy a las 11".
+ */
+export function renewalLastTouchLabel(row: {
+  followupUpdatedAt: string | null;
+  followupUpdatedByName: string | null;
+}): string | null {
+  if (!row.followupUpdatedAt) return null;
+  const d = new Date(row.followupUpdatedAt);
+  if (Number.isNaN(d.getTime())) return null;
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const when = `${formatDayMonth(row.followupUpdatedAt)} ${hh}:${mm}`;
+  return row.followupUpdatedByName ? `${row.followupUpdatedByName} · ${when}` : when;
 }
