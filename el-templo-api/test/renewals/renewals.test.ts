@@ -223,7 +223,12 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         lastName: schema.users.lastName,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, adminUserId))
+      .where(
+        and(
+          tenantWhere(schema.users, TEMPLO_CTX),
+          eq(schema.users.id, adminUserId),
+        ),
+      )
       .limit(1);
     return [u.firstName, u.lastName].filter(Boolean).join(" ");
   }
