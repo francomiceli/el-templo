@@ -377,6 +377,21 @@ export interface AssignProrationPreview {
   currency: string;
 }
 
+/**
+ * Base del MES COMPLETO de una renovación (PRE-descuento de referido y PRE
+ * normalización de recargo), resuelta por el server:
+ *  - `inherited`: lo que el socio venía pagando.
+ *  - `previous_period`: el período actual fue prorrateado → lo que pagó en el
+ *    último período completo del mismo plan.
+ *  - `plan_price`: el período actual fue prorrateado y no hay período completo
+ *    anterior (fue el alta) → precio de lista del plan.
+ */
+export interface RenewalPreview {
+  subscriptionId: number;
+  base: number;
+  source: 'inherited' | 'previous_period' | 'plan_price';
+}
+
 export interface RenewSubscriptionInput {
   paymentMethod: PaymentMethod;
   /**

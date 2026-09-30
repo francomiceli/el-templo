@@ -17,6 +17,7 @@ import type {
   RenewSubscriptionInput,
   PricingPreview,
   AssignProrationPreview,
+  RenewalPreview,
   ChangePlanPreview,
   PriceType,
   ClassUsageInfo,
@@ -307,6 +308,26 @@ export function useSubscriptionsApi() {
     }
   }
 
+  async function getRenewalPreview(
+    userId: number,
+    subscriptionId: number
+  ): Promise<RenewalPreview> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<RenewalPreview>(
+        `/admin/subscriptions/members/${userId}/subscription/renewal-preview`,
+        { params: { subscriptionId } }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error obteniendo preview de renovación');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function getAssignProrationPreview(
     userId: number,
     planId: number,
@@ -495,6 +516,7 @@ export function useSubscriptionsApi() {
     cancelSubscription,
     getPricingPreview,
     getAssignProrationPreview,
+    getRenewalPreview,
     getChangePlanPreview,
     getClassUsage,
     listPromos,
