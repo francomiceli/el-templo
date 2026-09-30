@@ -17,6 +17,9 @@
         Vencimientos de membresía y su seguimiento — reemplaza la planilla semanal
       </div>
       <div class="col-auto">
+        <q-btn flat round dense icon="refresh" :loading="loading" @click="fetchRows()">
+          <q-tooltip>Actualizar (ver lo que cargó otra persona)</q-tooltip>
+        </q-btn>
         <q-btn
           v-if="canManageReasons"
           flat
@@ -114,7 +117,7 @@
       </div>
     </div>
     <div class="text-caption text-grey-6 q-mb-md">
-      % de Renovación sobre gestionados (Renovó / Renovó + No renovó + Volvió tarde).
+      % de Renovación sobre gestionados (Renovó / Renovó + No renueva + Volvió tarde).
     </div>
 
     <!-- Distribución de plan nuevo -->
@@ -138,7 +141,9 @@
     <!-- Tabla -->
     <!-- ============================================================== -->
     <q-table
+      ref="tableRef"
       class="renewals-table"
+      :style="$q.screen.lt.md ? undefined : { maxHeight: tableMaxHeight }"
       :rows="filteredRows"
       :columns="columns"
       row-key="subscriptionId"
@@ -163,7 +168,7 @@
             size="16px"
             class="q-ml-xs"
           >
-            <q-tooltip>Estaba marcado No renovó; se detectó una renovación</q-tooltip>
+            <q-tooltip>Estaba marcado No renueva; se detectó una renovación</q-tooltip>
           </q-icon>
         </q-td>
       </template>
@@ -174,9 +179,11 @@
 
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-badge
-            :color="renewalStatusMeta(props.row.status).color"
-            :label="renewalStatusLabel(props.row)"
+          <RenewalStatusMenu
+            :row="props.row"
+            :reasons="reasons"
+            @change="(input) => patchFollowup(props.row, input)"
+            @open-details="openDialog(props.row)"
           />
           <q-icon
             v-if="renewalStatusMeta(props.row.status).tooltip"
@@ -239,6 +246,9 @@
               <q-tooltip>Marcar mensaje enviado (+1)</q-tooltip>
             </q-btn>
           </div>
+          <div v-if="renewalLastTouchLabel(props.row)" class="text-caption text-grey-6">
+            {{ renewalLastTouchLabel(props.row) }}
+          </div>
         </q-td>
       </template>
 
@@ -250,13 +260,43 @@
         <q-td :props="props">{{ props.row.reasonLabel ?? '—' }}</q-td>
       </template>
 
+      <!-- Observación editable en la celda (feedback 2026-09-29, mismo gesto
+         que Comentarios en SP): click → escribir → se guarda al salir del
+         campo, Esc cancela. Cada guardado es una nota NUEVA del socio (la
+         anterior queda en el historial de la ficha), por eso el campo
+         arranca vacío en vez de precargar la última. -->
       <template #body-cell-lastNote="props">
-        <q-td :props="props">
-          <span v-if="props.row.lastNote" class="ellipsis-note">
-            {{ props.row.lastNote.content }}
-            <q-tooltip>{{ props.row.lastNote.content }}</q-tooltip>
-          </span>
-          <span v-else class="text-grey-5">—</span>
+        <q-td :props="props" class="note-cell">
+          <q-input
+            v-if="editingNoteSubId === props.row.subscriptionId"
+            v-model="noteDraft"
+            type="textarea"
+            autogrow
+            dense
+            outlined
+            autofocus
+            maxlength="2000"
+            placeholder="Nueva observación…"
+            :loading="savingNoteSubId === props.row.subscriptionId"
+            @blur="saveInlineNote(props.row)"
+            @keydown.esc.prevent="cancelInlineNote"
+          />
+          <div v-else class="cursor-pointer note-display" @click="startInlineNote(props.row)">
+            <template v-if="props.row.lastNote">
+              <span class="ellipsis-note">{{ props.row.lastNote.content }}</span>
+              <q-tooltip max-width="320px">
+                <div style="white-space: pre-wrap">{{ props.row.lastNote.content }}</div>
+                <div class="text-caption q-mt-xs">
+                  {{ formatDate(props.row.lastNote.createdAt) }}
+                  <template v-if="props.row.lastNote.authorName">
+                    · {{ props.row.lastNote.authorName }}
+                  </template>
+                  — click para agregar otra
+                </div>
+              </q-tooltip>
+            </template>
+            <span v-else class="text-grey-5"> <q-icon name="edit" size="14px" /> Agregar… </span>
+          </div>
         </q-td>
       </template>
 
@@ -269,9 +309,11 @@
                 <q-btn flat dense no-caps color="primary" @click="openDialog(props.row)">
                   {{ props.row.memberName }}
                 </q-btn>
-                <q-badge
-                  :color="renewalStatusMeta(props.row.status).color"
-                  :label="renewalStatusLabel(props.row)"
+                <RenewalStatusMenu
+                  :row="props.row"
+                  :reasons="reasons"
+                  @change="(input) => patchFollowup(props.row, input)"
+                  @open-details="openDialog(props.row)"
                 />
               </div>
               <div class="text-caption text-grey-7">
@@ -316,6 +358,9 @@
                   @click="incrementMessageCount(props.row)"
                 />
               </div>
+              <div v-if="renewalLastTouchLabel(props.row)" class="text-caption text-grey-6">
+                Última gestión: {{ renewalLastTouchLabel(props.row) }}
+              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -339,8 +384,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useQuasar, type QTableColumn } from 'quasar';
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
+import { useQuasar, type QTable, type QTableColumn } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
@@ -348,10 +393,11 @@ import { useRenewalsApi } from 'src/composables/useRenewalsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { DUENO_ROLES } from 'src/config/templo-config';
 import { getWeekRange } from 'src/utils/renewals-week';
-import { renewalStatusMeta, renewalStatusLabel } from 'src/utils/renewal-status';
+import { renewalStatusMeta, renewalLastTouchLabel } from 'src/utils/renewal-status';
 import KpiCard from 'src/components/comunicaciones/KpiCard.vue';
 import RenewalMemberDialog from 'src/components/renovaciones/RenewalMemberDialog.vue';
 import RenewalReasonsDialog from 'src/components/renovaciones/RenewalReasonsDialog.vue';
+import RenewalStatusMenu from 'src/components/renovaciones/RenewalStatusMenu.vue';
 import type {
   RenewalRow,
   RenewalKpis,
@@ -526,6 +572,8 @@ async function fetchRows() {
   } finally {
     loading.value = false;
   }
+  await nextTick();
+  fitTableHeight();
 }
 
 /**
@@ -534,7 +582,7 @@ async function fetchRows() {
  * página queda donde estaba (feedback 2026-09-25: al marcar un mensaje abajo
  * de todo, saltaba arriba).
  */
-async function loadRows() {
+async function loadRows(opts: { background?: boolean } = {}) {
   try {
     const result = await renewalsApi.listRenewals({
       dateFrom: dateFrom.value,
@@ -545,9 +593,14 @@ async function loadRows() {
     rows.value = result.rows;
     kpis.value = result.kpis;
   } catch (err: unknown) {
-    log.error('Error cargando renovaciones', {
-      error: err instanceof Error ? err.message : String(err),
-    });
+    const error = err instanceof Error ? err.message : String(err);
+    // El refresco en segundo plano no molesta con un aviso por minuto si se
+    // cae la red — queda en el log y el próximo intento lo reintenta.
+    if (opts.background) {
+      log.warn('Error refrescando renovaciones en segundo plano', { error });
+      return;
+    }
+    log.error('Error cargando renovaciones', { error });
     $q.notify({ type: 'negative', message: 'No se pudieron cargar las renovaciones' });
   }
 }
@@ -620,7 +673,7 @@ const kpiCards = computed<KpiCardConfig[]>(() => {
     },
     {
       key: 'no_renovo',
-      label: 'No renovó',
+      label: 'No renueva',
       value: k?.noRenovo ?? 0,
       icon: 'cancel',
       filter: 'no_renovo',
@@ -699,6 +752,61 @@ function incrementMessageCount(row: RenewalRow) {
   void patchFollowup(row, { messageCount: row.messageCount + 1 });
 }
 
+// ─── Observación inline ───────────────────────────────────────────────────
+
+const editingNoteSubId = ref<number | null>(null);
+const savingNoteSubId = ref<number | null>(null);
+const noteDraft = ref('');
+
+function startInlineNote(row: RenewalRow) {
+  editingNoteSubId.value = row.subscriptionId;
+  noteDraft.value = '';
+}
+
+function cancelInlineNote() {
+  editingNoteSubId.value = null;
+  noteDraft.value = '';
+}
+
+async function saveInlineNote(row: RenewalRow) {
+  // `@blur` puede dispararse de nuevo mientras se guarda (el input pierde el
+  // foco al pasar a loading) — el primer guardado manda.
+  if (savingNoteSubId.value === row.subscriptionId) return;
+  const content = noteDraft.value.trim();
+  if (!content) {
+    cancelInlineNote();
+    return;
+  }
+  savingNoteSubId.value = row.subscriptionId;
+  try {
+    const note = await renewalsApi.addNote(row.subscriptionId, content);
+    // Busca la fila vigente (un refresco pudo reemplazar el objeto mientras
+    // se guardaba) — reemplazar `row` capturado pisaría datos más nuevos.
+    const current = rows.value.find((r) => r.subscriptionId === row.subscriptionId) ?? row;
+    replaceRow({
+      ...current,
+      lastNote: {
+        content: note.content,
+        createdAt: note.createdAt,
+        authorName: note.authorName || null,
+      },
+    });
+    $q.notify({ type: 'positive', message: 'Observación guardada', timeout: 1500 });
+    cancelInlineNote();
+  } catch (err: unknown) {
+    log.error('Error guardando observación', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    // Se deja el borrador abierto para no perder lo escrito.
+    $q.notify({
+      type: 'negative',
+      message: renewalsApi.error.value ?? 'No se pudo guardar la observación',
+    });
+  } finally {
+    savingNoteSubId.value = null;
+  }
+}
+
 async function copyPhone(row: RenewalRow) {
   const target = row.phoneE164 ?? row.phone;
   if (!target) return;
@@ -741,6 +849,54 @@ async function onRowUpdated(row: RenewalRow, refreshKpis: boolean) {
 }
 
 // ============================================================================
+// Alto de la tabla — la barra horizontal tiene que quedar a la vista
+// ============================================================================
+
+/**
+ * Feedback 2026-09-29: con un alto fijo (`100vh - 140px`) la tabla quedaba
+ * más alta que el espacio que le dejan filtros + KPIs, y para llegar a la
+ * barra de scroll horizontal (al pie de la tabla) había que bajar la página.
+ * Ahora el alto se calcula desde donde arranca la tabla hasta el borde de la
+ * ventana, así la barra entra en pantalla sin scrollear. Piso de 360px para
+ * que en pantallas bajas la tabla no quede con dos filas.
+ */
+const TABLE_MIN_HEIGHT_PX = 360;
+const TABLE_BOTTOM_GAP_PX = 16;
+const tableRef = ref<QTable | null>(null);
+const tableMaxHeight = ref(`${TABLE_MIN_HEIGHT_PX}px`);
+
+function fitTableHeight() {
+  const el = tableRef.value?.$el as HTMLElement | undefined;
+  if (!el) return;
+  // Posición respecto del documento (no del viewport) para que dé lo mismo
+  // si la página ya estaba scrolleada al recalcular.
+  const top = el.getBoundingClientRect().top + window.scrollY;
+  const available = window.innerHeight - top - TABLE_BOTTOM_GAP_PX;
+  tableMaxHeight.value = `${Math.max(Math.round(available), TABLE_MIN_HEIGHT_PX)}px`;
+}
+
+// ============================================================================
+// Refresco — dos personas trabajan la misma planilla a la vez
+// ============================================================================
+
+/**
+ * Recarga silenciosa (sin loading ni URL) cada minuto con la pestaña visible
+ * y al volver a la pestaña, para ver lo que marcó la otra persona antes de
+ * contactar a alguien. Se saltea mientras se escribe una observación.
+ */
+const BACKGROUND_REFRESH_MS = 60_000;
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
+function backgroundRefresh() {
+  if (document.hidden || loading.value || editingNoteSubId.value !== null) return;
+  void loadRows({ background: true });
+}
+
+function onVisibilityChange() {
+  if (!document.hidden) backgroundRefresh();
+}
+
+// ============================================================================
 // Lifecycle
 // ============================================================================
 
@@ -753,10 +909,16 @@ watch(
 );
 
 onMounted(async () => {
+  window.addEventListener('resize', fitTableHeight);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  refreshTimer = setInterval(backgroundRefresh, BACKGROUND_REFRESH_MS);
   await Promise.all([fetchRows(), fetchReasons()]);
 });
 
 onUnmounted(() => {
+  window.removeEventListener('resize', fitTableHeight);
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+  if (refreshTimer !== null) clearInterval(refreshTimer);
   renewalsApi.cleanup();
 });
 </script>
@@ -769,7 +931,14 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: bottom;
-  cursor: default;
+}
+
+.note-cell {
+  min-width: 200px;
+}
+
+.note-display {
+  min-height: 20px;
 }
 
 :deep(.renewal-row--para-cerrar) {
@@ -779,15 +948,12 @@ onUnmounted(() => {
 
 /*
  * Tabla con alto propio (feedback 2026-09-25): el scroll horizontal y el
- * vertical viven DENTRO de la tabla, así la barra horizontal queda siempre
- * a la vista abajo y no hace falta bajar al pie de la página para moverse a
- * la derecha. Header pegado arriba y Nombre fijo a la izquierda — mismo
- * patrón que `PorDeudaTab.vue` (scroller nativo de q-table, .q-table__middle).
- * En mobile la tabla es grid de cards (sin scroll horizontal): no aplica.
+ * vertical viven DENTRO de la tabla. Header pegado arriba y Nombre fijo a la
+ * izquierda — mismo patrón que `PorDeudaTab.vue` (scroller nativo de
+ * q-table, .q-table__middle). El alto lo calcula `fitTableHeight` (inline
+ * style) para que la barra horizontal entre en pantalla. En mobile la tabla
+ * es grid de cards (sin scroll horizontal): no aplica.
  */
-:deep(.renewals-table:not(.q-table--grid)) {
-  max-height: calc(100vh - 140px);
-}
 
 :deep(.renewals-table thead tr th) {
   position: sticky;
