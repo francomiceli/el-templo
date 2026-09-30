@@ -259,7 +259,7 @@ import RegistrarMovEgresoDialog from 'src/components/caja/RegistrarMovEgresoDial
 import DateRangeFilter from 'src/components/caja/DateRangeFilter.vue';
 import { currentMonthRange, type DateRangeValue } from 'src/utils/date-range';
 import { validationLabel, validationColor } from 'src/utils/validation-status';
-import type { MovEgresoItem, MovEgresoParams } from 'src/types/transaction';
+import type { CajaSaldoRow, MovEgresoItem, MovEgresoParams } from 'src/types/transaction';
 
 // =========================================================================
 // Props — shared selectedCountry / isOwner from the CajaPage hub.
@@ -365,11 +365,32 @@ const tablePagination = ref({
   descending: false,
 });
 
-// Caja options built from the rows that come back (the endpoint already scopes
-// by country); "Todas" resets the filter.
-const cashRegisterOptions = ref<Array<{ label: string; value: number | null }>>([
-  { label: 'Todas', value: null },
-]);
+// Opciones del select Caja. Antes se armaban con las cajas de las filas de la
+// PÁGINA actual (20 movimientos): una caja sin movimientos en esa página no
+// aparecía (Moreno, 2026-09-29) y al elegir una caja el select quedaba solo con
+// esa. Ahora la base es la lista de cajas activas (mismo endpoint y mismo
+// alcance país/sede que el historial, ver BandejaPendientesTab), más las cajas
+// que aparezcan en las filas (una caja ya cerrada con movimientos viejos no
+// está en la lista de activas). "Todas" resetea el filtro.
+const activeCajas = ref<CajaSaldoRow[]>([]);
+const seenRowCajas = reactive(new Map<number, string>());
+
+const cashRegisterOptions = computed<Array<{ label: string; value: number | null }>>(() => {
+  const byId = new Map<number, string>();
+  for (const c of activeCajas.value) byId.set(c.cashRegisterId, c.name);
+  for (const [id, name] of seenRowCajas) {
+    if (!byId.has(id)) byId.set(id, name);
+  }
+  // Una caja elegida que no está en ninguna de las dos fuentes (no debería
+  // pasar) igual se muestra, para que el select no quede en blanco.
+  if (filters.cashRegisterId !== null && !byId.has(filters.cashRegisterId)) {
+    byId.set(filters.cashRegisterId, `Caja #${filters.cashRegisterId}`);
+  }
+  const cajas = [...byId]
+    .map(([id, name]) => ({ label: name, value: id as number | null }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  return [{ label: 'Todas', value: null }, ...cajas];
+});
 
 // Tipo is a client-side filter over the page (kind → tipo mapping).
 const filteredRows = computed<MovEgresoItem[]>(() => {
@@ -433,22 +454,24 @@ const columns: QTableProps['columns'] = [
 // Data loading
 // =========================================================================
 
-function rebuildCashRegisterOptions() {
-  const seen = new Map<number, string>();
+function rememberRowCajas() {
   for (const r of rows.value) {
-    if (r.cashRegisterId !== null && !seen.has(r.cashRegisterId)) {
-      seen.set(r.cashRegisterId, r.cashRegisterName);
+    if (r.cashRegisterId !== null && !seenRowCajas.has(r.cashRegisterId)) {
+      seenRowCajas.set(r.cashRegisterId, r.cashRegisterName);
     }
   }
-  const options: Array<{ label: string; value: number | null }> = [{ label: 'Todas', value: null }];
-  for (const [id, name] of seen) {
-    options.push({ label: name, value: id });
+}
+
+async function loadCajas() {
+  try {
+    activeCajas.value = await transactionsApi.getCashRegisterBalances({
+      country: props.isOwner ? props.selectedCountry : undefined,
+    });
+  } catch (err: unknown) {
+    // Sin la lista, el select sigue funcionando con las cajas de las filas.
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading cash registers', { error: message });
   }
-  // Preserve any already-selected caja that isn't on the current page.
-  if (filters.cashRegisterId !== null && !options.some((o) => o.value === filters.cashRegisterId)) {
-    options.push({ label: `Caja #${filters.cashRegisterId}`, value: filters.cashRegisterId });
-  }
-  cashRegisterOptions.value = options;
 }
 
 async function loadHistory() {
@@ -465,7 +488,7 @@ async function loadHistory() {
     const result = await transactionsApi.getMovEgresosHistory(params);
     rows.value = result.rows;
     tablePagination.value.rowsNumber = result.total;
-    rebuildCashRegisterOptions();
+    rememberRowCajas();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading mov/egresos history', { error: message });
@@ -553,14 +576,22 @@ async function onExportMovEgresos(): Promise<void> {
 // Lifecycle
 // =========================================================================
 
-onMounted(loadHistory);
+onMounted(() => {
+  void loadCajas();
+  void loadHistory();
+});
 
-// Re-fetch when the hub switches country (owner AR/ES).
+// Re-fetch when the hub switches country (owner AR/ES). Las cajas son de otro
+// país: se recarga la lista y se limpia la caja elegida (filtrar el historial
+// del país nuevo por una caja del anterior daba una tabla vacía).
 watch(
   () => props.selectedCountry,
   () => {
     tablePagination.value.page = 1;
-    loadHistory();
+    filters.cashRegisterId = null;
+    seenRowCajas.clear();
+    void loadCajas();
+    void loadHistory();
   }
 );
 
