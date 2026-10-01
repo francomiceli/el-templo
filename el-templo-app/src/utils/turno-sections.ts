@@ -4,11 +4,17 @@ import type { WeeklySlotView } from 'src/types/scheduling'
 export type TurnoKey = 'morning' | 'especiales' | 'afternoon'
 
 /**
- * Franja "entre turnos" (2026-10-01): las actividades especiales que arrancan
- * desde las 10:00 y antes de las 17:00 (ej. yoga de Moreno) no son ni del turno
- * mañana ni del turno tarde — van a una sección propia "Especiales", sin profe
- * de turno (varía). Las especiales fuera de la franja (ej. Verticales a otra
- * hora) siguen en su turno.
+ * Sección "Especiales" (2026-10-01): las actividades especiales que caen ENTRE
+ * los turnos (ej. yoga de Moreno a las 11 o a las 16, con turnos 7-10 y 17-20)
+ * no son ni del turno mañana ni del tarde — van a una sección propia, sin profe
+ * de turno (varía).
+ *
+ * "Entre turnos" se decide con los horarios regulares del MISMO día: la
+ * especial arranca dentro de la franja 10:00–17:00, DESPUÉS de la última clase
+ * regular de la mañana y ANTES de la primera regular de la tarde. Una especial
+ * intercalada con clases regulares (ej. sábado 10:00 entre ROM 9/10/11) se
+ * queda en su turno. Con esta regla las secciones siempre quedan en orden
+ * cronológico.
  */
 export const ESPECIALES_FROM = '10:00'
 export const ESPECIALES_TO = '17:00'
@@ -16,24 +22,42 @@ export const ESPECIALES_TO = '17:00'
 /** Corte mañana/tarde de siempre. */
 const AFTERNOON_FROM = '12:00'
 
-export function isEntreTurnosEspecial(slot: Pick<WeeklySlotView, 'startTime' | 'isSpecial'>) {
-  // startTime viene "HH:MM" o "HH:MM:SS": la comparación de strings sirve igual.
-  return slot.isSpecial && slot.startTime >= ESPECIALES_FROM && slot.startTime < ESPECIALES_TO
-}
+type SectionSlot = Pick<WeeklySlotView, 'startTime' | 'isSpecial'>
 
 /**
  * Agrupa los slots de un día (ya ordenados por hora) en secciones. Solo
  * devuelve las secciones con al menos un slot, en orden mañana → especiales →
- * tarde.
+ * tarde. startTime viene "HH:MM" o "HH:MM:SS": la comparación de strings sirve
+ * igual.
  */
-export function splitDaySections<T extends Pick<WeeklySlotView, 'startTime' | 'isSpecial'>>(
+export function splitDaySections<T extends SectionSlot>(
   slots: readonly T[],
 ): { turno: TurnoKey; slots: T[] }[] {
+  let lastRegularMorning: string | null = null
+  let firstRegularAfternoon: string | null = null
+  for (const slot of slots) {
+    if (slot.isSpecial) continue
+    if (slot.startTime < AFTERNOON_FROM) {
+      if (lastRegularMorning === null || slot.startTime > lastRegularMorning) {
+        lastRegularMorning = slot.startTime
+      }
+    } else if (firstRegularAfternoon === null || slot.startTime < firstRegularAfternoon) {
+      firstRegularAfternoon = slot.startTime
+    }
+  }
+
+  const isEntreTurnos = (slot: T): boolean =>
+    slot.isSpecial &&
+    slot.startTime >= ESPECIALES_FROM &&
+    slot.startTime < ESPECIALES_TO &&
+    (lastRegularMorning === null || slot.startTime > lastRegularMorning) &&
+    (firstRegularAfternoon === null || slot.startTime < firstRegularAfternoon)
+
   const morning: T[] = []
   const especiales: T[] = []
   const afternoon: T[] = []
   for (const slot of slots) {
-    if (isEntreTurnosEspecial(slot)) especiales.push(slot)
+    if (isEntreTurnos(slot)) especiales.push(slot)
     else if (slot.startTime < AFTERNOON_FROM) morning.push(slot)
     else afternoon.push(slot)
   }
