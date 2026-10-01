@@ -9,6 +9,7 @@
 import { computed } from 'vue'
 import type { WeeklySlotView } from 'src/types/scheduling'
 import { turnoCoachName } from 'src/utils/turno-coach'
+import type { TurnoKey } from 'src/utils/turno-sections'
 
 /**
  * Encabezado de turno de la grilla de Reservas (App 1.7.9). Extraído porque
@@ -17,15 +18,26 @@ import { turnoCoachName } from 'src/utils/turno-coach'
  * profe — DRY.
  */
 const props = defineProps<{
-  turno: 'morning' | 'afternoon'
-  /** Slots del turno YA filtrados (morningSlots/afternoonSlots del padre). */
+  turno: TurnoKey
+  /** Slots de la sección YA filtrados (splitDaySections del padre). */
   slots: WeeklySlotView[]
 }>()
 
-const label = computed(() => (props.turno === 'morning' ? 'Turno Mañana' : 'Turno Tarde'))
+const LABELS: Record<TurnoKey, string> = {
+  morning: 'Turno Mañana',
+  especiales: 'Especiales',
+  afternoon: 'Turno Tarde',
+}
 
-/** Profe único del turno (ignora los slots con profe propio) — ver turnoCoachName. */
-const coachName = computed(() => turnoCoachName(props.slots))
+const label = computed(() => LABELS[props.turno])
+
+/**
+ * Profe único del turno (ignora los slots con profe propio) — ver turnoCoachName.
+ * La sección "Especiales" no anuncia profe: varía según la clase.
+ */
+const coachName = computed(() =>
+  props.turno === 'especiales' ? null : turnoCoachName(props.slots),
+)
 </script>
 
 <style scoped lang="scss">

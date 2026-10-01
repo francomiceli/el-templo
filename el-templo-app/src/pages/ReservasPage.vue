@@ -182,54 +182,10 @@
             <span>{{ selectedDayHoliday }}</span>
           </div>
 
-          <template v-if="morningSlots.length > 0">
-            <TurnoHeader turno="morning" :slots="morningSlots" />
+          <template v-for="section in daySections" :key="section.turno">
+            <TurnoHeader :turno="section.turno" :slots="section.slots" />
             <div
-              v-for="slot in morningSlots"
-              :key="slot.id"
-              class="slot-card"
-              :class="slotCardClass(slot)"
-              @click="onPartnerSlotTap(slot)"
-            >
-              <div class="slot-card__time">
-                <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-                <span class="slot-card__activity">{{ slot.activityName }}</span>
-                <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
-                  >Profe {{ slot.coachFirstName }}</span
-                >
-              </div>
-              <div class="slot-card__right">
-                <template v-if="isSlotHoliday(slot)">
-                  <q-badge color="accent" label="Feriado" />
-                </template>
-                <template v-else-if="slot.isFull">
-                  <span class="slot-card__avail slot-card__avail--full">Completo</span>
-                </template>
-                <template v-else-if="isSlotPast(slot)"></template>
-                <template v-else>
-                  <span
-                    class="slot-card__avail"
-                    :class="`slot-card__avail--${availabilityLevel(slot)}`"
-                    >{{ availabilityText(slot) }}</span
-                  >
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    label="Reservar"
-                    class="slot-card__action"
-                    @click.stop="onPartnerSlotTap(slot)"
-                  />
-                </template>
-              </div>
-            </div>
-          </template>
-
-          <template v-if="afternoonSlots.length > 0">
-            <TurnoHeader turno="afternoon" :slots="afternoonSlots" />
-            <div
-              v-for="slot in afternoonSlots"
+              v-for="slot in section.slots"
               :key="slot.id"
               class="slot-card"
               :class="slotCardClass(slot)"
@@ -442,59 +398,10 @@
             <span>{{ selectedDayHoliday }}</span>
           </div>
 
-          <template v-if="morningSlots.length > 0">
-            <TurnoHeader turno="morning" :slots="morningSlots" />
+          <template v-for="section in daySections" :key="section.turno">
+            <TurnoHeader :turno="section.turno" :slots="section.slots" />
             <div
-              v-for="slot in morningSlots"
-              :key="slot.id"
-              class="slot-card"
-              :class="slotCardClass(slot)"
-              @click="onTrialSlotTap(slot)"
-            >
-              <div class="slot-card__time">
-                <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-                <span
-                  class="slot-card__activity"
-                  :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
-                  @click="onActivityNameTap(slot, $event)"
-                  >{{ slot.activityName }}</span
-                >
-                <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
-                  >Profe {{ slot.coachFirstName }}</span
-                >
-              </div>
-              <div class="slot-card__right">
-                <template v-if="isSlotHoliday(slot)">
-                  <q-badge color="accent" label="Feriado" />
-                </template>
-                <template v-else-if="slotIsFull(slot)">
-                  <span class="slot-card__avail slot-card__avail--full">Completo</span>
-                </template>
-                <template v-else-if="isSlotPast(slot)"></template>
-                <template v-else>
-                  <span
-                    class="slot-card__avail"
-                    :class="`slot-card__avail--${availabilityLevel(slot)}`"
-                    >{{ availabilityText(slot) }}</span
-                  >
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    label="Reservar"
-                    class="slot-card__action"
-                    @click.stop="onTrialSlotTap(slot)"
-                  />
-                </template>
-              </div>
-            </div>
-          </template>
-
-          <template v-if="afternoonSlots.length > 0">
-            <TurnoHeader turno="afternoon" :slots="afternoonSlots" />
-            <div
-              v-for="slot in afternoonSlots"
+              v-for="slot in section.slots"
               :key="slot.id"
               class="slot-card"
               :class="slotCardClass(slot)"
@@ -541,7 +448,7 @@
           </template>
 
           <div
-            v-if="morningSlots.length === 0 && afternoonSlots.length === 0"
+            v-if="daySections.length === 0"
             class="day-slots__empty"
           >
             <q-icon name="event_busy" size="40px" color="grey-4" />
@@ -705,11 +612,11 @@
           <span>{{ selectedDayHoliday }}</span>
         </div>
 
-        <!-- Morning section -->
-        <template v-if="morningSlots.length > 0">
-          <TurnoHeader turno="morning" :slots="morningSlots" />
+        <!-- Secciones: Turno Mañana / Especiales (entre turnos) / Turno Tarde -->
+        <template v-for="section in daySections" :key="section.turno">
+          <TurnoHeader :turno="section.turno" :slots="section.slots" />
           <div
-            v-for="slot in morningSlots"
+            v-for="slot in section.slots"
             :key="slot.id"
             class="slot-card"
             :class="slotCardClass(slot)"
@@ -726,11 +633,10 @@
               <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
                 >Profe {{ slot.coachFirstName }}</span
               >
-              <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
+              <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los
+                   estados). 2026-10-01: mismo "Especial" para todas las líneas (Yoga incluida). -->
               <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
-                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />{{
-                  specialBadgeLabel(slot)
-                }}
+                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
               </q-badge>
             </div>
             <div class="slot-card__right">
@@ -790,118 +696,16 @@
                 <span class="slot-card__pill slot-card__pill--muted">Usaste tus clases</span>
               </template>
               <template v-else-if="slot.isSpecial">
-                <!-- E3: socio sin el pase de ESTA línea — afordancia informativa, abre el dialog al tocar -->
-                <span class="slot-card__pill slot-card__pill--locked">
-                  <q-icon name="lock" size="13px" class="q-mr-xs" />{{ specialLockedLabel(slot) }}
-                </span>
-              </template>
-              <template v-else>
+                <!-- E3: socio sin el pase de ESTA línea — abre el dialog al tocar. Si todavía
+                     puede usar la clase de prueba gratis de la línea, la invita a probar en
+                     vez del candado. -->
                 <span
-                  class="slot-card__avail"
-                  :class="`slot-card__avail--${availabilityLevel(slot)}`"
-                  >{{ availabilityText(slot) }}</span
+                  v-if="canClaimTrial(userStore.trialLines, slot.specialLine ?? null)"
+                  class="slot-card__pill slot-card__pill--trial"
                 >
-                <q-btn
-                  flat
-                  dense
-                  no-caps
-                  color="primary"
-                  label="Reservar"
-                  class="slot-card__action"
-                  @click.stop="onSlotTap(slot)"
-                />
-              </template>
-            </div>
-          </div>
-        </template>
-
-        <!-- Afternoon section -->
-        <template v-if="afternoonSlots.length > 0">
-          <TurnoHeader turno="afternoon" :slots="afternoonSlots" />
-          <div
-            v-for="slot in afternoonSlots"
-            :key="slot.id"
-            class="slot-card"
-            :class="slotCardClass(slot)"
-            @click="onSlotTap(slot)"
-          >
-            <div class="slot-card__time">
-              <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
-              <span
-                class="slot-card__activity"
-                :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
-                @click="onActivityNameTap(slot, $event)"
-                >{{ slot.activityName }}</span
-              >
-              <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
-                >Profe {{ slot.coachFirstName }}</span
-              >
-              <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los estados) -->
-              <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
-                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />{{
-                  specialBadgeLabel(slot)
-                }}
-              </q-badge>
-            </div>
-            <div class="slot-card__right">
-              <template v-if="isSlotHoliday(slot)">
-                <q-badge color="accent" label="Feriado" />
-              </template>
-              <template v-else-if="isSlotAttended(slot)">
-                <q-icon name="verified" size="20px" color="positive" />
-                <span class="slot-card__badge slot-card__badge--positive">Asististe</span>
-              </template>
-              <template v-else-if="isSlotBooked(slot)">
-                <q-icon name="check_circle" size="20px" color="positive" />
-                <span class="slot-card__badge slot-card__badge--positive">Reservado</span>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  icon="close"
-                  color="negative"
-                  size="sm"
-                  @click.stop="cancelSlotBooking(slot)"
-                >
-                  <q-tooltip>Cancelar</q-tooltip>
-                </q-btn>
-              </template>
-              <template v-else-if="slot.isFull && !slot.isSpecial">
-                <span class="slot-card__avail slot-card__avail--full">Completo</span>
-              </template>
-              <template v-else-if="isSlotPast(slot)"></template>
-              <!-- Phase 162 (APP-01): estados de la actividad especial. Se evalúan
-                   DESPUÉS de holiday/attended/booked/full/past (que conservan prioridad).
-                   Bloqueo en olive/grey, nunca rojo (no es error, es condición de acceso). -->
-              <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'reservable'">
-                <!-- E1/E4: plan especial con saldo → flujo de reserva normal -->
-                <span v-if="slot.isFull" class="slot-card__avail slot-card__avail--full"
-                  >Completo</span
-                >
-                <template v-else>
-                  <span
-                    class="slot-card__avail"
-                    :class="`slot-card__avail--${availabilityLevel(slot)}`"
-                    >{{ availabilityText(slot) }}</span
-                  >
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    label="Reservar"
-                    class="slot-card__action"
-                    @click.stop="onSlotTap(slot)"
-                  />
-                </template>
-              </template>
-              <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'exhausted'">
-                <!-- E2: pase de la línea sin saldo (0/N) — pill apagada, sin botón -->
-                <span class="slot-card__pill slot-card__pill--muted">Usaste tus clases</span>
-              </template>
-              <template v-else-if="slot.isSpecial">
-                <!-- E3: socio sin el pase de ESTA línea — afordancia informativa, abre el dialog al tocar -->
-                <span class="slot-card__pill slot-card__pill--locked">
+                  <q-icon name="redeem" size="13px" class="q-mr-xs" />¡Probá una clase!
+                </span>
+                <span v-else class="slot-card__pill slot-card__pill--locked">
                   <q-icon name="lock" size="13px" class="q-mr-xs" />{{ specialLockedLabel(slot) }}
                 </span>
               </template>
@@ -927,7 +731,7 @@
 
         <!-- No slots -->
         <div
-          v-if="morningSlots.length === 0 && afternoonSlots.length === 0"
+          v-if="daySections.length === 0"
           class="day-slots__empty"
         >
           <q-icon name="event_busy" size="40px" color="grey-4" />
@@ -1134,16 +938,17 @@
     <!-- Phase 162-05 (APP-03/D-02): dialog informativo del pase especial. Se dispara
          desde E3 (tap en especial sin el pase de su línea) y desde el backend
          (code PASS_REQUIRED). Consciente de la LÍNEA (Aura, Yoga...) que lo abrió y sin
-         precios (cambian). SIN pago in-app ni CTA de compra — la venta es por
-         gestión/PoS. Un único botón "Entendido". Acento dorado (Aura). NOT persistent. -->
+         precios (cambian). SIN pago in-app — la venta es por gestión/PoS (el CTA
+         "Adquirí tu pase" de la clase de prueba solo abre el WhatsApp de administración).
+         Acento dorado (Aura). NOT persistent. -->
     <q-dialog v-model="showAuraInfoDialog" :persistent="trialClaimLoading">
       <q-card class="aura-dialog">
         <q-card-section class="aura-dialog__body">
           <q-icon class="aura-dialog__icon" name="auto_awesome" size="2.5em" />
           <h3 class="aura-dialog__title">{{ passInfoTitle }}</h3>
-          <p v-if="trialConfirming" class="aura-dialog__text">
-            Tu primera clase de <strong>{{ passInfoLine }}</strong> es gratis. Te reservamos este
-            turno.
+          <p v-if="passInfoTrialSlot" class="aura-dialog__text">
+            Podés probar una clase gratis con tu plan. Si te gustó, podés pedir tu pase especial de
+            <strong>{{ passInfoLine }}</strong> contactándote con nosotros.
           </p>
           <p v-else class="aura-dialog__text">
             Esta clase se reserva con el pase de <strong>{{ passInfoLine }}</strong
@@ -1153,17 +958,26 @@
 
         <!-- Clase de prueba gratis (2026-09-29): si el server marcó la línea como elegible
              (trialLines) y hay un turno concreto detrás del tap, el CTA primario es probarla.
-             En dos pasos (ofrecer → confirmar) dentro del mismo dialog. Sin turno o sin
-             elegibilidad queda el "Entendido" de siempre. -->
-        <q-card-actions v-if="passInfoTrialSlot && trialConfirming" class="aura-dialog__actions">
+             2026-10-01: un solo paso — "Probá una clase gratis" reserva ese turno directo,
+             sin confirmación. "Adquirí tu pase" lleva al WhatsApp de administración. Sin
+             turno o sin elegibilidad queda el "Entendido" de siempre. -->
+        <q-card-actions v-if="passInfoTrialSlot" vertical class="aura-dialog__actions">
           <q-btn
             unelevated
             no-caps
             class="aura-dialog__primary full-width"
-            label="Confirmar"
+            label="Probá una clase gratis"
             :loading="trialClaimLoading"
             :disable="trialClaimLoading"
             @click="confirmEspecialTrial"
+          />
+          <q-btn
+            unelevated
+            no-caps
+            class="aura-dialog__primary full-width"
+            label="Adquirí tu pase"
+            :disable="trialClaimLoading"
+            @click="openPassWhatsApp"
           />
           <q-btn
             flat
@@ -1172,23 +986,6 @@
             class="coverage-dialog__secondary"
             label="Ahora no"
             :disable="trialClaimLoading"
-            v-close-popup
-          />
-        </q-card-actions>
-        <q-card-actions v-else-if="passInfoTrialSlot" class="aura-dialog__actions">
-          <q-btn
-            unelevated
-            no-caps
-            class="aura-dialog__primary full-width"
-            label="Probá una clase gratis"
-            @click="trialConfirming = true"
-          />
-          <q-btn
-            flat
-            no-caps
-            dense
-            class="coverage-dialog__secondary"
-            label="Entendido"
             v-close-popup
           />
         </q-card-actions>
@@ -1223,6 +1020,7 @@ import FirstVisitTipBanner from 'src/components/FirstVisitTipBanner.vue'
 import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import TurnoHeader from 'src/components/TurnoHeader.vue'
+import { splitDaySections } from 'src/utils/turno-sections'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
 import type {
   TrialEligibility,
@@ -1309,12 +1107,6 @@ const canAccessGrid = computed(
 // sin pase de esa línea.
 function slotSpecialState(slot: WeeklySlotView) {
   return specialSlotState(userStore.especialPasses, slot.specialLine ?? null)
-}
-
-// Texto del distintivo dorado: la línea Aura conserva "Especial"; las demás muestran
-// su nombre (ej. "Yoga").
-function specialBadgeLabel(slot: WeeklySlotView): string {
-  return slot.specialLine ? shortLineLabel(slot.specialLine) : 'Especial'
 }
 
 // Afordancia E3: la línea Aura conserva "Requiere plan especial".
@@ -1527,16 +1319,20 @@ const passInfoLine = computed(() => shortLineLabel(passInfoSpecialLine.value))
 // Solo se setea si el server marcó la línea como elegible (`trialLines`); si no, el
 // dialog queda informativo como siempre.
 const passInfoTrialSlot = ref<{ scheduleId: number; date: string } | null>(null)
-// Paso 2 del CTA: confirmación ("Tu primera clase de Yoga es gratis...").
-const trialConfirming = ref(false)
 const trialClaimLoading = ref(false)
 
 function openPassInfoDialog(line: string | null, target?: { scheduleId: number; date: string }) {
   passInfoSpecialLine.value = line
   passInfoTrialSlot.value =
     target && canClaimTrial(userStore.trialLines, line) ? { ...target } : null
-  trialConfirming.value = false
   showAuraInfoDialog.value = true
+}
+
+// "Adquirí tu pase": la venta del pase es por administración (sin pago in-app).
+function openPassWhatsApp(): void {
+  const message = `Hola, quiero adquirir el pase especial de ${passInfoLine.value}`
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
+  showAuraInfoDialog.value = false
 }
 
 async function confirmEspecialTrial() {
@@ -1778,10 +1574,8 @@ const selectedDaySlots = computed(() => {
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
 })
 
-const morningSlots = computed(() => selectedDaySlots.value.filter((s) => s.startTime < '12:00:00'))
-const afternoonSlots = computed(() =>
-  selectedDaySlots.value.filter((s) => s.startTime >= '12:00:00'),
-)
+// Secciones del día: Turno Mañana / Especiales (entre turnos) / Turno Tarde.
+const daySections = computed(() => splitDaySections(selectedDaySlots.value))
 
 const selectedDayHoliday = computed(() => {
   const date = dateForDay(selectedDay.value)
@@ -3181,6 +2975,12 @@ onBeforeUnmount(() => cleanup())
     &--locked {
       color: $info; // Olive Stone
       background: rgba($info, 0.1);
+    }
+
+    // 2026-10-01: clase de prueba gratis disponible — invitación, no bloqueo.
+    &--trial {
+      color: $primary;
+      background: rgba($primary, 0.1);
     }
   }
 
