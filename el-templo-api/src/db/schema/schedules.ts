@@ -6,6 +6,7 @@ import {
   tinyint,
   boolean,
   timestamp,
+  date,
   index,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
@@ -38,6 +39,12 @@ export const schedules = mysqlTable(
     // propio dentro de un turno de otro (yoga de Moreno, Verticales).
     coachUserId: int("coach_user_id").references(() => users.id),
     deactivatedAt: timestamp("deactivated_at"),
+    // Horario ELIMINADO (2026-10-01): primera fecha en que el horario deja de
+    // existir. NULL = no eliminado. Distinto de cancelar (is_active=false sin
+    // deleted_from): un horario eliminado desaparece de la grilla de admin
+    // desde esta fecha y no se puede reactivar. Siempre va con is_active=false,
+    // así todos los caminos de socios (que ya filtran is_active) no cambian.
+    deletedFrom: date("deleted_from", { mode: "string" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },

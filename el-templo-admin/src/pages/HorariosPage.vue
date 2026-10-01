@@ -105,7 +105,8 @@
             @click="toggleDeleteSelectionMode"
           />
           <div v-if="deleteSelectionMode" class="text-caption text-negative q-ml-sm">
-            Tocá un horario de la grilla para elegirlo
+            Tocá el horario que querés eliminar definitivamente. Para cancelar una clase, salí de
+            este modo y tocá la clase.
           </div>
         </div>
 
@@ -240,8 +241,11 @@
                 <q-item-label v-if="slot.coachOverride && slot.coachFirstName" caption>
                   Profe: {{ slot.coachFirstName }}
                 </q-item-label>
+                <q-item-label v-if="slot.deletedFrom" caption class="text-grey-7 text-weight-medium">
+                  Eliminado desde el {{ formatDayMonth(slot.deletedFrom) }}
+                </q-item-label>
                 <q-item-label
-                  v-if="!slot.isActive"
+                  v-else-if="!slot.isActive"
                   caption
                   class="text-negative text-weight-medium"
                 >
@@ -357,6 +361,9 @@
                       </div>
                       <div v-if="isCellHoliday(day.date)" class="cell-holiday text-weight-bold">
                         FERIADO
+                      </div>
+                      <div v-else-if="slot.deletedFrom" class="cell-inactive text-weight-bold">
+                        ELIMINADO DESDE {{ formatDayMonth(slot.deletedFrom) }}
                       </div>
                       <div v-else-if="!slot.isActive" class="cell-inactive text-weight-bold">
                         CANCELADA
@@ -477,6 +484,7 @@ import DeleteSlotDialog from 'src/components/scheduling/DeleteSlotDialog.vue';
 import HolidaysDialog from 'src/components/scheduling/HolidaysDialog.vue';
 import SesionesDePruebaDialog from 'src/components/scheduling/SesionesDePruebaDialog.vue';
 import { todayInTz, dowInTz, getMondayInTz } from 'src/utils/tz';
+import { formatDayMonth } from 'src/utils/renewal-status';
 import { useAuthStore } from 'src/stores/useAuthStore';
 
 const log = createLogger('HorariosPage');
@@ -683,6 +691,7 @@ function cellContainerClass(time: string, dayOfWeek: DayOfWeek): string {
 /** Color de un chip de clase apilado, por ocupación/estado (antes en cellClass). */
 function slotChipClass(slot: WeeklySlotView, date: string): string {
   if (isCellHoliday(date)) return 'slot-chip--holiday';
+  if (slot.deletedFrom) return 'slot-chip--deleted';
   if (!slot.isActive || slot.cancelledForDate) return 'slot-chip--inactive';
   const pct = slot.maxCapacity > 0 ? (slot.bookedCount / slot.maxCapacity) * 100 : 0;
   if (pct >= 100) return 'slot-chip--full';
@@ -712,6 +721,7 @@ const selectedDaySlots = computed(() => {
 function rowClass(slot: WeeklySlotView): string {
   const info = selectedDayInfo.value;
   if (info && isCellHoliday(info.date)) return 'slot-row--holiday';
+  if (slot.deletedFrom) return 'slot-row--deleted';
   if (!slot.isActive || slot.cancelledForDate) return 'slot-row--inactive';
   const pct = slot.maxCapacity > 0 ? (slot.bookedCount / slot.maxCapacity) * 100 : 0;
   if (pct >= 100) return 'slot-row--full';
@@ -1076,6 +1086,15 @@ function onSlotClick(slot: WeeklySlotView, date: string) {
   // Holiday cells are still selectable here because the deletion targets
   // the recurring schedule, not the individual day.
   if (deleteSelectionMode.value) {
+    deleteSelectionMode.value = false;
+    // Solo se ve en semanas anteriores a su eliminación: ya no hay nada que borrar.
+    if (slot.deletedFrom) {
+      $q.notify({
+        type: 'info',
+        message: `Este horario ya está eliminado desde el ${formatDayMonth(slot.deletedFrom)}.`,
+      });
+      return;
+    }
     deleteSlotInfo.value = {
       scheduleId: slot.id,
       dayOfWeek: slot.dayOfWeek,
@@ -1085,7 +1104,6 @@ function onSlotClick(slot: WeeklySlotView, date: string) {
       branchName: slot.branchName,
     };
     showDeleteSlotDialog.value = true;
-    deleteSelectionMode.value = false;
     return;
   }
 
@@ -1307,6 +1325,17 @@ watch(selectedBranchId, (val) => {
 .slot-chip--inactive {
   background: repeating-linear-gradient(45deg, #fce4ec, #fce4ec 6px, #f8bbd0 6px, #f8bbd0 12px);
   color: #b71c1c;
+}
+
+/* Horario eliminado: historial neutro, NO el rayado rojo de cancelada. */
+.slot-chip--deleted {
+  background: #f5f5f5;
+  color: #757575;
+  border: 1px dashed #bdbdbd;
+}
+
+.slot-row--deleted {
+  background: #f5f5f5;
 }
 
 .cell-inactive {

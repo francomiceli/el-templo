@@ -63,6 +63,7 @@ const scheduleSlotSchema = {
     isActive: { type: "boolean" },
     inactiveReason: { type: ["string", "null"] },
     deactivatedAt: { type: ["string", "null"] },
+    deletedFrom: { type: ["string", "null"] },
     // 2026-09-29: línea del pase especial y profe propio del horario.
     // Declarados aquí o fast-json-stringify los strippea.
     specialLine: { type: ["string", "null"] },
@@ -371,6 +372,8 @@ export const toggleScheduleSchema = {
         restoredBookings: { type: "integer" },
       },
     },
+    // Reactivar un horario eliminado (deleted_from) se rechaza con 400.
+    400: errorSchema,
     404: errorSchema,
     // Phase 155 (WR-01): reactivation re-runs the activity-scoped overlap check
     // and can reject with 409 if the freed window was taken by another slot.
@@ -508,6 +511,8 @@ export const deleteScheduleFromDateSchema = {
     },
     400: errorSchema,
     404: errorSchema,
+    // El horario ya estaba eliminado.
+    409: errorSchema,
   },
 };
 

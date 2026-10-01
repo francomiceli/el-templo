@@ -254,6 +254,7 @@ export class SchedulingService {
         isActive: schema.schedules.isActive,
         inactiveReason: schema.schedules.inactiveReason,
         deactivatedAt: schema.schedules.deactivatedAt,
+        deletedFrom: schema.schedules.deletedFrom,
       })
       .from(schema.schedules)
       .innerJoin(
@@ -417,6 +418,11 @@ export class SchedulingService {
       // weekStartDate is Monday (day 1), so offset = dayOfWeek - 1
       const slotDate = addDays(weekStartDate, row.dayOfWeek - 1);
 
+      // Horario eliminado: desde deleted_from deja de existir, también para
+      // el admin (a diferencia de una clase cancelada, que se sigue viendo
+      // para poder reactivarla). Las semanas anteriores quedan como historial.
+      if (row.deletedFrom && slotDate >= row.deletedFrom) continue;
+
       // Per-date cancellation: hidden entirely from members (same rationale
       // as the isActive filter — no booking is possible), flagged for admins.
       const exception = exceptionMap.get(`${row.id}-${slotDate}`);
@@ -490,6 +496,7 @@ export class SchedulingService {
         isActive: row.isActive,
         inactiveReason: row.inactiveReason,
         deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
+        deletedFrom: row.deletedFrom ?? null,
         bookedCount: counts.bookedCount,
         trialCount: counts.trialCount,
         // Cupo de SP restante del turno (tope propio de 3, separado del cupo
@@ -777,18 +784,7 @@ export class SchedulingService {
 
     // No cancelling the past — "today" in the branch's timezone so a BCN
     // admin working late doesn't get blocked by the server's UTC midnight.
-    const [branch] = await this.db
-      .select({ timezone: schema.branches.timezone })
-      .from(schema.branches)
-      .where(
-        and(
-          tenantWhere(schema.branches, ctx),
-          eq(schema.branches.id, slot.branchId),
-        ),
-      );
-    const today = todayInTz(
-      branch?.timezone ?? "America/Argentina/Buenos_Aires",
-    );
+    const today = await this.todayForBranch(ctx, slot.branchId);
     if (date < today) {
       throw new BadRequestError("No se puede cancelar una fecha pasada");
     }
@@ -880,6 +876,15 @@ export class SchedulingService {
     const existing = await this.getScheduleSlot(ctx, scheduleId);
     if (!existing) throw new NotFoundError("Horario no encontrado");
 
+    // Un horario eliminado es definitivo: no vuelve. Para retomar la clase se
+    // crea un horario nuevo (createSchedule no choca con él porque está
+    // inactivo).
+    if (isActive && existing.deletedFrom) {
+      throw new BadRequestError(
+        "Este horario fue eliminado y no se puede reactivar. Creá un horario nuevo.",
+      );
+    }
+
     // Phase 155 (WR-01, D-01): reactivation must re-run the activity-scoped
     // overlap probe. findOverlappingSchedule excludes inactive slots, so a
     // window freed by deactivating A can be taken by a new same-activity slot B
@@ -947,6 +952,62 @@ export class SchedulingService {
         ),
       );
     return row?.deactivatedAt ?? null;
+  }
+
+  /**
+   * Validaciones de "Eliminar horario" ANTES de tocar reservas: el horario
+   * existe, no estaba eliminado y la fecha no es pasada (hoy en la zona de la
+   * sede, igual que cancelScheduleDate). Una fecha pasada cancelaría reservas
+   * de clases que ya ocurrieron y daría créditos por ellas.
+   */
+  async assertCanDeleteFromDate(
+    ctx: TenantContext,
+    scheduleId: number,
+    fromDate: string,
+  ): Promise<void> {
+    const slot = await this.getScheduleSlot(ctx, scheduleId);
+    if (!slot) throw new NotFoundError("Horario no encontrado");
+    if (slot.deletedFrom) {
+      throw new ConflictError("Este horario ya fue eliminado");
+    }
+
+    const today = await this.todayForBranch(ctx, slot.branchId);
+    if (fromDate < today) {
+      throw new BadRequestError(
+        "No se puede eliminar un horario desde una fecha pasada",
+      );
+    }
+  }
+
+  /**
+   * Marca el horario como eliminado desde `fromDate`: is_active=false (todos
+   * los caminos de socios ya filtran por is_active) + deleted_from, que es lo
+   * que lo distingue de una clase cancelada. La ruta llama a
+   * assertCanDeleteFromDate y cancela las reservas antes de esto.
+   */
+  async markScheduleDeleted(
+    ctx: TenantContext,
+    scheduleId: number,
+    fromDate: string,
+  ): Promise<ScheduleSlot> {
+    await this.db
+      .update(schema.schedules)
+      .set({
+        isActive: false,
+        inactiveReason: `Eliminado desde ${fromDate}`,
+        deactivatedAt: new Date(),
+        deletedFrom: fromDate,
+      })
+      .where(
+        and(
+          tenantWhere(schema.schedules, ctx),
+          eq(schema.schedules.id, scheduleId),
+        ),
+      );
+
+    const updated = await this.getScheduleSlot(ctx, scheduleId);
+    if (!updated) throw new Error("Failed to retrieve deleted schedule");
+    return updated;
   }
 
   /**
@@ -1128,18 +1189,7 @@ export class SchedulingService {
       );
     }
 
-    const [branch] = await this.db
-      .select({ timezone: schema.branches.timezone })
-      .from(schema.branches)
-      .where(
-        and(
-          tenantWhere(schema.branches, ctx),
-          eq(schema.branches.id, existing.branchId),
-        ),
-      );
-    const today = todayInTz(
-      branch?.timezone ?? "America/Argentina/Buenos_Aires",
-    );
+    const today = await this.todayForBranch(ctx, existing.branchId);
 
     const [futureRow] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
@@ -1459,6 +1509,26 @@ export class SchedulingService {
    * sin necesidad real -- ninguno muestra el nombre de la clase como dato
    * primario para el socio.
    */
+  /**
+   * "Hoy" (YYYY-MM-DD) en la zona horaria de la sede, así un admin de BCN
+   * trabajando tarde no queda bloqueado por la medianoche UTC del server.
+   */
+  private async todayForBranch(
+    ctx: TenantContext,
+    branchId: number,
+  ): Promise<string> {
+    const [branch] = await this.db
+      .select({ timezone: schema.branches.timezone })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
+      );
+    return todayInTz(branch?.timezone ?? "America/Argentina/Buenos_Aires");
+  }
+
   private async getScheduleSlot(
     ctx: TenantContext,
     scheduleId: number,
@@ -1476,6 +1546,7 @@ export class SchedulingService {
         isActive: schema.schedules.isActive,
         inactiveReason: schema.schedules.inactiveReason,
         deactivatedAt: schema.schedules.deactivatedAt,
+        deletedFrom: schema.schedules.deletedFrom,
         isSpecial: schema.activities.isSpecial,
         specialLine: schema.activities.specialLine,
         coachUserId: schema.schedules.coachUserId,
@@ -1515,6 +1586,7 @@ export class SchedulingService {
       isActive: row.isActive,
       inactiveReason: row.inactiveReason,
       deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
+      deletedFrom: row.deletedFrom ?? null,
       isSpecial: row.isSpecial,
       specialLine: row.specialLine ?? null,
       coachUserId: row.coachUserId ?? null,

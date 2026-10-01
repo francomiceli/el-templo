@@ -15,10 +15,24 @@
       <q-separator />
 
       <q-card-section>
+        <q-banner class="bg-red-1 text-red-10 q-mb-md" rounded>
+          <template #avatar>
+            <q-icon name="warning" color="negative" />
+          </template>
+          <div class="text-weight-bold">Esta acción elimina el horario definitivamente.</div>
+          <div class="text-body2">
+            Desde la fecha elegida desaparece de la grilla y no se puede reactivar.
+          </div>
+          <div class="text-body2 q-mt-sm">
+            ¿Solo querés cancelar una clase? Cerrá esto, tocá la clase en la grilla y usá
+            <strong>Cancelar clase</strong> (solo esa fecha o todas las semanas, y se puede
+            deshacer).
+          </div>
+        </q-banner>
+
         <div class="text-body2 q-mb-sm">
-          Eliminá esta clase de la grilla a partir de la fecha que elijas. Las reservas activas con
-          fecha &ge; a la elegida se cancelan; el histórico anterior y los check-ins ya hechos
-          quedan intactos.
+          Las reservas activas desde esa fecha se cancelan (los planes fijos reciben crédito de
+          reposición). El historial anterior y los check-ins ya hechos quedan intactos.
         </div>
 
         <q-input
@@ -35,6 +49,7 @@
               <q-popup-proxy cover transition-show="scale" transition-hide="scale">
                 <q-date
                   :model-value="fromDate.replaceAll('-', '/')"
+                  :options="isSelectableDate"
                   @update:model-value="onPickDate"
                   minimal
                   first-day-of-week="1"
@@ -53,8 +68,8 @@
             <template #avatar>
               <q-icon name="info" color="grey-8" />
             </template>
-            No hay reservas activas a partir de esa fecha. Se va a desactivar el horario sin afectar
-            a nadie.
+            No hay reservas activas a partir de esa fecha. Se va a eliminar el horario sin afectar a
+            nadie.
           </q-banner>
 
           <q-banner v-else class="bg-orange-1 text-orange-10" dense>
@@ -114,8 +129,8 @@
         <q-btn flat label="Cancelar" @click="onCancel" :disable="submitting" />
         <q-btn
           color="negative"
-          icon="delete"
-          label="Eliminar"
+          icon="delete_forever"
+          label="Eliminar definitivamente"
           :loading="submitting"
           :disable="!preview || loadingPreview"
           @click="onConfirm"
@@ -129,6 +144,7 @@
 import { ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { todayInTz } from 'src/utils/tz';
 import { DAY_LABELS } from 'src/types/scheduling';
@@ -167,6 +183,8 @@ const log = createLogger('DeleteSlotDialog');
 const schedulingApi = useSchedulingApi();
 
 const fromDate = ref('');
+// Hoy en la sede: no se elimina desde una fecha pasada (la API también lo rechaza).
+const minDate = ref('');
 const preview = ref<Preview | null>(null);
 const loadingPreview = ref(false);
 const submitting = ref(false);
@@ -176,7 +194,8 @@ watch(
   () => props.show,
   (open) => {
     if (open) {
-      fromDate.value = todayInTz(props.branchTimezone);
+      minDate.value = todayInTz(props.branchTimezone);
+      fromDate.value = minDate.value;
       preview.value = null;
       errorMessage.value = null;
       void loadPreview();
@@ -207,6 +226,11 @@ async function loadPreview() {
   }
 }
 
+/** q-date pasa 'YYYY/MM/DD'. */
+function isSelectableDate(date: string): boolean {
+  return date.replaceAll('/', '-') >= minDate.value;
+}
+
 function onPickDate(val: string | null) {
   if (!val) return;
   fromDate.value = val.replaceAll('/', '-');
@@ -232,17 +256,22 @@ async function onConfirm() {
         ? `${result.cancelledBookings} reserva${
             result.cancelledBookings === 1 ? '' : 's'
           } cancelada${result.cancelledBookings === 1 ? '' : 's'}${creditsMsg}`
-        : 'Horario eliminado sin reservas afectadas';
+        : 'Sin reservas afectadas';
     $q.notify({
       type: 'positive',
-      message: `Horario eliminado. ${cancelMsg}`,
+      message: `Horario eliminado definitivamente. ${cancelMsg}`,
       timeout: 6000,
     });
     emit('deleted');
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error deleting schedule', { error: message });
-    errorMessage.value = 'Error eliminando el horario. Intentá de nuevo.';
+    // 400 (fecha pasada) / 409 (ya eliminado): mensaje del server, sin Sentry.
+    const message = extractError(err, 'Error eliminando el horario. Intentá de nuevo.');
+    if (isExpectedClientError(err)) {
+      log.warn('Delete schedule rejected', { error: message });
+    } else {
+      log.error('Error deleting schedule', { error: message });
+    }
+    errorMessage.value = message;
   } finally {
     submitting.value = false;
   }

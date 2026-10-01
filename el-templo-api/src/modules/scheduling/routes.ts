@@ -713,10 +713,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // POST /schedules/:scheduleId/delete-from-date — soft-delete schedule from
-  // a given date forward. Cancels active future bookings, grants replacement
-  // credits to fixed-plan members, and flips isActive=false. History before
-  // fromDate (and already-checked-in bookings on/after fromDate) is preserved.
+  // POST /schedules/:scheduleId/delete-from-date — elimina DEFINITIVAMENTE el
+  // horario desde una fecha (hoy o futura). Cancela las reservas activas desde
+  // esa fecha, da créditos de reposición a los planes fijos y marca
+  // is_active=false + deleted_from: desaparece de la grilla de admin desde
+  // fromDate y no se puede reactivar (distinto de "Cancelar clase").
+  // Historial anterior y check-ins ya hechos quedan intactos.
   fastify.post<{
     Params: { scheduleId: number };
     Body: { fromDate: string };
@@ -729,6 +731,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         const { scheduleId } = request.params;
         const { fromDate } = request.body;
 
+        await schedulingService.assertCanDeleteFromDate(
+          ctx,
+          scheduleId,
+          fromDate,
+        );
+
         const cancelResult =
           await bookingService.cancelBookingsFromDateAndGrantCredits(
             ctx,
@@ -736,12 +744,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
             fromDate,
           );
 
-        await schedulingService.toggleSchedule(
-          ctx,
-          scheduleId,
-          false,
-          `Eliminado desde ${fromDate}`,
-        );
+        await schedulingService.markScheduleDeleted(ctx, scheduleId, fromDate);
 
         return cancelResult;
       } catch (err: unknown) {
