@@ -1025,10 +1025,24 @@ describe("Scheduling API", () => {
       return row;
     }
 
-    it("delete-from-date saca el horario de la grilla admin desde fromDate y lo deja como historial antes", async () => {
+    it("delete-from-date saca el horario de la grilla admin desde fromDate; antes solo queda si tuvo alumnos", async () => {
       const act = await createActivity("DelGridAct");
       const slot = await createScheduleSlot(act.id, 1, "07:00", "08:00");
       const fromDate = mondayPlusWeeks(2); // lunes = el día del slot
+
+      // Una reserva en la semana +1 (antes de la eliminación): esa fecha es
+      // historial con alumnos. La semana +0 queda sin alumnos.
+      const member = await createMember({
+        email: "del-grid-hist@test.com",
+        dni: "70020010",
+      });
+      await app.db.insert(bookings).values({
+        tenantId: TENANT_TEMPLO,
+        memberId: member.id as number,
+        scheduleId: slot.id,
+        bookingDate: mondayPlusWeeks(1),
+        status: "reservado",
+      });
 
       const res = await deleteFromDate(slot.id, fromDate);
       expect(res.statusCode).toBe(200);
@@ -1043,11 +1057,19 @@ describe("Scheduling API", () => {
       const weekAfter = await getAdminWeek(mondayPlusWeeks(3));
       expect(weekAfter.find((s) => s.id === slot.id)).toBeUndefined();
 
-      // Semana anterior: sigue visible, marcado como eliminado (no cancelado).
+      // Semana anterior CON alumnos: sigue visible como historial (con su
+      // ocupación) y marcado como eliminado (no cancelado).
       const weekBefore = await getAdminWeek(mondayPlusWeeks(1));
       const before = weekBefore.find((s) => s.id === slot.id);
       expect(before).toBeDefined();
       expect(before?.deletedFrom).toBe(fromDate);
+      expect(before?.bookedCount).toBe(1);
+
+      // Semana anterior SIN alumnos: no aparece.
+      const emptyWeekBefore = await getAdminWeek(mondayPlusWeeks(0));
+      expect(
+        emptyWeekBefore.find((s) => s.id === slot.id),
+      ).toBeUndefined();
     });
 
     it("cancelar todas las semanas (toggle off) NO elimina: el slot sigue en la grilla admin con deletedFrom null", async () => {

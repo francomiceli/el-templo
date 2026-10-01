@@ -192,8 +192,8 @@
           </template>
           <div class="text-weight-medium">Horario eliminado desde el {{ deletedFromLabel }}</div>
           <div class="text-caption">
-            Desde esa fecha ya no aparece en la grilla y no se puede reactivar. Si la clase vuelve,
-            creá un horario nuevo.
+            Desde esa fecha ya no aparece en la grilla. Antes solo se ve en las fechas que tuvieron
+            alumnos. No se puede reactivar: si la clase vuelve, creá un horario nuevo.
           </div>
         </q-banner>
         <q-banner v-else-if="isSlotInactive" class="bg-red-1 text-red-9 q-mt-sm" rounded dense>

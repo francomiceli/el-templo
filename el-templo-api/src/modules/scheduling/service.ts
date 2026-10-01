@@ -418,10 +418,6 @@ export class SchedulingService {
       // weekStartDate is Monday (day 1), so offset = dayOfWeek - 1
       const slotDate = addDays(weekStartDate, row.dayOfWeek - 1);
 
-      // Horario eliminado: desde deleted_from deja de existir, también para
-      // el admin (a diferencia de una clase cancelada, que se sigue viendo
-      // para poder reactivarla). Las semanas anteriores quedan como historial.
-      if (row.deletedFrom && slotDate >= row.deletedFrom) continue;
 
       // Per-date cancellation: hidden entirely from members (same rationale
       // as the isActive filter — no booking is possible), flagged for admins.
@@ -432,6 +428,17 @@ export class SchedulingService {
         bookedCount: 0,
         trialCount: 0,
       };
+
+      // Horario eliminado: desde deleted_from deja de existir, también para
+      // el admin (a diferencia de una clase cancelada, que se sigue viendo
+      // para poder reactivarla). Antes de esa fecha solo queda como historial
+      // si la clase tuvo alumnos (reservas/asistencias): así se puede abrir
+      // para ver o marcar asistencia, y las fechas vacías no ensucian la
+      // grilla (pedido de Franco 2026-10-01).
+      if (row.deletedFrom) {
+        if (slotDate >= row.deletedFrom) continue;
+        if (counts.bookedCount + counts.trialCount === 0) continue;
+      }
 
       // Phase 155 (D-06/D-07, WR-02): effective per-slot cap resolved via the
       // shared pure helper (batched coalesce kept — one query per week).
