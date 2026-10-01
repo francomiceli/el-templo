@@ -837,10 +837,12 @@ describe("coach-load autocompletar", () => {
   it("autocompletar: período prorrateado hasta fin de mes → precarga el mes completo, no el proporcional", async () => {
     // Alta prorrateada: vence el último día del mes del inicio y cobró solo
     // los días sueltos. Inicio = hoy, salvo el día 1 (un alta el 1° de un mes
-    // de 31 días dura 30 días = el plan completo) → ayer. Calendario-seguro.
+    // de 31 días dura 30 días = el plan completo) → mañana: el período sigue
+    // vigente y dura menos que el plan. (Ayer no sirve: vencería ayer y
+    // autoExpire lo da de baja → sin plan renovable.) Calendario-seguro.
     const today = new Date().toISOString().split("T")[0];
     const start = today.endsWith("-01")
-      ? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0]
       : today;
     const [y, m] = start.split("-").map(Number);
     const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();

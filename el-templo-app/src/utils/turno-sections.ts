@@ -1,5 +1,7 @@
 import type { WeeklySlotView } from 'src/types/scheduling'
 
+// deploy: el push de esta feature (007631206) murió en CI por tests de calendario.
+
 /** Secciones de la grilla de Reservas, en el orden en que se muestran. */
 export type TurnoKey = 'morning' | 'especiales' | 'afternoon'
 

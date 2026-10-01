@@ -102,6 +102,10 @@ const BASE = "/api/admin/analytics";
 const DATE_FROM = dateOffsetStr(-90);
 const DATE_TO = dateOffsetStr(1);
 const MONTH_ACTUAL = todayStr().slice(0, 7);
+// La asistencia a la especial se siembra AYER (ver sembrarDatosAnalytics* en
+// test/fixtures/subs-sched-gimnasio-dos.ts): el mes que la contiene es el de
+// ayer. Con MONTH_ACTUAL el reporte daba vacío todos los días 1°.
+const MONTH_ESPECIALES = dateOffsetStr(-1).slice(0, 7);
 
 // ─── Ciclo de vida ───────────────────────────────────────────────────────────
 
@@ -1288,7 +1292,7 @@ describe("reporte de especiales — GET /api/admin/analytics/especiales", () => 
   const RUTA = "GET /api/admin/analytics/especiales";
 
   it("aislamiento (sin branchId, vista 'todas las sedes'): rows del gimnasio 2 no incluye la actividad especial de El Templo", async () => {
-    const res = await getComoGimnasioDosSinBranch("/especiales", { month: MONTH_ACTUAL });
+    const res = await getComoGimnasioDosSinBranch("/especiales", { month: MONTH_ESPECIALES });
     expect(res.statusCode, res.body).toBe(200);
     const body = JSON.parse(res.body) as {
       rows: Array<{ activityId: number; total: number }>;
@@ -1307,7 +1311,7 @@ describe("reporte de especiales — GET /api/admin/analytics/especiales", () => 
   });
 
   it("aislamiento: rows del gimnasio 2 no incluye la actividad especial de El Templo", async () => {
-    const res = await getComoGimnasioDos("/especiales", { month: MONTH_ACTUAL });
+    const res = await getComoGimnasioDos("/especiales", { month: MONTH_ESPECIALES });
     expect(res.statusCode, res.body).toBe(200);
     const body = JSON.parse(res.body) as {
       rows: Array<{ activityId: number; total: number }>;
@@ -1326,7 +1330,7 @@ describe("reporte de especiales — GET /api/admin/analytics/especiales", () => 
   });
 
   it("control: El Templo ve su propia actividad especial con 1 asistencia", async () => {
-    const res = await getComoTemplo("/especiales", { month: MONTH_ACTUAL });
+    const res = await getComoTemplo("/especiales", { month: MONTH_ESPECIALES });
     expect(res.statusCode, res.body).toBe(200);
     const body = JSON.parse(res.body) as {
       rows: Array<{ activityId: number; total: number }>;
@@ -1348,10 +1352,10 @@ describe("export de especiales — GET /api/admin/analytics/especiales/export", 
 
   it("aislamiento y control (sin branchId, vista 'todas las sedes'): el gimnasio 2 y El Templo generan cada uno su propio XLSX sin error", async () => {
     const resDos = await getComoGimnasioDosSinBranch("/especiales/export", {
-      month: MONTH_ACTUAL,
+      month: MONTH_ESPECIALES,
     });
     const resTemplo = await getComoTemploSinBranch("/especiales/export", {
-      month: MONTH_ACTUAL,
+      month: MONTH_ESPECIALES,
     });
     expect(resDos.statusCode, resDos.body).toBe(200);
     expect(resTemplo.statusCode, resTemplo.body).toBe(200);
@@ -1366,10 +1370,10 @@ describe("export de especiales — GET /api/admin/analytics/especiales/export", 
 
   it("aislamiento y control: el gimnasio 2 y El Templo generan cada uno su propio XLSX sin error", async () => {
     const resDos = await getComoGimnasioDos("/especiales/export", {
-      month: MONTH_ACTUAL,
+      month: MONTH_ESPECIALES,
     });
     const resTemplo = await getComoTemplo("/especiales/export", {
-      month: MONTH_ACTUAL,
+      month: MONTH_ESPECIALES,
     });
     expect(resDos.statusCode, resDos.body).toBe(200);
     expect(resTemplo.statusCode, resTemplo.body).toBe(200);

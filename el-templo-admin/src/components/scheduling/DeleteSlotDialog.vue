@@ -141,6 +141,7 @@
 </template>
 
 <script setup lang="ts">
+// deploy: el push de esta feature (007631206) murió en CI por tests de calendario.
 import { ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';

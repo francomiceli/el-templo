@@ -1080,8 +1080,9 @@ async function sembrarLadoAnalyticsTemplo(
   // Fecha AYER (no hoy): las 3 filas de `attendance` de arriba (`attendanceIds`)
   // deben quedar como el ÚNICO aporte de El Templo al bucket "hoy" que leen
   // dailyCheckins/checkin-adoption — sembrar esta 4ta fila en la MISMA fecha
-  // ensuciaría ese conteo exacto. `especiales` lee todo el MES (`monthRange`),
-  // así que ayer sigue entrando.
+  // ensuciaría ese conteo exacto. `especiales` lee todo el MES (`monthRange`):
+  // los tests lo piden con el mes de AYER (MONTH_ESPECIALES), no el actual —
+  // el día 1° ayer cae en el mes anterior.
   const [especialAttendance] = await app.db
     .insert(schema.attendance)
     .values(
