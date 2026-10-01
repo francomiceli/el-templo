@@ -54,6 +54,12 @@ export interface ScheduleSlot {
    * scope "bookings that will be restored" to the deactivation window.
    */
   deactivatedAt: string | null;
+  /**
+   * Horario eliminado (YYYY-MM-DD): primera fecha en que deja de existir.
+   * `null` = no eliminado. La grilla no trae el slot desde esa fecha; antes
+   * se pinta como eliminado (no como cancelado) y sin cancelar/reactivar.
+   */
+  deletedFrom: string | null;
   /** Línea del pase especial de la actividad (`null` = Aura / regular). */
   specialLine: string | null;
   /**

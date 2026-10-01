@@ -186,7 +186,17 @@
             </q-btn>
           </div>
         </div>
-        <q-banner v-if="isSlotInactive" class="bg-red-1 text-red-9 q-mt-sm" rounded dense>
+        <q-banner v-if="isSlotDeleted" class="bg-grey-3 text-grey-9 q-mt-sm" rounded dense>
+          <template #avatar>
+            <q-icon name="delete" color="grey-8" />
+          </template>
+          <div class="text-weight-medium">Horario eliminado desde el {{ deletedFromLabel }}</div>
+          <div class="text-caption">
+            Desde esa fecha ya no aparece en la grilla y no se puede reactivar. Si la clase vuelve,
+            creá un horario nuevo.
+          </div>
+        </q-banner>
+        <q-banner v-else-if="isSlotInactive" class="bg-red-1 text-red-9 q-mt-sm" rounded dense>
           <template #avatar>
             <q-icon name="block" color="negative" />
           </template>
@@ -232,7 +242,11 @@
                  so the admin sees who will get their reservation back when
                  they click "Reactivar clase". -->
             <template
-              v-if="(isSlotInactive || isCancelledForDate) && pendingRestorationBookings.length > 0"
+              v-if="
+                !isSlotDeleted &&
+                (isSlotInactive || isCancelledForDate) &&
+                pendingRestorationBookings.length > 0
+              "
             >
               <q-item-label header class="text-negative">
                 Se restaurarán al reactivar ({{ pendingRestorationBookings.length }})
@@ -727,7 +741,7 @@
           @click="openDeactivateDialog"
         />
         <q-btn
-          v-if="isSlotInactive"
+          v-if="isSlotInactive && !isSlotDeleted"
           flat
           label="Reactivar clase"
           color="positive"
@@ -830,6 +844,7 @@ import type {
 import { DAY_LABELS, BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS } from 'src/types/scheduling';
 import type { SlotAttendanceItem } from 'src/types/attendance';
 import { todayInTz } from 'src/utils/tz';
+import { formatDate } from 'src/utils/format-date';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { isBranchScopedRole } from 'src/utils/branch-scope';
 
@@ -1022,12 +1037,22 @@ const summaryText = computed(() => {
   return `${attended}/${total} presentes`;
 });
 
-const canEditActivity = computed(() => !!slotDetail.value);
+// Horario eliminado (definitivo): distinto de cancelado — no se reactiva.
+const slotDeletedFrom = computed(() => slotDetail.value?.schedule.deletedFrom ?? null);
+const isSlotDeleted = computed(() => slotDeletedFrom.value !== null);
+const deletedFromLabel = computed(() =>
+  slotDeletedFrom.value ? formatDate(slotDeletedFrom.value) : ''
+);
 
-const canEditTime = computed(() => !!slotDetail.value);
+// Un horario eliminado es solo historial: sin lápices de edición.
+const canEditActivity = computed(() => !!slotDetail.value && !isSlotDeleted.value);
+
+const canEditTime = computed(() => !!slotDetail.value && !isSlotDeleted.value);
 
 // El server responde 403 a no-owners; el lápiz se oculta para no ofrecer algo que falla.
-const canEditCoach = computed(() => authStore.user?.role === 'owner');
+const canEditCoach = computed(
+  () => authStore.user?.role === 'owner' && !isSlotDeleted.value
+);
 
 const coachDisplayName = computed(() => {
   const coachId = slotDetail.value?.schedule.coachUserId ?? null;

@@ -979,6 +979,159 @@ describe("Scheduling API", () => {
       expect(scheduleRow.inactiveReason).toContain(fromDate);
     });
 
+    // ── Eliminar = definitivo (2026-10-01): distinto de cancelar ──────────
+
+    /** Lunes de la semana actual + N semanas (YYYY-MM-DD, aritmética UTC). */
+    function mondayPlusWeeks(weeks: number): string {
+      const d = new Date(getCurrentMonday() + "T12:00:00Z");
+      d.setUTCDate(d.getUTCDate() + weeks * 7);
+      return d.toISOString().slice(0, 10);
+    }
+
+    async function getAdminWeek(
+      weekStart: string,
+    ): Promise<WeeklySlotView[]> {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/schedules/weekly?branchId=${testBranchId}&weekStart=${weekStart}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      return (JSON.parse(res.body) as { slots: WeeklySlotView[] }).slots;
+    }
+
+    async function deleteFromDate(scheduleId: number, fromDate: string) {
+      return app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/schedules/${scheduleId}/delete-from-date`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { fromDate },
+      });
+    }
+
+    async function readScheduleRow(scheduleId: number) {
+      const [row] = await app.db
+        .select({
+          isActive: schedules.isActive,
+          deletedFrom: schedules.deletedFrom,
+        })
+        .from(schedules)
+        .where(
+          and(
+            tenantWhere(schedules, TEMPLO_CTX),
+            eq(schedules.id, scheduleId),
+          ),
+        );
+      return row;
+    }
+
+    it("delete-from-date saca el horario de la grilla admin desde fromDate y lo deja como historial antes", async () => {
+      const act = await createActivity("DelGridAct");
+      const slot = await createScheduleSlot(act.id, 1, "07:00", "08:00");
+      const fromDate = mondayPlusWeeks(2); // lunes = el día del slot
+
+      const res = await deleteFromDate(slot.id, fromDate);
+      expect(res.statusCode).toBe(200);
+
+      const row = await readScheduleRow(slot.id);
+      expect(row.isActive).toBe(false);
+      expect(row.deletedFrom).toBe(fromDate);
+
+      // Semana de fromDate (y posteriores): el slot ya no existe.
+      const weekOfDeletion = await getAdminWeek(fromDate);
+      expect(weekOfDeletion.find((s) => s.id === slot.id)).toBeUndefined();
+      const weekAfter = await getAdminWeek(mondayPlusWeeks(3));
+      expect(weekAfter.find((s) => s.id === slot.id)).toBeUndefined();
+
+      // Semana anterior: sigue visible, marcado como eliminado (no cancelado).
+      const weekBefore = await getAdminWeek(mondayPlusWeeks(1));
+      const before = weekBefore.find((s) => s.id === slot.id);
+      expect(before).toBeDefined();
+      expect(before?.deletedFrom).toBe(fromDate);
+    });
+
+    it("cancelar todas las semanas (toggle off) NO elimina: el slot sigue en la grilla admin con deletedFrom null", async () => {
+      const act = await createActivity("CancelNotDeleteAct");
+      const slot = await createScheduleSlot(act.id, 1, "07:00", "08:00");
+
+      const toggleRes = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false, inactiveReason: "Vacaciones" },
+      });
+      expect(toggleRes.statusCode).toBe(200);
+      expect(JSON.parse(toggleRes.body).deletedFrom).toBeNull();
+
+      const week = await getAdminWeek(mondayPlusWeeks(2));
+      const cell = week.find((s) => s.id === slot.id);
+      expect(cell).toBeDefined();
+      expect(cell?.isActive).toBe(false);
+      expect(cell?.deletedFrom).toBeNull();
+    });
+
+    it("un horario eliminado no se puede reactivar (400) y sigue eliminado", async () => {
+      const act = await createActivity("DelNoReactAct");
+      const slot = await createScheduleSlot(act.id, 1, "07:00", "08:00");
+      const fromDate = mondayPlusWeeks(1);
+      expect((await deleteFromDate(slot.id, fromDate)).statusCode).toBe(200);
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: true },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toContain("eliminado");
+
+      const row = await readScheduleRow(slot.id);
+      expect(row.isActive).toBe(false);
+      expect(row.deletedFrom).toBe(fromDate);
+    });
+
+    it("eliminar un horario ya eliminado devuelve 409 y no pisa la fecha original", async () => {
+      const act = await createActivity("DelTwiceAct");
+      const slot = await createScheduleSlot(act.id, 1, "07:00", "08:00");
+      const firstFrom = mondayPlusWeeks(2);
+      expect((await deleteFromDate(slot.id, firstFrom)).statusCode).toBe(200);
+
+      const res = await deleteFromDate(slot.id, mondayPlusWeeks(4));
+      expect(res.statusCode).toBe(409);
+
+      const row = await readScheduleRow(slot.id);
+      expect(row.deletedFrom).toBe(firstFrom);
+    });
+
+    it("eliminar desde una fecha pasada devuelve 400 y no toca el horario", async () => {
+      const act = await createActivity("DelPastAct");
+      const slot = await createScheduleSlot(act.id, 1, "07:00", "08:00");
+
+      const res = await deleteFromDate(slot.id, dateOffsetStr(-7));
+      expect(res.statusCode).toBe(400);
+
+      const row = await readScheduleRow(slot.id);
+      expect(row.isActive).toBe(true);
+      expect(row.deletedFrom).toBeNull();
+    });
+
+    it("se puede crear un horario nuevo en la misma franja de uno eliminado", async () => {
+      const act = await createActivity("DelRecreateAct");
+      const slot = await createScheduleSlot(act.id, 1, "07:00", "08:00");
+      expect(
+        (await deleteFromDate(slot.id, mondayPlusWeeks(1))).statusCode,
+      ).toBe(200);
+
+      const replacement = await createScheduleSlot(
+        act.id,
+        1,
+        "07:00",
+        "08:00",
+      );
+      expect(replacement.id).not.toBe(slot.id);
+      expect(replacement.isActive).toBe(true);
+    });
+
     it("delete-from-date cancels flexible-plan bookings without granting credits", async () => {
       const { memberToken, subscription } = await setupMemberWithSubscription({
         email: "flex-delete@test.com",

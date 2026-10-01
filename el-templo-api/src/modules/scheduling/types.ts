@@ -54,6 +54,13 @@ export interface ScheduleSlot {
    * restored" to the deactivation window.
    */
   deactivatedAt: string | null;
+  /**
+   * Horario eliminado (schedules.deleted_from, YYYY-MM-DD): primera fecha en
+   * que deja de existir. NULL = no eliminado. La grilla de admin no trae el
+   * slot desde esa fecha, y en semanas anteriores el admin lo pinta como
+   * eliminado (no como cancelado) y sin acciones de cancelar/reactivar.
+   */
+  deletedFrom: string | null;
   /** Categoría de la actividad del slot (activities.is_special). */
   isSpecial: boolean;
   /** Línea del pase especial de la actividad (NULL = Aura / regular). */
