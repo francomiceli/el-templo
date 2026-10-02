@@ -19,6 +19,7 @@
 import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
+import type { TrialBookingChange } from 'src/utils/trial-booking-changes';
 import type {
   TransactionListItem,
   PaymentMethod,
@@ -142,7 +143,8 @@ export interface CoachAltaInput {
  * "Nuevo" chip on the ticket. `transaction` is null only for a free alta (price 0).
  */
 export interface CoachAltaResponse {
-  subscription?: { id: number } | null;
+  /** `trialBookings`: SP pendientes resueltas al cargar la membresía. */
+  subscription?: { id: number; trialBookings?: TrialBookingChange[] } | null;
   transaction: TransactionListItem | null;
   /** id del alumno SOLO cuando ESTA alta lo creó (null si usó uno existente). */
   createdMemberId?: number | null;

@@ -50,14 +50,20 @@ export type AuditAction =
   // Cadencia de mensajes en Sesiones de Prueba (brief Nacho, 2026-09-26):
   // cualquier cambio manual sobre un trial_followup (marcar/desmarcar
   // M1/M2/M3, Respondió, Perdida+motivo).
-  | "trial_followup_updated";
+  | "trial_followup_updated"
+  // SP pendiente resuelta al cargar la primera membresía (2026-10-01): pasa a
+  // reserva normal del plan o se cancela. La reserva pierde `is_trial`, así
+  // que este registro es el rastro de que fue una Sesión de Prueba.
+  | "trial_booking_converted"
+  | "trial_booking_cancelled";
 
 export type AuditTargetKind =
   | "subscription"
   | "transaction"
   | "member"
   | "renewal_followup"
-  | "trial_followup";
+  | "trial_followup"
+  | "booking";
 
 export interface AuditWriteParams {
   actorId: number;

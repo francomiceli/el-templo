@@ -209,7 +209,11 @@
                           color="warning"
                           :label="`Visita · ${scope.opt.visitorBranchName}`"
                         />
-                        <q-badge v-else :color="scope.opt.statusColor" :label="scope.opt.statusLabel" />
+                        <q-badge
+                          v-else
+                          :color="scope.opt.statusColor"
+                          :label="scope.opt.statusLabel"
+                        />
                       </q-item-section>
                     </q-item>
                   </template>
@@ -984,6 +988,7 @@ import { useQuasar } from 'quasar';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { createLogger } from 'src/utils/logger';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
+import { showTrialBookingChanges, type TrialBookingChange } from 'src/utils/trial-booking-changes';
 import { formatPrice } from 'src/utils/format-price';
 import { formatDate } from 'src/utils/format-date';
 import { ZERO_PRICE_LABEL } from 'src/config/templo-config';
@@ -2235,6 +2240,8 @@ async function onConfirm() {
       : undefined;
 
   submitting.value = true;
+  // Alta: SP pendientes del alumno que se resolvieron al cargarle el plan.
+  let trialBookings: TrialBookingChange[] | undefined;
   try {
     if (mode.value === 'renew') {
       await financeApi.payPlan({
@@ -2299,6 +2306,7 @@ async function onConfirm() {
         ...(chosenBankAccountId != null ? { bankAccountId: chosenBankAccountId } : {}),
       };
       const resp = await financeApi.altaConPlan(body);
+      trialBookings = resp.subscription?.trialBookings;
       if (resp.createdNew && resp.transaction) {
         createdNewTicketIds.value = new Set(createdNewTicketIds.value).add(resp.transaction.id);
       }
@@ -2308,6 +2316,8 @@ async function onConfirm() {
         ? 'Alumno y plan cargados — pendiente de validación'
         : 'Cobro registrado — pendiente de validación';
     $q.notify({ type: 'positive', message: successMsg });
+    // SP pendiente del alumno: avisarle a gestión qué pasó con ella.
+    showTrialBookingChanges($q, trialBookings);
     await refreshMyLoads();
     resetForm();
     resetToPortada();

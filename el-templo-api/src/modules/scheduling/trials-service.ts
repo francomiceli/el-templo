@@ -57,6 +57,10 @@ import type { NotificationService } from "../notifications/service";
 import { assertTrialSlotCapacity } from "./capacity";
 import { SettingsService } from "../settings/service";
 import { canRescheduleAtDepth } from "../reports/trial-cadence";
+import {
+  TRIAL_REMINDER_TEMPLATE_KEY,
+  deletePendingTrialReminders,
+} from "./trial-reminder";
 
 /**
  * Phase 119 (D-03 revised): a self-service trial can be cancelled or changed up
@@ -64,12 +68,6 @@ import { canRescheduleAtDepth } from "../reports/trial-cadence";
  * (mirrors a same-day reservation, which is always inside 24h).
  */
 const TRIAL_CANCEL_CUTOFF_HOURS = 24;
-
-/**
- * Fase 180 (D-20/D-24): template key del recordatorio ~24h antes de la
- * sesión de prueba reservada. Ver TEMPLATE_SEEDS en notifications/types.ts.
- */
-const TRIAL_REMINDER_TEMPLATE_KEY = "trial_session_reminder";
 
 /** Fase 180 (D-20): cuánto antes de la clase sale el recordatorio. */
 const TRIAL_REMINDER_HOURS_BEFORE = 24;
@@ -588,31 +586,7 @@ export class TrialService {
     ctx: TenantContext,
   ): Promise<void> {
     try {
-      const [template] = await this.db
-        .select({ id: schema.notificationTemplates.id })
-        .from(schema.notificationTemplates)
-        .where(
-          and(
-            tenantWhere(schema.notificationTemplates, ctx),
-            eq(
-              schema.notificationTemplates.templateKey,
-              TRIAL_REMINDER_TEMPLATE_KEY,
-            ),
-          ),
-        )
-        .limit(1);
-      if (!template) return; // no seedeado para este tenant — nada que borrar
-
-      await this.db
-        .delete(schema.pendingNotifications)
-        .where(
-          and(
-            tenantWhere(schema.pendingNotifications, ctx),
-            eq(schema.pendingNotifications.userId, userId),
-            eq(schema.pendingNotifications.templateId, template.id),
-            eq(schema.pendingNotifications.status, "pending"),
-          ),
-        );
+      await deletePendingTrialReminders(this.db, ctx, userId);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
       this.log.error(

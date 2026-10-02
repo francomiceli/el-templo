@@ -1090,6 +1090,7 @@
 import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { showTrialBookingChanges, type TrialBookingChange } from 'src/utils/trial-booking-changes';
 import { formatDate } from 'src/utils/format-date';
 import { formatPrice, type Currency } from 'src/utils/format-price';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
@@ -2240,10 +2241,11 @@ async function executeConfirm() {
         : undefined,
     };
 
+    let trialBookings: TrialBookingChange[] | undefined;
     if (props.mode === 'change') {
       await subsApi.changePlan(props.userId, payload);
     } else {
-      await subsApi.assignPlan(props.userId, payload);
+      ({ trialBookings } = await subsApi.assignPlan(props.userId, payload));
     }
 
     $q.notify({
@@ -2254,6 +2256,8 @@ async function executeConfirm() {
           ? 'Plan cambiado correctamente'
           : 'Plan asignado correctamente',
     });
+    // SP pendiente del alumno: avisarle a gestión qué pasó con ella.
+    showTrialBookingChanges($q, trialBookings);
     emit('assigned');
     emit('update:modelValue', false);
   } catch (err: unknown) {

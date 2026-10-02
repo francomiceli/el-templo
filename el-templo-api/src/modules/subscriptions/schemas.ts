@@ -95,6 +95,24 @@ const subscriptionDetailSchema = {
     notes: { type: ["string", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
+    // Solo en la respuesta de assign: SP pendientes resueltas al cargar la
+    // membresía (trial-bookings-on-assign.ts). Declarado o fast-json-stringify
+    // lo strippea.
+    trialBookings: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          bookingId: { type: "integer" },
+          date: { type: "string" },
+          startTime: { type: "string" },
+          activityName: { type: "string" },
+          branchName: { type: "string" },
+          outcome: { type: "string", enum: ["converted", "cancelled", "kept"] },
+          reason: { type: ["string", "null"] },
+        },
+      },
+    },
   },
 } as const;
 

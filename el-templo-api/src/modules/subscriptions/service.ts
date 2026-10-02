@@ -52,8 +52,10 @@ import type {
   CreatePromoInput,
   UpdatePromoInput,
   AuraDiscountTier,
+  TrialBookingChange,
 } from "./types";
 import { categoryGroup, excludedFromReferrals } from "./types";
+import { resolvePendingTrialBookings } from "./trial-bookings-on-assign";
 import {
   normalizeSpecialLine,
   sameSpecialLine,
@@ -2744,7 +2746,30 @@ export class SubscriptionService {
       "Subscription assigned to member",
     );
 
-    return subscription;
+    // SP pendiente de un lead al que se le carga la membresía (caso Sofía
+    // Santana): se pasa a reserva del plan o se cancela, y se devuelve para
+    // avisarle a gestión. Best-effort: el plan ya quedó asignado y cobrado,
+    // un fallo acá no puede revertirlo — se loguea y gestión no ve el aviso.
+    let trialBookings: TrialBookingChange[] = [];
+    try {
+      trialBookings = await resolvePendingTrialBookings(this.db, ctx, {
+        userId,
+        subscriptionId,
+        actorId: adminId,
+        today: todayDateString(),
+      });
+    } catch (err: unknown) {
+      this.log.error(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          userId,
+          subscriptionId,
+        },
+        "Failed to resolve pending trial bookings on assign",
+      );
+    }
+
+    return { ...subscription, trialBookings };
   }
 
   /**

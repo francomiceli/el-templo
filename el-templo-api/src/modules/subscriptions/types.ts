@@ -291,6 +291,21 @@ export interface UpdatePlanInput {
 
 // ─── Subscription Types ─────────────────────────────────────────────────────
 
+/**
+ * Qué pasó con una Sesión de Prueba pendiente al cargar la membresía
+ * (ver trial-bookings-on-assign.ts). Viaja en la respuesta de assignPlan para
+ * avisarle a gestión.
+ */
+export interface TrialBookingChange {
+  bookingId: number;
+  date: string;
+  startTime: string;
+  activityName: string;
+  branchName: string;
+  outcome: "converted" | "cancelled" | "kept";
+  reason: string | null;
+}
+
 export interface SubscriptionDetail {
   id: number;
   userId: number;
@@ -330,6 +345,11 @@ export interface SubscriptionDetail {
   currency: "ARS" | "EUR";
   createdAt: string;
   updatedAt: string;
+  /**
+   * Solo en la respuesta de assignPlan: Sesiones de Prueba pendientes que se
+   * resolvieron al cargar la membresía (para avisarle a gestión).
+   */
+  trialBookings?: TrialBookingChange[];
 }
 
 export interface SubscriptionHistoryItem extends SubscriptionDetail {}

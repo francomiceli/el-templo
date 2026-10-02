@@ -3,6 +3,8 @@
  * Matches the API response shapes from the subscriptions module (Plan 48-01).
  */
 
+import type { TrialBookingChange } from 'src/utils/trial-booking-changes';
+
 // ─── Enum Union Types ────────────────────────────────────────────────────────
 
 export type PlanTier = 'flex' | 'foundation' | 'performance' | 'other';
@@ -294,6 +296,8 @@ export interface SubscriptionDetail {
   currency: 'ARS' | 'EUR';
   createdAt: string;
   updatedAt: string;
+  /** Solo en la respuesta de "Asignar plan": SP pendientes resueltas al cargarla. */
+  trialBookings?: TrialBookingChange[];
 }
 
 export interface SubscriptionHistoryItem extends SubscriptionDetail {}
