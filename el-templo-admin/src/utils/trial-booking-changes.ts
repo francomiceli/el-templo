@@ -3,7 +3,8 @@ import type { QVueGlobals } from 'quasar';
 /**
  * Qué pasó con una Sesión de Prueba pendiente al cargarle la membresía al
  * alumno (API: subscriptions/trial-bookings-on-assign.ts). Llega en la
- * respuesta de "Asignar plan" y del alta desde Cobros.
+ * respuesta de "Asignar plan" y del alta desde Cobros. Una SP 'converted'
+ * deja de contar como prueba en los reportes (el rastro queda en audit_log).
  */
 export interface TrialBookingChange {
   bookingId: number;

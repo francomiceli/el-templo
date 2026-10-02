@@ -1101,6 +1101,17 @@ describe("Scheduling Trials API (Phase 102 + 103)", () => {
       expect(trialRes.statusCode).toBe(201);
 
       if (convert) {
+        // La SP ya se tomó (ayer) y después compra. Si quedara futura, al
+        // cargar la membresía pasaría a reserva del plan (is_trial = 0,
+        // trial-bookings-on-assign) y el reporte no la contaría como prueba.
+        const { bookingId } = JSON.parse(trialRes.body) as {
+          bookingId: number;
+        };
+        await app.db
+          .update(bookings)
+          .set({ bookingDate: sql`DATE_SUB(CURDATE(), INTERVAL 1 DAY)` })
+          .where(and(tenantWhere(bookings, CTX), eq(bookings.id, bookingId)));
+
         const planRes = await app.inject({
           method: "POST",
           url: `/api/admin/subscriptions/plans`,
