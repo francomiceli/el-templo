@@ -189,6 +189,14 @@
             </aside>
           </div>
         </div>
+        <!-- Intro "el recorrido de hoy" (screen 'recorrido', sketch 004 D):
+             cuerpos de mármol H/M con las zonas de cada bloque. Clave diurna
+             (continuación de PYROS). `src/tv/recorrido/` arma TODO el
+             contenido dentro de #recorridoHost; acá solo vive el escenario. -->
+        <div class="pantalla pantalla--dia" id="pantallaRecorrido">
+          <div class="transFoto" aria-hidden="true"></div>
+          <div class="recMarco" id="recorridoHost"></div>
+        </div>
         <!-- Sello de la vista previa (Planis, 2026-09): dentro de #tv para que
              escale con el marco (rem) y por encima de las pantallas de
              transición. Fuera del contrato de render.ts (sin id). -->
@@ -282,9 +290,11 @@ function leerEstadoTimer(): 'calmo' | 'activo' | 'completo' {
 function leerOverlayVisible(): boolean {
   const reposo = document.getElementById('pantallaReposo');
   const cierre = document.getElementById('pantallaCierre');
+  const recorrido = document.getElementById('pantallaRecorrido');
   return (
     (reposo !== null && reposo.classList.contains('visible')) ||
-    (cierre !== null && cierre.classList.contains('visible'))
+    (cierre !== null && cierre.classList.contains('visible')) ||
+    (recorrido !== null && recorrido.classList.contains('visible'))
   );
 }
 onMounted(() => {
@@ -650,6 +660,7 @@ function renderPreview(): void {
     screen: screen ? 'class' : 'idle',
     class: screen ? screen.class : null,
     aviso: null,
+    recorrido: null,
   };
   renderState(payload);
   postToParent({
@@ -2651,6 +2662,215 @@ onUnmounted(() => {
   #tvScreenRoot .columnaDorica__brillo::after,
   #tvScreenRoot .cabecera .cabLine::after {
     animation: none;
+  }
+}
+/* ── Intro "el recorrido de hoy" (sketch 004 variante D): columna de texto +
+   leyenda a la izquierda, dos cuerpos de mármol a todo el alto a la derecha.
+   Presupuesto de TV: cada capa es un <svg> propio y lo único animado es su
+   opacity (y el transform de entrada de las figuras); degradés y vetas son
+   estáticos. Sin filter, sin blend, sin drop-shadow. ── */
+#tvScreenRoot #pantallaRecorrido .transFoto {
+  /* Velo más denso que la pre-clase: el dibujo se lee limpio sobre el relieve. */
+  background:
+    linear-gradient(
+      100deg,
+      rgba(242, 236, 226, 0.94) 0%,
+      rgba(242, 236, 226, 0.9) 40%,
+      rgba(241, 234, 223, 0.93) 70%,
+      rgba(240, 232, 220, 0.9) 100%
+    ),
+    var(--trans-foto, none) center / cover no-repeat;
+}
+#tvScreenRoot .recMarco {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+}
+#tvScreenRoot .recDefs {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+#tvScreenRoot .recTexto {
+  width: 31rem;
+  padding-left: 5.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+#tvScreenRoot .recKicker {
+  font-family: var(--nunito);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  color: var(--gold);
+  margin-bottom: 1rem;
+}
+#tvScreenRoot .recKickerOk {
+  color: var(--trans-terracotta);
+  letter-spacing: 0.1em;
+  margin-right: 0.5em;
+}
+#tvScreenRoot .recTitulo {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 3.5rem;
+  line-height: 1.04;
+  letter-spacing: 0.03em;
+  color: var(--navy);
+  margin-bottom: 2.6rem;
+}
+#tvScreenRoot .recItem {
+  display: flex;
+  margin-bottom: 1.55rem;
+  opacity: 0;
+  transform: translateX(-1.2rem);
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s ease;
+}
+#tvScreenRoot .recItem.on {
+  opacity: 1;
+  transform: none;
+}
+#tvScreenRoot .recItem.on.dim {
+  opacity: 0.38;
+}
+#tvScreenRoot .recBarra {
+  width: 0.55rem;
+  border-radius: 0.3rem;
+  margin-right: 1.1rem;
+  flex: none;
+  transform-origin: left center;
+  transition: transform 0.5s ease;
+}
+#tvScreenRoot .recItem.focus .recBarra {
+  transform: scaleX(1.7);
+}
+#tvScreenRoot .recRol {
+  font-family: var(--cinzel);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+}
+#tvScreenRoot .recSub {
+  font-family: var(--nunito);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--trans-apagado-dia);
+  margin: 0.15rem 0 0.35rem;
+}
+#tvScreenRoot .recZonas {
+  font-family: var(--nunito);
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+#tvScreenRoot .recPie {
+  position: absolute;
+  left: 5.5rem;
+  bottom: 2.6rem;
+  font-family: var(--nunito);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--trans-apagado-dia);
+  z-index: 2;
+}
+#tvScreenRoot .recPie b {
+  color: var(--navy);
+}
+#tvScreenRoot .recCuerpos {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 9rem 2.4rem 2rem;
+}
+#tvScreenRoot .recFig {
+  position: relative;
+  margin: 0 0.5rem;
+  opacity: 0;
+  transform: translateY(1.6rem);
+  transition:
+    opacity 1s ease,
+    transform 1.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+#tvScreenRoot .recFig.in {
+  opacity: 1;
+  transform: none;
+}
+#tvScreenRoot .recMarcoFig {
+  position: relative;
+}
+/* Fundido frente↔espalda: las dos vistas existen siempre y se cruzan por opacity. */
+#tvScreenRoot .recVista {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  transition: opacity 1.5s ease-in-out;
+  will-change: opacity;
+}
+#tvScreenRoot .recVista--espalda,
+#tvScreenRoot .recFig.back .recVista--frente {
+  opacity: 0;
+}
+#tvScreenRoot .recFig.back .recVista--espalda {
+  opacity: 1;
+}
+#tvScreenRoot .recCapa {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+#tvScreenRoot .recOv {
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  will-change: opacity;
+}
+#tvScreenRoot .recOv.on {
+  opacity: 1;
+}
+#tvScreenRoot .recOv.on.dim {
+  opacity: 0.3;
+}
+#tvScreenRoot .recCall {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+#tvScreenRoot .recCall.on {
+  opacity: 1;
+}
+#tvScreenRoot .recCallTxt {
+  font-family: var(--nunito);
+  font-weight: 700;
+}
+#tvScreenRoot.tv-sobrio .recItem,
+#tvScreenRoot.tv-sobrio .recFig,
+#tvScreenRoot.tv-sobrio .recVista,
+#tvScreenRoot.tv-sobrio .recOv,
+#tvScreenRoot.tv-sobrio .recCall {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  #tvScreenRoot .recItem,
+  #tvScreenRoot .recFig,
+  #tvScreenRoot .recVista,
+  #tvScreenRoot .recOv,
+  #tvScreenRoot .recCall {
+    transition: none;
   }
 }
 </style>

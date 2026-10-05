@@ -18,8 +18,43 @@ import type { TimerClock, TimerSpec } from './timer';
 
 /** Que esta mostrando el TV. `idle` es tambien el reposo silencioso de D-09.
  *  `aviso` (fase 193, D-25/D-28): placa a pantalla completa con el texto de
- *  un aviso de TV, disparada desde el control del profe. */
-export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso';
+ *  un aviso de TV, disparada desde el control del profe.
+ *  `recorrido`: intro "el recorrido de hoy" (cuerpos H/M con las zonas de cada
+ *  bloque), disparada desde el control durante PYROS. */
+export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso' | 'recorrido';
+
+/** Zonas musculares que dibuja la intro del recorrido. Son los `slug` de la
+ *  geometria anatomica (`tv/recorrido/anatomy-data.ts`); el server las deriva
+ *  de la categoria de cada ejercicio (`modules/tv/muscle-zones.ts`). */
+export type TvZonaMuscular =
+  | 'chest'
+  | 'deltoids'
+  | 'triceps'
+  | 'biceps'
+  | 'forearm'
+  | 'trapezius'
+  | 'upper-back'
+  | 'lower-back'
+  | 'abs'
+  | 'obliques'
+  | 'gluteal'
+  | 'quadriceps'
+  | 'hamstring'
+  | 'adductors'
+  | 'calves';
+
+/** Un grupo visual de la clase (DEUTEROS I+II juntos, `_ALT` con su bloque). */
+export interface TvRecorridoBloque {
+  role: string;
+  title: string;
+  subtitle: string | null;
+  zonas: TvZonaMuscular[];
+}
+
+/** Payload de la intro: los bloques de la clase sin PYROS, en orden. */
+export interface TvRecorridoPayload {
+  bloques: TvRecorridoBloque[];
+}
 
 /** Texto minimo de un aviso de TV, ya resuelto por el poll (D-27: sin
  *  segundo fetch, el kiosco es una pagina estatica). */
@@ -111,6 +146,8 @@ export interface TvPollResponse {
   class: TvClassPayload | null;
   /** Fase 193 (D-25/D-28): `null` salvo cuando `screen === 'aviso'`. */
   aviso: TvAvisoPollPayload | null;
+  /** `null` salvo cuando `screen === 'recorrido'`. */
+  recorrido: TvRecorridoPayload | null;
 }
 
 // =============================================================================
