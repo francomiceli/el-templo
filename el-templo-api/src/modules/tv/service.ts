@@ -187,6 +187,64 @@ function utcOffsetMinutes(tz: string, at: Date): number {
   return Math.round((zonedAsUtc - at.getTime()) / 60_000);
 }
 
+/**
+ * Como se dibuja la dosis de un bloque segun su formato:
+ * - `dictated`: la dicta la estructura del formato (FORMAT_DICTATED_TYPES), va vacia.
+ * - `pyramid`: serie de subida y bajada (`pyramidVolume`).
+ * - `standard`: reps/segundos/rango/escalera Death By (`prescriptionVolume`).
+ */
+type DoseMode = "dictated" | "pyramid" | "standard";
+
+/**
+ * Mismo criterio que `isPyramid` del editor (EditableExerciseRow.vue): manda
+ * `format_params.type`, salvo que falte o haya quedado en 'standard' (stale);
+ * ahi cae al nombre del formato.
+ */
+function doseModeOf(block: ClassDayBlock | null | undefined): DoseMode {
+  if (!block) return "standard";
+  const type = block.formatParams?.type;
+  if (type && FORMAT_DICTATED_TYPES.has(type)) return "dictated";
+  const isPyramid =
+    type && type !== "standard"
+      ? type === "pyramid"
+      : block.formatName.trim().toLowerCase() === "pyramid";
+  return isPyramid ? "pyramid" : "standard";
+}
+
+/**
+ * Serie de una piramide, con el contrato del editor del admin y del PDF
+ * (`buildPyramidVolume`): inicio en `reps_max`/`seconds_max`, paso en
+ * `increment`, pico en `reps`/`seconds` (segundos si la contraccion es ISO).
+ * Ej. inicio 10, paso 2, pico 12 → "10-12-10".
+ *
+ * Antes el TV trataba cualquier `increment` como escalera Death By y tomaba el
+ * PICO como inicio: inicio 20 / paso 10 / pico 30 salia "30-40-50-..." (bug
+ * reportado 2026-10-05).
+ *
+ * Si los parametros no arman una piramide (falta inicio o paso, inicio > pico)
+ * se muestra solo el pico — nunca la escalera ni un rango que nadie pauto.
+ */
+function pyramidVolume(p: ClassDayPrescription): string {
+  const isIso = p.contraction.toUpperCase() === "ISO";
+  const start = (isIso ? p.secondsMax : p.repsMax) ?? 0;
+  const step = p.increment ?? 0;
+  const peak = isIso ? p.seconds : p.reps;
+  const unit = isIso ? '"' : "";
+  if (peak <= 0) return "";
+  if (start <= 0 || step <= 0 || start > peak) return `${peak}${unit}`;
+
+  const up: number[] = [];
+  for (let v = start; v <= peak; v += step) up.push(v);
+  const all = [...up, ...up.slice(0, -1).reverse()];
+  // Igual que el PDF: hasta 5 escalones completos; mas largo, se resume
+  // con los extremos y el tope ("2-4...10...4-2").
+  const seq =
+    all.length <= 5
+      ? all.join("-")
+      : `${all.slice(0, 2).join("-")}...${up[up.length - 1]}...${all.slice(-2).join("-")}`;
+  return `${seq}${unit}`;
+}
+
 /** Volumen de una prescripcion, con la misma logica que imprime el PDF. */
 function prescriptionVolume(p: ClassDayPrescription): string {
   if (p.increment) {
@@ -1053,15 +1111,18 @@ export class TvService {
    * punto ("CON.") que usaba el PDF ya no aplica, el badge muestra la sigla
    * sola.
    */
-  private toExercise(
-    p: ClassDayPrescription,
-    formatDictated: boolean,
-  ): TvExercise {
+  private toExercise(p: ClassDayPrescription, doseMode: DoseMode): TvExercise {
     const name = p.weighted ? `${p.exerciseName} (W)` : p.exerciseName;
+    const dose =
+      doseMode === "dictated"
+        ? ""
+        : doseMode === "pyramid"
+          ? pyramidVolume(p)
+          : prescriptionVolume(p);
     return {
       name,
       contraction: p.contraction,
-      dose: formatDictated ? "" : prescriptionVolume(p),
+      dose,
       // Nunca concatenar R2_PUBLIC_URL a mano: la key vive sola en la DB.
       videoUrl: assembleVideoUrl(p.videoKey),
     };
@@ -1074,13 +1135,13 @@ export class TvService {
    * Shared (INITIUM/PYROS): UNA columna con la lista comun, igual que antes
    * salia por `listHeader`/`exercises` a secas — `block` ya es el bloque
    * canonico de INITIUM (`resolveBlock` ignora el nivel para ese rol) y
-   * `formatDictated` es el que calculo el caller para ESE bloque.
+   * `doseMode` es el que calculo el caller para ESE bloque.
    *
    * No shared, caso general: una columna por nivel del PAR de `state.level`
    * que este presente en `classDay.levels` (`pairFor`, `roster.ts`) — 1 o 2,
    * nunca mas. Cada columna resuelve SU PROPIO bloque (mismo rol, nivel del
    * par): dos niveles del mismo dia pueden tener ruta/intensidad/formato
-   * distintos (Pitfall 1), asi que el header y el `formatDictated` de cada
+   * distintos (Pitfall 1), asi que el header y el `doseMode` de cada
    * columna salen de su propio bloque, no del bloque de `state.level`.
    *
    * No shared, caso DEUTEROS (fase 178, dia regular): en vez de 1 columna por
@@ -1098,7 +1159,7 @@ export class TvService {
     state: TvControlState,
     shared: boolean,
     block: ClassDayBlock | undefined,
-    formatDictated: boolean,
+    doseMode: DoseMode,
   ): TvLevelColumn[] {
     if (shared) {
       // INITIUM o STRETCHING: una sola columna comun a todos los niveles. El
@@ -1126,7 +1187,7 @@ export class TvService {
         {
           header: `${sharedName} | ${levelsLabel}`,
           exercises: this.mainPrescriptions(block).map((p) =>
-            this.toExercise(p, formatDictated),
+            this.toExercise(p, doseMode),
           ),
         },
       ];
@@ -1153,9 +1214,7 @@ export class TvService {
           // Guard: un dia regular puede no tener DEUTEROS_2 (o un nivel
           // puntual del par sin bloque) — se omite, nunca una columna rota.
           if (!levelBlock) continue;
-          const dictated =
-            !!levelBlock.formatParams &&
-            FORMAT_DICTATED_TYPES.has(levelBlock.formatParams.type);
+          const levelDoseMode = doseModeOf(levelBlock);
           const label = this.levelLabel(classDay, level, false);
           // El rótulo del deutero (DEUTEROS I/II) vive en la cabecera (izq/der),
           // NO al lado del nivel: el header de la celda es sólo NIVEL | RUTA %.
@@ -1164,7 +1223,7 @@ export class TvService {
           columns.push({
             header: `${label} | ${getRouteLabel(levelBlock.route)} ${levelBlock.intensity}%`,
             exercises: this.mainPrescriptions(levelBlock).map((p) =>
-              this.toExercise(p, dictated),
+              this.toExercise(p, levelDoseMode),
             ),
           });
         }
@@ -1174,9 +1233,7 @@ export class TvService {
 
     return levels.map((level) => {
       const levelBlock = this.resolveBlock(classDay, state.blockRole, level);
-      const dictated =
-        !!levelBlock?.formatParams &&
-        FORMAT_DICTATED_TYPES.has(levelBlock.formatParams.type);
+      const levelDoseMode = doseModeOf(levelBlock);
       const label = this.levelLabel(classDay, level, false);
       // ROM: la ruta es el rol de la zona (ROM_LOWER/…) y la intensidad un 50
       // fijo informativo — nada de eso aporta en pantalla, así que el header es
@@ -1189,7 +1246,7 @@ export class TvService {
       return {
         header,
         exercises: this.mainPrescriptions(levelBlock).map((p) =>
-          this.toExercise(p, dictated),
+          this.toExercise(p, levelDoseMode),
         ),
       };
     });
@@ -1248,9 +1305,6 @@ export class TvService {
     const visualBlockIndex = rawVisualBlockIndex >= 0 ? rawVisualBlockIndex : 0;
 
     const block = this.resolveBlock(classDay, state.blockRole, state.level);
-    const formatDictated =
-      !!block?.formatParams &&
-      FORMAT_DICTATED_TYPES.has(block.formatParams.type);
 
     // La lista COMPARTIDA (STRETCHING/INITIUM) se lee del nivel CANONICO
     // (kairos-first) —el mismo que muestran el editor, el PDF y la movilidad
@@ -1268,10 +1322,7 @@ export class TvService {
     const columnBlock = shared
       ? this.resolveCanonicalBlock(classDay, state.blockRole)
       : block;
-    const columnDictated = shared
-      ? !!columnBlock?.formatParams &&
-        FORMAT_DICTATED_TYPES.has(columnBlock.formatParams.type)
-      : formatDictated;
+    const columnDoseMode = doseModeOf(columnBlock);
 
     const title = summary?.title ?? "";
 
@@ -1306,7 +1357,7 @@ export class TvService {
         state,
         shared,
         columnBlock,
-        columnDictated,
+        columnDoseMode,
       ),
       deuteros: this.buildDeuterosPanel(classDay, state),
       exerciseIndex: state.exerciseIndex,

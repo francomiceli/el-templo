@@ -980,3 +980,182 @@ describe("TvService.buildPollPayload — dose ignora rangos inválidos (stale)",
     expect(await alfaMainDose()).toBe('30-45"');
   });
 });
+
+/**
+ * Regresión de la pirámide (2026-10-05): el editor guarda por ejercicio inicio
+ * en `reps_max`/`seconds_max`, paso en `increment` y pico en `reps`/`seconds`.
+ * El TV veía `increment` y dibujaba la escalera Death By tomando el PICO como
+ * inicio: inicio 20 / paso 10 / pico 30 salía "30-40-50-..." en vez de
+ * "20-30-20". Los valores de los casos son los del NUCLEUS real de ese día.
+ */
+describe("TvService.buildPollPayload — dose de bloques piramidales", () => {
+  async function seedNucleusPair() {
+    await seedSession({ level: "alfa", roles: ["INITIUM", "NUCLEUS"] });
+    await seedSession({ level: "delta", roles: ["INITIUM", "NUCLEUS"] });
+    await writeState({
+      branchId: branchArId,
+      classDate: TUESDAY_DATE,
+      blockRole: "NUCLEUS",
+      level: "alfa",
+    });
+  }
+
+  /** Bloque NUCLEUS de un nivel, ubicado por su ejercicio principal. */
+  async function nucleusBlockIdOf(level: string): Promise<number> {
+    const [row] = await app.db
+      .select({ blockId: schema.sessionPrescriptions.blockId })
+      .from(schema.sessionPrescriptions)
+      .where(
+        eq(schema.sessionPrescriptions.exerciseName, `NUCLEUS-${level}-0`),
+      );
+    return row.blockId;
+  }
+
+  async function setNucleusFormat(
+    level: string,
+    formatName: string,
+    formatParams: Record<string, unknown> | null,
+  ) {
+    await app.db
+      .update(schema.sessionBlocks)
+      .set({ formatName, formatParams })
+      .where(eq(schema.sessionBlocks.id, await nucleusBlockIdOf(level)));
+  }
+
+  async function patchMain(
+    level: string,
+    fields: {
+      contraction?: string;
+      reps?: number;
+      repsMax?: number | null;
+      seconds?: number;
+      secondsMax?: number | null;
+      increment?: number | null;
+    },
+  ) {
+    await app.db
+      .update(schema.sessionPrescriptions)
+      .set({
+        contraction: fields.contraction ?? "CON",
+        reps: fields.reps ?? 0,
+        repsMax: fields.repsMax ?? null,
+        seconds: fields.seconds ?? 0,
+        secondsMax: fields.secondsMax ?? null,
+        increment: fields.increment ?? null,
+      })
+      .where(
+        eq(schema.sessionPrescriptions.exerciseName, `NUCLEUS-${level}-0`),
+      );
+  }
+
+  async function mainDoses(): Promise<string[]> {
+    const cls = (await service.buildPollPayload(branchArId, TUESDAY_NOON_UTC))
+      .class!;
+    return cls.columns.map((c) => c.exercises[0].dose);
+  }
+
+  async function seedPyramidAlfa(fields: Parameters<typeof patchMain>[1]) {
+    await seedNucleusPair();
+    await setNucleusFormat("alfa", "Pyramid", {
+      type: "pyramid",
+      step: 2,
+      peak: 10,
+    });
+    await patchMain("alfa", fields);
+    return (await mainDoses())[0];
+  }
+
+  it('ISO: inicio 20, paso 10, pico 30 → 20-30-20" (el bug reportado: salía 30-40-50-...)', async () => {
+    const dose = await seedPyramidAlfa({
+      contraction: "ISO",
+      seconds: 30,
+      secondsMax: 20,
+      increment: 10,
+    });
+    expect(dose).toBe('20-30-20"');
+  });
+
+  it("CON: inicio 10, paso 2, pico 12 → 10-12-10", async () => {
+    expect(await seedPyramidAlfa({ reps: 12, repsMax: 10, increment: 2 })).toBe(
+      "10-12-10",
+    );
+  });
+
+  it("EXC usa los campos de reps igual que CON", async () => {
+    expect(
+      await seedPyramidAlfa({
+        contraction: "EXC",
+        reps: 8,
+        repsMax: 6,
+        increment: 2,
+      }),
+    ).toBe("6-8-6");
+  });
+
+  it("5 escalones exactos se muestran completos", async () => {
+    expect(await seedPyramidAlfa({ reps: 10, repsMax: 6, increment: 2 })).toBe(
+      "6-8-10-8-6",
+    );
+  });
+
+  it("más de 5 escalones se resumen con extremos y tope (como el PDF)", async () => {
+    expect(await seedPyramidAlfa({ reps: 10, repsMax: 2, increment: 2 })).toBe(
+      "2-4...10...4-2",
+    );
+  });
+
+  it("si el paso no cae justo en el pico, el tope es el último escalón alcanzado", async () => {
+    // 10, 13, 16, 19 (22 se pasa del pico 20) y baja.
+    expect(await seedPyramidAlfa({ reps: 20, repsMax: 10, increment: 3 })).toBe(
+      "10-13...19...13-10",
+    );
+  });
+
+  it("sin inicio cargado muestra solo el pico, nunca la escalera", async () => {
+    expect(
+      await seedPyramidAlfa({ reps: 20, repsMax: null, increment: 2 }),
+    ).toBe("20");
+  });
+
+  it("sin paso cargado muestra solo el pico", async () => {
+    expect(
+      await seedPyramidAlfa({ reps: 20, repsMax: 10, increment: null }),
+    ).toBe("20");
+  });
+
+  it("inicio mayor que el pico (dato inválido) muestra solo el pico, sin rango", async () => {
+    expect(await seedPyramidAlfa({ reps: 12, repsMax: 14, increment: 2 })).toBe(
+      "12",
+    );
+  });
+
+  it("ISO sin parámetros de pirámide muestra solo el pico en segundos", async () => {
+    expect(await seedPyramidAlfa({ contraction: "ISO", seconds: 30 })).toBe(
+      '30"',
+    );
+  });
+
+  it("sin format_params cae al nombre del formato ('Pyramid')", async () => {
+    await seedNucleusPair();
+    await setNucleusFormat("alfa", "Pyramid", null);
+    await patchMain("alfa", { reps: 12, repsMax: 10, increment: 2 });
+    expect((await mainDoses())[0]).toBe("10-12-10");
+  });
+
+  it("format_params 'standard' (stale) también cae al nombre del formato", async () => {
+    await seedNucleusPair();
+    await setNucleusFormat("alfa", "Pyramid", { type: "standard" });
+    await patchMain("alfa", { reps: 12, repsMax: 10, increment: 2 });
+    expect((await mainDoses())[0]).toBe("10-12-10");
+  });
+
+  it("cada columna usa el formato de SU nivel: delta no piramidal conserva la escalera", async () => {
+    await seedNucleusPair();
+    await setNucleusFormat("alfa", "Pyramid", { type: "pyramid" });
+    await patchMain("alfa", { reps: 12, repsMax: 10, increment: 2 });
+    await patchMain("delta", { reps: 8, increment: 2 });
+    // delta sigue en AMRAP: un `increment` fuera de la pirámide mantiene el
+    // render de siempre (escalera Death By).
+    expect(await mainDoses()).toEqual(["10-12-10", "8-10-12-..."]);
+  });
+});
