@@ -59,7 +59,9 @@
               class="exercise-item"
             >
               <span class="exercise-name">{{ exercise.exerciseName }}</span>
-              <span class="exercise-prescription">{{ formatPrescription(exercise) }}</span>
+              <span class="exercise-prescription">{{
+                formatInlinePrescription(exercise, isPyramidBlock(option.block))
+              }}</span>
             </div>
           </div>
         </q-card-section>
@@ -71,7 +73,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import type { Block, Prescription } from '../types/session'
+import type { Block } from '../types/session'
+import { formatInlinePrescription, isPyramidBlock } from '../utils/formatDose'
 import { getRouteName } from '../utils/routeNames'
 import { getGuiaLinkForRole } from '../guia-role-map'
 
@@ -111,45 +114,6 @@ const guiaLink = getGuiaLinkForRole('DEUTEROS_1')
 function openGuia() {
   if (!guiaLink) return
   void router.push({ name: 'guia', query: { slide: guiaLink.slide } })
-}
-
-/**
- * Format prescription inline (compact format for exercise list)
- */
-function formatPrescription(exercise: Prescription): string {
-  // PAUSA exercise (I Go You Go)
-  if (exercise.notes === 'PAUSA') return 'PAUSA'
-
-  // Death By sequence
-  if (exercise.increment) {
-    const start = exercise.reps || exercise.seconds || 0
-    const seq = `${start}-${start + exercise.increment}-${start + exercise.increment * 2}-...`
-    return exercise.contraction === 'ISO' ? `${seq}s ISO` : `${seq} · ${exercise.contraction}`
-  }
-
-  if (exercise.contraction === 'ISO' && exercise.seconds) {
-    // Rango valido solo si el techo supera al piso (secondsMax stale <= seconds).
-    const secsText =
-      exercise.secondsMax && exercise.secondsMax > exercise.seconds
-        ? `${exercise.seconds}-${exercise.secondsMax}`
-        : `${exercise.seconds}`
-    return `${secsText}s ISO`
-  }
-
-  const parts: string[] = []
-  if (exercise.reps) {
-    // Solo rango si repsMax > reps; un repsMax <= reps es stale (no "40-16").
-    const repsText =
-      exercise.repsMax && exercise.repsMax > exercise.reps
-        ? `${exercise.reps}-${exercise.repsMax}`
-        : `${exercise.reps}`
-    parts.push(repsText)
-  }
-  if (exercise.contraction) {
-    parts.push(exercise.contraction)
-  }
-
-  return parts.join(' · ')
 }
 </script>
 

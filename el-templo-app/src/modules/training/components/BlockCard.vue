@@ -61,7 +61,9 @@
         <div class="exercise-list">
           <div v-for="exercise in block.exercises" :key="exercise.exerciseId" class="exercise-item">
             <span class="exercise-name">{{ exercise.exerciseName }}</span>
-            <span class="exercise-prescription">{{ formatPrescriptionInline(exercise) }}</span>
+            <span class="exercise-prescription">{{
+              formatInlinePrescription(exercise, isPyramid)
+            }}</span>
           </div>
         </div>
       </q-card-section>
@@ -72,7 +74,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import type { Block, BlockRole, Prescription } from '../types/session'
+import type { Block, BlockRole } from '../types/session'
+import { formatInlinePrescription, isPyramidBlock } from '../utils/formatDose'
 import { getRouteName } from '../utils/routeNames'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
 import { getGuiaLinkForRole } from '../guia-role-map'
@@ -121,6 +124,8 @@ function romZoneLabel(role: BlockRole): string {
  */
 const guiaLink = computed(() => getGuiaLinkForRole(props.block.role))
 
+const isPyramid = computed(() => isPyramidBlock(props.block))
+
 function openGuia() {
   const link = guiaLink.value
   if (!link) return
@@ -150,48 +155,6 @@ const blockCaption = computed(() => {
 
   return parts.join(' • ')
 })
-
-/**
- * Format prescription inline (compact format for exercise list)
- * Returns: "8 · CON" or "30s ISO"
- */
-function formatPrescriptionInline(exercise: Prescription): string {
-  // PAUSA exercise (I Go You Go)
-  if (exercise.notes === 'PAUSA') return 'PAUSA'
-
-  // Death By sequence
-  if (exercise.increment) {
-    const start = exercise.reps || exercise.seconds || 0
-    const seq = `${start}-${start + exercise.increment}-${start + exercise.increment * 2}-...`
-    return exercise.contraction === 'ISO' ? `${seq}s ISO` : `${seq} · ${exercise.contraction}`
-  }
-
-  // For isometric exercises, show duration with ISO
-  if (exercise.contraction === 'ISO' && exercise.seconds) {
-    // Rango valido solo si el techo supera al piso (secondsMax stale <= seconds).
-    const secsText =
-      exercise.secondsMax && exercise.secondsMax > exercise.seconds
-        ? `${exercise.seconds}-${exercise.secondsMax}`
-        : `${exercise.seconds}`
-    return `${secsText}s ISO`
-  }
-
-  // For rep-based exercises, show count and contraction type
-  const parts: string[] = []
-  if (exercise.reps) {
-    // Solo rango si repsMax > reps; un repsMax <= reps es stale (no "40-16").
-    const repsText =
-      exercise.repsMax && exercise.repsMax > exercise.reps
-        ? `${exercise.reps}-${exercise.repsMax}`
-        : `${exercise.reps}`
-    parts.push(repsText)
-  }
-  if (exercise.contraction) {
-    parts.push(exercise.contraction)
-  }
-
-  return parts.join(' · ')
-}
 </script>
 
 <style scoped lang="scss">

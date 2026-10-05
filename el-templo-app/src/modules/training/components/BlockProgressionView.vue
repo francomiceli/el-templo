@@ -187,7 +187,7 @@ import { useStoryNavigation } from '../composables/useStoryNavigation'
 // Utils
 import { getRouteName } from '../utils/routeNames'
 import { IN_SESSION_ADJUST_ENABLED } from 'src/config/featureFlags'
-import { formatDose, formatQuickDose } from '../utils/formatDose'
+import { formatDose, formatQuickDose, isPyramidBlock } from '../utils/formatDose'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
 
 // Override intencional (confirmado con Franco, fase 160-05): esta vista
@@ -442,10 +442,11 @@ function onUndoLast(): void {
 const compactListData = computed(() => {
   if (!viewingBlock.value) return []
 
+  const pyramid = isPyramidBlock(viewingBlock.value)
   const items = viewingBlock.value.exercises.map((ex) => ({
     id: ex.exerciseId,
     name: ex.exerciseName,
-    quickDose: formatQuickDose(ex),
+    quickDose: formatQuickDose(ex, pyramid),
     contraction: ex.contraction,
     notes: ex.notes ?? '',
     isMobility: false,
