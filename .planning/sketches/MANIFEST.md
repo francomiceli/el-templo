@@ -18,3 +18,4 @@ cálida (terracotta, clay, bronze sobre marble cream) — **sin azul y sin dorad
 | # | Name | Design Question | Winner | Tags |
 |---|------|----------------|--------|------|
 | 001 | etiqueta-antiguedad-saludo | ¿Qué forma toma el sello "verificado" de oro junto al saludo? | ★ A (roseta + logo real) | badge, verificado, saludo, mi-templo |
+| 004 | intro-mapa-muscular | ¿Cómo se ve la intro "el recorrido de hoy" (PYROS → 1er bloque) con cuerpos H/M detallados y zonas por bloque? | ★ D (escultura A + puntos de C + fundido 1.5 s, sin pedestal, cuerpos a todo el alto) | tv, clase, intro, musculos, svg |

@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sketch 004 · Intro mapa muscular</title>
+<link rel="stylesheet" href="../themes/tv-oscuro.css">
+<style>
+  /* ═══════════════════════════════════════════════════════════════════
+     Sketch 004 — Intro "el recorrido de hoy" entre PYROS y el 1er bloque.
+     Reglas de TV (heredadas de la fase 164 + fixes de perf):
+       · solo se anima opacity / transform (cada capa es un <svg> propio
+         para que el navegador la componga sin repintar el cuerpo)
+       · sin filter / drop-shadow / mix-blend-mode / backdrop-filter
+       · todo lo "detallado" (degradés, fibras, vetas) es ESTÁTICO
+     Unidad: 1em = 1% del ancho del marco 16:9 (ver fit()).
+     ═══════════════════════════════════════════════════════════════════ */
+  html, body { margin: 0; height: 100%; }
+  body { background: #d8cfc0; font-family: var(--font-body, 'NunitoSans', sans-serif); overflow: hidden; }
+  :root {
+    --tinta: #3d3732;
+    --oro: #b08d6e;
+    --apagado: #8a7d6b;
+    --borde: #c5b9a8;
+  }
+
+  /* ── barra de variantes (no es parte del diseño) ── */
+  #variant-nav {
+    position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 9998;
+    background: #141210; border-bottom: 1px solid #3a352f;
+    display: flex; align-items: center; padding: 0 14px;
+    font-family: system-ui, sans-serif; font-size: 13px; color: #cfc7bb;
+  }
+  #variant-nav .sep { width: 1px; height: 24px; background: #3a352f; margin: 0 12px; }
+  #variant-nav button { white-space: nowrap;
+    background: none; border: 1px solid transparent; color: #a89a87;
+    padding: 6px 11px; margin-right: 4px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; transition: all .15s ease;
+  }
+  #variant-nav button:hover { color: #f2ede5; border-color: #4a443c; }
+  #variant-nav button.active { color: #f2ede5; background: #2b2722; border-color: #6b5d4a; }
+  #variant-nav .hint { margin-left: auto; font-size: 11px; color: #6b6459; }
+
+  /* ── marco 16:9 ── */
+  #wrap {
+    position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center; background: #1a1714;
+  }
+  #frame {
+    position: relative; overflow: hidden; color: var(--tinta);
+    background: #f2ebe1 url('../../../.docs/bars-open.webp') center/cover;
+  }
+  /* Velo crema (identidad diurna de la pre-clase, sketch 003 D), más denso
+     detrás de los cuerpos para que el dibujo se lea limpio. */
+  .velo {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(100deg,
+      rgba(242, 236, 226, .94) 0%, rgba(242, 236, 226, .9) 40%,
+      rgba(241, 234, 223, .93) 70%, rgba(240, 232, 220, .9) 100%);
+  }
+
+  .marco { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; }
+
+  /* ── columna de texto + leyenda ── */
+  .zonaTexto {
+    width: 34em; padding: 0 0 0 5.5em; display: flex; flex-direction: column;
+    justify-content: center; position: relative; z-index: 2;
+  }
+  .kicker {
+    font-size: 1.05em; font-weight: 700; letter-spacing: .34em; color: var(--oro);
+    margin-bottom: 1em; text-transform: uppercase;
+  }
+  .kicker .ok { color: #7a8a3a; letter-spacing: .1em; margin-right: .5em; }
+  .titulo {
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 3.5em; line-height: 1.04;
+    letter-spacing: .03em; margin: 0 0 .75em 0; color: var(--tinta);
+  }
+  .leyenda .item {
+    display: flex; align-items: stretch; margin-bottom: 1.55em;
+    opacity: 0; transform: translateX(-1.2em);
+    transition: opacity .6s ease, transform .6s ease;
+  }
+  .leyenda .item.on { opacity: 1; transform: none; }
+  .leyenda .item.on.dim { opacity: .38; }
+  .leyenda .barra {
+    width: .55em; border-radius: .3em; margin-right: 1.1em; flex: none;
+    transform-origin: left center; transition: transform .5s ease;
+  }
+  .leyenda .item.focus .barra { transform: scaleX(1.7); }
+  .leyenda .rol {
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 2em; line-height: 1.05; letter-spacing: .04em;
+  }
+  .leyenda .ej { font-size: 1.1em; color: var(--apagado); margin: .15em 0 .35em; font-weight: 700; }
+  .leyenda .zonas { font-size: .98em; font-weight: 700; letter-spacing: .16em; }
+  .leyenda .vistas { font-size: .78em; letter-spacing: .2em; color: var(--apagado); margin-top: .3em; font-weight: 700; }
+
+  .pie {
+    position: absolute; left: 5.5em; bottom: 2.6em; font-size: .95em; letter-spacing: .26em;
+    font-weight: 700; color: var(--apagado); text-transform: uppercase; z-index: 2;
+  }
+  .pie b { color: var(--tinta); }
+
+  /* ── cuerpos ── */
+  .zonaCuerpos {
+    flex: 1; display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 2.6em; position: relative;
+  }
+  .fig {
+    position: relative; display: flex; flex-direction: column; align-items: center;
+    margin: 0 2.2em; opacity: 0; transform: translateY(1.6em);
+    transition: opacity 1s ease, transform 1.2s cubic-bezier(.2,.7,.2,1);
+  }
+  .fig.in { opacity: 1; transform: none; }
+  .giro { position: relative; transition: transform .3s ease-in; }
+  .giro.cerrado { transform: scaleX(0); }
+  .giro.abriendo { transition: transform .34s cubic-bezier(.2,.8,.3,1); }
+  .vista { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+  .fig .vista.espalda { visibility: hidden; }
+  .fig.back .vista.espalda { visibility: visible; }
+  .fig.back .vista.frente { visibility: hidden; }
+  .capa {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible;
+    will-change: opacity;
+  }
+  .ov { opacity: 0; transition: opacity .9s ease; }
+  .ov.on { opacity: 1; }
+  .ov.on.dim { opacity: .3; }
+  .call { opacity: 0; transition: opacity .5s ease; }
+  .call.on { opacity: 1; }
+
+  /* rótulo debajo (A: pedestal; B: sombra; C: anillos) */
+  .deco { position: relative; }
+
+  /* ── A: escultura — pedestal de mármol grabado ── */
+  .vA .deco {
+    width: 78%; height: 3.4em; margin-top: -.35em;
+    background: linear-gradient(180deg, #f6f1e8 0%, #e3d9c9 55%, #cdbfab 100%);
+    border-top: .12em solid #fbf8f2; border-bottom: .2em solid #b7a891;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .vA .deco::before {
+    content: ''; position: absolute; left: -4%; right: -4%; bottom: -.9em; height: .7em;
+    background: linear-gradient(180deg, #d9cebd, #bfb19c);
+  }
+  .vA .deco span {
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 1.15em; letter-spacing: .5em;
+    color: #a8987f; text-shadow: 0 .06em 0 #fbf7f0;
+  }
+
+  /* ── B: écorché — sombra al piso + rótulo de lámina ── */
+  .vB .deco {
+    width: 70%; height: 2.2em; margin-top: -.6em;
+    background: radial-gradient(ellipse at center, rgba(61,55,50,.22) 0%, rgba(61,55,50,0) 68%);
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .vB .deco span {
+    font-family: 'Cinzel', serif; font-size: .95em; letter-spacing: .4em; color: #8a7d6b;
+    transform: translateY(1.6em); font-style: italic;
+  }
+
+  /* ── C: técnico — plataforma con anillos + escaneo + grilla ── */
+  .vC .zonaCuerpos {
+    background-image: radial-gradient(rgba(61,55,50,.16) .08em, transparent .1em);
+    background-size: 1.6em 1.6em; background-position: center;
+  }
+  .vC .deco {
+    width: 82%; height: 3em; margin-top: -1.4em;
+    border-radius: 50%; border: .12em solid rgba(61,55,50,.45);
+    background: radial-gradient(ellipse at center, rgba(176,141,110,.18) 0%, rgba(176,141,110,0) 70%);
+  }
+  .vC .deco::after {
+    content: ''; position: absolute; left: 14%; right: 14%; top: 22%; bottom: 22%;
+    border-radius: 50%; border: .08em dashed rgba(61,55,50,.4);
+  }
+  .vC .deco span {
+    position: absolute; left: 0; right: 0; top: 3.4em; text-align: center;
+    font-size: .8em; letter-spacing: .4em; font-weight: 700; color: var(--apagado);
+  }
+  .esquinas { display: none; }
+  .vC .esquinas {
+    display: block; position: absolute; top: -1.2em; bottom: 1.8em; left: -1.4em; right: -1.4em; pointer-events: none;
+  }
+  .esquinas i { position: absolute; width: 1.6em; height: 1.6em; border-color: rgba(61,55,50,.55); border-style: solid; }
+  .esquinas i:nth-child(1) { top: 0; left: 0; border-width: .12em 0 0 .12em; }
+  .esquinas i:nth-child(2) { top: 0; right: 0; border-width: .12em .12em 0 0; }
+  .esquinas i:nth-child(3) { bottom: 0; left: 0; border-width: 0 0 .12em .12em; }
+  .esquinas i:nth-child(4) { bottom: 0; right: 0; border-width: 0 .12em .12em 0; }
+  .scan { display: none; }
+  .vC .scan {
+    display: block; position: absolute; left: 0; right: 0; top: 0; height: 9%;
+    background: linear-gradient(180deg, rgba(176,141,110,0), rgba(176,141,110,.22) 55%, rgba(150,89,58,.35) 60%, rgba(176,141,110,0));
+    animation: scan 5.5s linear infinite; pointer-events: none; z-index: 3;
+  }
+  @keyframes scan { from { transform: translateY(-100%); } to { transform: translateY(1150%); } }
+  .vC .titulo { letter-spacing: .06em; }
+
+  /* ── D: síntesis (2026-10-05) = A (escultura) + callouts de C + fundido
+     frente↔espalda en vez de giro. Las dos vistas están siempre "visibles" y
+     se cruzan por opacity (compositor). ── */
+  .vD .zonaTexto { width: 31em; }
+  .vD .zonaCuerpos { padding-left: 2em; padding-right: 9em; padding-bottom: 2.4em; }
+  .vD .fig .deco { display: none; } /* sin pedestal (2026-10-05): los cuerpos ocupan el alto */
+  .vD .fig { margin: 0 .5em; }
+  .vD .fig .vista { visibility: visible !important; transition: opacity 1.5s ease-in-out; will-change: opacity; }
+  .vD .fig .vista.espalda { opacity: 0; }
+  .vD .fig.back .vista.espalda { opacity: 1; }
+  .vD .fig.back .vista.frente { opacity: 0; }
+  .vD .deco {
+    width: 78%; height: 3.4em; margin-top: -.35em;
+    background: linear-gradient(180deg, #f6f1e8 0%, #e3d9c9 55%, #cdbfab 100%);
+    border-top: .12em solid #fbf8f2; border-bottom: .2em solid #b7a891;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .vD .deco::before {
+    content: ''; position: absolute; left: -4%; right: -4%; bottom: -.9em; height: .7em;
+    background: linear-gradient(180deg, #d9cebd, #bfb19c);
+  }
+  .vD .deco span {
+    font-family: 'Cinzel', serif; font-weight: 700; font-size: 1.15em; letter-spacing: .5em;
+    color: #a8987f; text-shadow: 0 .06em 0 #fbf7f0;
+  }
+
+  /* still/reduced: sin transiciones */
+  .quieto *, .quieto { transition: none !important; }
+  @media (prefers-reduced-motion: reduce) { .vC .scan { animation: none; opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="variant-nav">
+  <button data-v="a">A · Escultura</button>
+  <button data-v="b">B · Écorché</button>
+  <button data-v="c">C · Técnico</button>
+  <button data-v="d">D · Síntesis ★</button>
+  <span class="sep"></span>
+  <button data-ch="junto">Todo junto</button>
+  <button data-ch="giro">Bloque a bloque</button>
+  <span class="sep"></span>
+  <button id="replay">▶ Repetir</button>
+  <button id="toggleView">⟲ Frente/espalda</button>
+  <span class="hint">D = escultura + puntos + fundido</span>
+</div>
+
+<div id="wrap">
+  <div id="frame">
+    <div class="velo"></div>
+    <div class="marco">
+      <div class="zonaTexto">
+        <div class="kicker"><span class="ok">✓ PYROS</span>Hoy recorremos</div>
+        <h1 class="titulo">El cuerpo<br>en clase</h1>
+        <div class="leyenda" id="leyenda"></div>
+      </div>
+      <div class="zonaCuerpos" id="cuerpos">
+        <div class="scan"></div>
+      </div>
+    </div>
+    <div class="pie">Entrada en calor completa · arranca <b>NUCLEUS</b></div>
+  </div>
+</div>
+
+<!-- defs compartidos (degradés + tramas de fibras). No display:none: los
+     navegadores dejan de resolver url(#id) si el svg de defs no se renderiza. -->
+<svg id="defsSvg" width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs"></defs></svg>
+
+<script src="anatomy-data.js"></script>
+<script>
+/* ═══════════════════ datos de la clase (forma "como si viniera de la API") ═══════════════════ */
+const CLASE = {
+  bloques: [
+    { rol: 'NUCLEUS',     ej: 'Handstand push-up',      color: '#b4532a', zonas: ['deltoids', 'triceps', 'trapezius'] },
+    { rol: 'DEUTEROS I',  ej: 'Pistol squat',           color: '#c8901f', zonas: ['quadriceps', 'gluteal', 'hamstring', 'adductors', 'calves'] },
+    { rol: 'DEUTEROS II', ej: 'Remo australiano',       color: '#6b7a34', zonas: ['upper-back', 'biceps', 'forearm'] },
+    { rol: 'EPIKOS',      ej: 'Hollow body + superman', color: '#7a2a3a', zonas: ['abs', 'obliques', 'lower-back'] },
+  ],
+};
+const ZONA_ES = {
+  deltoids: 'HOMBROS', triceps: 'TRÍCEPS', trapezius: 'TRAPECIO', quadriceps: 'CUÁDRICEPS',
+  gluteal: 'GLÚTEOS', hamstring: 'ISQUIOS', adductors: 'ADUCTORES', calves: 'GEMELOS',
+  'upper-back': 'DORSALES', biceps: 'BÍCEPS', forearm: 'ANTEBRAZOS', abs: 'ABDOMINALES',
+  obliques: 'OBLICUOS', 'lower-back': 'LUMBARES', chest: 'PECHO',
+};
+const NO_MUSCULO = new Set(['head', 'hair', 'hands', 'feet', 'knees', 'ankles']);
+
+/* ═══════════════════ util color ═══════════════════ */
+function hex2rgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function mix(h, to, t) {
+  const a = hex2rgb(h), b = hex2rgb(to);
+  return 'rgb(' + a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',') + ')';
+}
+
+/* ═══════════════════ defs: degradés y tramas ═══════════════════ */
+const defs = document.getElementById('defs');
+const defsHechos = new Set();
+function addDef(id, markup) { if (defsHechos.has(id)) return id; defsHechos.add(id); defs.insertAdjacentHTML('beforeend', markup); return id; }
+
+// Luz de arriba-izquierda: cada músculo es una "almohada" con su propio relieve.
+function radial(id, stops) {
+  return addDef(id, `<radialGradient id="${id}" cx=".42" cy=".36" r=".74" fx=".34" fy=".26">` +
+    stops.map(([o, c]) => `<stop offset="${o}" stop-color="${c}"/>`).join('') + `</radialGradient>`);
+}
+function gradColor(pref, color) {
+  return radial(`${pref}-${color.slice(1)}`, [[0, mix(color, '#ffffff', .42)], [.5, color], [1, mix(color, '#000000', .38)]]);
+}
+// Tramas de fibras: líneas paralelas rotadas al ángulo de la fibra (bucket de 5°).
+const TRAMAS = {
+  N: { paso: 7,  w: 1.3, c: 'rgba(78,60,48,.30)' },     // écorché neutro
+  D: { paso: 7,  w: 1.3, c: 'rgba(35,12,8,.30)' },      // écorché sobre color
+  T: { paso: 10, w: 1.0, c: 'rgba(61,55,50,.17)' },     // técnico neutro
+  L: { paso: 8,  w: 1.1, c: 'rgba(255,255,255,.45)' },  // técnico sobre color
+  M: { paso: 9,  w: 0.9, c: 'rgba(120,104,84,.10)' },   // mármol: grano muy sutil
+};
+function trama(tipo, ang) {
+  const t = TRAMAS[tipo], a = ((Math.round(ang / 5) * 5) % 180 + 180) % 180;
+  return addDef(`f${tipo}${a}`, `<pattern id="f${tipo}${a}" patternUnits="userSpaceOnUse" width="${t.paso}" height="${t.paso}" patternTransform="rotate(${a})">` +
+    `<path d="M0 ${t.paso / 2}H${t.paso}" stroke="${t.c}" stroke-width="${t.w}"/></pattern>`);
+}
+
+/* Ángulo de fibra: overrides anatómicos para formas "redondas" (PCA no sirve),
+   valor para el lado izquierdo de la pantalla, se espeja del otro lado. */
+const FIBRA = { abs: 90, chest: 20, obliques: 45, gluteal: 150, 'lower-back': 90, calves: 90 };
+function anguloFibra(slug, p, centroX) {
+  const [, ang, elong, cx] = p;
+  const izq = cx < centroX;
+  if (FIBRA[slug] !== undefined) return izq ? FIBRA[slug] : 180 - FIBRA[slug];
+  if (elong > 1.45) return ang;
+  return 90;
+}
+
+/* ═══════════════════ estilos por variante ═══════════════════ */
+const VAR = {
+  a: { // Escultura griega
+    contorno: { fill: '#b1a38e', stroke: '#8f816c', w: 2 },
+    base(slug) {
+      const g = slug === 'hair' ? radial('gMarH', [[0, '#efe8dc'], [1, '#bfb19b']]) : radial('gMar', [[0, '#fdfbf7'], [.55, '#ece5d9'], [1, '#c7baa6']]);
+      return { fill: `url(#${g})`, stroke: 'rgba(143,129,108,.55)', w: .8, trama: 'M' };
+    },
+    activo(color) { return { fill: `url(#${gradColor('gA', color)})`, stroke: mix(color, '#000', .45), w: 1.1, opac: .93, trama: null }; },
+    vetas: true, rotulo: ['ΑΝΗΡ', 'ΓΥΝΗ'],
+  },
+  b: { // Écorché
+    contorno: { fill: '#efe4d3', stroke: '#6e5a4c', w: 2.2 },
+    base(slug) {
+      if (NO_MUSCULO.has(slug)) {
+        return slug === 'hair' ? { fill: '#cdbda8', stroke: '#8d7b6a', w: .9 } : { fill: '#ede3d4', stroke: '#8d7b6a', w: .9 };
+      }
+      return { fill: `url(#${radial('gNeu', [[0, '#e6dccf'], [.6, '#cdbfae'], [1, '#a39180']])})`, stroke: '#7d6b5b', w: .9, trama: 'N' };
+    },
+    activo(color) { return { fill: `url(#${gradColor('gB', color)})`, stroke: mix(color, '#000', .55), w: 1.1, opac: 1, trama: 'D' }; },
+    rotulo: ['Fig. I — Vir', 'Fig. II — Femina'],
+  },
+  c: { // Holográfico / técnico
+    contorno: { fill: 'rgba(255,251,244,.4)', stroke: '#3d3732', w: 2.4 },
+    base(slug) { return { fill: 'rgba(255,255,255,.22)', stroke: '#6a6158', w: 1.05, trama: NO_MUSCULO.has(slug) ? null : 'T' }; },
+    activo(color) { return { fill: color, fillOp: .78, stroke: mix(color, '#000', .35), w: 1.6, opac: 1, trama: 'L' }; },
+    callouts: true, rotulo: ['M · 178 CM', 'F · 165 CM'],
+  },
+};
+// D: síntesis — la escultura de A con los puntos/rótulos de C y fundido entre vistas.
+VAR.d = Object.assign({}, VAR.a, { callouts: true, fundido: true });
+
+/* ═══════════════════ construcción de figuras ═══════════════════ */
+const FIGS = [
+  { id: 'm', frente: 'mFront', espalda: 'mBack', outline: ANAT.mOutline, lado: 'izq' },
+  { id: 'f', frente: 'fFront', espalda: 'fBack', outline: ANAT.fOutline, lado: 'der' },
+];
+function centroX(fig) { let s = 0, n = 0; for (const m of ANAT[fig]) for (const p of m.p) { s += p[3]; n++; } return s / n; }
+
+function pathTag(d, st, extra = '') {
+  return `<path d="${d}" fill="${st.fill}"${st.fillOp != null ? ` fill-opacity="${st.fillOp}"` : ''}` +
+    (st.stroke ? ` stroke="${st.stroke}" stroke-width="${st.w}" stroke-linejoin="round"` : '') + `${extra}/>`;
+}
+
+function svgBase(v, figKey, outlineD) {
+  const V = VAR[v], cx = centroX(figKey);
+  let s = `<g class="cuerpo"><g class="anat">`;
+  s += `<path d="${outlineD}" fill="${V.contorno.fill}"/>`;
+  for (const m of ANAT[figKey]) {
+    const st = V.base(m.slug);
+    for (const p of m.p) {
+      s += pathTag(p[0], st);
+      if (st.trama) s += `<path d="${p[0]}" fill="url(#${trama(st.trama, anguloFibra(m.slug, p, cx))})"/>`;
+    }
+  }
+  s += `</g>`;
+  if (V.vetas) s += vetas(figKey, outlineD);
+  s += `<path d="${outlineD}" fill="none" stroke="${V.contorno.stroke}" stroke-width="${V.contorno.w}"/>`;
+  return s + `</g>`;
+}
+
+// Vetas de mármol: curvas suaves, deterministas, recortadas por la silueta.
+function vetas(figKey, outlineD) {
+  const id = 'clip' + figKey;
+  addDef(id, `<clipPath id="${id}"><path d="${outlineD}"/></clipPath>`);
+  let seed = figKey.length * 97 + figKey.charCodeAt(0);
+  const r = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const xs = ANAT[figKey].flatMap(m => m.p.map(p => p[3])), ys = ANAT[figKey].flatMap(m => m.p.map(p => p[4]));
+  const x0 = Math.min(...xs) - 80, x1 = Math.max(...xs) + 80, y0 = Math.min(...ys) - 80, y1 = Math.max(...ys) + 80;
+  let s = `<g clip-path="url(#${id})" fill="none">`;
+  for (let i = 0; i < 9; i++) {
+    const ya = y0 + r() * (y1 - y0), yb = ya + (r() - .3) * 380;
+    const c1 = [x0 + (x1 - x0) * .3, ya + (r() - .5) * 300], c2 = [x0 + (x1 - x0) * .7, yb + (r() - .5) * 300];
+    s += `<path d="M${x0} ${ya}C${c1} ${c2} ${x1} ${yb}" stroke="rgba(150,136,116,${(.12 + r() * .16).toFixed(2)})" stroke-width="${(1 + r() * 2.2).toFixed(1)}"/>`;
+  }
+  return s + `</g>`;
+}
+
+function svgBloque(v, figKey, b) {
+  const V = VAR[v], st = V.activo(b.color), cx = centroX(figKey);
+  let s = `<g opacity="${st.opac}">`;
+  for (const m of ANAT[figKey]) {
+    if (!b.zonas.includes(m.slug)) continue;
+    for (const p of m.p) {
+      s += pathTag(p[0], st);
+      if (st.trama) s += `<path d="${p[0]}" fill="url(#${trama(st.trama, anguloFibra(m.slug, p, cx))})"/>`;
+    }
+  }
+  return s + `</g>`;
+}
+
+function slugsDe(figKey) { return new Set(ANAT[figKey].map(m => m.slug)); }
+const SLUGS = { frente: slugsDe('mFront'), espalda: slugsDe('mBack') };
+// Vistas donde el bloque tiene zonas EXCLUSIVAS (las que justifican girar).
+function vistasExclusivas(b) {
+  const f = b.zonas.some(z => SLUGS.frente.has(z) && !SLUGS.espalda.has(z));
+  const e = b.zonas.some(z => SLUGS.espalda.has(z) && !SLUGS.frente.has(z));
+  return { frente: f, espalda: e };
+}
+
+// Callouts técnicos (C): un punto por zona, línea quebrada hacia afuera, rótulo.
+// u = unidades SVG por em de pantalla → rótulos del mismo tamaño en H y M.
+// cajas = bboxes de las partes del cuerpo: la columna de rótulos se pega al
+// contorno real a la altura de los puntos (no al ancho con brazos abiertos).
+function svgCallout(figKey, b, bb, lado, u, cajas) {
+  const cx = centroX(figKey);
+  let xLabel;
+  const anchor = lado === 'izq' ? 'end' : 'start';
+  const pts = [];
+  for (const m of ANAT[figKey]) {
+    if (!b.zonas.includes(m.slug)) continue;
+    // del lado exterior de la figura
+    const cands = m.p.filter(p => lado === 'izq' ? p[3] < cx : p[3] > cx);
+    if (!cands.length) continue;
+    const p = cands.reduce((a, q) => (lado === 'izq' ? q[3] < a[3] : q[3] > a[3]) ? q : a);
+    pts.push({ x: p[3], y: p[4], slug: m.slug });
+  }
+  pts.sort((a, c) => a.y - c.y);
+  // separar rótulos verticalmente (mín 46 u)
+  let last = -1e9;
+  for (const p of pts) { p.ly = Math.max(p.y, last + 1.7 * u); last = p.ly; }
+  if (pts.length) {
+    const y0 = Math.min(...pts.map(p => Math.min(p.y, p.ly))) - .6 * u, y1 = Math.max(...pts.map(p => Math.max(p.y, p.ly))) + .6 * u;
+    const enBanda = cajas.filter(c => c.y < y1 && c.y + c.height > y0);
+    xLabel = lado === 'izq' ? Math.min(...enBanda.map(c => c.x)) - 1.25 * u : Math.max(...enBanda.map(c => c.x + c.width)) + 1.25 * u;
+  }
+  const col = mix(b.color, '#000', .3);
+  let s = '';
+  for (const p of pts) {
+    const xm = lado === 'izq' ? xLabel + u : xLabel - u;
+    s += `<path d="M${p.x} ${p.y}L${xm} ${p.ly}H${xLabel}" fill="none" stroke="${col}" stroke-width="${.08 * u}"/>`;
+    s += `<circle cx="${p.x}" cy="${p.y}" r="${.27 * u}" fill="#fffaf2" stroke="${col}" stroke-width="${.1 * u}"/>`;
+    s += `<text x="${lado === 'izq' ?  xLabel - .4 * u : xLabel + .4 * u}" y="${p.ly + .36 * u}" text-anchor="${anchor}" font-family="NunitoSans, sans-serif" font-weight="700" font-size="${1.02 * u}" letter-spacing="${.12 * u}" fill="${col}">${ZONA_ES[p.slug] || p.slug}</text>`;
+  }
+  return s;
+}
+
+let estado = { v: 'd', ch: 'junto', vista: 'frente', run: 0 };
+const frame = document.getElementById('frame');
+const cuerpos = document.getElementById('cuerpos');
+const leyenda = document.getElementById('leyenda');
+
+function construir() {
+  const v = estado.v, V = VAR[v];
+  frame.className = 'v' + v.toUpperCase();
+  cuerpos.querySelectorAll('.fig').forEach(n => n.remove());
+  const figH = v === 'd' ? 51.5 : V.callouts ? 39.5 : 45; // em (con callouts se deja aire a los costados)
+
+  for (const [fi, F] of FIGS.entries()) {
+    const fig = document.createElement('div');
+    fig.className = 'fig'; fig.id = 'fig-' + F.id;
+    let html = `<div class="esquinas"><i></i><i></i><i></i><i></i></div><div class="giro">`;
+    for (const [vista, key, oi] of [['frente', F.frente, 0], ['espalda', F.espalda, 1]]) {
+      html += `<div class="vista ${vista}" data-key="${key}">`;
+      html += `<svg class="capa base" xmlns="http://www.w3.org/2000/svg">${svgBase(v, key, F.outline[oi])}</svg>`;
+      CLASE.bloques.forEach((b, i) => {
+        html += `<svg class="capa ov" data-b="${i}" xmlns="http://www.w3.org/2000/svg">${svgBloque(v, key, b)}</svg>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div><div class="deco"><span>${V.rotulo[fi]}</span></div>`;
+    fig.innerHTML = html;
+    cuerpos.appendChild(fig);
+  }
+
+  // viewBox por género (las fuentes M/F vienen a escalas distintas): frente y
+  // espalda comparten caja → el giro no "salta"; pies apoyados en la base.
+  const caja = {};
+  for (const fig of cuerpos.querySelectorAll('.fig')) {
+    const bbs = Array.from(fig.querySelectorAll('.vista')).map(vi => ({ vi, bb: vi.querySelector('.anat').getBBox() }));
+    const H = Math.max(...bbs.map(o => o.bb.height)) * 1.015, W = Math.max(...bbs.map(o => o.bb.width)) * 1.04;
+    caja[fig.id] = { bbs, H, W };
+  }
+  for (const fig of cuerpos.querySelectorAll('.fig')) {
+    const { bbs, H, W } = caja[fig.id];
+    const alto = fig.id === 'fig-f' ? figH * .95 : figH; // ella ~5% más baja
+    const g = fig.querySelector('.giro'); g.style.height = alto + 'em'; g.style.width = (alto * W / H) + 'em';
+  for (const { vi, bb } of bbs) {
+    const vb = `${bb.x + bb.width / 2 - W / 2} ${bb.y + bb.height + H * .01 - H} ${W} ${H}`;
+    vi.querySelectorAll('svg').forEach(s => s.setAttribute('viewBox', vb));
+    if (V.callouts) {
+      const figKey = vi.dataset.key, F = FIGS.find(f => f.frente === figKey || f.espalda === figKey);
+      const cajas = Array.from(vi.querySelectorAll('.base .anat > path')).slice(1).map(n => n.getBBox());
+      CLASE.bloques.forEach((b, i) => {
+        vi.insertAdjacentHTML('beforeend', `<svg class="capa call" data-b="${i}" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg">${svgCallout(figKey, b, bb, F.lado, H / alto, cajas)}</svg>`);
+      });
+    }
+  }
+  }
+
+  // leyenda
+  leyenda.innerHTML = CLASE.bloques.map((b, i) => {
+    const ve = vistasExclusivas(b);
+    const vistas = ve.frente && ve.espalda ? 'FRENTE · ESPALDA' : ve.espalda ? 'ESPALDA' : 'FRENTE';
+    return `<div class="item" data-b="${i}"><span class="barra" style="background:${b.color}"></span><div>` +
+      `<div class="rol" style="color:${mix(b.color, '#000', .18)}">${b.rol}</div><div class="ej">${b.ej}</div>` +
+      `<div class="zonas" style="color:${mix(b.color, '#000', .12)}">${b.zonas.map(z => ZONA_ES[z]).join(' · ')}</div></div></div>`;
+  }).join('');
+}
+
+/* ═══════════════════ coreografía ═══════════════════ */
+const $$ = s => Array.from(frame.querySelectorAll(s));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function encender(i) { $$(`.ov[data-b="${i}"]`).forEach(n => n.classList.add('on')); $$(`.item[data-b="${i}"]`).forEach(n => n.classList.add('on')); }
+function foco(i) { // i = null → todos parejos
+  $$('.ov, .item').forEach(n => {
+    const b = +n.dataset.b;
+    n.classList.toggle('dim', i != null && b !== i);
+    n.classList.toggle('focus', i != null && b === i);
+  });
+  $$('.call').forEach(n => n.classList.toggle('on', i != null && +n.dataset.b === i));
+}
+async function girar(vista, vivo) {
+  if (estado.vista === vista) return;
+  if (VAR[estado.v].fundido) { // D: fundido cruzado, sin giro
+    estado.vista = vista;
+    $$('.fig').forEach((f, k) => setTimeout(() => f.classList.toggle('back', vista === 'espalda'), k * 120));
+    await sleep(1500 + 120);
+    return;
+  }
+  const giros = $$('.giro');
+  for (const [k, g] of giros.entries()) setTimeout(() => { g.classList.remove('abriendo'); g.classList.add('cerrado'); }, k * 90);
+  await sleep(300 + 90);
+  if (!vivo()) return;
+  estado.vista = vista;
+  for (const [k, g] of giros.entries()) {
+    setTimeout(() => { g.parentNode.classList.toggle('back', vista === 'espalda'); g.classList.add('abriendo'); g.classList.remove('cerrado'); }, k * 90);
+  }
+  await sleep(360 + 90);
+}
+
+async function play() {
+  const id = ++estado.run, vivo = () => id === estado.run;
+  frame.classList.remove('quieto');
+  construir();
+  estado.vista = 'frente';
+  const bloques = CLASE.bloques;
+  await sleep(250); if (!vivo()) return;
+  $$('.fig').forEach((f, k) => setTimeout(() => f.classList.add('in'), k * 220));
+  await sleep(1300); if (!vivo()) return;
+
+  if (estado.ch === 'junto') {
+    // Todo junto: las zonas de frente se encienden casi a la vez, la leyenda se arma.
+    for (let i = 0; i < bloques.length; i++) { encender(i); await sleep(420); if (!vivo()) return; }
+    await sleep(2200); if (!vivo()) return;
+    await girar('espalda', vivo); if (!vivo()) return;
+    await sleep(2800); if (!vivo()) return;
+    await girar('frente', vivo); if (!vivo()) return;
+    await sleep(1500);
+  } else {
+    // Giro: bloque por bloque; gira solo si el bloque tiene zonas exclusivas del otro lado.
+    for (let i = 0; i < bloques.length; i++) {
+      const ve = vistasExclusivas(bloques[i]);
+      let orden = [estado.vista];
+      const otra = estado.vista === 'frente' ? 'espalda' : 'frente';
+      if (!ve[estado.vista] && ve[otra]) orden = [otra];
+      else if (ve[estado.vista] && ve[otra]) orden = [estado.vista, otra];
+      encender(i); foco(i);
+      for (const [k, vista] of orden.entries()) {
+        await girar(vista, vivo); if (!vivo()) return;
+        await sleep(k === 0 ? 1700 : 1500); if (!vivo()) return;
+      }
+    }
+    foco(null);
+    await sleep(1400); if (!vivo()) return;
+    if (estado.vista !== 'frente') { await girar('frente', vivo); if (!vivo()) return; }
+    await sleep(1200);
+  }
+  // Loop de espera mientras el profe explica: foco rotativo, gira solo si hace falta.
+  while (vivo()) {
+    for (let i = 0; i < bloques.length && vivo(); i++) {
+      const ve = vistasExclusivas(bloques[i]);
+      if (!ve[estado.vista] && (ve.frente || ve.espalda)) await girar(estado.vista === 'frente' ? 'espalda' : 'frente', vivo);
+      if (!vivo()) return;
+      foco(i);
+      await sleep(3400);
+    }
+    if (!vivo()) return;
+    foco(null);
+    await sleep(2600);
+  }
+}
+
+function quieto(vista) {
+  ++estado.run;
+  construir();
+  frame.classList.add('quieto');
+  $$('.fig').forEach(f => { f.classList.add('in'); f.classList.toggle('back', vista === 'espalda'); });
+  estado.vista = vista;
+  CLASE.bloques.forEach((b, i) => encender(i));
+  if (estado.focoQuieto != null) foco(estado.focoQuieto);
+}
+
+/* ═══════════════════ marco 16:9 + navegación ═══════════════════ */
+function fit() {
+  const wrap = document.getElementById('wrap');
+  const w = Math.min(wrap.clientWidth, wrap.clientHeight * 16 / 9);
+  frame.style.width = w + 'px'; frame.style.height = (w * 9 / 16) + 'px'; frame.style.fontSize = (w / 100) + 'px';
+}
+window.addEventListener('resize', fit);
+
+function marcarNav() {
+  document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('active', b.dataset.v === estado.v));
+  document.querySelectorAll('[data-ch]').forEach(b => b.classList.toggle('active', b.dataset.ch === estado.ch));
+}
+document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { estado.v = b.dataset.v; marcarNav(); location.hash = estado.v + '-' + estado.ch; play(); });
+document.querySelectorAll('[data-ch]').forEach(b => b.onclick = () => { estado.ch = b.dataset.ch; marcarNav(); location.hash = estado.v + '-' + estado.ch; play(); });
+document.getElementById('replay').onclick = () => play();
+document.getElementById('toggleView').onclick = () => girar(estado.vista === 'frente' ? 'espalda' : 'frente', () => true);
+
+// Deep-links: #a | #b-giro | #c-junto-still | #a-still-espalda | #c-still-foco1
+(function init() {
+  fit();
+  const h = location.hash.slice(1).split('-');
+  if ('abcd'.includes(h[0]) && h[0]) estado.v = h[0];
+  if (h.includes('giro')) estado.ch = 'giro';
+  const f = h.find(x => /^foco\d$/.test(x)); if (f) estado.focoQuieto = +f.slice(4);
+  marcarNav();
+  if (h.includes('still')) quieto(h.includes('espalda') ? 'espalda' : 'frente'); else play();
+})();
+</script>
+</body>
+</html>
