@@ -161,17 +161,37 @@ export function zonasDeEjercicio(
 }
 
 /**
- * Zonas de un GRUPO de ejercicios (todas las prescripciones `main` de todos los
- * niveles de los bloques de un grupo visual): union, sin repetidas y en orden
- * estable. Si la union queda vacia y alguno de los `roles` es ROM_*, cae al
- * fallback por rol (`ROM_ROLE_ZONAS`).
+ * Una zona entra al grupo si aparece en al menos esta fracción de los
+ * ejercicios de la zona MÁS frecuente del grupo. Con datos reales (W26) la
+ * unión pura pintaba casi el cuerpo entero: un ejercicio suelto de tracción en
+ * un NUCLEUS de piernas encendía dorsales/bíceps/hombros. 0.4 conserva las
+ * zonas que el bloque trabaja de verdad (p. ej. glúteos + cuádriceps +
+ * isquios en un bloque de piernas) y descarta las de ejercicios aislados.
+ */
+export const UMBRAL_DOMINANCIA = 0.4;
+
+/**
+ * Zonas de un GRUPO de ejercicios (las prescripciones `main` de los bloques de
+ * un grupo visual, en los niveles que muestra la TV): las DOMINANTES
+ * (`UMBRAL_DOMINANCIA`), sin repetidas y en orden estable. Cada ejercicio
+ * suma 1 a cada una de sus zonas. Si no queda ninguna y alguno de los `roles`
+ * es ROM_*, cae al fallback por rol (`ROM_ROLE_ZONAS`).
  */
 export function zonasDelGrupo(
   ejercicios: readonly EjercicioZonaInput[],
   roles: readonly string[] = [],
 ): TvZonaMuscular[] {
+  const cuenta = new Map<TvZonaMuscular, number>();
+  for (const e of ejercicios) {
+    const propias = new Set<TvZonaMuscular>();
+    acumularZonas(e, propias);
+    for (const z of propias) cuenta.set(z, (cuenta.get(z) ?? 0) + 1);
+  }
+  const max = Math.max(0, ...cuenta.values());
   const out = new Set<TvZonaMuscular>();
-  for (const e of ejercicios) acumularZonas(e, out);
+  for (const [z, n] of cuenta) {
+    if (n >= max * UMBRAL_DOMINANCIA) out.add(z);
+  }
   if (out.size === 0) {
     for (const role of roles) {
       for (const z of ROM_ROLE_ZONAS[role] ?? []) out.add(z);

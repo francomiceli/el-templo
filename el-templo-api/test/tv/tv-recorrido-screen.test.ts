@@ -417,18 +417,11 @@ describe("screen 'recorrido' — escritura y poll", () => {
       "EPIKOS",
     ]);
 
-    // NUCLEUS: alfa pushH (chest, deltoids, triceps) + sigma pullV (biceps,
-    // forearm, upper-back); la movilidad (CORE POSTERIOR) NO suma. Subtitulo =
-    // rutas de los dos niveles, en orden de nivel (alfa antes que sigma).
-    expect(bloques[0].zonas).toEqual([
-      "chest",
-      "deltoids",
-      "triceps",
-      "biceps",
-      "forearm",
-      "upper-back",
-    ]);
-    expect(bloques[0].subtitle).toBe("Handstand Push Up · Remos");
+    // Solo el par de niveles que muestra la TV (alfa/delta; delta no tiene
+    // sesion): NUCLEUS = alfa pushH (chest, deltoids, triceps). El pullV de
+    // sigma NO entra, y la movilidad (CORE POSTERIOR) tampoco suma.
+    expect(bloques[0].zonas).toEqual(["chest", "deltoids", "triceps"]);
+    expect(bloques[0].subtitle).toBe("Handstand Push Up");
 
     // DEUTEROS: pullV + kneeD (+ ISQUIOS secundaria -> hamstring).
     expect(bloques[1].zonas).toEqual([
@@ -445,6 +438,17 @@ describe("screen 'recorrido' — escritura y poll", () => {
     // EPIKOS: core + ruta TTB; la prescripcion huerfana no rompe nada.
     expect(bloques[2].zonas).toEqual(["abs", "obliques"]);
     expect(bloques[2].subtitle).toBe("Toe to Bar");
+  });
+
+  it("(1c) el recorrido sigue al par de niveles en pantalla (sigma/kairos)", async () => {
+    await postState(coachToken, { branchId, blockRole: "INITIUM" });
+    await postState(coachToken, { branchId, level: "sigma" });
+    await postState(coachToken, { branchId, screen: "recorrido" });
+
+    const bloques = (await poll()).recorrido!.bloques;
+    // NUCLEUS de sigma = pullV: la traccion, sin el empuje de alfa.
+    expect(bloques[0].zonas).toEqual(["biceps", "forearm", "upper-back"]);
+    expect(bloques[0].subtitle).toBe("Remos");
   });
 
   it("(1b) un grupo sin zonas igual viaja (el front no lo pinta)", async () => {

@@ -9,6 +9,7 @@ import {
   ZONAS_ORDEN,
   zonasDeEjercicio,
   zonasDelGrupo,
+  UMBRAL_DOMINANCIA,
 } from "../../src/modules/tv/muscle-zones";
 import type { TvZonaMuscular } from "../../src/modules/tv/types";
 
@@ -244,6 +245,40 @@ describe("zonasDeEjercicio — dedupe y orden estable", () => {
 });
 
 describe("zonasDelGrupo", () => {
+  it("se queda con las zonas DOMINANTES: un ejercicio suelto no pinta el bloque", () => {
+    const piernas = {
+      category: "KNEE DOMINANT",
+      categorySecondary: "QUADS",
+      route: null,
+    };
+    const zonas = zonasDelGrupo([
+      piernas,
+      piernas,
+      piernas,
+      piernas,
+      piernas,
+      { category: "PULL HORIZONTAL", categorySecondary: null, route: null },
+    ]);
+    // 5/5 en cuádriceps, glúteos y aductores; la tracción (1/5) queda afuera.
+    expect(zonas).toEqual(["gluteal", "quadriceps", "adductors"]);
+  });
+
+  it("umbral inclusivo: una zona en el 40% de la más frecuente entra", () => {
+    const empuje = { category: "PUSH VERTICAL", categorySecondary: null, route: null };
+    const cadera = { category: "HIP DOMINANT", categorySecondary: null, route: null };
+    // hombros/tríceps/trapecio 5; glúteos/isquios/lumbares 2 (= 0.4 * 5).
+    const zonas = zonasDelGrupo([empuje, empuje, empuje, empuje, empuje, cadera, cadera]);
+    expect(zonas).toEqual([
+      "deltoids",
+      "triceps",
+      "trapezius",
+      "lower-back",
+      "gluteal",
+      "hamstring",
+    ]);
+    expect(UMBRAL_DOMINANCIA).toBe(0.4);
+  });
+
   it("union de varios ejercicios, sin repetidas y en orden estable", () => {
     const zonas = zonasDelGrupo([
       { category: "PUSH HORIZONTAL", categorySecondary: null, route: null },

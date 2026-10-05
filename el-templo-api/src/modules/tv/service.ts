@@ -500,7 +500,11 @@ export class TvService {
         screen,
         class: null,
         aviso: null,
-        recorrido: buildRecorrido(classDay),
+        // Mismos niveles que las columnas de la plani (`buildColumns`).
+        recorrido: buildRecorrido(
+          classDay,
+          pairFor(state.level).filter((lvl) => classDay.levels.includes(lvl)),
+        ),
       };
     }
 

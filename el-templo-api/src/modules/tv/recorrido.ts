@@ -19,9 +19,13 @@
  *  - `subtitle`: rutas de los bloques del grupo (todos los niveles), con
  *    `getRouteLabel`, distintas, unidas con " · ". `null` en roles sin ruta "de
  *    ejercicio" (INITIUM/STRETCHING/ROM_*: en ROM la ruta es el propio rol).
- *  - `zonas`: union de las zonas de TODAS las prescripciones `main` de todos
- *    los niveles de los bloques del grupo (`muscle-zones.ts`), con fallback
- *    por rol en ROM. Un grupo sin zonas igual se incluye (el front no pinta).
+ *  - Niveles: solo los que la TV esta mostrando (`niveles`, el par de
+ *    `pairFor(state.level)` — las MISMAS columnas de la plani). Cada nivel hace
+ *    un bloque distinto (DEUTEROS I: alfa cuadriceps, sigma empuje, spartan
+ *    traccion): unir los seis pintaba el cuerpo entero.
+ *  - `zonas`: las zonas DOMINANTES de las prescripciones `main` de esos
+ *    niveles (`zonasDelGrupo`, `muscle-zones.ts`), con fallback por rol en ROM.
+ *    Un grupo sin zonas igual se incluye (el front no pinta).
  */
 import { findBlock, buildRoster, visualGroupOf } from "./roster";
 import type { RosterClassDay } from "./roster";
@@ -48,7 +52,10 @@ function groupTitle(group: string, firstTitle: string): string {
   return label;
 }
 
-export function buildRecorrido(classDay: ClassDay): TvRecorridoPayload {
+export function buildRecorrido(
+  classDay: ClassDay,
+  niveles: readonly string[] = [],
+): TvRecorridoPayload {
   // `ClassDay` es asignable a `RosterClassDay` (mismo patron que `buildRoster`).
   const roster = buildRoster(classDay satisfies RosterClassDay);
 
@@ -62,8 +69,12 @@ export function buildRecorrido(classDay: ClassDay): TvRecorridoPayload {
     else groups.set(key, { roles: [entry.role], firstTitle: entry.title });
   }
 
+  // Solo los niveles que muestra la TV (si ninguno tiene sesion, todos: nunca
+  // un recorrido vacio por un nivel guardado que hoy no se planifico).
+  const delPar = classDay.sessions.filter((s) => niveles.includes(s.memberLevel));
+  const base = delPar.length > 0 ? delPar : classDay.sessions;
   // Sesiones en el orden canonico de niveles del dia: subtitulo estable.
-  const sessions = [...classDay.sessions].sort(
+  const sessions = [...base].sort(
     (a, b) =>
       classDay.levels.indexOf(a.memberLevel) -
       classDay.levels.indexOf(b.memberLevel),
