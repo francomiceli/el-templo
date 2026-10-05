@@ -245,7 +245,10 @@ function pyramidVolume(p: ClassDayPrescription): string {
   return `${seq}${unit}`;
 }
 
-/** Volumen de una prescripcion, con la misma logica que imprime el PDF. */
+/**
+ * Volumen de una prescripcion, con la misma logica que imprime el PDF. Solo
+ * para bloques no piramidales: la piramide va por `pyramidVolume`.
+ */
 function prescriptionVolume(p: ClassDayPrescription): string {
   if (p.increment) {
     const start = p.reps || p.seconds || 0;

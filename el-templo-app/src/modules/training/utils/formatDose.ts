@@ -110,7 +110,8 @@ export function formatInlinePrescription(exercise: Prescription, pyramid = false
  *
  * Handles reps, seconds, ranges (repsMax/secondsMax), Death By increments,
  * and the PAUSA special case. Works for both regular prescriptions and
- * mobility exercises.
+ * mobility exercises. Not pyramid-aware: for pyramid blocks use
+ * `formatQuickDose`/`formatInlinePrescription` with `pyramid`.
  */
 export function formatDose(exercise: DoseFields): string {
   if (exercise.notes === 'PAUSA') return 'PAUSA'
