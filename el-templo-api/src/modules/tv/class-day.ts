@@ -58,6 +58,15 @@ export interface ClassDayPrescription {
   sortOrder: number;
   /** Key de R2 tal cual sale de la DB — `assembleVideoUrl` la prefija al servir. */
   videoKey: string | null;
+  /**
+   * Datos del ejercicio para el mapeo a zonas musculares del recorrido
+   * (`muscle-zones.ts`). `null` cuando la prescripcion no tiene fila en
+   * `exercises` (hay prescripciones sueltas sin `exercise_id`) o la columna es
+   * NULL: el mapeo lo tolera.
+   */
+  exerciseCategory: string | null;
+  exerciseCategorySecondary: string | null;
+  exerciseRoute: string | null;
 }
 
 /** Un bloque de la sesion, con sus prescripciones ya agrupadas. */
@@ -312,6 +321,9 @@ export async function resolveClassDayForDate(
             weighted: schema.sessionPrescriptions.weighted,
             sortOrder: schema.sessionPrescriptions.sortOrder,
             videoKey: schema.exercises.videoUrl,
+            exerciseCategory: schema.exercises.category,
+            exerciseCategorySecondary: schema.exercises.categorySecondary,
+            exerciseRoute: schema.exercises.route,
           })
           .from(schema.sessionPrescriptions)
           .leftJoin(
@@ -340,6 +352,9 @@ export async function resolveClassDayForDate(
       weighted: p.weighted,
       sortOrder: p.sortOrder,
       videoKey: p.videoKey,
+      exerciseCategory: p.exerciseCategory,
+      exerciseCategorySecondary: p.exerciseCategorySecondary,
+      exerciseRoute: p.exerciseRoute,
     });
     prescriptionsByBlock.set(p.blockId, list);
   }

@@ -84,7 +84,7 @@ export type TvTimerStatus = "idle" | "running" | "paused";
  * internal errors). D-08: `closing` after the last block, until the coach ends
  * the class. `class` = the live block.
  */
-export type TvScreen = "idle" | "class" | "closing" | "aviso";
+export type TvScreen = "idle" | "class" | "closing" | "aviso" | "recorrido";
 
 /**
  * Regular weekday session vs. Saturday ROM session (D-23, Pitfall 2), plus
@@ -250,6 +250,49 @@ export interface TvPollResponse {
    * `screen === "aviso"`.
    */
   aviso: TvAvisoPollPayload | null;
+  /**
+   * Intro "el recorrido de hoy": los bloques de la clase con sus zonas
+   * musculares, ya resueltos (el kiosco no hace un segundo fetch). `null`
+   * salvo cuando `screen === "recorrido"`.
+   */
+  recorrido: TvRecorridoPayload | null;
+}
+
+/**
+ * Zonas musculares que pintan los cuerpos H/M del recorrido. El ORDEN de
+ * declaracion es el orden estable de salida (`ZONAS_ORDEN`, `muscle-zones.ts`).
+ */
+export type TvZonaMuscular =
+  | "chest"
+  | "deltoids"
+  | "triceps"
+  | "biceps"
+  | "forearm"
+  | "trapezius"
+  | "upper-back"
+  | "lower-back"
+  | "abs"
+  | "obliques"
+  | "gluteal"
+  | "quadriceps"
+  | "hamstring"
+  | "adductors"
+  | "calves";
+
+/** Un item del recorrido: un GRUPO VISUAL de bloques (DEUTEROS 1+2 = un item). */
+export interface TvRecorridoBloque {
+  /** Rol representativo del grupo visual (el primero, ej. "DEUTEROS_1"). */
+  role: string;
+  /** Rotulo como lo muestra la TV (ej. "NUCLEUS", "DEUTEROS", "KINESIS", "TREN INFERIOR"). */
+  title: string;
+  /** Rutas del bloque (`getRouteLabel`) distintas, unidas con " · "; `null` si no hay ruta "de ejercicio". */
+  subtitle: string | null;
+  /** Unicas, en el orden de declaracion de `TvZonaMuscular`. */
+  zonas: TvZonaMuscular[];
+}
+
+export interface TvRecorridoPayload {
+  bloques: TvRecorridoBloque[];
 }
 
 /** Texto minimo de un aviso de TV, tal como lo necesita el kiosco (D-27). */
@@ -323,8 +366,10 @@ export interface TvStateWrite {
   branchId: number;
   // "idle" NO se acepta (D-08): volver a reposo es `end-class`, no una
   // pantalla. Fase 193: "aviso" se suma con `tvAvisoId` obligatorio en ese
-  // caso (D-25) — validado por el servicio, no por el tipo.
-  screen?: "class" | "closing" | "aviso";
+  // caso (D-25) — validado por el servicio, no por el tipo. "recorrido" es la
+  // intro "el recorrido de hoy": se escribe sin datos extra y sale solo al
+  // cambiar de bloque o escribir "class".
+  screen?: "class" | "closing" | "aviso" | "recorrido";
   blockRole?: string;
   level?: string;
   exerciseIndex?: number;

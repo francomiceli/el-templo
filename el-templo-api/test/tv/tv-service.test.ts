@@ -316,11 +316,13 @@ describe("TvService.buildPollPayload — contrato del poll", () => {
     expect(payload.screen).toBe("idle");
     expect(payload.class).toBeNull();
     expect(payload.aviso).toBeNull();
+    expect(payload.recorrido).toBeNull();
     // El reposo es indistinguible de "no hay clase": ni error, ni mensaje.
     expect(Object.keys(payload).sort()).toEqual([
       "aviso",
       "branch",
       "class",
+      "recorrido",
       "screen",
       "serverNow",
     ]);

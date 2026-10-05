@@ -46,6 +46,7 @@ import {
   visualGroupOf,
 } from "./roster";
 import { getRouteLabel } from "./route-labels";
+import { buildRecorrido } from "./recorrido";
 import { toTimerSpec } from "./timer-spec";
 import type {
   TvAvisoPollPayload,
@@ -326,12 +327,16 @@ export class TvService {
     return {
       // Fase 193 (D-25): ya no colapsa todo lo que no sea "closing" a "class"
       // — "aviso" viaja tal cual para que el poll y el control lo reflejen.
+      // Igual "recorrido" (intro "el recorrido de hoy"): varchar(10) lo
+      // admite sin ALTER.
       screen:
         row.screen === "closing"
           ? "closing"
           : row.screen === "aviso"
             ? "aviso"
-            : "class",
+            : row.screen === "recorrido"
+              ? "recorrido"
+              : "class",
       blockRole: row.blockRole,
       level: row.level,
       exerciseIndex: row.exerciseIndex,
@@ -409,6 +414,7 @@ export class TvService {
         screen: "idle",
         class: null,
         aviso: null,
+        recorrido: null,
       };
     }
 
@@ -453,7 +459,7 @@ export class TvService {
         branch.tenantId,
         "flex_inicio",
       );
-      return { ...base, screen: "idle", class: null, aviso };
+      return { ...base, screen: "idle", class: null, aviso, recorrido: null };
     }
 
     const state = this.clampState(stored, classDay);
@@ -462,7 +468,9 @@ export class TvService {
         ? "closing"
         : state.screen === "aviso"
           ? "aviso"
-          : "class";
+          : state.screen === "recorrido"
+            ? "recorrido"
+            : "class";
 
     // T-193-39: un aviso borrado/desactivado no puede dejar el TV clavado —
     // se degrada a la pantalla de clase (o de cierre, si corresponde) en vez
@@ -484,8 +492,20 @@ export class TvService {
       );
     }
 
+    // Intro "el recorrido de hoy": solo en esta pantalla se calcula el payload
+    // (el poll normal no lo paga). El timer NO se toca — vive en la fila.
+    if (screen === "recorrido") {
+      return {
+        ...base,
+        screen,
+        class: null,
+        aviso: null,
+        recorrido: buildRecorrido(classDay),
+      };
+    }
+
     if (screen !== "class") {
-      return { ...base, screen, class: null, aviso };
+      return { ...base, screen, class: null, aviso, recorrido: null };
     }
 
     return {
@@ -493,6 +513,7 @@ export class TvService {
       screen,
       class: this.buildClassPayload(classDay, state, now),
       aviso: null,
+      recorrido: null,
     };
   }
 
@@ -777,11 +798,13 @@ export class TvService {
     }
     // D-08: la pantalla de cierre es un estado del profe, no del reloj. "idle"
     // no se escribe: para volver a reposo esta `endClass`. Fase 193 (D-25):
-    // "aviso" se suma al mismo criterio absoluto.
+    // "aviso" se suma al mismo criterio absoluto; igual "recorrido" (intro "el
+    // recorrido de hoy", sin datos extra — no toca el timer).
     if (
       write.screen === "class" ||
       write.screen === "closing" ||
-      write.screen === "aviso"
+      write.screen === "aviso" ||
+      write.screen === "recorrido"
     ) {
       state = { ...state, screen: write.screen };
     }
@@ -805,15 +828,19 @@ export class TvService {
       state = { ...state, tvAvisoId: aviso.id };
     } else if (write.blockRole !== undefined || write.screen !== undefined) {
       // Acá `write.screen` ya no puede ser "aviso" (lo excluyó el `if` de
-      // arriba): es "class"/"closing"/undefined, y ambos casos con valor
-      // sacan al estado del aviso (D-26).
+      // arriba): es "class"/"closing"/"recorrido"/undefined, y todos los casos
+      // con valor sacan al estado del aviso (D-26).
       state = { ...state, tvAvisoId: null };
       // Un cambio de BLOQUE sin pantalla explícita (el control NO manda
       // `screen` al tocar un bloque salvo que venga de cierre/inicio — D-26
       // "no tocar los handlers de bloques") es el gesto que D-26 describe
-      // como "avanzar": si la pantalla seguía en "aviso", vuelve a "class"
-      // acá mismo para no dejar un "aviso" fantasma sin `tvAvisoId`.
-      if (write.screen === undefined && state.screen === "aviso") {
+      // como "avanzar": si la pantalla seguía en "aviso" (o en "recorrido",
+      // la intro "el recorrido de hoy", que sale igual al avanzar de bloque),
+      // vuelve a "class" acá mismo para no dejar una pantalla fantasma.
+      if (
+        write.screen === undefined &&
+        (state.screen === "aviso" || state.screen === "recorrido")
+      ) {
         state = { ...state, screen: "class" };
       }
     }
