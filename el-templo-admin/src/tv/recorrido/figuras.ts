@@ -49,13 +49,13 @@ export interface FiguraDef {
   espalda: FiguraKey;
   /** Lado de la pantalla hacia el que salen los rótulos. */
   lado: 'izq' | 'der';
-  /** Alto relativo (ella ~5% más baja). */
+  /** Alto relativo al de `ALTO_FIGURA_REM` (hoy los dos a la misma altura). */
   escala: number;
 }
 
 export const FIGURAS: FiguraDef[] = [
   { id: 'm', frente: 'mFront', espalda: 'mBack', lado: 'izq', escala: 1 },
-  { id: 'f', frente: 'fFront', espalda: 'fBack', lado: 'der', escala: 0.95 },
+  { id: 'f', frente: 'fFront', espalda: 'fBack', lado: 'der', escala: 1 },
 ];
 
 export function contornoDe(an: Anatomia, fig: FiguraDef, vista: Vista): string {
@@ -287,25 +287,4 @@ export function svgCallout(
       `font-size="${1.02 * u}" letter-spacing="${0.12 * u}" fill="${tinta}">${ZONA_ES[p.zona]}</text>`;
   }
   return s;
-}
-
-/** Slugs de cada vista (para saber si un bloque tiene zonas que solo se ven de un lado). */
-export function slugsDe(grupos: GrupoAnatomico[]): Set<string> {
-  return new Set(grupos.map((g) => g.slug));
-}
-
-/** Vistas en las que se ve alguna zona del bloque (las compartidas, como hombros o
- *  antebrazos, cuentan para las dos). */
-export function vistasConZonas(
-  zonas: TvZonaMuscular[],
-  frente: Set<string>,
-  espalda: Set<string>
-): { frente: boolean; espalda: boolean } {
-  let f = false;
-  let e = false;
-  for (const z of zonas) {
-    if (frente.has(z)) f = true;
-    if (espalda.has(z)) e = true;
-  }
-  return { frente: f, espalda: e };
 }

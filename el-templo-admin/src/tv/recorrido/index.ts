@@ -4,11 +4,10 @@
  * dos cuerpos de mármol (H/M) con las zonas de cada bloque en su color.
  *
  * Diseño: sketch 004, variante D (escultura + puntos con rótulo + fundido frente/espalda).
- * Coreografía "bloque a bloque": cada bloque enciende sus zonas con foco y se muestra de
- * frente y de espalda (fundido), empezando por la vista en la que quedó el anterior:
- * los cuerpos van alternando todo el tiempo (UAT 2026-10-05: antes quedaban de espaldas).
- * Al terminar queda en un loop de foco rotativo mientras el profe explica, hasta que
- * pasa al primer bloque (el server vuelve `screen` a `class`).
+ * Coreografía "bloque a bloque" (UAT 2026-10-05): cada bloque dura 8 s — enciende sus
+ * zonas con foco, 4 s de frente y 4 s de espalda (fundido). Al terminar quedan todas las
+ * zonas coloreadas alternando frente y espalda, hasta que el profe pasa al primer bloque
+ * (el server vuelve `screen` a `class`).
  *
  * Mismas reglas que `render.ts`: el DOM se arma UNA vez por contenido (clave = bloques) y
  * después solo se alternan clases; los textos del server entran por `textContent`; lo
@@ -17,7 +16,7 @@
  */
 
 import { createTvLogger } from '../logger';
-import type { TvRecorridoBloque, TvRecorridoPayload, TvZonaMuscular } from '../poll';
+import type { TvRecorridoBloque, TvRecorridoPayload } from '../poll';
 import { cargarAnatomia } from './anatomia';
 import type { Anatomia } from './anatomia';
 import {
@@ -26,11 +25,9 @@ import {
   Defs,
   FIGURAS,
   mezclar,
-  slugsDe,
   svgBase,
   svgBloque,
   svgCallout,
-  vistasConZonas,
   ZONA_ES,
 } from './figuras';
 import type { Caja, FiguraDef, Vista } from './figuras';
@@ -46,20 +43,15 @@ const T_ESCALON_FIGURAS = 220;
 const T_ENTRADA_FIGURAS = 1300;
 const T_FUNDIDO = 1500;
 const T_ESCALON_FUNDIDO = 120;
-const T_BLOQUE_PRIMERA_VISTA = 1700;
-const T_BLOQUE_SEGUNDA_VISTA = 1500;
-const T_RESUMEN = 1400;
-const T_ANTES_DEL_LOOP = 1200;
-/** En el loop, cuánto queda cada vista de un bloque (y del resumen con todos). */
-const T_VISTA_LOOP = 2600;
+/** Cada bloque dura 8 s: la mitad de frente y la mitad de espalda (fundido incluido).
+ *  El final alterna las vistas con el mismo ritmo. */
+const T_MEDIO_BLOQUE = 4000;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 interface Montaje {
   host: HTMLElement;
   bloques: TvRecorridoBloque[];
-  frente: Set<string>;
-  espalda: Set<string>;
   figs: HTMLElement[];
 }
 
@@ -238,8 +230,6 @@ function construir(host: HTMLElement, an: Anatomia, bloques: TvRecorridoBloque[]
   const m: Montaje = {
     host: host,
     bloques: bloques,
-    frente: slugsDe(an.mFront),
-    espalda: slugsDe(an.mBack),
     figs: figs,
   };
   medirYRotular(m, an);
@@ -284,17 +274,15 @@ async function cambiarVista(m: Montaje, v: Vista): Promise<void> {
 }
 
 /**
- * Vistas a mostrar para un bloque, empezando por la actual (así se alterna sin cortes):
- * las dos si tiene zonas de los dos lados; si solo de uno, esa; si no tiene zonas, la
- * otra vista igual — el cuerpo sigue girando durante toda la presentación.
+ * Pasa a la vista `v` (fundido incluido) y la sostiene hasta completar `ms` desde que se
+ * pidió: el fundido CUENTA dentro del tiempo de la vista, así cada mitad de bloque dura
+ * exactamente lo pactado.
  */
-function ordenDeVistas(m: Montaje, zonas: TvZonaMuscular[]): Vista[] {
-  const v = vistasConZonas(zonas, m.frente, m.espalda);
-  const otra: Vista = vista === 'frente' ? 'espalda' : 'frente';
-  if (v[vista] && v[otra]) return [vista, otra];
-  if (v[otra]) return [otra];
-  if (v[vista]) return [vista];
-  return [otra];
+async function sostener(m: Montaje, v: Vista, ms: number): Promise<void> {
+  const inicio = Date.now();
+  await cambiarVista(m, v);
+  const resto = ms - (Date.now() - inicio);
+  if (resto > 0) await espera(resto);
 }
 
 async function coreografia(m: Montaje, id: number): Promise<void> {
@@ -307,49 +295,22 @@ async function coreografia(m: Montaje, id: number): Promise<void> {
   await espera(T_ENTRADA_FIGURAS);
   if (!viva()) return;
 
-  // Bloque a bloque: foco + zonas, de frente y de espalda.
+  // Bloque a bloque (8 s cada uno): se encienden sus zonas con foco, 4 s de frente y
+  // 4 s de espalda.
   for (let i = 0; i < m.bloques.length; i++) {
-    const bloque = m.bloques[i];
-    if (!bloque) continue;
-    const orden = ordenDeVistas(m, bloque.zonas);
     encender(m, i);
     foco(m, i);
-    for (let k = 0; k < orden.length; k++) {
-      await cambiarVista(m, orden[k] as Vista);
-      if (!viva()) return;
-      await espera(k === 0 ? T_BLOQUE_PRIMERA_VISTA : T_BLOQUE_SEGUNDA_VISTA);
-      if (!viva()) return;
-    }
+    await sostener(m, 'frente', T_MEDIO_BLOQUE);
+    if (!viva()) return;
+    await sostener(m, 'espalda', T_MEDIO_BLOQUE);
+    if (!viva()) return;
   }
-  foco(m, null);
-  await espera(T_RESUMEN);
-  if (!viva()) return;
-  await cambiarVista(m, 'frente');
-  if (!viva()) return;
-  await espera(T_ANTES_DEL_LOOP);
 
-  // Loop de espera mientras el profe explica: foco rotativo, alternando vistas.
+  // Final, hasta que el profe pasa al primer bloque: todas las zonas coloreadas,
+  // alternando frente y espalda.
+  foco(m, null);
   while (viva()) {
-    for (let i = 0; i < m.bloques.length; i++) {
-      if (!viva()) return;
-      const bloque = m.bloques[i];
-      if (!bloque) continue;
-      foco(m, i);
-      for (const v of ordenDeVistas(m, bloque.zonas)) {
-        await cambiarVista(m, v);
-        if (!viva()) return;
-        await espera(T_VISTA_LOOP);
-        if (!viva()) return;
-      }
-    }
-    // Resumen con todos los bloques parejos: una vista y la otra.
-    foco(m, null);
-    for (let k = 0; k < 2; k++) {
-      await cambiarVista(m, vista === 'frente' ? 'espalda' : 'frente');
-      if (!viva()) return;
-      await espera(T_VISTA_LOOP);
-      if (!viva()) return;
-    }
+    await sostener(m, vista === 'frente' ? 'espalda' : 'frente', T_MEDIO_BLOQUE);
   }
 }
 
