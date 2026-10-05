@@ -294,8 +294,9 @@ export function slugsDe(grupos: GrupoAnatomico[]): Set<string> {
   return new Set(grupos.map((g) => g.slug));
 }
 
-/** Vistas donde el bloque tiene zonas EXCLUSIVAS (las que justifican pasar a la otra). */
-export function vistasExclusivas(
+/** Vistas en las que se ve alguna zona del bloque (las compartidas, como hombros o
+ *  antebrazos, cuentan para las dos). */
+export function vistasConZonas(
   zonas: TvZonaMuscular[],
   frente: Set<string>,
   espalda: Set<string>
@@ -303,8 +304,8 @@ export function vistasExclusivas(
   let f = false;
   let e = false;
   for (const z of zonas) {
-    if (frente.has(z) && !espalda.has(z)) f = true;
-    if (espalda.has(z) && !frente.has(z)) e = true;
+    if (frente.has(z)) f = true;
+    if (espalda.has(z)) e = true;
   }
   return { frente: f, espalda: e };
 }

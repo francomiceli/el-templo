@@ -10,7 +10,7 @@
  * Casos:
  *   (1) escribir `{screen:'recorrido'}` -> el poll devuelve `screen:'recorrido'`,
  *       `class:null`, `aviso:null` y `recorrido.bloques` SIN INITIUM, con
- *       DEUTEROS_1+2 agrupados y las zonas esperadas (solo prescripciones `main`,
+ *       DEUTEROS_1 y DEUTEROS_2 separados y las zonas esperadas (solo prescripciones `main`,
  *       union de niveles, tolera prescripciones sin fila en `exercises`).
  *   (2) el poll normal (`class`) trae `recorrido:null`; idle tambien.
  *   (3) salida: cambiar `blockRole` (sin `screen`) vuelve a 'class'; escribir
@@ -382,7 +382,7 @@ beforeEach(async () => {
 });
 
 describe("screen 'recorrido' — escritura y poll", () => {
-  it("(1) escribir screen:'recorrido' deja la fila lista y el poll trae los bloques sin INITIUM, con DEUTEROS agrupado", async () => {
+  it("(1) escribir screen:'recorrido' deja la fila lista y el poll trae los bloques sin INITIUM, con los DEUTEROS separados", async () => {
     await postState(coachToken, { branchId, blockRole: "INITIUM" });
 
     const writeRes = await postState(coachToken, {
@@ -405,15 +405,17 @@ describe("screen 'recorrido' — escritura y poll", () => {
     expect(body.recorrido).not.toBeNull();
 
     const bloques = body.recorrido!.bloques;
-    // INITIUM fuera; DEUTEROS_1+DEUTEROS_2 = UN item.
+    // INITIUM fuera; los deuteros van SIEMPRE separados (dos items).
     expect(bloques.map((b) => b.role)).toEqual([
       "NUCLEUS",
       "DEUTEROS_1",
+      "DEUTEROS_2",
       "EPIKOS",
     ]);
     expect(bloques.map((b) => b.title)).toEqual([
       "NUCLEUS",
-      "DEUTEROS",
+      "DEUTEROS I",
+      "DEUTEROS II",
       "EPIKOS",
     ]);
 
@@ -423,21 +425,20 @@ describe("screen 'recorrido' — escritura y poll", () => {
     expect(bloques[0].zonas).toEqual(["chest", "deltoids", "triceps"]);
     expect(bloques[0].subtitle).toBe("Handstand Push Up");
 
-    // DEUTEROS: pullV + kneeD (+ ISQUIOS secundaria -> hamstring).
-    expect(bloques[1].zonas).toEqual([
-      "biceps",
-      "forearm",
-      "upper-back",
+    // DEUTEROS I: pullV. DEUTEROS II: kneeD (+ ISQUIOS secundaria -> hamstring).
+    expect(bloques[1].zonas).toEqual(["biceps", "forearm", "upper-back"]);
+    expect(bloques[1].subtitle).toBe("Dominadas");
+    expect(bloques[2].zonas).toEqual([
       "gluteal",
       "quadriceps",
       "hamstring",
       "adductors",
     ]);
-    expect(bloques[1].subtitle).toBe("Dominadas · Sissy Squat");
+    expect(bloques[2].subtitle).toBe("Sissy Squat");
 
     // EPIKOS: core + ruta TTB; la prescripcion huerfana no rompe nada.
-    expect(bloques[2].zonas).toEqual(["abs", "obliques"]);
-    expect(bloques[2].subtitle).toBe("Toe to Bar");
+    expect(bloques[3].zonas).toEqual(["abs", "obliques"]);
+    expect(bloques[3].subtitle).toBe("Toe to Bar");
   });
 
   it("(1c) el recorrido sigue al par de niveles en pantalla (sigma/kairos)", async () => {
@@ -463,6 +464,7 @@ describe("screen 'recorrido' — escritura y poll", () => {
     expect(bloques.map((b) => b.role)).toEqual([
       "NUCLEUS",
       "DEUTEROS_1",
+      "DEUTEROS_2",
       "EPIKOS",
     ]);
     for (const b of bloques) expect(b.zonas).toEqual([]);
@@ -550,7 +552,7 @@ describe("screen 'recorrido' — salida", () => {
     expect(res.statusCode, res.body).toBe(200);
     const body = await poll();
     expect(body.screen).toBe("recorrido");
-    expect(body.recorrido!.bloques).toHaveLength(3);
+    expect(body.recorrido!.bloques).toHaveLength(4);
   });
 
   it("(3f) end-class borra la fila (idempotente) tambien estando en 'recorrido'", async () => {
@@ -720,7 +722,7 @@ describe("screen 'recorrido' — tenant", () => {
       // Y el poll propio sigue intacto.
       const body = await poll();
       expect(body.screen).toBe("recorrido");
-      expect(body.recorrido!.bloques).toHaveLength(3);
+      expect(body.recorrido!.bloques).toHaveLength(4);
     } finally {
       await limpiarSegundoGimnasio(app);
     }

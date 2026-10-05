@@ -279,11 +279,12 @@ export type TvZonaMuscular =
   | "adductors"
   | "calves";
 
-/** Un item del recorrido: un GRUPO VISUAL de bloques (DEUTEROS 1+2 = un item). */
+/** Un item del recorrido: un bloque (con su `_ALT`, si tiene). Los deuteros
+ *  van siempre separados: DEUTEROS I y DEUTEROS II son dos items. */
 export interface TvRecorridoBloque {
-  /** Rol representativo del grupo visual (el primero, ej. "DEUTEROS_1"). */
+  /** Rol del bloque (con `_ALT`, el principal, ej. "COMBOS_II"). */
   role: string;
-  /** Rotulo como lo muestra la TV (ej. "NUCLEUS", "DEUTEROS", "KINESIS", "TREN INFERIOR"). */
+  /** Rotulo como lo muestra la TV (ej. "NUCLEUS", "DEUTEROS I", "KINESIS", "TREN INFERIOR"). */
   title: string;
   /** Rutas del bloque (`getRouteLabel`) distintas, unidas con " · "; `null` si no hay ruta "de ejercicio". */
   subtitle: string | null;

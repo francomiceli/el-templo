@@ -4,10 +4,11 @@
  * dos cuerpos de mármol (H/M) con las zonas de cada bloque en su color.
  *
  * Diseño: sketch 004, variante D (escultura + puntos con rótulo + fundido frente/espalda).
- * Coreografía "bloque a bloque": cada bloque enciende sus zonas con foco; pasa a la
- * espalda (fundido) solo si el bloque tiene zonas que únicamente se ven de atrás. Al
- * terminar queda en un loop de foco rotativo mientras el profe explica, hasta que pasa
- * al primer bloque (el server vuelve `screen` a `class`).
+ * Coreografía "bloque a bloque": cada bloque enciende sus zonas con foco y se muestra de
+ * frente y de espalda (fundido), empezando por la vista en la que quedó el anterior:
+ * los cuerpos van alternando todo el tiempo (UAT 2026-10-05: antes quedaban de espaldas).
+ * Al terminar queda en un loop de foco rotativo mientras el profe explica, hasta que
+ * pasa al primer bloque (el server vuelve `screen` a `class`).
  *
  * Mismas reglas que `render.ts`: el DOM se arma UNA vez por contenido (clave = bloques) y
  * después solo se alternan clases; los textos del server entran por `textContent`; lo
@@ -29,7 +30,7 @@ import {
   svgBase,
   svgBloque,
   svgCallout,
-  vistasExclusivas,
+  vistasConZonas,
   ZONA_ES,
 } from './figuras';
 import type { Caja, FiguraDef, Vista } from './figuras';
@@ -37,7 +38,7 @@ import type { Caja, FiguraDef, Vista } from './figuras';
 const log = createTvLogger('recorrido');
 
 /** Alto del cuerpo masculino en rem (1rem = 1% del ancho del TV; el marco mide 56.25rem). */
-const ALTO_FIGURA_REM = 51.5;
+const ALTO_FIGURA_REM = 50;
 
 // Tiempos de la coreografía (ms), calibrados en el sketch 004.
 const T_PAUSA_INICIAL = 250;
@@ -49,8 +50,8 @@ const T_BLOQUE_PRIMERA_VISTA = 1700;
 const T_BLOQUE_SEGUNDA_VISTA = 1500;
 const T_RESUMEN = 1400;
 const T_ANTES_DEL_LOOP = 1200;
-const T_FOCO = 3400;
-const T_TODOS = 2600;
+/** En el loop, cuánto queda cada vista de un bloque (y del resumen con todos). */
+const T_VISTA_LOOP = 2600;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -282,8 +283,18 @@ async function cambiarVista(m: Montaje, v: Vista): Promise<void> {
   await espera(T_FUNDIDO + T_ESCALON_FUNDIDO);
 }
 
-function exclusivas(m: Montaje, zonas: TvZonaMuscular[]): { frente: boolean; espalda: boolean } {
-  return vistasExclusivas(zonas, m.frente, m.espalda);
+/**
+ * Vistas a mostrar para un bloque, empezando por la actual (así se alterna sin cortes):
+ * las dos si tiene zonas de los dos lados; si solo de uno, esa; si no tiene zonas, la
+ * otra vista igual — el cuerpo sigue girando durante toda la presentación.
+ */
+function ordenDeVistas(m: Montaje, zonas: TvZonaMuscular[]): Vista[] {
+  const v = vistasConZonas(zonas, m.frente, m.espalda);
+  const otra: Vista = vista === 'frente' ? 'espalda' : 'frente';
+  if (v[vista] && v[otra]) return [vista, otra];
+  if (v[otra]) return [otra];
+  if (v[vista]) return [vista];
+  return [otra];
 }
 
 async function coreografia(m: Montaje, id: number): Promise<void> {
@@ -296,15 +307,11 @@ async function coreografia(m: Montaje, id: number): Promise<void> {
   await espera(T_ENTRADA_FIGURAS);
   if (!viva()) return;
 
-  // Bloque a bloque: foco + zonas; pasa a la otra vista solo si el bloque lo pide.
+  // Bloque a bloque: foco + zonas, de frente y de espalda.
   for (let i = 0; i < m.bloques.length; i++) {
     const bloque = m.bloques[i];
     if (!bloque) continue;
-    const ve = exclusivas(m, bloque.zonas);
-    const otra: Vista = vista === 'frente' ? 'espalda' : 'frente';
-    let orden: Vista[] = [vista];
-    if (!ve[vista] && ve[otra]) orden = [otra];
-    else if (ve[vista] && ve[otra]) orden = [vista, otra];
+    const orden = ordenDeVistas(m, bloque.zonas);
     encender(m, i);
     foco(m, i);
     for (let k = 0; k < orden.length; k++) {
@@ -321,23 +328,28 @@ async function coreografia(m: Montaje, id: number): Promise<void> {
   if (!viva()) return;
   await espera(T_ANTES_DEL_LOOP);
 
-  // Loop de espera mientras el profe explica: foco rotativo, cambia de vista si hace falta.
+  // Loop de espera mientras el profe explica: foco rotativo, alternando vistas.
   while (viva()) {
     for (let i = 0; i < m.bloques.length; i++) {
       if (!viva()) return;
       const bloque = m.bloques[i];
       if (!bloque) continue;
-      const ve = exclusivas(m, bloque.zonas);
-      if (!ve[vista] && (ve.frente || ve.espalda)) {
-        await cambiarVista(m, vista === 'frente' ? 'espalda' : 'frente');
+      foco(m, i);
+      for (const v of ordenDeVistas(m, bloque.zonas)) {
+        await cambiarVista(m, v);
+        if (!viva()) return;
+        await espera(T_VISTA_LOOP);
         if (!viva()) return;
       }
-      foco(m, i);
-      await espera(T_FOCO);
     }
-    if (!viva()) return;
+    // Resumen con todos los bloques parejos: una vista y la otra.
     foco(m, null);
-    await espera(T_TODOS);
+    for (let k = 0; k < 2; k++) {
+      await cambiarVista(m, vista === 'frente' ? 'espalda' : 'frente');
+      if (!viva()) return;
+      await espera(T_VISTA_LOOP);
+      if (!viva()) return;
+    }
   }
 }
 

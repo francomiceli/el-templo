@@ -43,7 +43,7 @@ export type TvZonaMuscular =
   | 'adductors'
   | 'calves';
 
-/** Un grupo visual de la clase (DEUTEROS I+II juntos, `_ALT` con su bloque). */
+/** Un bloque de la clase (`_ALT` unido a su bloque; DEUTEROS I y II separados). */
 export interface TvRecorridoBloque {
   role: string;
   title: string;

@@ -2695,8 +2695,10 @@ onUnmounted(() => {
   height: 0;
 }
 #tvScreenRoot .recTexto {
-  width: 31rem;
-  padding-left: 5.5rem;
+  /* Angosta a propósito: los rótulos de la cadera del cuerpo masculino salen
+     hacia la izquierda y no pueden pisar la leyenda (UAT 2026-10-05). */
+  width: 28.5rem;
+  padding-left: 4.5rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -2774,7 +2776,7 @@ onUnmounted(() => {
 }
 #tvScreenRoot .recPie {
   position: absolute;
-  left: 5.5rem;
+  left: 4.5rem;
   bottom: 2.6rem;
   font-family: var(--nunito);
   font-size: 0.95rem;
@@ -2792,7 +2794,8 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 0 9rem 2.4rem 2rem;
+  /* Aire a los dos lados para los rótulos (izquierda: el hombre, derecha: la mujer). */
+  padding: 0 7rem 2.4rem 6.5rem;
 }
 #tvScreenRoot .recFig {
   position: relative;

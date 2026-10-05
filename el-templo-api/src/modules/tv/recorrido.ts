@@ -7,15 +7,15 @@
  * Reglas:
  *  - Se recorre el roster del dia (`buildRoster`, el MISMO que usa la TV) en
  *    orden, SIN INITIUM (PYROS): el recorrido se lanza justamente desde ahi.
- *  - Se agrupa por grupo visual (`visualGroupOf`): DEUTEROS_1+DEUTEROS_2 es UN
- *    item, `*_II` + `*_II_ALT` tambien. `role` es el primero del grupo.
+ *  - Se agrupa por grupo visual (`visualGroupOf`): `*_II` + `*_II_ALT` es UN
+ *    item (la alternativa es otro camino del mismo bloque). EXCEPCION: los
+ *    deuteros van SIEMPRE desagregados (pedido 2026-10-05) — DEUTEROS_1 y
+ *    DEUTEROS_2 trabajan cosas distintas y cada uno lleva su color.
+ *    `role` es el primero del grupo.
  *  - `title`: el rotulo que la TV ya le pone al bloque, o sea la etiqueta de
  *    `roster.title` (todo lo que va antes del " · FORMATO" de `blockTitle`,
- *    que respeta ATHLOS/EPIKOS por bloque). El roster no tiene un rotulo de
- *    GRUPO, asi que para DEUTEROS se le quita el numeral final (" I"/" II")
- *    del primer rol: "DEUTEROS I" -> "DEUTEROS". El resto de los grupos
- *    conserva su rotulo tal cual ("COMBOS II", "TÉCNICA I", "KINESIS", "TREN
- *    INFERIOR"): ahi el numeral es parte del nombre, no una variante.
+ *    que respeta ATHLOS/EPIKOS por bloque): "DEUTEROS I", "COMBOS II",
+ *    "KINESIS", "TREN INFERIOR".
  *  - `subtitle`: rutas de los bloques del grupo (todos los niveles), con
  *    `getRouteLabel`, distintas, unidas con " · ". `null` en roles sin ruta "de
  *    ejercicio" (INITIUM/STRETCHING/ROM_*: en ROM la ruta es el propio rol).
@@ -44,12 +44,15 @@ function hasExerciseRoute(role: string): boolean {
   );
 }
 
-/** Rotulo del grupo visual a partir del `title` del primer rol del roster. */
-function groupTitle(group: string, firstTitle: string): string {
-  const label = firstTitle.split(TITLE_SEPARATOR)[0];
-  // DEUTEROS I/II son caminos del mismo bloque: el rotulo del grupo no lleva numeral.
-  if (group === "DEUTEROS") return label.replace(/\s+(I|II)$/, "");
-  return label;
+/** Rotulo del item a partir del `title` del primer rol del roster. */
+function groupTitle(firstTitle: string): string {
+  return firstTitle.split(TITLE_SEPARATOR)[0];
+}
+
+/** Clave de agrupacion: el grupo visual, salvo los deuteros (siempre separados). */
+function recorridoGroupOf(role: string): string {
+  if (role === "DEUTEROS_1" || role === "DEUTEROS_2") return role;
+  return visualGroupOf(role);
 }
 
 export function buildRecorrido(
@@ -63,7 +66,7 @@ export function buildRecorrido(
   const groups = new Map<string, { roles: string[]; firstTitle: string }>();
   for (const entry of roster) {
     if (entry.role === "INITIUM") continue;
-    const key = visualGroupOf(entry.role);
+    const key = recorridoGroupOf(entry.role);
     const group = groups.get(key);
     if (group) group.roles.push(entry.role);
     else groups.set(key, { roles: [entry.role], firstTitle: entry.title });
@@ -112,7 +115,7 @@ export function buildRecorrido(
 
     bloques.push({
       role: group.roles[0],
-      title: groupTitle(key, group.firstTitle),
+      title: groupTitle(group.firstTitle),
       subtitle: routes.length > 0 ? routes.join(TITLE_SEPARATOR) : null,
       zonas: zonasDelGrupo(ejercicios, group.roles),
     });
