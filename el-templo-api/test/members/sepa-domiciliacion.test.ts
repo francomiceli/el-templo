@@ -9,6 +9,8 @@
  *  - GET /admin/members/export-sepa → solo sedes ES, activos-en-vivo por
  *    default (EXISTS sobre subscriptions), status=todos incluye inactivos,
  *    403 para roles sin permiso y para scope de país ≠ ES.
+ *  - Fase 194 D-25: columnas Importe/Moneda (price_paid de la membresía vigente,
+ *    descuento incluido) y el plan nunca es uno `is_trial` (invitación).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
@@ -29,6 +31,12 @@ import * as schema from "../../src/db/schema";
 // siembra en el gimnasio 2.
 import { tenantWhere } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import {
+  createActiveSub,
+  createMembershipPlan,
+  createTrialPlan,
+  fixtureCtx,
+} from "../invitations/_helpers";
 
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
@@ -342,5 +350,134 @@ describe("Domiciliación bancaria (SEPA)", () => {
   it("export como admin AR → 403 (scope de país)", async () => {
     const { statusCode } = await exportSocios(arAdminToken);
     expect(statusCode).toBe(403);
+  });
+
+  // ─── Fase 194 D-25: Importe / Moneda y planes is_trial ───────────────
+
+  interface SepaRowView {
+    socio: string;
+    plan: string;
+    importe: unknown;
+    moneda: string;
+  }
+
+  /** Lee el xlsx POR HEADER (no por posición): las columnas nuevas van al final. */
+  async function exportRows(
+    token: string,
+    query = "",
+  ): Promise<{ headers: string[]; rows: SepaRowView[] }> {
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/admin/members/export-sepa${query}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const wb = new Workbook();
+    await wb.xlsx.load(
+      res.rawPayload as unknown as Parameters<Workbook["xlsx"]["load"]>[0],
+    );
+    const sheet = wb.worksheets[0];
+    const headers: string[] = [];
+    sheet.getRow(1).eachCell((cell) => headers.push(String(cell.value ?? "")));
+    const col = (name: string): number => headers.indexOf(name) + 1;
+    const rows: SepaRowView[] = [];
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      rows.push({
+        socio: String(row.getCell(col("Socio")).value ?? ""),
+        plan: String(row.getCell(col("Plan")).value ?? ""),
+        importe: row.getCell(col("Importe")).value,
+        moneda: String(row.getCell(col("Moneda")).value ?? ""),
+      });
+    });
+    return { headers, rows };
+  }
+
+  it("export: Importe y Moneda al final, con el price_paid de la membresía vigente", async () => {
+    const ctx = fixtureCtx(app);
+    const plan = await createMembershipPlan(ctx, {
+      country: "ES",
+      name: "Presencial ES D25",
+    });
+    const member = await createTestMember(app, {
+      firstName: "Marta",
+      lastName: "ConDescuento",
+      branchId: esBranchId,
+    });
+    await createActiveSub(ctx, {
+      userId: member.id,
+      planId: plan.id,
+      pricePaid: 58500,
+    });
+
+    const { headers, rows } = await exportRows(esAdminToken);
+    // Las 11 columnas históricas no se reordenan: Importe/Moneda al final.
+    expect(headers.slice(-3)).toEqual(["Pais", "Importe", "Moneda"]);
+    expect(headers[0]).toBe("Socio");
+    const row = rows.find((r) => r.socio === "Marta ConDescuento");
+    expect(row).toBeDefined();
+    expect(row?.plan).toBe("Presencial ES D25");
+    expect(Number(row?.importe)).toBe(58500);
+    expect(row?.moneda).toBe("EUR");
+  });
+
+  it("export: con presencial + sub is_trial más reciente, Plan e Importe son los de la presencial", async () => {
+    const ctx = fixtureCtx(app);
+    const plan = await createMembershipPlan(ctx, {
+      country: "ES",
+      name: "Presencial ES D25b",
+    });
+    const trial = await createTrialPlan(ctx, {
+      country: "ES",
+      name: "Invitación ES D25b",
+    });
+    const member = await createTestMember(app, {
+      firstName: "Pablo",
+      lastName: "ConInvitacion",
+      branchId: esBranchId,
+    });
+    await createActiveSub(ctx, {
+      userId: member.id,
+      planId: plan.id,
+      pricePaid: 4200,
+      createdAt: new Date(Date.now() - 24 * 3600 * 1000),
+    });
+    await createActiveSub(ctx, {
+      userId: member.id,
+      planId: trial.id,
+      pricePaid: 0,
+      createdAt: new Date(),
+    });
+
+    const { rows } = await exportRows(esAdminToken);
+    const row = rows.find((r) => r.socio === "Pablo ConInvitacion");
+    expect(row).toBeDefined();
+    expect(row?.plan).toBe("Presencial ES D25b");
+    expect(Number(row?.importe)).toBe(4200);
+    expect(row?.moneda).toBe("EUR");
+  });
+
+  it("export: un invitado ES con SOLO una sub is_trial no aparece por default; con status=todos figura sin plan ni importe", async () => {
+    const ctx = fixtureCtx(app);
+    const trial = await createTrialPlan(ctx, {
+      country: "ES",
+      name: "Invitación ES D25c",
+    });
+    const guest = await createTestMember(app, {
+      firstName: "Ines",
+      lastName: "Invitada",
+      branchId: esBranchId,
+    });
+    await createActiveSub(ctx, { userId: guest.id, planId: trial.id });
+
+    const porDefecto = await exportRows(esAdminToken);
+    expect(porDefecto.rows.map((r) => r.socio)).not.toContain("Ines Invitada");
+
+    const todos = await exportRows(esAdminToken, "?status=todos");
+    const row = todos.rows.find((r) => r.socio === "Ines Invitada");
+    expect(row).toBeDefined();
+    expect(row?.plan).toBe("Sin plan");
+    expect(row?.importe ?? null).toBeNull();
+    expect(row?.plan).not.toBe("Invitación ES D25c");
   });
 });

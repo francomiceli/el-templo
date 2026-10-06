@@ -2557,12 +2557,26 @@ export class MemberService {
     }
 
     // Fase 173-19: `sp.tenant_id`/`s.tenant_id` inline.
-    const planNameSubquery = sql<string | null>`(
-      SELECT sp.name FROM subscriptions s
+    // Fase 194 D-03/D-25: la sub que se exporta es la MEMBRESÍA vigente
+    // (`membershipInEffectSql`: active/paused, arrancada, no vencida y de un plan
+    // que NO es `is_trial`), nunca el acceso de una invitación. Plan, importe y
+    // moneda salen de la MISMA sub: un solo FROM/WHERE/ORDER compartido por las
+    // tres subqueries escalares (MySQL no devuelve 2 columnas desde un escalar;
+    // el `s.id DESC` desempata dos subs creadas en el mismo segundo para que las
+    // tres elijan siempre la misma fila).
+    const currentMembershipFrom = sql`FROM subscriptions s
       JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
-      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
-      ORDER BY s.created_at DESC LIMIT 1
-    )`;
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND ${membershipInEffectSql("s")}
+      ORDER BY s.created_at DESC, s.id DESC LIMIT 1`;
+    const planNameSubquery = sql<
+      string | null
+    >`(SELECT sp.name ${currentMembershipFrom})`;
+    const amountSubquery = sql<
+      number | null
+    >`(SELECT s.price_paid ${currentMembershipFrom})`;
+    const currencySubquery = sql<
+      string | null
+    >`(SELECT s.currency ${currentMembershipFrom})`;
 
     const rows = await this.db
       .select({
@@ -2571,6 +2585,8 @@ export class MemberService {
         email: schema.users.email,
         branchName: schema.branches.name,
         planName: planNameSubquery,
+        amount: amountSubquery,
+        currency: currencySubquery,
         debtorName: schema.userSepaDetails.debtorName,
         nif: schema.userSepaDetails.nif,
         iban: schema.userSepaDetails.iban,
@@ -2604,6 +2620,9 @@ export class MemberService {
       socio: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
       email: r.email ?? "",
       plan: r.planName ?? "Sin plan",
+      // Fase 194 D-25: importe registrado por el sistema (descuento incluido).
+      amount: r.amount === null ? null : Number(r.amount),
+      currency: r.currency,
       sucursal: r.branchName,
       deudor: r.debtorName ?? "",
       nif: r.nif ?? "",

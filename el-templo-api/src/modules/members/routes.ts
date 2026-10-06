@@ -375,6 +375,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         { header: "Codigo Postal", key: "codigoPostal", width: 14 },
         { header: "Poblacion", key: "poblacion", width: 20 },
         { header: "Pais", key: "pais", width: 8 },
+        // Fase 194 D-25: importe registrado por el sistema (descuento incluido),
+        // informativo para Leandro. Van al FINAL: no se reordenan las columnas
+        // existentes porque Leandro ya usa el archivo.
+        { header: "Importe", key: "importe", width: 12 },
+        { header: "Moneda", key: "moneda", width: 9 },
       ];
 
       const headerRow = sheet.getRow(1);
@@ -385,8 +390,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         fgColor: { argb: "FFE0E0E0" },
       };
 
-      for (const row of rows) {
-        const added = sheet.addRow(row);
+      for (const { amount, currency, ...row } of rows) {
+        const added = sheet.addRow({
+          ...row,
+          importe: amount,
+          moneda: currency ?? "",
+        });
         // Marca visual: sin IBAN o sin deudor el banco rechaza la fila —
         // resaltarla evita que un socio activo quede sin debitar en el mes.
         if (!row.iban || !row.deudor) {

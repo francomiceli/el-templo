@@ -474,6 +474,13 @@ export interface SepaExportRow {
   socio: string;
   email: string;
   plan: string;
+  /**
+   * Fase 194 D-25: `price_paid` de la membresía vigente (descuento incluido),
+   * en la unidad que registra el sistema; `null` si el socio no tiene una.
+   */
+  amount: number | null;
+  /** Moneda de esa misma sub (ej. `EUR`); `null` si no hay membresía vigente. */
+  currency: string | null;
   sucursal: string;
   deudor: string;
   nif: string;
