@@ -50,9 +50,13 @@ export interface StaffAttendanceClosedShift extends StaffAttendanceShift {
   durationMinutes: number;
 }
 
-/** Valores del checklist al cerrar jornada — las 3 claves fijas del contrato. */
+/**
+ * Valores del checklist al cerrar jornada — las 3 claves fijas del contrato.
+ * `cobros` es opcional al ENVIAR: un rol sin plata (coach_actividad, 2026-10-06)
+ * no lo tiene en su checklist. En el registro llega `null` para esas jornadas.
+ */
 export interface StaffAttendanceChecklistValues {
-  cobros: boolean;
+  cobros?: boolean | null;
   espacio: boolean;
   /** Lote del posnet: solo miércoles y sábados (lo decide el server por sede). */
   lote?: boolean;

@@ -233,15 +233,26 @@ const roleOptions = [
   // 2026-09-08 (API mig 0225): admin_sede de sucursal. Lleva sedes operativas
   // (user_branches) como coach/recepción y NO lleva País.
   { label: 'Admin sede', value: 'admin_sede' },
+  // 2026-10-06 (API mig 0258): profe de actividad (yoga) SIN plata. Lleva sedes
+  // operativas (user_branches) como coach y NO lleva País.
+  { label: 'Profe de actividad (sin cobros)', value: 'coach_actividad' },
 ];
 
-const BRANCH_ROLES = new Set(['admin', 'coach', 'gestion', 'recepcion', 'tv', 'admin_sede']);
+const BRANCH_ROLES = new Set([
+  'admin',
+  'coach',
+  'gestion',
+  'recepcion',
+  'tv',
+  'admin_sede',
+  'coach_actividad',
+]);
 const needsBranch = computed(() => BRANCH_ROLES.has(form.value.role));
 
 // Phase 110 D-11: roles that need País selector (country-wide scope).
 const COUNTRY_ROLES = new Set(['admin', 'gestion']);
 // Phase 110 D-11: roles that need multi-sede selector (per-branch scope).
-const OPERATIONAL_BRANCH_ROLES = new Set(['coach', 'recepcion', 'admin_sede']);
+const OPERATIONAL_BRANCH_ROLES = new Set(['coach', 'recepcion', 'admin_sede', 'coach_actividad']);
 
 const needsCountry = computed(() => COUNTRY_ROLES.has(form.value.role));
 const needsOperationalBranches = computed(() => OPERATIONAL_BRANCH_ROLES.has(form.value.role));
@@ -259,6 +270,7 @@ const ROLE_COLORS: Record<string, string> = {
   recepcion: 'pink',
   tv: 'grey-8',
   admin_sede: 'green-8',
+  coach_actividad: 'cyan-8',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -269,6 +281,7 @@ const ROLE_LABELS: Record<string, string> = {
   recepcion: 'Recepcion',
   tv: 'Televisor',
   admin_sede: 'Admin sede',
+  coach_actividad: 'Profe actividad',
 };
 
 // =========================================================================
@@ -473,7 +486,8 @@ async function handleSave() {
           | 'gestion'
           | 'recepcion'
           | 'tv'
-          | 'admin_sede',
+          | 'admin_sede'
+          | 'coach_actividad',
         branchId,
       };
       if (countryRequired && form.value.country) {

@@ -19,7 +19,7 @@
  *                                          scope.country=null por corrupción de
  *                                          datos, esto es siempre false →
  *                                          default-deny lateral)
- *       4. coach/recepción/admin_sede in branchIds → true
+ *       4. coach/coach_actividad/recepción/admin_sede in branchIds → true
  *       5. member same branch           → true (branchId === scope.userBranchId)
  *       6. default                      → false
  *   - requireBranchAccess({ from, optional? }): Fastify preHandler factory.
@@ -88,7 +88,11 @@ import { and, eq } from "drizzle-orm";
 import { assertTenant, tenantWhere, type TenantContext } from "./tenant";
 import { resolveBranchDelGimnasio } from "./branch-consistency";
 import { AppError, NotFoundError } from "./errors";
-import { ADMIN_SEDE_ROLE, TV_ACCOUNT_ROLE } from "./permissions";
+import {
+  ADMIN_SEDE_ROLE,
+  isCoachLikeRole,
+  TV_ACCOUNT_ROLE,
+} from "./permissions";
 
 export const BRANCH_OUT_OF_SCOPE = "BRANCH_OUT_OF_SCOPE";
 
@@ -189,12 +193,14 @@ export async function canAccessBranch(
     return scope.country !== null && branch.country === scope.country;
   }
 
-  // Rule 4: coach/recepción/admin_sede — branch must be in operational set.
+  // Rule 4: coach/coach_actividad/recepción/admin_sede — branch must be in operational set.
+  // `coach_actividad` (2026-10-06, migración 0258) es un coach sin plata: mismo
+  // mecanismo (`user_branches`), resuelto vía `isCoachLikeRole`.
   // `admin_sede` (2026-09-08, migración 0225) usa EXACTAMENTE el mismo mecanismo
   // que coach/recepción (`user_branches`), pero además tiene alcance FORZADO
   // en los listados — ver `enforcedBranchIds` / `enforceBranchScope` abajo.
   if (
-    scope.role === "coach" ||
+    isCoachLikeRole(scope.role) ||
     scope.role === "recepcion" ||
     scope.role === ADMIN_SEDE_ROLE
   ) {
@@ -309,7 +315,7 @@ export function requireBranchAccess(opts: {
 //   - `branchId` ausente, 0 sedes  → 403 BRANCH_OUT_OF_SCOPE (fail-closed).
 //   - `branchId` ausente, N sedes  → 400 BRANCH_REQUIRED (que elija cuál).
 //
-// POR QUÉ NO SE APLICA A coach/recepción. Hoy esos roles tienen el mismo gap
+// POR QUÉ NO SE APLICA A coach/coach_actividad/recepción. Hoy esos roles tienen el mismo gap
 // (omiten `branchId` y ven el país). Cerrarlo acá regresionaría a recepción, que
 // es un flujo vivo en producción — queda documentado como deuda preexistente y
 // NO se toca en este cambio.

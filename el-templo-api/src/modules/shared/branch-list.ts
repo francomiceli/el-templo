@@ -11,7 +11,7 @@
  * Reglas (espejo de `canAccessBranch`, `branch-access.ts`):
  *   - owner: todas; con `?country=` filtra por país (D-08).
  *   - admin/gestion: las de su país (+ virtuales). `country` null → solo virtuales.
- *   - coach/recepcion: `user_branches` (+ virtuales).
+ *   - coach/coach_actividad/recepcion: `user_branches` (+ virtuales).
  *   - admin_sede: `user_branches`, SIN virtuales (su alcance es su sede física —
  *     ver `enforcedBranchIds`, branch-access.ts).
  *   - tv: TODAS las del gimnasio (Regla 2b) — sin `user_branches`.
@@ -24,7 +24,11 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { assertTenant, tenantWhere } from "./tenant";
 import type { CountryScope } from "./country-scope";
-import { ADMIN_SEDE_ROLE, TV_ACCOUNT_ROLE } from "./permissions";
+import {
+  ADMIN_SEDE_ROLE,
+  isCoachLikeRole,
+  TV_ACCOUNT_ROLE,
+} from "./permissions";
 
 export interface BranchListItem {
   id: number;
@@ -72,7 +76,7 @@ export async function listBranchesForScope(
     // scope.country null (fail-closed por datos corruptos) degenera a
     // solo-virtuales — consistente con canAccessBranch Regla 3.
     filtered = allRows.filter((b) => b.isVirtual || b.country === country);
-  } else if (role === "coach" || role === "recepcion") {
+  } else if (isCoachLikeRole(role) || role === "recepcion") {
     const allowed = new Set(branchIds);
     filtered = allRows.filter((b) => b.isVirtual || allowed.has(b.id));
   } else if (role === ADMIN_SEDE_ROLE) {

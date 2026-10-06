@@ -60,8 +60,9 @@ export class RatingsService {
   // ─── Roster (owner/coach write) ────────────────────────────────────────────
 
   /**
-   * Coaches assignable to a branch: users with role 'coach' that have a
-   * user_branches row for the branch.
+   * Coaches assignable to a branch: users with role 'coach' or 'coach_actividad'
+   * (2026-10-06: profe de actividad, p. ej. yoga) that have a user_branches row
+   * for the branch.
    *
    * Fase 173 (D-02, plan 173-07): `ctx` PRIMERO, filtra `users` y
    * `user_branches` — ambas son anclas que ADO-07 protege.
@@ -87,7 +88,7 @@ export class RatingsService {
       .where(
         and(
           tenantWhere(schema.users, ctx),
-          eq(schema.users.role, "coach"),
+          inArray(schema.users.role, ["coach", "coach_actividad"]),
           eq(schema.userBranches.branchId, branchId),
         ),
       )
@@ -201,7 +202,7 @@ export class RatingsService {
         and(
           tenantWhere(schema.users, ctx),
           eq(schema.users.id, coachId),
-          eq(schema.users.role, "coach"),
+          inArray(schema.users.role, ["coach", "coach_actividad"]),
           eq(schema.userBranches.branchId, branchId),
         ),
       )

@@ -19,6 +19,7 @@ import {
   type MemberSeniority,
 } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
+import { isCoachLikeRole } from "../shared/permissions";
 import { memberCoveredUntilSql } from "../shared/covered-until";
 import {
   tenantWhere,
@@ -90,7 +91,8 @@ export class AttendanceService {
 
     const tz = branchRow.timezone;
 
-    // Coach self-scan branch (D-Q2). A user with role 'coach' uses the member
+    // Coach self-scan branch (D-Q2). A user with role 'coach' (o 'coach_actividad',
+    // 2026-10-06: profe de actividad sin plata, mismo flujo de asistencia) uses the member
     // check-in flow to register their OWN attendance, validated against their
     // assigned branch(es) in user_branches. This is operational attendance for
     // the coach — independent of rating attribution (which comes from the
@@ -105,7 +107,7 @@ export class AttendanceService {
         and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)),
       );
 
-    if (scanningUser?.role === "coach") {
+    if (scanningUser && isCoachLikeRole(scanningUser.role)) {
       return this.coachSelfScan(ctx, memberId, branchId, tz);
     }
 

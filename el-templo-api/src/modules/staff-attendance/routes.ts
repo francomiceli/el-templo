@@ -62,7 +62,11 @@ export const staffAttendanceRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "staff-attendance.me");
-        const result = await service.getMe(ctx, request.user.userId);
+        const result = await service.getMe(
+          ctx,
+          request.user.userId,
+          request.user.role,
+        );
         return reply.send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "staff attendance me");
@@ -123,6 +127,7 @@ export const staffAttendanceRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.userId,
           request.body.qrToken,
           request.body.checklist,
+          request.user.role,
         );
         return reply.send({ shift });
       } catch (err: unknown) {

@@ -19,7 +19,15 @@
       <q-space />
       <div class="row no-wrap q-gutter-x-sm justify-end items-center">
         <!-- ALUM-01 (D-01): acciones secundarias degradadas (flat/outline, dense) -->
-        <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
+        <q-btn
+          v-if="!financeBlind"
+          icon="download"
+          color="grey-7"
+          flat
+          round
+          :loading="exporting"
+          @click="onExport"
+        >
           <q-tooltip>Exportar a Excel</q-tooltip>
         </q-btn>
         <!-- Domiciliación bancaria (España): archivo mensual para el banco.
@@ -49,6 +57,7 @@
         </q-btn>
         <!-- ALUM-01 (D-01): "Crear alumno" es la acción primaria prominente (no-dense) -->
         <q-btn
+          v-if="!financeBlind"
           label="Crear alumno"
           icon="person_add"
           color="primary"
@@ -77,7 +86,7 @@
           </template>
         </q-input>
       </div>
-      <div class="col-6 col-sm-3 col-md-3 items-center">
+      <div v-if="!financeBlind" class="col-6 col-sm-3 col-md-3 items-center">
         <q-toggle
           v-model="filters.debtorOnly"
           label="Solo deudores"
@@ -89,7 +98,7 @@
 
     <!-- Filter bar — Row 2: filters -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
-      <div class="col-6 col-sm-3 col-md-2">
+      <div v-if="!financeBlind" class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.planId"
           :options="planFilterOptions"
@@ -299,6 +308,7 @@
         <q-td :props="props">
           <!-- ALUM-02 (D-02): acceso directo a registrar cobro, junto al lápiz -->
           <q-btn
+            v-if="!financeBlind"
             flat
             dense
             round
@@ -316,7 +326,12 @@
     </q-table>
 
     <!-- Create Member Dialog -->
-    <MemberFormDialog v-model="showCreateDialog" :branches="branches" @saved="onMemberSaved" />
+    <MemberFormDialog
+      v-if="!financeBlind"
+      v-model="showCreateDialog"
+      :branches="branches"
+      @saved="onMemberSaved"
+    />
 
     <!-- Soft-register dialog for SP (sesión de prueba) — 4-field flow -->
     <TrialMemberFormDialog
@@ -328,7 +343,7 @@
     <!-- Assign Plan Dialog: opens after creating a member when admin
          confirms they want to load the membership right away. -->
     <AssignPlanDialog
-      v-if="postCreateAssignTarget"
+      v-if="postCreateAssignTarget && !financeBlind"
       v-model="showAssignFromCreate"
       :userId="postCreateAssignTarget.id"
       :memberBranchId="postCreateAssignTarget.branchId"
@@ -368,7 +383,7 @@ import { levelColor } from 'src/constants/levels';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import TrialMemberFormDialog from 'src/components/TrialMemberFormDialog.vue';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
-import { TEMPLO_GREEK_LEVELS } from 'src/config/templo-config';
+import { TEMPLO_GREEK_LEVELS, isFinanceBlindRole } from 'src/config/templo-config';
 
 // ALUM-05 (D-07/D-08): superficie Templo por instalación — gatea columna, filtro
 // y export de los niveles griegos (no es un gate por-usuario).
@@ -386,6 +401,10 @@ const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
 // =========================================================================
 
 const isOwner = computed(() => authStore.user?.role === 'owner');
+// 2026-10-06: rol ciego a las finanzas (coach_actividad): ve la lista de alumnos
+// pero sin plan, vencimiento, deudores, cobro ni alta/export (el API igual los
+// recorta / responde 403; esto evita pedirlos y mostrar controles muertos).
+const financeBlind = computed(() => isFinanceBlindRole(authStore.user?.role));
 // "Deuda total" es dato financiero: solo owner/admin. El backend además no
 // devuelve el agregado a otros roles (defensa en profundidad).
 const canSeeTotalDebt = computed(
@@ -658,8 +677,14 @@ const columns: QTableProps['columns'] = [
 // adds the financial-history endpoint.
 // ALUM-05 (D-07): con la superficie Templo de niveles apagada, se oculta la
 // columna "Nivel" (el mecanismo users.level y greekLevel() quedan intactos, NAV-04).
+// 2026-10-06: el rol sin plata tampoco ve las columnas "Plan" ni "Vencimiento".
+const FINANCE_COLUMNS = new Set(['plan', 'vencimiento']);
 const visibleColumns = computed<QTableProps['columns']>(() =>
-  greekLevelsEnabled ? columns : columns?.filter((c) => c.name !== 'nivel')
+  columns?.filter(
+    (c) =>
+      (greekLevelsEnabled || c.name !== 'nivel') &&
+      !(financeBlind.value && FINANCE_COLUMNS.has(c.name))
+  )
 );
 
 // =========================================================================
@@ -756,6 +781,9 @@ async function loadBranches() {
 }
 
 async function loadPlans() {
+  // Rol sin plata: no hay filtro de plan ni badge de plan archivado, y
+  // /subscriptions/plans le da 403.
+  if (financeBlind.value) return;
   try {
     const plans = await membersApi.getPlans(
       true,

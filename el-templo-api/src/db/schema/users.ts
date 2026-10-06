@@ -33,6 +33,10 @@ export const roleEnum = mysqlEnum("role", [
   // sedes de `user_branches` (canAccessBranch Regla 4) y los listados le fuerzan
   // ese filtro server-side (`enforcedBranchIds`, shared/branch-access.ts).
   "admin_sede",
+  // 2026-10-06: profe de una actividad (p. ej. yoga) SIN plata (migración 0258).
+  // Opera como `coach` (alumnos, horarios, asistencia, TV, planis, jornada) pero
+  // no cobra ni ve caja/deudas/planes. Ver isFinanceBlindRole (permissions.ts).
+  "coach_actividad",
 ]);
 // Phase 129 (KAIROS-01, D-01): `kairos` is the new entry-level tier, added FIRST.
 // Order: kairos -> alfa -> delta -> sigma -> omega -> spartan. The column DEFAULT

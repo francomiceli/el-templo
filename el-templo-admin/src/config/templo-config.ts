@@ -83,7 +83,25 @@ export const ALL_STAFF_ROLES: AdminRole[] = [
   // `admin_sede` (2026-09-08): entra a Alumnos/Horarios/Planes como cualquier
   // empleado. Lo que ve adentro lo acota el API a sus sedes.
   'admin_sede',
+  // `coach_actividad` (2026-10-06): profe de yoga, sin plata. Entra a Alumnos y
+  // Horarios; lo financiero se le oculta (ver isFinanceBlindRole).
+  'coach_actividad',
 ];
+
+/**
+ * Rol del profe de actividad (2026-10-06, API mig 0258): todo lo de un coach
+ * EXCEPTO plata. Mirrors COACH_ACTIVIDAD_ROLE de `shared/permissions.ts`.
+ */
+export const COACH_ACTIVIDAD_ROLE: AdminRole = 'coach_actividad';
+
+/**
+ * ¿Rol ciego a las finanzas? Hoy solo `coach_actividad`. Mirrors
+ * `isFinanceBlindRole` del API. Las páginas lo usan para OCULTAR plata (planes,
+ * deudas, caja, suscripción); el recorte real lo hace el API (403 / campos null).
+ */
+export function isFinanceBlindRole(role: string | null | undefined): boolean {
+  return role === COACH_ACTIVIDAD_ROLE;
+}
 
 /**
  * Pagos (PoS): all staff, recepcion INCLUDED. Mirrors FINANCE_LOAD_ROLES
@@ -161,7 +179,7 @@ export const PARTNERS_ROLES: AdminRole[] = ['gestion', 'admin', 'owner'];
  * navegue por URL directa es rebotado por el guard, y aun si llegara, el API
  * le responde 403.
  */
-export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'tv'];
+export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'tv', 'coach_actividad'];
 
 /**
  * "Planis" (2026-09): vista previa de la plani de la semana (esta y la que
@@ -170,7 +188,7 @@ export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'tv'];
  * (es un televisor, no navega el drawer); el API igual la deja pasar porque
  * el gate real es TV_CONTROL_ROLES.
  */
-export const PLANIS_ROLES: AdminRole[] = ['coach', 'admin', 'owner'];
+export const PLANIS_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'coach_actividad'];
 
 /**
  * "Mi jornada" (check-in/check-out de staff con el QR de la sede): jornada
@@ -179,7 +197,13 @@ export const PLANIS_ROLES: AdminRole[] = ['coach', 'admin', 'owner'];
  * del televisor no marca jornada, D-01 espejado de TV_CONTROL_ROLES).
  * Espeja STAFF_ATTENDANCE_ROLES de la API.
  */
-export const JORNADA_ROLES: AdminRole[] = ['coach', 'recepcion', 'admin', 'owner'];
+export const JORNADA_ROLES: AdminRole[] = [
+  'coach',
+  'recepcion',
+  'admin',
+  'owner',
+  'coach_actividad',
+];
 
 /**
  * Registro de jornadas por sede/fechas (sección "Registro" de JornadaPage):

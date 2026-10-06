@@ -2,7 +2,17 @@
 // superficie que `gestion` (Alumnos, Caja, Cobros, Reportes/SP/Leads) pero
 // SOLO de las sedes que tiene asignadas — el recorte real lo hace el API
 // (`enforcedBranchIds`); acá sólo se evita ofrecerle lo que le va a dar 403.
-export type AdminRole = 'gestion' | 'coach' | 'admin' | 'owner' | 'recepcion' | 'tv' | 'admin_sede';
+// `coach_actividad` (2026-10-06, API mig 0258): profe de actividad (yoga) con la
+// superficie de un coach pero SIN plata — ver `isFinanceBlindRole`.
+export type AdminRole =
+  | 'gestion'
+  | 'coach'
+  | 'admin'
+  | 'owner'
+  | 'recepcion'
+  | 'tv'
+  | 'admin_sede'
+  | 'coach_actividad';
 
 declare module 'vue-router' {
   interface RouteMeta {

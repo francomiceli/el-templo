@@ -11,6 +11,8 @@ const ADMIN_ROLES: AdminRole[] = [
   'recepcion',
   'tv',
   'admin_sede',
+  // 2026-10-06: profe de actividad (yoga) sin plata.
+  'coach_actividad',
 ];
 
 const ACCESS_KEY = 'adminAccessToken';

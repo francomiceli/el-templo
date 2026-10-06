@@ -498,11 +498,11 @@ const authStore = useAuthStore();
 // of the staff see the roster read-only inside Horarios.
 const isOwner = computed(() => authStore.user?.role === 'owner');
 
-// Espeja el backend CHECKIN_ROSTER_ROLES: solo coach/admin/owner ven los
-// registros del día. Gestión y recepción no lo ven ni disparan la request
+// Espeja el backend CHECKIN_ROSTER_ROLES: solo coach/coach_actividad/admin/owner
+// ven los registros del día (coach_actividad: 2026-10-06, profe de yoga). Gestión y recepción no lo ven ni disparan la request
 // (que igual les devolvería 403).
 const canViewCheckInRoster = computed(() =>
-  ['coach', 'admin', 'owner'].includes(authStore.user?.role ?? '')
+  ['coach', 'coach_actividad', 'admin', 'owner'].includes(authStore.user?.role ?? '')
 );
 
 // ─── State ──────────────────────────────────────────────────────────────────

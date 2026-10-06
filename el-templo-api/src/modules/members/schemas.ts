@@ -89,9 +89,10 @@ const memberProfileSchema = {
       type: ["string", "null"],
       enum: ["paga", "bonificada", "staff", null],
     },
+    // null solo para roles ciegos a las finanzas (members/finance-blind.ts).
     membershipKindEffective: {
-      type: "string",
-      enum: ["paga", "bonificada", "staff"],
+      type: ["string", "null"],
+      enum: ["paga", "bonificada", "staff", null],
     },
     segment: { type: ["string", "null"] },
     segmentUpdatedAt: { type: ["string", "null"] },

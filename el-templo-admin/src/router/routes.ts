@@ -21,7 +21,8 @@ import {
  *   1. tv                        → /tv/control (cuenta dedicada del televisor)
  *   2. coach + canAccessTraining → /sessions (sólo Fran, no el owner)
  *   3. owner/admin               → /alumnos  (dueño)
- *   4. resto (coach no-Fran/gestion/recepcion) → /cobros (empleado)
+ *   4. coach_actividad (profe de yoga, sin plata) → /horarios
+ *   5. resto (coach no-Fran/gestion/recepcion) → /cobros (empleado)
  */
 export function landingForRole(): string {
   const authStore = useAuthStore();
@@ -39,6 +40,10 @@ export function landingForRole(): string {
   // (saldos, movimientos y retiros de SU sede).
   if (user?.role === 'admin_sede') {
     return '/caja';
+  }
+  // 2026-10-06: el profe de actividad no cobra (no tiene /cobros): aterriza en Horarios.
+  if (user?.role === 'coach_actividad') {
+    return '/horarios';
   }
   return '/cobros';
 }
@@ -127,6 +132,7 @@ const routes: RouteRecordRaw[] = [
             'gestion',
             'recepcion',
             'admin_sede',
+            'coach_actividad',
           ] as AdminRole[],
         },
       },
@@ -141,6 +147,7 @@ const routes: RouteRecordRaw[] = [
             'gestion',
             'recepcion',
             'admin_sede',
+            'coach_actividad',
           ] as AdminRole[],
         },
       },
@@ -202,6 +209,7 @@ const routes: RouteRecordRaw[] = [
             'gestion',
             'recepcion',
             'admin_sede',
+            'coach_actividad',
           ] as AdminRole[],
         },
       },

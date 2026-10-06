@@ -99,7 +99,12 @@ export interface StaffShiftListRow {
   checkedInAt: string;
   checkedOutAt: string | null;
   durationMinutes: number | null;
-  checklist: { cobros: boolean; espacio: boolean; lote: boolean | null } | null;
+  /** `cobros`/`lote` null = no aplicaba (lote fuera de mié/sáb; cobros para roles sin plata). */
+  checklist: {
+    cobros: boolean | null;
+    espacio: boolean;
+    lote: boolean | null;
+  } | null;
 }
 
 /** Rango máximo permitido para `GET /shifts` (evita full scans desde el admin sobre un rango sin límite). */
@@ -115,7 +120,11 @@ export class StaffAttendanceService {
    * Jornada abierta del usuario (`checked_out_at IS NULL`), la más reciente
    * si hubiera más de una por datos viejos, más el checklist fijo de cierre.
    */
-  async getMe(ctx: TenantContext, userId: number): Promise<StaffAttendanceMe> {
+  async getMe(
+    ctx: TenantContext,
+    userId: number,
+    role?: string,
+  ): Promise<StaffAttendanceMe> {
     const [row] = await this.db
       .select({
         id: schema.staffShifts.id,
@@ -166,7 +175,8 @@ export class StaffAttendanceService {
             cashCountedAt: cashCountedAt ? cashCountedAt.toISOString() : null,
           }
         : null,
-      checklist: checklistForDow(dowInTz(tz)),
+      // 2026-10-06: el checklist también depende del rol (coach_actividad: solo `espacio`).
+      checklist: checklistForDow(dowInTz(tz), role),
     };
   }
 
@@ -262,6 +272,7 @@ export class StaffAttendanceService {
     userId: number,
     qrToken: string,
     checklist: Record<string, boolean>,
+    role?: string,
   ): Promise<StaffShiftClosed> {
     const qrPayload = validateQrToken(qrToken);
     if (!qrPayload) {
@@ -309,6 +320,7 @@ export class StaffAttendanceService {
       .limit(1);
     const requiredKeys = requiredKeysForDow(
       dowInTz(sede?.timezone ?? DEFAULT_TZ, now),
+      role,
     );
     // El 400 nombra lo que falta: si el ítem ni vino en el body, el cliente
     // armó la lista otro día (o es un bundle viejo) y el mensaje pide recargar.
@@ -321,9 +333,11 @@ export class StaffAttendanceService {
 
     // Se reconstruye el objeto en vez de guardar el body tal cual (defensa
     // contra mass-assignment): solo las keys exigidas hoy, todas `true`. Un
-    // día sin lote lo guarda como null (no aplicaba), no como false.
+    // día sin lote lo guarda como null (no aplicaba), no como false. Idem
+    // `cobros` (2026-10-06): un rol sin plata (coach_actividad) no lo tiene en
+    // su checklist y se guarda null — la columna es JSON, así que admite null.
     const checklistSnapshot = {
-      cobros: true,
+      cobros: requiredKeys.includes("cobros") ? true : null,
       espacio: true,
       lote: requiredKeys.includes("lote") ? true : null,
     };

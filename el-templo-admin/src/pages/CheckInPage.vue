@@ -66,8 +66,9 @@
         />
       </div>
       <!-- Cierre de caja suelto (2026-09-08): contar sin cerrar la jornada. Si
-           ya se contó, el check-out no la vuelve a pedir (2026-10-06). -->
-      <div v-if="openShift" class="col-12 text-center">
+           ya se contó, el check-out no la vuelve a pedir (2026-10-06). El
+           profe de actividad (sin plata, 2026-10-06) no cuenta la caja. -->
+      <div v-if="openShift && !financeBlind" class="col-12 text-center">
         <q-btn
           flat
           no-caps
@@ -85,6 +86,7 @@
     <!-- Cierre de caja (2026-09-08): antes del checklist, si hay jornada abierta,
          el profe cuenta el efectivo de la caja de su sede. Se puede saltear. -->
     <CerrarCajaDialog
+      v-if="!financeBlind"
       v-model="showCajaDialog"
       mode="coach"
       :branch-id="openShift?.branchId"
@@ -235,7 +237,7 @@
           <q-td :props="props">
             <template v-if="props.row.checklist">
               <q-chip
-                v-for="key in CHECKLIST_KEYS"
+                v-for="key in visibleChecklistKeys(props.row.checklist)"
                 :key="key"
                 dense
                 size="sm"
@@ -268,7 +270,7 @@ import {
 } from 'src/composables/useStaffAttendanceApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
-import { JORNADA_REPORT_ROLES } from 'src/config/templo-config';
+import { JORNADA_REPORT_ROLES, isFinanceBlindRole } from 'src/config/templo-config';
 import type { BranchOption } from 'src/types/member';
 import QrScannerDialog from 'src/components/QrScannerDialog.vue';
 import CerrarCajaDialog from 'src/components/caja/CerrarCajaDialog.vue';
@@ -282,6 +284,10 @@ const membersApi = useMembersApi();
 // =========================================================================
 // Estado actual ("me")
 // =========================================================================
+
+// 2026-10-06: rol ciego a las finanzas (coach_actividad): sin conteo de caja y
+// con un checklist de cierre reducido (el server lo manda ya recortado).
+const financeBlind = computed(() => isFinanceBlindRole(authStore.user?.role));
 
 const meLoading = ref(true);
 const openShift = ref<StaffAttendanceOpenShift | null>(null);
@@ -418,7 +424,7 @@ async function openChecklistDialog(qrToken: string) {
       error: extractError(err, 'Error desconocido'),
     });
   }
-  if (openShift.value && !openShift.value.cashCountedAt) {
+  if (openShift.value && !financeBlind.value && !openShift.value.cashCountedAt) {
     showCajaDialog.value = true;
   } else {
     showChecklistDialog.value = true;
@@ -473,7 +479,10 @@ async function confirmCheckOut() {
   checkingOut.value = true;
   try {
     const checklist: StaffAttendanceChecklistValues = {
-      cobros: checklistValues.value.cobros,
+      // Solo si está en la lista del server (un rol sin plata no la tiene).
+      ...(checklistItems.value.some((i) => i.key === 'cobros')
+        ? { cobros: checklistValues.value.cobros }
+        : {}),
       espacio: checklistValues.value.espacio,
       // Solo si hoy aplica (mié/sáb): si no está en la lista, no se manda.
       ...(checklistItems.value.some((i) => i.key === 'lote')
@@ -538,6 +547,12 @@ const shiftColumns: QTableProps['columns'] = [
   { name: 'durationMinutes', label: 'Duración', field: 'durationMinutes', align: 'center' },
   { name: 'checklist', label: 'Checklist', field: 'checklist', align: 'left' },
 ];
+
+/** Claves del checklist a pintar en el Registro: `cobros: null` = la jornada era
+ *  de un rol sin plata (coach_actividad), no se muestra el chip. */
+function visibleChecklistKeys(checklist: StaffAttendanceChecklistValues): ChecklistKey[] {
+  return CHECKLIST_KEYS.filter((key) => !(key === 'cobros' && checklist.cobros == null));
+}
 
 function formatShiftDate(dateStr: string): string {
   // Split manual (no `new Date(dateStr)`): una fecha "YYYY-MM-DD" pura no

@@ -18,6 +18,10 @@ export const ALL_STAFF_ROLES = [
   // cualquier otro empleado. Su alcance NO lo da este set sino `user_branches`
   // + `enforcedBranchIds` (shared/branch-access.ts). Ver ADMIN_SEDE_ROLE abajo.
   "admin_sede",
+  // 2026-10-06 (migración 0258): profe de actividad SIN plata. Entra al admin
+  // como cualquier empleado; lo financiero se le recorta por set y por
+  // `isFinanceBlindRole`. Ver COACH_ACTIVIDAD_ROLE abajo.
+  "coach_actividad",
 ] as const;
 
 /** Roles that can access owner-only features (franchise, users, blog, gladius, academy, app-waitlist, labs). */
@@ -149,7 +153,7 @@ export const COACH_DEBTS_ROLES = [
   ...ADMIN_ROLES,
 ] as const;
 
-/** Roles that can access attendance features (coach, admin, owner, gestion, recepcion, admin_sede). */
+/** Roles that can access attendance features (coach, admin, owner, gestion, recepcion, admin_sede, coach_actividad). */
 export const ATTENDANCE_ROLES = [
   "coach",
   "admin",
@@ -157,9 +161,15 @@ export const ATTENDANCE_ROLES = [
   "gestion",
   "recepcion",
   "admin_sede",
+  "coach_actividad",
 ] as const;
 
-/** Roles that can access member management (coach, admin, owner, gestion, recepcion, admin_sede). */
+/**
+ * Roles that can access member management (coach, admin, owner, gestion, recepcion, admin_sede, coach_actividad).
+ * coach_actividad (2026-10-06) ve la lista y el detalle del alumno, pero sin
+ * plata: members/routes.ts le recorta plan/deuda/suscripción por
+ * `isFinanceBlindRole`.
+ */
 export const MEMBER_ROLES = [
   "coach",
   "admin",
@@ -167,6 +177,7 @@ export const MEMBER_ROLES = [
   "gestion",
   "recepcion",
   "admin_sede",
+  "coach_actividad",
 ] as const;
 
 /** Roles that can access payment management. */
@@ -331,7 +342,13 @@ export const MEMBER_LIFECYCLE_ROLES = [
  * sobre `request.scope` (Rule 4 acota al coach a sus sedes operativas), así que
  * un coach de Moreno no puede vincular un TV de Jujuy aunque pase este guard.
  */
-export const TV_CONTROL_ROLES = [...ADMIN_ROLES, "coach", "tv"] as const;
+export const TV_CONTROL_ROLES = [
+  ...ADMIN_ROLES,
+  "coach",
+  "tv",
+  // 2026-10-06: el profe de actividad (yoga) tiene el TV enfrente igual que el coach.
+  "coach_actividad",
+] as const;
 
 /**
  * Rol de la cuenta dedicada de los televisores (2026-09-07, migración 0222).
@@ -372,6 +389,40 @@ export const TV_ACCOUNT_ROLE = "tv" as const;
 export const ADMIN_SEDE_ROLE = "admin_sede" as const;
 
 /**
+ * Rol del profe de actividad (2026-10-06, migración 0258) — p. ej. el profe de
+ * yoga. Hace TODO lo que hace un `coach` en el piso (alumnos, horarios, tomar
+ * asistencia, TV, planis, jornada, ser profe de un horario) EXCEPTO plata: no
+ * cobra (PoS / coach-load), no ve ni cuenta la caja, no ve deudas, planes,
+ * suscripciones ni historial financiero del alumno. El recorte sale de DOS
+ * lados: está AUSENTE de COACH_ROLES / TRAINING_ROLES / PAYMENT_ROLES /
+ * SUBSCRIPTION_ROLES / FINANCE_LOAD_ROLES / COACH_DEBTS_ROLES, y donde un set
+ * compartido lo deja pasar (MEMBER_ROLES) el handler anula los campos de plata
+ * con `isFinanceBlindRole`. Su alcance por sede es `user_branches` igual que
+ * coach (ver `isCoachLikeRole`).
+ */
+export const COACH_ACTIVIDAD_ROLE = "coach_actividad" as const;
+
+/**
+ * ¿Rol ciego a las finanzas? Hoy solo `coach_actividad`. Usar SIEMPRE este
+ * helper para recortar datos de plata en respuestas compartidas (en vez de
+ * comparar el literal), así un segundo rol sin plata se agrega en un solo lugar.
+ */
+export function isFinanceBlindRole(role: string): boolean {
+  return role === COACH_ACTIVIDAD_ROLE;
+}
+
+/**
+ * ¿Se comporta como profe en el piso? `coach` o `coach_actividad`. Para los
+ * sitios donde el código compara `role === "coach"` por comportamiento de profe
+ * (alcance por `user_branches`, auto-escaneo de asistencia, asignable como profe
+ * de horario) y NO por plata: lo financiero sigue mirando `role === "coach"`
+ * (p. ej. la validación pendiente de lo que cobra un coach).
+ */
+export function isCoachLikeRole(role: string): boolean {
+  return role === "coach" || role === COACH_ACTIVIDAD_ROLE;
+}
+
+/**
  * Roles que ven el "Registro del día" del alumno (energía/sueño/molestias) en la
  * lista de asistencia y en la card de Horarios (2026-08-13): el core Dueño
  * (ADMIN_ROLES) + coach, porque el profe es quien tiene la clase enfrente y
@@ -384,7 +435,12 @@ export const ADMIN_SEDE_ROLE = "admin_sede" as const;
  * aparte a propósito (misma regla que ahí: "si otro módulo necesita dueño +
  * coach, que declare el suyo") para que ensanchar uno no ensanche el otro.
  */
-export const CHECKIN_ROSTER_ROLES = [...ADMIN_ROLES, "coach"] as const;
+export const CHECKIN_ROSTER_ROLES = [
+  ...ADMIN_ROLES,
+  "coach",
+  // 2026-10-06: el profe de actividad también ajusta la clase según cómo llegó cada uno.
+  "coach_actividad",
+] as const;
 
 /**
  * Roles que pueden abrir/cerrar su propia jornada laboral (check-in/check-out
@@ -405,6 +461,9 @@ export const STAFF_ATTENDANCE_ROLES = [
   "recepcion",
   "admin",
   "owner",
+  // 2026-10-06: ficha jornada pero SIN caja (checklist reducido, ver
+  // staff-attendance/checklist.ts y isFinanceBlindRole).
+  "coach_actividad",
 ] as const;
 
 /**

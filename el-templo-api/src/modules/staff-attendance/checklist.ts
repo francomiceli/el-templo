@@ -1,3 +1,5 @@
+import { isFinanceBlindRole } from "../shared/permissions";
+
 /**
  * Checklist de cierre de jornada (2026-09-07) — fuente única de las 3 keys
  * que el staff tiene que marcar en `true` para cerrar el check-out.
@@ -30,16 +32,26 @@ export const STAFF_CHECKLIST_KEYS = STAFF_CHECKOUT_CHECKLIST.map(
  */
 export const LOTE_DAYS: readonly number[] = [3, 6];
 
-/** Ítems del checklist que aplican en un día dado (ISO dow). */
-export function checklistForDow(dow: number) {
-  return STAFF_CHECKOUT_CHECKLIST.filter(
-    (item) => item.key !== "lote" || LOTE_DAYS.includes(dow),
-  );
+/**
+ * Ítems del checklist que aplican en un día dado (ISO dow) y, opcionalmente,
+ * para un rol. 2026-10-06: un rol ciego a las finanzas (coach_actividad) no
+ * cobra ni cierra posnet, así que SOLO tiene `espacio` — sin `cobros` ni
+ * `lote`. Sin `role` el comportamiento es el histórico (todos los demás roles).
+ */
+export function checklistForDow(dow: number, role?: string) {
+  const sinPlata = role !== undefined && isFinanceBlindRole(role);
+  return STAFF_CHECKOUT_CHECKLIST.filter((item) => {
+    if (sinPlata) return item.key === "espacio";
+    return item.key !== "lote" || LOTE_DAYS.includes(dow);
+  });
 }
 
-/** Keys obligatorias del check-out en un día dado (ISO dow). */
-export function requiredKeysForDow(dow: number): StaffChecklistKey[] {
-  return checklistForDow(dow).map((item) => item.key);
+/** Keys obligatorias del check-out en un día dado (ISO dow) y rol. */
+export function requiredKeysForDow(
+  dow: number,
+  role?: string,
+): StaffChecklistKey[] {
+  return checklistForDow(dow, role).map((item) => item.key);
 }
 
 /**
