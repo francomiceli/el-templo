@@ -91,6 +91,7 @@ export const ALL_STAFF_ROLES: AdminRole[] = [
 /**
  * Rol del profe de actividad (2026-10-06, API mig 0258): todo lo de un coach
  * EXCEPTO plata. Mirrors COACH_ACTIVIDAD_ROLE de `shared/permissions.ts`.
+ * El dueño lo asigna en Usuarios ("Profe de actividad (sin cobros)").
  */
 export const COACH_ACTIVIDAD_ROLE: AdminRole = 'coach_actividad';
 
