@@ -57,6 +57,7 @@ import type {
 import {
   categoryGroup,
   excludedFromReferrals,
+  isInvitationPlan,
   planAllowsInvitationDiscount,
 } from "./types";
 import { resolvePendingTrialBookings } from "./trial-bookings-on-assign";
@@ -2032,6 +2033,42 @@ export class SubscriptionService {
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
+    // Fase 194 (T-194-18): TODAS las rutas llaman a este método y le pasan
+    // `{ ...request.body, ... }`. El plan Invitación se rechaza acá siempre,
+    // sin ningún flag en `AssignPlanInput` que lo habilite (el body no puede
+    // inventar uno). La única vía es `assignInvitationPlan`.
+    return this.assignPlanInternal(ctx, userId, input, adminId, {
+      invitationPlanAllowed: false,
+    });
+  }
+
+  /**
+   * Fase 194 (D-02, T-194-18): asigna el plan Invitación (3 accesos gratis).
+   * Mismo resultado que `assignPlan` (bonificada si el override es 0, recompute
+   * del status, historial) pero EXIGE que el plan sea Invitación. Solo lo llama
+   * `InvitationService` (194-09): ninguna ruta lo importa — lo verifica el
+   * criterio de aceptación por grep. Los callers fijan `priceOverrideAmount: 0`
+   * y `endDateOverride` (vigencia real de 10 días hábiles).
+   */
+  async assignInvitationPlan(
+    ctx: TenantContext,
+    userId: number,
+    input: AssignPlanInput,
+    adminId: number,
+  ): Promise<SubscriptionDetail> {
+    return this.assignPlanInternal(ctx, userId, input, adminId, {
+      invitationPlanAllowed: true,
+      requireInvitationPlan: true,
+    });
+  }
+
+  private async assignPlanInternal(
+    ctx: TenantContext,
+    userId: number,
+    input: AssignPlanInput,
+    adminId: number,
+    opts: { invitationPlanAllowed: boolean; requireInvitationPlan?: boolean },
+  ): Promise<SubscriptionDetail> {
     // Validate member exists. Inner-join branches to also pull the member's
     // branch country for the cross-country plan guard below.
     const [member] = await this.db
@@ -2063,6 +2100,20 @@ export class SubscriptionService {
     if (plan.country !== member.branchCountry) {
       throw new BadRequestError(
         "El plan no corresponde al pais de la sucursal",
+      );
+    }
+
+    // Fase 194 (T-194-18): el plan Invitación solo entra por assignInvitationPlan,
+    // y assignInvitationPlan no sirve para asignar ningún otro plan.
+    const planIsInvitation = isInvitationPlan(plan);
+    if (planIsInvitation && !opts.invitationPlanAllowed) {
+      throw new BadRequestError(
+        "El plan Invitación se asigna solo activando una invitación",
+      );
+    }
+    if (opts.requireInvitationPlan && !planIsInvitation) {
+      throw new BadRequestError(
+        "assignInvitationPlan solo asigna el plan Invitación",
       );
     }
 
@@ -2175,8 +2226,13 @@ export class SubscriptionService {
               // no debe contar como solapamiento al asignar un plan online.
               ne(schema.subscriptionPlans.planCategory, "paquete"),
             );
-    const existingInSameGroup = await this.db
-      .select({ id: schema.subscriptions.id })
+    const sameGroupRows = await this.db
+      .select({
+        id: schema.subscriptions.id,
+        status: schema.subscriptions.status,
+        planIsTrial: schema.subscriptionPlans.isTrial,
+        planCategory: schema.subscriptionPlans.planCategory,
+      })
       .from(schema.subscriptions)
       .innerJoin(
         schema.subscriptionPlans,
@@ -2201,6 +2257,27 @@ export class SubscriptionService {
           sameGroupCategoryCondition,
         ),
       );
+
+    // Fase 194 D-07: los accesos de invitación vigentes (active/paused) NO
+    // bloquean la compra de un plan real: se cierran como `completed` dentro de
+    // la tx de abajo. Si lo que se asigna ES un plan Invitación no se exime
+    // nada (no se pueden tener dos), y una sub Invitación `scheduled` sigue
+    // contando como conflicto.
+    const invitationSubIdsToClose: number[] = [];
+    const existingInSameGroup = sameGroupRows.filter((row) => {
+      if (
+        !planIsInvitation &&
+        isInvitationPlan({
+          isTrial: row.planIsTrial,
+          planCategory: row.planCategory,
+        }) &&
+        (row.status === "active" || row.status === "paused")
+      ) {
+        invitationSubIdsToClose.push(row.id);
+        return false;
+      }
+      return true;
+    });
 
     if (existingInSameGroup.length > 0) {
       throw new ConflictError(
@@ -2671,6 +2748,33 @@ export class SubscriptionService {
             },
             newSubscriptionId,
             tx,
+          );
+        }
+
+        // Fase 194 D-07: cierre del remanente de los accesos de invitación en
+        // la MISMA tx que la compra (rollback conjunto, T-194-19). `completed`
+        // y NO una baja: no perdona deuda ni exige anular cobros. `end_date` y
+        // `classes_remaining` quedan como estaban. Va antes del recompute para
+        // que el status del usuario lo vea cerrado.
+        if (invitationSubIdsToClose.length > 0) {
+          await tx
+            .update(schema.subscriptions)
+            .set({ status: "completed" })
+            .where(
+              and(
+                tenantWhere(schema.subscriptions, ctx),
+                eq(schema.subscriptions.userId, userId),
+                inArray(schema.subscriptions.id, invitationSubIdsToClose),
+                inArray(schema.subscriptions.status, ["active", "paused"]),
+              ),
+            );
+          this.log.info(
+            {
+              userId,
+              closedInvitationSubIds: invitationSubIdsToClose,
+              newSubscriptionId,
+            },
+            "invitaciones: accesos de invitación cerrados por compra de plan (D-07)",
           );
         }
 
@@ -4408,6 +4512,19 @@ export class SubscriptionService {
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
+    // Fase 194 D-07 (T-194-17/18): los accesos de invitación no se "cambian"
+    // de plan (ni now ni after_current): comprar es assignPlan, que cierra los
+    // accesos solo. Se resuelve el origen acá, antes de que cualquier rama
+    // cancele subs programadas.
+    const originSub = await this.getMemberSubscription(ctx, userId);
+    if (originSub) {
+      const originPlan = await this.getPlanById(ctx, originSub.planId);
+      if (originPlan && isInvitationPlan(originPlan)) {
+        throw new BadRequestError(
+          "Los accesos de invitación no se cambian de plan: asigná el plan nuevo (los accesos se cierran solos)",
+        );
+      }
+    }
     if (
       input.startMode === "after_current" ||
       input.startDate > todayDateString()
@@ -5675,6 +5792,12 @@ export class SubscriptionService {
     const plan = await this.getPlanById(ctx, currentSub.planId);
     if (!plan) {
       throw new NotFoundError("Plan no encontrado");
+    }
+
+    // Fase 194 (T-194-17): renovar los accesos de invitación los haría
+    // infinitos y gratis. Quien quiere seguir compra un plan real (assignPlan).
+    if (isInvitationPlan(plan)) {
+      throw new BadRequestError("Los accesos de invitación no se renuevan");
     }
 
     // D-01: la condición "socio activo" del pase Socio se re-evalúa EN CADA
