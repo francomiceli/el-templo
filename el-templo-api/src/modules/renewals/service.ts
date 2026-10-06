@@ -112,17 +112,16 @@ export const RENEWAL_MAX_RANGE_DAYS = 93;
 const MIN_RENEWAL_PLAN_DURATION_DAYS = 7;
 
 /**
- * La clase de prueba gratis de un pase especial (Yoga, 2026-09-29) dura 7
- * días, así que entra en el corte de `MIN_RENEWAL_PLAN_DURATION_DAYS` pero no
- * es una membresía que haya que renovar. Se excluye SOLO el pase especial de
- * prueba (`is_trial=1` + categoría especial): los planes `is_trial` de otras
- * categorías (promo gratuito online) conservan su comportamiento.
+ * Un plan `is_trial` (la prueba gratis de un pase especial, el promo gratuito
+ * online y, desde la fase 194, los accesos de invitación) dura pocos días: entra
+ * en el corte de `MIN_RENEWAL_PLAN_DURATION_DAYS` pero no es una membresía que
+ * haya que renovar. Fase 194 D-03 generaliza la exclusión: antes solo se
+ * excluía el pase especial de prueba (`is_trial=1` + categoría especial) y el
+ * promo gratuito online conservaba su comportamiento; ahora NINGÚN plan
+ * `is_trial` entra a Renovaciones ("is_trial da acceso, nunca membresía").
  */
-function notEspecialTrialPlan() {
-  return or(
-    ne(schema.subscriptionPlans.planCategory, AURA_PLAN_CATEGORY),
-    eq(schema.subscriptionPlans.isTrial, false),
-  );
+function notTrialPlan() {
+  return eq(schema.subscriptionPlans.isTrial, false);
 }
 
 const EXPIRING_STATUSES = ["active", "paused", "expired", "completed"] as const;
@@ -469,7 +468,7 @@ export class RenewalsService {
         schema.subscriptionPlans.durationDays,
         MIN_RENEWAL_PLAN_DURATION_DAYS,
       ),
-      notEspecialTrialPlan(),
+      notTrialPlan(),
       ...(filters.branchId !== undefined
         ? [eq(schema.subscriptions.branchId, filters.branchId)]
         : []),
@@ -605,7 +604,7 @@ export class RenewalsService {
           // La prueba de un pase especial tampoco cuenta como "sub siguiente"
           // (renewalGroup no distingue líneas: un pase Aura que vence no se
           // renovó por haber tomado una prueba de Yoga).
-          notEspecialTrialPlan(),
+          notTrialPlan(),
         ),
       );
     return rows;

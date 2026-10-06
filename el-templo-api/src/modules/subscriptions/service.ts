@@ -76,7 +76,10 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
-import { membershipInEffectSql } from "../shared/membership";
+import {
+  membershipInEffectSql,
+  membershipPlanCondition,
+} from "../shared/membership";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
@@ -293,23 +296,12 @@ export async function deriveCoveredUntil(
   userId: number,
   ctx?: TenantContext,
 ): Promise<string | null> {
-  const rows = await db
-    .select({
-      coveredUntil: sql<string | null>`MAX(${schema.subscriptions.endDate})`,
-    })
-    .from(schema.subscriptions)
-    .where(
-      and(
-        ctx
-          ? tenantWhere(schema.subscriptions, ctx)
-          : isNotNull(schema.subscriptions.tenantId),
-        eq(schema.subscriptions.userId, userId),
-        inArray(schema.subscriptions.status, ["active", "scheduled"]),
-        isNotNull(schema.subscriptions.endDate),
-      ),
-    );
-
-  return rows[0]?.coveredUntil ?? null;
+  // Fase 194 D-03: cobertura de ACCESO. Cuenta TODAS las subs (incluidas las
+  // `is_trial`); la semántica es exactamente la de antes del refactor.
+  const map = await deriveCoveredUntilBatchImpl(db, [userId], ctx, {
+    membershipOnly: false,
+  });
+  return map.get(userId) ?? null;
 }
 
 /**
@@ -329,11 +321,63 @@ export async function deriveCoveredUntil(
  * `ctx` real ⇒ `tenantWhere` (aislamiento por gimnasio); sin `ctx` ⇒ fallback
  * `isNotNull(tenantId)` (tenant-blind pero visible al sentinel). El fix N+1 de
  * master llegó sin este filtro y habría tirado TenantSentinelError en strict.
+ *
+ * Fase 194 D-03 — cobertura de ACCESO (reservas, pill "Venc", `/coverage`):
+ * CUENTA las subs `is_trial`, porque un invitado tiene que poder reservar dentro
+ * de su vigencia y no después. Para "¿es miembro?" (descuento, estado de vínculo)
+ * usar {@link deriveMembershipCoveredUntilBatch}.
  */
 export async function deriveCoveredUntilBatch(
   db: MySql2Database<typeof schema>,
   userIds: number[],
   ctx?: TenantContext,
+): Promise<Map<number, string | null>> {
+  return deriveCoveredUntilBatchImpl(db, userIds, ctx, {
+    membershipOnly: false,
+  });
+}
+
+/**
+ * Fase 194 D-03 / D-10d — cobertura de MEMBRESÍA de UN socio: igual que
+ * {@link deriveCoveredUntil} pero IGNORA las subs de planes `is_trial` (un
+ * acceso de invitación no es membresía). La usan el descuento por vínculo y el
+ * estado del vínculo. NO usar para bloquear reservas (eso es ACCESO).
+ */
+export async function deriveMembershipCoveredUntil(
+  db: MySql2Database<typeof schema>,
+  userId: number,
+  ctx?: TenantContext,
+): Promise<string | null> {
+  const map = await deriveCoveredUntilBatchImpl(db, [userId], ctx, {
+    membershipOnly: true,
+  });
+  return map.get(userId) ?? null;
+}
+
+/**
+ * Fase 194 D-03 / D-10d — versión batcheada de
+ * {@link deriveMembershipCoveredUntil}. Misma query y misma semántica de tenancy
+ * que {@link deriveCoveredUntilBatch} más la exclusión de planes `is_trial`.
+ */
+export async function deriveMembershipCoveredUntilBatch(
+  db: MySql2Database<typeof schema>,
+  userIds: number[],
+  ctx?: TenantContext,
+): Promise<Map<number, string | null>> {
+  return deriveCoveredUntilBatchImpl(db, userIds, ctx, {
+    membershipOnly: true,
+  });
+}
+
+/**
+ * Implementación común de las 4 coberturas (DRY): `membershipOnly` agrega el
+ * filtro "el plan NO es `is_trial`" (invariante D-03, `shared/membership.ts`).
+ */
+async function deriveCoveredUntilBatchImpl(
+  db: MySql2Database<typeof schema>,
+  userIds: number[],
+  ctx: TenantContext | undefined,
+  opts: { membershipOnly: boolean },
 ): Promise<Map<number, string | null>> {
   const result = new Map<number, string | null>();
   if (userIds.length === 0) return result;
@@ -352,6 +396,7 @@ export async function deriveCoveredUntilBatch(
         inArray(schema.subscriptions.userId, userIds),
         inArray(schema.subscriptions.status, ["active", "scheduled"]),
         isNotNull(schema.subscriptions.endDate),
+        opts.membershipOnly ? membershipPlanCondition() : undefined,
       ),
     )
     .groupBy(schema.subscriptions.userId);

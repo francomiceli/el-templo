@@ -16,7 +16,10 @@
  *   - controles:   presencial sola y presencial + Yoga (sub is_trial) siguen
  *                  `activo` — la forma real de prod que no puede cambiar.
  *
- * `deriveCoveredUntil` NO se testea acá: sigue siendo cobertura de ACCESO.
+ * Plan 194-03: cobertura de MEMBRESÍA vs de ACCESO (`deriveMembershipCoveredUntil*`
+ * vs `deriveCoveredUntil*`), población activa de frecuencia y Renovaciones.
+ * `deriveCoveredUntil` conserva su semántica de ACCESO (cuenta las is_trial);
+ * `test/subscriptions/covered-until.test.ts` cubre su contrato original.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
@@ -28,7 +31,16 @@ import {
   todayStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
-import { SubscriptionService } from "../../src/modules/subscriptions/service";
+import {
+  SubscriptionService,
+  deriveCoveredUntil,
+  deriveCoveredUntilBatch,
+  deriveMembershipCoveredUntil,
+  deriveMembershipCoveredUntilBatch,
+} from "../../src/modules/subscriptions/service";
+import { FrequencyService } from "../../src/modules/analytics/frequency-service";
+import { RenewalsService } from "../../src/modules/renewals/service";
+import { addDays, todayInTz } from "../../src/modules/shared/date-utils";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
 import { activeMemberExists } from "../../src/modules/shared/active-member";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
@@ -359,5 +371,122 @@ describe("Fase 194 D-03 — is_trial da acceso, nunca membresía", () => {
       members: Array<{ id: number }>;
     };
     expect(body.members.map((m) => m.id)).toContain(member.id);
+  });
+
+  // ─── 194-03: coberturas con nombre + frecuencia + renovaciones ───────────
+
+  it("cobertura de MEMBRESÍA ignora la sub is_trial; la de ACCESO la cuenta (solo is_trial)", async () => {
+    const trial = await createTrialPlan(ctx);
+    const member = await createMemberInPhysicalBranch(ctx, { status: "prueba" });
+    const sub = await createActiveSub(ctx, {
+      userId: member.id,
+      planId: trial.id,
+      endOffsetDays: 5,
+    });
+
+    const membershipOne = await deriveMembershipCoveredUntil(
+      app.db,
+      member.id,
+      ctx.tenant,
+    );
+    const membershipBatch = await deriveMembershipCoveredUntilBatch(
+      app.db,
+      [member.id],
+      ctx.tenant,
+    );
+    expect(membershipOne).toBeNull();
+    expect(membershipBatch.get(member.id) ?? null).toBeNull();
+
+    // ACCESO sin cambios: el invitado tiene que poder reservar dentro de su vigencia.
+    const accessOne = await deriveCoveredUntil(app.db, member.id, ctx.tenant);
+    const accessBatch = await deriveCoveredUntilBatch(
+      app.db,
+      [member.id],
+      ctx.tenant,
+    );
+    expect(accessOne).toBe(sub.endDate);
+    expect(accessBatch.get(member.id)).toBe(sub.endDate);
+  });
+
+  it("con presencial + is_trial que vence después: MEMBRESÍA = fin de la presencial, ACCESO = el máximo", async () => {
+    const trial = await createTrialPlan(ctx);
+    const membership = await createMembershipPlan(ctx);
+    const member = await createMemberInPhysicalBranch(ctx, { status: "prueba" });
+    const presencial = await createActiveSub(ctx, {
+      userId: member.id,
+      planId: membership.id,
+      endOffsetDays: 10,
+    });
+    const invitacion = await createActiveSub(ctx, {
+      userId: member.id,
+      planId: trial.id,
+      endOffsetDays: 25,
+    });
+
+    expect(
+      await deriveMembershipCoveredUntil(app.db, member.id, ctx.tenant),
+    ).toBe(presencial.endDate);
+    expect(await deriveCoveredUntil(app.db, member.id, ctx.tenant)).toBe(
+      invitacion.endDate,
+    );
+  });
+
+  it("frecuencia: la población activa y los golden cases excluyen al socio con solo is_trial", async () => {
+    const trial = await createTrialPlan(ctx);
+    const membership = await createMembershipPlan(ctx);
+    const soloTrial = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const conMembresia = await createMemberInPhysicalBranch(ctx, {
+      status: "activo",
+    });
+    await createActiveSub(ctx, { userId: soloTrial.id, planId: trial.id });
+    await createActiveSub(ctx, {
+      userId: conMembresia.id,
+      planId: membership.id,
+    });
+
+    const freq = new FrequencyService(app.db, app.log);
+    const result = await freq.getFrequency(ctx.tenant, {});
+    const inactivo = result.distribution.find((d) => d.band === "inactivo");
+    // Solo el socio con membresía (0 visitas → Inactivo) está en la población.
+    expect(inactivo?.count.nominal).toBe(1);
+    expect(inactivo?.count.n).toBe(1);
+
+    const golden = await freq.coolingOrInactiveUserIds(ctx.tenant, 28);
+    expect(golden.has(conMembresia.id)).toBe(true);
+    expect(golden.has(soloTrial.id)).toBe(false);
+  });
+
+  it("renovaciones: una sub is_trial (cualquier categoría) que vence no aparece; la membresía sí", async () => {
+    // Duración 10 días: supera el corte de duración mínima, así que SOLO la
+    // exclusión is_trial (D-03) puede dejarla fuera de la lista.
+    const trial = await createTrialPlan(ctx, { durationDays: 10 });
+    const membership = await createMembershipPlan(ctx);
+    const invitado = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const socio = await createMemberInPhysicalBranch(ctx, { status: "activo" });
+    const trialSub = await createActiveSub(ctx, {
+      userId: invitado.id,
+      planId: trial.id,
+      startOffsetDays: -9,
+      endOffsetDays: 0,
+    });
+    const membershipSub = await createActiveSub(ctx, {
+      userId: socio.id,
+      planId: membership.id,
+      startOffsetDays: -29,
+      endOffsetDays: 0,
+    });
+
+    const hoy = todayInTz("America/Argentina/Buenos_Aires");
+    const result = await new RenewalsService(app.db, app.log).listRenewals(
+      ctx.tenant,
+      { dateFrom: addDays(hoy, -3), dateTo: addDays(hoy, 3) },
+    );
+    const ids = result.rows.map((r) => r.subscriptionId);
+    expect(ids).toContain(membershipSub.id);
+    expect(ids).not.toContain(trialSub.id);
   });
 });

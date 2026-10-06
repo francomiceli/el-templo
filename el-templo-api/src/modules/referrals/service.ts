@@ -41,7 +41,7 @@ import {
   auraTransactions,
   systemSettings,
 } from "../../db/schema";
-import { deriveCoveredUntilBatch } from "../subscriptions/service";
+import { deriveMembershipCoveredUntilBatch } from "../subscriptions/service";
 import {
   BadRequestError,
   ConflictError,
@@ -265,7 +265,9 @@ export class ReferralService {
     );
     // Batch: la cobertura de todas las contrapartes en UNA query (evita N+1).
     // `ctx` obligatorio: subscriptions es strict (reconciliación tren v6.0).
-    const coveredMap = await deriveCoveredUntilBatch(
+    // Fase 194 D-10d: cobertura de MEMBRESÍA (excluye planes `is_trial`): una
+    // contraparte con solo accesos de invitación NO genera descuento.
+    const coveredMap = await deriveMembershipCoveredUntilBatch(
       this.db,
       counterpartyIds,
       ctx,
@@ -335,7 +337,9 @@ export class ReferralService {
     const counterpartyIds = links.map((link) =>
       link.referrerId === userId ? link.referredId : link.referrerId,
     );
-    const coveredMap = await deriveCoveredUntilBatch(
+    // Fase 194 D-10d: estado del vínculo con cobertura de MEMBRESÍA (no cuenta
+    // los accesos `is_trial` de invitación).
+    const coveredMap = await deriveMembershipCoveredUntilBatch(
       this.db,
       counterpartyIds,
       ctx,

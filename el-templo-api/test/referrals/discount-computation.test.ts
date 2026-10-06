@@ -19,6 +19,7 @@ import { createPlan, createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
 import type { TenantContext } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { createTrialPlan, fixtureCtx } from "../invitations/_helpers";
 
 // T-173-08: `qualifyFirstPayment` recibe `ctx` primero.
 const CTX: TenantContext = { tenantId: 1 };
@@ -89,6 +90,26 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
 
     const service = new ReferralService(app.db, app.log);
     // El referrer descuenta porque la contraparte (referred) está cubierta.
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(10);
+  });
+
+  // Fase 194 D-10d: la contraparte cuenta como "activa" solo con cobertura de
+  // MEMBRESÍA; un acceso de invitación (plan is_trial) no genera descuento.
+  it("una contraparte con SOLO una sub is_trial vigente NO suma; con presencial vigente sí (D-10d)", async () => {
+    const plan = await createPlan(app, adminToken);
+    const trial = await createTrialPlan(fixtureCtx(app));
+    const referrer = await createMember(app, { email: "d2tr@test.com" });
+    const soloInvitado = await createMember(app, { email: "d2ti@test.com" });
+    const conMembresia = await createMember(app, { email: "d2tm@test.com" });
+    await linkQualified(referrer.id, soloInvitado.id);
+    await giveCoverage(soloInvitado.id, trial.id, dateOffsetStr(30));
+
+    const service = new ReferralService(app.db, app.log);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(0);
+
+    // Mismo vínculo + una segunda contraparte con presencial vigente → 10.
+    await linkQualified(referrer.id, conMembresia.id);
+    await giveCoverage(conMembresia.id, plan.id, dateOffsetStr(30));
     expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(10);
   });
 

@@ -45,6 +45,7 @@ import * as schema from "../../db/schema";
 import { applyScope } from "./scope";
 // Path directo, NUNCA por el barrel `shared/index.ts` (fase 169).
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { membershipPlanCondition } from "../shared/membership";
 import { metricShape } from "./metric-shape";
 import { deriveDurationTier } from "./duration-tier";
 import { breakdownSegmentKey, type BreakdownAxis } from "./breakdowns";
@@ -307,6 +308,9 @@ export class FrequencyService {
       // Un socio con presencial + pase queda por su sub presencial. La query
       // joinea subscriptionPlans abajo, así que el filtro es directo.
       ne(schema.subscriptionPlans.planCategory, "especial"),
+      // Fase 194 D-03: ningún plan `is_trial` (acceso, no membresía) cuenta en
+      // la población activa de frecuencia. La query joinea subscriptionPlans.
+      eq(schema.subscriptionPlans.isTrial, false),
       ...scopeConditions,
     ];
     if (filters.planId !== undefined) {
@@ -661,6 +665,8 @@ export class FrequencyService {
         and(
           tenantWhere(schema.subscriptions, ctx),
           inArray(schema.subscriptions.status, ["active", "paused"]),
+          // Fase 194 D-03: sin planes `is_trial` (acceso, no membresía).
+          membershipPlanCondition(),
         ),
       );
 
