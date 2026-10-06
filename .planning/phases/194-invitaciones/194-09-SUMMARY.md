@@ -29,6 +29,7 @@ key-files:
     - el-templo-api/src/modules/referrals/invitation-service.ts
     - el-templo-api/src/modules/referrals/invitation-types.ts
     - el-templo-api/src/modules/subscriptions/service.ts
+    - el-templo-api/src/modules/scheduling/booking-service.ts
     - el-templo-api/test/invitations/_helpers.ts
     - el-templo-api/test/invitations/quota.test.ts
     - el-templo-api/test/invitations/eligibility.test.ts
@@ -49,8 +50,9 @@ completed: 2026-10-06
 | Tarea | Commit | Contenido |
 | ----- | ------ | --------- |
 | 1 | `a35b5810f` | `activate`, `voidInvitation`, `closeInvitationAccess`, regla scheduled, tipos, helpers de test, `activate.test.ts`, concurrencia en `quota.test.ts` |
-| 2 | `b76797567` | `void.test.ts` (10 casos) |
+| 2 | `b76797567` | `void.test.ts` (10 casos; 14 tras el seguimiento) |
 | 3 | `c86999627` | `access-usage.test.ts` (7 casos) |
+| seguimiento | `7e9747996` | compensación del estado del invitado + `voidInvitation` cancela reservas futuras (ver "Límites conocidos") |
 
 El código de `voidInvitation` entró en el commit de la Task 1 (mismo archivo que `activate`, y `closeInvitationAccess` lo necesita la compensación); la Task 2 es solo sus tests (patrón ya usado en 194-08).
 
@@ -85,9 +87,9 @@ Errores: reglas rotas = `InvitationRuleError` (409, con `reason`); canal/código
 
 ## Tests
 
-- `activate.test.ts`: 22 verdes (camino feliz completo con sub $0/3 clases/bonificada, ex socio inactivo, ya en prueba sin historial duplicado, feriado AR corre el vencimiento y feriado ES no, settings dinámicos, lead ganado -> en_seguimiento y manual respetado, DNI propio conservado, canal asistido x2, guards de canal, cupo agotado, invitador sin membresía, socio vigente / compra programada / teléfono y DNI ajenos / sin teléfono, invitado borrado, sede virtual, sede de otro gimnasio, sede ES con invitado virtual => plan ES, invitado físico AR hacia ES => 400, compensación y reactivación posterior).
+- `activate.test.ts`: 25 verdes (22 + 3 de compensación del estado del invitado; camino feliz completo con sub $0/3 clases/bonificada, ex socio inactivo, ya en prueba sin historial duplicado, feriado AR corre el vencimiento y feriado ES no, settings dinámicos, lead ganado -> en_seguimiento y manual respetado, DNI propio conservado, canal asistido x2, guards de canal, cupo agotado, invitador sin membresía, socio vigente / compra programada / teléfono y DNI ajenos / sin teléfono, invitado borrado, sede virtual, sede de otro gimnasio, sede ES con invitado virtual => plan ES, invitado físico AR hacia ES => 400, compensación y reactivación posterior).
 - `quota.test.ts`: 19 verdes (3 nuevos de concurrencia: 1 cupo con 2 activaciones, 2 cupos con 4, mismo invitado desde 2 invitadores). Corrido 2 veces seguidas, verde las dos.
-- `void.test.ts`: 10 verdes. `access-usage.test.ts`: 7 verdes. `eligibility.test.ts`: 33 verdes. Regresión `purchase-closes-access.test.ts` (refactor de D-07): 16 verdes.
+- `void.test.ts`: 14 verdes (10 + 4 de reservas futuras). `access-usage.test.ts`: 7 verdes. `eligibility.test.ts`: 33 verdes. Regresión `purchase-closes-access.test.ts` (refactor de D-07): 16 verdes.
 - **Mutation testing (honesto):** (a) sacar `FOR UPDATE` => fallan los 3 tests de concurrencia (2 y 4 activaciones pasan, 2 filas activas del mismo invitado); (b) `closeInvitationAccess` con `[]` en `voidInvitation` => fallan 2 tests de void; (c) plan Invitación con `multi_branch=0` => fallan 2 tests de access-usage. Todo revertido.
 - Gates: `tsc --noEmit` 0, `lint:tenant` DISCREPANCIAS 0, `typecheck:tests` sin errores en archivos del plan, chequeo de copy "referid" sin líneas.
 - Acceptance greps: `ORDER BY id FOR UPDATE` 1 línea; `assignInvitationPlan(` 1 línea; `.assignPlan(` 0; `.delete(` 0; `"invitation"` (source) presente; `activation_failed` presente (constante en types + comentarios/log en el servicio).
@@ -115,13 +117,30 @@ Errores: reglas rotas = `InvitationRuleError` (409, con `reason`); canal/código
 - `tx.execute(sql\`...\`)` con `tenant_id = ${ctx.tenantId}` inline satisface `lint:tenant` sin exención.
 - Un `Promise.allSettled` de varias `activate` usa varias conexiones del pool a la vez (cada tx retiene una + lecturas por el pool): funcionó con 4 en paralelo.
 
-## Notas / limitaciones conocidas
+## Límites conocidos
 
-- **Estado parcial tras una falla de los pasos 3-4:** la fila queda `voided` y no consume cupo ni ventana, pero los datos del paso 3 (sede física, teléfono, `prueba`, lead) NO se revierten (assignPlan no admite tx externa). El invitado queda reintentable sin fricción (test "tras corregir la configuración...").
-- **`users.converted_at`:** el paso 3 no lo toca. Un ex socio que ya había convertido como lead y vuelve vía invitación queda con `converted_at` seteado, así que el gate de `recomputeUserStatus` no lo marcará `ganado` al comprar hasta que el plan de leads (D-18, extender el gate con "invitación activada") lo contemple.
-- **Hora de la sub para ES de madrugada:** `assignPlanInternal` decide `active|scheduled` con la fecha UTC (`todayDateString`) y la activación usa `todayInTz(sede)`; para una sede de España entre 00:00 y ~02:00 locales la sub puede nacer `scheduled` hasta que el cron la active. No se tocó (comportamiento global de assignPlan).
-- `voidInvitation` no cancela reservas futuras del invitado (fuera del alcance del plan); las reservas pendientes quedan hasta que el check-in falle por falta de sub vigente.
-- Los tests de `activate` fijan `access_business_days` y cupo por settings, nunca con literales de calendario.
+### Resueltos en el seguimiento (`7e9747996`)
+
+1. **Estado parcial en `activate` (resuelto por compensación, no por reorden).** `assignInvitationPlan` depende de la sede física ya seteada (valida que el plan sea del país de la sede del socio y la regla "plan presencial requiere sede física"), y el `prueba` previo hace falta para que `recomputeUserStatus` no deje a un inactivo/freemium como estaba. Reordenar no era posible, así que el paso 3 devuelve un *snapshot* (status, `branch_id`, `branch_updated_at`, `branch_source`, teléfono, DNI, `lead_status`, `lead_status_source`, `purchased_plan_id`) y `compensateFailedActivation` lo restaura en la MISMA tx que deja la fila `voided`/`activation_failed` y cierra la sub. Detalles:
+   - El historial es forward-only: no se borra la fila `invitation` del paso 3, se agrega la transición inversa con `source='invitation_undo'` (15 caracteres, cabe en `varchar(16)`). Un status previo NULL no tiene inversa.
+   - Si `assignInvitationPlan` creó la sub y falló después sin devolver el id, se la encuentra por un "piso de id" (`MAX(subscriptions.id)` del invitado leído antes de asignar) y se cierra `completed` (solo subs Invitación `active|paused` con id mayor al piso).
+   - Queda una sub `completed` del plan Invitación como rastro; no afecta membresía ni el invitado (`is_trial`).
+   - `users.converted_at` nunca se toca (ni en el flujo feliz).
+   - Tests (foreground): falla por falta de plan Invitación del país con un freemium virtual y un ex socio "complejo" (inactivo, teléfono propio, lead perdido/auto con plan comprado, sede `auto` con fecha vieja) => `readUser` idéntico antes/después + fila `voided` + historial con la pareja `invitation`/`invitation_undo`; falla *después* de crear la sub (spy que ejecuta el real y tira) => sub `completed`, usuario restaurado; falla *antes* (spy rechaza) => usuario intacto y el reintento activa bien.
+2. **`voidInvitation` cancela las reservas futuras.** Nuevo en `BookingService`: `cancelUpcomingBookingsForMember(ctx, memberId, exec)` y `releaseCancelledSlots(ctx, slots)`.
+   - Solo si la anulación efectivamente cerró los accesos (`closeInvitationAccess` > 0): si el invitado ya compró, sus reservas cuelgan de la membresía real y no se tocan.
+   - Cancela `reservado` y `lista_espera` de actividades REGULARES (las especiales dependen del pase especial) con fecha posterior a hoy en la tz de la sede de la clase, o de hoy con la clase sin empezar. No toca `qr_escaneado`, `confirmado`, `no_show`, ya `cancelado`, ni pasadas.
+   - Es cancelación de staff: no aplica la ventana de 20 min del socio. El UPDATE corre en la tx de la anulación (atómico con `voided`); post-commit `releaseCancelledSlots` hace lo mismo que `cancel()`: si la reserva ocupaba cupo, `promoteWaitlist` del turno (con aviso `waitlist_promoted`) y `emitOccupancyChange` (Wellhub). Un fallo post-commit se loguea sin deshacer el `voided`.
+   - `InvitationService` recibe el `BookingService` como 4.º argumento del constructor y `voidInvitation` falla cerrado (Error) si falta: **194-10/12 deben inyectarlo al armar el servicio en las rutas** (en tests, `buildInvitationServices` ya devuelve el servicio completo).
+   - Tests: matriz de estados (futuras reservado/lista_espera canceladas; pasada, escaneada, confirmada, especial, ya empezada hoy y reserva de otro alumno intactas), promoción de lista de espera + evento de ocupación, invitado que ya compró (no se toca) y falla cerrada sin `BookingService`.
+3. **Mutation testing del seguimiento:** sin la restauración del snapshot y con `closed > 99` fallan 5 tests (3 de compensación y 2 de reservas); revertido.
+
+### Siguen abiertos (decisión explícita de no tocarlos acá)
+
+- **UTC en ES de madrugada (00:00-~02:00 locales):** `assignPlanInternal` decide `active|scheduled` con la fecha UTC (`todayDateString`) y la activación usa `todayInTz(sede)`; para una sede de España en esa franja la sub puede nacer `scheduled` hasta que el cron la active. Es comportamiento global de `assignPlan` (afecta todo plan), no se tocó.
+- **No-show:** no existe un job de no-show que descuente saldo; el saldo baja solo en el check-in (QR, coach o forzado). Nada que implementar ni probar acá; si el negocio quiere descontar no-shows de los accesos es una decisión de producto nueva.
+- **`users.converted_at`:** un ex socio que ya había convertido como lead y vuelve vía invitación conserva `converted_at`, así que el gate de `recomputeUserStatus` no lo marcará `ganado` al comprar hasta que el plan de leads (D-18, extender el gate con "invitación activada") lo contemple.
+- Los tests de `activate` fijan `access_business_days` y cupo por settings, nunca con literales de calendario. Los casos "hoy ya empezada / hoy por empezar" de `void.test.ts` usan horarios 00:00 y 23:59 de la sede (un minuto de ventana de flake alrededor de esas horas).
 
 ## Allowlist de copy
 
@@ -138,4 +157,4 @@ Ninguno fuera del threat model. T-194-29 (lock + Promise.all), T-194-30 (canal a
 ## Self-Check: PASSED
 
 - Archivos creados verificados en disco (`activate.test.ts`, `void.test.ts`, `access-usage.test.ts`).
-- Commits `a35b5810f`, `b76797567`, `c86999627` presentes en `git log`; worktree limpio salvo este SUMMARY.
+- Commits `a35b5810f`, `b76797567`, `c86999627`, `7e9747996` presentes en `git log`; worktree limpio salvo este SUMMARY.
