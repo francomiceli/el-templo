@@ -102,3 +102,8 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Tests de xlsx leen por header, no por posición.
 - Vistas que solo MUESTRAN el plan que la persona tiene (listado de alumnos, filtro por plan, panel de turno, engagement) muestran "Invitación" a propósito para invitados; no "arreglarlas".
 - Plan 194-31 agregado por el orquestador (indicadores de membresía restantes); se ejecuta después de 194-03.
+
+### Tras 194-31
+- Analytics de membresía: filtrar por PLAN `is_trial` (`excludeTrialSubs()` en `analytics/especial-exclusion.ts`, compuesto dentro de `excludeInternalSubs()`), NO por `membership_kind` (una sub is_trial es `paga` por defecto; solo es `bonificada` con override 0).
+- `expiry-cohort.ts` (`s2`/`s_next`) no excluye is_trial a propósito: un ex socio necesita ≥6 meses sin membresía para ser invitado (D-11), así que una invitación nunca cae en la ventana de retención. No tocar.
+- El hook del harness rechaza `cd X && git ...` y `git -C`: hacer `cd` y `git` en llamadas separadas, rutas literales.
