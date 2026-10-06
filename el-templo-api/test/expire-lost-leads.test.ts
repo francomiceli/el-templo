@@ -35,6 +35,7 @@ import { runExpireLostLeads } from "../src/jobs/expire-lost-leads";
 // 2, docblock de `test/helpers.ts`); este archivo no siembra en el gimnasio 2.
 import { tenantWhere } from "../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "./fixtures/second-tenant";
+import { createInvitationRow, fixtureCtx } from "./invitations/_helpers";
 
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
 
@@ -292,5 +293,65 @@ describe("runExpireLostLeads (Fase 163-02)", () => {
     expect(expired).toBe(1);
     expect((await leadStatusOf(dentroId)).leadStatus).toBe("en_seguimiento");
     expect((await leadStatusOf(fueraId)).leadStatus).toBe("perdido");
+  });
+
+  // ─── Fase 194 D-18 / Pitfall 8 — los leads de invitación no vencen ─────────
+
+  /** Invitación directa (fixture de lectura) del lead `invitedUserId`. */
+  async function seedInvitation(
+    invitedUserId: number,
+    status: "active" | "voided",
+  ): Promise<void> {
+    const inviterId = await seedLead({ status: "activo", leadStatus: null });
+    await createInvitationRow(fixtureCtx(app), {
+      inviterId,
+      invitedUserId,
+      branchId,
+      status,
+      activatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    });
+  }
+
+  it("194 D-18: un lead con SP vieja y SIN invitación se vence como siempre (control)", async () => {
+    await seedWindow(14);
+    const userId = await seedLead();
+    await seedTrialBooking(userId, 20); // fuera de ventana
+
+    const { expired } = await runExpireLostLeads(app.db);
+
+    expect(expired).toBe(1);
+    expect((await leadStatusOf(userId)).leadStatus).toBe("perdido");
+  });
+
+  it("194 D-18: el mismo lead con una invitación ACTIVA no cambia y ni el flip ni el conteo de manuales lo cuentan", async () => {
+    await seedWindow(14);
+    const userId = await seedLead();
+    await seedTrialBooking(userId, 20); // SP vieja (la SP previa no bloquea la invitación)
+    await seedInvitation(userId, "active");
+    // Un lead MANUAL con invitación activa tampoco se cuenta como "salteado".
+    const manualId = await seedLead({ leadStatusSource: "manual" });
+    await seedTrialBooking(manualId, 20);
+    await seedInvitation(manualId, "active");
+
+    const { expired, skippedManual } = await runExpireLostLeads(app.db);
+
+    expect(expired).toBe(0);
+    expect(skippedManual).toBe(0);
+    const s = await leadStatusOf(userId);
+    expect(s.leadStatus).toBe("en_seguimiento");
+    expect(s.leadStatusSource).toBeNull();
+    expect((await leadStatusOf(manualId)).leadStatus).toBe("en_seguimiento");
+  });
+
+  it("194 D-18: una invitación ANULADA no protege: el lead se vence como hoy", async () => {
+    await seedWindow(14);
+    const userId = await seedLead();
+    await seedTrialBooking(userId, 20);
+    await seedInvitation(userId, "voided");
+
+    const { expired } = await runExpireLostLeads(app.db);
+
+    expect(expired).toBe(1);
+    expect((await leadStatusOf(userId)).leadStatus).toBe("perdido");
   });
 });
