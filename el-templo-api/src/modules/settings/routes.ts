@@ -11,12 +11,27 @@
  * only the propietario can change a pricing rule. The store-urls pair below
  * follows the exact same access model (T-179-49: a bad URL becomes hundreds
  * of useless printed cards).
+ *
+ * Fase 194 (D-10c): `/invitations` — parámetros del programa de Invitaciones en
+ * `tenant_settings`. GET para cualquier staff; PUT para gestion/admin/owner
+ * (INVITATION_SETTINGS_WRITE_ROLES), porque gestión carga el tope en dinero.
  */
 
 import { FastifyPluginAsync } from "fastify";
 import { SettingsService } from "./service";
-import { ALL_STAFF_ROLES, OWNER_ROLES } from "../shared/permissions";
+import {
+  ALL_STAFF_ROLES,
+  INVITATION_SETTINGS_WRITE_ROLES,
+  OWNER_ROLES,
+} from "../shared/permissions";
 import { handleServiceError } from "../shared/error-handler";
+import { attachCountryScope } from "../shared/country-scope";
+import { assertTenant } from "../shared/tenant";
+import {
+  getInvitationSettings,
+  setInvitationSettings,
+  type InvitationSettingsPatch,
+} from "../referrals/invitation-settings";
 
 export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
   const settingsService = new SettingsService(fastify.db, fastify.log);
@@ -260,6 +275,93 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
           reply,
           request.log,
           "set store urls setting",
+        );
+      }
+    },
+  );
+
+  // GET /invitations — parámetros del programa de Invitaciones (Fase 194).
+  // Cualquier staff lo lee (el admin muestra cupo/vigencia/tope). Incluye, de
+  // solo lectura, el % por invitado activo y el tope % (D-09), que siguen en
+  // `aura_config` / `system_settings` (globales).
+  fastify.get("/invitations", async (request, reply) => {
+    try {
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "settings.getInvitations");
+      return await getInvitationSettings(fastify.db, ctx, request.log);
+    } catch (err: unknown) {
+      return handleServiceError(
+        err,
+        reply,
+        request.log,
+        "get invitation settings",
+      );
+    }
+  });
+
+  // PUT /invitations — gestion/admin/owner (D-10c, T-194-21). JSON-schema con
+  // additionalProperties:false y rangos (T-194-22); el servicio vuelve a validar
+  // el patch completo antes de escribir. `discountCapAmount.<PAIS> = null` borra
+  // el tope de ese país. El tenant sale SIEMPRE del scope, nunca del body.
+  fastify.put<{ Body: InvitationSettingsPatch }>(
+    "/invitations",
+    {
+      preHandler: async (request, reply) => {
+        if (
+          !(INVITATION_SETTINGS_WRITE_ROLES as readonly string[]).includes(
+            request.user.role,
+          )
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message:
+              "Solo gestión o el propietario pueden cambiar los parámetros de invitaciones",
+          });
+        }
+      },
+      schema: {
+        body: {
+          type: "object",
+          properties: {
+            monthlyQuota: { type: "integer", minimum: 1, maximum: 10 },
+            accessBusinessDays: { type: "integer", minimum: 1, maximum: 30 },
+            reinviteWindowDays: { type: "integer", minimum: 0, maximum: 365 },
+            exMemberInactivityMonths: {
+              type: "integer",
+              minimum: 0,
+              maximum: 36,
+            },
+            latePurchaseWindowDays: {
+              type: "integer",
+              minimum: 0,
+              maximum: 180,
+            },
+            inviteePercent: { type: "integer", minimum: 0, maximum: 50 },
+            discountCapAmount: {
+              type: "object",
+              properties: {
+                AR: { type: ["integer", "null"], minimum: 1 },
+                ES: { type: ["integer", "null"], minimum: 1 },
+              },
+              additionalProperties: false,
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "settings.setInvitations");
+        await setInvitationSettings(fastify.db, ctx, request.body);
+        return await getInvitationSettings(fastify.db, ctx, request.log);
+      } catch (err: unknown) {
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "set invitation settings",
         );
       }
     },

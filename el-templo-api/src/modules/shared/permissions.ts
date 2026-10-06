@@ -135,6 +135,19 @@ export const ANALYTICS_ADMIN_ROLES = ["admin", "owner", "admin_sede"] as const;
  */
 export const REFERRAL_AB_RESULTS_ROLES = ["gestion", "admin", "owner"] as const;
 
+/**
+ * Roles que ESCRIBEN los parámetros del programa de Invitaciones
+ * (`PUT /api/admin/settings/invitations`, Fase 194). D-10c: gestión carga el
+ * tope en dinero cuando quiera, así que no es owner-only. Coach, recepción y
+ * admin_sede quedan afuera (T-194-21): los parámetros mueven plata y reglas
+ * antiabuso de todo el gimnasio. La lectura (GET) es para cualquier staff.
+ */
+export const INVITATION_SETTINGS_WRITE_ROLES = [
+  "gestion",
+  "admin",
+  "owner",
+] as const;
+
 /** Roles that can view the simplified Deudas tab for coaches. Coach included
  *  on top of the Dueño core so professors can look up how much to collect from
  *  a member at the door without exposing the full financial detail surface

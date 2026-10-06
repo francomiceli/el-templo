@@ -313,7 +313,10 @@ import {
 // 2026-09-30: 446 -> 447 por la base de renovación tras un período prorrateado:
 // `GET /api/admin/subscriptions/members/:userId/subscription/renewal-preview`,
 // `tenant-scoped`.
-const ENTRADAS_BASELINE = 447;
+// 2026-10-06: 447 -> 449 por los parámetros del programa de Invitaciones
+// (Fase 194-07, D-10c): `GET` y `PUT /api/admin/settings/invitations`,
+// `tenant-scoped` (tenant_settings; PUT gestion/admin/owner).
+const ENTRADAS_BASELINE = 449;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;

@@ -746,10 +746,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/settings/pricing/card-surcharge": {
     categoria: "tenant-scoped",
   },
+  // Fase 194 (D-10c): parámetros del programa de Invitaciones en `tenant_settings`.
+  "GET /api/admin/settings/invitations": { categoria: "tenant-scoped" },
   "GET /api/admin/settings/pricing/zero-price": { categoria: "tenant-scoped" },
   "PUT /api/admin/settings/pricing/card-surcharge": {
     categoria: "tenant-scoped",
   },
+  "PUT /api/admin/settings/invitations": { categoria: "tenant-scoped" },
   "PUT /api/admin/settings/pricing/zero-price": { categoria: "tenant-scoped" },
   // Fase 179-12 (D-20): `system_settings` es una de las 4 `TENANT_EXEMPT_TABLES`
   // (src/db/tenant-tables.ts) — config global heredada SIN tenant_id, a
