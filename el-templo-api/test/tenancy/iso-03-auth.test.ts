@@ -28,8 +28,8 @@
  * control positivo de este archivo inyecta un `tenantId` ajeno en el body
  * (intento de "nacer" en otro gimnasio) y confirma que la fila `users`
  * creada queda con el `tenant_id` de la SEDE elegida, nunca el inyectado —
- * más el estampado de tenant de la fila `referrals` que crea el registro
- * cuando llega con `?ref=CODE` (atribución self-service, fase 157-03).
+ * más la resolución del código de socio (`?ref=CODE`) con el tenant de la SEDE:
+ * desde 194 D-26b el registro ya no crea `referrals`, solo devuelve `invitation.code`.
  *
  * CERO 403 (D-06 del milestone)
  * -----------------------------------------------------------------------
@@ -67,6 +67,11 @@ const MARCA = "ISO03AUTH";
 const CTX_TEMPLO: TenantContext = { tenantId: TENANT_TEMPLO };
 /** Password fijo, conocido, de todos los socios que este archivo crea a mano. */
 const PASSWORD_SOCIO = "iso03auth-pass-123";
+
+/** Teléfono nacional de 10 dígitos aleatorio (el registro con código de socio lo exige). */
+function telefonoUnico(): string {
+  return `11${Math.floor(Math.random() * 9e7) + 1e7}`;
+}
 
 function sufijo(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -109,7 +114,11 @@ beforeEach(async () => {
     password: PASSWORD_SOCIO,
     branchId: sedeTemploId,
   });
-  templo = { id: temploMember.id, token: temploMember.token, email: temploMember.email };
+  templo = {
+    id: temploMember.id,
+    token: temploMember.token,
+    email: temploMember.email,
+  };
 
   const dosMember = await createTestMember(app, {
     email: `auth-g2-${suf}@test.com`,
@@ -136,7 +145,11 @@ function getComo(url: string, token: string) {
   });
 }
 
-function postComo(url: string, token: string, payload?: Record<string, unknown>) {
+function postComo(
+  url: string,
+  token: string,
+  payload?: Record<string, unknown>,
+) {
   return app.inject({
     method: "POST",
     url,
@@ -347,7 +360,10 @@ describe("historias de bienvenida — POST /api/auth/me/intro-stories", () => {
     const body = JSON.parse(res.body) as { introStoriesSeenAt: string | null };
     expect(
       body.introStoriesSeenAt,
-      porQueImportaElAislamiento(RUTA, "no se estampó introStoriesSeenAt del socio propio"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "no se estampó introStoriesSeenAt del socio propio",
+      ),
     ).not.toBeNull();
 
     const filaDos = await filaMemberProfile(dos.id);
@@ -404,7 +420,10 @@ describe("eliminar cuenta — POST /api/auth/me/delete-account", () => {
     const filaDos = await filaUsuario(dos.id);
     expect(
       filaDos?.deletedAt,
-      porQueImportaElAislamiento(RUTA, "la cuenta propia no quedó marcada eliminada"),
+      porQueImportaElAislamiento(
+        RUTA,
+        "la cuenta propia no quedó marcada eliminada",
+      ),
     ).not.toBeNull();
     expect(filaDos?.email).toContain("@deleted.local");
 
@@ -467,7 +486,7 @@ describe("autorregistro — POST /api/auth/register (tenant server-side, D-06/T-
     expect(fila?.branchId).toBe(gym2.branchId);
   });
 
-  it("control positivo: el registro con código de referido (?ref=CODE) del gimnasio 2 crea la fila `referrals` con el tenant correcto", async () => {
+  it("control positivo: el registro con código de socio (?ref=CODE) del gimnasio 2 NO crea `referrals` y devuelve invitation.code resuelto en SU gimnasio (194 D-26b)", async () => {
     // El referrer necesita un referralCode — se genera lazy vía el propio
     // GET /api/members/referrals del socio referente (mismo mecanismo que
     // usaría la card real, sin reimplementar generateReferralCode a mano).
@@ -487,26 +506,57 @@ describe("autorregistro — POST /api/auth/register (tenant server-side, D-06/T-
       lastName: "GimnasioDos",
       gender: "unspecified",
       branchId: gym2.branchId,
+      // Fase 194 T-194-38: con código de socio el teléfono es obligatorio.
+      phone: telefonoUnico(),
       ref: referralCode,
     });
     expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
+    expect(JSON.parse(res.body).invitation).toEqual({
+      code: referralCode.trim().toUpperCase(),
+    });
 
     const nuevo = await filaUsuarioPorEmail(email);
     expect(nuevo?.tenantId).toBe(TENANT_DOS);
 
+    // Fase 194 D-26b: el registro ya no crea el vínculo (nace al comprar).
     const vinculo = await referralDeReferido(nuevo!.id);
     expect(
       vinculo,
-      `${RUTA}: se esperaba una fila \`referrals\` para el nuevo socio referido — la atribución self-service (?ref=CODE) no se creó`,
-    ).not.toBeNull();
+      `${RUTA}: el registro con ?ref NO debe crear fila \`referrals\` (D-26b)`,
+    ).toBeNull();
+  });
+
+  it("aislamiento: un código de socio del gimnasio 2 usado en una sede de El Templo NO se reconoce (sin invitation ni vínculo)", async () => {
+    const overview = await getComo("/api/members/referrals", dos.token);
+    expect(overview.statusCode, overview.body).toBe(200);
+    const { referralCode } = JSON.parse(overview.body) as {
+      referralCode: string;
+    };
+
+    const suf = sufijo();
+    const email = `${MARCA}-cruzado-${suf}@test.com`;
+    // Sin branchId: nace en El Templo (ONLINE), cuyo tenant NO es el del código.
+    const res = await postPublico("/api/auth/register", {
+      email,
+      password: "password12345",
+      firstName: "Cruzado",
+      lastName: "Templo",
+      gender: "unspecified",
+      code: referralCode,
+    });
+    // Sin teléfono: si el código se hubiera reconocido daría 400.
+    expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
     expect(
-      vinculo?.tenantId,
+      JSON.parse(res.body).invitation,
       porQueImportaElAislamiento(
         RUTA,
-        `la fila referrals del registro con ?ref del gimnasio ${TENANT_DOS} quedó con tenant_id=${vinculo?.tenantId}`,
+        `el código del gimnasio ${TENANT_DOS} se resolvió desde una sede de El Templo`,
       ),
-    ).toBe(TENANT_DOS);
-    expect(vinculo?.referrerId).toBe(dos.id);
+    ).toBeUndefined();
+
+    const nuevo = await filaUsuarioPorEmail(email);
+    expect(nuevo?.tenantId).toBe(TENANT_TEMPLO);
+    expect(await referralDeReferido(nuevo!.id)).toBeNull();
   });
 
   it("control: el registro sin branchId (default ONLINE) nace en El Templo", async () => {

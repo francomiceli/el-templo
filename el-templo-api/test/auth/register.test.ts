@@ -247,7 +247,7 @@ describe("POST /api/auth/register — phone duplicate block + trim", () => {
  * + eager generation of the new member's OWN referral code (D-25).
  *
  * Behaviors covered:
- *  - Valid ?ref → referrals(pending, self_service) + users.referred_by (REF-02)
+ *  - Valid ?ref/code de socio → SIN vínculo ni referred_by; devuelve invitation.code (194 D-26b)
  *  - No ?ref    → no link, but the new user still gets a referral_code (D-25)
  *  - Unknown / self-referral code → no link, registration still 2xx (graceful)
  *  - Every successful registration leaves referral_code populated (PREFIJO-XXXX)
@@ -293,8 +293,8 @@ describe("POST /api/auth/register — referral attribution + eager code (157-03)
 
   const CODE_RE = /^[A-Z]+-[A-Z0-9]+$/;
 
-  it("un ?ref válido crea un vínculo pending self_service + escribe referred_by (REF-02)", async () => {
-    const referrerId = await seedReferrer("FRAN-A3B2");
+  it("un ?ref válido NO crea vínculo ni referred_by: devuelve invitation.code (194 D-26b)", async () => {
+    await seedReferrer("FRAN-A3B2");
 
     const res = await app.inject({
       method: "POST",
@@ -312,14 +312,17 @@ describe("POST /api/auth/register — referral attribution + eager code (157-03)
     });
 
     expect([200, 201]).toContain(res.statusCode);
-    const newUserId = JSON.parse(res.body).user.id as number;
+    const body = JSON.parse(res.body);
+    const newUserId = body.user.id as number;
+    // Fase 194 D-26b: el registro solo deja la pista para activar.
+    expect(body.invitation).toEqual({ code: "FRAN-A3B2" });
 
     const [u] = await app.db
       .select({ referredBy: users.referredBy, code: users.referralCode })
       .from(users)
       .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.id, newUserId)))
       .limit(1);
-    expect(u.referredBy).toBe(referrerId);
+    expect(u.referredBy).toBeNull();
     // Eager code is populated even in the ?ref path (D-25).
     expect(u.code).toMatch(CODE_RE);
 
@@ -329,10 +332,163 @@ describe("POST /api/auth/register — referral attribution + eager code (157-03)
       .where(
         sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) — a lo sumo un referidor por socio */ ${referrals.referredId} = ${newUserId}`,
       );
-    expect(links).toHaveLength(1);
-    expect(links[0].referrerId).toBe(referrerId);
-    expect(links[0].status).toBe("pending");
-    expect(links[0].attributionChannel).toBe("self_service");
+    expect(links).toHaveLength(0);
+  });
+
+  it("el campo unificado `code` de socio se comporta igual: sin vínculo + invitation.code normalizado (194 D-26b)", async () => {
+    await seedReferrer("FRAN-A3B2");
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: "code-ok@test.com",
+        password: "password123",
+        firstName: "New",
+        lastName: "Code",
+        phone: "5551110004",
+        gender: "female",
+        branchId,
+        code: "fran-a3b2",
+      },
+    });
+
+    expect([200, 201]).toContain(res.statusCode);
+    const body = JSON.parse(res.body);
+    expect(body.invitation).toEqual({ code: "FRAN-A3B2" });
+
+    const links = await app.db
+      .select()
+      .from(referrals)
+      .where(
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) — a lo sumo un referidor por socio */ ${referrals.referredId} = ${body.user.id as number}`,
+      );
+    expect(links).toHaveLength(0);
+  });
+
+  it("un código de socio SIN teléfono → 400 y no se crea la cuenta (194 T-194-38)", async () => {
+    await seedReferrer("FRAN-A3B2");
+
+    for (const via of ["ref", "code"] as const) {
+      const email = `sin-tel-${via}@test.com`;
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email,
+          password: "password123",
+          firstName: "Sin",
+          lastName: "Telefono",
+          gender: "male",
+          branchId,
+          [via]: "FRAN-A3B2",
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toBe(
+        "El teléfono es obligatorio para activar una invitación",
+      );
+      const rows = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(tenantWhere(users, TEMPLO_CTX), eq(users.email, email)));
+      expect(rows).toHaveLength(0);
+    }
+
+    // Un teléfono sin dígitos cuenta como ausente.
+    const vacio = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: "tel-vacio@test.com",
+        password: "password123",
+        firstName: "Tel",
+        lastName: "Vacio",
+        phone: "---",
+        gender: "male",
+        branchId,
+        code: "FRAN-A3B2",
+      },
+    });
+    expect(vacio.statusCode).toBe(400);
+  });
+
+  it("un código de socio con un teléfono ya registrado → 409 sin crear la cuenta (194 T-194-38)", async () => {
+    await seedReferrer("FRAN-A3B2");
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: "dup-1@test.com",
+        password: "password123",
+        firstName: "Primero",
+        lastName: "Tel",
+        phone: "11 5555-0011",
+        gender: "male",
+        branchId,
+      },
+    });
+    expect([200, 201]).toContain(first.statusCode);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: "dup-2@test.com",
+        password: "password123",
+        firstName: "Segundo",
+        lastName: "Tel",
+        phone: "(11) 55550011",
+        gender: "male",
+        branchId,
+        code: "FRAN-A3B2",
+      },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).code).toBe("PHONE_ALREADY_REGISTERED");
+    const rows = await app.db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(tenantWhere(users, TEMPLO_CTX), eq(users.email, "dup-2@test.com")),
+      );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("sin código el teléfono sigue siendo opcional y no hay invitation (App Store 5.1.1(v))", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: "sin-codigo-sin-tel@test.com",
+        password: "password123",
+        firstName: "Sin",
+        lastName: "Codigo",
+        gender: "male",
+        branchId,
+      },
+    });
+    expect([200, 201]).toContain(res.statusCode);
+    expect(JSON.parse(res.body).invitation).toBeUndefined();
+  });
+
+  it("un ?ref inexistente sin teléfono tampoco bloquea: se ignora igual que antes (graceful)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/auth/register",
+      payload: {
+        email: "ref-bad-sin-tel@test.com",
+        password: "password123",
+        firstName: "Bad",
+        lastName: "Code",
+        gender: "male",
+        branchId,
+        ref: "NOPE-0000",
+      },
+    });
+    expect([200, 201]).toContain(res.statusCode);
+    expect(JSON.parse(res.body).invitation).toBeUndefined();
   });
 
   it("sin ?ref no crea vínculo pero el nuevo socio SÍ obtiene su referral_code eager (D-25)", async () => {

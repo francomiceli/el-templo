@@ -5,10 +5,8 @@ import { users } from "../../db/schema/users";
 import { branches } from "../../db/schema/branches";
 import { memberProfiles } from "../../db/schema/member-profiles";
 import { promoPlans } from "../../db/schema/promo-plans";
-import { referrals } from "../../db/schema/referrals";
 import { referralPartners } from "../../db/schema/referral-partners";
 import { ReferralService } from "../referrals/service";
-import { referralCopyVariant } from "../referrals/ab-variant";
 import {
   PartnerReferralService,
   normalizeCode,
@@ -271,51 +269,18 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // veces el mismo objeto literal más abajo).
       const ctx: TenantContext = { tenantId: branchTenantId };
 
-      // Hash password and create user
-      const passwordHash = await argon2.hash(password);
-
-      // Phase 111 Plan 04 (REQ-9, D-26): trim firstName/lastName at the
-      // service entry point before persistence. Mirrors the createMember /
-      // updateMember trim from Plan 01 — closes the Soledad Mailland
-      // trailing-space bug class for the autorregistro path.
-      const firstNameTrimmed = firstName.trim();
-      const lastNameTrimmed = lastName.trim();
-
-      const result = await fastify.db.insert(users).values(
-        tenantValues(ctx, {
-          email,
-          passwordHash,
-          branchId,
-          // Recategorización (0185): el registro fija la sede elegida → 'manual'
-          // para que el cron mensual respete la ventana de protección.
-          branchUpdatedAt: new Date(),
-          branchSource: "manual" as const,
-          firstName: firstNameTrimmed,
-          lastName: lastNameTrimmed,
-          dni,
-          phone,
-          gender,
-          role: "member",
-          // Phase 130 (KAIROS-04, D-01): new self-registered members are born
-          // kairos. Server-assigned — never read from the request body, so a
-          // member cannot self-promote (T-130-01).
-          level: "kairos",
-          // Phase 103-03 (R7, D-12, D-13): online self-register starts as freemium.
-          // If a valid promoCode follows, assignPlan → recomputeUserStatus flips
-          // it to 'activo' inside the same transaction (Plan 02 wiring).
-          status: "freemium" as const,
-        }),
-      );
-
-      const userId = Number(result[0].insertId);
-
       // Phase 179-04 (D-02/D-03): resuelve UNA sola vez el campo unificado
       // `code` (si vino) y deriva las variables efectivas que alimentan los
-      // 3 bloques siguientes — SIN cambiar la lógica interna de esos bloques,
+      // bloques siguientes — SIN cambiar la lógica interna de esos bloques,
       // solo de qué variable se alimentan. Sin `code` en el body,
       // comportamiento intacto: `effectivePromoCode`/`effectiveRef` quedan
       // igual a `promoCode`/`ref` del body (back-compat total con las builds
       // nativas viejas, Pitfall 9).
+      //
+      // Fase 194 D-26b: esta resolución se movió ANTES de crear la cuenta para
+      // poder exigir el teléfono cuando el código es de socio (400 sin crear
+      // nada). El resto del orden (email, DNI y teléfono duplicados → 409) no
+      // cambia.
       let effectivePromoCode = promoCode;
       let effectiveRef = ref;
       let partnerAttributionInput: {
@@ -354,6 +319,79 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           };
         }
       }
+
+      // Fase 194 D-26b: el vínculo de descuento nace al comprar (D-05); un
+      // código de socio (`code` o `?ref` viejo) solo es una pista para llevar a
+      // "Activar invitación". Se confirma server-side que el código es de un
+      // socio del gimnasio (best-effort: un código inexistente se ignora igual
+      // que antes) y, si lo es, el teléfono pasa a ser obligatorio (T-194-38:
+      // identidad para el dedupe de la activación). Sin código de socio el
+      // teléfono sigue opcional (App Store 5.1.1(v)).
+      const referralService = new ReferralService(fastify.db, request.log);
+      let invitationCode: string | null = null;
+      if (effectiveRef) {
+        try {
+          const inviterId = await referralService.resolveReferralCode(
+            ctx,
+            effectiveRef,
+          );
+          if (inviterId !== null) {
+            invitationCode = effectiveRef.trim().toUpperCase();
+          }
+        } catch (err: unknown) {
+          request.log.warn(
+            {
+              err: err instanceof Error ? err.message : String(err),
+              ref: effectiveRef,
+            },
+            "Invitation code resolution failed (graceful degradation)",
+          );
+        }
+      }
+      if (invitationCode && normalizePhone(phone ?? "").length === 0) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "El teléfono es obligatorio para activar una invitación",
+        });
+      }
+
+      // Hash password and create user
+      const passwordHash = await argon2.hash(password);
+
+      // Phase 111 Plan 04 (REQ-9, D-26): trim firstName/lastName at the
+      // service entry point before persistence. Mirrors the createMember /
+      // updateMember trim from Plan 01 — closes the Soledad Mailland
+      // trailing-space bug class for the autorregistro path.
+      const firstNameTrimmed = firstName.trim();
+      const lastNameTrimmed = lastName.trim();
+
+      const result = await fastify.db.insert(users).values(
+        tenantValues(ctx, {
+          email,
+          passwordHash,
+          branchId,
+          // Recategorización (0185): el registro fija la sede elegida → 'manual'
+          // para que el cron mensual respete la ventana de protección.
+          branchUpdatedAt: new Date(),
+          branchSource: "manual" as const,
+          firstName: firstNameTrimmed,
+          lastName: lastNameTrimmed,
+          dni,
+          phone,
+          gender,
+          role: "member",
+          // Phase 130 (KAIROS-04, D-01): new self-registered members are born
+          // kairos. Server-assigned — never read from the request body, so a
+          // member cannot self-promote (T-130-01).
+          level: "kairos",
+          // Phase 103-03 (R7, D-12, D-13): online self-register starts as freemium.
+          // If a valid promoCode follows, assignPlan → recomputeUserStatus flips
+          // it to 'activo' inside the same transaction (Plan 02 wiring).
+          status: "freemium" as const,
+        }),
+      );
+
+      const userId = Number(result[0].insertId);
 
       // Promo code auto-assignment (per D-09, D-10)
       let promoApplied = false;
@@ -454,55 +492,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Phase 157-03 (milestone v5.5): referral attribution + eager code.
-      // Two independent best-effort blocks — neither can block the signup
-      // (graceful degradation, T-157-11 / UI-SPEC hard rule).
-      const referralService = new ReferralService(fastify.db, request.log);
-
-      // (1) Self-service attribution (REF-02, D-08). The referrer is resolved
-      // server-side from the code — never taken raw from the body (Security
-      // V4/T-157-08). Auto-referral (referrerId===userId, D-13) and a second
-      // claim on an already-referred user (UNIQUE referred_id, D-14) are both
-      // silently skipped/swallowed: the registration still succeeds.
-      if (effectiveRef) {
-        try {
-          // T-173-08: `resolveReferralCode` necesita `ctx` (users.referral_code
-          // es UNIQUE compuesto con tenant_id — el mismo código puede existir en
-          // dos gimnasios). Reusa el `ctx` único del handler (sale de la misma
-          // fila de sede leída arriba, no de `request.scope` ni del body).
-          const referrerId = await referralService.resolveReferralCode(
-            ctx,
-            effectiveRef,
-          );
-          if (referrerId !== null && referrerId !== userId) {
-            await fastify.db
-              .update(users)
-              .set({ referredBy: referrerId })
-              .where(and(tenantWhere(users, ctx), eq(users.id, userId)));
-            await fastify.db.insert(referrals).values(
-              tenantValues(ctx, {
-                referrerId,
-                referredId: userId,
-                status: "pending",
-                attributionChannel: "self_service",
-                // A/B copy test: estampa la variante que vio el referidor (derivada
-                // de su id) para atribuir la conversión al copy sin depender del
-                // cliente ni de recomputar el bucketing a posteriori.
-                copyVariant: referralCopyVariant(referrerId),
-              }),
-            );
-          }
-        } catch (err: unknown) {
-          request.log.warn(
-            {
-              err: err instanceof Error ? err.message : String(err),
-              ref: effectiveRef,
-              userId,
-            },
-            "Referral attribution failed (graceful degradation)",
-          );
-        }
-      }
-
+      // Best-effort blocks — none can block the signup (graceful
+      // degradation, T-157-11 / UI-SPEC hard rule).
+      //
+      // Fase 194 D-26b: el bloque (1) de atribución self-service (que creaba
+      // `referred_by` + `referrals` pending) se ELIMINÓ: el vínculo de
+      // descuento nace al comprar (D-05, plan 194-15) y `?ref` solo lleva a
+      // "Activar invitación" (respuesta `invitation.code`).
+      //
       // (3) Partner attribution (D-02/D-03/D-07/D-12, fase 179-04). Cuarto
       // bloque best-effort, calcado en forma del bloque (1): try/catch propio,
       // log.warn con {err, code, userId} y CERO re-throw — la atribución de
@@ -619,6 +616,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         },
         promoApplied,
         partnerBenefit,
+        // Fase 194 D-26b: pista para que la app lleve a "Activar invitación"
+        // (solo si el código resolvió a un socio del gimnasio).
+        ...(invitationCode ? { invitation: { code: invitationCode } } : {}),
       };
     },
   );
@@ -1024,7 +1024,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         profileRows[0]?.introStoriesSeenAt?.toISOString() ?? null;
       const introStoriesCompletedAt =
         profileRows[0]?.introStoriesCompletedAt?.toISOString() ?? null;
-      const introStoriesLastSlide = profileRows[0]?.introStoriesLastSlide ?? null;
+      const introStoriesLastSlide =
+        profileRows[0]?.introStoriesLastSlide ?? null;
 
       // Fase 176 (D-08, MOD-01/MOD-02): campo aditivo, ordenado
       // alfabéticamente para que la respuesta sea determinística (el `Set`
@@ -1281,7 +1282,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
         return {
           introStoriesSeenAt: event === "seen" ? now.toISOString() : null,
-          introStoriesCompletedAt: event === "completed" ? now.toISOString() : null,
+          introStoriesCompletedAt:
+            event === "completed" ? now.toISOString() : null,
           introStoriesLastSlide: lastSlide,
         };
       }
@@ -1312,9 +1314,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         );
 
       return {
-        introStoriesSeenAt: (updates.introStoriesSeenAt ?? existing.seenAt)?.toISOString() ?? null,
+        introStoriesSeenAt:
+          (updates.introStoriesSeenAt ?? existing.seenAt)?.toISOString() ??
+          null,
         introStoriesCompletedAt:
-          (updates.introStoriesCompletedAt ?? existing.completedAt)?.toISOString() ?? null,
+          (
+            updates.introStoriesCompletedAt ?? existing.completedAt
+          )?.toISOString() ?? null,
         introStoriesLastSlide: lastSlide,
       };
     },
