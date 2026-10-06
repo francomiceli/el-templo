@@ -58,7 +58,7 @@ export async function createTrialPlan(
   ctx: InvitationsFixtureCtx,
   opts: {
     country?: Country;
-    category?: "paquete" | "especial";
+    category?: "paquete" | "especial" | "presencial";
     durationDays?: number;
     classesPerWeek?: number;
     name?: string;
