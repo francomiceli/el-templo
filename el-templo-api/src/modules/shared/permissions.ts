@@ -326,6 +326,20 @@ export const MEMBER_LIFECYCLE_ROLES = [
 ] as const;
 
 /**
+ * Fase 194 D-16: roles que crean una invitación EN NOMBRE de un socio (canal
+ * asistido: ficha del invitado y alta "Nuevo en Prueba"). Incluye `recepcion`
+ * (es quien de verdad carga las invitaciones) pero NO `coach`. Anular una
+ * invitación sigue siendo de {@link MEMBER_LIFECYCLE_ROLES}.
+ */
+export const INVITATION_ASSISTED_ROLES = [
+  "owner",
+  "admin",
+  "gestion",
+  "admin_sede",
+  "recepcion",
+] as const;
+
+/**
  * Roles that can operate the branch TV screen (Fase 164 D-01): vincular un
  * televisor a una sede, listarlos, revocarlos y manejar la botonera de clase.
  * = el core Dueño (ADMIN_ROLES) + coach, porque el profe es quien tiene el TV

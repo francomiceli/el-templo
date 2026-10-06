@@ -39,6 +39,115 @@ export const invitationActivateBodySchema = {
   additionalProperties: false,
 } as const;
 
+// ─── Canal asistido (Fase 194-12, D-16) ──────────────────────────────────────
+//
+// T-194-43: ni `createdBy` ni `voidedBy` ni `tenantId` están en el body: salen
+// del JWT y del scope. Las rutas usan `rejectUnknownBodyKeys` para devolver 400
+// explícito en vez de ignorarlos.
+
+/** POST /api/admin/members/:userId/invitations — `phone` opcional (usa el guardado). */
+export const assistedInvitationBodySchema = {
+  type: "object",
+  required: ["inviterId", "branchId"],
+  properties: {
+    inviterId: { type: "integer", minimum: 1 },
+    branchId: { type: "integer", minimum: 1 },
+    phone: { type: "string", minLength: 6, maxLength: 30 },
+    dni: { type: ["string", "null"], maxLength: 20 },
+  },
+  additionalProperties: false,
+} as const;
+
+export const ASSISTED_INVITATION_BODY_KEYS = Object.keys(
+  assistedInvitationBodySchema.properties,
+);
+
+/** POST /api/admin/members/:userId/invitations/:invitationId/void */
+export const assistedVoidBodySchema = {
+  type: "object",
+  required: ["reason"],
+  properties: {
+    // 64 = columna `invitations.void_reason`.
+    reason: { type: "string", minLength: 3, maxLength: 64 },
+  },
+  additionalProperties: false,
+} as const;
+
+export const ASSISTED_VOID_BODY_KEYS = Object.keys(
+  assistedVoidBodySchema.properties,
+);
+
+/** Error con `reason` estable (lo serializa `sendInvitationError`). */
+const invitationErrorResponse = {
+  type: "object",
+  properties: {
+    error: { type: "string" },
+    message: { type: "string" },
+    reason: { type: "string" },
+  },
+} as const;
+
+/** `invitation` de la respuesta del alta de prueba y del 201 de la ficha. */
+export const activatedInvitationProperties = {
+  invitationId: { type: "integer" },
+  subscriptionId: { type: "integer" },
+  accessExpiresOn: { type: "string" },
+  classesBudget: { type: ["integer", "null"] },
+  branchId: { type: "integer" },
+} as const;
+
+/** `invitationError` del alta de prueba cuando el lead se creó pero la activación falló. */
+export const invitationErrorProperties = {
+  reason: { type: "string" },
+  message: { type: "string" },
+} as const;
+
+export const assistedActivateRouteSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: { userId: { type: "integer", minimum: 1 } },
+  },
+  body: assistedInvitationBodySchema,
+  response: {
+    201: { type: "object", properties: activatedInvitationProperties },
+    400: invitationErrorResponse,
+    404: invitationErrorResponse,
+    409: invitationErrorResponse,
+  },
+} as const;
+
+export const assistedVoidRouteSchema = {
+  params: {
+    type: "object",
+    required: ["userId", "invitationId"],
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+      invitationId: { type: "integer", minimum: 1 },
+    },
+  },
+  body: assistedVoidBodySchema,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        invitationId: { type: "integer" },
+        status: { type: "string" },
+      },
+    },
+    400: invitationErrorResponse,
+    404: invitationErrorResponse,
+    409: invitationErrorResponse,
+  },
+} as const;
+
+export interface AssistedInvitationBody {
+  inviterId: number;
+  branchId: number;
+  phone?: string;
+  dni?: string | null;
+}
+
 /**
  * `preValidation` que rechaza con 400 un body con claves fuera del schema.
  *

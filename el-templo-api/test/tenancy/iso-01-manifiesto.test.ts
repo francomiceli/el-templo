@@ -319,7 +319,11 @@ import {
 // 2026-10-06: 449 -> 451 por las 2 rutas de Invitaciones del socio (Fase
 // 194-10, D-06): `GET /api/members/referrals/invitations/eligibility` y
 // `POST /api/members/referrals/invitations/activate`, `tenant-scoped`.
-const ENTRADAS_BASELINE = 451;
+// 2026-10-06: 451 -> 453 por las 2 rutas del canal asistido de Invitaciones
+// (Fase 194-12, D-16/D-04): `POST /api/admin/members/:userId/invitations` y
+// `POST /api/admin/members/:userId/invitations/:invitationId/void`,
+// `tenant-scoped`.
+const ENTRADAS_BASELINE = 453;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;

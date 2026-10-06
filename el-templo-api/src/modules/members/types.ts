@@ -307,6 +307,11 @@ export interface CreateTrialMemberInput {
   lastName: string;
   phone: string;
   branchId: number;
+  /**
+   * Fase 194 D-24 ("Lo invita"): `users.id` del socio que invita. Lo consume la
+   * ruta (orquesta la invitación asistida); `createTrialMember` lo ignora.
+   */
+  inviterId?: number;
 }
 
 /**

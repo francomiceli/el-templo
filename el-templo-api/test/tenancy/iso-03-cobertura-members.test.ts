@@ -185,7 +185,11 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {};
 // GET/POST/DELETE /api/admin/members/:userId/partner-referral, con sus casos de
 // aislamiento + control en iso-03-members-ficha.test.ts (la deuda "batería
 // tenancy por verificar" de la 179, saldada acá).
-const CASOS_BASELINE = 33;
+// 2026-10-06: 33 → 35 al agregar las 2 rutas del canal asistido de Invitaciones
+// (Fase 194-12): POST /api/admin/members/:userId/invitations y
+// POST /api/admin/members/:userId/invitations/:invitationId/void, con su caso de
+// aislamiento + control en iso-03-members-ficha.test.ts.
+const CASOS_BASELINE = 35;
 
 /** Los tres archivos de la batería ISO-03 de members. */
 const ARCHIVOS_BATERIA = [

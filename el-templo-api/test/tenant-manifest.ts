@@ -568,6 +568,17 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // `referrals`, que es gym-owned — el INSERT toma el gimnasio de
   // `assertTenant(request.scope)`, nunca del body.
   "POST /api/admin/members/:userId/referrals": { categoria: "tenant-scoped" },
+  // Fase 194-12 (D-16/D-04): canal asistido de invitaciones. tenant-scoped:
+  // escriben en `invitations`/`subscriptions`/`users` (gym-owned); el gimnasio
+  // sale de `assertTenant(request.scope)` y el invitado (`:userId`) y el
+  // invitador (`inviterId`) se validan en el gimnasio y el scope de país del
+  // staff — uno ajeno es indistinguible de uno inexistente (404).
+  "POST /api/admin/members/:userId/invitations": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/members/:userId/invitations/:invitationId/void": {
+    categoria: "tenant-scoped",
+  },
   // Asignación retroactiva de partner (fase 179 plan 09, D-15). tenant-scoped:
   // escribe en `partner_referrals`/`partner_commissions`, gym-owned — el
   // gimnasio sale de `assertTenant(request.scope, …)`, nunca del body. Caso

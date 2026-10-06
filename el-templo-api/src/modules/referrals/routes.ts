@@ -11,7 +11,7 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { ReferralService } from "./service";
-import { InvitationService } from "./invitation-service";
+import { buildInvitationService } from "./invitation-factory";
 import {
   INVITATION_ACTIVATE_BODY_KEYS,
   rejectUnknownBodyKeys,
@@ -23,37 +23,14 @@ import {
 import { sendInvitationError } from "./invitation-errors";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
-import { EnrollmentService } from "../programs/enrollment-service";
-import { SubscriptionService } from "../subscriptions/service";
-import { BookingService } from "../scheduling/booking-service";
-import { NotificationService } from "../notifications/service";
 
 export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ReferralService(fastify.db, fastify.log);
 
-  // Fase 194 D-06: activación de invitaciones del socio (canal app). Mismo
-  // armado que scheduling/routes.ts: `BookingService` es el 4.º argumento de
-  // `InvitationService` (lo necesita `voidInvitation`, que acá no se expone,
-  // pero el servicio falla cerrado si falta) y se enlaza con la suscripción.
-  const subscriptionService = new SubscriptionService(
-    fastify.db,
-    fastify.log,
-    undefined,
-    new EnrollmentService(fastify.db, fastify.log),
-  );
-  const bookingService = new BookingService(
-    fastify.db,
-    fastify.log,
-    subscriptionService,
-    new NotificationService(fastify.db, fastify.log),
-  );
-  subscriptionService.setBookingService(bookingService);
-  const invitationService = new InvitationService(
-    fastify.db,
-    fastify.log,
-    subscriptionService,
-    bookingService,
-  );
+  // Fase 194 D-06: activación de invitaciones del socio (canal app). El armado
+  // (con el `BookingService` como 4.º argumento) es compartido con el canal
+  // asistido: ver `invitation-factory.ts`.
+  const invitationService = buildInvitationService(fastify.db, fastify.log);
 
   // GET /api/members/referrals — overview del socio autenticado.
   fastify.get("/", { onRequest: [fastify.authenticate] }, async (request) => {
