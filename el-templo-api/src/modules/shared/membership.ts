@@ -72,3 +72,15 @@ export function membershipPlanCondition(): SQL {
      una query sobre subscriptions que el caller ya acota con tenantWhere. */
   return sql`${schema.subscriptions.planId} NOT IN (SELECT id FROM subscription_plans WHERE is_trial = 1)`;
 }
+
+/**
+ * Fase 194 (D-02/D-14): ids de los planes "Invitacion" = `is_trial=1` Y
+ * `plan_category='paquete'`. Espejo SQL de `isInvitationPlan` (subscriptions/types.ts).
+ * Distingue la invitacion de la prueba de Yoga (`especial`) y de la Sesion de
+ * Prueba comercial (`presencial` is_trial). Se usa como `plan_id IN (${...})`.
+ */
+export function invitationPlanIdsSql(): SQL {
+  /* tenant-safe: misma subquery por PK de plan que notTrialPlanSql, viaja
+     AND-eada dentro de una query externa ya scopeada por gimnasio. */
+  return sql`SELECT id FROM subscription_plans WHERE is_trial = 1 AND plan_category = 'paquete'`;
+}

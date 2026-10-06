@@ -1239,6 +1239,45 @@ export class SubscriptionService {
   }
 
   /**
+   * Fase 194 (D-02/D-14, T-194-14): plan "Invitación" del país del invitado.
+   * Se resuelve SIEMPRE server-side por gimnasio + país (nunca un planId del
+   * body): `is_trial` + `paquete` + activo + no archivado. Falla cerrado: con 0
+   * planes o con más de 1 activo en el país es un problema de configuración, no
+   * del invitado, y se corta con error en vez de elegir uno al azar.
+   */
+  async findInvitationPlan(
+    ctx: TenantContext,
+    country: string,
+  ): Promise<PlanDetail> {
+    const rows = await this.db
+      .select()
+      .from(schema.subscriptionPlans)
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.isTrial, true),
+          eq(schema.subscriptionPlans.planCategory, "paquete"),
+          eq(schema.subscriptionPlans.country, country),
+          eq(schema.subscriptionPlans.isActive, true),
+          eq(schema.subscriptionPlans.isArchived, false),
+        ),
+      )
+      .limit(2);
+    if (rows.length !== 1) {
+      this.log.error(
+        { tenantId: ctx.tenantId, country, found: rows.length },
+        rows.length === 0
+          ? "invitaciones: no existe un plan 'Invitación' (is_trial + paquete) activo para el país — problema de configuración"
+          : "invitaciones: hay más de un plan 'Invitación' activo para el país — problema de configuración, se falla cerrado",
+      );
+      throw new BadRequestError(
+        `No hay un plan de Invitación configurado para ${country}`,
+      );
+    }
+    return this.mapPlanRow(ctx, rows[0]);
+  }
+
+  /**
    * Create a new subscription plan.
    */
   // Fase 174 (D-01/D-02, ADO-03): `ctx` primero — createPlan/updatePlan
@@ -7013,6 +7052,7 @@ export class SubscriptionService {
       specialLine: row.specialLine ?? null,
       multiBranch: row.multiBranch,
       isTrial: row.isTrial,
+      allowsInvitationDiscount: row.allowsInvitationDiscount,
       isGroup: row.isGroup,
       planCategory: row.planCategory as PlanCategory,
       goalPlanType,

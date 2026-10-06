@@ -134,6 +134,37 @@ export function excludedFromAura(c: PlanCategory): boolean {
 }
 
 /**
+ * Fase 194 (D-02/D-14): un plan "Invitacion" es `is_trial=1` Y `plan_category='paquete'`.
+ * Eso lo distingue del plan de prueba de Yoga (`especial`) y de la Sesion de
+ * Prueba comercial (`presencial` is_trial). Espejo TS de `invitationPlanIdsSql()`
+ * en shared/membership.ts: cambiar uno obliga a cambiar el otro.
+ */
+export function isInvitationPlan(plan: {
+  isTrial: boolean;
+  planCategory: string;
+}): boolean {
+  return plan.isTrial && plan.planCategory === "paquete";
+}
+
+/**
+ * Fase 194 (D-10b): el plan admite el descuento por invitacion = flag del plan
+ * Y no es una categoria excluida de referidos (`especial`, `paquete`) Y no es
+ * `is_trial`. El flag solo no alcanza: es el piso duro que el servidor aplica
+ * aunque la fila diga otra cosa.
+ */
+export function planAllowsInvitationDiscount(plan: {
+  allowsInvitationDiscount: boolean;
+  planCategory: PlanCategory;
+  isTrial: boolean;
+}): boolean {
+  return (
+    plan.allowsInvitationDiscount &&
+    !excludedFromReferrals(plan.planCategory) &&
+    !plan.isTrial
+  );
+}
+
+/**
  * Gap-fix 177 (WR-03, post-verification 2026-08-14): el boarding pass es un
  * regalo one-shot (`users.boardingPassUsed`, nunca se resetea) que aplica el
  * precio Zero. Para `paquete`, D-14 fija `priceZero = priceRegular` en las 36
@@ -191,6 +222,11 @@ export interface PlanListItem {
   specialLine: string | null;
   multiBranch: boolean;
   isTrial: boolean;
+  /**
+   * Fase 194 (D-10b): el plan admite el descuento por invitacion. Piso duro:
+   * nunca true en `especial`, `paquete` ni `is_trial` (ver planAllowsInvitationDiscount).
+   */
+  allowsInvitationDiscount: boolean;
   isGroup: boolean;
   planCategory: PlanCategory;
   goalPlanType: string | null;
@@ -249,6 +285,8 @@ export interface CreatePlanInput {
   specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
+  /** Fase 194 (D-10b): default false. Rechazado en especial/paquete/is_trial. */
+  allowsInvitationDiscount?: boolean;
   isGroup?: boolean;
   planCategory?: PlanCategory;
   linkedProgramId?: number;
@@ -277,6 +315,8 @@ export interface UpdatePlanInput {
   specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
+  /** Fase 194 (D-10b): rechazado en especial/paquete/is_trial. */
+  allowsInvitationDiscount?: boolean;
   isGroup?: boolean;
   planCategory?: PlanCategory;
   linkedProgramId?: number | null;
