@@ -17,16 +17,19 @@ import {
   createTestApp,
   getAuthToken,
   cleanAllTestData,
+  registerUser,
   todayStr,
   dateOffsetStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
-import { tenantWhere } from "../../src/modules/shared/tenant";
+import { addDays, todayInTz } from "../../src/modules/shared/date-utils";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import { SUBSCRIPTIONS_URL, assignPlan } from "../subscriptions/_helpers";
 import {
   createActiveSub,
+  ensurePhysicalBranch,
   createMemberInPhysicalBranch,
   createMembershipPlan,
   createTrialPlan,
@@ -380,5 +383,172 @@ describe("Fase 194 T-194-17/18 — guards del plan Invitación", () => {
         adminId,
       ),
     ).rejects.toThrow("solo asigna el plan Invitación");
+  });
+});
+
+describe("Fase 194 Pitfall 10 — reservas pendientes cuentan contra el saldo de accesos", () => {
+  const RESERVE_URL = "/api/members/scheduling/reserve";
+  let app: FastifyInstance;
+  let ctx: InvitationsFixtureCtx;
+  let branch: { id: number; timezone: string };
+  // Un horario por día de la semana (1=lunes..7=domingo), de una actividad regular.
+  let scheduleByDow: Map<number, number>;
+  let today: string;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    ctx = fixtureCtx(app);
+  });
+
+  afterAll(async () => {
+    await cleanAllTestData(app);
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await cleanAllTestData(app);
+    branch = await ensurePhysicalBranch(ctx, "AR");
+    today = todayInTz(branch.timezone);
+    const [act] = await app.db
+      .insert(schema.activities)
+      .values(
+        tenantValues(ctx.tenant, {
+          name: "Pitfall 10",
+          branchId: branch.id,
+        }),
+      )
+      .$returningId();
+    scheduleByDow = new Map();
+    for (let dow = 1; dow <= 7; dow++) {
+      const [sch] = await app.db
+        .insert(schema.schedules)
+        .values(
+          tenantValues(ctx.tenant, {
+            activityId: act.id,
+            branchId: branch.id,
+            dayOfWeek: dow,
+            startTime: "10:00",
+            endTime: "11:00",
+            isActive: true,
+          }),
+        )
+        .$returningId();
+      scheduleByDow.set(dow, sch.id);
+    }
+  });
+
+  function scheduleFor(date: string): number {
+    const jsDay = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const id = scheduleByDow.get(jsDay === 0 ? 7 : jsDay);
+    if (id === undefined) throw new Error(`sin horario para ${date}`);
+    return id;
+  }
+
+  /** Socio logueable (registro real) con una sub directa y saldo fijado. */
+  async function seedMember(opts: {
+    plan: "invitacion" | "presencial";
+    classesRemaining: number;
+    pendingFar: number;
+  }) {
+    const email = `p10-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}@test.com`;
+    const reg = await registerUser(app, {
+      email,
+      password: "pass123456",
+      branchId: branch.id,
+    });
+    const userId = (reg.user as { id: number }).id;
+    const token = await getAuthToken(app, email, "pass123456");
+    const plan =
+      opts.plan === "invitacion"
+        ? await createTrialPlan(ctx)
+        : await createMembershipPlan(ctx);
+    const sub = await createActiveSub(ctx, {
+      userId,
+      planId: plan.id,
+      branchId: branch.id,
+    });
+    await app.db
+      .update(schema.subscriptions)
+      .set({ classesRemaining: opts.classesRemaining, classesBudget: 3 })
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx.tenant),
+          eq(schema.subscriptions.id, sub.id),
+        ),
+      );
+    // Reservas pendientes lejos de la ventana de reserva (hoy+9...): comprometen
+    // saldo sin interferir con la regla de un turno por día ni el tope semanal.
+    for (let i = 0; i < opts.pendingFar; i++) {
+      const date = addDays(today, 9 + i);
+      await app.db.insert(schema.bookings).values(
+        tenantValues(ctx.tenant, {
+          memberId: userId,
+          scheduleId: scheduleFor(date),
+          bookingDate: date,
+          status: "reservado" as const,
+        }),
+      );
+    }
+    return { userId, token };
+  }
+
+  async function reserve(token: string, date: string) {
+    const res = await app.inject({
+      method: "POST",
+      url: RESERVE_URL,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { scheduleId: scheduleFor(date), date },
+    });
+    return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+  }
+
+  const MSG = "Ya tenés comprometidas todas las clases de tu pase";
+
+  it("invitado con saldo 2 y 1 pendiente: reserva una más y la siguiente se rechaza", async () => {
+    const { token } = await seedMember({
+      plan: "invitacion",
+      classesRemaining: 2,
+      pendingFar: 1,
+    });
+
+    const first = await reserve(token, addDays(today, 1));
+    expect(first.statusCode).toBe(201);
+
+    const second = await reserve(token, addDays(today, 2));
+    expect(second.statusCode).toBe(400);
+    expect(second.body.message).toContain(MSG);
+  });
+
+  it("tras un check-in (saldo 2 de 3) con 2 pendientes no puede reservar otra", async () => {
+    const { token } = await seedMember({
+      plan: "invitacion",
+      classesRemaining: 2,
+      pendingFar: 2,
+    });
+
+    const res = await reserve(token, addDays(today, 1));
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toContain(MSG);
+  });
+
+  it("invitado sin pendientes reserva hasta agotar el saldo", async () => {
+    const { token } = await seedMember({
+      plan: "invitacion",
+      classesRemaining: 2,
+      pendingFar: 0,
+    });
+    expect((await reserve(token, addDays(today, 1))).statusCode).toBe(201);
+    expect((await reserve(token, addDays(today, 2))).statusCode).toBe(201);
+  });
+
+  it("socio con presencial normal: sin conteo de pendientes (comportamiento sin cambios)", async () => {
+    const { token } = await seedMember({
+      plan: "presencial",
+      classesRemaining: 1,
+      pendingFar: 2,
+    });
+
+    const res = await reserve(token, addDays(today, 1));
+    expect(res.statusCode).toBe(201);
   });
 });

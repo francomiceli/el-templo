@@ -46,7 +46,7 @@ import {
   PassRequiredError,
 } from "../shared/errors";
 import { sameActivityKindSql, specialLineLabel } from "./special-line";
-import { categoryGroup } from "../subscriptions/types";
+import { categoryGroup, isInvitationPlan } from "../subscriptions/types";
 import { getEffectiveCapacity as resolveSlotCapacity } from "./capacity";
 import { getScheduleException } from "./schedule-exceptions";
 import {
@@ -266,11 +266,25 @@ export class BookingService {
     //     check-in; contar las pendientes evita comprometer más clases que el
     //     budget. Cancelar una reserva baja el conteo y libera el cupo
     //     automáticamente (flujo de cancel existente).
-    if (isSpecialActivity && subscription.classesRemaining !== null) {
-      const committed = await this.countFuturePendingSpecialBookings(
+    //
+    //     Fase 194 Pitfall 10: los accesos de invitación (plan Invitación,
+    //     "hasta 3 clases") comparten la misma regla sobre las reservas REGULARES
+    //     pendientes — sin esto un invitado reservaba más clases que accesos
+    //     restantes (el saldo solo baja en el check-in). Mismo conteo y mismo
+    //     mensaje que el pase especial; el socio con presencial normal no entra.
+    const plan = await this.subscriptionService.getPlanById(
+      ctx,
+      subscription.planId,
+    );
+    if (
+      (isSpecialActivity || (plan !== null && isInvitationPlan(plan))) &&
+      subscription.classesRemaining !== null
+    ) {
+      const committed = await this.countFuturePendingBookings(
         ctx,
         memberId,
         today,
+        isSpecialActivity,
         specialLine,
       );
       if (committed >= subscription.classesRemaining) {
@@ -284,10 +298,6 @@ export class BookingService {
     //    A bonus is a member-initiated reservation on a schedule that is NOT
     //    part of their fixed subscription_schedules. Fixed plans get 2 bonuses
     //    per 30-day window from subscription.startDate.
-    const plan = await this.subscriptionService.getPlanById(
-      ctx,
-      subscription.planId,
-    );
     const isFixedPlan = plan?.bookingMode === "fixed";
     let isBonus = false;
 
@@ -552,7 +562,10 @@ export class BookingService {
     }
 
     // 3. Validate cancellation window (at least 20 min before class)
-    const scheduleRow = await this.getScheduleSlotRaw(ctx, bookingRow.scheduleId);
+    const scheduleRow = await this.getScheduleSlotRaw(
+      ctx,
+      bookingRow.scheduleId,
+    );
     if (
       scheduleRow &&
       !this.isWithinCancelWindow(
@@ -2364,10 +2377,13 @@ export class BookingService {
    * comprometen el saldo del pase de Aura ni al revés.
    */
   // Fase 174.1-05b: `ctx` REQUERIDO — su único caller (`reserve`) ya lo trae.
-  private async countFuturePendingSpecialBookings(
+  // Fase 194 Pitfall 10: generalizado (antes solo especiales) con `isSpecial`
+  // para contar también las reservas REGULARES pendientes de un invitado.
+  private async countFuturePendingBookings(
     ctx: TenantContext,
     memberId: number,
     fromDate: string,
+    isSpecial: boolean,
     specialLine: string | null,
   ): Promise<number> {
     const [result] = await this.db
@@ -2387,7 +2403,7 @@ export class BookingService {
           eq(schema.bookings.memberId, memberId),
           sql`${schema.bookings.status} IN ('reservado', 'lista_espera')`,
           gte(schema.bookings.bookingDate, fromDate),
-          sameActivityKindSql(true, specialLine),
+          sameActivityKindSql(isSpecial, specialLine),
         ),
       );
     return Number(result?.count ?? 0);
