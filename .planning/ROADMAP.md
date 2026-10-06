@@ -317,7 +317,36 @@ Plans:
 5. "Mis invitados" muestra cupo, estados derivados y descuento; el admin muestra el lead con origen Invitación, etapa y accesos x/3, y el reporte del programa
 6. Los vínculos existentes conservan su historial y descuentos; el vínculo invertido (Guido/Valentina) queda corregido por migración
 
-**Plans**: TBD
+**Plans**: 26 plans (ejecución secuencial en un solo worktree; olas = orden de dependencias). Viajan juntos: 194-13/14/15 (árbitro) + 194-19 (admin). La invariante 194-01/03 va en el mismo tren o antes que 194-09.
+
+Plans:
+
+- [ ] 194-01-PLAN.md — Invariante D-03 parte 1: helper `shared/membership.ts` + recomputeUserStatus, active-member, listado de alumnos
+- [ ] 194-02-PLAN.md — Caracterización de cobros (4 charge-paths + 3 previews + veredicto D-22), solo tests
+- [ ] 194-03-PLAN.md — Invariante D-03 parte 2: cobertura de membresía, descuento, frecuencia, renovaciones + export SEPA con importe (D-25)
+- [ ] 194-04-PLAN.md — Tabla `invitations` (mig 0255) + gates de tenancy
+- [ ] 194-05-PLAN.md — Flag `allows_invitation_discount` (0256, D-23) + planes Invitación AR/ES (0257) + guard semana de partners
+- [ ] 194-06-PLAN.md — D-07 cierre de accesos al comprar + guards del plan Invitación + reservas pendientes vs saldo
+- [ ] 194-07-PLAN.md — Días hábiles (D-15) + parámetros del programa en tenant_settings + GET/PUT settings
+- [ ] 194-08-PLAN.md — InvitationService: cupo (D-10), invitador vigente, elegibilidad D-11/D-12, identidad
+- [ ] 194-09-PLAN.md — InvitationService: activación con locks + compensación + anulación; uso real de accesos (SC-1)
+- [ ] 194-10-PLAN.md — Rutas app (eligibility/activate) + registro sin vínculo pending (D-26b)
+- [ ] 194-11-PLAN.md — Canal asistido (D-16) + "Lo invita" en Nuevo en Prueba (D-24) + D-17 sin cupo
+- [ ] 194-12-PLAN.md — Leads: gate de conversión con invitación + conversión atribuida + cron de perdidos (D-18)
+- [ ] 194-13-PLAN.md — Árbitro de descuentos (núcleo) + % por lado + vínculo al comprar + AURA por monto
+- [ ] 194-14-PLAN.md — Árbitro en assignPlan, changePlanAfterCurrent y getPricingPreview
+- [ ] 194-15-PLAN.md — Árbitro en changePlanNow y renewSubscription + previews con montos + D-22
+- [ ] 194-16-PLAN.md — "Mis invitados" API (cupo, link, estados derivados, invitedBy)
+- [ ] 194-17-PLAN.md — Reporte D-19 + bandeja de leads de invitación + filtro origen en alumnos
+- [ ] 194-18-PLAN.md — Migraciones de datos 0258 (vínculo 3, D-28) y 0259 (copy) + rebrand de copy de la API
+- [ ] 194-19-PLAN.md — Admin: previews por monto del servidor (Pitfall 6) — viaja con el árbitro
+- [ ] 194-20-PLAN.md — Admin: ficha Invitaciones + crear/anular invitación + altas con "Lo invita"/"Invitado por"
+- [ ] 194-21-PLAN.md — Admin: flag en planes + Configuración ▸ Invitaciones (tope en dinero por país)
+- [ ] 194-22-PLAN.md — Admin: Reportes ▸ Invitaciones + filtro de alumnos + rebrand restante
+- [ ] 194-23-PLAN.md — App: Mis invitados + rebrand + alias `/mis-referidos`
+- [ ] 194-24-PLAN.md — App: landing `/invitacion/:code` + Activar invitación + registro/login con código + versión 1.9.0
+- [ ] 194-25-PLAN.md — Pre-flight de release: numeración, gates de los 3 paquetes, checklist
+- [ ] 194-26-PLAN.md — Checkpoints humanos: feriados ES (D-29), backup + validación, UAT AR+ES, SEPA con Leandro
 
 ## Progress
 
