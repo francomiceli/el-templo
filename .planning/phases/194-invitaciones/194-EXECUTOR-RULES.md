@@ -93,3 +93,12 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Al cambiar una expectativa en 194-15..18: reemplazar la línea `194: cambia en ...` por `// 194-NN D-XX: <qué cambió>` en el mismo commit (el conteo de anotaciones pendientes debe bajar).
 - `getRenewalPreview` hoy devuelve solo `{subscriptionId, base, source}`; el `toEqual` del caso (h) se rompe a propósito cuando 194-18 agregue campos.
 - Comandos con `cd` a rutas calculadas los bloquea el worktree: usar rutas absolutas literales.
+
+### Tras 194-03
+- Coberturas: `deriveCoveredUntil(Batch)` = ACCESO (reservas, sin cambios); `deriveMembershipCoveredUntil(Batch)` = MEMBRESÍA. No crear un tercer sabor: usar el flag `membershipOnly` del impl privado.
+- `membershipPlanCondition()` compone en `and(...)` de Drizzle; `membershipInEffectSql(alias)` / `notTrialPlanSql(alias)` para SQL crudo.
+- Una subquery escalar no devuelve 2 columnas: fragmento compartido + desempate `s.id DESC`.
+- `createTrialPlan` usa 6 días por defecto (bajo el corte de Renovaciones = 7). Para probar exclusión `is_trial` en Renovaciones, `durationDays >= 7`.
+- Tests de xlsx leen por header, no por posición.
+- Vistas que solo MUESTRAN el plan que la persona tiene (listado de alumnos, filtro por plan, panel de turno, engagement) muestran "Invitación" a propósito para invitados; no "arreglarlas".
+- Plan 194-31 agregado por el orquestador (indicadores de membresía restantes); se ejecuta después de 194-03.
