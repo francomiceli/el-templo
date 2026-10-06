@@ -188,11 +188,21 @@ export async function ensureVirtualBranch(
 
 type UserStatus = "freemium" | "prueba" | "activo" | "inactivo";
 
+/**
+ * Identidad opcional del socio fixture (plan 194-08): por defecto sin teléfono
+ * y con un DNI único; los tests de identificación pasan `phone`/`dni` propios.
+ */
+export interface MemberIdentityOpts {
+  phone?: string | null;
+  dni?: string | null;
+}
+
 async function insertMember(
   ctx: InvitationsFixtureCtx,
   branchId: number,
   status: UserStatus,
   namePrefix: string,
+  identity: MemberIdentityOpts = {},
 ): Promise<{ id: number; branchId: number }> {
   const suffix = uniqueSuffix();
   const [row] = await ctx.app.db
@@ -203,8 +213,11 @@ async function insertMember(
         passwordHash: "x", // los tests de esta fase no hacen login con estos socios
         firstName: namePrefix,
         lastName: `Fixture${suffix}`,
-        dni: `D${suffix}`.slice(0, 20),
-        phone: null,
+        dni:
+          identity.dni === undefined
+            ? `D${suffix}`.slice(0, 20)
+            : identity.dni,
+        phone: identity.phone ?? null,
         role: "member" as const,
         level: "alfa" as const,
         status,
@@ -220,19 +233,31 @@ async function insertMember(
 /** Socio en una sede FÍSICA del país (default AR) con el `status` pedido. */
 export async function createMemberInPhysicalBranch(
   ctx: InvitationsFixtureCtx,
-  opts: { country?: Country; status?: UserStatus } = {},
+  opts: { country?: Country; status?: UserStatus } & MemberIdentityOpts = {},
 ): Promise<{ id: number; branchId: number }> {
   const branch = await ensurePhysicalBranch(ctx, opts.country ?? "AR");
-  return insertMember(ctx, branch.id, opts.status ?? "freemium", "Fisico");
+  return insertMember(
+    ctx,
+    branch.id,
+    opts.status ?? "freemium",
+    "Fisico",
+    opts,
+  );
 }
 
 /** Socio freemium en la sede VIRTUAL (el "invitado" típico antes de activar). */
 export async function createMemberInVirtualBranch(
   ctx: InvitationsFixtureCtx,
-  opts: { status?: UserStatus } = {},
+  opts: { status?: UserStatus } & MemberIdentityOpts = {},
 ): Promise<{ id: number; branchId: number }> {
   const branch = await ensureVirtualBranch(ctx);
-  return insertMember(ctx, branch.id, opts.status ?? "freemium", "Virtual");
+  return insertMember(
+    ctx,
+    branch.id,
+    opts.status ?? "freemium",
+    "Virtual",
+    opts,
+  );
 }
 
 /**
@@ -250,8 +275,16 @@ export async function createActiveSub(
     startOffsetDays?: number;
     endOffsetDays?: number | null;
     pricePaid?: number;
-    status?: "active" | "paused" | "scheduled" | "expired" | "completed";
+    status?:
+      | "active"
+      | "paused"
+      | "scheduled"
+      | "expired"
+      | "completed"
+      | "cancelled";
     createdAt?: Date;
+    /** Para subs `cancelled`: cuándo se canceló (no toca `end_date`). */
+    cancelledAt?: Date;
   },
 ): Promise<{ id: number; startDate: string; endDate: string | null }> {
   const [plan] = await ctx.app.db
@@ -314,6 +347,7 @@ export async function createActiveSub(
         currency: plan.currency,
         priceTypeApplied: "regular" as const,
         ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
+        ...(opts.cancelledAt ? { cancelledAt: opts.cancelledAt } : {}),
       }),
     )
     .$returningId();

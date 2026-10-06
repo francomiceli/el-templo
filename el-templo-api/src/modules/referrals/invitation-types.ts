@@ -1,0 +1,99 @@
+// Módulo: referrals — contrato de tipos de las reglas de Invitaciones (Fase 194).
+// Lo consumen la activación (194-09), la app (194-10) y el canal asistido
+// (194-12). Copy visible: siempre "invitación/invitar/invitado" (rebrand D-18).
+import { ConflictError } from "../shared/errors";
+
+/**
+ * Código estable de por qué una invitación no se puede activar. Es el
+ * discriminador que app y admin usan para mostrar lo mismo; el copy vive en
+ * {@link INELIGIBLE_MESSAGES}.
+ */
+export type InvitationIneligibleReason =
+  | "inviter_not_found"
+  | "inviter_not_member"
+  | "inviter_quota_exhausted"
+  | "self_invite"
+  | "invitee_is_member"
+  | "invitee_recent_member"
+  | "invitee_recent_invitation"
+  | "phone_required"
+  | "phone_taken"
+  | "dni_taken";
+
+/** Cupo mensual del invitador (D-10). `month` = 'YYYY-MM' en la tz de SU sede. */
+export interface InviterQuota {
+  limit: number;
+  used: number;
+  remaining: number;
+  month: string;
+}
+
+/** Resultado de evaluar al invitado SIN lanzar (para `GET .../eligibility`). */
+export interface EligibilityResult {
+  eligible: boolean;
+  reason: InvitationIneligibleReason | null;
+  message: string | null;
+}
+
+/** Datos que el invitado/staff aporta y el servidor evalúa (nunca `tenantId`). */
+export interface InviteeEligibilityInput {
+  inviterId: number;
+  invitedUserId: number;
+  phone: string;
+  dni?: string | null;
+  /**
+   * Sede elegida para entrenar: define la tz del "hoy" de las reglas de
+   * historial. Si falta se usa la sede actual del invitado.
+   */
+  branchId?: number;
+}
+
+/** Entrada de la activación (194-09/10/12). */
+export interface ActivateInvitationInput {
+  inviterId?: number;
+  code?: string;
+  invitedUserId: number;
+  branchId: number;
+  phone: string;
+  dni?: string | null;
+  channel: "self_service" | "assisted";
+  createdBy: number | null;
+}
+
+/**
+ * Mensajes en español (voseo). Genéricos por motivo: jamás nombre ni dato de
+ * la otra cuenta que ya tiene el teléfono/DNI (T-194-28).
+ */
+export const INELIGIBLE_MESSAGES: Record<InvitationIneligibleReason, string> = {
+  inviter_not_found: "No encontramos al socio que hace la invitación.",
+  inviter_not_member:
+    "Para invitar necesitás tener una membresía vigente. Renová la tuya y volvé a intentarlo.",
+  inviter_quota_exhausted:
+    "Ya usaste todas tus invitaciones de este mes. El mes que viene vas a tener nuevas.",
+  self_invite: "No podés invitarte a vos mismo.",
+  invitee_is_member:
+    "Esta persona ya tiene una membresía vigente, por eso no se la puede invitar.",
+  invitee_recent_member:
+    "Esta persona tuvo una membresía hace poco, así que todavía no puede recibir una invitación.",
+  invitee_recent_invitation:
+    "Esta persona ya recibió una invitación hace poco, así que todavía no puede recibir otra.",
+  phone_required: "El teléfono es obligatorio para activar una invitación.",
+  phone_taken:
+    "Ese teléfono ya está registrado en otra cuenta. Pedí ayuda en recepción para activar la invitación.",
+  dni_taken:
+    "Ese DNI ya está registrado en otra cuenta. Pedí ayuda en recepción para activar la invitación.",
+};
+
+/**
+ * Error de regla de negocio de Invitaciones (409). Transporta el `reason`
+ * estable para que la ruta lo serialice y el front muestre el mensaje correcto.
+ * Extiende {@link ConflictError} (plan 194-08): todas las reglas dan 409.
+ */
+export class InvitationRuleError extends ConflictError {
+  readonly reason: InvitationIneligibleReason;
+
+  constructor(reason: InvitationIneligibleReason) {
+    super(INELIGIBLE_MESSAGES[reason]);
+    this.reason = reason;
+  }
+}

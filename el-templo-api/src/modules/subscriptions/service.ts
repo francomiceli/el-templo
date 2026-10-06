@@ -349,7 +349,7 @@ export async function deriveCoveredUntilBatch(
  * estado del vínculo. NO usar para bloquear reservas (eso es ACCESO).
  */
 export async function deriveMembershipCoveredUntil(
-  db: MySql2Database<typeof schema>,
+  db: MySql2Database<typeof schema> | TxHandle,
   userId: number,
   ctx?: TenantContext,
 ): Promise<string | null> {
@@ -365,7 +365,7 @@ export async function deriveMembershipCoveredUntil(
  * que {@link deriveCoveredUntilBatch} más la exclusión de planes `is_trial`.
  */
 export async function deriveMembershipCoveredUntilBatch(
-  db: MySql2Database<typeof schema>,
+  db: MySql2Database<typeof schema> | TxHandle,
   userIds: number[],
   ctx?: TenantContext,
 ): Promise<Map<number, string | null>> {
@@ -379,7 +379,7 @@ export async function deriveMembershipCoveredUntilBatch(
  * filtro "el plan NO es `is_trial`" (invariante D-03, `shared/membership.ts`).
  */
 async function deriveCoveredUntilBatchImpl(
-  db: MySql2Database<typeof schema>,
+  db: MySql2Database<typeof schema> | TxHandle,
   userIds: number[],
   ctx: TenantContext | undefined,
   opts: { membershipOnly: boolean },
