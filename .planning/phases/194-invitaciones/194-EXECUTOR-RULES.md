@@ -119,3 +119,10 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Tests que aplican SQL de migración cross-tenant por `app.dbPool` necesitan prefijo `/* tenant-safe: ... */` (sentinel).
 - `.limit(1)` sin `orderBy` en `subscription_plans` ordena por el índice único de nombre: un test que dependa de eso controla el nombre.
 - Los planes Invitación aparecen hoy en "Vender otro pase" del admin (como el de Yoga): lo resuelve 194-25; `assignPlan` los rechaza desde 194-06.
+
+### Tras 194-06
+- `assignInvitationPlan` (interno, único que asigna el plan Invitación): pasar `priceOverrideAmount: 0` + `priceOverrideReason` (sin razón → 400), y `adminId` = `users.id` real (audit_log con FK; en tests el id de `admin@test.com`, nunca `1`).
+- Con precio 0 no hay transacción de cobro: alcanza `SubscriptionService` + `EnrollmentService`, sin `TransactionService`.
+- Reservas reales en tests: `registerUser` + `getAuthToken` (los socios de `createMemberInPhysicalBranch` no loguean); `cleanAllTestData` vacía actividades y feriados → sembrar horario por día ISO en `beforeEach`. Regla un turno por día + ventana +2 días: reservas lejanas se siembran por DB.
+- Compra con accesos vigentes: la sub de invitación pasa a `completed` en la misma tx (D-07); `scheduled` sigue dando 409.
+- **194-18:** `getRenewalPreview` de una sub Invitación todavía devuelve datos (renovar da 400): agregarle el mismo guard.
