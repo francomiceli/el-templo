@@ -60,6 +60,28 @@ export interface ActivateInvitationInput {
   createdBy: number | null;
 }
 
+/** Resultado de una activación exitosa (194-09). */
+export interface ActivatedInvitation {
+  invitationId: number;
+  subscriptionId: number;
+  /** Último día de los accesos ('YYYY-MM-DD'): día hábil N en la sede elegida. */
+  accessExpiresOn: string;
+  classesBudget: number | null;
+  /** Sede física a la que quedó asignado el invitado. */
+  branchId: number;
+}
+
+/** Entrada de la anulación por staff (D-04): rastro obligatorio, sin DELETE. */
+export interface VoidInvitationInput {
+  /** `users.id` del staff que anula. */
+  voidedBy: number;
+  /** Motivo libre (máx. 64 caracteres: columna `void_reason`). */
+  reason: string;
+}
+
+/** `void_reason` que deja la compensación de una activación fallida (T-194-33). */
+export const ACTIVATION_FAILED_REASON = "activation_failed";
+
 /**
  * Mensajes en español (voseo). Genéricos por motivo: jamás nombre ni dato de
  * la otra cuenta que ya tiene el teléfono/DNI (T-194-28).

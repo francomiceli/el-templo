@@ -12,9 +12,13 @@
  * `TenantContext` del gimnasio donde se siembra. `fixtureCtx(app)` arma el de
  * El Templo.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
+import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
+import { InvitationService } from "../../src/modules/referrals/invitation-service";
+import { INVITATION_SETTINGS_PREFIX } from "../../src/modules/referrals/invitation-settings";
+import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { addDays, todayInTz } from "../../src/modules/shared/date-utils";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import type { TenantContext } from "../../src/modules/shared/tenant";
@@ -214,9 +218,7 @@ async function insertMember(
         firstName: namePrefix,
         lastName: `Fixture${suffix}`,
         dni:
-          identity.dni === undefined
-            ? `D${suffix}`.slice(0, 20)
-            : identity.dni,
+          identity.dni === undefined ? `D${suffix}`.slice(0, 20) : identity.dni,
         phone: identity.phone ?? null,
         role: "member" as const,
         level: "alfa" as const,
@@ -411,4 +413,100 @@ export async function createInvitationRow(
     )
     .$returningId();
   return { id: row.id };
+}
+
+// ─── Activación (194-09) ─────────────────────────────────────────────────────
+
+/**
+ * `InvitationService` con su `SubscriptionService` real (+ `EnrollmentService`,
+ * que necesita `assignPlan`). Con precio 0 no hace falta `TransactionService`.
+ */
+export function buildInvitationServices(app: FastifyInstance): {
+  subscriptionService: SubscriptionService;
+  invitationService: InvitationService;
+} {
+  const subscriptionService = new SubscriptionService(
+    app.db,
+    app.log,
+    undefined,
+    new EnrollmentService(app.db, app.log),
+  );
+  return {
+    subscriptionService,
+    invitationService: new InvitationService(
+      app.db,
+      app.log,
+      subscriptionService,
+    ),
+  };
+}
+
+/** `tenant_settings` no está en TABLES_TO_CLEAN: se resetea solo el namespace. */
+export async function resetInvitationSettings(
+  ctx: InvitationsFixtureCtx,
+): Promise<void> {
+  await ctx.app.db
+    .delete(schema.tenantSettings)
+    .where(
+      and(
+        tenantWhere(schema.tenantSettings, ctx.tenant),
+        like(
+          schema.tenantSettings.settingKey,
+          `${INVITATION_SETTINGS_PREFIX}%`,
+        ),
+      ),
+    );
+}
+
+/** `users.id` real de `admin@test.com` (FK de audit_log: nunca hardcodear). */
+export async function getAdminUserId(
+  ctx: InvitationsFixtureCtx,
+): Promise<number> {
+  const [admin] = await ctx.app.db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(
+      and(
+        tenantWhere(schema.users, ctx.tenant),
+        eq(schema.users.email, "admin@test.com"),
+      ),
+    );
+  if (!admin) throw new Error("admin@test.com no existe en la DB de test");
+  return admin.id;
+}
+
+// Base aleatoria por proceso + contador: único dentro del worker y poco probable entre workers.
+let phoneSeq = Math.floor(Math.random() * 8e7) + 1e7;
+/** Teléfono nacional de 10 dígitos único por llamada (el chequeo de identidad es por últimos 10). */
+export function uniquePhone10(): string {
+  phoneSeq += 1;
+  return `11${phoneSeq}`;
+}
+
+/**
+ * Invitador listo: socio `activo` con membresía real vigente (no is_trial) y
+ * código de invitación propio. `branchId` por defecto = primera sede física del país.
+ */
+export async function createInviterWithCode(
+  ctx: InvitationsFixtureCtx,
+  opts: { country?: Country } = {},
+): Promise<{ id: number; branchId: number; code: string }> {
+  const country = opts.country ?? "AR";
+  const inviter = await createMemberInPhysicalBranch(ctx, {
+    country,
+    status: "activo",
+  });
+  const plan = await createMembershipPlan(ctx, { country });
+  await createActiveSub(ctx, { userId: inviter.id, planId: plan.id });
+  const code = `INV-${uniqueSuffix().toUpperCase()}`.slice(0, 16);
+  await ctx.app.db
+    .update(schema.users)
+    .set({ referralCode: code })
+    .where(
+      and(
+        tenantWhere(schema.users, ctx.tenant),
+        eq(schema.users.id, inviter.id),
+      ),
+    );
+  return { ...inviter, code };
 }

@@ -25,14 +25,18 @@ import {
   setInvitationSettings,
 } from "../../src/modules/referrals/invitation-settings";
 import {
+  buildInvitationServices,
   createActiveSub,
   createInvitationRow,
+  createInviterWithCode,
   createMemberInPhysicalBranch,
   createMemberInVirtualBranch,
   createMembershipPlan,
   createTrialPlan,
   ensurePhysicalBranch,
   fixtureCtx,
+  resetInvitationSettings as resetSettingsOf,
+  uniquePhone10,
   type InvitationsFixtureCtx,
 } from "./_helpers";
 
@@ -159,10 +163,7 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
   it("2 activas el mes pasado: este mes tiene el cupo completo (no acumula ni arrastra)", async () => {
     const inviter = await createInviter();
     const branch = await ensurePhysicalBranch(ctx, "AR");
-    const lastMonth = subtractMonths(todayInTz(branch.timezone), 1).slice(
-      0,
-      7,
-    );
+    const lastMonth = subtractMonths(todayInTz(branch.timezone), 1).slice(0, 7);
     await addInvitations(inviter, 2, { quotaMonth: lastMonth });
 
     const quota = await service.getInviterQuota(ctx.tenant, inviter.id);
@@ -282,6 +283,143 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
 
     expect(quotaB.used).toBe(0);
     expect(quotaB.remaining).toBe(2);
+  });
+});
+
+describe("Fase 194 D-10 / T-194-29 — cupo bajo concurrencia (activate)", () => {
+  let app: FastifyInstance;
+  let ctx: InvitationsFixtureCtx;
+  let service: InvitationService;
+  let branchId: number;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    ctx = fixtureCtx(app);
+    service = buildInvitationServices(app).invitationService;
+  });
+
+  afterAll(async () => {
+    await cleanAllTestData(app);
+    await resetSettingsOf(ctx);
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await cleanAllTestData(app);
+    await resetSettingsOf(ctx);
+    branchId = (await ensurePhysicalBranch(ctx, "AR")).id;
+    await createTrialPlan(ctx, { country: "AR" });
+  });
+
+  function activateFor(
+    inviter: { code: string },
+    invitee: { id: number },
+  ): Promise<{ invitationId: number }> {
+    return service.activate(ctx.tenant, {
+      channel: "self_service",
+      code: inviter.code,
+      invitedUserId: invitee.id,
+      branchId,
+      phone: uniquePhone10(),
+      createdBy: null,
+    });
+  }
+
+  async function countActive(inviterId: number): Promise<number> {
+    const rows = await app.db
+      .select({ id: schema.invitations.id })
+      .from(schema.invitations)
+      .where(
+        and(
+          tenantWhere(schema.invitations, ctx.tenant),
+          eq(schema.invitations.inviterId, inviterId),
+          eq(schema.invitations.status, "active"),
+        ),
+      );
+    return rows.length;
+  }
+
+  it("1 cupo restante y dos activaciones simultáneas de invitados distintos: pasa exactamente una", async () => {
+    const inviter = await createInviterWithCode(ctx);
+    // Cupo 2 con 1 ya consumido: queda 1.
+    const previous = await createMemberInVirtualBranch(ctx);
+    await createInvitationRow(ctx, {
+      inviterId: inviter.id,
+      invitedUserId: previous.id,
+      branchId: inviter.branchId,
+    });
+    const a = await createMemberInVirtualBranch(ctx);
+    const b = await createMemberInVirtualBranch(ctx);
+
+    const results = await Promise.allSettled([
+      activateFor(inviter, a),
+      activateFor(inviter, b),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter(
+      (r): r is PromiseRejectedResult => r.status === "rejected",
+    );
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBeInstanceOf(InvitationRuleError);
+    expect((rejected[0].reason as InvitationRuleError).reason).toBe(
+      "inviter_quota_exhausted",
+    );
+    expect(await countActive(inviter.id)).toBe(2);
+    const quota = await service.getInviterQuota(ctx.tenant, inviter.id);
+    expect(quota.remaining).toBe(0);
+  });
+
+  it("cupo 2 de 2 y cuatro activaciones simultáneas: pasan exactamente dos", async () => {
+    const inviter = await createInviterWithCode(ctx);
+    const invitees = await Promise.all(
+      [0, 1, 2, 3].map(() => createMemberInVirtualBranch(ctx)),
+    );
+
+    const results = await Promise.allSettled(
+      invitees.map((i) => activateFor(inviter, i)),
+    );
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(2);
+    for (const r of results) {
+      if (r.status === "rejected") {
+        expect((r.reason as InvitationRuleError).reason).toBe(
+          "inviter_quota_exhausted",
+        );
+      }
+    }
+    expect(await countActive(inviter.id)).toBe(2);
+  });
+
+  it("el mismo invitado desde dos invitadores a la vez: una sola activa (ventana de 90 días por persona)", async () => {
+    const one = await createInviterWithCode(ctx);
+    const two = await createInviterWithCode(ctx);
+    const invitee = await createMemberInVirtualBranch(ctx);
+
+    const results = await Promise.allSettled([
+      activateFor(one, invitee),
+      activateFor(two, invitee),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find(
+      (r): r is PromiseRejectedResult => r.status === "rejected",
+    );
+    expect((rejected?.reason as InvitationRuleError).reason).toBe(
+      "invitee_recent_invitation",
+    );
+    const rows = await app.db
+      .select({ id: schema.invitations.id })
+      .from(schema.invitations)
+      .where(
+        and(
+          tenantWhere(schema.invitations, ctx.tenant),
+          eq(schema.invitations.invitedUserId, invitee.id),
+          eq(schema.invitations.status, "active"),
+        ),
+      );
+    expect(rows).toHaveLength(1);
   });
 });
 

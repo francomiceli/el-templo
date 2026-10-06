@@ -233,7 +233,7 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
     expect(await reasonOf(a)).toBeNull();
   });
 
-  it("sub programada (scheduled) sin arrancar no cuenta como historial", async () => {
+  it("194-09: sub NO-trial programada (scheduled) = ya compró: invitee_is_member", async () => {
     const a = await actors();
     const plan = await createMembershipPlan(ctx);
     await createActiveSub(ctx, {
@@ -242,6 +242,37 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
       startOffsetDays: 5,
       endOffsetDays: 35,
       status: "scheduled",
+    });
+
+    expect(await reasonOf(a)).toBe<InvitationIneligibleReason>(
+      "invitee_is_member",
+    );
+  });
+
+  it("194-09: sub is_trial programada (scheduled) NO bloquea (no es membresía)", async () => {
+    const a = await actors();
+    const sp = await createTrialPlan(ctx, { category: "presencial" });
+    await createActiveSub(ctx, {
+      userId: a.invitee.id,
+      planId: sp.id,
+      startOffsetDays: 5,
+      endOffsetDays: 11,
+      status: "scheduled",
+    });
+
+    expect(await reasonOf(a)).toBeNull();
+  });
+
+  it("194-09: sub programada pero cancelada no bloquea", async () => {
+    const a = await actors();
+    const plan = await createMembershipPlan(ctx);
+    await createActiveSub(ctx, {
+      userId: a.invitee.id,
+      planId: plan.id,
+      startOffsetDays: 5,
+      endOffsetDays: 35,
+      status: "cancelled",
+      cancelledAt: new Date(),
     });
 
     expect(await reasonOf(a)).toBeNull();
@@ -514,9 +545,9 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
   it("invitarse a uno mismo: self_invite (gana a phone_required)", async () => {
     const a = await actors();
 
-    expect(
-      await reasonOf(a, { inviterId: a.invitee.id, phone: "" }),
-    ).toBe("self_invite");
+    expect(await reasonOf(a, { inviterId: a.invitee.id, phone: "" })).toBe(
+      "self_invite",
+    );
   });
 
   it("corta en la primera falla: identidad antes que historial", async () => {

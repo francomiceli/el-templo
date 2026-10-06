@@ -2062,6 +2062,42 @@ export class SubscriptionService {
     });
   }
 
+  /**
+   * Fase 194 D-07 / D-04: cierra los accesos de invitación (subs `active` o
+   * `paused`) como `completed`, dentro de la tx del llamador. Es el ÚNICO UPDATE
+   * de cierre: lo usan la compra de un plan real (`assignPlanInternal`) y la
+   * anulación manual de una invitación (`InvitationService.voidInvitation`).
+   * `completed` y NO una baja: no perdona deuda ni exige anular cobros;
+   * `end_date` y `classes_remaining` quedan como estaban. Con `recompute: true`
+   * recalcula `users.status` por el camino de siempre (un acceso is_trial no da
+   * membresía, D-03: sin membresía real el status previo, p. ej. `prueba`, se
+   * conserva). Devuelve cuántas subs se cerraron (0 si ya no estaban vigentes).
+   */
+  async closeInvitationAccess(
+    ctx: TenantContext,
+    userId: number,
+    subscriptionIds: number[],
+    tx: MySql2Database<typeof schema>,
+    opts: { recompute: boolean },
+  ): Promise<number> {
+    if (subscriptionIds.length === 0) return 0;
+    const [result] = await tx
+      .update(schema.subscriptions)
+      .set({ status: "completed" })
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+          inArray(schema.subscriptions.id, subscriptionIds),
+          inArray(schema.subscriptions.status, ["active", "paused"]),
+        ),
+      );
+    if (opts.recompute) {
+      await this.recomputeUserStatus(ctx, userId, tx);
+    }
+    return result.affectedRows;
+  }
+
   private async assignPlanInternal(
     ctx: TenantContext,
     userId: number,
@@ -2757,17 +2793,14 @@ export class SubscriptionService {
         // `classes_remaining` quedan como estaban. Va antes del recompute para
         // que el status del usuario lo vea cerrado.
         if (invitationSubIdsToClose.length > 0) {
-          await tx
-            .update(schema.subscriptions)
-            .set({ status: "completed" })
-            .where(
-              and(
-                tenantWhere(schema.subscriptions, ctx),
-                eq(schema.subscriptions.userId, userId),
-                inArray(schema.subscriptions.id, invitationSubIdsToClose),
-                inArray(schema.subscriptions.status, ["active", "paused"]),
-              ),
-            );
+          // El recompute lo corre más abajo esta misma tx (recompute: false).
+          await this.closeInvitationAccess(
+            ctx,
+            userId,
+            invitationSubIdsToClose,
+            tx,
+            { recompute: false },
+          );
           this.log.info(
             {
               userId,
