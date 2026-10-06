@@ -133,3 +133,12 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Fastify con `additionalProperties:false` DESCARTA claves extra (200), no las rechaza; validar en el servicio si hace falta 400.
 - Molde de tests de rutas con varios roles: `test/invitations/settings.test.ts` (staff en `beforeAll`, reset de su namespace en vez de `cleanAllTestData`).
 - Si el hook rechaza un comando compuesto, una parte YA pudo haberse ejecutado: verificar estado (`git diff`) antes de reintentar. Editar con Edit/Write.
+
+### Tras 194-08
+- `InvitationService` en `referrals/invitation-service.ts` (+ `invitation-types.ts`); contrato en `194-08-SUMMARY.md`. Todos los `InvitationRuleError` → 409; invitado inexistente → 404.
+- Bajo lock: pasar el `tx` a las funciones (`deriveMembershipCoveredUntil*` ya aceptan `TxHandle`); los settings se leen por el pool.
+- `lint:tenant`: un fragmento `sql\`...\`` con columnas de `subscriptions` en statement aparte necesita `/* tenant-safe: ... */` pegado; no usar alias `const s = schema.subscriptions`.
+- `tenant_settings` NO está en `TABLES_TO_CLEAN`: borrar `invitations.%` a mano en `beforeEach`.
+- `bookings.status`: `reservado|qr_escaneado|confirmado|cancelado|lista_espera|no_show` (no existe `asistio`; asistió = `qr_escaneado|confirmado`).
+- Fechas de expresiones SQL mixtas (`LEAST`/`COALESCE`): `CAST(... AS CHAR)`.
+- **194-09 (orquestador):** agregar regla — un invitado con sub NO-trial `scheduled` (ya compró y arranca después) NO es elegible (mismo motivo que socio vigente). Test incluido.
