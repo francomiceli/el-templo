@@ -411,9 +411,7 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM aviso_events WHERE tenant_id = ${TENANT_DOS}`,
   );
-  await app.db.execute(
-    sql`DELETE FROM avisos WHERE tenant_id = ${TENANT_DOS}`,
-  );
+  await app.db.execute(sql`DELETE FROM avisos WHERE tenant_id = ${TENANT_DOS}`);
   await app.db.execute(
     sql`DELETE FROM tv_avisos WHERE tenant_id = ${TENANT_DOS}`,
   );
@@ -423,6 +421,14 @@ export async function limpiarSegundoGimnasio(
   // Arqueos (0226): FK a users y cash_registers, se van antes.
   await app.db.execute(
     sql`DELETE FROM cash_counts WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  // Fase 194 (0255): `invitations` tiene FK a users, subscriptions y branches
+  // sin cascade (la fila nunca se borra en produccion, D-04). Una invitacion del
+  // gimnasio 2 hace reventar los DELETE de users y branches de aca abajo (y el
+  // de subscriptions de `cleanAllTestData`) si no sale antes. Va ANTES del
+  // DELETE FROM users.
+  await app.db.execute(
+    sql`DELETE FROM invitations WHERE tenant_id = ${TENANT_DOS}`,
   );
   await app.db.execute(sql`DELETE FROM users WHERE tenant_id = ${TENANT_DOS}`);
   // Defensivo (WR-02): el fixture NO siembra cajas, pero una bateria de finance

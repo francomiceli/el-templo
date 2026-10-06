@@ -57,6 +57,7 @@ export * from "./system-settings";
 export * from "./member-profiles";
 export * from "./user-sepa-details";
 export * from "./referrals";
+export * from "./invitations";
 export * from "./referral-credits";
 export * from "./referral-cta-clicks";
 export * from "./referral-partners";

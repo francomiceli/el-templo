@@ -223,12 +223,7 @@ export async function createMemberInPhysicalBranch(
   opts: { country?: Country; status?: UserStatus } = {},
 ): Promise<{ id: number; branchId: number }> {
   const branch = await ensurePhysicalBranch(ctx, opts.country ?? "AR");
-  return insertMember(
-    ctx,
-    branch.id,
-    opts.status ?? "freemium",
-    "Fisico",
-  );
+  return insertMember(ctx, branch.id, opts.status ?? "freemium", "Fisico");
 }
 
 /** Socio freemium en la sede VIRTUAL (el "invitado" típico antes de activar). */
@@ -298,9 +293,7 @@ export async function createActiveSub(
         eq(schema.branches.id, branchId),
       ),
     );
-  const today = todayInTz(
-    branch?.timezone ?? COUNTRY_DEFAULTS.AR.timezone,
-  );
+  const today = todayInTz(branch?.timezone ?? COUNTRY_DEFAULTS.AR.timezone);
   const startDate = addDays(today, opts.startOffsetDays ?? -2);
   const endDate =
     opts.endOffsetDays === null
@@ -325,4 +318,63 @@ export async function createActiveSub(
     )
     .$returningId();
   return { id: row.id, startDate, endDate };
+}
+
+/**
+ * Fila de `invitations` directa (para fixtures de LECTURA: cupo, ventana,
+ * "Mis invitados"). La activación real es el servicio de 194-09, no esto.
+ * Fechas relativas a `todayInTz` de la sede: default acceso hoy → hoy+5 y
+ * `quotaMonth` el mes corriente en la tz de la sede.
+ */
+export async function createInvitationRow(
+  ctx: InvitationsFixtureCtx,
+  opts: {
+    inviterId: number;
+    invitedUserId: number;
+    branchId: number;
+    activatedAt?: Date;
+    quotaMonth?: string;
+    accessStartsOn?: string;
+    accessExpiresOn?: string;
+    status?: "active" | "voided";
+    channel?: "self_service" | "assisted";
+    phoneLast10?: string;
+    dni?: string | null;
+    subscriptionId?: number | null;
+  },
+): Promise<{ id: number }> {
+  const [branch] = await ctx.app.db
+    .select({ timezone: schema.branches.timezone })
+    .from(schema.branches)
+    .where(
+      and(
+        tenantWhere(schema.branches, ctx.tenant),
+        eq(schema.branches.id, opts.branchId),
+      ),
+    );
+  const today = todayInTz(branch?.timezone ?? COUNTRY_DEFAULTS.AR.timezone);
+  // Teléfono único por fila: dígitos del sufijo rellenados a 10.
+  const phone =
+    opts.phoneLast10 ??
+    uniqueSuffix().replace(/\D/g, "").padEnd(10, "1").slice(0, 10);
+  const [row] = await ctx.app.db
+    .insert(schema.invitations)
+    .values(
+      tenantValues(ctx.tenant, {
+        inviterId: opts.inviterId,
+        invitedUserId: opts.invitedUserId,
+        branchId: opts.branchId,
+        channel: opts.channel ?? ("self_service" as const),
+        status: opts.status ?? ("active" as const),
+        quotaMonth: opts.quotaMonth ?? today.slice(0, 7),
+        accessStartsOn: opts.accessStartsOn ?? today,
+        accessExpiresOn: opts.accessExpiresOn ?? addDays(today, 5),
+        invitedPhoneLast10: phone,
+        invitedDni: opts.dni ?? null,
+        subscriptionId: opts.subscriptionId ?? null,
+        ...(opts.activatedAt ? { activatedAt: opts.activatedAt } : {}),
+      }),
+    )
+    .$returningId();
+  return { id: row.id };
 }
