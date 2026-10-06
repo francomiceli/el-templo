@@ -15,7 +15,9 @@
 import { and, eq, like } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
+import { NotificationService } from "../../src/modules/notifications/service";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
+import { BookingService } from "../../src/modules/scheduling/booking-service";
 import { InvitationService } from "../../src/modules/referrals/invitation-service";
 import { INVITATION_SETTINGS_PREFIX } from "../../src/modules/referrals/invitation-settings";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
@@ -423,6 +425,7 @@ export async function createInvitationRow(
  */
 export function buildInvitationServices(app: FastifyInstance): {
   subscriptionService: SubscriptionService;
+  bookingService: BookingService;
   invitationService: InvitationService;
 } {
   const subscriptionService = new SubscriptionService(
@@ -431,12 +434,21 @@ export function buildInvitationServices(app: FastifyInstance): {
     undefined,
     new EnrollmentService(app.db, app.log),
   );
+  const bookingService = new BookingService(
+    app.db,
+    app.log,
+    subscriptionService,
+    new NotificationService(app.db, app.log),
+  );
+  subscriptionService.setBookingService(bookingService);
   return {
     subscriptionService,
+    bookingService,
     invitationService: new InvitationService(
       app.db,
       app.log,
       subscriptionService,
+      bookingService,
     ),
   };
 }

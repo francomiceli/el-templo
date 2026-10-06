@@ -64,6 +64,14 @@ import { deriveActivityLabel } from "./derived-label";
 const MEMBER_BOOKING_WINDOW_DAYS = 2;
 const TRIAL_BOOKING_WINDOW_DAYS = 30;
 
+/** Cupo liberado por una cancelación de staff (Fase 194): insumo de `releaseCancelledSlots`. */
+export interface CancelledSlot {
+  scheduleId: number;
+  bookingDate: string;
+  /** `true` si la reserva ocupaba cupo (`reservado`): hay que promover la lista de espera. */
+  occupiedSlot: boolean;
+}
+
 export class BookingService {
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -1112,6 +1120,118 @@ export class BookingService {
       );
     }
     return affected;
+  }
+
+  /**
+   * Fase 194 (D-04): cancela las reservas FUTURAS de un alumno sobre actividades
+   * REGULARES cuando se le anulan los accesos de invitación. Solo `reservado` y
+   * `lista_espera`: las `qr_escaneado`/`confirmado`/`no_show`/`cancelado` son
+   * historia y no se tocan. "Futura" = fecha posterior a hoy en la tz de la sede
+   * de la clase, o de hoy con la clase todavía sin empezar. Las actividades
+   * ESPECIALES se excluyen: dependen del pase especial, no del acceso.
+   *
+   * Es una cancelación de STAFF: no aplica la ventana de 20 min del socio.
+   * Corre sobre `exec` (la tx de la anulación, así queda atómica con el
+   * `voided`); el cupo liberado y la lista de espera se resuelven después del
+   * commit con {@link releaseCancelledSlots}. Devuelve los cupos que se liberaron.
+   */
+  async cancelUpcomingBookingsForMember(
+    ctx: TenantContext,
+    memberId: number,
+    exec: Pick<MySql2Database<typeof schema>, "select" | "update"> = this.db,
+  ): Promise<CancelledSlot[]> {
+    const now = new Date();
+    const candidates = await exec
+      .select({
+        id: schema.bookings.id,
+        scheduleId: schema.bookings.scheduleId,
+        bookingDate: schema.bookings.bookingDate,
+        status: schema.bookings.status,
+        startTime: schema.schedules.startTime,
+        timezone: schema.branches.timezone,
+      })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.schedules.branchId),
+      )
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.memberId, memberId),
+          inArray(schema.bookings.status, ["reservado", "lista_espera"]),
+          eq(schema.activities.isSpecial, false),
+          // Piso holgado (ayer UTC): el corte exacto se hace por sede abajo.
+          gte(schema.bookings.bookingDate, addDays(todayInTz("UTC", now), -1)),
+        ),
+      );
+
+    const upcoming = candidates.filter((b) => {
+      const today = todayInTz(b.timezone, now);
+      if (b.bookingDate > today) return true;
+      return (
+        b.bookingDate === today &&
+        buildClassDateTime(b.bookingDate, b.startTime, b.timezone) > now
+      );
+    });
+    if (upcoming.length === 0) return [];
+
+    await exec
+      .update(schema.bookings)
+      .set({
+        status: "cancelado",
+        cancelledAt: now,
+        waitlistPosition: null,
+      })
+      .where(
+        and(
+          tenantWhere(schema.bookings, ctx),
+          eq(schema.bookings.memberId, memberId),
+          inArray(
+            schema.bookings.id,
+            upcoming.map((b) => b.id),
+          ),
+          inArray(schema.bookings.status, ["reservado", "lista_espera"]),
+        ),
+      );
+
+    this.log.info(
+      { memberId, cancelled: upcoming.length },
+      "Upcoming bookings cancelled by staff (invitation access voided)",
+    );
+    return upcoming.map((b) => ({
+      scheduleId: b.scheduleId,
+      bookingDate: b.bookingDate,
+      occupiedSlot: b.status === "reservado",
+    }));
+  }
+
+  /**
+   * Fase 194: postcommit de {@link cancelUpcomingBookingsForMember}. Misma
+   * consecuencia que `cancel()`: si la reserva ocupaba cupo promueve la lista de
+   * espera de ese turno y emite el cambio de ocupación (Wellhub).
+   */
+  async releaseCancelledSlots(
+    ctx: TenantContext,
+    slots: CancelledSlot[],
+  ): Promise<void> {
+    for (const slot of slots) {
+      if (slot.occupiedSlot) {
+        await this.promoteWaitlist(slot.scheduleId, slot.bookingDate, ctx);
+      }
+      emitOccupancyChange({
+        scheduleId: slot.scheduleId,
+        date: slot.bookingDate,
+      });
+    }
   }
 
   /**

@@ -27,6 +27,7 @@
 import {
   and,
   eq,
+  gt,
   gte,
   inArray,
   isNotNull,
@@ -60,6 +61,10 @@ import {
 } from "../shared/tenant";
 import { deriveMembershipCoveredUntil } from "../subscriptions/service";
 import type { SubscriptionService } from "../subscriptions/service";
+import type {
+  BookingService,
+  CancelledSlot,
+} from "../scheduling/booking-service";
 import { getInvitationSettings } from "./invitation-settings";
 import { ReferralService } from "./service";
 import {
@@ -78,6 +83,24 @@ import {
 type DbInstance = MySql2Database<typeof schema>;
 /** Pool o handle de transacción (mismo patrón que `programs/enrollment-service`). */
 export type InvitationExecutor = DbInstance | TxHandle;
+
+/**
+ * Foto de los campos del invitado que el paso 3 de la activación escribe, para
+ * restaurarlos si falla el paso 4 (T-194-33). `statusChanged` = el paso 3
+ * insertó una transición a `prueba` en `user_status_history`.
+ */
+interface InviteeSnapshot {
+  status: (typeof schema.users.$inferSelect)["status"];
+  branchId: number;
+  branchUpdatedAt: Date | null;
+  branchSource: (typeof schema.users.$inferSelect)["branchSource"];
+  phone: string | null;
+  dni: string | null;
+  leadStatus: (typeof schema.users.$inferSelect)["leadStatus"];
+  leadStatusSource: (typeof schema.users.$inferSelect)["leadStatusSource"];
+  purchasedPlanId: number | null;
+  statusChanged: boolean;
+}
 
 /** Tope de fecha de "sin vencimiento": se usa como `COALESCE` en el SQL de D-11. */
 const OPEN_ENDED_DATE = "9999-12-31";
@@ -105,6 +128,8 @@ export class InvitationService {
     private readonly log: FastifyBaseLogger,
     /** Lo usa la activación (194-09) para asignar el plan Invitación. */
     readonly subscriptionService?: SubscriptionService,
+    /** Lo usa la anulación (194-09) para cancelar las reservas futuras del invitado. */
+    readonly bookingService?: BookingService,
   ) {}
 
   // ─── Cupo del invitador (D-10) y membresía vigente (D-10d) ──────────────
@@ -596,9 +621,11 @@ export class InvitationService {
 
     // Pasos 3-5
     let subscriptionId: number | null = null;
+    let snapshot: InviteeSnapshot | null = null;
+    let subIdFloor: number | null = null;
     try {
-      // Paso 3
-      await this.applyInviteeData(ctx, input.invitedUserId, {
+      // Paso 3 (si falla su propia tx no deja nada escrito: snapshot sigue null)
+      snapshot = await this.applyInviteeData(ctx, input.invitedUserId, {
         branchId: prepared.branch.id,
         phone: phoneStored,
         dni: dniInput,
@@ -611,6 +638,10 @@ export class InvitationService {
         ctx,
         prepared.branch.country,
       );
+      // Piso de ids de sub ANTES de asignar: si `assignInvitationPlan` crea la
+      // sub y falla después (no devolvió el id), la compensación igual la
+      // encuentra (id > piso) y la cierra.
+      subIdFloor = await this.maxSubscriptionId(ctx, input.invitedUserId);
       const sub = await subscriptionService.assignInvitationPlan(
         ctx,
         input.invitedUserId,
@@ -652,6 +683,8 @@ export class InvitationService {
         prepared.invitationId,
         input.invitedUserId,
         subscriptionId,
+        snapshot,
+        subIdFloor,
       );
       this.log.error(
         {
@@ -672,6 +705,9 @@ export class InvitationService {
    * `completed` por el mismo helper que la compra (D-07) y recalcula el status;
    * si el invitado ya compró (la sub ya está `completed`) no toca subs. Sin
    * membresía real el `users.status` no se baja: queda como estaba (`prueba`).
+   * Si cerró los accesos, cancela en la misma tx las reservas futuras del
+   * invitado (`BookingService.cancelUpcomingBookingsForMember`) y después del
+   * commit libera cupo/lista de espera.
    */
   async voidInvitation(
     ctx: TenantContext,
@@ -679,6 +715,7 @@ export class InvitationService {
     input: VoidInvitationInput,
   ): Promise<void> {
     const subscriptionService = this.requireSubscriptionService();
+    const bookingService = this.requireBookingService();
     const reason = input.reason.trim();
     if (reason.length === 0) {
       throw new BadRequestError("Indicá el motivo de la anulación");
@@ -689,6 +726,7 @@ export class InvitationService {
       );
     }
 
+    let releasedSlots: CancelledSlot[] = [];
     await this.db.transaction(async (tx) => {
       const [invitation] = await tx
         .select({
@@ -736,15 +774,54 @@ export class InvitationService {
           tx,
           { recompute: true },
         );
+        // D-04: si los accesos estaban vigentes, las reservas futuras del
+        // invitado dependían de ellos: se cancelan en la MISMA tx (staff, sin
+        // ventana de 20 min; no toca las ya escaneadas ni las pasadas). Si el
+        // invitado ya había comprado (closed = 0) sus reservas cuelgan de la
+        // membresía real y no se tocan.
+        if (closed > 0) {
+          releasedSlots = await bookingService.cancelUpcomingBookingsForMember(
+            ctx,
+            invitation.invitedUserId,
+            tx,
+          );
+        }
         this.log.info(
-          { invitationId, closedSubscriptions: closed },
+          {
+            invitationId,
+            closedSubscriptions: closed,
+            cancelledBookings: releasedSlots.length,
+          },
           "invitaciones: invitación anulada por staff",
         );
       }
     });
+
+    // Post-commit (como `cancel()`): liberar cupo, promover lista de espera y
+    // emitir la ocupación. El `voided` ya está firme: un fallo acá se loguea.
+    try {
+      await bookingService.releaseCancelledSlots(ctx, releasedSlots);
+    } catch (err: unknown) {
+      this.log.error(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          invitationId,
+        },
+        "invitaciones: no se pudo promover la lista de espera tras anular",
+      );
+    }
   }
 
   // ─── Helpers privados ────────────────────────────────────────────────────
+
+  private requireBookingService(): BookingService {
+    if (!this.bookingService) {
+      throw new Error(
+        "InvitationService: falta BookingService para anular invitaciones",
+      );
+    }
+    return this.bookingService;
+  }
 
   private requireSubscriptionService(): SubscriptionService {
     if (!this.subscriptionService) {
@@ -823,14 +900,19 @@ export class InvitationService {
     ctx: TenantContext,
     userId: number,
     data: { branchId: number; phone: string; dni: string | null },
-  ): Promise<void> {
-    await this.db.transaction(async (tx) => {
+  ): Promise<InviteeSnapshot> {
+    return this.db.transaction(async (tx) => {
       const [user] = await tx
         .select({
           status: schema.users.status,
           branchId: schema.users.branchId,
+          branchUpdatedAt: schema.users.branchUpdatedAt,
+          branchSource: schema.users.branchSource,
+          phone: schema.users.phone,
           dni: schema.users.dni,
+          leadStatus: schema.users.leadStatus,
           leadStatusSource: schema.users.leadStatusSource,
+          purchasedPlanId: schema.users.purchasedPlanId,
         })
         .from(schema.users)
         .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
@@ -883,19 +965,73 @@ export class InvitationService {
           "user status transition recorded",
         );
       }
+      return { ...user, statusChanged: changesStatus };
     });
   }
 
+  /** Mayor `subscriptions.id` del usuario (0 si no tiene): piso de la compensación. */
+  private async maxSubscriptionId(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<number> {
+    const [row] = await this.db
+      .select({ maxId: sql<number | null>`MAX(${schema.subscriptions.id})` })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+        ),
+      );
+    return Number(row?.maxId ?? 0);
+  }
+
+  /** Subs Invitación (is_trial + paquete) vigentes del usuario con id > `floor`. */
+  private async findInvitationSubsAbove(
+    ctx: TenantContext,
+    userId: number,
+    floor: number,
+    exec: InvitationExecutor,
+  ): Promise<number[]> {
+    const rows = await exec
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        and(
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+          tenantWhere(schema.subscriptionPlans, ctx),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+          gt(schema.subscriptions.id, floor),
+          inArray(schema.subscriptions.status, ["active", "paused"]),
+          eq(schema.subscriptionPlans.isTrial, true),
+          eq(schema.subscriptionPlans.planCategory, "paquete"),
+        ),
+      );
+    return rows.map((r) => r.id);
+  }
+
   /**
-   * Paso 5: deja la fila `voided` con `activation_failed` y, si ya se había
-   * creado la sub de accesos, la cierra. Best-effort: un fallo acá se loguea y
-   * NO tapa el error original de la activación.
+   * Paso 5: deja la fila `voided` con `activation_failed`, cierra la sub de
+   * accesos si ya se había creado y RESTAURA al invitado a como estaba antes del
+   * paso 3 (status, sede, teléfono, DNI y lead; en el historial agrega la
+   * transición inversa `invitation_undo`). Todo en UNA tx. `assignInvitationPlan` necesita la sede
+   * física ya seteada (país del plan y regla de sede presencial), por eso se
+   * compensa en vez de reordenar. Best-effort: un fallo acá se loguea y NO tapa
+   * el error original de la activación.
    */
   private async compensateFailedActivation(
     ctx: TenantContext,
     invitationId: number,
     invitedUserId: number,
     subscriptionId: number | null,
+    snapshot: InviteeSnapshot | null,
+    subIdFloor: number | null,
   ): Promise<void> {
     try {
       await this.db.transaction(async (tx) => {
@@ -913,14 +1049,67 @@ export class InvitationService {
               eq(schema.invitations.status, "active"),
             ),
           );
-        if (subscriptionId !== null && this.subscriptionService) {
-          await this.subscriptionService.closeInvitationAccess(
-            ctx,
-            invitedUserId,
-            [subscriptionId],
-            tx,
-            { recompute: true },
-          );
+        if (this.subscriptionService) {
+          // La sub conocida + cualquier sub Invitación vigente que `assign...`
+          // haya alcanzado a crear antes de fallar (id > piso).
+          const orphanIds =
+            subIdFloor === null
+              ? []
+              : await this.findInvitationSubsAbove(
+                  ctx,
+                  invitedUserId,
+                  subIdFloor,
+                  tx,
+                );
+          const toClose = [
+            ...new Set([
+              ...(subscriptionId !== null ? [subscriptionId] : []),
+              ...orphanIds,
+            ]),
+          ];
+          if (toClose.length > 0) {
+            await this.subscriptionService.closeInvitationAccess(
+              ctx,
+              invitedUserId,
+              toClose,
+              tx,
+              { recompute: true },
+            );
+          }
+        }
+        if (snapshot !== null) {
+          await tx
+            .update(schema.users)
+            .set({
+              status: snapshot.status,
+              branchId: snapshot.branchId,
+              branchUpdatedAt: snapshot.branchUpdatedAt,
+              branchSource: snapshot.branchSource,
+              phone: snapshot.phone,
+              dni: snapshot.dni,
+              leadStatus: snapshot.leadStatus,
+              leadStatusSource: snapshot.leadStatusSource,
+              purchasedPlanId: snapshot.purchasedPlanId,
+            })
+            .where(
+              and(
+                tenantWhere(schema.users, ctx),
+                eq(schema.users.id, invitedUserId),
+              ),
+            );
+          // Historial forward-only: no se borra la fila del paso 3, se agrega
+          // la transición inversa (así el rastro dice que la activación se
+          // deshizo). Un status previo NULL (sin pipeline) no tiene inversa.
+          if (snapshot.statusChanged && snapshot.status !== null) {
+            await tx.insert(schema.userStatusHistory).values(
+              tenantValues(ctx, {
+                userId: invitedUserId,
+                fromStatus: "prueba" as const,
+                toStatus: snapshot.status,
+                source: "invitation_undo",
+              }),
+            );
+          }
         }
       });
     } catch (compensationErr: unknown) {

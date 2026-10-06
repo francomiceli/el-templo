@@ -7,7 +7,16 @@
  * (assignInvitationPlan). Fechas siempre relativas a `todayInTz(sede)`; ningún
  * id hardcodeado.
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+  vi,
+} from "vitest";
 import { and, asc, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData } from "../helpers";
@@ -16,6 +25,7 @@ import { addBusinessDays } from "../../src/modules/shared/business-days";
 import { todayInTz } from "../../src/modules/shared/date-utils";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import type { InvitationService } from "../../src/modules/referrals/invitation-service";
+import type { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { setInvitationSettings } from "../../src/modules/referrals/invitation-settings";
 import {
   InvitationRuleError,
@@ -45,6 +55,7 @@ describe("Fase 194 D-06 — activación de invitaciones", () => {
   let app: FastifyInstance;
   let ctx: InvitationsFixtureCtx;
   let service: InvitationService;
+  let subscriptionService: SubscriptionService;
   let adminId: number;
   let arBranch: { id: number; timezone: string };
   let arPlan: { id: number };
@@ -52,7 +63,8 @@ describe("Fase 194 D-06 — activación de invitaciones", () => {
   beforeAll(async () => {
     app = await createTestApp();
     ctx = fixtureCtx(app);
-    service = buildInvitationServices(app).invitationService;
+    ({ invitationService: service, subscriptionService } =
+      buildInvitationServices(app));
     adminId = await getAdminUserId(ctx);
   });
 
@@ -60,6 +72,10 @@ describe("Fase 194 D-06 — activación de invitaciones", () => {
     await cleanAllTestData(app);
     await resetInvitationSettings(ctx);
     await app.close();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   beforeEach(async () => {
@@ -77,6 +93,8 @@ describe("Fase 194 D-06 — activación de invitaciones", () => {
       .select({
         status: schema.users.status,
         branchId: schema.users.branchId,
+        branchUpdatedAt: schema.users.branchUpdatedAt,
+        branchSource: schema.users.branchSource,
         phone: schema.users.phone,
         dni: schema.users.dni,
         leadStatus: schema.users.leadStatus,
@@ -763,5 +781,152 @@ describe("Fase 194 D-06 — activación de invitaciones", () => {
     const rows = await invitationsOf(invitee.id);
     expect(rows.map((r) => r.status).sort()).toEqual(["active", "voided"]);
     expect((await readSub(result.subscriptionId)).status).toBe("active");
+  });
+  // ─── compensación del estado del invitado (T-194-33, 194-09 seguimiento) ─
+
+  /** Invitado "complejo": inactivo en sede física, con teléfono, lead perdido y sede 'auto'. */
+  async function richExMember() {
+    const exMember = await createMemberInPhysicalBranch(ctx, {
+      status: "inactivo",
+      phone: "1144443333",
+    });
+    const plan = await createMembershipPlan(ctx);
+    await createActiveSub(ctx, {
+      userId: exMember.id,
+      planId: plan.id,
+      startOffsetDays: -245,
+      endOffsetDays: -215,
+      status: "expired",
+    });
+    const bought = await createMembershipPlan(ctx);
+    await app.db
+      .update(schema.users)
+      .set({
+        leadStatus: "perdido",
+        leadStatusSource: "auto",
+        purchasedPlanId: bought.id,
+        branchSource: "auto",
+        branchUpdatedAt: new Date("2026-01-15T12:00:00Z"),
+      })
+      .where(
+        and(
+          tenantWhere(schema.users, ctx.tenant),
+          eq(schema.users.id, exMember.id),
+        ),
+      );
+    return exMember;
+  }
+
+  async function disablePlan(): Promise<void> {
+    await app.db
+      .update(schema.subscriptionPlans)
+      .set({ isActive: false })
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx.tenant),
+          eq(schema.subscriptionPlans.id, arPlan.id),
+        ),
+      );
+  }
+
+  it("falla del plan (sin plan Invitación del país): el invitado queda EXACTAMENTE como antes (status, sede, teléfono, DNI, lead) y la fila voided", async () => {
+    const inviter = await createInviterWithCode(ctx);
+    const freemium = await createMemberInVirtualBranch(ctx, { dni: null });
+    const exMember = await richExMember();
+    const beforeFreemium = await readUser(freemium.id);
+    const beforeEx = await readUser(exMember.id);
+    await disablePlan();
+
+    for (const invitee of [freemium, exMember]) {
+      await expect(
+        activateSelfService(inviter, invitee, arBranch.id, {
+          phone: "+54 9 11 5555-0099",
+          dni: "30999888",
+        }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+      const rows = await invitationsOf(invitee.id);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].status).toBe("voided");
+      expect(rows[0].voidReason).toBe("activation_failed");
+      expect(await subsOf(invitee.id)).toHaveLength(
+        invitee.id === exMember.id ? 1 : 0, // el ex socio conserva su sub vieja
+      );
+    }
+
+    expect(await readUser(freemium.id)).toEqual(beforeFreemium);
+    expect(await readUser(exMember.id)).toEqual(beforeEx);
+    // El historial es forward-only: cada uno tiene la transición y su inversa.
+    expect(await historyOf(freemium.id)).toEqual([
+      { fromStatus: "freemium", toStatus: "prueba", source: "invitation" },
+      { fromStatus: "prueba", toStatus: "freemium", source: "invitation_undo" },
+    ]);
+    expect(await historyOf(exMember.id)).toEqual([
+      { fromStatus: "inactivo", toStatus: "prueba", source: "invitation" },
+      { fromStatus: "prueba", toStatus: "inactivo", source: "invitation_undo" },
+    ]);
+  });
+
+  it("falla DESPUÉS de crear la sub (assignInvitationPlan crea y tira): se cierra la sub, la fila queda voided y el invitado vuelve a su estado previo", async () => {
+    const inviter = await createInviterWithCode(ctx);
+    const exMember = await richExMember();
+    const before = await readUser(exMember.id);
+    const real =
+      subscriptionService.assignInvitationPlan.bind(subscriptionService);
+    vi.spyOn(
+      subscriptionService,
+      "assignInvitationPlan",
+    ).mockImplementationOnce(async (...args) => {
+      await real(...args);
+      throw new Error("falla simulada tras crear la sub");
+    });
+
+    await expect(
+      activateSelfService(inviter, exMember, arBranch.id),
+    ).rejects.toThrow("falla simulada");
+
+    const rows = await invitationsOf(exMember.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("voided");
+    expect(rows[0].voidReason).toBe("activation_failed");
+    // La sub creada se cerró (completed): no deja accesos vigentes sin invitación.
+    const subs = await app.db
+      .select({
+        id: schema.subscriptions.id,
+        status: schema.subscriptions.status,
+        planId: schema.subscriptions.planId,
+      })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx.tenant),
+          eq(schema.subscriptions.userId, exMember.id),
+          eq(schema.subscriptions.planId, arPlan.id),
+        ),
+      );
+    expect(subs).toHaveLength(1);
+    expect(subs[0].status).toBe("completed");
+    expect(await readUser(exMember.id)).toEqual(before);
+  });
+
+  it("falla simulada ANTES de crear la sub (assignInvitationPlan rechaza): invitado intacto y se puede reintentar", async () => {
+    const inviter = await createInviterWithCode(ctx);
+    const invitee = await createMemberInVirtualBranch(ctx);
+    const before = await readUser(invitee.id);
+    vi.spyOn(subscriptionService, "assignInvitationPlan").mockRejectedValueOnce(
+      new Error("falla simulada"),
+    );
+    const phone = uniquePhone10();
+
+    await expect(
+      activateSelfService(inviter, invitee, arBranch.id, { phone }),
+    ).rejects.toThrow("falla simulada");
+    expect(await readUser(invitee.id)).toEqual(before);
+    expect(await subsOf(invitee.id)).toHaveLength(0);
+
+    const retry = await activateSelfService(inviter, invitee, arBranch.id, {
+      phone,
+    });
+    expect((await readSub(retry.subscriptionId)).status).toBe("active");
+    expect((await readUser(invitee.id)).status).toBe("prueba");
   });
 });
