@@ -577,22 +577,24 @@ Schema: `src/db/schema/invitations.ts` (exportado en `schema/index.ts`) + `allow
 | A6 | Que la base heredada de renovación arrastre AURA y partner (leído del código, sin test que lo confirme) | Pitfall 4 | Si me equivoqué, el arreglo sobra |
 | A7 | Que no exista un "listado de leads" distinto del reporte de Sesiones de Prueba y del filtro de AlumnosPage | Patrón 8 | La UI de leads iría en otro lugar |
 
-## Open Questions (decisiones que NO están cerradas en el CONTEXT)
+## Open Questions (RESOLVED)
 
-1. **Precio personalizado + invitación** — hoy se suman (el override con motivo recibe referido encima, también en renovación). Recomendado: el override es el precio final, sin invitación (consistente con partner y prorrateo). Alternativa: que se sigan sumando.
-2. **Boarding pass vs invitación** — recomendado: exclusivo (sin invitación en ese cobro).
-3. **Partner vs invitación** — hoy se suman; con D-08 pasarían a "el mayor". ¿Confirmar? (0 usos de partner en prod según el CONTEXT.)
-4. **Base de renovación con AURA/partner pegados (Pitfall 4)** — ¿corregir el add-back? Sube el precio de renovación de quien usó AURA o partner alguna vez. Es sensible para el negocio. Recomendado: caracterizar primero y decidir con números.
-5. **Backfill del flag por plan** — el CONTEXT dice "true para presencial mensual", pero "nadie pierde descuento" pide espejar lo de hoy (todo menos `especial`/`paquete`, online incluido). Recomendado: espejo exacto y que gestión desmarque después; default para planes nuevos = `false` (opt-in).
-6. **Alta con "Referido por"** (`members/service.ts:1070-1100`) — ¿sigue como vínculo de descuento sin accesos (semántica D-17) o pasa a ser "Crear invitación"? Recomendado: queda como D-17 con label renombrado, más una acción separada "Crear invitación (N accesos)".
-7. **Registro con `?ref`** — recomendado: deja de crear `referrals` `pending`; solo lleva a la activación.
-8. **Invitado con vínculo `referrals` previo** (UNIQUE `referred_id`) invitado por otra persona — recomendado: mantener el vínculo viejo (rarísimo; 9 vínculos en total).
-9. **¿El día de activación cuenta como día hábil 1?** — recomendado: no. Los accesos se pueden usar desde ese día y la vigencia vence en el 10.º día hábil siguiente.
-10. **Export SEPA con importe** — ¿se suma la columna "importe próximo período"? (scope extra chico).
-11. **Agotó los 3 accesos antes de la fecha** — ¿"Vencido" o "Entrenando" hasta la fecha? Recomendado: "Vencido" (no puede reservar más).
-12. **Feriados de ES cargados en prod** — verificar con un query de solo lectura antes de ejecutar.
-13. **Vínculo 3:** ¿Guido (7286) ya pagó? Define si queda `qualified` o `pending` tras el swap. Verificar en prod (solo lectura) y fijar el valor en la migración.
-14. **`vue-tsc`** no está instalado en app ni admin: ¿autorizar la instalación (dev dep) o verificar los frontends con build + eslint + revisión?
+Todas resueltas por Franco el 2026-10-06 (addendum D-20..D-29 de `194-CONTEXT.md`).
+
+1. **Precio personalizado + invitación** — hoy se suman (el override con motivo recibe referido encima, también en renovación). Recomendado: el override es el precio final, sin invitación (consistente con partner y prorrateo). Alternativa: que se sigan sumando. — RESOLVED: D-20
+2. **Boarding pass vs invitación** — recomendado: exclusivo (sin invitación en ese cobro). — RESOLVED: D-26a
+3. **Partner vs invitación** — hoy se suman; con D-08 pasarían a "el mayor". ¿Confirmar? (0 usos de partner en prod según el CONTEXT.) — RESOLVED: D-21
+4. **Base de renovación con AURA/partner pegados (Pitfall 4)** — ¿corregir el add-back? Sube el precio de renovación de quien usó AURA o partner alguna vez. Es sensible para el negocio. Recomendado: caracterizar primero y decidir con números. — RESOLVED: D-22
+5. **Backfill del flag por plan** — el CONTEXT dice "true para presencial mensual", pero "nadie pierde descuento" pide espejar lo de hoy (todo menos `especial`/`paquete`, online incluido). Recomendado: espejo exacto y que gestión desmarque después; default para planes nuevos = `false` (opt-in). — RESOLVED: D-23
+6. **Alta con "Referido por"** (`members/service.ts:1070-1100`) — ¿sigue como vínculo de descuento sin accesos (semántica D-17) o pasa a ser "Crear invitación"? Recomendado: queda como D-17 con label renombrado, más una acción separada "Crear invitación (N accesos)". — RESOLVED: D-24
+7. **Registro con `?ref`** — recomendado: deja de crear `referrals` `pending`; solo lleva a la activación. — RESOLVED: D-26b
+8. **Invitado con vínculo `referrals` previo** (UNIQUE `referred_id`) invitado por otra persona — recomendado: mantener el vínculo viejo (rarísimo; 9 vínculos en total). — RESOLVED: D-26c
+9. **¿El día de activación cuenta como día hábil 1?** — recomendado: no. Los accesos se pueden usar desde ese día y la vigencia vence en el 10.º día hábil siguiente. — RESOLVED: D-26d
+10. **Export SEPA con importe** — ¿se suma la columna "importe próximo período"? (scope extra chico). — RESOLVED: D-25
+11. **Agotó los 3 accesos antes de la fecha** — ¿"Vencido" o "Entrenando" hasta la fecha? Recomendado: "Vencido" (no puede reservar más). — RESOLVED: D-26e
+12. **Feriados de ES cargados en prod** — verificar con un query de solo lectura antes de ejecutar. — RESOLVED: D-29
+13. **Vínculo 3:** ¿Guido (7286) ya pagó? Define si queda `qualified` o `pending` tras el swap. Verificar en prod (solo lectura) y fijar el valor en la migración. — RESOLVED: D-28
+14. **`vue-tsc`** no está instalado en app ni admin: ¿autorizar la instalación (dev dep) o verificar los frontends con build + eslint + revisión? — RESOLVED: D-27
 
 ## Environment Availability
 
@@ -674,6 +676,8 @@ Schema: `src/db/schema/invitations.ts` (exportado en `schema/index.ts`) + `allow
 | Cruce de tenant | Info disclosure | `tenantWhere` en todo + ISO-03 |
 
 ## Propuesta de división en planes (granularidad fine, backend primero)
+
+> Superada por la planificación: la división final (30 planes, numeración distinta) está en `ROADMAP.md` Phase 194 y en los `194-NN-PLAN.md`. La tabla queda como registro de la propuesta original.
 
 | # | Plan | Depende de | Riesgo en prod |
 |---|---|---|---|

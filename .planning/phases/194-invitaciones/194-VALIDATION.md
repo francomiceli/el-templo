@@ -21,7 +21,7 @@ created: 2026-10-06
 | **Config file** | `el-templo-api/vitest.config.ts` |
 | **Quick run command** | `cd el-templo-api && pnpm exec vitest run test/invitations/<archivo>.test.ts --hookTimeout 600000` (FOREGROUND, nunca `run_in_background`) |
 | **Full suite command** | CI en push a staging (convención del repo: no correr la suite completa local) |
-| **Static gates** | `pnpm exec tsc --noEmit`, `pnpm lint:tenant`, `pnpm typecheck:tests`, `pnpm db:verify-uniques` |
+| **Static gates** | Local: `pnpm exec tsc --noEmit`, `pnpm lint:tenant`, `pnpm typecheck:tests`. **`pnpm db:verify-uniques` es SOLO CI** (necesita una DB migrada; `194-EXECUTOR-RULES.md` prohíbe `db:migrate`/`db:verify-uniques` contra la DB local `eltemplo`, compartida con otros worktrees; `invitations` no declara UNIQUE, así que el mapa de derivadas no cambia) |
 | **Frontends** | `pnpm lint` + build de Quasar (D-27: sin `vue-tsc`) |
 | **Estimated runtime** | ~60-300 s por archivo de integración |
 
@@ -48,11 +48,14 @@ created: 2026-10-06
 | SC-2 | Cupo 2/mes con concurrencia | integración | `test/invitations/quota.test.ts` |
 | SC-2 | Elegibilidad 6 meses / 90 días por persona / SP no bloquea / imports is_trial no cuentan | integración | `test/invitations/eligibility.test.ts` |
 | SC-2 | Canal asistido mismas reglas; alta "Nuevo en Prueba" con invitador | integración | `test/invitations/assisted.test.ts`, `test/auth/register.test.ts` |
+| SC-2 | Anulación de invitación libera cupo y ventana | integración | `test/invitations/void.test.ts` |
+| SC-1/D-02 | El plan Invitación no se asigna por ninguna ruta admin (ni con `viaInvitation` en el body) | integración HTTP | `test/invitations/invitation-plan-guard-http.test.ts` |
 | SC-3 | Conversión: cierra accesos, crea vínculo, ventana 30 d, flag por plan | integración | `test/invitations/conversion-link.test.ts` |
 | SC-3 | Árbitro: gana el mayor por monto (AURA/partner/invitación), tope $, override final, boarding pass, 4 charge-paths; bug add-back D-22 | integración | `test/invitations/discount-arbiter.test.ts` |
+| SC-3 | Árbitro por charge-path (diferido, inmediato, renovación) | integración | `test/invitations/discount-arbiter-paths.test.ts` |
 | SC-3 | Paridad preview ↔ cobro | integración | `test/referrals/preview-parity.test.ts` |
 | SC-5 | Mis invitados (cupo, estados), leads (gate conversión, cron), reporte | integración | `test/invitations/{member-overview,leads,report}.test.ts`, `test/expire-lost-leads.test.ts` |
-| SC-6 | Migraciones de datos idempotentes con guards (vínculo 3) | integración | `test/migrations/*-invitaciones.test.ts` |
+| SC-6 | Migraciones de datos idempotentes con guards (vínculo 3) | integración | `test/migrations/0258-0259-invitaciones.test.ts` |
 | Tenancy | Rutas nuevas aisladas + baselines | integración | `test/tenancy/iso-0{1,3}-*.test.ts` |
 | Partner | Semana de regalo no elige plan Invitación | integración | `test/referral-partners/semana-gratis.test.ts` |
 | SEPA | Export con columna importe | integración | test de export de domiciliación existente/extendido |

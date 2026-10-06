@@ -18,6 +18,26 @@ Este archivo es INPUT de todos los planes 194-NN. Leerlo entero antes de la prim
 - Nunca hardcodear `users.id` en tests (crear usuarios con las fábricas). Fechas siempre relativas (`todayInTz(tz)`, `addDays`), nunca literales de calendario salvo en tests unitarios puros de funciones de fecha.
 - Toda query directa a `users`/`subscriptions`/`invitations` en un test lleva `tenantWhere(tabla, TEMPLO_CTX)` (o el ctx del fixture) — si no, `lint:tenant`/`typecheck:tests` fallan.
 
+## Chequeo de copy "referido" (rebrand, planes de admin y app)
+
+Copy visible = cualquier línea que NO sea comentario y que no sea uno de los identificadores internos permitidos. Comando canónico
+(reemplazar FILES por los archivos de la tarea; tiene que NO imprimir nada):
+
+`grep -nE "[Rr]eferid" FILES | grep -vE ":[0-9]+:[[:space:]]*(//|\*|<!--)|mis-referidos|referidos_pendientes|ReferidosAbTab|[\"']referidos[\"']"`
+
+- Excluye: líneas de comentario (`//`, `*`, `<!--`), la ruta vieja `mis-referidos` (alias), la clave interna `'referidos'` /
+  `"referidos"` (destinos de push/avisos de builds publicadas), el segmento `referidos_pendientes` y el nombre de archivo
+  `ReferidosAbTab`. Los identificadores TS en inglés (`referral*`, `Referral*`) no matchean `[Rr]eferid`.
+- Si queda una línea que es identificador interno legítimo y no está en la lista, NO ampliar el regex: copiarla textual en una
+  sección "Allowlist de copy" del SUMMARY con el motivo, y hacer que el criterio compare contra esa allowlist.
+
+## Excepciones explícitas a las reglas de tests
+
+- **ids de usuario hardcodeados:** SOLO `test/migrations/0258-0259-invitaciones.test.ts` (plan 194-21) puede sembrar `users.id`
+  6613 y 7286 y `referrals.id` 3 explícitos, porque la migración 0258 apunta a esos ids de producción (precedente
+  `test/migrations/0109_reconcile_soledad.test.ts`). Verificar antes de insertar que no existan en la DB del worker y borrarlos
+  en `afterAll`. Ningún otro test de la fase hardcodea ids.
+
 ## Gates estáticos (correr al cerrar cada tarea de API)
 
 - `cd /home/franco/projects/et-194-invitaciones/el-templo-api && pnpm exec tsc --noEmit`
