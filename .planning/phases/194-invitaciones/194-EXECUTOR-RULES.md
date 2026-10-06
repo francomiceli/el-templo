@@ -107,3 +107,8 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Analytics de membresía: filtrar por PLAN `is_trial` (`excludeTrialSubs()` en `analytics/especial-exclusion.ts`, compuesto dentro de `excludeInternalSubs()`), NO por `membership_kind` (una sub is_trial es `paga` por defecto; solo es `bonificada` con override 0).
 - `expiry-cohort.ts` (`s2`/`s_next`) no excluye is_trial a propósito: un ex socio necesita ≥6 meses sin membresía para ser invitado (D-11), así que una invitación nunca cae en la ventana de retención. No tocar.
 - El hook del harness rechaza `cd X && git ...` y `git -C`: hacer `cd` y `git` en llamadas separadas, rutas literales.
+
+### Tras 194-04
+- Tabla `invitations` (mig 0255) lista: fábrica `createInvitationRow` en `test/invitations/_helpers.ts`; ya está en `TABLES_TO_CLEAN`, `GYM_OWNED_TABLES` (100), módulo strict `referrals`, y `limpiarSegundoGimnasio` la borra antes de users.
+- Archivos de tenancy juntos ~270 s; un archivo ~110 s.
+- Crear/editar archivos con Write/Edit; Bash en llamadas simples (el hook rechaza heredocs + cd + && largos).
