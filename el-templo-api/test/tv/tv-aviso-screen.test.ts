@@ -581,3 +581,129 @@ describe("modo reemplazo — flexibilidad inicial y final (D-28)", () => {
     expect(poll.aviso).toBeNull();
   });
 });
+
+// 2026-10-06 (yoga): clases sin plani — el profe pone una placa de aviso
+// aunque la sesión de hoy no esté aprobada. Es la ÚNICA escritura aceptada.
+describe("aviso sin plani aprobada (clases de yoga, 2026-10-06)", () => {
+  async function desaprobarSesionDeHoy(): Promise<void> {
+    await app.db
+      .update(schema.sessions)
+      .set({ status: "draft" })
+      .where(eq(schema.sessions.dayId, "W1-martes-alfa-193-10"));
+  }
+
+  it("(Y1) fijar un aviso sin sesión aprobada: 200, el control lo refleja y el TV lo muestra", async () => {
+    await desaprobarSesionDeHoy();
+    const avisoId = await createTvAviso({
+      title: "Yoga regenerativo",
+      body: "by El Templo",
+    });
+
+    const writeRes = await postState(coachToken, {
+      branchId,
+      screen: "aviso",
+      tvAvisoId: avisoId,
+    });
+    expect(writeRes.statusCode, writeRes.body).toBe(200);
+    const context = JSON.parse(writeRes.body) as {
+      sessionApproved: boolean;
+      state: (ControlStateBody & { tvAvisoId: number | null }) | null;
+    };
+    expect(context.sessionApproved).toBe(false);
+    expect(context.state?.screen).toBe("aviso");
+    expect(context.state?.tvAvisoId).toBe(avisoId);
+
+    const row = await readRow(branchId);
+    expect(row.screen).toBe("aviso");
+    expect(row.tvAvisoId).toBe(avisoId);
+    expect(row.timerStatus).toBe("idle");
+
+    const poll = JSON.parse((await getScreen(coachToken, branchId)).body) as PollBody;
+    expect(poll.screen).toBe("aviso");
+    expect(poll.class).toBeNull();
+    expect(poll.aviso).toEqual({ id: avisoId, title: "Yoga regenerativo", body: "by El Templo" });
+  });
+
+  it("(Y2) cambiar de aviso sin plani: el TV pasa al segundo", async () => {
+    await desaprobarSesionDeHoy();
+    const a = await createTvAviso({ title: "Yoga regenerativo" });
+    const b = await createTvAviso({ title: "Yoga para calisténicos" });
+    expect((await postState(coachToken, { branchId, screen: "aviso", tvAvisoId: a })).statusCode).toBe(200);
+    expect((await postState(coachToken, { branchId, screen: "aviso", tvAvisoId: b })).statusCode).toBe(200);
+
+    const poll = JSON.parse((await getScreen(coachToken, branchId)).body) as PollBody;
+    expect(poll.screen).toBe("aviso");
+    expect(poll.aviso?.id).toBe(b);
+  });
+
+  it("(Y3) sin plani, cualquier otra escritura sigue respondiendo 409 y no crea estado", async () => {
+    await desaprobarSesionDeHoy();
+    for (const payload of [
+      { branchId, blockRole: "INITIUM" },
+      { branchId, screen: "closing" },
+      { branchId, screen: "class" },
+      { branchId, timer: "start" },
+    ]) {
+      const res = await postState(coachToken, payload);
+      expect(res.statusCode, JSON.stringify(payload)).toBe(409);
+    }
+    expect(await readRow(branchId)).toBeUndefined();
+  });
+
+  it("(Y4) sin plani, un aviso inexistente o inactivo responde 400 y no crea estado", async () => {
+    await desaprobarSesionDeHoy();
+    const inactivo = await createTvAviso({ isActive: false });
+    for (const tvAvisoId of [inactivo, 999999]) {
+      const res = await postState(coachToken, { branchId, screen: "aviso", tvAvisoId });
+      expect(res.statusCode, res.body).toBe(400);
+    }
+    expect(await readRow(branchId)).toBeUndefined();
+  });
+
+  it("(Y5) sin plani, desactivar el aviso fijado degrada el TV a reposo (nunca 500)", async () => {
+    await desaprobarSesionDeHoy();
+    const avisoId = await createTvAviso();
+    await postState(coachToken, { branchId, screen: "aviso", tvAvisoId: avisoId });
+    await app.db
+      .update(schema.tvAvisos)
+      .set({ isActive: false })
+      .where(and(eq(schema.tvAvisos.id, avisoId), eq(schema.tvAvisos.tenantId, 1)));
+
+    const res = await getScreen(coachToken, branchId);
+    expect(res.statusCode, res.body).toBe(200);
+    const poll = JSON.parse(res.body) as PollBody;
+    expect(poll.screen).toBe("idle");
+    expect(poll.class).toBeNull();
+  });
+
+  it("(Y6) sin plani, end-class saca el aviso y el TV vuelve a reposo", async () => {
+    await desaprobarSesionDeHoy();
+    const avisoId = await createTvAviso();
+    await postState(coachToken, { branchId, screen: "aviso", tvAvisoId: avisoId });
+    expect((await postEndClass(coachToken, branchId)).statusCode).toBeLessThan(300);
+
+    expect(await readRow(branchId)).toBeUndefined();
+    const poll = JSON.parse((await getScreen(coachToken, branchId)).body) as PollBody;
+    expect(poll.screen).toBe("idle");
+    expect(poll.aviso).toBeNull();
+  });
+
+  it("(Y7) aviso fijado sin plani y después se aprueba la sesión: el TV sigue en el aviso y el primer bloque arranca la clase", async () => {
+    await desaprobarSesionDeHoy();
+    const avisoId = await createTvAviso();
+    await postState(coachToken, { branchId, screen: "aviso", tvAvisoId: avisoId });
+    await app.db
+      .update(schema.sessions)
+      .set({ status: "approved" })
+      .where(eq(schema.sessions.dayId, "W1-martes-alfa-193-10"));
+
+    let poll = JSON.parse((await getScreen(coachToken, branchId)).body) as PollBody;
+    expect(poll.screen).toBe("aviso");
+
+    const res = await postState(coachToken, { branchId, blockRole: "INITIUM" });
+    expect(res.statusCode, res.body).toBe(200);
+    poll = JSON.parse((await getScreen(coachToken, branchId)).body) as PollBody;
+    expect(poll.screen).toBe("class");
+    expect(poll.class).not.toBeNull();
+  });
+});

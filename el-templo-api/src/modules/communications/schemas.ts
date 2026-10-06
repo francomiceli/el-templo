@@ -507,18 +507,28 @@ export interface TvAvisoActivoQuery {
   branchId: number;
 }
 
+const tvAvisoActivoItemProperties = {
+  id: { type: "integer" },
+  title: { type: "string" },
+  body: { type: "string" },
+  mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
+};
+
 export const tvAvisoActivoResponseSchema = {
   200: {
     type: "object",
     properties: {
+      // El más reciente (contrato original de la fase 193).
       aviso: {
         type: ["object", "null"],
-        properties: {
-          id: { type: "integer" },
-          title: { type: "string" },
-          body: { type: "string" },
-          mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
-        },
+        properties: tvAvisoActivoItemProperties,
+      },
+      // 2026-10-06: TODOS los manuales activos de la sede, más reciente
+      // primero — el control muestra un botón por aviso (p. ej. dos placas
+      // de yoga).
+      avisos: {
+        type: "array",
+        items: { type: "object", properties: tvAvisoActivoItemProperties },
       },
     },
   },

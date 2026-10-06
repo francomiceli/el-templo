@@ -439,6 +439,14 @@ export class TvService {
     // D-28: la pantalla de reposo SI puede traer un aviso de reemplazo (modo
     // "flex_inicio") -- la pantalla sigue siendo "idle", solo cambia el
     // contenido que pinta el kiosco (la capsula de flexibilidad inicial).
+    // 2026-10-06 (yoga): sin plani aprobada el profe igual puede fijar un aviso
+    // (clases sin plani, p. ej. yoga) — se pinta tal cual; si el aviso ya no
+    // está activo cae al reposo de abajo.
+    if (!classDay.approved && stored?.screen === "aviso") {
+      const aviso = await this.resolveAviso(stored.tvAvisoId, branch.tenantId);
+      if (aviso) return { ...base, screen: "aviso", class: null, aviso };
+    }
+
     if (!classDay.approved || !stored) {
       const aviso = await this.resolveReplacementAviso(
         branchId,
@@ -706,6 +714,31 @@ export class TvService {
     // sesion mientras el profe tenia la pantalla abierta). Se responde
     // explicito en vez de crear una fila corrupta que dejaria el TV en blanco.
     if (!classDay.approved || roster.length === 0) {
+      // 2026-10-06 (yoga): la ÚNICA escritura válida sin plani es fijar un
+      // aviso — no hay bloques ni niveles que tocar. Se guarda con bloque y
+      // nivel vacíos (el clamp con roster vacío no los toca) y sin timer.
+      if (write.screen === "aviso") {
+        const aviso = await this.resolveAviso(
+          write.tvAvisoId ?? null,
+          branch.tenantId,
+        );
+        if (!aviso) {
+          throw new BadRequestError(
+            "Ese aviso de TV no existe, no es de este gimnasio o está inactivo",
+          );
+        }
+        const pinned: TvControlState = {
+          screen: "aviso",
+          blockRole: "",
+          level: "",
+          exerciseIndex: 0,
+          soundEnabled: false,
+          tvAvisoId: aviso.id,
+          ...IDLE_TIMER,
+        };
+        await this.persistState(branch.id, classDate, pinned, userId);
+        return this.toControlContext(branch, classDay, pinned);
+      }
       throw new ConflictError("La sesión de hoy no está aprobada");
     }
 

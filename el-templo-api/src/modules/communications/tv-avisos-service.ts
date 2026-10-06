@@ -224,6 +224,20 @@ export class TvAvisosService {
     branchId: number,
     mode?: TvAvisoMode,
   ): Promise<TvAvisoItem | null> {
+    const [first] = await this.listActiveForBranch(ctx, branchId, mode);
+    return first ?? null;
+  }
+
+  /**
+   * Todos los avisos activos aplicables a `branchId` (mismo filtro que
+   * `getActiveForBranch`), más reciente primero. 2026-10-06: el control del
+   * profe muestra un botón por aviso manual.
+   */
+  async listActiveForBranch(
+    ctx: TenantContext,
+    branchId: number,
+    mode?: TvAvisoMode,
+  ): Promise<TvAvisoItem[]> {
     const rows = await this.db
       .select()
       .from(tvAvisos)
@@ -238,8 +252,9 @@ export class TvAvisosService {
       )
       .orderBy(desc(tvAvisos.id));
 
-    const match = rows.find((row) => this.appliesToBranch(row, branchId));
-    return match ? this.toItem(match) : null;
+    return rows
+      .filter((row) => this.appliesToBranch(row, branchId))
+      .map((row) => this.toItem(row));
   }
 
   // ── Privados ─────────────────────────────────────────────────────────────

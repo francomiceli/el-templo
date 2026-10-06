@@ -206,21 +206,14 @@ export const tvAvisosRoutes: FastifyPluginAsync = async (fastify) => {
       const ctx = assertTenant(request.scope, "tvAvisos.getActiveForBranch");
 
       try {
-        const aviso = await service.getActiveForBranch(
-          ctx,
-          request.query.branchId,
-          "manual",
-        );
-        return {
-          aviso: aviso
-            ? {
-                id: aviso.id,
-                title: aviso.title,
-                body: aviso.body,
-                mode: aviso.mode,
-              }
-            : null,
-        };
+        const avisos = (
+          await service.listActiveForBranch(
+            ctx,
+            request.query.branchId,
+            "manual",
+          )
+        ).map((a) => ({ id: a.id, title: a.title, body: a.body, mode: a.mode }));
+        return { aviso: avisos[0] ?? null, avisos };
       } catch (err: unknown) {
         handleServiceError(
           err,

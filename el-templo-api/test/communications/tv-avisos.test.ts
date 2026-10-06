@@ -330,6 +330,37 @@ describe("communications/tv-avisos (COM-04, D-24/D-29)", () => {
     expect(bodyB.aviso?.id).not.toBe(scopedId);
   });
 
+  it("(4b) 2026-10-06: `avisos` trae TODOS los manuales activos de la sede (más reciente primero), sin flex ni inactivos ni de otra sede", async () => {
+    const crear = async (overrides: Record<string, unknown>) =>
+      (
+        JSON.parse(
+          (
+            await postComo(
+              "/admin/tv-avisos",
+              adminToken,
+              buildValidTvAvisoBody({ isActive: true, scopeBranchIds: null, ...overrides }),
+            )
+          ).body,
+        ) as { id: number }
+      ).id;
+    const regenerativo = await crear({ title: "Yoga regenerativo" });
+    const calistenicos = await crear({ title: "Yoga para calisténicos", scopeBranchIds: [branchA] });
+    await crear({ title: "Inactivo", isActive: false });
+    await crear({ title: "Flex inicio", mode: "flex_inicio" });
+    await crear({ title: "Solo branchB", scopeBranchIds: [branchB] });
+
+    const res = await getComo(`/control/tv-aviso-activo?branchId=${branchA}`, adminToken);
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      aviso: { id: number } | null;
+      avisos: Array<{ id: number; title: string; mode: string }>;
+    };
+    expect(body.avisos.map((a) => a.id)).toEqual([calistenicos, regenerativo]);
+    expect(body.avisos.every((a) => a.mode === "manual")).toBe(true);
+    // Contrato original: `aviso` sigue siendo el más reciente.
+    expect(body.aviso?.id).toBe(calistenicos);
+  });
+
   it("(5) borrado seguro: DELETE con tv_class_state apuntando al aviso limpia la referencia sin error de FK", async () => {
     const createRes = await postComo(
       "/admin/tv-avisos",
