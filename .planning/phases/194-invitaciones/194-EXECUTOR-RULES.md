@@ -126,3 +126,10 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Reservas reales en tests: `registerUser` + `getAuthToken` (los socios de `createMemberInPhysicalBranch` no loguean); `cleanAllTestData` vacía actividades y feriados → sembrar horario por día ISO en `beforeEach`. Regla un turno por día + ventana +2 días: reservas lejanas se siembran por DB.
 - Compra con accesos vigentes: la sub de invitación pasa a `completed` en la misma tx (D-07); `scheduled` sigue dando 409.
 - **194-18:** `getRenewalPreview` de una sub Invitación todavía devuelve datos (renovar da 400): agregarle el mismo guard.
+
+### Tras 194-07
+- Días hábiles: `el-templo-api/src/modules/shared/business-days.ts` (`addBusinessDays`, `loadHolidaySet`, `businessDaysHorizon`). Feriados: `loadHolidaySet(db, ctx, country, from, addDays(start, businessDaysHorizon(n)))`; país = el de la SEDE del invitado, no el del invitador.
+- Parámetros: `getInvitationSettings(db, ctx, log)` en `referrals/invitation-settings.ts` (3er parámetro = logger: pasar `this.log`/`request.log`). Tope $ por país sin fila = sin tope.
+- Fastify con `additionalProperties:false` DESCARTA claves extra (200), no las rechaza; validar en el servicio si hace falta 400.
+- Molde de tests de rutas con varios roles: `test/invitations/settings.test.ts` (staff en `beforeAll`, reset de su namespace en vez de `cleanAllTestData`).
+- Si el hook rechaza un comando compuesto, una parte YA pudo haberse ejecutado: verificar estado (`git diff`) antes de reintentar. Editar con Edit/Write.
