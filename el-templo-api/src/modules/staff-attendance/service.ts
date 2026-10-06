@@ -14,7 +14,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, isNull, desc, gte, lte } from "drizzle-orm";
+import { eq, and, isNull, desc, gte, lte, max } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import {
@@ -74,8 +74,18 @@ export interface StaffChecklistItem {
   label: string;
 }
 
+/**
+ * Jornada abierta de `GET /me`. `cashCountedAt`: último cierre de caja
+ * vinculado a ESTA jornada (o null). El check-out no vuelve a pedir contar la
+ * caja si ya se contó (reporte 2026-10-06: el profe cerró la caja desde lejos
+ * del QR y al hacer el check-out se la volvieron a pedir).
+ */
+export interface StaffShiftOpenMe extends StaffShiftOpen {
+  cashCountedAt: string | null;
+}
+
 export interface StaffAttendanceMe {
-  open: StaffShiftOpen | null;
+  open: StaffShiftOpenMe | null;
   checklist: readonly StaffChecklistItem[];
 }
 
@@ -132,6 +142,20 @@ export class StaffAttendanceService {
     // El checklist depende del día EN LA SEDE (lote solo mié/sáb).
     const tz = row?.branchTimezone ?? DEFAULT_TZ;
 
+    let cashCountedAt: Date | null = null;
+    if (row) {
+      const [last] = await this.db
+        .select({ at: max(schema.cashCounts.countedAt) })
+        .from(schema.cashCounts)
+        .where(
+          and(
+            tenantWhere(schema.cashCounts, ctx),
+            eq(schema.cashCounts.staffShiftId, row.id),
+          ),
+        );
+      cashCountedAt = last?.at ?? null;
+    }
+
     return {
       open: row
         ? {
@@ -139,6 +163,7 @@ export class StaffAttendanceService {
             branchId: row.branchId,
             branchName: row.branchName,
             checkedInAt: row.checkedInAt.toISOString(),
+            cashCountedAt: cashCountedAt ? cashCountedAt.toISOString() : null,
           }
         : null,
       checklist: checklistForDow(dowInTz(tz)),

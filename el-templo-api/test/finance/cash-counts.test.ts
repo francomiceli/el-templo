@@ -371,6 +371,62 @@ describe("POST /coach-load/cash-count", () => {
       .delete(schema.staffShifts)
       .where(and(tenantWhere(schema.staffShifts, TEMPLO_CTX), eq(schema.staffShifts.id, shift.id)));
   });
+
+  // 2026-10-06: el check-out no vuelve a pedir la caja si la jornada ya la contó.
+  it("GET /staff-attendance/me informa el último cierre de caja de la jornada abierta", async () => {
+    const me = async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/staff-attendance/me",
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      return (JSON.parse(res.body) as { open: { id: number; cashCountedAt: string | null } | null })
+        .open;
+    };
+    const [shift] = await app.db
+      .insert(schema.staffShifts)
+      .values(
+        tenantValues(TEMPLO_CTX, {
+          userId: coachId,
+          branchId,
+          shiftDate: new Date().toISOString().slice(0, 10),
+          checkedInAt: new Date(),
+        }),
+      )
+      .$returningId();
+    try {
+      // Sin cierre: null (la clave viaja, no la filtra el schema de respuesta).
+      const before = await me();
+      expect(before?.id).toBe(shift.id);
+      expect(before).toHaveProperty("cashCountedAt", null);
+
+      // Un conteo suelto (sin jornada) no cuenta como cierre de ESTA jornada.
+      expect((await count({ countedAmount: 0 })).statusCode).toBe(201);
+      expect((await me())?.cashCountedAt).toBeNull();
+
+      // Dos cierres de la jornada: devuelve el último.
+      expect((await count({ countedAmount: 0, staffShiftId: shift.id })).statusCode).toBe(201);
+      await tick();
+      const second = await count({ countedAmount: 0, staffShiftId: shift.id });
+      expect(second.statusCode).toBe(201);
+      const [lastRow] = await app.db
+        .select({ countedAt: schema.cashCounts.countedAt })
+        .from(schema.cashCounts)
+        .where(
+          and(
+            tenantWhere(schema.cashCounts, TEMPLO_CTX),
+            eq(schema.cashCounts.id, second.body.cashCount?.id ?? -1),
+          ),
+        );
+      expect((await me())?.cashCountedAt).toBe(lastRow?.countedAt.toISOString());
+    } finally {
+      await app.db.execute(sql`DELETE FROM cash_counts WHERE tenant_id = ${TENANT_TEMPLO}`);
+      await app.db
+        .delete(schema.staffShifts)
+        .where(and(tenantWhere(schema.staffShifts, TEMPLO_CTX), eq(schema.staffShifts.id, shift.id)));
+    }
+  });
 });
 
 describe("gestión actúa después del cierre", () => {

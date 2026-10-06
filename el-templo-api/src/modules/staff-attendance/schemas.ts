@@ -48,7 +48,10 @@ export const staffAttendanceMeSchema = {
       properties: {
         open: {
           type: ["object", "null"],
-          properties: staffShiftSchema.properties,
+          properties: {
+            ...staffShiftSchema.properties,
+            cashCountedAt: { type: ["string", "null"] },
+          },
         },
         checklist: { type: "array", items: checklistItemSchema },
       },

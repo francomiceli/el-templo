@@ -26,6 +26,9 @@
               <div class="text-body2 text-grey-7">
                 Desde las {{ formatTime(openShift.checkedInAt) }}
               </div>
+              <div v-if="openShift.cashCountedAt" class="text-body2 text-positive">
+                Caja cerrada a las {{ formatTime(openShift.cashCountedAt) }}
+              </div>
             </div>
           </div>
           <div v-else class="row items-center q-gutter-sm">
@@ -62,14 +65,15 @@
           @click="startCheckOut"
         />
       </div>
-      <!-- Cierre de caja suelto (2026-09-08): contar sin cerrar la jornada. -->
+      <!-- Cierre de caja suelto (2026-09-08): contar sin cerrar la jornada. Si
+           ya se contó, el check-out no la vuelve a pedir (2026-10-06). -->
       <div v-if="openShift" class="col-12 text-center">
         <q-btn
           flat
           no-caps
           color="primary"
           icon="point_of_sale"
-          label="Contar la caja ahora"
+          :label="openShift.cashCountedAt ? 'Volver a contar la caja' : 'Contar la caja ahora'"
           @click="openCajaSuelta"
         />
       </div>
@@ -96,6 +100,26 @@
       <q-card style="min-width: 340px; max-width: 95vw">
         <q-card-section>
           <div class="text-h6">Antes de cerrar tu jornada</div>
+        </q-card-section>
+
+        <!-- La caja ya se cerró en esta jornada: no se vuelve a pedir, pero se
+             puede recontar (2026-10-06). -->
+        <q-card-section v-if="openShift?.cashCountedAt" class="q-pt-none">
+          <div class="row items-center no-wrap q-gutter-sm">
+            <q-icon name="check_circle" color="positive" size="24px" />
+            <div class="col text-body2">
+              Caja cerrada a las {{ formatTime(openShift.cashCountedAt) }}
+            </div>
+            <q-btn
+              flat
+              dense
+              no-caps
+              color="primary"
+              label="Volver a contar"
+              :disable="checkingOut"
+              @click="recontarCaja"
+            />
+          </div>
         </q-card-section>
 
         <q-list separator>
@@ -375,6 +399,9 @@ const allChecklistChecked = computed(() =>
 // Cierre de caja (2026-09-08): el QR ya validó que el profe está cerrando su
 // jornada; antes del checklist se le pide contar la caja de la sede. Cancelar
 // o saltear el conteo no cancela el check-out: sigue al checklist.
+// 2026-10-06: si la jornada ya tiene un cierre de caja (p. ej. "Contar la caja
+// ahora" desde lejos del QR), no se vuelve a pedir: va directo al checklist,
+// que muestra la hora del cierre y permite recontar.
 const showCajaDialog = ref(false);
 
 async function openChecklistDialog(qrToken: string) {
@@ -391,7 +418,7 @@ async function openChecklistDialog(qrToken: string) {
       error: extractError(err, 'Error desconocido'),
     });
   }
-  if (openShift.value) {
+  if (openShift.value && !openShift.value.cashCountedAt) {
     showCajaDialog.value = true;
   } else {
     showChecklistDialog.value = true;
@@ -400,6 +427,26 @@ async function openChecklistDialog(qrToken: string) {
 
 function onCajaDone() {
   if (pendingQrToken.value) showChecklistDialog.value = true;
+  void refreshCashCounted();
+}
+
+// Refresca `cashCountedAt` (si se registró un cierre). Si falla, solo queda
+// desactualizada la hora mostrada: el próximo check-out pedirá la caja.
+async function refreshCashCounted() {
+  try {
+    await fetchMe();
+  } catch (err: unknown) {
+    log.warn('No se pudo refrescar la jornada tras el cierre de caja', {
+      error: extractError(err, 'Error desconocido'),
+    });
+  }
+}
+
+// Desde el checklist: el QR pendiente se conserva, así que al cerrar el
+// diálogo de caja (`onCajaDone`) vuelve al checklist con lo ya tildado.
+function recontarCaja() {
+  showChecklistDialog.value = false;
+  showCajaDialog.value = true;
 }
 
 // Conteo suelto (sin check-out): mismo diálogo, sin QR pendiente → al cerrar

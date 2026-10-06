@@ -20,6 +20,8 @@ export interface StaffAttendanceOpenShift {
   branchId: number;
   branchName: string;
   checkedInAt: string;
+  /** Último cierre de caja de ESTA jornada (null si todavía no la contó). */
+  cashCountedAt: string | null;
 }
 
 /** Ítem del checklist de cierre de jornada. */
