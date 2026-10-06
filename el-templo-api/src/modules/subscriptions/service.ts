@@ -76,6 +76,7 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
+import { membershipInEffectSql } from "../shared/membership";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
@@ -7715,29 +7716,33 @@ export class SubscriptionService {
     // lint), condicionado a que `ctx` este resuelto (ver docblock del
     // metodo). El fragmento queda vacio cuando `ctx` es null, preservando el
     // comportamiento previo tal cual.
+    // Fase 194 D-03: "membresía vigente" tiene UNA sola definición
+    // (`shared/membership.ts`) — un plan `is_trial` da ACCESO, nunca
+    // MEMBRESÍA, así que una sub is_trial vigente NO pone `activo` ni dispara
+    // la conversión de lead. El gate se arma UNA vez y se reusa en el CASE de
+    // `activo` y en los 4 CASE de lead. Sin referencia a `ctx` (igual que el
+    // EXISTS de antes: correlacionado por `u.id`, que es de un solo gimnasio);
+    // el filtro de gimnasio del statement sigue siendo el fragmento condicional
+    // inline del WHERE de abajo.
+    /* tenant-safe: EXISTS correlacionado por u.id (un solo gimnasio), viaja
+       dentro del UPDATE de abajo, que acota por u.tenant_id inline. */
+    const membershipGate = sql`EXISTS (
+              SELECT 1 FROM subscriptions s
+              WHERE s.user_id = u.id
+                AND ${membershipInEffectSql("s")}
+            )`;
+
     await tx.execute(sql`
       UPDATE users u
       SET
         u.status = CASE
-          WHEN EXISTS (
-            SELECT 1 FROM subscriptions s
-            WHERE s.user_id = u.id
-              AND s.subscription_status IN ('active','paused')
-              AND s.start_date <= CURDATE()
-              AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-          ) THEN 'activo'
+          WHEN ${membershipGate} THEN 'activo'
           WHEN u.status IN ('activo','inactivo') THEN 'inactivo'
           ELSE u.status
         END,
         u.lead_status = CASE
           WHEN u.converted_at IS NULL
-            AND EXISTS (
-              SELECT 1 FROM subscriptions s
-              WHERE s.user_id = u.id
-                AND s.subscription_status IN ('active','paused')
-                AND s.start_date <= CURDATE()
-                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-            )
+            AND ${membershipGate}
             AND EXISTS (
               SELECT 1 FROM bookings b
               WHERE b.member_id = u.id AND b.is_trial = 1
@@ -7747,13 +7752,7 @@ export class SubscriptionService {
         END,
         u.lead_status_source = CASE
           WHEN u.converted_at IS NULL
-            AND EXISTS (
-              SELECT 1 FROM subscriptions s
-              WHERE s.user_id = u.id
-                AND s.subscription_status IN ('active','paused')
-                AND s.start_date <= CURDATE()
-                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-            )
+            AND ${membershipGate}
             AND EXISTS (
               SELECT 1 FROM bookings b
               WHERE b.member_id = u.id AND b.is_trial = 1
@@ -7764,13 +7763,7 @@ export class SubscriptionService {
         u.purchased_plan_id = CASE
           WHEN u.converted_at IS NULL
             AND u.purchased_plan_id IS NULL
-            AND EXISTS (
-              SELECT 1 FROM subscriptions s
-              WHERE s.user_id = u.id
-                AND s.subscription_status IN ('active','paused')
-                AND s.start_date <= CURDATE()
-                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-            )
+            AND ${membershipGate}
             AND EXISTS (
               SELECT 1 FROM bookings b
               WHERE b.member_id = u.id AND b.is_trial = 1
@@ -7779,9 +7772,7 @@ export class SubscriptionService {
             SELECT s2.plan_id
             FROM subscriptions s2
             WHERE s2.user_id = u.id
-              AND s2.subscription_status IN ('active','paused')
-              AND s2.start_date <= CURDATE()
-              AND (s2.end_date IS NULL OR s2.end_date >= CURDATE())
+              AND ${membershipInEffectSql("s2")}
             ORDER BY s2.created_at DESC
             LIMIT 1
           )
@@ -7789,13 +7780,7 @@ export class SubscriptionService {
         END,
         u.converted_at = CASE
           WHEN u.converted_at IS NULL
-            AND EXISTS (
-              SELECT 1 FROM subscriptions s
-              WHERE s.user_id = u.id
-                AND s.subscription_status IN ('active','paused')
-                AND s.start_date <= CURDATE()
-                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-            )
+            AND ${membershipGate}
             AND EXISTS (
               SELECT 1 FROM bookings b
               WHERE b.member_id = u.id AND b.is_trial = 1

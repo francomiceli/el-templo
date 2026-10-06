@@ -1,11 +1,11 @@
 /**
- * Canonical "active member" predicate (Phase 117 D-01 / D-02).
+ * Canonical "active member" predicate (Phase 117 D-01 / D-02, Fase 194 D-03).
  *
- * SOURCE OF TRUTH: the EXISTS sub-query inside
- * `subscriptions/service.ts::recomputeUserStatus` (the CASE branch that sets
- * `users.status = 'activo'`). This helper copies that predicate VERBATIM so
- * analytics computes "activo" LIVE from subscriptions instead of trusting the
- * denormalized `users.status` column.
+ * SOURCE OF TRUTH: `shared/membership.ts::membershipInEffectSql`, the same
+ * predicate `subscriptions/service.ts::recomputeUserStatus` uses in the CASE
+ * branch that sets `users.status = 'activo'`. Analytics computes "activo" LIVE
+ * from subscriptions instead of trusting the denormalized `users.status`
+ * column.
  *
  * Why: `users.status` drifts when a subscription expires without a status
  * recompute running for that user (the ~48 "fantasmas" found in prod
@@ -15,8 +15,15 @@
  *
  * A member is "active" iff they have at least one subscription that:
  *   - is in status 'active' or 'paused',
- *   - has already started (start_date <= CURDATE()), and
- *   - has not ended (end_date IS NULL OR end_date >= CURDATE()).
+ *   - has already started (start_date on or before today),
+ *   - has not ended (end_date IS NULL OR end_date >= CURDATE()), and
+ *   - belongs to a plan that is NOT `is_trial` (Fase 194 D-03: un plan
+ *     `is_trial` da ACCESO, nunca MEMBRESÍA — un invitado o una prueba de
+ *     Yoga sola no es "miembro activo" ni entra al export SEPA).
+ *
+ * Fase 194 D-03: el predicado de vigencia YA NO se copia acá: vive en UN solo
+ * lugar, `shared/membership.ts::membershipInEffectSql`, y los 5 helpers de
+ * este archivo se arman sobre él (antes eran ~10 copias del mismo EXISTS).
  *
  * Returns a Drizzle `SQL` fragment — NOT a class, NOT an entity. Parameterized
  * by the user-id column to embed in any WHERE/SELECT (e.g.
@@ -47,32 +54,53 @@
  * viaje embebida en el SQL para el lint).
  */
 import { sql, type SQL, type AnyColumn } from "drizzle-orm";
+import { membershipInEffectSql } from "./membership";
 import type { TenantContext } from "./tenant";
 
-export function activeMemberExists(
+/**
+ * Esqueleto ÚNICO de los 5 helpers: `EXISTS` de una membresía vigente del
+ * socio (`membershipInEffectSql`, excluye is_trial) + un filtro extra propio de
+ * cada helper (`extra`, vacío para `activeMemberExists`) + el `tenant_id`
+ * explícito cuando hay `ctx` real (fase 175-04).
+ */
+function activeMembershipExists(
   userIdColumn: AnyColumn,
+  extra: SQL,
   ctx?: TenantContext,
 ): SQL {
   /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
      ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
      tenantWhere-scoped (sobre users o sobre subscriptions). Con `ctx` real
      (fase 175-04) suma además su propio `tenant_id` explícito. */
-  return ctx
-    ? sql`EXISTS (
+  return sql`EXISTS (
     SELECT 1 FROM subscriptions s
     WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND s.tenant_id = ${ctx.tenantId}
-  )`
-    : sql`EXISTS (
-    SELECT 1 FROM subscriptions s
-    WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      AND ${membershipInEffectSql("s")}
+      ${extra}
+      ${ctx ? sql`AND s.tenant_id = ${ctx.tenantId}` : sql``}
   )`;
+}
+
+/** Filtro extra: el plan NO es el pase `especial` (D-11 fase 161). */
+/* tenant-safe: subquery por PK de plan (ids globalmente únicos), viaja dentro
+   del EXISTS de `activeMembershipExists` ANDed en una query ya scopeada. */
+const NOT_ESPECIAL_PLAN = sql`AND s.plan_id NOT IN (
+        SELECT id FROM subscription_plans WHERE plan_category = 'especial'
+      )`;
+
+/** Etiqueta de membresía efectiva: override manual del socio o la de la sub. */
+/* tenant-safe: subquery correlacionada por `uo.id = s.user_id` (PK de users),
+   viaja dentro del EXISTS de `activeMembershipExists` en una query ya scopeada. */
+const EFFECTIVE_KIND = sql`COALESCE(
+        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
+        s.membership_kind
+      )`;
+
+export function activeMemberExists(
+  userIdColumn: AnyColumn,
+  ctx?: TenantContext,
+): SQL {
+  return activeMembershipExists(userIdColumn, sql``, ctx);
 }
 
 /**
@@ -91,32 +119,7 @@ export function activeNonEspecialMemberExists(
   userIdColumn: AnyColumn,
   ctx?: TenantContext,
 ): SQL {
-  /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
-     ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
-     tenantWhere-scoped. Con `ctx` real (fase 175-04) suma su propio
-     `tenant_id` explícito. */
-  return ctx
-    ? sql`EXISTS (
-    SELECT 1 FROM subscriptions s
-    WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND s.plan_id NOT IN (
-        SELECT id FROM subscription_plans WHERE plan_category = 'especial'
-      )
-      AND s.tenant_id = ${ctx.tenantId}
-  )`
-    : sql`EXISTS (
-    SELECT 1 FROM subscriptions s
-    WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND s.plan_id NOT IN (
-        SELECT id FROM subscription_plans WHERE plan_category = 'especial'
-      )
-  )`;
+  return activeMembershipExists(userIdColumn, NOT_ESPECIAL_PLAN, ctx);
 }
 
 /**
@@ -130,82 +133,31 @@ export function activePayingNonEspecialMemberExists(
   userIdColumn: AnyColumn,
   ctx?: TenantContext,
 ): SQL {
-  /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
-     ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
-     tenantWhere-scoped. Con `ctx` real (fase 175-04) suma su propio
-     `tenant_id` explícito. */
-  return ctx
-    ? sql`EXISTS (
-    SELECT 1 FROM subscriptions s
-    WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND COALESCE(
-        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
-        s.membership_kind
-      ) = 'paga'
-      AND s.plan_id NOT IN (
-        SELECT id FROM subscription_plans WHERE plan_category = 'especial'
-      )
-      AND s.tenant_id = ${ctx.tenantId}
-  )`
-    : sql`EXISTS (
-    SELECT 1 FROM subscriptions s
-    WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND COALESCE(
-        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
-        s.membership_kind
-      ) = 'paga'
-      AND s.plan_id NOT IN (
-        SELECT id FROM subscription_plans WHERE plan_category = 'especial'
-      )
-  )`;
+  return activeMembershipExists(
+    userIdColumn,
+    sql`AND ${EFFECTIVE_KIND} = 'paga' ${NOT_ESPECIAL_PLAN}`,
+    ctx,
+  );
 }
 
 /**
  * ¿El miembro tiene al menos una sub VIGENTE de un `membership_kind` dado?
  * (mismo criterio de vigencia que `activeMemberExists`: active/paused, ya
- * arrancada, no vencida). Se usa para DESGLOSAR el conteo de activos en el KPI
- * (cuántos de los "vigentes" quedan fuera de la métrica por ser staff /
- * bonificada) y para el filtro `membershipKind` del listado de Miembros. NO
- * es un predicado de métrica: no excluye 'especial'.
+ * arrancada, no vencida, no is_trial). Se usa para DESGLOSAR el conteo de
+ * activos en el KPI (cuántos de los "vigentes" quedan fuera de la métrica por
+ * ser staff / bonificada) y para el filtro `membershipKind` del listado de
+ * Miembros. NO es un predicado de métrica: no excluye 'especial'.
  */
 export function activeSubOfKindExists(
   userIdColumn: AnyColumn,
   kind: "paga" | "bonificada" | "staff",
   ctx?: TenantContext,
 ): SQL {
-  /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
-     ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
-     tenantWhere-scoped. Con `ctx` real suma su propio `tenant_id` explícito. */
-  return ctx
-    ? sql`EXISTS (
-    SELECT 1 FROM subscriptions s
-    WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND COALESCE(
-        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
-        s.membership_kind
-      ) = ${kind}
-      AND s.tenant_id = ${ctx.tenantId}
-  )`
-    : sql`EXISTS (
-    SELECT 1 FROM subscriptions s
-    WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND COALESCE(
-        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
-        s.membership_kind
-      ) = ${kind}
-  )`;
+  return activeMembershipExists(
+    userIdColumn,
+    sql`AND ${EFFECTIVE_KIND} = ${kind}`,
+    ctx,
+  );
 }
 
 /**
@@ -217,32 +169,9 @@ export function activePayingMemberExists(
   userIdColumn: AnyColumn,
   ctx?: TenantContext,
 ): SQL {
-  /* tenant-safe: fragmento correlacionado por user_id (globalmente único,
-     ver docblock de cabecera) — viaja ANDed dentro de una query externa ya
-     tenantWhere-scoped. Con `ctx` real (fase 175-04) suma su propio
-     `tenant_id` explícito. */
-  return ctx
-    ? sql`EXISTS (
-    SELECT 1 FROM subscriptions s
-    WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND COALESCE(
-        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
-        s.membership_kind
-      ) = 'paga'
-      AND s.tenant_id = ${ctx.tenantId}
-  )`
-    : sql`EXISTS (
-    SELECT 1 FROM subscriptions s
-    WHERE s.user_id = ${userIdColumn}
-      AND s.subscription_status IN ('active','paused')
-      AND s.start_date <= CURDATE()
-      AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      AND COALESCE(
-        (SELECT uo.membership_kind_override FROM users AS uo WHERE uo.id = s.user_id),
-        s.membership_kind
-      ) = 'paga'
-  )`;
+  return activeMembershipExists(
+    userIdColumn,
+    sql`AND ${EFFECTIVE_KIND} = 'paga'`,
+    ctx,
+  );
 }

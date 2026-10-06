@@ -68,6 +68,7 @@ import {
   activeSubOfKindExists,
 } from "../shared/active-member";
 import { memberCoveredUntilSql } from "../shared/covered-until";
+import { membershipInEffectSql } from "../shared/membership";
 import {
   tenantValues,
   tenantWhere,
@@ -106,6 +107,32 @@ function maskDniLast3(dni: string | null): string | null {
   if (!dni) return dni;
   if (dni.length <= 3) return dni;
   return `···${dni.slice(-3)}`;
+}
+
+/**
+ * Estado EFECTIVO de un socio, calculado en vivo desde `subscriptions` (no de
+ * la columna `users.status`, que es un cache que puede quedar viejo): es lo que
+ * muestran y filtran el listado de alumnos (`listMembers`) y el typeahead del
+ * panel de turno (`searchMembers`). Espeja el CASE de `recomputeUserStatus`.
+ *
+ * Fase 194 D-03: la vigencia sale de `membershipInEffectSql` — una sub de plan
+ * `is_trial` (prueba de Yoga, invitación) NO vuelve "activo" a nadie.
+ * 'freemium'/'prueba' no se derivan de subs, así que pasan tal cual.
+ * Fase 173-19: `s.tenant_id` inline.
+ */
+function effectiveMemberStatusSql(ctx: TenantContext) {
+  return sql<UserStatus>`(
+    CASE
+      WHEN EXISTS (
+        SELECT 1 FROM subscriptions s
+        WHERE s.user_id = users.id
+          AND s.tenant_id = ${ctx.tenantId}
+          AND ${membershipInEffectSql("s")}
+      ) THEN 'activo'
+      WHEN users.status IN ('activo','inactivo') THEN 'inactivo'
+      ELSE users.status
+    END
+  )`;
 }
 
 export class MemberService {
@@ -315,21 +342,8 @@ export class MemberService {
     // here mirrors recomputeUserStatus's CASE exactly so the list (and its
     // status filter) is always correct, independent of cache freshness.
     // 'freemium'/'prueba' are not derivable from subs, so they pass through.
-    // Fase 173-19: `s.tenant_id` inline.
-    const effectiveStatusExpr = sql<UserStatus>`(
-      CASE
-        WHEN EXISTS (
-          SELECT 1 FROM subscriptions s
-          WHERE s.user_id = users.id
-            AND s.tenant_id = ${ctx.tenantId}
-            AND s.subscription_status IN ('active','paused')
-            AND s.start_date <= CURDATE()
-            AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-        ) THEN 'activo'
-        WHEN users.status IN ('activo','inactivo') THEN 'inactivo'
-        ELSE users.status
-      END
-    )`;
+    // Fase 194 D-03: definición única en `effectiveMemberStatusSql`.
+    const effectiveStatusExpr = effectiveMemberStatusSql(ctx);
 
     // Status filter compares against the computed expression so it stays
     // consistent with what the list displays. 'todos' (or undefined) is a no-op.
@@ -636,23 +650,10 @@ export class MemberService {
     )`;
 
     // Effective status computed live from subscriptions (mirrors listMembers'
-    // effectiveStatusExpr) so a lapsed member reads 'inactivo' immediately,
-    // without waiting for the auto-expire cron to refresh users.status.
-    // Fase 173-19: `s.tenant_id` inline.
-    const effectiveStatusExpr = sql<UserStatus>`(
-      CASE
-        WHEN EXISTS (
-          SELECT 1 FROM subscriptions s
-          WHERE s.user_id = users.id
-            AND s.tenant_id = ${ctx.tenantId}
-            AND s.subscription_status IN ('active','paused')
-            AND s.start_date <= CURDATE()
-            AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-        ) THEN 'activo'
-        WHEN users.status IN ('activo','inactivo') THEN 'inactivo'
-        ELSE users.status
-      END
-    )`;
+    // effectiveStatusExpr — es LA MISMA función, `effectiveMemberStatusSql`) so
+    // a lapsed member reads 'inactivo' immediately, without waiting for the
+    // auto-expire cron to refresh users.status.
+    const effectiveStatusExpr = effectiveMemberStatusSql(ctx);
 
     const rows = await this.db
       .select({

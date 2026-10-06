@@ -251,11 +251,10 @@ describe("Fase 194 D-03 — is_trial da acceso, nunca membresía", () => {
       headers: { authorization: `Bearer ${adminToken}` },
     });
     expect(search.statusCode).toBe(200);
-    const searchBody = JSON.parse(search.body) as Array<{
-      id: number;
-      status: string;
-    }>;
-    const hit = searchBody.find((m) => m.id === member.id);
+    const searchBody = JSON.parse(search.body) as {
+      members: Array<{ id: number; status: string | null }>;
+    };
+    const hit = searchBody.members.find((m) => m.id === member.id);
     expect(hit?.status).toBe("prueba");
   });
 
