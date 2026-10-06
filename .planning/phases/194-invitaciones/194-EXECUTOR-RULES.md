@@ -73,3 +73,14 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 ## Lecciones acumuladas de la fase
 
 (El orquestador agrega acá, entre planes, las trampas que encontraron los ejecutores anteriores. Leerlas.)
+
+### Tras 194-01
+- Cada archivo de integración tarda ~170 s (provisioning de la DB del worker); 3 archivos ~340 s. Usar `timeout 900` y no más de 3-4 archivos por corrida.
+- Fábricas compartidas en `el-templo-api/test/invitations/_helpers.ts`: ctx = `fixtureCtx(app)` (`{ app, tenant }`), `ensurePhysicalBranch`, `ensureVirtualBranch`, `createActiveSub` (inserta directo, NO corre `recomputeUserStatus`; acepta `createdAt`). Reusarlas, no duplicar.
+- Helper canónico de membresía: `el-templo-api/src/modules/shared/membership.ts` (`membershipInEffectSql(alias)`, `notTrialPlanSql(alias)`). Toda condición nueva de "membresía vigente" lo usa; nunca re-escribir el EXISTS a mano.
+- Disparar `recomputeUserStatus` sin la API: con ctx → sub `scheduled` con `startOffsetDays: -1` + `new SubscriptionService(db, log, undefined, new EnrollmentService(db, log)).activateDueScheduledSubs(ctx.tenant)`; con `ctx=null` → `autoExpireDueSubscriptions()` (también necesita `EnrollmentService`).
+- `GET /api/admin/members/search` responde `{ members: [...] }`, no un array.
+- Un `const` de módulo con SQL que nombra `subscription_plans`/`users` necesita su propio comentario `/* tenant-safe: ... */` o `lint:tenant` falla.
+- `subscription_plans` está en `TABLES_TO_CLEAN`: crear planes DESPUÉS de `cleanAllTestData`.
+- `pnpm typecheck:tests` sale 1 por deuda PREEXISTENTE ajena (test/unit/*, attendance, check-ins, email, tenancy/mod-02-hooks, analytics, lifecycle). Criterio real: ningún archivo tocado/creado por el plan aparece en los errores (filtrar la salida por los paths del plan).
+- Versión de la app de la fase = **1.8.2** (patch, decisión de Franco), no 1.9.0.

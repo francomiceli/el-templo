@@ -348,7 +348,7 @@ Plans:
 - [ ] 194-25-PLAN.md — Admin: flag en planes + Configuración ▸ Invitaciones (tope en dinero por país)
 - [ ] 194-26-PLAN.md — Admin: Reportes ▸ Invitaciones + filtro de alumnos + rebrand restante
 - [ ] 194-27-PLAN.md — App: Mis invitados + rebrand + alias `/mis-referidos`
-- [ ] 194-28-PLAN.md — App: landing `/invitacion/:code` + Activar invitación + registro/login con código + versión 1.9.0
+- [ ] 194-28-PLAN.md — App: landing `/invitacion/:code` + Activar invitación + registro/login con código + versión 1.8.2
 - [ ] 194-29-PLAN.md — Pre-flight de release: numeración, gates y builds de los 3 paquetes, checklist
 - [ ] 194-30-PLAN.md — Checkpoints humanos: feriados ES (D-29), backup + validación, UAT AR+ES, SEPA con Leandro
 

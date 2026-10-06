@@ -693,7 +693,7 @@ Todas resueltas por Franco el 2026-10-06 (addendum D-20..D-29 de `194-CONTEXT.md
 | 10 | "Mis invitados" API (overview extendido) + ficha admin (overview) | 05, 08, 09 | Bajo |
 | 11 | Reporte D-19 + listado de leads de invitación + filtro de origen en `listMembers` | 09 | Bajo |
 | 12 | Migraciones de datos: 0259 (vínculo 3) + 0260 (copy) + test de migración | 02 | Bajo (guards) |
-| 13 | App: Mis invitados, landing/activación, login/registro con código, rebrand, alias de ruta, bump 1.9.0 | 06, 10 | Medio (build de tienda) |
+| 13 | App: Mis invitados, landing/activación, login/registro con código, rebrand, alias de ruta, bump 1.8.2 | 06, 10 | Medio (build de tienda) |
 | 14 | Admin: rebrand, tab de invitaciones en la ficha, flag en el form de planes, UI de settings, Reportes ▸ Invitaciones, previews por monto (Pitfall 6) | 07, 08, 11 | **Alto si se publica separado de 08** |
 
 **Orden crítico:** 01 tiene que llegar a prod antes que 05, o en el mismo tren y nunca después. 08 y 14 van juntos (precarga de montos). Lo que puede romper producción: cobros (08, 14), check-in/reservas (03 si se toca mal el conflicto de grupo; 01 si se toca `deriveCoveredUntil` en el lugar) y registro (06).
