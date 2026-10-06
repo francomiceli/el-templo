@@ -158,3 +158,9 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - La sede 1 del fixture de referrals es física pero INACTIVA (no aparece en listados de sedes activas).
 - En `activate`, invitador sin membresía → 409 antes de resolver sede: tests de "sede ajena → 404" necesitan invitador con membresía vigente.
 - `prettier --write` con globs reformatea archivos ajenos: pasar rutas explícitas. Scripts python: escribirlos con Write y ejecutarlos aparte.
+
+### Tras 194-32 (refactor, calidad de código — pedido explícito de Franco)
+- Reglas en `referrals/invitation-rules.ts` (`InvitationRules`: cupo, membresía del invitador, elegibilidad, identidad, historial, `loadUserWithTimezone`, `resolveTimezone`). Orquestación en `referrals/invitation-service.ts` (~960 líneas: activate, void, compensación). `rules` NUNCA importa `service`.
+- **NO seguir engordando `invitation-service.ts`.** Funcionalidad nueva (overview de "Mis invitados", etapa de lead, reporte, canal asistido si crece) va en su PROPIO archivo de `referrals/` (p.ej. `invitation-overview.ts`, `invitation-leads.ts`, `invitation-report.ts`) y compone `InvitationRules`/`InvitationService`. Funciones de >~80 líneas: partir en helpers con nombre.
+- **NO engordar `subscriptions/service.ts`** (8k+ líneas, deuda previa): en cobros, cada charge-path hace UNA llamada al árbitro (`discount-arbiter.ts`) y la lógica vive en el árbitro.
+- Planes ahora se ejecutan agrupados (un ejecutor corre varios PLAN seguidos, un SUMMARY por plan).
