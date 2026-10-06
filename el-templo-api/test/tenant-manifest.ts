@@ -976,6 +976,16 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // ── /api/members/referrals ────────────────────────────────────────────────
   "GET /api/members/referrals": { categoria: "tenant-scoped" },
   "POST /api/members/referrals/cta-click": { categoria: "tenant-scoped" },
+  // Fase 194-10 (D-06): activación de invitaciones del socio. `users` es tabla
+  // strict: el ctx sale de la fila del socio autenticado (`attachCountryScope`),
+  // el invitado es SIEMPRE el token y el invitador sale del `code` del mismo
+  // gimnasio.
+  "GET /api/members/referrals/invitations/eligibility": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/members/referrals/invitations/activate": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/members/scheduling ───────────────────────────────────────────────
   "DELETE /api/members/scheduling/bookings/:bookingId": {

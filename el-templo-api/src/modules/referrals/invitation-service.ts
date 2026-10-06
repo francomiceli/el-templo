@@ -73,6 +73,8 @@ import {
   INELIGIBLE_MESSAGES,
   type ActivatedInvitation,
   type ActivateInvitationInput,
+  type ActivationPreview,
+  type ActivationPreviewInput,
   type EligibilityResult,
   type InvitationIneligibleReason,
   type InviteeEligibilityInput,
@@ -261,11 +263,16 @@ export class InvitationService {
     ctx: TenantContext,
     input: InviteeEligibilityInput,
     exec: InvitationExecutor,
+    opts: { skipIdentity?: boolean } = {},
   ): Promise<InvitationIneligibleReason | null> {
     if (input.inviterId === input.invitedUserId) return "self_invite";
 
-    const identity = await this.findIdentityReason(ctx, input, exec);
-    if (identity !== null) return identity;
+    // La consulta previa de la app (`previewActivation`) todavía no tiene el
+    // teléfono que el socio va a tipear: la identidad se valida recién al activar.
+    if (!opts.skipIdentity) {
+      const identity = await this.findIdentityReason(ctx, input, exec);
+      if (identity !== null) return identity;
+    }
 
     const settings = await getInvitationSettings(this.db, ctx, this.log);
     const today = todayInTz(await this.resolveTimezone(ctx, input, exec));
@@ -424,10 +431,12 @@ export class InvitationService {
     exec: InvitationExecutor,
   ): Promise<boolean> {
     const i = schema.invitations;
-    const personMatch: SQL[] = [
-      eq(i.invitedUserId, input.invitedUserId),
-      eq(i.invitedPhoneLast10, normalizePhone(input.phone)),
-    ];
+    const personMatch: SQL[] = [eq(i.invitedUserId, input.invitedUserId)];
+    // Sin teléfono (consulta previa de la app) no hay nada que comparar.
+    const phoneLast10 = normalizePhone(input.phone);
+    if (phoneLast10.length > 0) {
+      personMatch.push(eq(i.invitedPhoneLast10, phoneLast10));
+    }
     const dni = input.dni?.trim();
     if (dni) {
       const byDni = and(isNotNull(i.invitedDni), eq(i.invitedDni, dni));
@@ -446,6 +455,142 @@ export class InvitationService {
       )
       .limit(1);
     return Boolean(row);
+  }
+
+  // ─── Consulta previa de la app (D-06) ────────────────────────────────────
+
+  /**
+   * `GET .../invitations/eligibility`: lo que la app muestra ANTES de activar.
+   * Corre las MISMAS reglas que `activate` y en el mismo orden (self_invite ->
+   * invitador D-10/D-10d -> invitado D-11/D-12), salvo la identidad por
+   * teléfono/DNI, que se valida al activar porque el socio todavía no lo tipeó.
+   *
+   * Un código inexistente lanza `inviter_not_found` (404). Un invitador que no
+   * puede invitar NO lanza: devuelve `eligible:false` con el motivo, para que la
+   * pantalla explique por qué. T-194-35: solo el NOMBRE DE PILA del invitador.
+   *
+   * País de referencia (para el plan Invitación y las sedes a elegir): el de la
+   * sede FÍSICA actual del socio; si está en la sede virtual, el de la sede
+   * destino elegida (`branchId`); sin ninguna de las dos, `accessesBudget` es
+   * null y se listan las sedes físicas de todos los países. `activate` usa la
+   * misma regla, así el texto nunca difiere del plan que se asigna.
+   */
+  async previewActivation(
+    ctx: TenantContext,
+    input: ActivationPreviewInput,
+  ): Promise<ActivationPreview> {
+    const subscriptionService = this.requireSubscriptionService();
+    const inviterId = await new ReferralService(
+      this.db,
+      this.log,
+    ).resolveReferralCode(ctx, input.code.trim());
+    if (inviterId === null) throw new InvitationRuleError("inviter_not_found");
+
+    const people = await this.db
+      .select({
+        id: schema.users.id,
+        firstName: schema.users.firstName,
+        phone: schema.users.phone,
+        dni: schema.users.dni,
+        branchId: schema.users.branchId,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, ctx),
+          inArray(schema.users.id, [inviterId, input.invitedUserId]),
+          isNull(schema.users.deletedAt),
+        ),
+      );
+    const invitee = people.find((p) => p.id === input.invitedUserId);
+    if (!invitee) throw new NotFoundError("Alumno no encontrado");
+    const inviter = people.find((p) => p.id === inviterId);
+
+    const current = await this.loadBranch(ctx, invitee.branchId, this.db);
+    const chosen =
+      input.branchId !== undefined
+        ? await this.loadBranch(ctx, input.branchId, this.db)
+        : null;
+    if (chosen?.isVirtual) {
+      throw new BadRequestError(
+        "Elegí una sede física para activar la invitación",
+      );
+    }
+    if (chosen && !current.isVirtual && current.country !== chosen.country) {
+      throw new BadRequestError("La sede elegida es de otro país");
+    }
+    const reference = !current.isVirtual ? current : chosen;
+
+    let reason: InvitationIneligibleReason | null = null;
+    if (inviterId === invitee.id) {
+      reason = "self_invite";
+    } else {
+      try {
+        await this.assertInviterCanInvite(ctx, inviterId);
+      } catch (err: unknown) {
+        if (!(err instanceof InvitationRuleError)) throw err;
+        reason = err.reason;
+      }
+      if (reason === null) {
+        reason = await this.findIneligibleReason(
+          ctx,
+          {
+            inviterId,
+            invitedUserId: invitee.id,
+            phone: invitee.phone ?? "",
+            dni: invitee.dni,
+            branchId: reference?.id,
+          },
+          this.db,
+          { skipIdentity: true },
+        );
+      }
+    }
+
+    const branches = await this.db
+      .select({
+        id: schema.branches.id,
+        name: schema.branches.name,
+        country: schema.branches.country,
+      })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.isVirtual, false),
+          eq(schema.branches.isActive, true),
+          reference
+            ? eq(schema.branches.country, reference.country)
+            : undefined,
+        ),
+      )
+      .orderBy(schema.branches.country, schema.branches.name);
+
+    let accessesBudget: number | null = null;
+    if (reference) {
+      try {
+        const plan = await subscriptionService.findInvitationPlan(
+          ctx,
+          reference.country,
+        );
+        accessesBudget = plan.classesPerWeek ?? null;
+      } catch (err: unknown) {
+        // Sin plan configurado la app muestra copy genérico (findInvitationPlan
+        // ya dejó el error de configuración en el log).
+        if (!(err instanceof BadRequestError)) throw err;
+      }
+    }
+    const settings = await getInvitationSettings(this.db, ctx, this.log);
+
+    return {
+      inviterFirstName: inviter?.firstName ?? null,
+      eligible: reason === null,
+      reason,
+      message: reason === null ? null : INELIGIBLE_MESSAGES[reason],
+      branches,
+      accessesBudget,
+      accessBusinessDays: settings.accessBusinessDays,
+    };
   }
 
   // ─── Activación (D-06) y anulación (D-04) ────────────────────────────────

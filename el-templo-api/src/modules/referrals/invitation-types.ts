@@ -60,6 +60,32 @@ export interface ActivateInvitationInput {
   createdBy: number | null;
 }
 
+/** Entrada de la consulta previa de la app (194-10). `branchId` = sede destino elegida. */
+export interface ActivationPreviewInput {
+  code: string;
+  invitedUserId: number;
+  branchId?: number;
+}
+
+/** Sede física que la app ofrece en el selector de activación. */
+export interface InvitationBranchOption {
+  id: number;
+  name: string;
+  country: string;
+}
+
+/**
+ * Lo que `GET .../invitations/eligibility` devuelve a la app (194-10). Solo el
+ * nombre de pila del invitador: sin apellido ni id (T-194-35).
+ */
+export interface ActivationPreview extends EligibilityResult {
+  inviterFirstName: string | null;
+  branches: InvitationBranchOption[];
+  /** `classes_per_week` del plan Invitación del país de referencia; null si no se puede saber todavía. */
+  accessesBudget: number | null;
+  accessBusinessDays: number;
+}
+
 /** Resultado de una activación exitosa (194-09). */
 export interface ActivatedInvitation {
   invitationId: number;

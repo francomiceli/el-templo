@@ -11,11 +11,49 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { ReferralService } from "./service";
+import { InvitationService } from "./invitation-service";
+import {
+  INVITATION_ACTIVATE_BODY_KEYS,
+  rejectUnknownBodyKeys,
+  invitationActivateBodySchema,
+  invitationEligibilityQuerySchema,
+  type InvitationActivateBody,
+  type InvitationEligibilityQuery,
+} from "./invitation-schemas";
+import { sendInvitationError } from "./invitation-errors";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
+import { EnrollmentService } from "../programs/enrollment-service";
+import { SubscriptionService } from "../subscriptions/service";
+import { BookingService } from "../scheduling/booking-service";
+import { NotificationService } from "../notifications/service";
 
 export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ReferralService(fastify.db, fastify.log);
+
+  // Fase 194 D-06: activación de invitaciones del socio (canal app). Mismo
+  // armado que scheduling/routes.ts: `BookingService` es el 4.º argumento de
+  // `InvitationService` (lo necesita `voidInvitation`, que acá no se expone,
+  // pero el servicio falla cerrado si falta) y se enlaza con la suscripción.
+  const subscriptionService = new SubscriptionService(
+    fastify.db,
+    fastify.log,
+    undefined,
+    new EnrollmentService(fastify.db, fastify.log),
+  );
+  const bookingService = new BookingService(
+    fastify.db,
+    fastify.log,
+    subscriptionService,
+    new NotificationService(fastify.db, fastify.log),
+  );
+  subscriptionService.setBookingService(bookingService);
+  const invitationService = new InvitationService(
+    fastify.db,
+    fastify.log,
+    subscriptionService,
+    bookingService,
+  );
 
   // GET /api/members/referrals — overview del socio autenticado.
   fastify.get("/", { onRequest: [fastify.authenticate] }, async (request) => {
@@ -50,6 +88,84 @@ export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
         );
       }
       return reply.code(204).send();
+    },
+  );
+
+  // GET /api/members/referrals/invitations/eligibility?code=X[&branchId=N]
+  // Fase 194 D-06: el socio autenticado consulta si puede activar la invitación
+  // de ese código (mismas reglas que `activate`). T-194-35: solo autenticado y
+  // solo el nombre de pila del invitador; T-194-34: el invitado es SIEMPRE el
+  // usuario del token.
+  fastify.get<{ Querystring: InvitationEligibilityQuery }>(
+    "/invitations/eligibility",
+    {
+      onRequest: [fastify.authenticate],
+      schema: { querystring: invitationEligibilityQuerySchema },
+    },
+    async (request, reply) => {
+      const { userId } = request.user;
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(
+          request.scope,
+          "referrals.invitation-eligibility",
+        );
+        const { code, branchId } = request.query;
+        return await invitationService.previewActivation(ctx, {
+          code,
+          invitedUserId: userId,
+          branchId,
+        });
+      } catch (err: unknown) {
+        sendInvitationError(
+          err,
+          reply,
+          request.log,
+          "GET /members/referrals/invitations/eligibility",
+        );
+      }
+    },
+  );
+
+  // POST /api/members/referrals/invitations/activate
+  // Fase 194 D-06 (canal `self_service`): activa SIEMPRE para el usuario del
+  // token. El body no admite `invitedUserId`/`inviterId` (additionalProperties:
+  // false): el invitador sale del `code`, resuelto en el servidor.
+  fastify.post<{ Body: InvitationActivateBody }>(
+    "/invitations/activate",
+    {
+      onRequest: [fastify.authenticate],
+      // Claves extra => 400 explícito (ajv las descartaría en silencio, T-194-34).
+      preValidation: [rejectUnknownBodyKeys(INVITATION_ACTIVATE_BODY_KEYS)],
+      schema: { body: invitationActivateBodySchema },
+    },
+    async (request, reply) => {
+      const { userId } = request.user;
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(
+          request.scope,
+          "referrals.invitation-activate",
+        );
+        const { code, branchId, phone, dni } = request.body;
+        const activated = await invitationService.activate(ctx, {
+          code,
+          invitedUserId: userId,
+          branchId,
+          phone,
+          dni,
+          channel: "self_service",
+          createdBy: null,
+        });
+        return reply.code(201).send(activated);
+      } catch (err: unknown) {
+        sendInvitationError(
+          err,
+          reply,
+          request.log,
+          "POST /members/referrals/invitations/activate",
+        );
+      }
     },
   );
 };
