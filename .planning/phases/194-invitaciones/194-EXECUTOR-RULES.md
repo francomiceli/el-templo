@@ -150,3 +150,11 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Día fijo en tests de reserva/check-in: `vi.useFakeTimers({ toFake: ["Date"] })` + `setSystemTime(<hoy AR>T13:00Z)` antes de loguear, clases 10:10.
 - `FOR UPDATE` tiene que ser lo PRIMERO de la tx (snapshot posterior ve el COUNT de la activación previa).
 - Abierto a propósito: sub puede nacer `scheduled` en ES 00-02h locales (UTC de `assignPlan`, global); no-show no descuenta saldo (comportamiento global).
+
+### Tras 194-10
+- Rutas app: `GET /api/members/referrals/invitations/eligibility`, `POST .../activate`. Errores `{ error, message, reason }` (404 código inexistente, 400 `phone_required`, 409 reglas). Mapeo compartido: `sendInvitationError` en `referrals/invitation-errors.ts` (reusar en 194-12).
+- Para 400 explícito por claves extra en el body: `preValidation` `rejectUnknownBodyKeys` (Fastify con `additionalProperties:false` las borra en silencio).
+- `InvitationService.previewActivation` corre las mismas reglas que `activate` sin identidad (teléfono/DNI se validan al activar).
+- La sede 1 del fixture de referrals es física pero INACTIVA (no aparece en listados de sedes activas).
+- En `activate`, invitador sin membresía → 409 antes de resolver sede: tests de "sede ajena → 404" necesitan invitador con membresía vigente.
+- `prettier --write` con globs reformatea archivos ajenos: pasar rutas explícitas. Scripts python: escribirlos con Write y ejecutarlos aparte.
