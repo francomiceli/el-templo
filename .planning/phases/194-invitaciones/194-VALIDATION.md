@@ -1,8 +1,8 @@
 ---
 phase: 194
 slug: invitaciones
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-10-06
 ---
