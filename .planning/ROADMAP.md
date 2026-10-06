@@ -53,6 +53,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [ ] **Phase 190: Valoración, evolución y edición con recálculo** - Fácil/Adecuado/Difícil + molestia, récord de peso, vez anterior, sesiones del mes, y edición dentro de plazo que recalcula
 - [ ] **Phase 191: Panel del profesor** - Lista de alumnos con señales servidas sin buscarlas y ficha con planificado vs realizado
 - [ ] **Phase 192: Onboarding del tenant 2 (cierre del milestone)** - Un gimnasio real dado de alta con el wizard y operando en producción
+- [ ] **Phase 194: Invitaciones (fuera del milestone)** - Referidos → Invitaciones: 3 accesos gratis en prueba, cupo 2/mes, ventana 90 días, descuento por conversión con flag por plan, leads con origen Invitación
 
 ## Phase Details
 
@@ -299,6 +300,22 @@ Plans:
 3. Al menos un alumno real registró sesiones completas y ve su evolución, y su profe ve esas sesiones en el panel
 4. Ningún dato de El Templo (tenant 1) es visible desde el tenant 2 ni viceversa, verificado en producción con los verificadores de aislamiento de v6.0
 5. El tenant 2 tiene los módulos Templo apagados y solo ve el sistema de entrenamiento del módulo Gimnasio
+
+**Plans**: TBD
+
+### Phase 194: Invitaciones (fuera del milestone v6.1)
+
+**Goal**: El socio invita a alguien a entrenar; el invitado activa, queda en prueba con 3 accesos gratis en 10 días hábiles, entra al pipeline de leads, y si compra se activa el descuento por invitación con reglas anti-abuso
+**Depends on**: Fases 157/158/173 (núcleo de referidos, ya en producción)
+**Requirements**: brief `.planning/phases/194-invitaciones/194-BRIEF-INVITACIONES.md`; decisiones D-01..D-19 en `194-CONTEXT.md`
+**Success Criteria** (what must be TRUE):
+
+1. Un socio activo comparte su link; el invitado (nuevo o ex socio ≥6 meses) activa la invitación, queda en `prueba` y reserva y hace check-in de hasta 3 clases en cualquier sede de su país durante 10 días hábiles
+2. El cupo de 2 por mes y la ventana de 90 días por persona se respetan por ambos canales (app y recepción)
+3. Si el invitado compra un plan habilitado (hasta 30 días después de vencer los accesos), ambos reciben el descuento; aplica "gana el mayor" frente a AURA/promos, tope 40% y tope en dinero por país configurable
+4. Un plan `is_trial` nunca vuelve "activo" a nadie (status, cobertura, analytics): invariante centralizada en un único helper
+5. "Mis invitados" muestra cupo, estados derivados y descuento; el admin muestra el lead con origen Invitación, etapa y accesos x/3, y el reporte del programa
+6. Los vínculos existentes conservan su historial y descuentos; el vínculo invertido (Guido/Valentina) queda corregido por migración
 
 **Plans**: TBD
 
