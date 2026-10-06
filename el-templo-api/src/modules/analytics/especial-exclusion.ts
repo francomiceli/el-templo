@@ -31,6 +31,7 @@
  */
 import { sql, type SQL } from "drizzle-orm";
 import type { TenantContext } from "../shared/tenant";
+import { notTrialPlanSql } from "../shared/membership";
 
 export function excludeEspecialSubs(ctx: TenantContext): SQL {
   return sql`subscriptions.plan_id NOT IN (
@@ -67,5 +68,19 @@ export function excludeInternalSubs(): SQL {
     (SELECT uo.membership_kind_override FROM users AS uo
       WHERE uo.id = subscriptions.user_id),
     subscriptions.membership_kind
-  ) = 'paga'`;
+  ) = 'paga'
+  AND ${excludeTrialSubs()}`;
+}
+
+/**
+ * Fase 194 D-03: un plan `is_trial` (invitación, prueba de Yoga) da ACCESO,
+ * nunca MEMBRESÍA, así que su sub no es alta/baja/churn/renovación de
+ * membresía. NO alcanza con `membership_kind`: una sub de plan is_trial solo
+ * queda `bonificada` si se cargó con precio pisado en 0, y por defecto es
+ * `paga`. Se compone en `excludeInternalSubs` (churn, retención, flujos) y se
+ * usa suelto en la renovación. Misma subquery por PK de plan que el helper
+ * canónico `shared/membership.ts` (fuente única de "membresía").
+ */
+export function excludeTrialSubs(): SQL {
+  return notTrialPlanSql("subscriptions");
 }

@@ -27,6 +27,10 @@ import {
   activePayingNonEspecialMemberExists,
   activeSubOfKindExists,
 } from "../shared/active-member";
+import {
+  membershipPlanCondition,
+  notTrialPlanSql,
+} from "../shared/membership";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { resolveEffectiveCapacity } from "../scheduling/capacity";
 import { applyScope } from "./scope";
@@ -540,6 +544,9 @@ export class AnalyticsService {
     // `tenantWhere` del `.where(...)` de abajo no puede cubrir.
     const conditions: SQL[] = [
       eq(schema.subscriptions.status, "cancelled"),
+      // Fase 194 D-03: la baja de una sub is_trial (invitación) no es baja de
+      // membresía.
+      membershipPlanCondition(),
       sql`DATE(subscriptions.updated_at) >= ${dateFrom}`,
       sql`DATE(subscriptions.updated_at) <= ${dateTo}`,
     ];
@@ -588,6 +595,8 @@ export class AnalyticsService {
     const endingConditions: SQL[] = [
       gte(schema.subscriptions.endDate, dateFrom),
       lte(schema.subscriptions.endDate, dateTo),
+      // Fase 194 D-03: solo vencen membresías (no accesos de invitación).
+      membershipPlanCondition(),
     ];
 
     if (branchId !== undefined) {
@@ -623,6 +632,7 @@ export class AnalyticsService {
         AND s2.tenant_id = ${ctx.tenantId}
         AND s2.subscription_status IN ('active', 'paused')
         AND s2.id != subscriptions.id
+        AND ${notTrialPlanSql("s2")}
       )`,
     ];
 
@@ -666,6 +676,9 @@ export class AnalyticsService {
       // D-11: el pase especial tiene su propia línea en analíticas ("Especiales");
       // no se mezcla en la distribución de planes de membresía.
       ne(schema.subscriptionPlans.planCategory, "especial") as unknown as SQL,
+      // Fase 194 D-03: un plan is_trial (Invitación, prueba de Yoga) da acceso,
+      // no membresía: nunca es una fila de la distribución de planes.
+      membershipPlanCondition(),
     ];
 
     if (branchId !== undefined) {
@@ -984,6 +997,8 @@ export class AnalyticsService {
         sql`subscriptions.end_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(
           String(days),
         )} DAY)`,
+        // Fase 194 D-03: solo cuentan los vencimientos de membresía.
+        notTrialPlanSql("subscriptions"),
         ...scope.conditions,
       ];
 

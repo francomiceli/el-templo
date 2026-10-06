@@ -63,6 +63,7 @@ import {
   NotFoundError,
 } from "../shared/errors";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
+import { notTrialPlanSql } from "../shared/membership";
 import {
   WithdrawalService,
   activeWithdrawalDateSql,
@@ -1775,6 +1776,8 @@ export class TransactionService {
         createdMemberId: schema.financialTransactions.createdMemberId,
         createdMemberFirstName: createdMember.firstName,
         createdMemberLastName: createdMember.lastName,
+        // Fase 194 D-03: una sub is_trial (invitación) NO cuenta como membresía
+        // para este badge (`notTrialPlanSql("s")`).
         // Subquery correlacionada: ¿el socio tiene una membresía vigente HOY?
         // Referencias externas como literal calificado (financial_transactions.x)
         // y las internas con alias `s`: dentro de .select() Drizzle DES-califica
@@ -1787,6 +1790,7 @@ export class TransactionService {
           WHERE s.tenant_id = financial_transactions.tenant_id
             AND s.user_id = financial_transactions.member_id
             AND s.subscription_status IN ('active', 'paused', 'scheduled')
+            AND ${notTrialPlanSql("s")}
         )`,
       })
       .from(schema.financialTransactions)

@@ -16,6 +16,12 @@
  *   - controles:   presencial sola y presencial + Yoga (sub is_trial) siguen
  *                  `activo` — la forma real de prod que no puede cambiar.
  *
+ * Plan 194-31: indicadores de MEMBRESÍA restantes (distribución de planes,
+ * reporte de inactivos, badge `hasActivePlan` de la bandeja de caja, y las
+ * métricas de bajas/churn/renovación de analytics). Las vistas que solo
+ * MUESTRAN el plan que la persona tiene (listado de alumnos, panel de turno,
+ * engagement) quedan sin cambios a propósito.
+ *
  * Plan 194-03: cobertura de MEMBRESÍA vs de ACCESO (`deriveMembershipCoveredUntil*`
  * vs `deriveCoveredUntil*`), población activa de frecuencia y Renovaciones.
  * `deriveCoveredUntil` conserva su semántica de ACCESO (cuenta las is_trial);
@@ -28,6 +34,7 @@ import {
   createTestApp,
   getAuthToken,
   cleanAllTestData,
+  ensureEfectivoCaja,
   todayStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
@@ -40,6 +47,10 @@ import {
 } from "../../src/modules/subscriptions/service";
 import { FrequencyService } from "../../src/modules/analytics/frequency-service";
 import { RenewalsService } from "../../src/modules/renewals/service";
+import { AnalyticsService } from "../../src/modules/analytics/service";
+import { ChurnService } from "../../src/modules/analytics/churn-service";
+import { RenewalService } from "../../src/modules/analytics/renewal-service";
+import { ReportsService } from "../../src/modules/reports/service";
 import { addDays, todayInTz } from "../../src/modules/shared/date-utils";
 import { EnrollmentService } from "../../src/modules/programs/enrollment-service";
 import { activeMemberExists } from "../../src/modules/shared/active-member";
@@ -488,5 +499,218 @@ describe("Fase 194 D-03 — is_trial da acceso, nunca membresía", () => {
     const ids = result.rows.map((r) => r.subscriptionId);
     expect(ids).toContain(membershipSub.id);
     expect(ids).not.toContain(trialSub.id);
+  });
+
+  // ─── Plan 194-31: indicadores de membresía restantes ───────────────────
+
+  it("analytics: la distribución de planes no tiene fila del plan is_trial; el control con presencial sí", async () => {
+    const trial = await createTrialPlan(ctx, { name: "Invitacion 194-31" });
+    const membership = await createMembershipPlan(ctx, {
+      name: "Presencial 194-31",
+    });
+    const invitado = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const socio = await createMemberInPhysicalBranch(ctx, { status: "activo" });
+    await createActiveSub(ctx, { userId: invitado.id, planId: trial.id });
+    await createActiveSub(ctx, { userId: socio.id, planId: membership.id });
+
+    const hoy = todayInTz("America/Argentina/Buenos_Aires");
+    const result = await new AnalyticsService(
+      app.db,
+      app.log,
+    ).getMemberAnalytics(ctx.tenant, {
+      dateFrom: addDays(hoy, -30),
+      dateTo: hoy,
+    });
+    const names = result.planDistribution.map((r) => r.planName);
+    expect(names).toContain("Presencial 194-31");
+    expect(names).not.toContain("Invitacion 194-31");
+  });
+
+  it("reporte de inactivos: el invitado con solo is_trial no aparece; el socio con presencial sin asistencia sí", async () => {
+    const trial = await createTrialPlan(ctx);
+    const membership = await createMembershipPlan(ctx);
+    const invitado = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const socio = await createMemberInPhysicalBranch(ctx, { status: "activo" });
+    await createActiveSub(ctx, { userId: invitado.id, planId: trial.id });
+    await createActiveSub(ctx, { userId: socio.id, planId: membership.id });
+
+    const rows = await new ReportsService(app.db, app.log).getInactiveMembers(
+      ctx.tenant,
+      {},
+    );
+    const ids = rows.map((r) => r.userId);
+    expect(ids).toContain(socio.id);
+    expect(ids).not.toContain(invitado.id);
+  });
+
+  it("bandeja de caja: hasActivePlan es false para el invitado con solo is_trial y true con presencial", async () => {
+    const trial = await createTrialPlan(ctx);
+    const membership = await createMembershipPlan(ctx);
+    const invitado = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const socio = await createMemberInPhysicalBranch(ctx, { status: "activo" });
+    await createActiveSub(ctx, { userId: invitado.id, planId: trial.id });
+    await createActiveSub(ctx, { userId: socio.id, planId: membership.id });
+
+    await ensureEfectivoCaja(app, socio.branchId);
+    const [caja] = await app.db
+      .select({ id: schema.cashRegisters.id })
+      .from(schema.cashRegisters)
+      .where(
+        and(
+          tenantWhere(schema.cashRegisters, ctx.tenant),
+          eq(schema.cashRegisters.branchId, socio.branchId),
+          eq(schema.cashRegisters.type, "efectivo"),
+        ),
+      )
+      .limit(1);
+    const [admin] = await app.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, ctx.tenant),
+          eq(schema.users.email, "admin@test.com"),
+        ),
+      );
+    const fecha = addDays(todayInTz("America/Argentina/Buenos_Aires"), -1);
+    const seedTx = async (memberId: number): Promise<number> => {
+      const [row] = await app.db
+        .insert(schema.financialTransactions)
+        .values(
+          tenantValues(ctx.tenant, {
+            memberId,
+            kind: "advance_payment" as const,
+            direction: "inflow" as const,
+            amount: 1000,
+            currency: "ARS",
+            paymentMethod: "cash" as const,
+            transactionDate: fecha,
+            effectiveDate: fecha,
+            branchId: socio.branchId,
+            cashRegisterId: caja.id,
+            recordedBy: admin.id,
+            validationStatus: "pendiente" as const,
+            miscReason: "sin_plan" as const,
+          }),
+        )
+        .$returningId();
+      return row.id;
+    };
+    const txInvitado = await seedTx(invitado.id);
+    const txSocio = await seedTx(socio.id);
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/admin/finance/pending-tray",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const { rows } = JSON.parse(res.body) as {
+      rows: Array<{ id: number; hasActivePlan: boolean }>;
+    };
+    expect(rows.find((r) => r.id === txInvitado)?.hasActivePlan).toBe(false);
+    expect(rows.find((r) => r.id === txSocio)?.hasActivePlan).toBe(true);
+  });
+
+  it("analytics: una sub is_trial (paga o bonificada) que vence o se cancela no cuenta como baja, churn ni renovación; la membresía sí", async () => {
+    const trial = await createTrialPlan(ctx, { durationDays: 10 });
+    const membership = await createMembershipPlan(ctx);
+    const invitado = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const bonificado = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const socio = await createMemberInPhysicalBranch(ctx, { status: "activo" });
+    // `createActiveSub` deja el membership_kind por defecto (`paga`): es
+    // JUSTAMENTE el caso que la etiqueta NO cubre y que D-03 tiene que cubrir.
+    await createActiveSub(ctx, {
+      userId: invitado.id,
+      planId: trial.id,
+      status: "expired",
+      startOffsetDays: -19,
+      endOffsetDays: -10,
+    });
+    const subBonificada = await createActiveSub(ctx, {
+      userId: bonificado.id,
+      planId: trial.id,
+      status: "expired",
+      startOffsetDays: -19,
+      endOffsetDays: -10,
+    });
+    await app.db
+      .update(schema.subscriptions)
+      .set({ membershipKind: "bonificada" })
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx.tenant),
+          eq(schema.subscriptions.id, subBonificada.id),
+        ),
+      );
+    const cancelada = await createActiveSub(ctx, {
+      userId: invitado.id,
+      planId: trial.id,
+      startOffsetDays: -3,
+      endOffsetDays: 3,
+    });
+    await app.db
+      .update(schema.subscriptions)
+      .set({ status: "cancelled" })
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx.tenant),
+          eq(schema.subscriptions.id, cancelada.id),
+        ),
+      );
+
+    const hoy = todayInTz("America/Argentina/Buenos_Aires");
+    const filters = {
+      dateFrom: addDays(hoy, -30),
+      dateTo: hoy,
+      window: 5,
+    };
+    const churnSinSocio = await new ChurnService(app.db, app.log).getChurn(
+      ctx.tenant,
+      filters,
+    );
+    expect(churnSinSocio.window.churn.n).toBe(0);
+    expect(churnSinSocio.window.churn.nominal).toBe(0);
+    expect(churnSinSocio.enGracia).toBe(0);
+    const renovSinSocio = await new RenewalService(app.db, app.log).getRenewal(
+      ctx.tenant,
+      filters,
+    );
+    expect(renovSinSocio.renewal.n).toBe(0);
+    const legacySinSocio = await new AnalyticsService(
+      app.db,
+      app.log,
+    ).getMemberAnalytics(ctx.tenant, filters);
+    expect(legacySinSocio.churnedMembers).toBe(0);
+
+    // Control: la membresía real que vence sin renovar SÍ es baja y vencida.
+    await createActiveSub(ctx, {
+      userId: socio.id,
+      planId: membership.id,
+      status: "expired",
+      startOffsetDays: -39,
+      endOffsetDays: -10,
+    });
+    const churnConSocio = await new ChurnService(app.db, app.log).getChurn(
+      ctx.tenant,
+      filters,
+    );
+    expect(churnConSocio.window.churn.n).toBe(1);
+    expect(churnConSocio.window.churn.nominal).toBe(1);
+    const renovConSocio = await new RenewalService(app.db, app.log).getRenewal(
+      ctx.tenant,
+      filters,
+    );
+    expect(renovConSocio.renewal.n).toBe(1);
   });
 });

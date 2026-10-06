@@ -58,7 +58,7 @@ import {
   subscriptionPlanFilter,
   RENOVATION_WINDOW_DEFAULT_DAYS,
 } from "./expiry-cohort";
-import { excludeEspecialSubs } from "./especial-exclusion";
+import { excludeEspecialSubs, excludeTrialSubs } from "./especial-exclusion";
 import type {
   AnalyticsFilters,
   RenewalAnalytics,
@@ -172,6 +172,9 @@ export class RenewalService {
           lastExpiryPerPersonExpr(ctx, filters.dateFrom, filters.dateTo),
           // D-11: el pase especial no cuenta en la renovación de membresía.
           excludeEspecialSubs(ctx),
+          // Fase 194 D-03: una sub is_trial (invitación) no es membresía que
+          // vence ni que se renueva.
+          excludeTrialSubs(),
           ...scopeConditions,
           ...subscriptionPlanFilter(filters.planId),
         ),
