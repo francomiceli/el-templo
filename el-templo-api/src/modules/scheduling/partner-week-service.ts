@@ -285,6 +285,8 @@ export class PartnerWeekService {
           eq(schema.subscriptionPlans.planCategory, "paquete"),
           eq(schema.subscriptionPlans.durationDays, 7),
           eq(schema.subscriptionPlans.classesPerWeek, 3),
+          // Fase 194 Pitfall 2: nunca elegir un plan is_trial (Invitación)
+          eq(schema.subscriptionPlans.isTrial, false),
           eq(schema.subscriptionPlans.isActive, true),
           eq(schema.subscriptionPlans.isArchived, false),
           eq(schema.subscriptionPlans.country, branch.country),

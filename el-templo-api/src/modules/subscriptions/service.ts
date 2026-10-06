@@ -54,7 +54,11 @@ import type {
   AuraDiscountTier,
   TrialBookingChange,
 } from "./types";
-import { categoryGroup, excludedFromReferrals } from "./types";
+import {
+  categoryGroup,
+  excludedFromReferrals,
+  planAllowsInvitationDiscount,
+} from "./types";
 import { resolvePendingTrialBookings } from "./trial-bookings-on-assign";
 import {
   normalizeSpecialLine,
@@ -575,6 +579,24 @@ export class SubscriptionService {
     ) {
       throw new BadRequestError(
         "Solo los planes especiales aceptan tope total de clases (monthlyClassBudget), 'solo socios' (requiresPresencial) o línea de pase (specialLine)",
+      );
+    }
+  }
+
+  /**
+   * Fase 194 (D-10b, T-194-13): piso duro del flag `allows_invitation_discount`.
+   * El servidor rechaza (400) marcarlo en un plan `especial`, `paquete` o
+   * `is_trial` aunque el front lo mande. Se evalúa sobre el estado FINAL del
+   * plan (post-merge en update).
+   */
+  private assertInvitationDiscountFlag(plan: {
+    allowsInvitationDiscount: boolean;
+    planCategory: PlanCategory;
+    isTrial: boolean;
+  }): void {
+    if (plan.allowsInvitationDiscount && !planAllowsInvitationDiscount(plan)) {
+      throw new BadRequestError(
+        "Este tipo de plan no admite descuento por invitación",
       );
     }
   }
@@ -1304,6 +1326,14 @@ export class SubscriptionService {
       specialLine,
     });
 
+    // Fase 194 (D-10b): opt-in, default false. Piso duro server-side (T-194-13).
+    const allowsInvitationDiscount = input.allowsInvitationDiscount ?? false;
+    this.assertInvitationDiscountFlag({
+      allowsInvitationDiscount,
+      planCategory,
+      isTrial: input.isTrial ?? false,
+    });
+
     const country = input.country ?? "AR";
     const currency = country === "ES" ? "EUR" : "ARS";
 
@@ -1332,6 +1362,7 @@ export class SubscriptionService {
             specialLine,
             multiBranch: input.multiBranch ?? false,
             isTrial: input.isTrial ?? false,
+            allowsInvitationDiscount,
             isGroup: input.isGroup ?? false,
             planCategory,
             linkedProgramId,
@@ -1399,6 +1430,8 @@ export class SubscriptionService {
     if (input.multiBranch !== undefined)
       updateData.multiBranch = input.multiBranch;
     if (input.isTrial !== undefined) updateData.isTrial = input.isTrial;
+    if (input.allowsInvitationDiscount !== undefined)
+      updateData.allowsInvitationDiscount = input.allowsInvitationDiscount;
     if (input.isGroup !== undefined) updateData.isGroup = input.isGroup;
     if (input.planCategory !== undefined)
       updateData.planCategory = input.planCategory;
@@ -1432,6 +1465,32 @@ export class SubscriptionService {
       if (input.requiresPresencial === undefined)
         updateData.requiresPresencial = false;
       if (input.specialLine === undefined) updateData.specialLine = null;
+    }
+
+    // Fase 194 (D-10b, T-194-13): flag sobre el estado FINAL post-merge. Si el
+    // update lo manda en true y el plan final es especial/paquete/is_trial → 400.
+    // Si NO lo manda y el cambio de categoría o de is_trial deja al plan en una
+    // categoría excluida con el flag ya en true, se baja a false en el mismo
+    // update (el flag viejo deja de tener sentido, no es un error del admin).
+    const effectiveIsTrial =
+      input.isTrial !== undefined ? input.isTrial : existing.isTrial;
+    if (input.allowsInvitationDiscount === undefined) {
+      if (
+        existing.allowsInvitationDiscount &&
+        !planAllowsInvitationDiscount({
+          allowsInvitationDiscount: true,
+          planCategory: effectiveCategory,
+          isTrial: effectiveIsTrial,
+        })
+      ) {
+        updateData.allowsInvitationDiscount = false;
+      }
+    } else {
+      this.assertInvitationDiscountFlag({
+        allowsInvitationDiscount: input.allowsInvitationDiscount,
+        planCategory: effectiveCategory,
+        isTrial: effectiveIsTrial,
+      });
     }
 
     this.assertPlanInvariants({

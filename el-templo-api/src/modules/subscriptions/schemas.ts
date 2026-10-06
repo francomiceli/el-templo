@@ -33,6 +33,7 @@ const planSchema = {
     specialLine: { type: ["string", "null"] },
     multiBranch: { type: "boolean" },
     isTrial: { type: "boolean" },
+    allowsInvitationDiscount: { type: "boolean" },
     isGroup: { type: "boolean" },
     planCategory: {
       type: "string",
@@ -217,6 +218,7 @@ export const createPlanSchema = {
       specialLine: { type: ["string", "null"], maxLength: 50 },
       multiBranch: { type: "boolean" },
       isTrial: { type: "boolean" },
+      allowsInvitationDiscount: { type: "boolean" },
       isGroup: { type: "boolean" },
       planCategory: {
         type: "string",
@@ -268,6 +270,7 @@ export const updatePlanSchema = {
       specialLine: { type: ["string", "null"], maxLength: 50 },
       multiBranch: { type: "boolean" },
       isTrial: { type: "boolean" },
+      allowsInvitationDiscount: { type: "boolean" },
       isGroup: { type: "boolean" },
       planCategory: {
         type: "string",

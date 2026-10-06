@@ -23,7 +23,8 @@ import type { FastifyInstance } from "fastify";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { createTestApp, cleanAllTestData } from "../helpers";
+import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
+import { createPlan, SUBSCRIPTIONS_URL } from "../subscriptions/_helpers";
 import { splitSqlStatements } from "../../src/db/run-migrations";
 import * as schema from "../../src/db/schema";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
@@ -61,11 +62,13 @@ function isAlreadyAppliedError(err: unknown): boolean {
 describe("Fase 194-05 — flag allows_invitation_discount y planes Invitación", () => {
   let app: FastifyInstance;
   let ctx: InvitationsFixtureCtx;
+  let adminToken: string;
   let svc: SubscriptionService;
 
   beforeAll(async () => {
     app = await createTestApp();
     ctx = fixtureCtx(app);
+    adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
     svc = new SubscriptionService(
       app.db,
       app.log,
@@ -393,6 +396,212 @@ describe("Fase 194-05 — flag allows_invitation_discount y planes Invitación",
 
       const found = await svc.findInvitationPlan(ctx.tenant, "AR");
       expect(found.id).toBe(valid.id);
+    });
+  });
+
+  // ─── CRUD del flag ──────────────────────────────────────────────────────
+
+  describe("CRUD del flag por la API de planes (D-10b)", () => {
+    const planPayload = (
+      name: string,
+      extra: Record<string, unknown> = {},
+    ) => ({
+      name,
+      planCategory: "presencial",
+      ...extra,
+    });
+
+    async function putPlan(id: number, payload: Record<string, unknown>) {
+      return app.inject({
+        method: "PUT",
+        url: `${SUBSCRIPTIONS_URL}/plans/${id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload,
+      });
+    }
+
+    async function getPlan(id: number) {
+      const res = await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/plans/${id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      return JSON.parse(res.body) as { allowsInvitationDiscount: boolean };
+    }
+
+    it("crear un plan presencial con allowsInvitationDiscount:true → 201 y el detalle y el listado lo devuelven true", async () => {
+      const plan = await createPlan(
+        app,
+        adminToken,
+        planPayload("Flag ON", { allowsInvitationDiscount: true }),
+      );
+      expect(plan.allowsInvitationDiscount).toBe(true);
+      expect((await getPlan(plan.id)).allowsInvitationDiscount).toBe(true);
+
+      const list = await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(list.statusCode).toBe(200);
+      const { plans } = JSON.parse(list.body) as {
+        plans: Array<{ id: number; allowsInvitationDiscount: boolean }>;
+      };
+      expect(
+        plans.find((p) => p.id === plan.id)?.allowsInvitationDiscount,
+      ).toBe(true);
+    });
+
+    it("crear sin el campo → flag false (opt-in para planes nuevos)", async () => {
+      const plan = await createPlan(
+        app,
+        adminToken,
+        planPayload("Flag default"),
+      );
+      expect(plan.allowsInvitationDiscount).toBe(false);
+    });
+
+    it("PUT puede marcar y desmarcar el flag de un plan presencial", async () => {
+      const plan = await createPlan(
+        app,
+        adminToken,
+        planPayload("Flag toggle"),
+      );
+
+      const on = await putPlan(plan.id, { allowsInvitationDiscount: true });
+      expect(on.statusCode).toBe(200);
+      expect((await getPlan(plan.id)).allowsInvitationDiscount).toBe(true);
+
+      const off = await putPlan(plan.id, { allowsInvitationDiscount: false });
+      expect(off.statusCode).toBe(200);
+      expect((await getPlan(plan.id)).allowsInvitationDiscount).toBe(false);
+    });
+
+    it.each(["especial"])(
+      "crear un plan %s con el flag en true → 400",
+      async (planCategory) => {
+        const res = await app.inject({
+          method: "POST",
+          url: `${SUBSCRIPTIONS_URL}/plans`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: {
+            name: `Flag rechazado ${planCategory}`,
+            planTier: "flex",
+            bookingMode: "flexible",
+            priceRegular: 1000,
+            priceZero: 1000,
+            durationDays: 30,
+            classesPerWeek: 3,
+            planCategory,
+            allowsInvitationDiscount: true,
+          },
+        });
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body).message).toContain(
+          "no admite descuento por invitación",
+        );
+      },
+    );
+
+    it("crear un plan is_trial con el flag en true → 400", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          name: "Trial con flag",
+          planTier: "flex",
+          bookingMode: "flexible",
+          priceRegular: 0,
+          priceZero: 0,
+          durationDays: 7,
+          classesPerWeek: 1,
+          isTrial: true,
+          allowsInvitationDiscount: true,
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("PUT a un plan paquete / especial / is_trial con el flag en true → 400 y el flag no cambia", async () => {
+      // La API de planes no acepta `paquete` (su schema no lo lista): el plan se
+      // siembra directo, como lo dejan las migraciones.
+      const paquete = await createMembershipPlan(ctx, { category: "paquete" });
+      const especial = await createPlan(
+        app,
+        adminToken,
+        planPayload("Especial flag", {
+          planCategory: "especial",
+          monthlyClassBudget: 4,
+        }),
+      );
+      const trial = await createPlan(
+        app,
+        adminToken,
+        planPayload("Trial flag", { isTrial: true }),
+      );
+
+      for (const plan of [paquete, especial, trial]) {
+        const res = await putPlan(plan.id, { allowsInvitationDiscount: true });
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body).message).toContain(
+          "no admite descuento por invitación",
+        );
+        expect((await getPlan(plan.id)).allowsInvitationDiscount).toBe(false);
+      }
+    });
+
+    it("PUT que marca isTrial:true sobre un plan con el flag en true sin mandar el flag lo baja a false", async () => {
+      const plan = await createPlan(
+        app,
+        adminToken,
+        planPayload("Flag luego trial", { allowsInvitationDiscount: true }),
+      );
+      const res = await putPlan(plan.id, { isTrial: true });
+      expect(res.statusCode).toBe(200);
+      expect((await getPlan(plan.id)).allowsInvitationDiscount).toBe(false);
+    });
+
+    it("PUT que marca isTrial:true mandando el flag en true → 400", async () => {
+      const plan = await createPlan(
+        app,
+        adminToken,
+        planPayload("Flag trial explícito"),
+      );
+      const res = await putPlan(plan.id, {
+        isTrial: true,
+        allowsInvitationDiscount: true,
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("PUT que cambia la categoría a una excluida sin mandar el flag baja el flag a false", async () => {
+      const plan = await createPlan(
+        app,
+        adminToken,
+        planPayload("Flag cambia categoría", {
+          allowsInvitationDiscount: true,
+        }),
+      );
+      const res = await putPlan(plan.id, { planCategory: "especial" });
+      expect(res.statusCode).toBe(200);
+      expect((await getPlan(plan.id)).allowsInvitationDiscount).toBe(false);
+    });
+
+    it("PUT que cambia la categoría a excluida mandando el flag en true → 400", async () => {
+      const plan = await createPlan(
+        app,
+        adminToken,
+        planPayload("Flag categoría explícito", {
+          allowsInvitationDiscount: true,
+        }),
+      );
+      const res = await putPlan(plan.id, {
+        planCategory: "especial",
+        allowsInvitationDiscount: true,
+      });
+      expect(res.statusCode).toBe(400);
     });
   });
 });

@@ -163,9 +163,17 @@ function getFutureSlot(): {
  */
 async function createPartnerWeekPlan(
   country: "AR" | "ES" | "XX" = "AR",
+  opts: { isTrial?: boolean } = {},
 ): Promise<number> {
+  const isTrial = opts.isTrial ?? false;
   const res = await app.db.insert(schema.subscriptionPlans).values({
-    name: `Paquete semana de regalo ${country} ${seq}`,
+    // El nombre del trial ordena ANTES que el del plan real: el UNIQUE
+    // (tenant, name, country) hace que MySQL recorra por nombre, y sin el filtro
+    // isTrial=false el `.limit(1)` sin orden elegiría al trial.
+    name: isTrial
+      ? `Invitación semana ${country} ${seq}`
+      : `Paquete semana de regalo ${country} ${seq}`,
+    isTrial,
     planTier: "other",
     bookingMode: "flexible",
     planCategory: "paquete",
@@ -677,6 +685,93 @@ describe("Semana gratis de partner (D-05/D-06/D-07/D-18/D-19)", () => {
 
     expect(await countSubscriptionsForUser(member.id)).toBe(0);
     expect(await countBookingsForUser(member.id)).toBe(0);
+    const link = await fullLinkRow(member.id);
+    expect(link?.benefitStatus).toBe("pending");
+  });
+
+  // ─── (9)+(10): Fase 194 Pitfall 2 — nunca el plan Invitación ──────────────
+
+  it("(9) Fase 194 Pitfall 2: con un plan is_trial paquete/7/3 Y uno no-trial en el país, la semana de regalo elige SIEMPRE el no-trial", async () => {
+    // El plan trial se crea PRIMERO (id menor): sin el filtro isTrial=false el
+    // `.limit(1)` sin orden lo elegiría.
+    const trialPlanId = await createPartnerWeekPlan("AR", { isTrial: true });
+    const weekPlanId = await createPartnerWeekPlan("AR");
+    expect(trialPlanId).toBeLessThan(weekPlanId);
+
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+    const partner = await insertPartner(app, {
+      benefitType: "free_pass",
+      benefitValue: 0,
+    });
+    const member = await registerMember(arBranchId);
+    await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: member.id,
+      benefitType: "free_pass",
+      benefitValue: 0,
+      benefitStatus: "pending",
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: RESERVE_PARTNER_WEEK_URL,
+      headers: { authorization: `Bearer ${member.token}` },
+      payload: {
+        scheduleId: slot.id,
+        date: futureSlot.date,
+        branchId: arBranchId,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+
+    const [sub] = await app.db
+      .select({ planId: schema.subscriptions.planId })
+      .from(schema.subscriptions)
+      .where(
+        sql`/* tenant-safe: evidencia del test — lectura por id recién creado por el propio test */ ${eq(schema.subscriptions.id, body.subscriptionId)}`,
+      );
+    expect(sub?.planId).toBe(weekPlanId);
+    expect(sub?.planId).not.toBe(trialPlanId);
+  });
+
+  it("(10) Fase 194 Pitfall 2: con SOLO un plan is_trial paquete/7/3 la semana falla con 'no hay plan configurado' y no escribe nada", async () => {
+    await createPartnerWeekPlan("AR", { isTrial: true });
+    const partner = await insertPartner(app, {
+      benefitType: "free_pass",
+      benefitValue: 0,
+    });
+    const member = await registerMember(arBranchId);
+    await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: member.id,
+      benefitType: "free_pass",
+      benefitValue: 0,
+      benefitStatus: "pending",
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: RESERVE_PARTNER_WEEK_URL,
+      headers: { authorization: `Bearer ${member.token}` },
+      payload: {
+        scheduleId: 1,
+        date: getFutureSlot().date,
+        branchId: arBranchId,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).message).toMatch(
+      /No hay un plan de semana de regalo configurado/,
+    );
+    expect(await countSubscriptionsForUser(member.id)).toBe(0);
     const link = await fullLinkRow(member.id);
     expect(link?.benefitStatus).toBe("pending");
   });
