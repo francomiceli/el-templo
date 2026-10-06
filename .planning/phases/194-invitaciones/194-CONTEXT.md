@@ -123,3 +123,20 @@ El sistema de referidos de socios (fases 157/158/173) se convierte en **Invitaci
 
 - Nada del brief queda diferido: el reporte opcional entra (D-19).
 </deferred>
+
+<decisions_addendum>
+## Decisiones post-research (2026-10-06, con Franco — LOCKED)
+
+Resuelven las preguntas abiertas de `194-RESEARCH.md`:
+
+- **D-20 (Override = precio final):** si gestión carga un precio personalizado, ese es el precio cobrado; el descuento por invitación NO se aplica encima (hoy se componen).
+- **D-21 (Partner vs invitación = gana el mayor):** AURA, partner e invitación compiten; se aplica UNO, el de mayor MONTO (no %, por el tope en dinero). Hoy componen en 3 de 4 charge-paths.
+- **D-22 (Bug de base de renovación):** el add-back de renovación solo devuelve el descuento de referido, no AURA/partner (`subscriptions/service.ts:~5398-5401`). Prod 2026-10-06: **0 subs vigentes con `aura_discount>0` y 0 con `partner_discount_amount>0`, 0 renovaciones encadenadas con AURA** → afecta a nadie hoy. Escribir test que lo confirme; como el árbitro de "gana el mayor" reescribe esa zona, corregirlo dentro del árbitro (impacto 0 verificado). Si el test NO lo confirma, documentar y no tocar.
+- **D-23 (Flag inicial):** backfill `allows_invitation_discount` = comportamiento de hoy: TRUE para todo plan salvo `especial` y `paquete` (y planes `is_trial`). Nadie pierde descuento por la migración; gestión desmarca planes largos/clase única desde el admin.
+- **D-24 (Alta admin):** el campo "Referido por" en el alta **"Nuevo en Prueba"** pasa a **"Lo invita"** → crea invitación con accesos (cupo + elegibilidad, D-16). En el alta con plan pago queda como vínculo de descuento sin accesos (= D-17).
+- **D-25 (SEPA):** agregar columna de **importe** al export de domiciliación (ES) con el monto registrado por el sistema (descuento incluido). Verificar que el formato del archivo lo admite; si no, columna informativa en el export para Leandro.
+- **D-26 (Defaults técnicos aceptados):** (a) boarding pass excluye descuento por invitación en ese cobro; (b) `?ref` en el registro ya NO crea vínculo `pending` — solo lleva a "Activar invitación"; el vínculo nace al comprar (actualizar los tests afectados); (c) ex socio con vínculo previo en `referrals` lo conserva — una invitación nueva le da accesos pero no un segundo vínculo; (d) el día de activación NO cuenta en los 10 días hábiles; (e) accesos agotados sin compra antes de la fecha → estado "Vencido".
+- **D-27 (Frontend sin vue-tsc):** Franco NO autorizó instalar `vue-tsc`. Verificación de app/admin = `pnpm lint` + `quasar build` (o el build del package) — sin nuevas dependencias.
+- **D-28 (Datos de prod para la migración del vínculo 3):** Guido (7286) YA pagó (sub 8074 $65.000 2026-08-04, sub 8772 $58.500 vigente) → el vínculo corregido queda `qualified` con referrer 6613 (Valentina) → referred 7286 (Guido). Hoy `users.referred_by`: 6613→7286 y 7286→NULL; la migración invierte ambos (6613→NULL, 7286→6613), con guards por estado esperado. `referral_credits` existentes no se tocan (son históricos).
+- **D-29 (Feriados ES incompletos):** prod tiene 17 feriados AR (hasta 2027-01-01) y solo **5 ES (hasta 2026-09-24)**. NO cargar por migración sin OK (dato operativo): dejar tarea humana de checkpoint para que gestión cargue los feriados ES restantes desde Horarios antes del lanzamiento.
+</decisions_addendum>
