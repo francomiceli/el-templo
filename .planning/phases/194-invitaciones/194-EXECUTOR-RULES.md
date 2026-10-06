@@ -112,3 +112,10 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Tabla `invitations` (mig 0255) lista: fábrica `createInvitationRow` en `test/invitations/_helpers.ts`; ya está en `TABLES_TO_CLEAN`, `GYM_OWNED_TABLES` (100), módulo strict `referrals`, y `limpiarSegundoGimnasio` la borra antes de users.
 - Archivos de tenancy juntos ~270 s; un archivo ~110 s.
 - Crear/editar archivos con Write/Edit; Bash en llamadas simples (el hook rechaza heredocs + cd + && largos).
+
+### Tras 194-05
+- Helpers de plan: `isInvitationPlan`, `planAllowsInvitationDiscount`, `invitationPlanIdsSql`, `findInvitationPlan` (falla cerrado con 0 o >1 plan). Plan Invitación = `paquete`, `duration_days=6`, `is_trial=1`, `multi_branch=1`, uno por país; vigencia real por `endDateOverride`.
+- La API de planes NO acepta `paquete` en create/update (enum de entrada): sembrar planes `paquete` por DB en tests.
+- Tests que aplican SQL de migración cross-tenant por `app.dbPool` necesitan prefijo `/* tenant-safe: ... */` (sentinel).
+- `.limit(1)` sin `orderBy` en `subscription_plans` ordena por el índice único de nombre: un test que dependa de eso controla el nombre.
+- Los planes Invitación aparecen hoy en "Vender otro pase" del admin (como el de Yoga): lo resuelve 194-25; `assignPlan` los rechaza desde 194-06.
