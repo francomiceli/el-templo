@@ -114,6 +114,7 @@ export const GYM_OWNED_TABLES = [
   "holidays",
   "improvement_proposals",
   "intensity_rules",
+  "invitations",
   "member_logins",
   "member_notes",
   "member_profiles",
@@ -634,7 +635,12 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "notification_templates",
     "pending_notifications",
   ],
-  referrals: ["referral_credits", "referral_cta_clicks", "referrals"],
+  referrals: [
+    "invitations",
+    "referral_credits",
+    "referral_cta_clicks",
+    "referrals",
+  ],
   // 2026-09-24: modulo de Renovaciones (brief Nacho) — nace strict, no hay
   // deuda previa que tolerar (mismo criterio que `communications`/
   // `staff-attendance`).
