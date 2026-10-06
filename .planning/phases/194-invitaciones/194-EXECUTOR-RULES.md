@@ -84,3 +84,12 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - `subscription_plans` está en `TABLES_TO_CLEAN`: crear planes DESPUÉS de `cleanAllTestData`.
 - `pnpm typecheck:tests` sale 1 por deuda PREEXISTENTE ajena (test/unit/*, attendance, check-ins, email, tenancy/mod-02-hooks, analytics, lifecycle). Criterio real: ningún archivo tocado/creado por el plan aparece en los errores (filtrar la salida por los paths del plan).
 - Versión de la app de la fase = **1.8.2** (patch, decisión de Franco), no 1.9.0.
+
+### Tras 194-02 (D-22 CONFIRMADO)
+- Test de caracterización: `el-templo-api/test/invitations/discount-characterization.test.ts` (18 casos). Para cobros reales usar HTTP con `test/subscriptions/_helpers.ts`.
+- `cleanAllTestData` vacía `aura_config` y `system_settings`: resembrar `referral.max_percent_cap` y la fila `aura_config` `referral` en el `beforeEach`.
+- Prorrateo determinístico de `changePlanNow`: sub plan A (100000) con `startDate` -15 días → `remainingValue` 50000. Asignarla ANTES de crear vínculos/partner.
+- Boarding pass requiere `PRICING_SETTINGS_KEYS.zeroPrice` = `on` (restaurar en `try/finally`).
+- Al cambiar una expectativa en 194-15..18: reemplazar la línea `194: cambia en ...` por `// 194-NN D-XX: <qué cambió>` en el mismo commit (el conteo de anotaciones pendientes debe bajar).
+- `getRenewalPreview` hoy devuelve solo `{subscriptionId, base, source}`; el `toEqual` del caso (h) se rompe a propósito cuando 194-18 agregue campos.
+- Comandos con `cd` a rutas calculadas los bloquea el worktree: usar rutas absolutas literales.
