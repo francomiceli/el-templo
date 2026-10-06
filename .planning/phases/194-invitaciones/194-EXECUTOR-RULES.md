@@ -142,3 +142,11 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - `bookings.status`: `reservado|qr_escaneado|confirmado|cancelado|lista_espera|no_show` (no existe `asistio`; asistió = `qr_escaneado|confirmado`).
 - Fechas de expresiones SQL mixtas (`LEAST`/`COALESCE`): `CAST(... AS CHAR)`.
 - **194-09 (orquestador):** agregar regla — un invitado con sub NO-trial `scheduled` (ya compró y arranca después) NO es elegible (mismo motivo que socio vigente). Test incluido.
+
+### Tras 194-09
+- **`InvitationService` recibe `BookingService` como 4.º argumento del constructor** (`voidInvitation` falla cerrado sin él). 194-10 y 194-12 lo inyectan al armar el servicio en las rutas. Helpers de test: `buildInvitationServices`, `createInviterWithCode`, `getAdminUserId`, `uniquePhone10`, `resetInvitationSettings`.
+- `SubscriptionService.closeInvitationAccess` (público) es el único cierre de accesos (compra, anulación, compensación).
+- `activate` compensa en falla (snapshot de status/sede/teléfono/DNI/lead, historial con `source='invitation_undo'`). Invitado de sede virtual elige cualquier sede física y recibe el plan del país de esa sede; invitado ya en sede física de otro país → 400.
+- Día fijo en tests de reserva/check-in: `vi.useFakeTimers({ toFake: ["Date"] })` + `setSystemTime(<hoy AR>T13:00Z)` antes de loguear, clases 10:10.
+- `FOR UPDATE` tiene que ser lo PRIMERO de la tx (snapshot posterior ve el COUNT de la activación previa).
+- Abierto a propósito: sub puede nacer `scheduled` en ES 00-02h locales (UTC de `assignPlan`, global); no-show no descuenta saldo (comportamiento global).
