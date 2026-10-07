@@ -46,7 +46,7 @@ completed: 2026-10-07
 | 1 | `2b5c23d2c` | `invitation-view.ts` + 10 casos, `MisInvitadosPage.vue`, ruta `mis-invitados` + redirect, `git rm` de `MisReferidosPage.vue` |
 | 2 | `9c302f8b5` | Perfil "Mis invitados", badge "Invitaciones" y fallback de boton en la card, label de destino, `test/legacy-invitation-routes.test.ts` |
 | fix | `fc5ed969e` | Espejo del admin de `destinations.ts` con el label de la API (bug de 194-26) |
-| fix | (ultimo) | Comentario de `destinations.ts` fuera de la tupla (el sync lo extrae por regex contigua) |
+| fix | `8c2d4c6be` | Comentario de `destinations.ts` fuera de la tupla (el sync lo extrae por regex contigua) |
 
 ## Verificacion
 
