@@ -621,8 +621,9 @@ describe("caracterización pre-194: renewSubscription y getRenewalPreview", () =
     expect(row.partnerDiscountAmount).toBeNull();
   });
 
-  it("(i) D-22: alta con AURA 10% → renovar HEREDA la base rebajada (el add-back solo devuelve el referido)", async () => {
-    // 194: cambia en 194-18 por D-22 (la base de renovación debe ser la PRE-descuento: add-back de AURA).
+  it("(i) D-22: alta con AURA 10% → renovar parte de la base PRE-AURA (100000), la promo no queda pegada", async () => {
+    // 194-18 D-22: antes la renovación heredaba la base rebajada (90000 para siempre); ahora el
+    // add-back reconstruye el AURA y la renovación cobra la lista (100000).
     const plan = await monthPlan("Char I");
     const payer = await member("i");
     await seedAuraBalance(app, payer.id, 1000);
@@ -637,20 +638,21 @@ describe("caracterización pre-194: renewSubscription y getRenewalPreview", () =
     expect(firstRow.referralDiscountAmount).toBeNull();
 
     const preview = await renewalPreview(payer.id);
-    expect(preview.base).toBe(90000); // D-22 CONFIRMADO: debería ser 100000
+    expect(preview.base).toBe(100000); // 194-18 D-22: antes 90000
     expect(preview.source).toBe("inherited");
 
     const res = await renew(payer.id);
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
-    // El descuento AURA de UNA vez queda perpetuado en los ciclos siguientes.
-    expect(row.pricePaid).toBe(90000);
+    // 194-18 D-22: el descuento AURA de UNA vez ya no se perpetúa (antes 90000).
+    expect(row.pricePaid).toBe(100000);
     expect(row.auraDiscount).toBeNull(); // la renovación no gasta ni registra AURA
     expect(row.auraDiscountPercent).toBeNull();
   });
 
-  it("(i2) D-22: alta con AURA 30% (+ vínculo) → renovar re-aplica el referido sobre la base ya rebajada → 63000", async () => {
-    // 194: cambia en 194-18 por D-22 (la base de renovación debe ser 100000: un solo descuento, no 63000).
+  it("(i2) D-22: alta con AURA 30% (+ vínculo) → renovar parte de 100000 y aplica UN solo descuento (referido 10%) → 90000", async () => {
+    // 194-18 D-22: antes el referido componía sobre la base ya rebajada por AURA (70000 -> 63000);
+    // ahora la base es 100000 y la renovación lleva solo el referido (90000).
     // 194-15 D-08: el alta ya NO compone AURA + referido (antes AURA 10% + referido daba 81000 y esta
     // renovación 81000). AURA 5000 (30%) le gana a la invitación (10%): el alta cobra 70000 sin referido.
     const plan = await monthPlan("Char I2");
@@ -666,19 +668,20 @@ describe("caracterización pre-194: renewSubscription y getRenewalPreview", () =
     expect(firstRow.pricePaid).toBe(70000);
     expect(firstRow.referralDiscountAmount).toBeNull();
 
-    // Sin add-back (el alta no guardó referido): la base hereda el 70000 con el AURA adentro.
+    // 194-18 D-22: el add-back reconstruye el AURA 30% (antes la base heredaba 70000).
     const preview = await renewalPreview(payer.id);
-    expect(preview.base).toBe(70000);
+    expect(preview.base).toBe(100000);
 
     const res = await renew(payer.id);
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
-    expect(row.referralDiscountAmount).toBe(7000);
-    expect(row.pricePaid).toBe(63000);
+    expect(row.referralDiscountAmount).toBe(10000); // antes 7000 (sobre 70000)
+    expect(row.pricePaid).toBe(90000); // antes 63000
   });
 
-  it("(j) D-22: alta con partner 20% → renovar HEREDA la base rebajada (80000), el partner no se devuelve", async () => {
-    // 194: cambia en 194-18 por D-22 (add-back del descuento de partner en la base de renovación).
+  it("(j) D-22: alta con partner 20% → renovar parte de la base PRE-partner (100000)", async () => {
+    // 194-18 D-22: antes el partner (consumido en la 1ra cuota) dejaba la base en 80000 para
+    // siempre; ahora el add-back devuelve su monto y la renovación cobra la lista.
     const plan = await monthPlan("Char J");
     const payer = await member("j");
     await linkPartner(payer.id, 20);
@@ -691,15 +694,15 @@ describe("caracterización pre-194: renewSubscription y getRenewalPreview", () =
     expect(firstRow.partnerDiscountAmount).toBe(20000);
 
     const preview = await renewalPreview(payer.id);
-    expect(preview.base).toBe(80000); // D-22 CONFIRMADO: debería ser 100000
+    expect(preview.base).toBe(100000); // 194-18 D-22: antes 80000
     expect(preview.source).toBe("inherited");
 
     const res = await renew(payer.id);
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
-    // El beneficio de partner ya está consumido (primera cuota): no se re-aplica,
-    // pero el precio rebajado se hereda para siempre.
-    expect(row.pricePaid).toBe(80000);
+    // El beneficio de partner ya está consumido (primera cuota): no se re-aplica, y
+    // 194-18 D-22 tampoco hereda el precio rebajado (antes 80000).
+    expect(row.pricePaid).toBe(100000);
     expect(row.partnerDiscountAmount).toBeNull();
   });
 });

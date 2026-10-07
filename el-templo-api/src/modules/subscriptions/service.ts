@@ -78,6 +78,7 @@ import {
   settlementColumns,
   type ChargeSettlement,
 } from "./discount-arbiter";
+import { reconstructRenewalBase, type RenewalBaseInput } from "./renewal-base";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
 import type { PaymentMethod } from "../finance/types";
@@ -5671,6 +5672,8 @@ export class SubscriptionService {
       pricePaid: schema.subscriptions.pricePaid,
       priceTypeApplied: schema.subscriptions.priceTypeApplied,
       referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
+      partnerDiscountAmount: schema.subscriptions.partnerDiscountAmount,
+      auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
       membershipKind: schema.subscriptions.membershipKind,
       previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
     };
@@ -5742,14 +5745,21 @@ export class SubscriptionService {
       pricePaid: number;
       priceTypeApplied: string;
       referralDiscountAmount: number | null;
+      partnerDiscountAmount: number | null;
+      auraDiscountPercent: number | null;
       previousSubscriptionId: number | null;
     },
     plan: PlanDetail,
   ): Promise<{ base: number; source: RenewalBaseSource }> {
-    const inheritedBase = (sub: {
-      pricePaid: number;
-      referralDiscountAmount: number | null;
-    }) => sub.pricePaid + (sub.referralDiscountAmount ?? 0);
+    // Fase 194-18 (D-22): la base heredada devuelve TODA promo del período anterior
+    // (referido, partner y AURA), no solo el referido: ninguna promo queda "pegada".
+    const inheritedBase = (sub: RenewalBaseInput) =>
+      reconstructRenewalBase(sub, () =>
+        this.log.warn(
+          { userId, planId: currentSub.planId, pricePaid: sub.pricePaid },
+          "renovación: no se pudo reconstruir la base pre-AURA, se hereda el neto sin AURA",
+        ),
+      );
 
     if (
       !isMonthEndProratedPeriod(
@@ -5775,6 +5785,8 @@ export class SubscriptionService {
           pricePaid: schema.subscriptions.pricePaid,
           priceTypeApplied: schema.subscriptions.priceTypeApplied,
           referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
+          partnerDiscountAmount: schema.subscriptions.partnerDiscountAmount,
+          auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
           previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
         })
         .from(schema.subscriptions)
