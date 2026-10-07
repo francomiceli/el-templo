@@ -27,6 +27,8 @@ import {
   loadHolidaySet,
 } from "../shared/business-days";
 import { addDays, todayInTz } from "../shared/date-utils";
+import { auditLog } from "../shared/audit-log";
+import { normalizeDni } from "../shared/dni";
 import { normalizePhone, sanitizePhoneForStorage } from "../shared/phone";
 import {
   tenantValues,
@@ -269,7 +271,8 @@ export class InvitationService {
     const phoneStored = sanitizePhoneForStorage(input.phone ?? "");
     if (phoneLast10.length === 0)
       throw new InvitationRuleError("phone_required");
-    const dniInput = input.dni?.trim() ? input.dni.trim() : null;
+    // LO-06: el DNI se guarda y se compara normalizado (solo letras y dígitos).
+    const dniInput = normalizeDni(input.dni);
     if (dniInput !== null && dniInput.length > 20) {
       throw new BadRequestError("El DNI es demasiado largo");
     }
@@ -374,7 +377,7 @@ export class InvitationService {
             accessExpiresOn,
             branchId: branch.id,
             invitedPhoneLast10: phoneLast10,
-            invitedDni: invitee.dni || dniInput,
+            invitedDni: normalizeDni(invitee.dni) ?? dniInput,
             createdBy: input.channel === "assisted" ? input.createdBy : null,
           }),
         )
@@ -412,6 +415,7 @@ export class InvitationService {
         branchId: prepared.branch.id,
         phone: phoneStored,
         dni: dniInput,
+        actorId: input.createdBy ?? input.invitedUserId,
       });
 
       // Paso 4: plan por país de la sede, server-side (T-194-31); $0 con razón
@@ -682,7 +686,13 @@ export class InvitationService {
   private async applyInviteeData(
     ctx: TenantContext,
     userId: number,
-    data: { branchId: number; phone: string; dni: string | null },
+    data: {
+      branchId: number;
+      phone: string;
+      dni: string | null;
+      /** Quien deja el rastro si se reemplaza un teléfono distinto (staff o el propio invitado). */
+      actorId: number;
+    },
   ): Promise<InviteeSnapshot> {
     return this.db.transaction(async (tx) => {
       const [user] = await tx
@@ -704,10 +714,26 @@ export class InvitationService {
 
       const changesStatus = user.status !== "prueba";
       const keepLead = user.leadStatusSource === "manual";
+      // LO-06: el teléfono se escribe SOLO si viene. Si reemplaza a uno distinto ya
+      // guardado (el dato viejo se pisaba sin rastro) queda registrado en audit_log.
+      const replacesPhone =
+        data.phone !== "" &&
+        user.phone !== null &&
+        normalizePhone(user.phone) !== "" &&
+        normalizePhone(user.phone) !== normalizePhone(data.phone);
+      if (replacesPhone) {
+        await auditLog.write(ctx, tx, {
+          actorId: data.actorId,
+          action: "invitation_phone_replaced",
+          targetKind: "member",
+          targetId: userId,
+          payload: { previousPhone: user.phone, newPhone: data.phone },
+        });
+      }
       await tx
         .update(schema.users)
         .set({
-          phone: data.phone,
+          ...(data.phone !== "" ? { phone: data.phone } : {}),
           ...(user.dni ? {} : data.dni ? { dni: data.dni } : {}),
           // Pitfall 1: la sede se muda ANTES de assignPlan. branchUpdatedAt +
           // branchSource='manual' viajan juntos (el cron de recategorización

@@ -55,7 +55,10 @@ export type AuditAction =
   // reserva normal del plan o se cancela. La reserva pierde `is_trial`, así
   // que este registro es el rastro de que fue una Sesión de Prueba.
   | "trial_booking_converted"
-  | "trial_booking_cancelled";
+  | "trial_booking_cancelled"
+  // Fase 194 (LO-06): al activar una invitación el teléfono tipeado reemplazó a otro
+  // distinto ya guardado en la ficha. Guarda el anterior para poder recuperarlo.
+  | "invitation_phone_replaced";
 
 export type AuditTargetKind =
   | "subscription"

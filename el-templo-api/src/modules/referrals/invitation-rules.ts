@@ -44,6 +44,7 @@ import * as schema from "../../db/schema";
 import type { TxHandle } from "../finance/balance-service";
 import { NotFoundError } from "../shared/errors";
 import { subtractMonths, todayInTz } from "../shared/date-utils";
+import { DNI_NORMALIZE_SQL_PATTERN, normalizeDni } from "../shared/dni";
 import { normalizePhone } from "../shared/phone";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { deriveMembershipCoveredUntil } from "../subscriptions/coverage";
@@ -264,7 +265,9 @@ export class InvitationRules {
       .limit(1);
     if (phoneOwner) return "phone_taken";
 
-    const dni = input.dni?.trim();
+    // LO-06: se compara el documento NORMALIZADO ("12.345.678" == "12345678"), tanto
+    // el tipeado como el guardado (que puede tener puntos o espacios).
+    const dni = normalizeDni(input.dni);
     if (dni) {
       const [dniOwner] = await exec
         .select({ id: schema.users.id })
@@ -274,7 +277,7 @@ export class InvitationRules {
             tenantWhere(schema.users, ctx),
             ne(schema.users.id, input.invitedUserId),
             isNull(schema.users.deletedAt),
-            eq(schema.users.dni, dni),
+            sql`UPPER(REGEXP_REPLACE(${schema.users.dni}, ${DNI_NORMALIZE_SQL_PATTERN}, '')) = ${dni}`,
           ),
         )
         .limit(1);
@@ -381,9 +384,12 @@ export class InvitationRules {
     if (phoneLast10.length > 0) {
       personMatch.push(eq(i.invitedPhoneLast10, phoneLast10));
     }
-    const dni = input.dni?.trim();
+    const dni = normalizeDni(input.dni);
     if (dni) {
-      const byDni = and(isNotNull(i.invitedDni), eq(i.invitedDni, dni));
+      const byDni = and(
+        isNotNull(i.invitedDni),
+        sql`UPPER(REGEXP_REPLACE(${i.invitedDni}, ${DNI_NORMALIZE_SQL_PATTERN}, '')) = ${dni}`,
+      );
       if (byDni) personMatch.push(byDni);
     }
     const [row] = await exec

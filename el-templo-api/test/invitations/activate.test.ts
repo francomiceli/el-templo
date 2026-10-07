@@ -782,6 +782,108 @@ describe("Fase 194 D-06 — activación de invitaciones", () => {
     expect(rows.map((r) => r.status).sort()).toEqual(["active", "voided"]);
     expect((await readSub(result.subscriptionId)).status).toBe("active");
   });
+  // ─── LO-06: DNI normalizado y teléfono con rastro ───────────────────────
+
+  describe("LO-06: identidad", () => {
+    it("dni_taken compara el documento normalizado, tipeado o guardado con formato", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      // Guardado CON puntos; el invitado lo tipea sin formato.
+      await createMemberInPhysicalBranch(ctx, { dni: "30.111.222" });
+      const sinFormato = await createMemberInVirtualBranch(ctx, { dni: null });
+      // Guardado SIN formato; el invitado lo tipea con puntos y minúsculas.
+      await createMemberInPhysicalBranch(ctx, { dni: "X1234567L" });
+      const conFormato = await createMemberInVirtualBranch(ctx, { dni: null });
+
+      expect(
+        await reasonOf(
+          activateSelfService(inviter, sinFormato, arBranch.id, {
+            dni: "30111222",
+          }),
+        ),
+      ).toBe<InvitationIneligibleReason>("dni_taken");
+      expect(
+        await reasonOf(
+          activateSelfService(inviter, conFormato, arBranch.id, {
+            dni: "x-1234567-l",
+          }),
+        ),
+      ).toBe<InvitationIneligibleReason>("dni_taken");
+      expect(await invitationsOf(sinFormato.id)).toHaveLength(0);
+      expect(await invitationsOf(conFormato.id)).toHaveLength(0);
+    });
+
+    it("el DNI se guarda normalizado en la ficha y en la invitación", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      const invitee = await createMemberInVirtualBranch(ctx, { dni: null });
+
+      const result = await activateSelfService(inviter, invitee, arBranch.id, {
+        dni: " 30.111.222 ",
+      });
+
+      expect((await readUser(invitee.id)).dni).toBe("30111222");
+      expect((await readInvitation(result.invitationId)).invitedDni).toBe(
+        "30111222",
+      );
+    });
+
+    async function phoneReplacedAudits(userId: number) {
+      return app.db
+        .select({
+          actorId: schema.auditLog.actorId,
+          payload: schema.auditLog.payloadJson,
+        })
+        .from(schema.auditLog)
+        .where(
+          and(
+            tenantWhere(schema.auditLog, ctx.tenant),
+            eq(schema.auditLog.action, "invitation_phone_replaced"),
+            eq(schema.auditLog.targetId, userId),
+          ),
+        );
+    }
+
+    it("un teléfono distinto del guardado lo reemplaza y deja el anterior en audit_log", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      const invitee = await createMemberInPhysicalBranch(ctx, {
+        status: "freemium",
+        phone: "1144443333",
+      });
+      const nuevo = uniquePhone10();
+
+      await activateSelfService(inviter, invitee, arBranch.id, {
+        phone: nuevo,
+      });
+
+      expect((await readUser(invitee.id)).phone).toBe(nuevo);
+      const audits = await phoneReplacedAudits(invitee.id);
+      expect(audits).toHaveLength(1);
+      expect(audits[0].actorId).toBe(invitee.id);
+      expect(audits[0].payload).toEqual({
+        previousPhone: "1144443333",
+        newPhone: nuevo,
+      });
+    });
+
+    it("el MISMO teléfono con otro formato, o sin teléfono previo, no deja rastro de reemplazo", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      const mismo = await createMemberInPhysicalBranch(ctx, {
+        status: "freemium",
+        phone: "1144443333",
+      });
+      const sinTelefono = await createMemberInVirtualBranch(ctx);
+
+      await activateSelfService(inviter, mismo, arBranch.id, {
+        phone: "+54 9 11 4444-3333",
+      });
+      await activateSelfService(inviter, sinTelefono, arBranch.id, {
+        phone: uniquePhone10(),
+      });
+
+      expect(await phoneReplacedAudits(mismo.id)).toHaveLength(0);
+      expect(await phoneReplacedAudits(sinTelefono.id)).toHaveLength(0);
+    });
+  });
+
   // ─── compensación del estado del invitado (T-194-33, 194-09 seguimiento) ─
 
   /** Invitado "complejo": inactivo en sede física, con teléfono, lead perdido y sede 'auto'. */
