@@ -700,10 +700,18 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /members/:userId/subscription/renewal-preview
   // Base del mes completo de la renovación (heredada, o del último período
-  // completo / precio de lista si el período actual fue prorrateado).
+  // completo / precio de lista si el período actual fue prorrateado) y, desde 194-18,
+  // los MONTOS del cobro (descuento ganador, invitación con tope, precio final) con los
+  // mismos inputs opcionales que cambian el precio de `renewSubscription`.
   fastify.get<{
     Params: { userId: number };
-    Querystring: { subscriptionId?: number };
+    Querystring: {
+      subscriptionId?: number;
+      startDate?: string;
+      prorateToMonthEnd?: boolean;
+      priceOverrideAmount?: number;
+      priceOverrideReason?: string;
+    };
   }>(
     "/members/:userId/subscription/renewal-preview",
     { schema: renewalPreviewSchema },
@@ -713,6 +721,12 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           assertTenant(request.scope, "subscriptions.getRenewalPreview"),
           request.params.userId,
           request.query.subscriptionId,
+          {
+            startDate: request.query.startDate,
+            prorateToMonthEnd: request.query.prorateToMonthEnd,
+            priceOverrideAmount: request.query.priceOverrideAmount,
+            priceOverrideReason: request.query.priceOverrideReason,
+          },
         );
         return preview;
       } catch (err: unknown) {

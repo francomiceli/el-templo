@@ -906,10 +906,16 @@ export const renewalPreviewSchema = {
       userId: { type: "integer" },
     },
   },
+  // Fase 194-18: los inputs que cambian el precio del cobro de `renewSubscription`
+  // (todos opcionales: sin ellos es la renovación estándar, como antes).
   querystring: {
     type: "object",
     properties: {
       subscriptionId: { type: "integer" },
+      startDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      prorateToMonthEnd: { type: "boolean" },
+      priceOverrideAmount: { type: "integer", minimum: 0 },
+      priceOverrideReason: { type: "string", maxLength: 500 },
     },
   },
   response: {
@@ -922,6 +928,17 @@ export const renewalPreviewSchema = {
           type: "string",
           enum: ["inherited", "previous_period", "plan_price"],
         },
+        basePrice: { type: "integer" },
+        invitationDiscountPercent: { type: "number" },
+        invitationDiscountAmount: { type: "integer" },
+        invitationDiscountCapped: { type: "boolean" },
+        winningDiscount: {
+          type: "string",
+          enum: ["none", "aura", "partner", "invitation", "boarding_pass"],
+        },
+        partnerDiscountPercent: { type: "number" },
+        partnerDiscountAmount: { type: "integer" },
+        finalPrice: { type: "integer" },
       },
     },
   },

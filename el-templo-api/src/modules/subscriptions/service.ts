@@ -37,6 +37,7 @@ import type {
   RenewSubscriptionInput,
   RenewalBaseSource,
   RenewalPreview,
+  RenewalPreviewOptions,
   PricingPreview,
   BulkMigrateInput,
   BulkMigrateResult,
@@ -78,7 +79,12 @@ import {
   settlementColumns,
   type ChargeSettlement,
 } from "./discount-arbiter";
-import { reconstructRenewalBase, type RenewalBaseInput } from "./renewal-base";
+import { resolveRenewalBase, type RenewalBaseSub } from "./renewal-base";
+import {
+  computeMonthEndProration,
+  computeProratedPrice,
+  daysBetween,
+} from "./month-end";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
 import type { PaymentMethod } from "../finance/types";
@@ -172,75 +178,12 @@ function formatDateAr(isoDate: string): string {
   return `${d}/${m}/${y}`;
 }
 
-function daysBetween(fromIso: string, toIso: string): number {
-  const fromMs = new Date(fromIso).getTime();
-  const toMs = new Date(toIso).getTime();
-  return Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24));
-}
-
 /**
- * Prorrateo hasta fin de mes de un alta. Dado un `startDate` "YYYY-MM-DD",
- * devuelve el último día de ese mes calendario (la vigencia del alta) y cuántos
- * días se cobran — el día del alta INCLUIDO — sobre los días del mes. Ej.: alta
- * el 2026-01-20 (enero, 31 días) → 12 días (20..31), endDate 2026-01-31.
- *
- * Parsea las partes de la fecha en vez de `new Date(str)` para no depender de la
- * zona horaria (una "YYYY-MM-DD" se interpreta como UTC y podría correrse un día
- * al construir el string de fin de mes en runtimes con TZ negativa).
+ * Razón de relleno del preview de renovación con precio personalizado: el cobro real
+ * exige la razón (400), el preview la tolera para poder mostrar el monto mientras el
+ * staff todavía la está escribiendo. No se persiste ni se muestra.
  */
-function computeMonthEndProration(startDate: string): {
-  endDate: string;
-  daysCharged: number;
-  daysInMonth: number;
-} {
-  const [year, month, day] = startDate.split("-").map(Number);
-  // `month` viene 1-based del string; Date.UTC lo trata 0-based, así que
-  // (year, month, 0) = día 0 del mes siguiente = último día del mes del alta.
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const daysCharged = daysInMonth - day + 1;
-  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(
-    daysInMonth,
-  ).padStart(2, "0")}`;
-  return { endDate, daysCharged, daysInMonth };
-}
-
-/**
- * Precio proporcional del alta hasta fin de mes:
- * `round(base * díasCobrados / díasDelMes)`. Fuente única del cálculo, la
- * comparte el endpoint de preview y el alta real.
- */
-function computeProratedPrice(basePrice: number, startDate: string): number {
-  const { daysCharged, daysInMonth } = computeMonthEndProration(startDate);
-  return Math.round((basePrice * daysCharged) / daysInMonth);
-}
-
-/**
- * ¿El período [startDate, endDate] es un prorrateo hasta fin de mes (alta o
- * renovación)? Su huella: vence el último día del mes de su inicio y dura menos
- * que el plan. Un período normal vence exactamente a `startDate + durationDays`,
- * y las pausas y compensaciones de días solo lo alargan. Exigir las DOS
- * condiciones evita confundir con un prorrateo a una sub corta por otro motivo
- * (import legacy, edición manual), que debe seguir heredando su precio. En un
- * período prorrateado `pricePaid` es un proporcional, no el mes completo.
- */
-function isMonthEndProratedPeriod(
-  startDate: string,
-  endDate: string | null,
-  durationDays: number,
-): boolean {
-  return (
-    endDate !== null &&
-    endDate === computeMonthEndProration(startDate).endDate &&
-    daysBetween(startDate, endDate) < durationDays
-  );
-}
-
-/**
- * Tope de saltos hacia atrás por `previousSubscriptionId` al buscar el último
- * período completo (resolveRenewalBase). Dos períodos parciales seguidos ya son
- * raros; el tope solo acota el peor caso de una cadena corrupta.
- */
-const MAX_RENEWAL_BASE_HOPS = 6;
+const RENEWAL_PREVIEW_OVERRIDE_REASON = "preview";
 
 /**
  * Throws BadRequestError if startDate is outside the allowed window
@@ -794,9 +737,9 @@ export class SubscriptionService {
   /**
    * Flip pending→qualified del vínculo del que el payer es referido, SOLO
    * cuando el cargo efectivamente cobra (pricePaid>0 — D-20 mata el fantasma
-   * del mes 100% bonificado). Se invoca ANTES de
-   * computePriceWithReferralDiscount (D-21) para que el referido recién
-   * cualificado ya descuente en ESTE mismo cargo si su referidor está activo.
+   * del mes 100% bonificado). Fase 194: el precio ya NO depende de este flip (el
+   * candidato de invitación del árbitro simula la cualificación antes de calcular).
+   * Cada charge-path lo llama gateado por `planAllowsInvitationDiscount` (D-10b).
    */
   private async qualifyReferralOnCharge(
     ctx: TenantContext,
@@ -824,29 +767,6 @@ export class SubscriptionService {
   }
 
   /**
-   * Descuento de referido sobre un precio YA resuelto (compone sobre auraSpend).
-   * Copia la price-math del bloque auraSpend (`Math.floor(base*pct/100)`,
-   * `pricePaid = base - amount`) pero NO usa `auraService.spend` — escribe en
-   * las columnas nuevas referralDiscount* (D-23), nunca en auraDiscount*.
-   * pct<=0 → devuelve el precio sin descuento.
-   */
-  private async computePriceWithReferralDiscount(
-    ctx: TenantContext,
-    userId: number,
-    basePrice: number,
-  ): Promise<{ percent: number; amount: number; pricePaid: number }> {
-    const percent = await new ReferralService(
-      this.db,
-      this.log,
-    ).computeReferralDiscountPercent(ctx, userId);
-    if (percent <= 0) {
-      return { percent: 0, amount: 0, pricePaid: basePrice };
-    }
-    const amount = Math.floor(basePrice * (percent / 100));
-    return { percent, amount, pricePaid: basePrice - amount };
-  }
-
-  /**
    * Registro auditable del descuento tras el cargo (AURA-01): fila en
    * referral_credits + anotación aura_transactions amount=0. No-op si amount<=0.
    * Se llama tras recordAssignmentCharge con el subscriptionId ya conocido.
@@ -871,8 +791,7 @@ export class SubscriptionService {
   // ── Partners (fase 179) ────────────────────────────────────────────────
   // Helper GEMELO del bloque de Referidos de arriba, deliberadamente
   // separado: el CONTEXT de la fase prohíbe reusar o modificar
-  // qualifyReferralOnCharge/computePriceWithReferralDiscount/
-  // recordReferralCreditOnCharge. Este bloque cuelga la cualificación del
+  // qualifyReferralOnCharge/recordReferralCreditOnCharge. Este bloque cuelga la cualificación del
   // vínculo `partner_referrals` y el alta de la comisión (D-11) del mismo
   // punto "membresía confirmada" que usan los referidos, pero con sus
   // propias reglas (D-17): dispara con `pricePaid>0` de CUALQUIER categoría
@@ -922,7 +841,7 @@ export class SubscriptionService {
   private async computeChargeDiscounts(params: {
     mode: "charge" | "preview";
     /** Call site del filter en modo "charge" (default "assign"); en "preview" siempre "preview". */
-    chargeCallSite?: "assign" | "change-after-current" | "change-now";
+    chargeCallSite?: "assign" | "change-after-current" | "change-now" | "renew";
     /**
      * `false` = la charge-path NO admite descuento AURA (`changePlanNow`, T-176-24):
      * el filter igual corre (boarding pass) pero ignora `auraSpend`. Default `true`.
@@ -935,6 +854,13 @@ export class SubscriptionService {
      * netea, comportamiento previo a la 194).
      */
     prorationCredit?: number;
+    /**
+     * Precio base del cobro cuando NO es la lista del plan (renovación, 194-18): la base
+     * heredada (D-22) o la normalizada por la regla de recargo. Reemplaza al precio de
+     * lista tanto para el árbitro como para el filter de pricing. Solo para charge-paths
+     * sin boarding pass (el boarding pass resuelve su propio precio Zero).
+     */
+    basePrice?: number;
     ctx: TenantContext;
     userId: number;
     plan: PlanDetail;
@@ -976,10 +902,11 @@ export class SubscriptionService {
         plan,
         basePrice: Math.max(
           0,
-          this.getBasePrice(
-            plan,
-            await this.resolvePriceType(params.priceTypeRequested),
-          ) - credit,
+          (params.basePrice ??
+            this.getBasePrice(
+              plan,
+              await this.resolvePriceType(params.priceTypeRequested),
+            )) - credit,
         ),
         isPriceOverride: params.override !== undefined,
         // El boarding pass vive en `moduleInput` (opaco al core): se conoce DESPUÉS
@@ -1004,7 +931,7 @@ export class SubscriptionService {
       },
       priceTypeRequested: params.priceTypeRequested,
       resolvePriceType: (t) => this.resolvePriceType(t),
-      basePriceFor: (t) => this.getBasePrice(plan, t),
+      basePriceFor: (t) => params.basePrice ?? this.getBasePrice(plan, t),
       moduleInput: params.moduleInput,
       competingDiscountAmount: prepared.competingDiscountAmount,
       override: params.override,
@@ -5721,119 +5648,183 @@ export class SubscriptionService {
   }
 
   /**
-   * Base PRE-descuento de referido del MES COMPLETO que hereda una renovación,
-   * antes de la normalización WR-04 y de cualquier override o prorrateo de ESTA
-   * renovación.
-   *
-   * Por defecto es lo que el socio venía pagando (`pricePaid` + add-back del
-   * referido — caso Pomilio: preserva precios negociados). Excepción: si el
-   * período actual fue PARCIAL (alta o renovación prorrateada hasta fin de mes)
-   * su `pricePaid` es un proporcional, y heredarlo renovaba el mes completo al
-   * precio de los días sueltos (caso BCN sept 2026: alta del 25 al 30/9 por 12 €
-   * y la renovación ofrecía 12 € por el mes, con el prorrateo topeado en 12).
-   * Ahí se busca hacia atrás el último período COMPLETO del mismo plan y tipo de
-   * precio (preserva el negociado de quien pasó por una renovación prorrateada);
-   * si no hay (el parcial fue el alta), el precio de lista del plan.
+   * Inicio del período que renueva `renewSubscription` (y que previsualiza
+   * `getRenewalPreview`: misma derivación para que el preview no diverja).
+   * Por defecto la renovación arranca en el vencimiento actual (renovación anticipada)
+   * o en hoy (ya vencida). El admin puede pasar una fecha de inicio custom (hotfix
+   * 2026-07-06, pedido del staff): la renovación arranca en esa fecha.
    */
-  private async resolveRenewalBase(
-    ctx: TenantContext,
-    userId: number,
-    currentSub: {
-      planId: number;
-      startDate: string;
-      endDate: string | null;
-      pricePaid: number;
-      priceTypeApplied: string;
-      referralDiscountAmount: number | null;
-      partnerDiscountAmount: number | null;
-      auraDiscountPercent: number | null;
-      previousSubscriptionId: number | null;
-    },
-    plan: PlanDetail,
-  ): Promise<{ base: number; source: RenewalBaseSource }> {
-    // Fase 194-18 (D-22): la base heredada devuelve TODA promo del período anterior
-    // (referido, partner y AURA), no solo el referido: ninguna promo queda "pegada".
-    const inheritedBase = (sub: RenewalBaseInput) =>
-      reconstructRenewalBase(sub, () =>
-        this.log.warn(
-          { userId, planId: currentSub.planId, pricePaid: sub.pricePaid },
-          "renovación: no se pudo reconstruir la base pre-AURA, se hereda el neto sin AURA",
-        ),
-      );
-
+  private resolveRenewalStart(
+    currentSub: { endDate: string | null },
+    startDate: string | undefined,
+  ): { today: string; oldSubExpired: boolean; newStartDate: string } {
+    const today = new Date().toISOString().split("T")[0];
+    const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
+    const autoStartDate =
+      currentSub.endDate && currentSub.endDate >= today
+        ? currentSub.endDate
+        : today;
+    if (startDate === undefined) {
+      return { today, oldSubExpired, newStartDate: autoStartDate };
+    }
+    assertStartDateWithinLimits(startDate);
+    // No se puede solapar con la suscripción vigente: una renovación del mismo
+    // plan que arranque ANTES de que venza la actual crearía dos subs activas
+    // para el mismo socio (caso Lorenzino/Pandolfo). Cuando la sub sigue
+    // vigente, exigimos que la fecha custom sea >= al vencimiento actual.
     if (
-      !isMonthEndProratedPeriod(
-        currentSub.startDate,
-        currentSub.endDate,
-        plan.durationDays,
-      )
+      !oldSubExpired &&
+      currentSub.endDate &&
+      startDate < currentSub.endDate
     ) {
-      return { base: inheritedBase(currentSub), source: "inherited" };
+      throw new BadRequestError(
+        `La fecha de inicio de la renovación no puede ser anterior al vencimiento actual (${currentSub.endDate}).`,
+      );
+    }
+    return { today, oldSubExpired, newStartDate: startDate };
+  }
+
+  /**
+   * Fase 194-18 (D-08/D-10b/D-10c/D-20/D-21/D-22): precio de una renovación. ÚNICO lugar
+   * donde se resuelve (la comparten `renewSubscription` en `mode: "charge"` y
+   * `getRenewalPreview` en `mode: "preview"`: paridad cobro<->preview por construcción) y
+   * ÚNICA llamada de la renovación al árbitro de descuentos (`computeChargeDiscounts`).
+   *
+   * Base de la renovación (NO es un descuento sobre la lista, no compite):
+   *  - prorrateo a fin de mes: el proporcional es el precio final, sin descuentos;
+   *  - precio personalizado con razón: es el precio final (D-20), sin descuentos, el
+   *    vínculo de invitación nace igual si hay invitación en ventana;
+   *  - normal: la base heredada sin promos pegadas (D-22, `resolveRenewalBase`), o el
+   *    precio de lista normalizado si la regla de recargo por tarjeta cambió el tipo de
+   *    precio (WR-04: con la regla OFF `credit_card` pasa a `regular`).
+   * Sobre la base normal compiten partner e invitación por MONTO y se aplica UNO. AURA no
+   * existe en la renovación (`auraSupported: false`).
+   *
+   * Las subs ya creadas no se tocan (D-08): esta regla rige desde la próxima renovación.
+   */
+  private async resolveRenewalCharge(params: {
+    mode: "charge" | "preview";
+    ctx: TenantContext;
+    userId: number;
+    currentSub: RenewalBaseSub;
+    plan: PlanDetail;
+    newStartDate: string;
+    prorateToMonthEnd?: boolean;
+    priceOverrideAmount?: number;
+    priceOverrideReason?: string;
+  }): Promise<{
+    inherited: { base: number; source: RenewalBaseSource };
+    /** Tipo de precio con el que se persiste la sub renovada. */
+    priceType: PriceType;
+    /** Precio personalizado con razón de ESTA renovación (se persiste en la sub). */
+    override: { amount: number; reason: string } | null;
+    settlement: ChargeSettlement;
+    partnerCandidate: { linkId: number; percent: number } | null;
+    /** Precio de la renovación ANTES de partner/invitación. */
+    priceBeforeDiscount: number;
+  }> {
+    const { mode, ctx, userId, currentSub, plan, newStartDate } = params;
+    const inherited = await resolveRenewalBase(
+      { db: this.db, log: this.log },
+      ctx,
+      userId,
+      currentSub,
+      plan,
+      (t) => this.getBasePrice(plan, t),
+    );
+    const inheritedPriceType = currentSub.priceTypeApplied as PriceType;
+    let priceType = inheritedPriceType;
+    let basePrice = inherited.base;
+    let override: { amount: number; reason: string } | null = null;
+    let prorate: { computed: number } | undefined;
+
+    if (params.prorateToMonthEnd) {
+      // Renovación prorrateada hasta fin de mes — máxima prioridad, excluyente con el
+      // override-con-razón y con los descuentos (mismo criterio que el alta
+      // prorrateada). El precio base del proporcional es el MES COMPLETO que el socio
+      // venía pagando (heredado, WR-04 normalizado); el staff puede editar el sugerido,
+      // que llega por `priceOverrideAmount` SIN exigir razón. No se persiste como
+      // override: el endDate a fin de mes + pricePaid ya cuentan la historia. Cap
+      // defensivo: no puede superar el mes completo.
+      priceType = await this.resolvePriceType(inheritedPriceType);
+      const fullMonthPrice =
+        priceType !== inheritedPriceType
+          ? this.getBasePrice(plan, priceType)
+          : inherited.base;
+      const prorated =
+        params.priceOverrideAmount !== undefined
+          ? params.priceOverrideAmount
+          : computeProratedPrice(fullMonthPrice, newStartDate);
+      if (prorated > fullMonthPrice) {
+        throw new BadRequestError(
+          "El precio prorrateado no puede superar el precio del mes completo",
+        );
+      }
+      basePrice = fullMonthPrice;
+      prorate = { computed: prorated };
+    } else if (
+      params.priceOverrideAmount !== undefined &&
+      params.priceOverrideAmount >= 0
+    ) {
+      if (!params.priceOverrideReason && mode === "charge") {
+        throw new BadRequestError(
+          "Se requiere una razon para el precio personalizado",
+        );
+      }
+      override = {
+        amount: params.priceOverrideAmount,
+        reason: params.priceOverrideReason ?? RENEWAL_PREVIEW_OVERRIDE_REASON,
+      };
+    } else {
+      // WR-04 (ALUM-03/D-03): normalizar el priceTypeApplied heredado contra la regla de
+      // recargo por tarjeta. Con la regla ON (El Templo) la resolución es identidad; con
+      // la regla OFF, `credit_card` normaliza a `regular` y se recobra el precio regular
+      // vigente del plan (no se perpetúa el recargo heredado).
+      priceType = await this.resolvePriceType(inheritedPriceType);
+      if (priceType !== inheritedPriceType) {
+        basePrice = this.getBasePrice(plan, priceType);
+      }
     }
 
-    let previousId = currentSub.previousSubscriptionId;
-    for (
-      let hop = 0;
-      previousId !== null && hop < MAX_RENEWAL_BASE_HOPS;
-      hop++
-    ) {
-      const [previous] = await this.db
-        .select({
-          planId: schema.subscriptions.planId,
-          startDate: schema.subscriptions.startDate,
-          endDate: schema.subscriptions.endDate,
-          pricePaid: schema.subscriptions.pricePaid,
-          priceTypeApplied: schema.subscriptions.priceTypeApplied,
-          referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
-          partnerDiscountAmount: schema.subscriptions.partnerDiscountAmount,
-          auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
-          previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
-        })
-        .from(schema.subscriptions)
-        .where(
-          and(
-            tenantWhere(schema.subscriptions, ctx),
-            eq(schema.subscriptions.id, previousId),
-            eq(schema.subscriptions.userId, userId),
-          ),
-        )
-        .limit(1);
-      // Otro plan u otro tipo de precio: lo que pagaba ahí no es la base de
-      // este plan → precio de lista.
-      if (
-        !previous ||
-        previous.planId !== currentSub.planId ||
-        previous.priceTypeApplied !== currentSub.priceTypeApplied
-      ) {
-        break;
-      }
-      if (
-        !isMonthEndProratedPeriod(
-          previous.startDate,
-          previous.endDate,
-          plan.durationDays,
-        )
-      ) {
-        return { base: inheritedBase(previous), source: "previous_period" };
-      }
-      previousId = previous.previousSubscriptionId;
-    }
-
+    const { settlement, partnerCandidate, priceAfterFilter } =
+      await this.computeChargeDiscounts({
+        mode,
+        chargeCallSite: "renew",
+        auraSupported: false,
+        ctx,
+        userId,
+        plan,
+        priceTypeRequested: priceType,
+        moduleInput: {},
+        override: override ?? undefined,
+        prorate,
+        prorateToMonthEnd: params.prorateToMonthEnd,
+        basePrice,
+      });
     return {
-      base: this.getBasePrice(plan, currentSub.priceTypeApplied as PriceType),
-      source: "plan_price",
+      inherited,
+      priceType,
+      override,
+      settlement,
+      partnerCandidate,
+      priceBeforeDiscount: priceAfterFilter,
     };
   }
 
   /**
-   * Preview de la base del mes completo de una renovación (ver
-   * `resolveRenewalBase`). El diálogo de renovar del admin la usa como precio
-   * del mes completo en vez de reconstruirla desde `pricePaid`. No muta nada.
+   * Preview de una renovación: la base del mes completo (ver `resolveRenewalBase`) y,
+   * desde 194-18, los MONTOS del cobro (descuento ganador, monto de invitación con tope y
+   * precio final) para que el admin no los recalcule (Pitfall 6). Acepta como opciones
+   * los inputs que cambian el precio del cobro (`startDate` y `prorateToMonthEnd` del
+   * prorrateo, `priceOverrideAmount` del precio personalizado); sin opciones devuelve la
+   * renovación estándar. Mismo helper que `renewSubscription` (`resolveRenewalCharge`):
+   * `finalPrice` === `price_paid` del cobro con los mismos inputs. No muta nada.
    */
   async getRenewalPreview(
     ctx: TenantContext,
     userId: number,
     subscriptionId: number | undefined,
+    options: RenewalPreviewOptions = {},
   ): Promise<RenewalPreview> {
     const currentSub = await this.findRenewableSubscription(
       ctx,
@@ -5844,13 +5835,43 @@ export class SubscriptionService {
     if (!plan) {
       throw new NotFoundError("Plan no encontrado");
     }
-    const { base, source } = await this.resolveRenewalBase(
+    // Fase 194 (T-194-17): igual que el cobro, los accesos de invitación no se renuevan.
+    if (isInvitationPlan(plan)) {
+      throw new BadRequestError("Los accesos de invitación no se renuevan");
+    }
+    const { newStartDate } = this.resolveRenewalStart(
+      currentSub,
+      options.startDate,
+    );
+    const charge = await this.resolveRenewalCharge({
+      mode: "preview",
       ctx,
       userId,
       currentSub,
       plan,
-    );
-    return { subscriptionId: currentSub.id, base, source };
+      newStartDate,
+      prorateToMonthEnd: options.prorateToMonthEnd,
+      priceOverrideAmount: options.priceOverrideAmount,
+      priceOverrideReason: options.priceOverrideReason,
+    });
+    const { settlement, partnerCandidate } = charge;
+    return {
+      subscriptionId: currentSub.id,
+      base: charge.inherited.base,
+      source: charge.inherited.source,
+      basePrice: charge.priceBeforeDiscount,
+      invitationDiscountPercent: settlement.invitationPercent,
+      invitationDiscountAmount: settlement.invitationAmount,
+      invitationDiscountCapped: settlement.invitationCapped,
+      winningDiscount: settlement.winningDiscount,
+      partnerDiscountPercent: settlement.partnerWon
+        ? (partnerCandidate?.percent ?? 0)
+        : 0,
+      partnerDiscountAmount: settlement.partnerWon
+        ? settlement.partnerAmount
+        : 0,
+      finalPrice: settlement.finalPrice,
+    };
   }
 
   /**
@@ -5938,38 +5959,12 @@ export class SubscriptionService {
       }
     }
 
-    // Calculate new period dates. Por defecto la renovación arranca en el
-    // vencimiento actual (renovación anticipada) o en hoy (ya vencida). El admin
-    // puede pasar una fecha de inicio custom (hotfix 2026-07-06, pedido del
-    // staff): la renovación arranca en esa fecha y el nuevo vencimiento se
-    // recalcula como startDate + plan.durationDays.
-    const today = new Date().toISOString().split("T")[0];
-    const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
-    const autoStartDate =
-      currentSub.endDate && currentSub.endDate >= today
-        ? currentSub.endDate
-        : today;
-
-    let newStartDate: string;
-    if (input.startDate !== undefined) {
-      assertStartDateWithinLimits(input.startDate);
-      // No se puede solapar con la suscripción vigente: una renovación del mismo
-      // plan que arranque ANTES de que venza la actual crearía dos subs activas
-      // para el mismo socio (caso Lorenzino/Pandolfo). Cuando la sub sigue
-      // vigente, exigimos que la fecha custom sea >= al vencimiento actual.
-      if (
-        !oldSubExpired &&
-        currentSub.endDate &&
-        input.startDate < currentSub.endDate
-      ) {
-        throw new BadRequestError(
-          `La fecha de inicio de la renovación no puede ser anterior al vencimiento actual (${currentSub.endDate}).`,
-        );
-      }
-      newStartDate = input.startDate;
-    } else {
-      newStartDate = autoStartDate;
-    }
+    // Inicio del nuevo período (renovación anticipada, ya vencida o fecha custom):
+    // misma derivación que `getRenewalPreview`.
+    const { today, oldSubExpired, newStartDate } = this.resolveRenewalStart(
+      currentSub,
+      input.startDate,
+    );
     // Vencimiento del nuevo período. Por defecto `startDate + durationDays`
     // (mes completo). Con prorrateo hasta fin de mes (alineación a la
     // domiciliación) vence el último día del mes calendario del inicio — misma
@@ -5991,147 +5986,46 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : (plan.monthlyClassBudget ?? null);
 
-    // Precio de la renovación. Por defecto se hereda lo que el miembro venía
-    // pagando, para que cualquier override negociado se arrastre. Caso Pomilio
-    // (mayo 2026): venía pagando 75 EUR pero plan.priceRegular era 100, y la
-    // renovación grababa 100 → deuda fantasma de 25. Tomar currentSub.pricePaid
-    // preserva el override. priceTypeApplied se hereda más abajo y queda
-    // consistente.
-    //
-    // Si el admin ingresa un precio personalizado para ESTA renovación, tiene
-    // prioridad sobre el heredado (mismo patrón que assignPlan/changePlan).
-    //
-    // El heredado se reconstruye SIN el descuento de referido del período
-    // anterior (add-back de referralDiscountAmount): pricePaid quedó grabado ya
-    // descontado, y el descuento de referido es condicional POR CICLO (DESC-03
-    // — depende de que la contraparte siga activa hoy). Sin el add-back el
-    // descuento componía renovación tras renovación (72000 → 64800 → 58320…) y
-    // además quedaba perpetuado aunque el vínculo se suspendiera. El bloque de
-    // referidos de abajo re-aplica el % vigente sobre esta base limpia.
-    //
-    // Excepción: si el período actual fue PARCIAL (prorrateado hasta fin de mes)
-    // su pricePaid es un proporcional → resolveRenewalBase usa el último período
-    // completo o el precio de lista del plan.
-    let renewalPrice = (
-      await this.resolveRenewalBase(ctx, userId, currentSub, plan)
-    ).base;
-    let renewalOverrideAmount: number | null = null;
-    let renewalOverrideReason: string | null = null;
-    // Referidos (fase 157): materialización del descuento en columnas nuevas.
-    let referralDiscountPercent: number | null = null;
-    let referralDiscountAmount: number | null = null;
-    // Fase 179 (D-09/D-10/D-20): candidato de descuento de partner.
-    // renewSubscription NO tiene bloque de descuento AURA propio (a
-    // diferencia de assignPlan/changePlanAfterCurrent) — sin competidor, el
-    // candidato se aplica directo sobre el precio de renovación ya resuelto
-    // (ver bloque justo antes de referidos, más abajo).
-    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
-      null;
-    let partnerDiscountPercent: number | null = null;
-    let partnerDiscountAmount: number | null = null;
-
-    // priceType de la renovación (heredado por default). Se declara acá arriba
-    // porque el prorrateo también lo resuelve; el bloque WR-04 de más abajo lo
-    // normaliza en el camino normal.
-    const inheritedPriceType = currentSub.priceTypeApplied as PriceType;
-    let renewalPriceType = inheritedPriceType;
-
-    // Renovación prorrateada hasta fin de mes — máxima prioridad, excluyente con
-    // el override-con-razón y con el descuento de referido (mismo criterio que el
-    // alta prorrateada). El precio base del proporcional es el MES COMPLETO que el
-    // socio venía pagando (heredado, WR-04 normalizado); el proporcional se computa
-    // sobre ese base y el staff puede editar el sugerido, que llega por
-    // `priceOverrideAmount` SIN exigir razón. No se persiste como override
-    // (renewalOverrideAmount queda null): el endDate a fin de mes + pricePaid ya
-    // cuentan la historia. Cap defensivo: no puede superar el mes completo.
-    if (input.prorateToMonthEnd) {
-      renewalPriceType = await this.resolvePriceType(inheritedPriceType);
-      const fullMonthPrice =
-        renewalPriceType !== inheritedPriceType
-          ? this.getBasePrice(plan, renewalPriceType)
-          : renewalPrice;
-      renewalPrice =
-        input.priceOverrideAmount !== undefined
-          ? input.priceOverrideAmount
-          : computeProratedPrice(fullMonthPrice, newStartDate);
-      if (renewalPrice > fullMonthPrice) {
-        throw new BadRequestError(
-          "El precio prorrateado no puede superar el precio del mes completo",
-        );
-      }
-    } else if (
-      input.priceOverrideAmount !== undefined &&
-      input.priceOverrideAmount >= 0
-    ) {
-      if (!input.priceOverrideReason) {
-        throw new BadRequestError(
-          "Se requiere una razon para el precio personalizado",
-        );
-      }
-      renewalPrice = input.priceOverrideAmount;
-      renewalOverrideAmount = input.priceOverrideAmount;
-      renewalOverrideReason = input.priceOverrideReason;
-    }
-
-    // WR-04 (ALUM-03/D-03): normalizar el priceTypeApplied heredado contra la
-    // regla de recargo por tarjeta. Sin esto, un socio dado de alta con
-    // `credit_card` seguía renovando con el precio CON recargo indefinidamente
-    // aunque el owner apagara la regla — el estado que resolvePriceType promete
-    // impedir para altas/cambios. Solo aplica cuando NO hay override explícito
-    // de esta renovación (el override manda). Con la regla ON (El Templo) la
-    // resolución es identidad y nada cambia; con la regla OFF, `credit_card`
-    // normaliza a `regular` y se recobra el precio base regular del plan vigente.
-    if (!input.prorateToMonthEnd && renewalOverrideAmount === null) {
-      renewalPriceType = await this.resolvePriceType(inheritedPriceType);
-      if (renewalPriceType !== inheritedPriceType) {
-        // credit_card → regular con la regla OFF: cobrar el precio regular
-        // vigente del plan (no perpetuar el recargo heredado en pricePaid).
-        renewalPrice = this.getBasePrice(plan, renewalPriceType);
-      }
-    }
-
-    // ── Partners (fase 179, D-09/D-10/D-20) ──
-    // Sin bloque AURA en este método, el candidato se aplica DIRECTO sobre
-    // el precio de renovación ya resuelto (heredado/override/prorrateado).
-    // `resolvePartnerDiscountCandidate` ya aplica los guards D-17
-    // (excludedFromReferrals + prorateToMonthEnd) internamente. El tenant
-    // sale del `ctx` (tren v6.0, fase 172).
-    partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+    // ── Precio de la renovación (fase 194-18: D-08/D-10b/D-10c/D-20/D-21/D-22) ──
+    // Base heredada sin promos pegadas (caso Pomilio: preserva precios negociados;
+    // D-22: devuelve referido, partner y AURA del período anterior), override con razón,
+    // prorrateo a fin de mes y normalización WR-04 los resuelve `resolveRenewalCharge`,
+    // que además llama UNA vez al árbitro: partner e invitación compiten por monto y se
+    // aplica UNO, con tope en dinero; AURA no existe en la renovación. Override y prorrateo
+    // son el precio final (D-20). Mismo helper que `getRenewalPreview`.
+    const {
+      priceType: renewalPriceType,
+      override: renewalOverride,
+      settlement,
+      partnerCandidate: partnerBenefitCandidate,
+    } = await this.resolveRenewalCharge({
+      mode: "charge",
       ctx,
       userId,
-      plan.planCategory,
-      input.prorateToMonthEnd,
-    );
-    if (partnerBenefitCandidate) {
-      const partnerDiscountAmountCalc = Math.floor(
-        renewalPrice * (partnerBenefitCandidate.percent / 100),
-      );
-      renewalPrice -= partnerDiscountAmountCalc;
-      partnerDiscountPercent = partnerBenefitCandidate.percent;
-      partnerDiscountAmount = partnerDiscountAmountCalc;
-    }
+      currentSub,
+      plan,
+      newStartDate,
+      prorateToMonthEnd: input.prorateToMonthEnd,
+      priceOverrideAmount: input.priceOverrideAmount,
+      priceOverrideReason: input.priceOverrideReason,
+    });
+    const renewalPrice = settlement.finalPrice;
+    const renewalOverrideAmount = renewalOverride?.amount ?? null;
+    const renewalOverrideReason = renewalOverride?.reason ?? null;
+    const {
+      referralDiscountPercent,
+      referralDiscountAmount,
+      partnerDiscountPercent,
+      partnerDiscountAmount,
+    } = settlementColumns(settlement, partnerBenefitCandidate?.percent ?? null);
 
-    // ── Referidos (fase 157, D-20/D-21) ──
-    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
-    // precio de renovación ya resuelto. Se aplica ANTES de resolver
-    // renewBranchId/caja (que gatean por renewalPrice>0) para que vean el neto.
-    // D-09: los pases especiales quedan FUERA de referidos también en la
-    // renovación — no cualifican vínculos ni descuentan (T-161-05). Fase 177
-    // (D-13): un paquete renovado tampoco. Guard por categoría del plan de la
-    // sub renovada.
-    // Renovación prorrateada: el proporcional es el precio final, sin descuento
-    // de referido encima (excluyente, igual que el alta); el vínculo se cualifica
-    // en la primera renovación de mes completo (que sí corre esta lógica).
-    if (!excludedFromReferrals(plan.planCategory) && !input.prorateToMonthEnd) {
+    // Fase 157 + 194 (D-10b): flip del vínculo `pending` heredado en el primer cobro
+    // pago, gateado por el flag del plan (los pases especiales, paquetes y planes sin
+    // flag no cualifican, T-161-05). El precio ya NO depende del flip: el candidato del
+    // árbitro lo simuló. Renovación prorrateada: el proporcional es el precio final; el
+    // vínculo se cualifica en la primera renovación de mes completo.
+    if (planAllowsInvitationDiscount(plan) && !input.prorateToMonthEnd) {
       await this.qualifyReferralOnCharge(ctx, userId, renewalPrice);
-      const referral = await this.computePriceWithReferralDiscount(
-        ctx,
-        userId,
-        renewalPrice,
-      );
-      renewalPrice = referral.pricePaid;
-      referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
-      referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
     }
 
     // If old sub is already expired, close it now (below).
@@ -6217,6 +6111,9 @@ export class SubscriptionService {
     // Wrap close-old (if expired) + new-sub INSERT + dependent writes in a
     // single transaction so Task 1b's recomputeUserStatus rolls back
     // atomically with the new sub on failure.
+    // Invitador a avisar tras el commit (lo setea la tx si nació el vínculo).
+    // (`as`: TS no ve las asignaciones dentro del callback y angostaría a `null`.)
+    let linkedInviterId = null as number | null;
     const { newSubscriptionId } = await this.db.transaction(async (tx) => {
       if (oldSubExpired) {
         await tx
@@ -6261,8 +6158,8 @@ export class SubscriptionService {
                 : "paga",
           referralDiscountPercent,
           referralDiscountAmount,
-          // Fase 179 (D-09): descuento de partner materializado (ver bloque
-          // de arriba — sin bloque AURA en este método, se aplica directo).
+          // Fase 179 (D-09): descuento de partner materializado solo si el árbitro
+          // lo eligió (194-18: compite con la invitación por monto).
           partnerDiscountPercent,
           partnerDiscountAmount,
           classesRemaining: periodBudget,
@@ -6423,11 +6320,32 @@ export class SubscriptionService {
         cashRegisterId: suggestedCajaId,
       });
 
+      // Fase 194 D-05/D-13 (T-194-53): vínculo del invitado con el cobro, en la tx (si el
+      // cobro falla no queda vínculo). Casi siempre ya nació en el alta; solo si el alta
+      // no lo creó y esta renovación cae en la ventana D-13.
+      linkedInviterId = await this.materializeSettlementLink(
+        tx,
+        ctx,
+        settlement,
+        userId,
+      );
+
       return { newSubscriptionId: subId };
     });
 
-    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0
-    // (los pases especiales quedan en 0/0 por el guard D-09 de arriba).
+    // Fase 194 D-05: aviso al invitador DESPUÉS del commit (best-effort).
+    if (linkedInviterId !== null) {
+      await notifyInviterLinkActivated(
+        this.db,
+        this.log,
+        ctx,
+        linkedInviterId,
+        userId,
+      );
+    }
+
+    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
+    // `percent` = % NOMINAL, `amount` = monto recortado por el tope (D-10c).
     await this.recordReferralCreditOnCharge(
       ctx,
       userId,
@@ -6447,14 +6365,15 @@ export class SubscriptionService {
       newSubscriptionId,
     );
 
-    // Partners (D-09/D-10/D-20): consume el beneficio de descuento (sin
-    // bloque AURA en este método, `won` es simplemente "había candidato").
+    // Partners (D-09/D-10/D-21): consume el beneficio de descuento. `won` = el árbitro
+    // lo eligió (si la invitación ganó por monto, el beneficio se consume igual como
+    // `perdio_vs_aura`: la primera cuota ya pasó).
     await this.consumePartnerBenefitAfterCharge(ctx, {
       userId,
       subscriptionId: newSubscriptionId,
       pricePaid: renewalPrice,
       candidate: partnerBenefitCandidate,
-      won: partnerBenefitCandidate !== null,
+      won: settlement.partnerWon,
       wonPercent: partnerDiscountPercent,
       wonAmount: partnerDiscountAmount,
     });

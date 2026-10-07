@@ -11,7 +11,18 @@
 //
 // El descuento AURA solo guardó el % (`aura_discount` son los PUNTOS gastados, no
 // plata) y el cobro lo calculó como `floor(base * pct / 100)`. Se invierte esa fórmula.
-// Pura y sin I/O (se prueba en test/subscriptions/renewal-base.test.ts).
+// `reconstructRenewalBase` es pura (se prueba en test/subscriptions/renewal-base.test.ts);
+// `resolveRenewalBase` (extraída de `service.ts` en 194-18) lee la cadena de períodos.
+
+import { and, eq } from "drizzle-orm";
+import type { MySql2Database } from "drizzle-orm/mysql2";
+import type { FastifyBaseLogger } from "fastify";
+import * as schema from "../../db/schema";
+import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { isMonthEndProratedPeriod } from "./month-end";
+import type { PlanDetail, PriceType, RenewalBaseSource } from "./types";
+
+type DbInstance = MySql2Database<typeof schema>;
 
 /** Datos de la sub del período anterior que hacen falta para reconstruir su base. */
 export interface RenewalBaseInput {
@@ -66,4 +77,114 @@ export function reconstructRenewalBase(
     return neto;
   }
   return base;
+}
+
+/**
+ * Tope de saltos hacia atrás por `previousSubscriptionId` al buscar el último
+ * período completo (resolveRenewalBase). Dos períodos parciales seguidos ya son
+ * raros; el tope solo acota el peor caso de una cadena corrupta.
+ */
+const MAX_RENEWAL_BASE_HOPS = 6;
+
+/** Campos de la sub que renueva `renewSubscription` que hacen falta para resolver su base. */
+export interface RenewalBaseSub extends RenewalBaseInput {
+  planId: number;
+  startDate: string;
+  endDate: string | null;
+  priceTypeApplied: string;
+  previousSubscriptionId: number | null;
+}
+
+/**
+ * Base PRE-descuento de referido del MES COMPLETO que hereda una renovación,
+ * antes de la normalización WR-04 y de cualquier override o prorrateo de ESTA
+ * renovación.
+ *
+ * Por defecto es lo que el socio venía pagando (`pricePaid` + add-back del
+ * referido — caso Pomilio: preserva precios negociados). Excepción: si el
+ * período actual fue PARCIAL (alta o renovación prorrateada hasta fin de mes)
+ * su `pricePaid` es un proporcional, y heredarlo renovaba el mes completo al
+ * precio de los días sueltos (caso BCN sept 2026: alta del 25 al 30/9 por 12 €
+ * y la renovación ofrecía 12 € por el mes, con el prorrateo topeado en 12).
+ * Ahí se busca hacia atrás el último período COMPLETO del mismo plan y tipo de
+ * precio (preserva el negociado de quien pasó por una renovación prorrateada);
+ * si no hay (el parcial fue el alta), el precio de lista del plan.
+ */
+export async function resolveRenewalBase(
+  deps: { db: DbInstance; log: FastifyBaseLogger },
+  ctx: TenantContext,
+  userId: number,
+  currentSub: RenewalBaseSub,
+  plan: Pick<PlanDetail, "durationDays">,
+  /** Precio de lista del plan para un tipo de precio. */
+  basePriceOf: (priceType: PriceType) => number,
+): Promise<{ base: number; source: RenewalBaseSource }> {
+  // Fase 194-18 (D-22): la base heredada devuelve TODA promo del período anterior
+  // (referido, partner y AURA), no solo el referido: ninguna promo queda "pegada".
+  const inheritedBase = (sub: RenewalBaseInput) =>
+    reconstructRenewalBase(sub, () =>
+      deps.log.warn(
+        { userId, planId: currentSub.planId, pricePaid: sub.pricePaid },
+        "renovación: no se pudo reconstruir la base pre-AURA, se hereda el neto sin AURA",
+      ),
+    );
+
+  if (
+    !isMonthEndProratedPeriod(
+      currentSub.startDate,
+      currentSub.endDate,
+      plan.durationDays,
+    )
+  ) {
+    return { base: inheritedBase(currentSub), source: "inherited" };
+  }
+
+  let previousId = currentSub.previousSubscriptionId;
+  for (let hop = 0; previousId !== null && hop < MAX_RENEWAL_BASE_HOPS; hop++) {
+    const [previous] = await deps.db
+      .select({
+        planId: schema.subscriptions.planId,
+        startDate: schema.subscriptions.startDate,
+        endDate: schema.subscriptions.endDate,
+        pricePaid: schema.subscriptions.pricePaid,
+        priceTypeApplied: schema.subscriptions.priceTypeApplied,
+        referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
+        partnerDiscountAmount: schema.subscriptions.partnerDiscountAmount,
+        auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
+      })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.id, previousId),
+          eq(schema.subscriptions.userId, userId),
+        ),
+      )
+      .limit(1);
+    // Otro plan u otro tipo de precio: lo que pagaba ahí no es la base de
+    // este plan → precio de lista.
+    if (
+      !previous ||
+      previous.planId !== currentSub.planId ||
+      previous.priceTypeApplied !== currentSub.priceTypeApplied
+    ) {
+      break;
+    }
+    if (
+      !isMonthEndProratedPeriod(
+        previous.startDate,
+        previous.endDate,
+        plan.durationDays,
+      )
+    ) {
+      return { base: inheritedBase(previous), source: "previous_period" };
+    }
+    previousId = previous.previousSubscriptionId;
+  }
+
+  return {
+    base: basePriceOf(currentSub.priceTypeApplied as PriceType),
+    source: "plan_price",
+  };
 }

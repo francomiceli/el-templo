@@ -564,8 +564,41 @@ export type RenewalBaseSource = "inherited" | "previous_period" | "plan_price";
  */
 export interface RenewalPreview {
   subscriptionId: number;
+  /** Base del mes completo (D-22: sin promos pegadas), antes de normalización/override/prorrateo. */
   base: number;
   source: RenewalBaseSource;
+  /**
+   * Precio de ESTA renovación antes de partner/invitación: la base normalizada por la regla
+   * de recargo, el precio personalizado o el proporcional, según las opciones del preview.
+   * Sin opciones y sin normalización es igual a `base`.
+   */
+  basePrice: number;
+  /** % NOMINAL de la invitación si ganó, si no 0. */
+  invitationDiscountPercent: number;
+  /** Monto de la invitación ya recortado por el tope en dinero (D-10c). */
+  invitationDiscountAmount: number;
+  invitationDiscountCapped: boolean;
+  /** AURA y boarding pass no existen en la renovación: acá solo `none | partner | invitation`. */
+  winningDiscount: WinningDiscount;
+  partnerDiscountPercent: number;
+  partnerDiscountAmount: number;
+  /** Lo que cobra `renewSubscription` con los mismos inputs (`price_paid` de la sub nueva). */
+  finalPrice: number;
+}
+
+/**
+ * Inputs OPCIONALES del preview de renovación: los mismos que cambian el precio de
+ * `renewSubscription`. El medio de pago NO cambia el precio de una renovación (la
+ * normalización por recargo de tarjeta depende del tipo de precio de la sub y de la regla
+ * del tenant, no del medio elegido), por eso no es una opción.
+ */
+export interface RenewalPreviewOptions {
+  /** Inicio custom de la renovación (YYYY-MM-DD); relevante para el proporcional. */
+  startDate?: string;
+  prorateToMonthEnd?: boolean;
+  /** Precio personalizado (>= 0) o, con `prorateToMonthEnd`, el proporcional editado. */
+  priceOverrideAmount?: number;
+  priceOverrideReason?: string;
 }
 
 export interface RenewSubscriptionInput {

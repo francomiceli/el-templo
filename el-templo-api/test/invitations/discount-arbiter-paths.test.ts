@@ -1,6 +1,6 @@
 /**
  * Fase 194 — el ÁRBITRO de descuentos en las charge-paths que NO son el alta
- * (194-16 changePlanAfterCurrent; 194-17 changePlanNow; 194-18 agrega su describe acá).
+ * (194-16 changePlanAfterCurrent; 194-17 changePlanNow; 194-18 renewSubscription).
  *
  * Cobros reales por HTTP (`POST .../subscription/change-plan` con
  * `startMode: "after_current"` o `"now"`). Números redondos: plan destino de 100000 ARS
@@ -42,6 +42,7 @@ import {
   settlementColumns,
   type ChargeSettlement,
 } from "../../src/modules/subscriptions/discount-arbiter";
+import { computeProratedPrice } from "../../src/modules/subscriptions/month-end";
 import {
   createInvitationRow,
   createInviterWithCode,
@@ -1036,6 +1037,412 @@ describe("changePlanNow", () => {
       const res = await changeNow(payer, await nowTargetPlan(false));
       expect(res.statusCode).toBe(201);
       expect((await readSub(res.body.id as number)).pricePaid).toBe(NOW_NET);
+      expect(await referralRowsOf(payer.id)).toHaveLength(0);
+    });
+  });
+});
+
+// ─── renewSubscription (194-18) ──────────────────────────────────────────────
+
+interface RenewablePayer extends Payer {
+  planId: number;
+  subscriptionId: number;
+}
+
+/**
+ * Socio con una membresía paga ACTIVA del plan de 100000 (con o sin flag D-10b): la
+ * renovación hereda el plan. Se asigna ANTES de crear vínculos/partner para que el alta
+ * no lleve descuento.
+ */
+async function payerWithRenewableSub(
+  allowsInvitationDiscount = true,
+): Promise<RenewablePayer> {
+  const member = await createMemberInPhysicalBranch(ctx, { status: "prueba" });
+  const planId = await monthPlan(allowsInvitationDiscount);
+  const res = await assignPlan(app, adminToken, member.id, {
+    planId,
+    branchId: member.branchId,
+    startDate: todayInTz(TZ_AR),
+  });
+  expect(res.statusCode).toBe(201);
+  return {
+    id: member.id,
+    branchId: member.branchId,
+    planId,
+    subscriptionId: res.body.id as number,
+  };
+}
+
+async function renew(
+  payer: Payer,
+  extra: Record<string, unknown> = {},
+): Promise<{ statusCode: number; body: Record<string, unknown> }> {
+  const res = await app.inject({
+    method: "POST",
+    url: `${SUBSCRIPTIONS_URL}/members/${payer.id}/subscription/renew`,
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { paymentMethod: "cash", ...extra },
+  });
+  return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+}
+
+/** Monto del cobro (`financial_transactions`) ligado a una sub: el que exporta SEPA. */
+async function chargeAmountOf(subscriptionId: number): Promise<number> {
+  const rows = await app.db
+    .select({ amount: schema.financialTransactions.amount })
+    .from(schema.financialTransactions)
+    .innerJoin(
+      schema.transactionLinks,
+      and(
+        tenantWhere(schema.transactionLinks, ctx.tenant),
+        eq(
+          schema.transactionLinks.transactionId,
+          schema.financialTransactions.id,
+        ),
+      ),
+    )
+    .where(
+      and(
+        tenantWhere(schema.financialTransactions, ctx.tenant),
+        eq(schema.transactionLinks.targetId, subscriptionId),
+      ),
+    );
+  expect(rows).toHaveLength(1);
+  return rows[0].amount;
+}
+
+describe("renewSubscription", () => {
+  it("(1) solo invitación 10% (vínculo heredado): 100000 -> 90000 con columnas y crédito; el monto cobrado es el neto", async () => {
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.status).toBe("scheduled");
+    expect(row.pricePaid).toBe(90000);
+    expect(row.referralDiscountPercent).toBe(10);
+    expect(row.referralDiscountAmount).toBe(10000);
+    expect(row.partnerDiscountAmount).toBeNull();
+    expect(row.auraDiscount).toBeNull();
+    expect(await creditOf(payer.id)).toEqual({ percent: 10, amount: 10000 });
+    // El monto que registra el cobro (y que exporta la domiciliación SEPA) es el neto.
+    expect(await chargeAmountOf(res.body.id as number)).toBe(90000);
+  });
+
+  it("(2) partner 20% (20000) gana a la invitación 10% (10000): 80000, un solo descuento y el beneficio queda aplicado", async () => {
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+    await givePartner(payer.id, 20);
+
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    // Antes de 194-18 componían: 100000 - 20000 - 8000 = 72000.
+    expect(row.pricePaid).toBe(80000);
+    expect(row.partnerDiscountPercent).toBe(20);
+    expect(row.partnerDiscountAmount).toBe(20000);
+    expect(row.referralDiscountPercent).toBeNull();
+    expect(row.referralDiscountAmount).toBeNull();
+    expect(await creditOf(payer.id)).toBeUndefined();
+    const link = await partnerLinkOf(payer.id);
+    expect(link.benefit_status).toBe("consumed");
+    expect(link.applied_reason).toBe("aplicado");
+  });
+
+  it("(3) partner 5% (5000) pierde contra la invitación 10% (10000): 90000 y el beneficio se consume como perdio_vs_aura", async () => {
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+    await givePartner(payer.id, 5);
+
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(90000);
+    expect(row.referralDiscountAmount).toBe(10000);
+    expect(row.partnerDiscountAmount).toBeNull();
+    expect(row.partnerDiscountPercent).toBeNull();
+    const link = await partnerLinkOf(payer.id);
+    expect(link.benefit_status).toBe("consumed");
+    expect(link.applied_reason).toBe("perdio_vs_aura");
+  });
+
+  it("(4) tope en dinero AR 5000 (D-10c): 95000, crédito con % nominal 10 y monto recortado 5000", async () => {
+    await setInvitationSettings(app.db, ctx.tenant, {
+      discountCapAmount: { AR: 5000 },
+    });
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(95000);
+    expect(row.referralDiscountPercent).toBe(10);
+    expect(row.referralDiscountAmount).toBe(5000);
+    expect(await creditOf(payer.id)).toEqual({ percent: 10, amount: 5000 });
+  });
+
+  it("(4b) tope AR 5000 + partner 7% (7000): el monto recortado pierde, gana el partner (93000)", async () => {
+    await setInvitationSettings(app.db, ctx.tenant, {
+      discountCapAmount: { AR: 5000 },
+    });
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+    await givePartner(payer.id, 7);
+
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(93000);
+    expect(row.partnerDiscountAmount).toBe(7000);
+    expect(row.referralDiscountAmount).toBeNull();
+  });
+
+  it("(5) plan SIN flag (D-10b): la invitación no descuenta ni cualifica; el partner SÍ descuenta (el flag es solo de la invitación)", async () => {
+    const payer = await payerWithRenewableSub(false);
+    await giveQualifiedLink(payer.id);
+    const sinPartner = await renew(payer);
+    expect(sinPartner.statusCode).toBe(201);
+    const rowPlain = await readSub(sinPartner.body.id as number);
+    expect(rowPlain.pricePaid).toBe(BASE);
+    expect(rowPlain.referralDiscountAmount).toBeNull();
+    expect(await creditOf(payer.id)).toBeUndefined();
+
+    const other = await payerWithRenewableSub(false);
+    await givePartner(other.id, 20);
+    const conPartner = await renew(other);
+    expect(conPartner.statusCode).toBe(201);
+    const rowPartner = await readSub(conPartner.body.id as number);
+    expect(rowPartner.pricePaid).toBe(80000);
+    expect(rowPartner.partnerDiscountAmount).toBe(20000);
+  });
+
+  it("(5b) plan SIN flag + vínculo `pending` heredado: la renovación NO lo cualifica (antes cualificaba sin gate)", async () => {
+    const payer = await payerWithRenewableSub(false);
+    const referrer = await createInviterWithCode(ctx);
+    await app.db.execute(
+      sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+          VALUES (${ctx.tenant.tenantId}, ${referrer.id}, ${payer.id}, 'pending', 'assisted')`,
+    );
+
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    expect((await readSub(res.body.id as number)).pricePaid).toBe(BASE);
+    const [link] = await referralRowsOf(payer.id);
+    expect(link.status).toBe("pending");
+  });
+
+  it("(5c) plan CON flag + vínculo `pending` heredado: la renovación lo cualifica y descuenta 10% en el mismo cobro", async () => {
+    const payer = await payerWithRenewableSub(true);
+    const referrer = await createInviterWithCode(ctx);
+    await app.db.execute(
+      sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+          VALUES (${ctx.tenant.tenantId}, ${referrer.id}, ${payer.id}, 'pending', 'assisted')`,
+    );
+
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    expect((await readSub(res.body.id as number)).pricePaid).toBe(90000);
+    const [link] = await referralRowsOf(payer.id);
+    expect(link.status).toBe("qualified");
+  });
+
+  it("(6) override con motivo (D-20): el precio es el override, ni la invitación ni el partner descuentan encima y el beneficio de partner no se consume", async () => {
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+    await givePartner(payer.id, 20);
+
+    const res = await renew(payer, {
+      priceOverrideAmount: 60000,
+      priceOverrideReason: "Convenio 194-18",
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    // Antes de 194-18 el partner y el referido descontaban ENCIMA del override.
+    expect(row.pricePaid).toBe(60000);
+    expect(row.priceOverrideAmount).toBe(60000);
+    expect(row.referralDiscountAmount).toBeNull();
+    expect(row.partnerDiscountAmount).toBeNull();
+    expect(await creditOf(payer.id)).toBeUndefined();
+    expect((await partnerLinkOf(payer.id)).benefit_status).toBe("pending");
+  });
+
+  it("(6b) override sin motivo sigue siendo 400 y no deja sub ni crédito", async () => {
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+
+    const res = await renew(payer, { priceOverrideAmount: 60000 });
+    expect(res.statusCode).toBe(400);
+    expect(await creditOf(payer.id)).toBeUndefined();
+  });
+
+  it("(7) prorrateo a fin de mes: el proporcional es el precio final, sin descuento; partner e invitación quedan intactos", async () => {
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+    await givePartner(payer.id, 20);
+
+    const res = await renew(payer, { prorateToMonthEnd: true });
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(
+      computeProratedPrice(BASE, res.body.startDate as string),
+    );
+    expect(row.referralDiscountAmount).toBeNull();
+    expect(row.partnerDiscountAmount).toBeNull();
+    expect((await partnerLinkOf(payer.id)).benefit_status).toBe("pending");
+  });
+
+  it("(8) D-08/D-22: una sub histórica compuesta (AURA 10% + referido, 81000) NO se toca; su renovación parte de 100000 y aplica UNA sola promo", async () => {
+    const payer = await payerWithRenewableSub();
+    // Sub histórica con la composición vieja: 100000 - 10% AURA (10000) - 9000 de referido.
+    await app.db.execute(
+      sql`UPDATE subscriptions
+          SET price_paid = 81000, aura_discount_percent = 10, aura_discount = 1000,
+              referral_discount_percent = 10, referral_discount_amount = 9000
+          WHERE id = ${payer.subscriptionId} AND tenant_id = ${ctx.tenant.tenantId}`,
+    );
+
+    const sinVinculo = await renew(payer);
+    expect(sinVinculo.statusCode).toBe(201);
+    expect((await readSub(sinVinculo.body.id as number)).pricePaid).toBe(BASE);
+    // La sub vieja queda exactamente como estaba (D-08: sin retroactividad).
+    expect(await readSub(payer.subscriptionId)).toMatchObject({
+      pricePaid: 81000,
+      auraDiscountPercent: 10,
+      auraDiscount: 1000,
+      referralDiscountPercent: 10,
+      referralDiscountAmount: 9000,
+    });
+  });
+
+  it("(8b) esa misma sub histórica con vínculo vigente: la renovación lleva SOLO la invitación (90000), no AURA + referido", async () => {
+    const payer = await payerWithRenewableSub();
+    await app.db.execute(
+      sql`UPDATE subscriptions
+          SET price_paid = 81000, aura_discount_percent = 10, aura_discount = 1000,
+              referral_discount_percent = 10, referral_discount_amount = 9000
+          WHERE id = ${payer.subscriptionId} AND tenant_id = ${ctx.tenant.tenantId}`,
+    );
+    await giveQualifiedLink(payer.id);
+
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(90000);
+    expect(row.referralDiscountAmount).toBe(10000);
+    expect(row.auraDiscount).toBeNull();
+    expect(row.auraDiscountPercent).toBeNull();
+  });
+
+  it("(9) amountReceived = neto con descuento: cobro completo sin saldo; uno más es 400", async () => {
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+
+    const tooMuch = await renew(payer, { amountReceived: 90001 });
+    expect(tooMuch.statusCode).toBe(400);
+
+    const exact = await renew(payer, { amountReceived: 90000 });
+    expect(exact.statusCode).toBe(201);
+    expect(await chargeAmountOf(exact.body.id as number)).toBe(90000);
+  });
+
+  it("(10) si el cobro falla (amountReceived de más) no queda sub nueva ni crédito", async () => {
+    const payer = await payerWithRenewableSub();
+    await giveQualifiedLink(payer.id);
+
+    const res = await renew(payer, { amountReceived: 999999 });
+    expect(res.statusCode).toBe(400);
+    const subs = await app.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx.tenant),
+          eq(schema.subscriptions.userId, payer.id),
+        ),
+      );
+    expect(subs).toHaveLength(1);
+    expect(await creditOf(payer.id)).toBeUndefined();
+  });
+
+  it("(11) sin ningún descuento: renueva a la base heredada (100000), sin columnas ni crédito", async () => {
+    const payer = await payerWithRenewableSub();
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(BASE);
+    expect(row.referralDiscountAmount).toBeNull();
+    expect(row.partnerDiscountAmount).toBeNull();
+    expect(await creditOf(payer.id)).toBeUndefined();
+  });
+
+  describe("vínculo de invitación que nace con la renovación (D-05 / D-13)", () => {
+    /** Invitado con una sub paga activa (plan con flag) e invitación `active` en ventana. */
+    async function inviteeWithRenewableSub(inviter: {
+      id: number;
+    }): Promise<RenewablePayer> {
+      const payer = await payerWithRenewableSub(true);
+      const accessExpiresOn = addDays(todayInTz(TZ_AR), 5);
+      await createInvitationRow(ctx, {
+        inviterId: inviter.id,
+        invitedUserId: payer.id,
+        branchId: payer.branchId,
+        channel: "assisted",
+        accessExpiresOn,
+        accessStartsOn: addDays(accessExpiresOn, -5),
+        subscriptionId: null,
+      });
+      return payer;
+    }
+
+    it("invitación en ventana: descuenta 90000, crea el vínculo qualified y avisa al invitador", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      await giveDeviceToken(inviter.id);
+      const payer = await inviteeWithRenewableSub(inviter);
+
+      const res = await renew(payer);
+      expect(res.statusCode).toBe(201);
+      const row = await readSub(res.body.id as number);
+      expect(row.pricePaid).toBe(90000);
+      expect(row.referralDiscountAmount).toBe(10000);
+      const links = await referralRowsOf(payer.id);
+      expect(links).toHaveLength(1);
+      expect(links[0]).toMatchObject({
+        referrerId: inviter.id,
+        status: "qualified",
+        attributionChannel: "assisted",
+      });
+      expect(await creditOf(payer.id)).toEqual({ percent: 10, amount: 10000 });
+      expect(await notificationKeysOf(inviter.id)).toEqual([
+        "referral_link_activated",
+      ]);
+    });
+
+    it("override con motivo: el precio es el override pero el vínculo nace igual", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      const payer = await inviteeWithRenewableSub(inviter);
+
+      const res = await renew(payer, {
+        priceOverrideAmount: 70000,
+        priceOverrideReason: "Convenio 194-18",
+      });
+      expect(res.statusCode).toBe(201);
+      const row = await readSub(res.body.id as number);
+      expect(row.pricePaid).toBe(70000);
+      expect(row.referralDiscountAmount).toBeNull();
+      expect(await referralRowsOf(payer.id)).toHaveLength(1);
+    });
+
+    it("prorrateo a fin de mes: ni descuento ni vínculo (nace en la primera renovación de mes completo)", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      const payer = await inviteeWithRenewableSub(inviter);
+
+      const res = await renew(payer, { prorateToMonthEnd: true });
+      expect(res.statusCode).toBe(201);
+      expect(
+        (await readSub(res.body.id as number)).referralDiscountAmount,
+      ).toBeNull();
       expect(await referralRowsOf(payer.id)).toHaveLength(0);
     });
   });

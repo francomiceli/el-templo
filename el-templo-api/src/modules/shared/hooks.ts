@@ -130,6 +130,7 @@ export type PricingCallSite =
   | "assign"
   | "change-now"
   | "change-after-current"
+  | "renew"
   | "preview";
 
 /**

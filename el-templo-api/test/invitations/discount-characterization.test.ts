@@ -12,8 +12,9 @@
  * que la fase va a CAMBIAR a propósito (AURA→referido, partner→referido,
  * override→referido, boarding pass→referido, add-back de renovación). Cada `it`
  * lleva una anotación:
- *   - `// 194: cambia en 194-NN por D-XX` → el plan NN cambia esta expectativa
- *     a propósito (y la reemplaza por `// 194-NN D-XX: <qué cambió>`).
+ *   - anotación de cambio pendiente (`194: cambia` + el plan + la decisión) → el plan NN
+ *     cambia esta expectativa a propósito y la reemplaza por `// 194-NN D-XX: <qué
+ *     cambió>`. Con 194-18 no queda ninguna: todos los cambios de plata se materializaron.
  *   - `// 194: se conserva` → el comportamiento NO debe cambiar.
  * Así cada cambio de plata posterior aparece como cambio de EXPECTATIVA
  * revisable en el diff de este archivo (T-194-05 / T-194-06), nunca como efecto
@@ -602,13 +603,21 @@ describe("caracterización pre-194: renewSubscription y getRenewalPreview", () =
     expect(firstRow.pricePaid).toBe(90000);
     expect(firstRow.referralDiscountAmount).toBe(10000);
 
-    // Hoy el preview devuelve SOLO la base del mes completo (el admin
-    // multiplica el % en el cliente — Pitfall 6): sin campos de descuento.
+    // 194-18: el preview ya no devuelve solo la base: suma los MONTOS del cobro (Pitfall 6),
+    // el admin deja de multiplicar el % en el cliente. El precio NO cambia (90000).
     const preview = await renewalPreview(payer.id);
     expect(preview).toEqual({
       subscriptionId: first.body.id,
       base: 100000, // 90000 pagado + 10000 de add-back del referido
       source: "inherited",
+      basePrice: 100000,
+      invitationDiscountPercent: 10,
+      invitationDiscountAmount: 10000,
+      invitationDiscountCapped: false,
+      winningDiscount: "invitation",
+      partnerDiscountPercent: 0,
+      partnerDiscountAmount: 0,
+      finalPrice: 90000,
     });
 
     const res = await renew(payer.id);
