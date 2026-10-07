@@ -81,7 +81,8 @@ findings:
   critical: 2
   warning: 9
   info: 11
-status: issues_found
+status: resolved_api_pending_frontend
+resolution_plan: 194-33 (API) y 194-34 (admin y app)
 ---
 
 # Fase 194 (Invitaciones): Reporte de revisión de código
@@ -90,6 +91,34 @@ status: issues_found
 **Profundidad:** deep (flujo de cobros trazado extremo a extremo, análisis de ciclos de importación, tenancy, frontends)
 **Alcance:** lo que aporta la fase sobre `origin/master` (`git diff origin/master...HEAD`, 114 archivos de `src/`); tests solo como chequeo de calidad.
 **Verificaciones mecánicas corridas:** `tsc --noEmit` (API) limpio, `pnpm lint:tenant` con `DISCREPANCIAS: 0`, `eslint` limpio sobre los archivos nuevos de app y admin. Sin `any`, sin `console.*`, sin `@ts-ignore` en el diff.
+
+## Estado de resolución (decisión de Franco 2026-10-07)
+
+Ejecutado en `194-33` (API); lo marcado 194-34 es frontend. Detalle hallazgo -> commit -> test en `194-33-SUMMARY.md`.
+
+| ID | Estado | Commit / nota |
+|---|---|---|
+| HI-01 | **ACEPTADO (riesgo asumido por Franco)** | Sin cambios. Un corte de proceso entre el commit de la fila `invitations` y el paso 4 deja una invitación `active` sin sub que consume cupo y ventana; el rescate es manual (anular desde la ficha). |
+| HI-02 | RESUELTO (API), UI en 194-34 | `84395c462`. Guards en update/deactivate/create, 1 plan por país (409), accesos editables por `PUT /settings/invitations`. Pendiente: seed del plan Invitación para tenants nuevos (checklist de onboarding) y `plan_kind` explícito (mediano plazo). |
+| ME-01 | RESUELTO | `c045d6f1c` (`charge-side-effects.ts`). `service.ts` 8086 -> 7629. |
+| ME-02 | RESUELTO (en lo de la fase) | `3f4050b7c`. Salen del ciclo el árbitro, `referrals/service`, settings, rules, overview y link. Queda el ciclo preexistente `communications`, `notifications`, `subscriptions`. |
+| ME-03 | RESUELTO (API), app en 194-34 | `17a112339`. Copy `INVITEE_MESSAGES`; el `reason` sigue en el JSON. |
+| ME-04 | RESUELTO | `17a112339`. 403 si `role !== "member"`. |
+| ME-05 | RESUELTO | `9fb3172b3`. Invitador (y el del alta `/trial`) acotados a las sedes del `admin_sede`. |
+| ME-06 | RESUELTO | `1ddad6f27`. Compra con inicio futuro recorta al día previo al inicio (decisión de Franco). |
+| ME-07 | RESUELTO sin cambio de comportamiento | `4630b1b4c`. Una base (`paidSinceActivationSql`) más el calificador de vigencia. **Abierta la decisión de producto** de si canceladas o programadas convierten. |
+| ME-08 | RESUELTO (API) | `00bb1e2c3`. "Importe último cobro" y "Moneda último cobro". |
+| ME-09 | FUERA (UAT) | Queda en el checklist de UAT con prueba a las 21:30 AR. |
+| LO-01 | FUERA | Sin cambios. |
+| LO-02 | RESUELTO | `4ca5a80fa`. |
+| LO-03 | RESUELTO (API), admin en 194-34 | `84395c462`. Schema generado de `INT_SETTINGS` y `limits` en el GET. |
+| LO-04 | RESUELTO (API) | `fe1628ef5`. Queda `shiftMonth`/`currentMonth` de `InvitationsReport.vue` en 194-34. El reporte sigue con la zona por defecto, no la del gimnasio. |
+| LO-05 | 194-34 | Respuesta del socio / app. |
+| LO-06 | RESUELTO | `a41418b02`, `c398d3a62`. Teléfono: se eligió el rastro en `audit_log` (`invitation_phone_replaced`) en vez de no pisarlo. |
+| LO-07 | RESUELTO (API), resto en 194-34 | `9bf1c2e93`. Quedan el fallback de `ReferralCtaCard.vue` y el "null accesos" del admin. |
+| LO-08 | FUERA | Sin cambios. |
+| LO-09 | FUERA | Sin cambios. |
+| LO-10 | 194-34 | Frontend. |
 
 ## Resumen
 
