@@ -318,7 +318,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'configuracion/precios',
         component: () => import('pages/ConfiguracionPreciosPage.vue'),
-        meta: { allowedRoles: ['owner'] as AdminRole[] },
+        // Fase 194 (D-10c): gestión carga el tope de invitaciones acá; las reglas de
+        // tarjeta/Precio Zero de la página se esconden a quien no es owner.
+        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
         // Comunicaciones (Fase 193, D-30/D-31): reemplaza a Notificaciones.

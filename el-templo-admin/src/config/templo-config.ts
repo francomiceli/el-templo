@@ -355,7 +355,8 @@ export const NAV_MODEL: NavCategory[] = [
         path: '/configuracion/precios',
         label: 'Reglas de precio',
         icon: 'sell',
-        roles: ['owner'],
+        // Fase 194 (D-10c): gestión/admin entran por la tarjeta de Invitaciones.
+        roles: ['gestion', 'admin', 'owner'],
       },
       {
         path: '/comunicaciones',
