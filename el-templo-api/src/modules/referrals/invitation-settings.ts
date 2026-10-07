@@ -38,7 +38,7 @@ import { and, eq, like } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../../db/schema";
-import { tenantSettings } from "../../db/schema";
+import { subscriptionPlans, tenantSettings } from "../../db/schema";
 import {
   tenantWhere,
   tenantValues,
@@ -98,6 +98,72 @@ const INT_SETTINGS = {
 
 export type InvitationIntSettingName = keyof typeof INT_SETTINGS;
 
+/**
+ * Cantidad de accesos de una invitación = `classes_per_week` del plan
+ * Invitación (HI-02). Rango inclusivo, fuente ÚNICA (ruta, servicio y admin).
+ */
+export const ACCESSES_PER_INVITATION_RANGE = { min: 1, max: 10 } as const;
+
+export interface IntRange {
+  min: number;
+  max: number;
+}
+
+/**
+ * Rangos de TODOS los parámetros numéricos editables (LO-03). Es la única fuente:
+ * el JSON-schema del PUT se genera de acá y el GET los devuelve como `limits`
+ * para que el admin no los duplique.
+ */
+export function getInvitationSettingLimits(): Record<
+  InvitationIntSettingName | "accessesPerInvitation",
+  IntRange
+> {
+  const limits = {
+    accessesPerInvitation: { ...ACCESSES_PER_INVITATION_RANGE },
+  };
+  for (const name of Object.keys(INT_SETTINGS) as InvitationIntSettingName[]) {
+    const { min, max } = INT_SETTINGS[name];
+    Object.assign(limits, { [name]: { min, max } });
+  }
+  return limits as Record<
+    InvitationIntSettingName | "accessesPerInvitation",
+    IntRange
+  >;
+}
+
+/**
+ * JSON-schema (Fastify) del body del `PUT /invitations`, generado de los rangos
+ * de arriba. Un solo lugar donde cambiar un máximo.
+ */
+export function invitationSettingsBodySchema(): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  for (const name of Object.keys(INT_SETTINGS) as InvitationIntSettingName[]) {
+    const { min, max } = INT_SETTINGS[name];
+    properties[name] = { type: "integer", minimum: min, maximum: max };
+  }
+  const countryProps: Record<string, unknown> = {};
+  const accessesProps: Record<string, unknown> = {};
+  for (const country of INVITATION_CAP_COUNTRIES) {
+    countryProps[country] = { type: ["integer", "null"], minimum: 1 };
+    accessesProps[country] = {
+      type: "integer",
+      minimum: ACCESSES_PER_INVITATION_RANGE.min,
+      maximum: ACCESSES_PER_INVITATION_RANGE.max,
+    };
+  }
+  properties.discountCapAmount = {
+    type: "object",
+    properties: countryProps,
+    additionalProperties: false,
+  };
+  properties.accessesPerInvitation = {
+    type: "object",
+    properties: accessesProps,
+    additionalProperties: false,
+  };
+  return { type: "object", properties, additionalProperties: false };
+}
+
 /** Defaults en código (cuando no hay fila). Exportado para tests y consumidores. */
 export const INVITATION_SETTING_DEFAULTS: Readonly<
   Record<InvitationIntSettingName, number>
@@ -110,8 +176,10 @@ export const INVITATION_SETTING_DEFAULTS: Readonly<
   inviteePercent: INT_SETTINGS.inviteePercent.def,
 };
 
-export interface InvitationSettings
-  extends Record<InvitationIntSettingName, number> {
+export interface InvitationSettings extends Record<
+  InvitationIntSettingName,
+  number
+> {
   /** Tope en dinero por país (D-10c). `null` = sin tope. */
   discountCapAmount: Record<CountryCode, number | null>;
   /** Solo lectura: % por invitado activo (`aura_config['referral']`). */
@@ -125,6 +193,11 @@ export type InvitationSettingsPatch = Partial<
 > & {
   /** `null` borra la fila del país (vuelve a "sin tope"). */
   discountCapAmount?: Partial<Record<CountryCode, number | null>>;
+  /**
+   * Accesos por invitación por país (`classes_per_week` del plan Invitación).
+   * Las activaciones nuevas usan el valor nuevo; las ya activadas no cambian.
+   */
+  accessesPerInvitation?: Partial<Record<CountryCode, number>>;
 };
 
 /** `invitations.monthly_quota`, etc. */
@@ -236,6 +309,32 @@ export async function getDiscountCapAmount(
   return parseCap(row?.settingValue);
 }
 
+function validateAccessesPatch(
+  accesses: InvitationSettingsPatch["accessesPerInvitation"],
+): void {
+  if (accesses === undefined) return;
+  if (accesses === null || typeof accesses !== "object") {
+    throw new BadRequestError("accessesPerInvitation debe ser un objeto");
+  }
+  const { min, max } = ACCESSES_PER_INVITATION_RANGE;
+  for (const [country, value] of Object.entries(accesses)) {
+    if (!(INVITATION_CAP_COUNTRIES as readonly string[]).includes(country)) {
+      throw new BadRequestError(`País sin accesos configurables: ${country}`);
+    }
+    if (value === undefined) continue;
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+      throw new BadRequestError(
+        `Los accesos de ${country} deben ser un número entero`,
+      );
+    }
+    if (value < min || value > max) {
+      throw new BadRequestError(
+        `Los accesos de ${country} deben estar entre ${min} y ${max}`,
+      );
+    }
+  }
+}
+
 /**
  * Valida el patch COMPLETO sin tocar la base. Lanza {@link BadRequestError} con
  * el primer problema encontrado (T-194-22).
@@ -244,6 +343,7 @@ function validatePatch(patch: InvitationSettingsPatch): void {
   const allowed = new Set<string>([
     ...Object.keys(INT_SETTINGS),
     "discountCapAmount",
+    "accessesPerInvitation",
   ]);
   for (const key of Object.keys(patch)) {
     if (!allowed.has(key)) {
@@ -262,6 +362,8 @@ function validatePatch(patch: InvitationSettingsPatch): void {
       throw new BadRequestError(`${name} debe estar entre ${min} y ${max}`);
     }
   }
+
+  validateAccessesPatch(patch.accessesPerInvitation);
 
   const caps = patch.discountCapAmount;
   if (caps !== undefined) {
@@ -312,6 +414,13 @@ export async function setInvitationSettings(
     }
 
     for (const country of INVITATION_CAP_COUNTRIES) {
+      const accesses = patch.accessesPerInvitation?.[country];
+      if (accesses !== undefined) {
+        await updateInvitationPlanAccesses(tx, ctx, country, accesses);
+      }
+    }
+
+    for (const country of INVITATION_CAP_COUNTRIES) {
       const value = patch.discountCapAmount?.[country];
       if (value === undefined) continue;
       if (value === null) {
@@ -336,4 +445,100 @@ export async function setInvitationSettings(
         .onDuplicateKeyUpdate({ set: { settingValue: String(value) } });
     }
   });
+}
+
+// Plan Invitación del país = `is_trial` + `paquete` (espejo de `isInvitationPlan`).
+// El filtro se repite inline en cada query porque `lint:tenant` exige el
+// `tenantWhere` literal dentro de cada statement.
+
+/**
+ * Accesos por invitación por país: `classes_per_week` del plan Invitación.
+ * `null` = el país no tiene plan Invitación (o no tiene cupo definido).
+ */
+export async function getInvitationAccessesPerCountry(
+  db: DbInstance,
+  ctx: TenantContext,
+): Promise<Record<CountryCode, number | null>> {
+  const result: Record<CountryCode, number | null> = { AR: null, ES: null };
+  for (const country of INVITATION_CAP_COUNTRIES) {
+    const [row] = await db
+      .select({ classesPerWeek: subscriptionPlans.classesPerWeek })
+      .from(subscriptionPlans)
+      .where(
+        and(
+          tenantWhere(subscriptionPlans, ctx),
+          eq(subscriptionPlans.isTrial, true),
+          eq(subscriptionPlans.planCategory, "paquete"),
+          eq(subscriptionPlans.country, country),
+          eq(subscriptionPlans.isActive, true),
+          eq(subscriptionPlans.isArchived, false),
+        ),
+      )
+      .limit(1);
+    result[country] = row?.classesPerWeek ?? null;
+  }
+  return result;
+}
+
+/**
+ * Actualiza `classes_per_week` de los planes Invitación del país. Si el país no
+ * tiene plan Invitación es un problema de configuración: 400 (no se descarta en
+ * silencio) y, al correr en la transacción del PUT, no se escribe nada.
+ */
+async function updateInvitationPlanAccesses(
+  tx: Pick<DbInstance, "update" | "select">,
+  ctx: TenantContext,
+  country: CountryCode,
+  accesses: number,
+): Promise<void> {
+  const [exists] = await tx
+    .select({ id: subscriptionPlans.id })
+    .from(subscriptionPlans)
+    .where(
+      and(
+        tenantWhere(subscriptionPlans, ctx),
+        eq(subscriptionPlans.isTrial, true),
+        eq(subscriptionPlans.planCategory, "paquete"),
+        eq(subscriptionPlans.country, country),
+      ),
+    )
+    .limit(1);
+  if (!exists) {
+    throw new BadRequestError(
+      `No hay un plan de Invitación configurado para ${country}`,
+    );
+  }
+  await tx
+    .update(subscriptionPlans)
+    .set({ classesPerWeek: accesses })
+    .where(
+      and(
+        tenantWhere(subscriptionPlans, ctx),
+        eq(subscriptionPlans.isTrial, true),
+        eq(subscriptionPlans.planCategory, "paquete"),
+        eq(subscriptionPlans.country, country),
+      ),
+    );
+}
+
+/** Parámetros + accesos por país + rangos: lo que devuelven GET y PUT. */
+export interface InvitationSettingsView extends InvitationSettings {
+  accessesPerInvitation: Record<CountryCode, number | null>;
+  limits: ReturnType<typeof getInvitationSettingLimits>;
+}
+
+export async function getInvitationSettingsView(
+  db: DbInstance,
+  ctx: TenantContext,
+  log: FastifyBaseLogger,
+): Promise<InvitationSettingsView> {
+  const [settings, accessesPerInvitation] = await Promise.all([
+    getInvitationSettings(db, ctx, log),
+    getInvitationAccessesPerCountry(db, ctx),
+  ]);
+  return {
+    ...settings,
+    accessesPerInvitation,
+    limits: getInvitationSettingLimits(),
+  };
 }

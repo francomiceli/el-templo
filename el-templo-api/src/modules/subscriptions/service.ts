@@ -117,6 +117,11 @@ import {
   notifyReferralLinkActivated,
 } from "../referrals/invitation-link";
 import { PartnerReferralService } from "../referral-partners/service";
+import {
+  assertInvitationPlanDeactivationAllowed,
+  assertInvitationPlanUpdateAllowed,
+  assertNoOtherInvitationPlan,
+} from "./invitation-plan-guard";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -1417,6 +1422,13 @@ export class SubscriptionService {
     const country = input.country ?? "AR";
     const currency = country === "ES" ? "EUR" : "ARS";
 
+    // HI-02: un país no puede tener dos planes Invitación (409).
+    await assertNoOtherInvitationPlan(this.db, ctx, {
+      isTrial: input.isTrial ?? false,
+      planCategory,
+      country,
+    });
+
     // Plan row + program list must be atomic: validate the list against
     // existing programs (T-156-04) and persist both inside one transaction.
     // Duplicate plan name (UNIQUE name+country, incluye archivados) → 409 claro
@@ -1482,6 +1494,9 @@ export class SubscriptionService {
   ): Promise<PlanDetail | null> {
     const existing = await this.getPlanById(ctx, planId);
     if (!existing) return null;
+
+    // HI-02: el plan Invitación es del sistema (identidad, alcance y precio fijos).
+    assertInvitationPlanUpdateAllowed(existing, input);
 
     const updateData: Partial<typeof schema.subscriptionPlans.$inferInsert> =
       {};
@@ -1554,6 +1569,19 @@ export class SubscriptionService {
     // update (el flag viejo deja de tener sentido, no es un error del admin).
     const effectiveIsTrial =
       input.isTrial !== undefined ? input.isTrial : existing.isTrial;
+    // HI-02: si el estado final pasa a ser Invitación, no puede duplicar el del país.
+    if (!isInvitationPlan(existing)) {
+      await assertNoOtherInvitationPlan(
+        this.db,
+        ctx,
+        {
+          isTrial: effectiveIsTrial,
+          planCategory: effectiveCategory,
+          country: existing.country,
+        },
+        planId,
+      );
+    }
     if (input.allowsInvitationDiscount === undefined) {
       if (
         existing.allowsInvitationDiscount &&
@@ -1643,6 +1671,9 @@ export class SubscriptionService {
   ): Promise<PlanDetail | null> {
     const existing = await this.getPlanById(ctx, planId);
     if (!existing) return null;
+
+    // HI-02: sin plan Invitación activo se caen las activaciones del país.
+    assertInvitationPlanDeactivationAllowed(existing);
 
     await this.db
       .update(schema.subscriptionPlans)

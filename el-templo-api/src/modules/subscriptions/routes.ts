@@ -268,16 +268,20 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .code(403)
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
-      const plan = await subscriptionService.deactivatePlan(
-        assertTenant(request.scope, "subscriptions.deactivatePlan"),
-        request.params.planId,
-      );
-      if (!plan) {
-        return reply
-          .code(404)
-          .send({ error: "No encontrado", message: "Plan no encontrado" });
+      try {
+        const plan = await subscriptionService.deactivatePlan(
+          assertTenant(request.scope, "subscriptions.deactivatePlan"),
+          request.params.planId,
+        );
+        if (!plan) {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Plan no encontrado" });
+        }
+        return plan;
+      } catch (err: unknown) {
+        return handleServiceError(err, reply, request.log, "deactivate plan");
       }
-      return plan;
     },
   );
 

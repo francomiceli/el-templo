@@ -28,7 +28,8 @@ import { handleServiceError } from "../shared/error-handler";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
 import {
-  getInvitationSettings,
+  getInvitationSettingsView,
+  invitationSettingsBodySchema,
   setInvitationSettings,
   type InvitationSettingsPatch,
 } from "../referrals/invitation-settings";
@@ -288,7 +289,7 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       await attachCountryScope(request, fastify.db);
       const ctx = assertTenant(request.scope, "settings.getInvitations");
-      return await getInvitationSettings(fastify.db, ctx, request.log);
+      return await getInvitationSettingsView(fastify.db, ctx, request.log);
     } catch (err: unknown) {
       return handleServiceError(
         err,
@@ -319,43 +320,15 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
       },
-      schema: {
-        body: {
-          type: "object",
-          properties: {
-            monthlyQuota: { type: "integer", minimum: 1, maximum: 10 },
-            accessBusinessDays: { type: "integer", minimum: 1, maximum: 30 },
-            reinviteWindowDays: { type: "integer", minimum: 0, maximum: 365 },
-            exMemberInactivityMonths: {
-              type: "integer",
-              minimum: 0,
-              maximum: 36,
-            },
-            latePurchaseWindowDays: {
-              type: "integer",
-              minimum: 0,
-              maximum: 180,
-            },
-            inviteePercent: { type: "integer", minimum: 0, maximum: 50 },
-            discountCapAmount: {
-              type: "object",
-              properties: {
-                AR: { type: ["integer", "null"], minimum: 1 },
-                ES: { type: ["integer", "null"], minimum: 1 },
-              },
-              additionalProperties: false,
-            },
-          },
-          additionalProperties: false,
-        },
-      },
+      // Rangos generados de INT_SETTINGS (LO-03): una sola fuente.
+      schema: { body: invitationSettingsBodySchema() },
     },
     async (request, reply) => {
       try {
         await attachCountryScope(request, fastify.db);
         const ctx = assertTenant(request.scope, "settings.setInvitations");
         await setInvitationSettings(fastify.db, ctx, request.body);
-        return await getInvitationSettings(fastify.db, ctx, request.log);
+        return await getInvitationSettingsView(fastify.db, ctx, request.log);
       } catch (err: unknown) {
         return handleServiceError(
           err,
