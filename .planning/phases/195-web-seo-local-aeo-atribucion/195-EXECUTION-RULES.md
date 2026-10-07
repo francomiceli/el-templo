@@ -105,3 +105,10 @@
   - Para `/es`: `PlanesContent`/`PrimeraClaseGratisContent` ya reciben `country`; envolver en `PageShell` + `usePageSeo`.
   - Helpers del verificador: `parseDisciplinas`, `parseProfes`, `nameMatches`, `stripNonLdScripts`, flag `--src-data-dir`.
   - **Para 195-14 (guía final):** incluir la lista "Datos de contenido que Franco tiene que completar" de `195-05-SUMMARY.md` (profes, bio de Ignacio 10 vs 20 años, Aura Verticales/Acrobacias/Open Gym, planes, "Dónde se dicta", Moreno/D-30, tags del blog, títulos/metas).
+- **Tras 195-06 (2026-10-07):**
+  - Atributos de links que dependen del cliente: calcular en `onMounted` del propio componente (`app:mounted` no alcanza; Vue prod no corrige atributos al hidratar).
+  - E2E de navegador real disponible sin instalar: Chrome por CDP con `node --experimental-websocket`, harness `mut06/e2e.mjs` del scratchpad (sin `--user-data-dir`, limpiar storage al arrancar).
+  - `useState` no se llama en handlers async (usar `getConsent()`); `useHead({ link })` usa `type`; Nuxt auto-importa `utils/` (evitar exports con el mismo nombre).
+  - **Contrato `/register` para 195-07** (en `195-06-SUMMARY.md`): `branchId`, `branchName`, `utm_*`, `fbclid`, `gclid`, `promo`, `src_ref`, `landing`, `ft`, `fbp`. La API revalida longitud y charset. En `/es` sin consentimiento no viaja ningún parámetro.
+  - **Para 195-08 (extra, decisión del orquestador):** la reescritura de `/privacidad` también debe mencionar GA4 + Meta Pixel con consentimiento para Barcelona (el banner enlaza ahí), y agregar en el footer un link discreto "Barcelona" → `/es/` (hoy nada enlaza `/es`).
+  - **Para 195-14 (guía):** pendientes de Franco de `195-06-SUMMARY.md` (UAT con IDs reales en /es, GA4 Realtime AR post-deploy, voseo/copy en /es y catálogo AR en /es/planes, altas BCN que rechazan banner llegan sin atribución).
