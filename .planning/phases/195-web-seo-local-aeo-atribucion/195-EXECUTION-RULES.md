@@ -126,3 +126,11 @@
   - Env de Meta: `META_ACCESS_TOKEN` (no `META_CAPI_ACCESS_TOKEN`), `META_CAPI_START_AT`. Hay cron horario `runPiiPurge` (IP/UA > 7 días) que corre siempre.
   - Baselines: `GYM_OWNED_TABLES` 102 · `schemaTables` 106 · `gymOwnedChecked` 102 · 0196 T10: 102 · `JOBS_ESPERADOS` 10 · `ENTRADAS_BASELINE` 448.
   - **Para 195-14 (guía):** pendientes de `195-08-SUMMARY.md` (aprobar `/privacidad` + completar marcador de razón social/NIF/domicilio ES antes de deployar, no activar CAPI hasta tener el texto en prod, `test_event_code`, proceso de oposición manual, `META_*` jamás en staging).
+- **Tras 195-09 (2026-10-07):**
+  - `beforeEach` restaura TODAS las columnas que algún test muta. `branches` no es strict en el sentinel: su aislamiento lo verifica `lint:tenant`.
+  - Prettier: rutas exactas, NUNCA globs (reformatea archivos ajenos).
+  - Scheduler sin DB: `vi.mock("node-cron")` + `vi.hoisted`.
+  - DB `eltemplo_t195_1` con hasta 0274.
+  - Baselines: `GYM_OWNED_TABLES` 103 · `schemaTables` 107 · `gymOwnedChecked` 103 · 0196 T10: 103 · `JOBS_ESPERADOS` 11 · `ENTRADAS_BASELINE` 448.
+  - **Para 195-11:** variables `GOOGLE_*`/`GBP_*`/`META_*` SOLO en prod, nunca staging.
+  - **Para 195-14 (guía):** pasos de `195-09-SUMMARY.md` (service account SC, acceso GBP API, OAuth + scripts `gbp-authorize`/`gbp-list-locations`, borrador 0276, dry-run antes de apply). Destacar: si `branches.phone` está vacío el sync pone el WhatsApp de ventas del país como teléfono de la ficha → cargar teléfonos reales por sede ANTES de `apply`.
