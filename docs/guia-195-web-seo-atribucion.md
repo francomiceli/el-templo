@@ -416,7 +416,7 @@ Quien maneje los anuncios (una agencia o alguien del equipo) tiene que elegir co
 2. `Schedule` (reservó la clase de prueba).
 3. `Purchase` (pagó, con el importe y la moneda).
 
-Anotá quién es: ****\*\*****\_\_****\*\*****. Sin esto Meta sigue mostrando los anuncios a gente que solo hace clic.
+Anotá quién es (nombre y contacto): _completar_. Sin esto Meta sigue mostrando los anuncios a gente que solo hace clic.
 
 Resultado → se carga en: Meta Ads Manager (la configuración de cada conjunto de anuncios). Nada en GitHub.
 
