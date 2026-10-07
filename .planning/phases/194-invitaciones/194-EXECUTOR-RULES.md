@@ -225,3 +225,8 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Rótulos de estado de invitación en `el-templo-admin/src/utils/invitation-meta.ts`; bloque compartido `InvitedByBlock.vue`; diálogo `InvitationCreateDialog`. Reusar, no duplicar.
 - Anulación: la ruta usa el `userId` del INVITADO; vínculos heredados tienen `invitationId: null` y no se anulan.
 - **194-26:** quedan copys "referid" en `AnaliticasPage`, `config/destinations.ts`, `config/system-audiences.ts`, `config/rule-triggers.ts` (rebrand restante).
+
+### Tras 194-25/26 (admin completo)
+- El chequeo canónico de "referid" excluye `'referidos'` entre comillas y ESCONDE copy visible en la misma línea (p.ej. `label: 'Referidos'`). En la app hacer además un barrido sin exclusiones y revisar a mano cada `label`/texto: **`el-templo-app/src/config/destinations.ts` tiene `label: 'Referidos'` → cambiar a "Invitaciones" (la clave `referidos` queda).**
+- Configuración que un rol debe tocar: revisar también el gate de la PÁGINA, no solo el del endpoint.
+- `type="month"` no existe en Firefox: usar `q-select`.
