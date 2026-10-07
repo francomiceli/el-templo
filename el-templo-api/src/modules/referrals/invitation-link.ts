@@ -193,7 +193,7 @@ export async function notifyReferralLinkActivated(
     await new NotificationService(db, log).queueNotification({
       userId: referrerId,
       templateKey: "referral_link_activated",
-      bodyOverride: `${referredFirstName} pagó su primer plan. Ya tenés tu descuento activo.`,
+      bodyOverride: `${referredFirstName} pagó su primer plan. Ya tenés tu descuento por invitación activo.`,
     });
   } catch (err: unknown) {
     log.warn(
@@ -224,7 +224,12 @@ export async function notifyInviterLinkActivated(
       .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, payerId)))
       .limit(1);
     if (!payer) return;
-    await notifyReferralLinkActivated(db, log, inviterId, payer.firstName ?? "");
+    await notifyReferralLinkActivated(
+      db,
+      log,
+      inviterId,
+      payer.firstName ?? "",
+    );
   } catch (err: unknown) {
     log.warn(
       {

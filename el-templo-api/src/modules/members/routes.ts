@@ -1974,7 +1974,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       opts.allowedRoles ?? MEMBER_LIFECYCLE_ROLES;
     if (!allowedRoles.includes(role)) {
       throw new ForbiddenError(
-        opts.deniedMessage ?? "No tienes permiso para ver los referidos",
+        opts.deniedMessage ?? "No tienes permiso para ver las invitaciones",
       );
     }
     const targetId = Number(request.params.userId);

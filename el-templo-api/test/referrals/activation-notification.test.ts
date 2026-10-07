@@ -112,6 +112,10 @@ describe("Referral activation notification on first payment", () => {
     expect(referrerNotifs).toHaveLength(1);
     expect(referrerNotifs[0].template_key).toBe("referral_link_activated");
     expect(referrerNotifs[0].body).toContain("Nacho");
+    // Fase 194 D-26: el bodyOverride habla de invitaciones, igual al seed de 0261.
+    expect(referrerNotifs[0].body).toBe(
+      "Nacho pagó su primer plan. Ya tenés tu descuento por invitación activo.",
+    );
 
     // El referido NO recibe push (D-31).
     const referredNotifs = await readNotifications(referred.id);

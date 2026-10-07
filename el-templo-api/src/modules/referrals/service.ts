@@ -608,7 +608,7 @@ export class ReferralService {
 
     if (referredId === referrerId) {
       throw new BadRequestError(
-        "Un socio no puede figurar como su propio referidor",
+        "Un socio no puede figurar como su propio invitador",
       );
     }
 
@@ -628,7 +628,7 @@ export class ReferralService {
       )
       .limit(1);
     if (!referrer) {
-      throw new NotFoundError("El socio que figura como referidor no existe");
+      throw new NotFoundError("El socio que figura como invitador no existe");
     }
 
     const [existing] = await this.db
@@ -642,7 +642,7 @@ export class ReferralService {
       )
       .limit(1);
     if (existing) {
-      throw new ConflictError("Este socio ya tiene un referidor asignado");
+      throw new ConflictError("Este socio ya tiene un invitador asignado");
     }
 
     // D-20: ¿ya pagó algún plan? Mismo umbral que qualifyReferralOnCharge
@@ -680,7 +680,7 @@ export class ReferralService {
     } catch (err: unknown) {
       // Carrera contra el UNIQUE de referred_id (D-14): otro admin ganó.
       if (isDuplicateKeyError(err)) {
-        throw new ConflictError("Este socio ya tiene un referidor asignado");
+        throw new ConflictError("Este socio ya tiene un invitador asignado");
       }
       throw err;
     }
@@ -734,7 +734,7 @@ export class ReferralService {
           amount: 0,
           referenceType: "subscription",
           referenceId: subscriptionId,
-          description: `Descuento por referido: ${percent}%`,
+          description: `Descuento por invitación: ${percent}%`,
         }),
       )
       // UNIQUE (userId, sourceType, referenceType, referenceId) → no-op idempotente.

@@ -234,7 +234,9 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
     const service = new ReferralService(app.db, app.log);
 
     // Pending: todavía no aporta descuento a ninguno de los dos lados.
-    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(0);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(
+      0,
+    );
 
     // El hook del cobro encuentra el vínculo y lo flippea, sin saber que se
     // creó retroactivamente.
@@ -244,8 +246,12 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
     // Con ambas partes cubiertas, el descuento simétrico corre para los dos.
     await givePaidSubscription(target.id, plan.id as number, 15000);
     await givePaidSubscription(referrer.id, plan.id as number, 15000);
-    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(10);
-    expect(await service.computeReferralDiscountPercent(CTX, target.id)).toBe(10);
+    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(
+      10,
+    );
+    expect(await service.computeReferralDiscountPercent(CTX, target.id)).toBe(
+      10,
+    );
   });
 
   it("el gimnasio sale del scope del request, no del body (mass-assignment)", async () => {
@@ -272,6 +278,9 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
       const target = await createMember(app, { email: "ar-self@test.com" });
       const res = await assign(target.id, target.id);
       expect(res.statusCode).toBe(400);
+      // Fase 194 D-26: el copy que ve el admin dice "invitador", no "referidor".
+      expect(res.body).toContain("invitador");
+      expect(res.body).not.toMatch(/referid/i);
       expect(await referralRow(target.id)).toBeNull();
     });
 
@@ -281,7 +290,11 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
       const second = await createMember(app, { email: "ar-dup-2@test.com" });
 
       expect((await assign(target.id, first.id)).statusCode).toBe(201);
-      expect((await assign(target.id, second.id)).statusCode).toBe(409);
+      const dup = await assign(target.id, second.id);
+      expect(dup.statusCode).toBe(409);
+      // Fase 194 D-26: copy de invitaciones.
+      expect(dup.body).toContain("invitador");
+      expect(dup.body).not.toMatch(/referid/i);
 
       // El primero sobrevive intacto: un 409 no puede reescribir la atribución.
       const row = await referralRow(target.id);
@@ -293,6 +306,9 @@ describe("POST /api/admin/members/:id/referrals — atribución retroactiva", ()
       const target = await createMember(app, { email: "ar-nor@test.com" });
       const res = await assign(target.id, 99999999);
       expect(res.statusCode).toBe(404);
+      // Fase 194 D-26: copy de invitaciones.
+      expect(res.body).toContain("invitador");
+      expect(res.body).not.toMatch(/referid/i);
       // A diferencia del alta (que degrada a "sin atribución"), acá NO se crea
       // nada: fallar en silencio dejaría al admin creyendo que cargó el vínculo.
       expect(await referralRow(target.id)).toBeNull();

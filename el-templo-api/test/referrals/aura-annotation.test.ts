@@ -94,6 +94,14 @@ describe("ReferralService.recordReferralCredit", () => {
     expect(txs).toHaveLength(1);
     expect(txs[0].amount).toBe(0);
     expect(txs[0].source_type).toBe("referral");
+    // Fase 194 D-26: la descripcion visible de la anotacion nueva dice "invitacion".
+    const [descRows] = await app.db.execute(
+      sql`SELECT description FROM aura_transactions
+          WHERE user_id = ${member.id} AND source_type = 'referral' AND tenant_id = ${TENANT_TEMPLO}`,
+    );
+    expect(
+      (descRows as unknown as Array<{ description: string }>)[0].description,
+    ).toBe("Descuento por invitación: 10%");
 
     // El saldo gastable NO cambió.
     expect(await readBalance(member.id)).toBe(balanceBefore);
