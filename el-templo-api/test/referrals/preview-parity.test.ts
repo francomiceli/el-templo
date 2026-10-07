@@ -8,7 +8,7 @@
  *     FUERA de referidos (D-09/T-161-05) — antes el preview descontaba y el
  *     cobro no.
  * (3) El change-plan-preview refleja el descuento sobre el neto post-prorrateo,
- *     igual que changePlanNow.
+ *     igual que changePlanNow (194-17: mismo helper del árbitro, casos (11)-(17)).
  * (4) La renovación NO compone el descuento: hereda la base PRE-descuento
  *     (add-back de referralDiscountAmount) y re-aplica el % vigente del ciclo.
  */
@@ -37,9 +37,13 @@ import {
   resetInvitationSettings,
   type InvitationsFixtureCtx,
 } from "../invitations/_helpers";
+import {
+  insertPartner,
+  insertPartnerLink,
+} from "../referral-partners/_helpers";
 import * as schema from "../../src/db/schema";
 import { setInvitationSettings } from "../../src/modules/referrals/invitation-settings";
-import { todayInTz } from "../../src/modules/shared/date-utils";
+import { addDays, todayInTz } from "../../src/modules/shared/date-utils";
 import { tenantWhere } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
@@ -214,6 +218,8 @@ describe("Referral discount preview parity", () => {
     const target = await createPlan(app, adminToken, {
       name: "Plan Caro",
       priceRegular: 20000,
+      // 194-17 D-10b: el cambio inmediato descuenta solo con el flag del plan destino.
+      allowsInvitationDiscount: true,
     });
     const payer = await createMember(app, { email: "pp-3-p@test.com" });
     const referred = await createMember(app, { email: "pp-3-d@test.com" });
@@ -515,5 +521,267 @@ describe("194-15: paridad preview ↔ cobro del alta con el árbitro", () => {
       preview.invitationDiscountAmount,
     );
     expect(preview.referralDiscountAmount).toBe(1500);
+  });
+});
+
+// ─── 194-17: paridad preview ↔ cobro del cambio inmediato (changePlanNow) ────
+
+const TZ_AR = "America/Argentina/Buenos_Aires";
+const NOW_A = 10000; // plan vigente
+const NOW_B = 20000; // plan destino
+
+interface ChangePreview {
+  allowed: boolean;
+  proration: { remainingValue: number };
+  netAmount: number;
+  referralDiscountPercent: number;
+  referralDiscountAmount: number;
+  invitationDiscountPercent: number;
+  invitationDiscountAmount: number;
+  invitationDiscountCapped: boolean;
+  winningDiscount: string;
+  partnerDiscountPercent: number;
+  partnerDiscountAmount: number;
+}
+
+async function changePreviewOf(
+  memberId: number,
+  targetPlanId: number,
+): Promise<ChangePreview> {
+  const res = await app.inject({
+    method: "GET",
+    url: `${SUBSCRIPTIONS_URL}/members/${memberId}/subscription/change-plan-preview?targetPlanId=${targetPlanId}`,
+    headers: { authorization: `Bearer ${adminToken}` },
+  });
+  expect(res.statusCode).toBe(200);
+  return JSON.parse(res.body) as ChangePreview;
+}
+
+async function changeNowCharge(
+  memberId: number,
+  planId: number,
+  branchId = 1,
+): Promise<{ id: number; pricePaid: number }> {
+  const res = await app.inject({
+    method: "POST",
+    url: `${SUBSCRIPTIONS_URL}/members/${memberId}/subscription/change-plan`,
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: {
+      planId,
+      branchId,
+      startDate: todayInTz(TZ_AR),
+      startMode: "now",
+      priceTypeApplied: "regular",
+      paymentMethod: "cash",
+    },
+  });
+  expect(res.statusCode).toBe(201);
+  return JSON.parse(res.body) as { id: number; pricePaid: number };
+}
+
+/** Socio con una sub (plan SIN flag) a mitad de camino: el cambio inmediato tiene crédito. */
+async function memberWithHalfUsedSub(
+  email: string,
+): Promise<{ id: number; planA: number }> {
+  const planA = await createPlan(app, adminToken, {
+    name: `Now A ${email}`,
+    priceRegular: NOW_A,
+  });
+  const member = await createMember(app, { email });
+  const res = await assignPlan(app, adminToken, member.id, {
+    planId: planA.id,
+    startDate: addDays(todayInTz(TZ_AR), -15),
+  });
+  expect(res.statusCode).toBe(201);
+  return { id: member.id, planA: planA.id };
+}
+
+async function nowTarget(allowsInvitationDiscount: boolean): Promise<number> {
+  const plan = await createPlan(app, adminToken, {
+    name: `Now B ${allowsInvitationDiscount ? "flag" : "sin-flag"} ${Date.now()}`,
+    priceRegular: NOW_B,
+    allowsInvitationDiscount,
+  });
+  return plan.id;
+}
+
+describe("194-17: paridad preview ↔ cobro del cambio inmediato (changePlanNow)", () => {
+  it("(11) invitación sola: el preview descuenta 10% del neto post-prorrateo, expone invitationDiscount* + winningDiscount y el cobro coincide", async () => {
+    const m = await memberWithHalfUsedSub("pp-11-p@test.com");
+    const referrer = await createMember(app, { email: "pp-11-r@test.com" });
+    await linkQualified(referrer.id, m.id);
+    await giveCoverage(referrer.id, m.planA, dateOffsetStr(60));
+    const target = await nowTarget(true);
+
+    const preview = await changePreviewOf(m.id, target);
+    const net = NOW_B - preview.proration.remainingValue;
+    const discount = Math.floor(net * 0.1);
+    expect(preview.proration.remainingValue).toBeGreaterThan(0);
+    expect(preview.winningDiscount).toBe("invitation");
+    expect(preview.invitationDiscountPercent).toBe(10);
+    expect(preview.invitationDiscountAmount).toBe(discount);
+    expect(preview.invitationDiscountCapped).toBe(false);
+    expect(preview.partnerDiscountAmount).toBe(0);
+    expect(preview.netAmount).toBe(net - discount);
+    // compat: alias deprecados con el mismo valor
+    expect(preview.referralDiscountPercent).toBe(10);
+    expect(preview.referralDiscountAmount).toBe(discount);
+
+    const charge = await changeNowCharge(m.id, target);
+    expect(charge.pricePaid).toBe(preview.netAmount);
+    expect(await creditOf(m.id)).toEqual({ percent: 10, amount: discount });
+  });
+
+  it("(12) partner 20% gana a la invitación 10%: el preview informa `partner`, sin invitación, y el cobro paga lo mismo", async () => {
+    const m = await memberWithHalfUsedSub("pp-12-p@test.com");
+    const referrer = await createMember(app, { email: "pp-12-r@test.com" });
+    await linkQualified(referrer.id, m.id);
+    await giveCoverage(referrer.id, m.planA, dateOffsetStr(60));
+    const partner = await insertPartner(app, { benefitValue: 20 });
+    await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: m.id,
+      benefitType: "discount_percent",
+      benefitValue: 20,
+      benefitStatus: "pending",
+    });
+    const target = await nowTarget(true);
+
+    const preview = await changePreviewOf(m.id, target);
+    const net = NOW_B - preview.proration.remainingValue;
+    expect(preview.winningDiscount).toBe("partner");
+    expect(preview.partnerDiscountPercent).toBe(20);
+    expect(preview.partnerDiscountAmount).toBe(Math.floor(net * 0.2));
+    expect(preview.invitationDiscountAmount).toBe(0);
+    expect(preview.invitationDiscountPercent).toBe(0);
+    expect(preview.referralDiscountAmount).toBe(0);
+    expect(preview.netAmount).toBe(net - Math.floor(net * 0.2));
+
+    const charge = await changeNowCharge(m.id, target);
+    expect(charge.pricePaid).toBe(preview.netAmount);
+    expect(await creditOf(m.id)).toBeUndefined();
+  });
+
+  it("(13) tope en dinero AR 500: el preview informa monto recortado y `capped` sobre el neto, y el cobro (y su crédito) coinciden", async () => {
+    await setInvitationSettings(app.db, ctx.tenant, {
+      discountCapAmount: { AR: 500 },
+    });
+    const m = await memberWithHalfUsedSub("pp-13-p@test.com");
+    const referrer = await createMember(app, { email: "pp-13-r@test.com" });
+    await linkQualified(referrer.id, m.id);
+    await giveCoverage(referrer.id, m.planA, dateOffsetStr(60));
+    const target = await nowTarget(true);
+
+    const preview = await changePreviewOf(m.id, target);
+    const net = NOW_B - preview.proration.remainingValue;
+    expect(Math.floor(net * 0.1)).toBeGreaterThan(500); // el tope recorta
+    expect(preview.winningDiscount).toBe("invitation");
+    expect(preview.invitationDiscountPercent).toBe(10); // nominal
+    expect(preview.invitationDiscountAmount).toBe(500);
+    expect(preview.invitationDiscountCapped).toBe(true);
+    expect(preview.netAmount).toBe(net - 500);
+
+    const charge = await changeNowCharge(m.id, target);
+    expect(charge.pricePaid).toBe(preview.netAmount);
+    expect(await creditOf(m.id)).toEqual({ percent: 10, amount: 500 });
+  });
+
+  it("(14) plan destino SIN flag: el preview no descuenta (aunque haya vínculo qualified) y coincide con el cobro", async () => {
+    const m = await memberWithHalfUsedSub("pp-14-p@test.com");
+    const referrer = await createMember(app, { email: "pp-14-r@test.com" });
+    await linkQualified(referrer.id, m.id);
+    await giveCoverage(referrer.id, m.planA, dateOffsetStr(60));
+    const target = await nowTarget(false);
+
+    const preview = await changePreviewOf(m.id, target);
+    expect(preview.winningDiscount).toBe("none");
+    expect(preview.invitationDiscountAmount).toBe(0);
+    expect(preview.referralDiscountAmount).toBe(0);
+    expect(preview.netAmount).toBe(NOW_B - preview.proration.remainingValue);
+
+    const charge = await changeNowCharge(m.id, target);
+    expect(charge.pricePaid).toBe(preview.netAmount);
+    expect(await creditOf(m.id)).toBeUndefined();
+  });
+
+  it("(15) vínculo `pending` heredado: el preview lo simula (descuenta sin flipearlo, idempotente) y el cobro lo cualifica y paga lo mismo", async () => {
+    const m = await memberWithHalfUsedSub("pp-15-p@test.com");
+    const referrer = await createMember(app, { email: "pp-15-r@test.com" });
+    await linkPending(referrer.id, m.id);
+    await giveCoverage(referrer.id, m.planA, dateOffsetStr(60));
+    const target = await nowTarget(true);
+
+    const first = await changePreviewOf(m.id, target);
+    const second = await changePreviewOf(m.id, target);
+    const net = NOW_B - first.proration.remainingValue;
+    expect(first.invitationDiscountAmount).toBe(Math.floor(net * 0.1));
+    expect(second).toEqual(first);
+    const [stillPending] = await app.db
+      .select({ status: schema.referrals.status })
+      .from(schema.referrals)
+      .where(
+        and(
+          tenantWhere(schema.referrals, ctx.tenant),
+          eq(schema.referrals.referredId, m.id),
+        ),
+      );
+    expect(stillPending.status).toBe("pending");
+
+    const charge = await changeNowCharge(m.id, target);
+    expect(charge.pricePaid).toBe(first.netAmount);
+  });
+
+  it("(16) vínculo a materializar (invitación en ventana): el preview ya muestra el 10% sin crear la fila; el cobro la crea y paga lo mismo", async () => {
+    const payer = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const planA = await createPlan(app, adminToken, {
+      name: "Now A pp-16",
+      priceRegular: NOW_A,
+    });
+    const assigned = await assignPlan(app, adminToken, payer.id, {
+      planId: planA.id,
+      branchId: payer.branchId,
+      startDate: addDays(todayInTz(TZ_AR), -15),
+    });
+    expect(assigned.statusCode).toBe(201);
+    const inviter = await createInviterWithCode(ctx);
+    const accessExpiresOn = addDays(todayInTz(TZ_AR), 5);
+    await createInvitationRow(ctx, {
+      inviterId: inviter.id,
+      invitedUserId: payer.id,
+      branchId: payer.branchId,
+      channel: "assisted",
+      accessExpiresOn,
+      accessStartsOn: addDays(accessExpiresOn, -5),
+      subscriptionId: null,
+    });
+    const target = await nowTarget(true);
+
+    const first = await changePreviewOf(payer.id, target);
+    const second = await changePreviewOf(payer.id, target);
+    const net = NOW_B - first.proration.remainingValue;
+    expect(first.winningDiscount).toBe("invitation");
+    expect(first.invitationDiscountAmount).toBe(Math.floor(net * 0.1));
+    expect(second).toEqual(first);
+    expect(await referralRowsOf(payer.id)).toHaveLength(0);
+
+    const charge = await changeNowCharge(payer.id, target, payer.branchId);
+    expect(charge.pricePaid).toBe(first.netAmount);
+    expect(await referralRowsOf(payer.id)).toHaveLength(1);
+  });
+
+  it("(17) downgrade bloqueado: el preview trae los campos del árbitro en cero y `winningDiscount: none`", async () => {
+    const m = await memberWithHalfUsedSub("pp-17-p@test.com");
+    const cheap = await createPlan(app, adminToken, {
+      name: "Now barato pp-17",
+      priceRegular: 5000,
+      allowsInvitationDiscount: true,
+    });
+    const preview = await changePreviewOf(m.id, cheap.id);
+    expect(preview.allowed).toBe(false);
+    expect(preview.invitationDiscountAmount).toBe(0);
+    expect(preview.invitationDiscountCapped).toBe(false);
+    expect(preview.winningDiscount).toBe("none");
   });
 });
