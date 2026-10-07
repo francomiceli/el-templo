@@ -3,13 +3,21 @@
  * Root app component — global head.
  *
  * Sets lang="es-AR" (las paginas bajo /es lo pisan con es-ES), default
- * Twitter Card meta, el Smart App Banner de iOS y favicons. El JSON-LD lo emite
+ * Twitter Card meta, el Smart App Banner de iOS, favicons y, solo en staging,
+ * `robots: noindex, nofollow`. El JSON-LD lo emite
  * cada pagina con utils/schema-graph.ts (nunca desde aca).
  */
+
+// Staging nunca se indexa (decision de Franco 2026-10-07: sin cambios en nginx).
+// Prod no define NUXT_PUBLIC_APP_ENVIRONMENT: ahi no sale ningun meta robots.
+const isStaging = useRuntimeConfig().public.appEnvironment === "staging";
 
 useHead({
   htmlAttrs: { lang: "es-AR" },
   meta: [
+    ...(isStaging
+      ? [{ name: "robots", content: "noindex, nofollow" }]
+      : []),
     { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:site", content: "@eltemplomdp" },
     // Smart App Banner (solo Safari iOS): id de la app en el App Store.
