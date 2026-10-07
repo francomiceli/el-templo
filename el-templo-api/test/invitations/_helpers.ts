@@ -522,3 +522,142 @@ export async function createInviterWithCode(
     );
   return { ...inviter, code };
 }
+
+// ─── Invitados armados (194-19/20: overview, reporte y bandeja de leads) ─────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Entorno compartido por los invitados de un test (sede, hoy y planes). */
+export interface InvitedUserEnv {
+  /** Sede física donde se "activó" la invitación y donde vive el invitado. */
+  branchId: number;
+  /** `todayInTz(<tz de esa sede>)`. */
+  today: string;
+  trialPlanId: number;
+  membershipPlanId: number;
+}
+
+export interface InvitedUserSpec {
+  /** Offset (días) del último día de accesos respecto de hoy. Default +3. */
+  expiresOffset?: number;
+  /** `classes_budget` de los accesos (N). Default 4. */
+  budget?: number;
+  /** `classes_remaining`. Default = budget (sin usar). */
+  remaining?: number;
+  /** Compra paga posterior a la activación. */
+  purchase?: "vigente" | "vencida";
+  activatedDaysAgo?: number;
+  channel?: "self_service" | "assisted";
+  status?: "active" | "voided";
+  /** Mes de cupo ('YYYY-MM'). Default: el de hoy en la sede. */
+  quotaMonth?: string;
+  /** Marca la invitación como convertida (`converted_at`). */
+  converted?: boolean;
+  phone?: string | null;
+}
+
+/** Sub de accesos (plan is_trial) con el cupo N pedido (`createActiveSub` no lo setea). */
+export async function createAccessSub(
+  ctx: InvitationsFixtureCtx,
+  opts: {
+    userId: number;
+    planId: number;
+    branchId: number;
+    budget: number;
+    remaining: number;
+    endOffsetDays?: number;
+  },
+): Promise<number> {
+  const sub = await createActiveSub(ctx, {
+    userId: opts.userId,
+    planId: opts.planId,
+    branchId: opts.branchId,
+    startOffsetDays: -3,
+    endOffsetDays: opts.endOffsetDays ?? 3,
+  });
+  await ctx.app.db
+    .update(schema.subscriptions)
+    .set({ classesBudget: opts.budget, classesRemaining: opts.remaining })
+    .where(
+      and(
+        tenantWhere(schema.subscriptions, ctx.tenant),
+        eq(schema.subscriptions.id, sub.id),
+      ),
+    );
+  return sub.id;
+}
+
+/**
+ * Invitado con invitación (+ sub de accesos y, si se pide, una compra paga o una
+ * vencida creada DESPUÉS de la activación). Devuelve los ids para armar vínculos
+ * y asistencias.
+ */
+export async function createInvitedUser(
+  ctx: InvitationsFixtureCtx,
+  env: InvitedUserEnv,
+  inviterId: number,
+  spec: InvitedUserSpec = {},
+): Promise<{ userId: number; invitationId: number; subscriptionId: number }> {
+  const invitee = await createMemberInPhysicalBranch(ctx, {
+    status: "prueba",
+    ...(spec.phone !== undefined ? { phone: spec.phone } : {}),
+  });
+  const budget = spec.budget ?? 4;
+  const expiresOffset = spec.expiresOffset ?? 3;
+  const activatedDaysAgo = spec.activatedDaysAgo ?? 5;
+  const subscriptionId = await createAccessSub(ctx, {
+    userId: invitee.id,
+    planId: env.trialPlanId,
+    branchId: env.branchId,
+    budget,
+    remaining: spec.remaining ?? budget,
+    endOffsetDays: expiresOffset,
+  });
+  const invitation = await createInvitationRow(ctx, {
+    inviterId,
+    invitedUserId: invitee.id,
+    branchId: env.branchId,
+    subscriptionId,
+    activatedAt: new Date(Date.now() - activatedDaysAgo * DAY_MS),
+    accessStartsOn: addDays(env.today, -activatedDaysAgo),
+    accessExpiresOn: addDays(env.today, expiresOffset),
+    channel: spec.channel,
+    status: spec.status,
+    quotaMonth: spec.quotaMonth,
+  });
+  if (spec.converted) {
+    await ctx.app.db
+      .update(schema.invitations)
+      .set({ convertedAt: new Date() })
+      .where(
+        and(
+          tenantWhere(schema.invitations, ctx.tenant),
+          eq(schema.invitations.id, invitation.id),
+        ),
+      );
+  }
+  if (spec.purchase === "vigente") {
+    await createActiveSub(ctx, {
+      userId: invitee.id,
+      planId: env.membershipPlanId,
+      branchId: env.branchId,
+      pricePaid: 10000,
+      endOffsetDays: 20,
+    });
+  } else if (spec.purchase === "vencida") {
+    await createActiveSub(ctx, {
+      userId: invitee.id,
+      planId: env.membershipPlanId,
+      branchId: env.branchId,
+      pricePaid: 10000,
+      startOffsetDays: -10,
+      endOffsetDays: -3,
+      status: "expired",
+    });
+  }
+  return {
+    userId: invitee.id,
+    invitationId: invitation.id,
+    subscriptionId,
+  };
+}

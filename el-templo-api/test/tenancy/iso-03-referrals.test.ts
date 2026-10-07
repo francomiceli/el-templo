@@ -1,5 +1,5 @@
 /**
- * Fase 175.1 Plan 05 (ISO-03) — batería de AISLAMIENTO de las 3 rutas
+ * Fase 175.1 Plan 05 (ISO-03) — batería de AISLAMIENTO de las rutas
  * `tenant-scoped` NUEVAS de `referrals` (derivadas de `test/tenant-manifest.ts`,
  * transcritas abajo y en el SUMMARY).
  *
@@ -14,7 +14,7 @@
  * Referencia literal para el gate de cobertura (175.1-06,
  * `EXCEPCIONES_NOMBRADAS`): NO re-testear acá, NO perderlas del conteo.
  *
- * LAS 5 RUTAS QUE SÍ CUBRE ESTE ARCHIVO
+ * LAS 7 RUTAS QUE SÍ CUBRE ESTE ARCHIVO
  * -----------------------------------------------------------------------
  *   - `GET /api/admin/referrals/ab-results` — staff, agregado.
  *   - `GET /api/members/referrals` — socio, propio.
@@ -23,6 +23,10 @@
  *     194-10): un código de OTRO gimnasio no resuelve (404, nunca 403).
  *   - `POST /api/members/referrals/invitations/activate` — socio (fase
  *     194-10): idem, y no escribe ninguna fila en ningún gimnasio.
+ *   - `GET /api/admin/referrals/invitations/report` — staff (fase 194-20):
+ *     KPIs y descuentos del PROPIO gimnasio, nunca la suma de los dos.
+ *   - `GET /api/admin/referrals/invitations` — staff (fase 194-20): la bandeja
+ *     de leads solo trae invitaciones del propio gimnasio.
  *
  * `GET /api/admin/referrals/ab-results` — ACOTADO AL GIMNASIO DEL REQUEST
  * (decisión de Franco 2026-08-18; revierte la exención global de 173/175-04)
@@ -56,9 +60,11 @@ import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData, getAuthToken } from "../helpers";
 import * as schema from "../../src/db/schema";
-import { tenantWhere } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { todayInTz } from "../../src/modules/shared/date-utils";
 import {
   createActiveSub,
+  createInvitationRow,
   createMembershipPlan,
   createTrialPlan,
   fixtureCtx,
@@ -140,16 +146,18 @@ function porQueImportaElAislamiento(ruta: string, detalle: string): string {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("precondiciones de la batería", () => {
-  it("las 5 rutas de este archivo son las que faltan del manifiesto (las otras 2 ya las cubre iso-03-members-ficha.test.ts:490,692)", () => {
+  it("las 7 rutas de este archivo son las que faltan del manifiesto (las otras 2 ya las cubre iso-03-members-ficha.test.ts:490,692)", () => {
     const RUTAS_NUEVAS_DE_ESTE_ARCHIVO = [
       "GET /api/admin/referrals/ab-results",
       "GET /api/members/referrals",
       "POST /api/members/referrals/cta-click",
       "GET /api/members/referrals/invitations/eligibility",
       "POST /api/members/referrals/invitations/activate",
+      "GET /api/admin/referrals/invitations/report",
+      "GET /api/admin/referrals/invitations",
     ];
-    expect(RUTAS_NUEVAS_DE_ESTE_ARCHIVO.length).toBe(5);
-    expect(new Set(RUTAS_NUEVAS_DE_ESTE_ARCHIVO).size).toBe(5);
+    expect(RUTAS_NUEVAS_DE_ESTE_ARCHIVO.length).toBe(7);
+    expect(new Set(RUTAS_NUEVAS_DE_ESTE_ARCHIVO).size).toBe(7);
   });
 
   it("el referrer de El Templo y el del gimnasio 2 comparten el MISMO apellido a propósito (insumo del caso de colisión de nombre)", async () => {
@@ -561,5 +569,164 @@ describe("resultados A/B — GET /api/admin/referrals/ab-results (acotado al gim
       templeAdminToken,
     );
     expect(comoTemplo.statusCode).toBe(200);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Reporte y bandeja de leads de Invitaciones (fase 194-20) — ACOTADOS AL GIMNASIO
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Siembra UNA invitación activa con un descuento de monto distinto por gimnasio
+ * (así una fuga entre gimnasios se ve en los números, no solo en las filas).
+ * `montoDescuento` sale de una sub propia del gimnasio y de su plan.
+ */
+async function sembrarInvitacionConDescuento(
+  tenantId: number,
+  ficha: { branchId: number; referrerId: number; referredId: number },
+  montoDescuento: number,
+): Promise<void> {
+  const ctx = fixtureCtx(app, tenantId);
+  const plan = await createMembershipPlan(ctx);
+  const sub = await createActiveSub(ctx, {
+    userId: ficha.referredId,
+    planId: plan.id,
+    branchId: ficha.branchId,
+    pricePaid: 10000,
+  });
+  await createInvitationRow(ctx, {
+    inviterId: ficha.referrerId,
+    invitedUserId: ficha.referredId,
+    branchId: ficha.branchId,
+  });
+  await app.db.insert(schema.referralCredits).values(
+    tenantValues(ctx.tenant, {
+      userId: ficha.referredId,
+      subscriptionId: sub.id,
+      percent: 10,
+      amount: montoDescuento,
+    }),
+  );
+}
+
+/** Ventana de meses que contiene el mes de hoy en cualquier sede (m-1 .. m+1). */
+function ventanaDeMeses(): { from: string; to: string } {
+  const hoy = todayInTz("America/Argentina/Buenos_Aires");
+  const [anio, mes] = hoy.split("-").map(Number);
+  const mesAbs = (delta: number): string => {
+    const total = anio * 12 + (mes - 1) + delta;
+    const y = Math.floor(total / 12);
+    return `${y}-${String(total - y * 12 + 1).padStart(2, "0")}`;
+  };
+  return { from: mesAbs(-1), to: mesAbs(1) };
+}
+
+describe("reporte de invitaciones — GET /api/admin/referrals/invitations/report (acotado al gimnasio, fase 194-20)", () => {
+  const RUTA = "GET /api/admin/referrals/invitations/report";
+
+  interface ReporteBody {
+    totals: { activated: number };
+    discounts: Array<{ currency: string; amount: number }>;
+  }
+
+  async function leerReporte(token: string): Promise<ReporteBody> {
+    const { from, to } = ventanaDeMeses();
+    const res = await getComo(
+      `/api/admin/referrals/invitations/report?from=${from}&to=${to}`,
+      token,
+    );
+    expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
+    return JSON.parse(res.body) as ReporteBody;
+  }
+
+  const totalDescuentos = (body: ReporteBody): number =>
+    body.discounts.reduce((suma, d) => suma + d.amount, 0);
+
+  it("aislamiento: cada staff ve SOLO las activaciones y los descuentos de su gimnasio (nunca la suma de los dos)", async () => {
+    await sembrarInvitacionConDescuento(TENANT_TEMPLO, templo, 1111);
+    await sembrarInvitacionConDescuento(TENANT_DOS, dos, 2222);
+
+    const comoDos = await leerReporte(gym2.adminToken);
+    expect(
+      comoDos.totals.activated,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el staff del gimnasio ${TENANT_DOS} vio ${comoDos.totals.activated} activaciones (esperaba 1)`,
+      ),
+    ).toBe(1);
+    expect(
+      totalDescuentos(comoDos),
+      porQueImportaElAislamiento(
+        RUTA,
+        `el staff del gimnasio ${TENANT_DOS} vio descuentos por ${totalDescuentos(comoDos)} (esperaba 2222; 3333 = sumó los de El Templo)`,
+      ),
+    ).toBe(2222);
+
+    const comoTemplo = await leerReporte(templeAdminToken);
+    expect(comoTemplo.totals.activated).toBe(1);
+    expect(totalDescuentos(comoTemplo)).toBe(1111);
+  });
+
+  it("control: cada staff recibe 200 sobre SU gimnasio (cero 403 por tenant)", async () => {
+    for (const token of [gym2.adminToken, templeAdminToken]) {
+      const res = await getComo(
+        "/api/admin/referrals/invitations/report",
+        token,
+      );
+      expect(res.statusCode, res.body).toBe(200);
+    }
+  });
+});
+
+describe("leads de invitación — GET /api/admin/referrals/invitations (acotado al gimnasio, fase 194-20)", () => {
+  const RUTA = "GET /api/admin/referrals/invitations";
+
+  interface BandejaBody {
+    total: number;
+    rows: Array<{
+      invitationId: number;
+      invitee: { userId: number };
+      inviter: { userId: number };
+    }>;
+  }
+
+  async function leerBandeja(token: string): Promise<BandejaBody> {
+    const res = await getComo("/api/admin/referrals/invitations", token);
+    expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
+    return JSON.parse(res.body) as BandejaBody;
+  }
+
+  it("aislamiento: la bandeja del gimnasio 2 trae solo SU invitación, la de El Templo solo la suya", async () => {
+    await sembrarInvitacionConDescuento(TENANT_TEMPLO, templo, 1111);
+    await sembrarInvitacionConDescuento(TENANT_DOS, dos, 2222);
+
+    const comoDos = await leerBandeja(gym2.adminToken);
+    expect(
+      comoDos.total,
+      porQueImportaElAislamiento(
+        RUTA,
+        `el staff del gimnasio ${TENANT_DOS} vio total=${comoDos.total} (esperaba 1)`,
+      ),
+    ).toBe(1);
+    expect(comoDos.rows.map((r) => r.invitee.userId)).toEqual([dos.referredId]);
+    expect(comoDos.rows.map((r) => r.inviter.userId)).toEqual([dos.referrerId]);
+
+    const comoTemplo = await leerBandeja(templeAdminToken);
+    expect(comoTemplo.total).toBe(1);
+    expect(comoTemplo.rows.map((r) => r.invitee.userId)).toEqual([
+      templo.referredId,
+    ]);
+  });
+
+  it("control: filtrar por la sede de OTRO gimnasio devuelve 200 vacío (nunca 403 ni filas ajenas)", async () => {
+    await sembrarInvitacionConDescuento(TENANT_TEMPLO, templo, 1111);
+    const res = await getComo(
+      `/api/admin/referrals/invitations?branchId=${dos.branchId}`,
+      templeAdminToken,
+    );
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as BandejaBody;
+    expect(body.total).toBe(0);
+    expect(body.rows).toEqual([]);
   });
 });

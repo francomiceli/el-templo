@@ -34,8 +34,10 @@ import type {
   ReferralOverview,
 } from "../../src/modules/referrals/types";
 import {
+  createAccessSub,
   createActiveSub,
   createInvitationRow,
+  createInvitedUser,
   createInviterWithCode,
   createMemberInPhysicalBranch,
   createMembershipPlan,
@@ -44,6 +46,7 @@ import {
   fixtureCtx,
   resetInvitationSettings,
   type InvitationsFixtureCtx,
+  type InvitedUserSpec,
 } from "./_helpers";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -99,84 +102,30 @@ describe("Fase 194-19 — overview de invitaciones", () => {
     userId: number,
     opts: { budget: number; remaining: number; endOffsetDays?: number },
   ): Promise<number> {
-    const sub = await createActiveSub(ctx, {
+    return createAccessSub(ctx, {
       userId,
       planId: trialPlanId,
       branchId: branch.id,
-      startOffsetDays: -3,
-      endOffsetDays: opts.endOffsetDays ?? 3,
+      ...opts,
     });
-    await app.db
-      .update(schema.subscriptions)
-      .set({
-        classesBudget: opts.budget,
-        classesRemaining: opts.remaining,
-      })
-      .where(
-        and(
-          tenantWhere(schema.subscriptions, ctx.tenant),
-          eq(schema.subscriptions.id, sub.id),
-        ),
-      );
-    return sub.id;
-  }
-
-  interface InviteeSpec {
-    /** Offset (días) del último día de accesos respecto de hoy. */
-    expiresOffset?: number;
-    budget?: number;
-    remaining?: number;
-    /** Compra paga posterior a la activación. */
-    purchase?: "vigente" | "vencida";
-    activatedDaysAgo?: number;
-    channel?: "self_service" | "assisted";
-    status?: "active" | "voided";
   }
 
   /** Invitado con invitación (+ sub de accesos y, si se pide, una compra). */
   async function inviteWith(
     inviterId: number,
-    spec: InviteeSpec = {},
+    spec: InvitedUserSpec = {},
   ): Promise<{ userId: number; invitationId: number }> {
-    const invitee = await createMemberInPhysicalBranch(ctx, {
-      status: "prueba",
-    });
-    const subscriptionId = await accessSub(invitee.id, {
-      budget: spec.budget ?? 4,
-      remaining: spec.remaining ?? spec.budget ?? 4,
-      endOffsetDays: spec.expiresOffset ?? 3,
-    });
-    const invitation = await createInvitationRow(ctx, {
+    return createInvitedUser(
+      ctx,
+      {
+        branchId: branch.id,
+        today,
+        trialPlanId,
+        membershipPlanId,
+      },
       inviterId,
-      invitedUserId: invitee.id,
-      branchId: branch.id,
-      subscriptionId,
-      activatedAt: new Date(Date.now() - (spec.activatedDaysAgo ?? 5) * DAY_MS),
-      accessStartsOn: addDays(today, -(spec.activatedDaysAgo ?? 5)),
-      accessExpiresOn: addDays(today, spec.expiresOffset ?? 3),
-      channel: spec.channel,
-      status: spec.status,
-    });
-    if (spec.purchase === "vigente") {
-      await createActiveSub(ctx, {
-        userId: invitee.id,
-        planId: membershipPlanId,
-        branchId: branch.id,
-        pricePaid: 10000,
-        endOffsetDays: 20,
-      });
-    } else if (spec.purchase === "vencida") {
-      await createActiveSub(ctx, {
-        userId: invitee.id,
-        planId: membershipPlanId,
-        branchId: branch.id,
-        pricePaid: 10000,
-        startOffsetDays: -10,
-        endOffsetDays: -3,
-        status: "expired",
-      });
-    }
-    return { userId: invitee.id, invitationId: invitation.id };
+      spec,
+    );
   }
 
   async function link(

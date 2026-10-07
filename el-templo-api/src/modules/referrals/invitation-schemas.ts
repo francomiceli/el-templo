@@ -189,3 +189,61 @@ export interface InvitationActivateBody {
   phone: string;
   dni?: string | null;
 }
+
+// ─── Reporte y bandeja de leads del admin (Fase 194-20, D-19 / D-18) ─────────
+//
+// T-194-69: patrones de mes/fecha, enteros acotados y `additionalProperties:false`.
+// `tenantId` no existe en el querystring: el gimnasio sale del scope del request.
+
+const monthProperty = {
+  type: "string",
+  pattern: "^\\d{4}-(0[1-9]|1[0-2])$",
+} as const;
+
+const dateProperty = {
+  type: "string",
+  pattern: "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+} as const;
+
+/** GET /api/admin/referrals/invitations/report?from=YYYY-MM&to=YYYY-MM */
+export const invitationReportQuerySchema = {
+  type: "object",
+  properties: { from: monthProperty, to: monthProperty },
+  additionalProperties: false,
+} as const;
+
+/** Etapas filtrables de la bandeja (las mismas que `LeadStage`). */
+export const INVITATION_LEAD_STAGE_VALUES = [
+  "invitado",
+  "entrenando",
+  "vencido",
+  "convertido",
+] as const;
+
+/** GET /api/admin/referrals/invitations?stage&branchId&from&to&page&pageSize */
+export const invitationLeadsQuerySchema = {
+  type: "object",
+  properties: {
+    stage: { type: "string", enum: [...INVITATION_LEAD_STAGE_VALUES] },
+    branchId: { type: "integer", minimum: 1 },
+    from: dateProperty,
+    to: dateProperty,
+    page: { type: "integer", minimum: 1, default: 1 },
+    pageSize: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+  },
+  additionalProperties: false,
+} as const;
+
+export interface InvitationReportQuery {
+  from?: string;
+  to?: string;
+}
+
+export interface InvitationLeadsQuery {
+  stage?: (typeof INVITATION_LEAD_STAGE_VALUES)[number];
+  branchId?: number;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}

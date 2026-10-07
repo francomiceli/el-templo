@@ -255,14 +255,18 @@ export const EXCEPCIONES_NOMBRADAS: Readonly<Record<string, string>> = {
 // `GET /api/members/referrals/invitations/eligibility` y
 // `POST /api/members/referrals/invitations/activate`, con su caso + control en
 // iso-03-referrals.test.ts.
-const CASOS_BASELINE = 59;
+// 2026-10-07: 59 -> 61 por el reporte y la bandeja de leads de Invitaciones
+// (Fase 194-20): `GET /api/admin/referrals/invitations/report` y
+// `GET /api/admin/referrals/invitations`, con su caso + control en
+// iso-03-referrals.test.ts.
+const CASOS_BASELINE = 61;
 
 /** Los seis archivos de la batería ISO-03 de analytics + resto del core. */
 const ARCHIVOS_BATERIA = [
   "iso-03-analytics.test.ts", // plan 175.1-02 — 22 rutas
   "iso-03-campaigns.test.ts", // plan 175.1-03 — 11 rutas (+1 fase 180: POST /exchange)
   "iso-03-notifications.test.ts", // plan 175.1-04 — 8 rutas
-  "iso-03-referrals.test.ts", // plan 175.1-05 — 3 rutas (+2 Invitaciones, fase 194-10; 2 más ya cubiertas por members, ver EXCEPCIONES_NOMBRADAS)
+  "iso-03-referrals.test.ts", // plan 175.1-05 — 3 rutas (+2 Invitaciones, fase 194-10; +2 reporte/bandeja, fase 194-20; 2 más ya cubiertas por members, ver EXCEPCIONES_NOMBRADAS)
   "iso-03-improvement-proposals.test.ts", // plan 175.1-05 — 4 rutas
   "iso-03-auth.test.ts", // plan 175.1-05 — 4 rutas (+1 "Empezá acá": POST /me/intro-stories)
 ] as const;
