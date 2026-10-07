@@ -451,7 +451,7 @@
       "country": "AR",
       "timezone": "America/Argentina/Buenos_Aires",
       "address": {
-        "street": "Mario Bravo 618",
+        "street": "Mario Bravo 618 </script><b>x</b>",
         "locality": "Mar del Plata",
         "region": "Buenos Aires",
         "postalCode": null,

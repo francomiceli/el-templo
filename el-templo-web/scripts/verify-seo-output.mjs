@@ -57,6 +57,9 @@ const REQUIRED_FILES = [
   "sitemap.xml",
 ];
 const AI_BOTS = ["OAI-SearchBot", "Claude-SearchBot", "PerplexityBot"];
+const ORG_ID = `${SITE_URL}/#organization`;
+const LD_JSON_RE =
+  /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
 
 function out(message) {
   process.stdout.write(`${message}\n`);
@@ -75,6 +78,119 @@ function walkHtml(dir) {
   }
   return found;
 }
+
+/** Bloques JSON-LD crudos (texto entre el <script ld+json> y el primer </script>). */
+function jsonLdBlocks(html) {
+  return [...html.matchAll(LD_JSON_RE)].map((m) => m[1]);
+}
+
+/** Nodos JSON-LD de un html: parsea cada bloque y aplana `@graph`. Lanza si un bloque no es JSON. */
+function jsonLdNodes(html) {
+  const nodes = [];
+  for (const block of jsonLdBlocks(html)) {
+    const parsed = JSON.parse(block);
+    nodes.push(
+      ...(Array.isArray(parsed["@graph"]) ? parsed["@graph"] : [parsed]),
+    );
+  }
+  return nodes;
+}
+
+const typeOf = (node) =>
+  Array.isArray(node["@type"]) ? node["@type"] : [node["@type"]];
+const nodesOfType = (nodes, type) =>
+  nodes.filter((n) => typeOf(n).includes(type));
+
+/** Misma regla que `hasExactGeo` (utils/schema-graph.ts): >= 5 decimales en lat y lng. */
+function decimals(value) {
+  const m = /\.(\d+)$/.exec(String(value));
+  return m ? m[1].length : 0;
+}
+function hasExactGeo(sede) {
+  return (
+    sede.geo !== null &&
+    sede.geo !== undefined &&
+    decimals(sede.geo.lat) >= 5 &&
+    decimals(sede.geo.lng) >= 5
+  );
+}
+
+const pageRel = (sede) =>
+  sede.country === "ES"
+    ? `es/sedes/${sede.slug}/index.html`
+    : `sedes/${sede.slug}/index.html`;
+const pageUrlPath = (sede) =>
+  sede.country === "ES" ? `/es/sedes/${sede.slug}` : `/sedes/${sede.slug}`;
+
+/** Problemas de la pagina de una sede con clases (ExerciseGym). */
+function gymPageProblems(ctx, sede) {
+  const rel = pageRel(sede);
+  if (!ctx.exists(rel)) return [`falta ${rel}`];
+  const html = ctx.read(rel);
+  const gyms = nodesOfType(jsonLdNodes(html), "ExerciseGym");
+  if (gyms.length !== 1) {
+    return [`${rel} tiene ${gyms.length} nodos ExerciseGym (debe ser 1)`];
+  }
+  const gym = gyms[0];
+  const problems = [];
+  const expectedId = `${SITE_URL}${pageUrlPath(sede)}#gym`;
+  if (gym["@id"] !== expectedId) {
+    problems.push(`${rel}: @id ${gym["@id"]} (esperado ${expectedId})`);
+  }
+  if (gym.parentOrganization?.["@id"] !== ORG_ID) {
+    problems.push(`${rel}: parentOrganization no apunta a ${ORG_ID}`);
+  }
+  if (gym.address?.streetAddress !== sede.address.street) {
+    problems.push(`${rel}: streetAddress distinto de la direccion de la sede`);
+  }
+  if (
+    typeof gym.telephone !== "string" ||
+    !/^\+\d{8,15}$/.test(gym.telephone)
+  ) {
+    problems.push(`${rel}: ExerciseGym sin telephone valido`);
+  }
+  const specs = gym.openingHoursSpecification;
+  if (sede.openingHours.length === 0) {
+    if (specs !== undefined) {
+      problems.push(
+        `${rel}: sede sin horarios pero con openingHoursSpecification`,
+      );
+    }
+    if (!html.includes("horarios por WhatsApp")) {
+      problems.push(
+        `${rel}: sede sin horarios sin el copy "horarios por WhatsApp"`,
+      );
+    }
+  } else if (
+    !Array.isArray(specs) ||
+    specs.length !== sede.openingHours.length
+  ) {
+    problems.push(
+      `${rel}: openingHoursSpecification con ${Array.isArray(specs) ? specs.length : 0} entradas (esperadas ${sede.openingHours.length})`,
+    );
+  }
+  const exact = hasExactGeo(sede);
+  if (exact && !gym.geo) {
+    problems.push(`${rel}: coordenadas exactas pero sin geo`);
+  }
+  if (!exact && gym.geo) {
+    problems.push(`${rel}: geo publicado con coordenadas aproximadas`);
+  }
+  return problems;
+}
+
+/** Quita entidades HTML basicas para comparar texto visible con los datos. */
+function decodeEntities(text) {
+  return text
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+const gymsOf = (ctx, country) =>
+  ctx.data.sedes.filter((s) => s.kind === "gym" && s.country === country);
 
 /** Lista de chequeos. Agregar los nuevos AL FINAL. */
 const CHECKS = [
@@ -177,7 +293,184 @@ const CHECKS = [
         },
       ]
     : []),
-  // AGREGAR CHEQUEOS NUEVOS ABAJO (planes 195-04 a 195-06).
+  // --- Plan 195-04: schema y paginas de sede ---
+  {
+    name: "home: un solo bloque JSON-LD con exactamente un Organization (@id fijo) y ningun ExerciseGym",
+    run: (ctx) => {
+      const html = ctx.read("index.html");
+      const problems = [];
+      const blocks = jsonLdBlocks(html);
+      if (blocks.length !== 1) {
+        problems.push(
+          `index.html tiene ${blocks.length} bloques JSON-LD (debe ser 1)`,
+        );
+      }
+      const nodes = jsonLdNodes(html);
+      const orgs = nodesOfType(nodes, "Organization").filter(
+        (n) => n["@id"] === ORG_ID,
+      );
+      if (orgs.length !== 1) {
+        problems.push(
+          `index.html tiene ${orgs.length} nodos Organization con @id ${ORG_ID}`,
+        );
+      }
+      if (
+        nodesOfType(nodes, "ExerciseGym").length > 0 ||
+        html.includes("ExerciseGym")
+      ) {
+        problems.push("index.html menciona ExerciseGym");
+      }
+      return problems;
+    },
+  },
+  {
+    name: "cada sede con clases de Argentina tiene su ExerciseGym correcto en /sedes/<slug>",
+    run: (ctx) => gymsOf(ctx, "AR").flatMap((s) => gymPageProblems(ctx, s)),
+  },
+  {
+    name: "cada sede con clases de Espana tiene su ExerciseGym correcto en /es/sedes/<slug>",
+    run: (ctx) => gymsOf(ctx, "ES").flatMap((s) => gymPageProblems(ctx, s)),
+  },
+  {
+    name: "los espacios de comunidad tienen un Place y ningun ExerciseGym",
+    run: (ctx) => {
+      const problems = [];
+      for (const sede of ctx.data.sedes.filter(
+        (s) => s.kind === "community_space",
+      )) {
+        const rel = pageRel(sede);
+        if (!ctx.exists(rel)) {
+          problems.push(`falta ${rel}`);
+          continue;
+        }
+        const nodes = jsonLdNodes(ctx.read(rel));
+        if (nodesOfType(nodes, "ExerciseGym").length > 0) {
+          problems.push(`${rel} tiene ExerciseGym`);
+        }
+        const places = nodesOfType(nodes, "Place");
+        if (places.length !== 1) {
+          problems.push(
+            `${rel} tiene ${places.length} nodos Place (debe ser 1)`,
+          );
+        } else if (places[0].parentOrganization) {
+          problems.push(`${rel}: el Place tiene parentOrganization`);
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "las sedes de Espana no tienen pagina bajo /sedes ni las de Argentina bajo /es/sedes",
+    run: (ctx) => {
+      const problems = [];
+      for (const s of ctx.data.sedes) {
+        const wrong =
+          s.country === "ES" ? `sedes/${s.slug}` : `es/sedes/${s.slug}`;
+        if (ctx.exists(`${wrong}/index.html`) || ctx.exists(`${wrong}.html`)) {
+          problems.push(
+            `existe ${wrong} para la sede ${s.slug} (${s.country})`,
+          );
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "sitemap.xml lista el hub /sedes y la pagina de cada sede",
+    run: (ctx) => {
+      const sitemap = ctx.read("sitemap.xml");
+      return ["/sedes", ...ctx.data.sedes.map((s) => pageUrlPath(s))]
+        .filter((path) => !sitemap.includes(`<loc>${SITE_URL}${path}</loc>`))
+        .map((path) => `sitemap.xml sin ${path}`);
+    },
+  },
+  {
+    name: "ningun bloque JSON-LD puede cerrar el <script> (sin '<' crudo y todos parsean)",
+    run: (ctx) => {
+      const problems = [];
+      for (const file of ctx.htmlFiles) {
+        for (const block of jsonLdBlocks(ctx.read(file))) {
+          if (block.includes("<")) {
+            problems.push(`${file}: JSON-LD con '<' sin escapar`);
+          }
+          try {
+            JSON.parse(block);
+          } catch {
+            problems.push(`${file}: JSON-LD que no parsea (bloque cortado)`);
+          }
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "el name de cada ExerciseGym empieza con el nombre de marca de los datos",
+    run: (ctx) => {
+      const brand = ctx.data.brand.name;
+      const problems = [];
+      for (const file of ctx.htmlFiles) {
+        for (const gym of nodesOfType(
+          jsonLdNodes(ctx.read(file)),
+          "ExerciseGym",
+        )) {
+          if (typeof gym.name !== "string" || !gym.name.startsWith(brand)) {
+            problems.push(
+              `${file}: name "${gym.name}" no empieza con "${brand}"`,
+            );
+          }
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "el footer no escribe direcciones de sedes y enlaza a /sedes",
+    run: (ctx) => {
+      const problems = [];
+      for (const file of ctx.htmlFiles) {
+        const footer = /<footer[\s\S]*?<\/footer>/.exec(ctx.read(file));
+        if (!footer) continue;
+        const text = decodeEntities(footer[0]);
+        for (const s of ctx.data.sedes) {
+          if (s.address.street && text.includes(s.address.street)) {
+            problems.push(
+              `${file}: el footer escribe la direccion "${s.address.street}"`,
+            );
+          }
+        }
+        if (!/href="\/sedes"/.test(footer[0])) {
+          problems.push(`${file}: el footer no enlaza a /sedes`);
+        }
+      }
+      return [...new Set(problems)];
+    },
+  },
+  {
+    name: "fixture: cubre sede sin horarios, geo exacta/aproximada y direccion hostil",
+    run: (ctx) => {
+      if (ctx.data.source !== "fixture") return [];
+      const gyms = ctx.data.sedes.filter((s) => s.kind === "gym");
+      const problems = [];
+      if (!gyms.some((s) => s.openingHours.length === 0)) {
+        problems.push(
+          "el fixture no tiene ninguna sede con openingHours vacio",
+        );
+      }
+      if (!gyms.some((s) => hasExactGeo(s))) {
+        problems.push("el fixture no tiene ninguna sede con geo exacta");
+      }
+      if (!gyms.some((s) => s.geo && !hasExactGeo(s))) {
+        problems.push("el fixture no tiene ninguna sede con geo aproximada");
+      }
+      if (!ctx.data.sedes.some((s) => (s.address.street ?? "").includes("<"))) {
+        problems.push(
+          "el fixture no tiene ninguna direccion con '<' (prueba de escape del JSON-LD)",
+        );
+      }
+      return problems;
+    },
+  },
+  // AGREGAR CHEQUEOS NUEVOS ABAJO (planes 195-05 y 195-06).
 ];
 
 function main() {
