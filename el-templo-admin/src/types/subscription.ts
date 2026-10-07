@@ -453,7 +453,7 @@ export interface RenewSubscriptionInput {
    * Renovación prorrateada hasta fin de mes (alineación a la domiciliación).
    * true → vence el último día del mes del inicio y el precio es el proporcional
    * (el monto editado viaja por priceOverrideAmount, sin razón). Excluyente con
-   * el descuento de referido. Default (undefined) = renovación de mes completo.
+   * el descuento por invitación. Default (undefined) = renovación de mes completo.
    */
   prorateToMonthEnd?: boolean;
 }

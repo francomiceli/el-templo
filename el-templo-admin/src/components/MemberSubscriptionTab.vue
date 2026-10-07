@@ -338,11 +338,25 @@
                 renewalEndDate
               }}</q-item-section>
             </q-item>
-            <q-item v-if="renewalReferralAmount > 0">
-              <q-item-section>Descuento referido ({{ renewalReferralPct }}%)</q-item-section>
+            <q-item v-if="renewalInvitationAmount > 0 && renewalPreview">
+              <q-item-section>
+                Descuento por invitación ({{ renewalPreview.invitationDiscountPercent }}%){{
+                  renewalPreview.invitationDiscountCapped ? ' · con tope' : ''
+                }}
+              </q-item-section>
               <q-item-section side class="text-positive"
                 >-{{
-                  formatPrice(renewalReferralAmount, renewTarget.currency ?? 'ARS')
+                  formatPrice(renewalInvitationAmount, renewTarget.currency ?? 'ARS')
+                }}</q-item-section
+              >
+            </q-item>
+            <q-item v-if="renewalPartnerAmount > 0 && renewalPreview">
+              <q-item-section
+                >Descuento partner ({{ renewalPreview.partnerDiscountPercent }}%)</q-item-section
+              >
+              <q-item-section side class="text-positive"
+                >-{{
+                  formatPrice(renewalPartnerAmount, renewTarget.currency ?? 'ARS')
                 }}</q-item-section
               >
             </q-item>
@@ -536,6 +550,7 @@
             :loading="renewalLoading"
             :disable="
               renewalPreview === null ||
+              renewalQuoteLoading ||
               renewalOverrideInvalid ||
               renewalProrateInvalid ||
               !!renewalStartDateError ||
@@ -801,10 +816,12 @@ const renewalNormalizedPrice = ref<number | null>(null);
 // deshabilitado: cobrar sobre el proporcional generaría una deuda fantasma).
 const renewalPreview = ref<RenewalPreview | null>(null);
 const renewalPreviewError = ref(false);
-// % de descuento de referido que el server va a aplicar a ESTA renovación
-// (server-computed vía pricing-preview, incluye la simulación del vínculo
-// pendiente que el cobro activa). 0 = sin descuento o preview aún cargando.
-const renewalReferralPct = ref(0);
+// Fase 194 (Pitfall 6): el preview se vuelve a pedir cuando cambia la fecha de
+// inicio (puede cambiar qué invitación/partner aplica). Mientras vuela, el botón
+// de confirmar queda deshabilitado para no cobrar con el monto de otra fecha.
+const renewalQuoteLoading = ref(false);
+// Contador anti-race: solo la última respuesta pisa el preview.
+let renewalQuoteSeq = 0;
 // Fecha de inicio custom al renovar (hotfix 1708312a). El toggle habilita el date-picker.
 const renewalUseCustomStartDate = ref(false);
 const renewalStartDate = ref('');
@@ -1056,7 +1073,7 @@ const renewalMonthEndParts = computed(() => {
   return { endDate, daysCharged, daysInMonth };
 });
 
-// Base heredada del MES COMPLETO, PRE-referido (resolveRenewalBase del server).
+// Base heredada del MES COMPLETO, sin descuentos pegados (resolveRenewalBase del server).
 // Mientras carga, lo que venía pagando — el botón de confirmar sigue
 // deshabilitado hasta que llegue la del server.
 const renewalInheritedBase = computed(
@@ -1095,41 +1112,39 @@ const renewalProrateInvalid = computed(
       : renewalEffectiveProrated.value > renewalFullMonthBase.value)
 );
 
-// Base de renovación PRE-descuento de referido, espejo del server:
-// override > precio normalizado (credit_card→regular con la regla OFF) >
-// base heredada (con add-back del descuento de referido del período anterior:
-// el descuento es por ciclo — el server re-aplica el % vigente sobre la base
-// limpia, no sobre el pricePaid ya descontado).
-const renewalBasePreReferral = computed(() => {
-  if (
+// Fase 194 (Pitfall 6, D-20): el admin NO calcula descuentos. Con override o
+// prorrateo el precio digitado ES el precio final (el servidor no descuenta
+// encima): no hay nada que pedirle. En la renovación estándar el precio y las
+// líneas de descuento son los MONTOS del preview del servidor (gana UNO solo,
+// con tope en dinero), el mismo helper que cobra renewSubscription.
+const renewalOverrideActive = computed(
+  () =>
     renewalUseOverride.value &&
     renewalOverrideAmount.value !== null &&
     renewalOverrideAmount.value >= 0
-  ) {
-    return renewalOverrideAmount.value;
-  }
-  // Si el server va a normalizar el precio (credit_card→regular con la regla de recargo
-  // OFF), la base de cobro es el precio normalizado (Y), no el pricePaid heredado (X).
-  if (renewalNormalizedPrice.value !== null) {
-    return renewalNormalizedPrice.value;
-  }
-  return renewalInheritedBase.value;
+);
+
+const renewalStandardPricing = computed(() => !renewalProrate.value && !renewalOverrideActive.value);
+
+const renewalInvitationAmount = computed(() =>
+  renewalStandardPricing.value && renewalPreview.value?.winningDiscount === 'invitation'
+    ? renewalPreview.value.invitationDiscountAmount
+    : 0
+);
+
+const renewalPartnerAmount = computed(() =>
+  renewalStandardPricing.value && renewalPreview.value?.winningDiscount === 'partner'
+    ? renewalPreview.value.partnerDiscountAmount
+    : 0
+);
+
+const renewalChargeBase = computed(() => {
+  if (renewalProrate.value) return renewalEffectiveProrated.value;
+  if (renewalOverrideActive.value) return renewalOverrideAmount.value ?? 0;
+  // Mientras llega el preview (el botón de confirmar sigue deshabilitado), la
+  // base heredada; después, el finalPrice del servidor.
+  return renewalPreview.value?.finalPrice ?? renewalInheritedBase.value;
 });
-
-// Misma price-math del server (floor(base*pct/100)). El server también
-// descuenta referidos sobre el precio personalizado, así que aplica al override.
-// El prorrateo es excluyente con el descuento de referido → 0 en ese modo.
-const renewalReferralAmount = computed(() =>
-  renewalProrate.value
-    ? 0
-    : Math.floor(renewalBasePreReferral.value * (renewalReferralPct.value / 100))
-);
-
-const renewalChargeBase = computed(() =>
-  renewalProrate.value
-    ? renewalEffectiveProrated.value
-    : renewalBasePreReferral.value - renewalReferralAmount.value
-);
 
 // El override es válido si está activo, tiene monto >= 0 y una razón no vacía.
 const renewalOverrideInvalid = computed(
@@ -1249,7 +1264,8 @@ function openRenewal(sub: SubscriptionDetail) {
   renewalNormalizedPrice.value = null;
   renewalPreview.value = null;
   renewalPreviewError.value = false;
-  renewalReferralPct.value = 0;
+  renewalQuoteSeq += 1;
+  renewalQuoteLoading.value = false;
   renewalUseCustomStartDate.value = false;
   // Pre-cargamos la fecha automática para que, al activar el toggle, el picker
   // arranque en el valor que el sistema usaría por defecto.
@@ -1259,83 +1275,64 @@ function openRenewal(sub: SubscriptionDetail) {
   renewalEditTurnos.value = false;
   renewalScheduleIds.value = [...(classUsage.value?.scheduleIds ?? [])];
   showRenewalDialog.value = true;
-  // Base del mes completo (y, encadenada, la detección de normalización que se
-  // compara contra ella). No bloquea la apertura; sí el botón de confirmar.
-  void loadRenewalBase(sub);
-  // % de referido de esta renovación (fire-and-forget: si falla, la base queda
-  // sin descuento y el server sigue siendo la autoridad al cobrar).
-  void loadRenewalReferralPct(sub);
+  // Preview del servidor: base del mes completo, normalización de recargo y los
+  // MONTOS del cobro. No bloquea la apertura; sí el botón de confirmar.
+  void loadRenewalPreview(sub);
 }
 
-// Pregunta al server el % de descuento de referido vigente para el socio (vía
-// pricing-preview, que ya simula la activación del vínculo pendiente). Solo se
-// usa el %, no el precio: la base de la renovación es la heredada, no la del plan.
-async function loadRenewalReferralPct(sub: SubscriptionDetail) {
+// Pide al server el preview de la renovación (Fase 194-18): la base del mes
+// completo (resolveRenewalBase), la normalización de recargo de tarjeta (WR-04) y
+// los montos del cobro (invitationDiscount*, partnerDiscount*, finalPrice) con la
+// fecha de inicio que se va a usar. Override y prorrateo NO viajan: ese precio es
+// el final por regla del servidor (D-20) y se usa tal cual (ver renewalChargeBase).
+async function loadRenewalPreview(sub: SubscriptionDetail) {
+  const seq = ++renewalQuoteSeq;
+  renewalQuoteLoading.value = true;
   try {
-    const preview = await subsApi.getPricingPreview(props.userId, sub.planId, 'regular');
-    // Guard anti-race: el diálogo podría haberse cerrado o cambiado de target.
-    if (renewTarget.value?.id !== sub.id) return;
-    renewalReferralPct.value = preview.referralDiscountPercent ?? 0;
-  } catch (err: unknown) {
-    log.warn('No se pudo previsualizar el descuento de referido en renovación', {
-      error: extractError(err, 'preview failed'),
+    const preview = await subsApi.getRenewalPreview(props.userId, sub.id, {
+      startDate:
+        renewalUseCustomStartDate.value && renewalStartDate.value
+          ? renewalStartDate.value
+          : undefined,
     });
-  }
-}
-
-// Pide al server la base del mes completo de la renovación (resolveRenewalBase).
-// Después dispara la detección de normalización de recargo de tarjeta (revisión
-// v5.4 WR-04): si el socio venía con 'credit_card', le preguntamos al server el
-// precio real que cobraría la renovación; si difiere de la base heredada,
-// guardamos Y para reflejarlo en la base de cobro y avisar antes de confirmar.
-async function loadRenewalBase(sub: SubscriptionDetail) {
-  try {
-    const preview = await subsApi.getRenewalPreview(props.userId, sub.id);
-    // Guard anti-race: el diálogo podría haberse cerrado o cambiado de target.
-    if (renewTarget.value?.id !== sub.id) return;
+    // Guard anti-race: el diálogo podría haberse cerrado/cambiado, o haber una
+    // respuesta más nueva en vuelo.
+    if (renewTarget.value?.id !== sub.id || seq !== renewalQuoteSeq) return;
     renewalPreview.value = preview;
+    renewalPreviewError.value = false;
+    // WR-04 (revisión v5.4): si el socio venía con 'credit_card' y la regla de
+    // recargo está OFF, el servidor normaliza a 'regular': su basePrice (Y) es menor
+    // que la base heredada (X). Se guarda Y para la base del prorrateo y el aviso
+    // previo a renovar. Con la regla ON (El Templo) Y === X.
+    renewalNormalizedPrice.value =
+      preview.basePrice !== preview.base ? preview.basePrice : null;
     // Si el staff prendió el prorrateo antes de que llegara la base, el monto
     // prellenado se calculó sobre la base provisoria: recalcularlo.
     if (renewalProrate.value) {
       renewalProratedAmount.value = renewalSuggestedProrated.value;
     }
   } catch (err: unknown) {
-    if (renewTarget.value?.id !== sub.id) return;
+    if (renewTarget.value?.id !== sub.id || seq !== renewalQuoteSeq) return;
+    // Sin preview no hay monto confiable: el botón de confirmar queda deshabilitado.
+    renewalPreview.value = null;
     renewalPreviewError.value = true;
-    log.warn('No se pudo previsualizar la base de la renovación', {
+    log.warn('No se pudo previsualizar la renovación', {
       error: extractError(err, 'preview failed'),
     });
-    return;
-  }
-  if (sub.priceTypeApplied === 'credit_card') {
-    await detectRenewalNormalization(sub, renewalPreview.value.base);
+  } finally {
+    if (seq === renewalQuoteSeq) renewalQuoteLoading.value = false;
   }
 }
 
-// Pregunta al server (única autoridad de precio vía resolvePriceType) qué cobraría la
-// renovación con priceType 'credit_card'. Con la regla de recargo OFF el server devuelve
-// el precio regular normalizado (Y) < pricePaid heredado (X); lo guardamos para el alert
-// y la base de cobro. Con la regla ON (El Templo) Y === X → no dispara nada.
-async function detectRenewalNormalization(sub: SubscriptionDetail, inheritedPreReferral: number) {
-  try {
-    const preview = await subsApi.getPricingPreview(props.userId, sub.planId, 'credit_card');
-    // Guard anti-race: el diálogo podría haberse cerrado o cambiado de target.
-    if (renewTarget.value?.id !== sub.id) return;
-    // Comparación PRE-descuento de referido en ambos lados: finalPrice ya viene
-    // con el descuento restado, y la base heredada ya viene sin el del período
-    // anterior. La normalización es un cambio de BASE; el descuento de referido
-    // se aplica después, vía renewalReferralAmount.
-    const previewPreReferral = preview.finalPrice + (preview.referralDiscountAmount ?? 0);
-    if (previewPreReferral !== inheritedPreReferral) {
-      renewalNormalizedPrice.value = previewPreReferral;
-    }
-  } catch (err: unknown) {
-    // Si el preview falla no bloqueamos la renovación; el server sigue siendo la autoridad.
-    log.warn('No se pudo previsualizar la normalización de precio en renovación', {
-      error: extractError(err, 'preview failed'),
-    });
-  }
-}
+// La fecha de inicio puede cambiar qué invitación o partner aplica: se vuelve a
+// pedir el preview al servidor (un cambio de fecha entra completo, sin tipeo
+// parcial, así que no hace falta debounce). Fecha inválida = no se pregunta.
+watch([renewalUseCustomStartDate, renewalStartDate], () => {
+  const sub = renewTarget.value;
+  if (!sub || !showRenewalDialog.value) return;
+  if (renewalStartDateError.value) return;
+  void loadRenewalPreview(sub);
+});
 
 // Al cambiar el precio a cobrar (override on/off o monto), por defecto se
 // cobra el total. El admin luego puede ajustar a un cobro parcial.
