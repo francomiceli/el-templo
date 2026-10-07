@@ -38,12 +38,12 @@
             </div>
           </div>
 
-          <!-- Referral badge (optimista — reusa .promo-badge, plan 157-05) -->
-          <div v-if="refCode" class="promo-badge">
+          <!-- Invitation badge (optimista — reusa .promo-badge, plan 157-05; rebrand fase 194) -->
+          <div v-if="inviteCode" class="promo-badge">
             <q-icon name="group_add" size="20px" />
             <div class="promo-badge__text">
-              <span class="promo-badge__code">CÓDIGO DE REFERIDO</span>
-              <span class="promo-badge__offer">{{ refCode }}</span>
+              <span class="promo-badge__code">CÓDIGO DE INVITACIÓN</span>
+              <span class="promo-badge__offer">{{ inviteCode }}</span>
               <span class="promo-badge__subtext">Te invitó un miembro del Templo</span>
             </div>
           </div>
@@ -88,7 +88,8 @@
 
               <q-input
                 v-model="phone"
-                label="Teléfono (opcional)"
+                :label="invitationFlow ? 'Teléfono' : 'Teléfono (opcional)'"
+                :rules="phoneRules"
                 lazy-rules
                 dark
                 outlined
@@ -187,8 +188,29 @@
               />
             </q-form>
 
+            <!-- 409 con código de invitación (D-06): la cuenta ya existe → login que conserva el código. -->
+            <div v-if="conflictCode" class="conflict-box" data-test="invitation-conflict">
+              <p class="conflict-box__text">
+                Ya tenés cuenta: iniciá sesión para activar tu invitación.
+              </p>
+              <router-link
+                :to="{ path: '/login', query: { invitacion: conflictCode } }"
+                class="conflict-box__link"
+              >
+                Iniciar sesión y activar mi invitación
+              </router-link>
+              <p class="conflict-box__text conflict-box__text--small">
+                Si te registraron en recepción, pedí ahí que activen tu invitación.
+              </p>
+            </div>
+
             <div class="card-links">
-              <router-link to="/login" class="card-link"> Ya tengo cuenta </router-link>
+              <router-link
+                :to="inviteCode ? { path: '/login', query: { invitacion: inviteCode } } : '/login'"
+                class="card-link"
+              >
+                Ya tengo cuenta
+              </router-link>
             </div>
           </div>
         </div>
@@ -198,12 +220,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
+import axios from 'axios'
 import { useAuthStore } from 'stores/useAuthStore'
 import { extractError } from 'src/utils/extract-error'
 import { normalizeSignupCode } from 'src/utils/signup-code'
+import {
+  normalizeInvitationCode,
+  pendingInvitation,
+  rememberPhoneForActivation,
+} from 'src/utils/pending-invitation'
 import type { PartnerBenefit } from 'stores/useAuthStore'
 
 const router = useRouter()
@@ -245,6 +273,13 @@ const refCode = computed(() => {
   return typeof code === 'string' ? code : null
 })
 
+// Fase 194 (D-06/D-26b): código de INVITACIÓN que trae el link. `?ref=` (links viejos) y
+// `?code=...&invitacion=1` (link nuevo, vía la landing) son invitaciones; un `?code=` suelto puede
+// ser de un comercio o una promo, así que solo cuenta con `invitacion=1`.
+const inviteCode = computed(() =>
+  normalizeInvitationCode(route.query.invitacion === '1' ? route.query.code : route.query.ref),
+)
+
 // Phase 179-15 (D-02/D-03): manual unified code field. Pre-filled from the
 // URL with priority code -> ref -> promo, reusing the existing badges'
 // query-param convention. Kept normalized as the user types so what they see
@@ -256,13 +291,28 @@ function initialSignupCode(): string {
 }
 const signupCode = ref(initialSignupCode())
 
+// Flujo de invitación: el link trae un código de invitación, o el código tipeado tiene forma de
+// código de socio (PREFIJO-XXXX; los de comercio/promo no llevan guion). El servidor decide si el
+// código realmente resuelve a un socio y, si no, lo ignora como siempre.
+const invitationFlow = computed(() => !!inviteCode.value || signupCode.value.includes('-'))
+
 function onSignupCodeInput(val: string | number | null) {
   signupCode.value = normalizeSignupCode(String(val ?? ''))
 }
 
 const requiredRule = (val: string) => !!val || 'Este campo es requerido'
 
-// DNI and phone are optional per App Store guideline 5.1.1(v)
+// DNI and phone are optional per App Store guideline 5.1.1(v) — el teléfono es obligatorio SOLO en
+// el flujo de invitación (Fase 194, D-06: identidad para el dedupe de la activación).
+const phoneRules = computed(() =>
+  invitationFlow.value
+    ? [
+        (val: string) =>
+          val.replace(/\D/g, '').length >= 6 ||
+          'El teléfono es obligatorio para activar una invitación',
+      ]
+    : [],
+)
 
 const emailRules = [
   (val: string) => !!val || 'El email es requerido',
@@ -304,8 +354,18 @@ function togglePassword() {
   }, 300)
 }
 
+// Con código de invitación, un 409 (email/DNI/teléfono ya registrados) lleva a login conservando el
+// código; el mensaje del servidor igual se muestra en la notificación.
+const conflictCode = ref<string | null>(null)
+
+onMounted(() => {
+  // Si el link trae el código, se recuerda: sobrevive al paso por "Ya tengo cuenta" / login.
+  if (inviteCode.value) pendingInvitation.save(inviteCode.value)
+})
+
 async function onSubmit() {
   loading.value = true
+  conflictCode.value = null
   try {
     const branchIdParam = route.query.branchId ? Number(route.query.branchId) : undefined
     const result = await authStore.register({
@@ -327,8 +387,19 @@ async function onSubmit() {
       type: 'positive',
       message: buildSuccessMessage(result?.partnerBenefit ?? null, result?.promoApplied),
     })
+    // Fase 194 (D-06/D-26b): el servidor confirma que el código es de un socio (`invitation.code`):
+    // el vínculo ya no nace al registrarse, se pasa por "Activar invitación" con la sesión recién creada.
+    if (result?.invitationCode) {
+      pendingInvitation.save(result.invitationCode)
+      rememberPhoneForActivation(phone.value)
+      void router.push({ name: 'activar-invitacion' })
+      return
+    }
     router.push('/')
   } catch (err: unknown) {
+    if (axios.isAxiosError(err) && err.response?.status === 409 && invitationFlow.value) {
+      conflictCode.value = inviteCode.value ?? normalizeInvitationCode(signupCode.value)
+    }
     const errorMsg = extractError(err, 'Error al crear cuenta')
     $q.notify({
       type: 'negative',
@@ -994,6 +1065,36 @@ $charcoal-mid: #3d3732;
   &:active {
     transform: scale(0.98);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+}
+
+// 409 con código de invitación (Fase 194): caminos de login / recepción.
+.conflict-box {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: rgba($terracotta, 0.12);
+  border: 1px solid rgba($terracotta, 0.4);
+  text-align: center;
+
+  &__text {
+    margin: 0 0 8px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: $cream;
+
+    &--small {
+      margin: 8px 0 0;
+      font-size: 0.75rem;
+      color: rgba($cream, 0.6);
+    }
+  }
+
+  &__link {
+    color: $cream;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: underline;
   }
 }
 

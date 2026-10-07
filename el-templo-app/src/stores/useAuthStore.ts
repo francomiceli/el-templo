@@ -92,7 +92,15 @@ export const useAuthStore = defineStore('auth', () => {
     // Phase 179-15 (D-02/D-03): unified manual code field, sent alongside
     // promoCode/ref for back-compat. Server resolves code ?? ref ?? promoCode.
     code?: string
-  }): Promise<{ promoApplied?: boolean; partnerBenefit: PartnerBenefit | null } | undefined> {
+  }): Promise<
+    | {
+        promoApplied?: boolean
+        partnerBenefit: PartnerBenefit | null
+        // Fase 194 (D-26b): código de socio confirmado por el servidor → "Activar invitación".
+        invitationCode: string | null
+      }
+    | undefined
+  > {
     loading.value = true
     error.value = null
 
@@ -104,6 +112,7 @@ export const useAuthStore = defineStore('auth', () => {
         user: userData,
         promoApplied,
         partnerBenefit,
+        invitation,
       } = response.data
 
       // Phase 116: persist access+refresh (legacy authToken cleaned up inside setTokens).
@@ -121,7 +130,13 @@ export const useAuthStore = defineStore('auth', () => {
       // user BEFORE returning to the caller (and before any navigation).
       await userStore.hydrateSelection()
 
-      return { promoApplied, partnerBenefit: (partnerBenefit as PartnerBenefit | null) ?? null }
+      const invitationCode: string | null =
+        typeof invitation?.code === 'string' && invitation.code ? invitation.code : null
+      return {
+        promoApplied,
+        partnerBenefit: (partnerBenefit as PartnerBenefit | null) ?? null,
+        invitationCode,
+      }
     } catch (err: unknown) {
       error.value = extractError(err, 'Error de registro')
       throw err
