@@ -118,3 +118,11 @@
   - AJV con `additionalProperties:false` DESCARTA claves no declaradas (no da 400): declarar todo campo nuevo del body.
   - `signup_attributions` NO guarda consentimiento ni país: CAPI (195-08) filtra España por país de la sede/tenant (D-25) e iOS/unknown por `platform` (D-24).
   - Baselines ahora: `GYM_OWNED_TABLES` 100 · `schemaTables` 104 · `gymOwnedChecked` 100 · 0196 Test 10: 100 · `ENTRADAS_BASELINE` 448 · `JOBS_ESPERADOS` 9 · módulo `marketing` en `TENANT_STRICT_MODULES`.
+- **Tras 195-08 (2026-10-07):**
+  - Lint de tenancy cuenta `schema.<tabla>` dentro de `sql` como acceso y exige `tenantValues` en el mismo `.values()`.
+  - `bookings` unique `(socio, horario, fecha)`: varias reservas del mismo alumno en tests → fechas distintas. `createTestMember` ya deja una fila `signup_attributions` (`unknown`).
+  - Harness de mutación: nunca bajo un `timeout` más corto que el lote; verificar baseline verde ANTES y archivo restaurado (`git diff --quiet <archivo>`) DESPUÉS de cada mutante.
+  - Tests que siembren `ad_spend_daily` para el gimnasio 2: borrarla antes de `limpiarSegundoGimnasio`.
+  - Env de Meta: `META_ACCESS_TOKEN` (no `META_CAPI_ACCESS_TOKEN`), `META_CAPI_START_AT`. Hay cron horario `runPiiPurge` (IP/UA > 7 días) que corre siempre.
+  - Baselines: `GYM_OWNED_TABLES` 102 · `schemaTables` 106 · `gymOwnedChecked` 102 · 0196 T10: 102 · `JOBS_ESPERADOS` 10 · `ENTRADAS_BASELINE` 448.
+  - **Para 195-14 (guía):** pendientes de `195-08-SUMMARY.md` (aprobar `/privacidad` + completar marcador de razón social/NIF/domicilio ES antes de deployar, no activar CAPI hasta tener el texto en prod, `test_event_code`, proceso de oposición manual, `META_*` jamás en staging).
