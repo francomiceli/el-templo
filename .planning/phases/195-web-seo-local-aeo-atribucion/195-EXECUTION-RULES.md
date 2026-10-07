@@ -139,3 +139,8 @@
   - Lint de tenancy: `tenantWhere(` en el propio statement; evitar aliases `const t = schema.x`.
   - Baselines: `ENTRADAS_BASELINE` 450 · `GYM_OWNED_TABLES` 103 · `schemaTables` 107 · `gymOwnedChecked` 103 · 0196 T10: 103 · `JOBS_ESPERADOS` 11.
   - **Para 195-14 (guía):** nombres de campaña de Meta con el slug de la sede (`juan-b-justo-octubre`) para bajar el gasto a sede; `utm_campaign={{campaign.name}}` obligatorio; retención de `search_console_stats`; moneda de la cuenta publicitaria AR (si factura en USD ajustar `COUNTRY_CURRENCY`).
+- **Tras 195-11 (2026-10-07):**
+  - `deploy-staging.yml` es CRLF, `deploy.yml` LF: normalizar y restaurar finales de línea al editar.
+  - Un secret de la API solo llega al servidor con un deploy de la API (push a `el-templo-api/**` o dispatch `todo`); `solo-web` no lo actualiza.
+  - **Para 195-13:** crear `deploy/RUNBOOK-195-NGINX.md` (lo referencia `ROLLOUT-195.md` §5).
+  - **Para 195-14 (guía):** tabla de secrets de `195-11-SUMMARY.md` (solo prod), UAT del dispatch `solo-web` en staging después del paso 1 del rollout, paso 1 identificado por mensaje de commit, teléfonos reales antes de `GBP_SYNC_MODE=apply`.
