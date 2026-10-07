@@ -94,3 +94,8 @@
   - **195-04 debe agregar al fixture una sede con `openingHours: []`** (y chequeo en el verificador: página publicada, sin `openingHoursSpecification`).
   - **Footer (decisión del orquestador):** `AppFooter.vue:106-108` deja de mostrar "Av. Constitución 6745" fijo → mostrar "<N> sedes en Mar del Plata + Barcelona" con link a `/sedes` (N desde los datos). Lo hace 195-04.
   - `llms.txt` ya enlaza `/sedes/<slug>` y `/es/sedes/<slug>`: esas páginas llegan en 195-04..06.
+- **Tras 195-04 (2026-10-07):**
+  - El crawler de nitro (`crawlLinks`) genera páginas linkeadas aunque no estén en `prerenderRoutes`: testear existencia en el verificador. Rutas nuevas (disciplinas, profes, primera clase, planes) → `prerenderRoutes(data)`; chequeos al final de `CHECKS`.
+  - Reusar: `composables/useSedeSeo.ts`, `articleNode(post, author)` (acepta `Person`), `buildRegisterUrl(params, attribution)` (195-06), `sedePath`.
+  - El fixture tiene casos borde a propósito (Moreno sin horarios, geo exacta/parcial, dirección con `</script>` en Mario Bravo): no "limpiarlos".
+  - Harness de mutación web reutilizables en el scratchpad `mut04/` (sin commitear).
