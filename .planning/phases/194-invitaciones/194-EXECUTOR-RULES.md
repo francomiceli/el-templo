@@ -164,3 +164,11 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - **NO seguir engordando `invitation-service.ts`.** Funcionalidad nueva (overview de "Mis invitados", etapa de lead, reporte, canal asistido si crece) va en su PROPIO archivo de `referrals/` (p.ej. `invitation-overview.ts`, `invitation-leads.ts`, `invitation-report.ts`) y compone `InvitationRules`/`InvitationService`. Funciones de >~80 líneas: partir en helpers con nombre.
 - **NO engordar `subscriptions/service.ts`** (8k+ líneas, deuda previa): en cobros, cada charge-path hace UNA llamada al árbitro (`discount-arbiter.ts`) y la lógica vive en el árbitro.
 - Planes ahora se ejecutan agrupados (un ejecutor corre varios PLAN seguidos, un SUMMARY por plan).
+
+### Tras 194-11..13
+- **Fecha de los tests:** NUNCA `todayStr()` (UTC) como `startDate` de una compra/alta: de noche (21-24 ART) arranca "mañana" respecto de `CURDATE()` y el socio no pasa a `activo`. Usar `todayInTz(<tz de la sede>)`. El helper `assignPlan` de `test/subscriptions/_helpers.ts` usa `todayStr()` por defecto: pasar `startDate` explícito. (`test/subscriptions-conversion-hook.test.ts` falla de noche por esto: preexistente; CI corre en UTC y no lo ve.)
+- Registro con código de socio: exige `phone`, responde 200 (no 201), ya NO crea fila en `referrals` (D-26b) y devuelve `invitation: { code }`.
+- Canal asistido en `referrals/invitation-assisted.ts`; armado compartido de servicios en `referrals/invitation-factory.ts` (usarlo en rutas nuevas). Conversión de leads en `referrals/invitation-conversion.ts`.
+- **194-14..18: NO tocar el bloque que llama a `attributeInvitationPurchase` en `recomputeUserStatus`.**
+- MySQL redondea TIMESTAMP al segundo: comparar con tolerancia de 1 s.
+- `CASOS_BASELINE` cuenta `describe` (no `it`): un `describe` con clave de ruta por ruta nueva.
