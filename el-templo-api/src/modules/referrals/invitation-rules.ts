@@ -386,6 +386,7 @@ export class InvitationRules {
     }
     const dni = normalizeDni(input.dni);
     if (dni) {
+      /* tenant-safe: condición de persona sobre invitations.invited_dni; viaja dentro de la query de abajo, que acota invitations con tenantWhere. */
       const byDni = and(
         isNotNull(i.invitedDni),
         sql`UPPER(REGEXP_REPLACE(${i.invitedDni}, ${DNI_NORMALIZE_SQL_PATTERN}, '')) = ${dni}`,
