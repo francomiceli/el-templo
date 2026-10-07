@@ -278,7 +278,11 @@ describe("Pricing preview — referral discount parity", () => {
   }
 
   it("finalPrice del preview === pricePaid del cobro real (socio con vínculo activo)", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    // 194-15 D-10b: el plan lleva el flag (sin él no descuenta).
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 10000,
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "pv-r@test.com" });
     const referred = await createMember(app, { email: "pv-d@test.com" });
     await app.db.execute(
@@ -315,7 +319,10 @@ describe("Pricing preview — referral discount parity", () => {
   });
 
   it("el preview es read-only: no cualifica el vínculo pending del socio", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 10000,
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "pv-ro-r@test.com" });
     const referred = await createMember(app, { email: "pv-ro-d@test.com" });
     await app.db.execute(

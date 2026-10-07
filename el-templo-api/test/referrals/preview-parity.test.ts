@@ -13,7 +13,7 @@
  *     (add-back de referralDiscountAmount) y re-aplica el % vigente del ciclo.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -26,16 +26,37 @@ import {
   createPlan,
   createMember,
   assignPlan,
+  seedAuraBalance,
   SUBSCRIPTIONS_URL,
 } from "../subscriptions/_helpers";
+import {
+  createInvitationRow,
+  createInviterWithCode,
+  createMemberInPhysicalBranch,
+  fixtureCtx,
+  resetInvitationSettings,
+  type InvitationsFixtureCtx,
+} from "../invitations/_helpers";
 import * as schema from "../../src/db/schema";
+import { setInvitationSettings } from "../../src/modules/referrals/invitation-settings";
+import { todayInTz } from "../../src/modules/shared/date-utils";
+import { tenantWhere } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
+// 194-15 D-10b: sin el flag `allowsInvitationDiscount` el plan ni cualifica ni
+// descuenta; los planes de estos casos lo llevan (producción lo backfilleó, D-23).
+const FLAGGED_15000 = {
+  priceRegular: 15000,
+  allowsInvitationDiscount: true,
+};
+
 let app: FastifyInstance;
+let ctx: InvitationsFixtureCtx;
 let adminToken: string;
 
 beforeAll(async () => {
   app = await createTestApp();
+  ctx = fixtureCtx(app);
   adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
 });
 
@@ -45,6 +66,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await cleanAllTestData(app);
+  await resetInvitationSettings(ctx);
   await app.db.execute(
     sql`INSERT INTO aura_config (aura_config_source_type, default_amount)
         VALUES ('referral', 10)
@@ -121,7 +143,7 @@ async function createEspecialPlan(priceRegular: number): Promise<number> {
 
 describe("Referral discount preview parity", () => {
   it("(1) pricing-preview simula el vínculo pending del payer-referido (primer pago)", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
     const referrer = await createMember(app, { email: "pp-1-r@test.com" });
     const referred = await createMember(app, { email: "pp-1-d@test.com" });
     await linkPending(referrer.id, referred.id);
@@ -143,7 +165,7 @@ describe("Referral discount preview parity", () => {
   });
 
   it("(1b) pending con referidor SIN cobertura → preview sin descuento", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
     const referrer = await createMember(app, { email: "pp-1b-r@test.com" });
     const referred = await createMember(app, { email: "pp-1b-d@test.com" });
     await linkPending(referrer.id, referred.id);
@@ -158,7 +180,7 @@ describe("Referral discount preview parity", () => {
   it("(1c) el pending ajeno (payer como referidor) NO se simula", async () => {
     // qualifyFirstPayment solo flippea vínculos donde el payer es el REFERIDO;
     // que el payer tenga un referido pendiente no descuenta su propio cobro.
-    const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
     const referrer = await createMember(app, { email: "pp-1c-r@test.com" });
     const referred = await createMember(app, { email: "pp-1c-d@test.com" });
     await linkPending(referrer.id, referred.id);
@@ -225,7 +247,7 @@ describe("Referral discount preview parity", () => {
   });
 
   it("(4) la renovación NO compone el descuento (add-back de la base)", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
     const payer = await createMember(app, { email: "pp-4-p@test.com" });
     const referred = await createMember(app, { email: "pp-4-d@test.com" });
     await linkQualified(payer.id, referred.id);
@@ -257,7 +279,7 @@ describe("Referral discount preview parity", () => {
   });
 
   it("(4b) si el vínculo se suspende, la renovación vuelve al precio pleno", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
     const payer = await createMember(app, { email: "pp-4b-p@test.com" });
     const referred = await createMember(app, { email: "pp-4b-d@test.com" });
     await linkQualified(payer.id, referred.id);
@@ -286,5 +308,212 @@ describe("Referral discount preview parity", () => {
     });
     expect(renew.statusCode).toBe(201);
     expect(JSON.parse(renew.body).pricePaid).toBe(15000);
+  });
+});
+
+// ─── 194-15: el preview del alta usa el MISMO árbitro que el cobro ────────────
+
+interface ArbiterPreview {
+  finalPrice: number;
+  discountType: string;
+  auraToSpend: number;
+  referralDiscountPercent: number;
+  referralDiscountAmount: number;
+  invitationDiscountPercent: number;
+  invitationDiscountAmount: number;
+  invitationDiscountCapped: boolean;
+  winningDiscount: string;
+}
+
+async function previewOf(
+  memberId: number,
+  planId: number,
+  auraSpend?: number,
+): Promise<ArbiterPreview> {
+  const qs = auraSpend ? `&auraSpend=${auraSpend}` : "";
+  const res = await app.inject({
+    method: "GET",
+    url: `${SUBSCRIPTIONS_URL}/members/${memberId}/subscription/pricing-preview?planId=${planId}&priceType=regular${qs}`,
+    headers: { authorization: `Bearer ${adminToken}` },
+  });
+  expect(res.statusCode).toBe(200);
+  return JSON.parse(res.body) as ArbiterPreview;
+}
+
+/** Invitado (físico, AR) con una invitación activa de un invitador con membresía vigente. */
+async function inviteeWithInvitation(): Promise<{
+  id: number;
+  branchId: number;
+  inviterId: number;
+}> {
+  const inviter = await createInviterWithCode(ctx);
+  const payer = await createMemberInPhysicalBranch(ctx, { status: "prueba" });
+  await createInvitationRow(ctx, {
+    inviterId: inviter.id,
+    invitedUserId: payer.id,
+    branchId: payer.branchId,
+    channel: "assisted",
+  });
+  return { id: payer.id, branchId: payer.branchId, inviterId: inviter.id };
+}
+
+async function referralRowsOf(userId: number) {
+  return app.db
+    .select({ id: schema.referrals.id })
+    .from(schema.referrals)
+    .where(
+      and(
+        tenantWhere(schema.referrals, ctx.tenant),
+        eq(schema.referrals.referredId, userId),
+      ),
+    );
+}
+
+async function auraBalanceOf(userId: number): Promise<number> {
+  const rows = await app.db.execute(
+    sql`SELECT balance FROM aura_balances WHERE user_id = ${userId}`,
+  );
+  return (rows[0] as unknown as Array<{ balance: number }>)[0]?.balance ?? 0;
+}
+
+async function creditOf(
+  userId: number,
+): Promise<{ percent: number; amount: number } | undefined> {
+  const rows = await app.db.execute(
+    sql`SELECT percent, amount FROM referral_credits WHERE user_id = ${userId} AND tenant_id = ${TENANT_TEMPLO} ORDER BY id DESC LIMIT 1`,
+  );
+  return (rows[0] as unknown as Array<{ percent: number; amount: number }>)[0];
+}
+
+describe("194-15: paridad preview ↔ cobro del alta con el árbitro", () => {
+  it("(5) AURA 10% vs invitación 10% (empate): el preview muestra que gana la invitación y NO promete gastar AURA; el cobro coincide", async () => {
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
+    const referrer = await createMember(app, { email: "pp-5-r@test.com" });
+    const payer = await createMember(app, { email: "pp-5-p@test.com" });
+    await linkQualified(referrer.id, payer.id);
+    await giveCoverage(referrer.id, plan.id, dateOffsetStr(30));
+    await seedAuraBalance(app, payer.id, 1000);
+
+    const preview = await previewOf(payer.id, plan.id, 1000);
+    expect(preview.winningDiscount).toBe("invitation");
+    expect(preview.discountType).toBe("none");
+    expect(preview.auraToSpend).toBe(0);
+    expect(preview.invitationDiscountAmount).toBe(1500);
+    expect(preview.finalPrice).toBe(13500);
+
+    const charge = await assignPlan(app, adminToken, payer.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+      auraSpend: 1000,
+    });
+    expect(charge.statusCode).toBe(201);
+    expect(charge.body.pricePaid).toBe(preview.finalPrice);
+    expect(await auraBalanceOf(payer.id)).toBe(1000);
+  });
+
+  it("(6) AURA 30% gana a la invitación: el preview lo informa y el cobro paga lo mismo", async () => {
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
+    const referrer = await createMember(app, { email: "pp-6-r@test.com" });
+    const payer = await createMember(app, { email: "pp-6-p@test.com" });
+    await linkQualified(referrer.id, payer.id);
+    await giveCoverage(referrer.id, plan.id, dateOffsetStr(30));
+    await seedAuraBalance(app, payer.id, 5000);
+
+    const preview = await previewOf(payer.id, plan.id, 5000);
+    expect(preview.winningDiscount).toBe("aura");
+    expect(preview.invitationDiscountAmount).toBe(0);
+    expect(preview.invitationDiscountPercent).toBe(0);
+    expect(preview.finalPrice).toBe(10500);
+
+    const charge = await assignPlan(app, adminToken, payer.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+      auraSpend: 5000,
+    });
+    expect(charge.statusCode).toBe(201);
+    expect(charge.body.pricePaid).toBe(preview.finalPrice);
+    expect(await creditOf(payer.id)).toBeUndefined();
+  });
+
+  it("(7) tope en dinero AR 1000: el preview informa monto recortado y `capped`, y el cobro (y su crédito) coinciden", async () => {
+    await setInvitationSettings(app.db, ctx.tenant, {
+      discountCapAmount: { AR: 1000 },
+    });
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
+    const referrer = await createMember(app, { email: "pp-7-r@test.com" });
+    const payer = await createMember(app, { email: "pp-7-p@test.com" });
+    await linkQualified(referrer.id, payer.id);
+    await giveCoverage(referrer.id, plan.id, dateOffsetStr(30));
+
+    const preview = await previewOf(payer.id, plan.id);
+    expect(preview.winningDiscount).toBe("invitation");
+    expect(preview.invitationDiscountPercent).toBe(10); // nominal
+    expect(preview.invitationDiscountAmount).toBe(1000); // recortado (nominal 1500)
+    expect(preview.invitationDiscountCapped).toBe(true);
+    expect(preview.finalPrice).toBe(14000);
+
+    const charge = await assignPlan(app, adminToken, payer.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+    });
+    expect(charge.statusCode).toBe(201);
+    expect(charge.body.pricePaid).toBe(preview.finalPrice);
+    expect(await creditOf(payer.id)).toEqual({ percent: 10, amount: 1000 });
+  });
+
+  it("(8) vínculo a materializar: el preview ya muestra el 10% (simulado) sin crear la fila; el cobro la crea y paga lo mismo", async () => {
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
+    const payer = await inviteeWithInvitation();
+
+    const first = await previewOf(payer.id, plan.id);
+    const second = await previewOf(payer.id, plan.id);
+    expect(first.invitationDiscountPercent).toBe(10);
+    expect(first.invitationDiscountAmount).toBe(1500);
+    expect(first.winningDiscount).toBe("invitation");
+    expect(first.finalPrice).toBe(13500);
+    expect(second).toEqual(first); // idempotente
+    // El preview es SOLO LECTURA: no materializó el vínculo.
+    expect(await referralRowsOf(payer.id)).toHaveLength(0);
+
+    const charge = await assignPlan(app, adminToken, payer.id, {
+      planId: plan.id,
+      branchId: payer.branchId,
+      startDate: todayInTz("America/Argentina/Buenos_Aires"),
+    });
+    expect(charge.statusCode).toBe(201);
+    expect(charge.body.pricePaid).toBe(first.finalPrice);
+    expect(await referralRowsOf(payer.id)).toHaveLength(1);
+  });
+
+  it("(9) plan SIN flag: el preview no descuenta (aunque haya invitación) y coincide con el cobro", async () => {
+    const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
+    const payer = await inviteeWithInvitation();
+
+    const preview = await previewOf(payer.id, plan.id);
+    expect(preview.winningDiscount).toBe("none");
+    expect(preview.invitationDiscountAmount).toBe(0);
+    expect(preview.finalPrice).toBe(15000);
+
+    const charge = await assignPlan(app, adminToken, payer.id, {
+      planId: plan.id,
+      branchId: payer.branchId,
+      startDate: todayInTz("America/Argentina/Buenos_Aires"),
+    });
+    expect(charge.statusCode).toBe(201);
+    expect(charge.body.pricePaid).toBe(preview.finalPrice);
+    expect(await referralRowsOf(payer.id)).toHaveLength(0);
+  });
+
+  it("(10) compat: `referralDiscountPercent/Amount` (deprecado) vale lo mismo que `invitationDiscountPercent/Amount`", async () => {
+    const plan = await createPlan(app, adminToken, FLAGGED_15000);
+    const payer = await inviteeWithInvitation();
+    const preview = await previewOf(payer.id, plan.id);
+    expect(preview.referralDiscountPercent).toBe(
+      preview.invitationDiscountPercent,
+    );
+    expect(preview.referralDiscountAmount).toBe(
+      preview.invitationDiscountAmount,
+    );
+    expect(preview.referralDiscountAmount).toBe(1500);
   });
 });

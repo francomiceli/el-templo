@@ -35,6 +35,15 @@ import {
   insertPartnerLink,
   partnerCommissionRows,
 } from "./_helpers";
+import {
+  createInvitationRow,
+  createInviterWithCode,
+  createMemberInPhysicalBranch,
+  fixtureCtx,
+  resetInvitationSettings,
+  type InvitationsFixtureCtx,
+} from "../invitations/_helpers";
+import { todayInTz } from "../../src/modules/shared/date-utils";
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -241,5 +250,146 @@ describe("Preview↔cobro: paridad exacta del descuento de partner (D-09/D-10/D-
     expect(
       await partnerCommissionRows(app, charge.body.id as number),
     ).toHaveLength(1);
+  });
+});
+
+// ─── 194-15: partner vs invitación (D-21 "gana el mayor") ────────────────────
+
+interface ArbiterPreviewBody extends PreviewBody {
+  winningDiscount: string;
+  invitationDiscountPercent: number;
+  invitationDiscountAmount: number;
+}
+
+describe("194-15: paridad preview ↔ cobro cuando el partner compite con la invitación (D-21)", () => {
+  const FLAGGED = { priceRegular: 15000, allowsInvitationDiscount: true };
+  let ctx: InvitationsFixtureCtx;
+
+  beforeEach(async () => {
+    ctx = fixtureCtx(app);
+    await resetInvitationSettings(ctx);
+    // cleanAllTestData vacía aura_config/system_settings: se resiembra el 10% por vínculo.
+    await app.db.execute(
+      sql`INSERT INTO aura_config (aura_config_source_type, default_amount)
+          VALUES ('referral', 10)
+          ON DUPLICATE KEY UPDATE default_amount = 10`,
+    );
+    await app.db.execute(
+      sql`INSERT INTO system_settings (setting_key, setting_value)
+          VALUES ('referral.max_percent_cap', '40')
+          ON DUPLICATE KEY UPDATE setting_value = '40'`,
+    );
+  });
+
+  /** Invitado con invitación activa y un vínculo de partner `pending` del % dado. */
+  async function inviteeWithPartner(
+    partnerPercent: number,
+  ): Promise<{ id: number; branchId: number }> {
+    const inviter = await createInviterWithCode(ctx);
+    const payer = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    await createInvitationRow(ctx, {
+      inviterId: inviter.id,
+      invitedUserId: payer.id,
+      branchId: payer.branchId,
+    });
+    const partner = await insertPartner(app, { benefitValue: partnerPercent });
+    await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: payer.id,
+      benefitType: "discount_percent",
+      benefitValue: partnerPercent,
+      benefitStatus: "pending",
+    });
+    return { id: payer.id, branchId: payer.branchId };
+  }
+
+  async function previewOf(
+    memberId: number,
+    planId: number,
+    auraSpend?: number,
+  ): Promise<ArbiterPreviewBody> {
+    const preview = await getPricingPreview(memberId, planId, auraSpend);
+    expect(preview.statusCode).toBe(200);
+    return preview.body as ArbiterPreviewBody;
+  }
+
+  async function charge(
+    payer: { id: number; branchId: number },
+    planId: number,
+    extra: Record<string, unknown> = {},
+  ): Promise<number> {
+    const res = await assignPlan(app, adminToken, payer.id, {
+      planId,
+      branchId: payer.branchId,
+      startDate: todayInTz("America/Argentina/Buenos_Aires"),
+      ...extra,
+    });
+    expect(res.statusCode).toBe(201);
+    return res.body.pricePaid as number;
+  }
+
+  it("(5) partner 15% (2250) gana a la invitación 10% (1500): finalPrice 12750 en preview y cobro; antes componían", async () => {
+    const plan = await createPlan(app, adminToken, FLAGGED);
+    const payer = await inviteeWithPartner(15);
+
+    const preview = await previewOf(payer.id, plan.id);
+    expect(preview.winningDiscount).toBe("partner");
+    expect(preview.partnerDiscountPercent).toBe(15);
+    expect(preview.partnerDiscountAmount).toBe(2250);
+    expect(preview.invitationDiscountAmount).toBe(0);
+    expect(preview.finalPrice).toBe(12750);
+
+    expect(await charge(payer, plan.id)).toBe(preview.finalPrice);
+    expect(await readBenefitStatus(payer.id)).toBe("consumed");
+  });
+
+  it("(6) partner 5% (750) pierde contra la invitación 10% (1500): finalPrice 13500 en preview y cobro", async () => {
+    const plan = await createPlan(app, adminToken, FLAGGED);
+    const payer = await inviteeWithPartner(5);
+
+    const preview = await previewOf(payer.id, plan.id);
+    expect(preview.winningDiscount).toBe("invitation");
+    expect(preview.partnerDiscountPercent).toBeNull();
+    expect(preview.partnerDiscountAmount).toBeNull();
+    expect(preview.invitationDiscountPercent).toBe(10);
+    expect(preview.invitationDiscountAmount).toBe(1500);
+    expect(preview.finalPrice).toBe(13500);
+
+    expect(await charge(payer, plan.id)).toBe(preview.finalPrice);
+    // El beneficio de partner es de UNA cuota (D-20 de la 179): se consume aunque
+    // haya perdido (aplicado_reason 'perdio_vs_aura', mismo criterio que contra AURA).
+    expect(await readBenefitStatus(payer.id)).toBe("consumed");
+  });
+
+  it("(7) partner 10% = invitación 10% (empate de monto): gana la invitación, un solo descuento", async () => {
+    const plan = await createPlan(app, adminToken, FLAGGED);
+    const payer = await inviteeWithPartner(10);
+
+    const preview = await previewOf(payer.id, plan.id);
+    expect(preview.winningDiscount).toBe("invitation");
+    expect(preview.partnerDiscountPercent).toBeNull();
+    expect(preview.invitationDiscountAmount).toBe(1500);
+    expect(preview.finalPrice).toBe(13500);
+
+    expect(await charge(payer, plan.id)).toBe(preview.finalPrice);
+  });
+
+  it("(8) AURA 30% gana a partner 15% e invitación 10%: finalPrice 10500 en preview y cobro", async () => {
+    const plan = await createPlan(app, adminToken, FLAGGED);
+    const payer = await inviteeWithPartner(15);
+    await seedAuraBalance(app, payer.id, 5000);
+
+    const preview = await previewOf(payer.id, plan.id, 5000);
+    expect(preview.winningDiscount).toBe("aura");
+    expect(preview.discountType).toBe("aura");
+    expect(preview.partnerDiscountPercent).toBeNull();
+    expect(preview.invitationDiscountAmount).toBe(0);
+    expect(preview.finalPrice).toBe(10500);
+
+    expect(await charge(payer, plan.id, { auraSpend: 5000 })).toBe(
+      preview.finalPrice,
+    );
   });
 });
