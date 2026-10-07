@@ -128,8 +128,8 @@
         "country": "AR"
       },
       "geo": {
-        "lat": -38.0117,
-        "lng": -57.5684
+        "lat": -38.01171,
+        "lng": -57.56843
       },
       "placeId": null,
       "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Jujuy%203761%20Mar%20del%20Plata",
@@ -236,79 +236,13 @@
       "photoUrl": null,
       "activities": [
         {
-          "name": "Sesión Grupal",
-          "slug": "sesion-grupal",
-          "isSpecial": false
-        },
-        {
-          "name": "ROM",
-          "slug": "rom",
-          "isSpecial": false
-        },
-        {
-          "name": "Máquinas",
-          "slug": "maquinas",
-          "isSpecial": false
+          "name": "Yoga para calisténicos",
+          "slug": "yoga-para-calistenicos",
+          "isSpecial": true
         }
       ],
-      "openingHours": [
-        {
-          "dayOfWeek": 1,
-          "opens": "08:00",
-          "closes": "21:00"
-        },
-        {
-          "dayOfWeek": 2,
-          "opens": "08:00",
-          "closes": "21:00"
-        },
-        {
-          "dayOfWeek": 3,
-          "opens": "08:00",
-          "closes": "21:00"
-        },
-        {
-          "dayOfWeek": 4,
-          "opens": "08:00",
-          "closes": "21:00"
-        },
-        {
-          "dayOfWeek": 5,
-          "opens": "08:00",
-          "closes": "21:00"
-        },
-        {
-          "dayOfWeek": 6,
-          "opens": "09:00",
-          "closes": "13:00"
-        }
-      ],
-      "schedule": [
-        {
-          "dayOfWeek": 1,
-          "startTime": "08:00",
-          "endTime": "09:00",
-          "activity": "Sesión Grupal"
-        },
-        {
-          "dayOfWeek": 1,
-          "startTime": "19:00",
-          "endTime": "20:00",
-          "activity": "Sesión Grupal"
-        },
-        {
-          "dayOfWeek": 3,
-          "startTime": "10:00",
-          "endTime": "11:00",
-          "activity": "ROM"
-        },
-        {
-          "dayOfWeek": 6,
-          "startTime": "10:00",
-          "endTime": "11:00",
-          "activity": "Sesión Grupal"
-        }
-      ]
+      "openingHours": [],
+      "schedule": []
     },
     {
       "id": 4,
@@ -425,7 +359,7 @@
         "country": "AR"
       },
       "geo": {
-        "lat": -38.0019,
+        "lat": -38.00191,
         "lng": -57.546
       },
       "placeId": null,
@@ -623,8 +557,8 @@
         "country": "ES"
       },
       "geo": {
-        "lat": 41.3996,
-        "lng": 2.1709
+        "lat": 41.39961,
+        "lng": 2.17094
       },
       "placeId": null,
       "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Av.%20Diagonal%20368%20Barcelona",

@@ -31,7 +31,9 @@ onBeforeUnmount(() => {
       <span class="locations__tag">Sedes</span>
 
       <h2 class="locations__title">
-        Sedes de calistenia en Mar del Plata y Barcelona.
+        <NuxtLink to="/sedes" class="locations__title-link">
+          Sedes de calistenia en Mar del Plata y Barcelona.
+        </NuxtLink>
       </h2>
 
       <p class="locations__subtitle">
@@ -89,6 +91,12 @@ onBeforeUnmount(() => {
                 >
                   C&oacute;mo llegar
                 </a>
+                <NuxtLink
+                  :to="sede.path"
+                  class="locations__action locations__action--map"
+                >
+                  Ver sede
+                </NuxtLink>
                 <a
                   :href="sede.whatsappUrl"
                   class="locations__action locations__action--book"
@@ -112,6 +120,12 @@ onBeforeUnmount(() => {
           <span class="locations__community-tag">Espacio de comunidad</span>
           <h4 class="locations__name">{{ space.name }}</h4>
           <p class="locations__address">{{ space.address }}</p>
+          <NuxtLink
+            :to="space.path"
+            class="locations__action locations__action--map"
+          >
+            Ver espacio
+          </NuxtLink>
           <a
             :href="space.mapsUrl"
             class="locations__action locations__action--map"
@@ -127,7 +141,7 @@ onBeforeUnmount(() => {
       <div class="locations__group">
         <div class="locations__group-header">
           <h3 class="locations__city">Barcelona</h3>
-          <span class="locations__count">1 sede</span>
+          <span class="locations__count">{{ sedesCount.bcn }} sede</span>
         </div>
 
         <div
@@ -172,6 +186,12 @@ onBeforeUnmount(() => {
                 >
                   C&oacute;mo llegar
                 </a>
+                <NuxtLink
+                  :to="sede.path"
+                  class="locations__action locations__action--map"
+                >
+                  Ver sede
+                </NuxtLink>
                 <a
                   :href="sede.whatsappUrl"
                   class="locations__action locations__action--book"
@@ -245,6 +265,15 @@ onBeforeUnmount(() => {
   line-height: 1.2;
   text-align: center;
   margin: 0 0 var(--space-comfortable) 0;
+}
+
+.locations__title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.locations__title-link:hover {
+  color: var(--color-terracotta);
 }
 
 .locations__subtitle {
@@ -453,6 +482,7 @@ onBeforeUnmount(() => {
 .locations__community .locations__action {
   display: inline-block;
   margin-top: 10px;
+  margin-right: 16px;
 }
 
 .locations__separator {

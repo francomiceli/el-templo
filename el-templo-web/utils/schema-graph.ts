@@ -157,6 +157,18 @@ export function communitySpaceNode(sede: WebSede, data: WebData): JsonLdNode {
   };
 }
 
+/** `ItemList` de las sedes con clases (hub `/sedes`). */
+export function sedeListNode(sedes: WebSede[]): JsonLdNode {
+  return {
+    "@type": "ItemList",
+    itemListElement: sedes.map((sede, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: sedeUrl(sede),
+    })),
+  };
+}
+
 export interface ArticleInput {
   title: string;
   excerpt: string;

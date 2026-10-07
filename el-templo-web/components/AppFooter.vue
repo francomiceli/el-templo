@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sedesCount } from "~/data/sedes";
 import {
   DEFAULT_TRIAL_TEXT,
   salesPhoneDisplay,
@@ -54,7 +55,7 @@ const columns: FooterColumn[] = [
     links: [
       { label: "Nuestra Filosofía", href: "/filosofia", disabled: true },
       { label: "Ignacio Bordón", href: "/ignacio-bordon", disabled: true },
-      { label: "Sedes", href: "/#sedes", disabled: false },
+      { label: "Sedes", href: "/sedes", disabled: false },
       { label: "Contacto", href: "/contacto", disabled: true },
     ],
   },
@@ -108,9 +109,9 @@ const columns: FooterColumn[] = [
           <a :href="salesPhoneHref('AR')" class="footer__info-link">
             {{ salesPhoneDisplay("AR") }}
           </a>
-          <span class="footer__info-address">
-            Av. Constituci&oacute;n 6745, Mar del Plata, Argentina
-          </span>
+          <NuxtLink to="/sedes" class="footer__info-address">
+            {{ sedesCount.total }} sedes en Mar del Plata y Barcelona
+          </NuxtLink>
         </div>
         <div class="footer__social">
           <a
@@ -290,6 +291,7 @@ const columns: FooterColumn[] = [
 /* Address text */
 .footer__info-address {
   display: block;
+  text-decoration: none;
   font-family: var(--font-clarity);
   font-size: 14px;
   color: var(--color-sandy-beige);

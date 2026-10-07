@@ -13,6 +13,7 @@
  */
 import rawData from "./generated/web-data.json";
 import type { WebData, WebSede } from "./web-data.types";
+import { sedePath } from "~/utils/schema-graph";
 import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
 
 export interface Sede {
@@ -22,6 +23,8 @@ export interface Sede {
   city: "Mar del Plata" | "Barcelona";
   /** "gym" = sede con clases. "community_space" = espacio de comunidad. */
   kind?: "gym" | "community_space";
+  /** Ruta de la pagina de la sede (`/sedes/<slug>` o `/es/sedes/<slug>`). */
+  path: string;
   mapsUrl: string;
   whatsappUrl: string;
   badge?: {
@@ -53,6 +56,7 @@ function toSede(s: WebSede): Sede {
     address: s.address.street ?? "",
     city: s.country === "ES" ? "Barcelona" : "Mar del Plata",
     kind: s.kind,
+    path: sedePath(s),
     mapsUrl: s.mapsUrl,
     whatsappUrl: salesWhatsappUrl(s.country, DEFAULT_TRIAL_TEXT),
     photo: s.photoUrl ?? undefined,
