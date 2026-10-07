@@ -36,22 +36,22 @@ La migración 0271 carga datos reales de sedes (calle, slug, WhatsApp, publicaci
 
 Los crea Franco. La guía `docs/guia-195-web-seo-atribucion.md` (plan 195-14) explica cómo conseguir cada valor. Un secret que no existe llega vacío y la integración queda apagada: la API arranca igual y el build web no rompe. **Ninguno de estos va a staging.**
 
-| Secret | Entorno | Para qué | Quién lo consigue |
-|---|---|---|---|
-| `WEB_GA4_ID` | solo producción (build web) | Medición de la web con GA4 (`NUXT_PUBLIC_GA4_ID`) | Franco, en GA4 (Admin › Flujos de datos, ID `G-XXXX`) |
-| `WEB_META_PIXEL_ID` | solo producción (build web) | Meta Pixel de la web (`NUXT_PUBLIC_META_PIXEL_ID`) | Franco, en Meta Events Manager |
-| `META_ACCESS_TOKEN` | solo producción (API) | Token único para CAPI y gasto publicitario | Franco / quien administre el Business Manager (usuario del sistema con acceso al pixel y a la cuenta publicitaria) |
-| `META_PIXEL_ID` | solo producción (API) | Pixel/dataset al que CAPI envía conversiones | Meta Events Manager |
-| `META_AD_ACCOUNT_IDS` | solo producción (API) | Cuentas publicitarias de las que se baja el gasto (separadas por coma) | Meta Business Manager |
-| `META_CAPI_START_AT` | solo producción (API) | Fecha ISO de activación de CAPI: solo se envían eventos posteriores | Franco, el día de la activación (ver sección 4) |
-| `META_GRAPH_VERSION` | solo producción (API), opcional | Versión de la Graph API (default `v26.0`) | No hace falta crearlo |
-| `META_CAPI_TEST_EVENT_CODE` | solo producción (API), temporal | Código de Events Manager › Probar eventos para validar sin ensuciar datos | Franco, solo durante la validación (borrarlo después) |
-| `GOOGLE_SC_SERVICE_ACCOUNT_BASE64` | solo producción (API) | Service account de GCP para Search Console (`base64 -w0 key.json`) | Franco, en GCP; agregar su email como usuario de la propiedad |
-| `GOOGLE_SC_SITE_URL` | solo producción (API), opcional | Propiedad de Search Console (default `sc-domain:eltemplo.org`) | No hace falta crearlo |
-| `GBP_SYNC_MODE` | solo producción (API) | `off` (default), `dry-run` o `apply` para el sync de fichas de Google | Franco decide el valor (sección 4) |
-| `GBP_OAUTH_CLIENT_ID` | solo producción (API) | Cliente OAuth de Google Business Profile | Franco, en GCP |
-| `GBP_OAUTH_CLIENT_SECRET` | solo producción (API) | Secreto del cliente OAuth | Franco, en GCP |
-| `GBP_REFRESH_TOKEN` | solo producción (API) | Refresh token del owner de las fichas | Franco, con `scripts/gbp-authorize.ts` (plan 195-09) |
+| Secret                             | Entorno                         | Para qué                                                                  | Quién lo consigue                                                                                                  |
+| ---------------------------------- | ------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `WEB_GA4_ID`                       | solo producción (build web)     | Medición de la web con GA4 (`NUXT_PUBLIC_GA4_ID`)                         | Franco, en GA4 (Admin › Flujos de datos, ID `G-XXXX`)                                                              |
+| `WEB_META_PIXEL_ID`                | solo producción (build web)     | Meta Pixel de la web (`NUXT_PUBLIC_META_PIXEL_ID`)                        | Franco, en Meta Events Manager                                                                                     |
+| `META_ACCESS_TOKEN`                | solo producción (API)           | Token único para CAPI y gasto publicitario                                | Franco / quien administre el Business Manager (usuario del sistema con acceso al pixel y a la cuenta publicitaria) |
+| `META_PIXEL_ID`                    | solo producción (API)           | Pixel/dataset al que CAPI envía conversiones                              | Meta Events Manager                                                                                                |
+| `META_AD_ACCOUNT_IDS`              | solo producción (API)           | Cuentas publicitarias de las que se baja el gasto (separadas por coma)    | Meta Business Manager                                                                                              |
+| `META_CAPI_START_AT`               | solo producción (API)           | Fecha ISO de activación de CAPI: solo se envían eventos posteriores       | Franco, el día de la activación (ver sección 4)                                                                    |
+| `META_GRAPH_VERSION`               | solo producción (API), opcional | Versión de la Graph API (default `v26.0`)                                 | No hace falta crearlo                                                                                              |
+| `META_CAPI_TEST_EVENT_CODE`        | solo producción (API), temporal | Código de Events Manager › Probar eventos para validar sin ensuciar datos | Franco, solo durante la validación (borrarlo después)                                                              |
+| `GOOGLE_SC_SERVICE_ACCOUNT_BASE64` | solo producción (API)           | Service account de GCP para Search Console (`base64 -w0 key.json`)        | Franco, en GCP; agregar su email como usuario de la propiedad                                                      |
+| `GOOGLE_SC_SITE_URL`               | solo producción (API), opcional | Propiedad de Search Console (default `sc-domain:eltemplo.org`)            | No hace falta crearlo                                                                                              |
+| `GBP_SYNC_MODE`                    | solo producción (API)           | `off` (default), `dry-run` o `apply` para el sync de fichas de Google     | Franco decide el valor (sección 4)                                                                                 |
+| `GBP_OAUTH_CLIENT_ID`              | solo producción (API)           | Cliente OAuth de Google Business Profile                                  | Franco, en GCP                                                                                                     |
+| `GBP_OAUTH_CLIENT_SECRET`          | solo producción (API)           | Secreto del cliente OAuth                                                 | Franco, en GCP                                                                                                     |
+| `GBP_REFRESH_TOKEN`                | solo producción (API)           | Refresh token del owner de las fichas                                     | Franco, con `scripts/gbp-authorize.ts` (plan 195-09)                                                               |
 
 Los secrets ya existentes (`VITE_API_URL`, `STAGING_VITE_API_URL`, SSH, rutas de deploy, etc.) no cambian.
 
@@ -60,11 +60,12 @@ Los valores del `.env.production` de la API se escriben en cada deploy de la API
 ## 4. Orden de activación de las integraciones
 
 1. **Texto de `/privacidad` en producción primero.** Franco aprueba el texto nuevo (plan 195-08, con razón social, NIF y domicilio de España completados) y la web con esa página tiene que estar en prod antes de activar Meta.
-2. **Meta CAPI.** Cargar `META_ACCESS_TOKEN`, `META_PIXEL_ID`, `META_AD_ACCOUNT_IDS` y `META_CAPI_TEST_EVENT_CODE` (todavía SIN `META_CAPI_START_AT`), deployar la API y validar en Events Manager › Probar eventos. Con eso se prende solo el gasto publicitario (no necesita fecha ni pixel).
-3. Cuando la validación está bien: borrar `META_CAPI_TEST_EVENT_CODE` y cargar `META_CAPI_START_AT` = fecha del día (ISO). Deployar la API. Desde esa fecha, CAPI envía eventos (nunca de España ni de altas iOS o de origen desconocido).
-4. **Search Console.** Cargar `GOOGLE_SC_SERVICE_ACCOUNT_BASE64` (y agregar la service account a la propiedad). El job es semanal y de solo lectura.
-5. **Fichas de Google.** Cargar los tres `GBP_OAUTH_*`/`GBP_REFRESH_TOKEN` y `GBP_SYNC_MODE=dry-run`. Dejarlo **una semana** mirando los logs de la API. Antes de pasar a `apply`, cargar los teléfonos reales en `branches.phone`: si están vacíos, el sync pone el WhatsApp de ventas como teléfono de la ficha. Después `GBP_SYNC_MODE=apply`. Hasta que Google apruebe el acceso a la API, el sync falla por ficha con 403/429 sin romper nada.
-6. **Staging nunca recibe `META_*`, `GOOGLE_SC_*` ni `GBP_*`**: corre con datos reales clonados y mandaría conversiones reales a Meta y editaría fichas reales de Google. Está escrito como comentario en `deploy-staging.yml` encima del `.env.production`.
+2. **Meta: gasto.** Cargar `META_ACCESS_TOKEN`, `META_PIXEL_ID` y `META_AD_ACCOUNT_IDS` y deployar la API. Con eso se prende solo el gasto publicitario (no necesita fecha ni pixel). CAPI sigue apagado: la API solo lo activa cuando también existe `META_CAPI_START_AT`.
+3. **Meta CAPI, validación.** CAPI no envía nada sin `META_CAPI_START_AT`, así que para probar con "Probar eventos" hay que cargar `META_CAPI_TEST_EVENT_CODE` **y** `META_CAPI_START_AT` = fecha y hora de ahora (ISO), y deployar la API. Hacer un registro y una reserva de prueba y mirar Events Manager › Probar eventos (el sistema revisa cada 10 minutos). Mientras el código de prueba esté cargado, TODOS los eventos (también los de alumnos reales) van solo al panel de prueba y quedan marcados como enviados: no se reenvían. Conviene que esta ventana sea corta.
+4. **Meta CAPI, activación real.** Con la validación bien: borrar `META_CAPI_TEST_EVENT_CODE` y deployar la API. `META_CAPI_START_AT` queda como está. Desde ahí CAPI envía de verdad (nunca de España ni de altas iOS o de origen desconocido).
+5. **Search Console.** Cargar `GOOGLE_SC_SERVICE_ACCOUNT_BASE64` (y agregar la service account a la propiedad). El job es semanal y de solo lectura.
+6. **Fichas de Google.** Cargar los tres `GBP_OAUTH_*`/`GBP_REFRESH_TOKEN` y `GBP_SYNC_MODE=dry-run`. Dejarlo **una semana** mirando los logs de la API. Antes de pasar a `apply`, cargar los teléfonos reales en `branches.phone`: si están vacíos, el sync pone el WhatsApp de ventas como teléfono de la ficha. Después `GBP_SYNC_MODE=apply`. Hasta que Google apruebe el acceso a la API, el sync falla por ficha con 403/429 sin romper nada.
+7. **Staging nunca recibe `META_*`, `GOOGLE_SC_*` ni `GBP_*`**: corre con datos reales clonados y mandaría conversiones reales a Meta y editaría fichas reales de Google. Está escrito como comentario en `deploy-staging.yml` encima del `.env.production`.
 
 ## 5. nginx
 
