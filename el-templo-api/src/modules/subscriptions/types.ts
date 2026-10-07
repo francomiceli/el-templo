@@ -690,12 +690,25 @@ export interface ChangePlanPreview {
   };
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null; // null if not allowed
-  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus partner/referral discount (parity with changePlanNow)
-  referralDiscountPercent: number; // 0 if none — % de referido que el cobro real va a aplicar
+  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus the winning partner/invitation discount (parity with changePlanNow)
+  // @deprecated Fase 194-17: mismo valor que `invitationDiscountPercent/Amount`
+  // (el admin migra en 194-23).
+  referralDiscountPercent: number; // 0 if none
   referralDiscountAmount: number; // 0 if none — monto ya restado de netAmount
-  // Fase 179 (D-09/D-10/D-20), deviation Rule 2 del plan 179-14: mismo
-  // criterio que referralDiscount* — % y monto de partner que el cobro real
-  // (changePlanNow) va a aplicar, ya restado de netAmount. 0 si no aplica.
+  // Fase 194-17 (D-08/D-10c/D-21): descuento por invitación que `changePlanNow`
+  // va a cobrar sobre el neto post-prorrateo. `percent` = % nominal, `amount` =
+  // monto ya recortado por el tope en dinero del país (ya restado de netAmount),
+  // `capped` = el tope recortó. 0/0/false si la invitación no ganó (partner le
+  // ganó, o no hay vínculo / el plan destino no admite descuento).
+  invitationDiscountPercent: number;
+  invitationDiscountAmount: number;
+  invitationDiscountCapped: boolean;
+  // Cuál de los descuentos compitió y ganó (el árbitro aplica UNO; en el cambio
+  // inmediato AURA no participa, así que solo `none | partner | invitation`).
+  winningDiscount: WinningDiscount;
+  // Fase 179 (D-09/D-10/D-20): % y monto de partner que el cobro real
+  // (changePlanNow) va a aplicar, ya restado de netAmount. 0 si no aplica o si
+  // la invitación le ganó por monto (D-21).
   partnerDiscountPercent: number;
   partnerDiscountAmount: number;
   expiryDate?: string; // current subscription endDate (always set; used to pre-fill "mantener vencimiento")

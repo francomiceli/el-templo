@@ -485,7 +485,9 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
 
 describe("caracterización pre-194: changePlanNow y getChangePlanPreview", () => {
   it("(f1) cambio ahora con referido: neto post-prorrateo 150000 → 135000; preview.netAmount === cobro", async () => {
-    // 194: cambia en 194-17 por D-21 (el referido deja de ser un descuento aparte: compite con partner).
+    // 194-17 D-21: la invitación SOLA se conserva (10% sobre el neto post-prorrateo); lo que
+    // cambió es que ya no compone con partner/override (ver (f2)) y que el preview expone
+    // invitationDiscount* + winningDiscount (alias referralDiscount* con el mismo valor).
     const m = await memberWithHalfUsedSub("f1");
     await linkQualified(m.id, m.planA.id);
 
@@ -496,6 +498,9 @@ describe("caracterización pre-194: changePlanNow y getChangePlanPreview", () =>
     expect(preview.referralDiscountPercent).toBe(10);
     expect(preview.referralDiscountAmount).toBe(15000);
     expect(preview.partnerDiscountAmount).toBe(0);
+    expect(preview.invitationDiscountPercent).toBe(10);
+    expect(preview.invitationDiscountAmount).toBe(15000);
+    expect(preview.winningDiscount).toBe("invitation");
     expect(preview.netAmount).toBe(135000);
 
     const res = await changePlan(m.id, { planId: m.planB.id });
@@ -509,8 +514,9 @@ describe("caracterización pre-194: changePlanNow y getChangePlanPreview", () =>
     expect(row.partnerDiscountAmount).toBeNull();
   });
 
-  it("(f2) cambio ahora con partner 20% + referido 10% COMPONEN → 108000; preview.netAmount === cobro", async () => {
-    // 194: cambia en 194-17 por D-21 (partner vs invitación = gana el mayor monto).
+  it("(f2) cambio ahora con partner 20% vs referido 10%: gana el partner (mayor monto), un solo descuento → 120000; preview.netAmount === cobro", async () => {
+    // 194-17 D-21: partner vs invitación = gana el mayor MONTO sobre el neto post-prorrateo.
+    // Antes componían: partner 30000 + referido 12000 -> 108000.
     const m = await memberWithHalfUsedSub("f2");
     await linkQualified(m.id, m.planA.id);
     await linkPartner(m.id, 20);
@@ -518,17 +524,20 @@ describe("caracterización pre-194: changePlanNow y getChangePlanPreview", () =>
     const preview = await changePlanPreview(m.id, m.planB.id);
     expect(preview.partnerDiscountPercent).toBe(20);
     expect(preview.partnerDiscountAmount).toBe(30000); // 20% de 150000
-    expect(preview.referralDiscountAmount).toBe(12000); // 10% de 120000
-    expect(preview.netAmount).toBe(108000);
+    expect(preview.referralDiscountAmount).toBe(0); // la invitación perdió: no compone
+    expect(preview.invitationDiscountAmount).toBe(0);
+    expect(preview.winningDiscount).toBe("partner");
+    expect(preview.netAmount).toBe(120000);
 
     const res = await changePlan(m.id, { planId: m.planB.id });
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
-    expect(row.pricePaid).toBe(108000);
+    expect(row.pricePaid).toBe(120000);
     expect(row.pricePaid).toBe(preview.netAmount);
     expect(row.partnerDiscountPercent).toBe(20);
     expect(row.partnerDiscountAmount).toBe(30000);
-    expect(row.referralDiscountAmount).toBe(12000);
+    expect(row.referralDiscountPercent).toBeNull();
+    expect(row.referralDiscountAmount).toBeNull();
   });
 
   it("(f3) cambio ahora IGNORA auraSpend (supports.discounts=false): no hay descuento AURA ni se gastan puntos", async () => {

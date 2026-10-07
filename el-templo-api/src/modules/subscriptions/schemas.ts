@@ -793,6 +793,15 @@ export const changePlanPreviewSchema = {
         // atrapado una vez en pricingPreviewResponseSchema, plan 179-07).
         partnerDiscountPercent: { type: "integer" },
         partnerDiscountAmount: { type: "integer" },
+        // Fase 194-17 (D-08/D-10c/D-21): mismo motivo (Pitfall 4): sin estas
+        // entradas el serializador descarta el desglose del árbitro.
+        invitationDiscountPercent: { type: "integer" },
+        invitationDiscountAmount: { type: "integer" },
+        invitationDiscountCapped: { type: "boolean" },
+        winningDiscount: {
+          type: "string",
+          enum: ["none", "aura", "partner", "invitation", "boarding_pass"],
+        },
         expiryDate: { type: "string" },
       },
     },

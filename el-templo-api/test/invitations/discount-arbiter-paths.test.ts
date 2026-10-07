@@ -1,10 +1,11 @@
 /**
  * Fase 194 — el ÁRBITRO de descuentos en las charge-paths que NO son el alta
- * (194-16 changePlanAfterCurrent; 194-17 y 194-18 agregan sus describes acá).
+ * (194-16 changePlanAfterCurrent; 194-17 changePlanNow; 194-18 agrega su describe acá).
  *
  * Cobros reales por HTTP (`POST .../subscription/change-plan` con
- * `startMode: "after_current"`). Números redondos: plan destino de 100000 ARS,
- * descuento por invitación 10% (aura_config.referral=10), precio Zero 70000.
+ * `startMode: "after_current"` o `"now"`). Números redondos: plan destino de 100000 ARS
+ * (200000 en el cambio inmediato, con crédito remanente de 50000), descuento por
+ * invitación 10% (aura_config.referral=10), precio Zero 70000.
  * Fechas siempre relativas a `todayInTz(tz de la sede)`; nunca ids de `users`
  * hardcodeados.
  */
@@ -95,11 +96,15 @@ afterEach(() => {
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
 /** Plan de 100000 (Zero 70000) con el flag D-10b configurable. */
-async function monthPlan(allowsInvitationDiscount: boolean): Promise<number> {
+async function monthPlan(
+  allowsInvitationDiscount: boolean,
+  priceRegular: number = BASE,
+  priceZero: number = PRICE_ZERO,
+): Promise<number> {
   const plan = await createPlan(app, adminToken, {
     name: `Paths ${seq}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    priceRegular: BASE,
-    priceZero: PRICE_ZERO,
+    priceRegular,
+    priceZero,
     classesPerWeek: undefined,
     durationDays: 30,
     allowsInvitationDiscount,
@@ -658,6 +663,379 @@ describe("changePlanAfterCurrent", () => {
       });
       expect(res.statusCode).toBe(201);
       expect((await readSub(res.body.id as number)).pricePaid).toBe(0);
+      expect(await referralRowsOf(payer.id)).toHaveLength(0);
+    });
+  });
+});
+
+// ─── changePlanNow (194-17) ──────────────────────────────────────────────────
+
+/** Plan destino del cambio inmediato: 200000 (Zero 140000) con flag. */
+const NOW_TARGET = 200000;
+const NOW_TARGET_ZERO = 140000;
+/** Crédito remanente de la sub vigente (arrancó hace 15 días de 30): 50000. */
+const NOW_CREDIT = 50000;
+/** Neto post-prorrateo = BASE de los descuentos del cambio inmediato. */
+const NOW_NET = NOW_TARGET - NOW_CREDIT;
+
+/**
+ * Socio con la sub de un plan de 100000 arrancada hace 15 días: el prorrateo del
+ * cambio inmediato devuelve 50000. Se asigna ANTES de crear vínculos/partner para
+ * que el alta no lleve descuento ni vínculo (plan sin flag).
+ */
+async function payerWithHalfUsedSub(): Promise<Payer> {
+  const member = await createMemberInPhysicalBranch(ctx, { status: "prueba" });
+  const res = await assignPlan(app, adminToken, member.id, {
+    planId: await monthPlan(false),
+    branchId: member.branchId,
+    startDate: addDays(todayInTz(TZ_AR), -15),
+  });
+  expect(res.statusCode).toBe(201);
+  return { id: member.id, branchId: member.branchId };
+}
+
+async function nowTargetPlan(allowsInvitationDiscount = true): Promise<number> {
+  return monthPlan(allowsInvitationDiscount, NOW_TARGET, NOW_TARGET_ZERO);
+}
+
+async function changeNow(
+  payer: Payer,
+  planId: number,
+  extra: Record<string, unknown> = {},
+): Promise<{ statusCode: number; body: Record<string, unknown> }> {
+  const res = await app.inject({
+    method: "POST",
+    url: `${SUBSCRIPTIONS_URL}/members/${payer.id}/subscription/change-plan`,
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: {
+      planId,
+      branchId: payer.branchId,
+      startDate: todayInTz(TZ_AR),
+      startMode: "now",
+      priceTypeApplied: "regular",
+      paymentMethod: "cash",
+      ...extra,
+    },
+  });
+  return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+}
+
+describe("changePlanNow", () => {
+  it("(1) solo invitación 10%: se descuenta sobre el NETO post-prorrateo (150000 -> 135000), con crédito y columnas", async () => {
+    const payer = await payerWithHalfUsedSub();
+    await giveQualifiedLink(payer.id);
+
+    const res = await changeNow(payer, await nowTargetPlan());
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.status).toBe("active");
+    expect(row.pricePaid).toBe(NOW_NET - 15000);
+    expect(row.referralDiscountPercent).toBe(10);
+    expect(row.referralDiscountAmount).toBe(15000);
+    expect(row.partnerDiscountAmount).toBeNull();
+    // price_override_amount conserva el neto PRE-descuento (como antes de la 194).
+    expect(row.priceOverrideAmount).toBe(NOW_NET);
+    expect(await creditOf(payer.id)).toEqual({ percent: 10, amount: 15000 });
+  });
+
+  it("(2) partner 20% (30000) gana a la invitación 10% (15000): 120000, un solo descuento y el beneficio queda aplicado", async () => {
+    const payer = await payerWithHalfUsedSub();
+    await giveQualifiedLink(payer.id);
+    await givePartner(payer.id, 20);
+
+    const res = await changeNow(payer, await nowTargetPlan());
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    // Antes de 194-17 componían: 150000 - 30000 - 12000 = 108000.
+    expect(row.pricePaid).toBe(120000);
+    expect(row.partnerDiscountPercent).toBe(20);
+    expect(row.partnerDiscountAmount).toBe(30000);
+    expect(row.referralDiscountPercent).toBeNull();
+    expect(row.referralDiscountAmount).toBeNull();
+    expect(await creditOf(payer.id)).toBeUndefined();
+    const link = await partnerLinkOf(payer.id);
+    expect(link.benefit_status).toBe("consumed");
+    expect(link.applied_reason).toBe("aplicado");
+  });
+
+  it("(3) partner 5% (7500) pierde contra la invitación 10% (15000): 135000 y el beneficio del partner se consume igual (perdio_vs_aura)", async () => {
+    const payer = await payerWithHalfUsedSub();
+    await giveQualifiedLink(payer.id);
+    await givePartner(payer.id, 5);
+
+    const res = await changeNow(payer, await nowTargetPlan());
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(135000);
+    expect(row.partnerDiscountPercent).toBeNull();
+    expect(row.partnerDiscountAmount).toBeNull();
+    expect(row.referralDiscountAmount).toBe(15000);
+    const link = await partnerLinkOf(payer.id);
+    expect(link.benefit_status).toBe("consumed");
+    expect(link.applied_reason).toBe("perdio_vs_aura");
+  });
+
+  it("(4) tope en dinero AR 5000 (D-10c): 145000, crédito con % nominal 10 y monto recortado 5000", async () => {
+    await setInvitationSettings(app.db, ctx.tenant, {
+      discountCapAmount: { AR: 5000 },
+    });
+    const payer = await payerWithHalfUsedSub();
+    await giveQualifiedLink(payer.id);
+
+    const res = await changeNow(payer, await nowTargetPlan());
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(145000);
+    expect(row.referralDiscountPercent).toBe(10);
+    expect(row.referralDiscountAmount).toBe(5000);
+    expect(await creditOf(payer.id)).toEqual({ percent: 10, amount: 5000 });
+  });
+
+  it("(4b) tope AR 5000 + partner 5% (7500): compiten por MONTO recortado, gana el partner (142500)", async () => {
+    await setInvitationSettings(app.db, ctx.tenant, {
+      discountCapAmount: { AR: 5000 },
+    });
+    const payer = await payerWithHalfUsedSub();
+    await giveQualifiedLink(payer.id);
+    await givePartner(payer.id, 5);
+
+    const res = await changeNow(payer, await nowTargetPlan());
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(142500);
+    expect(row.partnerDiscountAmount).toBe(7500);
+    expect(row.referralDiscountAmount).toBeNull();
+  });
+
+  it("(5) plan destino SIN flag (D-10b): precio neto sin descuento, sin crédito", async () => {
+    const payer = await payerWithHalfUsedSub();
+    await giveQualifiedLink(payer.id);
+
+    const res = await changeNow(payer, await nowTargetPlan(false));
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(NOW_NET);
+    expect(row.referralDiscountAmount).toBeNull();
+    expect(await creditOf(payer.id)).toBeUndefined();
+  });
+
+  it("(5b) plan destino SIN flag + partner 20%: el partner SÍ descuenta (el flag es solo de la invitación): 120000", async () => {
+    const payer = await payerWithHalfUsedSub();
+    await givePartner(payer.id, 20);
+
+    const res = await changeNow(payer, await nowTargetPlan(false));
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(120000);
+    expect(row.partnerDiscountAmount).toBe(30000);
+  });
+
+  it("(6) override con motivo (D-20, 'mantener vencimiento'): el precio ES el override (120000, sin netear el crédito), ni invitación ni partner", async () => {
+    const payer = await payerWithHalfUsedSub();
+    await giveQualifiedLink(payer.id);
+    await givePartner(payer.id, 20);
+
+    const res = await changeNow(payer, await nowTargetPlan(), {
+      priceOverrideAmount: 120000,
+      priceOverrideReason: "Diferencia mantener vencimiento 194-17",
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(120000);
+    expect(row.priceOverrideAmount).toBe(120000);
+    expect(row.referralDiscountAmount).toBeNull();
+    expect(row.partnerDiscountAmount).toBeNull();
+    expect(await creditOf(payer.id)).toBeUndefined();
+    // El partner ni siquiera compitió: su beneficio sigue pendiente.
+    expect((await partnerLinkOf(payer.id)).benefit_status).toBe("pending");
+  });
+
+  it("(7) boarding pass (D-26a): precio Zero 140000 menos el crédito = 90000 y la invitación no se acumula", async () => {
+    await setZeroPriceRule(true);
+    try {
+      const payer = await payerWithHalfUsedSub();
+      await giveQualifiedLink(payer.id);
+
+      const res = await changeNow(payer, await nowTargetPlan(), {
+        boardingPass: true,
+      });
+      expect(res.statusCode).toBe(201);
+      const row = await readSub(res.body.id as number);
+      expect(row.boardingPassUsed).toBe(true);
+      expect(row.pricePaid).toBe(NOW_TARGET_ZERO - NOW_CREDIT);
+      expect(row.referralDiscountAmount).toBeNull();
+      expect(await creditOf(payer.id)).toBeUndefined();
+    } finally {
+      await setZeroPriceRule(false);
+    }
+  });
+
+  it("(8) AURA NO aplica en el cambio inmediato: con auraSpend e invitación gana la invitación (135000) y los puntos no se gastan", async () => {
+    const payer = await payerWithHalfUsedSub();
+    await giveQualifiedLink(payer.id);
+    await seedAuraBalance(app, payer.id, 5000);
+
+    const res = await changeNow(payer, await nowTargetPlan(), {
+      auraSpend: 5000,
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(135000);
+    expect(row.auraDiscount).toBeNull();
+    expect(row.auraDiscountPercent).toBeNull();
+    expect(row.referralDiscountAmount).toBe(15000);
+    expect(await auraBalanceOf(payer.id)).toBe(5000);
+  });
+
+  it("(9) sin descuento alguno: neto post-prorrateo y sin crédito", async () => {
+    const payer = await payerWithHalfUsedSub();
+    const res = await changeNow(payer, await nowTargetPlan());
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(NOW_NET);
+    expect(row.referralDiscountPercent).toBeNull();
+    expect(row.partnerDiscountPercent).toBeNull();
+    expect(await creditOf(payer.id)).toBeUndefined();
+  });
+
+  it("(10) un vínculo `pending` heredado cualifica en este cobro y ya descuenta en él (D-10b: plan con flag)", async () => {
+    const payer = await payerWithHalfUsedSub();
+    const referrer = await createInviterWithCode(ctx);
+    await app.db.execute(
+      sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+          VALUES (${ctx.tenant.tenantId}, ${referrer.id}, ${payer.id}, 'pending', 'assisted')`,
+    );
+
+    const res = await changeNow(payer, await nowTargetPlan());
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(135000);
+    expect(row.referralDiscountAmount).toBe(15000);
+    expect((await referralRowsOf(payer.id))[0].status).toBe("qualified");
+  });
+
+  it("(10b) el mismo vínculo `pending` con plan SIN flag NO cualifica", async () => {
+    const payer = await payerWithHalfUsedSub();
+    const referrer = await createInviterWithCode(ctx);
+    await app.db.execute(
+      sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+          VALUES (${ctx.tenant.tenantId}, ${referrer.id}, ${payer.id}, 'pending', 'assisted')`,
+    );
+
+    const res = await changeNow(payer, await nowTargetPlan(false));
+    expect(res.statusCode).toBe(201);
+    expect((await readSub(res.body.id as number)).pricePaid).toBe(NOW_NET);
+    expect((await referralRowsOf(payer.id))[0].status).toBe("pending");
+  });
+
+  it("(11) neto en 0 (el crédito cubre el plan destino): cobra 0, sin descuento, sin crédito y el vínculo `pending` no cualifica", async () => {
+    // Mismo precio y sub recién arrancada: el remanente es todo el plan.
+    const member = await createMemberInPhysicalBranch(ctx, {
+      status: "prueba",
+    });
+    const payer = { id: member.id, branchId: member.branchId };
+    const assigned = await assignPlan(app, adminToken, member.id, {
+      planId: await monthPlan(false),
+      branchId: member.branchId,
+      startDate: todayInTz(TZ_AR),
+    });
+    expect(assigned.statusCode).toBe(201);
+    const referrer = await createInviterWithCode(ctx);
+    await app.db.execute(
+      sql`INSERT INTO referrals (tenant_id, referrer_id, referred_id, status, attribution_channel)
+          VALUES (${ctx.tenant.tenantId}, ${referrer.id}, ${payer.id}, 'pending', 'assisted')`,
+    );
+
+    const res = await changeNow(payer, await monthPlan(true));
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(0);
+    expect(row.referralDiscountAmount).toBeNull();
+    expect(await creditOf(payer.id)).toBeUndefined();
+    expect((await referralRowsOf(payer.id))[0].status).toBe("pending");
+  });
+
+  it("(12) la sub vigente pasa a `changed` y el cambio inmediato deja UNA sub activa", async () => {
+    const payer = await payerWithHalfUsedSub();
+    await giveQualifiedLink(payer.id);
+    const res = await changeNow(payer, await nowTargetPlan());
+    expect(res.statusCode).toBe(201);
+    const subs = await app.db
+      .select({ status: schema.subscriptions.status })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx.tenant),
+          eq(schema.subscriptions.userId, payer.id),
+        ),
+      );
+    expect(subs.map((s) => s.status).sort()).toEqual(["active", "changed"]);
+  });
+
+  describe("vínculo de invitación que nace con el cambio inmediato (D-05 / D-13)", () => {
+    /** Invitado con invitación `active` cuyos accesos vencen dentro de 5 días. */
+    async function inviteeWithHalfUsedSub(inviter: {
+      id: number;
+    }): Promise<Payer> {
+      const payer = await payerWithHalfUsedSub();
+      const accessExpiresOn = addDays(todayInTz(TZ_AR), 5);
+      await createInvitationRow(ctx, {
+        inviterId: inviter.id,
+        invitedUserId: payer.id,
+        branchId: payer.branchId,
+        channel: "assisted",
+        accessExpiresOn,
+        accessStartsOn: addDays(accessExpiresOn, -5),
+        subscriptionId: null,
+      });
+      return payer;
+    }
+
+    it("invitación en ventana: descuenta 135000, crea el vínculo qualified y avisa al invitador", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      await giveDeviceToken(inviter.id);
+      const payer = await inviteeWithHalfUsedSub(inviter);
+
+      const res = await changeNow(payer, await nowTargetPlan());
+      expect(res.statusCode).toBe(201);
+      const row = await readSub(res.body.id as number);
+      expect(row.pricePaid).toBe(135000);
+      expect(row.referralDiscountAmount).toBe(15000);
+      const links = await referralRowsOf(payer.id);
+      expect(links).toHaveLength(1);
+      expect(links[0]).toMatchObject({
+        referrerId: inviter.id,
+        status: "qualified",
+        attributionChannel: "assisted",
+      });
+      expect(await creditOf(payer.id)).toEqual({ percent: 10, amount: 15000 });
+      expect(await notificationKeysOf(inviter.id)).toEqual([
+        "referral_link_activated",
+      ]);
+    });
+
+    it("override con motivo: el precio es el override pero el vínculo nace igual", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      const payer = await inviteeWithHalfUsedSub(inviter);
+
+      const res = await changeNow(payer, await nowTargetPlan(), {
+        priceOverrideAmount: 120000,
+        priceOverrideReason: "Convenio 194-17",
+      });
+      expect(res.statusCode).toBe(201);
+      const row = await readSub(res.body.id as number);
+      expect(row.pricePaid).toBe(120000);
+      expect(row.referralDiscountAmount).toBeNull();
+      expect(await referralRowsOf(payer.id)).toHaveLength(1);
+    });
+
+    it("plan destino SIN flag: ni descuento ni vínculo", async () => {
+      const inviter = await createInviterWithCode(ctx);
+      const payer = await inviteeWithHalfUsedSub(inviter);
+
+      const res = await changeNow(payer, await nowTargetPlan(false));
+      expect(res.statusCode).toBe(201);
+      expect((await readSub(res.body.id as number)).pricePaid).toBe(NOW_NET);
       expect(await referralRowsOf(payer.id)).toHaveLength(0);
     });
   });

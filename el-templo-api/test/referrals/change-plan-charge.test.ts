@@ -381,6 +381,8 @@ describe("Referral discount · immediate plan change (changePlanNow)", () => {
     const planB = await createPlan(app, adminToken, {
       name: "Now B caro",
       priceRegular: 20000,
+      // 194-17 D-10b: el cambio inmediato descuenta solo con el flag del plan destino.
+      allowsInvitationDiscount: true,
     });
     const payer = await createMember(app, { email: "cpn-f-p@test.com" });
     const referred = await createMember(app, { email: "cpn-f-d@test.com" });
