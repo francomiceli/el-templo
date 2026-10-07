@@ -230,3 +230,9 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - El chequeo canónico de "referid" excluye `'referidos'` entre comillas y ESCONDE copy visible en la misma línea (p.ej. `label: 'Referidos'`). En la app hacer además un barrido sin exclusiones y revisar a mano cada `label`/texto: **`el-templo-app/src/config/destinations.ts` tiene `label: 'Referidos'` → cambiar a "Invitaciones" (la clave `referidos` queda).**
 - Configuración que un rol debe tocar: revisar también el gate de la PÁGINA, no solo el del endpoint.
 - `type="month"` no existe en Firefox: usar `q-select`.
+
+### Tras 194-33 (fixes del review, API)
+- Contrato nuevo de settings y de guards del plan Invitación: ver `194-33-SUMMARY.md` (sección "Contrato para 194-34"). El admin lee `limits` del GET; no duplica rangos.
+- Previews (`pricing-preview`, `change-plan-preview`) YA NO traen `referralDiscountPercent/Amount`: el frontend usa `invitationDiscount*`. Grepear consumidores en admin y app.
+- Canal app: `eligibility`/`activate` dan 403 a no-member; `message` es copy para el invitado.
+- Un `Bash` con vitest necesita `timeout: 600000` en la herramienta o pasa a segundo plano a los 120 s. `cleanAllTestData` borra staff: crearlos en `beforeEach`.
