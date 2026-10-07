@@ -318,6 +318,12 @@ jobs:
           NUXT_PUBLIC_API_URL: ${{ secrets.STAGING_VITE_API_URL }}
           NUXT_PUBLIC_SENTRY_DSN: ${{ secrets.STAGING_VITE_SENTRY_DSN }}
           NUXT_PUBLIC_APP_ENVIRONMENT: staging
+          # Sin NUXT_PUBLIC_GA4_ID ni NUXT_PUBLIC_META_PIXEL_ID: staging no mide (fase 195, D-04).
+
+      # Fails the build if the site was generated from the dev fixture instead of the real API
+      # (staging API included): a staging site with fixture data hides rollout problems.
+      - name: Verify SEO output (datos reales)
+        run: node scripts/verify-seo-output.mjs --require-api
 
       - name: Upload Web build artifact
         uses: actions/upload-artifact@v4
@@ -425,6 +431,8 @@ jobs:
             fi
           ENDSSH
 
+      # Fase 195: NUNCA agregar META_*, GBP_* ni GOOGLE_SC_* acá. Staging corre con datos reales
+      # clonados: mandaría conversiones reales a Meta y editaría fichas reales de Google.
       # .env.production is a Node/Vite convention: "env vars used when NODE_ENV=production".
       # The staging server runs NODE_ENV=production for performance/minification,
       # but APP_ENVIRONMENT=staging tags Sentry errors so they're filterable from production.

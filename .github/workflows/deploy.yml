@@ -308,6 +308,14 @@ jobs:
         env:
           NUXT_PUBLIC_API_URL: ${{ secrets.VITE_API_URL }}
           NUXT_PUBLIC_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          # Medicion (fase 195, D-04): solo en produccion. Sin secret, GA4 y el Pixel no cargan.
+          NUXT_PUBLIC_GA4_ID: ${{ secrets.WEB_GA4_ID }}
+          NUXT_PUBLIC_META_PIXEL_ID: ${{ secrets.WEB_META_PIXEL_ID }}
+
+      # Fails the build if the site was generated from the dev fixture instead of the real API
+      # (and checks robots, llms.txt, sitemap, WhatsApp numbers, etc. against the generated HTML).
+      - name: Verify SEO output (datos reales)
+        run: node scripts/verify-seo-output.mjs --require-api
 
       - name: Upload Web build artifact
         uses: actions/upload-artifact@v4
@@ -415,6 +423,8 @@ jobs:
             fi
           ENDSSH
 
+      # Fase 195: Meta (CAPI + gasto) y Google (Search Console + Business Profile) viven SOLO aca.
+      # Un secret sin crear llega vacio y la integracion queda apagada (la API lo trata como ausente).
       - name: Create .env.production for API
         if: needs.build-api.result == 'success'
         run: |
@@ -443,6 +453,18 @@ jobs:
           RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
           EMAIL_FROM=${{ secrets.EMAIL_FROM }}
           CAMPAIGN_EMAIL_FROM=${{ secrets.CAMPAIGN_EMAIL_FROM }}
+          META_ACCESS_TOKEN=${{ secrets.META_ACCESS_TOKEN }}
+          META_PIXEL_ID=${{ secrets.META_PIXEL_ID }}
+          META_CAPI_START_AT=${{ secrets.META_CAPI_START_AT }}
+          META_AD_ACCOUNT_IDS=${{ secrets.META_AD_ACCOUNT_IDS }}
+          META_GRAPH_VERSION=${{ secrets.META_GRAPH_VERSION }}
+          META_CAPI_TEST_EVENT_CODE=${{ secrets.META_CAPI_TEST_EVENT_CODE }}
+          GOOGLE_SC_SERVICE_ACCOUNT_BASE64=${{ secrets.GOOGLE_SC_SERVICE_ACCOUNT_BASE64 }}
+          GOOGLE_SC_SITE_URL=${{ secrets.GOOGLE_SC_SITE_URL }}
+          GBP_SYNC_MODE=${{ secrets.GBP_SYNC_MODE }}
+          GBP_OAUTH_CLIENT_ID=${{ secrets.GBP_OAUTH_CLIENT_ID }}
+          GBP_OAUTH_CLIENT_SECRET=${{ secrets.GBP_OAUTH_CLIENT_SECRET }}
+          GBP_REFRESH_TOKEN=${{ secrets.GBP_REFRESH_TOKEN }}
           EOF
 
       # --- Deploy via rsync (only projects that were built) ---
