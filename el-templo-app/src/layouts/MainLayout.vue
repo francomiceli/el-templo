@@ -214,6 +214,7 @@ import VeteranSeal from 'src/components/VeteranSeal.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
 import { isNewMember } from 'src/modules/guia/new-member'
+import { maybeRequestReview } from 'src/utils/in-app-review'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -252,6 +253,17 @@ watch(
     } else {
       avisosStore.reset()
     }
+  },
+  { immediate: true },
+)
+
+// Fase 195 (D-14): pedido de reseña nativa de las tiendas, neutral (sin
+// preguntar antes si le gusta la app). `maybeRequestReview` decide solo: nada
+// en web, nada antes de 14 días de uso, y como mucho una vez cada 120 días.
+watch(
+  () => authStore.isAuthenticated,
+  (isAuth) => {
+    if (isAuth) void maybeRequestReview()
   },
   { immediate: true },
 )

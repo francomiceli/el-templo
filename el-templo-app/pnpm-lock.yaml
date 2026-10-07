@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      '@capacitor-community/in-app-review':
+        specifier: 8.0.0
+        version: 8.0.0(@capacitor/core@8.0.1)
       '@capacitor-community/keep-awake':
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.1)
@@ -266,6 +269,11 @@ packages:
 
   '@bufbuild/protobuf@2.11.0':
     resolution: {integrity: sha512-sBXGT13cpmPR5BMgHE6UEEfEaShh5Ror6rfN3yEK5si7QVrtZg8LEPQb0VVhiLRUslD2yLnXtnRzG035J/mZXQ==}
+
+  '@capacitor-community/in-app-review@8.0.0':
+    resolution: {integrity: sha512-AYpEkIjdv27WGS3hnlc7xAQ1BhaBvD2svgQBfHF4P2Olw1N6a7MSCOQC6O4SuxmdBdJ2fM6uFeo1jyNjKLtIPw==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capacitor-community/keep-awake@8.0.0':
     resolution: {integrity: sha512-+bNAILA4R8PU+rm6OuKfgW6T4N24oAb2Idut5whfX5JAz09j7UBKFBEmT5C0QFJ7S8NZzp9d/yBsbIhLj+JkAA==}
@@ -4870,6 +4878,10 @@ snapshots:
       '@babel/helper-validator-identifier': 7.28.5
 
   '@bufbuild/protobuf@2.11.0': {}
+
+  '@capacitor-community/in-app-review@8.0.0(@capacitor/core@8.0.1)':
+    dependencies:
+      '@capacitor/core': 8.0.1
 
   '@capacitor-community/keep-awake@8.0.0(@capacitor/core@8.0.1)':
     dependencies:
