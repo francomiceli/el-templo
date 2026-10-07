@@ -172,3 +172,10 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - **194-14..18: NO tocar el bloque que llama a `attributeInvitationPurchase` en `recomputeUserStatus`.**
 - MySQL redondea TIMESTAMP al segundo: comparar con tolerancia de 1 s.
 - `CASOS_BASELINE` cuenta `describe` (no `it`): un `describe` con clave de ruta por ruta nueva.
+
+### Tras 194-14 (árbitro listo, sin cablear)
+- Contrato del árbitro en `194-14-SUMMARY.md` y docblock de `subscriptions/discount-arbiter.ts`: `resolveInvitationDiscountCandidate` → `pickCoreCompetitor` → hook AURA por monto (`PricingAdjustCtx.competingDiscountAmount`) → `applyArbiterResult(priceAfterFilter, ...)`. Usar EXACTAMENTE ese orden en cada charge-path; no reimplementar gates ni topes en `service.ts`.
+- Vínculo: `referrals/invitation-link.ts` (`findLinkableInvitation`, `materializeInvitationLink` idempotente). El candidato trae `linkToMaterialize` aunque el % sea 0: materializar igual dentro de la tx del cobro.
+- `% por lado`: `ReferralService.computeInvitationDiscountPercent` (acepta `simulateInvitationLink`); `computeReferralDiscountPercent` delega.
+- Tests del lado invitador: resembrar `aura_config.referral` en `beforeEach` (si no, valor stale).
+- **194-19:** `getReferralOverview` tiene `perLinkPercent`/`activeCount` de un solo %: abrir el desglose por lado (invitado vs invitador).
