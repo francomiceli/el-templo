@@ -1,4 +1,4 @@
-<!-- Tab "Referidos" de la ficha del alumno (fase 158, VIS-03) — UI-SPEC S3. -->
+<!-- Pestaña "Invitaciones" de la ficha del alumno (fase 158 VIS-03, rebrand fase 194 SC-5) — UI-SPEC S3. -->
 <template>
   <div>
     <!-- Loading -->
@@ -7,11 +7,15 @@
     </div>
 
     <template v-else-if="overview">
-      <!-- Lo trajo (referredBy) — con asignación retroactiva si está vacío -->
+      <!-- Lo invitó: la invitación con accesos (etapa, x/N, vencimiento, sedes). Sin
+           invitación se muestra el vínculo heredado (solo descuento) y, si no hay
+           ninguno, la asignación retroactiva (D-17). -->
       <div class="q-mb-md">
-        <div class="text-subtitle2 text-weight-bold q-mb-sm">Lo trajo</div>
+        <div class="text-subtitle2 text-weight-bold q-mb-sm">Lo invitó</div>
 
-        <q-list v-if="overview.referredBy">
+        <InvitedByBlock v-if="overview.invitedBy" :invited-by="overview.invitedBy" />
+
+        <q-list v-else-if="overview.referredBy">
           <q-item class="q-px-none">
             <q-item-section>
               <q-item-label>
@@ -22,6 +26,7 @@
                   {{ overview.referredBy.fullName }}
                 </a>
               </q-item-label>
+              <q-item-label caption>Vínculo de descuento, sin accesos de invitación</q-item-label>
               <q-item-label v-if="overview.referredBy.state === 'suspended'" caption>
                 se reactiva si vuelve
               </q-item-label>
@@ -37,19 +42,21 @@
           </q-item>
         </q-list>
 
-        <!-- Fase 173: el alta pregunta "¿quién lo trajo?" antes de que se sepa,
-             así que casi siempre queda vacío. Acá se carga cuando el dato
-             aparece — sin esto hay que tocar la base a mano. -->
+        <!-- Fase 173 / D-17: el alta pregunta "Invitado por" antes de que se sepa, así
+             que casi siempre queda vacío. Acá se carga cuando el dato aparece: es un
+             vínculo de descuento SIN accesos y SIN cupo (la invitación con accesos se
+             crea desde el botón "Crear invitación" del encabezado). -->
         <div v-else>
           <div class="text-caption text-grey-7 q-mb-sm">
-            Sin referidor asignado. Si te enterás de quién lo trajo, cargalo acá.
+            Nadie cargado como quien lo invitó. Si te enterás, cargalo acá: es un vínculo de
+            descuento, no da accesos ni usa el cupo del socio.
           </div>
           <div class="row items-start q-col-gutter-sm">
             <div class="col">
               <ReferrerSelect
                 ref="referrerSelect"
                 v-model="newReferrerId"
-                label="¿Quién lo trajo?"
+                label="¿Quién lo invitó?"
                 :disable="assigning"
               />
             </div>
@@ -67,31 +74,73 @@
         </div>
       </div>
 
-      <!-- Trajo a (referred[]) — solo si tiene al menos uno -->
-      <div v-if="overview.referred.length > 0">
-        <div class="text-subtitle2 text-weight-bold q-mb-sm">Trajo a</div>
-        <q-list>
-          <q-item v-for="link in overview.referred" :key="link.userId" class="q-px-none">
+      <!-- Invitó a: invitaciones activas con estado derivado por el servidor + vínculos
+           heredados (sin accesos). Anular = gestión (la pestaña ya es de gestión). -->
+      <div class="q-mb-md">
+        <div class="text-subtitle2 text-weight-bold q-mb-sm">Invitó a</div>
+
+        <div class="text-caption text-grey-7 q-mb-xs">
+          Descuento por invitaciones: {{ overview.invitations.discount.percent }}% ({{
+            overview.invitations.discount.activeInvitees
+          }}
+          {{ overview.invitations.discount.activeInvitees === 1 ? 'invitado activo' : 'invitados activos' }})
+        </div>
+        <div v-if="inviteeSidePercent > 0" class="text-caption text-grey-7 q-mb-xs">
+          Por haber sido invitado: {{ inviteeSidePercent }}%
+        </div>
+        <div class="text-caption text-grey-7 q-mb-sm">
+          Cupo del mes: {{ overview.invitations.quota.used }} de
+          {{ overview.invitations.quota.limit }} invitaciones usadas
+        </div>
+
+        <div v-if="overview.invitations.invitees.length === 0" class="text-grey-6 text-italic">
+          Todavía no invitó a nadie
+        </div>
+        <q-list v-else separator>
+          <q-item
+            v-for="invitee in overview.invitations.invitees"
+            :key="invitee.invitationId ?? `legacy-${invitee.userId}`"
+            class="q-px-none"
+          >
             <q-item-section>
               <q-item-label>
                 <a
                   class="referral-link text-primary cursor-pointer"
-                  @click="goToMember(link.userId)"
+                  @click="goToMember(invitee.userId)"
                 >
-                  {{ link.fullName }}
+                  {{ inviteeName(invitee) }}
                 </a>
+                <q-badge
+                  v-if="invitee.sumaDescuento"
+                  color="positive"
+                  outline
+                  class="q-ml-sm"
+                  label="suma descuento"
+                />
               </q-item-label>
-              <q-item-label v-if="link.state === 'suspended'" caption>
-                se reactiva si vuelve
+              <q-item-label v-if="inviteeCaption(invitee)" caption>
+                {{ inviteeCaption(invitee) }}
               </q-item-label>
             </q-item-section>
             <q-item-section side top>
-              <q-chip
-                dense
-                :color="chipColor(link.state)"
-                text-color="white"
-                :label="chipLabel(link.state)"
-              />
+              <div class="row items-center no-wrap q-gutter-xs">
+                <q-chip
+                  dense
+                  :color="INVITEE_STATE_META[invitee.state].color"
+                  text-color="white"
+                  :label="INVITEE_STATE_META[invitee.state].label"
+                />
+                <q-btn
+                  v-if="invitee.invitationId !== null"
+                  flat
+                  dense
+                  size="sm"
+                  color="negative"
+                  label="Anular"
+                  :loading="voidingId === invitee.invitationId"
+                  @click="onVoid(invitee)"
+                />
+              </div>
             </q-item-section>
           </q-item>
         </q-list>
@@ -203,7 +252,11 @@ import {
   type PartnerBenefitStatus,
 } from 'src/composables/usePartnersApi';
 import { formatDate } from 'src/utils/format-date';
+import { INVITEE_STATE_META, accessesLabel } from 'src/utils/invitation-meta';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
+import type { InviteeView } from 'src/types/member';
 import ReferrerSelect from './ReferrerSelect.vue';
+import InvitedByBlock from './InvitedByBlock.vue';
 
 const log = createLogger('MemberReferralsTab');
 const $q = useQuasar();
@@ -216,10 +269,13 @@ const props = defineProps<{ userId: number }>();
 const overview = ref<MemberReferralsResponse | null>(null);
 const loading = ref(false);
 
-// Atribución retroactiva (fase 173).
+// Atribución retroactiva (fase 173, D-17): vínculo de descuento sin accesos.
 const newReferrerId = ref<number | null>(null);
 const referrerSelect = ref<{ reset: () => void } | null>(null);
 const assigning = ref(false);
+
+// Anulación de una invitación (gestión): id de la que se está anulando.
+const voidingId = ref<number | null>(null);
 
 // Partner (fase 179, D-15): vínculo actual + asignación retroactiva/revocación.
 const partnerLink = ref<MemberPartnerLink | null>(null);
@@ -231,8 +287,9 @@ const loadingPartners = ref(false);
 const assigningPartner = ref(false);
 const revokingPartner = ref(false);
 
-// Chips: misma semántica derivada que la app (S1). El estado viene del server
-// (deriveCoveredUntil, D-28); el cliente nunca lo recalcula desde users.status.
+// Chips del vínculo heredado: misma semántica derivada que la app (S1). El estado
+// viene del server (deriveCoveredUntil, D-28); el cliente nunca lo recalcula desde
+// users.status.
 type ReferralState = 'pending' | 'active' | 'suspended';
 
 function chipColor(state: ReferralState): string {
@@ -261,6 +318,71 @@ function chipLabel(state: ReferralState): string {
 
 function goToMember(userId: number): void {
   void router.push(`/alumnos/${userId}`);
+}
+
+// ─── Invitados (fase 194, SC-5) ────────────────────────────────────────────
+
+// Descuento que aporta haber sido invitado (lado invitado del vínculo).
+const inviteeSidePercent = computed(() => overview.value?.discount.bySide.invitee.percent ?? 0);
+
+function inviteeName(invitee: InviteeView): string {
+  return invitee.lastInitial ? `${invitee.firstName} ${invitee.lastInitial}.` : invitee.firstName;
+}
+
+// "2/3 accesos · vence el 12 oct 2026"; el vínculo heredado no tiene accesos.
+function inviteeCaption(invitee: InviteeView): string {
+  if (invitee.source === 'legacy_link') return 'Vínculo anterior, sin accesos de invitación';
+  const parts: string[] = [];
+  const accesses = accessesLabel(invitee.accessesUsed, invitee.accessesBudget);
+  if (accesses) parts.push(accesses);
+  if (invitee.accessExpiresOn) parts.push(`vence el ${formatDate(invitee.accessExpiresOn)}`);
+  return parts.join(' · ');
+}
+
+/**
+ * Anula una invitación (MEMBER_LIFECYCLE_ROLES). Pide un motivo (3 a 64 caracteres, como
+ * el servidor) y avisa el efecto: libera el cupo, cierra los accesos y cancela las
+ * reservas futuras. El servidor es la autoridad: si rechaza, se muestra su motivo.
+ */
+function onVoid(invitee: InviteeView): void {
+  const invitationId = invitee.invitationId;
+  if (invitationId === null) return;
+  $q.dialog({
+    title: 'Anular invitación',
+    message: `Se anula la invitación de ${inviteeName(invitee)}: se libera el cupo del socio, se cierran sus accesos y se cancelan sus reservas futuras. Indicá el motivo.`,
+    prompt: {
+      model: '',
+      type: 'text',
+      label: 'Motivo (3 a 64 caracteres)',
+      isValid: (val: string) => val.trim().length >= 3 && val.trim().length <= 64,
+    },
+    cancel: { flat: true, label: 'Volver' },
+    ok: { color: 'negative', label: 'Anular invitación' },
+    persistent: true,
+  }).onOk((reason: string) => {
+    void doVoid(invitee, invitationId, reason.trim());
+  });
+}
+
+async function doVoid(invitee: InviteeView, invitationId: number, reason: string): Promise<void> {
+  voidingId.value = invitationId;
+  try {
+    // `userId` de la ruta es el INVITADO de esa invitación, no la ficha que se mira.
+    await membersApi.voidInvitation(invitee.userId, invitationId, reason);
+    $q.notify({ type: 'positive', message: 'Invitación anulada' });
+    // Recarga en vez de mutar local: estado, cupo y descuento los deriva el server.
+    await load();
+  } catch (err: unknown) {
+    const message = extractError(err, 'No se pudo anular la invitación.');
+    if (isExpectedClientError(err)) {
+      log.warn('Invitation void rejected', { invitationId, message });
+    } else {
+      log.error('Failed to void invitation', { invitationId, message });
+    }
+    $q.notify({ type: 'negative', message });
+  } finally {
+    voidingId.value = null;
+  }
 }
 
 // ─── Partner (fase 179, D-15) ──────────────────────────────────────────────
@@ -350,7 +472,7 @@ async function loadActivePartners(): Promise<void> {
 
 /**
  * Asignación retroactiva de partner (D-15). Mismo criterio de mensajería
- * distinta pending/qualified que `onAssign` (referidor de socio) — el
+ * distinta pending/qualified que `onAssign` (quién lo invitó) — el
  * status HTTP diferencia el motivo (404 partner inválido, 409 origen ya
  * asignado, mensaje servidor ya distingue socio/partner — D-12); sin
  * status conocido, mensaje genérico.
@@ -369,7 +491,7 @@ async function onAssignPartner(): Promise<void> {
           ? 'Partner asignado. Como el alumno ya pagó, la comisión quedó generada.'
           : 'Partner asignado. Cuando pague su primer plan se genera la comisión.',
     });
-    // Recarga en vez de mutar local — mismo motivo que el referidor.
+    // Recarga en vez de mutar local — mismo motivo que el invitador.
     await loadPartnerLink();
   } catch (err: unknown) {
     log.error('Failed to assign partner', {
@@ -437,13 +559,13 @@ async function load() {
   try {
     overview.value = await membersApi.getReferrals(props.userId);
   } catch (err: unknown) {
-    log.error('Failed to load referrals', {
+    log.error('Failed to load invitations', {
       userId: props.userId,
       error: err instanceof Error ? err.message : String(err),
     });
     $q.notify({
       type: 'negative',
-      message: membersApi.error.value ?? 'No se pudieron cargar los referidos.',
+      message: membersApi.error.value ?? 'No se pudieron cargar las invitaciones.',
     });
   } finally {
     loading.value = false;
@@ -451,7 +573,7 @@ async function load() {
 }
 
 /**
- * Carga el vínculo "lo trajo" después del alta.
+ * Carga el vínculo "quién lo invitó" después del alta (D-17: descuento sin accesos).
  *
  * El mensaje distingue los dos estados porque significan cosas distintas para
  * quien atiende el mostrador: `pending` es "el descuento llega cuando pague",
@@ -469,21 +591,21 @@ async function onAssign(): Promise<void> {
       type: 'positive',
       message:
         result.status === 'qualified'
-          ? 'Referidor asignado. El descuento corre desde el próximo cobro de cada uno.'
-          : 'Referidor asignado. Cuando pague su primer plan, ambos reciben el descuento.',
+          ? 'Invitador cargado. El descuento corre desde el próximo cobro de cada uno.'
+          : 'Invitador cargado. Cuando pague su primer plan, ambos reciben el descuento.',
     });
     // Recarga en vez de mutar local: el estado de los chips lo deriva el server
     // (deriveCoveredUntil), el cliente no lo puede inventar.
     await load();
   } catch (err: unknown) {
-    log.error('Failed to assign referrer', {
+    log.error('Failed to assign inviter', {
       userId: props.userId,
       referrerId: newReferrerId.value,
       error: err instanceof Error ? err.message : String(err),
     });
     $q.notify({
       type: 'negative',
-      message: membersApi.error.value ?? 'No se pudo asignar el referidor.',
+      message: membersApi.error.value ?? 'No se pudo cargar quién lo invitó.',
     });
   } finally {
     assigning.value = false;
@@ -496,21 +618,21 @@ onMounted(() => {
   void loadActivePartners();
 });
 
-// Los cross-links "Lo trajo"/"Trajo a" navegan a otra ficha reutilizando la
+// Los cross-links "Lo invitó"/"Invitó a" navegan a otra ficha reutilizando la
 // misma instancia de página (solo cambia el route param), así que este tab
 // recibe un userId nuevo sin remontarse.
 watch(
   () => props.userId,
   () => {
     overview.value = null;
-    // Un referidor a medio elegir no puede sobrevivir al cambio de ficha: se
+    // Un invitador a medio elegir no puede sobrevivir al cambio de ficha: se
     // asignaría al alumno equivocado.
     newReferrerId.value = null;
     referrerSelect.value?.reset();
     void load();
 
     // Fase 179 (T-179-55): un partner a medio elegir tampoco puede sobrevivir
-    // al cambio de ficha — mismo motivo que el referidor. El catálogo de
+    // al cambio de ficha — mismo motivo que el invitador. El catálogo de
     // partners activos (allActivePartners) NO se resetea: es independiente
     // del alumno.
     partnerLink.value = null;

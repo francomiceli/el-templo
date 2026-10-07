@@ -121,6 +121,19 @@
                 no-caps
                 @click="openConvertDialog"
               />
+              <!-- Fase 194 D-16: canal asistido. Recepción incluida (es el canal real:
+                   la pestaña Invitaciones es de gestión, esta acción no). Se oculta a
+                   quien ya es socio vigente; si el servidor rechaza igual (cupo,
+                   elegibilidad), el diálogo muestra el motivo. -->
+              <q-btn
+                v-if="canCreateInvitation"
+                flat
+                icon="card_giftcard"
+                label="Crear invitación"
+                color="primary"
+                no-caps
+                @click="showInvitationDialog = true"
+              />
               <q-btn
                 v-if="canDeleteMember"
                 flat
@@ -258,6 +271,14 @@
             <div class="q-mt-sm text-caption text-grey-7">
               Gestiona: <strong>{{ memberProfile.createdBy?.name ?? '—' }}</strong>
             </div>
+
+            <!-- Fase 194 SC-5: los leads en prueba no tienen pestañas, así que la etapa
+                 de la invitación (x/N, vencimiento, sedes) se muestra acá. Solo gestión
+                 (el endpoint responde 403 al resto). -->
+            <div v-if="leadInvitedBy" class="q-mt-sm">
+              <div class="text-caption text-grey-7">Lo invitó</div>
+              <InvitedByBlock :invited-by="leadInvitedBy" />
+            </div>
           </q-card>
         </div>
 
@@ -366,7 +387,8 @@
           <q-tab name="programas" label="Programas" />
           <q-tab name="asistencia" label="Asistencia" />
           <q-tab name="finanzas" label="Finanzas" />
-          <q-tab v-if="canSeeReferrals" name="referidos" label="Referidos" />
+          <!-- Fase 194: ex "Referidos". El `name` interno `referidos` no se renombra. -->
+          <q-tab v-if="canSeeReferrals" name="referidos" label="Invitaciones" />
         </q-tabs>
         <q-separator />
 
@@ -396,9 +418,10 @@
             </q-card>
           </q-tab-panel>
 
-          <!-- Referidos Tab (Phase 158-04, VIS-03) -->
+          <!-- Invitaciones Tab (Phase 158-04 VIS-03, rebrand fase 194). La key fuerza la
+               recarga cuando se crea una invitación desde el encabezado. -->
           <q-tab-panel v-if="canSeeReferrals" name="referidos">
-            <MemberReferralsTab :user-id="userId" />
+            <MemberReferralsTab :key="invitationsReloadKey" :user-id="userId" />
           </q-tab-panel>
 
           <!-- Entrenamiento Tab -->
@@ -711,6 +734,17 @@
         @update:modelValue="onPostConvertAssignDialog"
       />
 
+      <!-- Fase 194 D-16: crear invitación en nombre de un socio (canal asistido). -->
+      <InvitationCreateDialog
+        v-model="showInvitationDialog"
+        :user-id="memberProfile.id"
+        :member-name="memberName"
+        :member-phone="memberProfile.phone"
+        :branches="branches"
+        :member-branch-id="memberProfile.branchId"
+        @created="onInvitationCreated"
+      />
+
       <!-- Freemium → sesión de prueba conversion dialog. Requires a PHYSICAL
            sede (the trial session is presencial; the API rejects virtual
            branches). -->
@@ -815,6 +849,8 @@ import type { OutstandingConcept } from 'src/types/transaction';
 import { useStatusBadge } from 'src/composables/useStatusBadge';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberReferralsTab from 'src/components/MemberReferralsTab.vue';
+import InvitedByBlock from 'src/components/InvitedByBlock.vue';
+import InvitationCreateDialog from 'src/components/InvitationCreateDialog.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
 import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberProgramsTab from 'src/components/MemberProgramsTab.vue';
@@ -824,7 +860,12 @@ import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
 import FinancialHistoryTab from 'src/components/FinancialHistoryTab.vue';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
-import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
+import type {
+  MemberProfile,
+  MemberSegment,
+  BranchOption,
+  InvitedByView,
+} from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
 import { levelColor } from 'src/constants/levels';
 import { TEMPLO_GREEK_LEVELS } from 'src/config/templo-config';
@@ -1074,6 +1115,49 @@ const canDeleteMember = computed(() => isLifecycleRole.value);
 // El endpoint de referidos responde 403 fuera de MEMBER_LIFECYCLE_ROLES (WR-05),
 // así que el tab no se muestra a quien no lo puede leer.
 const canSeeReferrals = computed(() => isLifecycleRole.value);
+
+// Fase 194 D-16: espejo de INVITATION_ASSISTED_ROLES en la API (lifecycle + recepción;
+// coach queda afuera). Solo oculta el botón: la autoridad es el servidor (T-194-78).
+const canCreateInvitation = computed(() => {
+  const role = currentUser.value?.role;
+  const roleAllowed = isLifecycleRole.value || role === 'recepcion';
+  // Un socio vigente no es elegible; el resto (freemium, prueba, inactivo) lo decide el
+  // servidor con sus reglas (D-11/D-12) y el diálogo muestra el motivo si rechaza.
+  return roleAllowed && memberProfile.value !== null && memberProfile.value.status !== 'activo';
+});
+
+const showInvitationDialog = ref(false);
+// Se incrementa al crear una invitación: remonta la pestaña Invitaciones para que recargue.
+const invitationsReloadKey = ref(0);
+// Etapa de la invitación del lead en prueba (sin pestañas): ver "Datos de Lead".
+const leadInvitedBy = ref<InvitedByView | null>(null);
+
+// Los leads en prueba no tienen pestañas: el bloque "Lo invitó" se carga acá (solo
+// gestión, el endpoint responde 403 al resto). No es fatal si falla.
+async function loadLeadInvitedBy(): Promise<void> {
+  leadInvitedBy.value = null;
+  if (!canSeeReferrals.value || memberProfile.value?.status !== 'prueba') return;
+  const targetId = userId.value;
+  try {
+    const overview = await membersApi.getReferrals(targetId);
+    // Guard anti-race: la ficha pudo cambiar de alumno mientras se cargaba.
+    if (targetId === userId.value) leadInvitedBy.value = overview.invitedBy;
+  } catch (err: unknown) {
+    if (!isExpectedClientError(err)) {
+      log.warn('Error loading lead invitation', {
+        error: extractError(err, 'Error cargando la invitación del lead'),
+        userId: targetId,
+      });
+    }
+  }
+}
+
+async function onInvitationCreated(): Promise<void> {
+  // El alumno pasa a `prueba` con el plan Invitación: recargar perfil y bloque del lead.
+  invitationsReloadKey.value += 1;
+  await loadMemberProfile();
+  await loadLeadInvitedBy();
+}
 
 // Only physical branches are valid trial-session locations (the API rejects
 // virtual sedes). Excludes the "Templo Online" virtual branch.
@@ -1327,6 +1411,8 @@ async function loadAll() {
     loadOutstandingConcepts();
     // Phase 131: in-session dominado/bajado log (Entrenamiento tab).
     loadMemberAdjustments();
+    // Fase 194: etapa de la invitación del lead en prueba (no tiene pestañas).
+    void loadLeadInvitedBy();
   } catch {
     pageError.value = 'Error cargando detalle del alumno';
   } finally {

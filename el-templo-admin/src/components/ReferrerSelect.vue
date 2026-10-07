@@ -1,5 +1,5 @@
 <!--
-  Typeahead de socios para elegir un referidor (fase 173).
+  Typeahead de socios para elegir quién invita (fase 173, rebrand fase 194).
 
   Nació de una duplicación real: el mismo select vivía en MemberFormDialog (alta,
   157-05) y hacía falta otra vez en MemberReferralsTab (atribución retroactiva).
@@ -54,8 +54,8 @@ withDefaults(
     disable?: boolean;
   }>(),
   {
-    label: 'Referido por',
-    hint: 'Buscá por nombre o DNI al socio que lo refirió',
+    label: 'Invitado por',
+    hint: 'Buscá por nombre o DNI al socio que lo invitó',
     disable: false,
   }
 );

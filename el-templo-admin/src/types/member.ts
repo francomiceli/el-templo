@@ -237,7 +237,10 @@ export interface CreateMemberInput {
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   emergencyContactRelationship?: string | null;
-  /** Atribución de referido (opcional): id del socio que lo trajo. El server valida. */
+  /**
+   * "Invitado por" (opcional, D-17/D-24): id del socio que lo invitó. En el alta con
+   * plan pago es un vínculo de descuento SIN accesos ni cupo. El server valida.
+   */
   referredBy?: number | null;
 }
 
@@ -250,6 +253,90 @@ export interface CreateTrialMemberInput {
   lastName: string;
   phone: string;
   branchId: number;
+  /**
+   * Fase 194 D-24 "Lo invita" (opcional): id del socio que lo invita. El server
+   * valida cupo y elegibilidad ANTES de crear el lead y, si todo va bien, activa
+   * la invitación con accesos (mismo `activate` que la app).
+   */
+  inviterId?: number;
+}
+
+// ─── Invitaciones (Fase 194) ────────────────────────────────────────────────
+// Espejan el-templo-api/src/modules/referrals (invitation-types.ts,
+// invitation-states.ts, types.ts) — contrato de 194-12 y 194-19.
+
+/** Resultado de activar una invitación (canal asistido o alta en prueba). */
+export interface InvitationActivation {
+  invitationId: number;
+  subscriptionId: number;
+  /** Último día de los accesos, 'YYYY-MM-DD'. */
+  accessExpiresOn: string;
+  /** N: cantidad de accesos de la invitación (nunca 3 hardcodeado). */
+  classesBudget: number;
+  branchId: number;
+}
+
+/** Motivo (código + texto en español) por el que el servidor no activó la invitación. */
+export interface InvitationFailure {
+  reason: string;
+  message: string;
+}
+
+/** Respuesta de POST /admin/members/trial: el perfil + el resultado de "Lo invita". */
+export interface CreateTrialMemberResponse extends MemberProfile {
+  /** Solo con `inviterId`. `null` si la activación falló después de crear el lead. */
+  invitation?: InvitationActivation | null;
+  invitationError?: InvitationFailure | null;
+}
+
+export interface CreateAssistedInvitationInput {
+  /** Socio que invita (el cupo es suyo). */
+  inviterId: number;
+  /** Sede física donde el invitado entrena. */
+  branchId: number;
+  /** Sin teléfono, el server usa el guardado del alumno (400 `phone_required` si no hay). */
+  phone?: string;
+  dni?: string | null;
+}
+
+export type InviteeState = 'socio_activo' | 'inactivo' | 'vencido' | 'entrenando' | 'invitado';
+export type LeadStage = 'invitado' | 'entrenando' | 'vencido' | 'convertido';
+
+/** Invitado de la lista "Invitó a". Solo nombre de pila + inicial: sin teléfono ni DNI. */
+export interface InviteeView {
+  /** `null` en los vínculos heredados (`legacy_link`): sin accesos y sin anulación. */
+  invitationId: number | null;
+  userId: number;
+  firstName: string;
+  lastInitial: string;
+  state: InviteeState;
+  accessesUsed: number | null;
+  accessesBudget: number | null;
+  activatedAt: string | null;
+  accessExpiresOn: string | null;
+  /** Hoy suma descuento al invitador (vínculo calificado y el invitado con membresía vigente). */
+  sumaDescuento: boolean;
+  source: 'invitation' | 'legacy_link';
+}
+
+export interface InvitationsOverview {
+  quota: { limit: number; used: number; remaining: number; month: string };
+  inviteUrl: string;
+  invitees: InviteeView[];
+  discount: { percent: number; activeInvitees: number };
+}
+
+/** Bloque "Lo invitó": la invitación activa más reciente donde la persona es la invitada. */
+export interface InvitedByView {
+  inviterId: number;
+  inviterName: string;
+  activatedAt: string;
+  accessesUsed: number;
+  accessesBudget: number;
+  accessExpiresOn: string;
+  stage: LeadStage;
+  branchesTrained: string[];
+  channel: 'self_service' | 'assisted';
 }
 
 export interface UpdateMemberInput {
