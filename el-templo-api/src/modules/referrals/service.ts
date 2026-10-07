@@ -54,6 +54,7 @@ import {
 } from "../shared/tenant";
 import { referralCopyVariant } from "./ab-variant";
 import { getInvitationSettings } from "./invitation-settings";
+import { InvitationOverview } from "./invitation-overview";
 import type {
   ReferralAssignmentResult,
   ReferralConfig,
@@ -370,12 +371,17 @@ export class ReferralService {
         ),
       );
 
-    const { percentPerLink, maxPercentCap } = await this.getReferralConfig();
+    // Fase 194 D-10e: el % de cada LADO sale de los settings del programa
+    // (invitado: `invitations.invitee_percent`; invitador: aura_config['referral']).
+    const { inviteePercent, perLinkPercent, maxPercentCap } =
+      await getInvitationSettings(this.db, ctx, this.log);
     const today = new Date().toISOString().split("T")[0];
 
     const referred: ReferralLinkView[] = [];
     let referredBy: ReferralLinkView | null = null;
     let activeCount = 0;
+    let activeAsInviter = 0;
+    let activeAsInvitee = 0;
 
     // Batch de cobertura y nombres de TODAS las contrapartes en 2 queries (evita
     // el N+1 que reventaba el gateway timeout con un referidor prolífico).
@@ -401,7 +407,9 @@ export class ReferralService {
           lastName: users.lastName,
         })
         .from(users)
-        .where(and(tenantWhere(users, ctx), inArray(users.id, counterpartyIds)));
+        .where(
+          and(tenantWhere(users, ctx), inArray(users.id, counterpartyIds)),
+        );
       for (const row of rows) {
         nameMap.set(
           row.id,
@@ -429,6 +437,11 @@ export class ReferralService {
       }
       if (state === "active") {
         activeCount++;
+        if (isReferrer) {
+          activeAsInviter++;
+        } else {
+          activeAsInvitee++;
+        }
       }
 
       const view: ReferralLinkView = {
@@ -447,16 +460,42 @@ export class ReferralService {
     // Reuso D-30: el % vigente es EXACTAMENTE el del cobro, no una reimplementación.
     const percent = await this.computeReferralDiscountPercent(ctx, userId);
 
+    // Fase 194-19: cupo, link, invitados con estado derivado e "invitado por".
+    // Vive en su propio archivo (regla de 194-32); acá solo se le pasan los
+    // vínculos y el % ya cargados para no repetir queries.
+    const { invitations, invitedBy } = await new InvitationOverview(
+      this.db,
+      this.log,
+    ).build(ctx, userId, {
+      referralCode,
+      links,
+      percent,
+    });
+
     return {
       referralCode,
       discount: {
         percent,
         activeCount,
-        perLinkPercent: percentPerLink,
+        perLinkPercent,
         capPercent: maxPercentCap,
+        bySide: {
+          inviter: {
+            perLinkPercent,
+            activeCount: activeAsInviter,
+            percent: perLinkPercent * activeAsInviter,
+          },
+          invitee: {
+            perLinkPercent: inviteePercent,
+            activeCount: activeAsInvitee,
+            percent: inviteePercent * activeAsInvitee,
+          },
+        },
       },
       referred,
       referredBy,
+      invitations,
+      invitedBy,
     };
   }
 
@@ -776,9 +815,7 @@ export class ReferralService {
         qualified: sql<number>`SUM(CASE WHEN ${referrals.status} = 'qualified' THEN 1 ELSE 0 END)`,
       })
       .from(referrals)
-      .where(
-        and(tenantWhere(referrals, ctx), isNotNull(referrals.copyVariant)),
-      )
+      .where(and(tenantWhere(referrals, ctx), isNotNull(referrals.copyVariant)))
       .groupBy(referrals.copyVariant);
 
     const buildVariant = (v: "A" | "B"): ReferralAbVariantResult => {

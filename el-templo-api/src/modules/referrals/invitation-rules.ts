@@ -140,7 +140,11 @@ export class InvitationRules {
     return quota;
   }
 
-  private async computeQuota(
+  /**
+   * Cupo del mes de la tz dada (público desde 194-19: el overview ya tiene la tz
+   * del usuario y no necesita recargarlo con `getInviterQuota`).
+   */
+  async computeQuota(
     ctx: TenantContext,
     inviterId: number,
     timezone: string,
@@ -417,7 +421,7 @@ export class InvitationRules {
   // ─── Carga de datos que las reglas necesitan ─────────────────────────────
 
   /** Usuario (no borrado) del tenant con la tz de su sede. */
-  private async loadUserWithTimezone(
+  async loadUserWithTimezone(
     ctx: TenantContext,
     userId: number,
     exec: InvitationExecutor,

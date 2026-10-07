@@ -3,6 +3,9 @@
 // generación de código legible, cómputo del descuento simétrico condicional
 // topeado (DESC-02/03/04) y registro auditable sin inflar saldo (AURA-01).
 
+import type { InviterQuota } from "./invitation-types";
+import type { InviteeState, LeadStage } from "./invitation-states";
+
 /**
  * Calibración del sistema de referidos, leída con fallback desde
  * aura_config['referral'].default_amount (% por vínculo) y
@@ -45,10 +48,90 @@ export interface ReferralDiscountView {
   percent: number;
   /** Cantidad de vínculos con `state === "active"` (ambas direcciones). */
   activeCount: number;
-  /** % que aporta cada vínculo activo, desde `getReferralConfig` (fallback 10). */
+  /** % que aporta cada vínculo activo del lado INVITADOR, desde `getReferralConfig` (fallback 10). */
   perLinkPercent: number;
   /** Tope máximo acumulable, desde `getReferralConfig` (fallback 40). */
   capPercent: number;
+  /**
+   * Fase 194 (D-10e, lección de 194-14): el mismo descuento abierto POR LADO del
+   * vínculo, porque el % del invitado (`invitations.invitee_percent`) y el del
+   * invitador (`aura_config['referral']`) ya son parámetros distintos. `percent`
+   * de cada lado = `perLinkPercent * activeCount`, SIN tope (el tope aplica al
+   * total, `ReferralDiscountView.percent`).
+   */
+  bySide: {
+    /** Como INVITADOR: un vínculo por cada invitado que él trajo. */
+    inviter: DiscountSideView;
+    /** Como INVITADO: a lo sumo un vínculo (el de quien lo invitó). */
+    invitee: DiscountSideView;
+  };
+}
+
+/** Un lado del descuento (ver {@link ReferralDiscountView.bySide}). */
+export interface DiscountSideView {
+  /** % que aporta cada vínculo activo de este lado. */
+  perLinkPercent: number;
+  /** Vínculos `qualified` de este lado con la contraparte cubierta hoy. */
+  activeCount: number;
+  /** `perLinkPercent * activeCount` (sin tope). */
+  percent: number;
+}
+
+/**
+ * Invitado en "Mis invitados" (Fase 194-19). Solo nombre de pila + inicial del
+ * apellido: sin teléfono, DNI ni email (T-194-63). `invitationId` es null en los
+ * vínculos heredados (`legacy_link`), que no tienen fila en `invitations` (SC-6).
+ */
+export interface InviteeView {
+  invitationId: number | null;
+  userId: number;
+  firstName: string;
+  /** Primera letra del apellido en mayúscula ("" si no tiene). */
+  lastInitial: string;
+  state: InviteeState;
+  /** `classes_budget - classes_remaining` de los accesos; null sin accesos (legado). */
+  accessesUsed: number | null;
+  /** `classes_budget` de los accesos (N, nunca 3 hardcodeado); null sin accesos. */
+  accessesBudget: number | null;
+  /** ISO 8601 de la activación; null en el legado. */
+  activatedAt: string | null;
+  /** Último día de los accesos ('YYYY-MM-DD'); null en el legado. */
+  accessExpiresOn: string | null;
+  /** Vínculo `qualified` inviter->invitee con el invitado cubierto hoy: hoy suma descuento. */
+  sumaDescuento: boolean;
+  source: "invitation" | "legacy_link";
+}
+
+/** Bloque "Mis invitados" del overview (Fase 194-19). */
+export interface InvitationsOverview {
+  quota: InviterQuota;
+  /** URL de invitación armada server-side (T-194-66): `FRONTEND_URL` + `/invitacion/CODE`. */
+  inviteUrl: string;
+  invitees: InviteeView[];
+  discount: {
+    /** % vigente total = el mismo `ReferralDiscountView.percent`. */
+    percent: number;
+    /** Invitados (como invitador) que hoy suman descuento. */
+    activeInvitees: number;
+  };
+}
+
+/**
+ * Bloque "invitado por" (para el invitado y la ficha del lead): la invitación
+ * `active` más reciente donde el usuario es el INVITADO.
+ */
+export interface InvitedByView {
+  inviterId: number;
+  inviterName: string;
+  /** ISO 8601. */
+  activatedAt: string;
+  accessesUsed: number;
+  accessesBudget: number;
+  accessExpiresOn: string;
+  stage: LeadStage;
+  /** Nombres de las sedes donde entrenó entre la activación y el vencimiento. */
+  branchesTrained: string[];
+  channel: "self_service" | "assisted";
 }
 
 /**
@@ -65,6 +148,10 @@ export interface ReferralOverview {
   referred: ReferralLinkView[];
   /** El único vínculo donde el socio es referido ("Te trajo"), o null. */
   referredBy: ReferralLinkView | null;
+  /** Fase 194-19: cupo, link, invitados con estado derivado y descuento. */
+  invitations: InvitationsOverview;
+  /** Fase 194-19: quién lo invitó (si hay invitación activa), o null. */
+  invitedBy: InvitedByView | null;
 }
 
 /**

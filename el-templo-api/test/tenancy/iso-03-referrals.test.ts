@@ -173,7 +173,20 @@ describe("ver mis referidos — GET /api/members/referrals", () => {
     expect(res.statusCode, `${RUTA} falló: ${res.body}`).toBe(200);
     const body = JSON.parse(res.body) as {
       referredBy: { userId: number; fullName: string } | null;
+      invitations: { inviteUrl: string; invitees: Array<{ userId: number }> };
+      invitedBy: { inviterId: number } | null;
     };
+    // Fase 194-19: los bloques nuevos también son del gimnasio del token — el
+    // referido de G2 no tiene invitados ni invitador de El Templo.
+    expect(Array.isArray(body.invitations.invitees)).toBe(true);
+    expect(
+      body.invitations.invitees.some((i) => i.userId === templo.referrerId),
+      porQueImportaElAislamiento(
+        RUTA,
+        "invitations.invitees mezcló usuarios de El Templo",
+      ),
+    ).toBe(false);
+    expect(body.invitedBy?.inviterId ?? null).not.toBe(templo.referrerId);
     expect(
       body.referredBy?.userId,
       porQueImportaElAislamiento(

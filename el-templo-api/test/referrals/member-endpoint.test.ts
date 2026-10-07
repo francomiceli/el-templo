@@ -43,6 +43,14 @@ interface OverviewBody {
   };
   referred: LinkView[];
   referredBy: LinkView | null;
+  // Fase 194-19: campos NUEVOS (los viejos no se quitan).
+  invitations: {
+    quota: { limit: number; used: number; remaining: number; month: string };
+    inviteUrl: string;
+    invitees: Array<{ userId: number; source: string; state: string }>;
+    discount: { percent: number; activeInvitees: number };
+  };
+  invitedBy: { inviterId: number } | null;
 }
 
 let app: FastifyInstance;
@@ -194,6 +202,20 @@ describe("GET /api/members/referrals — member overview", () => {
     expect(body.discount.perLinkPercent).toBe(10);
     expect(body.discount.capPercent).toBe(40);
     expect(body.discount.activeCount).toBe(2);
+
+    // 194-19: el mismo vínculo se ve en `invitations` como heredado y el
+    // desglose por lado suma lo mismo que el % total (sin tope en este caso).
+    expect(body.invitations.invitees).toHaveLength(2);
+    expect(
+      body.invitations.invitees.every((i) => i.source === "legacy_link"),
+    ).toBe(true);
+    expect(body.invitations.discount.activeInvitees).toBe(2);
+    expect(body.invitations.discount.percent).toBe(body.discount.percent);
+    expect(body.invitations.inviteUrl).toContain(
+      `/invitacion/${body.referralCode}`,
+    );
+    expect(body.invitations.quota.limit).toBe(2);
+    expect(body.invitedBy).toBeNull();
 
     // Paridad: el % del overview es EXACTAMENTE el del cobro (mismo método).
     const service = new ReferralService(app.db, app.log);
