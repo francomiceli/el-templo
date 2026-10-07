@@ -465,6 +465,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       debtorOnly?: boolean;
       // Phase 103 (R8): first-class users.status filter (replaces Phase 102 enum).
       status?: "todos" | "freemium" | "prueba" | "activo" | "inactivo";
+      // Fase 194-20 (D-18): origen "Invitación" (derivado de `invitations`).
+      origin?: "invitacion";
       page?: number;
       limit?: number;
     };
@@ -488,6 +490,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         avatarType,
         debtorOnly,
         status,
+        origin,
         page = 1,
         limit = 20,
       } = request.query;
@@ -510,6 +513,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.role,
         ),
         status,
+        origin,
         page,
         limit,
       };

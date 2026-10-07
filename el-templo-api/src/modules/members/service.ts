@@ -187,6 +187,7 @@ export class MemberService {
       debtorOnly,
       includeTotalDebt,
       status,
+      origin,
       page,
       limit,
     } = params;
@@ -356,6 +357,21 @@ export class MemberService {
       conditions.push(sql`${effectiveStatusExpr} = ${status}`);
     }
     // status === "todos" or undefined → no-op
+
+    // Fase 194-20 (D-18): origen "Invitación" = tiene una invitación `active`
+    // (derivado de `invitations`, la fuente de verdad: sin columna nueva en
+    // `users`). Subquery con FROM propio: el gimnasio va INLINE, y la referencia
+    // externa como literal `users.id` (trampa Drizzle de columnas sin calificar).
+    if (origin === "invitacion") {
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM invitations i
+          WHERE i.tenant_id = ${ctx.tenantId}
+            AND i.invited_user_id = users.id
+            AND i.status = 'active'
+        )`,
+      );
+    }
 
     const whereClause = and(...conditions);
 
@@ -586,7 +602,8 @@ export class MemberService {
     // tiene efecto cuando el actor tiene alcance forzado (`branchIds` viene
     // poblado). Para cualquier otro rol es un no-op — ya buscan sin filtro de
     // sede (país, más abajo).
-    const crossBranch = includeOtherBranches === true && branchIds !== undefined;
+    const crossBranch =
+      includeOtherBranches === true && branchIds !== undefined;
 
     // Fase 173-19 (T-173-19-01): PRIMER elemento — `buildMemberNameSearchCondition`
     // ya filtra `users` puertas adentro (173-05/173-17), pero el resto del

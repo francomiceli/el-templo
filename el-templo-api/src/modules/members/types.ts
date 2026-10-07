@@ -53,6 +53,12 @@ export interface MemberListParams {
    * that keeps the column in sync with sub create/cancel transitions.
    */
   status?: "todos" | UserStatus;
+  /**
+   * Fase 194-20 (D-18): origen del alumno. `invitacion` = tiene una invitación
+   * `active` (derivado de `invitations`, sin columna nueva en `users`). Se combina
+   * con `status` (p.ej. `status=prueba&origin=invitacion` = leads de invitación).
+   */
+  origin?: "invitacion";
   page: number;
   limit: number;
 }

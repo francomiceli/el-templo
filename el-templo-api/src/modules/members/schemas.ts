@@ -216,6 +216,9 @@ export const listMembersSchema = {
         type: "string",
         enum: ["todos", "freemium", "prueba", "activo", "inactivo"],
       },
+      // Fase 194-20 (D-18): origen del alumno. Enum de un valor, extensible;
+      // Fastify rechaza cualquier otro con 400 antes del handler.
+      origin: { type: "string", enum: ["invitacion"] },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
