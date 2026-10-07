@@ -19,6 +19,9 @@ import type {
   InactiveReportParams,
   TrialConversionParams,
   TrialConversionReport,
+  AttributionFunnelParams,
+  AttributionFunnelResult,
+  SearchConsoleReport,
 } from 'src/types/report';
 
 // ─── Phase 114-06: Trial Sessions Report types ─────────────────────────
@@ -555,6 +558,44 @@ export function useReportsApi() {
     }
   }
 
+  // ─── Fase 195-10: Origen de altas ──────────────────────────────────────
+
+  /** `GET /admin/reports/attribution` — embudo por canal, campaña y sede (owner/admin). */
+  async function getAttributionFunnel(
+    params: AttributionFunnelParams
+  ): Promise<AttributionFunnelResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<AttributionFunnelResult>('/admin/reports/attribution', {
+        params,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando el origen de altas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /** `GET /admin/reports/attribution/search-console` — último período por página de sede. */
+  async function getSearchConsoleReport(): Promise<SearchConsoleReport> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<SearchConsoleReport>(
+        '/admin/reports/attribution/search-console'
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando Search Console');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Cleanup ───────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -582,6 +623,8 @@ export function useReportsApi() {
     updateTrialFollowup,
     getTrialShifts,
     updateTrialShifts,
+    getAttributionFunnel,
+    getSearchConsoleReport,
     cleanup,
   };
 }

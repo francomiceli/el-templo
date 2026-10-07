@@ -84,6 +84,10 @@
         label="Recategorización"
         icon="sync_alt"
       />
+      <!-- Origen de altas (fase 195): embudo por canal/campaña/sede con
+           facturación y gasto publicitario → solo owner/admin (el API lo
+           exige igual: 403 al resto). -->
+      <q-tab v-if="isAdminOrOwner" name="origen-altas" label="Origen de altas" icon="campaign" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -757,6 +761,13 @@
       <q-tab-panel name="recategorizacion">
         <RecategorizacionReport />
       </q-tab-panel>
+
+      <!-- ================================================================ -->
+      <!-- Origen de altas (fase 195: atribución, gasto de Meta, Search Console) -->
+      <!-- ================================================================ -->
+      <q-tab-panel v-if="isAdminOrOwner" name="origen-altas">
+        <OrigenAltasReport :branch-id="selectedBranchId" :country="countryScope" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -795,6 +806,7 @@ import type {
 } from 'src/types/analytics';
 import TrialSessionsReport from 'src/components/reports/TrialSessionsReport.vue';
 import RecategorizacionReport from 'src/components/reports/RecategorizacionReport.vue';
+import OrigenAltasReport from 'src/components/reports/OrigenAltasReport.vue';
 import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 import PorDeudaTab from 'src/components/deudas/PorDeudaTab.vue';
 import RenovacionesTab from 'src/components/renovaciones/RenovacionesTab.vue';
@@ -812,6 +824,8 @@ const adminStore = useAdminStore();
 // -- Country selector (owner-only per D-06 / D-10) ---------------------------
 
 const isOwner = computed(() => authStore.user?.role === 'owner');
+// Origen de altas: facturación + gasto publicitario → owner/admin (como el API).
+const isAdminOrOwner = computed(() => ['owner', 'admin'].includes(authStore.user?.role ?? ''));
 
 const countryOptions = [
   { label: 'Argentina', value: 'AR' as const },
@@ -1001,6 +1015,7 @@ const VALID_TABS = [
   'conversion',
   'sesiones-de-prueba',
   'recategorizacion',
+  'origen-altas',
 ];
 const initialTab = (() => {
   const q = route.query.tab;
@@ -1012,6 +1027,10 @@ const activeTab = ref(initialTab);
 // y sin opción "Todas las sedes" en el selector.
 const branchScoped = computed(() => isBranchScopedRole(authStore.user?.role));
 if (branchScoped.value && activeTab.value === 'recategorizacion') {
+  activeTab.value = 'accesos';
+}
+// Deep link a una pestaña que el rol no ve: vuelve a la primera.
+if (!isAdminOrOwner.value && activeTab.value === 'origen-altas') {
   activeTab.value = 'accesos';
 }
 

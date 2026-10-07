@@ -167,3 +167,81 @@ export interface TrialConversionReport {
   byShift: TrialConversionShiftRow[];
   pendingLeads: TrialConversionPendingLead[];
 }
+
+// ─── Fase 195-10: Origen de altas (atribución) ──────────────────────────
+//
+// Espejo cliente de `el-templo-api/src/modules/marketing/report-service.ts`.
+// Los importes van SIEMPRE separados por moneda: nunca se suman ARS con EUR.
+
+/** Importe en una moneda (unidades enteras de la moneda, sin centavos). */
+export interface MoneyByCurrency {
+  currency: string;
+  amount: number;
+}
+
+export interface AttributionFunnelParams {
+  dateFrom: string;
+  dateTo: string;
+  branchId?: number | undefined;
+  country?: 'AR' | 'ES' | undefined;
+}
+
+export interface AttributionFunnelRow {
+  channel: string;
+  utmCampaign: string | null;
+  branchId: number | null;
+  branchName: string | null;
+  registros: number;
+  conPrueba: number;
+  pagaron: number;
+  facturacion: MoneyByCurrency[];
+  /** Solo en la fila de la sede que el nombre de la campaña codifica. */
+  gasto: MoneyByCurrency[] | null;
+  costoPorAlumnoPago: MoneyByCurrency[] | null;
+}
+
+export interface AttributionCampaign {
+  utmCampaign: string;
+  registros: number;
+  conPrueba: number;
+  pagaron: number;
+  facturacion: MoneyByCurrency[];
+  gasto: MoneyByCurrency[] | null;
+  costoPorAlumnoPago: MoneyByCurrency[] | null;
+  sedeCodificada: { branchId: number; branchName: string } | null;
+  porSede: Array<{
+    branchId: number | null;
+    branchName: string | null;
+    registros: number;
+    pagaron: number;
+  }>;
+}
+
+export interface AttributionFunnelResult {
+  range: { dateFrom: string; dateTo: string };
+  rows: AttributionFunnelRow[];
+  campaigns: AttributionCampaign[];
+  totals: {
+    registros: number;
+    conPrueba: number;
+    pagaron: number;
+    facturacion: MoneyByCurrency[];
+    gasto: MoneyByCurrency[];
+  };
+  ia: Array<{ referrerHost: string | null; registros: number; pagaron: number }>;
+  gastoSinAtribuir: Array<{ campaignName: string; currency: string; amount: number }>;
+}
+
+export interface SearchConsoleMetrics {
+  clicks: number;
+  impressions: number;
+  /** Fracción 0..1 (0.1234 = 12,34%). */
+  ctr: number;
+  position: number;
+}
+
+export interface SearchConsoleReport {
+  period: { periodStart: string; periodEnd: string } | null;
+  pages: Array<{ page: string } & SearchConsoleMetrics>;
+  queries: Array<{ page: string; query: string } & SearchConsoleMetrics>;
+}
