@@ -150,3 +150,7 @@
   - Archivos sin trackear al mutar: verificar restauración con `diff` contra respaldo (no `git diff`).
   - **Para 195-14 (guía):** fingerprints de `assetlinks.json` (Play Console, prod y staging) + `pnpm check-well-known --strict`; Associated Domains iOS `applinks:app.eltemplo.org`; ASO; builds de tienda (SIN bump en la fase: Franco decide la versión al armar el release); revisar `keep-awake` ausente en `src-capacitor/package.json`.
 - **Franco 2026-10-07: NO hacer bump de versión de la app en esta fase.** El bump 1.9.0 (`079c5da2a`) se revirtió en `163b933e1`; `version.txt` queda en 1.8.1. Ningún plan toca `version.txt`, `package.json` "version" ni `bump-version.sh`. La guía (195-14) solo dice que la reseña in-app y la captura de origen requieren una build de tienda nueva, con la versión que Franco decida.
+- **Tras 195-13 (2026-10-07):**
+  - Vhosts del repo son CRLF; `location` nueva con `add_header` pierde los headers del server (repetirlos). Merge sobre certbot con `git merge-file -p live base target` (todo en LF).
+  - `rsync --delete` del deploy web borra archivos puestos a mano: Search Console se verifica por **DNS**, nunca por archivo.
+  - **Para 195-14 (guía):** etapa 2 del noindex (runbook §D), decisión HSTS (runbook 1.5, recomendado no adoptar ahora), orden del rollout nginx (tanda A staging/app/admin; tanda B eltemplo.org solo con web nueva en prod) y que cada comando SSH se aprueba de a uno.
