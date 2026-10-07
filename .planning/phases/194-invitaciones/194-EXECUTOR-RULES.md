@@ -33,8 +33,8 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 
 ## Excepciones explícitas a las reglas de tests
 
-- **ids de usuario hardcodeados:** SOLO `test/migrations/0258-0259-invitaciones.test.ts` (plan 194-21) puede sembrar `users.id`
-  6613 y 7286 y `referrals.id` 3 explícitos, porque la migración 0258 apunta a esos ids de producción (precedente
+- **ids de usuario hardcodeados:** SOLO `test/migrations/0260-0261-invitaciones.test.ts` (plan 194-21) puede sembrar `users.id`
+  6613 y 7286 y `referrals.id` 3 explícitos, porque la migración 0260 apunta a esos ids de producción (precedente
   `test/migrations/0109_reconcile_soledad.test.ts`). Verificar antes de insertar que no existan en la DB del worker y borrarlos
   en `afterAll`. Ningún otro test de la fase hardcodea ids.
 
@@ -54,7 +54,7 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 ## Migraciones
 
 - SQL escrito a mano en `el-templo-api/src/db/migrations/NNNN_nombre.sql`, **en el MISMO commit** que el schema `.ts`.
-- Antes de crear una migración: `ls /home/franco/projects/et-194-invitaciones/el-templo-api/src/db/migrations/*.sql | sort | tail -3` y además `git -C /home/franco/projects/et-194-invitaciones ls-tree --name-only origin/master el-templo-api/src/db/migrations/ | sort | tail -2` y lo mismo con `origin/staging`. La fase reserva **0255-0259**; si alguno ya está ocupado en master/staging, PARAR y reportar (no renumerar por cuenta propia).
+- Antes de crear una migración: `ls /home/franco/projects/et-194-invitaciones/el-templo-api/src/db/migrations/*.sql | sort | tail -3` y además `git -C /home/franco/projects/et-194-invitaciones ls-tree --name-only origin/master el-templo-api/src/db/migrations/ | sort | tail -2` y lo mismo con `origin/staging`. La fase reserva **0255-0257 y 0260-0261** (0258/0259 los tomó master el 2026-10-07); si alguno ya está ocupado en master/staging, PARAR y reportar (no renumerar por cuenta propia).
 - **NUNCA** `;` dentro de un comentario `--`. **NUNCA** `drizzle-kit push`, `drizzle-kit migrate`, `pnpm db:push`, `pnpm db:generate`.
 - `mysqlEnum("nombre_columna", [...])`: el primer argumento ES el nombre físico de la columna y debe coincidir byte a byte con el SQL (nombre y lista de valores en el mismo orden).
 - Statements de datos idempotentes (`WHERE NOT EXISTS`, guards por estado esperado). Datos de test NUNCA en una migración.
