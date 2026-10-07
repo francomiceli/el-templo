@@ -315,7 +315,10 @@ import {
 // `tenant-scoped`.
 // 2026-10-07 (fase 195): 447 -> 448 por el endpoint público de datos de la web:
 // `GET /api/web/site-data`, `templo-module` (templo-marketing).
-const ENTRADAS_BASELINE = 448;
+// 2026-10-07 (fase 195, plan 10): 448 -> 450 por los reportes de origen de altas:
+// `GET /api/admin/reports/attribution` y
+// `GET /api/admin/reports/attribution/search-console`, ambas `tenant-scoped`.
+const ENTRADAS_BASELINE = 450;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -458,7 +461,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 448 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 450 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

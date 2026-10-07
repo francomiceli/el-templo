@@ -35,6 +35,7 @@ import {
 } from "./modules/scheduling";
 import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
+import { attributionReportRoutes } from "./modules/marketing/report-routes";
 import { renewalsRoutes } from "./modules/renewals";
 import { coachRoutes } from "./modules/coach";
 import { ratingsAdminRoutes, ratingsMemberRoutes } from "./modules/ratings";
@@ -295,6 +296,12 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   // Reports routes (access log, charges, expiring, inactive + Excel exports)
   await app.register(reportsRoutes, {
     prefix: "/api/admin/reports",
+  });
+
+  // Fase 195: origen de altas (embudo por canal/campaña/sede, gasto de Meta,
+  // IA y Search Console). Solo owner/admin.
+  await app.register(attributionReportRoutes, {
+    prefix: "/api/admin/reports/attribution",
   });
 
   // Renovaciones (2026-09-24, brief Nacho): pantalla operativa de seguimiento

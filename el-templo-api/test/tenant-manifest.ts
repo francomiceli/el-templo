@@ -641,6 +641,11 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "PATCH /api/admin/renewals/reasons/:id": { categoria: "tenant-scoped" },
 
   // ── /api/admin/reports ────────────────────────────────────────────────────
+  // Fase 195 (plan 10): origen de altas (owner/admin), `tenant-scoped`.
+  "GET /api/admin/reports/attribution": { categoria: "tenant-scoped" },
+  "GET /api/admin/reports/attribution/search-console": {
+    categoria: "tenant-scoped",
+  },
   "GET /api/admin/reports/access": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/access/export": { categoria: "tenant-scoped" },
   "GET /api/admin/reports/charges": { categoria: "tenant-scoped" },
