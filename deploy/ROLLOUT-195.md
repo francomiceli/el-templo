@@ -30,7 +30,7 @@ La migración 0271 carga datos reales de sedes (calle, slug, WhatsApp, publicaci
 - El job `Deploy to Production` / `Deploy to Staging` igual corre para API, app y admin, y muestra el aviso `El build de la web falló` en el resumen de la corrida. La web queda en su versión anterior (no se toca el directorio de la web, ni su backup).
 - La corrida igual queda en rojo por el job `Build Web`. Mirar el log: el error dice si la API no tiene el endpoint, si el payload es inválido o si `verify-seo-output.mjs` encontró un problema.
 - Corregir la causa (típicamente: la API todavía no tiene el endpoint, o un dato de sede inválido) y volver a disparar solo la web (sección 6).
-- Si falla la verificación `--require-api` es porque el build salió del fixture y no de la API real: revisar `VITE_API_URL` / `STAGING_VITE_API_URL`.
+- Si falla la verificación `--require-api` es porque el build salió del fixture y no de la API real (revisar `VITE_API_URL` / `STAGING_VITE_API_URL`), **o porque algún html conserva un marcador `PENDIENTE DE COMPLETAR`** (hoy `el-templo-web/pages/privacidad.vue`: completar razón social, NIF y domicilio de España antes del primer deploy de la web).
 
 ## 3. Secrets a crear en GitHub (Settings › Secrets and variables › Actions)
 
@@ -69,7 +69,7 @@ Los valores del `.env.production` de la API se escriben en cada deploy de la API
 
 ## 5. nginx
 
-Los cambios de nginx (404 real, redirects, noindex en staging, etc.) se aplican **después** de que la web nueva esté en producción y se haya verificado: con el `404` real, una ruta no prerenderizada deja de caer en el shell de la SPA. El procedimiento, con el diff aplicable y el chequeo de que el vhost live conserva las líneas de certbot, está en el runbook del plan 195-13 (`deploy/RUNBOOK-195-NGINX.md`). Requiere SSH: gate humano.
+Los cambios de nginx van en dos tandas (ver runbook): **tanda A** (noindex en web-staging, app y admin + `.well-known` como JSON) se puede aplicar en cualquier momento; **tanda B** (404 real y redirects de `eltemplo.org`) va **después** de que la web nueva esté en producción y verificada: con el `404` real, una ruta no prerenderizada deja de caer en el shell de la SPA. El procedimiento, con el diff aplicable y el chequeo de que el vhost live conserva las líneas de certbot, está en el runbook del plan 195-13 (`deploy/RUNBOOK-195-NGINX.md`). Requiere SSH: gate humano.
 
 ## 6. Cómo usar "solo web"
 

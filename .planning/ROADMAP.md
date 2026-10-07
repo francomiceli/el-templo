@@ -320,20 +320,21 @@ Plans:
 **Plans:** 14 plans (ejecución secuencial, una wave por plan; reglas comunes en `195-EXECUTION-RULES.md`)
 
 Plans:
-- [ ] 195-01-PLAN.md — Datos de sedes primero: migs 0270/0271 (columnas web + JBJ 1018, Park comunidad, sin Chapadmalal, WhatsApp por país) + parche de la web estática
-- [ ] 195-02-PLAN.md — Endpoint público GET /api/web/site-data (sedes, horarios regulares fusionados, marca, WhatsApp) + ISO-01
-- [ ] 195-03-PLAN.md — Pipeline de build web (prebuild desde la API, fixture, robots IA, llms.txt generado, sitemap sin catch, verificador SEO en CI, WhatsApp desde datos)
-- [ ] 195-04-PLAN.md — Grafo JSON-LD propio (Organization + ExerciseGym por sede) + hub /sedes + páginas por sede AR/ES
-- [ ] 195-05-PLAN.md — Disciplinas (incl. Aura/Yoga), profes Person (archivo de datos), primera clase gratis, planes sin precios, blog técnico
-- [ ] 195-06-PLAN.md — /es Barcelona + hreflang + banner RGPD con Consent Mode v2 + captura first-touch + Smart App Banner
-- [ ] 195-07-PLAN.md — Atribución propia: mig 0272 signup_attributions, clasificador de canal con IA, ganchos en register/alta de prueba, admin y app
-- [ ] 195-08-PLAN.md — Meta: mig 0273, CAPI como outbox (sin ES ni iOS), gasto diario de campañas, /privacidad reescrita
-- [ ] 195-09-PLAN.md — Google: mig 0274, job Search Console (JWT propio), sync de Google Business Profile detrás de flag, scripts locales
-- [ ] 195-10-PLAN.md — Reportes › Origen de altas: embudo por canal/campaña/sede/moneda, costo por alumno pago, IA y Search Console
-- [ ] 195-11-PLAN.md — CI/CD: botón solo-web, backup/rollback por proyecto, deploy tolerante a falla web, secrets de medición, rollout en 2 pasos
-- [ ] 195-12-PLAN.md — App: .well-known al artifact, validador, reseña in-app (checkpoint de instalación), bump 1.9.0
-- [ ] 195-13-PLAN.md — nginx: 404 real, redirects reales, noindex etapa 1, .well-known + runbook (checkpoint SSH)
-- [ ] 195-14-PLAN.md — Guía final para Franco (Meta, Google, bloque C, ASO) + generador de datos exactos de sedes + planilla de prompts IA
+
+- [x] 195-01-PLAN.md — Datos de sedes primero: migs 0270/0271 (columnas web + JBJ 1018, Park comunidad, sin Chapadmalal, WhatsApp por país) + parche de la web estática
+- [x] 195-02-PLAN.md — Endpoint público GET /api/web/site-data (sedes, horarios regulares fusionados, marca, WhatsApp) + ISO-01
+- [x] 195-03-PLAN.md — Pipeline de build web (prebuild desde la API, fixture, robots IA, llms.txt generado, sitemap sin catch, verificador SEO en CI, WhatsApp desde datos)
+- [x] 195-04-PLAN.md — Grafo JSON-LD propio (Organization + ExerciseGym por sede) + hub /sedes + páginas por sede AR/ES
+- [x] 195-05-PLAN.md — Disciplinas (incl. Aura/Yoga), profes Person (archivo de datos), primera clase gratis, planes sin precios, blog técnico
+- [x] 195-06-PLAN.md — /es Barcelona + hreflang + banner RGPD con Consent Mode v2 + captura first-touch + Smart App Banner
+- [x] 195-07-PLAN.md — Atribución propia: mig 0272 signup_attributions, clasificador de canal con IA, ganchos en register/alta de prueba, admin y app
+- [x] 195-08-PLAN.md — Meta: mig 0273, CAPI como outbox (sin ES ni iOS), gasto diario de campañas, /privacidad reescrita
+- [x] 195-09-PLAN.md — Google: mig 0274, job Search Console (JWT propio), sync de Google Business Profile detrás de flag, scripts locales
+- [x] 195-10-PLAN.md — Reportes › Origen de altas: embudo por canal/campaña/sede/moneda, costo por alumno pago, IA y Search Console
+- [x] 195-11-PLAN.md — CI/CD: botón solo-web, backup/rollback por proyecto, deploy tolerante a falla web, secrets de medición, rollout en 2 pasos
+- [x] 195-12-PLAN.md — App: .well-known al artifact, validador, reseña in-app (plugin aprobado por Franco); bump de versión descartado por Franco
+- [x] 195-13-PLAN.md — nginx: 404 real, redirects reales, noindex etapa 1, .well-known + runbook (checkpoint SSH)
+- [x] 195-14-PLAN.md — Guía final para Franco (Meta, Google, bloque C, ASO) + generador de datos exactos de sedes + planilla de prompts IA
 
 ## Progress
 
@@ -341,21 +342,21 @@ Plans:
 
 (182-183 pueden solaparse conceptualmente con 184-186: la capa de plataforma no depende del diseño del catálogo salvo el default de módulos de PLAT-03.)
 
-| Phase                        | Milestone | Plans Complete | Status      | Completed |
-| ---------------------------- | --------- | -------------- | ----------- | --------- |
-| 181. Diseño del módulo       | v6.1      | 0/6            | Not started | -         |
-| 182. Rol plataforma + wizard | v6.1      | 0/TBD          | Not started | -         |
-| 183. Panel de tenants        | v6.1      | 0/TBD          | Not started | -         |
-| 184. Catálogo modelo + taxos | v6.1      | 0/TBD          | Not started | -         |
-| 185. Catálogo ciclo de vida  | v6.1      | 0/TBD          | Not started | -         |
-| 186. Carga inicial catálogo  | v6.1      | 0/TBD          | Not started | -         |
-| 187. Plantillas de rutina    | v6.1      | 0/TBD          | Not started | -         |
-| 188. Asignación de rutinas   | v6.1      | 0/TBD          | Not started | -         |
-| 189. Ejecución y registro    | v6.1      | 0/TBD          | Not started | -         |
-| 190. Valoración y evolución  | v6.1      | 0/TBD          | Not started | -         |
-| 191. Panel del profesor      | v6.1      | 0/TBD          | Not started | -         |
-| 192. Onboarding tenant 2     | v6.1      | 0/TBD          | Not started | -         |
-| 195. Web SEO + atribución    | -         | 0/14           | Planned     | -         |
+| Phase                        | Milestone | Plans Complete | Status                  | Completed |
+| ---------------------------- | --------- | -------------- | ----------------------- | --------- |
+| 181. Diseño del módulo       | v6.1      | 0/6            | Not started             | -         |
+| 182. Rol plataforma + wizard | v6.1      | 0/TBD          | Not started             | -         |
+| 183. Panel de tenants        | v6.1      | 0/TBD          | Not started             | -         |
+| 184. Catálogo modelo + taxos | v6.1      | 0/TBD          | Not started             | -         |
+| 185. Catálogo ciclo de vida  | v6.1      | 0/TBD          | Not started             | -         |
+| 186. Carga inicial catálogo  | v6.1      | 0/TBD          | Not started             | -         |
+| 187. Plantillas de rutina    | v6.1      | 0/TBD          | Not started             | -         |
+| 188. Asignación de rutinas   | v6.1      | 0/TBD          | Not started             | -         |
+| 189. Ejecución y registro    | v6.1      | 0/TBD          | Not started             | -         |
+| 190. Valoración y evolución  | v6.1      | 0/TBD          | Not started             | -         |
+| 191. Panel del profesor      | v6.1      | 0/TBD          | Not started             | -         |
+| 192. Onboarding tenant 2     | v6.1      | 0/TBD          | Not started             | -         |
+| 195. Web SEO + atribución    | -         | 14/14          | Executed (human_needed) | -         |
 
 ## Coverage
 

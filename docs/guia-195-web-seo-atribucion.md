@@ -50,7 +50,7 @@ Orden de la guía, de lo más urgente a lo menos:
 | Dato                                                                         | Dónde lo conseguís                                  | Dónde se carga                                                               | Qué pasa si falta                                                                                   |
 | ---------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Quién administra el DNS de `eltemplo.org`                                    | Preguntar en el equipo o al registrador del dominio | Nadie lo "carga": hace falta para crear 1 o 2 registros de texto (sección 6) | No se puede verificar Search Console ni Bing, y no hay estadísticas de búsqueda                     |
-| Texto de `/privacidad` aprobado, con razón social, NIF y domicilio de España | Franco y un asesor legal                            | Archivo `el-templo-web/pages/privacidad.vue` (sección 1)                     | CAPI no se activa. Si se publica con el marcador, se ve un cartel "PENDIENTE" en la página          |
+| Texto de `/privacidad` aprobado, con razón social, NIF y domicilio de España | Franco y un asesor legal                            | Archivo `el-templo-web/pages/privacidad.vue` (sección 1)                     | CAPI no se activa, y **la web no se publica**: el deploy de la web falla mientras quede el marcador |
 | Decisiones: Moreno, bio de Ignacio, HSTS                                     | Franco                                              | Sección 1 (cada una dice su archivo)                                         | Se publica con el comportamiento actual                                                             |
 | Link de Google Maps, Place ID, teléfono y código postal de cada sede         | Google Maps, Place ID Finder y cada sede            | JSON del paso 2.2, que genera la migración `0275_sedes_maps_franco.sql`      | La web no publica coordenadas exactas, y la ficha de Google usa el WhatsApp de ventas como teléfono |
 | ID de Google Analytics 4 (`G-…`)                                             | GA4, Administrar, Flujos de datos                   | Secret `WEB_GA4_ID`                                                          | La web no mide visitas                                                                              |
@@ -93,7 +93,7 @@ Estas cosas dependen de Google o de Apple y no se pueden apurar. Conviene empeza
 
 Es una pregunta abierta. Hace falta saber quién entra al lugar donde se compró o administra el dominio, para agregar registros de texto en la sección 6. Si nadie lo sabe, empezar por quien pagó el dominio.
 
-Resultado → se carga en: ningún lado. Anotá acá el nombre de la persona: **********\_\_**********
+Resultado → se carga en: ningún lado. Anotá acá el nombre de la persona: ****\*\*****\_\_****\*\*****
 
 ### 1.2 Aprobar `/privacidad` y completar los datos legales de España
 
@@ -101,7 +101,7 @@ La página `/privacidad` se reescribió para explicar con claridad qué se mide,
 
 1. Abrí `el-templo-web/pages/privacidad.vue` y buscá el texto `PENDIENTE DE COMPLETAR`. Está en la parte "España y el RGPD" y se ve resaltado en dorado en la página. Reemplazalo por la **razón social, el NIF y el domicilio de la entidad responsable del tratamiento en España**. No se inventó ninguno de esos datos.
 2. Pedile a un asesor legal que revise el texto completo, en especial las menciones a la AEPD (organismo de control de España) y a la Agencia de Acceso a la Información Pública (organismo de Argentina). Si no corresponde, que se saquen.
-3. **Importante:** hoy nada bloquea la publicación si el marcador sigue ahí. El sistema lo va a publicar tal cual y cualquier persona lo vería. Revisalo a mano antes de cada publicación.
+3. **Importante:** mientras el marcador siga ahí, **la web no se publica**. El deploy de la web (staging, producción y el botón "solo web") falla a propósito para que nadie vea el cartel "PENDIENTE". La API, la app y el admin se publican igual. Por eso este es el primer paso de todo el rollout.
 4. **El texto promete una cosa que todavía es manual:** quien escriba a `comunidad@eltemplo.org` con el asunto "Oposición a la medición publicitaria" tiene que quedar fuera del envío a Meta. No hay un botón automático. Hasta que se haga uno, el proceso manual es pedirle a quien mantiene el código que marque los eventos de esa persona como "descartados" en la tabla `meta_capi_events` (estado `skipped_no_origin`, para los eventos `reg-<id>`, `trial-<id>` y `purchase-<id>` de esa persona). Decidí quién lo hace antes de publicar el texto.
 5. **CAPI no se activa hasta que este texto ya esté en producción** (sección 7.5).
 
@@ -416,7 +416,7 @@ Quien maneje los anuncios (una agencia o alguien del equipo) tiene que elegir co
 2. `Schedule` (reservó la clase de prueba).
 3. `Purchase` (pagó, con el importe y la moneda).
 
-Anotá quién es: **********\_\_**********. Sin esto Meta sigue mostrando los anuncios a gente que solo hace clic.
+Anotá quién es: ****\*\*****\_\_****\*\*****. Sin esto Meta sigue mostrando los anuncios a gente que solo hace clic.
 
 Resultado → se carga en: Meta Ads Manager (la configuración de cada conjunto de anuncios). Nada en GitHub.
 
