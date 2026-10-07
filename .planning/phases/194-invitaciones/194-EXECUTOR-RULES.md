@@ -218,3 +218,10 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - La API de la fase está completa. Lo que sigue (23-28) es FRONTEND: admin (`el-templo-admin`) y app (`el-templo-app`). Verificación = `pnpm lint` + `pnpm build` del paquete (sin `vue-tsc`, D-27); logs con `createLogger()`; sin `any`; Pinia composition API; composables con `cleanup()` y sin `onUnmounted` adentro.
 - Consumir los contratos de los SUMMARY: previews 194-15/17/18, overview 194-19, reporte/bandeja 194-20, settings 194-07, rutas asistidas 194-12, elegibilidad/activación 194-10.
 - Copy: chequeo canónico de "referid" de este archivo; claves internas `referidos`, `/mis-referidos`, `referidos_pendientes` NO se renombran.
+
+### Tras 194-23/24 (admin)
+- Sin `vue-tsc`, renombrar un campo de tipos no rompe lint ni build: grepear consumidores a mano antes de cerrar.
+- `partnerDiscount*` del `pricing-preview` vienen `null` cuando el partner no ganó.
+- Rótulos de estado de invitación en `el-templo-admin/src/utils/invitation-meta.ts`; bloque compartido `InvitedByBlock.vue`; diálogo `InvitationCreateDialog`. Reusar, no duplicar.
+- Anulación: la ruta usa el `userId` del INVITADO; vínculos heredados tienen `invitationId: null` y no se anulan.
+- **194-26:** quedan copys "referid" en `AnaliticasPage`, `config/destinations.ts`, `config/system-audiences.ts`, `config/rule-triggers.ts` (rebrand restante).
