@@ -1,4 +1,17 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { prerenderRoutes } from "./data/prerender-routes";
+import type { WebData } from "./data/web-data.types";
+
+// Fuente unica de sedes/blog (fase 195): la escribe scripts/fetch-web-data.mjs.
+// Import dinamico (sin node:fs: el typecheck de la web no trae @types/node).
+const webData = await import("./data/generated/web-data.json")
+  .then((m) => m.default as unknown as WebData)
+  .catch(() => {
+    throw new Error(
+      "Falta data/generated/web-data.json: corré pnpm prepare-data",
+    );
+  });
+
 export default defineNuxtConfig({
   modules: [
     "@nuxt/content",
@@ -55,6 +68,7 @@ export default defineNuxtConfig({
     prerender: {
       failOnError: false,
       ignore: ["/aura-club"],
+      routes: prerenderRoutes(webData),
     },
   },
 

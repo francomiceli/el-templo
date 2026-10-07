@@ -1,17 +1,20 @@
 /**
- * Sede data — 7 El Templo locations (fase 195, D-07).
+ * Sedes de El Templo — adapter tipado sobre `data/generated/web-data.json`
+ * (fase 195, D-10).
  *
- * Grouped by city: Mar del Plata (6), Barcelona (1). El Templo Park NO es una
- * sede: es un espacio de comunidad en el Parque Primavesi y vive aparte en
- * `communitySpaces`. la sede de Los Lobos ya no existe. Los conteos se DERIVAN de este
- * archivo (`sedesCount`), nunca se escriben como numero literal en copy.
+ * El JSON lo escribe `scripts/fetch-web-data.mjs` en cada build a partir de
+ * `GET /api/web/site-data` (tabla `branches`): direcciones, slugs, coordenadas,
+ * marca y WhatsApp de ventas viven ahi, nunca en este archivo.
  *
- * Each sede carries the WhatsApp number for its country (AR for Mar del Plata,
- * ES for Barcelona) until the build lee los numeros desde la API (plan 195-03).
+ * Mar del Plata = sedes `gym` de Argentina. Barcelona = sedes `gym` de Espana.
+ * El Templo Park NO es una sede: es un espacio de comunidad (`communitySpaces`).
+ * Los conteos se DERIVAN (`sedesCount`), nunca se escriben como numero literal
+ * en copy.
  */
+import rawData from "./generated/web-data.json";
+import type { WebData, WebSede } from "./web-data.types";
+import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
 
-// Deploy 2026-09-04: el build de la web (rename Sur→Mario Bravo) quedó sin
-// publicar por un test roto en la API (paths-filter usa event.before).
 export interface Sede {
   id: string;
   name: string;
@@ -27,116 +30,50 @@ export interface Sede {
   };
   /** Photo path in public/images/photos/ (when available) */
   photo?: string;
-  /** Approximate latitude for structured data (exact values in Phase 38) */
   lat?: number;
-  /** Approximate longitude for structured data (exact values in Phase 38) */
   lng?: number;
 }
 
-// Argentine support line, used by all Mar del Plata sedes.
-const WHATSAPP_URL_AR =
-  "https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba";
+export const webData = rawData as unknown as WebData;
 
-// Spain support line, used by Barcelona sede.
-const WHATSAPP_URL_ES =
-  "https://wa.me/34680774331?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba";
+/** Nombre canonico de la marca (D-02), configurable en la API. */
+export const brandName = webData.brand.name;
 
+/** Array crudo del endpoint (slug, horarios, geo...) para paginas y schema. */
+export const webSedes: WebSede[] = webData.sedes;
+
+export function findWebSede(slug: string): WebSede | undefined {
+  return webSedes.find((s) => s.slug === slug);
+}
+
+function toSede(s: WebSede): Sede {
+  return {
+    id: s.slug,
+    name: s.publicName,
+    address: s.address.street ?? "",
+    city: s.country === "ES" ? "Barcelona" : "Mar del Plata",
+    kind: s.kind,
+    mapsUrl: s.mapsUrl,
+    whatsappUrl: salesWhatsappUrl(s.country, DEFAULT_TRIAL_TEXT),
+    photo: s.photoUrl ?? undefined,
+    lat: s.geo?.lat,
+    lng: s.geo?.lng,
+  };
+}
+
+/** Sedes con clases, Argentina primero. */
 export const sedes: Sede[] = [
-  {
-    id: "constitucion",
-    name: "Constituci\u00F3n",
-    address: "Av. Constituci\u00F3n 6745",
-    city: "Mar del Plata",
-    mapsUrl: "https://maps.google.com/?q=Av+Constitucion+6745+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL_AR,
-    lat: -37.9566,
-    lng: -57.571,
-  },
-  {
-    id: "jujuy",
-    name: "Jujuy",
-    address: "Jujuy 3761",
-    city: "Mar del Plata",
-    mapsUrl: "https://maps.google.com/?q=Jujuy+3761+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL_AR,
-    lat: -38.0117,
-    lng: -57.5684,
-  },
-  {
-    id: "moreno",
-    name: "Moreno",
-    address: "Moreno 3751",
-    city: "Mar del Plata",
-    mapsUrl: "https://maps.google.com/?q=Moreno+3751+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL_AR,
-    lat: -37.9958,
-    lng: -57.5605,
-  },
-  {
-    id: "juan-b-justo",
-    name: "Juan B. Justo",
-    address: "Juan B. Justo 1018",
-    city: "Mar del Plata",
-    mapsUrl: "https://maps.google.com/?q=Juan+B.+Justo+1018+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL_AR,
-    lat: -38.0335,
-    lng: -57.5522,
-  },
-  {
-    id: "alberti",
-    name: "Alberti",
-    address: "Alberti 2024",
-    city: "Mar del Plata",
-    mapsUrl: "https://maps.google.com/?q=Alberti+2024+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL_AR,
-    badge: {
-      text: "Nueva",
-      variant: "special",
-    },
-    lat: -38.0019,
-    lng: -57.546,
-  },
-  {
-    id: "mogotes",
-    name: "Mario Bravo",
-    address: "Mario Bravo 618",
-    city: "Mar del Plata",
-    mapsUrl: "https://maps.google.com/?q=Mario+Bravo+618+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL_AR,
-    lat: -38.0797,
-    lng: -57.5468,
-  },
-  {
-    id: "barcelona",
-    name: "Barcelona (Eixample)",
-    address: "Av. Diagonal 368",
-    city: "Barcelona",
-    mapsUrl: "https://maps.google.com/?q=Av+Diagonal+368+Barcelona",
-    whatsappUrl: WHATSAPP_URL_ES,
-    lat: 41.3996,
-    lng: 2.1709,
-  },
-];
+  ...webSedes.filter((s) => s.kind === "gym" && s.country === "AR"),
+  ...webSedes.filter((s) => s.kind === "gym" && s.country === "ES"),
+].map(toSede);
 
 /**
  * Espacios de comunidad: lugares donde El Templo entrena pero que NO son una
- * sede (sin ficha de gimnasio ni ExerciseGym en el schema). Hoy solo el Parque
- * Primavesi.
+ * sede (sin ficha de gimnasio ni ExerciseGym en el schema).
  */
-export const communitySpaces: Sede[] = [
-  {
-    id: "parque-primavesi",
-    name: "El Templo Park",
-    address: "Parque Primavesi",
-    city: "Mar del Plata",
-    kind: "community_space",
-    mapsUrl: "https://maps.google.com/?q=Parque+Primavesi+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL_AR,
-    photo: "/images/photos/sede-park.webp",
-    lat: -38.0287,
-    lng: -57.5424,
-  },
-];
+export const communitySpaces: Sede[] = webSedes
+  .filter((s) => s.kind === "community_space")
+  .map(toSede);
 
 /** Sedes grouped by city for rendering */
 export const sedesByCity = {
@@ -144,7 +81,7 @@ export const sedesByCity = {
   bcn: sedes.filter((s) => s.city === "Barcelona"),
 } as const;
 
-/** Conteos derivados de `sedes` (D-07): nunca escribir 6/7 como literal en copy. */
+/** Conteos derivados de `sedes`: nunca escribir 6/7 como literal en copy. */
 export const sedesCount = {
   mdp: sedesByCity.mdp.length,
   bcn: sedesByCity.bcn.length,
