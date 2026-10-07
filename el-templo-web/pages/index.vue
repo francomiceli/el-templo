@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { sedesCount, webData } from "~/data/sedes";
+import { hreflangLinks } from "~/utils/hreflang";
 import { jsonLdScript, organizationNode } from "~/utils/schema-graph";
 
 const { cleanup: cleanupTracking } = useSectionTracking({
@@ -39,7 +40,10 @@ useHead({
     { property: "og:type", content: "website" },
     { property: "og:site_name", content: "El Templo" },
   ],
-  link: [{ rel: "canonical", href: "https://eltemplo.org" }],
+  link: [
+    { rel: "canonical", href: "https://eltemplo.org" },
+    ...hreflangLinks("/"),
+  ],
 });
 
 // Solo el Organization: las sedes tienen su ExerciseGym en /sedes/<slug>.

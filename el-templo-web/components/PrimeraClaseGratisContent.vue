@@ -16,6 +16,9 @@ import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
 
 const props = defineProps<{ country: WebCountry }>();
 
+// Barcelona: espanol de Espana (sin voseo).
+const isEs = computed(() => props.country === "ES");
+
 const sedes = computed(() =>
   webSedes.filter((s) => s.kind === "gym" && s.country === props.country),
 );
@@ -40,9 +43,11 @@ function onRegister(): void {
     <section class="cpage__section">
       <h2 class="cpage__heading">Qué es la primera clase</h2>
       <p class="cpage__text">
-        Reservá tu primera sesión sin cargo. Un entrenador te evalúa, te asigna
-        tu nivel y te muestra cómo funciona el método en vivo. No hay mejor
-        forma de conocer El Templo que entrenando.
+        {{
+          isEs
+            ? "Reserva tu primera sesión sin coste. Un entrenador te evalúa, te asigna tu nivel y te muestra cómo funciona el método en vivo. No hay mejor forma de conocer El Templo que entrenando."
+            : "Reservá tu primera sesión sin cargo. Un entrenador te evalúa, te asigna tu nivel y te muestra cómo funciona el método en vivo. No hay mejor forma de conocer El Templo que entrenando."
+        }}
       </p>
     </section>
 
@@ -58,7 +63,7 @@ function onRegister(): void {
     </section>
 
     <section class="cpage__section">
-      <h2 class="cpage__heading">Elegí tu sede</h2>
+      <h2 class="cpage__heading">{{ isEs ? "Elige tu sede" : "Elegí tu sede" }}</h2>
       <ul class="cpage__grid">
         <li v-for="sede in sedes" :key="sede.slug" class="cpage__card">
           <div class="cpage__card-body">
@@ -77,7 +82,7 @@ function onRegister(): void {
               class="btn btn--secondary-azul trial__register"
               @click="onRegister"
             >
-              Reservá online
+              {{ isEs ? "Reserva online" : "Reservá online" }}
             </a>
           </div>
         </li>
@@ -86,7 +91,7 @@ function onRegister(): void {
 
     <section class="cpage__cta">
       <a :href="whatsappUrl" class="btn btn--primary" @click="onWhatsapp">
-        Reservá por WhatsApp
+        {{ isEs ? "Reserva por WhatsApp" : "Reservá por WhatsApp" }}
       </a>
     </section>
   </div>

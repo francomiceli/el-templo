@@ -30,6 +30,8 @@ const DAY_LABELS: Record<number, string> = {
 };
 
 const isCommunity = computed(() => props.sede.kind === "community_space");
+// Barcelona: espanol de Espana (sin voseo) en los textos de la pagina.
+const isEs = computed(() => props.sede.country === "ES");
 
 const address = computed(() =>
   [props.sede.address.street, props.sede.address.locality]
@@ -130,7 +132,11 @@ const registerUrl = computed(() =>
             </tbody>
           </table>
           <p v-else class="sede__empty">
-            Consult&aacute; los horarios por WhatsApp.
+            {{
+              isEs
+                ? "Consulta los horarios por WhatsApp."
+                : "Consultá los horarios por WhatsApp."
+            }}
           </p>
 
           <p v-if="openingByDay.length" class="sede__opening">
@@ -157,14 +163,18 @@ const registerUrl = computed(() =>
             class="btn btn--primary"
             @click="trackEvent('click_whatsapp_sede')"
           >
-            Reserv&aacute; tu primera clase gratis
+            {{
+              isEs
+                ? "Reserva tu primera clase gratis"
+                : "Reservá tu primera clase gratis"
+            }}
           </a>
           <a
             :href="registerUrl"
             class="btn btn--secondary-azul"
             @click="trackEvent('click_cta_trial')"
           >
-            Reserv&aacute; online
+            {{ isEs ? "Reserva online" : "Reservá online" }}
           </a>
         </section>
       </template>

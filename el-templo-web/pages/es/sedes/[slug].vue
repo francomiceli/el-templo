@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * /es/sedes/[slug] -- pagina de una sede de Espana (Barcelona).
- * El idioma, hreflang y consentimiento de /es llegan en 195-06.
+ * Declara es-ES (useSedeSeo). Sin hreflang: las sedes no son equivalentes
+ * entre paises (D-13).
  */
 import { findWebSede } from "~/data/sedes";
 import type { WebSede } from "~/data/web-data.types";

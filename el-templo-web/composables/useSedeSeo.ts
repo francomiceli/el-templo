@@ -41,6 +41,8 @@ export function useSedeSeo(sede: WebSede): void {
 
   const hubName = "Sedes";
   useHead({
+    // Barcelona vive bajo /es: declara es-ES (el resto hereda es-AR de app.vue).
+    ...(sede.country === "ES" ? { htmlAttrs: { lang: "es-ES" } } : {}),
     title,
     meta: [
       { name: "description", content: description },

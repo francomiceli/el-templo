@@ -16,6 +16,13 @@ const whatsappUrl = computed(() =>
   salesWhatsappUrl(props.country, PLANES_TEXT),
 );
 const { trackEvent } = useAnalytics();
+
+// Barcelona: espanol de Espana (sin voseo) en los CTAs.
+const ctaLabel = computed(() =>
+  props.country === "ES"
+    ? "Consulta precios por WhatsApp"
+    : "Consultá precios por WhatsApp",
+);
 </script>
 
 <template>
@@ -33,7 +40,7 @@ const { trackEvent } = useAnalytics();
               class="planes__link"
               @click="trackEvent('click_whatsapp_planes')"
             >
-              Consultá precios por WhatsApp
+              {{ ctaLabel }}
             </a>
           </div>
         </li>
@@ -46,7 +53,7 @@ const { trackEvent } = useAnalytics();
         class="btn btn--primary"
         @click="trackEvent('click_whatsapp_planes')"
       >
-        Consultá precios por WhatsApp
+        {{ ctaLabel }}
       </a>
     </section>
   </div>

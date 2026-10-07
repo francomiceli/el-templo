@@ -2,15 +2,18 @@
 /**
  * Root app component — global head.
  *
- * Sets lang="es", default Twitter Card meta and favicons. El JSON-LD lo emite
+ * Sets lang="es-AR" (las paginas bajo /es lo pisan con es-ES), default
+ * Twitter Card meta, el Smart App Banner de iOS y favicons. El JSON-LD lo emite
  * cada pagina con utils/schema-graph.ts (nunca desde aca).
  */
 
 useHead({
-  htmlAttrs: { lang: "es" },
+  htmlAttrs: { lang: "es-AR" },
   meta: [
     { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:site", content: "@eltemplomdp" },
+    // Smart App Banner (solo Safari iOS): id de la app en el App Store.
+    { name: "apple-itunes-app", content: "app-id=6761773726" },
   ],
   link: [
     { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },

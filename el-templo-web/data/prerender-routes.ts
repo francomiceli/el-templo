@@ -2,7 +2,7 @@
  * Rutas a prerenderizar derivadas de `web-data.json` (fase 195).
  *
  * Hoy: hub y paginas de sedes, disciplinas, planes, profes, primera clase,
- * posts y tags del blog. El plan 195-06 agrega el resto de `/es`.
+ * posts y tags del blog y la seccion `/es` (home, primera clase y planes).
  *
  * Sedes: las de Argentina (gym y espacio de comunidad) viven en
  * `/sedes/<slug>` y las de Espana en `/es/sedes/<slug>`. NUNCA se prerenderiza
@@ -23,6 +23,9 @@ export function prerenderRoutes(data: WebData): string[] {
     "/profes",
     ...publishedProfes.map((p) => `/profes/${p.slug}`),
     "/primera-clase-gratis",
+    "/es",
+    "/es/primera-clase-gratis",
+    "/es/planes",
     ...data.blog.posts.map((p) => `/blog/${p.slug}`),
     ...data.blog.tags.map((t) => `/blog/tag/${t.slug}`),
   ];

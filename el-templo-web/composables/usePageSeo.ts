@@ -8,6 +8,8 @@
  * `jsonLdScript` (escapa `<`).
  */
 import { brandName, webData } from "~/data/sedes";
+import { isEsPath } from "~/utils/es-path";
+import { hreflangLinks } from "~/utils/hreflang";
 import {
   SITE_URL,
   breadcrumbNode,
@@ -30,7 +32,10 @@ export interface PageSeoInput {
 
 export function usePageSeo(input: PageSeoInput): void {
   const url = `${SITE_URL}${input.path}`;
+  const es = isEsPath(input.path);
   useHead({
+    // Las paginas de Espana declaran es-ES (el resto hereda es-AR de app.vue).
+    ...(es ? { htmlAttrs: { lang: "es-ES" } } : {}),
     title: input.title,
     meta: [
       { name: "description", content: input.description },
@@ -40,13 +45,13 @@ export function usePageSeo(input: PageSeoInput): void {
       { property: "og:type", content: input.ogType ?? "website" },
       { property: "og:site_name", content: brandName },
     ],
-    link: [{ rel: "canonical", href: url }],
+    link: [{ rel: "canonical", href: url }, ...hreflangLinks(input.path)],
     script: [
       jsonLdScript([
         organizationNode(webData),
         ...(input.extraNodes ?? []),
         breadcrumbNode([
-          { name: "Inicio", url: `${SITE_URL}/` },
+          { name: "Inicio", url: es ? `${SITE_URL}/es` : `${SITE_URL}/` },
           ...input.breadcrumb.map((item) => ({
             name: item.name,
             url: item.path ? `${SITE_URL}${item.path}` : undefined,
