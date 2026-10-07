@@ -3,7 +3,7 @@
 // decide qué status lleva cada motivo, y todos devuelven `reason` estable.
 import type { FastifyBaseLogger, FastifyReply } from "fastify";
 import { handleServiceError } from "../shared/error-handler";
-import { InvitationRuleError } from "./invitation-types";
+import { INVITEE_MESSAGES, InvitationRuleError } from "./invitation-types";
 
 const LABELS = {
   400: "Solicitud invalida",
@@ -17,12 +17,17 @@ const LABELS = {
  * - resto de reglas      -> 409
  * Cualquier otro error pasa por `handleServiceError` (AppError o 500).
  * Body de reglas: `{ error, message, reason }`.
+ *
+ * `audience` decide el copy del `message` (ME-03): `staff` (default, canal asistido)
+ * lleva el motivo detallado; `invitee` (rutas de la app del socio) lleva copy en segunda
+ * persona que no revela el estado del invitador. El `reason` es el mismo para ambos.
  */
 export function sendInvitationError(
   err: unknown,
   reply: FastifyReply,
   log: FastifyBaseLogger,
   context: string,
+  audience: "staff" | "invitee" = "staff",
 ): void {
   if (reply.sent) return;
   if (err instanceof InvitationRuleError) {
@@ -34,7 +39,8 @@ export function sendInvitationError(
           : 409;
     reply.code(status).send({
       error: LABELS[status],
-      message: err.message,
+      message:
+        audience === "invitee" ? INVITEE_MESSAGES[err.reason] : err.message,
       reason: err.reason,
     });
     return;

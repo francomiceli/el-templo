@@ -9,7 +9,7 @@
  * de params/body — un socio solo puede leer sus propios vínculos.
  */
 
-import { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, onRequestAsyncHookHandler } from "fastify";
 import { ReferralService } from "./service";
 import { buildInvitationService } from "./invitation-factory";
 import {
@@ -23,6 +23,21 @@ import {
 import { sendInvitationError } from "./invitation-errors";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
+
+/**
+ * ME-04: la activación del canal app es solo del SOCIO. El `userId` sale del token (no
+ * hay IDOR), pero un token de staff (coach, recepción, admin) pasaría por la misma lógica
+ * y `applyInviteeData` le reescribiría estado, sede y teléfono. Va en `onRequest`, antes
+ * de validar el body.
+ */
+const requireMemberRole: onRequestAsyncHookHandler = async (request, reply) => {
+  if (request.user.role !== "member") {
+    return reply.code(403).send({
+      error: "Acceso denegado",
+      message: "Solo los socios pueden activar una invitación",
+    });
+  }
+};
 
 export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ReferralService(fastify.db, fastify.log);
@@ -76,7 +91,7 @@ export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Querystring: InvitationEligibilityQuery }>(
     "/invitations/eligibility",
     {
-      onRequest: [fastify.authenticate],
+      onRequest: [fastify.authenticate, requireMemberRole],
       schema: { querystring: invitationEligibilityQuerySchema },
     },
     async (request, reply) => {
@@ -99,6 +114,7 @@ export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
           reply,
           request.log,
           "GET /members/referrals/invitations/eligibility",
+          "invitee",
         );
       }
     },
@@ -111,7 +127,7 @@ export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Body: InvitationActivateBody }>(
     "/invitations/activate",
     {
-      onRequest: [fastify.authenticate],
+      onRequest: [fastify.authenticate, requireMemberRole],
       // Claves extra => 400 explícito (ajv las descartaría en silencio, T-194-34).
       preValidation: [rejectUnknownBodyKeys(INVITATION_ACTIVATE_BODY_KEYS)],
       schema: { body: invitationActivateBodySchema },
@@ -141,6 +157,7 @@ export const referralMemberRoutes: FastifyPluginAsync = async (fastify) => {
           reply,
           request.log,
           "POST /members/referrals/invitations/activate",
+          "invitee",
         );
       }
     },

@@ -44,7 +44,7 @@ import { ReferralService } from "./service";
 import {
   ACTIVATION_FAILED_REASON,
   InvitationRuleError,
-  INELIGIBLE_MESSAGES,
+  INVITEE_MESSAGES,
   type ActivatedInvitation,
   type ActivateInvitationInput,
   type ActivationPreview,
@@ -224,7 +224,7 @@ export class InvitationService {
       inviterFirstName: inviter?.firstName ?? null,
       eligible: reason === null,
       reason,
-      message: reason === null ? null : INELIGIBLE_MESSAGES[reason],
+      message: reason === null ? null : INVITEE_MESSAGES[reason],
       branches,
       accessesBudget,
       accessBusinessDays: settings.accessBusinessDays,

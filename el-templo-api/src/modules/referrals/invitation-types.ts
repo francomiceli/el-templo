@@ -133,6 +133,33 @@ export const INELIGIBLE_MESSAGES: Record<InvitationIneligibleReason, string> = {
 };
 
 /**
+ * Copy para el INVITADO (la persona que activa su invitación en la app), en segunda
+ * persona. Los motivos del lado del invitador (cupo, membresía) NO revelan su estado:
+ * el invitado no tiene por qué saber si a quien lo invitó se le acabó el cupo o venció
+ * su membresía (ME-03). El staff del canal asistido sigue viendo el detalle de
+ * {@link INELIGIBLE_MESSAGES}.
+ */
+const INVITER_UNAVAILABLE_FOR_INVITEE =
+  "Esta invitación no está disponible en este momento. Pedile a quien te invitó que te mande otra más adelante.";
+
+export const INVITEE_MESSAGES: Record<InvitationIneligibleReason, string> = {
+  inviter_not_found:
+    "No encontramos esa invitación. Revisá que el código esté bien escrito.",
+  inviter_not_member: INVITER_UNAVAILABLE_FOR_INVITEE,
+  inviter_quota_exhausted: INVITER_UNAVAILABLE_FOR_INVITEE,
+  self_invite: "No podés usar tu propio código de invitación.",
+  invitee_is_member:
+    "Ya tenés una membresía vigente, por eso no necesitás una invitación.",
+  invitee_recent_member:
+    "Tuviste una membresía hace poco, así que todavía no podés recibir una invitación.",
+  invitee_recent_invitation:
+    "Ya recibiste una invitación hace poco, así que todavía no podés recibir otra.",
+  phone_required: INELIGIBLE_MESSAGES.phone_required,
+  phone_taken: INELIGIBLE_MESSAGES.phone_taken,
+  dni_taken: INELIGIBLE_MESSAGES.dni_taken,
+};
+
+/**
  * Error de regla de negocio de Invitaciones (409). Transporta el `reason`
  * estable para que la ruta lo serialice y el front muestre el mensaje correcto.
  * Extiende {@link ConflictError} (plan 194-08): todas las reglas dan 409.
