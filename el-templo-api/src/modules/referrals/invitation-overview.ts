@@ -16,8 +16,8 @@
 //
 // URL (T-194-66): se arma acá, server-side, con `FRONTEND_URL`; nunca desde input.
 //
-// "COMPRÓ" = el invitado tiene una sub paga (`price_paid > 0`) de un plan que NO es
-// `is_trial`, creada desde la activación de ESA invitación (RESEARCH §Patrón 7). Una
+// "COMPRÓ" = definición única de `invitation-purchase.ts` (sub paga de un plan que NO es
+// `is_trial`, creada desde la activación de ESA invitación, en cualquier estado). Una
 // sub cancelada cuenta como compra (el estado pasa a `inactivo`, que es lo cierto).
 // Los vínculos heredados (`referrals` sin invitación) usan `qualified` = compró.
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -25,7 +25,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
-import { notTrialPlanSql } from "../shared/membership";
+import { paidSinceActivationSql } from "./invitation-purchase";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { deriveMembershipCoveredUntilBatch } from "../subscriptions/coverage";
 import { InvitationRules } from "./invitation-rules";
@@ -246,15 +246,13 @@ export class InvitationOverview {
         classesRemaining: schema.subscriptions.classesRemaining,
         firstName: schema.users.firstName,
         lastName: schema.users.lastName,
-        // Fase 194 (RESEARCH §Patrón 7): "compró" = sub paga no-trial creada desde
-        // la activación de esta invitación. Correlacionado a invitations (literal).
+        // "compró" = definición única de `invitation-purchase.ts` (sub paga no-trial
+        // creada desde la activación, en cualquier estado). Correlacionado a invitations.
         purchased: sql<number>`EXISTS (
           SELECT 1 FROM subscriptions s
           WHERE s.tenant_id = ${ctx.tenantId}
             AND s.user_id = invitations.invited_user_id
-            AND s.created_at >= invitations.activated_at
-            AND s.price_paid > 0
-            AND ${notTrialPlanSql("s")}
+            AND ${paidSinceActivationSql("s", sql`invitations.activated_at`)}
         )`,
       })
       .from(i)

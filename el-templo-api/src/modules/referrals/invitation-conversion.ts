@@ -20,9 +20,9 @@ import { and, desc, eq, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { membershipInEffectSql } from "../shared/membership";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { getInvitationSettings } from "./invitation-settings";
+import { paidMembershipInEffectSql } from "./invitation-purchase";
 import type { InvitationExecutor } from "./invitation-rules";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -45,9 +45,7 @@ function paidAfterInvitationSql(): SQL {
         SELECT 1 FROM subscriptions s2
         WHERE s2.user_id = u.id
           AND s2.tenant_id = u.tenant_id
-          AND ${membershipInEffectSql("s2")}
-          AND s2.price_paid > 0
-          AND s2.created_at >= i.activated_at
+          AND ${paidMembershipInEffectSql("s2", sql`i.activated_at`)}
       )
   )`;
 }
@@ -199,9 +197,7 @@ async function findLatestPaidSubscription(
     JOIN invitations i ON i.id = ${invitationId} AND i.tenant_id = ${ctx.tenantId}
     WHERE s2.tenant_id = ${ctx.tenantId}
       AND s2.user_id = ${userId}
-      AND ${membershipInEffectSql("s2")}
-      AND s2.price_paid > 0
-      AND s2.created_at >= i.activated_at
+      AND ${paidMembershipInEffectSql("s2", sql`i.activated_at`)}
     ORDER BY s2.created_at DESC, s2.id DESC
     LIMIT 1
   `);
