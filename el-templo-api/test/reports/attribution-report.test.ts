@@ -13,6 +13,7 @@ import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import {
   AttributionReportService,
   codifiedSede,
+  MoneyBag,
   type AttributionFunnel,
   type SearchConsoleReport,
 } from "../../src/modules/marketing/report-service";
@@ -486,6 +487,9 @@ describe("Reportes de atribución — origen de altas", () => {
     // Bordes del rango: se incluyen los dos días extremos.
     await seedSpend("c6", "borde-desde", FROM, "10.00");
     await seedSpend("c7", "borde-hasta", TO, "20.00");
+    // EUR sin altas cuyo nombre ordena PRIMERO: la moneda se ordena por código,
+    // no por el orden en que llegan las filas.
+    await seedSpend("c8", "aaa-sin-altas", "2026-03-17", "15.00", "EUR");
     // Fuera del rango (un día antes y un día después) y de otra plataforma.
     await seedSpend("c1", "Promo-Octubre", "2026-03-09", "999.00");
     await seedSpend("c1", "Promo-Octubre", "2026-03-21", "111.00");
@@ -709,17 +713,18 @@ describe("Reportes de atribución — origen de altas", () => {
     it("totals.gasto sale de ad_spend_daily del rango, por moneda y solo de Meta", async () => {
       const { body } = await funnel();
       // 6000 + 1500 + 250 + 700 (campaña sin altas) + 10 y 20 (los dos días
-      // extremos del rango) en ARS, 120 en EUR. No suma el gasto de un día
+      // extremos del rango) en ARS, 120 + 15 (sin altas) en EUR. No suma el gasto de un día
       // antes (999) ni de un día después (111) ni el de Google.
       expect(body.totals.gasto).toEqual([
         { currency: "ARS", amount: 8480 },
-        { currency: "EUR", amount: 120 },
+        { currency: "EUR", amount: 135 },
       ]);
     });
 
     it("gastoSinAtribuir lista solo las campañas con gasto y sin altas en el rango", async () => {
       const { body } = await funnel();
       expect(body.gastoSinAtribuir).toEqual([
+        { campaignName: "aaa-sin-altas", currency: "EUR", amount: 15 },
         { campaignName: "borde-desde", currency: "ARS", amount: 10 },
         { campaignName: "borde-hasta", currency: "ARS", amount: 20 },
         { campaignName: "campaña-sin-altas", currency: "ARS", amount: 700 },
@@ -788,7 +793,7 @@ describe("Reportes de atribución — origen de altas", () => {
     it("el owner filtra por país: el gasto va en la moneda del país", async () => {
       const es = await funnel(`${RANGE}&country=ES`, ownerToken);
       expect(es.body.rows.map((r) => r.branchId)).toEqual([branchEs]);
-      expect(es.body.totals.gasto).toEqual([{ currency: "EUR", amount: 120 }]);
+      expect(es.body.totals.gasto).toEqual([{ currency: "EUR", amount: 135 }]);
       expect(es.body.ia).toEqual([]);
       expect(es.body.totals.registros).toBe(1);
 
@@ -811,7 +816,7 @@ describe("Reportes de atribución — origen de altas", () => {
 
       const es = await funnel(`${RANGE}&country=AR`, adminEsToken);
       expect(es.body.rows.map((r) => r.branchId)).toEqual([branchEs]);
-      expect(es.body.totals.gasto).toEqual([{ currency: "EUR", amount: 120 }]);
+      expect(es.body.totals.gasto).toEqual([{ currency: "EUR", amount: 135 }]);
     });
 
     it("pedir una sede de otro país es 403", async () => {
@@ -989,6 +994,22 @@ describe("Reportes de atribución — origen de altas", () => {
     });
   });
 
+  // ─── importes por moneda (puro) ──────────────────────────────────────────
+
+  describe("MoneyBag", () => {
+    it("suma por moneda, redondea a 2 decimales y ordena por código", () => {
+      const bag = new MoneyBag();
+      bag.add("EUR", 10.004);
+      bag.add("ARS", 1);
+      bag.add("EUR", 20.003);
+      bag.add("ARS", 2);
+      expect(bag.toList()).toEqual([
+        { currency: "ARS", amount: 3 },
+        { currency: "EUR", amount: 30.01 },
+      ]);
+    });
+  });
+
   // ─── codificación de sede (pura) ─────────────────────────────────────────
 
   describe("codifiedSede", () => {
@@ -1086,6 +1107,9 @@ describe("Reportes de atribución — Search Console", () => {
     await seedRow(LATEST, PAGE_A, "q5", 0, 30, "10.00");
     await seedRow(LATEST, PAGE_A, "q6", 0, 20, "10.00");
     await seedRow(LATEST, PAGE_A, "q7", 0, 10, "10.00");
+    // fila sin consulta con muchas impresiones: suma en la página, pero NO
+    // puede ocupar un lugar del top 5 de consultas
+    await seedRow(LATEST, PAGE_A, null, 0, 600, "1.00");
     // sede B (/es/sedes/): una consulta y una fila sin consulta
     await seedRow(LATEST, PAGE_B, "gimnasio barcelona", 3, 40, "1.50");
     await seedRow(LATEST, PAGE_B, null, 0, 0, "9.00");
@@ -1114,9 +1138,9 @@ describe("Reportes de atribución — Search Console", () => {
       {
         page: PAGE_A,
         clicks: 16,
-        impressions: 550,
-        ctr: 16 / 550,
-        position: 5.27,
+        impressions: 1150,
+        ctr: 16 / 1150,
+        position: 3.04,
       },
       { page: PAGE_B, clicks: 3, impressions: 40, ctr: 0.075, position: 1.5 },
     ]);

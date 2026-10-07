@@ -176,8 +176,8 @@ function nextDay(date: string): string {
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-/** Acumulador de importes por moneda. */
-class MoneyBag {
+/** Acumulador de importes por moneda (orden estable por código de moneda). */
+export class MoneyBag {
   private readonly byCurrency = new Map<string, number>();
 
   add(currency: string, amount: number): void {
@@ -394,7 +394,6 @@ export class AttributionReportService {
       billingRows,
       spend.byCampaign,
       sedes,
-      filters.branchId,
     );
 
     // ── Totales ──────────────────────────────────────────────────────────────
@@ -543,7 +542,6 @@ export class AttributionReportService {
     }>,
     spendByCampaign: ReadonlyMap<string, Money[]>,
     sedes: readonly PublishedSede[],
-    branchFilter: number | undefined,
   ): FunnelCampaign[] {
     interface Acc {
       registros: number;
@@ -593,12 +591,9 @@ export class AttributionReportService {
     const out: FunnelCampaign[] = [];
     for (const [utmCampaign, acc] of byKey) {
       const sede = codifiedSede(utmCampaign, sedes);
-      // Con filtro de sede, el gasto de campaña solo se muestra si la campaña
-      // codifica ESA sede (si no, el total de la campaña no es de esta sede).
-      const spendList =
-        branchFilter !== undefined && sede?.id !== branchFilter
-          ? null
-          : (spendByCampaign.get(utmCampaign) ?? null);
+      // `spendByCampaign` ya viene recortado por `spendByCampaign()`: con filtro
+      // de sede solo trae las campañas que codifican esa sede.
+      const spendList = spendByCampaign.get(utmCampaign) ?? null;
       out.push({
         utmCampaign,
         registros: acc.registros,
