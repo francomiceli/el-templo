@@ -590,6 +590,58 @@ describe("194-15: exclusiones del descuento (D-20 / D-26a)", () => {
     expect(await referralRowsOf(payer.id)).toHaveLength(1);
   });
 
+  it("override con motivo + partner 20%: el partner tampoco compite (el override ES el precio final)", async () => {
+    const inviter = await createInviterWithCode(ctx);
+    const payer = await inviteeOf(inviter);
+    const partner = await insertPartner(app, { benefitValue: 20 });
+    await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: payer.id,
+      benefitType: "discount_percent",
+      benefitValue: 20,
+      benefitStatus: "pending",
+    });
+    const res = await buy(payer, await monthPlan(), {
+      priceOverrideAmount: 50000,
+      priceOverrideReason: "Convenio 194-15",
+    });
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(50000);
+    expect(row.partnerDiscountAmount).toBeNull();
+    expect(row.referralDiscountAmount).toBeNull();
+  });
+
+  it("boarding pass + partner 20%: el boarding pass es exclusivo, el partner no participa ni consume su beneficio", async () => {
+    await setZeroPriceRule(true);
+    try {
+      const inviter = await createInviterWithCode(ctx);
+      const payer = await inviteeOf(inviter);
+      const partner = await insertPartner(app, { benefitValue: 20 });
+      await insertPartnerLink(app, {
+        partnerId: partner.id,
+        referredId: payer.id,
+        benefitType: "discount_percent",
+        benefitValue: 20,
+        benefitStatus: "pending",
+      });
+      const res = await buy(payer, await monthPlan(), { boardingPass: true });
+      expect(res.statusCode).toBe(201);
+      const row = await readSub(res.body.id as number);
+      expect(row.pricePaid).toBe(PRICE_ZERO);
+      expect(row.partnerDiscountAmount).toBeNull();
+      const rows = await app.db.execute(
+        sql`SELECT benefit_status FROM partner_referrals WHERE referred_id = ${payer.id}`,
+      );
+      expect(
+        (rows[0] as unknown as Array<{ benefit_status: string }>)[0]
+          .benefit_status,
+      ).toBe("pending");
+    } finally {
+      await setZeroPriceRule(false);
+    }
+  });
+
   it("override en $0 (bonificada): no cobra, así que NO se crea el vínculo (T-194-53)", async () => {
     const inviter = await createInviterWithCode(ctx);
     const payer = await inviteeOf(inviter);
