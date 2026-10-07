@@ -1,6 +1,6 @@
-<!-- Card de referidos en Mi Templo (fase 158) — primera card visible.
-     Mismo molde visual que UpsellBadge (premium); CTA navega a /mis-referidos,
-     donde viven el código, el share nativo y el desglose del descuento. -->
+<!-- Card de invitaciones en Mi Templo (fase 158, rebrand fase 194) — primera card visible.
+     Mismo molde visual que UpsellBadge (premium); CTA navega a /mis-invitados,
+     donde viven el cupo, el share nativo y el desglose del descuento. -->
 <template>
   <div class="exp-card-outer">
     <div class="exp-card-inner">
@@ -21,7 +21,7 @@
               opacity=".9"
             />
           </svg>
-          <span class="exp-badge-text">Referidos</span>
+          <span class="exp-badge-text">Invitaciones</span>
         </div>
       </div>
 
@@ -31,7 +31,7 @@
       <!-- Subtitle + CTA row -->
       <div class="exp-footer">
         <p class="exp-subtitle">{{ subtitle }}</p>
-        <a href="#" class="exp-cta" @click.prevent="goToReferidos">
+        <a href="#" class="exp-cta" @click.prevent="goToInvitaciones">
           <span class="exp-cta-text">{{ buttonText }}</span>
         </a>
       </div>
@@ -60,14 +60,14 @@ const avisosStore = useAvisosStore()
 // el registro/atribución de clics de referidos, que este componente NO toca.
 const FALLBACK_TITLE = 'Vos decidís cuánto bajás tu cuota'
 const FALLBACK_SUBTITLE = 'Invitá a entrenar: cada persona que traigas suma descuento a tu cuota.'
-const FALLBACK_BUTTON_TEXT = 'Compartir código'
+const FALLBACK_BUTTON_TEXT = 'Invitar a alguien'
 
 const cardRow = computed(() => avisosStore.tarjetaByCode('card_referral'))
 const title = computed(() => cardRow.value?.title ?? FALLBACK_TITLE)
 const subtitle = computed(() => cardRow.value?.body ?? FALLBACK_SUBTITLE)
 const buttonText = computed(() => cardRow.value?.buttonText ?? FALLBACK_BUTTON_TEXT)
 
-function goToReferidos(): void {
+function goToInvitaciones(): void {
   // Atribución/registro de clics de referidos: NO se toca (endpoint y
   // regla propios, ajenos a D-15/D-19).
   void api.post('/members/referrals/cta-click').catch((err: unknown) => {
@@ -84,7 +84,7 @@ function goToReferidos(): void {
     navigateToAvisoDestination(router, row.destination)
     return
   }
-  void router.push('/mis-referidos')
+  void router.push('/mis-invitados')
 }
 </script>
 

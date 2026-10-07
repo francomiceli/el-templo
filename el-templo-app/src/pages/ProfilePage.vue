@@ -86,10 +86,10 @@
 
       <div
         class="settings-card__item settings-card__item--clickable"
-        @click="$router.push('/mis-referidos')"
+        @click="$router.push('/mis-invitados')"
       >
         <q-icon name="card_giftcard" size="22px" color="primary" />
-        <span class="settings-card__label">Mis referidos</span>
+        <span class="settings-card__label">Mis invitados</span>
         <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
       </div>
 

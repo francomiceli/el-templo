@@ -42,7 +42,10 @@ export const APP_SECTIONS: readonly AppSection[] = [
   },
   {
     key: 'referidos',
-    label: 'Referidos',
+    // Fase 194 D-26: el label es copy visible. La clave `referidos` y la ruta quedan
+    // (espejo de la API, que las usan las builds publicadas): `/mis-referidos` es un
+    // redirect a `/mis-invitados` en router/routes.ts.
+    label: 'Invitaciones',
     route: '/mis-referidos',
   },
   {
