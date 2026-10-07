@@ -15,7 +15,6 @@ import * as schema from "../../src/db/schema";
 import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import {
   GbpSyncService,
-  normalizeLocationId,
   patchHash,
   type GbpLocationPatch,
 } from "../../src/modules/marketing/google/gbp";
@@ -23,6 +22,7 @@ import {
   getGbpConfig,
   type GbpConfig,
 } from "../../src/modules/marketing/google/config";
+import { normalizeLocationId } from "../../src/modules/marketing/google/location-id";
 import { runGbpSync } from "../../src/jobs/marketing-google";
 import type { WebSiteData } from "../../src/modules/web-public/types";
 import {

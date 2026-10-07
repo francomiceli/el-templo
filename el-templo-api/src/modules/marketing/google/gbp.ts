@@ -25,6 +25,7 @@ import { WebPublicService } from "../../web-public/service";
 import type { WebCountry, WebSede } from "../../web-public/types";
 import { GoogleApiError, refreshTokenAccessToken } from "./auth";
 import type { GbpConfig } from "./config";
+import { normalizeLocationId } from "./location-id";
 
 type Db = MySql2Database<typeof schema>;
 
@@ -195,12 +196,6 @@ export interface GbpSyncSummary {
   /** Sedes con `gbp_location_id` que no están publicadas o con id inválido. */
   skipped: number;
   failed: number;
-}
-
-/** `locations/123` o `123` → `123`; cualquier otra cosa → null (va en la ruta). */
-export function normalizeLocationId(raw: string): string | null {
-  const id = raw.trim().replace(/^locations\//, "");
-  return /^[0-9]{1,30}$/.test(id) ? id : null;
 }
 
 /** Mensaje de error de Google (`error.message`) recortado, sin credenciales. */
