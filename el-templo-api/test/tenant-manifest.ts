@@ -1042,6 +1042,15 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // se eliminó al pasar la pantalla TV a una vista autenticada del admin. Ya no hay
   // ninguna ruta `/api/tv/*`: el estado se lee por `/api/admin/tv/control/screen`.
 
+  // ── /api/web (Fase 195) ───────────────────────────────────────────────────
+  // Datos públicos de sedes y horarios para el build de eltemplo.org. Anónima:
+  // el tenant sale del servidor (`DEFAULT_PUBLIC_TENANT_ID`), como el resto de
+  // la superficie pública de marketing.
+  "GET /api/web/site-data": {
+    categoria: "templo-module",
+    modulo: "templo-marketing",
+  },
+
   // ── /api/webhooks ─────────────────────────────────────────────────────────
   "POST /api/webhooks/wellhub": {
     categoria: "global",

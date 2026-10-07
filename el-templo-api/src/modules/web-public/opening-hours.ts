@@ -32,7 +32,8 @@ export function mergeIntervals(
 ): Array<{ opens: string; closes: string }> {
   const ranges: Array<[number, number]> = [];
   for (const slot of slots) {
-    if (!TIME_PATTERN.test(slot.start) || !TIME_PATTERN.test(slot.end)) continue;
+    if (!TIME_PATTERN.test(slot.start) || !TIME_PATTERN.test(slot.end))
+      continue;
     const start = toMinutes(slot.start);
     const end = toMinutes(slot.end);
     if (end <= start) continue;

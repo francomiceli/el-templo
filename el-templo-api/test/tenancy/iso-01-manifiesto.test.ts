@@ -313,7 +313,9 @@ import {
 // 2026-09-30: 446 -> 447 por la base de renovación tras un período prorrateado:
 // `GET /api/admin/subscriptions/members/:userId/subscription/renewal-preview`,
 // `tenant-scoped`.
-const ENTRADAS_BASELINE = 447;
+// 2026-10-07 (fase 195): 447 -> 448 por el endpoint público de datos de la web:
+// `GET /api/web/site-data`, `templo-module` (templo-marketing).
+const ENTRADAS_BASELINE = 448;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -456,7 +458,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 447 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 448 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
