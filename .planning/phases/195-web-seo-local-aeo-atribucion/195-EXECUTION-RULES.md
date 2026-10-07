@@ -80,3 +80,10 @@
   - `pnpm typecheck:tests` YA está rojo en la base (15 discrepancias ajenas): como gate, comparar contra la base, no exigir 0.
   - `select().from(schema.branches)` sin lista de columnas ahora trae las 16 columnas web (incluye `gbp_*`): el endpoint público proyecta SOLO campos públicos.
   - Conteos de copy en la web derivan de `sedesCount` (data/sedes.ts), nunca literales.
+- **Tras 195-02 (2026-10-07):**
+  - Iterar tests rápido: tras UNA corrida con `globalSetup` (~3 min), usar copia de la config SIN la línea `globalSetup` (la DB `eltemplo_t195_1` persiste, ~5 s por corrida).
+  - El sentinel de tenancy aplica también en tests: todo acceso a tablas gym-owned (incluido cleanup) con `tenantWhere`/`tenantValues`. Un error en `finally` tapa las aserciones: verificar que el cleanup no falle.
+  - `schedules` no tiene FK compuesta de tenant: todo JOIN con `activities`/`branches` lleva `tenantWhere` en cada tabla. `cleanAllTestData` no borra `branches`: borrar por `code` + `tenantWhere`.
+  - `npx prettier --check <archivos>` antes de commitear.
+  - **Sedes sin horarios publicados son válidas** (local: MORENO solo tiene Yoga especial → `openingHours: []`). Web/schema deben tolerarlo: página de sede publicada igual, sin `openingHoursSpecification` y con copy "consultá horarios por WhatsApp". NO cambiar el filtro D-30 (pregunta abierta para Franco en la guía final).
+  - Endpoint: `GET /api/web/site-data` (módulo `src/modules/web-public/`), `ENTRADAS_BASELINE` ahora **448**; `KNOWN_KEY_PATTERNS` incluye `"web.%"`.
