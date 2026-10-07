@@ -134,3 +134,8 @@
   - Baselines: `GYM_OWNED_TABLES` 103 · `schemaTables` 107 · `gymOwnedChecked` 103 · 0196 T10: 103 · `JOBS_ESPERADOS` 11 · `ENTRADAS_BASELINE` 448.
   - **Para 195-11:** variables `GOOGLE_*`/`GBP_*`/`META_*` SOLO en prod, nunca staging.
   - **Para 195-14 (guía):** pasos de `195-09-SUMMARY.md` (service account SC, acceso GBP API, OAuth + scripts `gbp-authorize`/`gbp-list-locations`, borrador 0276, dry-run antes de apply). Destacar: si `branches.phone` está vacío el sync pone el WhatsApp de ventas del país como teléfono de la ficha → cargar teléfonos reales por sede ANTES de `apply`.
+- **Tras 195-10 (2026-10-07):**
+  - Columna física de `bookings` es `booking_status` (revisar el 1er arg de `mysqlEnum` antes de SQL literal). `scope.country` no es null para el owner: usar `scope.isOwner` (patrón `finance/routes.ts`).
+  - Lint de tenancy: `tenantWhere(` en el propio statement; evitar aliases `const t = schema.x`.
+  - Baselines: `ENTRADAS_BASELINE` 450 · `GYM_OWNED_TABLES` 103 · `schemaTables` 107 · `gymOwnedChecked` 103 · 0196 T10: 103 · `JOBS_ESPERADOS` 11.
+  - **Para 195-14 (guía):** nombres de campaña de Meta con el slug de la sede (`juan-b-justo-octubre`) para bajar el gasto a sede; `utm_campaign={{campaign.name}}` obligatorio; retención de `search_console_stats`; moneda de la cuenta publicitaria AR (si factura en USD ajustar `COUNTRY_CURRENCY`).
