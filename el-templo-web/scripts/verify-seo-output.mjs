@@ -267,6 +267,80 @@ function stripNonLdScripts(html) {
     .replace(/<script(?![^>]*application\/ld\+json)[\s\S]*?<\/script>/g, "");
 }
 
+// --- Plan 195-06: hreflang, lang, consentimiento y Smart App Banner ---
+
+// Pares equivalentes AR <-> ES. MANTENER EN SYNC con utils/hreflang.ts
+// (HREFLANG_PAIRS): es el oraculo independiente. Si una pagina cambia en un
+// solo lado, el chequeo "fuera de un par" o el del par la detecta.
+const HREFLANG_PAIRS = [
+  { ar: "/", es: "/es" },
+  { ar: "/primera-clase-gratis", es: "/es/primera-clase-gratis" },
+  { ar: "/planes", es: "/es/planes" },
+];
+
+const trimSlash = (url) => (url.length > 1 ? url.replace(/\/+$/, "") : url);
+const absUrl = (path) => (path === "/" ? `${SITE_URL}/` : `${SITE_URL}${path}`);
+
+/** Ruta publica (`/es/planes`) de un html (`es/planes/index.html` o `es/planes.html`). */
+function urlPathOfHtml(rel) {
+  const clean = rel.replace(/\\/g, "/").replace(/\.html$/, "");
+  const dir = clean === "index" ? "" : clean.replace(/\/?index$/, "");
+  return `/${dir}`;
+}
+
+/** Archivo html de una ruta publica (`/` -> index.html), o null si no existe. */
+function htmlOfUrlPath(ctx, urlPath) {
+  const base = urlPath === "/" ? "" : urlPath.slice(1);
+  const candidates = base
+    ? [`${base}/index.html`, `${base}.html`]
+    : ["index.html"];
+  return candidates.find((c) => ctx.exists(c)) ?? null;
+}
+
+/** Atributo de una etiqueta (`<link ...>` o `<meta ...>`), o null. */
+function attr(tag, name) {
+  const m = new RegExp(`\\s${name}="([^"]*)"`).exec(tag);
+  return m ? m[1] : null;
+}
+
+/** `<link rel="alternate" hreflang href>` de un html: [{ hreflang, href }]. */
+function hreflangsOf(html) {
+  return [...html.matchAll(/<link\b[^>]*>/g)]
+    .map((m) => m[0])
+    .filter((tag) => attr(tag, "rel") === "alternate" && attr(tag, "hreflang"))
+    .map((tag) => ({
+      hreflang: attr(tag, "hreflang"),
+      href: attr(tag, "href"),
+    }));
+}
+
+const canonicalOf = (html) => {
+  const tag = [...html.matchAll(/<link\b[^>]*>/g)]
+    .map((m) => m[0])
+    .find((t) => attr(t, "rel") === "canonical");
+  return tag ? attr(tag, "href") : null;
+};
+
+const langOf = (html) => /<html\b[^>]*\slang="([^"]*)"/.exec(html)?.[1] ?? null;
+
+/** Todos los html bajo `es/` (la seccion de Barcelona). */
+const esHtml = (ctx) =>
+  ctx.htmlFiles.filter((f) => f.replace(/\\/g, "/").startsWith("es/"));
+
+// Cualquier rastro de GA4 o del Pixel en el HTML estatico de /es: los scripts
+// se cargan solo en el cliente y solo con consentimiento (D-22).
+const TRACKER_RE =
+  /googletagmanager\.com|google-analytics\.com|gtag\/js|connect\.facebook\.net|facebook\.com\/tr|fbevents|\bgtag\s*\(|\bfbq\s*\(|\bdataLayer\b/i;
+
+const STATIC_TRACKER_TAG_RE =
+  /<(?:script|link)\b[^>]*(?:googletagmanager\.com|google-analytics\.com|connect\.facebook\.net)[^>]*>/i;
+
+/** Id de la app en el App Store, de `storeLinks.appStore` (data/app-landing.ts). */
+function appStoreId() {
+  const source = readFileSync(join(SRC_DATA_DIR, "app-landing.ts"), "utf8");
+  return /apps\.apple\.com\/[^"']*\/id(\d+)/.exec(source)?.[1] ?? null;
+}
+
 /** Lista de chequeos. Agregar los nuevos AL FINAL. */
 const CHECKS = [
   {
@@ -885,7 +959,184 @@ const CHECKS = [
       return problems;
     },
   },
-  // AGREGAR CHEQUEOS NUEVOS ABAJO (plan 195-06).
+  {
+    name: "hreflang: cada par AR/ES tiene los tres links (es-AR, es-ES, x-default) con las URLs exactas, en los dos lados y autorreferentes",
+    run: (ctx) => {
+      const problems = [];
+      for (const pair of HREFLANG_PAIRS) {
+        const expected = {
+          "es-AR": absUrl(pair.ar),
+          "es-ES": absUrl(pair.es),
+          "x-default": absUrl(pair.ar),
+        };
+        for (const side of [pair.ar, pair.es]) {
+          const rel = htmlOfUrlPath(ctx, side);
+          if (!rel) {
+            problems.push(`falta la pagina ${side}`);
+            continue;
+          }
+          const links = hreflangsOf(ctx.read(rel));
+          if (links.length !== 3) {
+            problems.push(
+              `${rel}: ${links.length} links hreflang (deben ser 3)`,
+            );
+          }
+          for (const [lang, href] of Object.entries(expected)) {
+            const found = links.filter((l) => l.hreflang === lang);
+            if (found.length !== 1 || found[0].href !== href) {
+              problems.push(
+                `${rel}: hreflang ${lang} = ${found.map((l) => l.href).join(",") || "ausente"} (esperado ${href})`,
+              );
+            }
+          }
+          // Autorreferencia: la pagina se lista a si misma y su canonical coincide.
+          const self = absUrl(side);
+          if (
+            !links.some((l) => l.href && trimSlash(l.href) === trimSlash(self))
+          ) {
+            problems.push(`${rel}: no se autorreferencia en hreflang`);
+          }
+          const canonical = canonicalOf(ctx.read(rel));
+          if (!canonical || trimSlash(canonical) !== trimSlash(self)) {
+            problems.push(`${rel}: canonical ${canonical} distinto de ${self}`);
+          }
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "hreflang: todo link apunta a una pagina que existe y que se lista de vuelta (reciprocidad) y las paginas fuera de un par no tienen hreflang",
+    run: (ctx) => {
+      const problems = [];
+      const inPair = new Set(
+        HREFLANG_PAIRS.flatMap((p) => [p.ar, p.es]).map(trimSlash),
+      );
+      for (const rel of ctx.htmlFiles) {
+        const path = urlPathOfHtml(rel);
+        const links = hreflangsOf(ctx.read(rel));
+        if (links.length === 0) continue;
+        if (!inPair.has(trimSlash(path))) {
+          problems.push(`${rel}: no es parte de un par y tiene hreflang`);
+          continue;
+        }
+        for (const link of links) {
+          const target = link.href?.startsWith(SITE_URL)
+            ? link.href.slice(SITE_URL.length) || "/"
+            : null;
+          const targetRel = target
+            ? htmlOfUrlPath(ctx, trimSlash(target))
+            : null;
+          if (!targetRel) {
+            problems.push(
+              `${rel}: hreflang ${link.hreflang} apunta a ${link.href}, que no existe`,
+            );
+            continue;
+          }
+          const back = hreflangsOf(ctx.read(targetRel));
+          if (
+            !back.some(
+              (b) => b.href && trimSlash(b.href) === trimSlash(absUrl(path)),
+            )
+          ) {
+            problems.push(
+              `${rel}: hreflang ${link.hreflang} -> ${link.href} no es reciproco (${targetRel} no lista ${absUrl(path)})`,
+            );
+          }
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "lang: todo html bajo es/ declara es-ES y el resto es-AR",
+    run: (ctx) => {
+      const problems = [];
+      const es = new Set(esHtml(ctx));
+      for (const rel of ctx.htmlFiles) {
+        const html = ctx.read(rel);
+        // Fuera de /es: 200.html y 404.html son shells de la SPA (sin SSR, sin
+        // <head> de la app) y los redirects de routeRules solo traen un meta refresh.
+        const isShell =
+          rel === "200.html" ||
+          rel === "404.html" ||
+          html.includes('http-equiv="refresh"');
+        if (isShell && !es.has(rel)) continue;
+        const expected = es.has(rel) ? "es-ES" : "es-AR";
+        const lang = langOf(html);
+        if (lang !== expected) {
+          problems.push(`${rel}: lang="${lang}" (esperado ${expected})`);
+        }
+      }
+      for (const required of [
+        "es/index.html",
+        "es/primera-clase-gratis/index.html",
+        "es/planes/index.html",
+      ]) {
+        if (!ctx.exists(required)) problems.push(`falta ${required}`);
+      }
+      return problems;
+    },
+  },
+  {
+    name: "consentimiento: ningun html bajo es/ trae GA4 ni Pixel (scripts, preconnect, gtag(), fbq(), dataLayer) y ningun html del sitio los trae como <script>/<link> estatico",
+    run: (ctx) => {
+      const problems = [];
+      const files = esHtml(ctx);
+      if (files.length === 0) return ["no hay ningun html bajo es/"];
+      for (const rel of files) {
+        const html = ctx.read(rel);
+        const hit = TRACKER_RE.exec(html);
+        if (hit) {
+          const at = hit.index;
+          problems.push(
+            `${rel}: contiene "${hit[0]}" (...${html.slice(Math.max(0, at - 30), at + 60).replace(/\s+/g, " ")}...)`,
+          );
+        }
+      }
+      // Nunca en el HTML estatico del resto del sitio: en Argentina tambien
+      // se insertan solo desde el cliente (plugins ga4 y meta-pixel).
+      const es = new Set(files);
+      for (const rel of ctx.htmlFiles) {
+        if (es.has(rel)) continue;
+        const tag = STATIC_TRACKER_TAG_RE.exec(ctx.read(rel));
+        if (tag) {
+          problems.push(
+            `${rel}: etiqueta estatica de GA4 o Pixel: ${tag[0].slice(0, 120)}`,
+          );
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "Smart App Banner: el home de AR y el de ES llevan apple-itunes-app con el id de la app de data/app-landing.ts",
+    run: (ctx) => {
+      const id = appStoreId();
+      if (!id)
+        return ["no se pudo leer el id de la app en data/app-landing.ts"];
+      const problems = [];
+      for (const rel of ["index.html", "es/index.html"]) {
+        if (!ctx.exists(rel)) {
+          problems.push(`falta ${rel}`);
+          continue;
+        }
+        const metas = [...ctx.read(rel).matchAll(/<meta\b[^>]*>/g)]
+          .map((m) => m[0])
+          .filter((t) => attr(t, "name") === "apple-itunes-app");
+        if (
+          metas.length !== 1 ||
+          attr(metas[0], "content") !== `app-id=${id}`
+        ) {
+          problems.push(
+            `${rel}: apple-itunes-app = ${metas.map((t) => attr(t, "content")).join(",") || "ausente"} (esperado un solo app-id=${id})`,
+          );
+        }
+      }
+      return problems;
+    },
+  },
+  // AGREGAR CHEQUEOS NUEVOS ABAJO (plan 195-07 en adelante).
 ];
 
 function main() {

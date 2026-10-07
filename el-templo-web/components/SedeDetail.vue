@@ -18,6 +18,8 @@ import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
 const props = defineProps<{ sede: WebSede }>();
 
 const { trackEvent } = useAnalytics();
+const { registerParams, cleanup: cleanupAttribution } = useAttribution();
+onBeforeUnmount(() => cleanupAttribution());
 
 const DAY_LABELS: Record<number, string> = {
   1: "Lunes",
@@ -68,11 +70,12 @@ const openingByDay = computed(() =>
 const whatsappUrl = computed(() =>
   salesWhatsappUrl(props.sede.country, DEFAULT_TRIAL_TEXT),
 );
+// Con el origen del visitante (first-touch) una vez montada la pagina.
 const registerUrl = computed(() =>
-  buildRegisterUrl({
-    branchId: props.sede.id,
-    branchName: props.sede.publicName,
-  }),
+  buildRegisterUrl(
+    { branchId: props.sede.id, branchName: props.sede.publicName },
+    registerParams(),
+  ),
 );
 </script>
 

@@ -20,8 +20,11 @@ const disciplina = found;
 
 const sedes = sedesForDisciplina(webSedes, disciplina);
 const whatsappUrl = salesWhatsappUrl("AR", DEFAULT_TRIAL_TEXT);
-const registerUrl = buildRegisterUrl({});
 const { trackEvent, trackLead } = useAnalytics();
+const { registerParams, cleanup: cleanupAttribution } = useAttribution();
+onBeforeUnmount(() => cleanupAttribution());
+// Con el origen del visitante (first-touch) una vez montada la pagina.
+const registerUrl = computed(() => buildRegisterUrl({}, registerParams()));
 
 function onWhatsapp(): void {
   trackEvent("click_cta_trial");

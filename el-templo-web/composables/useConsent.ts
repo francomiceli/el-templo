@@ -6,7 +6,7 @@
  * `unknown` = todavia no eligio (se trata como "no"). El rechazo se respeta en
  * todo el sitio (ver `analyticsMode`).
  *
- * Following CLAUDE.md: exposes cleanup(), no onUnmounted inside.
+ * Siguiendo CLAUDE.md: expone cleanup() y no registra hooks de desmontaje.
  */
 import { createLogger } from "~/utils/logger";
 import type { ConsentValue } from "~/utils/analytics-loader";

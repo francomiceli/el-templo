@@ -9,7 +9,7 @@
  * BEM prefix: cpage (PageShell) + trial
  */
 import { webSedes } from "~/data/sedes";
-import type { WebCountry } from "~/data/web-data.types";
+import type { WebCountry, WebSede } from "~/data/web-data.types";
 import { buildRegisterUrl } from "~/utils/register-url";
 import { sedePath } from "~/utils/schema-graph";
 import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
@@ -27,6 +27,16 @@ const whatsappUrl = computed(() =>
 );
 
 const { trackEvent, trackLead } = useAnalytics();
+const { registerParams, cleanup: cleanupAttribution } = useAttribution();
+onBeforeUnmount(() => cleanupAttribution());
+
+// Con el origen del visitante (first-touch) una vez montada la pagina.
+function registerUrlFor(sede: WebSede): string {
+  return buildRegisterUrl(
+    { branchId: sede.id, branchName: sede.publicName },
+    registerParams(),
+  );
+}
 
 function onWhatsapp(): void {
   trackEvent("click_cta_trial");
@@ -73,12 +83,7 @@ function onRegister(): void {
               Ver la sede
             </NuxtLink>
             <a
-              :href="
-                buildRegisterUrl({
-                  branchId: sede.id,
-                  branchName: sede.publicName,
-                })
-              "
+              :href="registerUrlFor(sede)"
               class="btn btn--secondary-azul trial__register"
               @click="onRegister"
             >

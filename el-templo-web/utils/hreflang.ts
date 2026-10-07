@@ -35,7 +35,7 @@ function normalizePath(path: string): string {
 
 /** `/` -> `https://eltemplo.org/`, `/es` -> `https://eltemplo.org/es`. */
 function absolute(path: string): string {
-  return path === "/" ? `${SITE_URL}/` : `${SITE_URL}${path}`;
+  return `${SITE_URL}${path}`;
 }
 
 /** Los tres `<link rel="alternate">` de la pagina, o `[]` si no tiene equivalente. */

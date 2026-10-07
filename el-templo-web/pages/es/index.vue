@@ -38,10 +38,15 @@ useHead({
 });
 
 const whatsappUrl = salesWhatsappUrl("ES", DEFAULT_TRIAL_TEXT);
-const registerUrl = buildRegisterUrl({
-  branchId: sede.id,
-  branchName: sede.publicName,
-});
+const { registerParams, cleanup: cleanupAttribution } = useAttribution();
+onBeforeUnmount(() => cleanupAttribution());
+// Con el origen del visitante (first-touch) una vez montada la pagina.
+const registerUrl = computed(() =>
+  buildRegisterUrl(
+    { branchId: sede.id, branchName: sede.publicName },
+    registerParams(),
+  ),
+);
 
 const { trackEvent, trackLead } = useAnalytics();
 
