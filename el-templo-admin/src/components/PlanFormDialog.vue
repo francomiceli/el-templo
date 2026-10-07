@@ -9,6 +9,23 @@
 
       <q-form ref="formRef" @submit.prevent="onSubmit">
         <q-card-section style="max-height: 70vh; overflow-y: auto">
+          <!-- Fase 194 HI-02: el plan Invitación es del sistema. El servidor rechaza
+               (400) cambiar categoría, prueba, multi-sucursal, precios y accesos. -->
+          <q-banner
+            v-if="isInvitationPlanEdit"
+            dense
+            rounded
+            class="bg-grey-2 text-grey-9 q-mb-md"
+            data-test="invitation-plan-banner"
+          >
+            <template #avatar>
+              <q-icon name="info" color="primary" />
+            </template>
+            Este es el plan de Invitación del sistema: la categoría, el carácter de prueba, los
+            precios y la sucursal no se pueden cambiar, y no se puede desactivar. La cantidad de
+            accesos se configura en Configuración &gt; Invitaciones.
+          </q-banner>
+
           <!-- General -->
           <div class="text-subtitle2 text-weight-bold q-mb-sm">General</div>
 
@@ -38,6 +55,7 @@
               outlined
               emit-value
               map-options
+              :disable="isInvitationPlanEdit"
               :rules="[(val) => !!val || 'Categoria es requerida']"
             />
 
@@ -81,6 +99,7 @@
                 dense
                 outlined
                 prefix="$"
+                :disable="isInvitationPlanEdit"
                 :rules="[requiredNumberRule('Precio regular')]"
               />
             </div>
@@ -92,6 +111,7 @@
                 dense
                 outlined
                 prefix="$"
+                :disable="isInvitationPlanEdit"
                 :rules="[requiredNumberRule(ZERO_PRICE_LABEL)]"
               />
             </div>
@@ -103,6 +123,7 @@
                 dense
                 outlined
                 prefix="$"
+                :disable="isInvitationPlanEdit"
               />
             </div>
           </div>
@@ -124,6 +145,7 @@
                 dense
                 outlined
                 suffix="dias"
+                :disable="isInvitationPlanEdit"
                 :rules="[requiredNumberRule('Duracion')]"
               />
             </div>
@@ -270,8 +292,16 @@
           <div class="text-subtitle2 text-weight-bold q-mt-lg q-mb-xs">Opciones</div>
 
           <div>
-            <q-toggle v-model="form.multiBranch" label="Multi-sucursal" />
-            <q-toggle v-model="form.isTrial" label="Plan de prueba" />
+            <q-toggle
+              v-model="form.multiBranch"
+              label="Multi-sucursal"
+              :disable="isInvitationPlanEdit"
+            />
+            <q-toggle
+              v-model="form.isTrial"
+              label="Plan de prueba"
+              :disable="isInvitationPlanEdit"
+            />
             <q-toggle v-model="form.isGroup" label="Plan grupal" />
           </div>
 
@@ -335,6 +365,7 @@ import {
   PLAN_CATEGORY_OPTIONS,
   planTotalClasses,
   planCategoryAllowsInvitationDiscount,
+  isInvitationPlan,
   type PlanListItem,
   type PlanTier,
   type BookingMode,
@@ -426,6 +457,12 @@ const programs = ref<Program[]>([]);
 const loadingPrograms = ref(false);
 
 const isEditMode = computed(() => !!props.plan);
+
+// Fase 194 HI-02: el plan Invitación (paquete + prueba) es inmutable salvo nombre y
+// descripción; sus accesos se editan en Configuración > Invitaciones.
+const isInvitationPlanEdit = computed(
+  () => isEditMode.value && !!props.plan && isInvitationPlan(props.plan)
+);
 
 // Form data
 const form = ref({

@@ -36,6 +36,31 @@
         </div>
 
         <div>
+          <div class="text-subtitle2 q-mb-xs">Accesos por invitación</div>
+          <div class="text-caption text-grey-7 q-mb-sm">
+            Cantidad de clases que recibe cada invitado, por país. Aplica a las invitaciones que se
+            activen desde ahora: las ya activadas conservan los accesos que recibieron.
+          </div>
+          <div class="row q-col-gutter-md">
+            <div v-for="acc in accessFields" :key="acc.country" class="col-12 col-sm-6">
+              <q-input
+                v-model.number="form.accesses[acc.country]"
+                :label="acc.label"
+                suffix="accesos"
+                :hint="accessHint(acc.country)"
+                type="number"
+                dense
+                outlined
+                :readonly="!canEdit || !hasAccessPlan(acc.country)"
+                :disable="!hasAccessPlan(acc.country)"
+                :rules="[accessRule(acc.label, acc.country)]"
+                lazy-rules
+              />
+            </div>
+          </div>
+        </div>
+
+        <div>
           <div class="text-subtitle2 q-mb-xs">Tope de descuento en dinero por cobro</div>
           <div class="text-caption text-grey-7 q-mb-sm">
             Máximo que se descuenta por invitación en cada cobro. Vacío = sin tope.
@@ -75,10 +100,6 @@
           </q-item>
         </q-list>
 
-        <div class="text-caption text-grey-7">
-          La cantidad de accesos se edita en el plan 'Invitación' de cada país (Planes).
-        </div>
-
         <div v-if="canEdit" class="row justify-end">
           <q-btn
             type="submit"
@@ -103,6 +124,7 @@ import { useInvitationSettingsApi } from 'src/composables/useInvitationSettingsA
 import { useAuthStore } from 'src/stores/useAuthStore';
 import type {
   InvitationCapCountry,
+  InvitationIntKey,
   InvitationSettings,
   InvitationSettingsPatch,
 } from 'src/types/settings';
@@ -119,72 +141,70 @@ const canEdit = computed(() => {
   return role === 'gestion' || role === 'admin' || role === 'owner';
 });
 
-type IntKey =
-  | 'monthlyQuota'
-  | 'accessBusinessDays'
-  | 'reinviteWindowDays'
-  | 'exMemberInactivityMonths'
-  | 'latePurchaseWindowDays'
-  | 'inviteePercent';
+type IntKey = InvitationIntKey;
 
-interface NumericField {
+interface NumericFieldDef {
   key: IntKey;
   label: string;
   suffix?: string;
+  /** Texto del hint SIN el rango: el rango lo agrega `numericFields` desde `limits`. */
   hint: string;
+}
+
+interface NumericField extends NumericFieldDef {
   min: number;
   max: number;
 }
 
-// Mismos rangos que valida el servidor (194-07).
-const numericFields: NumericField[] = [
-  {
-    key: 'monthlyQuota',
-    label: 'Invitaciones por mes',
-    hint: 'Cupo por socio (1 a 10)',
-    min: 1,
-    max: 10,
-  },
+const NUMERIC_FIELD_DEFS: NumericFieldDef[] = [
+  { key: 'monthlyQuota', label: 'Invitaciones por mes', hint: 'Cupo por socio' },
   {
     key: 'accessBusinessDays',
     label: 'Vigencia de los accesos',
     suffix: 'días hábiles',
-    hint: 'De lunes a sábado, sin feriados (1 a 30)',
-    min: 1,
-    max: 30,
+    hint: 'De lunes a sábado, sin feriados',
   },
   {
     key: 'reinviteWindowDays',
     label: 'Ventana de reinvitación',
     suffix: 'días',
-    hint: 'Una persona no puede recibir otra invitación antes (0 a 365)',
-    min: 0,
-    max: 365,
+    hint: 'Una persona no puede recibir otra invitación antes',
   },
   {
     key: 'exMemberInactivityMonths',
     label: 'Inactividad de ex socio',
     suffix: 'meses',
-    hint: 'Sin membresía para poder ser invitado (0 a 36)',
-    min: 0,
-    max: 36,
+    hint: 'Sin membresía para poder ser invitado',
   },
   {
     key: 'latePurchaseWindowDays',
     label: 'Ventana de compra tardía',
     suffix: 'días',
-    hint: 'Tras vencer los accesos, la compra aún da descuento (0 a 180)',
-    min: 0,
-    max: 180,
+    hint: 'Tras vencer los accesos, la compra aún da descuento',
   },
   {
     key: 'inviteePercent',
     label: 'Descuento del invitado',
     suffix: '%',
-    hint: 'Porcentaje que recibe quien compra (0 a 50)',
-    min: 0,
-    max: 50,
+    hint: 'Porcentaje que recibe quien compra',
   },
+];
+
+// Los rangos son los que devuelve el servidor (`limits`): no se duplican acá (LO-03).
+const numericFields = computed<NumericField[]>(() => {
+  const limits = settings.value?.limits;
+  if (!limits) return [];
+  return NUMERIC_FIELD_DEFS.map((def) => ({
+    ...def,
+    min: limits[def.key].min,
+    max: limits[def.key].max,
+    hint: `${def.hint} (${limits[def.key].min} a ${limits[def.key].max})`,
+  }));
+});
+
+const accessFields: Array<{ country: InvitationCapCountry; label: string }> = [
+  { country: 'AR', label: 'Argentina' },
+  { country: 'ES', label: 'España' },
 ];
 
 const capFields: Array<{ country: InvitationCapCountry; label: string; prefix: string }> = [
@@ -194,6 +214,7 @@ const capFields: Array<{ country: InvitationCapCountry; label: string; prefix: s
 
 interface FormState extends Record<IntKey, number | null> {
   caps: Record<InvitationCapCountry, number | null>;
+  accesses: Record<InvitationCapCountry, number | null>;
 }
 
 const formRef = ref<InstanceType<typeof QForm> | null>(null);
@@ -212,6 +233,7 @@ function emptyForm(): FormState {
     latePurchaseWindowDays: null,
     inviteePercent: null,
     caps: { AR: null, ES: null },
+    accesses: { AR: null, ES: null },
   };
 }
 
@@ -228,12 +250,34 @@ function rangeRule(label: string, min: number, max: number) {
   };
 }
 
+/** El país tiene plan Invitación activo: sin plan no hay accesos que editar. */
+function hasAccessPlan(country: InvitationCapCountry): boolean {
+  return settings.value?.accessesPerInvitation[country] != null;
+}
+
+function accessHint(country: InvitationCapCountry): string {
+  const range = settings.value?.limits.accessesPerInvitation;
+  if (!hasAccessPlan(country)) return 'Este país no tiene un plan de Invitación configurado';
+  return range ? `Entre ${range.min} y ${range.max}` : '';
+}
+
+function accessRule(label: string, country: InvitationCapCountry) {
+  return (val: unknown) => {
+    // Sin plan en el país el campo está deshabilitado y no se envía.
+    if (!hasAccessPlan(country)) return true;
+    const range = settings.value?.limits.accessesPerInvitation;
+    return range ? rangeRule(`Accesos (${label})`, range.min, range.max)(val) : true;
+  };
+}
+
 // Vacío = sin tope; si hay valor tiene que ser un entero positivo.
 function capRule(label: string) {
   return (val: unknown) => {
     if (val === null || val === undefined || val === '') return true;
     const n = numberOrNull(val);
-    return (n !== null && Number.isInteger(n) && n >= 1) || `${label}: debe ser un entero mayor a 0`;
+    return (
+      (n !== null && Number.isInteger(n) && n >= 1) || `${label}: debe ser un entero mayor a 0`
+    );
   };
 }
 
@@ -247,6 +291,7 @@ function formFromSettings(s: InvitationSettings): FormState {
     inviteePercent: s.inviteePercent,
     // El tope arranca vacío (= sin tope) y se puede borrar (null).
     caps: { AR: s.discountCapAmount.AR, ES: s.discountCapAmount.ES },
+    accesses: { AR: s.accessesPerInvitation.AR, ES: s.accessesPerInvitation.ES },
   };
 }
 
@@ -254,13 +299,20 @@ function capValue(country: InvitationCapCountry): number | null {
   return numberOrNull(form.value.caps[country]);
 }
 
+function accessValue(country: InvitationCapCountry): number | null {
+  return numberOrNull(form.value.accesses[country]);
+}
+
 // Hay cambios sin guardar respecto de lo último que devolvió el servidor.
 const dirty = computed(() => {
   const s = settings.value;
   if (!s) return false;
-  const intsChanged = numericFields.some((f) => numberOrNull(form.value[f.key]) !== s[f.key]);
+  const intsChanged = numericFields.value.some((f) => numberOrNull(form.value[f.key]) !== s[f.key]);
   const capsChanged = capFields.some((c) => capValue(c.country) !== s.discountCapAmount[c.country]);
-  return intsChanged || capsChanged;
+  const accessChanged = accessFields.some(
+    (a) => hasAccessPlan(a.country) && accessValue(a.country) !== s.accessesPerInvitation[a.country]
+  );
+  return intsChanged || capsChanged || accessChanged;
 });
 
 function applySettings(s: InvitationSettings) {
@@ -286,7 +338,7 @@ async function load() {
 /** Arma el patch solo con lo que cambió; `null` en un tope lo borra. */
 function buildPatch(s: InvitationSettings): InvitationSettingsPatch {
   const patch: InvitationSettingsPatch = {};
-  for (const f of numericFields) {
+  for (const f of numericFields.value) {
     const value = numberOrNull(form.value[f.key]);
     if (value !== null && value !== s[f.key]) patch[f.key] = value;
   }
@@ -296,6 +348,19 @@ function buildPatch(s: InvitationSettings): InvitationSettingsPatch {
     if (value !== s.discountCapAmount[c.country]) caps[c.country] = value;
   }
   if (Object.keys(caps).length > 0) patch.discountCapAmount = caps;
+  // Solo países con plan Invitación y valor cambiado (el servidor no acepta null).
+  const accesses: Partial<Record<InvitationCapCountry, number>> = {};
+  for (const a of accessFields) {
+    const value = accessValue(a.country);
+    if (
+      hasAccessPlan(a.country) &&
+      value !== null &&
+      value !== s.accessesPerInvitation[a.country]
+    ) {
+      accesses[a.country] = value;
+    }
+  }
+  if (Object.keys(accesses).length > 0) patch.accessesPerInvitation = accesses;
   return patch;
 }
 

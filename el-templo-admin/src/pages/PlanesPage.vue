@@ -183,8 +183,10 @@
                 >
                   <q-tooltip>Editar</q-tooltip>
                 </q-btn>
+                <!-- Fase 194 HI-02: el plan Invitación es del sistema, no se desactiva
+                     (el servidor responde 400); se configura en Configuración > Invitaciones. -->
                 <q-btn
-                  v-if="canEditPlans && props.row.isActive"
+                  v-if="canEditPlans && props.row.isActive && !isInvitationPlan(props.row)"
                   flat
                   dense
                   round
@@ -321,6 +323,7 @@ import {
   PLAN_SECTIONS,
   planSection,
   planTotalClasses,
+  isInvitationPlan,
   type PlanListItem,
   type PlanTier,
   type PlanCategory,

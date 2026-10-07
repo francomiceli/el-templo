@@ -33,3 +33,11 @@ export function accessesLabel(used: number | null, budget: number | null): strin
   if (used === null || budget === null) return null;
   return `${used}/${budget} accesos`;
 }
+
+/**
+ * "3 accesos" / "accesos ilimitados" (plan sin tope de clases: `classesBudget` null).
+ * Evita imprimir "null accesos" en los avisos de activación.
+ */
+export function accessesCountLabel(budget: number | null): string {
+  return budget === null ? 'accesos ilimitados' : `${budget} accesos`;
+}

@@ -91,6 +91,7 @@ import { createLogger } from 'src/utils/logger';
 import { useMembersApi, parseInvitationFailure } from 'src/composables/useMembersApi';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatDate } from 'src/utils/format-date';
+import { accessesCountLabel } from 'src/utils/invitation-meta';
 import type { BranchOption, InvitationActivation } from 'src/types/member';
 import ReferrerSelect from './ReferrerSelect.vue';
 
@@ -188,7 +189,7 @@ async function onSubmit(): Promise<void> {
     });
     $q.notify({
       type: 'positive',
-      message: `Invitación activada: ${activation.classesBudget} accesos hasta ${formatDate(activation.accessExpiresOn)}`,
+      message: `Invitación activada: ${accessesCountLabel(activation.classesBudget)} hasta ${formatDate(activation.accessExpiresOn)}`,
     });
     emit('created', activation);
     emit('update:modelValue', false);

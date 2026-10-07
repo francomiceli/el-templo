@@ -28,11 +28,37 @@ export interface InvitationSettings {
   perLinkPercent: number;
   /** Solo lectura: tope % acumulable. */
   maxPercentCap: number;
+  /**
+   * Accesos que da cada invitación, por país (`classes_per_week` del plan Invitación activo).
+   * `null` = el país no tiene plan Invitación (no se puede editar).
+   */
+  accessesPerInvitation: Record<InvitationCapCountry, number | null>;
+  /** Rangos inclusivos que valida el servidor (fuente única: el admin no los duplica). */
+  limits: InvitationSettingsLimits;
 }
 
+export interface InvitationRange {
+  min: number;
+  max: number;
+}
+
+/** Claves numéricas enteras del programa que se editan como un único valor. */
+export type InvitationIntKey =
+  | 'monthlyQuota'
+  | 'accessBusinessDays'
+  | 'reinviteWindowDays'
+  | 'exMemberInactivityMonths'
+  | 'latePurchaseWindowDays'
+  | 'inviteePercent';
+
+export type InvitationSettingsLimits = Record<
+  InvitationIntKey | 'accessesPerInvitation',
+  InvitationRange
+>;
+
 /** Cuerpo del PUT: parcial; `discountCapAmount.<PAIS>: null` borra el tope. */
-export type InvitationSettingsPatch = Partial<
-  Omit<InvitationSettings, 'discountCapAmount' | 'perLinkPercent' | 'maxPercentCap'>
-> & {
+export type InvitationSettingsPatch = Partial<Pick<InvitationSettings, InvitationIntKey>> & {
   discountCapAmount?: Partial<Record<InvitationCapCountry, number | null>>;
+  /** Por país, entero en el rango de `limits.accessesPerInvitation` (sin `null`). */
+  accessesPerInvitation?: Partial<Record<InvitationCapCountry, number>>;
 };

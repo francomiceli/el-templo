@@ -272,8 +272,8 @@ export interface InvitationActivation {
   subscriptionId: number;
   /** Último día de los accesos, 'YYYY-MM-DD'. */
   accessExpiresOn: string;
-  /** N: cantidad de accesos de la invitación (nunca 3 hardcodeado). */
-  classesBudget: number;
+  /** N: cantidad de accesos de la invitación (nunca 3 hardcodeado). `null` = sin tope. */
+  classesBudget: number | null;
   branchId: number;
 }
 

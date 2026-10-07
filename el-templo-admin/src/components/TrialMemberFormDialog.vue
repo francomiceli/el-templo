@@ -91,6 +91,7 @@ import { useMembersApi, parseInvitationFailure } from 'src/composables/useMember
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatDate } from 'src/utils/format-date';
+import { accessesCountLabel } from 'src/utils/invitation-meta';
 import type { BranchOption, CreateTrialMemberResponse, MemberProfile } from 'src/types/member';
 import ReferrerSelect from './ReferrerSelect.vue';
 
@@ -158,7 +159,7 @@ function notifyCreated(created: CreateTrialMemberResponse, invited: boolean): vo
   if (created.invitation) {
     $q.notify({
       type: 'positive',
-      message: `Lead creado con ${created.invitation.classesBudget} accesos de invitación hasta ${formatDate(created.invitation.accessExpiresOn)}`,
+      message: `Lead creado con ${accessesCountLabel(created.invitation.classesBudget)} de invitación hasta ${formatDate(created.invitation.accessExpiresOn)}`,
     });
     return;
   }
