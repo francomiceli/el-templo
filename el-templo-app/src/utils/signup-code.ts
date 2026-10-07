@@ -9,11 +9,11 @@
  * por lo que mandarlo no les cambia nada. Normalizing here too means a user who pastes
  * a code with a trailing space never sees a false "codigo no reconocido".
  */
-const MAX_LENGTH = 24
+import { INVITATION_CODE_DISALLOWED, INVITATION_CODE_MAX_LENGTH } from 'src/utils/invitation-code'
 
 export function normalizeSignupCode(raw: string): string {
   return raw
     .toUpperCase()
-    .replace(/[^A-Z0-9-]/g, '')
-    .slice(0, MAX_LENGTH)
+    .replace(INVITATION_CODE_DISALLOWED, '')
+    .slice(0, INVITATION_CODE_MAX_LENGTH)
 }

@@ -11,6 +11,7 @@ import {
   invitedByStageLabel,
   invitedByStageColor,
   shareMessage,
+  inviterDisplayName,
   type InviteeState,
 } from '../invitation-view'
 
@@ -96,5 +97,13 @@ describe('invitation-view (Fase 194-27)', () => {
   it('shareMessage no hardcodea cantidades de accesos ni de días', () => {
     const msg = shareMessage('Valen', 'https://x.test/invitacion/A')
     expect(msg).not.toMatch(/\b\d+ (accesos|días|dias)/)
+  })
+
+  it('inviterDisplayName muestra nombre + inicial del apellido (LO-05)', () => {
+    expect(inviterDisplayName('María Pérez')).toBe('María P.')
+    expect(inviterDisplayName('  juan   carlos   gómez ')).toBe('juan G.')
+    expect(inviterDisplayName('Valen')).toBe('Valen')
+    expect(inviterDisplayName('')).toBe('')
+    expect(inviterDisplayName('   ')).toBe('')
   })
 })

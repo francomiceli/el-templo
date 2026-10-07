@@ -59,7 +59,8 @@ const avisosStore = useAvisosStore()
 // el UAT de la 193, 2026-09-03); el backend sigue calculando variantes para
 // el registro/atribución de clics de referidos, que este componente NO toca.
 const FALLBACK_TITLE = 'Vos decidís cuánto bajás tu cuota'
-const FALLBACK_SUBTITLE = 'Invitá a entrenar: cada persona que traigas suma descuento a tu cuota.'
+// Igual al copy sembrado por la migración 0261 (aviso `card_referral`).
+const FALLBACK_SUBTITLE = 'Invitá a entrenar: cada persona que invites y se sume baja tu cuota.'
 const FALLBACK_BUTTON_TEXT = 'Invitar a alguien'
 
 const cardRow = computed(() => avisosStore.tarjetaByCode('card_referral'))

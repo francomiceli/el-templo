@@ -12,6 +12,7 @@
  * (`rememberPhoneForActivation`), nunca por storage persistente.
  */
 import { createLogger } from 'src/utils/logger'
+import { INVITATION_CODE_PATTERN } from 'src/utils/invitation-code'
 
 export interface PendingInvitationStorage {
   getItem(key: string): string | null
@@ -23,21 +24,23 @@ export const PENDING_INVITATION_KEY = 'pendingInvitation'
 /** Pasada una semana el código pendiente se descarta (el cupo y las reglas cambian). */
 export const PENDING_INVITATION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
-// Mismo formato que acepta el servidor (`code`: 1..24, [A-Za-z0-9-]): PREFIJO-XXXX.
-const CODE_PATTERN = /^[A-Z0-9-]{1,24}$/
-
 /**
  * Motivos de `eligibility`/`activate` que no se resuelven reintentando: el código
  * pendiente se limpia al verlos (D-26). `inviter_not_member`/`inviter_quota_exhausted`
  * dependen del invitador y NO están acá (pueden cambiar).
  */
-const DEFINITIVE_REASONS: ReadonlySet<string> = new Set([
+export const DEFINITIVE_INVITATION_REASONS = [
   'invitee_is_member',
   'invitee_recent_member',
   'invitee_recent_invitation',
   'self_invite',
   'inviter_not_found',
-])
+] as const
+
+/** Motivos del servidor (campo `reason`) que cierran la invitación para esta persona. */
+export type DefinitiveInvitationReason = (typeof DEFINITIVE_INVITATION_REASONS)[number]
+
+const DEFINITIVE_REASONS: ReadonlySet<string> = new Set(DEFINITIVE_INVITATION_REASONS)
 
 export function isDefinitiveInvitationReason(reason: string | null | undefined): boolean {
   return !!reason && DEFINITIVE_REASONS.has(reason)
@@ -47,7 +50,7 @@ export function isDefinitiveInvitationReason(reason: string | null | undefined):
 export function normalizeInvitationCode(raw: unknown): string | null {
   if (typeof raw !== 'string') return null
   const code = raw.trim().toUpperCase()
-  return CODE_PATTERN.test(code) ? code : null
+  return INVITATION_CODE_PATTERN.test(code) ? code : null
 }
 
 interface StoredPending {

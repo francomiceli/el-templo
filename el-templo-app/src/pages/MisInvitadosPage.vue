@@ -58,7 +58,9 @@
         <div class="links-card q-mb-md">
           <div class="link-row">
             <div class="link-row__main">
-              <span class="link-row__name">{{ overview.invitedBy.inviterName }}</span>
+              <span class="link-row__name">{{
+                inviterDisplayName(overview.invitedBy.inviterName)
+              }}</span>
               <span class="link-row__caption">{{ invitedByCaption }}</span>
             </div>
             <q-chip
@@ -130,6 +132,7 @@ import {
   expiryText,
   discountText,
   shareMessage,
+  inviterDisplayName,
   type InviteeState,
   type InvitedByStage,
 } from 'src/utils/invitation-view'

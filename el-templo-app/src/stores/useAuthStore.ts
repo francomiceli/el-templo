@@ -4,6 +4,7 @@ import { api } from 'boot/axios'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { useUserStore } from './useUserStore'
 import { extractError } from 'src/utils/extract-error'
+import { pendingInvitation } from 'src/utils/pending-invitation'
 
 export interface AuthUser {
   id: number
@@ -153,6 +154,9 @@ export const useAuthStore = defineStore('auth', () => {
     // whichever ref is still populated, but removing the key while the
     // context is still intact is the safest order (Pitfall 3 in research).
     await userStore.clearSelection()
+    // Fase 194 LO-10: el código de invitación pendiente es de quien lo recibió; si cierra sesión
+    // no debe quedar disponible para la próxima persona que inicie sesión en el dispositivo.
+    pendingInvitation.clear()
     token.value = null
     user.value = null
     userStore.clearProfile()

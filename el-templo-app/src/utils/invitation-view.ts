@@ -128,3 +128,17 @@ export function shareMessage(firstName: string | null, url: string): string {
   const intro = firstName ? `Soy ${firstName} y te invito` : 'Te invito'
   return `${intro} a entrenar en El Templo. Activá tu invitación y probá gratis: ${url}`
 }
+
+/**
+ * Nombre de quien me invitó para mostrar en la app: "nombre de pila + inicial del apellido"
+ * ("María Pérez" → "María P."), igual que la lista "Invitaste a" (T-194-63). El servidor manda el
+ * nombre completo (lo usa también la ficha del admin): acá se toma la primera palabra como nombre
+ * y la inicial de la última como apellido. Un solo nombre queda tal cual.
+ */
+export function inviterDisplayName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return ''
+  if (parts.length === 1) return parts[0]
+  const initial = parts[parts.length - 1].charAt(0).toUpperCase()
+  return `${parts[0]} ${initial}.`
+}

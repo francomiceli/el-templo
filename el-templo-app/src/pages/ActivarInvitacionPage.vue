@@ -223,14 +223,28 @@ function block(message: string, reason: string | null): void {
   stage.value = 'blocked'
 }
 
+// 403 del servidor: la cuenta no es de socio (staff). No se arregla reintentando ni con otro código:
+// se muestra el mensaje del servidor y se descarta el código pendiente.
+function blockNotMember(failure: ApiFailure): void {
+  pendingInvitation.clear()
+  blockedMessage.value = failure.message
+  stage.value = 'blocked'
+}
+
+// Contador anti-race (LO-10): al cambiar de sede varias veces seguidas, solo cuenta la ÚLTIMA
+// consulta; una respuesta vieja que llega tarde no pisa el copy de la sede actual.
+let eligibilitySeq = 0
+
 async function loadEligibility(selectedBranchId?: number): Promise<void> {
   if (!code.value) return
   const firstLoad = !eligibility.value
   if (firstLoad) stage.value = 'loading'
+  const seq = ++eligibilitySeq
   try {
     const res = await api.get<EligibilityResponse>('/members/referrals/invitations/eligibility', {
       params: { code: code.value, ...(selectedBranchId ? { branchId: selectedBranchId } : {}) },
     })
+    if (seq !== eligibilitySeq) return
     eligibility.value = res.data
     if (!res.data.eligible) {
       block(res.data.message ?? 'No podés activar esta invitación.', res.data.reason)
@@ -239,7 +253,12 @@ async function loadEligibility(selectedBranchId?: number): Promise<void> {
     if (firstLoad && res.data.branches.length === 1) branchId.value = res.data.branches[0].id
     stage.value = 'form'
   } catch (err: unknown) {
+    if (seq !== eligibilitySeq) return
     const failure = readFailure(err, 'No pudimos consultar tu invitación.')
+    if (failure.status === 403) {
+      blockNotMember(failure)
+      return
+    }
     if (!firstLoad) {
       // Refresco al cambiar de sede: se mantiene el formulario, solo queda el copy anterior.
       log.warn('No se pudo refrescar la elegibilidad al cambiar de sede', {
@@ -293,6 +312,10 @@ async function onSubmit(): Promise<void> {
     void refreshUserState()
   } catch (err: unknown) {
     const failure = readFailure(err, 'No pudimos activar tu invitación.')
+    if (failure.status === 403) {
+      blockNotMember(failure)
+      return
+    }
     if (isDefinitiveInvitationReason(failure.reason)) {
       block(failure.message, failure.reason)
       return
