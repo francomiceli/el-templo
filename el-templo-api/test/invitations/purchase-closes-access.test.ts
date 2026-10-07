@@ -18,7 +18,6 @@ import {
   getAuthToken,
   cleanAllTestData,
   registerUser,
-  todayStr,
   dateOffsetStr,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
@@ -121,9 +120,12 @@ describe("Fase 194 D-07 — comprar con accesos de invitación vigentes", () => 
   it("comprar un plan real: 201, accesos `completed` sin tocar fecha ni saldo, sub nueva activa", async () => {
     const { member, real, access } = await seedInvitado();
 
+    // startDate en la fecha de la sede: el default del helper es UTC y de
+    // noche (21-24 ART) arrancaría "mañana" respecto de CURDATE().
     const res = await assignPlan(app, adminToken, member.id, {
       planId: real.id,
       branchId: member.branchId,
+      startDate: todayInTz("America/Argentina/Buenos_Aires"),
     });
     expect(res.statusCode).toBe(201);
 
@@ -291,7 +293,7 @@ describe("Fase 194 T-194-17/18 — guards del plan Invitación", () => {
         payload: {
           planId: real.id,
           branchId: member.branchId,
-          startDate: todayStr(),
+          startDate: todayInTz("America/Argentina/Buenos_Aires"),
           priceTypeApplied: "regular",
           paymentMethod: "cash",
           startMode,
@@ -315,7 +317,7 @@ describe("Fase 194 T-194-17/18 — guards del plan Invitación", () => {
         {
           planId: trial.id,
           branchId: member.branchId,
-          startDate: todayStr(),
+          startDate: todayInTz("America/Argentina/Buenos_Aires"),
           priceTypeApplied: "regular",
           paymentMethod: "cash",
           priceOverrideAmount: 0,
@@ -338,7 +340,7 @@ describe("Fase 194 T-194-17/18 — guards del plan Invitación", () => {
       {
         planId: trial.id,
         branchId: member.branchId,
-        startDate: todayStr(),
+        startDate: todayInTz("America/Argentina/Buenos_Aires"),
         priceTypeApplied: "regular",
         paymentMethod: "cash",
         priceOverrideAmount: 0,
@@ -374,7 +376,7 @@ describe("Fase 194 T-194-17/18 — guards del plan Invitación", () => {
         {
           planId: real.id,
           branchId: member.branchId,
-          startDate: todayStr(),
+          startDate: todayInTz("America/Argentina/Buenos_Aires"),
           priceTypeApplied: "regular",
           paymentMethod: "cash",
           priceOverrideAmount: 0,
