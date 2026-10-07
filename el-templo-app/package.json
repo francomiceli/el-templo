@@ -9,6 +9,7 @@
   "scripts": {
     "lint": "eslint -c ./eslint.config.js \"./src*/**/*.{js,ts,cjs,mjs,vue}\"",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
+    "check-well-known": "node scripts/check-well-known.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
