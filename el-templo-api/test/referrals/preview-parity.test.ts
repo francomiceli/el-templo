@@ -1173,6 +1173,22 @@ describe("194-18: paridad preview ↔ cobro de la renovación (renewSubscription
     expect((await renewalCharge(payer.id)).body.pricePaid).toBe(RENEW_BASE);
   });
 
+  it("(25b) base negociada (caso Pomilio): el preview informa base 75000 y el descuento sobre ESA base; el cobro coincide", async () => {
+    const payer = await renewablePayer();
+    await app.db.execute(
+      sql`UPDATE subscriptions SET price_paid = 75000
+          WHERE user_id = ${payer.id} AND tenant_id = ${ctx.tenant.tenantId}`,
+    );
+    await qualifiedInviterOf(payer.id);
+
+    const { body } = await renewalPreviewOf(payer.id);
+    expect(body.base).toBe(75000);
+    expect(body.basePrice).toBe(75000);
+    expect(body.invitationDiscountAmount).toBe(7500);
+    expect(body.finalPrice).toBe(67500);
+    expect((await renewalCharge(payer.id)).body.pricePaid).toBe(67500);
+  });
+
   it("(26) plan Invitación: el preview da 400 igual que renovar", async () => {
     const member = await createMemberInPhysicalBranch(ctx, {
       status: "prueba",

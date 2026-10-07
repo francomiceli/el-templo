@@ -1335,6 +1335,23 @@ describe("renewSubscription", () => {
     expect(row.auraDiscountPercent).toBeNull();
   });
 
+  it("(8c) base negociada (caso Pomilio): la renovación hereda los 75000 (no la lista) y la invitación descuenta 10% sobre ESA base", async () => {
+    const payer = await payerWithRenewableSub();
+    await app.db.execute(
+      sql`UPDATE subscriptions SET price_paid = 75000
+          WHERE id = ${payer.subscriptionId} AND tenant_id = ${ctx.tenant.tenantId}`,
+    );
+    await giveQualifiedLink(payer.id);
+
+    const res = await renew(payer);
+    expect(res.statusCode).toBe(201);
+    const row = await readSub(res.body.id as number);
+    expect(row.pricePaid).toBe(67500);
+    expect(row.referralDiscountPercent).toBe(10);
+    expect(row.referralDiscountAmount).toBe(7500);
+    expect(await creditOf(payer.id)).toEqual({ percent: 10, amount: 7500 });
+  });
+
   it("(9) amountReceived = neto con descuento: cobro completo sin saldo; uno más es 400", async () => {
     const payer = await payerWithRenewableSub();
     await giveQualifiedLink(payer.id);
