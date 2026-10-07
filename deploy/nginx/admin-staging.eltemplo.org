@@ -2,6 +2,11 @@
 # Location: /etc/nginx/sites-available/admin-staging.eltemplo.org
 # CRITICAL: try_files is REQUIRED for history mode - without it, direct URL access returns 404
 # SSL will be added by certbot --nginx
+# Etapa 1 de noindex (D-09/D-26): X-Robots-Tag noindex SIN bloquear robots.txt
+# (la etapa 2 esta en deploy/RUNBOOK-195-NGINX.md).
+# ATENCION: este archivo NO tiene las lineas ssl_certificate* que certbot agrego
+# en el servidor. Aplicar con deploy/RUNBOOK-195-NGINX.md (merge de 3 vias),
+# nunca copiarlo encima del live (rompe TLS).
 
 server {
     listen 80;
@@ -20,9 +25,12 @@ server {
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header X-Content-Type-Options "nosniff" always;
     }
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
 }

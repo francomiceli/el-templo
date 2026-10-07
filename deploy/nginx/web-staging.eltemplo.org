@@ -1,6 +1,13 @@
 # Staging Landing Page (SSG)
 # Location: /etc/nginx/sites-available/web-staging.eltemplo.org
 # SSL will be added by certbot --nginx
+# Etapa 1 de noindex (D-09/D-26): X-Robots-Tag noindex SIN bloquear robots.txt,
+# para que Google pueda rastrear, ver el noindex y desindexar. La etapa 2
+# (bloqueo en robots.txt) esta en el runbook, semanas despues.
+# Paridad con eltemplo.org: 404 real y redirects reales para probar antes de prod.
+# ATENCION: este archivo NO tiene las lineas ssl_certificate* que certbot agrego
+# en el servidor. Aplicar con deploy/RUNBOOK-195-NGINX.md (merge de 3 vias),
+# nunca copiarlo encima del live (rompe TLS).
 
 server {
     listen 80;
@@ -27,15 +34,37 @@ server {
       image/svg+xml
       font/woff2;
 
-    # SSG: serve pre-rendered HTML files, fallback to index.html
+    # 404 real (fase 195, D-05): una ruta que no existe responde 404 con el shell
+    # de 404.html (Nuxt). NO volver a agregar fallback a /index.html: toda pagina
+    # debe estar prerenderizada.
+    error_page 404 /404.html;
+    location = /404.html {
+        internal;
+    }
+
+    # Redirects reales (antes eran meta-refresh). Con y sin barra final.
+    # Los routeRules de nuxt.config.ts quedan como respaldo.
+    location ~ ^/curso-entrenadores/?$ {
+        return 301 /academy;
+    }
+    location ~ ^/qr/bcn/?$ {
+        return 302 https://app.eltemplo.org/register?promo=TEMPLOPASSBCN;
+    }
+    location ~ ^/qr/aura-club/?$ {
+        return 302 https://app.eltemplo.org/register?promo=AURACLUB1;
+    }
+
     location / {
-        try_files $uri $uri/index.html $uri.html /index.html =404;
+        try_files $uri $uri/index.html $uri.html =404;
     }
 
     # Cache static assets aggressively (Nuxt/Vite adds content hashes)
+    # Define su propio add_header: no hereda los del server, se repiten (Pitfall 3).
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header X-Content-Type-Options "nosniff" always;
     }
 
     # Security headers
@@ -43,6 +72,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
 }
 
 # SSL + HTTP/2 (certbot will add certificate paths)
@@ -74,15 +104,38 @@ server {
       image/svg+xml
       font/woff2;
 
-    # SSG: serve pre-rendered HTML files, fallback to index.html
+    # 404 real (fase 195, D-05): una ruta que no existe responde 404 con el shell
+    # de 404.html (Nuxt). NO volver a agregar fallback a /index.html: toda pagina
+    # debe estar prerenderizada.
+    error_page 404 /404.html;
+    location = /404.html {
+        internal;
+    }
+
+    # Redirects reales (antes eran meta-refresh). Con y sin barra final.
+    # Los routeRules de nuxt.config.ts quedan como respaldo.
+    location ~ ^/curso-entrenadores/?$ {
+        return 301 /academy;
+    }
+    location ~ ^/qr/bcn/?$ {
+        return 302 https://app.eltemplo.org/register?promo=TEMPLOPASSBCN;
+    }
+    location ~ ^/qr/aura-club/?$ {
+        return 302 https://app.eltemplo.org/register?promo=AURACLUB1;
+    }
+
     location / {
-        try_files $uri $uri/index.html $uri.html /index.html =404;
+        try_files $uri $uri/index.html $uri.html =404;
     }
 
     # Cache static assets aggressively
+    # Define su propio add_header: no hereda los del server, se repiten (Pitfall 3).
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        add_header X-Content-Type-Options "nosniff" always;
     }
 
     # Security headers
@@ -90,4 +143,5 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
 }
