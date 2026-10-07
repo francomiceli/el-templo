@@ -87,3 +87,10 @@
   - `npx prettier --check <archivos>` antes de commitear.
   - **Sedes sin horarios publicados son válidas** (local: MORENO solo tiene Yoga especial → `openingHours: []`). Web/schema deben tolerarlo: página de sede publicada igual, sin `openingHoursSpecification` y con copy "consultá horarios por WhatsApp". NO cambiar el filtro D-30 (pregunta abierta para Franco en la guía final).
   - Endpoint: `GET /api/web/site-data` (módulo `src/modules/web-public/`), `ENTRADAS_BASELINE` ahora **448**; `KNOWN_KEY_PATTERNS` incluye `"web.%"`.
+- **Tras 195-03 (2026-10-07):**
+  - **NO pushear ni mergear esta rama antes del rollout en 2 pasos**: desde 195-03 el `build-web` de deploy falla si prod no tiene `/api/web/site-data` (lo resuelve 195-11 + `deploy/ROLLOUT-195.md`).
+  - Contrato web: `import { webData, webSedes, findWebSede, brandName } from "~/data/sedes"`; rutas nuevas → `prerenderRoutes`; chequeos nuevos → al final de `CHECKS` en `scripts/verify-seo-output.mjs`. Blog: `updatedAt` puede ser null (usar `publishedAt`).
+  - Generate local: `node scripts/fetch-web-data.mjs && pnpm exec nuxt generate --extends <capa>` (Node 20). La web no tiene `@types/node`: no importar `node:*` en `nuxt.config.ts`/código Nuxt.
+  - **195-04 debe agregar al fixture una sede con `openingHours: []`** (y chequeo en el verificador: página publicada, sin `openingHoursSpecification`).
+  - **Footer (decisión del orquestador):** `AppFooter.vue:106-108` deja de mostrar "Av. Constitución 6745" fijo → mostrar "<N> sedes en Mar del Plata + Barcelona" con link a `/sedes` (N desde los datos). Lo hace 195-04.
+  - `llms.txt` ya enlaza `/sedes/<slug>` y `/es/sedes/<slug>`: esas páginas llegan en 195-04..06.
