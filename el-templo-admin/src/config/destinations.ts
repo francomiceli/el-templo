@@ -42,7 +42,7 @@ export const APP_SECTIONS: readonly AppSection[] = [
   },
   {
     key: 'referidos',
-    label: 'Referidos',
+    label: 'Mis invitados',
     route: '/mis-referidos',
   },
   {

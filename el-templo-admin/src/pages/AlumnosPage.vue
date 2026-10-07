@@ -148,6 +148,19 @@
           @update:model-value="onFilterChange"
         />
       </div>
+      <!-- Fase 194 (D-18): origen del alumno, combinable con el estado (En Prueba + Invitación) -->
+      <div class="col-6 col-sm-3 col-md-2">
+        <q-select
+          v-model="filters.origin"
+          :options="originFilterOptions"
+          label="Origen"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onFilterChange"
+        />
+      </div>
       <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.segment"
@@ -357,6 +370,7 @@ import { isBranchScopedRole } from 'src/utils/branch-scope';
 import type {
   MemberListItem,
   MemberProfile,
+  MemberOrigin,
   MemberSegment,
   BranchOption,
   TotalDebtRow,
@@ -464,6 +478,8 @@ const filters = reactive({
   // Phase 103 R10: replaces previous boolean isActive + leadsOnly toggles.
   // null = "Todos" (no filter); enum values map 1:1 to users.status.
   status: null as UserStatus | null,
+  // Fase 194 (D-18): null = "Todos"; 'invitacion' = solo invitados.
+  origin: null as MemberOrigin | null,
   segment: null as MemberSegment | null,
   avatarType: null as string | null,
   debtorOnly: false as boolean,
@@ -521,6 +537,11 @@ const statusFilterOptions: Array<{ label: string; value: UserStatus | null }> = 
   { label: 'En Prueba', value: 'prueba' },
   { label: 'Activos', value: 'activo' },
   { label: 'Inactivos', value: 'inactivo' },
+];
+
+const originFilterOptions: Array<{ label: string; value: MemberOrigin | null }> = [
+  { label: 'Todos', value: null },
+  { label: 'Invitación', value: 'invitacion' },
 ];
 
 const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }> = [
@@ -804,6 +825,7 @@ async function loadMembers() {
       level: filters.level ?? undefined,
       // Phase 103 R10: single first-class users.status filter.
       status: filters.status ?? undefined,
+      origin: filters.origin ?? undefined,
       segment: filters.segment ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       debtorOnly: filters.debtorOnly || undefined,

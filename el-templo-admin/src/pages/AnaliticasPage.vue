@@ -236,7 +236,7 @@
       <q-tab name="retencion" label="Retención (ciclos)" icon="timeline" />
       <!-- Referidos A/B: agregado gym-wide sin dimensión de sede
            (REFERRAL_AB_RESULTS_ROLES excluye al admin_sede, 403). -->
-      <q-tab v-if="!branchScoped" name="referidos-ab" label="Referidos A/B" icon="science" />
+      <q-tab v-if="!branchScoped" name="referidos-ab" label="Invitaciones A/B" icon="science" />
       <q-tab name="especiales" label="Especiales" icon="auto_awesome" />
     </q-tabs>
 

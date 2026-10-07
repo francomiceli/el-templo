@@ -27,7 +27,7 @@ export const CAMPAIGN_SEGMENT_LABELS: Record<CampaignSegment, string> = {
   bajas: 'Bajas (ex socios)',
   prueba_no_convertida: 'Probaron y no compraron',
   alerta_ausente: 'En alerta o ausentes',
-  referidos_pendientes: 'Referidos sin calificar',
+  referidos_pendientes: 'Invitados sin calificar',
 };
 
 /** Per-section copy the trial template consumes (D-12). */

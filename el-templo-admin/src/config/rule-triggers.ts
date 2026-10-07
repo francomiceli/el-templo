@@ -174,7 +174,7 @@ export const SYSTEM_TEMPLATE_TRIGGER_DESCRIPTIONS: Readonly<Record<string, strin
   plan_renewal_warning_7d: 'Automático: la cuota vence en 7 días.',
   plan_renewal_warning_3d: 'Automático: la cuota vence en 3 días.',
   plan_renewal_warning_expired: 'Automático: la cuota vence hoy o ya venció.',
-  referral_link_activated: 'Automático: un referido del socio pagó su primer plan.',
+  referral_link_activated: 'Automático: un invitado del socio pagó su primer plan.',
   trial_session_reminder: 'Automático: recordatorio ~24 h antes de una sesión de prueba reservada.',
   class_reminder:
     'Automático: socios CON reserva anticipada (hecha antes del día de la clase) — turno mañana 30 min antes, turno tarde 1 h antes de su clase.',
@@ -242,7 +242,7 @@ export const NOTIFICATION_CATEGORY_OPTIONS: ReadonlyArray<{
   { value: 'motivacion', label: 'Motivación' },
   { value: 'anuncios', label: 'Anuncios' },
   { value: 'planes', label: 'Planes' },
-  { value: 'referidos', label: 'Referidos' },
+  { value: 'referidos', label: 'Invitaciones' },
 ];
 
 const CATEGORY_COLORS: Readonly<Record<string, string>> = {

@@ -371,6 +371,9 @@ export interface UpdateMemberInput {
   };
 }
 
+/** Fase 194 (D-18): origen del alumno para el listado (enum de un valor en el API). */
+export type MemberOrigin = 'invitacion';
+
 export interface MemberListParams {
   search?: string;
   branchId?: number;
@@ -385,6 +388,9 @@ export interface MemberListParams {
   // Phase 103 (R8): first-class users.status filter (replaces Phase 102's
   // 'leads'/'alumnos' derived values). 'todos' is a no-op default.
   status?: 'todos' | UserStatus;
+  // Fase 194 (D-18): 'invitacion' = solo alumnos con una invitación activada.
+  // Combinable con `status` (status=prueba + origin=invitacion = leads de invitación).
+  origin?: MemberOrigin;
   // Phase 154 (ALUM-05): gatea la columna Nivel del export Excel por la superficie
   // Templo de niveles griegos. Default en el backend true → columna presente.
   includeGreekLevel?: boolean;
