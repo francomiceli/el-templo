@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { sedesCount } from "~/data/sedes";
-
 /**
- * Root app component — global head and Organization schema.
+ * Root app component — global head.
  *
- * Sets lang="es", default Twitter Card meta, and Organization
- * structured data (JSON-LD) inherited by all pages.
+ * Sets lang="es", default Twitter Card meta and favicons. El JSON-LD lo emite
+ * cada pagina con utils/schema-graph.ts (nunca desde aca).
  */
 
 useHead({
@@ -41,27 +39,6 @@ useHead({
     },
   ],
 });
-
-useSchemaOrg([
-  defineOrganization({
-    name: "El Templo",
-    url: "https://eltemplo.org",
-    logo: "https://eltemplo.org/favicon-192x192.png",
-    description:
-      `Escuela de movimiento y calistenia. M\u00E9todo propio, 6 niveles de entrenamiento con peso corporal, ${sedesCount.total} sedes en Argentina y Espa\u00F1a.`,
-    sameAs: [
-      "https://www.instagram.com/eltemplomdp/",
-      "https://www.youtube.com/@ElTemplomdp/",
-      "https://www.facebook.com/eltemplomdp/",
-    ],
-    contactPoint: {
-      "@type": "ContactPoint",
-      telephone: "+54-9-223-582-0521",
-      contactType: "customer service",
-      availableLanguage: "Spanish",
-    },
-  }),
-]);
 </script>
 
 <template>

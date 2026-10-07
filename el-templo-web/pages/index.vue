@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { sedes, sedesCount } from "~/data/sedes";
-import { faqItems } from "~/data/faq";
+import { sedesCount, webData } from "~/data/sedes";
+import { jsonLdScript, organizationNode } from "~/utils/schema-graph";
 
 const { cleanup: cleanupTracking } = useSectionTracking({
   sections: {
@@ -42,40 +42,8 @@ useHead({
   link: [{ rel: "canonical", href: "https://eltemplo.org" }],
 });
 
-useSchemaOrg([
-  // LocalBusiness per sede
-  ...sedes.map((sede) =>
-    defineLocalBusiness({
-      name: `El Templo ${sede.name}`,
-      "@type": "SportsActivityLocation",
-      address: {
-        "@type": "PostalAddress",
-        streetAddress: sede.address,
-        addressLocality: sede.city,
-        addressCountry: sede.city === "Barcelona" ? "ES" : "AR",
-      },
-      url: "https://eltemplo.org",
-      telephone: "+54-9-223-582-0521",
-      ...(sede.lat && sede.lng
-        ? {
-            geo: {
-              "@type": "GeoCoordinates",
-              latitude: sede.lat,
-              longitude: sede.lng,
-            },
-          }
-        : {}),
-    }),
-  ),
-  // FAQPage schema
-  defineWebPage({ "@type": "FAQPage" }),
-  ...faqItems.map((item) =>
-    defineQuestion({
-      name: item.question,
-      acceptedAnswer: item.answer,
-    }),
-  ),
-]);
+// Solo el Organization: las sedes tienen su ExerciseGym en /sedes/<slug>.
+useHead({ script: [jsonLdScript([organizationNode(webData)])] });
 </script>
 
 <template>

@@ -37,8 +37,9 @@ export default defineNuxtConfig({
     name: "El Templo",
   },
 
+  // JSON-LD propio (utils/schema-graph.ts): el modulo queda apagado para que no colapse todo en un solo nodo.
   schemaOrg: {
-    identity: "Organization",
+    enabled: false,
   },
 
   sitemap: {

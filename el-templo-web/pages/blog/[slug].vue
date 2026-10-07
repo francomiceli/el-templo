@@ -9,6 +9,13 @@
  * BEM prefix: blog-post
  */
 import { marked } from "marked";
+import { webData } from "~/data/sedes";
+import {
+  ORG_ID,
+  articleNode,
+  jsonLdScript,
+  organizationNode,
+} from "~/utils/schema-graph";
 
 interface BlogPost {
   id: number;
@@ -85,26 +92,16 @@ useHead({
   ],
 });
 
-// Article structured data (JSON-LD)
+// Article structured data (JSON-LD). El autor Person llega en 195-05.
 if (post.value) {
-  useSchemaOrg([
-    defineArticle({
-      headline: post.value.title,
-      description: post.value.excerpt,
-      image: post.value.coverImage || undefined,
-      datePublished: post.value.publishedAt || undefined,
-      dateModified: post.value.updatedAt,
-      author: {
-        name: "El Templo",
-        url: "https://eltemplo.org",
-      },
-      publisher: {
-        name: "El Templo",
-        url: "https://eltemplo.org",
-        logo: "https://eltemplo.org/favicon-192x192.png",
-      },
-    }),
-  ]);
+  useHead({
+    script: [
+      jsonLdScript([
+        articleNode(post.value, { "@id": ORG_ID }),
+        organizationNode(webData),
+      ]),
+    ],
+  });
 }
 
 // Markdown rendering
