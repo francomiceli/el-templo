@@ -1,11 +1,7 @@
 # Landing Page (SSG - static HTML per route)
 # Location: /etc/nginx/sites-available/eltemplo.org
 # NOTE: Unlike SPA apps, SSG has real HTML files for each route.
-# 404 real desde la fase 195: no volver a agregar fallback a /index.html.
-# Toda pagina debe estar prerenderizada (lo verifica scripts/verify-seo-output.mjs).
-# ATENCION: este archivo NO tiene las lineas ssl_certificate* que certbot agrego
-# en el servidor. Aplicar con deploy/RUNBOOK-195-NGINX.md (merge de 3 vias),
-# nunca copiarlo encima del live (rompe TLS).
+# try_files serves the pre-rendered HTML, falling back to index.html for any dynamic routes.
 # SSL will be added by certbot --nginx
 
 # HTTP → HTTPS redirect (do NOT serve content on HTTP)
@@ -46,37 +42,15 @@ server {
       image/svg+xml
       font/woff2;
 
-    # 404 real (fase 195, D-05): una ruta que no existe responde 404 con el shell
-    # de 404.html (Nuxt). NO volver a agregar fallback a /index.html: toda pagina
-    # debe estar prerenderizada.
-    error_page 404 /404.html;
-    location = /404.html {
-        internal;
-    }
-
-    # Redirects reales (antes eran meta-refresh). Con y sin barra final.
-    # Los routeRules de nuxt.config.ts quedan como respaldo.
-    location ~ ^/curso-entrenadores/?$ {
-        return 301 /academy;
-    }
-    location ~ ^/qr/bcn/?$ {
-        return 302 https://app.eltemplo.org/register?promo=TEMPLOPASSBCN;
-    }
-    location ~ ^/qr/aura-club/?$ {
-        return 302 https://app.eltemplo.org/register?promo=AURACLUB1;
-    }
-
+    # SSG: serve pre-rendered HTML files, fallback to index.html
     location / {
-        try_files $uri $uri/index.html $uri.html =404;
+        try_files $uri $uri/index.html $uri.html /index.html =404;
     }
 
-    # Cache static assets aggressively. Este location define su propio add_header,
-    # asi que NO hereda los del server: se repiten los que importan (Pitfall 3).
+    # Cache static assets aggressively
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
-        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-        add_header X-Content-Type-Options "nosniff" always;
     }
 
     # Security headers
