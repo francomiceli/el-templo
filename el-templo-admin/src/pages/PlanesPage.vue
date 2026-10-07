@@ -83,6 +83,16 @@
                   label="Bundle"
                   class="q-ml-xs"
                 />
+                <!-- Fase 194 D-10b: el plan admite descuento por invitación -->
+                <q-badge
+                  v-if="props.row.allowsInvitationDiscount"
+                  outline
+                  color="positive"
+                  label="Invitación ✓"
+                  class="q-ml-xs"
+                >
+                  <q-tooltip>Admite descuento por invitación</q-tooltip>
+                </q-badge>
                 <!-- Línea del pase especial (null = Aura) -->
                 <q-badge
                   v-if="props.row.planCategory === 'especial'"

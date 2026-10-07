@@ -1118,6 +1118,7 @@ import {
   PLAN_TIER_LABELS,
   AURA_DISCOUNT_TIERS,
   PRICE_TYPE_LABELS,
+  isInvitationPlan,
   type PlanListItem,
   type PlanTier,
   type PriceType,
@@ -1919,7 +1920,10 @@ function getBasePrice(): number {
 async function loadPlans() {
   loadingPlans.value = true;
   try {
-    plans.value = await subsApi.getPlans(true, { branchId: props.memberBranchId });
+    const loaded = await subsApi.getPlans(true, { branchId: props.memberBranchId });
+    // Fase 194: el plan Invitación solo se asigna activando una invitación (el
+    // servidor igual responde 400, 194-06): fuera de la grilla y del modo paquete.
+    plans.value = loaded.filter((p) => !isInvitationPlan(p));
   } catch (err: unknown) {
     const message = extractError(err, 'Error cargando planes');
     if (isExpectedClientError(err)) {

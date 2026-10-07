@@ -120,6 +120,26 @@ export function planSection(category: PlanCategory): PlanSection {
 }
 
 /**
+ * Fase 194 D-10b/D-23: el flag "admite descuento por invitación" nunca puede estar
+ * en true para planes `especial`, `paquete` ni de prueba (is_trial). Espejo del piso
+ * duro del servidor (400 si se intenta).
+ */
+export function planCategoryAllowsInvitationDiscount(
+  category: PlanCategory,
+  isTrial: boolean
+): boolean {
+  return !isTrial && category !== 'especial' && category !== 'paquete';
+}
+
+/**
+ * Fase 194 D-02: el plan "Invitación" (uno por país) es un `paquete` con `is_trial`.
+ * Solo se asigna activando una invitación, nunca a mano desde el admin.
+ */
+export function isInvitationPlan(plan: { planCategory: PlanCategory; isTrial: boolean }): boolean {
+  return plan.isTrial && plan.planCategory === 'paquete';
+}
+
+/**
  * Total de clases que otorga un plan con `classesPerWeek`: espejo de la
  * derivación del API al asignar (`ceil(durationDays / 7) * classesPerWeek`,
  * subscriptions/service.ts). Para el pase especial es "el total del pase".
@@ -180,6 +200,8 @@ export interface PlanListItem {
   specialLine: string | null;
   multiBranch: boolean;
   isTrial: boolean;
+  /** Fase 194 D-10b: el plan genera/recibe descuento por invitación (opt-in, false por defecto). */
+  allowsInvitationDiscount: boolean;
   isGroup: boolean;
   planCategory: PlanCategory;
   linkedProgramId: number | null;
@@ -220,6 +242,7 @@ export interface CreatePlanInput {
   specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
+  allowsInvitationDiscount?: boolean;
   isGroup?: boolean;
   planCategory: PlanCategory;
   linkedProgramId?: number;
@@ -246,6 +269,7 @@ export interface UpdatePlanInput {
   specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
+  allowsInvitationDiscount?: boolean;
   isGroup?: boolean;
   planCategory?: PlanCategory;
   linkedProgramId?: number | null;
