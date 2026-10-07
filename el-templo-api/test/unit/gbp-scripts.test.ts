@@ -4,6 +4,7 @@ import {
   REDIRECT_URI,
   buildConsentUrl,
   exchangeAuthorizationCode,
+  parseCallback,
 } from "../../scripts/gbp-authorize";
 import {
   SEDES_SEED,
@@ -136,6 +137,42 @@ describe("gbp-authorize", () => {
   });
 });
 
+describe("parseCallback (validación del callback de loopback)", () => {
+  const cb = (qs: string) => new URL(`http://127.0.0.1:53682/callback?${qs}`);
+
+  it("acepta el code cuando el state coincide", () => {
+    expect(parseCallback(cb("state=abc&code=c0de"), "abc")).toEqual({
+      ok: true,
+      code: "c0de",
+    });
+  });
+
+  it("rechaza un state distinto (intento ajeno contra el puerto local)", () => {
+    const r = parseCallback(cb("state=otro&code=c0de"), "abc");
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.status).toBe(400);
+      expect(r.error.message).toMatch(/state/);
+    }
+  });
+
+  it("rechaza un callback sin state", () => {
+    expect(parseCallback(cb("code=c0de"), "abc").ok).toBe(false);
+  });
+
+  it("rechaza si Google devolvió error (el usuario canceló)", () => {
+    const r = parseCallback(cb("state=abc&error=access_denied"), "abc");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.message).toContain("access_denied");
+  });
+
+  it("rechaza si falta el code", () => {
+    const r = parseCallback(cb("state=abc"), "abc");
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.message).toMatch(/code/);
+  });
+});
+
 describe("matchLocationsToSedes", () => {
   it("mapea las 7 sedes por número de calle", () => {
     const r = matchLocationsToSedes(fullSet());
@@ -202,7 +239,7 @@ describe("matchLocationsToSedes", () => {
 
   it("no confunde un número más largo que contiene el de calle", () => {
     const r = matchLocationsToSedes([
-      loc("1", "No es", "Ruta 61000, Mar del Plata"),
+      loc("1", "No es", "Ruta 16745, Mar del Plata"),
       loc("2", "Tampoco", "Calle 36810, Mar del Plata"),
     ]);
     expect(r.matches).toEqual([]);

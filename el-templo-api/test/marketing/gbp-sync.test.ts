@@ -52,6 +52,7 @@ interface PatchCall {
   updateMask: string | null;
   method: string | undefined;
   authorization: string | undefined;
+  signal: AbortSignal | undefined;
   body: GbpLocationPatch;
 }
 
@@ -372,6 +373,7 @@ describe("Sync de Google Business Profile (branches → ficha)", () => {
           updateMask: parsed.searchParams.get("updateMask"),
           method: init.method,
           authorization: (init.headers as Record<string, string>).authorization,
+          signal: init.signal ?? undefined,
           body: JSON.parse(String(init.body)) as GbpLocationPatch,
         };
         state.patches.push(call);
@@ -441,6 +443,7 @@ describe("Sync de Google Business Profile (branches → ficha)", () => {
         expect(p.validateOnly).toBe("true");
         expect(p.method).toBe("PATCH");
         expect(p.authorization).toBe(`Bearer ${ACCESS_TOKEN}`);
+        expect(p.signal).toBeInstanceOf(AbortSignal);
       }
       for (const code of ["G195A", "G195B", "G195E"]) {
         const row = await branchRow(code);
@@ -456,6 +459,19 @@ describe("Sync de Google Business Profile (branches → ficha)", () => {
       await runGbpSync(app.db);
       expect(calls.patches).toHaveLength(6);
       expect(calls.patches.every((p) => p.validateOnly === "true")).toBe(true);
+    });
+
+    it("valida siempre aunque la ficha ya esté sincronizada (el hash solo corta en apply)", async () => {
+      stubGoogle();
+      await service().sync(CTX, config("apply"));
+      vi.unstubAllGlobals();
+
+      const calls = stubGoogle();
+      const summary = await service().sync(CTX, config("dry-run"));
+
+      expect(calls.patches).toHaveLength(3);
+      expect(calls.patches.every((p) => p.validateOnly === "true")).toBe(true);
+      expect(summary.unchanged).toBe(0);
     });
 
     it("un 400 de validación se loguea con el detalle de Google y no guarda nada", async () => {
@@ -779,6 +795,19 @@ describe("Sync de Google Business Profile (branches → ficha)", () => {
       ];
       expect(fields).toMatchObject({ branchId: ids.G195A, status: 403 });
       expect(message).toBe("GBP: no se pudo sincronizar una ficha");
+    });
+
+    it("el detalle del error de Google se recorta (no se loguea un cuerpo gigante)", async () => {
+      stubGoogle((c) =>
+        c.locationId === "111"
+          ? json({ error: { message: "x".repeat(2000) } }, 400)
+          : json({}),
+      );
+      const log = fakeLog();
+      await service(log).sync(CTX, config("apply"));
+      const [fields] = log.warn.mock.calls[0] as [Record<string, unknown>];
+      expect(String(fields.err).length).toBeLessThan(400);
+      expect(String(fields.err)).toContain("400");
     });
 
     it("un error de red en una ficha no frena a las demás", async () => {

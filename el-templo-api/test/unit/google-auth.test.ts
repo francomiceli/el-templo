@@ -187,6 +187,38 @@ describe("serviceAccountAccessToken", () => {
     expect(message).not.toContain("Bad JWT");
   });
 
+  it("un access_token vacío lanza (no se usa un Bearer vacío)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ access_token: "" }))),
+    );
+    await expect(serviceAccountAccessToken(SA, "s")).rejects.toThrow(
+      /access_token/,
+    );
+  });
+
+  it("el código de error de Google solo se muestra si tiene forma de código", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ error: "Bad JWT: eyJhbGciOi.SECRETO" }),
+            { status: 400 },
+          ),
+      ),
+    );
+    let message = "";
+    try {
+      await serviceAccountAccessToken(SA, "s");
+    } catch (err: unknown) {
+      message = err instanceof Error ? err.message : "";
+    }
+    expect(message).toContain("400");
+    expect(message).not.toContain("SECRETO");
+    expect(message).not.toContain("Bad JWT");
+  });
+
   it("respuesta sin access_token lanza", async () => {
     vi.stubGlobal(
       "fetch",
@@ -299,6 +331,24 @@ describe("config de Google", () => {
     ])("null %s", (_n, sa) => {
       vi.stubEnv("GOOGLE_SC_SERVICE_ACCOUNT_BASE64", saBase64(sa));
       expect(getSearchConsoleConfig()).toBeNull();
+    });
+
+    it("null con private_key vacío", () => {
+      vi.stubEnv(
+        "GOOGLE_SC_SERVICE_ACCOUNT_BASE64",
+        saBase64({ client_email: "a@b.com", private_key: "   " }),
+      );
+      expect(getSearchConsoleConfig()).toBeNull();
+    });
+
+    it("recorta el client_email", () => {
+      vi.stubEnv(
+        "GOOGLE_SC_SERVICE_ACCOUNT_BASE64",
+        saBase64({ client_email: "  a@b.com  ", private_key: "k" }),
+      );
+      expect(getSearchConsoleConfig()?.serviceAccount.client_email).toBe(
+        "a@b.com",
+      );
     });
 
     it("config válida con el siteUrl por defecto", () => {

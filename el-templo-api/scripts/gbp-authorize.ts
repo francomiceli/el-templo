@@ -27,6 +27,7 @@
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import { config as loadEnv } from "dotenv";
+import { GBP_SCOPE } from "../src/modules/marketing/google/auth";
 
 loadEnv({ path: ".env.development" });
 loadEnv({ path: ".env" });
@@ -35,7 +36,6 @@ export const AUTH_PORT = 53682;
 export const REDIRECT_URI = `http://127.0.0.1:${AUTH_PORT}/callback`;
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
-const SCOPE = "https://www.googleapis.com/auth/business.manage";
 const TIMEOUT_MS = 5 * 60 * 1000;
 
 /** URL de consentimiento (offline + prompt=consent para que Google devuelva refresh token). */
@@ -44,7 +44,7 @@ export function buildConsentUrl(clientId: string, state: string): string {
     client_id: clientId,
     redirect_uri: REDIRECT_URI,
     response_type: "code",
-    scope: SCOPE,
+    scope: GBP_SCOPE,
     access_type: "offline",
     prompt: "consent",
     state,
@@ -100,6 +100,46 @@ export async function exchangeAuthorizationCode(creds: {
   return refresh;
 }
 
+export type CallbackResult =
+  | { ok: true; code: string }
+  | { ok: false; status: number; message: string; error: Error };
+
+/**
+ * Valida el callback de Google: el `state` tiene que ser el que generamos (corta
+ * un intento ajeno contra el puerto local), sin `error` y con `code`.
+ */
+export function parseCallback(url: URL, expectedState: string): CallbackResult {
+  const denied = url.searchParams.get("error");
+  if (denied) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Autorización rechazada. Volvé a la terminal.",
+      error: new Error(`Google devolvió error=${denied.slice(0, 40)}`),
+    };
+  }
+  if (url.searchParams.get("state") !== expectedState) {
+    return {
+      ok: false,
+      status: 400,
+      message: "El parámetro state no coincide. Volvé a la terminal.",
+      error: new Error(
+        "El state del callback no coincide (posible intento ajeno): abortado.",
+      ),
+    };
+  }
+  const code = url.searchParams.get("code");
+  if (!code) {
+    return {
+      ok: false,
+      status: 400,
+      message: "Falta el code. Volvé a la terminal.",
+      error: new Error("El callback llegó sin code."),
+    };
+  }
+  return { ok: true, code };
+}
+
 function out(text: string): void {
   process.stdout.write(`${text}\n`);
 }
@@ -137,34 +177,12 @@ async function main(): Promise<void> {
         else resolve();
       };
 
-      const denied = url.searchParams.get("error");
-      if (denied) {
-        finish(
-          400,
-          "Autorización rechazada. Volvé a la terminal.",
-          new Error(`Google devolvió error=${denied.slice(0, 40)}`),
-        );
+      const parsed = parseCallback(url, state);
+      if (!parsed.ok) {
+        finish(parsed.status, parsed.message, parsed.error);
         return;
       }
-      if (url.searchParams.get("state") !== state) {
-        finish(
-          400,
-          "El parámetro state no coincide. Volvé a la terminal.",
-          new Error(
-            "El state del callback no coincide (posible intento ajeno): abortado.",
-          ),
-        );
-        return;
-      }
-      const code = url.searchParams.get("code");
-      if (!code) {
-        finish(
-          400,
-          "Falta el code. Volvé a la terminal.",
-          new Error("El callback llegó sin code."),
-        );
-        return;
-      }
+      const code = parsed.code;
 
       exchangeAuthorizationCode({ clientId, clientSecret, code })
         .then((refreshToken) => {

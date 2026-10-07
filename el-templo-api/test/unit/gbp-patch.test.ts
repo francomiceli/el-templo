@@ -101,6 +101,37 @@ describe("buildLocationPatch", () => {
     expect(patch.phoneNumbers).toEqual({ primaryPhone: "+54 223 555-0000" });
   });
 
+  it("un WhatsApp que ya trae + no lo duplica", () => {
+    const patch = buildLocationPatch(sede({ phone: null }), "+5492235820521");
+    expect(patch.phoneNumbers).toEqual({ primaryPhone: "+5492235820521" });
+  });
+
+  it("descarta horarios con día fuera de 1..7 en vez de mandar un período roto", () => {
+    const patch = buildLocationPatch(
+      sede({
+        openingHours: [
+          { dayOfWeek: 0, opens: "07:00", closes: "12:00" },
+          { dayOfWeek: 8, opens: "07:00", closes: "12:00" },
+          { dayOfWeek: 2, opens: "07:00", closes: "12:00" },
+        ],
+      }),
+      AR_WA,
+    );
+    expect(patch.regularHours?.periods.map((p) => p.openDay)).toEqual([
+      "TUESDAY",
+    ]);
+  });
+
+  it("si todos los horarios son inválidos no manda regularHours", () => {
+    const patch = buildLocationPatch(
+      sede({
+        openingHours: [{ dayOfWeek: 9, opens: "07:00", closes: "12:00" }],
+      }),
+      AR_WA,
+    );
+    expect(patch.regularHours).toBeUndefined();
+  });
+
   it("sin teléfono ni WhatsApp se omite phoneNumbers (no se borra en Google)", () => {
     const patch = buildLocationPatch(sede({ phone: null }), null);
     expect(patch.phoneNumbers).toBeUndefined();
@@ -229,6 +260,14 @@ describe("patchHash", () => {
   ])("cambiar %s cambia el hash", (_n, over) => {
     expect(patchHash(buildLocationPatch(sede(over), AR_WA))).not.toBe(
       patchHash(buildLocationPatch(sede(), AR_WA)),
+    );
+  });
+
+  it("una clave undefined no cambia el hash (es lo mismo que ausente)", () => {
+    const base = buildLocationPatch(sede({ phone: null }), null);
+    expect(base.phoneNumbers).toBeUndefined();
+    expect(patchHash({ ...base, phoneNumbers: undefined })).toBe(
+      patchHash(base),
     );
   });
 
