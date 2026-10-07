@@ -662,6 +662,33 @@ describe("194-17: paridad preview ↔ cobro del cambio inmediato (changePlanNow)
     expect(await creditOf(m.id)).toBeUndefined();
   });
 
+  it("(12b) partner 5% pierde contra la invitación 10%: el preview informa `invitation` y el partner en 0 (no promete un descuento que el cobro no aplica)", async () => {
+    const m = await memberWithHalfUsedSub("pp-12b-p@test.com");
+    const referrer = await createMember(app, { email: "pp-12b-r@test.com" });
+    await linkQualified(referrer.id, m.id);
+    await giveCoverage(referrer.id, m.planA, dateOffsetStr(60));
+    const partner = await insertPartner(app, { benefitValue: 5 });
+    await insertPartnerLink(app, {
+      partnerId: partner.id,
+      referredId: m.id,
+      benefitType: "discount_percent",
+      benefitValue: 5,
+      benefitStatus: "pending",
+    });
+    const target = await nowTarget(true);
+
+    const preview = await changePreviewOf(m.id, target);
+    const net = NOW_B - preview.proration.remainingValue;
+    expect(preview.winningDiscount).toBe("invitation");
+    expect(preview.partnerDiscountPercent).toBe(0);
+    expect(preview.partnerDiscountAmount).toBe(0);
+    expect(preview.invitationDiscountAmount).toBe(Math.floor(net * 0.1));
+    expect(preview.netAmount).toBe(net - Math.floor(net * 0.1));
+
+    const charge = await changeNowCharge(m.id, target);
+    expect(charge.pricePaid).toBe(preview.netAmount);
+  });
+
   it("(13) tope en dinero AR 500: el preview informa monto recortado y `capped` sobre el neto, y el cobro (y su crédito) coinciden", async () => {
     await setInvitationSettings(app.db, ctx.tenant, {
       discountCapAmount: { AR: 500 },

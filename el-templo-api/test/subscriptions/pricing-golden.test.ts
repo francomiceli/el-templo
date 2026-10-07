@@ -483,6 +483,8 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         durationDays: 30,
         priceRegular: 15000,
         priceZero: 8000,
+        // 194-17 D-10b: el cambio inmediato descuenta solo con el flag del plan destino.
+        allowsInvitationDiscount: true,
       });
       const referrer = await createMember(app, {
         email: "gold-cn-ref-referrer@test.com",
@@ -1023,6 +1025,8 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         durationDays: 30,
         priceRegular: 15000,
         priceZero: 8000,
+        // 194-17 D-10b: el cambio inmediato descuenta solo con el flag del plan destino.
+        allowsInvitationDiscount: true,
       });
       const referrer = await createMember(app, {
         email: "gold-preview-cn-ref-referrer@test.com",
