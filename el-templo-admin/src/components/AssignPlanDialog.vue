@@ -446,12 +446,17 @@
                         -{{ formatPrice(pricingDisplay.discountAmount, displayCurrency) }}
                       </div>
                     </div>
-                    <div v-if="pricingDisplay.referralAmount > 0">
+                    <div v-if="pricingDisplay.invitationAmount > 0">
                       <div class="text-caption text-grey-7">
-                        Descuento referido ({{ pricingDisplay.referralPercent }}%)
+                        {{
+                          invitationDiscountLabel(
+                            pricingDisplay.invitationPercent,
+                            pricingDisplay.invitationCapped
+                          )
+                        }}
                       </div>
                       <div class="text-positive">
-                        -{{ formatPrice(pricingDisplay.referralAmount, displayCurrency) }}
+                        -{{ formatPrice(pricingDisplay.invitationAmount, displayCurrency) }}
                       </div>
                     </div>
                     <div v-if="pricingDisplay.partnerAmount > 0">
@@ -638,13 +643,23 @@
                       }}
                     </q-item-section>
                   </q-item>
-                  <q-item v-if="changePlanPreviewData.referralDiscountAmount > 0">
+                  <q-item
+                    v-if="
+                      changePlanPreviewData.winningDiscount === 'invitation' &&
+                      changePlanPreviewData.invitationDiscountAmount > 0
+                    "
+                  >
                     <q-item-section>
-                      Descuento referido ({{ changePlanPreviewData.referralDiscountPercent }}%)
+                      {{
+                        invitationDiscountLabel(
+                          changePlanPreviewData.invitationDiscountPercent,
+                          changePlanPreviewData.invitationDiscountCapped
+                        )
+                      }}
                     </q-item-section>
                     <q-item-section side class="text-positive">
                       -{{
-                        formatPrice(changePlanPreviewData.referralDiscountAmount, displayCurrency)
+                        formatPrice(changePlanPreviewData.invitationDiscountAmount, displayCurrency)
                       }}
                     </q-item-section>
                   </q-item>
@@ -721,14 +736,6 @@
                       {{ formatSelectedSchedules() }}
                     </q-item-section>
                   </q-item>
-                  <q-item v-if="keepDiffReferralAmount > 0">
-                    <q-item-section>
-                      Descuento referido ({{ pricingDisplay.referralPercent }}%) sobre la diferencia
-                    </q-item-section>
-                    <q-item-section side class="text-positive">
-                      -{{ formatPrice(keepDiffReferralAmount, displayCurrency) }}
-                    </q-item-section>
-                  </q-item>
                   <q-separator spaced />
                   <q-item class="bg-blue-1 rounded-borders q-pa-sm">
                     <q-item-section class="text-weight-bold text-h6">
@@ -789,12 +796,17 @@
                       {{ formatSelectedSchedules() }}
                     </q-item-section>
                   </q-item>
-                  <q-item v-if="pricingDisplay.referralAmount > 0">
+                  <q-item v-if="pricingDisplay.invitationAmount > 0">
                     <q-item-section>
-                      Descuento referido ({{ pricingDisplay.referralPercent }}%)
+                      {{
+                        invitationDiscountLabel(
+                          pricingDisplay.invitationPercent,
+                          pricingDisplay.invitationCapped
+                        )
+                      }}
                     </q-item-section>
                     <q-item-section side class="text-positive">
-                      -{{ formatPrice(pricingDisplay.referralAmount, displayCurrency) }}
+                      -{{ formatPrice(pricingDisplay.invitationAmount, displayCurrency) }}
                     </q-item-section>
                   </q-item>
                   <q-item v-if="pricingDisplay.partnerAmount > 0">
@@ -849,12 +861,17 @@
                       -{{ formatPrice(pricingDisplay.discountAmount, displayCurrency) }}
                     </q-item-section>
                   </q-item>
-                  <q-item v-if="pricingDisplay.referralAmount > 0">
+                  <q-item v-if="pricingDisplay.invitationAmount > 0">
                     <q-item-section>
-                      Descuento referido ({{ pricingDisplay.referralPercent }}%)
+                      {{
+                        invitationDiscountLabel(
+                          pricingDisplay.invitationPercent,
+                          pricingDisplay.invitationCapped
+                        )
+                      }}
                     </q-item-section>
                     <q-item-section side class="text-positive">
-                      -{{ formatPrice(pricingDisplay.referralAmount, displayCurrency) }}
+                      -{{ formatPrice(pricingDisplay.invitationAmount, displayCurrency) }}
                     </q-item-section>
                   </q-item>
                   <q-item v-if="pricingDisplay.partnerAmount > 0">
@@ -1570,19 +1587,28 @@ const auraOptions = computed(() => {
   ];
 });
 
+// Fase 194 (D-08/D-21, Pitfall 6): el admin NO calcula descuentos. Los montos de
+// invitación y partner salen DIRECTO del preview del servidor (gana UNO solo, con
+// tope en dinero): si el cliente multiplicara porcentajes, el "monto recibido"
+// precargado se desincronizaría del cobro y la API lo rechazaría.
+function invitationDiscountLabel(percent: number, capped: boolean): string {
+  return `Descuento por invitación (${percent}%)${capped ? ' · con tope' : ''}`;
+}
+
 const pricingDisplay = computed(() => {
-  // % de referido server-computed (incluye la simulación del vínculo pendiente
-  // que el primer cobro activa). El backend descuenta referidos también sobre
-  // precios personalizados, así que el override lo refleja igual — si no, el
-  // "monto recibido" precargado excede el cobro real y el backend lo rechaza.
-  const referralPercent = pricingPreview.value?.referralDiscountPercent ?? 0;
-  // Fase 179 (D-09/D-10/D-20, DESC-05): partnerPercent/partnerAmount salen
-  // DIRECTO del preview, sin ninguna price-math nueva en el front — el
-  // backend ya resolvió "gana el mayor" contra AURA. A diferencia de
-  // referralAmount (que SÍ se recalcula en la rama de precio personalizado,
-  // patrón preexistente), el override no repite esa multiplicación para
-  // partner: mostrar 0/0 ahí es preferible a inventar price-math nueva.
-  const partnerPercent = pricingPreview.value?.partnerDiscountPercent ?? 0;
+  // Solo se muestra el descuento ganador: si AURA, partner o el boarding pass le
+  // ganaron a la invitación, el servidor la devuelve en 0 y no hay línea.
+  const invitationWon = pricingPreview.value?.winningDiscount === 'invitation';
+  const invitationPercent = invitationWon
+    ? (pricingPreview.value?.invitationDiscountPercent ?? 0)
+    : 0;
+  const invitationAmount = invitationWon
+    ? (pricingPreview.value?.invitationDiscountAmount ?? 0)
+    : 0;
+  const invitationCapped = invitationWon && pricingPreview.value?.invitationDiscountCapped === true;
+  const partnerWon = pricingPreview.value?.winningDiscount === 'partner';
+  const partnerPercent = partnerWon ? (pricingPreview.value?.partnerDiscountPercent ?? 0) : 0;
+  const partnerAmount = partnerWon ? (pricingPreview.value?.partnerDiscountAmount ?? 0) : 0;
   // Alta prorrateada: el precio base es el del mes completo (del preview) y el
   // final es el proporcional editable; sin descuentos automáticos.
   if (assignForm.value.prorateToMonthEnd) {
@@ -1591,8 +1617,9 @@ const pricingDisplay = computed(() => {
     return {
       basePrice: base,
       discountAmount: Math.max(0, base - final),
-      referralPercent: 0,
-      referralAmount: 0,
+      invitationPercent: 0,
+      invitationAmount: 0,
+      invitationCapped: false,
       partnerPercent: 0,
       partnerAmount: 0,
       finalPrice: final,
@@ -1601,28 +1628,28 @@ const pricingDisplay = computed(() => {
   if (assignForm.value.useOverride && assignForm.value.priceOverrideAmount !== null) {
     const base = getBasePrice();
     const override = assignForm.value.priceOverrideAmount;
-    // Misma price-math del backend: floor(base*pct/100).
-    const referralAmount = Math.floor(override * (referralPercent / 100));
+    // Fase 194 D-20: el precio personalizado ES el precio final. Ni la invitación
+    // ni el partner descuentan encima (el servidor solo materializa el vínculo).
     return {
       basePrice: base,
       discountAmount: base - override,
-      referralPercent,
-      referralAmount,
-      // Sin descuento de partner en precio personalizado (ver comentario de
-      // partnerPercent arriba): 0/0, no una multiplicación nueva.
+      invitationPercent: 0,
+      invitationAmount: 0,
+      invitationCapped: false,
       partnerPercent: 0,
       partnerAmount: 0,
-      finalPrice: override - referralAmount,
+      finalPrice: override,
     };
   }
   if (pricingPreview.value) {
     return {
       basePrice: pricingPreview.value.basePrice,
       discountAmount: pricingPreview.value.discountAmount,
-      referralPercent,
-      referralAmount: pricingPreview.value.referralDiscountAmount,
+      invitationPercent,
+      invitationAmount,
+      invitationCapped,
       partnerPercent,
-      partnerAmount: pricingPreview.value.partnerDiscountAmount,
+      partnerAmount,
       finalPrice: pricingPreview.value.finalPrice,
     };
   }
@@ -1630,8 +1657,9 @@ const pricingDisplay = computed(() => {
   return {
     basePrice: base,
     discountAmount: 0,
-    referralPercent: 0,
-    referralAmount: 0,
+    invitationPercent: 0,
+    invitationAmount: 0,
+    invitationCapped: false,
     partnerPercent: 0,
     partnerAmount: 0,
     finalPrice: base,
@@ -1642,25 +1670,21 @@ const pricingDisplay = computed(() => {
 // - override: cobra exactamente lo digitado, sin prorata.
 // - mode='change' + startMode='now' (proration activa) → netAmount del preview.
 // - resto (assign / change-after_current) → finalPrice del pricingDisplay.
-// Descuento de referido sobre la diferencia del modo 'mantener vencimiento' —
-// el backend la recibe como precio personalizado y también le aplica el
-// descuento, así que el prefill/resumen deben restarlo (misma price-math).
-const keepDiffReferralAmount = computed<number>(() =>
-  Math.floor(Math.max(0, keepDiffAmount.value ?? 0) * (pricingDisplay.value.referralPercent / 100))
-);
-
 const chargeBase = computed<number>(() => {
   // 'mantener vencimiento': cobramos la diferencia manual, no el prorrateo.
   // Debe evaluarse ANTES de la rama de prorrateo (es también startMode 'now').
+  // Fase 194 D-20: viaja como precio personalizado al servidor, así que ES el
+  // precio final: la diferencia propia del admin, sin invitación encima y sin
+  // pisarla con el netAmount del preview (que asume el plan sin override).
   if (isKeepMode.value) {
-    return Math.max(0, keepDiffAmount.value ?? 0) - keepDiffReferralAmount.value;
+    return Math.max(0, keepDiffAmount.value ?? 0);
   }
   // Alta prorrateada hasta fin de mes: cobramos el proporcional editable, sin
-  // AURA/referidos encima (el precio del input ES el final).
+  // AURA/invitación encima (el precio del input ES el final).
   if (assignForm.value.prorateToMonthEnd) {
     return proratedPrice.value ?? 0;
   }
-  // Override: pricingDisplay ya restó el descuento de referido del monto digitado.
+  // Override: el precio digitado es el final (D-20), pricingDisplay no le resta nada.
   if (assignForm.value.useOverride && assignForm.value.priceOverrideAmount !== null) {
     return pricingDisplay.value.finalPrice;
   }
