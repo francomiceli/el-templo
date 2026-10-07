@@ -398,3 +398,36 @@ export function settleChargeDiscounts(params: {
         : null,
   };
 }
+
+/** Columnas de descuento de la `subscriptions` que persiste un cobro resuelto por el árbitro. */
+export interface SettlementColumns {
+  referralDiscountPercent: number | null;
+  referralDiscountAmount: number | null;
+  partnerDiscountPercent: number | null;
+  partnerDiscountAmount: number | null;
+}
+
+/**
+ * Traduce el resultado del árbitro a las columnas de la sub (compartido por las
+ * charge-paths: assignPlan, changePlanAfterCurrent, ...). `referral_*` = descuento de
+ * INVITACIÓN aplicado: % NOMINAL y monto recortado por el tope en dinero (D-10c);
+ * `partner_*` solo si el partner ganó. Sin descuento = `null`. Pura.
+ */
+export function settlementColumns(
+  settlement: ChargeSettlement,
+  partnerPercent: number | null,
+): SettlementColumns {
+  const invitationApplied = settlement.invitationAmount > 0;
+  return {
+    referralDiscountPercent: invitationApplied
+      ? settlement.invitationPercent
+      : null,
+    referralDiscountAmount: invitationApplied
+      ? settlement.invitationAmount
+      : null,
+    partnerDiscountPercent: settlement.partnerWon ? partnerPercent : null,
+    partnerDiscountAmount: settlement.partnerWon
+      ? settlement.partnerAmount
+      : null,
+  };
+}

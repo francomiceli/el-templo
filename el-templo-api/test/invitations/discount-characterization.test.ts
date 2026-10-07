@@ -40,7 +40,10 @@ import {
   seedAuraBalance,
   SUBSCRIPTIONS_URL,
 } from "../subscriptions/_helpers";
-import { insertPartner, insertPartnerLink } from "../referral-partners/_helpers";
+import {
+  insertPartner,
+  insertPartnerLink,
+} from "../referral-partners/_helpers";
 import * as schema from "../../src/db/schema";
 import { PRICING_SETTINGS_KEYS } from "../../src/modules/settings/keys";
 import { ReferralService } from "../../src/modules/referrals/service";
@@ -549,8 +552,8 @@ describe("caracterización pre-194: changePlanNow y getChangePlanPreview", () =>
 // ─── changePlanAfterCurrent ──────────────────────────────────────────────────
 
 describe("caracterización pre-194: changePlanAfterCurrent", () => {
-  it("(g) después del actual con AURA 10% + referido 10% COMPONEN → 162000 (sin prorrateo, precio lleno del plan destino)", async () => {
-    // 194: cambia en 194-16 por D-08/D-21 (gana el mayor: un solo descuento).
+  it("(g) después del actual con AURA 10% + referido 10% (empate de monto) → gana la invitación, un solo descuento → 180000 y AURA NO se gasta (sin prorrateo, precio lleno del plan destino)", async () => {
+    // 194-16 D-08/D-21: gana el mayor, empate = core. Antes componían (162000, AURA gastada).
     const m = await memberWithHalfUsedSub("g");
     await linkQualified(m.id, m.planA.id);
     await seedAuraBalance(app, m.id, 1000);
@@ -563,13 +566,14 @@ describe("caracterización pre-194: changePlanAfterCurrent", () => {
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
     expect(row.status).toBe("scheduled");
-    // 200000 - 10% AURA = 180000 → referido 10% de 180000 = 18000 → 162000.
-    expect(row.auraDiscount).toBe(1000);
-    expect(row.auraDiscountPercent).toBe(10);
+    // 194-16 D-08/D-21: AURA 10% (20000) = referido 10% (20000, sobre la LISTA) → empate:
+    // gana la invitación, AURA no se gasta. Antes: 200000 - 20000 - 18000 = 162000.
+    expect(row.auraDiscount).toBeNull();
+    expect(row.auraDiscountPercent).toBeNull();
     expect(row.referralDiscountPercent).toBe(10);
-    expect(row.referralDiscountAmount).toBe(18000);
-    expect(row.pricePaid).toBe(162000);
-    expect(await auraBalanceOf(m.id)).toBe(0);
+    expect(row.referralDiscountAmount).toBe(20000);
+    expect(row.pricePaid).toBe(180000);
+    expect(await auraBalanceOf(m.id)).toBe(1000);
   });
 });
 

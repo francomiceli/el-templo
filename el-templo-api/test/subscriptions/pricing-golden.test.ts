@@ -382,7 +382,9 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         priceRegular: 15000,
         priceZero: 8000,
       });
-      const member = await createMember(app, { email: "gold-cn-base@test.com" });
+      const member = await createMember(app, {
+        email: "gold-cn-base@test.com",
+      });
       await assignPlan(app, adminToken, member.id, {
         planId: planA.id,
         startDate: dateOffsetStr(-15),
@@ -492,11 +494,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         planId: planA.id,
         startDate: dateOffsetStr(-15),
       });
-      await seedQualifiedReferral(
-        referrer.id,
-        referred.id,
-        planA.id as number,
-      );
+      await seedQualifiedReferral(referrer.id, referred.id, planA.id as number);
 
       const res = await changeNow(referrer.id as number, {
         planId: planB.id,
@@ -651,7 +649,9 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         priceRegular: 12000,
         priceZero: 6000,
       });
-      const member = await createMember(app, { email: "gold-cac-aura@test.com" });
+      const member = await createMember(app, {
+        email: "gold-cac-aura@test.com",
+      });
       await assignPlan(app, adminToken, member.id, {
         planId: planA.id,
         startDate: todayStr(),
@@ -753,6 +753,8 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         durationDays: 30,
         priceRegular: 12000,
         priceZero: 6000,
+        // 194-16 D-10b: el plan destino lleva el flag (sin él no descuenta).
+        allowsInvitationDiscount: true,
       });
       const referrer = await createMember(app, {
         email: "gold-cac-ref-referrer@test.com",
@@ -764,11 +766,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         planId: planA.id,
         startDate: todayStr(),
       });
-      await seedQualifiedReferral(
-        referrer.id,
-        referred.id,
-        planA.id as number,
-      );
+      await seedQualifiedReferral(referrer.id, referred.id, planA.id as number);
 
       const res = await changeAfterCurrent(referrer.id as number, {
         planId: planB.id,
@@ -779,7 +777,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.body.pricePaid).toBe(10800);
     });
 
-    it("combo — boardingPass + referral compuestos", async () => {
+    it("combo — boardingPass excluye el referral (D-26a)", async () => {
       const planA = await createPlan(app, adminToken, {
         name: "Golden CAC Combo A",
         classesPerWeek: undefined,
@@ -793,6 +791,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         durationDays: 30,
         priceRegular: 12000,
         priceZero: 6000,
+        allowsInvitationDiscount: true,
       });
       const referrer = await createMember(app, {
         email: "gold-cac-combo-referrer@test.com",
@@ -804,11 +803,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         planId: planA.id,
         startDate: todayStr(),
       });
-      await seedQualifiedReferral(
-        referrer.id,
-        referred.id,
-        planA.id as number,
-      );
+      await seedQualifiedReferral(referrer.id, referred.id, planA.id as number);
 
       const res = await changeAfterCurrent(referrer.id as number, {
         planId: planB.id,
@@ -817,8 +812,9 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
 
       expect(res.statusCode).toBe(201);
       expect(res.body.boardingPassUsed).toBe(true);
-      expect(res.body.referralDiscountPercent).toBe(10);
-      expect(res.body.pricePaid).toBe(5400);
+      // 194-16 D-26a: el boarding pass excluye la invitación (antes componían: 5400).
+      expect(res.body.referralDiscountPercent).toBeNull();
+      expect(res.body.pricePaid).toBe(6000);
     });
   });
 
@@ -903,11 +899,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       });
       // El vínculo se crea DESPUÉS del alta original — la renovación debe
       // recomputar el % vigente, no arrastrar el 0% con el que se asignó.
-      await seedQualifiedReferral(
-        referrer.id,
-        referred.id,
-        plan.id as number,
-      );
+      await seedQualifiedReferral(referrer.id, referred.id, plan.id as number);
 
       const res = await app.inject({
         method: "POST",
@@ -943,11 +935,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         auraSpend: 1000,
       });
       expect(assigned.body.pricePaid).toBe(9000);
-      await seedQualifiedReferral(
-        referrer.id,
-        referred.id,
-        plan.id as number,
-      );
+      await seedQualifiedReferral(referrer.id, referred.id, plan.id as number);
 
       const res = await app.inject({
         method: "POST",
@@ -1046,11 +1034,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         planId: planA.id,
         startDate: dateOffsetStr(-15),
       });
-      await seedQualifiedReferral(
-        referrer.id,
-        referred.id,
-        planA.id as number,
-      );
+      await seedQualifiedReferral(referrer.id, referred.id, planA.id as number);
 
       const pv = await preview(referrer.id as number, planB.id as number);
       expect(pv.referralDiscountPercent).toBe(10);

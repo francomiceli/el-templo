@@ -207,6 +207,8 @@ describe("Referral discount · scheduled plan change (after_current)", () => {
     const planB = await createPlan(app, adminToken, {
       name: "Sched B caro",
       priceRegular: 12000,
+      // 194-16 D-10b: el cambio diferido descuenta solo con el flag del plan destino.
+      allowsInvitationDiscount: true,
     });
     const payer = await createMember(app, { email: "cpc-a-p@test.com" });
     const referred = await createMember(app, { email: "cpc-a-d@test.com" });
@@ -242,6 +244,8 @@ describe("Referral discount · scheduled plan change (after_current)", () => {
     const planB = await createPlan(app, adminToken, {
       name: "Sched B flip",
       priceRegular: 12000,
+      // 194-16 D-10b: el cambio diferido descuenta solo con el flag del plan destino.
+      allowsInvitationDiscount: true,
     });
     const referrer = await createMember(app, { email: "cpc-b-r@test.com" });
     const payer = await createMember(app, { email: "cpc-b-d@test.com" });
@@ -271,6 +275,8 @@ describe("Referral discount · scheduled plan change (after_current)", () => {
     const planB = await createPlan(app, adminToken, {
       name: "Sched B freeze",
       priceRegular: 12000,
+      // 194-16 D-10b: el cambio diferido descuenta solo con el flag del plan destino.
+      allowsInvitationDiscount: true,
     });
     const payer = await createMember(app, { email: "cpc-c-p@test.com" });
     const referred = await createMember(app, { email: "cpc-c-d@test.com" });
@@ -335,11 +341,13 @@ describe("Referral discount · scheduled plan change (after_current)", () => {
     expect(await readReferralCredit(payer.id)).toBeUndefined();
   });
 
-  it("(e) composición AURA + referido al agendar (ambos descuentos, sin pisarse)", async () => {
+  it("(e) AURA + referido al agendar: empate de monto, un solo descuento (gana la invitación, AURA no se gasta)", async () => {
     const planA = await createPlan(app, adminToken, { priceRegular: 8000 });
     const planB = await createPlan(app, adminToken, {
       name: "Sched B aura",
       priceRegular: 12000,
+      // 194-16 D-10b: el cambio diferido descuenta solo con el flag del plan destino.
+      allowsInvitationDiscount: true,
     });
     const payer = await createMember(app, { email: "cpc-e-p@test.com" });
     const referred = await createMember(app, { email: "cpc-e-d@test.com" });
@@ -353,12 +361,13 @@ describe("Referral discount · scheduled plan change (after_current)", () => {
 
     const res = await scheduleChange(payer.id, planB.id, { auraSpend: 1000 });
     expect(res.statusCode).toBe(201);
-    // AURA 10% sobre 12000 → 10800; referral 10% sobre 10800 → 9720 (compone).
-    expect(res.body.pricePaid).toBe(9720);
-    expect(res.body.auraDiscountPercent).toBe(10);
+    // 194-16 D-08/D-21: AURA 10% (1200) = referral 10% (1200, sobre la LISTA): empate,
+    // gana la invitación y AURA NO se gasta. Antes componían: 10800 -> 9720.
+    expect(res.body.pricePaid).toBe(10800);
+    expect(res.body.auraDiscountPercent).toBeNull();
     expect(await readReferralCredit(payer.id)).toEqual({
       percent: 10,
-      amount: 1080,
+      amount: 1200,
     });
   });
 });
