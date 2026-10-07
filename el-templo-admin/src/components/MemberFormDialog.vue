@@ -150,15 +150,18 @@
                   </div>
                 </div>
 
-                <!-- Referido por (opcional) — atribución de referido en el alta
-                     (157-05). Si el dato aparece después, el tab "Referidos" de
-                     la ficha lo carga retroactivamente (fase 173). -->
+                <!-- Invitado por (opcional) — fase 194 D-17/D-24. En el alta con plan pago es
+                     un vínculo de DESCUENTO sin accesos ni cupo del socio (la invitación
+                     con accesos se crea con "Lo invita" en Nuevo en Prueba o con "Crear
+                     invitación" en la ficha). Si el dato aparece después, la pestaña
+                     "Invitaciones" de la ficha lo carga retroactivamente (fase 173). -->
                 <div class="row q-col-gutter-sm">
                   <div class="col-12">
                     <ReferrerSelect
                       ref="referrerSelect"
                       v-model="referrer"
-                      label="Referido por (opcional)"
+                      label="Invitado por (opcional)"
+                      hint="Vínculo de descuento: no da accesos de invitación ni usa el cupo del socio"
                     />
                   </div>
                 </div>
@@ -737,9 +740,10 @@ const form = ref({
   sepaCountry: 'ES',
 });
 
-// ¿Quién lo trajo? (opcional) — atribución de referido en el alta (157-05). El
-// id elegido viaja como referredBy en el create; el server valida. El typeahead
-// vive en ReferrerSelect, compartido con la atribución retroactiva de la ficha.
+// "Invitado por" (opcional) — D-17/D-24: en el alta con plan pago es un vínculo de
+// descuento SIN accesos ni cupo (157-05). El id elegido viaja como referredBy en el
+// create; el server valida. El typeahead vive en ReferrerSelect, compartido con la
+// atribución retroactiva de la ficha.
 const referrer = ref<number | null>(null);
 const referrerSelect = ref<{ reset: () => void } | null>(null);
 

@@ -59,6 +59,18 @@
               :disable="lockBranch"
               :rules="[(v: number | null) => v !== null || 'Sede es requerida']"
             />
+
+            <!-- Fase 194 D-24: "Lo invita" crea la invitación con accesos (mismo cupo y
+                 elegibilidad que la app). Si se deja vacío es un alta de prueba común.
+                 Solo para los roles del canal asistido: el servidor da 403 al coach. -->
+            <ReferrerSelect
+              v-if="canInvite"
+              ref="inviterSelect"
+              v-model="form.inviterId"
+              label="Lo invita (opcional)"
+              hint="Si lo invita un socio, se activa la invitación con sus accesos de prueba"
+              :disable="submitting"
+            />
           </div>
         </q-form>
       </q-card-section>
@@ -75,9 +87,12 @@
 import { computed, ref, watch } from 'vue';
 import { useQuasar, type QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
-import { useMembersApi } from 'src/composables/useMembersApi';
+import { useMembersApi, parseInvitationFailure } from 'src/composables/useMembersApi';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
-import type { BranchOption, MemberProfile } from 'src/types/member';
+import { formatDate } from 'src/utils/format-date';
+import type { BranchOption, CreateTrialMemberResponse, MemberProfile } from 'src/types/member';
+import ReferrerSelect from './ReferrerSelect.vue';
 
 const log = createLogger('TrialMemberFormDialog');
 
@@ -96,15 +111,31 @@ const emit = defineEmits<{
 }>();
 
 const membersApi = useMembersApi();
+const authStore = useAuthStore();
 const $q = useQuasar();
 const formRef = ref<InstanceType<typeof QForm> | null>(null);
+const inviterSelect = ref<{ reset: () => void } | null>(null);
 const submitting = ref(false);
+
+// Espejo de INVITATION_ASSISTED_ROLES en la API (coach queda afuera). Solo oculta el
+// campo: con `inviterId` el servidor valida el rol (T-194-78).
+const canInvite = computed(() => {
+  const role = authStore.user?.role;
+  return (
+    role === 'owner' ||
+    role === 'admin' ||
+    role === 'gestion' ||
+    role === 'admin_sede' ||
+    role === 'recepcion'
+  );
+});
 
 interface TrialForm {
   firstName: string;
   lastName: string;
   phone: string;
   branchId: number | null;
+  inviterId: number | null;
 }
 
 function emptyForm(): TrialForm {
@@ -113,7 +144,33 @@ function emptyForm(): TrialForm {
     lastName: '',
     phone: '',
     branchId: props.defaultBranchId ?? null,
+    inviterId: null,
   };
+}
+
+// Avisa el resultado de la invitación sin perder el lead: si la activación falla DESPUÉS de
+// crearlo, el lead existe igual y el motivo se muestra como advertencia (D-24).
+function notifyCreated(created: CreateTrialMemberResponse, invited: boolean): void {
+  if (!invited) {
+    $q.notify({ type: 'positive', message: 'Alumno en prueba creado' });
+    return;
+  }
+  if (created.invitation) {
+    $q.notify({
+      type: 'positive',
+      message: `Lead creado con ${created.invitation.classesBudget} accesos de invitación hasta ${formatDate(created.invitation.accessExpiresOn)}`,
+    });
+    return;
+  }
+  const reason = created.invitationError?.message ?? 'motivo desconocido';
+  log.warn('Trial lead created but invitation not activated', {
+    reason: created.invitationError?.reason,
+  });
+  $q.notify({
+    type: 'warning',
+    message: `Lead creado, pero la invitación no se activó: ${reason}`,
+    timeout: 8000,
+  });
 }
 
 const form = ref<TrialForm>(emptyForm());
@@ -134,6 +191,7 @@ watch(
     if (open) {
       form.value = emptyForm();
       submitting.value = false;
+      inviterSelect.value?.reset();
     }
   }
 );
@@ -145,17 +203,22 @@ async function onSubmit(): Promise<void> {
 
   submitting.value = true;
   try {
+    const inviterId = canInvite.value ? form.value.inviterId : null;
     const member = await membersApi.createTrialMember({
       firstName: form.value.firstName.trim(),
       lastName: form.value.lastName.trim(),
       phone: form.value.phone.trim(),
       branchId: form.value.branchId as number,
+      ...(inviterId !== null ? { inviterId } : {}),
     });
-    $q.notify({ type: 'positive', message: 'Alumno en prueba creado' });
+    notifyCreated(member, inviterId !== null);
     emit('created', member);
     emit('update:modelValue', false);
   } catch (err: unknown) {
-    const message = extractError(err, 'Error creando sesión de prueba');
+    // Con "Lo invita" el servidor valida cupo y elegibilidad ANTES de crear el lead: si
+    // rechaza (409/404) no queda ningún lead y el formulario sigue abierto con el motivo.
+    const failure = parseInvitationFailure(err);
+    const message = failure?.message ?? extractError(err, 'Error creando sesión de prueba');
     if (!isExpectedClientError(err)) {
       log.error('Error creating trial member', { error: message });
     }
@@ -171,5 +234,6 @@ function onCancel(): void {
 
 function onHide(): void {
   form.value = emptyForm();
+  inviterSelect.value?.reset();
 }
 </script>
