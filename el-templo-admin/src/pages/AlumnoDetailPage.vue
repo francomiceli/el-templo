@@ -208,7 +208,7 @@
 
             <q-select
               v-model="leadDraft.leadStatus"
-              :options="LEAD_STATUS_OPTIONS"
+              :options="leadStatusOptions"
               emit-value
               map-options
               label="Estado del Lead"
@@ -219,6 +219,7 @@
             />
 
             <q-select
+              v-if="!financeBlind"
               v-model="leadDraft.purchasedPlanId"
               :options="leadPlanOptions"
               option-value="id"
@@ -371,7 +372,7 @@
           <q-tab name="perfil" label="Perfil" />
           <q-tab name="entrenamiento" label="Entrenamiento" />
           <q-tab name="notas" label="Notas" />
-          <q-tab name="suscripcion">
+          <q-tab v-if="!financeBlind" name="suscripcion">
             <div class="q-tab__label">Suscripcion</div>
             <q-badge
               v-if="memberHasDebt"
@@ -384,11 +385,12 @@
               D
             </q-badge>
           </q-tab>
-          <q-tab name="programas" label="Programas" />
+          <q-tab v-if="!financeBlind" name="programas" label="Programas" />
           <q-tab name="asistencia" label="Asistencia" />
-          <q-tab name="finanzas" label="Finanzas" />
+          <q-tab v-if="!financeBlind" name="finanzas" label="Finanzas" />
           <!-- Fase 194: ex "Referidos". El `name` interno `referidos` no se renombra. -->
           <q-tab v-if="canSeeReferrals" name="referidos" label="Invitaciones" />
+
         </q-tabs>
         <q-separator />
 
@@ -674,7 +676,7 @@
           </q-tab-panel>
 
           <!-- Suscripcion Tab -->
-          <q-tab-panel name="suscripcion">
+          <q-tab-panel v-if="!financeBlind" name="suscripcion">
             <MemberSubscriptionTab
               :userId="userId"
               :memberBranchId="memberProfile.branchId"
@@ -690,7 +692,7 @@
           </q-tab-panel>
 
           <!-- Programas Tab (Phase 112) -->
-          <q-tab-panel name="programas">
+          <q-tab-panel v-if="!financeBlind" name="programas">
             <MemberProgramsTab :user-id="userId" />
           </q-tab-panel>
 
@@ -700,7 +702,7 @@
           </q-tab-panel>
 
           <!-- Finanzas Tab (Phase 108) -->
-          <q-tab-panel name="finanzas">
+          <q-tab-panel v-if="!financeBlind" name="finanzas">
             <FinancialHistoryTab :user-id="userId" :member-branch-id="memberProfile.branchId" />
           </q-tab-panel>
         </q-tab-panels>
@@ -720,7 +722,7 @@
            Mirrors the post-create flow in AlumnosPage: opens automatically
            when the admin confirms "Cargar membresía" after completing data. -->
       <AssignPlanDialog
-        v-if="postConvertAssignTarget"
+        v-if="postConvertAssignTarget && !financeBlind"
         v-model="showAssignFromConvert"
         :userId="postConvertAssignTarget.id"
         :memberBranchId="postConvertAssignTarget.branchId"
@@ -868,7 +870,7 @@ import type {
 } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
 import { levelColor } from 'src/constants/levels';
-import { TEMPLO_GREEK_LEVELS } from 'src/config/templo-config';
+import { TEMPLO_GREEK_LEVELS, isFinanceBlindRole } from 'src/config/templo-config';
 import {
   GOAL_PLAN_TYPE_LABELS,
   GOAL_PLAN_TIER_MAP,
@@ -887,6 +889,10 @@ const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const authStore = useAuthStore();
+// 2026-10-06: rol ciego a las finanzas (coach_actividad): sin tabs de Suscripción /
+// Programas / Finanzas, sin carga de planes ni de deuda. El API igual responde
+// 403 / campos null; esto evita pedirlos y mostrar pestañas vacías.
+const financeBlind = computed(() => isFinanceBlindRole(authStore.user?.role));
 const membersApi = useMembersApi();
 const goalPlanApi = useGoalPlanAdminApi();
 const transactionsApi = useTransactionsApi();
@@ -947,6 +953,12 @@ const LEAD_STATUS_OPTIONS: ReadonlyArray<{ value: LeadStatusValue; label: string
   { value: 'perdido', label: 'Perdido' },
 ] as const;
 
+// "Ganado" exige plan comprado (409 server-side) y el rol sin plata no ve el
+// selector de plan: tampoco se le ofrece ese estado (2026-10-06).
+const leadStatusOptions = computed(() =>
+  financeBlind.value ? LEAD_STATUS_OPTIONS.filter((o) => o.value !== 'ganado') : LEAD_STATUS_OPTIONS
+);
+
 const leadDraft = ref<{
   leadStatus: LeadStatusValue | null;
   leadNotes: string | null;
@@ -965,6 +977,8 @@ const leadPlanOptions = ref<Array<{ id: number; label: string }>>([]);
 const loadingLeadPlans = ref(false);
 
 async function loadLeadPlanOptions(): Promise<void> {
+  // Rol sin plata: no hay selector de "Plan comprado" y /subscriptions/plans le da 403.
+  if (financeBlind.value) return;
   if (leadPlanOptions.value.length > 0) return;
   loadingLeadPlans.value = true;
   try {
@@ -1362,6 +1376,11 @@ async function loadBranches() {
 }
 
 async function loadOutstandingConcepts() {
+  // Rol sin plata: el endpoint le da 403 y no hay tab de Suscripción que lo use.
+  if (financeBlind.value) {
+    outstandingConcepts.value = [];
+    return;
+  }
   try {
     outstandingConcepts.value = await transactionsApi.getOutstandingConcepts(userId.value);
   } catch (err: unknown) {
@@ -1439,7 +1458,8 @@ async function onMemberSaved(updated: MemberProfile | null) {
   // post-create flow in AlumnosPage and offer to load the membership
   // right away so the admin doesn't have to navigate to the Suscripción
   // tab manually.
-  if (!updated) return;
+  // Rol sin plata: no ofrece cargar membresía (no tiene AssignPlanDialog).
+  if (!updated || financeBlind.value) return;
 
   $q.dialog({
     title: '¿Cargar membresía?',

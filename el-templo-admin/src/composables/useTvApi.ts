@@ -272,21 +272,23 @@ export function useTvApi() {
   }
 
   /**
-   * GET /communications/tv/control/tv-aviso-activo?branchId=NN — el aviso de
-   * TV activo en modo `manual` para la sede (fase 193, D-29), el que dispara
-   * el botón AVISO de la tira de bloques. `null` sin aviso manual activo.
+   * GET /communications/tv/control/tv-aviso-activo?branchId=NN — los avisos de
+   * TV activos en modo `manual` para la sede (fase 193, D-29), más reciente
+   * primero. 2026-10-06: el control muestra un botón por aviso (p. ej. las dos
+   * placas de yoga); si el API todavía no manda `avisos` (deploy desfasado),
+   * cae al aviso único.
    *
    * No toca `loading`/`error` compartidos (mismo criterio que
    * `getCoachTodaySchedule`): es una carga auxiliar de la botonera que no
    * puede pisar el spinner ni el mensaje de error del contexto principal —
    * el llamador la envuelve con un fallback silencioso.
    */
-  async function getTvAvisoActivo(branchId: number): Promise<TvAvisoActivo | null> {
-    const { data } = await api.get<{ aviso: TvAvisoActivo | null }>(
+  async function getTvAvisosActivos(branchId: number): Promise<TvAvisoActivo[]> {
+    const { data } = await api.get<{ aviso: TvAvisoActivo | null; avisos?: TvAvisoActivo[] }>(
       '/communications/tv/control/tv-aviso-activo',
       { params: { branchId } }
     );
-    return data.aviso;
+    return data.avisos ?? (data.aviso ? [data.aviso] : []);
   }
 
   /**
@@ -403,7 +405,7 @@ export function useTvApi() {
     getBranches,
     getScreen,
     getControlContext,
-    getTvAvisoActivo,
+    getTvAvisosActivos,
     writeState,
     endClass,
     getCoachTodaySchedule,

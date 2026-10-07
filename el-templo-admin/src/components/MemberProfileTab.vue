@@ -50,7 +50,9 @@
             <div class="text-caption text-grey-7">Nivel</div>
             <div class="text-body1">{{ levelDisplayName }}</div>
           </div>
-          <div class="col-12 col-sm-6">
+          <!-- 2026-10-06: la etiqueta de membresía es dato comercial; el API la
+               manda en null para un rol sin plata (coach_actividad). -->
+          <div v-if="!financeRedacted" class="col-12 col-sm-6">
             <div class="text-caption text-grey-7">Membresía</div>
             <div class="text-body1 row items-center q-gutter-xs">
               <q-chip
@@ -89,7 +91,7 @@
     </q-card>
 
     <!-- Domiciliación bancaria — solo sedes de España -->
-    <q-card v-if="isSpainBranch" flat bordered>
+    <q-card v-if="isSpainBranch && !financeRedacted" flat bordered>
       <q-card-section>
         <div class="text-subtitle1 text-weight-bold q-mb-md">Domiciliación bancaria</div>
         <template v-if="hasSepaDetails">
@@ -247,6 +249,11 @@ const hasEmergencyContact = computed(() => {
 
 // Domiciliación bancaria: la card solo aplica a sedes de España.
 const isSpainBranch = computed(() => props.member.branchCountry === 'ES');
+
+// 2026-10-06: ficha recortada por el API para un rol sin plata (coach_actividad):
+// sin etiqueta de membresía (`null`) y sin datos bancarios (SEPA). Se detecta por
+// el dato, no por el rol, así este componente no depende del store de auth.
+const financeRedacted = computed(() => props.member.membershipKindEffective === null);
 
 const hasSepaDetails = computed(() => {
   const sepa = props.member.sepaDetails;

@@ -184,7 +184,8 @@ export interface MemberProfile extends MemberListItem {
   // Etiqueta de membresía: override manual (null = automático) + efectiva ya
   // resuelta server-side (override ?? sub vigente ?? 'paga').
   membershipKindOverride: MembershipKind | null;
-  membershipKindEffective: MembershipKind;
+  /** null = la ficha vino recortada para un rol sin plata (coach_actividad, 2026-10-06). */
+  membershipKindEffective: MembershipKind | null;
   // Phase 114 (D-38, D-39): lead-lifecycle fields. Only meaningful when
   // `status === 'prueba'`; AlumnoDetailPage's "Datos de Lead" block gates
   // on that. `createdBy` is denormalized via a self-JOIN server-side so

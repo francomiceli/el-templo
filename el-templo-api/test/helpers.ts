@@ -835,7 +835,8 @@ export async function createStaffUser(
           | "gestion"
           | "recepcion"
           | "tv"
-          | "admin_sede",
+          | "admin_sede"
+          | "coach_actividad",
         branchId: data.branchId,
         country,
       }),
@@ -849,8 +850,10 @@ export async function createStaffUser(
   // 2026-09-08: `admin_sede` usa el MISMO mecanismo de sedes que coach/recepción
   // (`user_branches`), así que se siembra igual. Para asignarle MÁS de una sede,
   // insertar las extra a mano después de llamar a este helper.
+  // 2026-10-06: `coach_actividad` (profe sin plata, migración 0258) también.
   if (
     data.role === "coach" ||
+    data.role === "coach_actividad" ||
     data.role === "recepcion" ||
     data.role === "admin_sede"
   ) {

@@ -396,6 +396,8 @@ export const memberConfigResponseSchema = {
 // =============================================================================
 
 const TV_AVISO_MODE_ENUM = ["manual", "flex_inicio", "flex_final"] as const;
+// 2026-10-06 (migración 0259): fondo de la placa en la TV.
+const TV_AVISO_TEMA_ENUM = ["claro", "oscuro"] as const;
 
 // ── GET /admin/tv-avisos ─────────────────────────────────────────────────
 
@@ -404,6 +406,7 @@ const tvAvisoResponseProperties = {
   title: { type: "string" },
   body: { type: "string" },
   mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
+  tema: { type: "string", enum: TV_AVISO_TEMA_ENUM },
   isActive: { type: "boolean" },
   scopeBranchIds: { type: ["array", "null"], items: { type: "integer" } },
 };
@@ -435,6 +438,7 @@ export const createTvAvisoSchema = {
       title: { type: "string", minLength: 1, maxLength: 120 },
       body: { type: "string", minLength: 1, maxLength: 400 },
       mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
+      tema: { type: "string", enum: TV_AVISO_TEMA_ENUM },
       isActive: { type: "boolean" },
       scopeBranchIds: {
         type: ["array", "null"],
@@ -449,6 +453,7 @@ export interface CreateTvAvisoBody {
   title: string;
   body: string;
   mode: "manual" | "flex_inicio" | "flex_final";
+  tema?: "claro" | "oscuro";
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
 }
@@ -472,6 +477,7 @@ export const updateTvAvisoSchema = {
       title: { type: "string", minLength: 1, maxLength: 120 },
       body: { type: "string", minLength: 1, maxLength: 400 },
       mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
+      tema: { type: "string", enum: TV_AVISO_TEMA_ENUM },
       isActive: { type: "boolean" },
       scopeBranchIds: {
         type: ["array", "null"],
@@ -486,6 +492,7 @@ export interface UpdateTvAvisoBody {
   title?: string;
   body?: string;
   mode?: "manual" | "flex_inicio" | "flex_final";
+  tema?: "claro" | "oscuro";
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
 }
@@ -507,18 +514,29 @@ export interface TvAvisoActivoQuery {
   branchId: number;
 }
 
+const tvAvisoActivoItemProperties = {
+  id: { type: "integer" },
+  title: { type: "string" },
+  body: { type: "string" },
+  mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
+  tema: { type: "string", enum: TV_AVISO_TEMA_ENUM },
+};
+
 export const tvAvisoActivoResponseSchema = {
   200: {
     type: "object",
     properties: {
+      // El más reciente (contrato original de la fase 193).
       aviso: {
         type: ["object", "null"],
-        properties: {
-          id: { type: "integer" },
-          title: { type: "string" },
-          body: { type: "string" },
-          mode: { type: "string", enum: TV_AVISO_MODE_ENUM },
-        },
+        properties: tvAvisoActivoItemProperties,
+      },
+      // 2026-10-06: TODOS los manuales activos de la sede, más reciente
+      // primero — el control muestra un botón por aviso (p. ej. dos placas
+      // de yoga).
+      avisos: {
+        type: "array",
+        items: { type: "object", properties: tvAvisoActivoItemProperties },
       },
     },
   },

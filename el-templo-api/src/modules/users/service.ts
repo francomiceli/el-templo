@@ -12,6 +12,7 @@ import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
 import type { StaffUser, CreateStaffInput, UpdateStaffInput } from "./types";
+import { isCoachLikeRole } from "../shared/permissions";
 import {
   tenantWhere,
   tenantValues,
@@ -26,7 +27,7 @@ import {
  * Phase 110 REQ-9: per-role cardinality validation. Throws Error with
  * statusCode=400 on violation. The FOUR shape rules:
  *   - admin / gestion → must have country
- *   - coach / recepcion / admin_sede (2026-09-08) → must have ≥ 1 branchIds. El
+ *   - coach / coach_actividad (2026-10-06) / recepcion / admin_sede (2026-09-08) → must have ≥ 1 branchIds. El
  *     admin_sede de sucursal usa el MISMO mecanismo de sedes que coach/recepción
  *     (`user_branches`) y su alcance ADEMÁS se le fuerza en los listados
  *     (`enforcedBranchIds`, shared/branch-access.ts) — un admin_sede sin sedes no
@@ -53,13 +54,13 @@ function validateStaffCardinality(input: {
     throw e;
   }
   if (
-    (input.role === "coach" ||
+    (isCoachLikeRole(input.role) ||
       input.role === "recepcion" ||
       input.role === "admin_sede") &&
     (!input.branchIds || input.branchIds.length === 0)
   ) {
     const e = new Error(
-      "Coach, recepción e admin_sede requieren al menos una sede operativa",
+      "Coach, profe de actividad, recepción e admin_sede requieren al menos una sede operativa",
     );
     (e as Error & { statusCode: number }).statusCode = 400;
     throw e;

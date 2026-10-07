@@ -979,7 +979,8 @@ describe("Branch access — canAccessBranch + requireBranchAccess (Phase 110)", 
       const text = (body.error ?? "") + (body.message ?? "");
       expect(text).toMatch(
         // 2026-09-08: el mensaje suma `admin_sede` (misma regla de cardinalidad).
-        /Coach, recepci(ó|o)n e admin_sede requieren al menos una sede operativa/i,
+        // 2026-10-06: y el profe de actividad (`coach_actividad`, migración 0258).
+        /Coach, profe de actividad, recepci(ó|o)n e admin_sede requieren al menos una sede operativa/i,
       );
     });
 

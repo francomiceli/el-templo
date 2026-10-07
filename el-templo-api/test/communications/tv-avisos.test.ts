@@ -330,6 +330,80 @@ describe("communications/tv-avisos (COM-04, D-24/D-29)", () => {
     expect(bodyB.aviso?.id).not.toBe(scopedId);
   });
 
+  it("(4b) 2026-10-06: `avisos` trae TODOS los manuales activos de la sede (más reciente primero), sin flex ni inactivos ni de otra sede", async () => {
+    const crear = async (overrides: Record<string, unknown>) =>
+      (
+        JSON.parse(
+          (
+            await postComo(
+              "/admin/tv-avisos",
+              adminToken,
+              buildValidTvAvisoBody({ isActive: true, scopeBranchIds: null, ...overrides }),
+            )
+          ).body,
+        ) as { id: number }
+      ).id;
+    const regenerativo = await crear({ title: "Yoga regenerativo" });
+    const calistenicos = await crear({ title: "Yoga para calisténicos", scopeBranchIds: [branchA] });
+    await crear({ title: "Inactivo", isActive: false });
+    await crear({ title: "Flex inicio", mode: "flex_inicio" });
+    await crear({ title: "Solo branchB", scopeBranchIds: [branchB] });
+
+    const res = await getComo(`/control/tv-aviso-activo?branchId=${branchA}`, adminToken);
+    expect(res.statusCode, res.body).toBe(200);
+    const body = JSON.parse(res.body) as {
+      aviso: { id: number } | null;
+      avisos: Array<{ id: number; title: string; mode: string }>;
+    };
+    expect(body.avisos.map((a) => a.id)).toEqual([calistenicos, regenerativo]);
+    expect(body.avisos.every((a) => a.mode === "manual")).toBe(true);
+    // Contrato original: `aviso` sigue siendo el más reciente.
+    expect(body.aviso?.id).toBe(calistenicos);
+  });
+
+  it("(4c) 2026-10-06: tema claro/oscuro — default oscuro, se crea y edita, viaja al control; valor inválido -> 400", async () => {
+    const sinTema = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildValidTvAvisoBody({ title: "Sin tema", isActive: true }),
+    );
+    expect(sinTema.statusCode, sinTema.body).toBe(201);
+    const sinTemaBody = JSON.parse(sinTema.body) as { id: number; tema: string };
+    expect(sinTemaBody.tema).toBe("oscuro");
+
+    const claro = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildValidTvAvisoBody({ title: "Yoga regenerativo", isActive: true, tema: "claro" }),
+    );
+    expect(claro.statusCode, claro.body).toBe(201);
+    const claroBody = JSON.parse(claro.body) as { id: number; tema: string };
+    expect(claroBody.tema).toBe("claro");
+
+    const control = await getComo(`/control/tv-aviso-activo?branchId=${branchA}`, adminToken);
+    const controlBody = JSON.parse(control.body) as {
+      avisos: Array<{ id: number; tema: string }>;
+    };
+    expect(controlBody.avisos.find((a) => a.id === claroBody.id)?.tema).toBe("claro");
+    expect(controlBody.avisos.find((a) => a.id === sinTemaBody.id)?.tema).toBe("oscuro");
+
+    const editado = await app.inject({
+      method: "PUT",
+      url: `${BASE}/admin/tv-avisos/${sinTemaBody.id}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { tema: "claro" },
+    });
+    expect(editado.statusCode, editado.body).toBe(200);
+    expect((JSON.parse(editado.body) as { tema: string }).tema).toBe("claro");
+
+    const invalido = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildValidTvAvisoBody({ title: "Tema raro", tema: "gris" }),
+    );
+    expect(invalido.statusCode).toBe(400);
+  });
+
   it("(5) borrado seguro: DELETE con tv_class_state apuntando al aviso limpia la referencia sin error de FK", async () => {
     const createRes = await postComo(
       "/admin/tv-avisos",

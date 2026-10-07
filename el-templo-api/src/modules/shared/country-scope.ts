@@ -2,7 +2,12 @@ import type { FastifyRequest } from "fastify";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { and, eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { ADMIN_SEDE_ROLE, OWNER_ROLES, TV_ACCOUNT_ROLE } from "./permissions";
+import {
+  ADMIN_SEDE_ROLE,
+  isCoachLikeRole,
+  OWNER_ROLES,
+  TV_ACCOUNT_ROLE,
+} from "./permissions";
 import { AppError } from "./errors";
 import { tenantWhere, type TenantContext } from "./tenant";
 
@@ -48,7 +53,7 @@ export interface CountryScope {
    */
   country: CountryCode | null;
   /**
-   * Branch IDs the actor can operate on, populated for coach/recepción/admin_sede
+   * Branch IDs the actor can operate on, populated for coach/coach_actividad/recepción/admin_sede
    * from the `user_branches` join table. Empty array for other roles
    * (admin/gestion use `country` for scope; owner uses isOwner; member
    * uses `userBranchId` directly via canAccessBranch).
@@ -109,7 +114,7 @@ declare module "fastify" {
  *   replaces the JOIN to branches). When NULL (data corruption), `request.log.error`
  *   escalates to Sentry and `scope.country = null` (canAccessBranch Rule 3 then
  *   default-denies any branch).
- * - coach/recepción: country derived from their own branch's country; branchIds
+ * - coach/coach_actividad/recepción: country derived from their own branch's country; branchIds
  *   loaded from `user_branches` (Phase 110 REQ-5).
  * - member (and any other role): country from their branch.
  *
@@ -241,7 +246,7 @@ export async function attachScope(
           country = null;
         }
       } else if (
-        role === "coach" ||
+        isCoachLikeRole(role) ||
         role === "recepcion" ||
         role === ADMIN_SEDE_ROLE
       ) {

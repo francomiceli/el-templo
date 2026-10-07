@@ -21,6 +21,9 @@ import {
   FINANCE_VOID_ROLES,
   FINANCE_WRITE_ROLES,
   ADMIN_SEDE_ROLE,
+  COACH_ACTIVIDAD_ROLE,
+  isCoachLikeRole,
+  isFinanceBlindRole,
   MEMBER_LIFECYCLE_ROLES,
   MEMBER_ROLES,
   PAYMENT_ROLES,
@@ -112,7 +115,13 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
     // El profe vincula y maneja el TV de su sede; la cuenta dedicada `tv`
     // (2026-09-07) loguea los televisores; el resto del staff (gestion,
     // recepcion) NO. El acceso por sede lo impone requireBranchAccess aparte.
-    expect([...TV_CONTROL_ROLES]).toEqual(["admin", "owner", "coach", "tv"]);
+    expect([...TV_CONTROL_ROLES]).toEqual([
+      "admin",
+      "owner",
+      "coach",
+      "tv",
+      "coach_actividad",
+    ]);
     expect([...TV_CONTROL_ROLES]).not.toContain("gestion");
     expect([...TV_CONTROL_ROLES]).not.toContain("recepcion");
   });
@@ -121,7 +130,12 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
     // Dato de salud autorreportado: coach + admin/dueño lo ven, gestion/recepcion
     // NO (la vista de Feedback sigue dueño-only). Mismo valor que TV_CONTROL_ROLES
     // pero declarado aparte a propósito.
-    expect([...CHECKIN_ROSTER_ROLES]).toEqual(["admin", "owner", "coach"]);
+    expect([...CHECKIN_ROSTER_ROLES]).toEqual([
+      "admin",
+      "owner",
+      "coach",
+      "coach_actividad",
+    ]);
     expect([...CHECKIN_ROSTER_ROLES]).not.toContain("gestion");
     expect([...CHECKIN_ROSTER_ROLES]).not.toContain("recepcion");
   });
@@ -203,5 +217,84 @@ describe("RBAC — rol admin_sede (sede-scoped)", () => {
     // propósito: entra en finanzas, NO en Programas.
     expect([...FINANCE_WRITE_ROLES]).toContain(ADMIN_SEDE_ROLE);
     expect([...PROGRAMAS_LIST_ROLES]).not.toContain(ADMIN_SEDE_ROLE);
+  });
+});
+
+/**
+ * 2026-10-06 — rol `coach_actividad` (migración 0258): profe de actividad
+ * (yoga) con la superficie operativa de coach pero SIN plata. Este bloque
+ * congela QUÉ sets lo incluyen y, sobre todo, cuáles NO: ensanchar uno de los
+ * excluidos le abriría cobros / caja / deudas / planes.
+ */
+describe("RBAC — rol coach_actividad (profe sin plata)", () => {
+  const ENTRA = {
+    ALL_STAFF_ROLES,
+    ATTENDANCE_ROLES,
+    MEMBER_ROLES,
+    TV_CONTROL_ROLES,
+    CHECKIN_ROSTER_ROLES,
+    STAFF_ATTENDANCE_ROLES,
+  };
+
+  const NO_ENTRA = {
+    COACH_ROLES,
+    TRAINING_ROLES,
+    COACH_DEBTS_ROLES,
+    CAJA_ROLES,
+    PAYMENT_ROLES,
+    SUBSCRIPTION_ROLES,
+    PLANES_READ_ROLES,
+    PLANES_WRITE_ROLES,
+    PROGRAMAS_ROLES,
+    PROGRAMAS_LIST_ROLES,
+    FINANCE_LOAD_ROLES,
+    FINANCE_WRITE_ROLES,
+    FINANCE_READ_ROLES,
+    FINANCE_VOID_ROLES,
+    FINANCE_ADJUSTMENT_ROLES,
+    MEMBER_LIFECYCLE_ROLES,
+    ANALYTICS_OPERATIONAL_ROLES,
+    ANALYTICS_ADMIN_ROLES,
+    STAFF_ATTENDANCE_REPORT_ROLES,
+  };
+
+  it.each(Object.entries(ENTRA))(
+    "coach_actividad ∈ %s (superficie operativa de coach)",
+    (_name, set) => {
+      expect([...(set as readonly string[])]).toContain(COACH_ACTIVIDAD_ROLE);
+    },
+  );
+
+  it.each(Object.entries(NO_ENTRA))(
+    "coach_actividad ∉ %s (plata / entrenamiento / dueño)",
+    (_name, set) => {
+      expect([...(set as readonly string[])]).not.toContain(
+        COACH_ACTIVIDAD_ROLE,
+      );
+    },
+  );
+
+  it("isFinanceBlindRole es true SOLO para coach_actividad", () => {
+    expect(isFinanceBlindRole("coach_actividad")).toBe(true);
+    for (const role of [
+      "coach",
+      "admin",
+      "owner",
+      "gestion",
+      "recepcion",
+      "admin_sede",
+      "tv",
+      "member",
+    ]) {
+      expect(isFinanceBlindRole(role)).toBe(false);
+    }
+  });
+
+  it("isCoachLikeRole es true para coach y coach_actividad, nada más", () => {
+    expect(isCoachLikeRole("coach")).toBe(true);
+    expect(isCoachLikeRole("coach_actividad")).toBe(true);
+    for (const role of ["admin", "owner", "gestion", "recepcion", "admin_sede"]) {
+      expect(isCoachLikeRole(role)).toBe(false);
+    }
   });
 });

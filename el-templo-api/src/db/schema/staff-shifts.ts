@@ -48,7 +48,8 @@ export const staffShifts = mysqlTable(
     checkedInAt: timestamp("checked_in_at").notNull(),
     checkedOutAt: timestamp("checked_out_at"),
     checklist: json("checklist").$type<{
-      cobros: boolean;
+      /** null = no aplicaba (rol sin plata, coach_actividad — 2026-10-06). */
+      cobros: boolean | null;
       espacio: boolean;
       /** Lote del posnet: solo mié/sáb. null = no aplicaba ese día. */
       lote: boolean | null;

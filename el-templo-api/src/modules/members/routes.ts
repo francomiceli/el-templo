@@ -90,7 +90,12 @@ import {
   FINANCE_READ_ROLES,
   MEMBER_LIFECYCLE_ROLES,
   INVITATION_ASSISTED_ROLES,
+  isFinanceBlindRole,
 } from "../shared/permissions";
+import {
+  redactMemberListItemForFinanceBlind,
+  redactMemberProfileForFinanceBlind,
+} from "./finance-blind";
 import { attachCountryScope } from "../shared/country-scope";
 import { listBranchesForScope } from "../shared/branch-list";
 import {
@@ -266,6 +271,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const ctx = assertTenant(request.scope, "members.export");
+      // 2026-10-06 — el export lleva plan/vencimiento por alumno: se corta para
+      // el rol ciego a las finanzas (coach_actividad).
+      if (isFinanceBlindRole(request.user.role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
       // Country scope (Phase 98): always pass request.scope.country into the
       // service so /export mirrors the list endpoint. Non-owners cannot
       // override this (preHandler ignores their ?country=); owners get the
@@ -479,7 +489,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         enforceBranchScope({ from: "query.branchId" }),
       ],
     },
-    async (request) => {
+    async (request, reply) => {
       const {
         search,
         branchId,
@@ -494,6 +504,14 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         page = 1,
         limit = 20,
       } = request.query;
+
+      // 2026-10-06 — rol ciego a las finanzas (coach_actividad): ve la lista de
+      // alumnos pero SIN plata. "Solo deudores" es una vista de deuda → 403, y
+      // a las filas se les anula plan/vencimiento (ver finance-blind.ts).
+      const financeBlind = isFinanceBlindRole(request.user.role);
+      if (financeBlind && debtorOnly === true) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
 
       // Country scope (Phase 98): request.scope.country is set by
       // attachCountryScope. Non-owners cannot override it; owners' `?country=`
@@ -522,6 +540,14 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         assertTenant(request.scope, "members.list"),
         params,
       );
+      if (financeBlind) {
+        return {
+          ...result,
+          members: result.members.map(redactMemberListItemForFinanceBlind),
+          page,
+          limit,
+        };
+      }
       return { ...result, page, limit };
     },
   );
@@ -578,7 +604,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       membershipKind,
       includeOtherBranches,
     });
-    return { members };
+    // 2026-10-06 — rol ciego a las finanzas: el typeahead también trae plan.
+    return {
+      members: isFinanceBlindRole(request.user.role)
+        ? members.map((m) => ({ ...m, planName: null }))
+        : members,
+    };
   });
 
   // GET /admin/members/:userId — Get member profile
@@ -715,8 +746,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           }
         : null;
 
+      // 2026-10-06 — rol ciego a las finanzas (coach_actividad): la ficha sale
+      // sin plan comprado, etiqueta de membresía ni datos bancarios (SEPA).
       return {
-        ...member,
+        ...(isFinanceBlindRole(request.user.role)
+          ? redactMemberProfileForFinanceBlind(member)
+          : member),
         segment: profile?.segment ?? null,
         segmentUpdatedAt: profile?.segmentUpdatedAt?.toISOString() ?? null,
         avatarType: profile?.avatarType ?? null,
@@ -734,6 +769,14 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const ctx = assertTenant(request.scope, "members.create");
+      // 2026-10-06 — el alta de alumno asigna plan y genera cobro: un rol ciego
+      // a las finanzas (coach_actividad) no la usa (el admin ya oculta el botón).
+      if (isFinanceBlindRole(request.user.role)) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Tu rol no puede dar de alta alumnos",
+        });
+      }
       try {
         // Phase 157-03 (REF-03, D-08): validate the assisted-channel referrer
         // server-side — never trust the raw body id (Security V4/T-157-08). A
@@ -1131,6 +1174,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
+        // 2026-10-06 — rol ciego a las finanzas: la etiqueta de membresía y los
+        // datos SEPA no se tocan (ausente = no tocar). Se ignoran en silencio en
+        // vez de rechazar el PUT, porque la ficha se los devuelve anulados y el
+        // formulario de edición los reenvía tal cual — rechazarlos rompería editar
+        // un teléfono y aceptarlos borraría el override real.
+        const financeBlind = isFinanceBlindRole(request.user.role);
+        if (financeBlind) {
+          delete request.body.membershipKindOverride;
+          delete request.body.sepaDetails;
+        }
+
         const member = await memberService.updateMember(
           ctx,
           request.params.userId,
@@ -1315,11 +1369,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
               ctx,
               request.params.userId,
             );
-            if (refreshed) return refreshed;
+            if (refreshed) {
+              return financeBlind
+                ? redactMemberProfileForFinanceBlind(refreshed)
+                : refreshed;
+            }
           }
         }
 
-        return member;
+        return financeBlind
+          ? redactMemberProfileForFinanceBlind(member)
+          : member;
       } catch (err: unknown) {
         if (err instanceof ConflictError) {
           return reply

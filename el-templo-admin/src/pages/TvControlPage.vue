@@ -68,7 +68,8 @@
         </div>
         <div class="text-caption">
           El televisor queda en reposo y los controles est&aacute;n deshabilitados hasta que se
-          apruebe la plani del d&iacute;a.
+          apruebe la plani del d&iacute;a. Los avisos de TV (por ejemplo, las placas de yoga) se
+          pueden poner igual.
         </div>
       </q-banner>
 
@@ -122,7 +123,7 @@
               color="secondary"
               :outline="hasState"
               :unelevated="!hasState"
-              :disable="!canControl"
+              :disable="!canEndClass"
               @click="onFlexInicio"
             />
           </div>
@@ -148,21 +149,22 @@
               @click="onFlexFinal"
             />
           </div>
-          <!-- Fase 193 (D-25): solo aparece con un aviso de TV activo en modo
-               manual para la sede. Sin confirmación (D-26). -->
-          <div v-if="avisoActivo" class="col-12">
+          <!-- Fase 193 (D-25): un botón por aviso de TV activo en modo manual
+               para la sede (2026-10-06: antes solo el más reciente). Sin
+               confirmación (D-26). Se pueden poner aunque no haya plani
+               aprobada (clases sin plani, p. ej. yoga). -->
+          <div v-for="aviso in avisosActivos" :key="aviso.id" class="col-12">
             <q-btn
               class="tv-btn full-width"
-              label="AVISO"
+              icon="campaign"
+              :label="aviso.title"
               color="secondary"
-              :outline="!isAvisoScreen"
-              :unelevated="isAvisoScreen"
-              :disable="!canControl"
-              @click="onAviso"
+              no-caps
+              :outline="!isShowingAviso(aviso.id)"
+              :unelevated="isShowingAviso(aviso.id)"
+              :disable="!canPinAviso"
+              @click="onAviso(aviso.id)"
             />
-            <div class="text-caption text-grey-7 text-center q-mt-xs">
-              {{ avisoActivo.title }}
-            </div>
           </div>
         </div>
 
@@ -512,9 +514,9 @@ const branches = ref<BranchOption[]>([]);
 const branchesLoading = ref(false);
 const selectedBranchId = ref<number | null>(null);
 
-/** Fase 193 (D-25): aviso de TV activo en modo `manual` para la sede
- *  seleccionada. `null` sin aviso — el botón AVISO no se muestra. */
-const avisoActivo = ref<TvAvisoActivo | null>(null);
+/** Fase 193 (D-25): avisos de TV activos en modo `manual` para la sede
+ *  seleccionada (un botón por aviso). Vacío = no se muestra ninguno. */
+const avisosActivos = ref<TvAvisoActivo[]>([]);
 
 let refreshId: ReturnType<typeof setInterval> | null = null;
 
@@ -680,9 +682,17 @@ const canControl = computed(
   () => context.value !== null && context.value.sessionApproved && !busy.value
 );
 
+/** 2026-10-06 (yoga): fijar un aviso no depende de la plani — el API lo acepta
+ *  sin sesión aprobada (es la única escritura que acepta). */
+const canPinAviso = computed(() => context.value !== null && !busy.value);
+
 /** Hay clase en curso (estado escrito hoy). Sin estado el TV muestra la
  *  pantalla de inicio (diurna) y FLEXIBILIDAD - INICIO figura activo. */
 const hasState = computed(() => context.value !== null && context.value.state !== null);
+
+/** Volver a la pantalla de inicio: con plani, como siempre; sin plani, solo si
+ *  hay algo que sacar (un aviso fijado). */
+const canEndClass = computed(() => canControl.value || (canPinAviso.value && hasState.value));
 
 const currentBlockRole = computed(() => context.value?.state?.blockRole ?? '');
 const blockIndex = computed(() =>
@@ -755,9 +765,9 @@ const pendingBlockLabel = computed(() => {
  */
 async function fetchAvisoActivo(branchId: number): Promise<void> {
   try {
-    avisoActivo.value = await tvApi.getTvAvisoActivo(branchId);
+    avisosActivos.value = await tvApi.getTvAvisosActivos(branchId);
   } catch (err: unknown) {
-    avisoActivo.value = null;
+    avisosActivos.value = [];
     if (!isExpectedClientError(err)) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       log.warn('No se pudo cargar el aviso de TV activo', { error: message, branchId });
@@ -906,10 +916,12 @@ function confirmClosing(): void {
  * completa. Sin confirmación (D-26: no es destructivo como los extremos de
  * flexibilidad — sale solo al avanzar a otro bloque, no hay nada que perder).
  */
-function onAviso(): void {
-  const aviso = avisoActivo.value;
-  if (aviso === null) return;
-  void send({ screen: 'aviso', tvAvisoId: aviso.id });
+function onAviso(tvAvisoId: number): void {
+  void send({ screen: 'aviso', tvAvisoId });
+}
+
+function isShowingAviso(tvAvisoId: number): boolean {
+  return isAvisoScreen.value && context.value?.state?.tvAvisoId === tvAvisoId;
 }
 
 /** Los dos triángulos recorren la tira completa: inicio → bloques → final. */

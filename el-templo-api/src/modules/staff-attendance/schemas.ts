@@ -48,7 +48,10 @@ export const staffAttendanceMeSchema = {
       properties: {
         open: {
           type: ["object", "null"],
-          properties: staffShiftSchema.properties,
+          properties: {
+            ...staffShiftSchema.properties,
+            cashCountedAt: { type: ["string", "null"] },
+          },
         },
         checklist: { type: "array", items: checklistItemSchema },
       },
@@ -83,8 +86,11 @@ export const staffAttendanceCheckOutSchema = {
       checklist: {
         type: "object",
         // `lote` solo se exige miércoles y sábados (lo decide el service por
-        // el día en la sede): en el schema es opcional.
-        required: ["cobros", "espacio"],
+        // el día en la sede): en el schema es opcional. 2026-10-06: `cobros`
+        // también — un rol sin plata (coach_actividad) no lo tiene en su
+        // checklist; el service exige las keys de SU lista y a los demás roles
+        // les sigue exigiendo `cobros` (falta → 400 "Falta marcar").
+        required: ["espacio"],
         properties: {
           cobros: { type: "boolean" },
           espacio: { type: "boolean" },
@@ -134,7 +140,7 @@ export const staffAttendanceShiftsSchema = {
               checklist: {
                 type: ["object", "null"],
                 properties: {
-                  cobros: { type: "boolean" },
+                  cobros: { type: ["boolean", "null"] },
                   espacio: { type: "boolean" },
                   lote: { type: ["boolean", "null"] },
                 },
@@ -156,7 +162,8 @@ export interface StaffCheckInBody {
 export interface StaffCheckOutBody {
   qrToken: string;
   checklist: {
-    cobros: boolean;
+    /** Opcional solo para roles sin plata (coach_actividad); el service lo exige al resto. */
+    cobros?: boolean;
     espacio: boolean;
     /** Solo miércoles y sábados. */
     lote?: boolean;

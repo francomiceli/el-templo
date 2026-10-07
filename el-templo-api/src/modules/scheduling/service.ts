@@ -1125,7 +1125,9 @@ export class SchedulingService {
           and(
             tenantWhere(schema.users, ctx),
             eq(schema.users.id, coachUserId),
-            eq(schema.users.role, "coach"),
+            // 2026-10-06: el profe de actividad (yoga, sin plata) también se
+            // puede asignar como profe del horario.
+            inArray(schema.users.role, ["coach", "coach_actividad"]),
             eq(schema.userBranches.branchId, existing.branchId),
           ),
         )
