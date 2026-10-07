@@ -188,3 +188,9 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - `vi.spyOn(auditLog, "write").mockRejectedValueOnce(...)` sirve para probar atomicidad.
 - Anotaciones pendientes: 194-16 ((g)), 194-17 ((f1) (f2)), 194-18 ((i) (i2) (j)).
 - `lifecycle.test.ts` "autoExpireDueSubscriptions" falla de noche por `todayStr()` UTC: preexistente, no tocar.
+
+### Tras 194-16 (changePlanAfterCurrent cableado)
+- Reusar `settlementColumns` (`discount-arbiter.ts`) y `materializeSettlementLink` (`service.ts`); `computeChargeDiscounts` acepta `chargeCallSite` opcional (sumar `change-now`/`renew` al tipo si hace falta, no crear variante).
+- Tests de cambio de plan/renovación: plan DESTINO con `allowsInvitationDiscount: true`. Tests nuevos de charge-paths van en `test/invitations/discount-arbiter-paths.test.ts` (un `describe` por charge-path).
+- Variable asignada dentro del callback de `db.transaction`: `let x = null as number | null` (TS la angosta a `null`).
+- **194-17:** `changePlanNow` tiene `supports.discounts=false` y su base es el neto post-prorrateo. **194-18:** además del árbitro y D-22, guard de plan Invitación en `getRenewalPreview` (lección tras 194-06).
