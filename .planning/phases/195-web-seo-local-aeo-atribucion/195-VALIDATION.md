@@ -2,7 +2,7 @@
 phase: 195
 slug: web-seo-local-aeo-atribucion
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-10-06
 ---
@@ -24,7 +24,7 @@ created: 2026-10-06
 ## Sampling Rate
 
 - **After every task commit:** typecheck del proyecto tocado + lint + test puntual nuevo
-- **After every plan:** web → `generate` + `verify-seo-output.mjs`; API → `npx tsc --noEmit` + `pnpm lint:tenant`; app/admin → `vue-tsc` + lint
+- **After every plan:** web → `generate` + `verify-seo-output.mjs`; API → `npx tsc --noEmit` + `pnpm lint:tenant`; app/admin → `pnpm lint` + `pnpm build` (`vue-tsc` NO está instalado localmente y no se instala — ver 195-EXECUTION-RULES §3)
 - **Before `/gsd:verify-work`:** CI verde en staging + verificación manual post-SSH
 - **Max feedback latency:** 180 s
 
@@ -38,12 +38,12 @@ created: 2026-10-06
 | Web | Sin runner → verificación por build + `scripts/verify-seo-output.mjs` (Node puro, sin deps) |
 | Comando rápido API | `cd el-templo-api && pnpm exec vitest run test/<archivo>.test.ts` (solo el archivo nuevo) |
 | Suite completa | CI (`ci.yml` API Integration Tests) — no correrla local |
-| Typecheck | `cd el-templo-api && npx tsc --noEmit`; `pnpm --dir el-templo-web exec nuxi typecheck`; `vue-tsc` en app y admin (CI no los chequea) |
+| Typecheck | `cd el-templo-api && npx tsc --noEmit`; `pnpm --dir el-templo-web exec nuxi typecheck`; app y admin: `pnpm lint` + `pnpm build` (sin `vue-tsc`, no instalado) |
 
 ### Requisitos → tests
 | ID | Comportamiento | Tipo | Comando automatizado | ¿Existe? |
 |----|----------------|------|----------------------|----------|
-| D-01/D-07 | Migración deja ALEM con slug `juan-b-justo`, CHAPADMALAL/ONLINE sin publicar, PARK `community_space`, idempotente | integración | `vitest run test/migrations/0270-branches-web.test.ts` | ❌ Wave 0 |
+| D-01/D-07 | Migración deja ALEM con slug `juan-b-justo`, CHAPADMALAL/ONLINE sin publicar, PARK `community_space`, idempotente | integración | `vitest run test/migrations/0270-0271-branches-web.test.ts` | ❌ Wave 0 |
 | D-01 | La web no contiene "Alem 3958", "Chapadmalal", "8 sedes", `54223XXXXXXX` | build+grep | `node el-templo-web/scripts/verify-seo-output.mjs` | ❌ |
 | D-10/D-08/D-16 | `GET /api/web/site-data` devuelve solo sedes publicadas, horarios fusionados, WhatsApp por país, sin PII ni datos de otro tenant | integración | `vitest run test/web-public/site-data.test.ts` | ❌ |
 | D-08 | `mergeIntervals` (solapes, huecos ≥60, vacío) | unit | ídem (archivo `opening-hours.test.ts`) | ❌ |
@@ -66,14 +66,17 @@ created: 2026-10-06
 
 ### Frecuencia de muestreo
 - **Por tarea:** typecheck del proyecto tocado + el test nuevo puntual + lint.
-- **Por plan:** `pnpm --dir el-templo-web run generate && node el-templo-web/scripts/verify-seo-output.mjs` (planes web); `npx tsc --noEmit` + `pnpm lint:tenant` (planes API); `vue-tsc` (app/admin).
+- **Por plan:** `pnpm --dir el-templo-web run generate && node el-templo-web/scripts/verify-seo-output.mjs` (planes web); `npx tsc --noEmit` + `pnpm lint:tenant` (planes API); `pnpm lint` + `pnpm build` (app/admin).
 - **Gate de fase:** CI verde en staging (suite completa) + verificación manual post-SSH + `/gsd:verify-work`.
 
-### Huecos de Wave 0
-- [ ] `el-templo-web/scripts/verify-seo-output.mjs` + paso en `ci.yml` web-check (después de `generate`).
-- [ ] `el-templo-web/data/web-data.fixture.json`.
-- [ ] `el-templo-api/test/web-public/`, `test/marketing/` (carpetas nuevas) y helper de mock de `fetch` (reusable para Meta/Google).
-- [ ] `el-templo-app/src/utils/__tests__/attribution.test.ts`.
+### Huecos de Wave 0 (asignados a planes)
+
+> `wave_0_complete: false` porque estos archivos todavía no existen: los crea la ejecución de cada plan indicado (la fase es secuencial, no hay una wave 0 separada). Cada tarea que los necesita los crea antes de usarlos, así que el muestreo por tarea no queda sin verificación automática.
+
+- [ ] `el-templo-web/scripts/verify-seo-output.mjs` + paso en `ci.yml` web-check → **plan 195-03** (Task 2); los planes 04-06 le agregan chequeos.
+- [ ] `el-templo-web/data/web-data.fixture.json` → **plan 195-03** (Task 1).
+- [ ] `el-templo-api/test/web-public/` → **plan 195-02**; `test/marketing/` → **plan 195-07** (Task 2), ampliado en 08/09; el mock de `fetch` con `vi.stubGlobal` se define por archivo de test en 195-08/09 (precedente `test/wellhub/webhook-tenant-derivation.test.ts`).
+- [ ] `el-templo-app/src/utils/__tests__/attribution.test.ts` → **plan 195-07** (Task 3).
 
 ## Manual-Only Verifications
 
@@ -91,6 +94,6 @@ created: 2026-10-06
 - [ ] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
 - [ ] Feedback latency < 180s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending

@@ -873,26 +873,36 @@ Sitemap: https://eltemplo.org/sitemap.xml
 | A11 | Planes sin precio como contenido estático (no desde `subscription_plans`) | P05 | El catálogo real tiene promos/especiales/trial; exponerlo exige curaduría |
 | A12 | `pnpm install --frozen-lockfile` en el worktree no viola la regla de "no instalar" | Stack | Pedir OK una vez |
 
-## Preguntas abiertas
+## Preguntas abiertas (RESOLVED)
+
+> Todas resueltas el 2026-10-06 por las decisiones del addendum de 195-CONTEXT.md (D-24..D-30). Cada pregunta indica su resolución.
 
 1. **CAPI y usuarios que se registran en la app iOS (ATT).**
    - Sabemos: la definición de tracking de Apple cubre compartir emails con redes publicitarias.
    - No está claro: si Franco acepta saltearlos, agregar el prompt ATT (plugin nuevo + review) o aceptar el riesgo.
    - Recomendación: default saltear `platform='ios'` y que la guía lo explique.
+   - **RESUELTA → D-24:** CAPI excluye los registros desde la app iOS (y los de plataforma desconocida); siguen contando en la atribución propia (plan 195-08).
 2. **Profes: ¿contenido estático o DB?**
    - Recomendación: `data/profes.ts` en la web. Se publican los que tengan contenido; Ignacio Bordón es el primero (ya hay foto en `public/images/photos/ignacio-bordon.webp`).
+   - **RESUELTA → D-27:** profes = archivo de datos de la web, publicado con el botón "solo web" (plan 195-05).
 3. **¿Qué cuenta como "abierto" para `openingHours`?**
    - ¿Todas las actividades, o solo calistenia y las clases regulares (sin especiales/yoga)?
    - Recomendación: todas las actividades activas no especiales, más las especiales si la sede no tiene otras clases ese día. Confirmar con Franco.
+   - **RESUELTA → D-30:** horarios publicados = clases regulares activas (`activities.is_special = 0`); las especiales solo se listan como actividades (plan 195-02).
 4. **Nombre público de Barcelona.**
    - "Barcelona" o "Eixample"; la web hoy dice "Eixample" y la DB "Barcelona".
    - Recomendación: `public_name` 'Barcelona (Eixample)' o lo que diga la ficha de GBP.
+   - **RESUELTA → D-30:** "El Templo Calistenia — Barcelona (Eixample)" (mig 0271, plan 195-01).
 5. **Consentimiento para CAPI de usuarios ES registrados en la app.**
    - Solo hay forma de capturarlo si la web pasa `consent=1` al link de registro o si se agrega un checkbox en el registro ES (requiere build de tiendas).
    - Recomendación v1: ES sin consentimiento explícito = sin CAPI.
+   - **RESUELTA → D-25:** sin CAPI para España; en Barcelona solo Pixel + GA4 con consentimiento web + atribución propia (planes 195-06 y 195-08).
 6. **Secuencia noindex/Disallow** (Pitfall 6): ¿Franco acepta las dos etapas?
+   - **RESUELTA → D-26:** noindex en dos etapas (etapa 1 sin Disallow, etapa 2 semanas después; planes 195-13 y 195-14).
 7. **Deep links a `/register`:** agregar paths al AASA/intent-filter, para que el CTA web abra la app, complica la atribución en la app nativa. Recomendación: no, mantener `/r/trial`.
+   - **RESUELTA:** se mantiene `/r/trial` sin agregar `/register` a AASA/intent-filter (plan 195-12).
 8. **Tags de blog vacíos:** es un problema de **dato** (los posts no tienen tags en prod). ¿Se asignan desde el admin del blog (guía) o con una migración de datos? Recomendación: guía. El código oculta la UI de tags cuando no hay.
+   - **RESUELTA → D-30:** los tags los asigna el equipo desde el admin del blog (ítem de la guía de 195-14), sin migración.
 
 ---
 
