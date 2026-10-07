@@ -4,26 +4,19 @@ Checklist para Franco y el orquestador. Todo `git push` y todo SSH son gates hum
 
 **Por qué hay un orden.** Desde el plan 195-03, el build de la web lee las sedes, el WhatsApp de ventas y el blog de `GET /api/web/site-data` de la API a la que apunta `VITE_API_URL`. Si esa API todavía no tiene el endpoint (plan 195-02), el build web falla a propósito: nunca publica datos viejos ni del fixture. Como el build web corre ANTES del job `deploy`, un push que trae API nueva + web nueva con una API vieja en el servidor deja el build web en rojo. Desde el plan 195-11 eso ya no frena el deploy de la API (la web queda en su versión anterior y hay un aviso), pero el rollout en 2 pasos evita el rojo y la web desactualizada.
 
-## 1. Orden de pushes en 2 pasos (staging primero, después master)
+## 1. Orden de publicación (staging primero, después master)
 
-El mismo orden vale para staging y para master. Staging va primero (`staging-first`, ver el skill `el-templo-change-control`).
+Actualizado 2026-10-07: la rama ya tiene integrado `origin/master` con la fase 194 (merge `560db0fd3`), así que se publica con **un solo push + el botón "solo web"**. No hace falta separar la API en un push aparte: desde 195-11 una falla del build web no frena el deploy de API, app y admin (D-29).
 
-**Paso 1: solo la API con el endpoint y las migraciones.**
+1. Con OK de Franco: `git push origin feat/195-seo-web:staging`.
+2. En esa corrida, `Build Web` **falla a propósito**: el build pide `/api/web/site-data` a la API de staging, que todavía no tiene el endpoint (se despliega en esa misma corrida). La corrida queda en rojo, pero API, app y admin se despliegan, y la migración 0270-0274 corre en la base de staging.
+3. Comprobar el endpoint: `curl -s https://api-staging.eltemplo.org/api/web/site-data | head -c 300`.
+4. Disparar "solo web" en staging (sección 6). Ahora el build encuentra el endpoint y publica la web nueva en web-staging.
+5. UAT en staging. Recién después, con OK de Franco, lo mismo hacia producción: `git push origin feat/195-seo-web:master` (o el merge de staging a master que se acuerde), `curl -s https://api.eltemplo.org/api/web/site-data | head -c 300` y "solo web" en producción.
 
-1. Identificar el último commit anterior a la web nueva. Por mensaje, para que sobreviva a un rebase o a la integración con otras ramas: `git log --oneline --grep='^feat(195-03)' --reverse | head -1` y tomar su padre (`<sha>^`). Ahí terminan los planes 195-01 (columnas web y datos de sedes, migraciones 0270 y 0271) y 195-02 (endpoint).
-2. Con OK de Franco: `git push origin <sha-del-último-commit-solo-API>:staging`.
-3. Esperar el deploy verde en GitHub Actions (el build web de ese push no usa el endpoint: todavía no existe el prebuild).
-4. Comprobar que el endpoint responde y devuelve sedes: `curl -s https://api-staging.eltemplo.org/api/web/site-data | head -c 300`.
+La web sale **sin medición** (sin `WEB_GA4_ID` ni `WEB_META_PIXEL_ID`) y con el `/privacidad` actual. La medición se prende después, siguiendo la guía §1.2 y §3.
 
-**Paso 2: el resto de la rama.**
-
-5. Con OK de Franco: push del resto (`git push origin feat/195-seo-web:staging` o el equivalente que se haya acordado). Corren `Build API`, `Build Admin`, `Build App` y `Build Web` según lo que cambió.
-6. Si el build web había fallado (o no corrió), disparar "solo web" (sección 6).
-7. UAT en staging. Recién después, mismo orden hacia producción: paso 1 con `<sha>:master`, esperar el deploy, `curl -s https://api.eltemplo.org/api/web/site-data | head -c 300`, y recién ahí el paso 2.
-
-Antes del paso 2 en producción: crear los secrets `WEB_GA4_ID` y `WEB_META_PIXEL_ID` (sección 3), si no la web se genera sin medición.
-
-La migración 0271 carga datos reales de sedes (calle, slug, WhatsApp, publicación) en la base de producción al desplegar el paso 1. Revisar la tabla `branches` después de ese deploy.
+La migración 0271 carga datos reales de sedes (calle, slug, WhatsApp, publicación) en la base de producción al desplegar. Revisar la tabla `branches` después de ese deploy.
 
 ## 2. Si el build web falla
 
