@@ -21,7 +21,7 @@ import {
   getAuthToken,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
-import { tenantWhere } from "../../src/modules/shared/tenant";
+import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
 import {
   buildInvitationServices,
   createActiveSub,
@@ -72,7 +72,7 @@ describe("Fase 194 D-16/D-24 — canal asistido de invitaciones (admin)", () => 
   // ─── helpers ───────────────────────────────────────────────────────────
 
   async function staff(
-    role: "recepcion" | "gestion" | "coach",
+    role: "recepcion" | "gestion" | "coach" | "admin_sede",
     opts: { country?: "AR" | "ES"; branchId?: number } = {},
   ): Promise<{ id: number; token: string }> {
     staffSeq += 1;
@@ -750,6 +750,162 @@ describe("Fase 194 D-16/D-24 — canal asistido de invitaciones (admin)", () => 
           ),
         );
       expect(subs).toHaveLength(0);
+    });
+  });
+
+  // ─── ME-05: admin_sede opera solo sobre su(s) sede(s) ─────────────────
+
+  describe("ME-05: alcance por sede del admin_sede en el canal asistido", () => {
+    let branchB: number;
+
+    beforeEach(async () => {
+      // Otra sede FÍSICA del mismo país: el país solo no alcanza para admin_sede.
+      const [created] = await app.db
+        .insert(schema.branches)
+        .values(
+          tenantValues(ctx.tenant, {
+            name: `Sede B ${Date.now().toString(36)}`,
+            code: `B${Date.now().toString(36)}`.slice(0, 20),
+            country: "AR",
+            timezone: arBranch.timezone,
+          }),
+        )
+        .$returningId();
+      branchB = created.id;
+    });
+
+    async function moveUser(userId: number, branchId: number): Promise<void> {
+      await app.db
+        .update(schema.users)
+        .set({ branchId })
+        .where(
+          and(
+            tenantWhere(schema.users, ctx.tenant),
+            eq(schema.users.id, userId),
+          ),
+        );
+    }
+
+    it("invitado e invitador de SU sede: 201", async () => {
+      const sede = await staff("admin_sede");
+      const inviter = await createInviterWithCode(ctx);
+      const inviteeId = await createPlainInvitee({ phone: uniquePhone10() });
+
+      const res = await post(invitationsUrl(inviteeId), sede.token, {
+        inviterId: inviter.id,
+        branchId: arBranch.id,
+      });
+      expect(res.statusCode, res.body).toBe(201);
+    });
+
+    it("invitado de OTRA sede del país: 404 y no se escribe nada ni se lo mueve de sede", async () => {
+      const sede = await staff("admin_sede");
+      const inviter = await createInviterWithCode(ctx);
+      const inviteeId = await createPlainInvitee({ phone: uniquePhone10() });
+      await moveUser(inviteeId, branchB);
+
+      const res = await post(invitationsUrl(inviteeId), sede.token, {
+        inviterId: inviter.id,
+        branchId: arBranch.id,
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(await invitationRows(inviteeId)).toHaveLength(0);
+      const [row] = await app.db
+        .select({ branchId: schema.users.branchId })
+        .from(schema.users)
+        .where(
+          and(
+            tenantWhere(schema.users, ctx.tenant),
+            eq(schema.users.id, inviteeId),
+          ),
+        );
+      expect(row.branchId).toBe(branchB);
+    });
+
+    it("invitador de OTRA sede: 404 inviter_not_found y el cupo no se consume", async () => {
+      const sede = await staff("admin_sede");
+      const inviter = await createInviterWithCode(ctx);
+      await moveUser(inviter.id, branchB);
+      const inviteeId = await createPlainInvitee({ phone: uniquePhone10() });
+
+      const res = await post(invitationsUrl(inviteeId), sede.token, {
+        inviterId: inviter.id,
+        branchId: arBranch.id,
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(JSON.parse(res.body).reason).toBe("inviter_not_found");
+      expect(await invitationRows(inviteeId)).toHaveLength(0);
+    });
+
+    it("sede de activación AJENA: 403 y no se activa", async () => {
+      const sede = await staff("admin_sede");
+      const inviter = await createInviterWithCode(ctx);
+      const inviteeId = await createPlainInvitee({ phone: uniquePhone10() });
+
+      const res = await post(invitationsUrl(inviteeId), sede.token, {
+        inviterId: inviter.id,
+        branchId: branchB,
+      });
+
+      expect(res.statusCode).toBe(403);
+      expect(await invitationRows(inviteeId)).toHaveLength(0);
+    });
+
+    it("anular: la invitación de un invitado de otra sede es 404 y sigue activa", async () => {
+      const gestion = await staff("gestion");
+      const sede = await staff("admin_sede");
+      const inviter = await createInviterWithCode(ctx);
+      const inviteeId = await createPlainInvitee({ phone: uniquePhone10() });
+      const act = await post(invitationsUrl(inviteeId), gestion.token, {
+        inviterId: inviter.id,
+        branchId: arBranch.id,
+      });
+      expect(act.statusCode, act.body).toBe(201);
+      const invitationId = JSON.parse(act.body).invitationId as number;
+      await moveUser(inviteeId, branchB);
+
+      const res = await post(
+        `${invitationsUrl(inviteeId)}/${invitationId}/void`,
+        sede.token,
+        { reason: "fuera de mi sede" },
+      );
+
+      expect(res.statusCode).toBe(404);
+      const [row] = await invitationRows(inviteeId);
+      expect(row.status).toBe("active");
+    });
+
+    it("POST /trial con invitador de otra sede: no se crea el lead", async () => {
+      const sede = await staff("admin_sede");
+      const inviter = await createInviterWithCode(ctx);
+      await moveUser(inviter.id, branchB);
+      const phone = uniquePhone10();
+
+      const res = await post(`${MEMBERS}/trial`, sede.token, {
+        firstName: "Nuevo",
+        lastName: "Prueba",
+        phone,
+        branchId: arBranch.id,
+        inviterId: inviter.id,
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(await countUsersByPhone(phone)).toBe(0);
+    });
+
+    it("control: gestion (alcance por país) sigue operando sobre una sede cualquiera del país", async () => {
+      const gestion = await staff("gestion");
+      const inviter = await createInviterWithCode(ctx);
+      const inviteeId = await createPlainInvitee({ phone: uniquePhone10() });
+      await moveUser(inviteeId, branchB);
+
+      const res = await post(invitationsUrl(inviteeId), gestion.token, {
+        inviterId: inviter.id,
+        branchId: arBranch.id,
+      });
+      expect(res.statusCode, res.body).toBe(201);
     });
   });
 });

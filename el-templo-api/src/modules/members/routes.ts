@@ -935,7 +935,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
               "No tienes permiso para crear invitaciones",
             );
           }
-          if (!(await isMemberInScope(ctx, request.scope, inviterId))) {
+          if (
+            !(await isMemberInScope(ctx, request.scope, inviterId, {
+              enforceBranches: true,
+            }))
+          ) {
             throw new InvitationRuleError("inviter_not_found");
           }
           const result = await assistedInvitationsFor(
@@ -2027,6 +2031,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     opts: {
       allowedRoles?: readonly string[];
       deniedMessage?: string;
+      /** ME-05: además del país, acota a las sedes del actor (`admin_sede`). */
+      enforceBranches?: boolean;
     } = {},
   ): Promise<number> {
     const { role } = request.user;
@@ -2042,7 +2048,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       throw new ValidationError("id inválido");
     }
 
-    if (!(await isMemberInScope(ctx, request.scope, targetId))) {
+    if (
+      !(await isMemberInScope(ctx, request.scope, targetId, {
+        enforceBranches: opts.enforceBranches,
+      }))
+    ) {
       throw new NotFoundError("Miembro no encontrado");
     }
     return targetId;
@@ -2058,10 +2068,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     ctx: TenantContext,
     scope: FastifyRequest["scope"],
     memberId: number,
+    opts: { enforceBranches?: boolean } = {},
   ): Promise<boolean> {
     const [target] = await fastify.db
       .select({
         id: schema.users.id,
+        branchId: schema.users.branchId,
         deletedAt: schema.users.deletedAt,
         branchCountry: schema.branches.country,
         branchIsVirtual: schema.branches.isVirtual,
@@ -2084,6 +2096,15 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       target.branchCountry !== scope.country
     ) {
       return false;
+    }
+    // ME-05: un rol de alcance FORZADO por sede (`admin_sede`) opera solo sobre socios
+    // cuya sede ACTUAL es una de las suyas. El país no alcanza: sin esto movía a su
+    // sede a leads de otra sede del mismo país. Roles sin forzado: sin cambio.
+    if (opts.enforceBranches) {
+      const ownBranches = enforcedBranchIds(scope);
+      if (ownBranches !== null && !ownBranches.includes(target.branchId)) {
+        return false;
+      }
     }
     return true;
   }
@@ -2161,9 +2182,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         const invitedUserId = await assertReferralTargetInScope(ctx, request, {
           allowedRoles: INVITATION_ASSISTED_ROLES,
           deniedMessage: "No tienes permiso para crear invitaciones",
+          enforceBranches: true,
         });
         if (
-          !(await isMemberInScope(ctx, request.scope, request.body.inviterId))
+          !(await isMemberInScope(ctx, request.scope, request.body.inviterId, {
+            enforceBranches: true,
+          }))
         ) {
           throw new InvitationRuleError("inviter_not_found");
         }
@@ -2202,6 +2226,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const invitedUserId = await assertReferralTargetInScope(ctx, request, {
           deniedMessage: "No tienes permiso para anular invitaciones",
+          enforceBranches: true,
         });
         await assistedInvitationsFor(request.log).voidForMember(
           ctx,
