@@ -179,3 +179,12 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - `% por lado`: `ReferralService.computeInvitationDiscountPercent` (acepta `simulateInvitationLink`); `computeReferralDiscountPercent` delega.
 - Tests del lado invitador: resembrar `aura_config.referral` en `beforeEach` (si no, valor stale).
 - **194-19:** `getReferralOverview` tiene `perLinkPercent`/`activeCount` de un solo %: abrir el desglose por lado (invitado vs invitador).
+
+### Tras 194-15 (assignPlan cableado)
+- Patrón a replicar en 16/17/18: helper privado ÚNICO `computeChargeDiscounts({ mode: "charge" | "preview", ... })` en `service.ts` (+ `resolveChargeInvitation`/`prepareChargeDiscounts`/`settleChargeDiscounts`). Cada charge-path y su preview lo llaman UNA vez → paridad por construcción. No crear variantes.
+- `createPlan` (API y fixtures) crea con `allowsInvitationDiscount=false`: todo test de descuento necesita `allowsInvitationDiscount: true` en el plan.
+- Cada campo nuevo de un preview necesita su entrada en el schema de respuesta (`subscriptions/schemas.ts`), o el serializador lo descarta.
+- Otra sesión del repo (p.ej. `et-195-seo`) puede correr vitest a la vez y dropear `eltemplo_test_N`: fallas en 1-5 ms con `ER_BAD_DB_ERROR` = corrida invalidada, repetir.
+- `vi.spyOn(auditLog, "write").mockRejectedValueOnce(...)` sirve para probar atomicidad.
+- Anotaciones pendientes: 194-16 ((g)), 194-17 ((f1) (f2)), 194-18 ((i) (i2) (j)).
+- `lifecycle.test.ts` "autoExpireDueSubscriptions" falla de noche por `todayStr()` UTC: preexistente, no tocar.
