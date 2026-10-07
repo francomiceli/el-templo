@@ -4,6 +4,7 @@
  */
 
 import type { LegacyPaymentMethod } from './transaction';
+import type { LeadStage } from './member';
 
 // -- Response Row Types ------------------------------------------------------
 
@@ -166,4 +167,74 @@ export interface TrialConversionReport {
   byHourSlot: TrialConversionHourRow[];
   byShift: TrialConversionShiftRow[];
   pendingLeads: TrialConversionPendingLead[];
+}
+
+// -- Fase 194 (D-19 / D-18): Reportes ▸ Invitaciones --------------------------
+// Espejo de GET /admin/referrals/invitations/report y GET /admin/referrals/invitations
+// (194-20). Los montos vienen separados por moneda: nunca se suman ARS + EUR.
+
+export interface InvitationReportMonth {
+  /** 'YYYY-MM' (mes de cohorte, tz de la sede del invitador). */
+  month: string;
+  activated: number;
+  converted: number;
+  /** converted / activated (0 si no hubo), 4 decimales. */
+  conversionRate: number;
+}
+
+export interface InvitationReportDiscount {
+  month: string;
+  /** 'ARS' | 'EUR' */
+  currency: string;
+  amount: number;
+  credits: number;
+}
+
+export interface InvitationReport {
+  from: string;
+  to: string;
+  months: InvitationReportMonth[];
+  totals: { activated: number; converted: number; conversionRate: number };
+  /** Invitados distintos con invitación activa y membresía vigente hoy (no acotado al rango). */
+  activeInvitees: number;
+  discounts: InvitationReportDiscount[];
+}
+
+export interface InvitationReportParams {
+  from?: string;
+  to?: string;
+}
+
+export interface InvitationLeadRow {
+  invitationId: number;
+  invitee: { userId: number; firstName: string; lastName: string; phone: string | null };
+  inviter: { userId: number; name: string };
+  /** ISO 8601 */
+  activatedAt: string;
+  accessesUsed: number | null;
+  accessesBudget: number | null;
+  /** 'YYYY-MM-DD' */
+  accessExpiresOn: string;
+  branchId: number;
+  branchName: string;
+  branchesTrained: string[];
+  stage: LeadStage;
+  leadStatus: 'en_seguimiento' | 'ganado' | 'perdido' | null;
+  channel: 'self_service' | 'assisted';
+}
+
+export interface InvitationLeadListParams {
+  stage?: LeadStage;
+  branchId?: number;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface InvitationLeadList {
+  rows: InvitationLeadRow[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
