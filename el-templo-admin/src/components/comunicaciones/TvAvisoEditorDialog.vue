@@ -59,7 +59,20 @@
         />
         <div class="text-caption text-grey-7">{{ modeHint }}</div>
 
-        <TvAvisoPreview :mode="form.mode" :title="form.title" :body="form.body" />
+        <div class="row items-center q-gutter-sm">
+          <div class="text-body2">Fondo en la TV</div>
+          <q-btn-toggle
+            v-model="form.tema"
+            :options="temaOptions"
+            no-caps
+            unelevated
+            toggle-color="primary"
+            color="grey-3"
+            text-color="grey-9"
+          />
+        </div>
+
+        <TvAvisoPreview :tema="form.tema" :title="form.title" :body="form.body" />
 
         <q-separator />
         <div class="text-subtitle2">Sedes</div>
@@ -105,6 +118,7 @@ import { useCommunicationsApi } from 'src/composables/useCommunicationsApi';
 import type {
   TvAvisoRow,
   TvAvisoMode,
+  TvAvisoTema,
   CreateTvAvisoInput,
   UpdateTvAvisoInput,
 } from 'src/composables/useCommunicationsApi';
@@ -151,6 +165,12 @@ const MODE_HINTS: Record<TvAvisoMode, string> = {
 
 const modeHint = computed(() => MODE_HINTS[form.mode]);
 
+// 2026-10-06: el fondo lo elige el admin (antes salía de la pantalla previa).
+const temaOptions: Array<{ label: string; value: TvAvisoTema }> = [
+  { label: 'Oscuro', value: 'oscuro' },
+  { label: 'Claro', value: 'claro' },
+];
+
 const branches = ref<BranchOption[]>([]);
 const branchOptions = computed(() =>
   branches.value.map((b) => ({ label: b.name, value: b.id })),
@@ -168,6 +188,7 @@ const form = reactive({
   title: '',
   body: '',
   mode: 'manual' as TvAvisoMode,
+  tema: 'oscuro' as TvAvisoTema,
   scopeBranchIds: [] as number[],
   isActive: false,
 });
@@ -178,12 +199,14 @@ function resetForm() {
     form.title = a.title;
     form.body = a.body;
     form.mode = a.mode;
+    form.tema = a.tema;
     form.scopeBranchIds = a.scopeBranchIds ?? [];
     form.isActive = a.isActive;
   } else {
     form.title = '';
     form.body = '';
     form.mode = 'manual';
+    form.tema = 'oscuro';
     form.scopeBranchIds = [];
     form.isActive = false;
   }
@@ -218,6 +241,7 @@ async function handleSave() {
         title: form.title.trim(),
         body: form.body.trim(),
         mode: form.mode,
+        tema: form.tema,
         isActive: form.isActive,
         scopeBranchIds: form.scopeBranchIds.length ? form.scopeBranchIds : null,
       };
@@ -227,6 +251,7 @@ async function handleSave() {
         title: form.title.trim(),
         body: form.body.trim(),
         mode: form.mode,
+        tema: form.tema,
         isActive: form.isActive,
         scopeBranchIds: form.scopeBranchIds.length ? form.scopeBranchIds : null,
       };

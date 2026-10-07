@@ -37,6 +37,7 @@ import type {
   RenewSubscriptionInput,
   RenewalBaseSource,
   RenewalPreview,
+  RenewalPreviewOptions,
   PricingPreview,
   BulkMigrateInput,
   BulkMigrateResult,
@@ -54,7 +55,12 @@ import type {
   AuraDiscountTier,
   TrialBookingChange,
 } from "./types";
-import { categoryGroup, excludedFromReferrals } from "./types";
+import {
+  categoryGroup,
+  excludedFromReferrals,
+  isInvitationPlan,
+  planAllowsInvitationDiscount,
+} from "./types";
 import { resolvePendingTrialBookings } from "./trial-bookings-on-assign";
 import {
   normalizeSpecialLine,
@@ -62,7 +68,23 @@ import {
   specialLineCondition,
   specialLineLabel,
 } from "../scheduling/special-line";
-import { resolvePlanPrice, readModuleColumns } from "./pricing";
+import {
+  resolvePlanPrice,
+  readModuleColumns,
+  type ResolvedPlanPrice,
+} from "./pricing";
+import {
+  prepareChargeDiscounts,
+  settleChargeDiscounts,
+  settlementColumns,
+  type ChargeSettlement,
+} from "./discount-arbiter";
+import { resolveRenewalBase, type RenewalBaseSub } from "./renewal-base";
+import {
+  computeMonthEndProration,
+  computeProratedPrice,
+  daysBetween,
+} from "./month-end";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
 import type { PaymentMethod } from "../finance/types";
@@ -76,12 +98,29 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
+import { membershipInEffectSql } from "../shared/membership";
 import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
 import { ReferralService } from "../referrals/service";
-import { NotificationService } from "../notifications/service";
+import {
+  attributeInvitationPurchase,
+  invitationConvertedAtGateSql,
+  invitationLeadGateSql,
+} from "../referrals/invitation-conversion";
 import { PartnerReferralService } from "../referral-partners/service";
+import { trimInvitationAccessEnd } from "./invitation-access";
+import {
+  materializeSettlementLink,
+  qualifyLegacyLinkOnCharge,
+  settleChargeSideEffects,
+  type ChargeEffectsDeps,
+} from "./charge-side-effects";
+import {
+  assertInvitationPlanDeactivationAllowed,
+  assertInvitationPlanUpdateAllowed,
+  assertNoOtherInvitationPlan,
+} from "./invitation-plan-guard";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -143,75 +182,12 @@ function formatDateAr(isoDate: string): string {
   return `${d}/${m}/${y}`;
 }
 
-function daysBetween(fromIso: string, toIso: string): number {
-  const fromMs = new Date(fromIso).getTime();
-  const toMs = new Date(toIso).getTime();
-  return Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24));
-}
-
 /**
- * Prorrateo hasta fin de mes de un alta. Dado un `startDate` "YYYY-MM-DD",
- * devuelve el último día de ese mes calendario (la vigencia del alta) y cuántos
- * días se cobran — el día del alta INCLUIDO — sobre los días del mes. Ej.: alta
- * el 2026-01-20 (enero, 31 días) → 12 días (20..31), endDate 2026-01-31.
- *
- * Parsea las partes de la fecha en vez de `new Date(str)` para no depender de la
- * zona horaria (una "YYYY-MM-DD" se interpreta como UTC y podría correrse un día
- * al construir el string de fin de mes en runtimes con TZ negativa).
+ * Razón de relleno del preview de renovación con precio personalizado: el cobro real
+ * exige la razón (400), el preview la tolera para poder mostrar el monto mientras el
+ * staff todavía la está escribiendo. No se persiste ni se muestra.
  */
-function computeMonthEndProration(startDate: string): {
-  endDate: string;
-  daysCharged: number;
-  daysInMonth: number;
-} {
-  const [year, month, day] = startDate.split("-").map(Number);
-  // `month` viene 1-based del string; Date.UTC lo trata 0-based, así que
-  // (year, month, 0) = día 0 del mes siguiente = último día del mes del alta.
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const daysCharged = daysInMonth - day + 1;
-  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(
-    daysInMonth,
-  ).padStart(2, "0")}`;
-  return { endDate, daysCharged, daysInMonth };
-}
-
-/**
- * Precio proporcional del alta hasta fin de mes:
- * `round(base * díasCobrados / díasDelMes)`. Fuente única del cálculo, la
- * comparte el endpoint de preview y el alta real.
- */
-function computeProratedPrice(basePrice: number, startDate: string): number {
-  const { daysCharged, daysInMonth } = computeMonthEndProration(startDate);
-  return Math.round((basePrice * daysCharged) / daysInMonth);
-}
-
-/**
- * ¿El período [startDate, endDate] es un prorrateo hasta fin de mes (alta o
- * renovación)? Su huella: vence el último día del mes de su inicio y dura menos
- * que el plan. Un período normal vence exactamente a `startDate + durationDays`,
- * y las pausas y compensaciones de días solo lo alargan. Exigir las DOS
- * condiciones evita confundir con un prorrateo a una sub corta por otro motivo
- * (import legacy, edición manual), que debe seguir heredando su precio. En un
- * período prorrateado `pricePaid` es un proporcional, no el mes completo.
- */
-function isMonthEndProratedPeriod(
-  startDate: string,
-  endDate: string | null,
-  durationDays: number,
-): boolean {
-  return (
-    endDate !== null &&
-    endDate === computeMonthEndProration(startDate).endDate &&
-    daysBetween(startDate, endDate) < durationDays
-  );
-}
-
-/**
- * Tope de saltos hacia atrás por `previousSubscriptionId` al buscar el último
- * período completo (resolveRenewalBase). Dos períodos parciales seguidos ya son
- * raros; el tope solo acota el peor caso de una cadena corrupta.
- */
-const MAX_RENEWAL_BASE_HOPS = 6;
+const RENEWAL_PREVIEW_OVERRIDE_REASON = "preview";
 
 /**
  * Throws BadRequestError if startDate is outside the allowed window
@@ -251,208 +227,19 @@ export interface ListPromoPlansFilters {
   country?: "AR" | "ES";
 }
 
-/**
- * Phase 144-01 (D-00, D-13, D-14) — the single DRY "covered-until" derivation.
- *
- * Returns the furthest `end_date` across the member's chained active+scheduled
- * subscriptions (the date until which the member is covered), or `null` when no
- * such date exists (no subs / only cancelled|expired / all-NULL end_date).
- *
- * Standalone (db-only) so the notification cron can reuse it without paying the
- * heavy `SubscriptionService` DI; `SubscriptionService.getCoveredUntil`
- * delegates here so booking-service and routes (which hold the service) share
- * ONE derivation — never re-derive the chain in three places.
- *
- * D-14 guard: rows with a NULL `end_date` are excluded, so a covered-until is
- * never derived from NULL (legacy/manual rows) — the result is NULL, and
- * downstream consumers treat NULL as "never block / never suppress".
- *
- * Par con `shared/covered-until.ts` (FA-10): esta función responde "¿le mando el
- * push?" para UN socio; el helper de allá es la expresión SQL correlacionada que
- * pinta el pill "Venc" sobre un listado sin caer en N+1. La diferencia de set es
- * deliberada: el pill incluye 'paused' (un socio pausado igual muestra su
- * vencimiento), el push no (una sub pausada no debe suprimir el aviso). Si
- * cambiás la semántica de cobertura, tocá los dos.
- */
-/**
- * Fase 174.1-05b: `ctx` OPCIONAL al final — mismo Pattern D provisorio que
- * `promoteWaitlist`/`countActiveBookings` (booking-service.ts). Esta función
- * standalone la llaman 3 módulos (subscriptions/service.ts, referrals/service.ts,
- * jobs/notification-cron.ts).
- *
- * Fase 175-04: los 3 call sites externos (`referrals/service.ts` x2,
- * `jobs/notification-cron.ts::runPlanRenewalWarnings`) ya threadean `ctx` real —
- * cierra la deuda anotada en 174.1-05b. El parámetro sigue OPCIONAL (no
- * required) porque `test/subscriptions/covered-until.test.ts` ejercita
- * deliberadamente el fallback Pattern D (`isNotNull`) como caso de cobertura
- * propio; forzar `ctx` ahí no es parte del alcance de esta fase.
- */
-export async function deriveCoveredUntil(
-  db: MySql2Database<typeof schema>,
-  userId: number,
-  ctx?: TenantContext,
-): Promise<string | null> {
-  const rows = await db
-    .select({
-      coveredUntil: sql<string | null>`MAX(${schema.subscriptions.endDate})`,
-    })
-    .from(schema.subscriptions)
-    .where(
-      and(
-        ctx
-          ? tenantWhere(schema.subscriptions, ctx)
-          : isNotNull(schema.subscriptions.tenantId),
-        eq(schema.subscriptions.userId, userId),
-        inArray(schema.subscriptions.status, ["active", "scheduled"]),
-        isNotNull(schema.subscriptions.endDate),
-      ),
-    );
-
-  return rows[0]?.coveredUntil ?? null;
-}
-
-/**
- * Versión batcheada de {@link deriveCoveredUntil}: resuelve el covered-until de
- * MUCHOS socios en UNA sola query (`WHERE userId IN (...) GROUP BY userId`), para
- * evitar el N+1 cuando un consumidor necesita la cobertura de una lista entera
- * (p. ej. un referidor prolífico en `/mis-referidos`). Misma semántica exacta que
- * la versión de a uno (mismo set de estados, mismo guard de `end_date` NULL): si
- * cambiás una, cambiá la otra.
- *
- * Devuelve un Map de userId → covered-until. Un userId sin filas cubiertas NO
- * aparece en el Map; los consumidores tratan la ausencia como `null` ("nunca
- * cubierto"), idéntico a lo que devuelve la versión de a uno.
- *
- * Tenancy (reconciliación tren v6.0): `subscriptions` es tabla strict, así que
- * el filtro de tenant es OBLIGATORIO — mismo patrón que la versión de a uno:
- * `ctx` real ⇒ `tenantWhere` (aislamiento por gimnasio); sin `ctx` ⇒ fallback
- * `isNotNull(tenantId)` (tenant-blind pero visible al sentinel). El fix N+1 de
- * master llegó sin este filtro y habría tirado TenantSentinelError en strict.
- */
-export async function deriveCoveredUntilBatch(
-  db: MySql2Database<typeof schema>,
-  userIds: number[],
-  ctx?: TenantContext,
-): Promise<Map<number, string | null>> {
-  const result = new Map<number, string | null>();
-  if (userIds.length === 0) return result;
-
-  const rows = await db
-    .select({
-      userId: schema.subscriptions.userId,
-      coveredUntil: sql<string | null>`MAX(${schema.subscriptions.endDate})`,
-    })
-    .from(schema.subscriptions)
-    .where(
-      and(
-        ctx
-          ? tenantWhere(schema.subscriptions, ctx)
-          : isNotNull(schema.subscriptions.tenantId),
-        inArray(schema.subscriptions.userId, userIds),
-        inArray(schema.subscriptions.status, ["active", "scheduled"]),
-        isNotNull(schema.subscriptions.endDate),
-      ),
-    )
-    .groupBy(schema.subscriptions.userId);
-
-  for (const row of rows) {
-    result.set(row.userId, row.coveredUntil ?? null);
-  }
-  return result;
-}
-
-/**
- * Duración mínima (en días) de un plan para que su vencimiento merezca
- * recordatorios de renovación. Un plan más corto ("Clase única": 1 día, 1
- * clase, precio acordado) termina por diseño: avisarle al socio "tu membresía
- * vence hoy, renovala" no tiene sentido y suena a error.
- */
-export const EXPIRY_REMINDER_MIN_DURATION_DAYS = 7;
-
-/**
- * Covered-until PARA RECORDATORIOS DE VENCIMIENTO, batcheado. Misma cadena que
- * {@link deriveCoveredUntilBatch} (active+scheduled con end_date), con una
- * regla extra: si la suscripción que define el covered-until (la de mayor
- * end_date) pertenece a un plan corto (`duration_days` <
- * {@link EXPIRY_REMINDER_MIN_DURATION_DAYS}), el socio se devuelve con `null`
- * ("nada que recordar"). Si dos suscripciones empatan en el end_date máximo,
- * alcanza con que UNA sea de plan normal para recordar.
- *
- * Consumidores: el push `plan_renewal_warning_*` (notification-cron), el pop-up
- * `plan_expiry` del app (communications/prompt-service) y el trigger
- * `plan_expires_in_days` de las reglas propias (notifications/rules). El
- * bloqueo de reservas y el pill "Venc" del admin siguen usando la cobertura
- * cruda: un plan corto sigue venciendo, solo no se anuncia.
- *
- * `ctx` OBLIGATORIO: los tres consumidores ya lo threadean (no hay fallback
- * Pattern D que preservar como en `deriveCoveredUntil`).
- */
-export async function deriveReminderCoveredUntilBatch(
-  db: MySql2Database<typeof schema>,
-  userIds: number[],
-  ctx: TenantContext,
-): Promise<Map<number, string | null>> {
-  const result = new Map<number, string | null>();
-  if (userIds.length === 0) return result;
-
-  const rows = await db
-    .select({
-      userId: schema.subscriptions.userId,
-      endDate: schema.subscriptions.endDate,
-      durationDays: schema.subscriptionPlans.durationDays,
-    })
-    .from(schema.subscriptions)
-    .innerJoin(
-      schema.subscriptionPlans,
-      eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
-    )
-    .where(
-      and(
-        tenantWhere(schema.subscriptions, ctx),
-        inArray(schema.subscriptions.userId, userIds),
-        inArray(schema.subscriptions.status, ["active", "scheduled"]),
-        isNotNull(schema.subscriptions.endDate),
-      ),
-    );
-
-  // Pasada 1: covered-until crudo por socio (MAX(end_date), string
-  // zero-padded YYYY-MM-DD → comparación lexicográfica segura).
-  const coveredUntil = new Map<number, string>();
-  for (const row of rows) {
-    if (row.endDate === null) continue;
-    const prev = coveredUntil.get(row.userId);
-    if (prev === undefined || row.endDate > prev) {
-      coveredUntil.set(row.userId, row.endDate);
-    }
-  }
-
-  // Pasada 2: la cobertura solo se recuerda si alguna suscripción que TERMINA
-  // en el covered-until es de un plan normal (>= mínimo).
-  const remindable = new Set<number>();
-  for (const row of rows) {
-    if (
-      row.endDate === coveredUntil.get(row.userId) &&
-      row.durationDays >= EXPIRY_REMINDER_MIN_DURATION_DAYS
-    ) {
-      remindable.add(row.userId);
-    }
-  }
-
-  for (const [userId, until] of coveredUntil) {
-    result.set(userId, remindable.has(userId) ? until : null);
-  }
-  return result;
-}
-
-/** Versión de a uno de {@link deriveReminderCoveredUntilBatch}. */
-export async function deriveReminderCoveredUntil(
-  db: MySql2Database<typeof schema>,
-  userId: number,
-  ctx: TenantContext,
-): Promise<string | null> {
-  const map = await deriveReminderCoveredUntilBatch(db, [userId], ctx);
-  return map.get(userId) ?? null;
-}
+// Fase 194 (ME-02): las derivaciones de cobertura viven en `./coverage` (hoja sin
+// dependencias del servicio). Se importan para uso interno y se re-exportan para
+// los llamadores históricos (notification-cron, notifications/rules, tests).
+import { deriveCoveredUntil, deriveReminderCoveredUntil } from "./coverage";
+export {
+  deriveCoveredUntil,
+  deriveCoveredUntilBatch,
+  deriveMembershipCoveredUntil,
+  deriveMembershipCoveredUntilBatch,
+  deriveReminderCoveredUntil,
+  deriveReminderCoveredUntilBatch,
+  EXPIRY_REMINDER_MIN_DURATION_DAYS,
+} from "./coverage";
 
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
@@ -529,6 +316,24 @@ export class SubscriptionService {
     ) {
       throw new BadRequestError(
         "Solo los planes especiales aceptan tope total de clases (monthlyClassBudget), 'solo socios' (requiresPresencial) o línea de pase (specialLine)",
+      );
+    }
+  }
+
+  /**
+   * Fase 194 (D-10b, T-194-13): piso duro del flag `allows_invitation_discount`.
+   * El servidor rechaza (400) marcarlo en un plan `especial`, `paquete` o
+   * `is_trial` aunque el front lo mande. Se evalúa sobre el estado FINAL del
+   * plan (post-merge en update).
+   */
+  private assertInvitationDiscountFlag(plan: {
+    allowsInvitationDiscount: boolean;
+    planCategory: PlanCategory;
+    isTrial: boolean;
+  }): void {
+    if (plan.allowsInvitationDiscount && !planAllowsInvitationDiscount(plan)) {
+      throw new BadRequestError(
+        "Este tipo de plan no admite descuento por invitación",
       );
     }
   }
@@ -702,96 +507,10 @@ export class SubscriptionService {
   // en las columnas NUEVAS referralDiscount* (D-23). Todo server-computed, sin
   // input del cliente (DESC-05). El descuento compone sobre auraSpend (Pitfall 4).
 
-  /**
-   * Flip pending→qualified del vínculo del que el payer es referido, SOLO
-   * cuando el cargo efectivamente cobra (pricePaid>0 — D-20 mata el fantasma
-   * del mes 100% bonificado). Se invoca ANTES de
-   * computePriceWithReferralDiscount (D-21) para que el referido recién
-   * cualificado ya descuente en ESTE mismo cargo si su referidor está activo.
-   */
-  private async qualifyReferralOnCharge(
-    ctx: TenantContext,
-    payerUserId: number,
-    pricePaid: number,
-  ): Promise<void> {
-    if (pricePaid <= 0) return;
-    const flipped = await new ReferralService(
-      this.db,
-      this.log,
-    ).qualifyFirstPayment(ctx, payerUserId);
-
-    // Solo el flip REAL (pending→qualified) notifica; un re-cobro devuelve null
-    // y no re-notifica (VIS-02/D-31). La notificación va SIEMPRE al referidor,
-    // nunca al referido. Best-effort (D-33): un fallo de la cola JAMÁS relanza ni
-    // rompe el cobro — try/catch envolvente + log.warn.
-    if (!flipped) return;
-    try {
-      await new NotificationService(this.db, this.log).queueNotification({
-        userId: flipped.referrerId,
-        templateKey: "referral_link_activated",
-        bodyOverride: `${flipped.referredFirstName} pagó su primer plan. Ya tenés tu descuento activo.`,
-      });
-    } catch (err: unknown) {
-      this.log.warn(
-        {
-          err: err instanceof Error ? err.message : String(err),
-          referrerId: flipped.referrerId,
-        },
-        "referral activation notification failed (best-effort)",
-      );
-    }
-  }
-
-  /**
-   * Descuento de referido sobre un precio YA resuelto (compone sobre auraSpend).
-   * Copia la price-math del bloque auraSpend (`Math.floor(base*pct/100)`,
-   * `pricePaid = base - amount`) pero NO usa `auraService.spend` — escribe en
-   * las columnas nuevas referralDiscount* (D-23), nunca en auraDiscount*.
-   * pct<=0 → devuelve el precio sin descuento.
-   */
-  private async computePriceWithReferralDiscount(
-    ctx: TenantContext,
-    userId: number,
-    basePrice: number,
-  ): Promise<{ percent: number; amount: number; pricePaid: number }> {
-    const percent = await new ReferralService(
-      this.db,
-      this.log,
-    ).computeReferralDiscountPercent(ctx, userId);
-    if (percent <= 0) {
-      return { percent: 0, amount: 0, pricePaid: basePrice };
-    }
-    const amount = Math.floor(basePrice * (percent / 100));
-    return { percent, amount, pricePaid: basePrice - amount };
-  }
-
-  /**
-   * Registro auditable del descuento tras el cargo (AURA-01): fila en
-   * referral_credits + anotación aura_transactions amount=0. No-op si amount<=0.
-   * Se llama tras recordAssignmentCharge con el subscriptionId ya conocido.
-   */
-  private async recordReferralCreditOnCharge(
-    ctx: TenantContext,
-    userId: number,
-    subscriptionId: number,
-    percent: number,
-    amount: number,
-  ): Promise<void> {
-    if (amount <= 0) return;
-    await new ReferralService(this.db, this.log).recordReferralCredit(
-      ctx,
-      userId,
-      subscriptionId,
-      percent,
-      amount,
-    );
-  }
-
   // ── Partners (fase 179) ────────────────────────────────────────────────
   // Helper GEMELO del bloque de Referidos de arriba, deliberadamente
   // separado: el CONTEXT de la fase prohíbe reusar o modificar
-  // qualifyReferralOnCharge/computePriceWithReferralDiscount/
-  // recordReferralCreditOnCharge. Este bloque cuelga la cualificación del
+  // qualifyReferralOnCharge/recordReferralCreditOnCharge. Este bloque cuelga la cualificación del
   // vínculo `partner_referrals` y el alta de la comisión (D-11) del mismo
   // punto "membresía confirmada" que usan los referidos, pero con sus
   // propias reglas (D-17): dispara con `pricePaid>0` de CUALQUIER categoría
@@ -801,6 +520,11 @@ export class SubscriptionService {
   // Reconciliación tren v6.0: los charge-paths reciben `ctx` (fase 172), así
   // que el tenant sale SIEMPRE de ahí — se eliminaron las derivaciones por
   // sede-del-cobro/PK-de-la-sub que la fase traía de su base pre-tenancy.
+
+  /** Dependencias de los efectos laterales del cobro (`charge-side-effects.ts`). */
+  private chargeEffectsDeps(): ChargeEffectsDeps {
+    return { db: this.db, log: this.log };
+  }
 
   /**
    * Candidato de descuento de partner (D-09/D-10/D-17) — envoltorio de
@@ -829,105 +553,125 @@ export class SubscriptionService {
   }
 
   /**
-   * Consume el beneficio de descuento de partner tras el cargo, con el
-   * candidato/ganador ya resueltos ANTES del filter de pricing por
-   * `resolvePartnerDiscountCandidate` (D-09/D-10/D-20). Best-effort: el
-   * cobro ya ocurrió, un fallo acá jamás lo revierte (T-179-23, mismo
-   * criterio que `qualifyPartnerOnCharge`).
-   *
-   * - `won=true`: el descuento de partner efectivamente redujo `pricePaid`
-   *   → `applied_reason='aplicado'` con el `percent`/`amount` ganadores.
-   * - `won=false` pero el cargo cobró (`pricePaid>0`): el beneficio se
-   *   consume IGUAL — la primera cuota ya pasó, aunque haya sido AURA quien
-   *   dio el descuento mayor → `applied_reason='perdio_vs_aura'`,
-   *   `applied_percent=0` (D-20).
-   * - `won=false` y `pricePaid<=0`: no se consume — un cargo 100%
-   *   bonificado no gasta "la primera cuota" real del socio (mismo umbral
-   *   que referidos/comisión).
-   * - Sin candidato (`candidate === null`): no-op, nada que consumir.
+   * Fase 194-15 (D-08/D-20/D-21/D-26a): ÚNICA llamada del ALTA (cobro y preview)
+   * al árbitro de descuentos, en el orden obligatorio de `discount-arbiter.ts`:
+   * candidatos (partner + invitación) -> filter de pricing (AURA compara por
+   * MONTO) -> un solo ganador. La lógica vive en el árbitro; acá solo se cablea.
+   * `mode: "charge"` es el cobro real (el filter gasta AURA y marca el boarding
+   * pass); `mode: "preview"` es solo lectura. Mismo helper = paridad por
+   * construcción. Que el vínculo de invitación efectivamente se cree es cosa del
+   * llamador (`settlement.linkToMaterialize`, dentro de la tx del cobro).
    */
-  private async consumePartnerBenefitAfterCharge(
-    ctx: TenantContext,
-    params: {
-      userId: number;
-      subscriptionId: number;
-      pricePaid: number;
-      candidate: { linkId: number; percent: number } | null;
-      won: boolean;
-      wonPercent: number | null;
-      wonAmount: number | null;
-    },
-  ): Promise<void> {
-    const {
-      userId,
-      subscriptionId,
-      pricePaid,
-      candidate,
-      won,
-      wonPercent,
-      wonAmount,
-    } = params;
-    if (!candidate) return;
-    if (!won && pricePaid <= 0) return;
-
-    try {
-      await new PartnerReferralService(
-        this.db,
-        this.log,
-      ).consumePartnerBenefitOnCharge(
-        ctx,
+  private async computeChargeDiscounts(params: {
+    mode: "charge" | "preview";
+    /** Call site del filter en modo "charge" (default "assign"); en "preview" siempre "preview". */
+    chargeCallSite?: "assign" | "change-after-current" | "change-now" | "renew";
+    /**
+     * `false` = la charge-path NO admite descuento AURA (`changePlanNow`, T-176-24):
+     * el filter igual corre (boarding pass) pero ignora `auraSpend`. Default `true`.
+     */
+    auraSupported?: boolean;
+    /**
+     * Crédito del plan vigente que se resta del precio ANTES de los descuentos
+     * (`changePlanNow`): el neto post-prorrateo es la BASE de partner/invitación y de su
+     * tope. Se ignora con `override` (D-20: el precio personalizado es el final y no se
+     * netea, comportamiento previo a la 194).
+     */
+    prorationCredit?: number;
+    /**
+     * Precio base del cobro cuando NO es la lista del plan (renovación, 194-18): la base
+     * heredada (D-22) o la normalizada por la regla de recargo. Reemplaza al precio de
+     * lista tanto para el árbitro como para el filter de pricing. Solo para charge-paths
+     * sin boarding pass (el boarding pass resuelve su propio precio Zero).
+     */
+    basePrice?: number;
+    ctx: TenantContext;
+    userId: number;
+    plan: PlanDetail;
+    priceTypeRequested: PriceType;
+    moduleInput: Record<string, unknown>;
+    override?: { amount: number; reason?: string };
+    prorate?: { computed: number };
+    prorateToMonthEnd?: boolean;
+  }): Promise<{
+    resolved: ResolvedPlanPrice;
+    partnerCandidate: { linkId: number; percent: number } | null;
+    settlement: ChargeSettlement;
+    /** Precio tras el filter y el crédito, ANTES de partner/invitación (`settlement.finalPrice` es el cobrado). */
+    priceAfterFilter: number;
+  }> {
+    const { mode, ctx, userId, plan } = params;
+    const charge = mode === "charge";
+    const credit =
+      params.override === undefined ? (params.prorationCredit ?? 0) : 0;
+    // Partner: solo en la rama de cálculo normal (sin override ni prorrateo, D-17).
+    const partnerCandidate =
+      params.override === undefined
+        ? await this.resolvePartnerDiscountCandidate(
+            ctx,
+            userId,
+            plan.planCategory,
+            params.prorateToMonthEnd,
+          )
+        : null;
+    const prepared = await prepareChargeDiscounts(
+      {
+        db: this.db,
+        log: this.log,
+        referralService: new ReferralService(this.db, this.log),
+      },
+      ctx,
+      {
         userId,
-        subscriptionId,
-        won
-          ? {
-              percent: wonPercent ?? 0,
-              amount: wonAmount ?? 0,
-              reason: "aplicado" as const,
-            }
-          : { percent: 0, amount: 0, reason: "perdio_vs_aura" as const },
-      );
-    } catch (err: unknown) {
-      this.log.warn(
-        {
-          err: err instanceof Error ? err.message : String(err),
-          userId,
-          subscriptionId,
-        },
-        "partner: consumo del beneficio de descuento falló (best-effort, el cobro no se revierte)",
-      );
-    }
-  }
-
-  /**
-   * Cualifica el vínculo de partner del payer y da de alta su comisión
-   * (D-11), cuando el cargo efectivamente cobra (`pricePaid>0` — mismo
-   * umbral que referidos: un mes 100% bonificado no es una venta). Best-
-   * effort: la comisión es contabilidad de negocio, nunca puede romper un
-   * cobro ya efectuado (T-179-23).
-   */
-  private async qualifyPartnerOnCharge(
-    ctx: TenantContext,
-    payerUserId: number,
-    pricePaid: number,
-    subscriptionId: number,
-  ): Promise<void> {
-    if (pricePaid <= 0) return;
-    try {
-      await new PartnerReferralService(this.db, this.log).qualifyAndCommission(
-        ctx,
-        payerUserId,
-        subscriptionId,
-      );
-    } catch (err: unknown) {
-      this.log.warn(
-        {
-          err: err instanceof Error ? err.message : String(err),
-          payerUserId,
-          subscriptionId,
-        },
-        "partner: cualificación/comisión falló (best-effort, el cobro no se revierte)",
-      );
-    }
+        plan,
+        basePrice: Math.max(
+          0,
+          (params.basePrice ??
+            this.getBasePrice(
+              plan,
+              await this.resolvePriceType(params.priceTypeRequested),
+            )) - credit,
+        ),
+        isPriceOverride: params.override !== undefined,
+        prorateToMonthEnd: params.prorateToMonthEnd,
+      },
+      partnerCandidate,
+    );
+    const resolved = await resolvePlanPrice({
+      hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
+      userId,
+      planId: plan.id,
+      planCategory: plan.planCategory,
+      callSite: charge ? (params.chargeCallSite ?? "assign") : "preview",
+      commit: charge,
+      // El preview NO tiene rama de precio de boarding pass (solo reporta
+      // `boardingPassEligible`, Pitfall 5).
+      supports: {
+        exclusiveBenefits: charge,
+        discounts: params.auraSupported ?? true,
+      },
+      priceTypeRequested: params.priceTypeRequested,
+      resolvePriceType: (t) => this.resolvePriceType(t),
+      basePriceFor: (t) => params.basePrice ?? this.getBasePrice(plan, t),
+      moduleInput: params.moduleInput,
+      competingDiscountAmount: prepared.competingDiscountAmount,
+      override: params.override,
+      prorate: params.prorate,
+    });
+    const priceAfterFilter = Math.max(0, resolved.price - credit);
+    const settlement = settleChargeDiscounts({
+      priceAfterFilter,
+      auraApplied: readModuleColumns(resolved).auraDiscountPercent !== null,
+      exclusive: resolved.exclusive,
+      prepared,
+    });
+    return {
+      resolved,
+      // Con boarding pass el partner no participa (tampoco consume su beneficio).
+      partnerCandidate: resolved.exclusive ? null : partnerCandidate,
+      settlement,
+      priceAfterFilter,
+    };
   }
 
   /**
@@ -1193,6 +937,45 @@ export class SubscriptionService {
   }
 
   /**
+   * Fase 194 (D-02/D-14, T-194-14): plan "Invitación" del país del invitado.
+   * Se resuelve SIEMPRE server-side por gimnasio + país (nunca un planId del
+   * body): `is_trial` + `paquete` + activo + no archivado. Falla cerrado: con 0
+   * planes o con más de 1 activo en el país es un problema de configuración, no
+   * del invitado, y se corta con error en vez de elegir uno al azar.
+   */
+  async findInvitationPlan(
+    ctx: TenantContext,
+    country: string,
+  ): Promise<PlanDetail> {
+    const rows = await this.db
+      .select()
+      .from(schema.subscriptionPlans)
+      .where(
+        and(
+          tenantWhere(schema.subscriptionPlans, ctx),
+          eq(schema.subscriptionPlans.isTrial, true),
+          eq(schema.subscriptionPlans.planCategory, "paquete"),
+          eq(schema.subscriptionPlans.country, country),
+          eq(schema.subscriptionPlans.isActive, true),
+          eq(schema.subscriptionPlans.isArchived, false),
+        ),
+      )
+      .limit(2);
+    if (rows.length !== 1) {
+      this.log.error(
+        { tenantId: ctx.tenantId, country, found: rows.length },
+        rows.length === 0
+          ? "invitaciones: no existe un plan 'Invitación' (is_trial + paquete) activo para el país — problema de configuración"
+          : "invitaciones: hay más de un plan 'Invitación' activo para el país — problema de configuración, se falla cerrado",
+      );
+      throw new BadRequestError(
+        `No hay un plan de Invitación configurado para ${country}`,
+      );
+    }
+    return this.mapPlanRow(ctx, rows[0]);
+  }
+
+  /**
    * Create a new subscription plan.
    */
   // Fase 174 (D-01/D-02, ADO-03): `ctx` primero — createPlan/updatePlan
@@ -1219,8 +1002,23 @@ export class SubscriptionService {
       specialLine,
     });
 
+    // Fase 194 (D-10b): opt-in, default false. Piso duro server-side (T-194-13).
+    const allowsInvitationDiscount = input.allowsInvitationDiscount ?? false;
+    this.assertInvitationDiscountFlag({
+      allowsInvitationDiscount,
+      planCategory,
+      isTrial: input.isTrial ?? false,
+    });
+
     const country = input.country ?? "AR";
     const currency = country === "ES" ? "EUR" : "ARS";
+
+    // HI-02: un país no puede tener dos planes Invitación (409).
+    await assertNoOtherInvitationPlan(this.db, ctx, {
+      isTrial: input.isTrial ?? false,
+      planCategory,
+      country,
+    });
 
     // Plan row + program list must be atomic: validate the list against
     // existing programs (T-156-04) and persist both inside one transaction.
@@ -1247,6 +1045,7 @@ export class SubscriptionService {
             specialLine,
             multiBranch: input.multiBranch ?? false,
             isTrial: input.isTrial ?? false,
+            allowsInvitationDiscount,
             isGroup: input.isGroup ?? false,
             planCategory,
             linkedProgramId,
@@ -1287,6 +1086,9 @@ export class SubscriptionService {
     const existing = await this.getPlanById(ctx, planId);
     if (!existing) return null;
 
+    // HI-02: el plan Invitación es del sistema (identidad, alcance y precio fijos).
+    assertInvitationPlanUpdateAllowed(existing, input);
+
     const updateData: Partial<typeof schema.subscriptionPlans.$inferInsert> =
       {};
 
@@ -1314,6 +1116,8 @@ export class SubscriptionService {
     if (input.multiBranch !== undefined)
       updateData.multiBranch = input.multiBranch;
     if (input.isTrial !== undefined) updateData.isTrial = input.isTrial;
+    if (input.allowsInvitationDiscount !== undefined)
+      updateData.allowsInvitationDiscount = input.allowsInvitationDiscount;
     if (input.isGroup !== undefined) updateData.isGroup = input.isGroup;
     if (input.planCategory !== undefined)
       updateData.planCategory = input.planCategory;
@@ -1347,6 +1151,45 @@ export class SubscriptionService {
       if (input.requiresPresencial === undefined)
         updateData.requiresPresencial = false;
       if (input.specialLine === undefined) updateData.specialLine = null;
+    }
+
+    // Fase 194 (D-10b, T-194-13): flag sobre el estado FINAL post-merge. Si el
+    // update lo manda en true y el plan final es especial/paquete/is_trial → 400.
+    // Si NO lo manda y el cambio de categoría o de is_trial deja al plan en una
+    // categoría excluida con el flag ya en true, se baja a false en el mismo
+    // update (el flag viejo deja de tener sentido, no es un error del admin).
+    const effectiveIsTrial =
+      input.isTrial !== undefined ? input.isTrial : existing.isTrial;
+    // HI-02: si el estado final pasa a ser Invitación, no puede duplicar el del país.
+    if (!isInvitationPlan(existing)) {
+      await assertNoOtherInvitationPlan(
+        this.db,
+        ctx,
+        {
+          isTrial: effectiveIsTrial,
+          planCategory: effectiveCategory,
+          country: existing.country,
+        },
+        planId,
+      );
+    }
+    if (input.allowsInvitationDiscount === undefined) {
+      if (
+        existing.allowsInvitationDiscount &&
+        !planAllowsInvitationDiscount({
+          allowsInvitationDiscount: true,
+          planCategory: effectiveCategory,
+          isTrial: effectiveIsTrial,
+        })
+      ) {
+        updateData.allowsInvitationDiscount = false;
+      }
+    } else {
+      this.assertInvitationDiscountFlag({
+        allowsInvitationDiscount: input.allowsInvitationDiscount,
+        planCategory: effectiveCategory,
+        isTrial: effectiveIsTrial,
+      });
     }
 
     this.assertPlanInvariants({
@@ -1419,6 +1262,9 @@ export class SubscriptionService {
   ): Promise<PlanDetail | null> {
     const existing = await this.getPlanById(ctx, planId);
     if (!existing) return null;
+
+    // HI-02: sin plan Invitación activo se caen las activaciones del país.
+    assertInvitationPlanDeactivationAllowed(existing);
 
     await this.db
       .update(schema.subscriptionPlans)
@@ -1888,6 +1734,78 @@ export class SubscriptionService {
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
+    // Fase 194 (T-194-18): TODAS las rutas llaman a este método y le pasan
+    // `{ ...request.body, ... }`. El plan Invitación se rechaza acá siempre,
+    // sin ningún flag en `AssignPlanInput` que lo habilite (el body no puede
+    // inventar uno). La única vía es `assignInvitationPlan`.
+    return this.assignPlanInternal(ctx, userId, input, adminId, {
+      invitationPlanAllowed: false,
+    });
+  }
+
+  /**
+   * Fase 194 (D-02, T-194-18): asigna el plan Invitación (3 accesos gratis).
+   * Mismo resultado que `assignPlan` (bonificada si el override es 0, recompute
+   * del status, historial) pero EXIGE que el plan sea Invitación. Solo lo llama
+   * `InvitationService` (194-09): ninguna ruta lo importa — lo verifica el
+   * criterio de aceptación por grep. Los callers fijan `priceOverrideAmount: 0`
+   * y `endDateOverride` (vigencia real de 10 días hábiles).
+   */
+  async assignInvitationPlan(
+    ctx: TenantContext,
+    userId: number,
+    input: AssignPlanInput,
+    adminId: number,
+  ): Promise<SubscriptionDetail> {
+    return this.assignPlanInternal(ctx, userId, input, adminId, {
+      invitationPlanAllowed: true,
+      requireInvitationPlan: true,
+    });
+  }
+
+  /**
+   * Fase 194 D-07 / D-04: cierra los accesos de invitación (subs `active` o
+   * `paused`) como `completed`, dentro de la tx del llamador. Es el ÚNICO UPDATE
+   * de cierre: lo usan la compra de un plan real (`assignPlanInternal`) y la
+   * anulación manual de una invitación (`InvitationService.voidInvitation`).
+   * `completed` y NO una baja: no perdona deuda ni exige anular cobros;
+   * `end_date` y `classes_remaining` quedan como estaban. Con `recompute: true`
+   * recalcula `users.status` por el camino de siempre (un acceso is_trial no da
+   * membresía, D-03: sin membresía real el status previo, p. ej. `prueba`, se
+   * conserva). Devuelve cuántas subs se cerraron (0 si ya no estaban vigentes).
+   */
+  async closeInvitationAccess(
+    ctx: TenantContext,
+    userId: number,
+    subscriptionIds: number[],
+    tx: MySql2Database<typeof schema>,
+    opts: { recompute: boolean },
+  ): Promise<number> {
+    if (subscriptionIds.length === 0) return 0;
+    const [result] = await tx
+      .update(schema.subscriptions)
+      .set({ status: "completed" })
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+          inArray(schema.subscriptions.id, subscriptionIds),
+          inArray(schema.subscriptions.status, ["active", "paused"]),
+        ),
+      );
+    if (opts.recompute) {
+      await this.recomputeUserStatus(ctx, userId, tx);
+    }
+    return result.affectedRows;
+  }
+
+  private async assignPlanInternal(
+    ctx: TenantContext,
+    userId: number,
+    input: AssignPlanInput,
+    adminId: number,
+    opts: { invitationPlanAllowed: boolean; requireInvitationPlan?: boolean },
+  ): Promise<SubscriptionDetail> {
     // Validate member exists. Inner-join branches to also pull the member's
     // branch country for the cross-country plan guard below.
     const [member] = await this.db
@@ -1919,6 +1837,20 @@ export class SubscriptionService {
     if (plan.country !== member.branchCountry) {
       throw new BadRequestError(
         "El plan no corresponde al pais de la sucursal",
+      );
+    }
+
+    // Fase 194 (T-194-18): el plan Invitación solo entra por assignInvitationPlan,
+    // y assignInvitationPlan no sirve para asignar ningún otro plan.
+    const planIsInvitation = isInvitationPlan(plan);
+    if (planIsInvitation && !opts.invitationPlanAllowed) {
+      throw new BadRequestError(
+        "El plan Invitación se asigna solo activando una invitación",
+      );
+    }
+    if (opts.requireInvitationPlan && !planIsInvitation) {
+      throw new BadRequestError(
+        "assignInvitationPlan solo asigna el plan Invitación",
       );
     }
 
@@ -2031,8 +1963,13 @@ export class SubscriptionService {
               // no debe contar como solapamiento al asignar un plan online.
               ne(schema.subscriptionPlans.planCategory, "paquete"),
             );
-    const existingInSameGroup = await this.db
-      .select({ id: schema.subscriptions.id })
+    const sameGroupRows = await this.db
+      .select({
+        id: schema.subscriptions.id,
+        status: schema.subscriptions.status,
+        planIsTrial: schema.subscriptionPlans.isTrial,
+        planCategory: schema.subscriptionPlans.planCategory,
+      })
       .from(schema.subscriptions)
       .innerJoin(
         schema.subscriptionPlans,
@@ -2057,6 +1994,27 @@ export class SubscriptionService {
           sameGroupCategoryCondition,
         ),
       );
+
+    // Fase 194 D-07: los accesos de invitación vigentes (active/paused) NO
+    // bloquean la compra de un plan real: se cierran como `completed` dentro de
+    // la tx de abajo. Si lo que se asigna ES un plan Invitación no se exime
+    // nada (no se pueden tener dos), y una sub Invitación `scheduled` sigue
+    // contando como conflicto.
+    const invitationSubIdsToClose: number[] = [];
+    const existingInSameGroup = sameGroupRows.filter((row) => {
+      if (
+        !planIsInvitation &&
+        isInvitationPlan({
+          isTrial: row.planIsTrial,
+          planCategory: row.planCategory,
+        }) &&
+        (row.status === "active" || row.status === "paused")
+      ) {
+        invitationSubIdsToClose.push(row.id);
+        return false;
+      }
+      return true;
+    });
 
     if (existingInSameGroup.length > 0) {
       throw new ConflictError(
@@ -2171,47 +2129,27 @@ export class SubscriptionService {
           }
         : undefined;
 
-    // ── Partners (fase 179, D-09/D-10/D-20) — candidato ANTES del filter ──
-    // Lectura pura (Pitfall 6): acá todavía no se sabe si el partner gana.
-    // Solo participa en la rama de cálculo normal: sin prorrateo (el helper
-    // lo excluye, D-17) y sin override (paridad con el diseño original de la
-    // fase, que resolvía el candidato dentro del else de cálculo normal).
-    // Su percent viaja al filter como `competingDiscountPercent`: el módulo
-    // AURA valida igual que siempre (categoría/tier inválido → 400 gane
-    // quien gane, D-10) pero NO gasta puntos si el competidor iguala o
-    // supera su tier (empate a favor del partner — el socio conserva sus
-    // puntos AURA para llegar al mismo precio final, D-20).
-    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
-      null;
-    if (override === undefined) {
-      partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
-        ctx,
-        userId,
-        plan.planCategory,
-        input.prorateToMonthEnd,
-      );
-    }
-
-    // Boarding pass (precio Zero) y descuento AURA son MÓDULO
-    // (`templo-gamification`) — resolvePlanPrice dispara el filter
-    // `pricing.adjust`, que las aplica leyendo `moduleInput` (poblado por
-    // routes.ts desde el body validado). El core ya no nombra ninguna de las
-    // dos acá.
-    const resolved = await resolvePlanPrice({
-      hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
+    // ── Árbitro de descuentos (fase 194-15: D-08/D-20/D-21/D-26a) ──
+    // Boarding pass y descuento AURA son MÓDULO (`templo-gamification`): el
+    // filter `pricing.adjust` los aplica leyendo `moduleInput` (poblado por
+    // routes.ts desde el body validado). Partner, invitación y AURA COMPITEN:
+    // se aplica UNO, el de mayor MONTO (empate: gana el core y no se gastan
+    // puntos). Override (D-20) y boarding pass (D-26a) excluyen la invitación.
+    // Todo el flujo vive en `computeChargeDiscounts` / `discount-arbiter.ts`.
+    const {
+      resolved,
+      partnerCandidate: partnerBenefitCandidate,
+      settlement,
+    } = await this.computeChargeDiscounts({
+      mode: "charge",
+      ctx,
       userId,
-      planId: input.planId,
-      planCategory: plan.planCategory,
-      callSite: "assign",
-      commit: true,
-      supports: { exclusiveBenefits: true, discounts: true },
+      plan,
       priceTypeRequested: input.priceTypeApplied,
-      resolvePriceType: (t) => this.resolvePriceType(t),
-      basePriceFor: (t) => this.getBasePrice(plan, t),
       moduleInput: input.moduleInput ?? {},
-      competingDiscountPercent: partnerBenefitCandidate?.percent ?? null,
       override,
       prorate,
+      prorateToMonthEnd: input.prorateToMonthEnd,
     });
 
     // Chequeo de tope, DESPUÉS del filter (orden canónico de arriba).
@@ -2221,73 +2159,45 @@ export class SubscriptionService {
       );
     }
 
-    let pricePaid = resolved.price;
+    const pricePaid = settlement.finalPrice;
     const priceTypeApplied = resolved.priceType;
     const { auraDiscount, auraDiscountPercent, boardingPassUsed } =
       readModuleColumns(resolved);
     const priceOverrideAmount = resolved.priceOverrideAmount;
     const priceOverrideReason = resolved.priceOverrideReason;
-    let referralDiscountPercent: number | null = null;
-    let referralDiscountAmount: number | null = null;
-
-    // ── Partners (fase 179, D-09/D-10/D-20) — decisión POST-filter ──
-    // El candidato viajó al filter como `competingDiscountPercent`. Si el
-    // módulo NO aplicó AURA (no se pidió, o el partner igualó/superó el
-    // tier — empate a favor del partner), el candidato gana y su descuento
-    // se aplica acá sobre el precio base. Si el módulo SÍ aplicó AURA, el
-    // partner perdió la comparación (D-20 — se consumirá igual como
-    // 'perdio_vs_aura' tras el cobro). Con boarding pass (beneficio
-    // exclusivo del módulo) el candidato no participa — mismo alcance que
-    // la rama "cálculo normal" del diseño original de la fase.
-    let partnerBenefitWon = false;
-    let partnerDiscountPercent: number | null = null;
-    let partnerDiscountAmount: number | null = null;
-    if (resolved.exclusive) {
-      partnerBenefitCandidate = null;
-    }
-    if (partnerBenefitCandidate !== null && auraDiscountPercent === null) {
-      partnerBenefitWon = true;
-      const discountAmount = Math.floor(
-        resolved.basePrice * (partnerBenefitCandidate.percent / 100),
-      );
-      pricePaid = resolved.basePrice - discountAmount;
-      partnerDiscountPercent = partnerBenefitCandidate.percent;
-      partnerDiscountAmount = discountAmount;
+    // `referral_*` de la sub = descuento de INVITACIÓN aplicado: % nominal y monto
+    // recortado por el tope en dinero (D-10c).
+    const {
+      referralDiscountPercent,
+      referralDiscountAmount,
+      partnerDiscountPercent,
+      partnerDiscountAmount,
+    } = settlementColumns(settlement, partnerBenefitCandidate?.percent ?? null);
+    const partnerBenefitWon = settlement.partnerWon;
+    if (partnerBenefitWon) {
       this.log.info(
         {
           userId,
-          partnerLinkId: partnerBenefitCandidate.linkId,
-          partnerPercent: partnerBenefitCandidate.percent,
+          partnerLinkId: partnerBenefitCandidate?.linkId,
+          partnerPercent: partnerDiscountPercent,
           auraDiscountPercent,
         },
         "partner: descuento de partner ganó (o AURA no estaba en juego) — no se gastaron puntos AURA (D-10/D-20)",
       );
     }
 
-    // ── Referidos (fase 157, D-20/D-21) ──
-    // Orden canónico: (1) el precio ya está resuelto (incl. auraSpend); (2) si
-    // el cargo cobra, flippear el vínculo pending del payer a qualified ANTES
-    // del cómputo, así el referido recién cualificado ya cuenta; (3) computar el
-    // descuento de referido sobre el precio corriente. El registro auditable
-    // (recordReferralCredit) va tras el cargo, con el subscriptionId conocido.
-    // D-09: los pases especiales quedan FUERA del sistema de referidos — no
-    // cualifican vínculos ni reciben el descuento simétrico (el descuento es de
-    // cuotas de membresía, no del pase). Fase 177 (D-13): paquete se suma a la
-    // misma exclusión. Guard por categoría (T-161-05 + excludedFromReferrals).
-    // Alta prorrateada: el proporcional es el precio final, sin descuento de
-    // referido encima; el vínculo se cualifica en la primera renovación de mes
-    // completo (que sí corre esta lógica).
-    if (!excludedFromReferrals(plan.planCategory) && !input.prorateToMonthEnd) {
-      await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
-      const referral = await this.computePriceWithReferralDiscount(
-        ctx,
-        userId,
-        pricePaid,
-      );
-      pricePaid = referral.pricePaid;
-      referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
-      referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
-    }
+    // Fase 157 + 194 (D-10b): el flip del vínculo `pending` heredado a `qualified`
+    // en el primer cobro pago, ahora gateado por el flag del plan (los pases
+    // especiales, paquetes y planes sin flag no cualifican). El precio ya NO
+    // depende de este flip: el candidato lo simuló antes de calcular. Alta
+    // prorrateada: el proporcional es el precio final; el vínculo se cualifica
+    // en la primera renovación de mes completo.
+    await qualifyLegacyLinkOnCharge(this.chargeEffectsDeps(), ctx, {
+      plan: plan,
+      prorateToMonthEnd: input.prorateToMonthEnd,
+      userId,
+      pricePaid: pricePaid,
+    });
 
     // ── Schedule slot validation ──
     // Fixed plans require an exact set. Flexible presencial plans may opt in
@@ -2337,8 +2247,8 @@ export class SubscriptionService {
     // transactionService, auraService) continue to use this.db — refactoring
     // them is out of scope per the plan's WARNING-9 (separate plan / Rule 4
     // architectural change).
-    const { subscriptionId, replacementCredits } = await this.db.transaction(
-      async (tx) => {
+    const { subscriptionId, replacementCredits, linkedInviterId } =
+      await this.db.transaction(async (tx) => {
         // Fase 175.1-08 (D1/T-175.1-08-01): guard TEMPRANO — `input.branchId`
         // es un dato de entrada del payload y hasta acá solo se validaba
         // contra el gimnasio dentro del sub-flujo condicional de migración
@@ -2530,6 +2440,52 @@ export class SubscriptionService {
           );
         }
 
+        // Fase 194 D-07: cierre del remanente de los accesos de invitación en
+        // la MISMA tx que la compra (rollback conjunto, T-194-19). `completed`
+        // y NO una baja: no perdona deuda ni exige anular cobros. `end_date` y
+        // `classes_remaining` quedan como estaban. Va antes del recompute para
+        // que el status del usuario lo vea cerrado.
+        // ME-06: si lo comprado arranca en el FUTURO no se cierran ya: se recortan
+        // al día anterior al inicio (ver `invitation-access.ts`).
+        if (
+          invitationSubIdsToClose.length > 0 &&
+          initialStatus === "scheduled"
+        ) {
+          await trimInvitationAccessEnd(
+            ctx,
+            userId,
+            invitationSubIdsToClose,
+            input.startDate,
+            tx,
+          );
+          this.log.info(
+            {
+              userId,
+              trimmedInvitationSubIds: invitationSubIdsToClose,
+              newSubscriptionId,
+              newPlanStartDate: input.startDate,
+            },
+            "invitaciones: accesos de invitación recortados al día previo al inicio del plan comprado (ME-06)",
+          );
+        } else if (invitationSubIdsToClose.length > 0) {
+          // El recompute lo corre más abajo esta misma tx (recompute: false).
+          await this.closeInvitationAccess(
+            ctx,
+            userId,
+            invitationSubIdsToClose,
+            tx,
+            { recompute: false },
+          );
+          this.log.info(
+            {
+              userId,
+              closedInvitationSubIds: invitationSubIdsToClose,
+              newSubscriptionId,
+            },
+            "invitaciones: accesos de invitación cerrados por compra de plan (D-07)",
+          );
+        }
+
         // ── Recompute user.status (R5/D-01) ──
         // Final write inside the tx. Flips status to 'activo' (single source
         // of truth) and absorbs the Phase 102-07 trial-conversion logic.
@@ -2667,6 +2623,16 @@ export class SubscriptionService {
           effectiveAmountReceived = input.amountReceived ?? pricePaid;
         }
 
+        // Fase 194 D-05/D-13 (T-194-53): el vínculo de descuento del invitado nace
+        // CON el primer cobro pago de un plan con flag, en la MISMA tx.
+        const linkedInviterId = await materializeSettlementLink(
+          this.chargeEffectsDeps(),
+          tx,
+          ctx,
+          settlement,
+          userId,
+        );
+
         // REQ-7 (Phase 111): forensic trail for plan_assigned (D-13 payload).
         // Atomic with the subscription insert + charge — if either fails, the
         // audit row vanishes with the rest of the transaction.
@@ -2694,44 +2660,29 @@ export class SubscriptionService {
         return {
           subscriptionId: newSubscriptionId,
           replacementCredits: credits,
+          linkedInviterId,
         };
-      },
-    );
+      });
 
     const subscription = await this.getSubscriptionById(ctx, subscriptionId);
     if (!subscription) {
       throw new Error("Failed to retrieve newly created subscription");
     }
 
-    // Referidos (AURA-01): registro auditable del descuento aplicado, tras el
-    // cargo y con el subscriptionId ya conocido. No-op si no hubo descuento.
-    await this.recordReferralCreditOnCharge(
-      ctx,
+    // Post-commit (ME-01): aviso al invitador, crédito de referidos, comisión y consumo de partner.
+    await settleChargeSideEffects(this.chargeEffectsDeps(), ctx, {
       userId,
-      subscriptionId,
-      referralDiscountPercent ?? 0,
-      referralDiscountAmount ?? 0,
-    );
-
-    // Partners (D-11/D-17): a diferencia del bloque de referidos de arriba,
-    // dispara con pricePaid>0 de CUALQUIER categoría (paquete/especial
-    // incluidos) y NO excluye el alta prorrateada — un alta prorrateada
-    // sigue siendo una venta real.
-    await this.qualifyPartnerOnCharge(ctx, userId, pricePaid, subscriptionId);
-
-    // Partners (D-09/D-10/D-20): consume el beneficio de descuento, con el
-    // candidato/ganador ya resueltos alrededor del filter de pricing. No-op
-    // si no hubo candidato (`resolvePartnerDiscountCandidate` corre solo en
-    // la rama de cálculo normal de precio, con las mismas exclusiones D-17
-    // que referidos).
-    await this.consumePartnerBenefitAfterCharge(ctx, {
-      userId,
-      subscriptionId,
-      pricePaid,
-      candidate: partnerBenefitCandidate,
-      won: partnerBenefitWon,
-      wonPercent: partnerDiscountPercent,
-      wonAmount: partnerDiscountAmount,
+      subscriptionId: subscriptionId,
+      pricePaid: pricePaid,
+      settlement,
+      partnerCandidate: partnerBenefitCandidate,
+      columns: {
+        referralDiscountPercent,
+        referralDiscountAmount,
+        partnerDiscountPercent,
+        partnerDiscountAmount,
+      },
+      linkedInviterId,
     });
 
     this.log.info(
@@ -4160,8 +4111,10 @@ export class SubscriptionService {
         targetPlan: targetPlanInfo,
         proration: null,
         netAmount: null,
-        referralDiscountPercent: 0,
-        referralDiscountAmount: 0,
+        invitationDiscountPercent: 0,
+        invitationDiscountAmount: 0,
+        invitationDiscountCapped: false,
+        winningDiscount: "none",
         partnerDiscountPercent: 0,
         partnerDiscountAmount: 0,
         expiryDate: sub.endDate ?? undefined,
@@ -4170,73 +4123,43 @@ export class SubscriptionService {
 
     // Upgrade or same price: calculate proration
     const proration = this.calculateProration(sub, currentPlan);
-    let netAmount = Math.max(
-      0,
-      targetPlan.priceRegular - proration.remainingValue,
-    );
 
-    // ── Partners (fase 179, D-09/D-10/D-17/D-20): preview parity con
-    // changePlanNow ──
-    // Deviation (Rule 2) del plan 179-14: este preview (usado por el bloque
-    // "Cambio ahora, reinicia vencimiento" de AssignPlanDialog.vue) no tenía
-    // el descuento de partner — el guard de las 4 charge-paths + getPricingPreview
-    // (179-06/179-07) no lo cubría, así que el admin veía un neto sin
-    // descuento que el cobro real sí aplicaba. changePlanNow NO tiene bloque
-    // AURA propio: el candidato se aplica DIRECTO sobre el neto post-prorrateo,
-    // mismo punto donde referidos aplica el suyo más abajo (orden idéntico al
-    // de changePlanNow: partner primero, referido sobre el remanente).
-    let partnerDiscountPercent = 0;
-    let partnerDiscountAmount = 0;
-    {
-      // Reconciliación tren v6.0: el tenant sale del `ctx` (fase 172), no de
-      // la sede de la sub como en la base pre-tenancy de la fase.
-      const partnerCandidate = await this.resolvePartnerDiscountCandidate(
-        ctx,
-        userId,
-        targetPlan.planCategory,
-        undefined,
-      );
-      if (partnerCandidate) {
-        const amount = Math.floor(netAmount * (partnerCandidate.percent / 100));
-        partnerDiscountPercent = partnerCandidate.percent;
-        partnerDiscountAmount = amount;
-        netAmount -= amount;
-      }
-    }
-
-    // ── Referidos: preview parity con changePlanNow ──
-    // El cobro real descuenta referidos sobre el neto post-prorrateo (D-20/D-21,
-    // guard de categoría D-09/T-161-05, + D-13 paquete) — el preview debe
-    // mostrar y precargar ese mismo neto, si no el admin manda un
-    // amountReceived que el backend rechaza por exceder el monto real.
-    // simulatePendingQualification refleja el flip que qualifyReferralOnCharge
-    // hará dentro del cobro.
-    let referralDiscountPercent = 0;
-    let referralDiscountAmount = 0;
-    if (!excludedFromReferrals(targetPlan.planCategory) && netAmount > 0) {
-      const referralPct = await new ReferralService(
-        this.db,
-        this.log,
-      ).computeReferralDiscountPercent(ctx, userId, {
-        simulatePendingQualification: true,
-      });
-      if (referralPct > 0) {
-        referralDiscountPercent = referralPct;
-        referralDiscountAmount = Math.floor(netAmount * (referralPct / 100));
-        netAmount = netAmount - referralDiscountAmount;
-      }
-    }
+    // Fase 194-17 (D-08/D-10b/D-10c/D-20/D-21): el preview llama al MISMO helper que
+    // el cobro de `changePlanNow` (`computeChargeDiscounts`, `mode: "preview"`,
+    // `auraSupported: false`, crédito = el remanente de la sub vigente): partner e
+    // invitación compiten y se aplica UNO (el de mayor monto sobre el neto
+    // post-prorrateo, con tope en dinero). Mismo helper = el admin precarga el monto
+    // que el servidor va a cobrar (si no, manda un amountReceived que el backend
+    // rechaza por exceder el monto real). El preview no conoce `priceTypeApplied`,
+    // `moduleInput` ni override (modo "mantener vencimiento"): asume precio regular
+    // sin boarding pass, como siempre.
+    const { settlement, partnerCandidate } = await this.computeChargeDiscounts({
+      mode: "preview",
+      auraSupported: false,
+      ctx,
+      userId,
+      plan: targetPlan,
+      priceTypeRequested: "regular",
+      moduleInput: {},
+      prorationCredit: proration.remainingValue,
+    });
 
     return {
       allowed: true,
       currentPlan: currentPlanInfo,
       targetPlan: targetPlanInfo,
       proration,
-      netAmount,
-      referralDiscountPercent,
-      referralDiscountAmount,
-      partnerDiscountPercent,
-      partnerDiscountAmount,
+      netAmount: settlement.finalPrice,
+      invitationDiscountPercent: settlement.invitationPercent,
+      invitationDiscountAmount: settlement.invitationAmount,
+      invitationDiscountCapped: settlement.invitationCapped,
+      winningDiscount: settlement.winningDiscount,
+      partnerDiscountPercent: settlement.partnerWon
+        ? (partnerCandidate?.percent ?? 0)
+        : 0,
+      partnerDiscountAmount: settlement.partnerWon
+        ? settlement.partnerAmount
+        : 0,
       // Surfaced so the admin UI can pre-fill the "mantener vencimiento" option
       // (new plan inherits this expiry) without a second round-trip.
       expiryDate: sub.endDate ?? undefined,
@@ -4264,6 +4187,19 @@ export class SubscriptionService {
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
+    // Fase 194 D-07 (T-194-17/18): los accesos de invitación no se "cambian"
+    // de plan (ni now ni after_current): comprar es assignPlan, que cierra los
+    // accesos solo. Se resuelve el origen acá, antes de que cualquier rama
+    // cancele subs programadas.
+    const originSub = await this.getMemberSubscription(ctx, userId);
+    if (originSub) {
+      const originPlan = await this.getPlanById(ctx, originSub.planId);
+      if (originPlan && isInvitationPlan(originPlan)) {
+        throw new BadRequestError(
+          "Los accesos de invitación no se cambian de plan: asigná el plan nuevo (los accesos se cierran solos)",
+        );
+      }
+    }
     if (
       input.startMode === "after_current" ||
       input.startDate > todayDateString()
@@ -4355,43 +4291,44 @@ export class SubscriptionService {
     // Calculate proration from CURRENT subscription only (single record, no accumulation)
     const proration = this.calculateProration(existingSub, currentPlan);
 
-    // Resolve pricing the same way changePlanAfterCurrent does: respect
-    // priceOverrideAmount (admin-typed custom amount, no proration applied)
-    // and priceTypeApplied (regular/zero/credit_card) before falling back
-    // to priceRegular. Without this, the UI's price-type and override
-    // selectors silently no-op for "Cambiar ahora".
-    //
-    // Fase 176 Plan 09 (MOD-02): boarding pass es MÓDULO (`templo-gamification`)
-    // — resolvePlanPrice dispara el filter `pricing.adjust`, que consume/marca
-    // el pase (T-176-20: una sola escritura de `boardingPassUsed`, la del
-    // handler). AURA NO: `changePlanNow` nunca la soportó
-    // (`supports.discounts: false`) y eso no cambia — es la razón de ser del
-    // campo `supports` (T-176-24). El neto contra el crédito remanente de la
-    // sub vigente se queda ACÁ, DESPUÉS del filter — comportamiento actual,
-    // no se toca.
-    const resolved = await resolvePlanPrice({
-      hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
+    // ── Árbitro de descuentos (fase 194-17: D-08/D-10b/D-10c/D-20/D-21/D-26a) ──
+    // Mismo helper que assignPlan y changePlanAfterCurrent (paridad por construcción),
+    // con dos diferencias propias del cambio inmediato:
+    //   - `auraSupported: false`: AURA nunca aplicó acá (T-176-24); sin ella, partner e
+    //     invitación compiten y se aplica UNO, el de mayor monto (antes componían).
+    //   - `prorationCredit`: el crédito del plan vigente se resta ANTES de los
+    //     descuentos; el neto post-prorrateo es la base de partner/invitación y de su tope.
+    // Boarding pass (módulo `templo-gamification`, T-176-20) excluye partner e
+    // invitación (D-26a). El override del admin ("mantener vencimiento" envía la
+    // diferencia como precio personalizado) es el precio FINAL: no se netea contra el
+    // crédito y no lleva descuento encima (D-20, hoy también el partner lo evita).
+    const override =
+      input.priceOverrideAmount !== undefined && input.priceOverrideAmount >= 0
+        ? {
+            amount: input.priceOverrideAmount,
+            reason: input.priceOverrideReason,
+          }
+        : undefined;
+    const {
+      resolved,
+      partnerCandidate: partnerBenefitCandidate,
+      settlement,
+      priceAfterFilter,
+    } = await this.computeChargeDiscounts({
+      mode: "charge",
+      chargeCallSite: "change-now",
+      auraSupported: false,
+      ctx,
       userId,
-      planId: input.planId,
-      planCategory: targetPlan.planCategory,
-      callSite: "change-now",
-      commit: true,
-      supports: { exclusiveBenefits: true, discounts: false },
+      plan: targetPlan,
       priceTypeRequested: input.priceTypeApplied,
-      resolvePriceType: (t) => this.resolvePriceType(t),
-      basePriceFor: (t) => this.getBasePrice(targetPlan, t),
       moduleInput: input.moduleInput ?? {},
-      override:
-        input.priceOverrideAmount !== undefined &&
-        input.priceOverrideAmount >= 0
-          ? {
-              amount: input.priceOverrideAmount,
-              reason: input.priceOverrideReason,
-            }
-          : undefined,
+      override,
+      prorationCredit: proration.remainingValue,
+      prorateToMonthEnd: input.prorateToMonthEnd,
     });
 
-    let netAmount: number;
+    const netAmount = settlement.finalPrice;
     const resolvedPriceType: PriceType = resolved.priceType;
     let resolvedOverrideAmount: number | null;
     let resolvedOverrideReason: string | null;
@@ -4401,12 +4338,12 @@ export class SubscriptionService {
       // `priceLocked === "override"` (pricing-benefits.ts) y boarding queda
       // ignorado. El override NO se netea contra el crédito remanente: es el
       // comportamiento actual de las tres ramas de hoy, no se toca.
-      netAmount = resolved.price;
       resolvedOverrideAmount = resolved.priceOverrideAmount;
       resolvedOverrideReason = resolved.priceOverrideReason;
     } else {
-      netAmount = Math.max(0, resolved.price - proration.remainingValue);
-      resolvedOverrideAmount = netAmount;
+      // Neto post-prorrateo ANTES de partner/invitación (como hoy: el descuento
+      // vive en sus columnas `referral_*`/`partner_*`, no en el override).
+      resolvedOverrideAmount = priceAfterFilter;
       // T-176-25: el texto persistido debe quedar byte a byte. El core arma
       // la razón acá (es quien conoce `proration.remainingValue`/`remainingDetail`
       // — el módulo no los ve) leyendo `resolved.exclusive`/`resolved.applied`
@@ -4423,56 +4360,24 @@ export class SubscriptionService {
     }
 
     const { boardingPassUsed } = readModuleColumns(resolved);
-    // Referidos (fase 157): materialización del descuento en columnas nuevas.
-    let referralDiscountPercent: number | null = null;
-    let referralDiscountAmount: number | null = null;
-    // Fase 179 (D-09/D-10/D-20): candidato de descuento de partner.
-    // changePlanNow NO tiene bloque de descuento AURA propio (a diferencia
-    // de assignPlan/changePlanAfterCurrent) — sin competidor, el candidato
-    // se aplica directo sobre el neto si existe (ver bloque post-else abajo).
-    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
-      null;
-    let partnerDiscountPercent: number | null = null;
-    let partnerDiscountAmount: number | null = null;
+    // `referral_*` de la sub = descuento de INVITACIÓN aplicado (% nominal, monto con
+    // tope D-10c); `partner_*` solo si el partner ganó.
+    const {
+      referralDiscountPercent,
+      referralDiscountAmount,
+      partnerDiscountPercent,
+      partnerDiscountAmount,
+    } = settlementColumns(settlement, partnerBenefitCandidate?.percent ?? null);
 
-    // ── Partners (fase 179, D-09/D-10/D-20) ──
-    // Sin bloque AURA en este método (`supports.discounts: false`, T-176-24),
-    // el candidato se aplica DIRECTO sobre el neto post-prorrateo (mismo
-    // punto donde referidos aplica el suyo, ver bloque de abajo) — no hay
-    // ganador a decidir. Los guards D-17 (excludedFromReferrals +
-    // prorateToMonthEnd) los aplica el helper; el tenant sale del `ctx`
-    // (tren v6.0, fase 172).
-    partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
-      ctx,
+    // Fase 157 + 194 (D-10b): flip del vínculo `pending` heredado en el primer cobro
+    // pago, gateado por el flag del plan destino (especial/paquete/sin flag no
+    // cualifican, T-161-05). El precio ya NO depende del flip: el candidato lo simuló.
+    await qualifyLegacyLinkOnCharge(this.chargeEffectsDeps(), ctx, {
+      plan: targetPlan,
+      prorateToMonthEnd: input.prorateToMonthEnd,
       userId,
-      targetPlan.planCategory,
-      input.prorateToMonthEnd,
-    );
-    if (partnerBenefitCandidate) {
-      const partnerDiscountAmountCalc = Math.floor(
-        netAmount * (partnerBenefitCandidate.percent / 100),
-      );
-      netAmount -= partnerDiscountAmountCalc;
-      partnerDiscountPercent = partnerBenefitCandidate.percent;
-      partnerDiscountAmount = partnerDiscountAmountCalc;
-    }
-    // ── Referidos (fase 157, D-20/D-21) ──
-    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
-    // neto post-prorrateo. resolvedOverrideAmount conserva el neto de prorrateo;
-    // el descuento de referido reduce el pricePaid efectivo (columnas nuevas).
-    // D-09: cambiar HACIA un plan especial no cualifica ni descuenta referidos
-    // (T-161-05). Guard por la categoría del plan destino.
-    if (!excludedFromReferrals(targetPlan.planCategory)) {
-      await this.qualifyReferralOnCharge(ctx, userId, netAmount);
-      const referral = await this.computePriceWithReferralDiscount(
-        ctx,
-        userId,
-        netAmount,
-      );
-      netAmount = referral.pricePaid;
-      referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
-      referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
-    }
+      pricePaid: netAmount,
+    });
 
     // Phase 112-02 + 03: tear down the outgoing sub's plan-bound enrollments
     // BEFORE closing it. Runs on this.db (not in the new-sub tx) by design
@@ -4581,6 +4486,9 @@ export class SubscriptionService {
       //
       // Fase 174-02: DEUDA de `:3547` (D-02/D-13) saldada — `tenantValues(ctx, {...})`,
       // mismo idioma que el insert ya migrado de `assignPlan`.
+      // Invitador a avisar tras el commit (lo setea la tx si nació el vínculo).
+      // (`as`: TS no ve las asignaciones dentro del callback y angostaría a `null`.)
+      let linkedInviterId = null as number | null;
       const { newSubscriptionId } = await this.db.transaction(async (tx) => {
         // Fase 175.1-08 (D1/T-175.1-08-01): guard TEMPRANO, mismo idioma que
         // el sitio gemelo en `assignPlan` — `input.branchId` no se validaba
@@ -4737,38 +4645,33 @@ export class SubscriptionService {
           flow: "change-now",
         });
 
+        // Fase 194 D-05/D-13 (T-194-53): vínculo del invitado con el cobro, en la tx
+        // (raro acá: el cambio exige membresía vigente, que no es la de invitación).
+        linkedInviterId = await materializeSettlementLink(
+          this.chargeEffectsDeps(),
+          tx,
+          ctx,
+          settlement,
+          userId,
+        );
+
         return { newSubscriptionId: subId };
       });
 
-      // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
-      await this.recordReferralCreditOnCharge(
-        ctx,
-        userId,
-        newSubscriptionId,
-        referralDiscountPercent ?? 0,
-        referralDiscountAmount ?? 0,
-      );
-
-      // Partners (D-11/D-17): dispara con netAmount>0 de CUALQUIER categoría
-      // y NO excluye el alta prorrateada — un cambio de plan cobrado ahora
-      // sigue siendo una venta real.
-      await this.qualifyPartnerOnCharge(
-        ctx,
-        userId,
-        netAmount,
-        newSubscriptionId,
-      );
-
-      // Partners (D-09/D-10/D-20): consume el beneficio de descuento (sin
-      // bloque AURA en este método, `won` es simplemente "había candidato").
-      await this.consumePartnerBenefitAfterCharge(ctx, {
+      // Post-commit (ME-01): aviso al invitador, crédito de referidos, comisión y consumo de partner.
+      await settleChargeSideEffects(this.chargeEffectsDeps(), ctx, {
         userId,
         subscriptionId: newSubscriptionId,
         pricePaid: netAmount,
-        candidate: partnerBenefitCandidate,
-        won: partnerBenefitCandidate !== null,
-        wonPercent: partnerDiscountPercent,
-        wonAmount: partnerDiscountAmount,
+        settlement,
+        partnerCandidate: partnerBenefitCandidate,
+        columns: {
+          referralDiscountPercent,
+          referralDiscountAmount,
+          partnerDiscountPercent,
+          partnerDiscountAmount,
+        },
+        linkedInviterId,
       });
 
       // Auto-migrate member from virtual branch to subscription's physical branch
@@ -4988,12 +4891,11 @@ export class SubscriptionService {
       throw new NotFoundError("Miembro no encontrado");
     }
 
-    // ── Partners (fase 179, D-09/D-10/D-20) — candidato ANTES del filter ──
-    // Mismo esquema que assignPlan: lectura pura, solo en la rama de cálculo
-    // normal (sin override; el helper excluye prorrateo/categoría, D-17). El
-    // percent viaja al filter como `competingDiscountPercent` — el módulo
-    // AURA valida igual (400 gane quien gane) pero NO gasta si el competidor
-    // iguala o supera su tier (empate a favor del partner, D-20).
+    // ── Árbitro de descuentos (fase 194-16: D-08/D-10b/D-10c/D-20/D-21/D-26a) ──
+    // Mismo helper que assignPlan (paridad por construcción): partner, invitación y
+    // AURA compiten y se aplica UNO (el de mayor monto; empate = core y no se gastan
+    // puntos). Sin prorrateo: el cambio diferido cobra el precio lleno del plan
+    // destino. Boarding pass y AURA son MÓDULO (`moduleInput`, filter `pricing.adjust`).
     const override =
       input.priceOverrideAmount !== undefined && input.priceOverrideAmount >= 0
         ? {
@@ -5001,96 +4903,44 @@ export class SubscriptionService {
             reason: input.priceOverrideReason,
           }
         : undefined;
-    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
-      null;
-    if (override === undefined) {
-      partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
-        ctx,
-        userId,
-        targetPlan.planCategory,
-        input.prorateToMonthEnd,
-      );
-    }
-
-    // Pricing: override → boarding → AURA → plan price by type.
-    // Fase 176 Plan 09 (MOD-02): boarding pass y AURA son MÓDULO
-    // (`templo-gamification`) — resolvePlanPrice dispara el filter
-    // `pricing.adjust`, que las aplica leyendo `moduleInput` (poblado por
-    // routes.ts desde el body validado). El core ya no nombra ninguna de las
-    // dos acá. Simétrico a assignPlan (176-08): sin prorrateo en este método.
-    const resolved = await resolvePlanPrice({
-      hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
+    const {
+      resolved,
+      partnerCandidate: partnerBenefitCandidate,
+      settlement,
+    } = await this.computeChargeDiscounts({
+      mode: "charge",
+      chargeCallSite: "change-after-current",
+      ctx,
       userId,
-      planId: input.planId,
-      planCategory: targetPlan.planCategory,
-      callSite: "change-after-current",
-      commit: true,
-      supports: { exclusiveBenefits: true, discounts: true },
+      plan: targetPlan,
       priceTypeRequested: input.priceTypeApplied,
-      resolvePriceType: (t) => this.resolvePriceType(t),
-      basePriceFor: (t) => this.getBasePrice(targetPlan, t),
       moduleInput: input.moduleInput ?? {},
-      competingDiscountPercent: partnerBenefitCandidate?.percent ?? null,
       override,
+      prorateToMonthEnd: input.prorateToMonthEnd,
     });
 
-    let pricePaid = resolved.price;
+    const pricePaid = settlement.finalPrice;
     const priceTypeApplied = resolved.priceType;
     const { auraDiscount, auraDiscountPercent, boardingPassUsed } =
       readModuleColumns(resolved);
     const priceOverrideAmount = resolved.priceOverrideAmount;
     const priceOverrideReason = resolved.priceOverrideReason;
-    let referralDiscountPercent: number | null = null;
-    let referralDiscountAmount: number | null = null;
+    const {
+      referralDiscountPercent,
+      referralDiscountAmount,
+      partnerDiscountPercent,
+      partnerDiscountAmount,
+    } = settlementColumns(settlement, partnerBenefitCandidate?.percent ?? null);
 
-    // ── Partners (fase 179, D-09/D-10/D-20) — decisión POST-filter ──
-    // Mismo esquema que assignPlan: si el módulo NO aplicó AURA (no se
-    // pidió, o el partner igualó/superó el tier — empate a favor del
-    // partner), el candidato gana y se aplica sobre el precio base. Si el
-    // módulo SÍ aplicó AURA, el partner perdió (D-20, se consume como
-    // 'perdio_vs_aura' tras el cobro). Con boarding pass (exclusivo) el
-    // candidato no participa.
-    let partnerBenefitWon = false;
-    let partnerDiscountPercent: number | null = null;
-    let partnerDiscountAmount: number | null = null;
-    if (resolved.exclusive) {
-      partnerBenefitCandidate = null;
-    }
-    if (partnerBenefitCandidate !== null && auraDiscountPercent === null) {
-      partnerBenefitWon = true;
-      const discountAmount = Math.floor(
-        resolved.basePrice * (partnerBenefitCandidate.percent / 100),
-      );
-      pricePaid = resolved.basePrice - discountAmount;
-      partnerDiscountPercent = partnerBenefitCandidate.percent;
-      partnerDiscountAmount = discountAmount;
-      this.log.info(
-        {
-          userId,
-          partnerLinkId: partnerBenefitCandidate.linkId,
-          partnerPercent: partnerBenefitCandidate.percent,
-          auraDiscountPercent,
-        },
-        "partner: descuento de partner ganó (o AURA no estaba en juego) — no se gastaron puntos AURA (D-10/D-20)",
-      );
-    }
-
-    // ── Referidos (fase 157, D-20/D-21) ──
-    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
-    // precio ya resuelto (incl. auraSpend). Columnas nuevas referralDiscount*.
-    // D-09: cambiar HACIA un plan especial (after_current) tampoco toca referidos
-    // (T-161-05). Guard por la categoría del plan destino.
-    if (!excludedFromReferrals(targetPlan.planCategory)) {
-      await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
-      const referral = await this.computePriceWithReferralDiscount(
-        ctx,
-        userId,
-        pricePaid,
-      );
-      pricePaid = referral.pricePaid;
-      referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
-      referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
-    }
+    // Fase 157 + 194 (D-10b): flip del vínculo `pending` heredado en el primer cobro
+    // pago, gateado por el flag del plan destino (especial/paquete/sin flag no
+    // cualifican, T-161-05). El precio ya NO depende del flip: el candidato lo simuló.
+    await qualifyLegacyLinkOnCharge(this.chargeEffectsDeps(), ctx, {
+      plan: targetPlan,
+      prorateToMonthEnd: input.prorateToMonthEnd,
+      userId,
+      pricePaid: pricePaid,
+    });
 
     // New period: por defecto arranca en current.endDate (encadenado, sin gap).
     // El admin puede empujar el inicio MÁS ADELANTE (hotfix 2026-07-07, pedido
@@ -5125,6 +4975,9 @@ export class SubscriptionService {
     //
     // Fase 174-02: DEUDA de `:4018` (D-02/D-13) saldada — `tenantValues(ctx, {...})`,
     // mismo idioma que `changePlanNow`/`assignPlan`.
+    // Invitador a avisar tras el commit (lo setea la tx si nació el vínculo).
+    // (`as`: TS no ve las asignaciones dentro del callback y angostaría a `null`.)
+    let linkedInviterId = null as number | null;
     const { newSubscriptionId } = await this.db.transaction(async (tx) => {
       // Fase 175.1-08 (D1/T-175.1-08-01): guard TEMPRANO — `changePlanAfterCurrent`
       // no validaba `input.branchId` contra el gimnasio en NINGÚN camino (gap
@@ -5233,37 +5086,34 @@ export class SubscriptionService {
         flow: "change-after-current",
       });
 
+      // Fase 194 D-05/D-13 (T-194-53): vínculo del invitado con el cobro, en la tx
+      // (raro acá: casi siempre ya nació en el alta; solo si el plan del alta no
+      // tenía flag y esta compra cae en la ventana D-13).
+      linkedInviterId = await materializeSettlementLink(
+        this.chargeEffectsDeps(),
+        tx,
+        ctx,
+        settlement,
+        userId,
+      );
+
       return { newSubscriptionId: subId };
     });
 
-    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
-    await this.recordReferralCreditOnCharge(
-      ctx,
-      userId,
-      newSubscriptionId,
-      referralDiscountPercent ?? 0,
-      referralDiscountAmount ?? 0,
-    );
-
-    // Partners (D-11/D-17): dispara con pricePaid>0 de CUALQUIER categoría —
-    // sin el guard excludedFromReferrals que sí aplica al bloque de arriba.
-    await this.qualifyPartnerOnCharge(
-      ctx,
-      userId,
-      pricePaid,
-      newSubscriptionId,
-    );
-
-    // Partners (D-09/D-10/D-20): consume el beneficio de descuento, con el
-    // candidato/ganador ya resueltos alrededor del filter de pricing.
-    await this.consumePartnerBenefitAfterCharge(ctx, {
+    // Post-commit (ME-01): aviso al invitador, crédito de referidos, comisión y consumo de partner.
+    await settleChargeSideEffects(this.chargeEffectsDeps(), ctx, {
       userId,
       subscriptionId: newSubscriptionId,
-      pricePaid,
-      candidate: partnerBenefitCandidate,
-      won: partnerBenefitWon,
-      wonPercent: partnerDiscountPercent,
-      wonAmount: partnerDiscountAmount,
+      pricePaid: pricePaid,
+      settlement,
+      partnerCandidate: partnerBenefitCandidate,
+      columns: {
+        referralDiscountPercent,
+        referralDiscountAmount,
+        partnerDiscountPercent,
+        partnerDiscountAmount,
+      },
+      linkedInviterId,
     });
 
     const newSub = await this.getSubscriptionById(ctx, newSubscriptionId);
@@ -5320,6 +5170,8 @@ export class SubscriptionService {
       pricePaid: schema.subscriptions.pricePaid,
       priceTypeApplied: schema.subscriptions.priceTypeApplied,
       referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
+      partnerDiscountAmount: schema.subscriptions.partnerDiscountAmount,
+      auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
       membershipKind: schema.subscriptions.membershipKind,
       previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
     };
@@ -5367,110 +5219,183 @@ export class SubscriptionService {
   }
 
   /**
-   * Base PRE-descuento de referido del MES COMPLETO que hereda una renovación,
-   * antes de la normalización WR-04 y de cualquier override o prorrateo de ESTA
-   * renovación.
-   *
-   * Por defecto es lo que el socio venía pagando (`pricePaid` + add-back del
-   * referido — caso Pomilio: preserva precios negociados). Excepción: si el
-   * período actual fue PARCIAL (alta o renovación prorrateada hasta fin de mes)
-   * su `pricePaid` es un proporcional, y heredarlo renovaba el mes completo al
-   * precio de los días sueltos (caso BCN sept 2026: alta del 25 al 30/9 por 12 €
-   * y la renovación ofrecía 12 € por el mes, con el prorrateo topeado en 12).
-   * Ahí se busca hacia atrás el último período COMPLETO del mismo plan y tipo de
-   * precio (preserva el negociado de quien pasó por una renovación prorrateada);
-   * si no hay (el parcial fue el alta), el precio de lista del plan.
+   * Inicio del período que renueva `renewSubscription` (y que previsualiza
+   * `getRenewalPreview`: misma derivación para que el preview no diverja).
+   * Por defecto la renovación arranca en el vencimiento actual (renovación anticipada)
+   * o en hoy (ya vencida). El admin puede pasar una fecha de inicio custom (hotfix
+   * 2026-07-06, pedido del staff): la renovación arranca en esa fecha.
    */
-  private async resolveRenewalBase(
-    ctx: TenantContext,
-    userId: number,
-    currentSub: {
-      planId: number;
-      startDate: string;
-      endDate: string | null;
-      pricePaid: number;
-      priceTypeApplied: string;
-      referralDiscountAmount: number | null;
-      previousSubscriptionId: number | null;
-    },
-    plan: PlanDetail,
-  ): Promise<{ base: number; source: RenewalBaseSource }> {
-    const inheritedBase = (sub: {
-      pricePaid: number;
-      referralDiscountAmount: number | null;
-    }) => sub.pricePaid + (sub.referralDiscountAmount ?? 0);
-
+  private resolveRenewalStart(
+    currentSub: { endDate: string | null },
+    startDate: string | undefined,
+  ): { today: string; oldSubExpired: boolean; newStartDate: string } {
+    const today = new Date().toISOString().split("T")[0];
+    const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
+    const autoStartDate =
+      currentSub.endDate && currentSub.endDate >= today
+        ? currentSub.endDate
+        : today;
+    if (startDate === undefined) {
+      return { today, oldSubExpired, newStartDate: autoStartDate };
+    }
+    assertStartDateWithinLimits(startDate);
+    // No se puede solapar con la suscripción vigente: una renovación del mismo
+    // plan que arranque ANTES de que venza la actual crearía dos subs activas
+    // para el mismo socio (caso Lorenzino/Pandolfo). Cuando la sub sigue
+    // vigente, exigimos que la fecha custom sea >= al vencimiento actual.
     if (
-      !isMonthEndProratedPeriod(
-        currentSub.startDate,
-        currentSub.endDate,
-        plan.durationDays,
-      )
+      !oldSubExpired &&
+      currentSub.endDate &&
+      startDate < currentSub.endDate
     ) {
-      return { base: inheritedBase(currentSub), source: "inherited" };
+      throw new BadRequestError(
+        `La fecha de inicio de la renovación no puede ser anterior al vencimiento actual (${currentSub.endDate}).`,
+      );
+    }
+    return { today, oldSubExpired, newStartDate: startDate };
+  }
+
+  /**
+   * Fase 194-18 (D-08/D-10b/D-10c/D-20/D-21/D-22): precio de una renovación. ÚNICO lugar
+   * donde se resuelve (la comparten `renewSubscription` en `mode: "charge"` y
+   * `getRenewalPreview` en `mode: "preview"`: paridad cobro<->preview por construcción) y
+   * ÚNICA llamada de la renovación al árbitro de descuentos (`computeChargeDiscounts`).
+   *
+   * Base de la renovación (NO es un descuento sobre la lista, no compite):
+   *  - prorrateo a fin de mes: el proporcional es el precio final, sin descuentos;
+   *  - precio personalizado con razón: es el precio final (D-20), sin descuentos, el
+   *    vínculo de invitación nace igual si hay invitación en ventana;
+   *  - normal: la base heredada sin promos pegadas (D-22, `resolveRenewalBase`), o el
+   *    precio de lista normalizado si la regla de recargo por tarjeta cambió el tipo de
+   *    precio (WR-04: con la regla OFF `credit_card` pasa a `regular`).
+   * Sobre la base normal compiten partner e invitación por MONTO y se aplica UNO. AURA no
+   * existe en la renovación (`auraSupported: false`).
+   *
+   * Las subs ya creadas no se tocan (D-08): esta regla rige desde la próxima renovación.
+   */
+  private async resolveRenewalCharge(params: {
+    mode: "charge" | "preview";
+    ctx: TenantContext;
+    userId: number;
+    currentSub: RenewalBaseSub;
+    plan: PlanDetail;
+    newStartDate: string;
+    prorateToMonthEnd?: boolean;
+    priceOverrideAmount?: number;
+    priceOverrideReason?: string;
+  }): Promise<{
+    inherited: { base: number; source: RenewalBaseSource };
+    /** Tipo de precio con el que se persiste la sub renovada. */
+    priceType: PriceType;
+    /** Precio personalizado con razón de ESTA renovación (se persiste en la sub). */
+    override: { amount: number; reason: string } | null;
+    settlement: ChargeSettlement;
+    partnerCandidate: { linkId: number; percent: number } | null;
+    /** Precio de la renovación ANTES de partner/invitación. */
+    priceBeforeDiscount: number;
+  }> {
+    const { mode, ctx, userId, currentSub, plan, newStartDate } = params;
+    const inherited = await resolveRenewalBase(
+      { db: this.db, log: this.log },
+      ctx,
+      userId,
+      currentSub,
+      plan,
+      (t) => this.getBasePrice(plan, t),
+    );
+    const inheritedPriceType = currentSub.priceTypeApplied as PriceType;
+    let priceType = inheritedPriceType;
+    let basePrice = inherited.base;
+    let override: { amount: number; reason: string } | null = null;
+    let prorate: { computed: number } | undefined;
+
+    if (params.prorateToMonthEnd) {
+      // Renovación prorrateada hasta fin de mes — máxima prioridad, excluyente con el
+      // override-con-razón y con los descuentos (mismo criterio que el alta
+      // prorrateada). El precio base del proporcional es el MES COMPLETO que el socio
+      // venía pagando (heredado, WR-04 normalizado); el staff puede editar el sugerido,
+      // que llega por `priceOverrideAmount` SIN exigir razón. No se persiste como
+      // override: el endDate a fin de mes + pricePaid ya cuentan la historia. Cap
+      // defensivo: no puede superar el mes completo.
+      priceType = await this.resolvePriceType(inheritedPriceType);
+      const fullMonthPrice =
+        priceType !== inheritedPriceType
+          ? this.getBasePrice(plan, priceType)
+          : inherited.base;
+      const prorated =
+        params.priceOverrideAmount !== undefined
+          ? params.priceOverrideAmount
+          : computeProratedPrice(fullMonthPrice, newStartDate);
+      if (prorated > fullMonthPrice) {
+        throw new BadRequestError(
+          "El precio prorrateado no puede superar el precio del mes completo",
+        );
+      }
+      basePrice = fullMonthPrice;
+      prorate = { computed: prorated };
+    } else if (
+      params.priceOverrideAmount !== undefined &&
+      params.priceOverrideAmount >= 0
+    ) {
+      if (!params.priceOverrideReason && mode === "charge") {
+        throw new BadRequestError(
+          "Se requiere una razon para el precio personalizado",
+        );
+      }
+      override = {
+        amount: params.priceOverrideAmount,
+        reason: params.priceOverrideReason ?? RENEWAL_PREVIEW_OVERRIDE_REASON,
+      };
+    } else {
+      // WR-04 (ALUM-03/D-03): normalizar el priceTypeApplied heredado contra la regla de
+      // recargo por tarjeta. Con la regla ON (El Templo) la resolución es identidad; con
+      // la regla OFF, `credit_card` normaliza a `regular` y se recobra el precio regular
+      // vigente del plan (no se perpetúa el recargo heredado).
+      priceType = await this.resolvePriceType(inheritedPriceType);
+      if (priceType !== inheritedPriceType) {
+        basePrice = this.getBasePrice(plan, priceType);
+      }
     }
 
-    let previousId = currentSub.previousSubscriptionId;
-    for (
-      let hop = 0;
-      previousId !== null && hop < MAX_RENEWAL_BASE_HOPS;
-      hop++
-    ) {
-      const [previous] = await this.db
-        .select({
-          planId: schema.subscriptions.planId,
-          startDate: schema.subscriptions.startDate,
-          endDate: schema.subscriptions.endDate,
-          pricePaid: schema.subscriptions.pricePaid,
-          priceTypeApplied: schema.subscriptions.priceTypeApplied,
-          referralDiscountAmount: schema.subscriptions.referralDiscountAmount,
-          previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
-        })
-        .from(schema.subscriptions)
-        .where(
-          and(
-            tenantWhere(schema.subscriptions, ctx),
-            eq(schema.subscriptions.id, previousId),
-            eq(schema.subscriptions.userId, userId),
-          ),
-        )
-        .limit(1);
-      // Otro plan u otro tipo de precio: lo que pagaba ahí no es la base de
-      // este plan → precio de lista.
-      if (
-        !previous ||
-        previous.planId !== currentSub.planId ||
-        previous.priceTypeApplied !== currentSub.priceTypeApplied
-      ) {
-        break;
-      }
-      if (
-        !isMonthEndProratedPeriod(
-          previous.startDate,
-          previous.endDate,
-          plan.durationDays,
-        )
-      ) {
-        return { base: inheritedBase(previous), source: "previous_period" };
-      }
-      previousId = previous.previousSubscriptionId;
-    }
-
+    const { settlement, partnerCandidate, priceAfterFilter } =
+      await this.computeChargeDiscounts({
+        mode,
+        chargeCallSite: "renew",
+        auraSupported: false,
+        ctx,
+        userId,
+        plan,
+        priceTypeRequested: priceType,
+        moduleInput: {},
+        override: override ?? undefined,
+        prorate,
+        prorateToMonthEnd: params.prorateToMonthEnd,
+        basePrice,
+      });
     return {
-      base: this.getBasePrice(plan, currentSub.priceTypeApplied as PriceType),
-      source: "plan_price",
+      inherited,
+      priceType,
+      override,
+      settlement,
+      partnerCandidate,
+      priceBeforeDiscount: priceAfterFilter,
     };
   }
 
   /**
-   * Preview de la base del mes completo de una renovación (ver
-   * `resolveRenewalBase`). El diálogo de renovar del admin la usa como precio
-   * del mes completo en vez de reconstruirla desde `pricePaid`. No muta nada.
+   * Preview de una renovación: la base del mes completo (ver `resolveRenewalBase`) y,
+   * desde 194-18, los MONTOS del cobro (descuento ganador, monto de invitación con tope y
+   * precio final) para que el admin no los recalcule (Pitfall 6). Acepta como opciones
+   * los inputs que cambian el precio del cobro (`startDate` y `prorateToMonthEnd` del
+   * prorrateo, `priceOverrideAmount` del precio personalizado); sin opciones devuelve la
+   * renovación estándar. Mismo helper que `renewSubscription` (`resolveRenewalCharge`):
+   * `finalPrice` === `price_paid` del cobro con los mismos inputs. No muta nada.
    */
   async getRenewalPreview(
     ctx: TenantContext,
     userId: number,
     subscriptionId: number | undefined,
+    options: RenewalPreviewOptions = {},
   ): Promise<RenewalPreview> {
     const currentSub = await this.findRenewableSubscription(
       ctx,
@@ -5481,13 +5406,43 @@ export class SubscriptionService {
     if (!plan) {
       throw new NotFoundError("Plan no encontrado");
     }
-    const { base, source } = await this.resolveRenewalBase(
+    // Fase 194 (T-194-17): igual que el cobro, los accesos de invitación no se renuevan.
+    if (isInvitationPlan(plan)) {
+      throw new BadRequestError("Los accesos de invitación no se renuevan");
+    }
+    const { newStartDate } = this.resolveRenewalStart(
+      currentSub,
+      options.startDate,
+    );
+    const charge = await this.resolveRenewalCharge({
+      mode: "preview",
       ctx,
       userId,
       currentSub,
       plan,
-    );
-    return { subscriptionId: currentSub.id, base, source };
+      newStartDate,
+      prorateToMonthEnd: options.prorateToMonthEnd,
+      priceOverrideAmount: options.priceOverrideAmount,
+      priceOverrideReason: options.priceOverrideReason,
+    });
+    const { settlement, partnerCandidate } = charge;
+    return {
+      subscriptionId: currentSub.id,
+      base: charge.inherited.base,
+      source: charge.inherited.source,
+      basePrice: charge.priceBeforeDiscount,
+      invitationDiscountPercent: settlement.invitationPercent,
+      invitationDiscountAmount: settlement.invitationAmount,
+      invitationDiscountCapped: settlement.invitationCapped,
+      winningDiscount: settlement.winningDiscount,
+      partnerDiscountPercent: settlement.partnerWon
+        ? (partnerCandidate?.percent ?? 0)
+        : 0,
+      partnerDiscountAmount: settlement.partnerWon
+        ? settlement.partnerAmount
+        : 0,
+      finalPrice: settlement.finalPrice,
+    };
   }
 
   /**
@@ -5533,6 +5488,12 @@ export class SubscriptionService {
       throw new NotFoundError("Plan no encontrado");
     }
 
+    // Fase 194 (T-194-17): renovar los accesos de invitación los haría
+    // infinitos y gratis. Quien quiere seguir compra un plan real (assignPlan).
+    if (isInvitationPlan(plan)) {
+      throw new BadRequestError("Los accesos de invitación no se renuevan");
+    }
+
     // D-01: la condición "socio activo" del pase Socio se re-evalúa EN CADA
     // renovación (D-02: si dejó de ser socio no se le renueva el Socio — gestión
     // le ofrece el Externo). Sólo aplica a la sub especial con requiresPresencial;
@@ -5569,38 +5530,12 @@ export class SubscriptionService {
       }
     }
 
-    // Calculate new period dates. Por defecto la renovación arranca en el
-    // vencimiento actual (renovación anticipada) o en hoy (ya vencida). El admin
-    // puede pasar una fecha de inicio custom (hotfix 2026-07-06, pedido del
-    // staff): la renovación arranca en esa fecha y el nuevo vencimiento se
-    // recalcula como startDate + plan.durationDays.
-    const today = new Date().toISOString().split("T")[0];
-    const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
-    const autoStartDate =
-      currentSub.endDate && currentSub.endDate >= today
-        ? currentSub.endDate
-        : today;
-
-    let newStartDate: string;
-    if (input.startDate !== undefined) {
-      assertStartDateWithinLimits(input.startDate);
-      // No se puede solapar con la suscripción vigente: una renovación del mismo
-      // plan que arranque ANTES de que venza la actual crearía dos subs activas
-      // para el mismo socio (caso Lorenzino/Pandolfo). Cuando la sub sigue
-      // vigente, exigimos que la fecha custom sea >= al vencimiento actual.
-      if (
-        !oldSubExpired &&
-        currentSub.endDate &&
-        input.startDate < currentSub.endDate
-      ) {
-        throw new BadRequestError(
-          `La fecha de inicio de la renovación no puede ser anterior al vencimiento actual (${currentSub.endDate}).`,
-        );
-      }
-      newStartDate = input.startDate;
-    } else {
-      newStartDate = autoStartDate;
-    }
+    // Inicio del nuevo período (renovación anticipada, ya vencida o fecha custom):
+    // misma derivación que `getRenewalPreview`.
+    const { today, oldSubExpired, newStartDate } = this.resolveRenewalStart(
+      currentSub,
+      input.startDate,
+    );
     // Vencimiento del nuevo período. Por defecto `startDate + durationDays`
     // (mes completo). Con prorrateo hasta fin de mes (alineación a la
     // domiciliación) vence el último día del mes calendario del inicio — misma
@@ -5622,148 +5557,50 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : (plan.monthlyClassBudget ?? null);
 
-    // Precio de la renovación. Por defecto se hereda lo que el miembro venía
-    // pagando, para que cualquier override negociado se arrastre. Caso Pomilio
-    // (mayo 2026): venía pagando 75 EUR pero plan.priceRegular era 100, y la
-    // renovación grababa 100 → deuda fantasma de 25. Tomar currentSub.pricePaid
-    // preserva el override. priceTypeApplied se hereda más abajo y queda
-    // consistente.
-    //
-    // Si el admin ingresa un precio personalizado para ESTA renovación, tiene
-    // prioridad sobre el heredado (mismo patrón que assignPlan/changePlan).
-    //
-    // El heredado se reconstruye SIN el descuento de referido del período
-    // anterior (add-back de referralDiscountAmount): pricePaid quedó grabado ya
-    // descontado, y el descuento de referido es condicional POR CICLO (DESC-03
-    // — depende de que la contraparte siga activa hoy). Sin el add-back el
-    // descuento componía renovación tras renovación (72000 → 64800 → 58320…) y
-    // además quedaba perpetuado aunque el vínculo se suspendiera. El bloque de
-    // referidos de abajo re-aplica el % vigente sobre esta base limpia.
-    //
-    // Excepción: si el período actual fue PARCIAL (prorrateado hasta fin de mes)
-    // su pricePaid es un proporcional → resolveRenewalBase usa el último período
-    // completo o el precio de lista del plan.
-    let renewalPrice = (
-      await this.resolveRenewalBase(ctx, userId, currentSub, plan)
-    ).base;
-    let renewalOverrideAmount: number | null = null;
-    let renewalOverrideReason: string | null = null;
-    // Referidos (fase 157): materialización del descuento en columnas nuevas.
-    let referralDiscountPercent: number | null = null;
-    let referralDiscountAmount: number | null = null;
-    // Fase 179 (D-09/D-10/D-20): candidato de descuento de partner.
-    // renewSubscription NO tiene bloque de descuento AURA propio (a
-    // diferencia de assignPlan/changePlanAfterCurrent) — sin competidor, el
-    // candidato se aplica directo sobre el precio de renovación ya resuelto
-    // (ver bloque justo antes de referidos, más abajo).
-    let partnerBenefitCandidate: { linkId: number; percent: number } | null =
-      null;
-    let partnerDiscountPercent: number | null = null;
-    let partnerDiscountAmount: number | null = null;
-
-    // priceType de la renovación (heredado por default). Se declara acá arriba
-    // porque el prorrateo también lo resuelve; el bloque WR-04 de más abajo lo
-    // normaliza en el camino normal.
-    const inheritedPriceType = currentSub.priceTypeApplied as PriceType;
-    let renewalPriceType = inheritedPriceType;
-
-    // Renovación prorrateada hasta fin de mes — máxima prioridad, excluyente con
-    // el override-con-razón y con el descuento de referido (mismo criterio que el
-    // alta prorrateada). El precio base del proporcional es el MES COMPLETO que el
-    // socio venía pagando (heredado, WR-04 normalizado); el proporcional se computa
-    // sobre ese base y el staff puede editar el sugerido, que llega por
-    // `priceOverrideAmount` SIN exigir razón. No se persiste como override
-    // (renewalOverrideAmount queda null): el endDate a fin de mes + pricePaid ya
-    // cuentan la historia. Cap defensivo: no puede superar el mes completo.
-    if (input.prorateToMonthEnd) {
-      renewalPriceType = await this.resolvePriceType(inheritedPriceType);
-      const fullMonthPrice =
-        renewalPriceType !== inheritedPriceType
-          ? this.getBasePrice(plan, renewalPriceType)
-          : renewalPrice;
-      renewalPrice =
-        input.priceOverrideAmount !== undefined
-          ? input.priceOverrideAmount
-          : computeProratedPrice(fullMonthPrice, newStartDate);
-      if (renewalPrice > fullMonthPrice) {
-        throw new BadRequestError(
-          "El precio prorrateado no puede superar el precio del mes completo",
-        );
-      }
-    } else if (
-      input.priceOverrideAmount !== undefined &&
-      input.priceOverrideAmount >= 0
-    ) {
-      if (!input.priceOverrideReason) {
-        throw new BadRequestError(
-          "Se requiere una razon para el precio personalizado",
-        );
-      }
-      renewalPrice = input.priceOverrideAmount;
-      renewalOverrideAmount = input.priceOverrideAmount;
-      renewalOverrideReason = input.priceOverrideReason;
-    }
-
-    // WR-04 (ALUM-03/D-03): normalizar el priceTypeApplied heredado contra la
-    // regla de recargo por tarjeta. Sin esto, un socio dado de alta con
-    // `credit_card` seguía renovando con el precio CON recargo indefinidamente
-    // aunque el owner apagara la regla — el estado que resolvePriceType promete
-    // impedir para altas/cambios. Solo aplica cuando NO hay override explícito
-    // de esta renovación (el override manda). Con la regla ON (El Templo) la
-    // resolución es identidad y nada cambia; con la regla OFF, `credit_card`
-    // normaliza a `regular` y se recobra el precio base regular del plan vigente.
-    if (!input.prorateToMonthEnd && renewalOverrideAmount === null) {
-      renewalPriceType = await this.resolvePriceType(inheritedPriceType);
-      if (renewalPriceType !== inheritedPriceType) {
-        // credit_card → regular con la regla OFF: cobrar el precio regular
-        // vigente del plan (no perpetuar el recargo heredado en pricePaid).
-        renewalPrice = this.getBasePrice(plan, renewalPriceType);
-      }
-    }
-
-    // ── Partners (fase 179, D-09/D-10/D-20) ──
-    // Sin bloque AURA en este método, el candidato se aplica DIRECTO sobre
-    // el precio de renovación ya resuelto (heredado/override/prorrateado).
-    // `resolvePartnerDiscountCandidate` ya aplica los guards D-17
-    // (excludedFromReferrals + prorateToMonthEnd) internamente. El tenant
-    // sale del `ctx` (tren v6.0, fase 172).
-    partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
+    // ── Precio de la renovación (fase 194-18: D-08/D-10b/D-10c/D-20/D-21/D-22) ──
+    // Base heredada sin promos pegadas (caso Pomilio: preserva precios negociados;
+    // D-22: devuelve referido, partner y AURA del período anterior), override con razón,
+    // prorrateo a fin de mes y normalización WR-04 los resuelve `resolveRenewalCharge`,
+    // que además llama UNA vez al árbitro: partner e invitación compiten por monto y se
+    // aplica UNO, con tope en dinero; AURA no existe en la renovación. Override y prorrateo
+    // son el precio final (D-20). Mismo helper que `getRenewalPreview`.
+    const {
+      priceType: renewalPriceType,
+      override: renewalOverride,
+      settlement,
+      partnerCandidate: partnerBenefitCandidate,
+    } = await this.resolveRenewalCharge({
+      mode: "charge",
       ctx,
       userId,
-      plan.planCategory,
-      input.prorateToMonthEnd,
-    );
-    if (partnerBenefitCandidate) {
-      const partnerDiscountAmountCalc = Math.floor(
-        renewalPrice * (partnerBenefitCandidate.percent / 100),
-      );
-      renewalPrice -= partnerDiscountAmountCalc;
-      partnerDiscountPercent = partnerBenefitCandidate.percent;
-      partnerDiscountAmount = partnerDiscountAmountCalc;
-    }
+      currentSub,
+      plan,
+      newStartDate,
+      prorateToMonthEnd: input.prorateToMonthEnd,
+      priceOverrideAmount: input.priceOverrideAmount,
+      priceOverrideReason: input.priceOverrideReason,
+    });
+    const renewalPrice = settlement.finalPrice;
+    const renewalOverrideAmount = renewalOverride?.amount ?? null;
+    const renewalOverrideReason = renewalOverride?.reason ?? null;
+    const {
+      referralDiscountPercent,
+      referralDiscountAmount,
+      partnerDiscountPercent,
+      partnerDiscountAmount,
+    } = settlementColumns(settlement, partnerBenefitCandidate?.percent ?? null);
 
-    // ── Referidos (fase 157, D-20/D-21) ──
-    // Flip antes del cómputo (si el cargo cobra) + descuento simétrico sobre el
-    // precio de renovación ya resuelto. Se aplica ANTES de resolver
-    // renewBranchId/caja (que gatean por renewalPrice>0) para que vean el neto.
-    // D-09: los pases especiales quedan FUERA de referidos también en la
-    // renovación — no cualifican vínculos ni descuentan (T-161-05). Fase 177
-    // (D-13): un paquete renovado tampoco. Guard por categoría del plan de la
-    // sub renovada.
-    // Renovación prorrateada: el proporcional es el precio final, sin descuento
-    // de referido encima (excluyente, igual que el alta); el vínculo se cualifica
-    // en la primera renovación de mes completo (que sí corre esta lógica).
-    if (!excludedFromReferrals(plan.planCategory) && !input.prorateToMonthEnd) {
-      await this.qualifyReferralOnCharge(ctx, userId, renewalPrice);
-      const referral = await this.computePriceWithReferralDiscount(
-        ctx,
-        userId,
-        renewalPrice,
-      );
-      renewalPrice = referral.pricePaid;
-      referralDiscountPercent = referral.percent > 0 ? referral.percent : null;
-      referralDiscountAmount = referral.amount > 0 ? referral.amount : null;
-    }
+    // Fase 157 + 194 (D-10b): flip del vínculo `pending` heredado en el primer cobro
+    // pago, gateado por el flag del plan (los pases especiales, paquetes y planes sin
+    // flag no cualifican, T-161-05). El precio ya NO depende del flip: el candidato del
+    // árbitro lo simuló. Renovación prorrateada: el proporcional es el precio final; el
+    // vínculo se cualifica en la primera renovación de mes completo.
+    await qualifyLegacyLinkOnCharge(this.chargeEffectsDeps(), ctx, {
+      plan: plan,
+      prorateToMonthEnd: input.prorateToMonthEnd,
+      userId,
+      pricePaid: renewalPrice,
+    });
 
     // If old sub is already expired, close it now (below).
     // If still active (early renewal), leave it active — auto-expire will
@@ -5848,6 +5685,9 @@ export class SubscriptionService {
     // Wrap close-old (if expired) + new-sub INSERT + dependent writes in a
     // single transaction so Task 1b's recomputeUserStatus rolls back
     // atomically with the new sub on failure.
+    // Invitador a avisar tras el commit (lo setea la tx si nació el vínculo).
+    // (`as`: TS no ve las asignaciones dentro del callback y angostaría a `null`.)
+    let linkedInviterId = null as number | null;
     const { newSubscriptionId } = await this.db.transaction(async (tx) => {
       if (oldSubExpired) {
         await tx
@@ -5892,8 +5732,8 @@ export class SubscriptionService {
                 : "paga",
           referralDiscountPercent,
           referralDiscountAmount,
-          // Fase 179 (D-09): descuento de partner materializado (ver bloque
-          // de arriba — sin bloque AURA en este método, se aplica directo).
+          // Fase 179 (D-09): descuento de partner materializado solo si el árbitro
+          // lo eligió (194-18: compite con la invitación por monto).
           partnerDiscountPercent,
           partnerDiscountAmount,
           classesRemaining: periodBudget,
@@ -6054,40 +5894,34 @@ export class SubscriptionService {
         cashRegisterId: suggestedCajaId,
       });
 
+      // Fase 194 D-05/D-13 (T-194-53): vínculo del invitado con el cobro, en la tx (si el
+      // cobro falla no queda vínculo). Casi siempre ya nació en el alta; solo si el alta
+      // no lo creó y esta renovación cae en la ventana D-13.
+      linkedInviterId = await materializeSettlementLink(
+        this.chargeEffectsDeps(),
+        tx,
+        ctx,
+        settlement,
+        userId,
+      );
+
       return { newSubscriptionId: subId };
     });
 
-    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0
-    // (los pases especiales quedan en 0/0 por el guard D-09 de arriba).
-    await this.recordReferralCreditOnCharge(
-      ctx,
-      userId,
-      newSubscriptionId,
-      referralDiscountPercent ?? 0,
-      referralDiscountAmount ?? 0,
-    );
-
-    // Partners (D-11/D-17): dispara con renewalPrice>0 de CUALQUIER
-    // categoría (pases especiales incluidos) y sin la exclusión de
-    // prorateToMonthEnd que sí aplica al bloque de referidos de arriba — una
-    // renovación prorrateada sigue siendo una venta real.
-    await this.qualifyPartnerOnCharge(
-      ctx,
-      userId,
-      renewalPrice,
-      newSubscriptionId,
-    );
-
-    // Partners (D-09/D-10/D-20): consume el beneficio de descuento (sin
-    // bloque AURA en este método, `won` es simplemente "había candidato").
-    await this.consumePartnerBenefitAfterCharge(ctx, {
+    // Post-commit (ME-01): aviso al invitador, crédito de referidos, comisión y consumo de partner.
+    await settleChargeSideEffects(this.chargeEffectsDeps(), ctx, {
       userId,
       subscriptionId: newSubscriptionId,
       pricePaid: renewalPrice,
-      candidate: partnerBenefitCandidate,
-      won: partnerBenefitCandidate !== null,
-      wonPercent: partnerDiscountPercent,
-      wonAmount: partnerDiscountAmount,
+      settlement,
+      partnerCandidate: partnerBenefitCandidate,
+      columns: {
+        referralDiscountPercent,
+        referralDiscountAmount,
+        partnerDiscountPercent,
+        partnerDiscountAmount,
+      },
+      linkedInviterId,
     });
 
     const newSub = await this.getSubscriptionById(ctx, newSubscriptionId);
@@ -6267,48 +6101,29 @@ export class SubscriptionService {
     const plan = await this.getPlanById(ctx, planId);
     if (!plan) throw new NotFoundError("Plan no encontrado");
 
-    // Fase 176 Plan 10 (MOD-02): boarding pass/AURA son MÓDULO
-    // (`templo-gamification`) — resolvePlanPrice dispara el filter
-    // `pricing.adjust` con `commit: false` (preview: NO gasta ni marca).
-    // `resolvePriceType`/`getBasePrice` viajan igual que antes (WR-01, D-04:
-    // con la sobretasa de tarjeta OFF, credit_card normaliza a regular para
-    // que el preview matchee lo que assignPlan efectivamente cobra).
-    // `exclusiveBenefits: false`: el preview NO tiene rama de precio de
-    // boarding pass, solo reporta `boardingPassEligible` (Pitfall 5).
-    // ── Partners (fase 179, D-09/D-10/D-20): paridad preview↔cobro ──
-    // Existe test/referrals/preview-parity.test.ts justamente porque una
-    // divergencia entre preview y cobro ya pasó en producción — el candidato
-    // se resuelve ANTES del filter y su percent viaja como
-    // `competingDiscountPercent`, EXACTO como las charge-paths. SOLO
-    // LECTURA: no llama `consumePartnerBenefitOnCharge` ni
-    // `qualifyAndCommission`, así que consultarlo dos veces nunca cambia
-    // `benefit_status` ni crea comisiones. Sin `prorateToMonthEnd` en la
-    // firma del preview: siempre `undefined` (el guard D-17 del helper solo
-    // excluye cuando es `true`).
-    const partnerBenefitCandidate = await this.resolvePartnerDiscountCandidate(
-      ctx,
-      userId,
-      plan.planCategory,
-      undefined,
-    );
-
-    const resolved = await resolvePlanPrice({
-      hook: { tenantId: ctx.tenantId, db: this.db, log: this.log },
-      userId,
-      planId,
-      planCategory: plan.planCategory,
-      callSite: "preview",
-      commit: false,
-      supports: { exclusiveBenefits: false, discounts: true },
-      priceTypeRequested: priceType,
-      resolvePriceType: (t) => this.resolvePriceType(t),
-      basePriceFor: (t) => this.getBasePrice(plan, t),
-      moduleInput: moduleInput ?? {},
-      competingDiscountPercent: partnerBenefitCandidate?.percent ?? null,
-    });
+    // Fase 194-15 (D-08/D-21, Pitfall 6): el preview llama al MISMO helper que el
+    // cobro (`computeChargeDiscounts`) con `mode: "preview"`: sin escrituras (el
+    // filter no gasta AURA ni marca el boarding pass, no se materializa el
+    // vínculo ni se consume el beneficio de partner). Mismo helper = el PoS ve
+    // exactamente el precio que cobra `assignPlan` (test/referrals/
+    // preview-parity.test.ts existe porque una divergencia ya pasó en producción).
+    // `resolvePriceType`/`getBasePrice` viajan igual que antes (WR-01, D-04: con
+    // la sobretasa de tarjeta OFF, credit_card normaliza a regular).
+    // `exclusiveBenefits: false`: el preview NO tiene rama de precio de boarding
+    // pass, solo reporta `boardingPassEligible` (Pitfall 5). Sin `override` ni
+    // `prorateToMonthEnd` en la firma del preview.
+    const { resolved, partnerCandidate, settlement } =
+      await this.computeChargeDiscounts({
+        mode: "preview",
+        ctx,
+        userId,
+        plan,
+        priceTypeRequested: priceType,
+        moduleInput: moduleInput ?? {},
+      });
 
     const basePrice = resolved.basePrice;
-    let finalPrice = resolved.price;
+    const finalPrice = settlement.finalPrice;
 
     // Campos de módulo: `moduleOutput` es opaco para el core (T-176-16), se
     // narrowea por `typeof`/comparación literal, NUNCA con `as`. Con el
@@ -6342,53 +6157,18 @@ export class SubscriptionService {
         ? moduleOutput.auraToSpend
         : 0;
 
-    // D-10/D-20: gana el mayor, empate a favor del partner — la comparación
-    // la hizo el filter con `competingDiscountPercent`, misma fórmula que
-    // las charge-paths. Si el módulo NO aplicó AURA (`discountType` quedó
-    // 'none': no se pidió, tier/saldo insuficiente — tolerancia histórica
-    // del preview —, o el partner igualó/superó el tier), el partner gana y
-    // se aplica sobre el precio base, con discountAmount/auraToSpend en 0
+    // D-08/D-21: el árbitro aplicó UNO solo (AURA, partner o invitación, el de
+    // mayor monto; empate = gana el core). Si el módulo NO aplicó AURA
+    // (`discountType` quedó 'none': no se pidió, tier/saldo insuficiente —
+    // tolerancia histórica del preview— o el core igualó/superó el tier), el
+    // core ganador ya está en `settlement`, con discountAmount/auraToSpend en 0
     // tal como lo haría el cobro real (no gastaría los puntos del socio).
-    let partnerDiscountPercent: number | null = null;
-    let partnerDiscountAmount: number | null = null;
-    if (partnerBenefitCandidate !== null && discountType === "none") {
-      const amount = Math.floor(
-        basePrice * (partnerBenefitCandidate.percent / 100),
-      );
-      partnerDiscountPercent = partnerBenefitCandidate.percent;
-      partnerDiscountAmount = amount;
-      finalPrice = basePrice - amount;
-    }
-
-    // ── Referidos (fase 157, Pitfall 4): preview parity ──
-    // computeReferralDiscountPercent es SOLO LECTURA: NO flippea cualificación
-    // (qualifyFirstPayment) ni escribe referral_credits (es preview, no cobra).
-    // Compone sobre el precio ya reducido por auraSpend, exactamente como la
-    // charge-path, para que el PoS muestre el precio que efectivamente se cobra.
-    // Paridad completa con la charge-path:
-    //   - Guard de categoría (D-09/T-161-05 + D-13): los pases especiales y los
-    //     paquetes quedan FUERA del sistema de referidos — sin el guard el
-    //     preview mostraba un descuento que el cobro jamás aplicaba.
-    //   - simulatePendingQualification: el cobro real flippea el vínculo
-    //     pending del payer ANTES de computar (D-21), así que el preview del
-    //     primer pago debe contarlo también — si no, el admin ve el precio
-    //     lleno, el campo "monto recibido" se precarga de más y el backend
-    //     rechaza el cobro por exceder el monto real.
-    let referralDiscountPercent = 0;
-    let referralDiscountAmount = 0;
-    if (!excludedFromReferrals(plan.planCategory) && finalPrice > 0) {
-      const referralPct = await new ReferralService(
-        this.db,
-        this.log,
-      ).computeReferralDiscountPercent(ctx, userId, {
-        simulatePendingQualification: true,
-      });
-      if (referralPct > 0) {
-        referralDiscountPercent = referralPct;
-        referralDiscountAmount = Math.floor(finalPrice * (referralPct / 100));
-        finalPrice = finalPrice - referralDiscountAmount;
-      }
-    }
+    const partnerDiscountPercent = settlement.partnerWon
+      ? (partnerCandidate?.percent ?? null)
+      : null;
+    const partnerDiscountAmount = settlement.partnerWon
+      ? settlement.partnerAmount
+      : null;
 
     return {
       basePrice,
@@ -6399,8 +6179,10 @@ export class SubscriptionService {
       auraBalance,
       boardingPassEligible,
       availableTiers,
-      referralDiscountPercent,
-      referralDiscountAmount,
+      invitationDiscountPercent: settlement.invitationPercent,
+      invitationDiscountAmount: settlement.invitationAmount,
+      invitationDiscountCapped: settlement.invitationCapped,
+      winningDiscount: settlement.winningDiscount,
       partnerDiscountPercent,
       partnerDiscountAmount,
     };
@@ -6967,6 +6749,7 @@ export class SubscriptionService {
       specialLine: row.specialLine ?? null,
       multiBranch: row.multiBranch,
       isTrial: row.isTrial,
+      allowsInvitationDiscount: row.allowsInvitationDiscount,
       isGroup: row.isGroup,
       planCategory: row.planCategory as PlanCategory,
       goalPlanType,
@@ -7715,73 +7498,69 @@ export class SubscriptionService {
     // lint), condicionado a que `ctx` este resuelto (ver docblock del
     // metodo). El fragmento queda vacio cuando `ctx` es null, preservando el
     // comportamiento previo tal cual.
+    // Fase 194 D-03: "membresía vigente" tiene UNA sola definición
+    // (`shared/membership.ts`) — un plan `is_trial` da ACCESO, nunca
+    // MEMBRESÍA, así que una sub is_trial vigente NO pone `activo` ni dispara
+    // la conversión de lead. El gate se arma UNA vez y se reusa en el CASE de
+    // `activo` y en los 4 CASE de lead. Sin referencia a `ctx` (igual que el
+    // EXISTS de antes: correlacionado por `u.id`, que es de un solo gimnasio);
+    // el filtro de gimnasio del statement sigue siendo el fragmento condicional
+    // inline del WHERE de abajo.
+    /* tenant-safe: EXISTS correlacionado por u.id (un solo gimnasio), viaja
+       dentro del UPDATE de abajo, que acota por u.tenant_id inline. */
+    const membershipGate = sql`EXISTS (
+              SELECT 1 FROM subscriptions s
+              WHERE s.user_id = u.id
+                AND ${membershipInEffectSql("s")}
+            )`;
+
+    // Fase 194 D-18: el gate de conversión de lead acepta "tiene SP"
+    // (`bookings.is_trial=1`, como siempre) O "compró una membresía paga después
+    // de activar una invitación". Las reservas del invitado NO se marcan
+    // `is_trial` (contaminaría las métricas de SP), por eso la invitación es una
+    // rama propia. La rama de invitación respeta una marca MANUAL del lead
+    // (`leadOriginGate`); la fecha de conversión se sella igual (`convertedAtGate`).
+    // Las dos ramas de invitación viven en `referrals/invitation-conversion.ts`.
+    /* tenant-safe: EXISTS correlacionados por u.id (un solo gimnasio), viajan dentro del UPDATE de abajo, que acota por u.tenant_id inline. */
+    const spOrigin = sql`EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.member_id = u.id AND b.is_trial = 1
+            )`;
+    const leadOriginGate = sql`(${spOrigin} OR ${invitationLeadGateSql()})`;
+    const convertedAtGate = sql`(${spOrigin} OR ${invitationConvertedAtGateSql()})`;
+
     await tx.execute(sql`
       UPDATE users u
       SET
         u.status = CASE
-          WHEN EXISTS (
-            SELECT 1 FROM subscriptions s
-            WHERE s.user_id = u.id
-              AND s.subscription_status IN ('active','paused')
-              AND s.start_date <= CURDATE()
-              AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-          ) THEN 'activo'
+          WHEN ${membershipGate} THEN 'activo'
           WHEN u.status IN ('activo','inactivo') THEN 'inactivo'
           ELSE u.status
         END,
         u.lead_status = CASE
           WHEN u.converted_at IS NULL
-            AND EXISTS (
-              SELECT 1 FROM subscriptions s
-              WHERE s.user_id = u.id
-                AND s.subscription_status IN ('active','paused')
-                AND s.start_date <= CURDATE()
-                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-            )
-            AND EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.member_id = u.id AND b.is_trial = 1
-            )
+            AND ${membershipGate}
+            AND ${leadOriginGate}
           THEN 'ganado'
           ELSE u.lead_status
         END,
         u.lead_status_source = CASE
           WHEN u.converted_at IS NULL
-            AND EXISTS (
-              SELECT 1 FROM subscriptions s
-              WHERE s.user_id = u.id
-                AND s.subscription_status IN ('active','paused')
-                AND s.start_date <= CURDATE()
-                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-            )
-            AND EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.member_id = u.id AND b.is_trial = 1
-            )
+            AND ${membershipGate}
+            AND ${leadOriginGate}
           THEN 'auto'
           ELSE u.lead_status_source
         END,
         u.purchased_plan_id = CASE
           WHEN u.converted_at IS NULL
             AND u.purchased_plan_id IS NULL
-            AND EXISTS (
-              SELECT 1 FROM subscriptions s
-              WHERE s.user_id = u.id
-                AND s.subscription_status IN ('active','paused')
-                AND s.start_date <= CURDATE()
-                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-            )
-            AND EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.member_id = u.id AND b.is_trial = 1
-            )
+            AND ${membershipGate}
+            AND ${leadOriginGate}
           THEN (
             SELECT s2.plan_id
             FROM subscriptions s2
             WHERE s2.user_id = u.id
-              AND s2.subscription_status IN ('active','paused')
-              AND s2.start_date <= CURDATE()
-              AND (s2.end_date IS NULL OR s2.end_date >= CURDATE())
+              AND ${membershipInEffectSql("s2")}
             ORDER BY s2.created_at DESC
             LIMIT 1
           )
@@ -7789,17 +7568,8 @@ export class SubscriptionService {
         END,
         u.converted_at = CASE
           WHEN u.converted_at IS NULL
-            AND EXISTS (
-              SELECT 1 FROM subscriptions s
-              WHERE s.user_id = u.id
-                AND s.subscription_status IN ('active','paused')
-                AND s.start_date <= CURDATE()
-                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-            )
-            AND EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.member_id = u.id AND b.is_trial = 1
-            )
+            AND ${membershipGate}
+            AND ${convertedAtGate}
           THEN CURRENT_TIMESTAMP
           ELSE u.converted_at
         END
@@ -7845,6 +7615,15 @@ export class SubscriptionService {
         { userId, fromStatus: statusBefore, toStatus: statusAfter },
         "user status transition recorded",
       );
+    }
+
+    // Fase 194 D-18: conversión explícita de la invitación (ex socio con
+    // `converted_at` histórico + atribución de la compra a la invitación, D-13).
+    // Con `ctx === null` se saltea: ese caso SOLO llega del cron de vencimiento
+    // (`autoExpireDueSubscriptions`), que nunca crea una membresía paga — toda
+    // compra pasa por una charge-path con `ctx` real y ahí corre este paso.
+    if (ctx) {
+      await attributeInvitationPurchase(tx, this.db, ctx, userId, this.log);
     }
   }
 }

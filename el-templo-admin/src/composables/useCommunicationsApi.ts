@@ -223,12 +223,15 @@ export interface SendSegmentInput {
 // error real (ver TvAvisosTab.vue).
 
 export type TvAvisoMode = 'manual' | 'flex_inicio' | 'flex_final';
+/** 2026-10-06: fondo de la placa en la TV (claro = flexibilidad inicial, oscuro = cierre). */
+export type TvAvisoTema = 'claro' | 'oscuro';
 
 export interface TvAvisoRow {
   id: number;
   title: string;
   body: string;
   mode: TvAvisoMode;
+  tema: TvAvisoTema;
   isActive: boolean;
   scopeBranchIds: number[] | null;
 }
@@ -237,6 +240,7 @@ export interface CreateTvAvisoInput {
   title: string;
   body: string;
   mode: TvAvisoMode;
+  tema?: TvAvisoTema;
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
 }

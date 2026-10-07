@@ -41,7 +41,11 @@ import { and, eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../../db/schema";
 import { avisos } from "../../db/schema";
-import { tenantWhere, tenantValues, type TenantContext } from "../shared/tenant";
+import {
+  tenantWhere,
+  tenantValues,
+  type TenantContext,
+} from "../shared/tenant";
 import type { AppSectionKey } from "./destinations";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -171,8 +175,10 @@ export const SYSTEM_AVISOS: SystemAvisoSeed[] = [
     code: "card_referral",
     placement: "tarjeta",
     title: "Vos decidís cuánto bajás tu cuota",
-    body: "Invitá a entrenar: cada persona que traigas suma descuento a tu cuota.",
-    buttonText: "Compartir código",
+    // Fase 194 D-26 (migración 0261): copy de invitaciones. El título no
+    // menciona "referido" y se conserva.
+    body: "Invitá a entrenar: cada persona que invites y se sume baja tu cuota.",
+    buttonText: "Invitar",
     destinationType: "app_section",
     destinationSection: "referidos",
     whatsappText: null,

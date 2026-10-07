@@ -68,6 +68,7 @@ import {
   activeSubOfKindExists,
 } from "../shared/active-member";
 import { memberCoveredUntilSql } from "../shared/covered-until";
+import { membershipInEffectSql } from "../shared/membership";
 import {
   tenantValues,
   tenantWhere,
@@ -106,6 +107,32 @@ function maskDniLast3(dni: string | null): string | null {
   if (!dni) return dni;
   if (dni.length <= 3) return dni;
   return `···${dni.slice(-3)}`;
+}
+
+/**
+ * Estado EFECTIVO de un socio, calculado en vivo desde `subscriptions` (no de
+ * la columna `users.status`, que es un cache que puede quedar viejo): es lo que
+ * muestran y filtran el listado de alumnos (`listMembers`) y el typeahead del
+ * panel de turno (`searchMembers`). Espeja el CASE de `recomputeUserStatus`.
+ *
+ * Fase 194 D-03: la vigencia sale de `membershipInEffectSql` — una sub de plan
+ * `is_trial` (prueba de Yoga, invitación) NO vuelve "activo" a nadie.
+ * 'freemium'/'prueba' no se derivan de subs, así que pasan tal cual.
+ * Fase 173-19: `s.tenant_id` inline.
+ */
+function effectiveMemberStatusSql(ctx: TenantContext) {
+  return sql<UserStatus>`(
+    CASE
+      WHEN EXISTS (
+        SELECT 1 FROM subscriptions s
+        WHERE s.user_id = users.id
+          AND s.tenant_id = ${ctx.tenantId}
+          AND ${membershipInEffectSql("s")}
+      ) THEN 'activo'
+      WHEN users.status IN ('activo','inactivo') THEN 'inactivo'
+      ELSE users.status
+    END
+  )`;
 }
 
 export class MemberService {
@@ -160,6 +187,7 @@ export class MemberService {
       debtorOnly,
       includeTotalDebt,
       status,
+      origin,
       page,
       limit,
     } = params;
@@ -315,21 +343,8 @@ export class MemberService {
     // here mirrors recomputeUserStatus's CASE exactly so the list (and its
     // status filter) is always correct, independent of cache freshness.
     // 'freemium'/'prueba' are not derivable from subs, so they pass through.
-    // Fase 173-19: `s.tenant_id` inline.
-    const effectiveStatusExpr = sql<UserStatus>`(
-      CASE
-        WHEN EXISTS (
-          SELECT 1 FROM subscriptions s
-          WHERE s.user_id = users.id
-            AND s.tenant_id = ${ctx.tenantId}
-            AND s.subscription_status IN ('active','paused')
-            AND s.start_date <= CURDATE()
-            AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-        ) THEN 'activo'
-        WHEN users.status IN ('activo','inactivo') THEN 'inactivo'
-        ELSE users.status
-      END
-    )`;
+    // Fase 194 D-03: definición única en `effectiveMemberStatusSql`.
+    const effectiveStatusExpr = effectiveMemberStatusSql(ctx);
 
     // Status filter compares against the computed expression so it stays
     // consistent with what the list displays. 'todos' (or undefined) is a no-op.
@@ -342,6 +357,21 @@ export class MemberService {
       conditions.push(sql`${effectiveStatusExpr} = ${status}`);
     }
     // status === "todos" or undefined → no-op
+
+    // Fase 194-20 (D-18): origen "Invitación" = tiene una invitación `active`
+    // (derivado de `invitations`, la fuente de verdad: sin columna nueva en
+    // `users`). Subquery con FROM propio: el gimnasio va INLINE, y la referencia
+    // externa como literal `users.id` (trampa Drizzle de columnas sin calificar).
+    if (origin === "invitacion") {
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM invitations i
+          WHERE i.tenant_id = ${ctx.tenantId}
+            AND i.invited_user_id = users.id
+            AND i.status = 'active'
+        )`,
+      );
+    }
 
     const whereClause = and(...conditions);
 
@@ -572,7 +602,8 @@ export class MemberService {
     // tiene efecto cuando el actor tiene alcance forzado (`branchIds` viene
     // poblado). Para cualquier otro rol es un no-op — ya buscan sin filtro de
     // sede (país, más abajo).
-    const crossBranch = includeOtherBranches === true && branchIds !== undefined;
+    const crossBranch =
+      includeOtherBranches === true && branchIds !== undefined;
 
     // Fase 173-19 (T-173-19-01): PRIMER elemento — `buildMemberNameSearchCondition`
     // ya filtra `users` puertas adentro (173-05/173-17), pero el resto del
@@ -636,23 +667,10 @@ export class MemberService {
     )`;
 
     // Effective status computed live from subscriptions (mirrors listMembers'
-    // effectiveStatusExpr) so a lapsed member reads 'inactivo' immediately,
-    // without waiting for the auto-expire cron to refresh users.status.
-    // Fase 173-19: `s.tenant_id` inline.
-    const effectiveStatusExpr = sql<UserStatus>`(
-      CASE
-        WHEN EXISTS (
-          SELECT 1 FROM subscriptions s
-          WHERE s.user_id = users.id
-            AND s.tenant_id = ${ctx.tenantId}
-            AND s.subscription_status IN ('active','paused')
-            AND s.start_date <= CURDATE()
-            AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-        ) THEN 'activo'
-        WHEN users.status IN ('activo','inactivo') THEN 'inactivo'
-        ELSE users.status
-      END
-    )`;
+    // effectiveStatusExpr — es LA MISMA función, `effectiveMemberStatusSql`) so
+    // a lapsed member reads 'inactivo' immediately, without waiting for the
+    // auto-expire cron to refresh users.status.
+    const effectiveStatusExpr = effectiveMemberStatusSql(ctx);
 
     const rows = await this.db
       .select({
@@ -2556,12 +2574,26 @@ export class MemberService {
     }
 
     // Fase 173-19: `sp.tenant_id`/`s.tenant_id` inline.
-    const planNameSubquery = sql<string | null>`(
-      SELECT sp.name FROM subscriptions s
+    // Fase 194 D-03/D-25: la sub que se exporta es la MEMBRESÍA vigente
+    // (`membershipInEffectSql`: active/paused, arrancada, no vencida y de un plan
+    // que NO es `is_trial`), nunca el acceso de una invitación. Plan, importe y
+    // moneda salen de la MISMA sub: un solo FROM/WHERE/ORDER compartido por las
+    // tres subqueries escalares (MySQL no devuelve 2 columnas desde un escalar;
+    // el `s.id DESC` desempata dos subs creadas en el mismo segundo para que las
+    // tres elijan siempre la misma fila).
+    const currentMembershipFrom = sql`FROM subscriptions s
       JOIN subscription_plans sp ON sp.id = s.plan_id AND sp.tenant_id = ${ctx.tenantId}
-      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND s.subscription_status IN ('active','paused')
-      ORDER BY s.created_at DESC LIMIT 1
-    )`;
+      WHERE s.user_id = users.id AND s.tenant_id = ${ctx.tenantId} AND ${membershipInEffectSql("s")}
+      ORDER BY s.created_at DESC, s.id DESC LIMIT 1`;
+    const planNameSubquery = sql<
+      string | null
+    >`(SELECT sp.name ${currentMembershipFrom})`;
+    const amountSubquery = sql<
+      number | null
+    >`(SELECT s.price_paid ${currentMembershipFrom})`;
+    const currencySubquery = sql<
+      string | null
+    >`(SELECT s.currency ${currentMembershipFrom})`;
 
     const rows = await this.db
       .select({
@@ -2570,6 +2602,8 @@ export class MemberService {
         email: schema.users.email,
         branchName: schema.branches.name,
         planName: planNameSubquery,
+        amount: amountSubquery,
+        currency: currencySubquery,
         debtorName: schema.userSepaDetails.debtorName,
         nif: schema.userSepaDetails.nif,
         iban: schema.userSepaDetails.iban,
@@ -2603,6 +2637,9 @@ export class MemberService {
       socio: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
       email: r.email ?? "",
       plan: r.planName ?? "Sin plan",
+      // Fase 194 D-25: importe registrado por el sistema (descuento incluido).
+      amount: r.amount === null ? null : Number(r.amount),
+      currency: r.currency,
       sucursal: r.branchName,
       deudor: r.debtorName ?? "",
       nif: r.nif ?? "",

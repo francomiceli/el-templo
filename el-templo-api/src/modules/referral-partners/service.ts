@@ -811,7 +811,7 @@ export class PartnerReferralService {
     if (existingOrigin) {
       throw new ConflictError(
         existingOrigin.kind === "member"
-          ? "Este socio ya tiene un referidor de socio asignado"
+          ? "Este socio ya tiene un invitador de socio asignado"
           : "Este socio ya tiene un partner asignado",
       );
     }

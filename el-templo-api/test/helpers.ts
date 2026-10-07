@@ -247,6 +247,9 @@ const TABLES_TO_CLEAN = [
   // (FK checks off durante el DELETE), se limpian para no filtrar vínculos entre tests.
   schema.referralCredits,
   schema.referrals,
+  // Fase 194 (0255): invitaciones. FK a users/subscriptions/branches (FK checks
+  // off durante el DELETE); se limpian antes de subscriptions y users.
+  schema.invitations,
   // Fase 179: comercio partner. Orden de FK: comisiones (FK a partner_referrals
   // y subscriptions) -> vínculos (FK a referral_partners y users) -> partners.
   schema.partnerCommissions,

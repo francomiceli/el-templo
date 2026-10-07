@@ -37,11 +37,9 @@ import {
   referralCredits,
   referralCtaClicks,
   subscriptions,
-  auraConfig,
   auraTransactions,
-  systemSettings,
 } from "../../db/schema";
-import { deriveCoveredUntilBatch } from "../subscriptions/service";
+import { deriveMembershipCoveredUntilBatch } from "../subscriptions/coverage";
 import {
   BadRequestError,
   ConflictError,
@@ -53,6 +51,10 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { referralCopyVariant } from "./ab-variant";
+import { isDuplicateKeyError } from "./duplicate-key";
+import { getReferralConfig } from "./referral-config";
+import { getInvitationSettings } from "./invitation-settings";
+import { InvitationOverview } from "./invitation-overview";
 import type {
   ReferralAssignmentResult,
   ReferralConfig,
@@ -64,12 +66,12 @@ import type {
 
 type DbInstance = MySql2Database<typeof schema>;
 
-/** % por vínculo cuando la fila aura_config['referral'] falta (D-12). */
-const DEFAULT_PERCENT_PER_LINK = 10;
-/** Tope cuando system_settings['referral.max_percent_cap'] falta (D-12). */
-const DEFAULT_MAX_PERCENT_CAP = 40;
-/** Clave del tope en system_settings (precedente finance.pending_overdue_days). */
-const MAX_PERCENT_CAP_KEY = "referral.max_percent_cap";
+/** Un vínculo visto desde un usuario: la contraparte y el % que aporta su lado. */
+interface LinkSide {
+  counterpartyId: number;
+  percent: number;
+}
+
 /** Reintentos máximos ante colisión del UNIQUE de referral_code (Security V6). */
 const MAX_CODE_ATTEMPTS = 10;
 /** Alfabeto del sufijo aleatorio (sin ambigüedad O/0 no requerida acá). */
@@ -180,29 +182,7 @@ export class ReferralService {
    * sin deploy.
    */
   async getReferralConfig(): Promise<ReferralConfig> {
-    /* tenant-safe: aura_config.sourceType es UNIQUE a nivel de columna (src/db/schema/aura-config.ts) — una sola fila 'referral' existe en TODA la tabla, config global del sistema Aura, no per-gimnasio pese a tener tenant_id; no expone datos de miembro */
-    const [cfg] = await this.db
-      .select({ amount: auraConfig.defaultAmount })
-      .from(auraConfig)
-      .where(
-        sql`/* tenant-safe: aura_config.sourceType es UNIQUE a nivel de columna — una sola fila 'referral' existe en TODA la tabla, config global del sistema Aura, no per-gimnasio pese a tener tenant_id; no expone datos de miembro */ ${eq(auraConfig.sourceType, "referral")}`,
-      )
-      .limit(1);
-
-    const [cap] = await this.db
-      .select({ value: systemSettings.settingValue })
-      .from(systemSettings)
-      .where(eq(systemSettings.settingKey, MAX_PERCENT_CAP_KEY))
-      .limit(1);
-
-    const parsedCap = cap ? Number.parseInt(cap.value, 10) : Number.NaN;
-
-    return {
-      percentPerLink: cfg?.amount ?? DEFAULT_PERCENT_PER_LINK,
-      maxPercentCap: Number.isFinite(parsedCap)
-        ? parsedCap
-        : DEFAULT_MAX_PERCENT_CAP,
-    };
+    return getReferralConfig(this.db);
   }
 
   /**
@@ -219,17 +199,29 @@ export class ReferralService {
    * precio que efectivamente se va a cobrar. Solo para previews — las
    * charge-paths NUNCA pasan esta opción (el flip real sigue siendo del cobro).
    *
-   * T-175-04: `ctx` PRIMERO (D-01/D-02) — cierra el gap de `referrals` (Pattern A,
-   * sin `tenantWhere` pese a que todos los call sites YA tenían ctx: los 4
-   * charge-paths de `subscriptions/service.ts` y `getReferralOverview`) y
-   * threadea ctx real a `deriveCoveredUntil` (deuda compartida de esta misma fase).
+   * Fase 194 D-10e: el mismo descuento simétrico, con el % separado por LADO
+   * del vínculo. Como INVITADO (`referred`) suma `inviteePercent` (setting
+   * `invitations.invitee_percent`); como INVITADOR (`referrer`) suma
+   * `percentPerLink` (aura_config['referral']) por cada invitado activo. Tope
+   * `maxPercentCap` (D-09). Con 10/10 el resultado es idéntico al de la 157.
+   *
+   * `simulateInvitationLink` (D-05): el pagador todavía no tiene fila en
+   * `referrals` pero tiene una invitación vigente (la fila nace al comprar):
+   * cuenta ese vínculo como si ya existiera, del lado invitado, SOLO si el
+   * invitador tiene cobertura de membresía hoy. Se ignora si el usuario ya
+   * tiene un vínculo como invitado (referred_id es UNIQUE: nunca se suma dos
+   * veces).
    */
-  async computeReferralDiscountPercent(
+  async computeInvitationDiscountPercent(
     ctx: TenantContext,
     userId: number,
-    opts?: { simulatePendingQualification?: boolean },
+    opts?: {
+      simulatePendingQualification?: boolean;
+      simulateInvitationLink?: { inviterId: number };
+    },
   ): Promise<number> {
-    const { percentPerLink, maxPercentCap } = await this.getReferralConfig();
+    const { inviteePercent, perLinkPercent, maxPercentCap } =
+      await getInvitationSettings(this.db, ctx, this.log);
 
     const qualifiedFilter = eq(referrals.status, "qualified");
     const statusFilter = opts?.simulatePendingQualification
@@ -259,26 +251,38 @@ export class ReferralService {
         ),
       );
 
-    const today = new Date().toISOString().split("T")[0];
-    const counterpartyIds = links.map((link) =>
-      link.referrerId === userId ? link.referredId : link.referrerId,
+    const sides: LinkSide[] = links.map((link) =>
+      link.referredId === userId
+        ? { counterpartyId: link.referrerId, percent: inviteePercent }
+        : { counterpartyId: link.referredId, percent: perLinkPercent },
     );
+    const simulated = opts?.simulateInvitationLink;
+    if (simulated && !links.some((link) => link.referredId === userId)) {
+      sides.push({
+        counterpartyId: simulated.inviterId,
+        percent: inviteePercent,
+      });
+    }
+
+    const today = new Date().toISOString().split("T")[0];
     // Batch: la cobertura de todas las contrapartes en UNA query (evita N+1).
     // `ctx` obligatorio: subscriptions es strict (reconciliación tren v6.0).
-    const coveredMap = await deriveCoveredUntilBatch(
+    // Fase 194 D-10d: cobertura de MEMBRESÍA (excluye planes `is_trial`): una
+    // contraparte con solo accesos de invitación NO genera descuento.
+    const coveredMap = await deriveMembershipCoveredUntilBatch(
       this.db,
-      counterpartyIds,
+      sides.map((side) => side.counterpartyId),
       ctx,
     );
-    let activeLinks = 0;
-    for (const counterpartyId of counterpartyIds) {
-      const coveredUntil = coveredMap.get(counterpartyId) ?? null;
+    let total = 0;
+    for (const side of sides) {
+      const coveredUntil = coveredMap.get(side.counterpartyId) ?? null;
       if (coveredUntil !== null && coveredUntil >= today) {
-        activeLinks++;
+        total += side.percent;
       }
     }
 
-    return Math.min(activeLinks * percentPerLink, maxPercentCap);
+    return Math.min(total, maxPercentCap);
   }
 
   /**
@@ -323,19 +327,26 @@ export class ReferralService {
         ),
       );
 
-    const { percentPerLink, maxPercentCap } = await this.getReferralConfig();
+    // Fase 194 D-10e: el % de cada LADO sale de los settings del programa
+    // (invitado: `invitations.invitee_percent`; invitador: aura_config['referral']).
+    const { inviteePercent, perLinkPercent, maxPercentCap } =
+      await getInvitationSettings(this.db, ctx, this.log);
     const today = new Date().toISOString().split("T")[0];
 
     const referred: ReferralLinkView[] = [];
     let referredBy: ReferralLinkView | null = null;
     let activeCount = 0;
+    let activeAsInviter = 0;
+    let activeAsInvitee = 0;
 
     // Batch de cobertura y nombres de TODAS las contrapartes en 2 queries (evita
     // el N+1 que reventaba el gateway timeout con un referidor prolífico).
     const counterpartyIds = links.map((link) =>
       link.referrerId === userId ? link.referredId : link.referrerId,
     );
-    const coveredMap = await deriveCoveredUntilBatch(
+    // Fase 194 D-10d: estado del vínculo con cobertura de MEMBRESÍA (no cuenta
+    // los accesos `is_trial` de invitación).
+    const coveredMap = await deriveMembershipCoveredUntilBatch(
       this.db,
       counterpartyIds,
       ctx,
@@ -352,7 +363,9 @@ export class ReferralService {
           lastName: users.lastName,
         })
         .from(users)
-        .where(and(tenantWhere(users, ctx), inArray(users.id, counterpartyIds)));
+        .where(
+          and(tenantWhere(users, ctx), inArray(users.id, counterpartyIds)),
+        );
       for (const row of rows) {
         nameMap.set(
           row.id,
@@ -380,6 +393,11 @@ export class ReferralService {
       }
       if (state === "active") {
         activeCount++;
+        if (isReferrer) {
+          activeAsInviter++;
+        } else {
+          activeAsInvitee++;
+        }
       }
 
       const view: ReferralLinkView = {
@@ -396,18 +414,44 @@ export class ReferralService {
     }
 
     // Reuso D-30: el % vigente es EXACTAMENTE el del cobro, no una reimplementación.
-    const percent = await this.computeReferralDiscountPercent(ctx, userId);
+    const percent = await this.computeInvitationDiscountPercent(ctx, userId);
+
+    // Fase 194-19: cupo, link, invitados con estado derivado e "invitado por".
+    // Vive en su propio archivo (regla de 194-32); acá solo se le pasan los
+    // vínculos y el % ya cargados para no repetir queries.
+    const { invitations, invitedBy } = await new InvitationOverview(
+      this.db,
+      this.log,
+    ).build(ctx, userId, {
+      referralCode,
+      links,
+      percent,
+    });
 
     return {
       referralCode,
       discount: {
         percent,
         activeCount,
-        perLinkPercent: percentPerLink,
+        perLinkPercent,
         capPercent: maxPercentCap,
+        bySide: {
+          inviter: {
+            perLinkPercent,
+            activeCount: activeAsInviter,
+            percent: perLinkPercent * activeAsInviter,
+          },
+          invitee: {
+            perLinkPercent: inviteePercent,
+            activeCount: activeAsInvitee,
+            percent: inviteePercent * activeAsInvitee,
+          },
+        },
       },
       referred,
       referredBy,
+      invitations,
+      invitedBy,
     };
   }
 
@@ -520,7 +564,7 @@ export class ReferralService {
 
     if (referredId === referrerId) {
       throw new BadRequestError(
-        "Un socio no puede figurar como su propio referidor",
+        "Un socio no puede figurar como su propio invitador",
       );
     }
 
@@ -540,7 +584,7 @@ export class ReferralService {
       )
       .limit(1);
     if (!referrer) {
-      throw new NotFoundError("El socio que figura como referidor no existe");
+      throw new NotFoundError("El socio que figura como invitador no existe");
     }
 
     const [existing] = await this.db
@@ -554,7 +598,7 @@ export class ReferralService {
       )
       .limit(1);
     if (existing) {
-      throw new ConflictError("Este socio ya tiene un referidor asignado");
+      throw new ConflictError("Este socio ya tiene un invitador asignado");
     }
 
     // D-20: ¿ya pagó algún plan? Mismo umbral que qualifyReferralOnCharge
@@ -592,7 +636,7 @@ export class ReferralService {
     } catch (err: unknown) {
       // Carrera contra el UNIQUE de referred_id (D-14): otro admin ganó.
       if (isDuplicateKeyError(err)) {
-        throw new ConflictError("Este socio ya tiene un referidor asignado");
+        throw new ConflictError("Este socio ya tiene un invitador asignado");
       }
       throw err;
     }
@@ -646,7 +690,7 @@ export class ReferralService {
           amount: 0,
           referenceType: "subscription",
           referenceId: subscriptionId,
-          description: `Descuento por referido: ${percent}%`,
+          description: `Descuento por invitación: ${percent}%`,
         }),
       )
       // UNIQUE (userId, sourceType, referenceType, referenceId) → no-op idempotente.
@@ -727,9 +771,7 @@ export class ReferralService {
         qualified: sql<number>`SUM(CASE WHEN ${referrals.status} = 'qualified' THEN 1 ELSE 0 END)`,
       })
       .from(referrals)
-      .where(
-        and(tenantWhere(referrals, ctx), isNotNull(referrals.copyVariant)),
-      )
+      .where(and(tenantWhere(referrals, ctx), isNotNull(referrals.copyVariant)))
       .groupBy(referrals.copyVariant);
 
     const buildVariant = (v: "A" | "B"): ReferralAbVariantResult => {
@@ -772,25 +814,4 @@ function defaultSuffix(): string {
     out += SUFFIX_ALPHABET[Math.floor(Math.random() * SUFFIX_ALPHABET.length)];
   }
   return out;
-}
-
-/**
- * Narrowing del error de clave duplicada de mysql2 (ER_DUP_ENTRY / errno 1062).
- * Drizzle envuelve el error de mysql2 en un DrizzleQueryError, así que el código
- * real puede vivir en `err.cause` — se recorre la cadena de causas.
- */
-function isDuplicateKeyError(err: unknown): boolean {
-  let current: unknown = err;
-  for (let depth = 0; depth < 5 && current != null; depth++) {
-    if (typeof current === "object") {
-      const e = current as { code?: string; errno?: number; cause?: unknown };
-      if (e.code === "ER_DUP_ENTRY" || e.errno === 1062) {
-        return true;
-      }
-      current = e.cause;
-    } else {
-      break;
-    }
-  }
-  return false;
 }

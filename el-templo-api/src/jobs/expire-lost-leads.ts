@@ -63,6 +63,13 @@ function lastTrialBookingJoin(ctx: TenantContext) {
 }
 
 /**
+ * Fase 194 D-18 / Pitfall 8: los leads de INVITACIÓN no vencen por este cron.
+ * Un invitado con invitación `active` puede tener una SP vieja (la SP comercial
+ * previa no bloquea la invitación, D-12): sin el `NOT EXISTS` de abajo se vencería
+ * a `perdido` al día siguiente de activar. Una invitación `voided` no protege.
+ * Como ese predicado nombra `invitations` (tabla strict) lleva su propio
+ * `i.tenant_id = ctx` inline (por eso la función recibe `ctx`).
+ *
  * Predicados base del candidato a vencer (sin el guard de source, que difiere
  * entre el flip y el conteo de salteados, y sin el filtro de tenant). `windowDays`
  * es un entero positivo garantizado por getPerdidoWindowDays (Math.trunc + guard
@@ -75,7 +82,7 @@ function lastTrialBookingJoin(ctx: TenantContext) {
  * inline en CADA statement que nombra `users` (el COUNT y el UPDATE de abajo),
  * no accá.
  */
-function candidateBaseConditions(windowDays: number) {
+function candidateBaseConditions(windowDays: number, ctx: TenantContext) {
   return sql`
     (u.lead_status = 'en_seguimiento' OR u.lead_status IS NULL)
     AND u.converted_at IS NULL
@@ -83,6 +90,12 @@ function candidateBaseConditions(windowDays: number) {
     AND u.deleted_at IS NULL
     AND u.status = 'prueba'
     AND DATE_ADD(b.booking_date, INTERVAL ${windowDays} DAY) < CURDATE()
+    AND NOT EXISTS (
+      SELECT 1 FROM invitations i
+      WHERE i.tenant_id = ${ctx.tenantId}
+        AND i.invited_user_id = u.id
+        AND i.status = 'active'
+    )
   `;
 }
 
@@ -118,7 +131,7 @@ async function runExpireLostLeadsForTenant(
   const settingsService = new SettingsService(db, log);
   const windowDays = await settingsService.getPerdidoWindowDays();
 
-  const base = candidateBaseConditions(windowDays);
+  const base = candidateBaseConditions(windowDays, ctx);
 
   // (4) Contar candidatos que hubieran vencido pero son 'manual' (D-04). El
   // UPDATE nunca los toca, así que el conteo es estable corra antes o después.

@@ -7,7 +7,7 @@
  * All routes require authentication and coach/admin/owner/gestion role.
  */
 
-import { FastifyPluginAsync, FastifyRequest } from "fastify";
+import { FastifyBaseLogger, FastifyPluginAsync, FastifyRequest } from "fastify";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -22,6 +22,18 @@ import {
 import { MemberService, meetsVisitorSearchThreshold } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
 import { ReferralService } from "../referrals/service";
+import { AssistedInvitations } from "../referrals/invitation-assisted";
+import { buildInvitationService } from "../referrals/invitation-factory";
+import { sendInvitationError } from "../referrals/invitation-errors";
+import { InvitationRuleError } from "../referrals/invitation-types";
+import {
+  ASSISTED_INVITATION_BODY_KEYS,
+  ASSISTED_VOID_BODY_KEYS,
+  assistedActivateRouteSchema,
+  assistedVoidRouteSchema,
+  rejectUnknownBodyKeys,
+  type AssistedInvitationBody,
+} from "../referrals/invitation-schemas";
 import { PartnerReferralService } from "../referral-partners/service";
 import { assignPartnerToMemberBodySchema } from "../referral-partners/schemas";
 import { BookingService } from "../scheduling/booking-service";
@@ -78,6 +90,7 @@ import {
   MEMBER_ROLES,
   FINANCE_READ_ROLES,
   MEMBER_LIFECYCLE_ROLES,
+  INVITATION_ASSISTED_ROLES,
   isFinanceBlindRole,
 } from "../shared/permissions";
 import {
@@ -117,6 +130,19 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     balanceService,
     cashRegisterService,
   );
+
+  /**
+   * Fase 194 D-16: canal asistido de invitaciones. Se arma por request para que
+   * los logs lleven el id de la request (mismo criterio que las rutas de abajo
+   * que instancian `SubscriptionService` con `request.log`).
+   */
+  function assistedInvitationsFor(log: FastifyBaseLogger): AssistedInvitations {
+    return new AssistedInvitations(
+      fastify.db,
+      log,
+      buildInvitationService(fastify.db, log),
+    );
+  }
 
   /**
    * Guard: require admin role on all routes in this plugin.
@@ -386,6 +412,14 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         { header: "Codigo Postal", key: "codigoPostal", width: 14 },
         { header: "Poblacion", key: "poblacion", width: 20 },
         { header: "Pais", key: "pais", width: 8 },
+        // Fase 194 D-25: importe registrado por el sistema (descuento incluido),
+        // informativo para Leandro. Van al FINAL: no se reordenan las columnas
+        // existentes porque Leandro ya usa el archivo. ME-08: es lo PAGADO en el
+        // período vigente (un alta prorrateada o con descuento muestra ese monto),
+        // NO el próximo débito: el encabezado lo dice para que nadie arme la remesa
+        // con este número.
+        { header: "Importe último cobro", key: "importe", width: 20 },
+        { header: "Moneda último cobro", key: "moneda", width: 20 },
       ];
 
       const headerRow = sheet.getRow(1);
@@ -396,8 +430,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         fgColor: { argb: "FFE0E0E0" },
       };
 
-      for (const row of rows) {
-        const added = sheet.addRow(row);
+      for (const { amount, currency, ...row } of rows) {
+        const added = sheet.addRow({
+          ...row,
+          importe: amount,
+          moneda: currency ?? "",
+        });
         // Marca visual: sin IBAN o sin deudor el banco rechaza la fila —
         // resaltarla evita que un socio activo quede sin debitar en el mes.
         if (!row.iban || !row.deudor) {
@@ -441,6 +479,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       debtorOnly?: boolean;
       // Phase 103 (R8): first-class users.status filter (replaces Phase 102 enum).
       status?: "todos" | "freemium" | "prueba" | "activo" | "inactivo";
+      // Fase 194-20 (D-18): origen "Invitación" (derivado de `invitations`).
+      origin?: "invitacion";
       page?: number;
       limit?: number;
     };
@@ -464,6 +504,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         avatarType,
         debtorOnly,
         status,
+        origin,
         page = 1,
         limit = 20,
       } = request.query;
@@ -494,6 +535,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.role,
         ),
         status,
+        origin,
         page,
         limit,
       };
@@ -883,7 +925,60 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       const ctx = assertTenant(request.scope, "members.createTrial");
       try {
         // Fase 195-07 (D-18): origin/campaign son del alta, no del service.
-        const { origin, campaign, ...trialInput } = request.body;
+        const { inviterId, origin, campaign, ...trialInput } = request.body;
+
+        // Fase 194 D-24 "Lo invita": el alta de prueba con invitador crea el
+        // lead y activa la invitación asistida (accesos). Sin `inviterId` el
+        // alta es la de siempre.
+        if (inviterId !== undefined) {
+          if (
+            !(INVITATION_ASSISTED_ROLES as readonly string[]).includes(
+              request.user.role,
+            )
+          ) {
+            throw new ForbiddenError(
+              "No tienes permiso para crear invitaciones",
+            );
+          }
+          if (
+            !(await isMemberInScope(ctx, request.scope, inviterId, {
+              enforceBranches: true,
+            }))
+          ) {
+            throw new InvitationRuleError("inviter_not_found");
+          }
+          const result = await assistedInvitationsFor(
+            request.log,
+          ).createLeadWithInvitation(ctx, {
+            inviterId,
+            branchId: trialInput.branchId,
+            phone: trialInput.phone,
+            createdBy: request.user.userId,
+            createLead: async () =>
+              (
+                await memberService.createTrialMember(ctx, {
+                  ...trialInput,
+                  createdBy: request.user.userId,
+                })
+              ).member,
+          });
+          // Fase 195-07 (D-18): mismo registro best-effort de origen que el
+          // alta sin invitador.
+          await recordSignupAttributionBestEffort(fastify.db, request.log, ctx, {
+            userId: result.lead.id,
+            branchId: trialInput.branchId,
+            capturedVia: "admin_trial",
+            platform: "admin",
+            manualOrigin: origin,
+            manualCampaign: campaign,
+          });
+          return reply.code(201).send({
+            ...result.lead,
+            invitation: result.invitation,
+            invitationError: result.invitationError,
+          });
+        }
+
         // Phase 114 D-31: createdBy comes from the JWT, never the request body.
         const { member } = await memberService.createTrialMember(ctx, {
           ...trialInput,
@@ -901,6 +996,20 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return reply.code(201).send(member);
       } catch (err: unknown) {
+        // Reglas de invitación (409/404 con `reason` estable) y rol (403): el
+        // mismo mapeo que el resto de los canales. `InvitationRuleError` es un
+        // `ConflictError`, así que va ANTES del 409 genérico de abajo.
+        if (
+          err instanceof InvitationRuleError ||
+          err instanceof ForbiddenError
+        ) {
+          return sendInvitationError(
+            err,
+            reply,
+            request.log,
+            "create trial member with inviter",
+          );
+        }
         if (err instanceof ConflictError) {
           return reply.code(409).send({
             error: "Conflicto",
@@ -1938,22 +2047,58 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
    */
   async function assertReferralTargetInScope(
     ctx: TenantContext,
-    request: FastifyRequest<{ Params: { userId: number } }>,
+    request: Pick<FastifyRequest, "user" | "scope"> & {
+      params: { userId: number };
+    },
+    // Fase 194 D-16: el canal asistido de invitaciones lo usa con otro set de
+    // roles (INVITATION_ASSISTED_ROLES incluye recepción). El default conserva
+    // el comportamiento de referidos tal cual.
+    opts: {
+      allowedRoles?: readonly string[];
+      deniedMessage?: string;
+      /** ME-05: además del país, acota a las sedes del actor (`admin_sede`). */
+      enforceBranches?: boolean;
+    } = {},
   ): Promise<number> {
     const { role } = request.user;
-    if (!(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(role)) {
-      throw new ForbiddenError("No tienes permiso para ver los referidos");
+    const allowedRoles: readonly string[] =
+      opts.allowedRoles ?? MEMBER_LIFECYCLE_ROLES;
+    if (!allowedRoles.includes(role)) {
+      throw new ForbiddenError(
+        opts.deniedMessage ?? "No tienes permiso para ver las invitaciones",
+      );
     }
     const targetId = Number(request.params.userId);
     if (!Number.isInteger(targetId)) {
       throw new ValidationError("id inválido");
     }
 
-    // T-106-02 — verify target member exists and (for non-owners) lives in a
-    // branch that matches the request's country scope.
+    if (
+      !(await isMemberInScope(ctx, request.scope, targetId, {
+        enforceBranches: opts.enforceBranches,
+      }))
+    ) {
+      throw new NotFoundError("Miembro no encontrado");
+    }
+    return targetId;
+  }
+
+  /**
+   * T-106-02 — el socio existe, no está borrado y (para no-owners) vive en una
+   * sede que coincide con el país del scope del request. Lo comparten el
+   * `:userId` de la URL y el `inviterId` del body del canal asistido
+   * (T-194-41): ambos se ven igual que un inexistente fuera de alcance.
+   */
+  async function isMemberInScope(
+    ctx: TenantContext,
+    scope: FastifyRequest["scope"],
+    memberId: number,
+    opts: { enforceBranches?: boolean } = {},
+  ): Promise<boolean> {
     const [target] = await fastify.db
       .select({
         id: schema.users.id,
+        branchId: schema.users.branchId,
         deletedAt: schema.users.deletedAt,
         branchCountry: schema.branches.country,
         branchIsVirtual: schema.branches.isVirtual,
@@ -1966,20 +2111,27 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           eq(schema.branches.id, schema.users.branchId),
         ),
       )
-      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, targetId)))
+      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, memberId)))
       .limit(1);
 
-    if (!target || target.deletedAt) {
-      throw new NotFoundError("Miembro no encontrado");
-    }
+    if (!target || target.deletedAt) return false;
     if (
-      !request.scope.isOwner &&
+      !scope.isOwner &&
       !target.branchIsVirtual &&
-      target.branchCountry !== request.scope.country
+      target.branchCountry !== scope.country
     ) {
-      throw new NotFoundError("Miembro no encontrado");
+      return false;
     }
-    return targetId;
+    // ME-05: un rol de alcance FORZADO por sede (`admin_sede`) opera solo sobre socios
+    // cuya sede ACTUAL es una de las suyas. El país no alcanza: sin esto movía a su
+    // sede a leads de otra sede del mismo país. Roles sin forzado: sin cambio.
+    if (opts.enforceBranches) {
+      const ownBranches = enforcedBranchIds(scope);
+      if (ownBranches !== null && !ownBranches.includes(target.branchId)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   // GET /admin/members/:userId/referrals — Referral overview de la ficha del
@@ -2031,6 +2183,85 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(201).send(result);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "assign member referrer");
+      }
+    },
+  );
+
+  // POST /admin/members/:userId/invitations — Fase 194 D-16: canal ASISTIDO.
+  // Recepción/gestión crean la invitación EN NOMBRE del socio `inviterId` para
+  // el alumno de la URL (típicamente un lead sin email ni contraseña, D-06: no
+  // se crea ninguna cuenta). Mismas reglas que la app (cupo + elegibilidad +
+  // identidad): el `InvitationService.activate` es uno solo. `createdBy` sale del
+  // JWT, nunca del body (T-194-43: una clave extra da 400). El invitador se
+  // valida en el gimnasio Y en el scope de país del staff (T-194-41).
+  fastify.post<{ Params: { userId: number }; Body: AssistedInvitationBody }>(
+    "/:userId/invitations",
+    {
+      schema: assistedActivateRouteSchema,
+      preValidation: [rejectUnknownBodyKeys(ASSISTED_INVITATION_BODY_KEYS)],
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
+    async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.assistedInvitation");
+      try {
+        const invitedUserId = await assertReferralTargetInScope(ctx, request, {
+          allowedRoles: INVITATION_ASSISTED_ROLES,
+          deniedMessage: "No tienes permiso para crear invitaciones",
+          enforceBranches: true,
+        });
+        if (
+          !(await isMemberInScope(ctx, request.scope, request.body.inviterId, {
+            enforceBranches: true,
+          }))
+        ) {
+          throw new InvitationRuleError("inviter_not_found");
+        }
+        const result = await assistedInvitationsFor(
+          request.log,
+        ).activateForMember(ctx, {
+          invitedUserId,
+          inviterId: request.body.inviterId,
+          branchId: request.body.branchId,
+          phone: request.body.phone,
+          dni: request.body.dni,
+          createdBy: request.user.userId,
+        });
+        return reply.code(201).send(result);
+      } catch (err: unknown) {
+        sendInvitationError(err, reply, request.log, "assisted invitation");
+      }
+    },
+  );
+
+  // POST /admin/members/:userId/invitations/:invitationId/void — Fase 194 D-04:
+  // anulación manual (sin DELETE, con motivo y rastro). Es de gestión
+  // (MEMBER_LIFECYCLE_ROLES): recepción crea pero no anula (T-194-40). La
+  // invitación tiene que ser de ESTE alumno y de este gimnasio, si no 404.
+  fastify.post<{
+    Params: { userId: number; invitationId: number };
+    Body: { reason: string };
+  }>(
+    "/:userId/invitations/:invitationId/void",
+    {
+      schema: assistedVoidRouteSchema,
+      preValidation: [rejectUnknownBodyKeys(ASSISTED_VOID_BODY_KEYS)],
+    },
+    async (request, reply) => {
+      const ctx = assertTenant(request.scope, "members.voidInvitation");
+      try {
+        const invitedUserId = await assertReferralTargetInScope(ctx, request, {
+          deniedMessage: "No tienes permiso para anular invitaciones",
+          enforceBranches: true,
+        });
+        await assistedInvitationsFor(request.log).voidForMember(
+          ctx,
+          invitedUserId,
+          request.params.invitationId,
+          { voidedBy: request.user.userId, reason: request.body.reason },
+        );
+        return { invitationId: request.params.invitationId, status: "voided" };
+      } catch (err: unknown) {
+        sendInvitationError(err, reply, request.log, "void invitation");
       }
     },
   );

@@ -3,7 +3,11 @@ import { normalizeSignupCode } from 'src/utils/signup-code'
 
 describe('normalizeSignupCode', () => {
   it('uppercases and strips non-alphanumeric characters (incl. surrounding whitespace)', () => {
-    expect(normalizeSignupCode(' cafe-x ')).toBe('CAFEX')
+    expect(normalizeSignupCode(' cafe x! ')).toBe('CAFEX')
+  })
+
+  it('keeps the hyphen of a member code (PREFIJO-XXXX, Fase 194)', () => {
+    expect(normalizeSignupCode(' fran-a3b2 ')).toBe('FRAN-A3B2')
   })
 
   it('returns an empty string for an empty input', () => {

@@ -24,10 +24,13 @@ import { BadRequestError, NotFoundError } from "../shared/errors";
 type DbInstance = MySql2Database<typeof schema>;
 
 export type TvAvisoMode = "manual" | "flex_inicio" | "flex_final";
+/** 2026-10-06 (migración 0259): fondo de la placa en la TV. */
+export type TvAvisoTema = "claro" | "oscuro";
 type TvAvisoRow = typeof tvAvisos.$inferSelect;
 
 const TITLE_MAX_LENGTH = 120;
 const BODY_MAX_LENGTH = 400;
+const VALID_TEMAS: readonly TvAvisoTema[] = ["claro", "oscuro"];
 const VALID_MODES: readonly TvAvisoMode[] = [
   "manual",
   "flex_inicio",
@@ -40,6 +43,7 @@ export interface TvAvisoItem {
   title: string;
   body: string;
   mode: TvAvisoMode;
+  tema: TvAvisoTema;
   isActive: boolean;
   scopeBranchIds: number[] | null;
 }
@@ -48,6 +52,8 @@ export interface CreateTvAvisoInput {
   title: string;
   body: string;
   mode: TvAvisoMode;
+  /** Sin `tema`, el default de la columna ("oscuro"). */
+  tema?: TvAvisoTema;
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
 }
@@ -56,6 +62,7 @@ export interface UpdateTvAvisoInput {
   title?: string;
   body?: string;
   mode?: TvAvisoMode;
+  tema?: TvAvisoTema;
   isActive?: boolean;
   scopeBranchIds?: number[] | null;
 }
@@ -88,6 +95,7 @@ export class TvAvisosService {
   ): Promise<TvAvisoItem> {
     this.assertTitleAndBody(input.title, input.body);
     this.assertMode(input.mode);
+    if (input.tema !== undefined) this.assertTema(input.tema);
     await this.assertBranchesBelongToTenant(ctx, input.scopeBranchIds ?? null);
 
     const [result] = await this.db.insert(tvAvisos).values(
@@ -95,6 +103,7 @@ export class TvAvisosService {
         title: input.title,
         body: input.body,
         mode: input.mode,
+        ...(input.tema !== undefined ? { tema: input.tema } : {}),
         isActive: input.isActive ?? false,
         scopeBranchIds: input.scopeBranchIds ?? null,
       }),
@@ -142,6 +151,9 @@ export class TvAvisosService {
     if (input.mode !== undefined) {
       this.assertMode(input.mode);
     }
+    if (input.tema !== undefined) {
+      this.assertTema(input.tema);
+    }
     if (input.scopeBranchIds !== undefined) {
       await this.assertBranchesBelongToTenant(ctx, input.scopeBranchIds);
     }
@@ -150,6 +162,7 @@ export class TvAvisosService {
     if (input.title !== undefined) updates.title = input.title;
     if (input.body !== undefined) updates.body = input.body;
     if (input.mode !== undefined) updates.mode = input.mode;
+    if (input.tema !== undefined) updates.tema = input.tema;
     if (input.isActive !== undefined) updates.isActive = input.isActive;
     if (input.scopeBranchIds !== undefined)
       updates.scopeBranchIds = input.scopeBranchIds;
@@ -271,6 +284,7 @@ export class TvAvisosService {
       title: row.title,
       body: row.body,
       mode: row.mode,
+      tema: row.tema,
       isActive: row.isActive,
       scopeBranchIds: row.scopeBranchIds ?? null,
     };
@@ -292,6 +306,12 @@ export class TvAvisosService {
       throw new BadRequestError(
         `El cuerpo no puede superar los ${BODY_MAX_LENGTH} caracteres (la placa es Cinzel a tamaño de TV: más texto no entra)`,
       );
+    }
+  }
+
+  private assertTema(tema: string): void {
+    if (!VALID_TEMAS.includes(tema as TvAvisoTema)) {
+      throw new BadRequestError(`tema inválido: '${tema}'`);
     }
   }
 

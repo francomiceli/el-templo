@@ -99,9 +99,13 @@ async function readSubscription(
   )[0];
 }
 
+// 194-15 D-10b: sin el flag `allowsInvitationDiscount` el plan ni cualifica ni
+// descuenta; los planes de estos casos lo llevan (producción lo backfilleó, D-23).
 describe("Referral qualification on first payment (assignPlan)", () => {
   it("(a) 1er pago con precio>0 flippea el vínculo pending→qualified", async () => {
-    const plan = await createPlan(app, adminToken);
+    const plan = await createPlan(app, adminToken, {
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "qa-r@test.com" });
     const referred = await createMember(app, { email: "qa-d@test.com" });
     await link(referrer.id, referred.id, "pending");
@@ -117,7 +121,9 @@ describe("Referral qualification on first payment (assignPlan)", () => {
   });
 
   it("(b) pago con pricePaid===0 (mes gratis) NO cualifica (D-20)", async () => {
-    const plan = await createPlan(app, adminToken);
+    const plan = await createPlan(app, adminToken, {
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "qb-r@test.com" });
     const referred = await createMember(app, { email: "qb-d@test.com" });
     await link(referrer.id, referred.id, "pending");
@@ -135,7 +141,9 @@ describe("Referral qualification on first payment (assignPlan)", () => {
   });
 
   it("(c) 2do pago no re-flippea ni rompe (idempotente)", async () => {
-    const plan = await createPlan(app, adminToken);
+    const plan = await createPlan(app, adminToken, {
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "qc-r@test.com" });
     const referred = await createMember(app, { email: "qc-d@test.com" });
     await link(referrer.id, referred.id, "qualified");
@@ -155,7 +163,9 @@ describe("Referral qualification on first payment (assignPlan)", () => {
   });
 
   it("(d) D-21: 1er pago con referidor CON cobertura cualifica Y descuenta el mismo cargo", async () => {
-    const plan = await createPlan(app, adminToken);
+    const plan = await createPlan(app, adminToken, {
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "qd-r@test.com" });
     const referred = await createMember(app, { email: "qd-d@test.com" });
     await link(referrer.id, referred.id, "pending");
@@ -177,7 +187,9 @@ describe("Referral qualification on first payment (assignPlan)", () => {
   });
 
   it("(e) contraste D-21: 1er pago con referidor SIN cobertura cualifica pero sin descuento", async () => {
-    const plan = await createPlan(app, adminToken);
+    const plan = await createPlan(app, adminToken, {
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "qe-r@test.com" });
     const referred = await createMember(app, { email: "qe-d@test.com" });
     await link(referrer.id, referred.id, "pending");

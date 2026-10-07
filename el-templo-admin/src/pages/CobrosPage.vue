@@ -1003,7 +1003,7 @@ import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { isBranchScopedRole } from 'src/utils/branch-scope';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_COLORS } from 'src/types/transaction';
-import { PLAN_TIER_LABELS } from 'src/types/subscription';
+import { PLAN_TIER_LABELS, isInvitationPlan } from 'src/types/subscription';
 import type { PaymentMethod, TransactionListItem } from 'src/types/transaction';
 import type { BranchOption, UserStatus } from 'src/types/member';
 import type { DuplicateMatch } from 'src/composables/useMembersApi';
@@ -1964,7 +1964,10 @@ async function loadAltaPlans() {
   }
   loadingPlans.value = true;
   try {
-    plans.value = await subsApi.getPlans(true, { branchId: sucursalId.value });
+    const loaded = await subsApi.getPlans(true, { branchId: sucursalId.value });
+    // Fase 194: el plan Invitación (paquete + is_trial) solo se asigna activando una
+    // invitación: no se ofrece en el alta de Cobros.
+    plans.value = loaded.filter((p) => !isInvitationPlan(p));
   } catch (err: unknown) {
     log.error('Error cargando planes', {
       error: err instanceof Error ? err.message : String(err),

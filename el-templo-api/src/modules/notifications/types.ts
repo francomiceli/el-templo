@@ -255,10 +255,14 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
   {
     templateKey: "referral_link_activated",
     category: "referidos",
-    title: "¡Tu referido pagó!",
-    body: "{Nombre} pagó su primer plan. Ya tenés tu descuento activo.",
-    titleFemale: "¡Tu referida pagó!",
-    bodyFemale: "{Nombre} pagó su primer plan. Ya tenés tu descuento activo.",
+    // Fase 194 D-26 (migración 0261): copy de invitaciones. La ruta sigue siendo
+    // `/mis-referidos` a propósito: las builds de tienda ≤1.8.1 no tienen
+    // `/mis-invitados` y en la 1.8.2 la ruta vieja es un alias que redirige.
+    title: "¡Tu invitado se sumó!",
+    body: "{Nombre} pagó su primer plan. Ya tenés tu descuento por invitación activo.",
+    titleFemale: "¡Tu invitada se sumó!",
+    bodyFemale:
+      "{Nombre} pagó su primer plan. Ya tenés tu descuento por invitación activo.",
     route: "/mis-referidos",
   },
   {
@@ -291,7 +295,8 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     title: "Tu clase arranca pronto",
     body: "Te esperamos. Si podés, registrá cómo llegás antes de entrenar.",
     titleFemale: "Tu clase arranca pronto",
-    bodyFemale: "Te esperamos. Si podes, registra como llegas antes de entrenar.",
+    bodyFemale:
+      "Te esperamos. Si podes, registra como llegas antes de entrenar.",
     route: "/reservas",
   },
 ];

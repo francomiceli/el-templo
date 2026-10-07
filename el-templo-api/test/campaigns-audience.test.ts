@@ -31,6 +31,12 @@ import {
   type TenantContext,
 } from "../src/modules/shared/tenant";
 import * as schema from "../src/db/schema";
+import { addDays } from "../src/modules/shared/date-utils";
+import {
+  seedSecondTenant,
+  limpiarSegundoGimnasio,
+} from "./fixtures/second-tenant";
+import { createInvitationRow, fixtureCtx } from "./invitations/_helpers";
 
 let app: FastifyInstance;
 let service: CampaignService;
@@ -419,6 +425,109 @@ describe("AudienceService — referidos_pendientes (D-12)", () => {
       null,
     );
     expect(eligible.map((e) => e.email)).not.toContain(referido.email);
+  });
+
+  // Fase 194 D-26b: el registro ya no crea `referrals.pending`, el segmento se
+  // alimenta de las invitaciones activas sin convertir.
+  describe("invitaciones (Fase 194 D-26b)", () => {
+    async function segmentIds(): Promise<number[]> {
+      const eligible = await audienceService.resolveAudience(
+        CTX,
+        "referidos_pendientes",
+        null,
+      );
+      return eligible.map((e) => e.userId);
+    }
+
+    async function invite(
+      overrides: {
+        status?: "active" | "voided";
+        accessExpiresOn?: string;
+        guestCreatedAt?: Date;
+        tenantId?: number;
+      } = {},
+    ): Promise<{ guestId: number; invitationId: number }> {
+      const inviter = await createUserWithStatus("activo");
+      const guest = await createUserWithStatus("prueba", {
+        createdAt: overrides.guestCreatedAt,
+      });
+      const { id } = await createInvitationRow(
+        fixtureCtx(app, overrides.tenantId ?? CTX.tenantId),
+        {
+          inviterId: inviter.id,
+          invitedUserId: guest.id,
+          branchId,
+          status: overrides.status,
+          // Relativo a hoy con margen de 3 dias: robusto a la zona del servidor.
+          accessExpiresOn: overrides.accessExpiresOn ?? addDays(todayStr(), 3),
+        },
+      );
+      return { guestId: guest.id, invitationId: id };
+    }
+
+    it("incluye a un invitado con invitacion activa sin convertir y accesos vigentes (sin fila en referrals)", async () => {
+      const { guestId } = await invite();
+      expect(await segmentIds()).toContain(guestId);
+    });
+
+    it("excluye una invitacion convertida (converted_at)", async () => {
+      const { guestId, invitationId } = await invite();
+      await app.db
+        .update(schema.invitations)
+        .set({ convertedAt: new Date() })
+        .where(
+          and(
+            tenantWhere(schema.invitations, CTX),
+            eq(schema.invitations.id, invitationId),
+          ),
+        );
+      expect(await segmentIds()).not.toContain(guestId);
+    });
+
+    it("excluye una invitacion anulada (voided)", async () => {
+      const { guestId } = await invite({ status: "voided" });
+      expect(await segmentIds()).not.toContain(guestId);
+    });
+
+    it("excluye una invitacion con la ventana de accesos vencida", async () => {
+      const { guestId } = await invite({
+        accessExpiresOn: addDays(todayStr(), -3),
+      });
+      expect(await segmentIds()).not.toContain(guestId);
+    });
+
+    it("respeta la frescura D-10: un invitado de menos de 3 dias no entra todavia", async () => {
+      const { guestId } = await invite({ guestCreatedAt: new Date() });
+      expect(await segmentIds()).not.toContain(guestId);
+    });
+
+    it("sigue incluyendo el vinculo pending heredado junto con las invitaciones", async () => {
+      const referrer = await createUserWithStatus("activo");
+      const referido = await createUserWithStatus("activo");
+      await seedReferral(referrer.id, referido.id, "pending");
+      const { guestId } = await invite();
+      const ids = await segmentIds();
+      expect(ids).toContain(referido.id);
+      expect(ids).toContain(guestId);
+    });
+
+    it("una invitacion de OTRO gimnasio no mete al usuario en el segmento de este (tenant inline)", async () => {
+      const gym2 = await seedSecondTenant(app);
+      try {
+        const guest = await createUserWithStatus("prueba");
+        // Fila artificial: la invitacion pertenece al gimnasio 2 pero apunta a
+        // un usuario del gimnasio 1. El filtro `invitations.tenant_id` la descarta.
+        await createInvitationRow(fixtureCtx(app, gym2.tenantId), {
+          inviterId: gym2.socios[0].id,
+          invitedUserId: guest.id,
+          branchId: gym2.branchId,
+          accessExpiresOn: addDays(todayStr(), 3),
+        });
+        expect(await segmentIds()).not.toContain(guest.id);
+      } finally {
+        await limpiarSegundoGimnasio(app);
+      }
+    });
   });
 });
 

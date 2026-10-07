@@ -55,6 +55,8 @@
  * 2026-09-24: renewal_followups/renewal_reasons (módulo de Renovaciones,
  * 0237) nacen tenancy-native -> 98 (`renewal_message_templates` se descartó
  * el mismo día antes de mergear — WhatsApp se manda desde el CRM, no el admin).
+ * 2026-09-26: trial_followups (0241) nace tenancy-native -> 99.
+ * 2026-10: invitations (fase 194, 0255) nace tenancy-native -> 100.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { sql, eq } from "drizzle-orm";
@@ -157,7 +159,7 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
   });
 
   // ─── 2. Cobertura ───────────────────────────────────────────────────────
-  it("Test 2: la verificacion cubre las 103 tablas gym-owned, no un subconjunto", () => {
+  it("Test 2: la verificacion cubre las 104 tablas gym-owned, no un subconjunto", () => {
     // 87 de la tanda C (fase 167) + session_week_regime (fase 159, SEM-05)
     // + 3 tablas de partners (referral_partners/partner_referrals/
     // partner_commissions, fase 179, tenancy-native en la 0215)
@@ -167,14 +169,12 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
     // + cash_counts (arqueos de caja, 2026-09-08, tenancy-native en la 0226) = 96
     // + renewal_followups/renewal_reasons (módulo de Renovaciones,
     //   2026-09-24, tenancy-native en la 0237) = 98.
-    // + trial_followups (0241) = 99
-    // + signup_attributions (atribución propia de altas, fase 195-07,
-    //   tenancy-native en la 0272) = 100
-    // + meta_capi_events y ad_spend_daily (Meta CAPI + gasto, fase 195-08,
-    //   tenancy-native en la 0273) = 102
-    // + search_console_stats (estadísticas de Search Console, fase 195-09,
-    //   tenancy-native en la 0274) = 103.
-    expect(report.gymOwnedChecked).toBe(103); // 2026-10-07: +search_console_stats (mig 0274)
+    // + trial_followups (2026-09-26, 0241) = 99.
+    // + invitations (fase 194, 2026-10, tenancy-native en la 0255) = 100.
+    // + signup_attributions (fase 195-07, 0272) = 101.
+    // + meta_capi_events y ad_spend_daily (fase 195-08, 0273) = 103.
+    // + search_console_stats (fase 195-09, 0274) = 104.
+    expect(report.gymOwnedChecked).toBe(104);
   });
 
   // ─── 3. Exclusiones de diseño ───────────────────────────────────────────

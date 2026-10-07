@@ -757,7 +757,7 @@ describe("Renewals API (módulo de Renovaciones)", () => {
 
   // ─── KPIs ───────────────────────────────────────────────────────────────
 
-  describe("GET /api/admin/renewals — clase de prueba de un pase especial", () => {
+  describe("GET /api/admin/renewals — planes is_trial (prueba de pase especial, promo online, invitaciones)", () => {
     /** Plan is_trial de 7 días (entra en el corte de duración mínima). */
     async function insertTrialPlan(
       category: "especial" | "online_regular",
@@ -860,7 +860,9 @@ describe("Renewals API (módulo de Renovaciones)", () => {
       expect(row?.newPlanId).toBeNull();
     });
 
-    it("la exclusión es acotada: un plan is_trial de OTRA categoría (promo online) conserva su comportamiento", async () => {
+    it("Fase 194 D-03: la exclusión alcanza a TODO plan is_trial, también el promo online", async () => {
+      // Antes de la 194 el promo gratuito online conservaba su comportamiento y
+      // aparecía; D-03 generaliza: un is_trial da acceso, nunca membresía.
       const promoPlanId = await insertTrialPlan("online_regular", null);
       const userId = await insertMember();
       const promoSub = await insertSub({
@@ -876,7 +878,7 @@ describe("Renewals API (módulo de Renovaciones)", () => {
         dateOffsetStr(-7),
         dateOffsetStr(7),
       );
-      expect(findRow(body, promoSub)).toBeDefined();
+      expect(findRow(body, promoSub)).toBeUndefined();
     });
   });
 

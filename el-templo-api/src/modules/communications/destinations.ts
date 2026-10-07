@@ -76,7 +76,9 @@ export const APP_SECTIONS: readonly AppSection[] = [
   },
   {
     key: "referidos",
-    label: "Referidos",
+    // Fase 194 D-26: el label es copy visible (selector de destino del admin).
+    // La clave `referidos` y la ruta quedan: las builds publicadas las usan.
+    label: "Invitaciones",
     route: "/mis-referidos",
   },
   {

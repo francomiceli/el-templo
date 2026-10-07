@@ -91,7 +91,7 @@ export const ALL_STAFF_ROLES: AdminRole[] = [
 /**
  * Rol del profe de actividad (2026-10-06, API mig 0258): todo lo de un coach
  * EXCEPTO plata. Mirrors COACH_ACTIVIDAD_ROLE de `shared/permissions.ts`.
- * El dueño lo asigna en Usuarios ("Profe de actividad (sin cobros)").
+ * El dueño lo asigna en Usuarios ("Profe de actividad").
  */
 export const COACH_ACTIVIDAD_ROLE: AdminRole = 'coach_actividad';
 
@@ -380,7 +380,8 @@ export const NAV_MODEL: NavCategory[] = [
         path: '/configuracion/precios',
         label: 'Reglas de precio',
         icon: 'sell',
-        roles: ['owner'],
+        // Fase 194 (D-10c): gestión/admin entran por la tarjeta de Invitaciones.
+        roles: ['gestion', 'admin', 'owner'],
       },
       {
         path: '/comunicaciones',

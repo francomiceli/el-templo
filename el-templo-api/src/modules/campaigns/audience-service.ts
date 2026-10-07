@@ -189,23 +189,40 @@ function alertaAusenteConditions(): SQL[] {
 }
 
 /**
- * Segmento 'referidos_pendientes' (D-12) — el usuario fue referido
- * (`referrals.referred_id = users.id`) y el vínculo sigue `status='pending'`
- * (todavía sin primer pago que lo califique). Lleva la regla de frescura
- * (D-10): son altas recientes que conviene empujar a convertir.
+ * Segmento 'referidos_pendientes' (D-12). La clave es INTERNA y no cambia (la
+ * guardan las campañas ya creadas), el copy visible dice "invitados".
+ *
+ * Fase 194 D-26b: el registro con código de socio YA NO crea un vínculo
+ * `referrals.pending` (el vínculo nace recién en el primer cobro), así que el
+ * segmento original quedaría vacío para siempre. Ahora incluye a quien:
+ *   - tiene un vínculo `referrals` `pending` HEREDADO (modelo de la fase 157), o
+ *   - tiene una invitación `active` SIN convertir (`converted_at IS NULL`) cuyos
+ *     accesos siguen vigentes (`access_expires_on >= hoy`): invitados a los que
+ *     conviene empujar a que compren su membresía.
+ * Una invitación convertida, anulada (`voided`) o con la ventana vencida queda
+ * afuera. Lleva la regla de frescura (D-10): solo altas con más de 3 días.
+ * El EXISTS de `invitations` filtra por tenant INLINE (`ctx.tenantId`).
  */
-function referidosPendientesConditions(): SQL[] {
+function referidosPendientesConditions(ctx: TenantContext): SQL[] {
   /* tenant-safe: sql correlacionado que solo referencia users.id como valor
-     contra referrals, no hace FROM users — el
+     contra referrals e invitations (esta última con su PROPIO filtro de
+     tenantId), no hace FROM users — el
      .where(and(tenantWhere(u, ctx), ...)) real vive en
      resolveAudience/countAudience, que combinan este array (D-02) */
   return [
     FRESHNESS,
-    sql`EXISTS (
+    sql`(EXISTS (
       SELECT 1 FROM ${rf}
       WHERE ${rf.referredId} = ${u.id}
         AND ${rf.status} = 'pending'
-    )`,
+    ) OR EXISTS (
+      SELECT 1 FROM invitations
+      WHERE invitations.tenant_id = ${ctx.tenantId}
+        AND invitations.invited_user_id = ${u.id}
+        AND invitations.status = 'active'
+        AND invitations.converted_at IS NULL
+        AND invitations.access_expires_on >= CURDATE()
+    ))`,
   ];
 }
 
@@ -214,13 +231,14 @@ function referidosPendientesConditions(): SQL[] {
  * `segment` que llega de `resolveAudience`/`countAudience` solo se usa como
  * clave de este `Record` — nunca se interpola en un `sql` template.
  */
-const SEGMENT_BUILDERS: Record<CampaignSegment, () => SQL[]> = {
-  freemium_elegibles: freemiumElegiblesConditions,
-  bajas: bajasConditions,
-  prueba_no_convertida: pruebaNoConvertidaConditions,
-  alerta_ausente: alertaAusenteConditions,
-  referidos_pendientes: referidosPendientesConditions,
-};
+const SEGMENT_BUILDERS: Record<CampaignSegment, (ctx: TenantContext) => SQL[]> =
+  {
+    freemium_elegibles: freemiumElegiblesConditions,
+    bajas: bajasConditions,
+    prueba_no_convertida: pruebaNoConvertidaConditions,
+    alerta_ausente: alertaAusenteConditions,
+    referidos_pendientes: referidosPendientesConditions,
+  };
 
 export class AudienceService {
   constructor(
@@ -249,7 +267,7 @@ export class AudienceService {
       );
     }
 
-    const conditions = [...builder(), ...globalInvariants(ctx)];
+    const conditions = [...builder(ctx), ...globalInvariants(ctx)];
     if (country === "AR" || country === "ES") {
       conditions.push(eq(br.country, country));
     }

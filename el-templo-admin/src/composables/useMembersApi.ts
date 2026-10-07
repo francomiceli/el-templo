@@ -15,6 +15,12 @@ import type {
   MembersListResponse,
   CreateMemberInput,
   CreateTrialMemberInput,
+  CreateTrialMemberResponse,
+  CreateAssistedInvitationInput,
+  InvitationActivation,
+  InvitationFailure,
+  InvitationsOverview,
+  InvitedByView,
   MembershipKind,
   UpdateMemberInput,
   DniCheckResult,
@@ -92,21 +98,51 @@ export interface MemberSearchResult {
   visitorBranchName?: string | null;
 }
 
-// Phase 158-04 (VIS-03): shape de GET /admin/members/:id/referrals. Espeja
-// ReferralOverview / ReferralLinkView de el-templo-api/src/modules/referrals/types.ts
-// (contrato del plan 158-01). La ficha S3 usa solo referred + referredBy; el
-// state deriva del server (deriveCoveredUntil, D-28), nunca de users.status.
+// Phase 158-04 (VIS-03) + Fase 194-19: shape de GET /admin/members/:id/referrals. Espeja
+// ReferralOverview / ReferralLinkView de el-templo-api/src/modules/referrals/types.ts.
+// El state deriva del server (deriveCoveredUntil, D-28), nunca de users.status.
+// `referred`/`referredBy` son los vínculos de descuento (incluye los heredados sin
+// invitación); `invitations`/`invitedBy` son el modelo de invitaciones con accesos.
 export interface MemberReferralLink {
   userId: number;
   fullName: string;
   state: 'pending' | 'active' | 'suspended';
 }
 
+export interface DiscountSideView {
+  perLinkPercent: number;
+  activeCount: number;
+  percent: number;
+}
+
 export interface MemberReferralsResponse {
   referralCode: string;
-  discount: { percent: number; activeCount: number; perLinkPercent: number; capPercent: number };
+  discount: {
+    percent: number;
+    activeCount: number;
+    perLinkPercent: number;
+    capPercent: number;
+    /** Mismo descuento abierto por lado: como invitador y como invitado. */
+    bySide: { inviter: DiscountSideView; invitee: DiscountSideView };
+  };
   referred: MemberReferralLink[];
   referredBy: MemberReferralLink | null;
+  invitations: InvitationsOverview;
+  invitedBy: InvitedByView | null;
+}
+
+/**
+ * Fase 194: los errores de reglas de invitación llegan como `{ error, message, reason }`
+ * (409/400/404). `extractError` conserva el `message`; esto conserva además el `reason`
+ * (cupo agotado, `phone_required`, etc.). `null` si el error no es de reglas de invitación.
+ */
+export function parseInvitationFailure(err: unknown): InvitationFailure | null {
+  if (!axios.isAxiosError(err)) return null;
+  const data: unknown = err.response?.data;
+  if (typeof data !== 'object' || data === null) return null;
+  const { reason, message } = data as { reason?: unknown; message?: unknown };
+  if (typeof reason !== 'string' || typeof message !== 'string') return null;
+  return { reason, message };
 }
 
 // Fase 173: respuesta de POST /admin/members/:id/referrals (atribución
@@ -196,11 +232,13 @@ export function useMembersApi() {
    * Soft register a "sesión de prueba" lead — name + phone + branch only.
    * Email/DNI/etc. are filled in later when the lead converts.
    */
-  async function createTrialMember(input: CreateTrialMemberInput): Promise<MemberProfile> {
+  async function createTrialMember(
+    input: CreateTrialMemberInput
+  ): Promise<CreateTrialMemberResponse> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.post<MemberProfile>('/admin/members/trial', input);
+      const { data } = await api.post<CreateTrialMemberResponse>('/admin/members/trial', input);
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error creando sesión de prueba');
@@ -432,11 +470,12 @@ export function useMembersApi() {
     }
   }
 
-  // ─── Referrals (Phase 158-04, VIS-03) ─────────────────────────────────
+  // ─── Invitaciones (Phase 158-04 VIS-03, Fase 194) ─────────────────────
   //
-  // GET /admin/members/:id/referrals → ReferralOverview del plan 158-01.
-  // Alimenta la sección "Referidos" de la ficha (MemberReferralsTab). El guard
-  // de rol (ADMIN_ROLES) vive en el backend; el front solo consume.
+  // GET /admin/members/:id/referrals → ReferralOverview (incluye `invitations` e
+  // `invitedBy`). Alimenta la pestaña "Invitaciones" de la ficha
+  // (MemberReferralsTab). El guard de rol (MEMBER_LIFECYCLE_ROLES) vive en el
+  // backend; el front solo consume.
 
   async function getReferrals(userId: number): Promise<MemberReferralsResponse> {
     loading.value = true;
@@ -445,18 +484,19 @@ export function useMembersApi() {
       const { data } = await api.get<MemberReferralsResponse>(`/admin/members/${userId}/referrals`);
       return data;
     } catch (err: unknown) {
-      error.value = extractError(err, 'Error cargando referidos');
+      error.value = extractError(err, 'Error cargando invitaciones');
       throw err;
     } finally {
       loading.value = false;
     }
   }
 
-  // POST /admin/members/:id/referrals → atribución retroactiva (fase 173).
+  // POST /admin/members/:id/referrals → atribución retroactiva (fase 173, D-17).
   //
-  // El alta pregunta "¿quién lo trajo?" cuando recepción carga al alumno, pero
-  // el dato suele llegar después. Esta es la única vía de cargar el vínculo sin
-  // tocar la base a mano. El estado del vínculo lo decide el backend.
+  // El alta pregunta "Invitado por" cuando recepción carga al alumno, pero el
+  // dato suele llegar después. Es un vínculo de DESCUENTO sin accesos ni cupo
+  // (la invitación con accesos va por createAssistedInvitation). El estado del
+  // vínculo lo decide el backend.
   async function assignReferrer(
     userId: number,
     referrerId: number
@@ -470,7 +510,50 @@ export function useMembersApi() {
       );
       return data;
     } catch (err: unknown) {
-      error.value = extractError(err, 'Error asignando el referidor');
+      error.value = extractError(err, 'Error asignando quién lo invitó');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // POST /admin/members/:userId/invitations → canal asistido (Fase 194 D-16): recepción
+  // o gestión invita en nombre de un socio, con las mismas reglas que la app (cupo,
+  // elegibilidad). Los rechazos traen `{ message, reason }`: ver parseInvitationFailure.
+  async function createAssistedInvitation(
+    userId: number,
+    input: CreateAssistedInvitationInput
+  ): Promise<InvitationActivation> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<InvitationActivation>(
+        `/admin/members/${userId}/invitations`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error creando la invitación');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // POST /admin/members/:userId/invitations/:invitationId/void → anulación (gestión,
+  // MEMBER_LIFECYCLE_ROLES). `userId` es el INVITADO de esa invitación. Libera el cupo,
+  // cierra los accesos y cancela las reservas futuras.
+  async function voidInvitation(
+    userId: number,
+    invitationId: number,
+    reason: string
+  ): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.post(`/admin/members/${userId}/invitations/${invitationId}/void`, { reason });
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error anulando la invitación');
       throw err;
     } finally {
       loading.value = false;
@@ -671,6 +754,8 @@ export function useMembersApi() {
     getNotes,
     getReferrals,
     assignReferrer,
+    createAssistedInvitation,
+    voidInvitation,
     createNote,
     updateNote,
     deleteNote,

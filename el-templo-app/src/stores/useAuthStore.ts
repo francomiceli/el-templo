@@ -5,6 +5,7 @@ import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { useUserStore } from './useUserStore'
 import { extractError } from 'src/utils/extract-error'
 import type { SignupAttribution } from 'src/utils/attribution'
+import { pendingInvitation } from 'src/utils/pending-invitation'
 
 export interface AuthUser {
   id: number
@@ -96,7 +97,15 @@ export const useAuthStore = defineStore('auth', () => {
     // Fase 195-07 (D-18): origen del alta (utm, referrer, plataforma...). La API
     // lo guarda best-effort: nunca bloquea el registro.
     attribution?: SignupAttribution
-  }): Promise<{ promoApplied?: boolean; partnerBenefit: PartnerBenefit | null } | undefined> {
+  }): Promise<
+    | {
+        promoApplied?: boolean
+        partnerBenefit: PartnerBenefit | null
+        // Fase 194 (D-26b): código de socio confirmado por el servidor → "Activar invitación".
+        invitationCode: string | null
+      }
+    | undefined
+  > {
     loading.value = true
     error.value = null
 
@@ -108,6 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
         user: userData,
         promoApplied,
         partnerBenefit,
+        invitation,
       } = response.data
 
       // Phase 116: persist access+refresh (legacy authToken cleaned up inside setTokens).
@@ -125,7 +135,13 @@ export const useAuthStore = defineStore('auth', () => {
       // user BEFORE returning to the caller (and before any navigation).
       await userStore.hydrateSelection()
 
-      return { promoApplied, partnerBenefit: (partnerBenefit as PartnerBenefit | null) ?? null }
+      const invitationCode: string | null =
+        typeof invitation?.code === 'string' && invitation.code ? invitation.code : null
+      return {
+        promoApplied,
+        partnerBenefit: (partnerBenefit as PartnerBenefit | null) ?? null,
+        invitationCode,
+      }
     } catch (err: unknown) {
       error.value = extractError(err, 'Error de registro')
       throw err
@@ -142,6 +158,9 @@ export const useAuthStore = defineStore('auth', () => {
     // whichever ref is still populated, but removing the key while the
     // context is still intact is the safest order (Pitfall 3 in research).
     await userStore.clearSelection()
+    // Fase 194 LO-10: el código de invitación pendiente es de quien lo recibió; si cierra sesión
+    // no debe quedar disponible para la próxima persona que inicie sesión en el dispositivo.
+    pendingInvitation.clear()
     token.value = null
     user.value = null
     userStore.clearProfile()

@@ -22,6 +22,7 @@ import * as schema from "../../db/schema";
 import { firmMoneySqlFor } from "../finance/firm-money";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import { activeMemberExists } from "../shared/active-member";
+import { notTrialPlanSql } from "../shared/membership";
 import { ForbiddenError, NotFoundError } from "../shared/errors";
 import { assertBranchInEnforcedScope } from "../shared/branch-access";
 import {
@@ -938,6 +939,7 @@ export class ReportsService {
       LEFT JOIN attendance a ON a.member_id = s.user_id
       WHERE s.subscription_status IN ('active', 'paused')
         AND s.tenant_id = ${ctx.tenantId}
+        AND ${notTrialPlanSql("s")}
         ${branchCondition}
         ${countryCondition}
       GROUP BY s.user_id, u.first_name, u.last_name, sp.name, u.phone, s.start_date

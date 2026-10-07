@@ -55,12 +55,19 @@ export const subscriptionPlans = mysqlTable(
     // (exige presencial activo al asignar/renovar), false = Externo. Default false → planes
     // no-especiales no lo usan (cero cambio de comportamiento).
     requiresPresencial: boolean("requires_presencial").default(false).notNull(),
-  // Línea del pase especial (2026-09-29): el pase solo sirve para las
-  // actividades especiales con la misma línea. NULL = "Actividades con Aura".
-  // Solo aplica a planCategory 'especial' (ver scheduling/special-line.ts).
-  specialLine: varchar("special_line", { length: 50 }),
+    // Línea del pase especial (2026-09-29): el pase solo sirve para las
+    // actividades especiales con la misma línea. NULL = "Actividades con Aura".
+    // Solo aplica a planCategory 'especial' (ver scheduling/special-line.ts).
+    specialLine: varchar("special_line", { length: 50 }),
     multiBranch: boolean("multi_branch").default(false).notNull(),
     isTrial: boolean("is_trial").default(false).notNull(),
+    // Fase 194 (D-10b): el plan admite el descuento por invitacion. Default false
+    // (opt-in para planes nuevos). El backfill de la mig 0256 (D-23) lo deja en
+    // true en todo plan salvo especial, paquete e is_trial. Piso duro server-side:
+    // nunca true en especial, paquete ni is_trial.
+    allowsInvitationDiscount: boolean("allows_invitation_discount")
+      .default(false)
+      .notNull(),
     isGroup: boolean("is_group").default(false).notNull(),
     groupMaxMembers: int("group_max_members"),
     isActive: boolean("is_active").default(true).notNull(),

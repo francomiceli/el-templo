@@ -278,7 +278,11 @@ describe("Pricing preview — referral discount parity", () => {
   }
 
   it("finalPrice del preview === pricePaid del cobro real (socio con vínculo activo)", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    // 194-15 D-10b: el plan lleva el flag (sin él no descuenta).
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 10000,
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "pv-r@test.com" });
     const referred = await createMember(app, { email: "pv-d@test.com" });
     await app.db.execute(
@@ -291,8 +295,8 @@ describe("Pricing preview — referral discount parity", () => {
     );
 
     const pv = await preview(referrer.id, plan.id as number);
-    expect(pv.referralDiscountPercent).toBe(10);
-    expect(pv.referralDiscountAmount).toBe(1000);
+    expect(pv.invitationDiscountPercent).toBe(10);
+    expect(pv.invitationDiscountAmount).toBe(1000);
     expect(pv.finalPrice).toBe(9000);
 
     // El cobro real al mismo socio/vínculo debe coincidir con el preview.
@@ -309,13 +313,16 @@ describe("Pricing preview — referral discount parity", () => {
     const member = await createMember(app, { email: "pv-none@test.com" });
 
     const pv = await preview(member.id, plan.id as number);
-    expect(pv.referralDiscountPercent).toBe(0);
-    expect(pv.referralDiscountAmount).toBe(0);
+    expect(pv.invitationDiscountPercent).toBe(0);
+    expect(pv.invitationDiscountAmount).toBe(0);
     expect(pv.finalPrice).toBe(10000);
   });
 
   it("el preview es read-only: no cualifica el vínculo pending del socio", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 10000,
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "pv-ro-r@test.com" });
     const referred = await createMember(app, { email: "pv-ro-d@test.com" });
     await app.db.execute(

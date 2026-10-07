@@ -134,6 +134,37 @@ export function excludedFromAura(c: PlanCategory): boolean {
 }
 
 /**
+ * Fase 194 (D-02/D-14): un plan "Invitacion" es `is_trial=1` Y `plan_category='paquete'`.
+ * Eso lo distingue del plan de prueba de Yoga (`especial`) y de la Sesion de
+ * Prueba comercial (`presencial` is_trial). Espejo TS de `invitationPlanIdsSql()`
+ * en shared/membership.ts: cambiar uno obliga a cambiar el otro.
+ */
+export function isInvitationPlan(plan: {
+  isTrial: boolean;
+  planCategory: string;
+}): boolean {
+  return plan.isTrial && plan.planCategory === "paquete";
+}
+
+/**
+ * Fase 194 (D-10b): el plan admite el descuento por invitacion = flag del plan
+ * Y no es una categoria excluida de referidos (`especial`, `paquete`) Y no es
+ * `is_trial`. El flag solo no alcanza: es el piso duro que el servidor aplica
+ * aunque la fila diga otra cosa.
+ */
+export function planAllowsInvitationDiscount(plan: {
+  allowsInvitationDiscount: boolean;
+  planCategory: PlanCategory;
+  isTrial: boolean;
+}): boolean {
+  return (
+    plan.allowsInvitationDiscount &&
+    !excludedFromReferrals(plan.planCategory) &&
+    !plan.isTrial
+  );
+}
+
+/**
  * Gap-fix 177 (WR-03, post-verification 2026-08-14): el boarding pass es un
  * regalo one-shot (`users.boardingPassUsed`, nunca se resetea) que aplica el
  * precio Zero. Para `paquete`, D-14 fija `priceZero = priceRegular` en las 36
@@ -191,6 +222,11 @@ export interface PlanListItem {
   specialLine: string | null;
   multiBranch: boolean;
   isTrial: boolean;
+  /**
+   * Fase 194 (D-10b): el plan admite el descuento por invitacion. Piso duro:
+   * nunca true en `especial`, `paquete` ni `is_trial` (ver planAllowsInvitationDiscount).
+   */
+  allowsInvitationDiscount: boolean;
   isGroup: boolean;
   planCategory: PlanCategory;
   goalPlanType: string | null;
@@ -249,6 +285,8 @@ export interface CreatePlanInput {
   specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
+  /** Fase 194 (D-10b): default false. Rechazado en especial/paquete/is_trial. */
+  allowsInvitationDiscount?: boolean;
   isGroup?: boolean;
   planCategory?: PlanCategory;
   linkedProgramId?: number;
@@ -277,6 +315,8 @@ export interface UpdatePlanInput {
   specialLine?: string | null;
   multiBranch?: boolean;
   isTrial?: boolean;
+  /** Fase 194 (D-10b): rechazado en especial/paquete/is_trial. */
+  allowsInvitationDiscount?: boolean;
   isGroup?: boolean;
   planCategory?: PlanCategory;
   linkedProgramId?: number | null;
@@ -524,8 +564,41 @@ export type RenewalBaseSource = "inherited" | "previous_period" | "plan_price";
  */
 export interface RenewalPreview {
   subscriptionId: number;
+  /** Base del mes completo (D-22: sin promos pegadas), antes de normalización/override/prorrateo. */
   base: number;
   source: RenewalBaseSource;
+  /**
+   * Precio de ESTA renovación antes de partner/invitación: la base normalizada por la regla
+   * de recargo, el precio personalizado o el proporcional, según las opciones del preview.
+   * Sin opciones y sin normalización es igual a `base`.
+   */
+  basePrice: number;
+  /** % NOMINAL de la invitación si ganó, si no 0. */
+  invitationDiscountPercent: number;
+  /** Monto de la invitación ya recortado por el tope en dinero (D-10c). */
+  invitationDiscountAmount: number;
+  invitationDiscountCapped: boolean;
+  /** AURA y boarding pass no existen en la renovación: acá solo `none | partner | invitation`. */
+  winningDiscount: WinningDiscount;
+  partnerDiscountPercent: number;
+  partnerDiscountAmount: number;
+  /** Lo que cobra `renewSubscription` con los mismos inputs (`price_paid` de la sub nueva). */
+  finalPrice: number;
+}
+
+/**
+ * Inputs OPCIONALES del preview de renovación: los mismos que cambian el precio de
+ * `renewSubscription`. El medio de pago NO cambia el precio de una renovación (la
+ * normalización por recargo de tarjeta depende del tipo de precio de la sub y de la regla
+ * del tenant, no del medio elegido), por eso no es una opción.
+ */
+export interface RenewalPreviewOptions {
+  /** Inicio custom de la renovación (YYYY-MM-DD); relevante para el proporcional. */
+  startDate?: string;
+  prorateToMonthEnd?: boolean;
+  /** Precio personalizado (>= 0) o, con `prorateToMonthEnd`, el proporcional editado. */
+  priceOverrideAmount?: number;
+  priceOverrideReason?: string;
 }
 
 export interface RenewSubscriptionInput {
@@ -650,18 +723,35 @@ export interface ChangePlanPreview {
   };
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null; // null if not allowed
-  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus partner/referral discount (parity with changePlanNow)
-  referralDiscountPercent: number; // 0 if none — % de referido que el cobro real va a aplicar
-  referralDiscountAmount: number; // 0 if none — monto ya restado de netAmount
-  // Fase 179 (D-09/D-10/D-20), deviation Rule 2 del plan 179-14: mismo
-  // criterio que referralDiscount* — % y monto de partner que el cobro real
-  // (changePlanNow) va a aplicar, ya restado de netAmount. 0 si no aplica.
+  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus the winning partner/invitation discount (parity with changePlanNow)
+  // Fase 194-17 (D-08/D-10c/D-21): descuento por invitación que `changePlanNow`
+  // va a cobrar sobre el neto post-prorrateo. `percent` = % nominal, `amount` =
+  // monto ya recortado por el tope en dinero del país (ya restado de netAmount),
+  // `capped` = el tope recortó. 0/0/false si la invitación no ganó (partner le
+  // ganó, o no hay vínculo / el plan destino no admite descuento).
+  invitationDiscountPercent: number;
+  invitationDiscountAmount: number;
+  invitationDiscountCapped: boolean;
+  // Cuál de los descuentos compitió y ganó (el árbitro aplica UNO; en el cambio
+  // inmediato AURA no participa, así que solo `none | partner | invitation`).
+  winningDiscount: WinningDiscount;
+  // Fase 179 (D-09/D-10/D-20): % y monto de partner que el cobro real
+  // (changePlanNow) va a aplicar, ya restado de netAmount. 0 si no aplica o si
+  // la invitación le ganó por monto (D-21).
   partnerDiscountPercent: number;
   partnerDiscountAmount: number;
   expiryDate?: string; // current subscription endDate (always set; used to pre-fill "mantener vencimiento")
 }
 
 // ─── Pricing Types ──────────────────────────────────────────────────────────
+
+/** Descuento que ganó en un cobro (el árbitro de `discount-arbiter.ts` aplica UNO, D-08/D-21). */
+export type WinningDiscount =
+  | "none"
+  | "aura"
+  | "partner"
+  | "invitation"
+  | "boarding_pass";
 
 export interface PricingPreview {
   basePrice: number;
@@ -672,11 +762,15 @@ export interface PricingPreview {
   auraBalance: number;
   boardingPassEligible: boolean;
   availableTiers: AuraDiscountTier[];
-  // Referidos (fase 157): desglose del descuento de referido ya aplicado en
-  // finalPrice, para que el PoS muestre el mismo precio que se cobrará (Pitfall 4).
-  // Compone sobre el descuento auraSpend. 0 cuando no hay vínculos activos.
-  referralDiscountPercent: number;
-  referralDiscountAmount: number;
+  // Fase 194-15 (D-08/D-10c/D-21): descuento por invitación que efectivamente se
+  // cobra. `percent` = % nominal, `amount` = monto ya recortado por el tope en
+  // dinero del país, `capped` = el tope recortó. 0/0/false si la invitación no
+  // ganó (AURA, partner o precio personalizado le ganaron, o no hay vínculo).
+  invitationDiscountPercent: number;
+  invitationDiscountAmount: number;
+  invitationDiscountCapped: boolean;
+  // Cuál de los descuentos compitió y ganó en este cobro (el árbitro aplica UNO).
+  winningDiscount: WinningDiscount;
   // Partners (fase 179, D-09/D-10/D-20): descuento de partner ya aplicado en
   // finalPrice cuando gana la comparación "gana el mayor" contra AURA (empate
   // a favor del partner). `null` cuando no hay candidato o perdió contra AURA

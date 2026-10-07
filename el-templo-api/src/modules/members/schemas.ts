@@ -3,6 +3,11 @@
  */
 import { manualOriginSchema } from "../marketing/schemas";
 
+import {
+  activatedInvitationProperties,
+  invitationErrorProperties,
+} from "../referrals/invitation-schemas";
+
 // =============================================================================
 // Shared response fragments
 // =============================================================================
@@ -213,6 +218,9 @@ export const listMembersSchema = {
         type: "string",
         enum: ["todos", "freemium", "prueba", "activo", "inactivo"],
       },
+      // Fase 194-20 (D-18): origen del alumno. Enum de un valor, extensible;
+      // Fastify rechaza cualquier otro con 400 antes del handler.
+      origin: { type: "string", enum: ["invitacion"] },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
@@ -347,11 +355,34 @@ export const createTrialMemberSchema = {
       // removeAdditional) antes de llegar a la ruta.
       origin: manualOriginSchema,
       campaign: { type: "string", maxLength: 150 },
+      // Fase 194 D-24 "Lo invita": socio que invita. Opcional: sin él el alta
+      // es la de siempre. Se valida server-side (gimnasio, membresía, cupo).
+      inviterId: { type: "integer", minimum: 1 },
     },
   },
   response: {
-    201: memberProfileSchema,
-    409: errorSchema,
+    // Fase 194 D-24: con `inviterId` la respuesta suma `invitation` (accesos
+    // activados) o `invitationError` (el lead se creó pero la activación falló).
+    // Sin declararlos acá el serializador los descartaría en silencio.
+    201: {
+      ...memberProfileSchema,
+      properties: {
+        ...memberProfileSchema.properties,
+        invitation: {
+          type: ["object", "null"],
+          properties: activatedInvitationProperties,
+        },
+        invitationError: {
+          type: ["object", "null"],
+          properties: invitationErrorProperties,
+        },
+      },
+    },
+    // `reason`: motivo estable de una regla de invitación (cupo, membresía...).
+    409: {
+      ...errorSchema,
+      properties: { ...errorSchema.properties, reason: { type: "string" } },
+    },
   },
 };
 

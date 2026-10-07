@@ -9,6 +9,23 @@
 
       <q-form ref="formRef" @submit.prevent="onSubmit">
         <q-card-section style="max-height: 70vh; overflow-y: auto">
+          <!-- Fase 194 HI-02: el plan Invitación es del sistema. El servidor rechaza
+               (400) cambiar categoría, prueba, multi-sucursal, precios y accesos. -->
+          <q-banner
+            v-if="isInvitationPlanEdit"
+            dense
+            rounded
+            class="bg-grey-2 text-grey-9 q-mb-md"
+            data-test="invitation-plan-banner"
+          >
+            <template #avatar>
+              <q-icon name="info" color="primary" />
+            </template>
+            Este es el plan de Invitación del sistema: la categoría, el carácter de prueba, los
+            precios y la sucursal no se pueden cambiar, y no se puede desactivar. La cantidad de
+            accesos se configura en Configuración &gt; Invitaciones.
+          </q-banner>
+
           <!-- General -->
           <div class="text-subtitle2 text-weight-bold q-mb-sm">General</div>
 
@@ -38,6 +55,7 @@
               outlined
               emit-value
               map-options
+              :disable="isInvitationPlanEdit"
               :rules="[(val) => !!val || 'Categoria es requerida']"
             />
 
@@ -81,6 +99,7 @@
                 dense
                 outlined
                 prefix="$"
+                :disable="isInvitationPlanEdit"
                 :rules="[requiredNumberRule('Precio regular')]"
               />
             </div>
@@ -92,6 +111,7 @@
                 dense
                 outlined
                 prefix="$"
+                :disable="isInvitationPlanEdit"
                 :rules="[requiredNumberRule(ZERO_PRICE_LABEL)]"
               />
             </div>
@@ -103,6 +123,7 @@
                 dense
                 outlined
                 prefix="$"
+                :disable="isInvitationPlanEdit"
               />
             </div>
           </div>
@@ -124,6 +145,7 @@
                 dense
                 outlined
                 suffix="dias"
+                :disable="isInvitationPlanEdit"
                 :rules="[requiredNumberRule('Duracion')]"
               />
             </div>
@@ -270,9 +292,33 @@
           <div class="text-subtitle2 text-weight-bold q-mt-lg q-mb-xs">Opciones</div>
 
           <div>
-            <q-toggle v-model="form.multiBranch" label="Multi-sucursal" />
-            <q-toggle v-model="form.isTrial" label="Plan de prueba" />
+            <q-toggle
+              v-model="form.multiBranch"
+              label="Multi-sucursal"
+              :disable="isInvitationPlanEdit"
+            />
+            <q-toggle
+              v-model="form.isTrial"
+              label="Plan de prueba"
+              :disable="isInvitationPlanEdit"
+            />
             <q-toggle v-model="form.isGroup" label="Plan grupal" />
+          </div>
+
+          <!-- Fase 194 D-10b/D-23: flag por plan del descuento por invitación. En
+               alta se precarga en ON para las categorías que hoy lo admiten. -->
+          <div class="q-mt-sm">
+            <q-toggle
+              v-model="form.allowsInvitationDiscount"
+              label="Admite descuento por invitación"
+              :disable="invitationDiscountBlocked"
+            />
+            <q-tooltip v-if="invitationDiscountBlocked" anchor="top middle" self="bottom middle">
+              Los planes especiales, paquetes y de prueba no admiten descuento por invitación
+            </q-tooltip>
+            <div class="text-caption text-grey-7 q-ml-md" style="margin-top: -4px">
+              {{ invitationDiscountHint }}
+            </div>
           </div>
 
           <q-input
@@ -318,6 +364,8 @@ import {
   BOOKING_MODE_LABELS,
   PLAN_CATEGORY_OPTIONS,
   planTotalClasses,
+  planCategoryAllowsInvitationDiscount,
+  isInvitationPlan,
   type PlanListItem,
   type PlanTier,
   type BookingMode,
@@ -410,6 +458,12 @@ const loadingPrograms = ref(false);
 
 const isEditMode = computed(() => !!props.plan);
 
+// Fase 194 HI-02: el plan Invitación (paquete + prueba) es inmutable salvo nombre y
+// descripción; sus accesos se editan en Configuración > Invitaciones.
+const isInvitationPlanEdit = computed(
+  () => isEditMode.value && !!props.plan && isInvitationPlan(props.plan)
+);
+
 // Form data
 const form = ref({
   name: '',
@@ -430,6 +484,7 @@ const form = ref({
   programIds: [] as number[],
   multiBranch: false,
   isTrial: false,
+  allowsInvitationDiscount: false,
   isGroup: false,
   groupMaxMembers: null as number | null,
   country: 'AR' as 'AR' | 'ES',
@@ -476,6 +531,18 @@ const classesPerWeekHint = computed(() => {
     ? `Total del pase: ${passTotalClasses.value} clases`
     : 'Dejar vacio y usar el tope total';
 });
+
+// Fase 194 D-10b/D-23: especial, paquete e is_trial nunca admiten descuento por
+// invitación (el servidor responde 400 si se intenta): toggle deshabilitado y en OFF.
+const invitationDiscountBlocked = computed(
+  () => !planCategoryAllowsInvitationDiscount(form.value.planCategory, form.value.isTrial)
+);
+
+const invitationDiscountHint = computed(() =>
+  isEditMode.value
+    ? 'Si está apagado, este plan no genera ni recibe descuento por invitación'
+    : 'Activado por defecto: hoy los planes de esta categoría admiten descuento por invitación. Apagalo para planes largos o de clase única.'
+);
 
 const programOptions = computed(() =>
   programs.value
@@ -573,6 +640,15 @@ watch(
   }
 );
 
+// Fase 194 D-10b/D-23: al pasar a una categoría/prueba excluida el flag baja a OFF;
+// en ALTA, al volver a una categoría que lo admite se precarga en ON (el servidor
+// crea en false si el campo no viene, por eso el formulario lo manda explícito).
+// En edición nunca se re-prende solo: gestión decide.
+watch(invitationDiscountBlocked, (blocked) => {
+  if (blocked) form.value.allowsInvitationDiscount = false;
+  else if (!isEditMode.value) form.value.allowsInvitationDiscount = true;
+});
+
 const FOUNDATION_PROGRAM_NAME = 'Foundation — Cuerpo Completo';
 
 function prefillFoundationProgram() {
@@ -643,6 +719,9 @@ watch(
         programIds: props.plan.programIds ?? [],
         multiBranch: props.plan.multiBranch,
         isTrial: props.plan.isTrial,
+        allowsInvitationDiscount:
+          props.plan.allowsInvitationDiscount &&
+          planCategoryAllowsInvitationDiscount(props.plan.planCategory, props.plan.isTrial),
         isGroup: props.plan.isGroup,
         groupMaxMembers: props.plan.groupMaxMembers,
         // Fall back to AR if the plan pre-dates the country column (legacy row).
@@ -668,6 +747,11 @@ watch(
         programIds: [],
         multiBranch: false,
         isTrial: false,
+        // Fase 194 D-10b: default ON para las categorías que hoy admiten descuento.
+        allowsInvitationDiscount: planCategoryAllowsInvitationDiscount(
+          props.presetCategory ?? 'presencial',
+          false
+        ),
         isGroup: false,
         groupMaxMembers: null,
         // Inherit owner's currently-selected country from PlanesPage; else AR.
@@ -740,6 +824,9 @@ async function onSubmit() {
       programIds: effectiveGrantsAll ? [] : form.value.programIds,
       multiBranch: form.value.multiBranch,
       isTrial: form.value.isTrial,
+      // Fase 194 D-10b: nunca true en categorías/pruebas excluidas (piso del servidor).
+      allowsInvitationDiscount:
+        !invitationDiscountBlocked.value && form.value.allowsInvitationDiscount,
       isGroup: form.value.isGroup,
       groupMaxMembers: form.value.isGroup ? (form.value.groupMaxMembers ?? undefined) : undefined,
     };

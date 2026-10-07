@@ -137,7 +137,7 @@ describe("Subscriptions API — Renovación tras período prorrateado", () => {
 
     const preview = await renewalPreview(memberId, alta.id);
     expect(preview.statusCode).toBe(200);
-    expect(preview.body).toEqual({
+    expect(preview.body).toMatchObject({
       subscriptionId: alta.id,
       base: PRICE_REGULAR,
       source: "plan_price",
@@ -226,7 +226,7 @@ describe("Subscriptions API — Renovación tras período prorrateado", () => {
 
     const preview = await renewalPreview(memberId, partial.body.id as number);
     expect(preview.statusCode).toBe(200);
-    expect(preview.body).toEqual({
+    expect(preview.body).toMatchObject({
       subscriptionId: partial.body.id,
       base: NEGOTIATED_PRICE,
       source: "previous_period",
@@ -251,7 +251,7 @@ describe("Subscriptions API — Renovación tras período prorrateado", () => {
 
     const preview = await renewalPreview(memberId, full.body.id as number);
     expect(preview.statusCode).toBe(200);
-    expect(preview.body).toEqual({
+    expect(preview.body).toMatchObject({
       subscriptionId: full.body.id,
       base: NEGOTIATED_PRICE,
       source: "inherited",

@@ -81,6 +81,7 @@ function makeCtx(overrides: Partial<PricingAdjustCtx> = {}): PricingAdjustCtx {
     basePrice: 10000,
     price: 10000,
     priceLocked: null,
+    competingDiscountAmount: null,
     commit: true,
     supports: { exclusiveBenefits: true, discounts: true },
     moduleInput: {},

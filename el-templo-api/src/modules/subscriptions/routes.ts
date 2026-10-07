@@ -268,16 +268,20 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .code(403)
           .send({ error: "Acceso denegado", message: "Solo owner/admin" });
       }
-      const plan = await subscriptionService.deactivatePlan(
-        assertTenant(request.scope, "subscriptions.deactivatePlan"),
-        request.params.planId,
-      );
-      if (!plan) {
-        return reply
-          .code(404)
-          .send({ error: "No encontrado", message: "Plan no encontrado" });
+      try {
+        const plan = await subscriptionService.deactivatePlan(
+          assertTenant(request.scope, "subscriptions.deactivatePlan"),
+          request.params.planId,
+        );
+        if (!plan) {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Plan no encontrado" });
+        }
+        return plan;
+      } catch (err: unknown) {
+        return handleServiceError(err, reply, request.log, "deactivate plan");
       }
-      return plan;
     },
   );
 
@@ -700,10 +704,18 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /members/:userId/subscription/renewal-preview
   // Base del mes completo de la renovación (heredada, o del último período
-  // completo / precio de lista si el período actual fue prorrateado).
+  // completo / precio de lista si el período actual fue prorrateado) y, desde 194-18,
+  // los MONTOS del cobro (descuento ganador, invitación con tope, precio final) con los
+  // mismos inputs opcionales que cambian el precio de `renewSubscription`.
   fastify.get<{
     Params: { userId: number };
-    Querystring: { subscriptionId?: number };
+    Querystring: {
+      subscriptionId?: number;
+      startDate?: string;
+      prorateToMonthEnd?: boolean;
+      priceOverrideAmount?: number;
+      priceOverrideReason?: string;
+    };
   }>(
     "/members/:userId/subscription/renewal-preview",
     { schema: renewalPreviewSchema },
@@ -713,6 +725,12 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           assertTenant(request.scope, "subscriptions.getRenewalPreview"),
           request.params.userId,
           request.query.subscriptionId,
+          {
+            startDate: request.query.startDate,
+            prorateToMonthEnd: request.query.prorateToMonthEnd,
+            priceOverrideAmount: request.query.priceOverrideAmount,
+            priceOverrideReason: request.query.priceOverrideReason,
+          },
         );
         return preview;
       } catch (err: unknown) {

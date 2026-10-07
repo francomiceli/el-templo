@@ -86,9 +86,12 @@ async function readNotifications(
   return rows[0] as Array<{ body: string; template_key: string | null }>;
 }
 
+// 194-15 D-10b: el flip del vínculo (y su aviso) exige el flag del plan.
 describe("Referral activation notification on first payment", () => {
   it("encola UNA notificación al referidor con el nombre del referido, ninguna al referido", async () => {
-    const plan = await createPlan(app, adminToken);
+    const plan = await createPlan(app, adminToken, {
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, {
       email: "an-r@test.com",
       firstName: "Referidor",
@@ -109,6 +112,10 @@ describe("Referral activation notification on first payment", () => {
     expect(referrerNotifs).toHaveLength(1);
     expect(referrerNotifs[0].template_key).toBe("referral_link_activated");
     expect(referrerNotifs[0].body).toContain("Nacho");
+    // Fase 194 D-26: el bodyOverride habla de invitaciones, igual al seed de 0261.
+    expect(referrerNotifs[0].body).toBe(
+      "Nacho pagó su primer plan. Ya tenés tu descuento por invitación activo.",
+    );
 
     // El referido NO recibe push (D-31).
     const referredNotifs = await readNotifications(referred.id);
@@ -116,7 +123,9 @@ describe("Referral activation notification on first payment", () => {
   });
 
   it("un cobro sobre un vínculo YA qualified (re-cobro) NO vuelve a notificar", async () => {
-    const plan = await createPlan(app, adminToken);
+    const plan = await createPlan(app, adminToken, {
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, {
       email: "an2-r@test.com",
       firstName: "Referidor",
@@ -140,7 +149,9 @@ describe("Referral activation notification on first payment", () => {
   });
 
   it("best-effort: sin device token del referidor el cobro se completa igual y no hay fila", async () => {
-    const plan = await createPlan(app, adminToken);
+    const plan = await createPlan(app, adminToken, {
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, {
       email: "an3-r@test.com",
       firstName: "Referidor",

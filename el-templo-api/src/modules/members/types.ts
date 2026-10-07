@@ -54,6 +54,12 @@ export interface MemberListParams {
    * that keeps the column in sync with sub create/cancel transitions.
    */
   status?: "todos" | UserStatus;
+  /**
+   * Fase 194-20 (D-18): origen del alumno. `invitacion` = tiene una invitación
+   * `active` (derivado de `invitations`, sin columna nueva en `users`). Se combina
+   * con `status` (p.ej. `status=prueba&origin=invitacion` = leads de invitación).
+   */
+  origin?: "invitacion";
   page: number;
   limit: number;
 }
@@ -308,6 +314,11 @@ export interface CreateTrialMemberInput {
   lastName: string;
   phone: string;
   branchId: number;
+  /**
+   * Fase 194 D-24 ("Lo invita"): `users.id` del socio que invita. Lo consume la
+   * ruta (orquesta la invitación asistida); `createTrialMember` lo ignora.
+   */
+  inviterId?: number;
 }
 
 /**
@@ -485,6 +496,13 @@ export interface SepaExportRow {
   socio: string;
   email: string;
   plan: string;
+  /**
+   * Fase 194 D-25: `price_paid` de la membresía vigente (descuento incluido),
+   * en la unidad que registra el sistema; `null` si el socio no tiene una.
+   */
+  amount: number | null;
+  /** Moneda de esa misma sub (ej. `EUR`); `null` si no hay membresía vigente. */
+  currency: string | null;
   sucursal: string;
   deudor: string;
   nif: string;

@@ -568,6 +568,17 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // `referrals`, que es gym-owned — el INSERT toma el gimnasio de
   // `assertTenant(request.scope)`, nunca del body.
   "POST /api/admin/members/:userId/referrals": { categoria: "tenant-scoped" },
+  // Fase 194-12 (D-16/D-04): canal asistido de invitaciones. tenant-scoped:
+  // escriben en `invitations`/`subscriptions`/`users` (gym-owned); el gimnasio
+  // sale de `assertTenant(request.scope)` y el invitado (`:userId`) y el
+  // invitador (`inviterId`) se validan en el gimnasio y el scope de país del
+  // staff — uno ajeno es indistinguible de uno inexistente (404).
+  "POST /api/admin/members/:userId/invitations": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/admin/members/:userId/invitations/:invitationId/void": {
+    categoria: "tenant-scoped",
+  },
   // Asignación retroactiva de partner (fase 179 plan 09, D-15). tenant-scoped:
   // escribe en `partner_referrals`/`partner_commissions`, gym-owned — el
   // gimnasio sale de `assertTenant(request.scope, …)`, nunca del body. Caso
@@ -621,6 +632,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
 
   // ── /api/admin/referrals ──────────────────────────────────────────────────
   "GET /api/admin/referrals/ab-results": { categoria: "tenant-scoped" },
+  // Fase 194-20 (D-19 / D-18): reporte del programa de Invitaciones y bandeja de
+  // leads de invitación. Leen `invitations`, `referral_credits`, `subscriptions`,
+  // `users` y `attendance` (gym-owned) con `tenantWhere` en cada tabla; el gate es
+  // gestion/admin/owner (mismo plugin que ab-results).
+  "GET /api/admin/referrals/invitations/report": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/admin/referrals/invitations": { categoria: "tenant-scoped" },
 
   // ── /api/admin/renewals ───────────────────────────────────────────────────
   // Módulo de Renovaciones (brief Nacho, 2026-09-24): pantalla operativa de
@@ -751,10 +770,13 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/settings/pricing/card-surcharge": {
     categoria: "tenant-scoped",
   },
+  // Fase 194 (D-10c): parámetros del programa de Invitaciones en `tenant_settings`.
+  "GET /api/admin/settings/invitations": { categoria: "tenant-scoped" },
   "GET /api/admin/settings/pricing/zero-price": { categoria: "tenant-scoped" },
   "PUT /api/admin/settings/pricing/card-surcharge": {
     categoria: "tenant-scoped",
   },
+  "PUT /api/admin/settings/invitations": { categoria: "tenant-scoped" },
   "PUT /api/admin/settings/pricing/zero-price": { categoria: "tenant-scoped" },
   // Fase 179-12 (D-20): `system_settings` es una de las 4 `TENANT_EXEMPT_TABLES`
   // (src/db/tenant-tables.ts) — config global heredada SIN tenant_id, a
@@ -978,6 +1000,16 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   // ── /api/members/referrals ────────────────────────────────────────────────
   "GET /api/members/referrals": { categoria: "tenant-scoped" },
   "POST /api/members/referrals/cta-click": { categoria: "tenant-scoped" },
+  // Fase 194-10 (D-06): activación de invitaciones del socio. `users` es tabla
+  // strict: el ctx sale de la fila del socio autenticado (`attachCountryScope`),
+  // el invitado es SIEMPRE el token y el invitador sale del `code` del mismo
+  // gimnasio.
+  "GET /api/members/referrals/invitations/eligibility": {
+    categoria: "tenant-scoped",
+  },
+  "POST /api/members/referrals/invitations/activate": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/members/scheduling ───────────────────────────────────────────────
   "DELETE /api/members/scheduling/bookings/:bookingId": {

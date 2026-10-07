@@ -5,17 +5,15 @@
      líneas ~507-533) — NO se importa `render.ts` ni código del TV, esto es
      una réplica visual a escala, de solo lectura.
 
-     Velo por modo (D-27/D-28): `flex_inicio` usa el velo crema/día
-     (`.pantalla--dia`, TvScreenPage.vue ~1966); `flex_final` y `manual` usan
-     el velo charcoal/noche por defecto (TvScreenPage.vue ~1673-1708) — igual
-     que `avisoVeloFor` en `render.ts` resuelve "noche" para `closing` y para
-     el modo manual disparado fuera de la flexibilidad inicial.
+     Velo por tema (2026-10-06, lo elige el admin): "claro" = velo crema de
+     la flexibilidad inicial (`.pantalla--dia`), "oscuro" = charcoal del
+     cierre — igual que `avisoVeloFor` en `render.ts`.
 
      Texto plano interpolado con `{{ }}` (Vue escapa por defecto) — PROHIBIDA
      la directiva de HTML crudo de Vue acá: un aviso con marcado en el título
      o el cuerpo nunca debe ejecutarse en el admin. -->
 <template>
-  <div class="tv-aviso-preview" :class="{ 'tv-aviso-preview--dia': mode === 'flex_inicio' }">
+  <div class="tv-aviso-preview" :class="{ 'tv-aviso-preview--dia': tema === 'claro' }">
     <div class="tv-aviso-preview__label">Vista previa de la placa</div>
     <div class="tv-aviso-preview__placa">
       <div class="tv-aviso-preview__titulo">{{ title || 'Título del aviso' }}</div>
@@ -25,10 +23,10 @@
 </template>
 
 <script setup lang="ts">
-import type { TvAvisoMode } from 'src/composables/useCommunicationsApi';
+import type { TvAvisoTema } from 'src/composables/useCommunicationsApi';
 
 defineProps<{
-  mode: TvAvisoMode;
+  tema: TvAvisoTema;
   title: string;
   body: string;
 }>();
@@ -41,6 +39,7 @@ $trans-crema: #f2ede5;
 $trans-bronce: #d4b896;
 $cream: #f2ebe1;
 $navy: #3d3732;
+$gold: #b08d6e;
 $cinzel: 'Cinzel', Georgia, serif;
 
 .tv-aviso-preview {
@@ -92,11 +91,18 @@ $cinzel: 'Cinzel', Georgia, serif;
   text-shadow: 0 0.06em 0.3em rgba(0, 0, 0, 0.6);
 }
 
-// Velo día (crema, TvScreenPage.vue .pantalla--dia): flex_inicio. El título y
-// el cuerpo mantienen los mismos colores (bronce/crema) que en la placa real
-// — TvScreenPage.vue no sobreescribe `.avisoTitulo`/`.avisoCuerpo` dentro de
-// `.pantalla--dia`, solo cambia el fondo y los logos.
+// Tema claro (crema, TvScreenPage.vue .pantalla--dia): colores de la
+// flexibilidad inicial — título dorado, cuerpo en tinta, sin sombras
+// (TvScreenPage.vue `#pantallaAviso.pantalla--dia .avisoTitulo/.avisoCuerpo`).
 .tv-aviso-preview--dia .tv-aviso-preview__placa {
   background: $cream;
+}
+.tv-aviso-preview--dia .tv-aviso-preview__titulo {
+  color: $gold;
+  text-shadow: none;
+}
+.tv-aviso-preview--dia .tv-aviso-preview__cuerpo {
+  color: $navy;
+  text-shadow: none;
 }
 </style>

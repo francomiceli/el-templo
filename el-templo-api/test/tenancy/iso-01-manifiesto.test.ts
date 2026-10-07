@@ -313,12 +313,26 @@ import {
 // 2026-09-30: 446 -> 447 por la base de renovación tras un período prorrateado:
 // `GET /api/admin/subscriptions/members/:userId/subscription/renewal-preview`,
 // `tenant-scoped`.
-// 2026-10-07 (fase 195): 447 -> 448 por el endpoint público de datos de la web:
+// 2026-10-06: 447 -> 449 por los parámetros del programa de Invitaciones
+// (Fase 194-07, D-10c): `GET` y `PUT /api/admin/settings/invitations`,
+// `tenant-scoped` (tenant_settings; PUT gestion/admin/owner).
+// 2026-10-06: 449 -> 451 por las 2 rutas de Invitaciones del socio (Fase
+// 194-10, D-06): `GET /api/members/referrals/invitations/eligibility` y
+// `POST /api/members/referrals/invitations/activate`, `tenant-scoped`.
+// 2026-10-06: 451 -> 453 por las 2 rutas del canal asistido de Invitaciones
+// (Fase 194-12, D-16/D-04): `POST /api/admin/members/:userId/invitations` y
+// `POST /api/admin/members/:userId/invitations/:invitationId/void`,
+// `tenant-scoped`.
+// 2026-10-07: 453 -> 455 por el reporte y la bandeja de leads de Invitaciones
+// (Fase 194-20, D-19/D-18): `GET /api/admin/referrals/invitations/report` y
+// `GET /api/admin/referrals/invitations`, `tenant-scoped`.
+// 2026-10-07 (fase 195): +1 por el endpoint público de datos de la web:
 // `GET /api/web/site-data`, `templo-module` (templo-marketing).
-// 2026-10-07 (fase 195, plan 10): 448 -> 450 por los reportes de origen de altas:
+// 2026-10-07 (fase 195, plan 10): +2 por los reportes de origen de altas:
 // `GET /api/admin/reports/attribution` y
 // `GET /api/admin/reports/attribution/search-console`, ambas `tenant-scoped`.
-const ENTRADAS_BASELINE = 450;
+// Integración 194 + 195: 455 + 3 = 458.
+const ENTRADAS_BASELINE = 458;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -461,7 +475,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 450 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 458 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

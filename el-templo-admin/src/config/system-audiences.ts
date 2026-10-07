@@ -97,7 +97,7 @@ export const SYSTEM_TEMPLATE_AUDIENCES: Readonly<Record<string, Audience>> = {
     icon: 'event_busy',
     breadth: 'grupo',
   },
-  referral_link_activated: { label: 'Cuando un referido paga', icon: 'bolt', breadth: 'evento' },
+  referral_link_activated: { label: 'Cuando un invitado paga', icon: 'bolt', breadth: 'evento' },
   trial_session_reminder: {
     label: 'Con sesión de prueba reservada',
     icon: 'event_busy',

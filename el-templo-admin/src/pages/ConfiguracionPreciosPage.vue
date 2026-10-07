@@ -5,7 +5,8 @@
       <div class="text-h5 col">Reglas de precio</div>
     </div>
 
-    <q-card flat bordered style="max-width: 640px">
+    <!-- Recargo por tarjeta y Precio Zero: el PUT es owner-only en el servidor. -->
+    <q-card v-if="isOwner" flat bordered class="q-mb-md" style="max-width: 640px">
       <q-card-section>
         <div class="text-subtitle1 q-mb-xs">Recargo por pago con tarjeta</div>
 
@@ -60,19 +61,29 @@
         </div>
       </q-card-section>
     </q-card>
+
+    <!-- Fase 194 (D-10c): parámetros del programa de Invitaciones. Gestión/admin/owner. -->
+    <InvitationSettingsCard />
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { usePricingSettingsApi } from 'src/composables/usePricingSettingsApi';
 import { ZERO_PRICE_LABEL } from 'src/config/templo-config';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import InvitationSettingsCard from 'src/components/settings/InvitationSettingsCard.vue';
 
 const log = createLogger('ConfiguracionPreciosPage');
 const $q = useQuasar();
 const pricingApi = usePricingSettingsApi();
+const authStore = useAuthStore();
+
+// Fase 194: la página la ven también gestion/admin (por la tarjeta de Invitaciones);
+// las reglas de tarjeta y Precio Zero siguen siendo solo del propietario.
+const isOwner = computed(() => authStore.user?.role === 'owner');
 
 const cardSurchargeEnabled = ref(false);
 const zeroPriceEnabled = ref(false);
@@ -131,6 +142,6 @@ async function onToggleZero(value: boolean) {
 }
 
 onMounted(() => {
-  void loadSetting();
+  if (isOwner.value) void loadSetting();
 });
 </script>

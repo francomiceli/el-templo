@@ -43,13 +43,32 @@ import { and, eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { BadRequestError, ConflictError } from "../shared/errors";
 import { tenantWhere } from "../shared/tenant";
-import type { FilterMap } from "../shared/hooks";
+import type { FilterMap, PricingAdjustCtx } from "../shared/hooks";
 import {
   AURA_DISCOUNT_TIERS,
   excludedFromAura,
   excludedFromBoardingPass,
 } from "../subscriptions/types";
 import { AuraService } from "./service";
+
+/**
+ * Fase 194 (D-21): ¿el descuento CORE que compite (partner o invitación)
+ * iguala o supera en MONTO al que daría el tier de AURA sobre la lista? Gana
+ * el mayor y el empate es del core (AURA solo gana si es ESTRICTAMENTE mayor,
+ * así el socio no gasta puntos para nada). Se compara por monto y no por % porque
+ * la invitación puede estar topeada en dinero (D-10c). Mismo criterio en commit
+ * y en preview (paridad).
+ */
+function coreCompetitorMatchesTier(
+  ctx: PricingAdjustCtx,
+  tierPercent: number,
+): boolean {
+  return (
+    ctx.competingDiscountAmount !== null &&
+    ctx.competingDiscountAmount >=
+      Math.floor(ctx.basePrice * (tierPercent / 100))
+  );
+}
 
 export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
   ctx,
@@ -177,14 +196,12 @@ export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
           `Monto de AURA invalido. Opciones: ${AURA_DISCOUNT_TIERS.map((t) => t.spend).join(", ")}`,
         );
       }
-      // Fase 179 (D-10/D-20): un descuento CORE que compite (partner) e
-      // iguala o supera el tier gana la comparación — AURA no se aplica NI
-      // se gasta (el socio conserva sus puntos; empate a favor del core).
-      // Las validaciones de arriba ya corrieron: 400 gane quien gane (D-10).
-      if (
-        ctx.competingDiscountPercent !== null &&
-        ctx.competingDiscountPercent >= tier.percent
-      ) {
+      // Fase 179 (D-10/D-20) + 194 (D-21): un descuento CORE que compite
+      // (partner o invitación) e iguala o supera el MONTO del tier gana la
+      // comparación — AURA no se aplica NI se gasta (el socio conserva sus
+      // puntos; empate a favor del core). Las validaciones de arriba ya
+      // corrieron: 400 gane quien gane (D-10).
+      if (coreCompetitorMatchesTier(ctx, tier.percent)) {
         return;
       }
       // Sin try/catch: InsufficientBalanceError debe abortar el alta (T-176-07).
@@ -204,12 +221,10 @@ export const pricingAdjustHandler: FilterMap["pricing.adjust"] = async (
         tier !== undefined &&
         auraSpend <= balance &&
         !excludedFromAura(ctx.planCategory) &&
-        // Fase 179 (D-10/D-20): el competidor core (partner) que iguala o
-        // supera el tier gana también en el preview (paridad con el cobro).
-        !(
-          ctx.competingDiscountPercent !== null &&
-          ctx.competingDiscountPercent >= tier.percent
-        );
+        // Fase 179 (D-10/D-20) + 194 (D-21): el competidor core que iguala o
+        // supera el monto del tier gana también en el preview (paridad con
+        // el cobro).
+        !coreCompetitorMatchesTier(ctx, tier.percent);
     }
 
     if (applyDiscount && tier) {

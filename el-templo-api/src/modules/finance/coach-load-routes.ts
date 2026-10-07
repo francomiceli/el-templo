@@ -1053,11 +1053,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
-   * Monto de renovación a precargar en la PoS: lo que venía pagando, salvo que
-   * el período actual haya sido prorrateado (alta o renovación hasta fin de
-   * mes) — ahí `pricePaid` es un proporcional y la renovación cobra el mes
-   * completo (`getRenewalPreview`, misma selección de sub que el renew de
-   * pay-plan). Si no hay sub renovable (ej. solo pausada) queda lo heredado.
+   * Monto de renovación a precargar en la PoS: lo que va a cobrar la renovación
+   * (`getRenewalPreview.finalPrice`, misma selección de sub y mismo cálculo que el renew
+   * de pay-plan: base sin promos pegadas D-22 y descuento ganador por monto, 194-18).
+   * Si no hay sub renovable (ej. solo pausada) o la sub no se renueva (accesos de
+   * invitación, 400) queda lo heredado.
    */
   async function renewAmountFor(
     ctx: TenantContext,
@@ -1070,9 +1070,11 @@ export const coachLoadRoutes: FastifyPluginAsync = async (fastify) => {
         userId,
         undefined,
       );
-      return preview.source === "inherited" ? pricePaid : preview.base;
+      return preview.finalPrice;
     } catch (err: unknown) {
-      if (err instanceof NotFoundError) return pricePaid;
+      if (err instanceof NotFoundError || err instanceof BadRequestError) {
+        return pricePaid;
+      }
       throw err;
     }
   }

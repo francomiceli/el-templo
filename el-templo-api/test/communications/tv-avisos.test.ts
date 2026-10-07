@@ -361,6 +361,49 @@ describe("communications/tv-avisos (COM-04, D-24/D-29)", () => {
     expect(body.aviso?.id).toBe(calistenicos);
   });
 
+  it("(4c) 2026-10-06: tema claro/oscuro — default oscuro, se crea y edita, viaja al control; valor inválido -> 400", async () => {
+    const sinTema = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildValidTvAvisoBody({ title: "Sin tema", isActive: true }),
+    );
+    expect(sinTema.statusCode, sinTema.body).toBe(201);
+    const sinTemaBody = JSON.parse(sinTema.body) as { id: number; tema: string };
+    expect(sinTemaBody.tema).toBe("oscuro");
+
+    const claro = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildValidTvAvisoBody({ title: "Yoga regenerativo", isActive: true, tema: "claro" }),
+    );
+    expect(claro.statusCode, claro.body).toBe(201);
+    const claroBody = JSON.parse(claro.body) as { id: number; tema: string };
+    expect(claroBody.tema).toBe("claro");
+
+    const control = await getComo(`/control/tv-aviso-activo?branchId=${branchA}`, adminToken);
+    const controlBody = JSON.parse(control.body) as {
+      avisos: Array<{ id: number; tema: string }>;
+    };
+    expect(controlBody.avisos.find((a) => a.id === claroBody.id)?.tema).toBe("claro");
+    expect(controlBody.avisos.find((a) => a.id === sinTemaBody.id)?.tema).toBe("oscuro");
+
+    const editado = await app.inject({
+      method: "PUT",
+      url: `${BASE}/admin/tv-avisos/${sinTemaBody.id}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { tema: "claro" },
+    });
+    expect(editado.statusCode, editado.body).toBe(200);
+    expect((JSON.parse(editado.body) as { tema: string }).tema).toBe("claro");
+
+    const invalido = await postComo(
+      "/admin/tv-avisos",
+      adminToken,
+      buildValidTvAvisoBody({ title: "Tema raro", tema: "gris" }),
+    );
+    expect(invalido.statusCode).toBe(400);
+  });
+
   it("(5) borrado seguro: DELETE con tv_class_state apuntando al aviso limpia la referencia sin error de FK", async () => {
     const createRes = await postComo(
       "/admin/tv-avisos",

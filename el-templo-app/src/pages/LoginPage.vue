@@ -106,14 +106,16 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
 import { useLastLoginEmail } from 'src/composables/useLastLoginEmail'
 import { extractError } from 'src/utils/extract-error'
+import { normalizeInvitationCode, pendingInvitation } from 'src/utils/pending-invitation'
 
 const router = useRouter()
+const route = useRoute()
 const $q = useQuasar()
 const authStore = useAuthStore()
 const { get: getLastLoginEmail, set: setLastLoginEmail } = useLastLoginEmail()
@@ -167,6 +169,11 @@ const passwordRules = [(val: string) => !!val || 'La contraseña es requerida']
 // este dispositivo. Nunca la contraseña — eso lo maneja el gestor de
 // contraseñas del sistema vía los `autocomplete` de los inputs de arriba.
 onMounted(async () => {
+  // Fase 194 (D-06): `/login?invitacion=CODE` (landing "Ya tengo cuenta" o el 409 del registro) deja el
+  // código pendiente; tras loguear se va a "Activar invitación".
+  const invitationFromLink = normalizeInvitationCode(route.query.invitacion)
+  if (invitationFromLink) pendingInvitation.save(invitationFromLink)
+
   const savedEmail = await getLastLoginEmail()
   if (savedEmail) {
     email.value = savedEmail
@@ -194,7 +201,11 @@ async function onSubmit() {
     const userStore = useUserStore()
     const needsOnboarding = userStore.profile?.role === 'member' && !userStore.onboardingCompleted
 
-    if (needsOnboarding) {
+    // Fase 194 (D-06): con una invitación pendiente se activa ANTES que el onboarding/home. Solo para
+    // socios (`member`): el guard exceptúa `activar-invitacion` del onboarding, que después vuelve al flujo normal.
+    if (userStore.profile?.role === 'member' && pendingInvitation.read()) {
+      void router.push({ name: 'activar-invitacion' })
+    } else if (needsOnboarding) {
       // Skip all transitions — go straight to onboarding (same dark bg)
       router.push({ name: 'onboarding' })
     } else {

@@ -19,6 +19,41 @@ export function addDays(dateStr: string, days: number): string {
 }
 
 /**
+ * Zona horaria de respaldo cuando no hay una sede/usuario que la defina (usuario sin
+ * sede cargable, sede con zona desconocida) o el reporte necesita "hoy" sin una sede
+ * concreta. Una sola constante (Fase 194, LO-04) en vez de una copia por archivo.
+ */
+export const DEFAULT_TENANT_TIMEZONE = "America/Argentina/Buenos_Aires";
+
+/**
+ * Suma `months` meses (negativo = resta) a una fecha `YYYY-MM-DD` (pura, sin zona
+ * horaria). Si el día no existe en el mes destino se recorta al último día (31-ago
+ * menos 6 meses = 28/29-feb). Se opera sobre el string de `todayInTz` para no mezclar
+ * husos. ÚNICA implementación del cálculo de meses.
+ */
+export function addMonths(dateStr: string, months: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  // Mes en base 0 acumulado: así sumar/restar cruza años sin casos especiales.
+  const total = y * 12 + (m - 1) + months;
+  const year = Math.floor(total / 12);
+  const month = total - year * 12; // 0..11
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const day = Math.min(d, lastDay);
+  const pad = (n: number, w: number): string => String(n).padStart(w, "0");
+  return `${pad(year, 4)}-${pad(month + 1, 2)}-${pad(day, 2)}`;
+}
+
+/** Resta `months` meses a una fecha `YYYY-MM-DD` (ver {@link addMonths}). */
+export function subtractMonths(dateStr: string, months: number): string {
+  return addMonths(dateStr, -months);
+}
+
+/** Suma `months` meses (negativo = resta) a un `YYYY-MM`. */
+export function shiftMonth(month: string, months: number): string {
+  return addMonths(`${month}-01`, months).slice(0, 7);
+}
+
+/**
  * Get the Monday-Saturday range for the week containing the given date.
  * Sunday maps to the prior week's Monday (Mon-Sat week).
  */

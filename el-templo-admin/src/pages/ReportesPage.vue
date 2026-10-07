@@ -74,6 +74,14 @@
           :label="adminStore.appTrialsPendingCount"
         />
       </q-tab>
+      <!-- Fase 194 (D-19/D-18): reporte del programa de invitaciones y bandeja de leads.
+           Solo gestion/admin/owner (el API responde 403 al resto). -->
+      <q-tab
+        v-if="invitationsTabVisible"
+        name="invitaciones"
+        label="Invitaciones"
+        icon="card_giftcard"
+      />
       <!-- Recategorización: agregado CROSS-SEDE (dry-run del cron sobre todo
            el gimnasio). El API se lo deniega a los roles de alcance forzado
            (admin_sede), así que la pestaña se oculta en vez de mostrarles un
@@ -756,6 +764,13 @@
       </q-tab-panel>
 
       <!-- ================================================================ -->
+      <!-- Invitaciones Tab (Fase 194: D-19 reporte + D-18 bandeja de leads) -->
+      <!-- ================================================================ -->
+      <q-tab-panel v-if="invitationsTabVisible" name="invitaciones">
+        <InvitationsReport :branch-options="branchOptions" />
+      </q-tab-panel>
+
+      <!-- ================================================================ -->
       <!-- Recategorización multisucursal (banner) -->
       <!-- ================================================================ -->
       <q-tab-panel name="recategorizacion">
@@ -810,6 +825,7 @@ import OrigenAltasReport from 'src/components/reports/OrigenAltasReport.vue';
 import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 import PorDeudaTab from 'src/components/deudas/PorDeudaTab.vue';
 import RenovacionesTab from 'src/components/renovaciones/RenovacionesTab.vue';
+import InvitationsReport from 'src/components/reports/InvitationsReport.vue';
 
 // -- Setup -------------------------------------------------------------------
 
@@ -1014,6 +1030,7 @@ const VALID_TABS = [
   'deudas',
   'conversion',
   'sesiones-de-prueba',
+  'invitaciones',
   'recategorizacion',
   'origen-altas',
 ];
@@ -1031,6 +1048,16 @@ if (branchScoped.value && activeTab.value === 'recategorizacion') {
 }
 // Deep link a una pestaña que el rol no ve: vuelve a la primera.
 if (!isAdminOrOwner.value && activeTab.value === 'origen-altas') {
+  activeTab.value = 'accesos';
+}
+
+// Fase 194 (D-19/D-18): la bandeja trae teléfonos de leads y el API la limita a
+// gestion/admin/owner (403 al resto): la pestaña se oculta en vez de mostrar un error.
+const invitationsTabVisible = computed(() => {
+  const role = authStore.user?.role;
+  return role === 'gestion' || role === 'admin' || role === 'owner';
+});
+if (!invitationsTabVisible.value && activeTab.value === 'invitaciones') {
   activeTab.value = 'accesos';
 }
 

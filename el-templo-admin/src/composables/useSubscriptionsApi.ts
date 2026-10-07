@@ -18,6 +18,7 @@ import type {
   PricingPreview,
   AssignProrationPreview,
   RenewalPreview,
+  RenewalPreviewOptions,
   ChangePlanPreview,
   PriceType,
   ClassUsageInfo,
@@ -310,14 +311,24 @@ export function useSubscriptionsApi() {
 
   async function getRenewalPreview(
     userId: number,
-    subscriptionId: number
+    subscriptionId: number,
+    options: RenewalPreviewOptions = {}
   ): Promise<RenewalPreview> {
     loading.value = true;
     error.value = null;
     try {
+      // Fase 194-18: los inputs opcionales (fecha, prorrateo, override) son los del
+      // cobro: el servidor devuelve los MONTOS finales (finalPrice, invitationDiscount*).
+      const params: Record<string, unknown> = { subscriptionId };
+      if (options.startDate) params.startDate = options.startDate;
+      if (options.prorateToMonthEnd) params.prorateToMonthEnd = true;
+      if (options.priceOverrideAmount !== undefined) {
+        params.priceOverrideAmount = options.priceOverrideAmount;
+      }
+      if (options.priceOverrideReason) params.priceOverrideReason = options.priceOverrideReason;
       const { data } = await api.get<RenewalPreview>(
         `/admin/subscriptions/members/${userId}/subscription/renewal-preview`,
-        { params: { subscriptionId } }
+        { params }
       );
       return data;
     } catch (err: unknown) {

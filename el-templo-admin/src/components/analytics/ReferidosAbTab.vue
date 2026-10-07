@@ -1,11 +1,11 @@
-<!-- A/B copy test de la card de referidos (v5.5 follow-up). Muestra, por variante,
+<!-- A/B copy test de la card de invitaciones (v5.5 follow-up). Muestra, por variante,
      el denominador (socios activos expuestos), el enganche (clicks únicos / CTR) y
-     la conversión (referidos qualified). "A" = copy actual (control), "B" = nuevo. -->
+     la conversión (invitados qualified). "A" = copy actual (control), "B" = nuevo. -->
 <template>
   <div>
-    <div class="text-h6 q-mb-xs">Referidos — A/B test del copy</div>
+    <div class="text-h6 q-mb-xs">Invitaciones — A/B test del copy</div>
     <div class="text-caption text-grey-7 q-mb-md" style="max-width: 720px">
-      Dos versiones del copy de la card de referidos, asignadas por paridad del ID del socio (mitad
+      Dos versiones del copy de la card de invitaciones, asignadas por paridad del ID del socio (mitad
       y mitad). <b>A</b> es el copy actual (control), <b>B</b> el nuevo. Las tasas se calculan sobre
       los socios activos expuestos de cada grupo.
     </div>
@@ -50,7 +50,7 @@
                 <div class="text-caption text-grey-5">{{ pct(v.ctr) }} CTR</div>
               </div>
               <div class="col-6">
-                <div class="text-caption text-grey-6">Referidos convertidos</div>
+                <div class="text-caption text-grey-6">Invitados convertidos</div>
                 <div class="text-h6 text-positive">{{ v.referralsQualified }}</div>
                 <div class="text-caption text-grey-5">{{ pct(v.qualifiedRate) }} conversión</div>
               </div>
@@ -101,7 +101,7 @@ const comparison = computed<string | null>(() => {
   if (!a || !b) return null;
   const totalQualified = a.referralsQualified + b.referralsQualified;
   if (totalQualified === 0) {
-    return 'Todavía no hay referidos convertidos en ninguna variante — el test necesita más tiempo/volumen para dar señal.';
+    return 'Todavía no hay invitados convertidos en ninguna variante — el test necesita más tiempo/volumen para dar señal.';
   }
   if (a.qualifiedRate === b.qualifiedRate) {
     return 'Empate en conversión entre A y B por ahora. Señal preliminar — esperá más volumen.';

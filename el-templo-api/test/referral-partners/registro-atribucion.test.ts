@@ -210,8 +210,10 @@ describe("POST /api/auth/register — atribución de partner (code, 179-04)", ()
     expect(row!.partner_id).toBe(partner.id);
   });
 
-  it("back-compat: ref (código de socio) sin code sigue creando la fila en referrals", async () => {
-    const [referrer] = await app.db
+  it("back-compat: ref (código de socio) sin code se reconoce pero ya NO crea la fila en referrals (194 D-26b)", async () => {
+    // 194-11 D-26b: antes creaba el vínculo pending; ahora el registro solo
+    // devuelve `invitation.code` y el vínculo nace al comprar (D-05).
+    await app.db
       .insert(users)
       .values(
         tenantValues(
@@ -250,8 +252,8 @@ describe("POST /api/auth/register — atribución de partner (code, 179-04)", ()
           eq(referrals.referredId, body.user.id),
         ),
       );
-    expect(links).toHaveLength(1);
-    expect(links[0].referrerId).toBe(referrer.id);
+    expect(links).toHaveLength(0);
+    expect(body.invitation).toEqual({ code: "BCK-A1B2" });
 
     const partnerRow = await partnerLinkRow(app, body.user.id as number);
     expect(partnerRow).toBeNull();
@@ -301,8 +303,8 @@ describe("POST /api/auth/register — atribución de partner (code, 179-04)", ()
     expect(row).toBeNull();
   });
 
-  it("code que resuelve a socio dispara el bloque ref y NO crea partner_referrals", async () => {
-    const [referrer] = await app.db
+  it("code que resuelve a socio se reconoce (invitation.code) y NO crea partner_referrals ni referrals (194 D-26b)", async () => {
+    await app.db
       .insert(users)
       .values(
         tenantValues(
@@ -341,8 +343,9 @@ describe("POST /api/auth/register — atribución de partner (code, 179-04)", ()
           eq(referrals.referredId, body.user.id),
         ),
       );
-    expect(links).toHaveLength(1);
-    expect(links[0].referrerId).toBe(referrer.id);
+    // 194 D-26b: el código de socio solo deja la pista de invitación.
+    expect(links).toHaveLength(0);
+    expect(body.invitation).toEqual({ code: "UNI-F00D" });
 
     const row = await partnerLinkRow(app, body.user.id as number);
     expect(row).toBeNull();

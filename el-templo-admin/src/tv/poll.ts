@@ -27,6 +27,8 @@ export interface TvAvisoPollPayload {
   id: number;
   title: string;
   body: string;
+  /** 2026-10-06 (API migración 0259): fondo de la placa, lo elige el admin. */
+  tema: 'claro' | 'oscuro';
 }
 
 /** Sesion de semana vs. sabado ROM (D-23). */

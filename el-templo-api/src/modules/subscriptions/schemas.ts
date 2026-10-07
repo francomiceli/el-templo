@@ -33,6 +33,7 @@ const planSchema = {
     specialLine: { type: ["string", "null"] },
     multiBranch: { type: "boolean" },
     isTrial: { type: "boolean" },
+    allowsInvitationDiscount: { type: "boolean" },
     isGroup: { type: "boolean" },
     planCategory: {
       type: "string",
@@ -136,10 +137,6 @@ const pricingPreviewResponseSchema = {
         },
       },
     },
-    // Referidos (fase 157): desglose del descuento de referido ya aplicado en
-    // finalPrice (preview parity con la charge-path, Pitfall 4).
-    referralDiscountPercent: { type: "integer" },
-    referralDiscountAmount: { type: "integer" },
     // Partners (fase 179, D-09/D-10/D-20): desglose del descuento de partner
     // ya aplicado en finalPrice cuando gana "el mayor" vs AURA. `null` en el
     // resto de los casos (sin candidato, o AURA ganó). Sin esta entrada
@@ -147,6 +144,16 @@ const pricingPreviewResponseSchema = {
     // devuelva (mismo tipo de bug que motivó Pitfall 4 con referidos).
     partnerDiscountPercent: { type: ["integer", "null"] },
     partnerDiscountAmount: { type: ["integer", "null"] },
+    // Fase 194-15 (D-08/D-10c/D-21): descuento por invitación que se cobra (% nominal,
+    // monto ya recortado por el tope en dinero) y cuál de los descuentos ganó. Mismo
+    // motivo que arriba: sin la entrada el serializador descarta el campo.
+    invitationDiscountPercent: { type: "integer" },
+    invitationDiscountAmount: { type: "integer" },
+    invitationDiscountCapped: { type: "boolean" },
+    winningDiscount: {
+      type: "string",
+      enum: ["none", "aura", "partner", "invitation", "boarding_pass"],
+    },
   },
 } as const;
 
@@ -217,6 +224,7 @@ export const createPlanSchema = {
       specialLine: { type: ["string", "null"], maxLength: 50 },
       multiBranch: { type: "boolean" },
       isTrial: { type: "boolean" },
+      allowsInvitationDiscount: { type: "boolean" },
       isGroup: { type: "boolean" },
       planCategory: {
         type: "string",
@@ -268,6 +276,7 @@ export const updatePlanSchema = {
       specialLine: { type: ["string", "null"], maxLength: 50 },
       multiBranch: { type: "boolean" },
       isTrial: { type: "boolean" },
+      allowsInvitationDiscount: { type: "boolean" },
       isGroup: { type: "boolean" },
       planCategory: {
         type: "string",
@@ -772,14 +781,21 @@ export const changePlanPreviewSchema = {
           },
         },
         netAmount: { type: ["integer", "null"] },
-        referralDiscountPercent: { type: "integer" },
-        referralDiscountAmount: { type: "integer" },
         // Fase 179 (D-09/D-10/D-20), deviation Rule 2 del plan 179-14: sin
         // estas 2 líneas fast-json-stringify las descarta en silencio del
         // body HTTP aunque el service las calcule (mismo Pitfall 4 ya
         // atrapado una vez en pricingPreviewResponseSchema, plan 179-07).
         partnerDiscountPercent: { type: "integer" },
         partnerDiscountAmount: { type: "integer" },
+        // Fase 194-17 (D-08/D-10c/D-21): mismo motivo (Pitfall 4): sin estas
+        // entradas el serializador descarta el desglose del árbitro.
+        invitationDiscountPercent: { type: "integer" },
+        invitationDiscountAmount: { type: "integer" },
+        invitationDiscountCapped: { type: "boolean" },
+        winningDiscount: {
+          type: "string",
+          enum: ["none", "aura", "partner", "invitation", "boarding_pass"],
+        },
         expiryDate: { type: "string" },
       },
     },
@@ -884,10 +900,16 @@ export const renewalPreviewSchema = {
       userId: { type: "integer" },
     },
   },
+  // Fase 194-18: los inputs que cambian el precio del cobro de `renewSubscription`
+  // (todos opcionales: sin ellos es la renovación estándar, como antes).
   querystring: {
     type: "object",
     properties: {
       subscriptionId: { type: "integer" },
+      startDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      prorateToMonthEnd: { type: "boolean" },
+      priceOverrideAmount: { type: "integer", minimum: 0 },
+      priceOverrideReason: { type: "string", maxLength: 500 },
     },
   },
   response: {
@@ -900,6 +922,17 @@ export const renewalPreviewSchema = {
           type: "string",
           enum: ["inherited", "previous_period", "plan_price"],
         },
+        basePrice: { type: "integer" },
+        invitationDiscountPercent: { type: "number" },
+        invitationDiscountAmount: { type: "integer" },
+        invitationDiscountCapped: { type: "boolean" },
+        winningDiscount: {
+          type: "string",
+          enum: ["none", "aura", "partner", "invitation", "boarding_pass"],
+        },
+        partnerDiscountPercent: { type: "number" },
+        partnerDiscountAmount: { type: "integer" },
+        finalPrice: { type: "integer" },
       },
     },
   },

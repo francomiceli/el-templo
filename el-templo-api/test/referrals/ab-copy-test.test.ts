@@ -5,7 +5,8 @@
  *   1. POST /api/members/referrals/cta-click — registra el tap del CTA con la
  *      variante RECOMPUTADA server-side desde el token (nunca del cliente).
  *   2. Estampado de copy_variant al crear el vínculo por la ruta real
- *      (self-service ?ref=CODE) = referralCopyVariant(referrerId).
+ *      (asignación asistida; el ?ref del registro ya no crea vínculo, 194 D-26b)
+ *      = referralCopyVariant(referrerId).
  *   3. GET /api/admin/referrals/ab-results — agregados por variante (expuestos por
  *      paridad de id, clickers únicos vs clics totales, referidos creados vs
  *      cualificados) + guard staff (403 al socio).
@@ -14,11 +15,12 @@
  * "expuestos" (socios activos) arrancan en 0 y los conteos son determinísticos.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { createMember } from "../subscriptions/_helpers";
 import { ReferralService } from "../../src/modules/referrals/service";
+import { tenantWhere } from "../../src/modules/shared/tenant";
 import { referralCopyVariant } from "../../src/modules/referrals/ab-variant";
 import * as schema from "../../src/db/schema";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
@@ -138,9 +140,47 @@ describe("POST /api/members/referrals/cta-click", () => {
   });
 });
 
-describe("copy_variant se estampa al crear el vínculo (self-service ?ref)", () => {
+describe("copy_variant se estampa al crear el vínculo (asignación asistida)", () => {
+  // Fase 194 D-26b: el registro self-service con ?ref ya NO crea el vínculo
+  // (nace al comprar, plan 194-15, que estampa la variante allí). La ruta real
+  // que hoy sigue materializando un vínculo con variante es la asignación
+  // retroactiva "¿Quién lo trajo?" (D-17).
   it("estampa referralCopyVariant(referrerId) en el vínculo del referido", async () => {
     const referrer = await createMember(app, { email: "ss-referrer@test.com" });
+    const referred = await createMember(app, { email: "ss-referred@test.com" });
+    const [admin] = await app.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(
+        and(
+          tenantWhere(schema.users, CTX),
+          eq(schema.users.email, "admin@test.com"),
+        ),
+      )
+      .limit(1);
+
+    const service = new ReferralService(app.db, app.log);
+    await service.assignReferrerToMember({
+      referredId: referred.id,
+      referrerId: referrer.id,
+      createdBy: admin.id,
+      tenantId: CTX.tenantId,
+    });
+
+    const rows = await app.db
+      .select()
+      .from(schema.referrals)
+      .where(
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${schema.referrals.referredId} = ${referred.id}`,
+      );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].copyVariant).toBe(referralCopyVariant(referrer.id));
+  });
+
+  it("el registro self-service con ?ref ya no crea vínculo (194 D-26b): la variante se estampa al comprar", async () => {
+    const referrer = await createMember(app, {
+      email: "ss-referrer2@test.com",
+    });
     const service = new ReferralService(app.db, app.log);
     const code = await service.generateReferralCode(CTX, referrer.id);
 
@@ -163,16 +203,19 @@ describe("copy_variant se estampa al crear el vínculo (self-service ?ref)", () 
       },
     });
     expect([200, 201]).toContain(res.statusCode);
-    const referredId = (JSON.parse(res.body).user as { id: number }).id;
+    const body = JSON.parse(res.body) as {
+      user: { id: number };
+      invitation?: { code: string };
+    };
+    expect(body.invitation).toEqual({ code: code.toUpperCase() });
 
     const rows = await app.db
       .select()
       .from(schema.referrals)
       .where(
-        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${schema.referrals.referredId} = ${referredId}`,
+        sql`/* tenant-safe: lectura por referred_id, UNIQUE (D-14/REF-04) */ ${schema.referrals.referredId} = ${body.user.id}`,
       );
-    expect(rows).toHaveLength(1);
-    expect(rows[0].copyVariant).toBe(referralCopyVariant(referrer.id));
+    expect(rows).toHaveLength(0);
   });
 });
 

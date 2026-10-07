@@ -40,9 +40,13 @@ export const APP_SECTIONS: readonly AppSection[] = [
     label: 'Programas',
     route: '/planes',
   },
+  // Fase 194 D-26: el label es copy visible. La clave `referidos` y la ruta quedan (espejo de
+  // la API, que usan las builds publicadas): `/mis-referidos` es un redirect a `/mis-invitados`
+  // en router/routes.ts. Sin comentarios DENTRO de la tupla: destinations-sync.test.ts la
+  // extrae por regex contigua key/label/route.
   {
     key: 'referidos',
-    label: 'Referidos',
+    label: 'Invitaciones',
     route: '/mis-referidos',
   },
   {

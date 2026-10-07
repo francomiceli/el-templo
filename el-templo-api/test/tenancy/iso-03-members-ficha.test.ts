@@ -24,6 +24,8 @@
  *   DELETE /api/admin/members/:userId/notes/:noteId
  *   GET    /api/admin/members/:userId/referrals
  *   POST   /api/admin/members/:userId/referrals
+ *   POST   /api/admin/members/:userId/invitations (fase 194-12, canal asistido)
+ *   POST   /api/admin/members/:userId/invitations/:invitationId/void (fase 194-12)
  *   POST   /api/admin/members/:userId/photo/upload-url
  *   PUT    /api/admin/members/:userId/password
  *
@@ -95,6 +97,14 @@ import {
   type FichaTemplo,
   type FichaGimnasioDos,
 } from "../fixtures/members-gimnasio-dos";
+import {
+  createActiveSub,
+  createInvitationRow,
+  createMemberInPhysicalBranch,
+  createMembershipPlan,
+  createTrialPlan,
+  fixtureCtx,
+} from "../invitations/_helpers";
 import {
   insertPartner,
   insertPartnerLink,
@@ -727,6 +737,167 @@ describe("asignar referidor — POST /api/admin/members/:userId/referrals", () =
       [fila?.tenantId, fila?.referrerId, fila?.referredId],
       `${RUTA} no dejo la fila esperada en \`referrals\`.`,
     ).toEqual([TENANT_DOS, gym2.socios[1].id, dos.userId]);
+  });
+});
+
+describe("invitar desde la ficha (canal asistido) — POST /api/admin/members/:userId/invitations", () => {
+  const RUTA = "POST /api/admin/members/:userId/invitations";
+
+  /** Filas de `invitations` de un invitado (lectura acotada al gimnasio que se espera). */
+  async function invitacionesDe(tenantId: number, invitedUserId: number) {
+    return app.db
+      .select()
+      .from(schema.invitations)
+      .where(
+        and(
+          tenantWhere(schema.invitations, { tenantId }),
+          eq(schema.invitations.invitedUserId, invitedUserId),
+        ),
+      );
+  }
+
+  it("aislamiento: ni el alumno de El Templo (URL) ni un invitador de El Templo (body) se aceptan, y NO queda ninguna invitacion (T-194-41)", async () => {
+    // :userId ajeno
+    const resUsuario = await comoGimnasioDos(
+      "POST",
+      `/${templo.userId}/invitations`,
+      {
+        inviterId: gym2.socios[1].id,
+        branchId: gym2.branchId,
+        phone: "1155550101",
+      },
+    );
+    expect(
+      resUsuario.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) +
+        ` Respuesta: ${resUsuario.body}`,
+    ).toBe(404);
+    expect(await invitacionesDe(TENANT_TEMPLO, templo.userId)).toHaveLength(0);
+
+    // inviterId ajeno sobre un alumno propio
+    const resInvitador = await comoGimnasioDos(
+      "POST",
+      `/${dos.userId}/invitations`,
+      { inviterId: templo.userId, branchId: gym2.branchId },
+    );
+    expect(
+      resInvitador.statusCode,
+      `${RUTA}: un invitador de El Templo (${templo.userId}) NO tiene que existir para el staff del gimnasio ${TENANT_DOS}. Respuesta: ${resInvitador.body}`,
+    ).toBe(404);
+    expect(JSON.parse(resInvitador.body).reason).toBe("inviter_not_found");
+    expect(await invitacionesDe(TENANT_DOS, dos.userId)).toHaveLength(0);
+    expect(await invitacionesDe(TENANT_TEMPLO, dos.userId)).toHaveLength(0);
+  });
+
+  it("control: con alumno e invitador propios del gimnasio 2 (membresia vigente + plan Invitacion) SI se activa, con tenant 2", async () => {
+    const ctxDos = fixtureCtx(app, TENANT_DOS);
+    await createTrialPlan(ctxDos, { country: "AR" });
+    const membresia = await createMembershipPlan(ctxDos, { country: "AR" });
+    await createActiveSub(ctxDos, {
+      userId: gym2.socios[1].id,
+      planId: membresia.id,
+      branchId: gym2.branchId,
+    });
+
+    const res = await comoGimnasioDos("POST", `/${dos.userId}/invitations`, {
+      inviterId: gym2.socios[1].id,
+      branchId: gym2.branchId,
+      phone: "1155550102",
+    });
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(201);
+    const filas = await invitacionesDe(TENANT_DOS, dos.userId);
+    expect(filas).toHaveLength(1);
+    expect([filas[0].tenantId, filas[0].inviterId, filas[0].channel]).toEqual([
+      TENANT_DOS,
+      gym2.socios[1].id,
+      "assisted",
+    ]);
+  });
+});
+
+describe("anular invitacion (canal asistido) — POST /api/admin/members/:userId/invitations/:invitationId/void", () => {
+  const RUTA = "POST /api/admin/members/:userId/invitations/:invitationId/void";
+
+  async function estadoDe(tenantId: number, invitationId: number) {
+    const [fila] = await app.db
+      .select({
+        status: schema.invitations.status,
+        voidedBy: schema.invitations.voidedBy,
+      })
+      .from(schema.invitations)
+      .where(
+        and(
+          tenantWhere(schema.invitations, { tenantId }),
+          eq(schema.invitations.id, invitationId),
+        ),
+      );
+    return fila ?? null;
+  }
+
+  it("aislamiento: ni el alumno ni la invitacion de El Templo se pueden anular desde el gimnasio 2, y la fila queda intacta (T-194-41)", async () => {
+    const ctxTemplo = fixtureCtx(app, TENANT_TEMPLO);
+    const invitador = await createMemberInPhysicalBranch(ctxTemplo, {
+      status: "activo",
+    });
+    const invitacionTemplo = await createInvitationRow(ctxTemplo, {
+      inviterId: invitador.id,
+      invitedUserId: templo.userId,
+      branchId: templo.branchId,
+    });
+
+    // :userId ajeno
+    const resUsuario = await comoGimnasioDos(
+      "POST",
+      `/${templo.userId}/invitations/${invitacionTemplo.id}/void`,
+      { reason: "intento ajeno" },
+    );
+    expect(
+      resUsuario.statusCode,
+      porQueImportaLaFicha(RUTA, templo.userId) +
+        ` Respuesta: ${resUsuario.body}`,
+    ).toBe(404);
+
+    // alumno propio + invitacion AJENA en la URL
+    const resInvitacion = await comoGimnasioDos(
+      "POST",
+      `/${dos.userId}/invitations/${invitacionTemplo.id}/void`,
+      { reason: "intento ajeno" },
+    );
+    expect(
+      resInvitacion.statusCode,
+      `${RUTA}: la invitacion ${invitacionTemplo.id} de El Templo no puede anularse desde el gimnasio ${TENANT_DOS}. Respuesta: ${resInvitacion.body}`,
+    ).toBe(404);
+
+    expect(await estadoDe(TENANT_TEMPLO, invitacionTemplo.id)).toEqual({
+      status: "active",
+      voidedBy: null,
+    });
+  });
+
+  it("control: anular una invitacion propia del gimnasio 2 SI funciona y deja el rastro del staff", async () => {
+    const ctxDos = fixtureCtx(app, TENANT_DOS);
+    const propia = await createInvitationRow(ctxDos, {
+      inviterId: gym2.socios[1].id,
+      invitedUserId: dos.userId,
+      branchId: gym2.branchId,
+    });
+
+    const res = await comoGimnasioDos(
+      "POST",
+      `/${dos.userId}/invitations/${propia.id}/void`,
+      { reason: "carga duplicada" },
+    );
+    expect(
+      res.statusCode,
+      porQueImportaElControl(RUTA, dos.userId) + ` Respuesta: ${res.body}`,
+    ).toBe(200);
+    expect(await estadoDe(TENANT_DOS, propia.id)).toEqual({
+      status: "voided",
+      voidedBy: gym2.adminId,
+    });
   });
 });
 

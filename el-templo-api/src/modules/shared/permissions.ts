@@ -130,14 +130,32 @@ export const ANALYTICS_OPERATIONAL_ROLES = [
 export const ANALYTICS_ADMIN_ROLES = ["admin", "owner", "admin_sede"] as const;
 
 /**
- * Roles que ven los resultados agregados del A/B test de copy de referidos
- * (`GET /admin/referrals/ab-results`) — 2026-09-09. Superficie SIN dimensión de
+ * Roles que ven los reportes agregados del programa de Invitaciones/Referidos
+ * (`GET /admin/referrals/ab-results`, y desde la Fase 194 el reporte y la bandeja
+ * de leads de invitación; antes se llamaba `REFERRAL_AB_RESULTS_ROLES`) — 2026-09-09. Superficie SIN dimensión de
  * sede (números de TODO el gimnasio, no filtrables por branch): el admin_sede
  * queda afuera a propósito, a diferencia de `ANALYTICS_OPERATIONAL_ROLES` (del
  * que este set se separa) — no hay `enforceBranchScope` que lo acote y mostrarle
  * el agregado global violaría el alcance por sede del rol.
  */
-export const REFERRAL_AB_RESULTS_ROLES = ["gestion", "admin", "owner"] as const;
+export const REFERRAL_PROGRAM_REPORT_ROLES = [
+  "gestion",
+  "admin",
+  "owner",
+] as const;
+
+/**
+ * Roles que ESCRIBEN los parámetros del programa de Invitaciones
+ * (`PUT /api/admin/settings/invitations`, Fase 194). D-10c: gestión carga el
+ * tope en dinero cuando quiera, así que no es owner-only. Coach, recepción y
+ * admin_sede quedan afuera (T-194-21): los parámetros mueven plata y reglas
+ * antiabuso de todo el gimnasio. La lectura (GET) es para cualquier staff.
+ */
+export const INVITATION_SETTINGS_WRITE_ROLES = [
+  "gestion",
+  "admin",
+  "owner",
+] as const;
 
 /** Roles that can view the simplified Deudas tab for coaches. Coach included
  *  on top of the Dueño core so professors can look up how much to collect from
@@ -321,6 +339,20 @@ export const MEMBER_LIFECYCLE_ROLES = [
   "admin",
   "gestion",
   "admin_sede",
+] as const;
+
+/**
+ * Fase 194 D-16: roles que crean una invitación EN NOMBRE de un socio (canal
+ * asistido: ficha del invitado y alta "Nuevo en Prueba"). Incluye `recepcion`
+ * (es quien de verdad carga las invitaciones) pero NO `coach`. Anular una
+ * invitación sigue siendo de {@link MEMBER_LIFECYCLE_ROLES}.
+ */
+export const INVITATION_ASSISTED_ROLES = [
+  "owner",
+  "admin",
+  "gestion",
+  "admin_sede",
+  "recepcion",
 ] as const;
 
 /**

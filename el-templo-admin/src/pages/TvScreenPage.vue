@@ -165,9 +165,9 @@
              que la pantalla de cierre (foto+velo, glow estático, marco
              frase|identidad) — es la ÚNICA de las tres pantallas de
              transición con velo DINÁMICO: render.ts alterna
-             `pantalla pantalla--dia` (modo manual disparado desde la
-             flexibilidad inicial, o el reemplazo de esa cápsula) y `pantalla`
-             a secas (todo lo demás), con `setVisible`, igual que reposo y
+             `pantalla pantalla--dia` (aviso con tema "claro") y `pantalla`
+             a secas (tema "oscuro") — el tema lo elige el admin por aviso
+             desde 2026-10-06 —, con `setVisible`, igual que reposo y
              cierre. Por eso lleva DOS logos superpuestos (uno por velo,
              `.transLogo--dia`/`.transLogo--noche` más abajo) en vez de uno
              fijo como los de arriba. Sin imagen propia del aviso (D-27: solo
@@ -2184,6 +2184,18 @@ onUnmounted(() => {
   line-height: 1.5;
   color: var(--trans-crema);
   text-shadow: 0 0.06em 0.5em rgba(0, 0, 0, 0.6);
+}
+/* Tema claro (2026-10-06): los colores de la flexibilidad inicial — título
+   dorado como el kicker de la cápsula (`.capKicker`) y cuerpo en tinta como
+   el ejercicio (`.capEjercicio`), sin sombras: el velo crema no las necesita
+   y el halo oscuro ensuciaba el texto. */
+#tvScreenRoot #pantallaAviso.pantalla--dia .avisoTitulo {
+  color: var(--gold);
+  text-shadow: none;
+}
+#tvScreenRoot #pantallaAviso.pantalla--dia .avisoCuerpo {
+  color: var(--navy);
+  text-shadow: none;
 }
 
 /* Los dos logos de la placa de aviso (ver comentario del template): la
