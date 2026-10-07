@@ -25,8 +25,19 @@
 
 export const publicRoutes = ['login', 'register', 'forgot-password']
 
-/** Rutas que se saltean AMBOS `if` de auth — ni login ni home (D-03/D-04). */
-export const authAgnosticRoutes = ['magic-link']
+/**
+ * Rutas que se saltean AMBOS `if` de auth — ni login ni home (D-03/D-04).
+ * Fase 194 (D-06): `invitacion` (`/invitacion/:code`) se abre con o sin sesión; la propia
+ * landing decide (sin sesión → crear cuenta / ya tengo cuenta; con sesión → activar).
+ */
+export const authAgnosticRoutes = ['magic-link', 'invitacion']
+
+/**
+ * Fase 194 (D-06): "Activar invitación" requiere sesión (protegida como cualquier otra) pero NO la
+ * intercepta el onboarding: la persona que se acaba de registrar o loguear desde el link tiene que
+ * poder activar sus accesos antes de completar el onboarding. Después vuelve al flujo normal.
+ */
+export const onboardingExemptRoutes = ['onboarding', 'activar-invitacion']
 
 export interface GuardInput {
   toName?: string
@@ -78,7 +89,7 @@ export function resolveGuardRedirect(input: GuardInput): { name: string } | true
   // intermedio. Un member NO freemium sin onboarding sigue yendo a onboarding.
   if (
     isAuthenticated &&
-    toName !== 'onboarding' &&
+    !(toName && onboardingExemptRoutes.includes(toName)) &&
     role === 'member' &&
     !onboardingCompleted &&
     !isFreemium

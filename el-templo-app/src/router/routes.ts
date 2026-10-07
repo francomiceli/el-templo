@@ -19,6 +19,13 @@ const routes: RouteRecordRaw[] = [
     name: 'forgot-password',
     component: () => import('pages/ForgotPasswordPage.vue'),
   },
+  // Landing del link de invitación (Fase 194, D-06). Sin layout de tabs; auth-agnóstica
+  // (`authAgnosticRoutes` en src/router/guards.ts): el link llega con o sin sesión.
+  {
+    path: '/invitacion/:code',
+    name: 'invitacion',
+    component: () => import('pages/InvitacionLandingPage.vue'),
+  },
   // Magic-link landing (Phase 180, D-03). Path EXACTO: los `.well-known`
   // (assetlinks + AASA) de la fase 119 ya lo cubren — cambiarlo rompe el
   // deep link nativo.
@@ -83,6 +90,13 @@ const routes: RouteRecordRaw[] = [
         path: 'change-password',
         name: 'change-password',
         component: () => import('pages/ChangePasswordPage.vue'),
+      },
+      // "Activar invitación" (Fase 194, D-06): dentro del layout autenticado; el guard de
+      // onboarding NO la intercepta (`onboardingExemptRoutes` en guards.ts).
+      {
+        path: 'activar-invitacion',
+        name: 'activar-invitacion',
+        component: () => import('pages/ActivarInvitacionPage.vue'),
       },
       {
         path: 'mis-invitados',

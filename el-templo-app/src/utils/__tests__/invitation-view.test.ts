@@ -5,6 +5,7 @@ import {
   quotaText,
   accessesText,
   formatShortDate,
+  formatLongDate,
   expiryText,
   discountText,
   invitedByStageLabel,
@@ -66,6 +67,12 @@ describe('invitation-view (Fase 194-27)', () => {
     expect(formatShortDate('basura')).toBe('basura')
     expect(expiryText('2026-01-05')).toBe('Vence 05/01')
     expect(expiryText(null)).toBe('')
+  })
+
+  it('formatLongDate arma el día calendario del servidor sin corrimientos', () => {
+    expect(formatLongDate('2026-10-30')).toBe('viernes 30 de octubre')
+    expect(formatLongDate('2026-01-01')).toBe('jueves 1 de enero')
+    expect(formatLongDate('basura')).toBe('basura')
   })
 
   it('discountText con singular, plural y sin descuento', () => {

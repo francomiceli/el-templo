@@ -80,6 +80,36 @@ export function formatShortDate(ymd: string | null): string {
   return `${match[3]}/${match[2]}`
 }
 
+const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+const MONTHS = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+]
+
+/**
+ * 'YYYY-MM-DD' → 'viernes 31 de octubre'. Nombres armados a mano (no `toLocaleDateString`: el
+ * formato de ICU cambia entre WebViews) y día calendario calculado en UTC: el día del servidor no
+ * corre por la zona horaria del teléfono.
+ */
+export function formatLongDate(ymd: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd)
+  if (!match) return ymd
+  const month = Number(match[2]) - 1
+  const day = Number(match[3])
+  const weekday = new Date(Date.UTC(Number(match[1]), month, day, 12)).getUTCDay()
+  return `${WEEKDAYS[weekday]} ${day} de ${MONTHS[month]}`
+}
+
 /** "Vence 31/10"; null → ''. */
 export function expiryText(ymd: string | null): string {
   const short = formatShortDate(ymd)
