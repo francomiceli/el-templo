@@ -93,3 +93,17 @@ Fuera: contenido real (fotos, testimonios, hero, og:image) — se espera al equi
 - Wikidata (cuando haya fuentes independientes).
 - Qué hacer con la app vieja de Virtuagym (va como ítem en la guía final).
 </deferred>
+
+<decisions_addendum>
+## Decisiones post-research (2026-10-06, con Franco — LOCKED)
+
+- **D-24** CAPI **excluye registros desde la app iOS** (`platform='ios'`, Apple ATT). Siguen contando en la atribución propia. Web, Android y caja sí van a CAPI.
+- **D-25** **Sin CAPI para España.** CAPI solo usuarios/sedes de Argentina. En Barcelona: Pixel + GA4 solo con consentimiento web (D-22) + atribución propia.
+- **D-26** noindex en **dos etapas** (refina D-09): etapa 1 = `X-Robots-Tag: noindex` en web-staging/app/admin SIN `Disallow`; etapa 2 (semanas después, cuando Google desindexó) = agregar `Disallow`. La guía final (D-23) recuerda la etapa 2.
+- **D-27** Profes publicados = **archivo de datos de la web** (nombre, foto, bio, sedes), editable y publicado con el botón "solo web". No salen de la DB.
+
+### Discreción aplicada por el orquestador (Franco pidió avanzar sin más preguntas)
+- **D-28** Migraciones de la fase en el bloque reservado **0270-0279** (master 0258, tren v6.1 0245-0253, fase 194 0255-0258+). Renumerar solo si hay choque al integrar.
+- **D-29** Rollout en dos pasos (riesgo 1 del research): el build web no puede romper el deploy de la API si el endpoint nuevo aún no existe en prod → fallback/fixture o rollout escalonado según 195-RESEARCH.
+- **D-30** Nombre público de Barcelona: "El Templo Calistenia — Barcelona (Eixample)". Horarios publicados: clases regulares activas de la sede (no especiales/privadas); el planner define el filtro concreto con la grilla real. Tags del blog: los asigna el equipo desde el admin (ítem de la guía final), sin migración.
+</decisions_addendum>
