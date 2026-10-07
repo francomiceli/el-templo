@@ -100,6 +100,7 @@ describe("Fase 194 D-07 — comprar con accesos de invitación vigentes", () => 
   /** Invitado con 2 accesos restantes y un plan presencial real para comprar. */
   async function seedInvitado(
     status: "active" | "paused" | "scheduled" = "active",
+    opts: { endOffsetDays?: number } = {},
   ) {
     const member = await createMemberInPhysicalBranch(ctx, {
       status: "prueba",
@@ -111,7 +112,7 @@ describe("Fase 194 D-07 — comprar con accesos de invitación vigentes", () => 
       planId: trial.id,
       status,
       startOffsetDays: status === "scheduled" ? 1 : -1,
-      endOffsetDays: 5,
+      endOffsetDays: opts.endOffsetDays ?? 5,
     });
     await setClassesRemaining(access.id, 2);
     return { member, trial, real, access };
@@ -139,6 +140,104 @@ describe("Fase 194 D-07 — comprar con accesos de invitación vigentes", () => 
     expect(bought.status).toBe("active");
     expect(bought.membershipKind).toBe("paga");
     expect(await readUserStatus(member.id)).toBe("activo");
+  });
+
+  describe("ME-06: compra con inicio FUTURO recorta los accesos, no los cierra", () => {
+    const TZ = "America/Argentina/Buenos_Aires";
+
+    it("accesos que vencen después del inicio: siguen activos hasta el día anterior, con su saldo, y la compra queda scheduled", async () => {
+      const { member, real, access } = await seedInvitado("active", {
+        endOffsetDays: 5,
+      });
+      const startDate = addDays(todayInTz(TZ), 3);
+
+      const res = await assignPlan(app, adminToken, member.id, {
+        planId: real.id,
+        branchId: member.branchId,
+        startDate,
+      });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+
+      const trimmed = await readSub(access.id);
+      expect(trimmed.status).toBe("active");
+      expect(trimmed.endDate).toBe(addDays(startDate, -1));
+      expect(trimmed.classesRemaining).toBe(2);
+
+      const bought = await readSub(res.body.id as number);
+      expect(bought.status).toBe("scheduled");
+      expect(bought.membershipKind).toBe("paga");
+      // Los accesos no son membresía (D-03): hasta que arranque la compra sigue en prueba.
+      expect(await readUserStatus(member.id)).toBe("prueba");
+    });
+
+    it("accesos pausados también se recortan y conservan el estado pausado", async () => {
+      const { member, real, access } = await seedInvitado("paused", {
+        endOffsetDays: 5,
+      });
+      const startDate = addDays(todayInTz(TZ), 3);
+
+      const res = await assignPlan(app, adminToken, member.id, {
+        planId: real.id,
+        branchId: member.branchId,
+        startDate,
+      });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+
+      const trimmed = await readSub(access.id);
+      expect(trimmed.status).toBe("paused");
+      expect(trimmed.endDate).toBe(addDays(startDate, -1));
+    });
+
+    it("accesos que ya terminaban antes del día previo al inicio: no se tocan", async () => {
+      const { member, real, access } = await seedInvitado("active", {
+        endOffsetDays: 2,
+      });
+      const startDate = addDays(todayInTz(TZ), 6);
+
+      const res = await assignPlan(app, adminToken, member.id, {
+        planId: real.id,
+        branchId: member.branchId,
+        startDate,
+      });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+
+      const untouched = await readSub(access.id);
+      expect(untouched.status).toBe("active");
+      expect(untouched.endDate).toBe(access.endDate);
+    });
+
+    it("inicio HOY: sigue cerrando como completed (comportamiento D-07 sin cambios)", async () => {
+      const { member, real, access } = await seedInvitado("active", {
+        endOffsetDays: 5,
+      });
+
+      const res = await assignPlan(app, adminToken, member.id, {
+        planId: real.id,
+        branchId: member.branchId,
+        startDate: todayInTz(TZ),
+      });
+      expect(res.statusCode).toBe(201);
+      const closed = await readSub(access.id);
+      expect(closed.status).toBe("completed");
+      expect(closed.endDate).toBe(access.endDate);
+    });
+
+    it("rollback: si la compra falla, el recorte no se aplica", async () => {
+      const { member, real, access } = await seedInvitado("active", {
+        endOffsetDays: 5,
+      });
+
+      const res = await assignPlan(app, adminToken, member.id, {
+        planId: real.id,
+        branchId: member.branchId,
+        startDate: addDays(todayInTz(TZ), 3),
+        amountReceived: 99999999,
+      });
+      expect(res.statusCode).toBe(400);
+      const after = await readSub(access.id);
+      expect(after.status).toBe("active");
+      expect(after.endDate).toBe(access.endDate);
+    });
   });
 
   it("accesos pausados también se cierran al comprar", async () => {

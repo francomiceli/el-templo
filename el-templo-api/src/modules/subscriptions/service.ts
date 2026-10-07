@@ -109,6 +109,7 @@ import {
   invitationLeadGateSql,
 } from "../referrals/invitation-conversion";
 import { PartnerReferralService } from "../referral-partners/service";
+import { trimInvitationAccessEnd } from "./invitation-access";
 import {
   materializeSettlementLink,
   qualifyLegacyLinkOnCharge,
@@ -2444,7 +2445,29 @@ export class SubscriptionService {
         // y NO una baja: no perdona deuda ni exige anular cobros. `end_date` y
         // `classes_remaining` quedan como estaban. Va antes del recompute para
         // que el status del usuario lo vea cerrado.
-        if (invitationSubIdsToClose.length > 0) {
+        // ME-06: si lo comprado arranca en el FUTURO no se cierran ya: se recortan
+        // al día anterior al inicio (ver `invitation-access.ts`).
+        if (
+          invitationSubIdsToClose.length > 0 &&
+          initialStatus === "scheduled"
+        ) {
+          await trimInvitationAccessEnd(
+            ctx,
+            userId,
+            invitationSubIdsToClose,
+            input.startDate,
+            tx,
+          );
+          this.log.info(
+            {
+              userId,
+              trimmedInvitationSubIds: invitationSubIdsToClose,
+              newSubscriptionId,
+              newPlanStartDate: input.startDate,
+            },
+            "invitaciones: accesos de invitación recortados al día previo al inicio del plan comprado (ME-06)",
+          );
+        } else if (invitationSubIdsToClose.length > 0) {
           // El recompute lo corre más abajo esta misma tx (recompute: false).
           await this.closeInvitationAccess(
             ctx,
