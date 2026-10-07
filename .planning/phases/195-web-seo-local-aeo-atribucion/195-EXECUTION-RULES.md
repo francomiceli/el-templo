@@ -72,3 +72,11 @@
 
 - **Entorno ya preparado por el orquestador (2026-10-07):** `node_modules` de raíz, api, admin, app y web son SYMLINKS a instalaciones con lockfile idéntico a la base (no instalar nada, no correr `pnpm install`, no tocar los symlinks; están excluidos vía `.git/info/exclude`). `el-templo-api/.env` y `.env.development` ya copiados. Typecheck de la API verde en la base. DB local de dev = `eltemplo` (compartida con el checkout principal; aplicar 0270+ ahí está OK).
 - **195-10 (del plan-checker):** las sedes de test con `web_slug` (`sede-a-195`, `sede-b-195`) también necesitan `publish_on_web = 1` para que la regla "exactamente una sede publicada" las vea.
+- **Tras 195-01 (2026-10-07):**
+  - **Otra sesión (fase 194) corre vitest sobre el mismo MySQL**: dos corridas con el mismo prefijo se dropean las DB. Usar SIEMPRE la config aislada `eltemplo_t195_*` (recetas `sed` exactas en `195-01-SUMMARY.md` §"Lecciones", archivos temporales sin commitear, borrarlos al terminar). Antes de correr: `ps -eo pid,args | grep "[v]itest.mjs"`; para esperar sin loops: `timeout 570 tail --pid=<pid> -f /dev/null`. Siempre `--hookTimeout 600000` (provisioning 2-6 min).
+  - DB de test trae solo PARK, CHAPADMALAL, ALBERTI, ONLINE, TEST (con `cash_registers` por FK: nunca borrarlas). CONST/JUJUY/MORENO/ALEM/MOGOTES/BCN NO existen → sembrarlas en el test y borrar solo lo sembrado.
+  - **Web `generate` en este entorno es falso verde** (exit 0 pero `/` da 500). Usar Node 20 (`PATH=/home/franco/.nvm/versions/node/v20.19.0/bin:$PATH`) y la capa `pnpm exec nuxt generate --extends /tmp/claude-1000/-home-franco-projects-el-templo/27b5606a-d446-4c12-be2b-97739cfcd25a/scratchpad/nuxt-layer`; verificar que salgan ~24+ rutas. Borrar `el-templo-web/.data/` y el symlink `el-templo-web/dist` antes de commitear. En CI (install fresco) no aplica.
+  - `academy.ts` y `public/llms.txt` son CRLF: preservar `\r\n`.
+  - `pnpm typecheck:tests` YA está rojo en la base (15 discrepancias ajenas): como gate, comparar contra la base, no exigir 0.
+  - `select().from(schema.branches)` sin lista de columnas ahora trae las 16 columnas web (incluye `gbp_*`): el endpoint público proyecta SOLO campos públicos.
+  - Conteos de copy en la web derivan de `sedesCount` (data/sedes.ts), nunca literales.
