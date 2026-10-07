@@ -878,7 +878,9 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
-      expect(body.pricePaid).toBe(9000);
+      // 194-18 D-22: la renovación hereda la BASE (10000) y no el descuento AURA del alta
+      // (AURA no compite en renovaciones); antes arrastraba el pricePaid de 9000.
+      expect(body.pricePaid).toBe(10000);
     });
 
     it("referral evaluado fresco en la renovación (vínculo creado después del alta)", async () => {
@@ -888,6 +890,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         durationDays: 30,
         priceRegular: 10000,
         priceZero: 5000,
+        allowsInvitationDiscount: true,
       });
       const referrer = await createMember(app, {
         email: "gold-renew-ref-referrer@test.com",
@@ -923,6 +926,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         durationDays: 30,
         priceRegular: 10000,
         priceZero: 5000,
+        allowsInvitationDiscount: true,
       });
       const referrer = await createMember(app, {
         email: "gold-renew-combo-referrer@test.com",
@@ -949,7 +953,9 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
       expect(body.referralDiscountPercent).toBe(10);
-      expect(body.pricePaid).toBe(8100);
+      // 194-18 D-22/D-08: la renovación parte de la base 10000 (sin el AURA del alta, que
+      // no se hereda) y aplica UN solo descuento, el de invitación (10%): antes 8100.
+      expect(body.pricePaid).toBe(9000);
     });
   });
 
