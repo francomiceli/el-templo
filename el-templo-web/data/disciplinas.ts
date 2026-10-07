@@ -174,7 +174,11 @@ export function findDisciplina(slug: string): Disciplina | undefined {
 
 /** Minusculas y sin acentos, para comparar nombres de actividades. */
 function normalize(text: string): string {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 /** `matcher` como palabra(s) completa(s) dentro del nombre normalizado. */

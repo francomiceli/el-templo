@@ -239,6 +239,11 @@
           "name": "Yoga para calisténicos",
           "slug": "yoga-para-calistenicos",
           "isSpecial": true
+        },
+        {
+          "name": "Aromaterapia",
+          "slug": "aromaterapia",
+          "isSpecial": true
         }
       ],
       "openingHours": [],
@@ -373,11 +378,6 @@
           "isSpecial": false
         },
         {
-          "name": "ROM",
-          "slug": "rom",
-          "isSpecial": false
-        },
-        {
           "name": "Máquinas",
           "slug": "maquinas",
           "isSpecial": false
@@ -427,12 +427,6 @@
           "startTime": "19:00",
           "endTime": "20:00",
           "activity": "Sesión Grupal"
-        },
-        {
-          "dayOfWeek": 3,
-          "startTime": "10:00",
-          "endTime": "11:00",
-          "activity": "ROM"
         },
         {
           "dayOfWeek": 6,
@@ -665,8 +659,8 @@
       "photoUrl": "/images/photos/sede-park.webp",
       "activities": [
         {
-          "name": "Entrenamiento al aire libre",
-          "slug": "entrenamiento-al-aire-libre",
+          "name": "Sesión grupal al aire libre",
+          "slug": "sesion-grupal-al-aire-libre",
           "isSpecial": false
         }
       ],
@@ -682,7 +676,7 @@
           "dayOfWeek": 6,
           "startTime": "10:00",
           "endTime": "12:00",
-          "activity": "Entrenamiento al aire libre"
+          "activity": "Sesión grupal al aire libre"
         }
       ]
     }

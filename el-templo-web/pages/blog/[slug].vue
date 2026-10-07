@@ -9,12 +9,16 @@
  * BEM prefix: blog-post
  */
 import { marked } from "marked";
+import { DEFAULT_BLOG_AUTHOR_SLUG, findProfe } from "~/data/profes";
 import { webData } from "~/data/sedes";
 import {
   ORG_ID,
+  SITE_URL,
   articleNode,
   jsonLdScript,
   organizationNode,
+  personNode,
+  profePath,
 } from "~/utils/schema-graph";
 
 interface BlogPost {
@@ -92,12 +96,26 @@ useHead({
   ],
 });
 
-// Article structured data (JSON-LD). El autor Person llega en 195-05.
+// Cover de reserva (mismo archivo que usa BlogPostCard) cuando el post no tiene.
+// og:image NO usa este fallback (D-06: espera material real).
+const COVER_FALLBACK = "/images/photos/sesion-real.webp";
+const coverSrc = computed(() => post.value?.coverImage ?? COVER_FALLBACK);
+
+// Autor del blog (D-17): Ignacio Bordon como Person, desde data/profes.ts.
+const author = findProfe(DEFAULT_BLOG_AUTHOR_SLUG);
+
+// Article structured data (JSON-LD): autor Person, imagen con fallback.
 if (post.value) {
   useHead({
     script: [
       jsonLdScript([
-        articleNode(post.value, { "@id": ORG_ID }),
+        articleNode(
+          {
+            ...post.value,
+            coverImage: post.value.coverImage ?? `${SITE_URL}${COVER_FALLBACK}`,
+          },
+          author ? personNode(author, webData.sedes) : { "@id": ORG_ID },
+        ),
         organizationNode(webData),
       ]),
     ],
@@ -133,16 +151,20 @@ const formattedDate = computed(() => {
       <div class="blog-post__hero-container">
         <div class="blog-post__cover-wrapper">
           <img
-            v-if="post.coverImage"
-            :src="post.coverImage"
+            :src="coverSrc"
             :alt="post.title"
             class="blog-post__cover"
+            :class="{ 'blog-post__cover--fallback': !post.coverImage }"
             loading="lazy"
           >
-          <PlaceholderBox v-else aspect-ratio="21 / 9" label="" />
         </div>
 
         <h1 class="blog-post__title">{{ post.title }}</h1>
+
+        <p v-if="author" class="blog-post__author">
+          Por
+          <NuxtLink :to="profePath(author)">{{ author.nombre }}</NuxtLink>
+        </p>
 
         <div class="blog-post__meta">
           <span v-if="formattedDate">{{ formattedDate }}</span>
@@ -222,6 +244,11 @@ const formattedDate = computed(() => {
   object-fit: cover;
 }
 
+/* La foto de reserva es vertical (4:5): se recorta al formato del hero. */
+.blog-post__cover--fallback {
+  aspect-ratio: 21 / 9;
+}
+
 .blog-post__title {
   font-family: var(--font-authority);
   font-weight: 700;
@@ -239,6 +266,22 @@ const formattedDate = computed(() => {
   font-weight: 400;
   font-size: 14px;
   color: var(--color-olive-stone);
+}
+
+.blog-post__author {
+  font-family: var(--font-clarity);
+  font-size: 14px;
+  color: var(--color-olive-stone);
+  margin: 0 0 8px 0;
+}
+
+.blog-post__author a {
+  color: var(--color-terracotta);
+  text-decoration: none;
+}
+
+.blog-post__author a:hover {
+  color: var(--color-clay);
 }
 
 .blog-post__meta-sep {

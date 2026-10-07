@@ -10,7 +10,8 @@
  *
  * Uso:
  *   node scripts/verify-seo-output.mjs [--require-api]
- *        [--public-dir=<ruta>] [--data=<ruta>]   (los dos ultimos, para tests)
+ *        [--public-dir=<ruta>] [--data=<ruta>] [--src-data-dir=<ruta>]
+ *        (los tres ultimos, para tests)
  *
  * COMO AGREGAR UN CHEQUEO (planes 195-04 a 195-06): al final de la lista
  * `CHECKS` agregar `{ name: "descripcion", run: (ctx) => [...problemas] }`.
@@ -41,6 +42,8 @@ const DATA_PATH = resolve(
   argValue("data") ?? join(ROOT, "data/generated/web-data.json"),
 );
 const REQUIRE_API = process.argv.includes("--require-api");
+// Carpeta con data/disciplinas.ts y data/profes.ts (flag solo para tests).
+const SRC_DATA_DIR = resolve(argValue("src-data-dir") ?? join(ROOT, "data"));
 
 const FORBIDDEN = [
   "Alem 3958",
@@ -186,11 +189,83 @@ function decodeEntities(text) {
     .replace(/&#39;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/&euro;|&#8364;|&#x20ac;/gi, "€")
+    .replace(/&dollar;|&#36;|&#x24;/gi, "$")
     .replace(/&amp;/g, "&");
 }
 
 const gymsOf = (ctx, country) =>
   ctx.data.sedes.filter((s) => s.kind === "gym" && s.country === country);
+
+// --- Plan 195-05: lectura de los archivos de datos editables (regex simple) ---
+
+const LEVEL_NAMES = ["Alfa", "Delta", "Sigma", "Omega", "Spartan", "Olympic"];
+// '$' pegado a un digito, ARS, EUR o el simbolo del euro.
+const PRICE_RE = /\$\s?\d|\bARS\b|€|\bEUR\b/;
+
+/** Fuente TS sin los comentarios `//` (para no leer los ejemplos comentados). */
+function readSource(name) {
+  return readFileSync(join(SRC_DATA_DIR, name), "utf8")
+    .split("\n")
+    .filter((line) => !/^\s*\/\//.test(line))
+    .join("\n");
+}
+
+/** Trozos de la fuente: uno por cada `slug: "..."` hasta el siguiente. */
+function entriesBySlug(source) {
+  const marks = [...source.matchAll(/^\s*slug:\s*"([a-z0-9-]+)"/gm)];
+  return marks.map((m, i) => ({
+    slug: m[1],
+    body: source.slice(m.index, marks[i + 1]?.index ?? source.length),
+  }));
+}
+
+/** Disciplinas de data/disciplinas.ts: `{ slug, matchers[] }`. */
+function parseDisciplinas() {
+  return entriesBySlug(readSource("disciplinas.ts")).map(({ slug, body }) => {
+    const arr = /matchers:\s*\[([^\]]*)\]/.exec(body);
+    const matchers = arr
+      ? [...arr[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+      : [];
+    return { slug, matchers };
+  });
+}
+
+/** Profes de data/profes.ts: publicados (publicado + foto + bio) y no publicados. */
+function parseProfes() {
+  const source = readSource("profes.ts");
+  const published = [];
+  const unpublished = [];
+  for (const { slug, body } of entriesBySlug(source)) {
+    const isPublished =
+      /publicado:\s*true/.test(body) &&
+      /foto:\s*"/.test(body) &&
+      /bio:\s*\[\s*"/.test(body);
+    (isPublished ? published : unpublished).push(slug);
+  }
+  const author = /DEFAULT_BLOG_AUTHOR_SLUG\s*=\s*"([a-z0-9-]+)"/.exec(source);
+  return { published, unpublished, defaultAuthor: author ? author[1] : null };
+}
+
+/** Misma regla que `nameMatches` (data/disciplinas.ts): palabra completa, sin acentos. */
+function normalizeText(text) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+function nameMatches(name, matcher) {
+  const words = ` ${normalizeText(name).replace(/[^a-z0-9]+/g, " ")} `;
+  return words.includes(` ${normalizeText(matcher)} `);
+}
+
+/** Html sin <style> ni <script> que no sean JSON-LD (el payload de Nuxt no es texto visible). */
+function stripNonLdScripts(html) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/g, "")
+    .replace(/<script(?![^>]*application\/ld\+json)[\s\S]*?<\/script>/g, "");
+}
 
 /** Lista de chequeos. Agregar los nuevos AL FINAL. */
 const CHECKS = [
@@ -470,7 +545,347 @@ const CHECKS = [
       return problems;
     },
   },
-  // AGREGAR CHEQUEOS NUEVOS ABAJO (planes 195-05 y 195-06).
+  // --- Plan 195-05: disciplinas, planes, profes, primera clase y blog ---
+  {
+    name: "cada disciplina de data/disciplinas.ts tiene su pagina, con los 6 niveles en calistenia, y el hub existe",
+    run: (ctx) => {
+      const problems = [];
+      if (!ctx.exists("disciplinas/index.html")) {
+        problems.push("falta disciplinas/index.html");
+      }
+      const disciplinas = parseDisciplinas();
+      if (disciplinas.length === 0) {
+        problems.push("data/disciplinas.ts no tiene ninguna disciplina");
+      }
+      for (const d of disciplinas) {
+        const rel = `disciplinas/${d.slug}/index.html`;
+        if (!ctx.exists(rel)) {
+          problems.push(`falta ${rel}`);
+          continue;
+        }
+        if (d.slug === "calistenia") {
+          const html = ctx.read(rel);
+          for (const level of LEVEL_NAMES) {
+            if (!html.includes(level)) {
+              problems.push(`${rel} no menciona el nivel ${level}`);
+            }
+          }
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "'Dónde se dicta' de cada disciplina lista exactamente las sedes con una actividad que coincide (o el aviso de WhatsApp)",
+    run: (ctx) => {
+      const problems = [];
+      for (const d of parseDisciplinas()) {
+        const rel = `disciplinas/${d.slug}/index.html`;
+        if (!ctx.exists(rel)) continue; // ya lo informa el chequeo anterior
+        const html = ctx.read(rel);
+        const section =
+          /D(?:ó|&oacute;)nde se dicta<\/h2>([\s\S]*?)<\/section>/.exec(html);
+        if (!section) {
+          problems.push(`${rel} no tiene la seccion "Dónde se dicta"`);
+          continue;
+        }
+        const actual = new Set(
+          [...section[1].matchAll(/href="((?:\/es)?\/sedes\/[^"]+)"/g)].map(
+            (m) => m[1],
+          ),
+        );
+        const expected = new Set(
+          ctx.data.sedes
+            .filter(
+              (s) =>
+                s.kind === "gym" &&
+                s.activities.some((a) =>
+                  d.matchers.some((m) => nameMatches(a.name, m)),
+                ),
+            )
+            .map((s) => pageUrlPath(s)),
+        );
+        for (const path of expected) {
+          if (!actual.has(path)) problems.push(`${rel} no lista ${path}`);
+        }
+        for (const path of actual) {
+          if (!expected.has(path)) {
+            problems.push(`${rel} lista ${path} sin actividad que coincida`);
+          }
+        }
+        if (
+          expected.size === 0 &&
+          !decodeEntities(section[1]).includes(
+            "Consultá disponibilidad por WhatsApp",
+          )
+        ) {
+          problems.push(
+            `${rel}: sin sedes y sin el aviso "Consultá disponibilidad por WhatsApp"`,
+          );
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "planes: sin precios (sin '$<n>', ARS, EUR ni euro) y con al menos un wa.me",
+    run: (ctx) => {
+      if (!ctx.exists("planes/index.html")) return ["falta planes/index.html"];
+      const problems = [];
+      for (const rel of ["planes/index.html", "es/planes/index.html"]) {
+        if (!ctx.exists(rel)) continue;
+        const html = ctx.read(rel);
+        const visible = decodeEntities(stripNonLdScripts(html));
+        const hit = PRICE_RE.exec(visible);
+        if (hit) {
+          problems.push(
+            `${rel} contiene un patron de precio: "${hit[0]}" (contexto: ${visible
+              .slice(Math.max(0, hit.index - 20), hit.index + 20)
+              .replace(/\s+/g, " ")})`,
+          );
+        }
+        if (!/wa\.me\/\d/.test(html)) {
+          problems.push(`${rel} no tiene ningun link wa.me/`);
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "profes: cada profe publicado tiene su Person en /profes/<slug>, los no publicados no tienen pagina y el autor del blog esta publicado",
+    run: (ctx) => {
+      const problems = [];
+      const { published, unpublished, defaultAuthor } = parseProfes();
+      if (!ctx.exists("profes/index.html"))
+        problems.push("falta profes/index.html");
+      if (!defaultAuthor) {
+        problems.push("data/profes.ts no define DEFAULT_BLOG_AUTHOR_SLUG");
+      } else if (!published.includes(defaultAuthor)) {
+        problems.push(
+          `el autor por defecto del blog (${defaultAuthor}) no esta publicado`,
+        );
+      }
+      for (const slug of published) {
+        const rel = `profes/${slug}/index.html`;
+        if (!ctx.exists(rel)) {
+          problems.push(`falta ${rel}`);
+          continue;
+        }
+        const persons = nodesOfType(jsonLdNodes(ctx.read(rel)), "Person");
+        const expectedId = `${SITE_URL}/profes/${slug}#person`;
+        if (persons.length !== 1) {
+          problems.push(
+            `${rel} tiene ${persons.length} nodos Person (debe ser 1)`,
+          );
+          continue;
+        }
+        const person = persons[0];
+        if (person["@id"] !== expectedId) {
+          problems.push(
+            `${rel}: @id ${person["@id"]} (esperado ${expectedId})`,
+          );
+        }
+        if (person.worksFor?.["@id"] !== ORG_ID) {
+          problems.push(`${rel}: worksFor no apunta a ${ORG_ID}`);
+        }
+        if (typeof person.name !== "string" || person.name.length === 0) {
+          problems.push(`${rel}: Person sin name`);
+        }
+      }
+      for (const slug of unpublished) {
+        if (
+          ctx.exists(`profes/${slug}/index.html`) ||
+          ctx.exists(`profes/${slug}.html`)
+        ) {
+          problems.push(
+            `el profe no publicado ${slug} tiene pagina en /profes`,
+          );
+        }
+      }
+      for (const file of ctx.htmlFiles) {
+        const m = /^profes\/([^/]+)\/index\.html$/.exec(file);
+        if (m && !published.includes(m[1])) {
+          problems.push(`${file} existe pero ${m[1]} no esta publicado`);
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "primera-clase-gratis existe, con el registro online de cada sede de Argentina y un wa.me",
+    run: (ctx) => {
+      const rel = "primera-clase-gratis/index.html";
+      if (!ctx.exists(rel)) return [`falta ${rel}`];
+      const html = ctx.read(rel);
+      const problems = [];
+      if (!html.includes("app.eltemplo.org/register")) {
+        problems.push(`${rel} no enlaza a app.eltemplo.org/register`);
+      }
+      for (const sede of gymsOf(ctx, "AR")) {
+        if (!new RegExp(`register\\?branchId=${sede.id}(?:&|")`).test(html)) {
+          problems.push(
+            `${rel} sin "Reservá online" de ${sede.slug} (branchId ${sede.id})`,
+          );
+        }
+      }
+      if (!/wa\.me\/\d/.test(html)) problems.push(`${rel} sin wa.me/`);
+      return problems;
+    },
+  },
+  {
+    name: "sitemap.xml lista disciplinas, planes, profes publicados y primera clase gratis",
+    run: (ctx) => {
+      const sitemap = ctx.read("sitemap.xml");
+      const paths = [
+        "/disciplinas",
+        ...parseDisciplinas().map((d) => `/disciplinas/${d.slug}`),
+        "/planes",
+        "/profes",
+        ...parseProfes().published.map((slug) => `/profes/${slug}`),
+        "/primera-clase-gratis",
+      ];
+      return paths
+        .filter((path) => !sitemap.includes(`<loc>${SITE_URL}${path}</loc>`))
+        .map((path) => `sitemap.xml sin ${path}`);
+    },
+  },
+  {
+    name: "las paginas nuevas (disciplinas, planes, profes, primera clase) llevan un Organization (@id fijo) y un BreadcrumbList",
+    run: (ctx) => {
+      const pages = [
+        "disciplinas/index.html",
+        ...parseDisciplinas().map((d) => `disciplinas/${d.slug}/index.html`),
+        "planes/index.html",
+        "profes/index.html",
+        ...parseProfes().published.map((slug) => `profes/${slug}/index.html`),
+        "primera-clase-gratis/index.html",
+      ];
+      const problems = [];
+      for (const rel of pages) {
+        if (!ctx.exists(rel)) continue; // ya lo informa el chequeo de la pagina
+        const nodes = jsonLdNodes(ctx.read(rel));
+        const orgs = nodesOfType(nodes, "Organization").filter(
+          (n) => n["@id"] === ORG_ID,
+        );
+        if (orgs.length !== 1) {
+          problems.push(
+            `${rel} tiene ${orgs.length} Organization con @id ${ORG_ID}`,
+          );
+        }
+        const crumbs = nodesOfType(nodes, "BreadcrumbList");
+        if (crumbs.length !== 1) {
+          problems.push(
+            `${rel} tiene ${crumbs.length} BreadcrumbList (debe ser 1)`,
+          );
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "cada post del blog publica un Article con el autor Person por defecto (data/profes.ts)",
+    run: (ctx) => {
+      const { defaultAuthor } = parseProfes();
+      const expectedId = `${SITE_URL}/profes/${defaultAuthor}#person`;
+      const problems = [];
+      for (const post of ctx.data.blog.posts) {
+        const rel = [
+          `blog/${post.slug}/index.html`,
+          `blog/${post.slug}.html`,
+        ].find((r) => ctx.exists(r));
+        if (!rel) continue; // ya lo informa el chequeo de posts con pagina
+        const articles = nodesOfType(jsonLdNodes(ctx.read(rel)), "Article");
+        if (articles.length !== 1) {
+          problems.push(
+            `${rel} tiene ${articles.length} nodos Article (debe ser 1)`,
+          );
+          continue;
+        }
+        if (!/^https?:\/\/\S+$/.test(articles[0].image ?? "")) {
+          problems.push(
+            `${rel}: el Article no tiene una image absoluta (cover o imagen de reserva)`,
+          );
+        }
+        if (articles[0].author?.["@id"] !== expectedId) {
+          problems.push(
+            `${rel}: author ${articles[0].author?.["@id"]} (esperado ${expectedId})`,
+          );
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "fixture: cubre una actividad cuyo nombre contiene un matcher sin ser palabra completa (Moreno + 'Aromaterapia')",
+    run: (ctx) => {
+      if (ctx.data.source !== "fixture") return [];
+      const hit = ctx.data.sedes.some((sede) =>
+        parseDisciplinas().some(({ matchers }) => {
+          const wholeWord = sede.activities.some((a) =>
+            matchers.some((m) => nameMatches(a.name, m)),
+          );
+          const substring = sede.activities.some((a) =>
+            matchers.some((m) =>
+              normalizeText(a.name).includes(normalizeText(m)),
+            ),
+          );
+          return substring && !wholeWord;
+        }),
+      );
+      return hit
+        ? []
+        : [
+            "el fixture no tiene ninguna sede cuyo unico parecido con un matcher sea una subcadena (prueba de coincidencia por palabra completa)",
+          ];
+    },
+  },
+  {
+    name: "fixture: cubre una sede que solo matchea una disciplina gracias a quitar acentos y un espacio de comunidad con actividad que matchea",
+    run: (ctx) => {
+      if (ctx.data.source !== "fixture") return [];
+      const problems = [];
+      const disciplinas = parseDisciplinas();
+      // Sin quitar acentos, "Sesión Grupal" ya no coincide con "sesion grupal".
+      const rawMatch = (name, matcher) =>
+        ` ${name.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `.includes(
+          ` ${matcher} `,
+        );
+      const accented = ctx.data.sedes.some(
+        (sede) =>
+          sede.kind === "gym" &&
+          disciplinas.some(
+            ({ matchers }) =>
+              sede.activities.some((a) =>
+                matchers.some((m) => nameMatches(a.name, m)),
+              ) &&
+              !sede.activities.some((a) =>
+                matchers.some((m) => rawMatch(a.name, m)),
+              ),
+          ),
+      );
+      if (!accented) {
+        problems.push(
+          "el fixture no tiene ninguna sede de clases que solo matchee una disciplina quitando acentos o mayusculas",
+        );
+      }
+      const community = ctx.data.sedes.some(
+        (sede) =>
+          sede.kind === "community_space" &&
+          disciplinas.some(({ matchers }) =>
+            sede.activities.some((a) =>
+              matchers.some((m) => nameMatches(a.name, m)),
+            ),
+          ),
+      );
+      if (!community) {
+        problems.push(
+          "el fixture no tiene ningun espacio de comunidad con una actividad que coincida con una disciplina (prueba del filtro kind gym)",
+        );
+      }
+      return problems;
+    },
+  },
+  // AGREGAR CHEQUEOS NUEVOS ABAJO (plan 195-06).
 ];
 
 function main() {
