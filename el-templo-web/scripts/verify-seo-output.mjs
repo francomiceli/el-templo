@@ -440,6 +440,18 @@ const CHECKS = [
                   `web-data.json tiene source "${ctx.data.source}": el build se hizo con el fixture`,
                 ],
         },
+        {
+          name: "--require-api: ningun html publica marcadores PENDIENTE DE COMPLETAR",
+          run: (ctx) =>
+            ctx.htmlFiles
+              .filter((file) =>
+                ctx.read(file).includes("PENDIENTE DE COMPLETAR"),
+              )
+              .map(
+                (file) =>
+                  `${file} tiene un marcador "PENDIENTE DE COMPLETAR" (completar antes de publicar)`,
+              ),
+        },
       ]
     : []),
   // --- Plan 195-04: schema y paginas de sede ---
