@@ -144,3 +144,8 @@
   - Un secret de la API solo llega al servidor con un deploy de la API (push a `el-templo-api/**` o dispatch `todo`); `solo-web` no lo actualiza.
   - **Para 195-13:** crear `deploy/RUNBOOK-195-NGINX.md` (lo referencia `ROLLOUT-195.md` §5).
   - **Para 195-14 (guía):** tabla de secrets de `195-11-SUMMARY.md` (solo prod), UAT del dispatch `solo-web` en staging después del paso 1 del rollout, paso 1 identificado por mensaje de commit, teléfonos reales antes de `GBP_SYNC_MODE=apply`.
+- **Tras 195-12 (2026-10-07):**
+  - `el-templo-app/node_modules` ya NO es symlink (install propio con el plugin `@capacitor-community/in-app-review` 8.0.0, aprobado por Franco). `src-capacitor/node_modules` también propio.
+  - `upload-artifact@v4` descarta carpetas ocultas por defecto (`include-hidden-files`). **195-13:** revisar si `web-dist` tiene archivos ocultos con el mismo problema.
+  - Archivos sin trackear al mutar: verificar restauración con `diff` contra respaldo (no `git diff`).
+  - **Para 195-14 (guía):** fingerprints de `assetlinks.json` (Play Console, prod y staging) + `pnpm check-well-known --strict`; Associated Domains iOS `applinks:app.eltemplo.org`; ASO; builds de tienda 1.9.0 (re-chequear contra 194=1.8.2 al integrar); revisar `keep-awake` ausente en `src-capacitor/package.json`.
