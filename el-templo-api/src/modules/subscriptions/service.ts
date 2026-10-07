@@ -89,6 +89,11 @@ import { EnrollmentService } from "../programs/enrollment-service";
 import { SettingsService } from "../settings/service";
 import { PRICING_SETTINGS_KEYS } from "../settings/keys";
 import { ReferralService } from "../referrals/service";
+import {
+  attributeInvitationPurchase,
+  invitationConvertedAtGateSql,
+  invitationLeadGateSql,
+} from "../referrals/invitation-conversion";
 import { NotificationService } from "../notifications/service";
 import { PartnerReferralService } from "../referral-partners/service";
 
@@ -8032,6 +8037,21 @@ export class SubscriptionService {
                 AND ${membershipInEffectSql("s")}
             )`;
 
+    // Fase 194 D-18: el gate de conversión de lead acepta "tiene SP"
+    // (`bookings.is_trial=1`, como siempre) O "compró una membresía paga después
+    // de activar una invitación". Las reservas del invitado NO se marcan
+    // `is_trial` (contaminaría las métricas de SP), por eso la invitación es una
+    // rama propia. La rama de invitación respeta una marca MANUAL del lead
+    // (`leadOriginGate`); la fecha de conversión se sella igual (`convertedAtGate`).
+    // Las dos ramas de invitación viven en `referrals/invitation-conversion.ts`.
+    /* tenant-safe: EXISTS correlacionados por u.id (un solo gimnasio), viajan dentro del UPDATE de abajo, que acota por u.tenant_id inline. */
+    const spOrigin = sql`EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.member_id = u.id AND b.is_trial = 1
+            )`;
+    const leadOriginGate = sql`(${spOrigin} OR ${invitationLeadGateSql()})`;
+    const convertedAtGate = sql`(${spOrigin} OR ${invitationConvertedAtGateSql()})`;
+
     await tx.execute(sql`
       UPDATE users u
       SET
@@ -8043,20 +8063,14 @@ export class SubscriptionService {
         u.lead_status = CASE
           WHEN u.converted_at IS NULL
             AND ${membershipGate}
-            AND EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.member_id = u.id AND b.is_trial = 1
-            )
+            AND ${leadOriginGate}
           THEN 'ganado'
           ELSE u.lead_status
         END,
         u.lead_status_source = CASE
           WHEN u.converted_at IS NULL
             AND ${membershipGate}
-            AND EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.member_id = u.id AND b.is_trial = 1
-            )
+            AND ${leadOriginGate}
           THEN 'auto'
           ELSE u.lead_status_source
         END,
@@ -8064,10 +8078,7 @@ export class SubscriptionService {
           WHEN u.converted_at IS NULL
             AND u.purchased_plan_id IS NULL
             AND ${membershipGate}
-            AND EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.member_id = u.id AND b.is_trial = 1
-            )
+            AND ${leadOriginGate}
           THEN (
             SELECT s2.plan_id
             FROM subscriptions s2
@@ -8081,10 +8092,7 @@ export class SubscriptionService {
         u.converted_at = CASE
           WHEN u.converted_at IS NULL
             AND ${membershipGate}
-            AND EXISTS (
-              SELECT 1 FROM bookings b
-              WHERE b.member_id = u.id AND b.is_trial = 1
-            )
+            AND ${convertedAtGate}
           THEN CURRENT_TIMESTAMP
           ELSE u.converted_at
         END
@@ -8130,6 +8138,15 @@ export class SubscriptionService {
         { userId, fromStatus: statusBefore, toStatus: statusAfter },
         "user status transition recorded",
       );
+    }
+
+    // Fase 194 D-18: conversión explícita de la invitación (ex socio con
+    // `converted_at` histórico + atribución de la compra a la invitación, D-13).
+    // Con `ctx === null` se saltea: ese caso SOLO llega del cron de vencimiento
+    // (`autoExpireDueSubscriptions`), que nunca crea una membresía paga — toda
+    // compra pasa por una charge-path con `ctx` real y ahí corre este paso.
+    if (ctx) {
+      await attributeInvitationPurchase(tx, this.db, ctx, userId, this.log);
     }
   }
 }
