@@ -26,7 +26,7 @@
 import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
-import { todayInTz } from "../shared/date-utils";
+import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type { CountryCode } from "../shared/country-scope";
 import { accessesUsed, type LeadStage } from "./invitation-states";
@@ -34,8 +34,6 @@ import { loadTrainedBranches } from "./invitation-trained-branches";
 
 type DbInstance = MySql2Database<typeof schema>;
 
-/** tz de respaldo del `hoy` si una sede tiene una zona que no está cargada (nunca debería). */
-const FALLBACK_TIMEZONE = "America/Argentina/Buenos_Aires";
 const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
 
@@ -97,13 +95,14 @@ export function todayByBranchTimezoneSql(
 ): SQL {
   // Sin sedes no hay invitaciones; igual el SQL tiene que ser válido (`CASE x ELSE`
   // no lo es), así que se cae a la constante de respaldo.
-  if (timezones.length === 0) return sql`${todayInTz(FALLBACK_TIMEZONE, now)}`;
+  if (timezones.length === 0)
+    return sql`${todayInTz(DEFAULT_TENANT_TIMEZONE, now)}`;
   const whens = timezones.map(
     (tz) => sql`WHEN ${tz} THEN ${todayInTz(tz, now)}`,
   );
   /* tenant-safe: fragmento de expresión sobre branches.timezone; solo viaja dentro
      de la query de `fetchPage`, que acota branches con tenantWhere. */
-  return sql`(CASE ${schema.branches.timezone} ${sql.join(whens, sql` `)} ELSE ${todayInTz(FALLBACK_TIMEZONE, now)} END)`;
+  return sql`(CASE ${schema.branches.timezone} ${sql.join(whens, sql` `)} ELSE ${todayInTz(DEFAULT_TENANT_TIMEZONE, now)} END)`;
 }
 
 /**

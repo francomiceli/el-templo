@@ -54,7 +54,6 @@ import {
 } from "./invitation-types";
 
 // Re-exports: los imports existentes (tests) toman estos símbolos de acá.
-export { subtractMonths } from "./invitation-rules";
 export type { InvitationExecutor } from "./invitation-rules";
 
 type DbInstance = MySql2Database<typeof schema>;

@@ -24,7 +24,11 @@
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
-import { todayInTz } from "../shared/date-utils";
+import {
+  DEFAULT_TENANT_TIMEZONE,
+  shiftMonth,
+  todayInTz,
+} from "../shared/date-utils";
 import { BadRequestError } from "../shared/errors";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type { CountryCode } from "../shared/country-scope";
@@ -36,8 +40,6 @@ type DbInstance = MySql2Database<typeof schema>;
 const DEFAULT_MONTHS = 12;
 /** Tope del rango pedido (evita una respuesta enorme por un `from` absurdo). */
 const MAX_RANGE_MONTHS = 36;
-/** tz con la que se resuelve "el mes actual" y "hoy" (la sede principal del gimnasio). */
-const REPORT_TIMEZONE = "America/Argentina/Buenos_Aires";
 
 export interface InvitationReportFilters {
   /** 'YYYY-MM' inclusive. Default: 11 meses antes de `to`. */
@@ -84,14 +86,6 @@ function nextMonthStart(month: string): string {
   const nextYear = Math.floor((total - 1) / 12);
   const nextMon = total - nextYear * 12;
   return `${String(nextYear).padStart(4, "0")}-${String(nextMon).padStart(2, "0")}-01`;
-}
-
-/** Resta `months` meses a un 'YYYY-MM'. */
-function shiftMonth(month: string, months: number): string {
-  const [year, mon] = month.split("-").map(Number);
-  const total = year * 12 + (mon - 1) + months;
-  const y = Math.floor(total / 12);
-  return `${String(y).padStart(4, "0")}-${String(total - y * 12 + 1).padStart(2, "0")}`;
 }
 
 /** Todos los meses de `from` a `to` inclusive ('YYYY-MM'). Ambos ya validados. */
@@ -153,7 +147,7 @@ export class InvitationReportService {
     from: string;
     to: string;
   } {
-    const to = filters.to ?? todayInTz(REPORT_TIMEZONE).slice(0, 7);
+    const to = filters.to ?? todayInTz(DEFAULT_TENANT_TIMEZONE).slice(0, 7);
     const from = filters.from ?? shiftMonth(to, -(DEFAULT_MONTHS - 1));
     if (from > to) {
       throw new BadRequestError(
@@ -239,7 +233,7 @@ export class InvitationReportService {
       rows.map((row) => row.userId),
       ctx,
     );
-    const today = todayInTz(REPORT_TIMEZONE);
+    const today = todayInTz(DEFAULT_TENANT_TIMEZONE);
     let active = 0;
     for (const coveredUntil of covered.values()) {
       if (coveredUntil !== null && coveredUntil >= today) active++;

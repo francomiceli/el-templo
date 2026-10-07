@@ -24,7 +24,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { todayInTz } from "../shared/date-utils";
+import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
 import { paidSinceActivationSql } from "./invitation-purchase";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { deriveMembershipCoveredUntilBatch } from "../subscriptions/coverage";
@@ -39,8 +39,6 @@ import type { InvitationsOverview, InvitedByView, InviteeView } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
 
-/** tz de respaldo si el usuario no tiene sede cargable (usuario borrado). */
-const FALLBACK_TIMEZONE = "America/Argentina/Buenos_Aires";
 /** Base del link cuando `FRONTEND_URL` no está definida (mismo default que `app.ts`). */
 const DEFAULT_FRONTEND_URL = "https://app.eltemplo.org";
 
@@ -105,7 +103,7 @@ export class InvitationOverview {
     invitedBy: InvitedByView | null;
   }> {
     const user = await this.rules.loadUserWithTimezone(ctx, userId, this.db);
-    const timezone = user?.timezone ?? FALLBACK_TIMEZONE;
+    const timezone = user?.timezone ?? DEFAULT_TENANT_TIMEZONE;
     // `today` = día calendario de la sede del usuario (no UTC).
     const today = todayInTz(timezone);
 

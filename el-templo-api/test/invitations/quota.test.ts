@@ -10,12 +10,14 @@ import { and, eq, like } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import * as schema from "../../src/db/schema";
-import { todayInTz } from "../../src/modules/shared/date-utils";
-import { tenantWhere } from "../../src/modules/shared/tenant";
 import {
-  InvitationService,
+  addMonths,
+  shiftMonth,
   subtractMonths,
-} from "../../src/modules/referrals/invitation-service";
+  todayInTz,
+} from "../../src/modules/shared/date-utils";
+import { tenantWhere } from "../../src/modules/shared/tenant";
+import { InvitationService } from "../../src/modules/referrals/invitation-service";
 import {
   InvitationRuleError,
   type InvitationIneligibleReason,
@@ -455,5 +457,21 @@ describe("subtractMonths (puro)", () => {
 
   it("0 meses devuelve la misma fecha", () => {
     expect(subtractMonths("2026-10-06", 0)).toBe("2026-10-06");
+  });
+});
+
+describe("addMonths / shiftMonth (puros, helper único de meses)", () => {
+  it("addMonths suma cruzando años y recorta el día", () => {
+    expect(addMonths("2026-11-15", 3)).toBe("2027-02-15");
+    expect(addMonths("2026-01-31", 1)).toBe("2026-02-28");
+    expect(addMonths("2026-03-15", -3)).toBe("2025-12-15");
+  });
+
+  it("shiftMonth mueve un YYYY-MM en ambos sentidos", () => {
+    expect(shiftMonth("2026-10", 1)).toBe("2026-11");
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+    expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+    expect(shiftMonth("2026-10", -11)).toBe("2025-11");
+    expect(shiftMonth("2026-10", 0)).toBe("2026-10");
   });
 });

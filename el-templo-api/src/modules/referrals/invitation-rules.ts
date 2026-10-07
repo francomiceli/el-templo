@@ -43,7 +43,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import type { TxHandle } from "../finance/balance-service";
 import { NotFoundError } from "../shared/errors";
-import { todayInTz } from "../shared/date-utils";
+import { subtractMonths, todayInTz } from "../shared/date-utils";
 import { normalizePhone } from "../shared/phone";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { deriveMembershipCoveredUntil } from "../subscriptions/coverage";
@@ -63,23 +63,6 @@ export type InvitationExecutor = DbInstance | TxHandle;
 
 /** Tope de fecha de "sin vencimiento": se usa como `COALESCE` en el SQL de D-11. */
 const OPEN_ENDED_DATE = "9999-12-31";
-
-/**
- * Resta `months` meses a una fecha `YYYY-MM-DD` (pura, sin zona horaria). Si el
- * día no existe en el mes destino se recorta al último día (31-ago - 6 meses =
- * 28/29-feb). Se opera sobre el string de `todayInTz` para no mezclar husos.
- */
-export function subtractMonths(dateStr: string, months: number): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  // Mes en base 0 acumulado: así restar cruza años sin casos especiales.
-  const total = y * 12 + (m - 1) - months;
-  const year = Math.floor(total / 12);
-  const month = total - year * 12; // 0..11
-  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const day = Math.min(d, lastDay);
-  const pad = (n: number, w: number): string => String(n).padStart(w, "0");
-  return `${pad(year, 4)}-${pad(month + 1, 2)}-${pad(day, 2)}`;
-}
 
 export class InvitationRules {
   constructor(
