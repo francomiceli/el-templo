@@ -1,0 +1,158 @@
+---
+phase: 195-web-seo-local-aeo-atribucion
+verified: 2026-10-07T11:10:00-03:00
+status: human_needed
+score: 6/6 must-haves verified en código (la efectividad en producción depende de pasos humanos listados abajo)
+overrides_applied: 0
+re_verification: false
+gaps: []
+warnings:
+  - id: W1
+    where: "docs/guia-195-web-seo-atribucion.md:53 y :104; deploy/ROLLOUT-195.md:28-34 (sección 2)"
+    issue: "Deriva documental tras f78ceb80f. La guía dice que 'hoy nada bloquea la publicación' del marcador PENDIENTE DE COMPLETAR de /privacidad y que 'se ve un cartel'. Desde f78ceb80f, `verify-seo-output.mjs --require-api` (deploy.yml:321 y deploy-staging.yml:329) FALLA el Build Web si algún html lo conserva. ROLLOUT §2 no lista esa causa de fallo."
+    effect: "Falla seguro (la web queda en su versión anterior), pero Franco no sabe que hasta completar privacidad.vue:177 NINGÚN build web (staging ni prod, ni el botón solo-web) sale verde."
+  - id: W2
+    where: ".planning/phases/195-web-seo-local-aeo-atribucion/195-08-SUMMARY.md:112"
+    issue: "Describe mal el orden de CAPI ('borrar ese secret -> cargar META_CAPI_START_AT'). getMetaCapiConfig() (el-templo-api/src/modules/marketing/meta/config.ts:52-56) devuelve null sin META_CAPI_START_AT, así que NO se puede validar sin cargarla antes. ROLLOUT-195.md §4 (líneas 63-65) y la guía §7.5 (líneas 396-409) SÍ son correctos y consistentes con el código."
+    effect: "Solo el SUMMARY histórico; ninguna instrucción operativa está mal."
+  - id: W3
+    where: "deploy/ROLLOUT-195.md §5 vs deploy/RUNBOOK-195-NGINX.md y guía §4.4"
+    issue: "ROLLOUT §5 dice que todo nginx va 'después' de la web nueva. El runbook y la guía distinguen tanda A (cualquier momento) de tanda B (solo con web nueva en prod). Ya lo anotó 195-14-SUMMARY."
+    effect: "Menor. La guía sigue al runbook, que es lo correcto."
+  - id: W4
+    where: ".planning/ROADMAP.md:323-336"
+    issue: "Los 14 planes de la 195 siguen sin tildar y el plan 12 aún dice 'bump 1.9.0' (revertido a propósito en 163b933e1)."
+    effect: "Solo bookkeeping del orquestador."
+deferred: []
+human_verification:
+  - test: "Completar razón social, NIF y domicilio de España en el marcador de el-templo-web/pages/privacidad.vue:177 y hacer revisar el texto completo por un asesor legal"
+    expected: "Ningún html conserva 'PENDIENTE DE COMPLETAR' y `node scripts/verify-seo-output.mjs --require-api` pasa 33/33"
+    why_human: "Datos legales de la empresa y revisión legal; no se pueden inventar. Hoy bloquea todo build web (W1)"
+  - test: "Rollout en 2 pasos, staging primero y luego master (deploy/ROLLOUT-195.md §1): paso 1 `<sha de feat(195-03)^>:staging`, esperar verde, `curl https://api-staging.eltemplo.org/api/web/site-data`, paso 2 con el resto de la rama; repetir en master"
+    expected: "El endpoint devuelve las sedes publicadas, los builds de API, admin, app y web quedan verdes y la tabla `branches` de prod tiene JBJ 1018, sin Chapadmalal publicado y Park como community_space tras la 0271"
+    why_human: "Push y deploy requieren el OK explícito de Franco; nada está desplegado"
+  - test: "Crear en GitHub los secrets de ROLLOUT §3 (WEB_GA4_ID y WEB_META_PIXEL_ID antes del paso 2 en prod; META_*, GOOGLE_SC_* y GBP_* solo prod) y redeployar la API. Después abrir GA4 Realtime y Pixel Helper en eltemplo.org"
+    expected: "GA4 y Pixel reciben datos de producción; en /es no se cargan sin aceptar el banner; staging nunca recibe META_*, GOOGLE_SC_* ni GBP_*"
+    why_human: "Credenciales de Franco y observación en consolas externas (SC4)"
+  - test: "Probar el botón solo-web una vez en staging (Actions > Deploy Staging > Run workflow > target solo-web, rama staging)"
+    expected: "Corre solo Build Web y el deploy publica solo la web; si falla el smoke test se restaura solo la web"
+    why_human: "El contexto `inputs.target` se validó leyendo la doc de GitHub, nunca ejecutado (SC1). Requiere W1 resuelta"
+  - test: "Aplicar nginx por SSH siguiendo deploy/RUNBOOK-195-NGINX.md, de a un comando con OK de Franco. Tanda A: web-staging, app-staging, admin-staging, app y admin. Tanda B: eltemplo.org solo con la web nueva en prod. Usar `git merge-file` de 3 vías para conservar las líneas de certbot"
+    expected: "`curl -I https://eltemplo.org/ruta-inexistente` da 404, /curso-entrenadores da 301, /qr/bcn da 302, y web-staging, app y admin devuelven X-Robots-Tag noindex sin Disallow en robots.txt; /.well-known/assetlinks.json se entrega como JSON"
+    why_human: "SSH al servidor es un gate humano; el repo solo guarda la versión objetivo (SC3). La etapa 2 (Disallow) se agrega semanas después, cuando Google desindexó (runbook §D)"
+  - test: "Juntar link de Google Maps, Place ID, teléfono real y código postal de cada sede, correr `pnpm exec tsx scripts/sedes-maps-a-migracion.ts <json> --write` y commitear la migración 0275"
+    expected: "Las páginas de sede publican `geo` con 5+ decimales y mapsUrl real. Hoy las coordenadas de 0271 son aproximadas (4 decimales) y `geo` se omite a propósito del ExerciseGym"
+    why_human: "Datos que solo tiene Franco (D-08, SC2). Cargar los teléfonos reales ANTES de GBP_SYNC_MODE=apply"
+  - test: "Verificar el dominio por DNS en Google Search Console y Bing Webmaster, y crear la service account de Search Console (guía §6)"
+    expected: "Search Console y Bing muestran la propiedad verificada y el job semanal llena `search_console_stats`"
+    why_human: "Acceso al DNS y a consolas externas (SC4)"
+  - test: "Meta: usuario del sistema, token, `GET /me/adaccounts`, y validación de CAPI en Events Manager > Probar eventos con META_CAPI_TEST_EVENT_CODE + META_CAPI_START_AT (guía §7.5)"
+    expected: "Llegan CompleteRegistration, Schedule y Purchase al panel de prueba. El mapeo de action_source (website/system_generated/physical_store) y que un solo token sirva para CAPI e Insights son [ASUMIDO] y no se probaron contra Meta"
+    why_human: "Llamadas reales a Meta con credenciales de Franco"
+  - test: "Definir quién atiende el proceso manual de oposición a CAPI (comunidad@eltemplo.org) antes de publicar /privacidad"
+    expected: "Hay un responsable que marca los eventos `reg-<id>`, `trial-<id>` y `purchase-<id>` de esa persona como skipped_no_origin"
+    why_human: "Decisión de proceso: el texto de /privacidad promete algo que hoy es manual"
+  - test: "Google Business Profile: verificar fichas, pedir acceso a la API, autorizar con gbp-authorize y dejar GBP_SYNC_MODE=dry-run una semana antes de apply"
+    expected: "El dry-run loguea cambios coherentes por ficha. Hasta que Google apruebe la API, falla por ficha con 403/429 sin romper nada"
+    why_human: "Aprobación externa de Google (semanas) y credenciales"
+  - test: "App: cargar los 2 fingerprints TODO de el-templo-app/public/.well-known/assetlinks.json:8 y :18 (Play Console, prod y staging), activar Associated Domains applinks:app.eltemplo.org en iOS y generar una build de tienda nueva con la versión que Franco decida"
+    expected: "`pnpm check-well-known --strict` sale sin warnings. En un dispositivo, el pedido de reseña in-app aparece solo en el momento neutral y el registro envía el origen"
+    why_human: "Play Console, Apple y dispositivo real; Franco decidió NO bumpear versión en la fase (version.txt sigue en 1.8.1)"
+  - test: "UAT visual en staging: páginas de sede AR y /es/sedes/barcelona, hub /sedes, banner RGPD en /es (aceptar y rechazar), tab Reportes > Origen de altas con un alta de prueba y un alta con utm_source=chatgpt.com"
+    expected: "Se ve el embudo registros > prueba > pago por canal, campaña y sede; el tráfico de IA cae en el canal 'ia'; en /es rechazar el banner no carga GA4 ni Pixel"
+    why_human: "Comportamiento visual y de navegador. Incluye la pregunta abierta de Moreno sin horarios regulares (D-30) y las decisiones de guía §1.3"
+  - test: "Correr en CI las suites de integración de la API de la fase (test/web-public, test/marketing/*, test/reports/attribution-report, test/migrations/0270-0271, tenancy)"
+    expected: "Verdes en la corrida de CI"
+    why_human: "Esta verificación NO las corrió: otra sesión usa el mismo MySQL. Corrí solo unit tests y typecheck"
+---
+
+# Fase 195: Web SEO local + AEO + atribución. Informe de verificación
+
+**Objetivo de la fase:** que eltemplo.org traiga alumnos nuevos con datos de sedes siempre correctos (fuente única `branches`), páginas por sede, disciplina y profes indexables y citables, medición real (GA4, Pixel, Search Console, Bing), atribución de punta a punta (origen de cada alumno hasta el pago) y la mayor automatización posible de Meta y Google.
+**Verificado:** 2026-10-07, worktree `/home/franco/projects/et-195-seo`, rama `feat/195-seo-web`, HEAD `f78ceb80f`. Worktree limpio.
+**Estado:** `human_needed`
+**Re-verificación:** No, verificación inicial.
+
+## Resumen
+
+Postura de partida: tareas hechas, objetivo no logrado. Los 6 Success Criteria resistieron la prueba contra el código. No encontré ningún gap bloqueante ni ninguna verdad FAILED. Lo que falta es todo gate humano por diseño: push y deploy, secrets, SSH a nginx, datos de Maps, texto legal de `/privacidad`, consolas de Meta y Google, y UAT. Hay 4 warnings de deriva documental, el más relevante es W1.
+
+## Verdades observables (Success Criteria del ROADMAP)
+
+| # | Verdad | Estado | Evidencia |
+| - | ------ | ------ | --------- |
+| 1 | Ninguna dirección, sede o conteo de la web contradice `branches` (JBJ 1018, sin Chapadmalal, Park comunidad) y la web se regenera con botón "solo web" | VERIFICADO (código) | `0271_seed_branches_web.sql`: ALEM pasa a `Juan B. Justo 1018` y `publish_on_web=0` para CHAPADMALAL y ONLINE; PARK queda `community_space`. `grep` de `Alem 3958`, `Chapadmalal`, `8 sedes`, `54223XXX` y `logo-eltemplo.svg` sobre el código fuente de la web da vacío. No hay direcciones de calle escritas a mano (`data/sedes.ts` deriva de `data/generated/web-data.json`, gitignoreado). `GET /api/web/site-data` registrado en `modules-boot.ts:107`, filtra `publishOnWeb`/`isActive`/`webSlug`, usa `tenantWhere` y no filtra campos internos. `workflow_dispatch` con `target: solo-web` en `deploy.yml:15-22` y `deploy-staging.yml`; el paso `resolve` deja `api/app/admin=false`, `web=true`. Rollback solo de la web (`deploy.yml` smoke y rollback). Falta humano: ejecutar el botón (el contexto `inputs.target` nunca se probó). |
+| 2 | Cada sede tiene página con `ExerciseGym` (`@id`, geo, horarios reales, `parentOrganization`), home con `Organization` raíz único, Barcelona en `/es/` con hreflang recíproco | VERIFICADO (código); `geo` real en AR espera datos de Franco | En `.output/public` (build con fixture), `sedes/juan-b-justo` trae `Organization` + `ExerciseGym` (`@id .../sedes/juan-b-justo#gym`, `parentOrganization.@id`, 6 `openingHoursSpecification`, teléfono) + `BreadcrumbList`. `es/sedes/barcelona` trae `geo` 41.39961/2.17094. Home: un solo bloque con un `Organization` y ningún `ExerciseGym`. hreflang `es-AR`/`es-ES`/`x-default` en `/` y `/es`. El verificador pasó los chequeos de hreflang recíproco, `lang`, sedes AR/ES y Park sin `ExerciseGym`. `utils/schema-graph.ts:61-64,118` omite `geo` si tiene menos de 5 decimales, y 0271 deja 4: hasta cargar los datos de Franco las sedes de AR salen sin `geo`. Es por diseño (D-08). |
+| 3 | URLs inexistentes dan 404 real, redirects 301/302 reales, staging/app/admin no indexables | VERIFICADO (repo); EFECTIVO solo tras el SSH de Franco | `deploy/nginx/eltemplo.org:52,70`: `error_page 404 /404.html` y `try_files $uri $uri/index.html $uri.html =404` (sin fallback a `/index.html`); `return 301 /academy` y `return 302` para `/qr/*`. `X-Robots-Tag "noindex, nofollow" always` en web-staging, app, app-staging, admin y admin-staging, sin `Disallow` (etapa 1, D-26). `.well-known` JSON en app. `RUNBOOK-195-NGINX.md` (324 líneas) con merge de 3 vías, verificación, rollback y etapa 2. |
+| 4 | GA4, Pixel, Search Console y Bing reciben datos; robots permite bots de IA y llms.txt sale de los datos | VERIFICADO (código); recepción real es humana | `robots.txt` generado permite `OAI-SearchBot`, `Claude-SearchBot` y `PerplexityBot` y declara el sitemap. `llms.txt` lo genera `fetch-web-data.mjs` (`renderLlmsTxt`) desde `web-data.json` y enlaza `/sedes/<slug>` y `/es/sedes/<slug>`. `deploy.yml:315-316` inyecta `NUXT_PUBLIC_GA4_ID` y `NUXT_PUBLIC_META_PIXEL_ID`; staging no, y lo dice un comentario. El verificador confirma que ningún html bajo `/es` trae GA4 ni Pixel. Search Console: job semanal (`0 7 * * 1`) y servicio con JWT propio, apagado sin credenciales. Bing y Search Console se verifican por DNS (guía §6). |
+| 5 | Cada alta guarda su origen y Reportes muestra el embudo por campaña y sede; CAPI con consentimiento donde aplique | VERIFICADO (código); tests de integración no re-ejecutados | Mig `0272_signup_attributions` y `channel.ts` (clasificador, incluye IA). Ganchos: `auth/routes.ts:579` (`recordRegisterAttribution` envuelve `recordSignupAttributionBestEffort`, nunca bloquea) y `members/routes.ts:894` (alta de prueba del admin). App: boot `attribution` registrado en `quasar.config.js:19`, `RegisterPage.vue:339` manda el payload. Web: `useAttribution` y `buildRegisterUrl` (sin parámetros en `/es` sin consentimiento). Reporte: `attributionReportRoutes` en `app.ts:303`, `OrigenAltasReport` montado en `ReportesPage.vue:766-769` (solo owner/admin). CAPI: outbox derivado por job (`marketing-meta.ts`, cron `*/10`), `decideEventStatus` (`capi-builder.ts:171-185`) excluye cualquier país distinto de AR (D-25), `ios` (D-24) y origen desconocido, `branches.country` es NOT NULL. Hash SHA-256. Gasto diario `15 6 * * *`. Desvío aceptado: CAPI se deriva por job y no por hooks en el camino de pago, y el Pixel hoy solo dispara PageView y Lead, así que la deduplicación por `event_id` no tiene nada que deduplicar (documentado en 195-08-SUMMARY §Deduplicación). |
+| 6 | Guía final paso a paso para Franco/equipo (Meta y Google), reducida al mínimo por la automatización | VERIFICADO con W1 | `docs/guia-195-web-seo-atribucion.md` (631 líneas) cubre DNS, GA4, Pixel, Search Console, Bing, usuario del sistema y token de Meta, campañas, CAPI, GBP, deep links, ASO, bloque C, tareas mensuales, etapa 2 del noindex y checklist. Cada paso dice dónde se carga el resultado. Generador `sedes-maps-a-migracion.ts` probado en seco: con el ejemplo vacío saltea todas las sedes y no escribe. `docs/planilla-prompts-ia.csv` trae 25 prompts. Dos afirmaciones quedaron desactualizadas por `f78ceb80f` (W1). |
+
+**Puntaje:** 6/6 verdades verificadas en código. 0 FAILED. 0 gaps bloqueantes.
+
+## Chequeo específico: consistencia del orden de CAPI
+
+Fuente de verdad: `getMetaCapiConfig()` en `el-templo-api/src/modules/marketing/meta/config.ts:52-56` devuelve `null` si falta token, pixel **o** `META_CAPI_START_AT`. `META_CAPI_TEST_EVENT_CODE` solo se agrega como `test_event_code` al POST (`capi-service.ts:532-534`) y los eventos quedan `sent` igual (`capi-service.ts:536-545`).
+
+| Documento | Afirmación | Consistente con el código |
+| --------- | ---------- | ------------------------- |
+| `deploy/ROLLOUT-195.md` §4 pasos 2-4 (líneas 63-65) | El gasto prende sin fecha. CAPI no envía sin `META_CAPI_START_AT`, así que para probar hay que cargar el código de prueba **y** `START_AT`. Con el código cargado todos los eventos van al panel y se marcan enviados. Activar = borrar solo el código | Sí |
+| `docs/guia-195-web-seo-atribucion.md` §7.5 (líneas 396-409) y fila de tabla (línea 61) | Mismo orden. `START_AT` queda cargada, se borra solo el código de prueba | Sí |
+| `195-08-SUMMARY.md:112` | "borrar ese secret -> cargar `META_CAPI_START_AT`" | **No** (W2): con ese orden la validación nunca enviaría. Solo SUMMARY histórico |
+
+## Artefactos y wiring
+
+| Verificación | Resultado |
+| ------------ | --------- |
+| `gsd-sdk query verify.artifacts` en los 14 planes | 52/52 artefactos pasan (exist, substantive) |
+| `gsd-sdk query verify.key-links` | 26/31 verificados por el SDK. Los 5 restantes son falsos negativos de patrón, confirmados a mano: 01 (SQL vs schema, columnas idénticas), 07 (el hook se llama `recordRegisterAttribution`, que envuelve la versión best-effort), 08 (`ELIGIBLE_PLATFORMS` en `capi-builder.ts:145`), 11 (los dos links del workflow, leídos en `deploy.yml`) |
+| Gates de tenancy | `GYM_OWNED_TABLES` = 103 (medido con tsx) y el test espera 103. `schemaTables` 107, `gymOwnedChecked` 103, 0196 Test 10 103, `ENTRADAS_BASELINE` 450, `JOBS_ESPERADOS` incluye `marketing-meta.ts` y `marketing-google.ts`. Coherentes entre sí |
+| Migraciones | 0270 a 0274 presentes y en el bloque reservado D-28. Schema `.ts` y SQL de `branches` coinciden columna por columna |
+| `.env.example` | Las 12 variables `META_*`, `GOOGLE_SC_*` y `GBP_*` en la API; GA4 y Pixel en la web (con nota de que staging no los recibe) |
+| Cableado de jobs | `index.ts:62,65` arrancan `startMarketingMetaJob` y `startMarketingGoogleJob`, no-op con log sin credenciales |
+| Sin bump de versión | `el-templo-app/version.txt` = 1.8.1, sin cambios de `version` en ningún `package.json`, cero apariciones de `1.9.0` fuera de `.planning` |
+
+## Comprobaciones ejecutadas
+
+| Comando | Resultado |
+| ------- | --------- |
+| `cd el-templo-api && npx tsc --noEmit` | exit 0 |
+| `pnpm lint:tenant` | `DISCREPANCIAS: 0`, exit 0 |
+| `cd el-templo-web && pnpm exec nuxi typecheck` | exit 0 |
+| `cd el-templo-web && pnpm lint` | 0 errores, 2 warnings preexistentes (`v-html`) |
+| `cd el-templo-admin && pnpm lint` | 0 errores, 8 warnings de variables sin usar |
+| `cd el-templo-app && pnpm lint` | 0 errores, 2 warnings |
+| `node scripts/verify-seo-output.mjs` sobre `.output/public` | 31 chequeos OK, exit 0 |
+| `node scripts/verify-seo-output.mjs --require-api` sobre el mismo output | **FALLA 2 de 33**, esperado: `web-data.json` viene del fixture y `privacidad/index.html` conserva el marcador. Demuestra que el gate de `f78ceb80f` funciona |
+| `vitest --config vitest.config.unit.ts` sobre 10 archivos (`marketing-channel`, `meta-capi-builder`, `web-public-opening-hours`, `maps-link`, `google-auth`, `gbp-patch`, `gbp-scripts`, `marketing-google-job`, `sedes-maps-a-migracion`, `sentry-scrub`) | 10 archivos, 298 tests, todos pasan |
+| `check-well-known` | OK con 2 warnings (fingerprints TODO) |
+| `sedes-maps-a-migracion.ts` sobre el ejemplo vacío, sin `--write` | Saltea las 8 sedes, no escribe nada |
+| YAML de `deploy.yml`, `deploy-staging.yml` y `ci.yml` | parsean |
+
+**Limitaciones declaradas:**
+
+- `.output/public` es del 2026-10-07 06:44, hecho con el fixture. Los commits web posteriores solo tocaron `scripts/verify-seo-output.mjs` y `.env.example`, así que el output refleja el código de las páginas. No regeneré: `generate` es falso verde en este entorno (regla de ejecución §9).
+- No corrí las suites de integración de la API (comparten MySQL con otra sesión). Dependo de que CI las corra.
+- `pnpm typecheck:tests` ya estaba rojo en la base con 15 discrepancias ajenas, y no lo ejecuté.
+- No validé la sintaxis de los vhosts de nginx (no hay nginx local) ni nada contra Meta, Google o GitHub.
+
+## Cobertura de decisiones
+
+D-01 a D-30 tienen implementación o gate documentado. Quedan abiertas por decisión humana: D-04 (DNS), D-05 y D-09/D-26 (SSH), D-08 (datos de Maps), D-14 (deep links y build de tienda), D-21.3 (aprobación de Google) y D-22 (texto legal). Anti-patrones: cero marcadores `TBD`, `FIXME` o `XXX` en los 183 archivos modificados (los hallazgos son regex dentro de tests), cero `console.*`, cero `any` agregados.
+
+## Gaps
+
+Ninguno bloqueante. Ver los warnings W1 a W4 del encabezado. Recomiendo corregir W1 antes del rollout, porque es la única deriva que cambia lo que Franco va a ver:
+
+- `docs/guia-195-web-seo-atribucion.md:53` y `:104`: reemplazar por "mientras el marcador siga, el Build Web falla en staging y producción y la web queda en su versión anterior".
+- `deploy/ROLLOUT-195.md` §2: agregar el marcador como causa de fallo.
+- `195-14-SUMMARY.md:142`: la recomendación ya está implementada en `f78ceb80f`.
+
+## Resumen de brechas
+
+No hay trabajo de código pendiente que impida el objetivo. El estado `human_needed` refleja que la fase está terminada en el repo y que su efecto real (medición, 404, noindex, geo exacta, CAPI, fichas, deep links) depende de acciones de Franco con credenciales o SSH, listadas arriba en orden de rollout.
+
+---
+
+_Verificado: 2026-10-07T11:10:00-03:00_
+_Verificador: Claude (gsd-verifier)_
