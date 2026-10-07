@@ -51,6 +51,8 @@ import {
   RefreshTokenError,
 } from "./refresh-token-service";
 import { enabledModulesFor } from "../shared/module-flags";
+import { recordRegisterAttribution } from "../marketing/attribution-service";
+import type { SignupAttributionBody } from "../marketing/attribution-service";
 
 interface RegisterBody {
   email: string;
@@ -70,6 +72,8 @@ interface RegisterBody {
   // publicadas los siguen mandando por meses (Pitfall 9) y este campo es
   // aditivo, no un reemplazo forzado.
   code?: string;
+  // Fase 195-07 (D-18): origen del alta, best-effort.
+  attribution?: SignupAttributionBody;
 }
 
 interface LoginBody {
@@ -570,6 +574,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           "Eager referral code generation failed (graceful degradation)",
         );
       }
+
+      // Fase 195-07 (D-18): origen del alta (best-effort, nunca bloquea).
+      await recordRegisterAttribution(fastify.db, request, ctx, {
+        userId,
+        branchId,
+        promoCode: effectivePromoCode,
+        refCode: effectiveRef,
+      });
 
       // Get branch info for response
       /* tenant-safe: branchId es el MISMO id ya resuelto arriba (el bootstrap que deriva ctx.tenantId), releer por PK para el response no expone otro gimnasio (D4) */

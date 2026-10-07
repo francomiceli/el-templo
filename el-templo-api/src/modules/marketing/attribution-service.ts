@@ -14,6 +14,7 @@
 import { isIP } from "node:net";
 import { sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
+import type { IncomingHttpHeaders } from "node:http";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
 import { signupAttributions } from "../../db/schema/signup-attributions";
@@ -115,9 +116,10 @@ function firstTouchMs(value: string | undefined, now: number): number | null {
 }
 
 function validIp(value: string | string[] | undefined): string | null {
-  const raw = Array.isArray(value) ? value[0] : value;
-  if (typeof raw !== "string") return null;
-  const trimmed = raw.trim();
+  // Node une los headers repetidos con ", " (no los entrega como array) y esa
+  // lista no pasa `isIP`: cualquier cosa que no sea un string es NULL.
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
   return isIP(trimmed) !== 0 ? trimmed.slice(0, MAX.ip) : null;
 }
 
@@ -206,4 +208,41 @@ export async function recordSignupAttributionBestEffort(
       "Signup attribution failed (graceful degradation)",
     );
   }
+}
+
+/** Lo mínimo que `recordRegisterAttribution` lee del request de `/register`. */
+export interface RegisterAttributionRequest {
+  log: FastifyBaseLogger;
+  headers: IncomingHttpHeaders;
+  body: { attribution?: SignupAttributionBody };
+}
+
+/**
+ * Gancho de `POST /api/auth/register`: arma el input desde el request (plataforma
+ * declarada por el cliente, IP real detrás de nginx, user agent) y guarda el
+ * origen en modo best-effort. Vive acá y no en la ruta para que el cambio en
+ * `auth/routes.ts` quede en un par de líneas. Un cliente viejo sin
+ * `attribution` queda con plataforma 'unknown' (CAPI la excluye, 195-08).
+ */
+export async function recordRegisterAttribution(
+  db: DbInstance,
+  request: RegisterAttributionRequest,
+  ctx: TenantContext,
+  alta: {
+    userId: number;
+    branchId: number;
+    promoCode?: string;
+    refCode?: string;
+  },
+): Promise<void> {
+  const body = request.body.attribution;
+  await recordSignupAttributionBestEffort(db, request.log, ctx, {
+    ...alta,
+    capturedVia: "register",
+    platform: body?.platform ?? "unknown",
+    body,
+    // La API no tiene trustProxy: la IP real llega en x-real-ip (nginx).
+    clientIp: request.headers["x-real-ip"],
+    userAgent: request.headers["user-agent"],
+  });
 }
