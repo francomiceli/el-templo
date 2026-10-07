@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import {
+  DEFAULT_TRIAL_TEXT,
+  salesPhoneDisplay,
+  salesPhoneHref,
+  salesWhatsappUrl,
+} from "~/utils/whatsapp";
+
 // Email obfuscation — assembled at runtime to prevent scraper harvesting
 const emailUser = "info";
 const emailDomain = "eltemplo.org";
@@ -26,7 +33,7 @@ const columns: FooterColumn[] = [
       { label: "Descubrí tu Nivel", href: "/#descubri-nivel", disabled: false },
       {
         label: "Reservar Sesión",
-        href: "https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba",
+        href: salesWhatsappUrl("AR", DEFAULT_TRIAL_TEXT),
         disabled: false,
       },
     ],
@@ -98,8 +105,8 @@ const columns: FooterColumn[] = [
           <a :href="emailHref" class="footer__info-link">
             {{ emailAddress }}
           </a>
-          <a href="tel:+5492235820521" class="footer__info-link">
-            +54 9 223 582-0521
+          <a :href="salesPhoneHref('AR')" class="footer__info-link">
+            {{ salesPhoneDisplay("AR") }}
           </a>
           <span class="footer__info-address">
             Av. Constituci&oacute;n 6745, Mar del Plata, Argentina

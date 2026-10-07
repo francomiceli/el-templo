@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { sedesCount } from "~/data/sedes";
+import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
 
 /**
  * SectionConversion — "Descubr&iacute; tu nivel" dual-path conversion section.
@@ -31,8 +32,7 @@ const paths: ConversionPath[] = [
       `Reserv\u00E1 tu primera sesi\u00F3n sin cargo en cualquiera de nuestras ${sedesCount.total} sedes. Un entrenador te eval\u00FAa, te asigna tu nivel y te muestra c\u00F3mo funciona el m\u00E9todo en vivo. No hay mejor forma de conocer El Templo que entrenando.`,
     sentence: "Tu cuerpo lo entiende m\u00E1s r\u00E1pido que tu cabeza.",
     ctaText: "Reserv\u00E1 tu sesi\u00F3n",
-    ctaHref:
-      "https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba",
+    ctaHref: salesWhatsappUrl("AR", DEFAULT_TRIAL_TEXT),
     ctaClass: "btn btn--primary",
     iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M24 6L8 18h32L24 6z" /><line x1="12" y1="18" x2="12" y2="34" /><line x1="20" y1="18" x2="20" y2="34" /><line x1="28" y1="18" x2="28" y2="34" /><line x1="36" y1="18" x2="36" y2="34" /><line x1="6" y1="34" x2="42" y2="34" /><circle cx="17" cy="40" r="2.5" /><circle cx="31" cy="40" r="2.5" /></svg>`,
   },

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { DEFAULT_TRIAL_TEXT, salesWhatsappUrl } from "~/utils/whatsapp";
+
 /**
  * BlogSidebar -- Sidebar for individual blog post pages.
  *
@@ -33,6 +35,7 @@ const props = defineProps<{
 }>();
 
 const config = useRuntimeConfig();
+const trialWhatsappUrl = salesWhatsappUrl("AR", DEFAULT_TRIAL_TEXT);
 
 const { data } = useFetch<BlogListResponse>(
   () => `${config.public.apiUrl}/blog/posts?limit=5`,
@@ -102,7 +105,7 @@ async function copyLink(): Promise<void> {
     <!-- Brand CTA -->
     <div class="blog-sidebar__cta">
       <a
-        href="https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba"
+        :href="trialWhatsappUrl"
         target="_blank"
         rel="noopener noreferrer"
         class="blog-sidebar__cta-btn"

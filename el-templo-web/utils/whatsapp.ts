@@ -16,12 +16,32 @@ export const DEFAULT_TRIAL_TEXT =
 
 /** `https://wa.me/<numero>` (+ `?text=` codificado si se pasa `text`). */
 export function salesWhatsappUrl(country: WebCountry, text?: string): string {
+  const base = `https://wa.me/${salesNumber(country)}`;
+  return text ? `${base}?text=${encodeURIComponent(text)}` : base;
+}
+
+/** Numero de ventas del pais, solo digitos (lanza si no esta configurado). */
+function salesNumber(country: WebCountry): string {
   const number = webData.countries[country]?.salesWhatsapp;
   if (!number) {
     throw new Error(
       `Falta el WhatsApp de ventas de ${country} en web-data.json (whatsapp.sales_number.${country}).`,
     );
   }
-  const base = `https://wa.me/${number}`;
-  return text ? `${base}?text=${encodeURIComponent(text)}` : base;
+  return number;
+}
+
+/** `tel:+<numero>` del telefono de ventas (es el mismo numero del WhatsApp). */
+export function salesPhoneHref(country: WebCountry): string {
+  return `tel:+${salesNumber(country)}`;
+}
+
+/**
+ * Numero de ventas legible: `+54 9 223 582-0521` para un celular argentino
+ * (549 + area de 3 digitos), `+<digitos>` para cualquier otro formato.
+ */
+export function salesPhoneDisplay(country: WebCountry): string {
+  const number = salesNumber(country);
+  const ar = /^549(\d{3})(\d{3})(\d{4})$/.exec(number);
+  return ar ? `+54 9 ${ar[1]} ${ar[2]}-${ar[3]}` : `+${number}`;
 }

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { salesWhatsappUrl } from "~/utils/whatsapp";
+
+const whatsappUrl = salesWhatsappUrl("AR");
 const { trackEvent } = useAnalytics();
 
 function handlePrefooterCta(): void {
@@ -14,7 +17,7 @@ function handlePrefooterCta(): void {
         La primera sesión es sin cargo. Vení a sentir el método.
       </p>
       <a
-        href="https://wa.me/5492235820521"
+        :href="whatsappUrl"
         class="btn btn--primary prefooter__cta"
         target="_blank"
         rel="noopener"
