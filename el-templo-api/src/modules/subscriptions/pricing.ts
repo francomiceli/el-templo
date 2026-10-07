@@ -83,10 +83,11 @@ export interface ResolvePlanPriceParams {
   /** CORE: precio prorrateado YA calculado por el caller (puro, no tira). */
   prorate?: { computed: number };
   /**
-   * CORE (fase 179, D-10/D-20): percent de un descuento core que compite con
-   * los del módulo (partner). Ver `PricingAdjustCtx.competingDiscountPercent`.
+   * CORE (fase 179 D-10/D-20, fase 194 D-21): MONTO del descuento core ganador
+   * (partner o invitación, ver `subscriptions/discount-arbiter.ts`) que compite
+   * con los del módulo. Ver `PricingAdjustCtx.competingDiscountAmount`.
    */
-  competingDiscountPercent?: number | null;
+  competingDiscountAmount?: number | null;
 }
 
 export interface ResolvedPlanPrice {
@@ -121,9 +122,10 @@ export async function resolvePlanPrice(
       ? "override"
       : null;
 
-  // Fase 179 (D-10/D-20): descuento core que compite con los del módulo
-  // (hoy, partner). Solo viaja el percent — el módulo no sabe quién compite.
-  const competingDiscountPercent = params.competingDiscountPercent ?? null;
+  // Fase 179 (D-10/D-20) + 194 (D-21): descuento core que compite con los del
+  // módulo (partner o invitación). Solo viaja el MONTO — el módulo no sabe
+  // quién compite.
+  const competingDiscountAmount = params.competingDiscountAmount ?? null;
 
   if (params.override && !params.override.reason) {
     // Mensaje byte-idéntico a `service.ts` (regla core, no delegable al módulo).
@@ -151,7 +153,7 @@ export async function resolvePlanPrice(
     basePrice,
     price,
     priceLocked,
-    competingDiscountPercent,
+    competingDiscountAmount,
     commit: params.commit,
     supports: params.supports,
     moduleInput: params.moduleInput,

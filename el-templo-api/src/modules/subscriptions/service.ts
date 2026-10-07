@@ -68,6 +68,7 @@ import {
   specialLineLabel,
 } from "../scheduling/special-line";
 import { resolvePlanPrice, readModuleColumns } from "./pricing";
+import { partnerCompetitor } from "./discount-arbiter";
 import type { TransactionService } from "../finance";
 import type { TxHandle } from "../finance/balance-service";
 import type { PaymentMethod } from "../finance/types";
@@ -892,6 +893,25 @@ export class SubscriptionService {
       this.db,
       this.log,
     ).computePartnerDiscountCandidate(ctx, userId);
+  }
+
+  /**
+   * Fase 194 (D-21): monto con el que el partner compite en el filter de
+   * pricing. AURA lo compara por MONTO (no por %), así que hay que conocer la
+   * lista del cobro ANTES del filter (mismo `resolvePriceType` + `getBasePrice`
+   * que el filter). `null` = sin candidato de partner.
+   */
+  private async partnerCompetingAmount(
+    plan: PlanDetail,
+    requestedType: PriceType,
+    candidate: { percent: number } | null,
+  ): Promise<number | null> {
+    if (candidate === null) return null;
+    const basePrice = this.getBasePrice(
+      plan,
+      await this.resolvePriceType(requestedType),
+    );
+    return partnerCompetitor(candidate, basePrice)?.amount ?? null;
   }
 
   /**
@@ -2430,7 +2450,7 @@ export class SubscriptionService {
     // Solo participa en la rama de cálculo normal: sin prorrateo (el helper
     // lo excluye, D-17) y sin override (paridad con el diseño original de la
     // fase, que resolvía el candidato dentro del else de cálculo normal).
-    // Su percent viaja al filter como `competingDiscountPercent`: el módulo
+    // Su monto viaja al filter como `competingDiscountAmount`: el módulo
     // AURA valida igual que siempre (categoría/tier inválido → 400 gane
     // quien gane, D-10) pero NO gasta puntos si el competidor iguala o
     // supera su tier (empate a favor del partner — el socio conserva sus
@@ -2463,7 +2483,11 @@ export class SubscriptionService {
       resolvePriceType: (t) => this.resolvePriceType(t),
       basePriceFor: (t) => this.getBasePrice(plan, t),
       moduleInput: input.moduleInput ?? {},
-      competingDiscountPercent: partnerBenefitCandidate?.percent ?? null,
+      competingDiscountAmount: await this.partnerCompetingAmount(
+        plan,
+        input.priceTypeApplied,
+        partnerBenefitCandidate,
+      ),
       override,
       prorate,
     });
@@ -2485,7 +2509,7 @@ export class SubscriptionService {
     let referralDiscountAmount: number | null = null;
 
     // ── Partners (fase 179, D-09/D-10/D-20) — decisión POST-filter ──
-    // El candidato viajó al filter como `competingDiscountPercent`. Si el
+    // El candidato viajó al filter como `competingDiscountAmount`. Si el
     // módulo NO aplicó AURA (no se pidió, o el partner igualó/superó el
     // tier — empate a favor del partner), el candidato gana y su descuento
     // se aplica acá sobre el precio base. Si el módulo SÍ aplicó AURA, el
@@ -5282,7 +5306,7 @@ export class SubscriptionService {
     // ── Partners (fase 179, D-09/D-10/D-20) — candidato ANTES del filter ──
     // Mismo esquema que assignPlan: lectura pura, solo en la rama de cálculo
     // normal (sin override; el helper excluye prorrateo/categoría, D-17). El
-    // percent viaja al filter como `competingDiscountPercent` — el módulo
+    // monto viaja al filter como `competingDiscountAmount` — el módulo
     // AURA valida igual (400 gane quien gane) pero NO gasta si el competidor
     // iguala o supera su tier (empate a favor del partner, D-20).
     const override =
@@ -5321,7 +5345,11 @@ export class SubscriptionService {
       resolvePriceType: (t) => this.resolvePriceType(t),
       basePriceFor: (t) => this.getBasePrice(targetPlan, t),
       moduleInput: input.moduleInput ?? {},
-      competingDiscountPercent: partnerBenefitCandidate?.percent ?? null,
+      competingDiscountAmount: await this.partnerCompetingAmount(
+        targetPlan,
+        input.priceTypeApplied,
+        partnerBenefitCandidate,
+      ),
       override,
     });
 
@@ -6575,8 +6603,8 @@ export class SubscriptionService {
     // ── Partners (fase 179, D-09/D-10/D-20): paridad preview↔cobro ──
     // Existe test/referrals/preview-parity.test.ts justamente porque una
     // divergencia entre preview y cobro ya pasó en producción — el candidato
-    // se resuelve ANTES del filter y su percent viaja como
-    // `competingDiscountPercent`, EXACTO como las charge-paths. SOLO
+    // se resuelve ANTES del filter y su monto viaja como
+    // `competingDiscountAmount`, EXACTO como las charge-paths. SOLO
     // LECTURA: no llama `consumePartnerBenefitOnCharge` ni
     // `qualifyAndCommission`, así que consultarlo dos veces nunca cambia
     // `benefit_status` ni crea comisiones. Sin `prorateToMonthEnd` en la
@@ -6601,7 +6629,11 @@ export class SubscriptionService {
       resolvePriceType: (t) => this.resolvePriceType(t),
       basePriceFor: (t) => this.getBasePrice(plan, t),
       moduleInput: moduleInput ?? {},
-      competingDiscountPercent: partnerBenefitCandidate?.percent ?? null,
+      competingDiscountAmount: await this.partnerCompetingAmount(
+        plan,
+        priceType,
+        partnerBenefitCandidate,
+      ),
     });
 
     const basePrice = resolved.basePrice;
@@ -6640,7 +6672,7 @@ export class SubscriptionService {
         : 0;
 
     // D-10/D-20: gana el mayor, empate a favor del partner — la comparación
-    // la hizo el filter con `competingDiscountPercent`, misma fórmula que
+    // la hizo el filter con `competingDiscountAmount`, misma fórmula que
     // las charge-paths. Si el módulo NO aplicó AURA (`discountType` quedó
     // 'none': no se pidió, tier/saldo insuficiente — tolerancia histórica
     // del preview —, o el partner igualó/superó el tier), el partner gana y
