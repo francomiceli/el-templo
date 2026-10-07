@@ -10,7 +10,9 @@ import {
   buildPurchaseEvent,
   buildRegistrationEvent,
   buildTrialEvent,
+  decideEventStatus,
   isWithinWindow,
+  registrationActionSource,
 } from "../../src/modules/marketing/meta/capi-builder";
 import {
   getMetaCapiConfig,
@@ -85,6 +87,7 @@ describe("normalizePhoneForMeta", () => {
   it("fuera del rango E.164 (8 a 15 dígitos) → null", () => {
     expect(normalizePhoneForMeta("+1234", "AR")).toBeNull();
     expect(normalizePhoneForMeta("+1234567890123456", "AR")).toBeNull();
+    expect(normalizePhoneForMeta("+1234567", "AR")).toBeNull();
     expect(normalizePhoneForMeta("+12345678", "AR")).toBe("12345678");
     expect(normalizePhoneForMeta("+123456789012345", "AR")).toBe(
       "123456789012345",
@@ -449,5 +452,96 @@ describe("config de Meta (no-op sin credenciales)", () => {
     stubAll({ META_ACCESS_TOKEN: "tok", META_AD_ACCOUNT_IDS: "1" });
     expect(getMetaSpendConfig()).not.toBeNull();
     expect(getMetaCapiConfig()).toBeNull();
+  });
+});
+
+describe("decideEventStatus (orden de las exclusiones)", () => {
+  const now = new Date("2026-10-20T12:00:00.000Z");
+  const fresh = new Date("2026-10-20T11:00:00.000Z");
+  const base = {
+    countries: ["AR", null] as Array<string | null>,
+    platform: "web" as string | null,
+    eventTime: fresh,
+    actionSource: "website" as const,
+    now,
+  };
+
+  it("todo en regla: pending (web, android y admin)", () => {
+    for (const platform of ["web", "android", "admin"]) {
+      expect(decideEventStatus({ ...base, platform })).toBe("pending");
+    }
+  });
+
+  it("cualquier sede que no sea Argentina: skipped_es, aunque otra sea AR", () => {
+    expect(decideEventStatus({ ...base, countries: ["AR", "ES"] })).toBe(
+      "skipped_es",
+    );
+    expect(decideEventStatus({ ...base, countries: ["ES"] })).toBe(
+      "skipped_es",
+    );
+    expect(decideEventStatus({ ...base, countries: ["es"] })).toBe(
+      "skipped_es",
+    );
+    // Fail-closed: un país nuevo tampoco viaja hasta que alguien lo decida.
+    expect(decideEventStatus({ ...base, countries: ["CL"] })).toBe(
+      "skipped_es",
+    );
+  });
+
+  it("iOS: skipped_ios; unknown, null o una plataforma inventada: skipped_no_origin", () => {
+    expect(decideEventStatus({ ...base, platform: "ios" })).toBe("skipped_ios");
+    expect(decideEventStatus({ ...base, platform: "unknown" })).toBe(
+      "skipped_no_origin",
+    );
+    expect(decideEventStatus({ ...base, platform: null })).toBe(
+      "skipped_no_origin",
+    );
+    expect(decideEventStatus({ ...base, platform: "windows-phone" })).toBe(
+      "skipped_no_origin",
+    );
+  });
+
+  it("fuera de ventana: skipped_window", () => {
+    const old = new Date("2026-10-10T12:00:00.000Z");
+    expect(decideEventStatus({ ...base, eventTime: old })).toBe(
+      "skipped_window",
+    );
+    expect(
+      decideEventStatus({
+        ...base,
+        eventTime: old,
+        actionSource: "physical_store",
+      }),
+    ).toBe("pending");
+  });
+
+  it("precedencia: España gana a iOS, iOS gana a la ventana, el origen gana a la ventana", () => {
+    const old = new Date("2026-09-01T12:00:00.000Z");
+    expect(
+      decideEventStatus({ ...base, countries: ["ES"], platform: "ios" }),
+    ).toBe("skipped_es");
+    expect(
+      decideEventStatus({ ...base, countries: ["ES"], platform: null }),
+    ).toBe("skipped_es");
+    expect(
+      decideEventStatus({ ...base, platform: "ios", eventTime: old }),
+    ).toBe("skipped_ios");
+    expect(decideEventStatus({ ...base, platform: null, eventTime: old })).toBe(
+      "skipped_no_origin",
+    );
+  });
+});
+
+describe("registrationActionSource", () => {
+  it("website solo con plataforma web Y user agent", () => {
+    expect(registrationActionSource("web", "Mozilla/5.0")).toBe("website");
+    expect(registrationActionSource("web", null)).toBe("system_generated");
+    expect(registrationActionSource("web", "")).toBe("system_generated");
+    expect(registrationActionSource("android", "Mozilla/5.0")).toBe(
+      "system_generated",
+    );
+    expect(registrationActionSource("admin", undefined)).toBe(
+      "system_generated",
+    );
   });
 });

@@ -76,12 +76,23 @@ export interface PurchaseEventInput extends CapiPerson {
 
 const toUnix = (d: Date): number => Math.floor(d.getTime() / 1000);
 
+/**
+ * `website` exige URL y user agent: un registro web sin user agent (purgado o
+ * nunca guardado) baja a `system_generated` en vez de arriesgar el rechazo del
+ * lote entero.
+ */
+export function registrationActionSource(
+  platform: string,
+  userAgent: string | null | undefined,
+): CapiActionSource {
+  return platform === "web" && !!userAgent ? "website" : "system_generated";
+}
+
 export function buildRegistrationEvent(
   input: RegistrationEventInput,
 ): CapiEvent {
-  // `website` exige URL y user agent: sin user agent (purgado o nunca guardado)
-  // el evento baja a `system_generated` en vez de arriesgar el rechazo del lote.
-  const isWeb = input.platform === "web" && !!input.userAgent;
+  const isWeb =
+    registrationActionSource(input.platform, input.userAgent) === "website";
   return {
     event_name: "CompleteRegistration",
     event_time: toUnix(input.eventTime),
@@ -130,4 +141,45 @@ export function isWithinWindow(
   const ageMs = now.getTime() - eventTime.getTime();
   if (ageMs < -HOUR_MS) return false;
   return ageMs <= WINDOW_MS[actionSource];
+}
+
+/** Plataformas de alta cuyos eventos pueden viajar a Meta (D-24). */
+const ELIGIBLE_PLATFORMS = ["web", "android", "admin"];
+
+export type CapiRowStatus =
+  | "pending"
+  | "skipped_es"
+  | "skipped_ios"
+  | "skipped_no_origin"
+  | "skipped_window";
+
+export interface EventEligibilityInput {
+  /** Países de las sedes del alumno (sede propia, sede del alta, sede del evento). `null` = sin dato. */
+  countries: Array<string | null>;
+  /** Plataforma de la fila de origen; `null` = el usuario no tiene fila de origen. */
+  platform: string | null;
+  eventTime: Date;
+  actionSource: CapiActionSource;
+  now: Date;
+}
+
+/**
+ * ¿Puede viajar este evento? Devuelve `pending` o el motivo de la exclusión,
+ * en este orden: país (D-25, legal: toda sede que no sea Argentina queda
+ * afuera, fail-closed), plataforma (D-24: iOS por Apple ATT, y sin fila de
+ * origen o `unknown` porque no se puede probar de dónde vino) y ventana de
+ * Meta.
+ */
+export function decideEventStatus(input: EventEligibilityInput): CapiRowStatus {
+  if (input.countries.some((c) => c !== null && c.toUpperCase() !== "AR")) {
+    return "skipped_es";
+  }
+  if (input.platform === "ios") return "skipped_ios";
+  if (input.platform === null || !ELIGIBLE_PLATFORMS.includes(input.platform)) {
+    return "skipped_no_origin";
+  }
+  if (!isWithinWindow(input.eventTime, input.actionSource, input.now)) {
+    return "skipped_window";
+  }
+  return "pending";
 }
