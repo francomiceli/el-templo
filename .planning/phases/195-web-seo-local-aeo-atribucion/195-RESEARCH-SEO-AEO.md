@@ -87,6 +87,14 @@ Fuentes principales: whitespark.ca/local-search-ranking-factors · brightlocal.c
 - **B8** Segmento GA4 de referrers IA + planilla mensual de 20-30 prompts. Franco preguntó qué le toca hacer a él (ver checklist abajo).
 - **B6** Atribución propia + CAPI, ambas dentro de la fase. Directiva de Franco: **automatizar lo más posible** del lado de Meta y Google, y cerrar la fase con una guía paso a paso de lo que le toca hacer a él (lo mínimo inevitable).
 
+### Ronda 6 (2026-10-06) — automatización y alcance
+- **B9 Gasto Meta**: automático. Job diario trae el gasto por campaña de la Marketing API (usuario del sistema del Business Manager, permiso `ads_read`; la misma credencial sirve para CAPI) → Reportes calcula costo por alumno pago por campaña y sede.
+- **B10 Google/IA automatizado**: (1) detectar origen IA en nuestro alta (referrer + `utm_source` de chatgpt.com, perplexity, gemini, copilot, etc.) y mostrarlo en Reportes; (2) job semanal de la API de Search Console (consultas/clics por página de sede) visible en el admin; (3) sync de fichas de Google Business Profile (horarios/dirección) desde `branches` — requiere aprobación de acceso de Google (puede tardar semanas) y fichas verificadas → construir detrás de flag, se activa cuando llegue el acceso. **NO** se automatiza el monitoreo de prompts por APIs de IA (queda la planilla mensual manual de B8).
+- **B11 RGPD Barcelona**: banner de consentimiento propio solo en `/es/`, con Google Consent Mode v2; GA, Pixel y eventos CAPI de usuarios ES no se disparan sin aceptación. Sin CMP externa. Argentina sin cambios.
+- **B12 WhatsApp de ventas**: un número por país (MdP y Barcelona), configurable (no hardcodeado). Reemplaza el "WhatsApp por sede" de B1 para el CTA de planes.
+- **Blog**: solo arreglos técnicos + autor real (Ignacio Bordón `Person`); artículos los escribe el equipo.
+- **Nombre canónico**: "El Templo Calistenia" (sede = "El Templo Calistenia — <Sede>").
+
 ## 6. Pendiente — retomar acá
 
 ### Ronda 5 (re-preguntar tal cual, partiendo de la explicación de abajo)

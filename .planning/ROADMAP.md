@@ -307,7 +307,7 @@ Plans:
 
 **Goal**: Que eltemplo.org traiga alumnos nuevos: datos de sedes siempre correctos (fuente única `branches`), páginas por sede/disciplina/profes indexables y citables por buscadores e IA, medición real (GA4, Pixel, Search Console, Bing) y atribución de punta a punta (de dónde vino cada alumno → pagó), automatizando todo lo posible del lado de Meta y Google
 **Depends on**: nada bloqueante (web Nuxt 4 SSG en producción). Migración de `branches` se numera al momento de ejecutar (194 usa 0255+).
-**Requirements**: investigación y decisiones A1-A7, B1-B8 en `.planning/phases/195-web-seo-local-aeo-atribucion/195-RESEARCH-SEO-AEO.md` (fuente: `.planning/research/seo-aeo-2026-10-05.md`). Todo en UNA fase (Franco 2026-10-06), incluido el fix urgente de la dirección Juan B. Justo 1018.
+**Requirements**: decisiones D-01..D-23 en `.planning/phases/195-web-seo-local-aeo-atribucion/195-CONTEXT.md`; investigación y decisiones textuales en `.planning/phases/195-web-seo-local-aeo-atribucion/195-RESEARCH-SEO-AEO.md` (fuente: `.planning/research/seo-aeo-2026-10-05.md`). Todo en UNA fase (Franco 2026-10-06), incluido el fix urgente de la dirección Juan B. Justo 1018.
 **Success Criteria** (what must be TRUE):
 
 1. Ninguna dirección, sede o conteo publicado en la web contradice la tabla `branches` (JBJ 1018, sin Chapadmalal, Park como espacio de comunidad); la web se regenera con un botón "solo web" en GitHub
