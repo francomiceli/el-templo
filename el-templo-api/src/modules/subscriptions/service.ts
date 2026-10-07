@@ -108,12 +108,13 @@ import {
   invitationConvertedAtGateSql,
   invitationLeadGateSql,
 } from "../referrals/invitation-conversion";
-import { materializeInvitationLink } from "../referrals/invitation-link";
-import {
-  notifyInviterLinkActivated,
-  notifyReferralLinkActivated,
-} from "../referrals/invitation-link-notifications";
 import { PartnerReferralService } from "../referral-partners/service";
+import {
+  materializeSettlementLink,
+  qualifyLegacyLinkOnCharge,
+  settleChargeSideEffects,
+  type ChargeEffectsDeps,
+} from "./charge-side-effects";
 import {
   assertInvitationPlanDeactivationAllowed,
   assertInvitationPlanUpdateAllowed,
@@ -505,60 +506,6 @@ export class SubscriptionService {
   // en las columnas NUEVAS referralDiscount* (D-23). Todo server-computed, sin
   // input del cliente (DESC-05). El descuento compone sobre auraSpend (Pitfall 4).
 
-  /**
-   * Flip pending→qualified del vínculo del que el payer es referido, SOLO
-   * cuando el cargo efectivamente cobra (pricePaid>0 — D-20 mata el fantasma
-   * del mes 100% bonificado). Fase 194: el precio ya NO depende de este flip (el
-   * candidato de invitación del árbitro simula la cualificación antes de calcular).
-   * Cada charge-path lo llama gateado por `planAllowsInvitationDiscount` (D-10b).
-   */
-  private async qualifyReferralOnCharge(
-    ctx: TenantContext,
-    payerUserId: number,
-    pricePaid: number,
-  ): Promise<void> {
-    if (pricePaid <= 0) return;
-    const flipped = await new ReferralService(
-      this.db,
-      this.log,
-    ).qualifyFirstPayment(ctx, payerUserId);
-
-    // Solo el flip REAL (pending→qualified) notifica; un re-cobro devuelve null
-    // y no re-notifica (VIS-02/D-31). La notificación va SIEMPRE al referidor,
-    // nunca al referido. Best-effort (D-33): un fallo de la cola JAMÁS relanza ni
-    // rompe el cobro (fase 194-14: el aviso vive en `invitation-link.ts`,
-    // compartido con la materialización del vínculo de invitación).
-    if (!flipped) return;
-    await notifyReferralLinkActivated(
-      this.db,
-      this.log,
-      flipped.referrerId,
-      flipped.referredFirstName,
-    );
-  }
-
-  /**
-   * Registro auditable del descuento tras el cargo (AURA-01): fila en
-   * referral_credits + anotación aura_transactions amount=0. No-op si amount<=0.
-   * Se llama tras recordAssignmentCharge con el subscriptionId ya conocido.
-   */
-  private async recordReferralCreditOnCharge(
-    ctx: TenantContext,
-    userId: number,
-    subscriptionId: number,
-    percent: number,
-    amount: number,
-  ): Promise<void> {
-    if (amount <= 0) return;
-    await new ReferralService(this.db, this.log).recordReferralCredit(
-      ctx,
-      userId,
-      subscriptionId,
-      percent,
-      amount,
-    );
-  }
-
   // ── Partners (fase 179) ────────────────────────────────────────────────
   // Helper GEMELO del bloque de Referidos de arriba, deliberadamente
   // separado: el CONTEXT de la fase prohíbe reusar o modificar
@@ -572,6 +519,11 @@ export class SubscriptionService {
   // Reconciliación tren v6.0: los charge-paths reciben `ctx` (fase 172), así
   // que el tenant sale SIEMPRE de ahí — se eliminaron las derivaciones por
   // sede-del-cobro/PK-de-la-sub que la fase traía de su base pre-tenancy.
+
+  /** Dependencias de los efectos laterales del cobro (`charge-side-effects.ts`). */
+  private chargeEffectsDeps(): ChargeEffectsDeps {
+    return { db: this.db, log: this.log };
+  }
 
   /**
    * Candidato de descuento de partner (D-09/D-10/D-17) — envoltorio de
@@ -722,131 +674,6 @@ export class SubscriptionService {
       settlement,
       priceAfterFilter,
     };
-  }
-
-  /**
-   * Fase 194 D-05/D-13 (T-194-53): crea el vínculo de descuento del invitado DENTRO
-   * de la tx del cobro (si el cobro falla, no queda vínculo). Se crea aunque la
-   * invitación haya perdido la comparación de este cobro: alimenta los siguientes.
-   * Devuelve el invitador a avisar DESPUÉS del commit, o `null` si no nació vínculo.
-   */
-  private async materializeSettlementLink(
-    tx: TxHandle,
-    ctx: TenantContext,
-    settlement: ChargeSettlement,
-    userId: number,
-  ): Promise<number | null> {
-    if (settlement.linkToMaterialize === null) return null;
-    const created = await materializeInvitationLink(
-      tx,
-      ctx,
-      this.log,
-      settlement.linkToMaterialize,
-      userId,
-    );
-    return created ? settlement.linkToMaterialize.inviterId : null;
-  }
-
-  /**
-   * Consume el beneficio de descuento de partner tras el cargo, con el
-   * candidato/ganador ya resueltos ANTES del filter de pricing por
-   * `resolvePartnerDiscountCandidate` (D-09/D-10/D-20). Best-effort: el
-   * cobro ya ocurrió, un fallo acá jamás lo revierte (T-179-23, mismo
-   * criterio que `qualifyPartnerOnCharge`).
-   *
-   * - `won=true`: el descuento de partner efectivamente redujo `pricePaid`
-   *   → `applied_reason='aplicado'` con el `percent`/`amount` ganadores.
-   * - `won=false` pero el cargo cobró (`pricePaid>0`): el beneficio se
-   *   consume IGUAL — la primera cuota ya pasó, aunque haya sido AURA quien
-   *   dio el descuento mayor → `applied_reason='perdio_vs_aura'`,
-   *   `applied_percent=0` (D-20).
-   * - `won=false` y `pricePaid<=0`: no se consume — un cargo 100%
-   *   bonificado no gasta "la primera cuota" real del socio (mismo umbral
-   *   que referidos/comisión).
-   * - Sin candidato (`candidate === null`): no-op, nada que consumir.
-   */
-  private async consumePartnerBenefitAfterCharge(
-    ctx: TenantContext,
-    params: {
-      userId: number;
-      subscriptionId: number;
-      pricePaid: number;
-      candidate: { linkId: number; percent: number } | null;
-      won: boolean;
-      wonPercent: number | null;
-      wonAmount: number | null;
-    },
-  ): Promise<void> {
-    const {
-      userId,
-      subscriptionId,
-      pricePaid,
-      candidate,
-      won,
-      wonPercent,
-      wonAmount,
-    } = params;
-    if (!candidate) return;
-    if (!won && pricePaid <= 0) return;
-
-    try {
-      await new PartnerReferralService(
-        this.db,
-        this.log,
-      ).consumePartnerBenefitOnCharge(
-        ctx,
-        userId,
-        subscriptionId,
-        won
-          ? {
-              percent: wonPercent ?? 0,
-              amount: wonAmount ?? 0,
-              reason: "aplicado" as const,
-            }
-          : { percent: 0, amount: 0, reason: "perdio_vs_aura" as const },
-      );
-    } catch (err: unknown) {
-      this.log.warn(
-        {
-          err: err instanceof Error ? err.message : String(err),
-          userId,
-          subscriptionId,
-        },
-        "partner: consumo del beneficio de descuento falló (best-effort, el cobro no se revierte)",
-      );
-    }
-  }
-
-  /**
-   * Cualifica el vínculo de partner del payer y da de alta su comisión
-   * (D-11), cuando el cargo efectivamente cobra (`pricePaid>0` — mismo
-   * umbral que referidos: un mes 100% bonificado no es una venta). Best-
-   * effort: la comisión es contabilidad de negocio, nunca puede romper un
-   * cobro ya efectuado (T-179-23).
-   */
-  private async qualifyPartnerOnCharge(
-    ctx: TenantContext,
-    payerUserId: number,
-    pricePaid: number,
-    subscriptionId: number,
-  ): Promise<void> {
-    if (pricePaid <= 0) return;
-    try {
-      await new PartnerReferralService(this.db, this.log).qualifyAndCommission(
-        ctx,
-        payerUserId,
-        subscriptionId,
-      );
-    } catch (err: unknown) {
-      this.log.warn(
-        {
-          err: err instanceof Error ? err.message : String(err),
-          payerUserId,
-          subscriptionId,
-        },
-        "partner: cualificación/comisión falló (best-effort, el cobro no se revierte)",
-      );
-    }
   }
 
   /**
@@ -2367,9 +2194,12 @@ export class SubscriptionService {
     // depende de este flip: el candidato lo simuló antes de calcular. Alta
     // prorrateada: el proporcional es el precio final; el vínculo se cualifica
     // en la primera renovación de mes completo.
-    if (planAllowsInvitationDiscount(plan) && !input.prorateToMonthEnd) {
-      await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
-    }
+    await qualifyLegacyLinkOnCharge(this.chargeEffectsDeps(), ctx, {
+      plan: plan,
+      prorateToMonthEnd: input.prorateToMonthEnd,
+      userId,
+      pricePaid: pricePaid,
+    });
 
     // ── Schedule slot validation ──
     // Fixed plans require an exact set. Flexible presencial plans may opt in
@@ -2775,7 +2605,8 @@ export class SubscriptionService {
 
         // Fase 194 D-05/D-13 (T-194-53): el vínculo de descuento del invitado nace
         // CON el primer cobro pago de un plan con flag, en la MISMA tx.
-        const linkedInviterId = await this.materializeSettlementLink(
+        const linkedInviterId = await materializeSettlementLink(
+          this.chargeEffectsDeps(),
           tx,
           ctx,
           settlement,
@@ -2818,47 +2649,20 @@ export class SubscriptionService {
       throw new Error("Failed to retrieve newly created subscription");
     }
 
-    // Fase 194 D-05: aviso al invitador DESPUÉS del commit (best-effort).
-    if (linkedInviterId !== null) {
-      await notifyInviterLinkActivated(
-        this.db,
-        this.log,
-        ctx,
-        linkedInviterId,
-        userId,
-      );
-    }
-
-    // Referidos (AURA-01): registro auditable del descuento aplicado, tras el
-    // cargo y con el subscriptionId ya conocido. No-op si no hubo descuento.
-    // `percent` = % NOMINAL, `amount` = monto recortado por el tope (D-10c).
-    await this.recordReferralCreditOnCharge(
-      ctx,
+    // Post-commit (ME-01): aviso al invitador, crédito de referidos, comisión y consumo de partner.
+    await settleChargeSideEffects(this.chargeEffectsDeps(), ctx, {
       userId,
-      subscriptionId,
-      referralDiscountPercent ?? 0,
-      referralDiscountAmount ?? 0,
-    );
-
-    // Partners (D-11/D-17): a diferencia del bloque de referidos de arriba,
-    // dispara con pricePaid>0 de CUALQUIER categoría (paquete/especial
-    // incluidos) y NO excluye el alta prorrateada — un alta prorrateada
-    // sigue siendo una venta real.
-    await this.qualifyPartnerOnCharge(ctx, userId, pricePaid, subscriptionId);
-
-    // Partners (D-09/D-10/D-20): consume el beneficio de descuento, con el
-    // candidato/ganador ya resueltos alrededor del filter de pricing. No-op
-    // si no hubo candidato (`resolvePartnerDiscountCandidate` corre solo en
-    // la rama de cálculo normal de precio, con las mismas exclusiones D-17
-    // que referidos).
-    await this.consumePartnerBenefitAfterCharge(ctx, {
-      userId,
-      subscriptionId,
-      pricePaid,
-      candidate: partnerBenefitCandidate,
-      won: partnerBenefitWon,
-      wonPercent: partnerDiscountPercent,
-      wonAmount: partnerDiscountAmount,
+      subscriptionId: subscriptionId,
+      pricePaid: pricePaid,
+      settlement,
+      partnerCandidate: partnerBenefitCandidate,
+      columns: {
+        referralDiscountPercent,
+        referralDiscountAmount,
+        partnerDiscountPercent,
+        partnerDiscountAmount,
+      },
+      linkedInviterId,
     });
 
     this.log.info(
@@ -4553,9 +4357,12 @@ export class SubscriptionService {
     // Fase 157 + 194 (D-10b): flip del vínculo `pending` heredado en el primer cobro
     // pago, gateado por el flag del plan destino (especial/paquete/sin flag no
     // cualifican, T-161-05). El precio ya NO depende del flip: el candidato lo simuló.
-    if (planAllowsInvitationDiscount(targetPlan) && !input.prorateToMonthEnd) {
-      await this.qualifyReferralOnCharge(ctx, userId, netAmount);
-    }
+    await qualifyLegacyLinkOnCharge(this.chargeEffectsDeps(), ctx, {
+      plan: targetPlan,
+      prorateToMonthEnd: input.prorateToMonthEnd,
+      userId,
+      pricePaid: netAmount,
+    });
 
     // Phase 112-02 + 03: tear down the outgoing sub's plan-bound enrollments
     // BEFORE closing it. Runs on this.db (not in the new-sub tx) by design
@@ -4825,7 +4632,8 @@ export class SubscriptionService {
 
         // Fase 194 D-05/D-13 (T-194-53): vínculo del invitado con el cobro, en la tx
         // (raro acá: el cambio exige membresía vigente, que no es la de invitación).
-        linkedInviterId = await this.materializeSettlementLink(
+        linkedInviterId = await materializeSettlementLink(
+          this.chargeEffectsDeps(),
           tx,
           ctx,
           settlement,
@@ -4835,47 +4643,20 @@ export class SubscriptionService {
         return { newSubscriptionId: subId };
       });
 
-      // Fase 194 D-05: aviso al invitador DESPUÉS del commit (best-effort).
-      if (linkedInviterId !== null) {
-        await notifyInviterLinkActivated(
-          this.db,
-          this.log,
-          ctx,
-          linkedInviterId,
-          userId,
-        );
-      }
-
-      // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
-      // `percent` = % NOMINAL, `amount` = monto recortado por el tope (D-10c).
-      await this.recordReferralCreditOnCharge(
-        ctx,
-        userId,
-        newSubscriptionId,
-        referralDiscountPercent ?? 0,
-        referralDiscountAmount ?? 0,
-      );
-
-      // Partners (D-11/D-17): dispara con netAmount>0 de CUALQUIER categoría
-      // y NO excluye el alta prorrateada — un cambio de plan cobrado ahora
-      // sigue siendo una venta real.
-      await this.qualifyPartnerOnCharge(
-        ctx,
-        userId,
-        netAmount,
-        newSubscriptionId,
-      );
-
-      // Partners (D-09/D-10/D-20): consume el beneficio de descuento; `won` = ganó
-      // contra la invitación por monto (D-21), si no se consume como `perdio_vs_aura`.
-      await this.consumePartnerBenefitAfterCharge(ctx, {
+      // Post-commit (ME-01): aviso al invitador, crédito de referidos, comisión y consumo de partner.
+      await settleChargeSideEffects(this.chargeEffectsDeps(), ctx, {
         userId,
         subscriptionId: newSubscriptionId,
         pricePaid: netAmount,
-        candidate: partnerBenefitCandidate,
-        won: settlement.partnerWon,
-        wonPercent: partnerDiscountPercent,
-        wonAmount: partnerDiscountAmount,
+        settlement,
+        partnerCandidate: partnerBenefitCandidate,
+        columns: {
+          referralDiscountPercent,
+          referralDiscountAmount,
+          partnerDiscountPercent,
+          partnerDiscountAmount,
+        },
+        linkedInviterId,
       });
 
       // Auto-migrate member from virtual branch to subscription's physical branch
@@ -5139,9 +4920,12 @@ export class SubscriptionService {
     // Fase 157 + 194 (D-10b): flip del vínculo `pending` heredado en el primer cobro
     // pago, gateado por el flag del plan destino (especial/paquete/sin flag no
     // cualifican, T-161-05). El precio ya NO depende del flip: el candidato lo simuló.
-    if (planAllowsInvitationDiscount(targetPlan) && !input.prorateToMonthEnd) {
-      await this.qualifyReferralOnCharge(ctx, userId, pricePaid);
-    }
+    await qualifyLegacyLinkOnCharge(this.chargeEffectsDeps(), ctx, {
+      plan: targetPlan,
+      prorateToMonthEnd: input.prorateToMonthEnd,
+      userId,
+      pricePaid: pricePaid,
+    });
 
     // New period: por defecto arranca en current.endDate (encadenado, sin gap).
     // El admin puede empujar el inicio MÁS ADELANTE (hotfix 2026-07-07, pedido
@@ -5290,7 +5074,8 @@ export class SubscriptionService {
       // Fase 194 D-05/D-13 (T-194-53): vínculo del invitado con el cobro, en la tx
       // (raro acá: casi siempre ya nació en el alta; solo si el plan del alta no
       // tenía flag y esta compra cae en la ventana D-13).
-      linkedInviterId = await this.materializeSettlementLink(
+      linkedInviterId = await materializeSettlementLink(
+        this.chargeEffectsDeps(),
         tx,
         ctx,
         settlement,
@@ -5300,46 +5085,20 @@ export class SubscriptionService {
       return { newSubscriptionId: subId };
     });
 
-    // Fase 194 D-05: aviso al invitador DESPUÉS del commit (best-effort).
-    if (linkedInviterId !== null) {
-      await notifyInviterLinkActivated(
-        this.db,
-        this.log,
-        ctx,
-        linkedInviterId,
-        userId,
-      );
-    }
-
-    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
-    // `percent` = % NOMINAL, `amount` = monto recortado por el tope (D-10c).
-    await this.recordReferralCreditOnCharge(
-      ctx,
-      userId,
-      newSubscriptionId,
-      referralDiscountPercent ?? 0,
-      referralDiscountAmount ?? 0,
-    );
-
-    // Partners (D-11/D-17): dispara con pricePaid>0 de CUALQUIER categoría —
-    // sin el guard de flag/categoría que sí aplica al descuento por invitación.
-    await this.qualifyPartnerOnCharge(
-      ctx,
-      userId,
-      pricePaid,
-      newSubscriptionId,
-    );
-
-    // Partners (D-09/D-10/D-20): consume el beneficio de descuento, con el
-    // candidato/ganador ya resueltos alrededor del filter de pricing.
-    await this.consumePartnerBenefitAfterCharge(ctx, {
+    // Post-commit (ME-01): aviso al invitador, crédito de referidos, comisión y consumo de partner.
+    await settleChargeSideEffects(this.chargeEffectsDeps(), ctx, {
       userId,
       subscriptionId: newSubscriptionId,
-      pricePaid,
-      candidate: partnerBenefitCandidate,
-      won: settlement.partnerWon,
-      wonPercent: partnerDiscountPercent,
-      wonAmount: partnerDiscountAmount,
+      pricePaid: pricePaid,
+      settlement,
+      partnerCandidate: partnerBenefitCandidate,
+      columns: {
+        referralDiscountPercent,
+        referralDiscountAmount,
+        partnerDiscountPercent,
+        partnerDiscountAmount,
+      },
+      linkedInviterId,
     });
 
     const newSub = await this.getSubscriptionById(ctx, newSubscriptionId);
@@ -5821,9 +5580,12 @@ export class SubscriptionService {
     // flag no cualifican, T-161-05). El precio ya NO depende del flip: el candidato del
     // árbitro lo simuló. Renovación prorrateada: el proporcional es el precio final; el
     // vínculo se cualifica en la primera renovación de mes completo.
-    if (planAllowsInvitationDiscount(plan) && !input.prorateToMonthEnd) {
-      await this.qualifyReferralOnCharge(ctx, userId, renewalPrice);
-    }
+    await qualifyLegacyLinkOnCharge(this.chargeEffectsDeps(), ctx, {
+      plan: plan,
+      prorateToMonthEnd: input.prorateToMonthEnd,
+      userId,
+      pricePaid: renewalPrice,
+    });
 
     // If old sub is already expired, close it now (below).
     // If still active (early renewal), leave it active — auto-expire will
@@ -6120,7 +5882,8 @@ export class SubscriptionService {
       // Fase 194 D-05/D-13 (T-194-53): vínculo del invitado con el cobro, en la tx (si el
       // cobro falla no queda vínculo). Casi siempre ya nació en el alta; solo si el alta
       // no lo creó y esta renovación cae en la ventana D-13.
-      linkedInviterId = await this.materializeSettlementLink(
+      linkedInviterId = await materializeSettlementLink(
+        this.chargeEffectsDeps(),
         tx,
         ctx,
         settlement,
@@ -6130,49 +5893,20 @@ export class SubscriptionService {
       return { newSubscriptionId: subId };
     });
 
-    // Fase 194 D-05: aviso al invitador DESPUÉS del commit (best-effort).
-    if (linkedInviterId !== null) {
-      await notifyInviterLinkActivated(
-        this.db,
-        this.log,
-        ctx,
-        linkedInviterId,
-        userId,
-      );
-    }
-
-    // Referidos (AURA-01): registro auditable tras el cargo. No-op si amount<=0.
-    // `percent` = % NOMINAL, `amount` = monto recortado por el tope (D-10c).
-    await this.recordReferralCreditOnCharge(
-      ctx,
-      userId,
-      newSubscriptionId,
-      referralDiscountPercent ?? 0,
-      referralDiscountAmount ?? 0,
-    );
-
-    // Partners (D-11/D-17): dispara con renewalPrice>0 de CUALQUIER
-    // categoría (pases especiales incluidos) y sin la exclusión de
-    // prorateToMonthEnd que sí aplica al bloque de referidos de arriba — una
-    // renovación prorrateada sigue siendo una venta real.
-    await this.qualifyPartnerOnCharge(
-      ctx,
-      userId,
-      renewalPrice,
-      newSubscriptionId,
-    );
-
-    // Partners (D-09/D-10/D-21): consume el beneficio de descuento. `won` = el árbitro
-    // lo eligió (si la invitación ganó por monto, el beneficio se consume igual como
-    // `perdio_vs_aura`: la primera cuota ya pasó).
-    await this.consumePartnerBenefitAfterCharge(ctx, {
+    // Post-commit (ME-01): aviso al invitador, crédito de referidos, comisión y consumo de partner.
+    await settleChargeSideEffects(this.chargeEffectsDeps(), ctx, {
       userId,
       subscriptionId: newSubscriptionId,
       pricePaid: renewalPrice,
-      candidate: partnerBenefitCandidate,
-      won: settlement.partnerWon,
-      wonPercent: partnerDiscountPercent,
-      wonAmount: partnerDiscountAmount,
+      settlement,
+      partnerCandidate: partnerBenefitCandidate,
+      columns: {
+        referralDiscountPercent,
+        referralDiscountAmount,
+        partnerDiscountPercent,
+        partnerDiscountAmount,
+      },
+      linkedInviterId,
     });
 
     const newSub = await this.getSubscriptionById(ctx, newSubscriptionId);
