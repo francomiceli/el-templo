@@ -157,3 +157,14 @@ Ninguno. No hay endpoints, auth ni acceso a archivos nuevos: solo configuracion 
 
 - `deploy/RUNBOOK-195-NGINX.md` y los 6 vhosts existen; commits `7415b4a6f` y `105aaaf60` en `feat/195-seo-web`.
 - No se hizo push, no se commiteo en el checkout principal, no se toco STATE.md ni ROADMAP.md.
+
+## Descartado (2026-10-07)
+
+Franco decidio no tocar nginx. Este plan queda descartado en el servidor y en el repo:
+
+- Se revirtieron los dos commits del plan (`7415b4a6f` vhosts y `105aaaf60` runbook); `deploy/nginx/*` quedo igual que en la base `30eef9921` y `deploy/RUNBOOK-195-NGINX.md` ya no existe. La historia los conserva como referencia futura.
+- El noindex de web-staging, app y admin se movio al codigo: meta robots `noindex, nofollow` en `el-templo-web/app.vue` solo si `appEnvironment === "staging"`, y fijo en `el-templo-app/index.html` y `el-templo-admin/index.html`. El verificador (`verify-seo-output.mjs`) exige el meta en staging y lo prohibe en cualquier otro build, y `deploy-staging.yml` corre con `NUXT_PUBLIC_APP_ENVIRONMENT=staging`.
+- Descartados: el 404 real y los redirects reales de `eltemplo.org` (impacto SEO bajo), la etapa 2 del noindex (`Disallow` por nginx) y la decision de HSTS.
+- `assetlinks.json` sale con `application/json` por la extension. El archivo de Apple sin extension queda como esta: si Apple lo rechaza mas adelante, hace falta un ajuste de nginx que Franco decidira en ese momento.
+- Efecto colateral del noindex: en staging `@nuxtjs/sitemap` excluye las paginas con noindex y el sitemap sale vacio; los chequeos de sitemap del verificador se saltean con `NUXT_PUBLIC_APP_ENVIRONMENT=staging`.
+- La Task 3 (aplicacion por SSH) ya no aplica. Las secciones anteriores de este SUMMARY (tabla de vhosts, comandos SSH, hallazgo de HSTS) son historicas.

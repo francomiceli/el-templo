@@ -69,7 +69,7 @@ Los valores del `.env.production` de la API se escriben en cada deploy de la API
 
 ## 5. nginx
 
-Los cambios de nginx van en dos tandas (ver runbook): **tanda A** (noindex en web-staging, app y admin + `.well-known` como JSON) se puede aplicar en cualquier momento; **tanda B** (404 real y redirects de `eltemplo.org`) va **después** de que la web nueva esté en producción y verificada: con el `404` real, una ruta no prerenderizada deja de caer en el shell de la SPA. El procedimiento, con el diff aplicable y el chequeo de que el vhost live conserva las líneas de certbot, está en el runbook del plan 195-13 (`deploy/RUNBOOK-195-NGINX.md`). Requiere SSH: gate humano.
+No se toca (decisión de Franco, 2026-10-07). El noindex de web-staging, app y admin sale con el deploy normal (meta robots en el código; el verificador impide noindex en producción). El 404 real y los redirects reales quedaron descartados (impacto SEO bajo); la historia los conserva (commits `7415b4a6f` y `105aaaf60`). Si Apple rechaza el `apple-app-site-association` por no tener `application/json`, hará falta un ajuste de nginx que decide Franco en ese momento.
 
 ## 6. Cómo usar "solo web"
 

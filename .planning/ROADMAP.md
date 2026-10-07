@@ -333,7 +333,7 @@ Plans:
 - [x] 195-10-PLAN.md — Reportes › Origen de altas: embudo por canal/campaña/sede/moneda, costo por alumno pago, IA y Search Console
 - [x] 195-11-PLAN.md — CI/CD: botón solo-web, backup/rollback por proyecto, deploy tolerante a falla web, secrets de medición, rollout en 2 pasos
 - [x] 195-12-PLAN.md — App: .well-known al artifact, validador, reseña in-app (plugin aprobado por Franco); bump de versión descartado por Franco
-- [x] 195-13-PLAN.md — nginx: 404 real, redirects reales, noindex etapa 1, .well-known + runbook (checkpoint SSH)
+- [x] 195-13-PLAN.md — nginx — DESCARTADO por Franco (2026-10-07): sin cambios en el servidor; noindex movido al código
 - [x] 195-14-PLAN.md — Guía final para Franco (Meta, Google, bloque C, ASO) + generador de datos exactos de sedes + planilla de prompts IA
 
 ## Progress

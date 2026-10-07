@@ -23,8 +23,8 @@ Orden de la guía, de lo más urgente a lo menos:
 - **Deploy:** publicar los cambios en el servidor.
 - **"Solo web":** un botón de GitHub (Actions, Deploy, Run workflow, target `solo-web`) que vuelve a publicar solamente la página `eltemplo.org`. Sirve para cambios de contenido.
 - **Migración:** un archivo que cambia datos o tablas de la base. Se aplica sola cuando se publica la API.
-- **noindex:** una orden para que Google no muestre una página en sus resultados. La usamos en staging, la app y el admin.
-- **nginx:** el programa del servidor que entrega las páginas. Tocarlo requiere entrar por SSH.
+- **noindex:** una orden para que Google no muestre una página en sus resultados. La usamos en staging, la app y el admin: sale en el código (una etiqueta `meta robots`), con el deploy normal.
+- **nginx:** el programa del servidor que entrega las páginas. En esta fase **no se toca** (decisión de Franco).
 
 ---
 
@@ -41,7 +41,7 @@ Orden de la guía, de lo más urgente a lo menos:
 | Mandar horarios, teléfono y dirección a las fichas de Google (cuando Google apruebe la API y se active)     | Crear y verificar las fichas, pedir el acceso a la API y autorizar una vez       |
 | Pedir reseña en la app de forma neutral (cada 120 días como máximo)                                         | Responder reseñas, ordenar directorios, pedir links a la prensa                  |
 | Detectar tráfico que viene de ChatGPT, Perplexity, Gemini, etc.                                             | Correr la planilla de prompts una vez por mes (1 hora)                           |
-| Dejar noindex en staging, app y admin                                                                       | Pedir a quien tenga el servidor que aplique nginx (con tu OK, de a un comando)   |
+| Dejar noindex en staging, app y admin (desde el código, con el deploy normal)                               | Nada: no se toca el servidor                                                     |
 
 ---
 
@@ -51,7 +51,7 @@ Orden de la guía, de lo más urgente a lo menos:
 | ---------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Quién administra el DNS de `eltemplo.org`                                    | Preguntar en el equipo o al registrador del dominio | Nadie lo "carga": hace falta para crear 1 o 2 registros de texto (sección 6)                | No se puede verificar Search Console ni Bing, y no hay estadísticas de búsqueda                     |
 | Texto de `/privacidad` aprobado, con razón social, NIF y domicilio de España | Franco y un asesor legal                            | `docs/privacidad-con-medicion.vue.txt` → `el-templo-web/pages/privacidad.vue` (sección 1.2) | No se puede activar GA4, el Pixel ni CAPI (la web sigue con el texto actual, sin medición)          |
-| Decisiones: Moreno, bio de Ignacio, HSTS                                     | Franco                                              | Sección 1 (cada una dice su archivo)                                                        | Se publica con el comportamiento actual                                                             |
+| Decisiones: Moreno y bio de Ignacio                                          | Franco                                              | Sección 1 (cada una dice su archivo)                                                        | Se publica con el comportamiento actual                                                             |
 | Link de Google Maps, Place ID, teléfono y código postal de cada sede         | Google Maps, Place ID Finder y cada sede            | JSON del paso 2.2, que genera la migración `0275_sedes_maps_franco.sql`                     | La web no publica coordenadas exactas, y la ficha de Google usa el WhatsApp de ventas como teléfono |
 | ID de Google Analytics 4 (`G-…`)                                             | GA4, Administrar, Flujos de datos                   | Secret `WEB_GA4_ID`                                                                         | La web no mide visitas                                                                              |
 | ID del Pixel de Meta                                                         | Meta, Events Manager                                | Secrets `WEB_META_PIXEL_ID` (web) y `META_PIXEL_ID` (API)                                   | La web no usa el Pixel y CAPI queda apagado                                                         |
@@ -111,7 +111,7 @@ Resultado → se carga en: el archivo `el-templo-web/pages/privacidad.vue` (desd
 
 ### 1.3 Decisiones abiertas
 
-Hay tres decisiones que el sistema no puede tomar por vos:
+Hay dos decisiones que el sistema no puede tomar por vos:
 
 **a) Moreno y los horarios publicados (filtro D-30).** La web publica como "horarios de apertura" solo las clases regulares de cada sede. En la base de desarrollo, Moreno **solo tiene Yoga, que es una clase especial**, así que quedaría sin horarios publicados: su página dice "consultá horarios por WhatsApp" y a su ficha de Google no se le mandan horarios. Antes de decidir, mirá en Admin, Horarios, si Moreno en producción tiene clases regulares cargadas.
 
@@ -124,10 +124,6 @@ Resultado → se carga en: ningún lado si la respuesta es "dejarlo". Si se camb
 **b) La bio de Ignacio: 10 o 20 años.** El sitio dice en un lado "más de 20 años de experiencia" (la bio de `profes.ts` y la sección fundador) y en otro "más de 10 años formando atletas, más de 10.000 alumnos" (la sección del método). Elegí la correcta y hay que unificarla.
 
 Resultado → se carga en: archivo `el-templo-web/data/profes.ts` y el texto de la sección del método (`el-templo-web/components/SectionMethod.vue`). Se publica con "solo web".
-
-**c) HSTS.** Es una orden que le dice al navegador "usá siempre https en este sitio durante un año". El repo la declara, pero el servidor hoy no la envía. Si se aplica tal cual, vale para `eltemplo.org` y todos sus subdominios (la API, la app y el admin) durante un año, y no se puede deshacer rápido. **Recomendación: no adoptarla ahora.** El runbook de nginx trae el comando que la saca del archivo antes de subirlo. Si la querés, que sea un cambio aparte y a propósito.
-
-Resultado → se carga en: el vhost de nginx, según `deploy/RUNBOOK-195-NGINX.md`, sección 1.5 ("Decisión HSTS").
 
 ### 1.4 Orden general
 
@@ -250,15 +246,11 @@ El paso 2 se puede hacer sin ningún secret: la web sale con el `/privacidad` ac
 4. **Probar el botón "solo web" en staging, una vez.** GitHub, Actions, **Deploy Staging**, Run workflow, rama `staging`, target `solo-web`. Tiene que construir solo la web. Esto confirma que el botón anda (hoy se validó leyendo la documentación de GitHub, no probándolo). Hacelo después del paso 1.
 5. Prueba en staging (UAT). Recién después, el mismo orden hacia producción.
 
-### 4.4 Servidor (nginx): 404 real, redirects y noindex
+### 4.4 Servidor (nginx): no se toca
 
-Esto se hace por SSH, con tu OK **de a un comando**. El procedimiento completo, con comandos, comprobaciones y vuelta atrás, está en **`deploy/RUNBOOK-195-NGINX.md`**.
+Decisión de Franco (2026-10-07): **nginx no se toca en esta fase**. El noindex de `web-staging`, la app y el admin sale con el deploy normal (una etiqueta `meta robots` en el código, y el verificador de la web impide que producción salga con noindex). El 404 real y los redirects reales de `eltemplo.org` quedan descartados porque su impacto SEO es bajo; si se quieren retomar, la historia de git los conserva (commits `7415b4a6f` y `105aaaf60`).
 
-- **Tanda A** (se puede hacer en cualquier momento): noindex en `web-staging`, la app y el admin (producción y staging), y que los archivos de links directos de la app se entreguen como JSON. Orden: `web-staging`, `app-staging`, `admin-staging`, `app`, `admin`.
-- **Tanda B** (**solo cuando la web nueva ya esté en producción**): 404 real y redirects reales en `eltemplo.org`. Hay una comprobación previa en el runbook (sección 0): si da 0, no se aplica.
-- **El archivo del repo NO sirve para copiarlo tal cual**: no trae las líneas de certificados que agregó certbot en el servidor. El runbook usa un "merge de 3 vías" que las conserva. No lo saltees.
-
-Resultado → se carga en: los archivos de nginx del servidor (`/etc/nginx/sites-available/...`), siguiendo `RUNBOOK-195-NGINX.md`. El repo guarda la versión objetivo en `deploy/nginx/`.
+Resultado → se carga en: ningún lado. Se publica con el deploy normal.
 
 ### 4.5 Qué revisar apenas se publica
 
@@ -267,7 +259,7 @@ Resultado → se carga en: los archivos de nginx del servidor (`/etc/nginx/sites
 - [ ] En `/es`, **antes** de aceptar el banner, la pestaña Network del navegador no muestra pedidos a `googletagmanager.com` ni a `facebook.net`. Después de aceptar sí.
 - [ ] GA4 Tiempo real te muestra visitando desde Argentina.
 - [ ] Un registro de prueba desde un link de la web aparece en Admin, Reportes, "Origen de altas" con su canal.
-- [ ] `https://eltemplo.org/no-existe` da 404 real (solo después de la tanda B).
+- [ ] En `https://web-staging.eltemplo.org/` el código fuente trae `<meta name="robots" content="noindex, nofollow">` y en `https://eltemplo.org/` no.
 
 ---
 
@@ -340,7 +332,7 @@ Resultado → se carga en: secret de GitHub `GOOGLE_SC_SERVICE_ACCOUNT_BASE64` (
 
 ### 6.4 Pedir que Google saque las URLs viejas de staging, app y admin
 
-Si en Google siguen apareciendo páginas de `web-staging`, la app o el admin, se pueden pedir "Eliminaciones" en Search Console (Indexación, Eliminaciones, Nueva solicitud). El procedimiento completo y cuándo conviene está en `deploy/RUNBOOK-195-NGINX.md`, sección E.
+Si en Google siguen apareciendo páginas de `web-staging`, la app o el admin, se pueden pedir "Eliminaciones" en Search Console (Indexación, Eliminaciones, Nueva solicitud). Conviene si pasan semanas y siguen apareciendo.
 
 Resultado → se carga en: Search Console (el pedido queda registrado ahí). Nada más.
 
@@ -505,7 +497,7 @@ Resultado → se carga en: secret de GitHub `GBP_SYNC_MODE` (`dry-run`, después
 2. Hacé lo mismo para la versión de staging (`com.eltemplo.app.staging`) con la huella de su clave de firma.
 3. Abrí `el-templo-app/public/.well-known/assetlinks.json` y reemplazá los dos textos que empiezan con `TODO_` por esas huellas (formato `AA:BB:CC:...`, 32 pares).
 4. Comprobá en la terminal, desde `el-templo-app`: `pnpm check-well-known --strict`. Tiene que terminar sin errores ni avisos.
-5. Se publica con el deploy de la app. Después, `curl -sI https://app.eltemplo.org/.well-known/assetlinks.json` tiene que decir `application/json` (hace falta nginx tanda A de la sección 4.4).
+5. Se publica con el deploy de la app. Después, `curl -sI https://app.eltemplo.org/.well-known/assetlinks.json` tiene que decir `application/json`: sale así por la extensión `.json`, sin tocar nginx. Para el archivo de Apple (`apple-app-site-association`, sin extensión) nginx lo entrega como HTML; si Apple lo rechaza más adelante, hará falta un ajuste de nginx que decidís vos en ese momento.
 
 Resultado → se carga en: archivo `el-templo-app/public/.well-known/assetlinks.json` (se publica con el deploy de la app).
 
@@ -568,13 +560,7 @@ Resultado → se carga en: Google Sheets (la copia de la planilla). Nada en GitH
 
 ## 12. Semanas después del lanzamiento: etapa 2 del noindex
 
-En la etapa 1 (sección 4.4) staging, la app y el admin dicen "no me muestres" **sin** bloquear a Google (es a propósito: si se bloquea al mismo tiempo, Google no llega a leer la orden y puede seguir mostrando esas páginas).
-
-Cuando en Search Console esas páginas ya figuren fuera del índice (Páginas, "Excluida por la etiqueta noindex"), o ya hayas pedido su retiro (sección 6.4), se pasa a la **etapa 2**: agregar la regla `Disallow` en el `robots.txt` de esos sitios (web-staging, app, admin y sus versiones de staging). `eltemplo.org` **no** se toca.
-
-Se hace con `deploy/RUNBOOK-195-NGINX.md`, **sección D**, por SSH, con tu OK de a un comando. **No se hace antes de tiempo.**
-
-Resultado → se carga en: los archivos de nginx del servidor, según `RUNBOOK-195-NGINX.md` sección D (regla `Disallow` en el `robots.txt`).
+No aplica: no hay cambios en el servidor. Si en el futuro se quiere agregar `Disallow`, se puede hacer en el `robots.txt` generado de `web-staging` (no antes de que Google saque esas páginas del índice, porque si no, no llega a leer el noindex).
 
 ---
 
@@ -586,8 +572,7 @@ Resultado → se carga en: los archivos de nginx del servidor, según `RUNBOOK-1
 - Activar CAPI sin que `/privacidad` nueva esté en producción.
 - Cargar `WEB_GA4_ID`, `WEB_META_PIXEL_ID` o cualquier `META_*` con el `/privacidad` viejo publicado.
 - Publicar con el marcador `PENDIENTE DE COMPLETAR` de `/privacidad`.
-- Agregar `Disallow` a staging, app y admin antes de que Google los saque del índice.
-- Copiar un vhost del repo encima del servidor sin el merge del runbook (rompe el certificado).
+- Agregar `Disallow` a `web-staging` antes de que Google lo saque del índice.
 - Verificar Search Console subiendo un archivo (cada publicación de la web lo borra).
 
 ---
@@ -598,12 +583,11 @@ Resultado → se carga en: los archivos de nginx del servidor, según `RUNBOOK-1
 
 - [ ] 1.1 Sé quién administra el DNS
 - [ ] 1.2 `/privacidad` nueva (desde `docs/privacidad-con-medicion.vue.txt`) revisada por un asesor, marcador de España completo y publicada ANTES de cargar IDs de medición
-- [ ] 1.3 Decidí Moreno, la bio de Ignacio y HSTS
+- [ ] 1.3 Decidí Moreno y la bio de Ignacio
 - [ ] 2 Teléfonos, links de Maps, Place ID y códigos postales juntados y migración 0275 generada y revisada
 - [ ] 3.1 Secret `WEB_GA4_ID` cargado
 - [ ] 3.2 Secrets `WEB_META_PIXEL_ID` y `META_PIXEL_ID` cargados
 - [ ] 4 Rollout: paso 1 en staging, botón "solo web" probado en staging, paso 2 en staging, UAT, y lo mismo en producción
-- [ ] 4.4 nginx tanda A aplicada y tanda B aplicada (con la comprobación previa)
 - [ ] 4.5 Revisé el listado de qué mirar apenas se publica
 - [ ] 5 Contenido (profes, planes, tags, WhatsApp) completo o anotado
 
@@ -631,4 +615,3 @@ Resultado → se carga en: los archivos de nginx del servidor, según `RUNBOOK-1
 
 - [ ] 10 Reseñas, nombre, dirección y teléfono unificados, directorios, prensa, Instagram, Bing Places, Apple Business Connect, Urban Sports Club y ClassPass
 - [ ] 11 Planilla de prompts en Google Sheets y rutina mensual
-- [ ] 12 Etapa 2 del noindex programada para cuando Google desindexe
