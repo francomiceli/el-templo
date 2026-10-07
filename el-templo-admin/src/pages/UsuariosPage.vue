@@ -235,7 +235,7 @@ const roleOptions = [
   { label: 'Admin sede', value: 'admin_sede' },
   // 2026-10-06 (API mig 0258): profe de actividad (yoga) SIN plata. Lleva sedes
   // operativas (user_branches) como coach y NO lleva País.
-  { label: 'Profe de actividad (sin cobros)', value: 'coach_actividad' },
+  { label: 'Profe de actividad', value: 'coach_actividad' },
 ];
 
 const BRANCH_ROLES = new Set([
@@ -281,7 +281,7 @@ const ROLE_LABELS: Record<string, string> = {
   recepcion: 'Recepcion',
   tv: 'Televisor',
   admin_sede: 'Admin sede',
-  coach_actividad: 'Profe actividad',
+  coach_actividad: 'Profe de actividad',
 };
 
 // =========================================================================
