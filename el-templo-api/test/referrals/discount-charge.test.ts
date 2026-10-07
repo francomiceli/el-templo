@@ -103,7 +103,11 @@ async function readReferralAuraAmount(userId: number): Promise<number | null> {
 
 describe("Referral discount on charge-paths", () => {
   it("(a) renew con 1 vínculo qualified + contraparte activa reduce 10% + credit + aura amount=0", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    // 194-18 D-10b: la renovación también respeta el flag del plan (antes descontaba sin gate).
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 10000,
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "dc-a-r@test.com" });
     const referred = await createMember(app, { email: "dc-a-d@test.com" });
     // Sub inicial del referrer SIN descuento (el vínculo se crea después).
@@ -124,7 +128,11 @@ describe("Referral discount on charge-paths", () => {
   });
 
   it("(b) contraparte inactiva → sin descuento ese ciclo (DESC-03)", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    // 194-18 D-10b: la renovación también respeta el flag del plan (antes descontaba sin gate).
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 10000,
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "dc-b-r@test.com" });
     const referred = await createMember(app, { email: "dc-b-d@test.com" });
     await assignPlan(app, adminToken, referrer.id, {
@@ -141,7 +149,11 @@ describe("Referral discount on charge-paths", () => {
   });
 
   it("(c) 4 vínculos activos topean a 40%", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    // 194-18 D-10b: la renovación también respeta el flag del plan (antes descontaba sin gate).
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 10000,
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "dc-c-r@test.com" });
     await assignPlan(app, adminToken, referrer.id, {
       planId: plan.id,
@@ -165,7 +177,11 @@ describe("Referral discount on charge-paths", () => {
   });
 
   it("(d) simetría: el descuento aplica también al referido", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+    // 194-18 D-10b: la renovación también respeta el flag del plan (antes descontaba sin gate).
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 10000,
+      allowsInvitationDiscount: true,
+    });
     const referrer = await createMember(app, { email: "dc-d-r@test.com" });
     const referred = await createMember(app, { email: "dc-d-d@test.com" });
     await assignPlan(app, adminToken, referred.id, {
