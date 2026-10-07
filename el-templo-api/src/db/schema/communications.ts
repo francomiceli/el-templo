@@ -163,6 +163,13 @@ export const tvAvisos = mysqlTable(
     title: varchar("title", { length: 120 }).notNull(),
     body: text("body").notNull(),
     mode: tvAvisoModeEnum.notNull().default("manual"),
+    // 2026-10-06 (migración 0259): fondo de la placa — "claro" (velo crema de
+    // la flexibilidad inicial) u "oscuro" (charcoal del cierre). varchar y no
+    // enum de MySQL, mismo criterio que `tv_class_state.screen`.
+    tema: varchar("tema", { length: 10 })
+      .$type<"claro" | "oscuro">()
+      .notNull()
+      .default("oscuro"),
     isActive: boolean("is_active").notNull().default(false),
     scopeBranchIds: json("scope_branch_ids").$type<number[]>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

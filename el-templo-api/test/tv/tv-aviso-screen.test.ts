@@ -160,6 +160,7 @@ async function createTvAviso(
     title: string;
     body: string;
     mode: "manual" | "flex_inicio" | "flex_final";
+    tema: "claro" | "oscuro";
     isActive: boolean;
     tenantId: number;
     scopeBranchIds: number[] | null;
@@ -171,6 +172,7 @@ async function createTvAviso(
       title: overrides.title ?? "Aviso de prueba 193-10",
       body: overrides.body ?? "Cuerpo del aviso de prueba 193-10",
       mode: overrides.mode ?? "manual",
+      ...(overrides.tema !== undefined ? { tema: overrides.tema } : {}),
       isActive: overrides.isActive ?? true,
       ...(overrides.scopeBranchIds !== undefined
         ? { scopeBranchIds: overrides.scopeBranchIds }
@@ -244,7 +246,7 @@ interface ControlStateBody {
 interface PollBody {
   screen: string;
   class: unknown;
-  aviso: { id: number; title: string; body: string } | null;
+  aviso: { id: number; title: string; body: string; tema: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,6 +295,8 @@ describe("screen 'aviso' — escritura, poll, salida y degradacion (D-25/D-26)",
     const avisoId = await createTvAviso({
       title: "Recorda traer la toalla",
       body: "Vamos a hacer un cambio en la rutina de hoy",
+      // 2026-10-06 (migración 0259): sin tema elegido, la placa es oscura.
+      tema: "oscuro",
     });
 
     const writeRes = await postState(coachToken, {
@@ -597,6 +601,7 @@ describe("aviso sin plani aprobada (clases de yoga, 2026-10-06)", () => {
     const avisoId = await createTvAviso({
       title: "Yoga regenerativo",
       body: "by El Templo",
+      tema: "claro",
     });
 
     const writeRes = await postState(coachToken, {
@@ -621,7 +626,12 @@ describe("aviso sin plani aprobada (clases de yoga, 2026-10-06)", () => {
     const poll = JSON.parse((await getScreen(coachToken, branchId)).body) as PollBody;
     expect(poll.screen).toBe("aviso");
     expect(poll.class).toBeNull();
-    expect(poll.aviso).toEqual({ id: avisoId, title: "Yoga regenerativo", body: "by El Templo" });
+    expect(poll.aviso).toEqual({
+      id: avisoId,
+      title: "Yoga regenerativo",
+      body: "by El Templo",
+      tema: "claro",
+    });
   });
 
   it("(Y2) cambiar de aviso sin plani: el TV pasa al segundo", async () => {

@@ -224,6 +224,7 @@ export const tvControlScreenSchema = {
                 id: { type: "integer" },
                 title: { type: "string" },
                 body: { type: "string" },
+                tema: { type: "string", enum: ["claro", "oscuro"] },
               },
             },
           ],

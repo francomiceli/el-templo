@@ -257,6 +257,8 @@ export interface TvAvisoPollPayload {
   id: number;
   title: string;
   body: string;
+  /** 2026-10-06: fondo de la placa (lo elige el admin por aviso). */
+  tema: "claro" | "oscuro";
 }
 
 // =============================================================================

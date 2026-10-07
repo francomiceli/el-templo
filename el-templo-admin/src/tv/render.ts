@@ -26,7 +26,7 @@
 import { beep } from './audio';
 import { createTvLogger } from './logger';
 import { nowCorrected } from './poll';
-import type { TvAvisoPollPayload, TvClassPayload, TvExercise, TvPollResponse, TvScreen } from './poll';
+import type { TvAvisoPollPayload, TvClassPayload, TvExercise, TvPollResponse } from './poll';
 /* El relleno a dos digitos vive en `scale.ts`: es el unico helper de relleno de todo
    `src/tv/` (reloj, timer y logger). El metodo nativo del string es ES2017 — Pitfall 5. */
 import { pad2 } from './scale';
@@ -364,11 +364,6 @@ let lastCapsulaKey = '';
  *  mientras siga activo, así que alcanza con el id + el largo del texto (una
  *  edición del admin sin cambiar el id igual dispara un repintado). */
 let lastAvisoKey = '';
-/** Fase 193 (D-25): última pantalla NO-aviso vista — el modo manual puede
- *  dispararse desde CUALQUIER punto de la tira del control (incluida la
- *  flexibilidad inicial, "en cualquier momento"), así que necesita memoria de
- *  qué había antes para elegir el velo día/noche de la placa (D-25). */
-let lastNonAvisoScreen: TvScreen = 'idle';
 let lastBeepKey: string | null = null;
 /** Última fase+ronda con cartel VAMOS!/DESCANSO mostrado; evita repetir el destello. */
 let lastFaseKey: string | null = null;
@@ -401,7 +396,6 @@ export function resetRender(): void {
   lastQuoteKey = '';
   lastCapsulaKey = '';
   lastAvisoKey = '';
-  lastNonAvisoScreen = 'idle';
   lastBeepKey = null;
   lastFaseKey = null;
   lastFormatoRaw = null;
@@ -754,13 +748,6 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.avisoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
-  // Fase 193 (D-25): recordar la última pantalla NO-aviso — `avisoVeloFor`
-  // la necesita para el modo manual. Se actualiza ANTES de calcular el velo
-  // de este mismo payload (si HOY es 'aviso', el valor de ayer/la última
-  // pantalla real sigue disponible en `lastNonAvisoScreen` sin pisarse).
-  if (payload.screen !== 'aviso') {
-    lastNonAvisoScreen = payload.screen;
-  }
   const avisoVelo = avisoVeloFor(payload);
   const avisoWasVisible = previo !== null && previo.aviso !== null;
   const avisoIsVisible = payload.aviso !== null;
@@ -1006,21 +993,14 @@ function encenderPalabras(palabras: HTMLElement[]): void {
 /**
  * Velo (día/noche) de la placa de aviso (D-25/D-28).
  *
- * `idle` es siempre día (la flexibilidad inicial, cápsula o placa, es
- * diurna) y `closing` es siempre noche (la frase final, charcoal) — esos dos
- * casos son deterministas, no necesitan memoria. El modo manual
- * (`screen === 'aviso'`) es el único ambiguo: se dispara desde CUALQUIER
- * punto de la tira del control (D-25 "en cualquier momento"), así que usa
- * `lastNonAvisoScreen` (la última pantalla no-aviso vista) para decidir si
- * venía de la flexibilidad inicial (día) o de cualquier otro punto — clase o
- * cierre — (noche).
+ * 2026-10-06: lo elige el admin por aviso (`tema`, API migración 0259) en vez
+ * de deducirlo de la pantalla anterior — un aviso manual disparado desde la
+ * flexibilidad inicial quedaba con el título bronce sobre el velo claro. Los
+ * avisos previos se migraron a lo que mostraban (flex_inicio claro, el resto
+ * oscuro). Sin aviso la placa no se ve: el velo da igual.
  */
 function avisoVeloFor(payload: TvPollResponse): 'dia' | 'noche' {
-  if (payload.screen === 'idle') return 'dia';
-  if (payload.screen === 'aviso') {
-    return lastNonAvisoScreen === 'idle' ? 'dia' : 'noche';
-  }
-  return 'noche';
+  return payload.aviso?.tema === 'claro' ? 'dia' : 'noche';
 }
 
 /**

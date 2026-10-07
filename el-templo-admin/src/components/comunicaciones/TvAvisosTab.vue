@@ -138,6 +138,10 @@ function sedesLabel(row: TvAvisoRow): string {
 function cardMeta(row: TvAvisoRow): Array<{ icon: string; text: string }> {
   return [
     { icon: 'tv', text: MODE_LABELS[row.mode] },
+    {
+      icon: row.tema === 'claro' ? 'light_mode' : 'dark_mode',
+      text: row.tema === 'claro' ? 'Fondo claro' : 'Fondo oscuro',
+    },
     { icon: 'place', text: sedesLabel(row) },
   ];
 }
