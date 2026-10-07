@@ -23,6 +23,7 @@ import { startReassignMultibranchJob } from "./jobs/reassign-multibranch";
 import { startWellhubSyncJob } from "./jobs/wellhub-sync";
 import { startTenureMilestonesJob } from "./jobs/tenure-milestones";
 import { startNotificationRulesJob } from "./jobs/notification-rules";
+import { startMarketingGoogleJob } from "./jobs/marketing-google";
 import { startMarketingMetaJob } from "./jobs/marketing-meta";
 
 async function start() {
@@ -59,6 +60,9 @@ async function start() {
     // Fase 195 (plan 08): CAPI + gasto de Meta (apagados sin credenciales) y
     // purga de IP/user agent (siempre activa). Barre por gimnasio activo.
     startMarketingMetaJob(app.db);
+    // Fase 195 (plan 09): Search Console semanal + sync de fichas de GBP diario
+    // (apagados sin credenciales; GBP además arranca en GBP_SYNC_MODE=off).
+    startMarketingGoogleJob(app.db);
     await startMarkNoShowsJob(app.db);
     await startNotificationJobs(app.db);
   } catch (err: unknown) {
