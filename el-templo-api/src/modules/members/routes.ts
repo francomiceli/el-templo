@@ -413,9 +413,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         { header: "Pais", key: "pais", width: 8 },
         // Fase 194 D-25: importe registrado por el sistema (descuento incluido),
         // informativo para Leandro. Van al FINAL: no se reordenan las columnas
-        // existentes porque Leandro ya usa el archivo.
-        { header: "Importe", key: "importe", width: 12 },
-        { header: "Moneda", key: "moneda", width: 9 },
+        // existentes porque Leandro ya usa el archivo. ME-08: es lo PAGADO en el
+        // período vigente (un alta prorrateada o con descuento muestra ese monto),
+        // NO el próximo débito: el encabezado lo dice para que nadie arme la remesa
+        // con este número.
+        { header: "Importe último cobro", key: "importe", width: 20 },
+        { header: "Moneda último cobro", key: "moneda", width: 20 },
       ];
 
       const headerRow = sheet.getRow(1);

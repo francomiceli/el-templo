@@ -386,8 +386,8 @@ describe("Domiciliación bancaria (SEPA)", () => {
       rows.push({
         socio: String(row.getCell(col("Socio")).value ?? ""),
         plan: String(row.getCell(col("Plan")).value ?? ""),
-        importe: row.getCell(col("Importe")).value,
-        moneda: String(row.getCell(col("Moneda")).value ?? ""),
+        importe: row.getCell(col("Importe último cobro")).value,
+        moneda: String(row.getCell(col("Moneda último cobro")).value ?? ""),
       });
     });
     return { headers, rows };
@@ -411,8 +411,12 @@ describe("Domiciliación bancaria (SEPA)", () => {
     });
 
     const { headers, rows } = await exportRows(esAdminToken);
-    // Las 11 columnas históricas no se reordenan: Importe/Moneda al final.
-    expect(headers.slice(-3)).toEqual(["Pais", "Importe", "Moneda"]);
+    // Las 11 columnas históricas no se reordenan: Importe/Moneda al final (ME-08: rotulados como último cobro, no como próximo débito).
+    expect(headers.slice(-3)).toEqual([
+      "Pais",
+      "Importe último cobro",
+      "Moneda último cobro",
+    ]);
     expect(headers[0]).toBe("Socio");
     const row = rows.find((r) => r.socio === "Marta ConDescuento");
     expect(row).toBeDefined();
