@@ -65,7 +65,7 @@ que la fase NO tocó ninguno de esos archivos: es deuda ajena (el baseline envej
 
 ## 2. Orden de push (gate humano: preguntar a Franco antes de cada push)
 
-1. **Backup primero** (sección 4). Staging y prod comparten host y MySQL: las migraciones y los UPDATE de datos de 0260/0261 corren contra datos de producción desde el primer push a staging.
+1. **Bases separadas (corrección del orquestador):** staging y prod comparten host y servidor MySQL, pero son bases DISTINTAS (`eltemplo_staging` y `eltemplo`). El push a staging corre 0255-0261 solo contra `eltemplo_staging`; contra prod (`eltemplo`) corren recién con el push a **master**. El **backup de prod (sección 4) va antes del push a master**. En staging, 0260 puede quedar no-op si el clon no tiene el vínculo 3 en el estado esperado: correr el SQL de la sección 3 contra `eltemplo_staging` (calificando el nombre de la base) para saberlo.
 2. Push a **staging** (primero, siempre): `git push origin feat/194-invitaciones:staging`. Esperar CI verde (tests de integración + tenancy + build) y el deploy de staging.
 3. Verificar en staging con el SQL de la sección 3 y el UAT de la sección 5.
 4. Validar SEPA con Leandro (sección 6) y que gestión cargue los feriados ES (sección 7) ANTES del lanzamiento de ES.
@@ -133,7 +133,7 @@ Si el vínculo 3 NO está en el estado esperado antes del deploy (alguien lo cor
 
 ## 4. Backup (paso humano — requiere SSH: pedir OK a Franco)
 
-Antes del primer push a staging (comparte MySQL con prod). El agente NO lo ejecuta. Completar `<DB_NAME>`, `<DB_USER>` y el host con los datos de prod:
+Antes del push a **master** (prod = base `eltemplo`; staging usa `eltemplo_staging` en el mismo servidor — nunca `USE`, calificar siempre la base). El agente NO lo ejecuta sin OK. Completar `<DB_NAME>`, `<DB_USER>` y el host con los datos de prod:
 
 ```bash
 ssh <host-ec2> 'mysqldump --single-transaction --no-tablespaces -u <DB_USER> -p <DB_NAME> \
