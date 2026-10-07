@@ -4,6 +4,9 @@ import {
   int,
   bigint,
   varchar,
+  char,
+  decimal,
+  mysqlEnum,
   boolean,
   timestamp,
   time,
@@ -68,6 +71,33 @@ export const branches = mysqlTable(
       .default("17:00:00")
       .notNull(),
     trialAfternoonEnd: time("trial_afternoon_end").default("21:00:00").notNull(),
+    // Fase 195 (D-10): fuente única de la web pública (eltemplo.org). El build
+    // de la web lee estas columnas por el endpoint público de solo lectura.
+    // Migración 0270 (a mano, bloque reservado 0270-0279). Datos reales de cada
+    // sede en la 0271 / generador del plan 195-14.
+    // - publish_on_web = 0 oculta la sede de la web (ONLINE, Chapadmalal).
+    // - web_kind 'community_space' = lugar de comunidad (El Templo Park), sin
+    //   ficha de gimnasio ni ExerciseGym.
+    // - lat/lng, place_id, maps_url: solo datos públicos del lugar (sin PII).
+    // - gbp_*: sync de Google Business Profile (hash del último estado enviado).
+    webSlug: varchar("web_slug", { length: 60 }),
+    publicName: varchar("public_name", { length: 100 }),
+    publishOnWeb: boolean("publish_on_web").default(false).notNull(),
+    webKind: mysqlEnum("web_kind", ["gym", "community_space"])
+      .default("gym")
+      .notNull(),
+    locality: varchar("locality", { length: 100 }),
+    region: varchar("region", { length: 100 }),
+    postalCode: varchar("postal_code", { length: 20 }),
+    phone: varchar("phone", { length: 30 }),
+    latitude: decimal("latitude", { precision: 9, scale: 6, mode: "number" }),
+    longitude: decimal("longitude", { precision: 9, scale: 6, mode: "number" }),
+    placeId: varchar("place_id", { length: 255 }),
+    mapsUrl: varchar("maps_url", { length: 500 }),
+    photoUrl: varchar("photo_url", { length: 500 }),
+    gbpLocationId: varchar("gbp_location_id", { length: 100 }),
+    gbpSyncedHash: char("gbp_synced_hash", { length: 64 }),
+    gbpSyncedAt: timestamp("gbp_synced_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
@@ -86,6 +116,9 @@ export const branches = mysqlTable(
     // alcanza con que una de las dos columnas ya sea única por separado.
     // Byte-for-byte con la migración 0200.
     uniqueIndex("uq_branches_tenant_id_id").on(table.tenantId, table.id),
+    // Fase 195 (D-10): el slug público es único dentro del gimnasio (MySQL
+    // admite varios NULL en una unique). Byte-for-byte con la migración 0270.
+    uniqueIndex("uq_branches_tenant_web_slug").on(table.tenantId, table.webSlug),
   ],
 );
 
