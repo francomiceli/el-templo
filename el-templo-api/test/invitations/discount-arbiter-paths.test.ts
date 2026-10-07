@@ -485,6 +485,37 @@ describe("changePlanAfterCurrent", () => {
     }
   });
 
+  it.each([
+    ["sin saldo y que GANA la comparación (20%)", 2000, 0],
+    ["con un monto que no es un tier", 999, 5000],
+  ])(
+    "(8b) auraSpend %s: error 4xx con invitación en juego y no queda sub programada ni crédito",
+    async (_label, auraSpend, balance) => {
+      const payer = await payerWithPaidSub();
+      await giveQualifiedLink(payer.id);
+      if (balance > 0) await seedAuraBalance(app, payer.id, balance);
+
+      const res = await changeAfterCurrent(payer, await monthPlan(true), {
+        auraSpend,
+      });
+      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(res.statusCode).toBeLessThan(500);
+      const scheduled = await app.db
+        .select({ id: schema.subscriptions.id })
+        .from(schema.subscriptions)
+        .where(
+          and(
+            tenantWhere(schema.subscriptions, ctx.tenant),
+            eq(schema.subscriptions.userId, payer.id),
+            eq(schema.subscriptions.status, "scheduled"),
+          ),
+        );
+      expect(scheduled).toHaveLength(0);
+      expect(await creditOf(payer.id)).toBeUndefined();
+      expect(await auraBalanceOf(payer.id)).toBe(balance);
+    },
+  );
+
   it("(9) sin descuento alguno: precio de lista y sin crédito", async () => {
     const payer = await payerWithPaidSub();
     const res = await changeAfterCurrent(payer, await monthPlan(true));
