@@ -70,4 +70,5 @@
 
 ## 9. Lecciones acumuladas (las agrega el orquestador después de cada plan)
 
-- (vacío al iniciar la fase)
+- **Entorno ya preparado por el orquestador (2026-10-07):** `node_modules` de raíz, api, admin, app y web son SYMLINKS a instalaciones con lockfile idéntico a la base (no instalar nada, no correr `pnpm install`, no tocar los symlinks; están excluidos vía `.git/info/exclude`). `el-templo-api/.env` y `.env.development` ya copiados. Typecheck de la API verde en la base. DB local de dev = `eltemplo` (compartida con el checkout principal; aplicar 0270+ ahí está OK).
+- **195-10 (del plan-checker):** las sedes de test con `web_slug` (`sede-a-195`, `sede-b-195`) también necesitan `publish_on_web = 1` para que la regla "exactamente una sede publicada" las vea.
