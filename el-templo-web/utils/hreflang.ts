@@ -41,9 +41,7 @@ function absolute(path: string): string {
 /** Los tres `<link rel="alternate">` de la pagina, o `[]` si no tiene equivalente. */
 export function hreflangLinks(path: string): HreflangLink[] {
   const current = normalizePath(path);
-  const pair = HREFLANG_PAIRS.find(
-    (p) => p.ar === current || p.es === current,
-  );
+  const pair = HREFLANG_PAIRS.find((p) => p.ar === current || p.es === current);
   if (!pair) return [];
   return [
     { rel: "alternate", hreflang: "es-AR", href: absolute(pair.ar) },

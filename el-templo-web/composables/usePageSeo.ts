@@ -8,7 +8,7 @@
  * `jsonLdScript` (escapa `<`).
  */
 import { brandName, webData } from "~/data/sedes";
-import { isEsPath } from "~/utils/es-path";
+import { isEsPath } from "~/utils/analytics-loader";
 import { hreflangLinks } from "~/utils/hreflang";
 import {
   SITE_URL,
