@@ -53,6 +53,7 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { referralCopyVariant } from "./ab-variant";
+import { getInvitationSettings } from "./invitation-settings";
 import type {
   ReferralAssignmentResult,
   ReferralConfig,
@@ -63,6 +64,12 @@ import type {
 } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
+
+/** Un vínculo visto desde un usuario: la contraparte y el % que aporta su lado. */
+interface LinkSide {
+  counterpartyId: number;
+  percent: number;
+}
 
 /** % por vínculo cuando la fila aura_config['referral'] falta (D-12). */
 const DEFAULT_PERCENT_PER_LINK = 10;
@@ -229,7 +236,35 @@ export class ReferralService {
     userId: number,
     opts?: { simulatePendingQualification?: boolean },
   ): Promise<number> {
-    const { percentPerLink, maxPercentCap } = await this.getReferralConfig();
+    // Fase 194 D-10e: una sola implementación (por lado). Esta firma pública
+    // sigue siendo la que usan las charge-paths, los previews y la app.
+    return this.computeInvitationDiscountPercent(ctx, userId, opts);
+  }
+
+  /**
+   * Fase 194 D-10e: el mismo descuento simétrico, con el % separado por LADO
+   * del vínculo. Como INVITADO (`referred`) suma `inviteePercent` (setting
+   * `invitations.invitee_percent`); como INVITADOR (`referrer`) suma
+   * `percentPerLink` (aura_config['referral']) por cada invitado activo. Tope
+   * `maxPercentCap` (D-09). Con 10/10 el resultado es idéntico al de la 157.
+   *
+   * `simulateInvitationLink` (D-05): el pagador todavía no tiene fila en
+   * `referrals` pero tiene una invitación vigente (la fila nace al comprar):
+   * cuenta ese vínculo como si ya existiera, del lado invitado, SOLO si el
+   * invitador tiene cobertura de membresía hoy. Se ignora si el usuario ya
+   * tiene un vínculo como invitado (referred_id es UNIQUE: nunca se suma dos
+   * veces).
+   */
+  async computeInvitationDiscountPercent(
+    ctx: TenantContext,
+    userId: number,
+    opts?: {
+      simulatePendingQualification?: boolean;
+      simulateInvitationLink?: { inviterId: number };
+    },
+  ): Promise<number> {
+    const { inviteePercent, perLinkPercent, maxPercentCap } =
+      await getInvitationSettings(this.db, ctx, this.log);
 
     const qualifiedFilter = eq(referrals.status, "qualified");
     const statusFilter = opts?.simulatePendingQualification
@@ -259,28 +294,38 @@ export class ReferralService {
         ),
       );
 
-    const today = new Date().toISOString().split("T")[0];
-    const counterpartyIds = links.map((link) =>
-      link.referrerId === userId ? link.referredId : link.referrerId,
+    const sides: LinkSide[] = links.map((link) =>
+      link.referredId === userId
+        ? { counterpartyId: link.referrerId, percent: inviteePercent }
+        : { counterpartyId: link.referredId, percent: perLinkPercent },
     );
+    const simulated = opts?.simulateInvitationLink;
+    if (simulated && !links.some((link) => link.referredId === userId)) {
+      sides.push({
+        counterpartyId: simulated.inviterId,
+        percent: inviteePercent,
+      });
+    }
+
+    const today = new Date().toISOString().split("T")[0];
     // Batch: la cobertura de todas las contrapartes en UNA query (evita N+1).
     // `ctx` obligatorio: subscriptions es strict (reconciliación tren v6.0).
     // Fase 194 D-10d: cobertura de MEMBRESÍA (excluye planes `is_trial`): una
     // contraparte con solo accesos de invitación NO genera descuento.
     const coveredMap = await deriveMembershipCoveredUntilBatch(
       this.db,
-      counterpartyIds,
+      sides.map((side) => side.counterpartyId),
       ctx,
     );
-    let activeLinks = 0;
-    for (const counterpartyId of counterpartyIds) {
-      const coveredUntil = coveredMap.get(counterpartyId) ?? null;
+    let total = 0;
+    for (const side of sides) {
+      const coveredUntil = coveredMap.get(side.counterpartyId) ?? null;
       if (coveredUntil !== null && coveredUntil >= today) {
-        activeLinks++;
+        total += side.percent;
       }
     }
 
-    return Math.min(activeLinks * percentPerLink, maxPercentCap);
+    return Math.min(total, maxPercentCap);
   }
 
   /**
@@ -783,7 +828,7 @@ function defaultSuffix(): string {
  * Drizzle envuelve el error de mysql2 en un DrizzleQueryError, así que el código
  * real puede vivir en `err.cause` — se recorre la cadena de causas.
  */
-function isDuplicateKeyError(err: unknown): boolean {
+export function isDuplicateKeyError(err: unknown): boolean {
   let current: unknown = err;
   for (let depth = 0; depth < 5 && current != null; depth++) {
     if (typeof current === "object") {
