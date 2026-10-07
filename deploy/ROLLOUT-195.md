@@ -30,7 +30,7 @@ La migración 0271 carga datos reales de sedes (calle, slug, WhatsApp, publicaci
 - El job `Deploy to Production` / `Deploy to Staging` igual corre para API, app y admin, y muestra el aviso `El build de la web falló` en el resumen de la corrida. La web queda en su versión anterior (no se toca el directorio de la web, ni su backup).
 - La corrida igual queda en rojo por el job `Build Web`. Mirar el log: el error dice si la API no tiene el endpoint, si el payload es inválido o si `verify-seo-output.mjs` encontró un problema.
 - Corregir la causa (típicamente: la API todavía no tiene el endpoint, o un dato de sede inválido) y volver a disparar solo la web (sección 6).
-- Si falla la verificación `--require-api` es porque el build salió del fixture y no de la API real (revisar `VITE_API_URL` / `STAGING_VITE_API_URL`), **o porque algún html conserva un marcador `PENDIENTE DE COMPLETAR`** (hoy `el-templo-web/pages/privacidad.vue`: completar razón social, NIF y domicilio de España antes del primer deploy de la web).
+- Si falla la verificación `--require-api` es porque el build salió del fixture y no de la API real (revisar `VITE_API_URL` / `STAGING_VITE_API_URL`), **o porque algún html conserva un marcador `PENDIENTE DE COMPLETAR`** (el primer rollout sale con el `/privacidad` actual, sin marcador; el marcador aparece recién al copiar `docs/privacidad-con-medicion.vue.txt`, ver guía §1.2).
 
 ## 3. Secrets a crear en GitHub (Settings › Secrets and variables › Actions)
 
@@ -59,7 +59,7 @@ Los valores del `.env.production` de la API se escriben en cada deploy de la API
 
 ## 4. Orden de activación de las integraciones
 
-1. **Texto de `/privacidad` en producción primero.** Franco aprueba el texto nuevo (plan 195-08, con razón social, NIF y domicilio de España completados) y la web con esa página tiene que estar en prod antes de activar Meta.
+1. **Texto de `/privacidad` en producción primero.** Franco aprueba el texto nuevo (`docs/privacidad-con-medicion.vue.txt`, con razón social, NIF y domicilio de España completados) y la web con esa página tiene que estar en prod antes de cargar `WEB_GA4_ID`, `WEB_META_PIXEL_ID` o cualquier `META_*`. El primer rollout sale con el `/privacidad` actual (decisión de Franco 2026-10-07).
 2. **Meta: gasto.** Cargar `META_ACCESS_TOKEN`, `META_PIXEL_ID` y `META_AD_ACCOUNT_IDS` y deployar la API. Con eso se prende solo el gasto publicitario (no necesita fecha ni pixel). CAPI sigue apagado: la API solo lo activa cuando también existe `META_CAPI_START_AT`.
 3. **Meta CAPI, validación.** CAPI no envía nada sin `META_CAPI_START_AT`, así que para probar con "Probar eventos" hay que cargar `META_CAPI_TEST_EVENT_CODE` **y** `META_CAPI_START_AT` = fecha y hora de ahora (ISO), y deployar la API. Hacer un registro y una reserva de prueba y mirar Events Manager › Probar eventos (el sistema revisa cada 10 minutos). Mientras el código de prueba esté cargado, TODOS los eventos (también los de alumnos reales) van solo al panel de prueba y quedan marcados como enviados: no se reenvían. Conviene que esta ventana sea corta.
 4. **Meta CAPI, activación real.** Con la validación bien: borrar `META_CAPI_TEST_EVENT_CODE` y deployar la API. `META_CAPI_START_AT` queda como está. Desde ahí CAPI envía de verdad (nunca de España ni de altas iOS o de origen desconocido).
