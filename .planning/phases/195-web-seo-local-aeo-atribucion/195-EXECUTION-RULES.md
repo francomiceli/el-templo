@@ -112,3 +112,9 @@
   - **Contrato `/register` para 195-07** (en `195-06-SUMMARY.md`): `branchId`, `branchName`, `utm_*`, `fbclid`, `gclid`, `promo`, `src_ref`, `landing`, `ft`, `fbp`. La API revalida longitud y charset. En `/es` sin consentimiento no viaja ningún parámetro.
   - **Para 195-08 (extra, decisión del orquestador):** la reescritura de `/privacidad` también debe mencionar GA4 + Meta Pixel con consentimiento para Barcelona (el banner enlaza ahí), y agregar en el footer un link discreto "Barcelona" → `/es/` (hoy nada enlaza `/es`).
   - **Para 195-14 (guía):** pendientes de Franco de `195-06-SUMMARY.md` (UAT con IDs reales en /es, GA4 Realtime AR post-deploy, voseo/copy en /es y catálogo AR en /es/planes, altas BCN que rechazan banner llegan sin atribución).
+- **Tras 195-07 (2026-10-07):**
+  - Provisioning: UN archivo con `globalSetup` primero (~6 min); después los demás con la config sin `globalSetup`. Nunca 3 archivos a la vez con globalSetup (cuelga el hook). La DB `eltemplo_t195_1` tiene hasta 0272: una migración nueva (0273+) obliga a reprovisionar.
+  - Antes de editar un `.ts` "caliente" de la API: `npx prettier --check` sobre la base; si está sucio, commit aparte solo de formato y los ganchos en helpers del módulo `marketing` (minimiza conflicto con 194).
+  - AJV con `additionalProperties:false` DESCARTA claves no declaradas (no da 400): declarar todo campo nuevo del body.
+  - `signup_attributions` NO guarda consentimiento ni país: CAPI (195-08) filtra España por país de la sede/tenant (D-25) e iOS/unknown por `platform` (D-24).
+  - Baselines ahora: `GYM_OWNED_TABLES` 100 · `schemaTables` 104 · `gymOwnedChecked` 100 · 0196 Test 10: 100 · `ENTRADAS_BASELINE` 448 · `JOBS_ESPERADOS` 9 · módulo `marketing` en `TENANT_STRICT_MODULES`.
