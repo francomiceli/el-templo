@@ -1,51 +1,22 @@
 /**
  * Dynamic sitemap source for blog posts and tag pages.
  *
- * Fetches published blog post slugs and tag slugs from the API
- * and returns them as sitemap entries with lastmod dates.
+ * Lee posts y tags de `data/generated/web-data.json` (la misma fuente que el
+ * prerender, escrita por `scripts/fetch-web-data.mjs`), sin llamadas de red y
+ * sin atrapar errores: si el archivo falta, el build tiene que fallar.
  */
-export default defineSitemapEventHandler(async () => {
-  const config = useRuntimeConfig();
-  const entries: Array<{
-    loc: string;
-    lastmod?: string;
-    changefreq?:
-      | "always"
-      | "hourly"
-      | "daily"
-      | "weekly"
-      | "monthly"
-      | "yearly"
-      | "never";
-  }> = [];
+import webDataRaw from "../../../data/generated/web-data.json";
+import type { WebData } from "../../../data/web-data.types";
 
-  try {
-    // Blog post URLs
-    const postsResponse = await $fetch<{
-      posts: Array<{ slug: string; updatedAt: string }>;
-    }>(`${config.public.apiUrl}/blog/posts?limit=1000`);
+const webData = webDataRaw as unknown as WebData;
 
-    for (const post of postsResponse.posts) {
-      entries.push({
-        loc: `/blog/${post.slug}`,
-        lastmod: post.updatedAt,
-      });
-    }
-
-    // Tag page URLs
-    const tagsResponse = await $fetch<{
-      tags: Array<{ slug: string }>;
-    }>(`${config.public.apiUrl}/blog/tags`);
-
-    for (const tag of tagsResponse.tags) {
-      entries.push({
-        loc: `/blog/tag/${tag.slug}`,
-        changefreq: "weekly",
-      });
-    }
-  } catch {
-    // Gracefully return whatever we have
-  }
-
-  return entries;
-});
+export default defineSitemapEventHandler(() => [
+  ...webData.blog.posts.map((post) => ({
+    loc: `/blog/${post.slug}`,
+    ...(post.updatedAt ? { lastmod: post.updatedAt } : {}),
+  })),
+  ...webData.blog.tags.map((tag) => ({
+    loc: `/blog/tag/${tag.slug}`,
+    changefreq: "weekly" as const,
+  })),
+]);
