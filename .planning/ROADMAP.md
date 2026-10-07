@@ -317,7 +317,23 @@ Plans:
 5. Cada alta guarda su origen (utm/promo/referrer, incluido tráfico de IA) y Reportes muestra registros → prueba → pago → facturación por campaña y sede; los eventos de conversión llegan a Meta por CAPI (con consentimiento donde aplique)
 6. Existe una guía final paso a paso de lo que Franco/equipo hace en Meta y Google, reducida al mínimo por la automatización
 
-**Plans**: TBD
+**Plans:** 14 plans (ejecución secuencial, una wave por plan; reglas comunes en `195-EXECUTION-RULES.md`)
+
+Plans:
+- [ ] 195-01-PLAN.md — Datos de sedes primero: migs 0270/0271 (columnas web + JBJ 1018, Park comunidad, sin Chapadmalal, WhatsApp por país) + parche de la web estática
+- [ ] 195-02-PLAN.md — Endpoint público GET /api/web/site-data (sedes, horarios regulares fusionados, marca, WhatsApp) + ISO-01
+- [ ] 195-03-PLAN.md — Pipeline de build web (prebuild desde la API, fixture, robots IA, llms.txt generado, sitemap sin catch, verificador SEO en CI, WhatsApp desde datos)
+- [ ] 195-04-PLAN.md — Grafo JSON-LD propio (Organization + ExerciseGym por sede) + hub /sedes + páginas por sede AR/ES
+- [ ] 195-05-PLAN.md — Disciplinas (incl. Aura/Yoga), profes Person (archivo de datos), primera clase gratis, planes sin precios, blog técnico
+- [ ] 195-06-PLAN.md — /es Barcelona + hreflang + banner RGPD con Consent Mode v2 + captura first-touch + Smart App Banner
+- [ ] 195-07-PLAN.md — Atribución propia: mig 0272 signup_attributions, clasificador de canal con IA, ganchos en register/alta de prueba, admin y app
+- [ ] 195-08-PLAN.md — Meta: mig 0273, CAPI como outbox (sin ES ni iOS), gasto diario de campañas, /privacidad reescrita
+- [ ] 195-09-PLAN.md — Google: mig 0274, job Search Console (JWT propio), sync de Google Business Profile detrás de flag, scripts locales
+- [ ] 195-10-PLAN.md — Reportes › Origen de altas: embudo por canal/campaña/sede/moneda, costo por alumno pago, IA y Search Console
+- [ ] 195-11-PLAN.md — CI/CD: botón solo-web, backup/rollback por proyecto, deploy tolerante a falla web, secrets de medición, rollout en 2 pasos
+- [ ] 195-12-PLAN.md — App: .well-known al artifact, validador, reseña in-app (checkpoint de instalación), bump 1.9.0
+- [ ] 195-13-PLAN.md — nginx: 404 real, redirects reales, noindex etapa 1, .well-known + runbook (checkpoint SSH)
+- [ ] 195-14-PLAN.md — Guía final para Franco (Meta, Google, bloque C, ASO) + generador de datos exactos de sedes + planilla de prompts IA
 
 ## Progress
 
@@ -339,7 +355,7 @@ Plans:
 | 190. Valoración y evolución  | v6.1      | 0/TBD          | Not started | -         |
 | 191. Panel del profesor      | v6.1      | 0/TBD          | Not started | -         |
 | 192. Onboarding tenant 2     | v6.1      | 0/TBD          | Not started | -         |
-| 195. Web SEO + atribución    | -         | 0/TBD          | Not started | -         |
+| 195. Web SEO + atribución    | -         | 0/14           | Planned     | -         |
 
 ## Coverage
 
