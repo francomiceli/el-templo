@@ -201,3 +201,9 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - **194-23 (admin):** en "mantener vencimiento" el admin usa su propia diferencia como precio; no pisarla con el `netAmount` del preview.
 - Planes de `createPlan` sin `classesPerWeek: undefined` prorratean por clases, no por días: derivar números de `preview.proration.remainingValue`.
 - Mutation testing: correr mutantes de a uno si alguno rompe todo el flujo (enmascara a los demás).
+
+### Tras 194-18 (cobros completos: 14..18)
+- Las 4 charge-paths y sus 3 previews pasan por `computeChargeDiscounts`. Renovación: `resolveRenewalCharge` (charge/preview), base en `subscriptions/renewal-base.ts`, fin de mes en `subscriptions/month-end.ts`. Caracterización con 0 anotaciones pendientes.
+- **Contrato final de previews para 194-23** en `194-18-SUMMARY.md` (`RenewalPreview`: `basePrice`, `invitationDiscount*`, `partnerDiscount*`, `winningDiscount`, `finalPrice`; querystring `startDate`, `prorateToMonthEnd`, `priceOverrideAmount`, `priceOverrideReason`). El admin hoy multiplica % en el cliente (`MemberSubscriptionTab.vue`, `AssignPlanDialog.vue`): 194-23 lo reemplaza por los montos del servidor. **API y admin viajan juntos.**
+- La PoS del profe (`coach-load-routes.ts` `renewAmountFor`) ya precarga `finalPrice`.
+- Un Bash de más de 600 s pasa a segundo plano solo: ≤3 archivos de integración por corrida.
