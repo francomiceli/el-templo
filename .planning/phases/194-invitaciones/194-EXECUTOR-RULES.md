@@ -194,3 +194,10 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Tests de cambio de plan/renovación: plan DESTINO con `allowsInvitationDiscount: true`. Tests nuevos de charge-paths van en `test/invitations/discount-arbiter-paths.test.ts` (un `describe` por charge-path).
 - Variable asignada dentro del callback de `db.transaction`: `let x = null as number | null` (TS la angosta a `null`).
 - **194-17:** `changePlanNow` tiene `supports.discounts=false` y su base es el neto post-prorrateo. **194-18:** además del árbitro y D-22, guard de plan Invitación en `getRenewalPreview` (lección tras 194-06).
+
+### Tras 194-17 (changePlanNow cableado)
+- `computeChargeDiscounts` acepta `auraSupported`, `prorationCredit`, `chargeCallSite: "change-now"` y devuelve `priceAfterFilter`. Para renovación, sumar `"renew"` y lo que haga falta como parámetros opcionales, sin variantes.
+- **194-18:** al cablear `renewSubscription`, ELIMINAR `computePriceWithReferralDiscount` y el `qualifyReferralOnCharge` sin gate (quedan vivos solo por renew). Quedan 3 anotaciones `194: cambia en 194-18` ((i), (i2), (j)).
+- **194-23 (admin):** en "mantener vencimiento" el admin usa su propia diferencia como precio; no pisarla con el `netAmount` del preview.
+- Planes de `createPlan` sin `classesPerWeek: undefined` prorratean por clases, no por días: derivar números de `preview.proration.remainingValue`.
+- Mutation testing: correr mutantes de a uno si alguno rompe todo el flujo (enmascara a los demás).
