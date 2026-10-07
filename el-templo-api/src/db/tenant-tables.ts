@@ -69,6 +69,9 @@
 export const GYM_OWNED_TABLES = [
   "academy_inquiries",
   "activities",
+  // Gasto publicitario diario por campaña (fase 195, plan 08, migración 0273):
+  // nace con tenant_id y strict (módulo `marketing`).
+  "ad_spend_daily",
   "app_waitlist",
   "attendance",
   "audit_log",
@@ -117,6 +120,9 @@ export const GYM_OWNED_TABLES = [
   "member_logins",
   "member_notes",
   "member_profiles",
+  // Outbox de Meta Conversions API (fase 195, plan 08, migración 0273): nace con
+  // tenant_id y strict (módulo `marketing`).
+  "meta_capi_events",
   "notification_preferences",
   "notification_templates",
   "onboarding_analytics",
@@ -651,7 +657,8 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   "trial-followups": ["trial_followups"],
   // Fase 195: nace strict (atribución propia de altas, mig 0272) — sin deuda
   // previa que tolerar, mismo criterio que `renewals`/`trial-followups`.
-  marketing: ["signup_attributions"],
+  // Plan 195-08 (mig 0273): + outbox de CAPI y gasto diario de Meta.
+  marketing: ["ad_spend_daily", "meta_capi_events", "signup_attributions"],
   wellhub: [
     "wellhub_bookings",
     "wellhub_classes",

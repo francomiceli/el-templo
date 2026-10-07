@@ -290,6 +290,11 @@ const TABLES_TO_CLEAN = [
   // Atribución de altas (fase 195-07, mig 0272): FK a users/branches — basura
   // de test genuina, se limpia antes que `users`.
   schema.signupAttributions,
+  // Outbox de Meta CAPI (fase 195-08, mig 0273): FK a users — basura de test
+  // genuina, se limpia antes que `users`. `ad_spend_daily` no tiene FK pero se
+  // limpia igual para dejar la base limpia entre archivos.
+  schema.metaCapiEvents,
+  schema.adSpendDaily,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,
