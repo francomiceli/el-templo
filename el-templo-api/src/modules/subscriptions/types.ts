@@ -703,6 +703,14 @@ export interface ChangePlanPreview {
 
 // ─── Pricing Types ──────────────────────────────────────────────────────────
 
+/** Descuento que ganó en un cobro (el árbitro de `discount-arbiter.ts` aplica UNO, D-08/D-21). */
+export type WinningDiscount =
+  | "none"
+  | "aura"
+  | "partner"
+  | "invitation"
+  | "boarding_pass";
+
 export interface PricingPreview {
   basePrice: number;
   discountType: "none" | "boarding_pass" | "aura" | "override";
@@ -714,9 +722,21 @@ export interface PricingPreview {
   availableTiers: AuraDiscountTier[];
   // Referidos (fase 157): desglose del descuento de referido ya aplicado en
   // finalPrice, para que el PoS muestre el mismo precio que se cobrará (Pitfall 4).
-  // Compone sobre el descuento auraSpend. 0 cuando no hay vínculos activos.
+  // 0 cuando no hay vínculos activos.
+  // @deprecated Fase 194-15: mismo valor que `invitationDiscountPercent/Amount`
+  // (el admin migra en 194-23). Desde la 194 el descuento por invitación YA NO
+  // compone sobre AURA/partner: compiten y se aplica uno solo (D-08/D-21).
   referralDiscountPercent: number;
   referralDiscountAmount: number;
+  // Fase 194-15 (D-08/D-10c/D-21): descuento por invitación que efectivamente se
+  // cobra. `percent` = % nominal, `amount` = monto ya recortado por el tope en
+  // dinero del país, `capped` = el tope recortó. 0/0/false si la invitación no
+  // ganó (AURA, partner o precio personalizado le ganaron, o no hay vínculo).
+  invitationDiscountPercent: number;
+  invitationDiscountAmount: number;
+  invitationDiscountCapped: boolean;
+  // Cuál de los descuentos compitió y ganó en este cobro (el árbitro aplica UNO).
+  winningDiscount: WinningDiscount;
   // Partners (fase 179, D-09/D-10/D-20): descuento de partner ya aplicado en
   // finalPrice cuando gana la comparación "gana el mayor" contra AURA (empate
   // a favor del partner). `null` cuando no hay candidato o perdió contra AURA

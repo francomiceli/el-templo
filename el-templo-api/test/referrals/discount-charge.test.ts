@@ -184,8 +184,12 @@ describe("Referral discount on charge-paths", () => {
     });
   });
 
-  it("(e) composición con auraSpend en assignPlan (ambos descuentos reflejados)", async () => {
-    const plan = await createPlan(app, adminToken, { priceRegular: 15000 });
+  it("(e) AURA 10% vs referido 10% en assignPlan: empate de monto → gana la invitación, AURA no se gasta (D-08)", async () => {
+    // 194-15 D-08/D-21: antes componían (12150, AURA gastada); ahora un solo descuento.
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 15000,
+      allowsInvitationDiscount: true,
+    });
     const payer = await createMember(app, { email: "dc-e-p@test.com" });
     const referred = await createMember(app, { email: "dc-e-d@test.com" });
     await linkQualified(payer.id, referred.id);
@@ -195,15 +199,43 @@ describe("Referral discount on charge-paths", () => {
     const res = await assignPlan(app, adminToken, payer.id, {
       planId: plan.id,
       startDate: todayStr(),
-      auraSpend: 1000, // 10% aura → 15000-1500=13500
+      auraSpend: 1000, // 10% aura = 1500 = 10% referido: empate → gana el core
     });
     expect(res.statusCode).toBe(201);
-    // referral 10% sobre 13500 → 13500-1350=12150 (compone, no pisa).
-    expect(res.body.pricePaid).toBe(12150);
-    expect(res.body.auraDiscountPercent).toBe(10);
+    expect(res.body.pricePaid).toBe(13500);
+    expect(res.body.auraDiscountPercent).toBeNull();
     expect(await readReferralCredit(payer.id)).toEqual({
       percent: 10,
-      amount: 1350,
+      amount: 1500,
     });
+    // Los 1000 puntos AURA siguen en el saldo.
+    const balance = await app.db.execute(
+      sql`SELECT balance FROM aura_balances WHERE user_id = ${payer.id}`,
+    );
+    expect(
+      (balance[0] as unknown as Array<{ balance: number }>)[0]?.balance,
+    ).toBe(1000);
+  });
+
+  it("(e2) AURA 30% vs referido 10% en assignPlan: gana AURA y no se registra crédito de referido (D-08)", async () => {
+    const plan = await createPlan(app, adminToken, {
+      priceRegular: 15000,
+      allowsInvitationDiscount: true,
+    });
+    const payer = await createMember(app, { email: "dc-e2-p@test.com" });
+    const referred = await createMember(app, { email: "dc-e2-d@test.com" });
+    await linkQualified(payer.id, referred.id);
+    await giveCoverage(referred.id, plan.id, dateOffsetStr(30));
+    await seedAuraBalance(app, payer.id, 5000);
+
+    const res = await assignPlan(app, adminToken, payer.id, {
+      planId: plan.id,
+      startDate: todayStr(),
+      auraSpend: 5000, // 30% aura = 4500 > 1500
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.body.pricePaid).toBe(10500);
+    expect(res.body.auraDiscountPercent).toBe(30);
+    expect(await readReferralCredit(payer.id)).toBeUndefined();
   });
 });

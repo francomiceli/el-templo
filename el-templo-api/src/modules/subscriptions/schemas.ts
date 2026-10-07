@@ -148,6 +148,16 @@ const pricingPreviewResponseSchema = {
     // devuelva (mismo tipo de bug que motivó Pitfall 4 con referidos).
     partnerDiscountPercent: { type: ["integer", "null"] },
     partnerDiscountAmount: { type: ["integer", "null"] },
+    // Fase 194-15 (D-08/D-10c/D-21): descuento por invitación que se cobra (% nominal,
+    // monto ya recortado por el tope en dinero) y cuál de los descuentos ganó. Mismo
+    // motivo que arriba: sin la entrada el serializador descarta el campo.
+    invitationDiscountPercent: { type: "integer" },
+    invitationDiscountAmount: { type: "integer" },
+    invitationDiscountCapped: { type: "boolean" },
+    winningDiscount: {
+      type: "string",
+      enum: ["none", "aura", "partner", "invitation", "boarding_pass"],
+    },
   },
 } as const;
 

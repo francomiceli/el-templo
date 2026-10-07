@@ -100,6 +100,9 @@ async function monthPlan(
     priceZero,
     classesPerWeek: undefined,
     durationDays: 30,
+    // 194-15 D-10b: sin el flag del plan no cualifica ni descuenta. Los planes de
+    // producción se backfillearon con el flag en 1 (D-23): los casos lo replican.
+    allowsInvitationDiscount: true,
   });
 }
 
@@ -317,21 +320,23 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     expect(row.partnerDiscountAmount).toBeNull();
   });
 
-  it("(b) AURA 10% + referido 10% COMPONEN → 81000 (referido sobre el neto de AURA)", async () => {
-    // 194: cambia en 194-15 por D-08/D-21 (gana el mayor: un solo descuento).
+  it("(b) AURA 10% + referido 10% (empate de monto) → gana la invitación, un solo descuento → 90000 y AURA NO se gasta", async () => {
+    // 194-15 D-08/D-21: gana el mayor, empate = core. Antes componían (81000, AURA gastada).
     const plan = await monthPlan("Char B");
     const payer = await member("b");
     await linkQualified(payer.id, plan.id);
     await seedAuraBalance(app, payer.id, 1000);
 
     const preview = await pricingPreview(payer.id, plan.id, 1000);
-    expect(preview.discountType).toBe("aura");
-    expect(preview.discountAmount).toBe(10000);
-    expect(preview.auraToSpend).toBe(1000);
+    // 194-15 D-08: el preview muestra que AURA NO aplicó (empate a favor del core).
+    expect(preview.discountType).toBe("none");
+    expect(preview.discountAmount).toBe(0);
+    expect(preview.auraToSpend).toBe(0);
     expect(preview.referralDiscountPercent).toBe(10);
-    // Referido sobre 90000 (neto de AURA), no sobre 100000.
-    expect(preview.referralDiscountAmount).toBe(9000);
-    expect(preview.finalPrice).toBe(81000);
+    // 194-15 D-08: el referido va sobre la LISTA (10000), no sobre el neto de AURA (9000).
+    expect(preview.referralDiscountAmount).toBe(10000);
+    expect(preview.winningDiscount).toBe("invitation");
+    expect(preview.finalPrice).toBe(90000);
 
     const res = await assignPlan(app, adminToken, payer.id, {
       planId: plan.id,
@@ -339,19 +344,19 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     });
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
-    expect(row.pricePaid).toBe(81000);
+    expect(row.pricePaid).toBe(90000);
     expect(row.pricePaid).toBe(preview.finalPrice);
-    expect(row.auraDiscount).toBe(1000);
-    expect(row.auraDiscountPercent).toBe(10);
+    expect(row.auraDiscount).toBeNull();
+    expect(row.auraDiscountPercent).toBeNull();
     expect(row.referralDiscountPercent).toBe(10);
-    expect(row.referralDiscountAmount).toBe(9000);
+    expect(row.referralDiscountAmount).toBe(10000);
     expect(row.partnerDiscountAmount).toBeNull();
-    // AURA se gastó de verdad (los 1000 puntos).
-    expect(await auraBalanceOf(payer.id)).toBe(0);
+    // 194-15 D-21: los puntos AURA se conservan (antes se gastaban los 1000).
+    expect(await auraBalanceOf(payer.id)).toBe(1000);
   });
 
-  it("(b2) AURA 30% (tier 5000) vs partner 10% + referido 10%: gana AURA y el referido igual compone → 63000", async () => {
-    // 194: cambia en 194-15 por D-21 (hoy AURA gana al partner pero el referido compone encima).
+  it("(b2) AURA 30% (tier 5000) vs partner 10% + referido 10%: gana AURA y NADIE más descuenta → 70000", async () => {
+    // 194-15 D-21: AURA (30000) > partner/invitación (10000): un solo descuento. Antes: 63000.
     const plan = await monthPlan("Char B2");
     const payer = await member("b2");
     await linkQualified(payer.id, plan.id);
@@ -361,8 +366,10 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     const preview = await pricingPreview(payer.id, plan.id, 5000);
     expect(preview.discountType).toBe("aura");
     expect(preview.partnerDiscountPercent).toBeNull();
-    expect(preview.referralDiscountAmount).toBe(7000); // 10% de 70000
-    expect(preview.finalPrice).toBe(63000);
+    // 194-15 D-21: el referido ya no compone encima de AURA.
+    expect(preview.referralDiscountAmount).toBe(0);
+    expect(preview.winningDiscount).toBe("aura");
+    expect(preview.finalPrice).toBe(70000);
 
     const res = await assignPlan(app, adminToken, payer.id, {
       planId: plan.id,
@@ -370,15 +377,16 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     });
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
-    expect(row.pricePaid).toBe(63000);
+    expect(row.pricePaid).toBe(70000);
+    expect(row.pricePaid).toBe(preview.finalPrice);
     expect(row.auraDiscount).toBe(5000);
     expect(row.auraDiscountPercent).toBe(30);
     expect(row.partnerDiscountAmount).toBeNull(); // perdió vs AURA
-    expect(row.referralDiscountAmount).toBe(7000);
+    expect(row.referralDiscountAmount).toBeNull(); // 194-15 D-21: ya no compone
   });
 
-  it("(c) partner 20% + referido 10% COMPONEN → 72000 (referido sobre el neto del partner)", async () => {
-    // 194: cambia en 194-15 por D-21 (partner vs invitación = gana el mayor monto).
+  it("(c) partner 20% vs referido 10%: gana el partner (mayor monto), un solo descuento → 80000", async () => {
+    // 194-15 D-21: partner (20000) > invitación (10000). Antes componían: 72000.
     const plan = await monthPlan("Char C");
     const payer = await member("c");
     await linkQualified(payer.id, plan.id);
@@ -387,21 +395,23 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     const preview = await pricingPreview(payer.id, plan.id);
     expect(preview.partnerDiscountPercent).toBe(20);
     expect(preview.partnerDiscountAmount).toBe(20000);
-    expect(preview.referralDiscountPercent).toBe(10);
-    expect(preview.referralDiscountAmount).toBe(8000); // 10% de 80000
-    expect(preview.finalPrice).toBe(72000);
+    // 194-15 D-21: el referido ya no compone sobre el neto del partner.
+    expect(preview.referralDiscountPercent).toBe(0);
+    expect(preview.referralDiscountAmount).toBe(0);
+    expect(preview.winningDiscount).toBe("partner");
+    expect(preview.finalPrice).toBe(80000);
 
     const res = await assignPlan(app, adminToken, payer.id, {
       planId: plan.id,
     });
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
-    expect(row.pricePaid).toBe(72000);
+    expect(row.pricePaid).toBe(80000);
     expect(row.pricePaid).toBe(preview.finalPrice);
     expect(row.partnerDiscountPercent).toBe(20);
     expect(row.partnerDiscountAmount).toBe(20000);
-    expect(row.referralDiscountPercent).toBe(10);
-    expect(row.referralDiscountAmount).toBe(8000);
+    expect(row.referralDiscountPercent).toBeNull();
+    expect(row.referralDiscountAmount).toBeNull();
     expect(row.auraDiscount).toBeNull();
   });
 
@@ -425,8 +435,8 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     expect(await auraBalanceOf(payer.id)).toBe(1000);
   });
 
-  it("(d) override con motivo + referido COMPONEN → 45000 (el referido se aplica sobre el precio personalizado)", async () => {
-    // 194: cambia en 194-15 por D-20 (override = precio final, sin descuento por invitación encima).
+  it("(d) override con motivo + referido: el override ES el precio final → 50000, sin descuento por invitación", async () => {
+    // 194-15 D-20: override = precio final. Antes el referido componía encima: 45000.
     const plan = await monthPlan("Char D");
     const payer = await member("d");
     await linkQualified(payer.id, plan.id);
@@ -439,13 +449,13 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
     expect(row.priceOverrideAmount).toBe(50000);
-    expect(row.referralDiscountPercent).toBe(10);
-    expect(row.referralDiscountAmount).toBe(5000);
-    expect(row.pricePaid).toBe(45000);
+    expect(row.referralDiscountPercent).toBeNull();
+    expect(row.referralDiscountAmount).toBeNull();
+    expect(row.pricePaid).toBe(50000);
   });
 
-  it("(e) boarding pass (precio Zero) + referido → 63000 (referido sobre el precio Zero)", async () => {
-    // 194: cambia en 194-15 por D-08 (el boarding pass es otra promo: no se acumula con la invitación).
+  it("(e) boarding pass (precio Zero) + referido: el boarding pass excluye la invitación → 70000", async () => {
+    // 194-15 D-26a: el boarding pass no se acumula con la invitación. Antes: 63000.
     await setZeroPriceRule(true);
     try {
       const plan = await monthPlan("Char E");
@@ -459,9 +469,9 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
       expect(res.statusCode).toBe(201);
       const row = await readSub(res.body.id as number);
       expect(row.boardingPassUsed).toBe(true);
-      expect(row.referralDiscountPercent).toBe(10);
-      expect(row.referralDiscountAmount).toBe(7000); // 10% de PRICE_ZERO
-      expect(row.pricePaid).toBe(63000);
+      expect(row.referralDiscountPercent).toBeNull();
+      expect(row.referralDiscountAmount).toBeNull();
+      expect(row.pricePaid).toBe(PRICE_ZERO);
     } finally {
       await setZeroPriceRule(false);
     }
@@ -626,28 +636,32 @@ describe("caracterización pre-194: renewSubscription y getRenewalPreview", () =
     expect(row.auraDiscountPercent).toBeNull();
   });
 
-  it("(i2) D-22: alta con AURA 10% + referido 10% → renovar re-aplica el referido sobre la base ya rebajada → 81000", async () => {
-    // 194: cambia en 194-18 por D-22 (base 100000 → un solo descuento, no 81000).
+  it("(i2) D-22: alta con AURA 30% (+ vínculo) → renovar re-aplica el referido sobre la base ya rebajada → 63000", async () => {
+    // 194: cambia en 194-18 por D-22 (la base de renovación debe ser 100000: un solo descuento, no 63000).
+    // 194-15 D-08: el alta ya NO compone AURA + referido (antes AURA 10% + referido daba 81000 y esta
+    // renovación 81000). AURA 5000 (30%) le gana a la invitación (10%): el alta cobra 70000 sin referido.
     const plan = await monthPlan("Char I2");
     const payer = await member("i2");
     await linkQualified(payer.id, plan.id);
-    await seedAuraBalance(app, payer.id, 1000);
+    await seedAuraBalance(app, payer.id, 5000);
     const first = await assignPlan(app, adminToken, payer.id, {
       planId: plan.id,
-      auraSpend: 1000,
+      auraSpend: 5000,
     });
     expect(first.statusCode).toBe(201);
-    expect((await readSub(first.body.id as number)).pricePaid).toBe(81000);
+    const firstRow = await readSub(first.body.id as number);
+    expect(firstRow.pricePaid).toBe(70000);
+    expect(firstRow.referralDiscountAmount).toBeNull();
 
-    // add-back de 9000 (solo el referido) → base 90000, ya sin el AURA.
+    // Sin add-back (el alta no guardó referido): la base hereda el 70000 con el AURA adentro.
     const preview = await renewalPreview(payer.id);
-    expect(preview.base).toBe(90000);
+    expect(preview.base).toBe(70000);
 
     const res = await renew(payer.id);
     expect(res.statusCode).toBe(201);
     const row = await readSub(res.body.id as number);
-    expect(row.referralDiscountAmount).toBe(9000);
-    expect(row.pricePaid).toBe(81000);
+    expect(row.referralDiscountAmount).toBe(7000);
+    expect(row.pricePaid).toBe(63000);
   });
 
   it("(j) D-22: alta con partner 20% → renovar HEREDA la base rebajada (80000), el partner no se devuelve", async () => {

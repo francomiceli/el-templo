@@ -33,6 +33,11 @@
 //      aunque la invitación haya perdido la comparación de ESTE cobro: el vínculo
 //      alimenta los cobros siguientes (D-05).
 //
+// ATAJO PARA LAS CHARGE-PATHS (194-15): `prepareChargeDiscounts` hace los pasos 1 y 2 y
+// `settleChargeDiscounts` el paso 3 (más el vínculo a crear y el ganador). Con override
+// (D-20) el descuento se cierra pero el vínculo se ofrece igual (`resolveChargeInvitation`
+// devuelve un candidato SOLO-VÍNCULO): el llamador lo materializa si el cobro cobra.
+//
 // REGISTRO (`referral_credits`): `percent` guarda el % NOMINAL (`nominalAmount` sale de
 // `floor(base * pct / 100)`) y `amount` el monto RECORTADO por el tope en dinero.
 //
@@ -55,7 +60,11 @@ import {
 } from "../referrals/invitation-settings";
 import type { ReferralService } from "../referrals/service";
 import type { TenantContext } from "../shared/tenant";
-import { planAllowsInvitationDiscount, type PlanDetail } from "./types";
+import {
+  planAllowsInvitationDiscount,
+  type PlanDetail,
+  type WinningDiscount,
+} from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -127,19 +136,28 @@ export function capInvitationAmount(
   return { amount: cap, capApplied: true };
 }
 
-/** Los 4 gates de plan/precio que cierran el descuento por invitación antes de leer nada. */
-function invitationGatesClosed(input: InvitationCandidateInput): boolean {
+/**
+ * Gates que cierran el VÍNCULO (y con él todo): plan sin flag (D-10b) o prorrateo de fin
+ * de mes (el proporcional ya es el precio final y el vínculo nace en la primera
+ * renovación de mes completo) o lista sin precio (Pitfall 5).
+ */
+function linkGatesClosed(input: InvitationCandidateInput): boolean {
   return (
     // D-10b: flag del plan + piso duro (especial, paquete, is_trial).
     !planAllowsInvitationDiscount(input.plan) ||
-    // El proporcional de fin de mes ya es el precio final (como hoy).
     input.prorateToMonthEnd === true ||
+    // Pitfall 5: gate de cobro pago.
+    input.basePrice <= 0
+  );
+}
+
+/** Gates que cierran solo el DESCUENTO del cobro (el vínculo igual puede nacer). */
+function discountGatesClosed(input: InvitationCandidateInput): boolean {
+  return (
     // D-20: precio personalizado = precio final.
     input.isPriceOverride ||
     // D-26a: el boarding pass excluye el descuento por invitación en ese cobro.
-    input.boardingPassApplied ||
-    // Pitfall 5: gate de cobro pago.
-    input.basePrice <= 0
+    input.boardingPassApplied
   );
 }
 
@@ -158,7 +176,7 @@ export async function resolveInvitationDiscountCandidate(
   ctx: TenantContext,
   input: InvitationCandidateInput,
 ): Promise<InvitationDiscountCandidate | null> {
-  if (invitationGatesClosed(input)) return null;
+  if (linkGatesClosed(input) || discountGatesClosed(input)) return null;
 
   const { db, log, referralService } = deps;
   const settings = await getInvitationSettings(db, ctx, log);
@@ -174,7 +192,9 @@ export async function resolveInvitationDiscountCandidate(
     input.userId,
     {
       simulatePendingQualification: true,
-      ...(link ? { simulateInvitationLink: { inviterId: link.inviterId } } : {}),
+      ...(link
+        ? { simulateInvitationLink: { inviterId: link.inviterId } }
+        : {}),
     },
   );
   // Sin % y sin vínculo por crear no hay nada que ofrecer ni materializar.
@@ -184,7 +204,13 @@ export async function resolveInvitationDiscountCandidate(
   const cap = await getDiscountCapAmount(db, ctx, input.plan.country);
   const { amount, capApplied } = capInvitationAmount(nominalAmount, cap);
 
-  return { percent, nominalAmount, amount, capApplied, linkToMaterialize: link };
+  return {
+    percent,
+    nominalAmount,
+    amount,
+    capApplied,
+    linkToMaterialize: link,
+  };
 }
 
 /**
@@ -254,5 +280,121 @@ export function applyArbiterResult(params: {
     invitationAmount: core.kind === "invitation" ? amount : 0,
     partnerAmount: core.kind === "partner" ? amount : 0,
     finalPrice: priceAfterFilter - amount,
+  };
+}
+
+/**
+ * Candidato de invitación tal como lo necesita una charge-path (194-15): el candidato
+ * normal, o un candidato SOLO-VÍNCULO (% 0, monto 0) cuando D-20 (override) o D-26a
+ * (boarding pass) cierran el descuento de este cobro pero el cobro sigue siendo la compra
+ * paga de un plan con flag: el vínculo de descuento nace igual (D-05), porque alimenta
+ * los cobros siguientes. Solo lectura.
+ */
+export async function resolveChargeInvitation(
+  deps: DiscountArbiterDeps,
+  ctx: TenantContext,
+  input: InvitationCandidateInput,
+): Promise<InvitationDiscountCandidate | null> {
+  if (linkGatesClosed(input)) return null;
+  if (!discountGatesClosed(input)) {
+    return resolveInvitationDiscountCandidate(deps, ctx, input);
+  }
+  const settings = await getInvitationSettings(deps.db, ctx, deps.log);
+  const link = await findLinkableInvitation(
+    deps.db,
+    ctx,
+    input.userId,
+    settings.latePurchaseWindowDays,
+  );
+  if (link === null) return null;
+  return {
+    percent: 0,
+    nominalAmount: 0,
+    amount: 0,
+    capApplied: false,
+    linkToMaterialize: link,
+  };
+}
+
+/** Lo que el cobro conoce ANTES del filter de pricing (pasos 1 y 2 del orden). */
+export interface PreparedChargeDiscounts {
+  invitation: InvitationDiscountCandidate | null;
+  core: CoreCompetitor | null;
+  /** Va al filter como `competingDiscountAmount` (AURA compara por MONTO, D-21). */
+  competingDiscountAmount: number | null;
+}
+
+/**
+ * Pasos 1 y 2 del orden del árbitro: candidato de invitación + partner -> ganador core.
+ * `partnerCandidate` lo resuelve el servicio de partners (solo lectura).
+ */
+export async function prepareChargeDiscounts(
+  deps: DiscountArbiterDeps,
+  ctx: TenantContext,
+  input: InvitationCandidateInput,
+  partnerCandidate: { percent: number } | null,
+): Promise<PreparedChargeDiscounts> {
+  const invitation = await resolveChargeInvitation(deps, ctx, input);
+  const partner = partnerCompetitor(partnerCandidate, input.basePrice);
+  const core = pickCoreCompetitor(partner, invitation);
+  return { invitation, core, competingDiscountAmount: core?.amount ?? null };
+}
+
+/** Resultado del árbitro para un cobro (o su preview): un solo descuento y el vínculo por crear. */
+export interface ChargeSettlement {
+  finalPrice: number;
+  winningDiscount: WinningDiscount;
+  /** Monto de invitación efectivamente aplicado (ya recortado por el tope D-10c). */
+  invitationAmount: number;
+  /** % NOMINAL de la invitación si ganó (0 si no descontó): es el que se registra (D-10c). */
+  invitationPercent: number;
+  /** El tope en dinero recortó el descuento aplicado. */
+  invitationCapped: boolean;
+  /** Ganó el partner: su beneficio se consume como `aplicado`. */
+  partnerWon: boolean;
+  partnerAmount: number;
+  /** Vínculo a crear con este cobro; `null` si no cobra (`finalPrice <= 0`) o no hay. */
+  linkToMaterialize: InvitationLinkToMaterialize | null;
+}
+
+/**
+ * Paso 3 del orden: aplica el ganador sobre el precio post-filter. `exclusive` (boarding
+ * pass) anula el core. El vínculo solo se ofrece si el cobro cobra (T-194-53) y se
+ * ofrece aunque la invitación haya perdido contra AURA/partner (D-05). Pura.
+ */
+export function settleChargeDiscounts(params: {
+  priceAfterFilter: number;
+  auraApplied: boolean;
+  exclusive: boolean;
+  prepared: PreparedChargeDiscounts;
+}): ChargeSettlement {
+  const { priceAfterFilter, auraApplied, exclusive, prepared } = params;
+  const core = exclusive ? null : prepared.core;
+  const result = applyArbiterResult({ priceAfterFilter, auraApplied, core });
+
+  const invitationWon = result.invitationAmount > 0;
+  const partnerWon = !auraApplied && core?.kind === "partner";
+  const winningDiscount: WinningDiscount = exclusive
+    ? "boarding_pass"
+    : auraApplied
+      ? "aura"
+      : invitationWon
+        ? "invitation"
+        : partnerWon
+          ? "partner"
+          : "none";
+
+  return {
+    finalPrice: result.finalPrice,
+    winningDiscount,
+    invitationAmount: result.invitationAmount,
+    invitationPercent: invitationWon ? (prepared.invitation?.percent ?? 0) : 0,
+    invitationCapped: invitationWon && prepared.invitation?.capApplied === true,
+    partnerWon,
+    partnerAmount: result.partnerAmount,
+    linkToMaterialize:
+      result.finalPrice > 0
+        ? (prepared.invitation?.linkToMaterialize ?? null)
+        : null,
   };
 }

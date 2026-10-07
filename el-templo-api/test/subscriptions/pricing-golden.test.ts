@@ -200,7 +200,11 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
     );
 
     it("referral — descuento simétrico sobre precio de lista", async () => {
-      const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+      // 194-15 D-10b: el plan lleva el flag (sin él no descuenta).
+      const plan = await createPlan(app, adminToken, {
+        priceRegular: 10000,
+        allowsInvitationDiscount: true,
+      });
       const referrer = await createMember(app, {
         email: "gold-a-ref-referrer@test.com",
       });
@@ -223,11 +227,12 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       // Characterization: boardingPass y auraSpend son mutuamente excluyentes
       // en el código (override > boardingPass > AURA/plain, else-if chain) —
       // auraSpend queda SILENCIOSAMENTE ignorado cuando boardingPass=true.
-      // El referral SÍ compone porque corre fuera del else-if, sobre
-      // cualquier pricePaid ya resuelto.
+      // 194-15 D-26a: el referral YA NO compone sobre el boarding pass (antes
+      // 4500): el boarding pass excluye el descuento por invitación.
       const plan = await createPlan(app, adminToken, {
         priceRegular: 10000,
         priceZero: 5000,
+        allowsInvitationDiscount: true,
       });
       const referrer = await createMember(app, {
         email: "gold-a-triple-referrer@test.com",
@@ -247,9 +252,9 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.statusCode).toBe(201);
       expect(res.body.priceTypeApplied).toBe("zero");
       expect(res.body.auraDiscountPercent).toBe(null);
-      expect(res.body.referralDiscountPercent).toBe(10);
-      expect(res.body.referralDiscountAmount).toBe(500);
-      expect(res.body.pricePaid).toBe(4500);
+      expect(res.body.referralDiscountPercent).toBe(null);
+      expect(res.body.referralDiscountAmount).toBe(null);
+      expect(res.body.pricePaid).toBe(5000);
     });
   });
 
@@ -306,11 +311,14 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       expect(res.body.referralDiscountPercent).toBe(null);
     });
 
-    it("ES — auraSpend + referral componen sobre el precio ES", async () => {
+    it("ES — auraSpend vs referral (empate de monto): gana el referral sobre el precio ES", async () => {
+      // 194-15 D-08/D-21: antes componían (8100 con AURA gastada); AURA 10% = referral
+      // 10% = 1000: empate = gana la invitación, un solo descuento, AURA no se gasta.
       const plan = await createPlan(app, adminToken, {
         country: "ES",
         priceRegular: 10000,
         priceZero: 5000,
+        allowsInvitationDiscount: true,
       });
       const referrer = await createMember(app, {
         email: "gold-es-combo-referrer@test.com",
@@ -330,11 +338,11 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       });
 
       expect(res.statusCode).toBe(201);
-      expect(res.body.auraDiscount).toBe(1000);
-      expect(res.body.auraDiscountPercent).toBe(10);
+      expect(res.body.auraDiscount).toBe(null);
+      expect(res.body.auraDiscountPercent).toBe(null);
       expect(res.body.referralDiscountPercent).toBe(10);
-      expect(res.body.referralDiscountAmount).toBe(900);
-      expect(res.body.pricePaid).toBe(8100);
+      expect(res.body.referralDiscountAmount).toBe(1000);
+      expect(res.body.pricePaid).toBe(9000);
     });
   });
 
@@ -1120,7 +1128,11 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
     });
 
     it("referral — finalPrice del preview === pricePaid del alta real", async () => {
-      const plan = await createPlan(app, adminToken, { priceRegular: 10000 });
+      // 194-15 D-10b: el plan lleva el flag (sin él no descuenta).
+      const plan = await createPlan(app, adminToken, {
+        priceRegular: 10000,
+        allowsInvitationDiscount: true,
+      });
       const referrer = await createMember(app, {
         email: "gold-preview-pp-ref-referrer@test.com",
       });

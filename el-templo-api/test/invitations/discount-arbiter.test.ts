@@ -28,11 +28,15 @@ import {
   discountAmountOf,
   partnerCompetitor,
   pickCoreCompetitor,
+  prepareChargeDiscounts,
+  resolveChargeInvitation,
   resolveInvitationDiscountCandidate,
+  settleChargeDiscounts,
   type ArbiterPlan,
   type DiscountArbiterDeps,
   type InvitationCandidateInput,
   type InvitationDiscountCandidate,
+  type PreparedChargeDiscounts,
 } from "../../src/modules/subscriptions/discount-arbiter";
 import {
   findLinkableInvitation,
@@ -891,4 +895,287 @@ describe("pricingAdjustHandler compara AURA contra el competidor core por MONTO"
       expect(await auraBalanceOf(userId)).toBe(AURA_TIER.spend);
     },
   );
+});
+
+// ─── 4. Tramo de cableado (194-15): resolveChargeInvitation / prepare / settle ──
+
+/** Vínculo de mentira para las tablas puras de `settleChargeDiscounts`. */
+const LINK = { invitationId: 1, inviterId: 2, channel: "assisted" as const };
+
+function preparedWith(
+  invitation: InvitationDiscountCandidate | null,
+  core: { kind: "partner" | "invitation"; amount: number } | null,
+): PreparedChargeDiscounts {
+  return {
+    invitation,
+    core,
+    competingDiscountAmount: core?.amount ?? null,
+  };
+}
+
+describe("settleChargeDiscounts: ganador, % nominal, tope y vínculo (D-08/D-10c/D-21/D-26a)", () => {
+  const invitation = (
+    overrides: Partial<InvitationDiscountCandidate> = {},
+  ): InvitationDiscountCandidate => ({
+    ...invitationCandidate(10000),
+    linkToMaterialize: LINK,
+    ...overrides,
+  });
+
+  it("gana la invitación: monto aplicado, % nominal, vínculo y ganador 'invitation'", () => {
+    expect(
+      settleChargeDiscounts({
+        priceAfterFilter: BASE_PRICE,
+        auraApplied: false,
+        exclusive: false,
+        prepared: preparedWith(invitation(), {
+          kind: "invitation",
+          amount: 10000,
+        }),
+      }),
+    ).toEqual({
+      finalPrice: 90000,
+      winningDiscount: "invitation",
+      invitationAmount: 10000,
+      invitationPercent: 10,
+      invitationCapped: false,
+      partnerWon: false,
+      partnerAmount: 0,
+      linkToMaterialize: LINK,
+    });
+  });
+
+  it("tope aplicado: `invitationCapped` y % nominal se conservan; solo si la invitación ganó", () => {
+    const inv = invitation({ capApplied: true, amount: 5000 });
+    const won = settleChargeDiscounts({
+      priceAfterFilter: BASE_PRICE,
+      auraApplied: false,
+      exclusive: false,
+      prepared: preparedWith(inv, { kind: "invitation", amount: 5000 }),
+    });
+    expect(won.invitationCapped).toBe(true);
+    expect(won.invitationAmount).toBe(5000);
+    expect(won.invitationPercent).toBe(10);
+
+    // La invitación topeada pierde contra el partner: no se informa como topeada.
+    const lost = settleChargeDiscounts({
+      priceAfterFilter: BASE_PRICE,
+      auraApplied: false,
+      exclusive: false,
+      prepared: preparedWith(inv, { kind: "partner", amount: 9000 }),
+    });
+    expect(lost.invitationCapped).toBe(false);
+    expect(lost.invitationPercent).toBe(0);
+    expect(lost.winningDiscount).toBe("partner");
+  });
+
+  it("AURA aplicó: nadie más descuenta, ganador 'aura', PERO el vínculo se ofrece (D-05)", () => {
+    const result = settleChargeDiscounts({
+      priceAfterFilter: 70000,
+      auraApplied: true,
+      exclusive: false,
+      prepared: preparedWith(invitation(), {
+        kind: "invitation",
+        amount: 10000,
+      }),
+    });
+    expect(result).toMatchObject({
+      finalPrice: 70000,
+      winningDiscount: "aura",
+      invitationAmount: 0,
+      invitationPercent: 0,
+      partnerWon: false,
+      linkToMaterialize: LINK,
+    });
+  });
+
+  it("boarding pass (exclusive): el core se anula (D-26a), ganador 'boarding_pass' y el vínculo se ofrece", () => {
+    const result = settleChargeDiscounts({
+      priceAfterFilter: 70000,
+      auraApplied: false,
+      exclusive: true,
+      prepared: preparedWith(invitation(), {
+        kind: "invitation",
+        amount: 10000,
+      }),
+    });
+    expect(result).toMatchObject({
+      finalPrice: 70000,
+      winningDiscount: "boarding_pass",
+      invitationAmount: 0,
+      linkToMaterialize: LINK,
+    });
+  });
+
+  it("gana el partner: partnerWon y partnerAmount, sin descuento de invitación", () => {
+    const result = settleChargeDiscounts({
+      priceAfterFilter: BASE_PRICE,
+      auraApplied: false,
+      exclusive: false,
+      prepared: preparedWith(invitation(), { kind: "partner", amount: 20000 }),
+    });
+    expect(result).toMatchObject({
+      finalPrice: 80000,
+      winningDiscount: "partner",
+      partnerWon: true,
+      partnerAmount: 20000,
+      invitationAmount: 0,
+    });
+  });
+
+  it("sin core: ganador 'none' y el precio queda como lo dejó el filter", () => {
+    const result = settleChargeDiscounts({
+      priceAfterFilter: 50000,
+      auraApplied: false,
+      exclusive: false,
+      prepared: preparedWith(null, null),
+    });
+    expect(result).toMatchObject({
+      finalPrice: 50000,
+      winningDiscount: "none",
+      linkToMaterialize: null,
+    });
+  });
+
+  it("el vínculo NO se ofrece si el cobro no cobra (precio final 0, T-194-53)", () => {
+    const result = settleChargeDiscounts({
+      priceAfterFilter: 0,
+      auraApplied: false,
+      exclusive: false,
+      prepared: preparedWith(invitation({ percent: 0, amount: 0 }), null),
+    });
+    expect(result.finalPrice).toBe(0);
+    expect(result.linkToMaterialize).toBeNull();
+  });
+
+  it("candidato solo-vínculo (monto 0): no descuenta pero ofrece el vínculo", () => {
+    const result = settleChargeDiscounts({
+      priceAfterFilter: BASE_PRICE,
+      auraApplied: false,
+      exclusive: false,
+      prepared: preparedWith(
+        invitation({ percent: 0, nominalAmount: 0, amount: 0 }),
+        null,
+      ),
+    });
+    expect(result.finalPrice).toBe(BASE_PRICE);
+    expect(result.winningDiscount).toBe("none");
+    expect(result.linkToMaterialize).toEqual(LINK);
+  });
+});
+
+describe("resolveChargeInvitation: candidato solo-vínculo con override (D-20)", () => {
+  it("override: sin descuento (% 0, monto 0) pero con el vínculo por crear", async () => {
+    const { payerId, inviterId } = await payerWithInvitation();
+    const candidate = await resolveChargeInvitation(
+      arbiterDeps(),
+      ctx.tenant,
+      candidateInput(payerId, { isPriceOverride: true }),
+    );
+    expect(candidate).toMatchObject({
+      percent: 0,
+      nominalAmount: 0,
+      amount: 0,
+      capApplied: false,
+    });
+    expect(candidate?.linkToMaterialize).toMatchObject({ inviterId });
+  });
+
+  it("override sin invitación vigente -> null", async () => {
+    const payer = await createMemberInPhysicalBranch(ctx, {
+      status: "inactivo",
+    });
+    expect(
+      await resolveChargeInvitation(
+        arbiterDeps(),
+        ctx.tenant,
+        candidateInput(payer.id, { isPriceOverride: true }),
+      ),
+    ).toBeNull();
+  });
+
+  it.each([
+    [
+      "plan sin el flag (D-10b)",
+      { plan: discountPlan({ allowsInvitationDiscount: false }) },
+    ],
+    ["alta prorrateada a fin de mes", { prorateToMonthEnd: true }],
+    ["precio base 0", { basePrice: 0 }],
+  ] as const)("override + %s -> null (ni vínculo)", async (_nombre, extra) => {
+    const { payerId } = await payerWithInvitation();
+    expect(
+      await resolveChargeInvitation(
+        arbiterDeps(),
+        ctx.tenant,
+        candidateInput(payerId, { isPriceOverride: true, ...extra }),
+      ),
+    ).toBeNull();
+  });
+
+  it("sin override delega en el candidato normal (10% de 100000)", async () => {
+    const { payerId } = await payerWithInvitation();
+    const candidate = await resolveChargeInvitation(
+      arbiterDeps(),
+      ctx.tenant,
+      candidateInput(payerId),
+    );
+    expect(candidate).toMatchObject({ percent: 10, amount: 10000 });
+  });
+});
+
+describe("prepareChargeDiscounts: candidatos -> ganador core -> monto para el filter", () => {
+  it("partner 15% (15000) vs invitación 10% (10000): gana el partner y viaja 15000 al filter", async () => {
+    const { payerId } = await payerWithInvitation();
+    const prepared = await prepareChargeDiscounts(
+      arbiterDeps(),
+      ctx.tenant,
+      candidateInput(payerId),
+      { percent: 15 },
+    );
+    expect(prepared.core).toEqual({ kind: "partner", amount: 15000 });
+    expect(prepared.competingDiscountAmount).toBe(15000);
+    // La invitación perdida conserva el vínculo para materializar.
+    expect(prepared.invitation?.linkToMaterialize).not.toBeNull();
+  });
+
+  it("empate partner 10% / invitación 10%: gana la invitación", async () => {
+    const { payerId } = await payerWithInvitation();
+    const prepared = await prepareChargeDiscounts(
+      arbiterDeps(),
+      ctx.tenant,
+      candidateInput(payerId),
+      { percent: 10 },
+    );
+    expect(prepared.core).toEqual({ kind: "invitation", amount: 10000 });
+  });
+
+  it("sin partner ni invitación: sin core y `competingDiscountAmount` null (AURA compite sola)", async () => {
+    const payer = await createMemberInPhysicalBranch(ctx, {
+      status: "inactivo",
+    });
+    const prepared = await prepareChargeDiscounts(
+      arbiterDeps(),
+      ctx.tenant,
+      candidateInput(payer.id),
+      null,
+    );
+    expect(prepared).toEqual({
+      invitation: null,
+      core: null,
+      competingDiscountAmount: null,
+    });
+  });
+
+  it("solo-vínculo (override) no compite: sin core aunque haya vínculo", async () => {
+    const { payerId } = await payerWithInvitation();
+    const prepared = await prepareChargeDiscounts(
+      arbiterDeps(),
+      ctx.tenant,
+      candidateInput(payerId, { isPriceOverride: true }),
+      null,
+    );
+    expect(prepared.core).toBeNull();
+    expect(prepared.competingDiscountAmount).toBeNull();
+    expect(prepared.invitation?.linkToMaterialize).not.toBeNull();
+  });
 });

@@ -204,9 +204,11 @@ describe("MOD-02 — pricing con templo-gamification apagado", () => {
 
     // Referido — CORE (`tenant-scoped` en el manifiesto), corre en el
     // caller DESPUÉS de resolvePlanPrice, no depende del filter.
+    // 194-15 D-10b: el plan lleva el flag (sin él no descuenta).
     const referralPlan = await createPlan(app, adminToken, {
       name: "Plan MOD-02 Referral",
       priceRegular: 10000,
+      allowsInvitationDiscount: true,
     });
     const referrer = await createMember(app, {
       email: "mod02-off-ref-referrer@test.com",
