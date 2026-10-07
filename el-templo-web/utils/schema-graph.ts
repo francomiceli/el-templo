@@ -12,6 +12,7 @@
  * - `geo` solo con coordenadas exactas (>= 5 decimales): las aproximadas del
  *   seed sirven para mapas, no se publican en el schema (T-195-15).
  */
+import type { Profe } from "~/data/profes";
 import type { WebData, WebSede } from "~/data/web-data.types";
 
 export type JsonLdNode = Record<string, unknown>;
@@ -166,6 +167,38 @@ export function sedeListNode(sedes: WebSede[]): JsonLdNode {
       position: index + 1,
       url: sedeUrl(sede),
     })),
+  };
+}
+
+/** Ruta relativa de la pagina de un profe. */
+export function profePath(profe: Pick<Profe, "slug">): string {
+  return `/profes/${profe.slug}`;
+}
+
+/** `@id` del nodo Person de un profe. */
+export function personId(profe: Pick<Profe, "slug">): string {
+  return `${SITE_URL}${profePath(profe)}#person`;
+}
+
+/**
+ * `Person` de un profe publicado (D-27). `workLocation` referencia el
+ * `ExerciseGym` de cada sede con clases del profe (las que estan en `sedes`).
+ */
+export function personNode(profe: Profe, sedes: WebSede[] = []): JsonLdNode {
+  const workLocation = profe.sedes
+    .map((slug) => sedes.find((s) => s.slug === slug && s.kind === "gym"))
+    .filter((s): s is WebSede => s !== undefined)
+    .map((s) => ({ "@id": `${sedeUrl(s)}#gym` }));
+  return {
+    "@type": "Person",
+    "@id": personId(profe),
+    name: profe.nombre,
+    jobTitle: profe.rol,
+    url: `${SITE_URL}${profePath(profe)}`,
+    image: profe.foto ? absoluteUrl(profe.foto) : undefined,
+    worksFor: { "@id": ORG_ID },
+    ...(workLocation.length ? { workLocation } : {}),
+    ...(profe.sameAs.length ? { sameAs: profe.sameAs } : {}),
   };
 }
 

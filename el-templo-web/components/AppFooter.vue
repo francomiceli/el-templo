@@ -32,6 +32,13 @@ const columns: FooterColumn[] = [
       { label: "Sistema de Niveles", href: "/#niveles", disabled: false },
       { label: "Los 5 Enfoques", href: "/#enfoques", disabled: false },
       { label: "Descubrí tu Nivel", href: "/#descubri-nivel", disabled: false },
+      { label: "Disciplinas", href: "/disciplinas", disabled: false },
+      { label: "Planes", href: "/planes", disabled: false },
+      {
+        label: "Primera clase gratis",
+        href: "/primera-clase-gratis",
+        disabled: false,
+      },
       {
         label: "Reservar Sesión",
         href: salesWhatsappUrl("AR", DEFAULT_TRIAL_TEXT),
@@ -54,7 +61,12 @@ const columns: FooterColumn[] = [
     title: "Empresa",
     links: [
       { label: "Nuestra Filosofía", href: "/filosofia", disabled: true },
-      { label: "Ignacio Bordón", href: "/ignacio-bordon", disabled: true },
+      { label: "Profes", href: "/profes", disabled: false },
+      {
+        label: "Ignacio Bordón",
+        href: "/profes/ignacio-bordon",
+        disabled: false,
+      },
       { label: "Sedes", href: "/sedes", disabled: false },
       { label: "Contacto", href: "/contacto", disabled: true },
     ],
