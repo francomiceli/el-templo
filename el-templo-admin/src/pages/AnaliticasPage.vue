@@ -234,7 +234,7 @@
            de mostrarle un error. -->
       <q-tab v-if="!branchScoped" name="programas" label="Programas" icon="school" />
       <q-tab name="retencion" label="Retención (ciclos)" icon="timeline" />
-      <!-- Referidos A/B: agregado gym-wide sin dimensión de sede
+      <!-- Invitaciones A/B: agregado gym-wide sin dimensión de sede
            (REFERRAL_AB_RESULTS_ROLES excluye al admin_sede, 403). -->
       <q-tab v-if="!branchScoped" name="referidos-ab" label="Invitaciones A/B" icon="science" />
       <q-tab name="especiales" label="Especiales" icon="auto_awesome" />
@@ -350,7 +350,7 @@
         />
       </q-tab-panel>
 
-      <!-- Referidos A/B — copy test de la card de referidos (v5.5 follow-up).
+      <!-- Invitaciones A/B — copy test de la card de invitaciones (v5.5 follow-up).
            Métricas gym-wide, no dependen de los filtros globales. -->
       <q-tab-panel v-if="!branchScoped" name="referidos-ab">
         <ReferidosAbTab :data="referralAbData" :loading="loadingReferralAb" />
@@ -628,7 +628,7 @@ const activeTab = ref('miembros');
 
 // Rol de alcance forzado por sede (admin_sede, 2026-09-09 feedback UAT): sin
 // "Todas las sedes" en el selector (preseleccionada la suya) y sin las tabs
-// sin dimensión de sede (Programas → 403 ANALYTICS_ADMIN_ROLES; Referidos A/B
+// sin dimensión de sede (Programas → 403 ANALYTICS_ADMIN_ROLES; Invitaciones A/B
 // → gym-wide, REFERRAL_AB_RESULTS_ROLES lo excluye).
 const branchScoped = computed(() => isBranchScopedRole(authStore.user?.role));
 if (branchScoped.value && (activeTab.value === 'programas' || activeTab.value === 'referidos-ab')) {
@@ -669,7 +669,7 @@ const loadingIngresos = ref(false);
 
 // Clases — puntuación de clase (tab)
 
-// Referidos A/B — copy test (v5.5 follow-up). Métricas gym-wide, sin filtros.
+// Invitaciones A/B — copy test (v5.5 follow-up). Métricas gym-wide, sin filtros.
 const referralAbData = ref<ReferralAbResults | null>(null);
 const loadingReferralAb = ref(false);
 
