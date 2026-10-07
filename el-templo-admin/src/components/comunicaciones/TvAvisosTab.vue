@@ -135,6 +135,7 @@ function sedesLabel(row: TvAvisoRow): string {
   return names.join(', ');
 }
 
+// 2026-10-06: el fondo de la placa (tema claro/oscuro) va como un dato más.
 function cardMeta(row: TvAvisoRow): Array<{ icon: string; text: string }> {
   return [
     { icon: 'tv', text: MODE_LABELS[row.mode] },

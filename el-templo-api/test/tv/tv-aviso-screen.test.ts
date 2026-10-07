@@ -295,8 +295,6 @@ describe("screen 'aviso' — escritura, poll, salida y degradacion (D-25/D-26)",
     const avisoId = await createTvAviso({
       title: "Recorda traer la toalla",
       body: "Vamos a hacer un cambio en la rutina de hoy",
-      // 2026-10-06 (migración 0259): sin tema elegido, la placa es oscura.
-      tema: "oscuro",
     });
 
     const writeRes = await postState(coachToken, {
@@ -321,6 +319,8 @@ describe("screen 'aviso' — escritura, poll, salida y degradacion (D-25/D-26)",
       id: avisoId,
       title: "Recorda traer la toalla",
       body: "Vamos a hacer un cambio en la rutina de hoy",
+      // 2026-10-06 (migración 0259): sin tema elegido, la placa es oscura.
+      tema: "oscuro",
     });
   });
 
