@@ -19,7 +19,7 @@
 //                               tope. Gestión lo carga cuando quiera.
 //
 // Parámetros EXISTENTES que NO se mudan (D-09 "se mantiene") y acá solo se
-// exponen de LECTURA, vía `ReferralService.getReferralConfig()`:
+// exponen de LECTURA, vía `getReferralConfig()` (referral-config.ts):
 //   - % por invitado activo: `aura_config['referral'].default_amount`
 //   - tope %: `system_settings['referral.max_percent_cap']` (40)
 // Son globales (no por gimnasio): escribirlos desde un tenant sería
@@ -46,7 +46,7 @@ import {
 } from "../shared/tenant";
 import type { CountryCode } from "../shared/country-scope";
 import { BadRequestError } from "../shared/errors";
-import { ReferralService } from "./service";
+import { getReferralConfig } from "./referral-config";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -230,12 +230,14 @@ function isValidCap(value: unknown): value is number {
  * Lee todos los parámetros del programa para el tenant de `ctx`. Una sola
  * query sobre `tenant_settings` (prefijo) + la lectura de las dos fuentes
  * existentes. Sin fila (o valor corrupto / fuera de rango) = default; el tope en
- * dinero sin fila o inválido = `null` (sin tope).
+ * dinero sin fila o inválido = `null` (sin tope). El 3.er parámetro (logger) ya
+ * no se usa desde que la lectura de las fuentes existentes dejó de instanciar
+ * `ReferralService`; se conserva para no tocar los ~15 llamadores.
  */
 export async function getInvitationSettings(
   db: DbInstance,
   ctx: TenantContext,
-  log: FastifyBaseLogger,
+  _log: FastifyBaseLogger,
 ): Promise<InvitationSettings> {
   const rows = await db
     .select({
@@ -270,7 +272,7 @@ export async function getInvitationSettings(
     caps[country] = parseCap(byKey.get(discountCapKey(country)));
   }
 
-  const referralConfig = await new ReferralService(db, log).getReferralConfig();
+  const referralConfig = await getReferralConfig(db);
 
   return {
     ...result,

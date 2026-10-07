@@ -46,7 +46,7 @@ import { NotFoundError } from "../shared/errors";
 import { todayInTz } from "../shared/date-utils";
 import { normalizePhone } from "../shared/phone";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
-import { deriveMembershipCoveredUntil } from "../subscriptions/service";
+import { deriveMembershipCoveredUntil } from "../subscriptions/coverage";
 import { getInvitationSettings } from "./invitation-settings";
 import {
   InvitationRuleError,

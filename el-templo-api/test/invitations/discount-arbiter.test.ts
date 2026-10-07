@@ -41,8 +41,8 @@ import {
 import {
   findLinkableInvitation,
   materializeInvitationLink,
-  notifyInviterLinkActivated,
 } from "../../src/modules/referrals/invitation-link";
+import { notifyInviterLinkActivated } from "../../src/modules/referrals/invitation-link-notifications";
 import {
   createActiveSub,
   createInvitationRow,

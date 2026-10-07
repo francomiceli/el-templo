@@ -37,11 +37,9 @@ import {
   referralCredits,
   referralCtaClicks,
   subscriptions,
-  auraConfig,
   auraTransactions,
-  systemSettings,
 } from "../../db/schema";
-import { deriveMembershipCoveredUntilBatch } from "../subscriptions/service";
+import { deriveMembershipCoveredUntilBatch } from "../subscriptions/coverage";
 import {
   BadRequestError,
   ConflictError,
@@ -53,6 +51,8 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { referralCopyVariant } from "./ab-variant";
+import { isDuplicateKeyError } from "./duplicate-key";
+import { getReferralConfig } from "./referral-config";
 import { getInvitationSettings } from "./invitation-settings";
 import { InvitationOverview } from "./invitation-overview";
 import type {
@@ -72,12 +72,6 @@ interface LinkSide {
   percent: number;
 }
 
-/** % por vínculo cuando la fila aura_config['referral'] falta (D-12). */
-const DEFAULT_PERCENT_PER_LINK = 10;
-/** Tope cuando system_settings['referral.max_percent_cap'] falta (D-12). */
-const DEFAULT_MAX_PERCENT_CAP = 40;
-/** Clave del tope en system_settings (precedente finance.pending_overdue_days). */
-const MAX_PERCENT_CAP_KEY = "referral.max_percent_cap";
 /** Reintentos máximos ante colisión del UNIQUE de referral_code (Security V6). */
 const MAX_CODE_ATTEMPTS = 10;
 /** Alfabeto del sufijo aleatorio (sin ambigüedad O/0 no requerida acá). */
@@ -188,29 +182,7 @@ export class ReferralService {
    * sin deploy.
    */
   async getReferralConfig(): Promise<ReferralConfig> {
-    /* tenant-safe: aura_config.sourceType es UNIQUE a nivel de columna (src/db/schema/aura-config.ts) — una sola fila 'referral' existe en TODA la tabla, config global del sistema Aura, no per-gimnasio pese a tener tenant_id; no expone datos de miembro */
-    const [cfg] = await this.db
-      .select({ amount: auraConfig.defaultAmount })
-      .from(auraConfig)
-      .where(
-        sql`/* tenant-safe: aura_config.sourceType es UNIQUE a nivel de columna — una sola fila 'referral' existe en TODA la tabla, config global del sistema Aura, no per-gimnasio pese a tener tenant_id; no expone datos de miembro */ ${eq(auraConfig.sourceType, "referral")}`,
-      )
-      .limit(1);
-
-    const [cap] = await this.db
-      .select({ value: systemSettings.settingValue })
-      .from(systemSettings)
-      .where(eq(systemSettings.settingKey, MAX_PERCENT_CAP_KEY))
-      .limit(1);
-
-    const parsedCap = cap ? Number.parseInt(cap.value, 10) : Number.NaN;
-
-    return {
-      percentPerLink: cfg?.amount ?? DEFAULT_PERCENT_PER_LINK,
-      maxPercentCap: Number.isFinite(parsedCap)
-        ? parsedCap
-        : DEFAULT_MAX_PERCENT_CAP,
-    };
+    return getReferralConfig(this.db);
   }
 
   /**
@@ -858,25 +830,4 @@ function defaultSuffix(): string {
     out += SUFFIX_ALPHABET[Math.floor(Math.random() * SUFFIX_ALPHABET.length)];
   }
   return out;
-}
-
-/**
- * Narrowing del error de clave duplicada de mysql2 (ER_DUP_ENTRY / errno 1062).
- * Drizzle envuelve el error de mysql2 en un DrizzleQueryError, así que el código
- * real puede vivir en `err.cause` — se recorre la cadena de causas.
- */
-export function isDuplicateKeyError(err: unknown): boolean {
-  let current: unknown = err;
-  for (let depth = 0; depth < 5 && current != null; depth++) {
-    if (typeof current === "object") {
-      const e = current as { code?: string; errno?: number; cause?: unknown };
-      if (e.code === "ER_DUP_ENTRY" || e.errno === 1062) {
-        return true;
-      }
-      current = e.cause;
-    } else {
-      break;
-    }
-  }
-  return false;
 }

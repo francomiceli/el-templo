@@ -28,7 +28,7 @@ import { todayInTz } from "../shared/date-utils";
 import { BadRequestError } from "../shared/errors";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 import type { CountryCode } from "../shared/country-scope";
-import { deriveMembershipCoveredUntilBatch } from "../subscriptions/service";
+import { deriveMembershipCoveredUntilBatch } from "../subscriptions/coverage";
 
 type DbInstance = MySql2Database<typeof schema>;
 

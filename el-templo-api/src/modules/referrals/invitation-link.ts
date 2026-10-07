@@ -4,14 +4,15 @@
 // el vínculo de descuento se crea, directamente `qualified`, cuando compra su primer
 // plan pago que admite descuento, a nombre del invitador de la invitación MÁS
 // RECIENTE dentro de la ventana de compra tardía (D-13). Este archivo concentra las
-// tres piezas que el árbitro de descuentos (`subscriptions/discount-arbiter.ts`)
+// piezas que el árbitro de descuentos (`subscriptions/discount-arbiter.ts`)
 // necesita, para que ni `subscriptions/service.ts` ni `invitation-service.ts`
 // engorden (lección de 194-32):
 //
 //  1. `findLinkableInvitation`: ¿hay una invitación que dé vínculo a este pagador?
 //  2. `materializeInvitationLink`: crea la fila de `referrals` (idempotente).
-//  3. `notifyReferralLinkActivated` / `notifyInviterLinkActivated`: aviso al
-//     invitador, best-effort, para que el call site lo dispare DESPUÉS del commit.
+//  (El aviso al invitador, `notifyReferralLinkActivated` / `notifyInviterLinkActivated`,
+//  vive en `invitation-link-notifications.ts`: importa `NotificationService` y
+//  metería este archivo, que usa el árbitro, en el ciclo de importaciones, ME-02.)
 //
 // AISLAMIENTO: toda query lleva `tenantWhere` / `tenantValues`. El `tenant_id` sale
 // del `ctx` del servidor, nunca del body.
@@ -25,10 +26,9 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
-import { NotificationService } from "../notifications/service";
 import { referralCopyVariant } from "./ab-variant";
 import type { InvitationExecutor } from "./invitation-rules";
-import { isDuplicateKeyError } from "./service";
+import { isDuplicateKeyError } from "./duplicate-key";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -176,68 +176,4 @@ export async function materializeInvitationLink(
     "invitaciones: vínculo de descuento creado al comprar (D-05)",
   );
   return true;
-}
-
-/**
- * Aviso al invitador de que su descuento quedó activo. Best-effort (D-33): un fallo
- * de la cola JAMÁS relanza ni rompe el cobro. Lo comparten el flip `pending→qualified`
- * de la 157 (`qualifyReferralOnCharge`) y la materialización de este archivo.
- */
-export async function notifyReferralLinkActivated(
-  db: DbInstance,
-  log: FastifyBaseLogger,
-  referrerId: number,
-  referredFirstName: string,
-): Promise<void> {
-  try {
-    await new NotificationService(db, log).queueNotification({
-      userId: referrerId,
-      templateKey: "referral_link_activated",
-      bodyOverride: `${referredFirstName} pagó su primer plan. Ya tenés tu descuento por invitación activo.`,
-    });
-  } catch (err: unknown) {
-    log.warn(
-      {
-        err: err instanceof Error ? err.message : String(err),
-        referrerId,
-      },
-      "referral activation notification failed (best-effort)",
-    );
-  }
-}
-
-/**
- * Avisa al invitador tras materializar el vínculo (lo llama el call site de cobro
- * DESPUÉS del commit). Best-effort: si no puede leer el nombre del pagador, no avisa.
- */
-export async function notifyInviterLinkActivated(
-  db: DbInstance,
-  log: FastifyBaseLogger,
-  ctx: TenantContext,
-  inviterId: number,
-  payerId: number,
-): Promise<void> {
-  try {
-    const [payer] = await db
-      .select({ firstName: schema.users.firstName })
-      .from(schema.users)
-      .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, payerId)))
-      .limit(1);
-    if (!payer) return;
-    await notifyReferralLinkActivated(
-      db,
-      log,
-      inviterId,
-      payer.firstName ?? "",
-    );
-  } catch (err: unknown) {
-    log.warn(
-      {
-        err: err instanceof Error ? err.message : String(err),
-        inviterId,
-        payerId,
-      },
-      "invitation link notification failed (best-effort)",
-    );
-  }
 }

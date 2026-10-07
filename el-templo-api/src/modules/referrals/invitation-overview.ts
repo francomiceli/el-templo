@@ -27,7 +27,7 @@ import * as schema from "../../db/schema";
 import { todayInTz } from "../shared/date-utils";
 import { notTrialPlanSql } from "../shared/membership";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
-import { deriveMembershipCoveredUntilBatch } from "../subscriptions/service";
+import { deriveMembershipCoveredUntilBatch } from "../subscriptions/coverage";
 import { InvitationRules } from "./invitation-rules";
 import {
   accessesUsed,
