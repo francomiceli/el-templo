@@ -1,112 +1,110 @@
-<!-- Pantalla "Mis referidos" (fase 158, VIS-01) — UI-SPEC S1/S2. -->
+<!-- Pantalla "Mis invitados" (Fase 194, SC-5): reemplaza a la vieja pantalla de referidos (fases 158/194).
+     Cupo, link, estados y descuento los calcula el servidor (GET /members/referrals, bloque `invitations`):
+     la app solo los muestra. El link lo arma el servidor (T-194-85), el cliente no construye URLs. -->
 <template>
-  <q-page class="referidos-page" padding>
-    <p class="page-title">Mis referidos</p>
+  <q-page class="invitados-page" padding>
+    <p class="page-title">Mis invitados</p>
 
     <!-- Loading -->
-    <div v-if="loading" class="referidos-loading">
+    <div v-if="loading" class="invitados-loading">
       <TemploLoader />
     </div>
 
     <!-- Load error -->
-    <div v-else-if="loadError" class="referidos-error">
+    <div v-else-if="loadError" class="invitados-error">
       <q-icon name="error_outline" size="40px" color="negative" />
-      <p class="referidos-error__text">No pudimos cargar tus referidos.</p>
-      <q-btn color="primary" unelevated label="Reintentar" no-caps @click="fetchReferrals" />
+      <p class="invitados-error__text">No pudimos cargar tus invitaciones.</p>
+      <q-btn color="primary" unelevated label="Reintentar" no-caps @click="fetchOverview" />
     </div>
 
     <!-- Loaded -->
     <template v-else-if="overview">
-      <!-- Bloque 1: Código + Compartir (SIEMPRE visible) -->
-      <div class="info-card info-card--code q-mb-md">
+      <!-- Bloque 1: cupo + invitar -->
+      <div class="info-card q-mb-md">
         <q-icon name="card_giftcard" size="24px" color="primary" class="info-card__icon" />
         <div class="info-card__content">
-          <span class="info-card__label">Tu código</span>
-          <span class="code-value">{{ overview.referralCode }}</span>
+          <span class="info-card__label">Tus invitaciones</span>
+          <span class="quota-headline">{{ quotaLabel }}</span>
           <q-btn
             class="q-mt-md"
             color="primary"
             unelevated
             no-caps
             icon="share"
-            label="Compartir mi código"
+            label="Invitar a alguien"
+            :disabled="quotaExhausted"
             :loading="sharing"
-            @click="shareCode"
+            @click="shareInvitation"
           />
         </div>
       </div>
 
-      <!-- Bloque 2: Descuento vigente -->
-      <div class="info-card info-card--discount q-mb-md">
+      <!-- Bloque 2: descuento vigente -->
+      <div class="info-card q-mb-md">
         <q-icon name="local_offer" size="24px" color="primary" class="info-card__icon" />
         <div class="info-card__content">
-          <template v-if="overview.discount.percent > 0">
-            <span class="discount-headline"
-              >Estás pagando {{ overview.discount.percent }}% menos</span
-            >
-            <span class="discount-breakdown">
-              {{ overview.discount.activeCount }} vínculos activos ×
-              {{ overview.discount.perLinkPercent }}% = {{ overview.discount.percent }}% (tope
-              {{ overview.discount.capPercent }}%)
-            </span>
-          </template>
-          <template v-else>
-            <span class="discount-headline discount-headline--muted">
-              Todavía no tenés descuento activo
-            </span>
-          </template>
+          <span class="info-card__label">Tu descuento por invitaciones</span>
+          <span
+            class="discount-headline"
+            :class="{ 'discount-headline--muted': overview.invitations.discount.percent <= 0 }"
+            >{{ discountLabel }}</span
+          >
         </div>
       </div>
 
-      <!-- Bloque 3: Vínculos simétricos -->
-      <template v-if="hasAnyLink">
-        <template v-if="overview.referred.length > 0">
-          <p class="section-title">Trajiste a</p>
-          <div class="links-card q-mb-md">
-            <div v-for="link in overview.referred" :key="link.userId" class="link-row">
-              <div class="link-row__main">
-                <span class="link-row__name">{{ link.fullName }}</span>
-                <span v-if="link.state === 'suspended'" class="link-row__caption">
-                  se reactiva si vuelve
-                </span>
-              </div>
-              <q-chip
-                :color="stateColor(link.state)"
-                text-color="white"
-                dense
-                :label="stateLabel(link.state)"
-              />
+      <!-- Bloque 3: quién me invitó -->
+      <template v-if="overview.invitedBy">
+        <p class="section-title">Te invitó</p>
+        <div class="links-card q-mb-md">
+          <div class="link-row">
+            <div class="link-row__main">
+              <span class="link-row__name">{{ overview.invitedBy.inviterName }}</span>
+              <span class="link-row__caption">{{ invitedByCaption }}</span>
             </div>
+            <q-chip
+              :color="invitedByStageColor(overview.invitedBy.stage)"
+              text-color="white"
+              dense
+              :label="invitedByStageLabel(overview.invitedBy.stage)"
+            />
           </div>
-        </template>
-
-        <template v-if="overview.referredBy">
-          <p class="section-title">Te trajo</p>
-          <div class="links-card q-mb-md">
-            <div class="link-row">
-              <div class="link-row__main">
-                <span class="link-row__name">{{ overview.referredBy.fullName }}</span>
-                <span v-if="overview.referredBy.state === 'suspended'" class="link-row__caption">
-                  se reactiva si vuelve
-                </span>
-              </div>
-              <q-chip
-                :color="stateColor(overview.referredBy.state)"
-                text-color="white"
-                dense
-                :label="stateLabel(overview.referredBy.state)"
-              />
-            </div>
-          </div>
-        </template>
+        </div>
       </template>
 
-      <!-- Estado vacío (cero vínculos): Bloque 1 + Bloque 2 quedan arriba, esto reemplaza el Bloque 3 -->
-      <div v-else class="referidos-empty">
+      <!-- Bloque 4: mis invitados -->
+      <template v-if="overview.invitations.invitees.length > 0">
+        <p class="section-title">Invitaste a</p>
+        <div class="links-card q-mb-md">
+          <div
+            v-for="invitee in overview.invitations.invitees"
+            :key="`${invitee.source}-${invitee.userId}`"
+            class="link-row"
+          >
+            <q-avatar color="primary" text-color="white" size="36px" class="link-row__avatar">
+              {{ initialOf(invitee.firstName) }}
+            </q-avatar>
+            <div class="link-row__main">
+              <span class="link-row__name">{{ inviteeName(invitee) }}</span>
+              <span v-if="inviteeCaption(invitee)" class="link-row__caption">{{
+                inviteeCaption(invitee)
+              }}</span>
+            </div>
+            <q-chip
+              :color="inviteeStateColor(invitee.state)"
+              text-color="white"
+              dense
+              :label="inviteeStateLabel(invitee.state)"
+            />
+          </div>
+        </div>
+      </template>
+
+      <!-- Estado vacío -->
+      <div v-else class="invitados-empty">
         <q-icon name="group_add" size="48px" color="primary" />
-        <p class="referidos-empty__heading">Todavía no referiste a nadie</p>
-        <p class="referidos-empty__body">
-          Compartí tu código con quien quieras entrenar. Mientras vos y tu referido sean activos,
+        <p class="invitados-empty__heading">Todavía no invitaste a nadie</p>
+        <p class="invitados-empty__body">
+          Compartí tu link con quien quieras que entrene con vos. Mientras los dos sean activos,
           obtienen un descuento en su cuota.
         </p>
       </div>
@@ -120,72 +118,110 @@ import { useQuasar, copyToClipboard } from 'quasar'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
+import { useUserStore } from 'src/stores/useUserStore'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import {
+  inviteeStateLabel,
+  inviteeStateColor,
+  invitedByStageLabel,
+  invitedByStageColor,
+  quotaText,
+  accessesText,
+  expiryText,
+  discountText,
+  shareMessage,
+  type InviteeState,
+  type InvitedByStage,
+} from 'src/utils/invitation-view'
 
-type ReferralState = 'pending' | 'active' | 'suspended'
-
-interface ReferralLinkView {
+// Contrato de GET /api/members/referrals (194-19). Solo los campos que usa esta pantalla.
+interface InviteeView {
+  invitationId: number | null
   userId: number
-  fullName: string
-  state: ReferralState
+  firstName: string
+  lastInitial: string
+  state: InviteeState
+  accessesUsed: number | null
+  accessesBudget: number | null
+  activatedAt: string | null
+  accessExpiresOn: string | null
+  sumaDescuento: boolean
+  source: 'invitation' | 'legacy_link'
 }
 
-interface ReferralDiscountView {
-  percent: number
-  activeCount: number
-  perLinkPercent: number
-  capPercent: number
+interface InvitedByView {
+  inviterId: number
+  inviterName: string
+  activatedAt: string
+  accessesUsed: number
+  accessesBudget: number
+  accessExpiresOn: string
+  stage: InvitedByStage
+}
+
+interface InvitationsOverview {
+  quota: { limit: number; used: number; remaining: number; month: string }
+  inviteUrl: string
+  invitees: InviteeView[]
+  discount: { percent: number; activeInvitees: number }
 }
 
 interface ReferralsResponse {
-  referralCode: string
-  discount: ReferralDiscountView
-  referred: ReferralLinkView[]
-  referredBy: ReferralLinkView | null
+  invitations: InvitationsOverview
+  invitedBy: InvitedByView | null
 }
 
-const log = createLogger('MisReferidosPage')
+const log = createLogger('MisInvitadosPage')
 const $q = useQuasar()
+const userStore = useUserStore()
 
 const loading = ref(true)
 const loadError = ref(false)
 const sharing = ref(false)
 const overview = ref<ReferralsResponse | null>(null)
 
-const hasAnyLink = computed(
-  () =>
-    !!overview.value && (overview.value.referred.length > 0 || overview.value.referredBy !== null),
+const quotaExhausted = computed(() => (overview.value?.invitations.quota.remaining ?? 0) <= 0)
+const quotaLabel = computed(() =>
+  overview.value ? quotaText(overview.value.invitations.quota) : '',
+)
+const discountLabel = computed(() =>
+  overview.value
+    ? discountText(
+        overview.value.invitations.discount.percent,
+        overview.value.invitations.discount.activeInvitees,
+      )
+    : '',
 )
 
-const shareUrl = computed(() =>
-  overview.value ? `https://app.eltemplo.org/register?ref=${overview.value.referralCode}` : '',
-)
+const invitedByCaption = computed(() => {
+  const by = overview.value?.invitedBy
+  if (!by) return ''
+  return [accessesText(by.accessesUsed, by.accessesBudget), expiryText(by.accessExpiresOn)]
+    .filter(Boolean)
+    .join(' · ')
+})
 
-function stateColor(state: ReferralState): string {
-  switch (state) {
-    case 'active':
-      return 'positive'
-    case 'suspended':
-      return 'warning'
-    case 'pending':
-    default:
-      return 'info'
-  }
+function initialOf(firstName: string): string {
+  return firstName.trim().charAt(0).toUpperCase()
 }
 
-function stateLabel(state: ReferralState): string {
-  switch (state) {
-    case 'active':
-      return 'Activo'
-    case 'suspended':
-      return 'Suspendido'
-    case 'pending':
-    default:
-      return 'Pendiente'
-  }
+function inviteeName(invitee: InviteeView): string {
+  return invitee.lastInitial ? `${invitee.firstName} ${invitee.lastInitial}.` : invitee.firstName
 }
 
-async function fetchReferrals() {
+function inviteeCaption(invitee: InviteeView): string {
+  return [
+    accessesText(invitee.accessesUsed, invitee.accessesBudget),
+    // El vencimiento solo importa mientras los accesos están vigentes.
+    invitee.state === 'invitado' || invitee.state === 'entrenando'
+      ? expiryText(invitee.accessExpiresOn)
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+async function fetchOverview() {
   loading.value = true
   loadError.value = false
   try {
@@ -193,11 +229,11 @@ async function fetchReferrals() {
     overview.value = res.data
   } catch (err: unknown) {
     loadError.value = true
-    log.error('Failed to load referrals', {
+    log.error('Failed to load invitations overview', {
       error: err instanceof Error ? err.message : String(err),
     })
     $q.notify({
-      message: extractError(err, 'No pudimos cargar tus referidos.'),
+      message: extractError(err, 'No pudimos cargar tus invitaciones.'),
       color: 'negative',
       timeout: 4000,
     })
@@ -244,16 +280,18 @@ async function copyWithFallback(text: string): Promise<boolean> {
   }
 }
 
-async function shareCode() {
+async function shareInvitation() {
   if (!overview.value) return
   sharing.value = true
-  const url = shareUrl.value
+  // T-194-85: el link lo arma el servidor; el cliente solo lo comparte.
+  const url = overview.value.invitations.inviteUrl
+  const text = shareMessage(userStore.profile?.firstName ?? null, url)
   try {
     const shareMod: typeof import('@capacitor/share') = await import('@capacitor/share')
     const { Share } = shareMod
     await Share.share({
       title: 'Sumate a El Templo',
-      text: `Entrená conmigo en El Templo. Usá mi código y los dos empezamos a pagar menos: ${url}`,
+      text,
       url,
     })
   } catch (shareErr: unknown) {
@@ -274,7 +312,7 @@ async function shareCode() {
             timeout: 4000,
           }
         : {
-            message: `No pudimos compartir ni copiar el link. Tu código es ${overview.value.referralCode}.`,
+            message: `No pudimos compartir ni copiar el link: ${url}`,
             color: 'negative',
             timeout: 8000,
             actions: [{ label: 'Cerrar', color: 'white' }],
@@ -285,13 +323,13 @@ async function shareCode() {
   }
 }
 
-onMounted(fetchReferrals)
+onMounted(fetchOverview)
 </script>
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.referidos-page {
+.invitados-page {
   max-width: 600px;
   margin: 0 auto;
 }
@@ -304,13 +342,13 @@ onMounted(fetchReferrals)
   margin: 8px 0 16px;
 }
 
-.referidos-loading {
+.invitados-loading {
   display: flex;
   justify-content: center;
   padding: 48px 0;
 }
 
-.referidos-error {
+.invitados-error {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -367,33 +405,26 @@ onMounted(fetchReferrals)
   }
 }
 
-.code-value {
+.quota-headline {
   font-family: 'Montserrat', sans-serif;
-  font-size: 24px;
-  line-height: 1.2;
+  font-size: 18px;
+  line-height: 1.3;
   font-weight: 700;
-  letter-spacing: 0.1em;
   color: $primary;
   margin-top: 4px;
 }
 
 .discount-headline {
   font-family: 'Montserrat', sans-serif;
-  font-size: 24px;
-  line-height: 1.2;
+  font-size: 18px;
+  line-height: 1.3;
   font-weight: 700;
   color: $primary;
+  margin-top: 4px;
 
   &--muted {
     color: rgba($primary, 0.6);
   }
-}
-
-.discount-breakdown {
-  font-size: 14px;
-  line-height: 1.5;
-  color: $grey-7;
-  margin-top: 8px;
 }
 
 .links-card {
@@ -415,9 +446,14 @@ onMounted(fetchReferrals)
     border-top: 1px solid rgba($primary, 0.08);
   }
 
+  &__avatar {
+    flex-shrink: 0;
+  }
+
   &__main {
     display: flex;
     flex-direction: column;
+    flex: 1;
     min-width: 0;
   }
 
@@ -436,7 +472,7 @@ onMounted(fetchReferrals)
   }
 }
 
-.referidos-empty {
+.invitados-empty {
   display: flex;
   flex-direction: column;
   align-items: center;

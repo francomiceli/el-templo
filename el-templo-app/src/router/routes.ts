@@ -85,9 +85,16 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/ChangePasswordPage.vue'),
       },
       {
+        path: 'mis-invitados',
+        name: 'mis-invitados',
+        component: () => import('pages/MisInvitadosPage.vue'),
+      },
+      // Fase 194: la pantalla "Mis referidos" pasó a "Mis invitados". La ruta vieja queda como
+      // REDIRECT (no se borra): builds publicadas, pushes y avisos con destino `referidos` la usan.
+      {
         path: 'mis-referidos',
         name: 'mis-referidos',
-        component: () => import('pages/MisReferidosPage.vue'),
+        redirect: { name: 'mis-invitados' },
       },
       {
         path: 'proponer-mejora',
