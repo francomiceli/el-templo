@@ -53,6 +53,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [ ] **Phase 190: Valoración, evolución y edición con recálculo** - Fácil/Adecuado/Difícil + molestia, récord de peso, vez anterior, sesiones del mes, y edición dentro de plazo que recalcula
 - [ ] **Phase 191: Panel del profesor** - Lista de alumnos con señales servidas sin buscarlas y ficha con planificado vs realizado
 - [ ] **Phase 192: Onboarding del tenant 2 (cierre del milestone)** - Un gimnasio real dado de alta con el wizard y operando en producción
+- [ ] **Phase 195: Web SEO local + AEO + atribución (fuera del milestone)** - eltemplo.org con datos reales desde `branches`, páginas por sede, schema correcto, medición GA4/Meta/Search Console, atribución propia + CAPI, y guía final de pasos en Meta y Google
 
 ## Phase Details
 
@@ -302,6 +303,22 @@ Plans:
 
 **Plans**: TBD
 
+### Phase 195: Web SEO local + AEO + atribución (fuera del milestone v6.1)
+
+**Goal**: Que eltemplo.org traiga alumnos nuevos: datos de sedes siempre correctos (fuente única `branches`), páginas por sede/disciplina/profes indexables y citables por buscadores e IA, medición real (GA4, Pixel, Search Console, Bing) y atribución de punta a punta (de dónde vino cada alumno → pagó), automatizando todo lo posible del lado de Meta y Google
+**Depends on**: nada bloqueante (web Nuxt 4 SSG en producción). Migración de `branches` se numera al momento de ejecutar (194 usa 0255+).
+**Requirements**: investigación y decisiones A1-A7, B1-B8 en `.planning/phases/195-web-seo-local-aeo-atribucion/195-RESEARCH-SEO-AEO.md` (fuente: `.planning/research/seo-aeo-2026-10-05.md`). Todo en UNA fase (Franco 2026-10-06), incluido el fix urgente de la dirección Juan B. Justo 1018.
+**Success Criteria** (what must be TRUE):
+
+1. Ninguna dirección, sede o conteo publicado en la web contradice la tabla `branches` (JBJ 1018, sin Chapadmalal, Park como espacio de comunidad); la web se regenera con un botón "solo web" en GitHub
+2. Cada sede tiene su página con `ExerciseGym` (`@id`, geo, horarios reales, `parentOrganization`) y la home tiene un `Organization` raíz único; Barcelona vive en `/es/` con hreflang recíproco
+3. URLs inexistentes devuelven 404 real, los redirects son 301/302 reales y staging/app/admin no son indexables
+4. GA4, Meta Pixel, Search Console y Bing reciben datos de producción; robots.txt permite explícitamente los bots de búsqueda IA y llms.txt se genera desde los datos de sedes
+5. Cada alta guarda su origen (utm/promo/referrer, incluido tráfico de IA) y Reportes muestra registros → prueba → pago → facturación por campaña y sede; los eventos de conversión llegan a Meta por CAPI (con consentimiento donde aplique)
+6. Existe una guía final paso a paso de lo que Franco/equipo hace en Meta y Google, reducida al mínimo por la automatización
+
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:** 181 → 182 → 183 → 184 → 185 → 186 → 187 → 188 → 189 → 190 → 191 → 192
@@ -322,6 +339,7 @@ Plans:
 | 190. Valoración y evolución  | v6.1      | 0/TBD          | Not started | -         |
 | 191. Panel del profesor      | v6.1      | 0/TBD          | Not started | -         |
 | 192. Onboarding tenant 2     | v6.1      | 0/TBD          | Not started | -         |
+| 195. Web SEO + atribución    | -         | 0/TBD          | Not started | -         |
 
 ## Coverage
 
