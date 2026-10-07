@@ -1024,7 +1024,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         profileRows[0]?.introStoriesSeenAt?.toISOString() ?? null;
       const introStoriesCompletedAt =
         profileRows[0]?.introStoriesCompletedAt?.toISOString() ?? null;
-      const introStoriesLastSlide = profileRows[0]?.introStoriesLastSlide ?? null;
+      const introStoriesLastSlide =
+        profileRows[0]?.introStoriesLastSlide ?? null;
 
       // Fase 176 (D-08, MOD-01/MOD-02): campo aditivo, ordenado
       // alfabéticamente para que la respuesta sea determinística (el `Set`
@@ -1281,7 +1282,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
         return {
           introStoriesSeenAt: event === "seen" ? now.toISOString() : null,
-          introStoriesCompletedAt: event === "completed" ? now.toISOString() : null,
+          introStoriesCompletedAt:
+            event === "completed" ? now.toISOString() : null,
           introStoriesLastSlide: lastSlide,
         };
       }
@@ -1312,9 +1314,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         );
 
       return {
-        introStoriesSeenAt: (updates.introStoriesSeenAt ?? existing.seenAt)?.toISOString() ?? null,
+        introStoriesSeenAt:
+          (updates.introStoriesSeenAt ?? existing.seenAt)?.toISOString() ??
+          null,
         introStoriesCompletedAt:
-          (updates.introStoriesCompletedAt ?? existing.completedAt)?.toISOString() ?? null,
+          (
+            updates.introStoriesCompletedAt ?? existing.completedAt
+          )?.toISOString() ?? null,
         introStoriesLastSlide: lastSlide,
       };
     },
