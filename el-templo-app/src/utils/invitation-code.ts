@@ -1,3 +1,4 @@
+// deploy: fase 194 — el push del fix de tests tras CI rojo tiene que redeployar la app.
 /**
  * Formato único del código de invitación / de socio (Fase 194, LO-10).
  *

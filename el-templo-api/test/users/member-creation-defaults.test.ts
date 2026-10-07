@@ -142,7 +142,7 @@ describe("Phase 103-03 — Member creation status defaults (R7)", () => {
 
   // ─── Test 2: /register (with valid promo) → activo (Plan 02 chain) ────
 
-  it("POST /register with valid promoCode → status='activo' (verifies Plan 02 recomputeUserStatus chain)", async () => {
+  it("POST /register with valid promoCode on an is_trial plan → sub created but status stays 'freemium' (Fase 194 D-03)", async () => {
     const promoCode = `PROMO-${uniqueSuffix()}`.toUpperCase();
     const now = new Date();
     await app.db.insert(schema.promoPlans).values({
@@ -168,9 +168,9 @@ describe("Phase 103-03 — Member creation status defaults (R7)", () => {
     const body = JSON.parse(res.body);
     expect(body.promoApplied).toBe(true);
 
-    // The user was inserted with status='freemium' but the subsequent
-    // assignPlan triggers Plan 02's recomputeUserStatus, flipping to 'activo'
-    // inside the same transaction.
+    // Fase 194 D-03: el plan de la promo es `is_trial` (da ACCESO, nunca
+    // MEMBRESÍA), así que el recompute que dispara el assignPlan NO lo pasa a
+    // 'activo'. Antes de la 194 este caso esperaba 'activo'.
     const [row] = await app.db
       .select({ status: schema.users.status })
       .from(schema.users)
@@ -180,7 +180,7 @@ describe("Phase 103-03 — Member creation status defaults (R7)", () => {
           eq(schema.users.id, body.user.id),
         ),
       );
-    expect(row.status).toBe("activo");
+    expect(row.status).toBe("freemium");
 
     // Belt-and-braces: a subscription row exists.
     const subs = await app.db

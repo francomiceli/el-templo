@@ -1,3 +1,4 @@
+// deploy: fase 194 — el push del fix de tests tras CI rojo tiene que redeployar el admin.
 /**
  * Metadatos visuales de las invitaciones (Fase 194): un único lugar para el mapeo
  * estado/etapa -> label/color entre la pestaña "Invitaciones" de la ficha y el

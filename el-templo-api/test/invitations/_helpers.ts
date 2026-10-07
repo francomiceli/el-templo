@@ -145,6 +145,9 @@ export async function ensurePhysicalBranch(
         eq(schema.branches.country, country),
         eq(schema.branches.isVirtual, false),
         eq(schema.branches.isActive, true),
+        // Solo reusar una sede con la zona horaria del país: en CI hay sedes
+        // ES sembradas por otros tests con el default de Argentina.
+        eq(schema.branches.timezone, COUNTRY_DEFAULTS[country].timezone),
       ),
     )
     .orderBy(schema.branches.id)
