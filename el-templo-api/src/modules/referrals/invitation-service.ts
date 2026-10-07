@@ -5,8 +5,7 @@
 // activación fallida y aplicación de los datos del invitado. Las REGLAS
 // anti-abuso (cupo D-10, membresía del invitador D-10d, elegibilidad D-11/D-12,
 // identidad por teléfono/DNI) viven en `invitation-rules.ts`; acá se componen
-// con `this.rules` y los métodos públicos de reglas se exponen delegando, así la
-// API pública (rutas y tests) no cambia.
+// con `this.rules` (público: quien necesite una regla suelta la llama directo).
 //
 // La carrera (dos activaciones simultáneas con el mismo cupo) se resuelve en
 // `activate` con el lock `FOR UPDATE` de la tx del paso 2.
@@ -50,10 +49,7 @@ import {
   type ActivateInvitationInput,
   type ActivationPreview,
   type ActivationPreviewInput,
-  type EligibilityResult,
   type InvitationIneligibleReason,
-  type InviteeEligibilityInput,
-  type InviterQuota,
   type VoidInvitationInput,
 } from "./invitation-types";
 
@@ -82,8 +78,12 @@ interface InviteeSnapshot {
 }
 
 export class InvitationService {
-  /** Reglas anti-abuso (cupo, elegibilidad, identidad): ver `invitation-rules.ts`. */
-  private readonly rules: InvitationRules;
+  /**
+   * Reglas anti-abuso (cupo, elegibilidad, identidad): ver `invitation-rules.ts`. Público
+   * de solo lectura: quien necesite consultar una regla suelta (canal asistido, tests) la
+   * llama acá, sin delegadores intermedios.
+   */
+  readonly rules: InvitationRules;
 
   constructor(
     private readonly db: DbInstance,
@@ -94,53 +94,6 @@ export class InvitationService {
     readonly bookingService?: BookingService,
   ) {
     this.rules = new InvitationRules(db, log);
-  }
-
-  // ─── Reglas (delegan en InvitationRules) ─────────────────────────────────
-
-  /** Cupo del mes en curso del invitador (D-10). Ver `InvitationRules`. */
-  getInviterQuota(
-    ctx: TenantContext,
-    inviterId: number,
-    exec: InvitationExecutor = this.db,
-  ): Promise<InviterQuota> {
-    return this.rules.getInviterQuota(ctx, inviterId, exec);
-  }
-
-  /** Aserción de D-10d + D-10 sobre el invitador. Ver `InvitationRules`. */
-  assertInviterCanInvite(
-    ctx: TenantContext,
-    inviterId: number,
-    exec: InvitationExecutor = this.db,
-  ): Promise<InviterQuota> {
-    return this.rules.assertInviterCanInvite(ctx, inviterId, exec);
-  }
-
-  /** Evalúa al invitado SIN lanzar (D-11, D-12, identidad). Ver `InvitationRules`. */
-  evaluateInviteeEligibility(
-    ctx: TenantContext,
-    input: InviteeEligibilityInput,
-    exec: InvitationExecutor = this.db,
-  ): Promise<EligibilityResult> {
-    return this.rules.evaluateInviteeEligibility(ctx, input, exec);
-  }
-
-  /** Igual que `evaluateInviteeEligibility` pero lanza. Ver `InvitationRules`. */
-  assertInviteeEligible(
-    ctx: TenantContext,
-    input: InviteeEligibilityInput,
-    exec: InvitationExecutor = this.db,
-  ): Promise<void> {
-    return this.rules.assertInviteeEligible(ctx, input, exec);
-  }
-
-  /** Teléfono obligatorio y teléfono/DNI no tomados por otro usuario. Ver `InvitationRules`. */
-  assertIdentityNotTaken(
-    ctx: TenantContext,
-    input: Pick<InviteeEligibilityInput, "invitedUserId" | "phone" | "dni">,
-    exec: InvitationExecutor = this.db,
-  ): Promise<void> {
-    return this.rules.assertIdentityNotTaken(ctx, input, exec);
   }
 
   // ─── Consulta previa de la app (D-06) ────────────────────────────────────
@@ -212,7 +165,7 @@ export class InvitationService {
       reason = "self_invite";
     } else {
       try {
-        await this.assertInviterCanInvite(ctx, inviterId);
+        await this.rules.assertInviterCanInvite(ctx, inviterId);
       } catch (err: unknown) {
         if (!(err instanceof InvitationRuleError)) throw err;
         reason = err.reason;
@@ -356,7 +309,7 @@ export class InvitationService {
       if (!invitee) throw new NotFoundError("Alumno no encontrado");
 
       // D-10 + D-10d (lanza inviter_not_found | inviter_not_member | cupo).
-      const quota = await this.assertInviterCanInvite(ctx, inviterId, tx);
+      const quota = await this.rules.assertInviterCanInvite(ctx, inviterId, tx);
       const inviter = people.find((p) => p.id === inviterId);
       if (!inviter) throw new InvitationRuleError("inviter_not_found");
 
@@ -377,7 +330,7 @@ export class InvitationService {
       }
 
       // D-11 + D-12 + identidad, bajo el lock.
-      await this.assertInviteeEligible(
+      await this.rules.assertInviteeEligible(
         ctx,
         {
           inviterId,

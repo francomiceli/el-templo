@@ -85,7 +85,7 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
   it("sin vínculos devuelve 0", async () => {
     const m = await createMember(app, { email: "d0@test.com" });
     const service = new ReferralService(app.db, app.log);
-    expect(await service.computeReferralDiscountPercent(CTX, m.id)).toBe(0);
+    expect(await service.computeInvitationDiscountPercent(CTX, m.id)).toBe(0);
   });
 
   it("un vínculo qualified con contraparte activa suma 10%", async () => {
@@ -97,7 +97,9 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
 
     const service = new ReferralService(app.db, app.log);
     // El referrer descuenta porque la contraparte (referred) está cubierta.
-    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(10);
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, referrer.id),
+    ).toBe(10);
   });
 
   // Fase 194 D-10d: la contraparte cuenta como "activa" solo con cobertura de
@@ -112,12 +114,16 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
     await giveCoverage(soloInvitado.id, trial.id, dateOffsetStr(30));
 
     const service = new ReferralService(app.db, app.log);
-    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(0);
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, referrer.id),
+    ).toBe(0);
 
     // Mismo vínculo + una segunda contraparte con presencial vigente → 10.
     await linkQualified(referrer.id, conMembresia.id);
     await giveCoverage(conMembresia.id, plan.id, dateOffsetStr(30));
-    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(10);
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, referrer.id),
+    ).toBe(10);
   });
 
   it("una contraparte vencida NO suma ese ciclo", async () => {
@@ -128,7 +134,9 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
     await giveCoverage(referred.id, plan.id, dateOffsetStr(-5)); // vencido
 
     const service = new ReferralService(app.db, app.log);
-    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(0);
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, referrer.id),
+    ).toBe(0);
   });
 
   it("un vínculo pending NO computa (solo qualified)", async () => {
@@ -139,7 +147,9 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
     await giveCoverage(referred.id, plan.id, dateOffsetStr(30));
 
     const service = new ReferralService(app.db, app.log);
-    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(0);
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, referrer.id),
+    ).toBe(0);
   });
 
   it("5 vínculos activos topean a 40 (no 50)", async () => {
@@ -151,7 +161,9 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
       await linkQualified(referrer.id, referred.id);
       await giveCoverage(referred.id, plan.id, dateOffsetStr(30));
     }
-    expect(await service.computeReferralDiscountPercent(CTX, referrer.id)).toBe(40);
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, referrer.id),
+    ).toBe(40);
   });
 
   it("es bidireccional: cuenta vínculos como referrer Y como referred", async () => {
@@ -167,7 +179,7 @@ describe("ReferralService.computeReferralDiscountPercent", () => {
     await giveCoverage(asReferrer.id, plan.id, dateOffsetStr(30));
 
     const service = new ReferralService(app.db, app.log);
-    expect(await service.computeReferralDiscountPercent(CTX, x.id)).toBe(20);
+    expect(await service.computeInvitationDiscountPercent(CTX, x.id)).toBe(20);
   });
 });
 
@@ -227,18 +239,28 @@ describe("ReferralService.computeInvitationDiscountPercent (por lado, 194-14 D-1
 
     const inviter3 = await createMember(app, { email: "s1i3@test.com" });
     await covered(plan.id, inviter3.id, 3, "s1a");
-    expect(await service.computeInvitationDiscountPercent(CTX, inviter3.id)).toBe(30);
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, inviter3.id),
+    ).toBe(30);
 
     const inviter5 = await createMember(app, { email: "s1i5@test.com" });
     const five = await covered(plan.id, inviter5.id, 5, "s1b");
-    expect(await service.computeInvitationDiscountPercent(CTX, inviter5.id)).toBe(40);
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, inviter5.id),
+    ).toBe(40);
 
     // El invitado (con su invitador cubierto) recibe el 10 del lado invitado.
     await giveCoverage(inviter5.id, plan.id, dateOffsetStr(30));
-    expect(await service.computeInvitationDiscountPercent(CTX, five[0])).toBe(10);
+    expect(await service.computeInvitationDiscountPercent(CTX, five[0])).toBe(
+      10,
+    );
     // Misma firma pública que las charge-paths: mismo número.
-    expect(await service.computeReferralDiscountPercent(CTX, five[0])).toBe(10);
-    expect(await service.computeReferralDiscountPercent(CTX, inviter3.id)).toBe(30);
+    expect(await service.computeInvitationDiscountPercent(CTX, five[0])).toBe(
+      10,
+    );
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, inviter3.id),
+    ).toBe(30);
   });
 
   it("15/10: el invitado 15, el invitador con 2 invitados 20 y quien es invitado (15) e invitador de 1 (10) 25", async () => {
@@ -250,7 +272,9 @@ describe("ReferralService.computeInvitationDiscountPercent (por lado, 194-14 D-1
     const [first] = await covered(plan.id, inviter.id, 2, "s2a");
     await giveCoverage(inviter.id, plan.id, dateOffsetStr(30));
     expect(await service.computeInvitationDiscountPercent(CTX, first)).toBe(15);
-    expect(await service.computeInvitationDiscountPercent(CTX, inviter.id)).toBe(20);
+    expect(
+      await service.computeInvitationDiscountPercent(CTX, inviter.id),
+    ).toBe(20);
 
     // `first` además invitó a otra persona cubierta: 15 (como invitado) + 10 (como invitador).
     await covered(plan.id, first, 1, "s2b");
@@ -278,7 +302,9 @@ describe("ReferralService.computeInvitationDiscountPercent (por lado, 194-14 D-1
     await giveCoverage(inviterTrial.id, trial.id, dateOffsetStr(30));
 
     // Sin simular: 0 (todavía no hay fila en referrals).
-    expect(await service.computeInvitationDiscountPercent(CTX, payer.id)).toBe(0);
+    expect(await service.computeInvitationDiscountPercent(CTX, payer.id)).toBe(
+      0,
+    );
     expect(
       await service.computeInvitationDiscountPercent(CTX, payer.id, {
         simulateInvitationLink: { inviterId: inviterOk.id },

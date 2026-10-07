@@ -156,9 +156,9 @@ describe("Fase 194 D-04 — anular una invitación (staff)", () => {
       phone,
       createdBy: null,
     });
-    const before = await service.getInviterQuota(ctx.tenant, inviter.id);
+    const before = await service.rules.getInviterQuota(ctx.tenant, inviter.id);
     expect(before.remaining).toBe(1);
-    const blocked = await service.evaluateInviteeEligibility(ctx.tenant, {
+    const blocked = await service.rules.evaluateInviteeEligibility(ctx.tenant, {
       inviterId: inviter.id,
       invitedUserId: invitee.id,
       phone,
@@ -171,10 +171,10 @@ describe("Fase 194 D-04 — anular una invitación (staff)", () => {
       reason: "Duplicada",
     });
 
-    const after = await service.getInviterQuota(ctx.tenant, inviter.id);
+    const after = await service.rules.getInviterQuota(ctx.tenant, inviter.id);
     expect(after.remaining).toBe(2);
     expect(after.used).toBe(0);
-    const free = await service.evaluateInviteeEligibility(ctx.tenant, {
+    const free = await service.rules.evaluateInviteeEligibility(ctx.tenant, {
       inviterId: inviter.id,
       invitedUserId: invitee.id,
       phone,

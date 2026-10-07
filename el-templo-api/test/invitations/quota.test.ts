@@ -121,7 +121,7 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     const inviter = await createInviter();
     const branch = await ensurePhysicalBranch(ctx, "AR");
 
-    const quota = await service.getInviterQuota(ctx.tenant, inviter.id);
+    const quota = await service.rules.getInviterQuota(ctx.tenant, inviter.id);
 
     expect(quota).toEqual({
       limit: 2,
@@ -135,11 +135,11 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     const inviter = await createInviter();
     await addInvitations(inviter, 2);
 
-    const quota = await service.getInviterQuota(ctx.tenant, inviter.id);
+    const quota = await service.rules.getInviterQuota(ctx.tenant, inviter.id);
     expect(quota.used).toBe(2);
     expect(quota.remaining).toBe(0);
 
-    const err = await service
+    const err = await service.rules
       .assertInviterCanInvite(ctx.tenant, inviter.id)
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(InvitationRuleError);
@@ -154,7 +154,10 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     await addInvitations(inviter, 1);
     await addInvitations(inviter, 1, { status: "voided" });
 
-    const quota = await service.assertInviterCanInvite(ctx.tenant, inviter.id);
+    const quota = await service.rules.assertInviterCanInvite(
+      ctx.tenant,
+      inviter.id,
+    );
 
     expect(quota.used).toBe(1);
     expect(quota.remaining).toBe(1);
@@ -166,7 +169,7 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     const lastMonth = subtractMonths(todayInTz(branch.timezone), 1).slice(0, 7);
     await addInvitations(inviter, 2, { quotaMonth: lastMonth });
 
-    const quota = await service.getInviterQuota(ctx.tenant, inviter.id);
+    const quota = await service.rules.getInviterQuota(ctx.tenant, inviter.id);
 
     expect(quota.used).toBe(0);
     expect(quota.remaining).toBe(2);
@@ -178,7 +181,10 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     await setInvitationSettings(app.db, ctx.tenant, { monthlyQuota: 3 });
     await addInvitations(inviter, 2);
 
-    const quota = await service.assertInviterCanInvite(ctx.tenant, inviter.id);
+    const quota = await service.rules.assertInviterCanInvite(
+      ctx.tenant,
+      inviter.id,
+    );
 
     expect(quota.limit).toBe(3);
     expect(quota.remaining).toBe(1);
@@ -187,7 +193,7 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
   it("invitador en sede de España: el mes de cupo sale de la tz de Madrid", async () => {
     const inviter = await createInviter("ES");
 
-    const quota = await service.getInviterQuota(ctx.tenant, inviter.id);
+    const quota = await service.rules.getInviterQuota(ctx.tenant, inviter.id);
 
     expect(quota.month).toBe(todayInTz("Europe/Madrid").slice(0, 7));
   });
@@ -200,7 +206,9 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     await createActiveSub(ctx, { userId: inviter.id, planId: trialPlan.id });
 
     expect(
-      await reasonOf(service.assertInviterCanInvite(ctx.tenant, inviter.id)),
+      await reasonOf(
+        service.rules.assertInviterCanInvite(ctx.tenant, inviter.id),
+      ),
     ).toBe<InvitationIneligibleReason>("inviter_not_member");
   });
 
@@ -210,7 +218,9 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     });
 
     expect(
-      await reasonOf(service.assertInviterCanInvite(ctx.tenant, inviter.id)),
+      await reasonOf(
+        service.rules.assertInviterCanInvite(ctx.tenant, inviter.id),
+      ),
     ).toBe<InvitationIneligibleReason>("inviter_not_member");
   });
 
@@ -228,7 +238,9 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     });
 
     expect(
-      await reasonOf(service.assertInviterCanInvite(ctx.tenant, inviter.id)),
+      await reasonOf(
+        service.rules.assertInviterCanInvite(ctx.tenant, inviter.id),
+      ),
     ).toBe<InvitationIneligibleReason>("inviter_not_member");
   });
 
@@ -237,7 +249,10 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     const trialPlan = await createTrialPlan(ctx, { category: "especial" });
     await createActiveSub(ctx, { userId: inviter.id, planId: trialPlan.id });
 
-    const quota = await service.assertInviterCanInvite(ctx.tenant, inviter.id);
+    const quota = await service.rules.assertInviterCanInvite(
+      ctx.tenant,
+      inviter.id,
+    );
 
     expect(quota.remaining).toBe(2);
   });
@@ -255,10 +270,12 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
       );
 
     expect(
-      await reasonOf(service.assertInviterCanInvite(ctx.tenant, inviter.id)),
+      await reasonOf(
+        service.rules.assertInviterCanInvite(ctx.tenant, inviter.id),
+      ),
     ).toBe<InvitationIneligibleReason>("inviter_not_found");
     expect(
-      await reasonOf(service.getInviterQuota(ctx.tenant, inviter.id)),
+      await reasonOf(service.rules.getInviterQuota(ctx.tenant, inviter.id)),
     ).toBe<InvitationIneligibleReason>("inviter_not_found");
   });
 
@@ -267,7 +284,7 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     await addInvitations(inviter, 1);
 
     const quota = await app.db.transaction((tx) =>
-      service.assertInviterCanInvite(ctx.tenant, inviter.id, tx),
+      service.rules.assertInviterCanInvite(ctx.tenant, inviter.id, tx),
     );
 
     expect(quota.used).toBe(1);
@@ -279,7 +296,7 @@ describe("Fase 194 D-10 / D-10d — cupo del invitador", () => {
     const b = await createInviter();
     await addInvitations(a, 2);
 
-    const quotaB = await service.getInviterQuota(ctx.tenant, b.id);
+    const quotaB = await service.rules.getInviterQuota(ctx.tenant, b.id);
 
     expect(quotaB.used).toBe(0);
     expect(quotaB.remaining).toBe(2);
@@ -367,7 +384,7 @@ describe("Fase 194 D-10 / T-194-29 — cupo bajo concurrencia (activate)", () =>
       "inviter_quota_exhausted",
     );
     expect(await countActive(inviter.id)).toBe(2);
-    const quota = await service.getInviterQuota(ctx.tenant, inviter.id);
+    const quota = await service.rules.getInviterQuota(ctx.tenant, inviter.id);
     expect(quota.remaining).toBe(0);
   });
 

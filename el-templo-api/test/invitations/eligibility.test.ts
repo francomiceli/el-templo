@@ -109,7 +109,7 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
     a: Actors,
     over: Partial<InviteeEligibilityInput> = {},
   ): Promise<InvitationIneligibleReason | null> {
-    const result = await service.evaluateInviteeEligibility(
+    const result = await service.rules.evaluateInviteeEligibility(
       ctx.tenant,
       input(a, over),
     );
@@ -158,7 +158,7 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
   it("usuario sin suscripciones: elegible, sin motivo ni mensaje", async () => {
     const a = await actors();
 
-    const result = await service.evaluateInviteeEligibility(
+    const result = await service.rules.evaluateInviteeEligibility(
       ctx.tenant,
       input(a),
     );
@@ -562,7 +562,7 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
     const a = await actors();
     await createMemberInPhysicalBranch(ctx, { phone: INVITEE_PHONE });
 
-    const result = await service.evaluateInviteeEligibility(
+    const result = await service.rules.evaluateInviteeEligibility(
       ctx.tenant,
       input(a),
     );
@@ -578,14 +578,14 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
     const a = await actors();
     await endedMembership(a.invitee.id, 30);
 
-    const err = await service
+    const err = await service.rules
       .assertInviteeEligible(ctx.tenant, input(a))
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(InvitationRuleError);
     expect((err as InvitationRuleError).reason).toBe("invitee_recent_member");
     expect((err as InvitationRuleError).statusCode).toBe(409);
 
-    const idErr = await service
+    const idErr = await service.rules
       .assertIdentityNotTaken(ctx.tenant, {
         invitedUserId: a.invitee.id,
         phone: "",
@@ -594,7 +594,7 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
     expect((idErr as InvitationRuleError).reason).toBe("phone_required");
 
     await expect(
-      service.assertIdentityNotTaken(ctx.tenant, {
+      service.rules.assertIdentityNotTaken(ctx.tenant, {
         invitedUserId: a.invitee.id,
         phone: INVITEE_PHONE,
       }),
@@ -606,7 +606,7 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
     await endedMembership(a.invitee.id, 30);
 
     const result = await app.db.transaction((tx) =>
-      service.evaluateInviteeEligibility(ctx.tenant, input(a), tx),
+      service.rules.evaluateInviteeEligibility(ctx.tenant, input(a), tx),
     );
 
     expect(result.reason).toBe("invitee_recent_member");
@@ -616,7 +616,7 @@ describe("Fase 194 D-11 / D-12 — elegibilidad del invitado", () => {
     const a = await actors();
 
     await expect(
-      service.evaluateInviteeEligibility(
+      service.rules.evaluateInviteeEligibility(
         ctx.tenant,
         input(a, { branchId: 2_000_000_000 }),
       ),

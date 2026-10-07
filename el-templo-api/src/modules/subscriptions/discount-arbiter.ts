@@ -102,8 +102,6 @@ export interface InvitationCandidateInput {
   basePrice: number;
   /** Gestión cargó un precio personalizado con motivo en ESTE cobro (D-20). */
   isPriceOverride: boolean;
-  /** El cobro usa boarding pass (D-26a). */
-  boardingPassApplied: boolean;
   /** Alta prorrateada a fin de mes: el proporcional ya es el precio final. */
   prorateToMonthEnd: boolean | undefined;
 }
@@ -153,17 +151,14 @@ function linkGatesClosed(input: InvitationCandidateInput): boolean {
 
 /** Gates que cierran solo el DESCUENTO del cobro (el vínculo igual puede nacer). */
 function discountGatesClosed(input: InvitationCandidateInput): boolean {
-  return (
-    // D-20: precio personalizado = precio final.
-    input.isPriceOverride ||
-    // D-26a: el boarding pass excluye el descuento por invitación en ese cobro.
-    input.boardingPassApplied
-  );
+  // D-20: precio personalizado = precio final. (El boarding pass, D-26a, no pasa por
+  // acá: el filter de pricing lo resuelve DESPUÉS y su `exclusive` anula el core.)
+  return input.isPriceOverride;
 }
 
 /**
  * Candidato de descuento por invitación de un cobro, o `null` si algún gate cierra
- * (D-10b / prorrateo / D-20 / D-26a / base > 0) o no hay nada que descontar NI vínculo
+ * (D-10b / prorrateo / D-20 / base > 0) o no hay nada que descontar NI vínculo
  * por crear. Solo lectura: no cualifica ni crea vínculos.
  *
  * El % sale de `ReferralService.computeInvitationDiscountPercent` (por lado, tope D-09)
@@ -285,8 +280,8 @@ export function applyArbiterResult(params: {
 
 /**
  * Candidato de invitación tal como lo necesita una charge-path (194-15): el candidato
- * normal, o un candidato SOLO-VÍNCULO (% 0, monto 0) cuando D-20 (override) o D-26a
- * (boarding pass) cierran el descuento de este cobro pero el cobro sigue siendo la compra
+ * normal, o un candidato SOLO-VÍNCULO (% 0, monto 0) cuando D-20 (override)
+ * cierra el descuento de este cobro pero el cobro sigue siendo la compra
  * paga de un plan con flag: el vínculo de descuento nace igual (D-05), porque alimenta
  * los cobros siguientes. Solo lectura.
  */

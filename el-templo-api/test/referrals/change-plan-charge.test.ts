@@ -403,12 +403,12 @@ describe("Referral discount · immediate plan change (changePlanNow)", () => {
     const preview = JSON.parse(previewRes.body) as {
       allowed: boolean;
       netAmount: number;
-      referralDiscountPercent: number;
-      referralDiscountAmount: number;
+      invitationDiscountPercent: number;
+      invitationDiscountAmount: number;
     };
     expect(preview.allowed).toBe(true);
-    expect(preview.referralDiscountPercent).toBe(10);
-    expect(preview.referralDiscountAmount).toBeGreaterThan(0);
+    expect(preview.invitationDiscountPercent).toBe(10);
+    expect(preview.invitationDiscountAmount).toBeGreaterThan(0);
 
     // Cobro inmediato: coincide con el preview.
     const res = await app.inject({
@@ -429,12 +429,12 @@ describe("Referral discount · immediate plan change (changePlanNow)", () => {
     expect(body.pricePaid).toBe(preview.netAmount);
 
     expect(await readSubReferralColumns(body.id)).toEqual({
-      percent: preview.referralDiscountPercent,
-      amount: preview.referralDiscountAmount,
+      percent: preview.invitationDiscountPercent,
+      amount: preview.invitationDiscountAmount,
     });
     expect(await readReferralCredit(payer.id)).toEqual({
-      percent: preview.referralDiscountPercent,
-      amount: preview.referralDiscountAmount,
+      percent: preview.invitationDiscountPercent,
+      amount: preview.invitationDiscountAmount,
     });
   });
 

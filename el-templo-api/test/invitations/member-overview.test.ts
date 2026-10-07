@@ -428,7 +428,7 @@ describe("Fase 194-19 — overview de invitaciones", () => {
     await link(inviter.id, lapsed.id, "qualified");
 
     const overview = await overviewOf(inviter.id);
-    const canonical = await service.computeReferralDiscountPercent(
+    const canonical = await service.computeInvitationDiscountPercent(
       ctx.tenant,
       inviter.id,
     );

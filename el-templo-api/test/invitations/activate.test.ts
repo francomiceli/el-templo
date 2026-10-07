@@ -736,10 +736,10 @@ describe("Fase 194 D-06 — activación de invitaciones", () => {
     expect(await subsOf(invitee.id)).toHaveLength(0);
 
     // La invitación rota no consume cupo ni bloquea la ventana de 90 días.
-    const quota = await service.getInviterQuota(ctx.tenant, inviter.id);
+    const quota = await service.rules.getInviterQuota(ctx.tenant, inviter.id);
     expect(quota.used).toBe(0);
     expect(quota.remaining).toBe(2);
-    const retry = await service.evaluateInviteeEligibility(ctx.tenant, {
+    const retry = await service.rules.evaluateInviteeEligibility(ctx.tenant, {
       inviterId: inviter.id,
       invitedUserId: invitee.id,
       phone: uniquePhone10(),

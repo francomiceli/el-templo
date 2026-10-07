@@ -134,7 +134,7 @@ export class AssistedInvitations {
       createLead: () => Promise<TLead>;
     },
   ): Promise<LeadWithInvitation<TLead>> {
-    await this.invitations.assertInviterCanInvite(ctx, params.inviterId);
+    await this.invitations.rules.assertInviterCanInvite(ctx, params.inviterId);
 
     const lead = await params.createLead();
     try {

@@ -219,7 +219,7 @@ describe("GET /api/members/referrals — member overview", () => {
 
     // Paridad: el % del overview es EXACTAMENTE el del cobro (mismo método).
     const service = new ReferralService(app.db, app.log);
-    const canonical = await service.computeReferralDiscountPercent(CTX, r.id);
+    const canonical = await service.computeInvitationDiscountPercent(CTX, r.id);
     expect(body.discount.percent).toBe(canonical);
     expect(body.discount.percent).toBe(20);
   });

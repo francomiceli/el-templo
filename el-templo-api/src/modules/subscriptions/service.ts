@@ -632,9 +632,6 @@ export class SubscriptionService {
             )) - credit,
         ),
         isPriceOverride: params.override !== undefined,
-        // El boarding pass vive en `moduleInput` (opaco al core): se conoce DESPUÉS
-        // del filter y ahí `resolved.exclusive` anula el core (D-26a).
-        boardingPassApplied: false,
         prorateToMonthEnd: params.prorateToMonthEnd,
       },
       partnerCandidate,
@@ -4091,8 +4088,6 @@ export class SubscriptionService {
         targetPlan: targetPlanInfo,
         proration: null,
         netAmount: null,
-        referralDiscountPercent: 0,
-        referralDiscountAmount: 0,
         invitationDiscountPercent: 0,
         invitationDiscountAmount: 0,
         invitationDiscountCapped: false,
@@ -4132,9 +4127,6 @@ export class SubscriptionService {
       targetPlan: targetPlanInfo,
       proration,
       netAmount: settlement.finalPrice,
-      // @deprecated (compat con el admin hasta 194-23): mismo valor que invitation*.
-      referralDiscountPercent: settlement.invitationPercent,
-      referralDiscountAmount: settlement.invitationAmount,
       invitationDiscountPercent: settlement.invitationPercent,
       invitationDiscountAmount: settlement.invitationAmount,
       invitationDiscountCapped: settlement.invitationCapped,
@@ -6164,9 +6156,6 @@ export class SubscriptionService {
       auraBalance,
       boardingPassEligible,
       availableTiers,
-      // @deprecated (compat con el admin hasta 194-23): mismo valor que invitation*.
-      referralDiscountPercent: settlement.invitationPercent,
-      referralDiscountAmount: settlement.invitationAmount,
       invitationDiscountPercent: settlement.invitationPercent,
       invitationDiscountAmount: settlement.invitationAmount,
       invitationDiscountCapped: settlement.invitationCapped,

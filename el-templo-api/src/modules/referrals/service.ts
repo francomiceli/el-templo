@@ -199,22 +199,6 @@ export class ReferralService {
    * precio que efectivamente se va a cobrar. Solo para previews — las
    * charge-paths NUNCA pasan esta opción (el flip real sigue siendo del cobro).
    *
-   * T-175-04: `ctx` PRIMERO (D-01/D-02) — cierra el gap de `referrals` (Pattern A,
-   * sin `tenantWhere` pese a que todos los call sites YA tenían ctx: los 4
-   * charge-paths de `subscriptions/service.ts` y `getReferralOverview`) y
-   * threadea ctx real a `deriveCoveredUntil` (deuda compartida de esta misma fase).
-   */
-  async computeReferralDiscountPercent(
-    ctx: TenantContext,
-    userId: number,
-    opts?: { simulatePendingQualification?: boolean },
-  ): Promise<number> {
-    // Fase 194 D-10e: una sola implementación (por lado). Esta firma pública
-    // sigue siendo la que usan las charge-paths, los previews y la app.
-    return this.computeInvitationDiscountPercent(ctx, userId, opts);
-  }
-
-  /**
    * Fase 194 D-10e: el mismo descuento simétrico, con el % separado por LADO
    * del vínculo. Como INVITADO (`referred`) suma `inviteePercent` (setting
    * `invitations.invitee_percent`); como INVITADOR (`referrer`) suma
@@ -430,7 +414,7 @@ export class ReferralService {
     }
 
     // Reuso D-30: el % vigente es EXACTAMENTE el del cobro, no una reimplementación.
-    const percent = await this.computeReferralDiscountPercent(ctx, userId);
+    const percent = await this.computeInvitationDiscountPercent(ctx, userId);
 
     // Fase 194-19: cupo, link, invitados con estado derivado e "invitado por".
     // Vive en su propio archivo (regla de 194-32); acá solo se le pasan los

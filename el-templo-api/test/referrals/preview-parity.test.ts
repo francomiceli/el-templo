@@ -160,8 +160,8 @@ describe("Referral discount preview parity", () => {
 
     const res = await getPricingPreview(referred.id, plan.id);
     expect(res.statusCode).toBe(200);
-    expect(res.body.referralDiscountPercent).toBe(10);
-    expect(res.body.referralDiscountAmount).toBe(1500);
+    expect(res.body.invitationDiscountPercent).toBe(10);
+    expect(res.body.invitationDiscountAmount).toBe(1500);
     expect(res.body.finalPrice).toBe(13500); // el precio que el cobro real aplica
 
     // Y el cobro real coincide con el preview (paridad end-to-end).
@@ -182,7 +182,7 @@ describe("Referral discount preview parity", () => {
 
     const res = await getPricingPreview(referred.id, plan.id);
     expect(res.statusCode).toBe(200);
-    expect(res.body.referralDiscountPercent).toBe(0);
+    expect(res.body.invitationDiscountPercent).toBe(0);
     expect(res.body.finalPrice).toBe(15000);
   });
 
@@ -197,7 +197,7 @@ describe("Referral discount preview parity", () => {
 
     const res = await getPricingPreview(referrer.id, plan.id);
     expect(res.statusCode).toBe(200);
-    expect(res.body.referralDiscountPercent).toBe(0);
+    expect(res.body.invitationDiscountPercent).toBe(0);
     expect(res.body.finalPrice).toBe(15000);
   });
 
@@ -213,8 +213,8 @@ describe("Referral discount preview parity", () => {
 
     const res = await getPricingPreview(payer.id, especialId);
     expect(res.statusCode).toBe(200);
-    expect(res.body.referralDiscountPercent).toBe(0);
-    expect(res.body.referralDiscountAmount).toBe(0);
+    expect(res.body.invitationDiscountPercent).toBe(0);
+    expect(res.body.invitationDiscountAmount).toBe(0);
     expect(res.body.finalPrice).toBe(20000);
   });
 
@@ -245,15 +245,15 @@ describe("Referral discount preview parity", () => {
       allowed: boolean;
       proration: { remainingValue: number };
       netAmount: number;
-      referralDiscountPercent: number;
-      referralDiscountAmount: number;
+      invitationDiscountPercent: number;
+      invitationDiscountAmount: number;
     };
     expect(body.allowed).toBe(true);
-    expect(body.referralDiscountPercent).toBe(10);
+    expect(body.invitationDiscountPercent).toBe(10);
     // Consistencia interna: netAmount = neto post-prorrateo - descuento.
     const preDiscount = Math.max(0, 20000 - body.proration.remainingValue);
     const expectedDiscount = Math.floor(preDiscount * 0.1);
-    expect(body.referralDiscountAmount).toBe(expectedDiscount);
+    expect(body.invitationDiscountAmount).toBe(expectedDiscount);
     expect(body.netAmount).toBe(preDiscount - expectedDiscount);
   });
 
@@ -328,8 +328,6 @@ interface ArbiterPreview {
   finalPrice: number;
   discountType: string;
   auraToSpend: number;
-  referralDiscountPercent: number;
-  referralDiscountAmount: number;
   invitationDiscountPercent: number;
   invitationDiscountAmount: number;
   invitationDiscountCapped: boolean;
@@ -514,19 +512,6 @@ describe("194-15: paridad preview ↔ cobro del alta con el árbitro", () => {
     expect(charge.body.pricePaid).toBe(preview.finalPrice);
     expect(await referralRowsOf(payer.id)).toHaveLength(0);
   });
-
-  it("(10) compat: `referralDiscountPercent/Amount` (deprecado) vale lo mismo que `invitationDiscountPercent/Amount`", async () => {
-    const plan = await createPlan(app, adminToken, FLAGGED_15000);
-    const payer = await inviteeWithInvitation();
-    const preview = await previewOf(payer.id, plan.id);
-    expect(preview.referralDiscountPercent).toBe(
-      preview.invitationDiscountPercent,
-    );
-    expect(preview.referralDiscountAmount).toBe(
-      preview.invitationDiscountAmount,
-    );
-    expect(preview.referralDiscountAmount).toBe(1500);
-  });
 });
 
 // ─── 194-17: paridad preview ↔ cobro del cambio inmediato (changePlanNow) ────
@@ -539,8 +524,6 @@ interface ChangePreview {
   allowed: boolean;
   proration: { remainingValue: number };
   netAmount: number;
-  referralDiscountPercent: number;
-  referralDiscountAmount: number;
   invitationDiscountPercent: number;
   invitationDiscountAmount: number;
   invitationDiscountCapped: boolean;
@@ -629,8 +612,8 @@ describe("194-17: paridad preview ↔ cobro del cambio inmediato (changePlanNow)
     expect(preview.partnerDiscountAmount).toBe(0);
     expect(preview.netAmount).toBe(net - discount);
     // compat: alias deprecados con el mismo valor
-    expect(preview.referralDiscountPercent).toBe(10);
-    expect(preview.referralDiscountAmount).toBe(discount);
+    expect(preview.invitationDiscountPercent).toBe(10);
+    expect(preview.invitationDiscountAmount).toBe(discount);
 
     const charge = await changeNowCharge(m.id, target);
     expect(charge.pricePaid).toBe(preview.netAmount);
@@ -659,7 +642,7 @@ describe("194-17: paridad preview ↔ cobro del cambio inmediato (changePlanNow)
     expect(preview.partnerDiscountAmount).toBe(Math.floor(net * 0.2));
     expect(preview.invitationDiscountAmount).toBe(0);
     expect(preview.invitationDiscountPercent).toBe(0);
-    expect(preview.referralDiscountAmount).toBe(0);
+    expect(preview.invitationDiscountAmount).toBe(0);
     expect(preview.netAmount).toBe(net - Math.floor(net * 0.2));
 
     const charge = await changeNowCharge(m.id, target);
@@ -728,7 +711,7 @@ describe("194-17: paridad preview ↔ cobro del cambio inmediato (changePlanNow)
     const preview = await changePreviewOf(m.id, target);
     expect(preview.winningDiscount).toBe("none");
     expect(preview.invitationDiscountAmount).toBe(0);
-    expect(preview.referralDiscountAmount).toBe(0);
+    expect(preview.invitationDiscountAmount).toBe(0);
     expect(preview.netAmount).toBe(NOW_B - preview.proration.remainingValue);
 
     const charge = await changeNowCharge(m.id, target);

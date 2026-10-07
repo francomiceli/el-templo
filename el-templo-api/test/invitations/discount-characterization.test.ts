@@ -305,8 +305,8 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
 
     const preview = await pricingPreview(payer.id, plan.id);
     expect(preview.basePrice).toBe(BASE);
-    expect(preview.referralDiscountPercent).toBe(10);
-    expect(preview.referralDiscountAmount).toBe(10000);
+    expect(preview.invitationDiscountPercent).toBe(10);
+    expect(preview.invitationDiscountAmount).toBe(10000);
     expect(preview.partnerDiscountPercent).toBeNull();
     expect(preview.discountType).toBe("none");
     expect(preview.finalPrice).toBe(90000);
@@ -336,9 +336,9 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     expect(preview.discountType).toBe("none");
     expect(preview.discountAmount).toBe(0);
     expect(preview.auraToSpend).toBe(0);
-    expect(preview.referralDiscountPercent).toBe(10);
+    expect(preview.invitationDiscountPercent).toBe(10);
     // 194-15 D-08: el referido va sobre la LISTA (10000), no sobre el neto de AURA (9000).
-    expect(preview.referralDiscountAmount).toBe(10000);
+    expect(preview.invitationDiscountAmount).toBe(10000);
     expect(preview.winningDiscount).toBe("invitation");
     expect(preview.finalPrice).toBe(90000);
 
@@ -371,7 +371,7 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     expect(preview.discountType).toBe("aura");
     expect(preview.partnerDiscountPercent).toBeNull();
     // 194-15 D-21: el referido ya no compone encima de AURA.
-    expect(preview.referralDiscountAmount).toBe(0);
+    expect(preview.invitationDiscountAmount).toBe(0);
     expect(preview.winningDiscount).toBe("aura");
     expect(preview.finalPrice).toBe(70000);
 
@@ -400,8 +400,8 @@ describe("caracterización pre-194: assignPlan y getPricingPreview", () => {
     expect(preview.partnerDiscountPercent).toBe(20);
     expect(preview.partnerDiscountAmount).toBe(20000);
     // 194-15 D-21: el referido ya no compone sobre el neto del partner.
-    expect(preview.referralDiscountPercent).toBe(0);
-    expect(preview.referralDiscountAmount).toBe(0);
+    expect(preview.invitationDiscountPercent).toBe(0);
+    expect(preview.invitationDiscountAmount).toBe(0);
     expect(preview.winningDiscount).toBe("partner");
     expect(preview.finalPrice).toBe(80000);
 
@@ -496,8 +496,8 @@ describe("caracterización pre-194: changePlanNow y getChangePlanPreview", () =>
     expect(preview.allowed).toBe(true);
     // Mitad del mes usada: crédito remanente = 50000. Neto = 200000 - 50000.
     expect((preview.proration as Json).remainingValue).toBe(50000);
-    expect(preview.referralDiscountPercent).toBe(10);
-    expect(preview.referralDiscountAmount).toBe(15000);
+    expect(preview.invitationDiscountPercent).toBe(10);
+    expect(preview.invitationDiscountAmount).toBe(15000);
     expect(preview.partnerDiscountAmount).toBe(0);
     expect(preview.invitationDiscountPercent).toBe(10);
     expect(preview.invitationDiscountAmount).toBe(15000);
@@ -525,7 +525,7 @@ describe("caracterización pre-194: changePlanNow y getChangePlanPreview", () =>
     const preview = await changePlanPreview(m.id, m.planB.id);
     expect(preview.partnerDiscountPercent).toBe(20);
     expect(preview.partnerDiscountAmount).toBe(30000); // 20% de 150000
-    expect(preview.referralDiscountAmount).toBe(0); // la invitación perdió: no compone
+    expect(preview.invitationDiscountAmount).toBe(0); // la invitación perdió: no compone
     expect(preview.invitationDiscountAmount).toBe(0);
     expect(preview.winningDiscount).toBe("partner");
     expect(preview.netAmount).toBe(120000);
@@ -732,11 +732,11 @@ describe("caracterización pre-194: D-10e simetría del descuento de referido", 
     await giveCoverage(referred.id, plan.id);
 
     const referralService = new ReferralService(app.db, app.log);
-    const forReferrer = await referralService.computeReferralDiscountPercent(
+    const forReferrer = await referralService.computeInvitationDiscountPercent(
       TEMPLO_CTX,
       referrer.id,
     );
-    const forReferred = await referralService.computeReferralDiscountPercent(
+    const forReferred = await referralService.computeInvitationDiscountPercent(
       TEMPLO_CTX,
       referred.id,
     );
@@ -763,14 +763,14 @@ describe("caracterización pre-194: D-10e simetría del descuento de referido", 
 
     const referralService = new ReferralService(app.db, app.log);
     expect(
-      await referralService.computeReferralDiscountPercent(
+      await referralService.computeInvitationDiscountPercent(
         TEMPLO_CTX,
         referrer.id,
       ),
     ).toBe(40); // 5 x 10 = 50 → tope 40
     for (const referredId of referredIds) {
       expect(
-        await referralService.computeReferralDiscountPercent(
+        await referralService.computeInvitationDiscountPercent(
           TEMPLO_CTX,
           referredId,
         ),
@@ -785,7 +785,7 @@ describe("caracterización pre-194: D-10e simetría del descuento de referido", 
     const counterpartId = await linkQualified(payer.id, plan.id);
     const referralService = new ReferralService(app.db, app.log);
     expect(
-      await referralService.computeReferralDiscountPercent(
+      await referralService.computeInvitationDiscountPercent(
         TEMPLO_CTX,
         payer.id,
       ),
@@ -795,7 +795,7 @@ describe("caracterización pre-194: D-10e simetría del descuento de referido", 
       sql`UPDATE subscriptions SET subscription_status = 'cancelled' WHERE user_id = ${counterpartId} AND tenant_id = ${TENANT_TEMPLO}`,
     );
     expect(
-      await referralService.computeReferralDiscountPercent(
+      await referralService.computeInvitationDiscountPercent(
         TEMPLO_CTX,
         payer.id,
       ),

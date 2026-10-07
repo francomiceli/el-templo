@@ -505,7 +505,6 @@ function candidateInput(
     plan: discountPlan(),
     basePrice: BASE_PRICE,
     isPriceOverride: false,
-    boardingPassApplied: false,
     prorateToMonthEnd: undefined,
     ...overrides,
   };
@@ -571,7 +570,6 @@ describe("resolveInvitationDiscountCandidate: gates (D-10b, prorrateo, D-20, D-2
     ["plan is_trial", { plan: discountPlan({ isTrial: true }) }],
     ["alta prorrateada a fin de mes", { prorateToMonthEnd: true }],
     ["precio personalizado con motivo (D-20)", { isPriceOverride: true }],
-    ["boarding pass (D-26a)", { boardingPassApplied: true }],
     ["precio base 0", { basePrice: 0 }],
   ] as const)("%s -> null", async (_nombre, overrides) => {
     const { payerId } = await payerWithInvitation();

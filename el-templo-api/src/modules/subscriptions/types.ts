@@ -724,10 +724,6 @@ export interface ChangePlanPreview {
   targetPlan: { id: number; name: string; priceRegular: number };
   proration: ProrationResult | null; // null if not allowed
   netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit, minus the winning partner/invitation discount (parity with changePlanNow)
-  // @deprecated Fase 194-17: mismo valor que `invitationDiscountPercent/Amount`
-  // (el admin migra en 194-23).
-  referralDiscountPercent: number; // 0 if none
-  referralDiscountAmount: number; // 0 if none — monto ya restado de netAmount
   // Fase 194-17 (D-08/D-10c/D-21): descuento por invitación que `changePlanNow`
   // va a cobrar sobre el neto post-prorrateo. `percent` = % nominal, `amount` =
   // monto ya recortado por el tope en dinero del país (ya restado de netAmount),
@@ -766,14 +762,6 @@ export interface PricingPreview {
   auraBalance: number;
   boardingPassEligible: boolean;
   availableTiers: AuraDiscountTier[];
-  // Referidos (fase 157): desglose del descuento de referido ya aplicado en
-  // finalPrice, para que el PoS muestre el mismo precio que se cobrará (Pitfall 4).
-  // 0 cuando no hay vínculos activos.
-  // @deprecated Fase 194-15: mismo valor que `invitationDiscountPercent/Amount`
-  // (el admin migra en 194-23). Desde la 194 el descuento por invitación YA NO
-  // compone sobre AURA/partner: compiten y se aplica uno solo (D-08/D-21).
-  referralDiscountPercent: number;
-  referralDiscountAmount: number;
   // Fase 194-15 (D-08/D-10c/D-21): descuento por invitación que efectivamente se
   // cobra. `percent` = % nominal, `amount` = monto ya recortado por el tope en
   // dinero del país, `capped` = el tope recortó. 0/0/false si la invitación no

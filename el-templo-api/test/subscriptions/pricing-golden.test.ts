@@ -1041,7 +1041,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       await seedQualifiedReferral(referrer.id, referred.id, planA.id as number);
 
       const pv = await preview(referrer.id as number, planB.id as number);
-      expect(pv.referralDiscountPercent).toBe(10);
+      expect(pv.invitationDiscountPercent).toBe(10);
       expect(pv.netAmount).toBe(9000);
 
       const res = await app.inject({
@@ -1130,7 +1130,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       await seedQualifiedReferral(referrer.id, referred.id, plan.id as number);
 
       const pv = await preview(referrer.id as number, plan.id as number);
-      expect(pv.referralDiscountPercent).toBe(10);
+      expect(pv.invitationDiscountPercent).toBe(10);
       expect(pv.finalPrice).toBe(9000);
 
       const assigned = await assignPlan(app, adminToken, referrer.id, {

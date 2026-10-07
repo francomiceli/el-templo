@@ -147,8 +147,9 @@ describe("Fase 194 D-16/D-24 — canal asistido de invitaciones (admin)", () => 
 
   async function quotaRemaining(inviterId: number): Promise<number> {
     const { invitationService } = buildInvitationServices(app);
-    return (await invitationService.getInviterQuota(ctx.tenant, inviterId))
-      .remaining;
+    return (
+      await invitationService.rules.getInviterQuota(ctx.tenant, inviterId)
+    ).remaining;
   }
 
   /** Alumno ya existente que todavía no es socio (candidato a invitado). */
