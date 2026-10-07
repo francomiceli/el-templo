@@ -16,6 +16,7 @@ export default defineConfig((/* ctx */) => {
       'sentry',
       'axios',
       'auth',
+      'attribution',
       'modules',
       'push-notifications',
       'deep-links',
