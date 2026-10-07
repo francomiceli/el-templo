@@ -93,7 +93,7 @@ Estas cosas dependen de Google o de Apple y no se pueden apurar. Conviene empeza
 
 Es una pregunta abierta. Hace falta saber quién entra al lugar donde se compró o administra el dominio, para agregar registros de texto en la sección 6. Si nadie lo sabe, empezar por quien pagó el dominio.
 
-Resultado → se carga en: ningún lado. Anotá acá el nombre de la persona: \***\*\*\*\*\***\_\_\***\*\*\*\*\***
+Resultado → se carga en: ningún lado. Anotá acá el nombre de la persona: _completar_.
 
 ### 1.2 Aprobar `/privacidad` y completar los datos legales de España
 
