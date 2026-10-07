@@ -42,6 +42,8 @@ const DATA_PATH = resolve(
   argValue("data") ?? join(ROOT, "data/generated/web-data.json"),
 );
 const REQUIRE_API = process.argv.includes("--require-api");
+// Build de staging: lleva meta robots noindex (app.vue) y el sitemap sale vacio.
+const IS_STAGING = process.env.NUXT_PUBLIC_APP_ENVIRONMENT === "staging";
 // Carpeta con data/disciplinas.ts y data/profes.ts (flag solo para tests).
 const SRC_DATA_DIR = resolve(argValue("src-data-dir") ?? join(ROOT, "data"));
 
@@ -413,6 +415,8 @@ const CHECKS = [
   {
     name: "cada post del blog tiene su pagina y esta en sitemap.xml",
     run: (ctx) => {
+      // En staging @nuxtjs/sitemap excluye las paginas con noindex: sitemap vacio a proposito.
+      if (IS_STAGING) return [];
       const sitemap = ctx.read("sitemap.xml");
       const problems = [];
       for (const { slug } of ctx.data.blog.posts) {
@@ -539,6 +543,8 @@ const CHECKS = [
   {
     name: "sitemap.xml lista el hub /sedes y la pagina de cada sede",
     run: (ctx) => {
+      // En staging @nuxtjs/sitemap excluye las paginas con noindex: sitemap vacio a proposito.
+      if (IS_STAGING) return [];
       const sitemap = ctx.read("sitemap.xml");
       return ["/sedes", ...ctx.data.sedes.map((s) => pageUrlPath(s))]
         .filter((path) => !sitemap.includes(`<loc>${SITE_URL}${path}</loc>`))
@@ -821,6 +827,8 @@ const CHECKS = [
   {
     name: "sitemap.xml lista disciplinas, planes, profes publicados y primera clase gratis",
     run: (ctx) => {
+      // En staging @nuxtjs/sitemap excluye las paginas con noindex: sitemap vacio a proposito.
+      if (IS_STAGING) return [];
       const sitemap = ctx.read("sitemap.xml");
       const paths = [
         "/disciplinas",
@@ -1143,6 +1151,35 @@ const CHECKS = [
           problems.push(
             `${rel}: apple-itunes-app = ${metas.map((t) => attr(t, "content")).join(",") || "ausente"} (esperado un solo app-id=${id})`,
           );
+        }
+      }
+      return problems;
+    },
+  },
+  {
+    name: "robots noindex solo en staging: con NUXT_PUBLIC_APP_ENVIRONMENT=staging el index.html lo lleva y sin esa env ningun html lo lleva (prod nunca sale con noindex)",
+    run: (ctx) => {
+      const robotsMetas = (rel) =>
+        [...ctx.read(rel).matchAll(/<meta\b[^>]*>/g)]
+          .map((m) => m[0])
+          .filter((t) => attr(t, "name") === "robots");
+      if (IS_STAGING) {
+        if (!ctx.exists("index.html")) return ["falta index.html"];
+        const hits = robotsMetas("index.html").filter(
+          (t) => attr(t, "content") === "noindex, nofollow",
+        );
+        return hits.length === 1
+          ? []
+          : [
+              `index.html: meta robots "noindex, nofollow" = ${hits.length} (esperado 1 en staging)`,
+            ];
+      }
+      const problems = [];
+      for (const rel of ctx.htmlFiles) {
+        for (const t of robotsMetas(rel)) {
+          if (/noindex/i.test(attr(t, "content") ?? "")) {
+            problems.push(`${rel}: meta robots con noindex fuera de staging`);
+          }
         }
       }
       return problems;

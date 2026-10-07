@@ -327,6 +327,8 @@ jobs:
       # (staging API included): a staging site with fixture data hides rollout problems.
       - name: Verify SEO output (datos reales)
         run: node scripts/verify-seo-output.mjs --require-api
+        env:
+          NUXT_PUBLIC_APP_ENVIRONMENT: staging
 
       - name: Upload Web build artifact
         uses: actions/upload-artifact@v4
