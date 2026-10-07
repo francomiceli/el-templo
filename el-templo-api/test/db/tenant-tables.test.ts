@@ -96,7 +96,7 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     ).toEqual([]);
   });
 
-  it("los conteos son 102 gym-owned + 4 exentas y cubren las 106 tablas del schema", () => {
+  it("los conteos son 103 gym-owned + 4 exentas y cubren las 107 tablas del schema", () => {
     // Fase 159 (SEM-05) sumó `session_week_regime` a GYM_OWNED_TABLES (era 87,
     // ver el comentario de src/db/tenant-tables.ts:32-41): 87 -> 88, 91 -> 92.
     // Fase 179 sumó `referral_partners`, `partner_referrals`,
@@ -119,12 +119,15 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // 2026-10-07 (fase 195-08) sumó `meta_capi_events` (outbox de CAPI) y
     // `ad_spend_daily` (gasto diario de Meta), mig 0273, nacen strict en el módulo
     // `marketing`: 100 -> 102, 104 -> 106.
-    expect(GYM_OWNED_TABLES.length).toBe(102);
+    // 2026-10-07 (fase 195-09) sumó `search_console_stats` (estadísticas de Google
+    // Search Console, mig 0274, nace strict en el módulo `marketing`): 102 -> 103,
+    // 106 -> 107.
+    expect(GYM_OWNED_TABLES.length).toBe(103);
     expect(TENANT_EXEMPT_TABLES.length).toBe(4);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(106);
+    expect(schemaTables.size).toBe(107);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -466,7 +469,13 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     // 2026-10-07 (fase 195-07): atribución propia de altas. Nace strict, sin
     // deuda de allowlist previa.
     // 2026-10-07 (fase 195-08): + outbox de CAPI y gasto diario de Meta.
-    marketing: ["ad_spend_daily", "meta_capi_events", "signup_attributions"],
+    // 2026-10-07 (fase 195-09): + estadísticas de Search Console.
+    marketing: [
+      "ad_spend_daily",
+      "meta_capi_events",
+      "search_console_stats",
+      "signup_attributions",
+    ],
     wellhub: [
       "wellhub_bookings",
       "wellhub_classes",

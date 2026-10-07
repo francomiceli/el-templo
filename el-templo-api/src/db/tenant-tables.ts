@@ -145,6 +145,9 @@ export const GYM_OWNED_TABLES = [
   "saved_blocks",
   "schedule_exceptions",
   "schedules",
+  // Estadísticas de Google Search Console (fase 195, plan 09, migración 0274):
+  // nace con tenant_id y strict (módulo `marketing`).
+  "search_console_stats",
   "session_blocks",
   "session_edit_logs",
   "session_prescriptions",
@@ -658,7 +661,13 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   // Fase 195: nace strict (atribución propia de altas, mig 0272) — sin deuda
   // previa que tolerar, mismo criterio que `renewals`/`trial-followups`.
   // Plan 195-08 (mig 0273): + outbox de CAPI y gasto diario de Meta.
-  marketing: ["ad_spend_daily", "meta_capi_events", "signup_attributions"],
+  // Plan 195-09 (mig 0274): + estadísticas de Search Console.
+  marketing: [
+    "ad_spend_daily",
+    "meta_capi_events",
+    "search_console_stats",
+    "signup_attributions",
+  ],
   wellhub: [
     "wellhub_bookings",
     "wellhub_classes",

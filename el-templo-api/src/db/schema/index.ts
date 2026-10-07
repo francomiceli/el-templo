@@ -87,3 +87,4 @@ export * from "./trial-followups";
 export * from "./signup-attributions";
 export * from "./meta-capi-events";
 export * from "./ad-spend-daily";
+export * from "./search-console-stats";

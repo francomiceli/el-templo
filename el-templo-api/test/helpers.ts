@@ -295,6 +295,9 @@ const TABLES_TO_CLEAN = [
   // limpia igual para dejar la base limpia entre archivos.
   schema.metaCapiEvents,
   schema.adSpendDaily,
+  // Estadísticas de Search Console (fase 195-09, mig 0274): sin FK a users, pero
+  // se limpia igual para dejar la base limpia entre archivos.
+  schema.searchConsoleStats,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,
