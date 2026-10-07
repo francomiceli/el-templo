@@ -99,3 +99,9 @@
   - Reusar: `composables/useSedeSeo.ts`, `articleNode(post, author)` (acepta `Person`), `buildRegisterUrl(params, attribution)` (195-06), `sedePath`.
   - El fixture tiene casos borde a propósito (Moreno sin horarios, geo exacta/parcial, dirección con `</script>` en Mario Bravo): no "limpiarlos".
   - Harness de mutación web reutilizables en el scratchpad `mut04/` (sin commitear).
+- **Tras 195-05 (2026-10-07):**
+  - Formato: `.vue` de la web con `pnpm exec eslint --fix` (NO prettier: choca con `vue/html-self-closing`); `.ts`/`.mjs` con `npx prettier --write`.
+  - Tras escribir regex con escapes unicode, verificar que no quedaron caracteres combinantes literales (U+0300-036F).
+  - Para `/es`: `PlanesContent`/`PrimeraClaseGratisContent` ya reciben `country`; envolver en `PageShell` + `usePageSeo`.
+  - Helpers del verificador: `parseDisciplinas`, `parseProfes`, `nameMatches`, `stripNonLdScripts`, flag `--src-data-dir`.
+  - **Para 195-14 (guía final):** incluir la lista "Datos de contenido que Franco tiene que completar" de `195-05-SUMMARY.md` (profes, bio de Ignacio 10 vs 20 años, Aura Verticales/Acrobacias/Open Gym, planes, "Dónde se dicta", Moreno/D-30, tags del blog, títulos/metas).
