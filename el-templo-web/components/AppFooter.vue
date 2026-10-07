@@ -68,6 +68,7 @@ const columns: FooterColumn[] = [
         disabled: false,
       },
       { label: "Sedes", href: "/sedes", disabled: false },
+      { label: "Barcelona", href: "/es", disabled: false },
       { label: "Contacto", href: "/contacto", disabled: true },
     ],
   },
