@@ -23,6 +23,8 @@ import argon2 from "argon2";
 import { createTestApp } from "../helpers";
 import { splitSqlStatements } from "../../src/db/run-migrations";
 import * as schema from "../../src/db/schema";
+import { TEMPLATE_SEEDS } from "../../src/modules/notifications/types";
+import { SYSTEM_AVISOS } from "../../src/modules/communications/system-avisos";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 
 const MIGRATIONS_DIR = path.resolve(__dirname, "../../src/db/migrations");
@@ -554,5 +556,247 @@ describe("Migracion 0260 — vinculo de referidos 3 invertido (D-28)", () => {
     } finally {
       await moveReferralToTenant(TENANT_TEMPLO);
     }
+  });
+});
+
+// ── 0261: copy vivo de la notificacion y del aviso ────────────────────────────
+
+const MIG_0261 = path.join(
+  MIGRATIONS_DIR,
+  "0261_rebrand_invitaciones_copy.sql",
+);
+
+const OLD_TITLE = "¡Tu referido pagó!";
+const OLD_BODY = "{Nombre} pagó su primer plan. Ya tenés tu descuento activo.";
+const OLD_TITLE_FEMALE = "¡Tu referida pagó!";
+const OLD_AVISO_BODY =
+  "Invitá a entrenar: cada persona que traigas suma descuento a tu cuota.";
+const OLD_AVISO_BUTTON = "Compartir código";
+const NOTIF_KEY = "referral_link_activated";
+const AVISO_CODE = "card_referral";
+
+interface NotifRow extends RowDataPacket {
+  title: string;
+  body: string;
+  titleFemale: string | null;
+  bodyFemale: string | null;
+  route: string | null;
+  category: string;
+}
+
+interface AvisoRow extends RowDataPacket {
+  title: string;
+  body: string;
+  buttonText: string;
+  destinationSection: string | null;
+  status: string;
+}
+
+describe("Migracion 0261 — copy de invitaciones (notificacion y aviso)", () => {
+  let app: FastifyInstance;
+  let statements0261: string[];
+
+  const notifSeed = TEMPLATE_SEEDS.find((s) => s.templateKey === NOTIF_KEY);
+  const avisoSeed = SYSTEM_AVISOS.find((s) => s.code === AVISO_CODE);
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    statements0261 = readStatements(MIG_0261);
+    expect(notifSeed).toBeDefined();
+    expect(avisoSeed).toBeDefined();
+  });
+
+  afterAll(async () => {
+    // Deja las filas con el copy de los seeds nuevos (el estado de un deploy sano).
+    await setNotif({
+      title: notifSeed?.title ?? "",
+      body: notifSeed?.body ?? "",
+      titleFemale: notifSeed?.titleFemale ?? "",
+      bodyFemale: notifSeed?.bodyFemale ?? "",
+    });
+    await setAviso({
+      body: avisoSeed?.body ?? "",
+      buttonText: avisoSeed?.buttonText ?? "",
+    });
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await setNotif({});
+    await setAviso({});
+  });
+
+  /** Upsert de la fila del Templo con el copy VIEJO (default de prod) salvo overrides. */
+  async function setNotif(
+    over: Partial<{
+      title: string;
+      body: string;
+      titleFemale: string;
+      bodyFemale: string;
+      route: string;
+    }>,
+  ): Promise<void> {
+    const v = {
+      title: OLD_TITLE,
+      body: OLD_BODY,
+      titleFemale: OLD_TITLE_FEMALE,
+      bodyFemale: OLD_BODY,
+      route: "/mis-referidos",
+      ...over,
+    };
+    await app.dbPool.query(
+      `INSERT INTO notification_templates
+         (tenant_id, template_key, notification_category, title, body, title_female, body_female, route)
+       VALUES (?, ?, 'referidos', ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE title = VALUES(title), body = VALUES(body),
+         title_female = VALUES(title_female), body_female = VALUES(body_female), route = VALUES(route)`,
+      [
+        TENANT_TEMPLO,
+        NOTIF_KEY,
+        v.title,
+        v.body,
+        v.titleFemale,
+        v.bodyFemale,
+        v.route,
+      ],
+    );
+  }
+
+  async function setAviso(
+    over: Partial<{ title: string; body: string; buttonText: string }>,
+  ): Promise<void> {
+    const v = {
+      title: "Vos decidís cuánto bajás tu cuota",
+      body: OLD_AVISO_BODY,
+      buttonText: OLD_AVISO_BUTTON,
+      ...over,
+    };
+    await app.dbPool.query(
+      `INSERT INTO avisos
+         (tenant_id, kind, code, placement, title, body, button_text, destination_type,
+          destination_section, frequency_type, status, sort_order)
+       VALUES (?, 'system', ?, 'tarjeta', ?, ?, ?, 'app_section', 'referidos', 'every_open', 'active', 2)
+       ON DUPLICATE KEY UPDATE title = VALUES(title), body = VALUES(body), button_text = VALUES(button_text)`,
+      [TENANT_TEMPLO, AVISO_CODE, v.title, v.body, v.buttonText],
+    );
+  }
+
+  async function readNotif(): Promise<NotifRow> {
+    const [rows] = (await app.dbPool.query(
+      `SELECT title, body, title_female AS titleFemale, body_female AS bodyFemale, route,
+              notification_category AS category
+       FROM notification_templates WHERE template_key = ? AND tenant_id = ?`,
+      [NOTIF_KEY, TENANT_TEMPLO],
+    )) as [NotifRow[], unknown];
+    return { ...rows[0] };
+  }
+
+  async function readAviso(): Promise<AvisoRow> {
+    const [rows] = (await app.dbPool.query(
+      `SELECT title, body, button_text AS buttonText, destination_section AS destinationSection, status
+       FROM avisos WHERE code = ? AND kind = 'system' AND tenant_id = ?`,
+      [AVISO_CODE, TENANT_TEMPLO],
+    )) as [AvisoRow[], unknown];
+    return { ...rows[0] };
+  }
+
+  async function apply(): Promise<void> {
+    const conn = await app.dbPool.getConnection();
+    try {
+      for (const stmt of statements0261) {
+        await conn.query(
+          `/* tenant-safe: migracion aplicada tal cual la corre el runner, renombra copy por clave en todos los gimnasios */ ${stmt}`,
+        );
+      }
+    } finally {
+      conn.release();
+    }
+  }
+
+  it("los textos de los seeds en codigo estan byte a byte en el SQL de 0261", () => {
+    const sqlText = readFileSync(MIG_0261, "utf8");
+    const lit = (s: string | null | undefined): string => `'${s ?? ""}'`;
+    expect(notifSeed).toBeDefined();
+    expect(avisoSeed).toBeDefined();
+    expect(sqlText).toContain(lit(notifSeed?.title));
+    expect(sqlText).toContain(lit(notifSeed?.body));
+    expect(sqlText).toContain(lit(notifSeed?.titleFemale));
+    expect(sqlText).toContain(lit(notifSeed?.bodyFemale));
+    expect(sqlText).toContain(lit(notifSeed?.route));
+    expect(sqlText).toContain(lit(avisoSeed?.body));
+    expect(sqlText).toContain(lit(avisoSeed?.buttonText));
+    // Textos exactos de la decision (D-26)
+    expect(notifSeed?.title).toBe("¡Tu invitado se sumó!");
+    expect(notifSeed?.titleFemale).toBe("¡Tu invitada se sumó!");
+    expect(avisoSeed?.buttonText).toBe("Invitar");
+    // Claves internas y ruta compatible con builds <= 1.8.1 intactas
+    expect(notifSeed?.route).toBe("/mis-referidos");
+    expect(notifSeed?.category).toBe("referidos");
+    expect(avisoSeed?.destinationSection).toBe("referidos");
+  });
+
+  it("notificacion con el texto por defecto: pasa al copy de invitaciones", async () => {
+    await apply();
+
+    const n = await readNotif();
+    expect(n.title).toBe(notifSeed?.title);
+    expect(n.body).toBe(notifSeed?.body);
+    expect(n.titleFemale).toBe(notifSeed?.titleFemale);
+    expect(n.bodyFemale).toBe(notifSeed?.bodyFemale);
+    // Ruta compatible con las builds de tienda <= 1.8.1 y categoria interna
+    expect(n.route).toBe("/mis-referidos");
+    expect(n.category).toBe("referidos");
+  });
+
+  it("aviso card_referral con el texto por defecto: nuevo body y boton, titulo y destino intactos", async () => {
+    await apply();
+
+    const a = await readAviso();
+    expect(a.body).toBe(avisoSeed?.body);
+    expect(a.buttonText).toBe(avisoSeed?.buttonText);
+    expect(a.title).toBe("Vos decidís cuánto bajás tu cuota");
+    expect(a.destinationSection).toBe("referidos");
+    expect(a.status).toBe("active");
+  });
+
+  it("notificacion con el titulo editado por el staff queda intacta", async () => {
+    await setNotif({ title: "¡Tu amigo ya paga!" });
+    const before = await readNotif();
+
+    await apply();
+
+    expect(await readNotif()).toEqual(before);
+  });
+
+  it("notificacion con solo el body editado tambien queda intacta (no se pisa copy del staff)", async () => {
+    await setNotif({ body: "{Nombre} ya pagó. Te bonificamos." });
+    const before = await readNotif();
+
+    await apply();
+
+    expect(await readNotif()).toEqual(before);
+  });
+
+  it("aviso con el body o el boton editados por el staff queda intacto", async () => {
+    await setAviso({ body: "Texto propio del staff." });
+    const editedBody = await readAviso();
+    await apply();
+    expect(await readAviso()).toEqual(editedBody);
+
+    await setAviso({ buttonText: "Sumá amigos" });
+    const editedButton = await readAviso();
+    await apply();
+    expect(await readAviso()).toEqual(editedButton);
+  });
+
+  it("idempotente: reaplicar no cambia nada", async () => {
+    await apply();
+    const notif = await readNotif();
+    const aviso = await readAviso();
+
+    await apply();
+
+    expect(await readNotif()).toEqual(notif);
+    expect(await readAviso()).toEqual(aviso);
   });
 });
