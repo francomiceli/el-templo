@@ -145,6 +145,9 @@ export const GYM_OWNED_TABLES = [
   "session_traces",
   "session_week_regime",
   "sessions",
+  // Atribución propia de altas (fase 195, plan 07, migración 0272): nace con
+  // tenant_id y strict (ver TENANT_STRICT_MODULES["marketing"] más abajo).
+  "signup_attributions",
   "spom_config",
   "spom_rules",
   "staff_shifts",
@@ -646,6 +649,9 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   // nace strict, sin deuda previa que tolerar (mismo criterio que
   // `renewals`/`communications`/`staff-attendance`).
   "trial-followups": ["trial_followups"],
+  // Fase 195: nace strict (atribución propia de altas, mig 0272) — sin deuda
+  // previa que tolerar, mismo criterio que `renewals`/`trial-followups`.
+  marketing: ["signup_attributions"],
   wellhub: [
     "wellhub_bookings",
     "wellhub_classes",

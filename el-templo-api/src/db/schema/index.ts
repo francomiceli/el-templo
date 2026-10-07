@@ -84,3 +84,4 @@ export * from "./communications";
 export * from "./staff-shifts";
 export * from "./renewals";
 export * from "./trial-followups";
+export * from "./signup-attributions";

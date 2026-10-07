@@ -287,6 +287,9 @@ const TABLES_TO_CLEAN = [
   // followups es basura de test genuina (FK a bookings/users) — se limpia
   // como renewal_followups/member_notes.
   schema.trialFollowups,
+  // Atribución de altas (fase 195-07, mig 0272): FK a users/branches — basura
+  // de test genuina, se limpia antes que `users`.
+  schema.signupAttributions,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,
