@@ -207,3 +207,9 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - **Contrato final de previews para 194-23** en `194-18-SUMMARY.md` (`RenewalPreview`: `basePrice`, `invitationDiscount*`, `partnerDiscount*`, `winningDiscount`, `finalPrice`; querystring `startDate`, `prorateToMonthEnd`, `priceOverrideAmount`, `priceOverrideReason`). El admin hoy multiplica % en el cliente (`MemberSubscriptionTab.vue`, `AssignPlanDialog.vue`): 194-23 lo reemplaza por los montos del servidor. **API y admin viajan juntos.**
 - La PoS del profe (`coach-load-routes.ts` `renewAmountFor`) ya precarga `finalPrice`.
 - Un Bash de más de 600 s pasa a segundo plano solo: ≤3 archivos de integración por corrida.
+
+### Tras 194-19/20
+- Overview "Mis invitados": `referrals/invitation-overview.ts` (+ `invitation-states.ts` puro, `invitation-trained-branches.ts`); `GET /api/members/referrals` y la ficha admin traen `invitations`, `invitedBy` y `discount.bySide`. Contrato en `194-19-SUMMARY.md` (para 194-24 y 194-27).
+- Reporte/bandeja: `referrals/invitation-report.ts`, `referrals/invitation-lead-list.ts`; rutas `GET /api/admin/referrals/invitations/report` y `GET /api/admin/referrals/invitations`; filtro `GET /api/admin/members?origin=invitacion`. Alcance por país para admin/gestión (sin país → 403), owner ve ambos con montos por moneda. Contrato en `194-20-SUMMARY.md` (para 194-26).
+- Fábricas nuevas en `_helpers.ts`: `createInvitedUser`, `createAccessSub`. `vi.spyOn(app.dbPool, "query")` cuenta queries.
+- `lint:tenant` exige la condición de tenant LITERAL dentro de cada statement (no sigue alias ni helpers).
