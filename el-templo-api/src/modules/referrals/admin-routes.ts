@@ -5,7 +5,7 @@
  * per-miembro; eso vive en /api/admin/members/:id/referrals) para el tab
  * "Referidos A/B" de Analíticas.
  *
- * Acceso: gestion/admin/owner (`REFERRAL_AB_RESULTS_ROLES`). Coach, recepción,
+ * Acceso: gestion/admin/owner (`REFERRAL_PROGRAM_REPORT_ROLES`). Coach, recepción,
  * admin_sede y los tokens de socio reciben 403.
  *
  * Fase 194-20: el plugin suma dos rutas del programa de Invitaciones, con el
@@ -29,7 +29,7 @@ import {
   type InvitationLeadsQuery,
   type InvitationReportQuery,
 } from "./invitation-schemas";
-import { REFERRAL_AB_RESULTS_ROLES } from "../shared/permissions";
+import { REFERRAL_PROGRAM_REPORT_ROLES } from "../shared/permissions";
 import { ForbiddenError } from "../shared/errors";
 import { assertTenant } from "../shared/tenant";
 import { attachCountryScope, type CountryCode } from "../shared/country-scope";
@@ -52,7 +52,7 @@ function countryScopeOf(request: FastifyRequest): CountryCode | undefined {
 export const referralAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ReferralService(fastify.db, fastify.log);
 
-  // Guard: autenticar + gate a REFERRAL_AB_RESULTS_ROLES (gestion+admin+owner).
+  // Guard: autenticar + gate a REFERRAL_PROGRAM_REPORT_ROLES (gestion+admin+owner).
   // 2026-09-09: el gate se angostó acá mismo (antes usaba
   // ANALYTICS_OPERATIONAL_ROLES, que incluía `admin_sede`) porque el agregado es
   // de TODO el gimnasio, sin dimensión de sede, y ese rol solo debe ver la suya.
@@ -61,13 +61,13 @@ export const referralAdminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
     if (
-      !(REFERRAL_AB_RESULTS_ROLES as readonly string[]).includes(
+      !(REFERRAL_PROGRAM_REPORT_ROLES as readonly string[]).includes(
         request.user.role,
       )
     ) {
       return reply.code(403).send({
         error: "Acceso denegado",
-        message: "No tenés acceso a los resultados del A/B test",
+        message: "No tenés acceso a los reportes del programa de invitaciones",
       });
     }
     // T-175.1: resuelve `request.scope` (gimnasio del request) para que

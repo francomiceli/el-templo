@@ -130,14 +130,19 @@ export const ANALYTICS_OPERATIONAL_ROLES = [
 export const ANALYTICS_ADMIN_ROLES = ["admin", "owner", "admin_sede"] as const;
 
 /**
- * Roles que ven los resultados agregados del A/B test de copy de referidos
- * (`GET /admin/referrals/ab-results`) — 2026-09-09. Superficie SIN dimensión de
+ * Roles que ven los reportes agregados del programa de Invitaciones/Referidos
+ * (`GET /admin/referrals/ab-results`, y desde la Fase 194 el reporte y la bandeja
+ * de leads de invitación; antes se llamaba `REFERRAL_AB_RESULTS_ROLES`) — 2026-09-09. Superficie SIN dimensión de
  * sede (números de TODO el gimnasio, no filtrables por branch): el admin_sede
  * queda afuera a propósito, a diferencia de `ANALYTICS_OPERATIONAL_ROLES` (del
  * que este set se separa) — no hay `enforceBranchScope` que lo acote y mostrarle
  * el agregado global violaría el alcance por sede del rol.
  */
-export const REFERRAL_AB_RESULTS_ROLES = ["gestion", "admin", "owner"] as const;
+export const REFERRAL_PROGRAM_REPORT_ROLES = [
+  "gestion",
+  "admin",
+  "owner",
+] as const;
 
 /**
  * Roles que ESCRIBEN los parámetros del programa de Invitaciones

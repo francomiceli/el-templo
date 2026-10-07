@@ -414,7 +414,15 @@ describe("Fase 194-20 D-19 — reporte de Invitaciones", () => {
   // ─── Gate de roles y validación ────────────────────────────────────────
 
   it("recepción y coach reciben 403; gestión y admin 200", async () => {
-    expect((await get(await staffToken("recepcion"))).statusCode).toBe(403);
+    const denied = await get(await staffToken("recepcion"));
+    expect(denied.statusCode).toBe(403);
+    // LO-07: el 403 ya no habla del A/B test (el reporte es del programa de invitaciones).
+    expect((denied.body as unknown as { message: string }).message).toMatch(
+      /invitaciones/,
+    );
+    expect((denied.body as unknown as { message: string }).message).not.toMatch(
+      /A\/B/,
+    );
     expect((await get(await staffToken("coach"))).statusCode).toBe(403);
     expect((await get(await staffToken("gestion"))).statusCode).toBe(200);
     expect((await get(await staffToken("admin"))).statusCode).toBe(200);

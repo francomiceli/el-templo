@@ -10,7 +10,7 @@ import {
   PLANES_READ_ROLES,
   PROGRAMAS_ROLES,
   PROGRAMAS_LIST_ROLES,
-  REFERRAL_AB_RESULTS_ROLES,
+  REFERRAL_PROGRAM_REPORT_ROLES,
   TEMPLO_RBAC_OVERRIDES,
   TV_CONTROL_ROLES,
   CHECKIN_ROSTER_ROLES,
@@ -48,7 +48,12 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
   it("CAJA_ROLES = reportes-override (gestion + admin_sede) + core", () => {
     // 2026-09-08: `admin_sede` entra por el override `reportes` — ve la Caja de
     // SU sede (el recorte lo hace `enforcedBranchIds`, no este set).
-    expect([...CAJA_ROLES]).toEqual(["gestion", "admin_sede", "admin", "owner"]);
+    expect([...CAJA_ROLES]).toEqual([
+      "gestion",
+      "admin_sede",
+      "admin",
+      "owner",
+    ]);
   });
 
   it("COACH_DEBTS_ROLES stays byte-identical (composed deudas-override + core)", () => {
@@ -81,16 +86,24 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
     // SIEMPRE acotado a su sede vía `enforceBranchScope`, encadenado en todas
     // esas rutas. `gestion` sigue sin acceso: solo ve el set operacional
     // (ANALYTICS_OPERATIONAL_ROLES).
-    expect([...ANALYTICS_ADMIN_ROLES]).toEqual(["admin", "owner", "admin_sede"]);
+    expect([...ANALYTICS_ADMIN_ROLES]).toEqual([
+      "admin",
+      "owner",
+      "admin_sede",
+    ]);
     expect([...ANALYTICS_ADMIN_ROLES]).not.toContain("gestion");
   });
 
-  it("REFERRAL_AB_RESULTS_ROLES excluye a admin_sede (agregado sin dimensión de sede)", () => {
+  it("REFERRAL_PROGRAM_REPORT_ROLES excluye a admin_sede (agregado sin dimensión de sede)", () => {
     // GET /admin/referrals/ab-results es un conteo de TODO el gimnasio, sin
     // `branchId` para acotar — se separa de ANALYTICS_OPERATIONAL_ROLES (que sí
     // incluye admin_sede) a propósito.
-    expect([...REFERRAL_AB_RESULTS_ROLES]).toEqual(["gestion", "admin", "owner"]);
-    expect([...REFERRAL_AB_RESULTS_ROLES]).not.toContain("admin_sede");
+    expect([...REFERRAL_PROGRAM_REPORT_ROLES]).toEqual([
+      "gestion",
+      "admin",
+      "owner",
+    ]);
+    expect([...REFERRAL_PROGRAM_REPORT_ROLES]).not.toContain("admin_sede");
   });
 
   it("PROGRAMAS_ROLES is Dueño-only (owner + admin) — closes D-15", () => {
@@ -195,7 +208,7 @@ describe("RBAC — rol admin_sede (sede-scoped)", () => {
     CHECKIN_ROSTER_ROLES,
     STAFF_ATTENDANCE_ROLES,
     STAFF_ATTENDANCE_REPORT_ROLES,
-    REFERRAL_AB_RESULTS_ROLES,
+    REFERRAL_PROGRAM_REPORT_ROLES,
   };
 
   it.each(Object.entries(ENTRA))(
@@ -293,7 +306,13 @@ describe("RBAC — rol coach_actividad (profe sin plata)", () => {
   it("isCoachLikeRole es true para coach y coach_actividad, nada más", () => {
     expect(isCoachLikeRole("coach")).toBe(true);
     expect(isCoachLikeRole("coach_actividad")).toBe(true);
-    for (const role of ["admin", "owner", "gestion", "recepcion", "admin_sede"]) {
+    for (const role of [
+      "admin",
+      "owner",
+      "gestion",
+      "recepcion",
+      "admin_sede",
+    ]) {
       expect(isCoachLikeRole(role)).toBe(false);
     }
   });
