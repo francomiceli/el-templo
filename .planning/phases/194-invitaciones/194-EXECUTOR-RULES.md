@@ -213,3 +213,8 @@ Copy visible = cualquier línea que NO sea comentario y que no sea uno de los id
 - Reporte/bandeja: `referrals/invitation-report.ts`, `referrals/invitation-lead-list.ts`; rutas `GET /api/admin/referrals/invitations/report` y `GET /api/admin/referrals/invitations`; filtro `GET /api/admin/members?origin=invitacion`. Alcance por país para admin/gestión (sin país → 403), owner ve ambos con montos por moneda. Contrato en `194-20-SUMMARY.md` (para 194-26).
 - Fábricas nuevas en `_helpers.ts`: `createInvitedUser`, `createAccessSub`. `vi.spyOn(app.dbPool, "query")` cuenta queries.
 - `lint:tenant` exige la condición de tenant LITERAL dentro de cada statement (no sigue alias ni helpers).
+
+### Tras 194-21/22 (API completa)
+- La API de la fase está completa. Lo que sigue (23-28) es FRONTEND: admin (`el-templo-admin`) y app (`el-templo-app`). Verificación = `pnpm lint` + `pnpm build` del paquete (sin `vue-tsc`, D-27); logs con `createLogger()`; sin `any`; Pinia composition API; composables con `cleanup()` y sin `onUnmounted` adentro.
+- Consumir los contratos de los SUMMARY: previews 194-15/17/18, overview 194-19, reporte/bandeja 194-20, settings 194-07, rutas asistidas 194-12, elegibilidad/activación 194-10.
+- Copy: chequeo canónico de "referid" de este archivo; claves internas `referidos`, `/mis-referidos`, `referidos_pendientes` NO se renombran.
