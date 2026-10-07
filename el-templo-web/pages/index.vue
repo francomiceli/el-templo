@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { sedes } from "~/data/sedes";
+import { sedes, sedesCount } from "~/data/sedes";
 import { faqItems } from "~/data/faq";
 
 const { cleanup: cleanupTracking } = useSectionTracking({
@@ -24,7 +24,7 @@ useHead({
     {
       name: "description",
       content:
-        "Escuela de calistenia con m\u00E9todo propio y 6 niveles. Entrenamiento con peso corporal en 8 sedes de Mar del Plata y Barcelona. Tu primera sesi\u00F3n es gratis.",
+        `Escuela de calistenia con m\u00E9todo propio y 6 niveles. Entrenamiento con peso corporal en ${sedesCount.total} sedes de Mar del Plata y Barcelona. Tu primera sesi\u00F3n es gratis.`,
     },
     {
       property: "og:title",
@@ -33,7 +33,7 @@ useHead({
     {
       property: "og:description",
       content:
-        "Escuela de calistenia y movimiento funcional. Entrenamiento con peso corporal en 8 sedes. M\u00E9todo propio, 6 niveles. Primera sesi\u00F3n gratis.",
+        `Escuela de calistenia y movimiento funcional. Entrenamiento con peso corporal en ${sedesCount.total} sedes. M\u00E9todo propio, 6 niveles. Primera sesi\u00F3n gratis.`,
     },
     { property: "og:url", content: "https://eltemplo.org" },
     { property: "og:type", content: "website" },
@@ -86,7 +86,7 @@ useSchemaOrg([
       <p class="seo-intro__text">
         El Templo es una escuela de calistenia con m&eacute;todo propio con
         sedes en Argentina y Espa&ntilde;a. Entrenamiento funcional con peso
-        corporal en 8 sedes de Mar del Plata y Barcelona. 6 niveles de
+        corporal en {{ sedesCount.total }} sedes de Mar del Plata y Barcelona. 6 niveles de
         progresi&oacute;n, sesiones ROM y SKILLS, y una comunidad de m&aacute;s
         de 1000 alumnos.
       </p>

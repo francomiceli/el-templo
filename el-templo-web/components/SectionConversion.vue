@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { sedesCount } from "~/data/sedes";
+
 /**
  * SectionConversion — "Descubr&iacute; tu nivel" dual-path conversion section.
  *
@@ -26,7 +28,7 @@ const paths: ConversionPath[] = [
     id: "presencial",
     title: "Ven\u00ED a sentirlo en persona",
     description:
-      "Reserv\u00E1 tu primera sesi\u00F3n sin cargo en cualquiera de nuestras 8 sedes. Un entrenador te eval\u00FAa, te asigna tu nivel y te muestra c\u00F3mo funciona el m\u00E9todo en vivo. No hay mejor forma de conocer El Templo que entrenando.",
+      `Reserv\u00E1 tu primera sesi\u00F3n sin cargo en cualquiera de nuestras ${sedesCount.total} sedes. Un entrenador te eval\u00FAa, te asigna tu nivel y te muestra c\u00F3mo funciona el m\u00E9todo en vivo. No hay mejor forma de conocer El Templo que entrenando.`,
     sentence: "Tu cuerpo lo entiende m\u00E1s r\u00E1pido que tu cabeza.",
     ctaText: "Reserv\u00E1 tu sesi\u00F3n",
     ctaHref:

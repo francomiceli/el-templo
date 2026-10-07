@@ -10,7 +10,9 @@
  * does not exist yet.
  */
 
-const sedesCount = 8;
+import { sedesCount } from "~/data/sedes";
+
+const sedesTotal = sedesCount.total;
 const alumnosCount = "1000";
 
 const { revealed, elementRef, cleanup } = useScrollReveal();
@@ -46,7 +48,7 @@ onBeforeUnmount(() => {
             camino de evoluci&oacute;n f&iacute;sica, mental y real.
           </p>
           <p>
-            {{ sedesCount }} sedes en Argentina y Espa&ntilde;a. M&aacute;s de
+            {{ sedesTotal }} sedes en Argentina y Espa&ntilde;a. M&aacute;s de
             {{ alumnosCount }} alumnos entrenando cada semana. Una comunidad que
             crece porque el m&eacute;todo funciona.
           </p>

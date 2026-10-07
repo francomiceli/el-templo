@@ -1,6 +1,6 @@
 # El Templo
 
-> Escuela de calistenia con método propio. Entrenamiento con peso corporal en 8 sedes de Mar del Plata y Barcelona.
+> Escuela de calistenia con método propio. Entrenamiento con peso corporal en 7 sedes (6 en Mar del Plata y 1 en Barcelona).
 
 El Templo es una escuela de calistenia fundada en Argentina que ofrece entrenamiento funcional con peso corporal a través de un método estructurado propio. Cada sesión sigue una estructura de cuatro bloques (Initium, Nucleus, Deuteros, Athlos) y los alumnos progresan a través de 6 niveles: Alfa, Delta, Sigma, Omega, Spartan y Olympic.
 
@@ -10,6 +10,18 @@ El Templo es una escuela de calistenia fundada en Argentina que ofrece entrenami
 - [Franquicias](https://eltemplo.org/franquicias): Información para inversores interesados en abrir una franquicia de calistenia El Templo.
 - [Gladius](https://eltemplo.org/gladius): Equipamiento profesional de calistenia diseñado y probado en El Templo.
 - [Blog](https://eltemplo.org/blog): Artículos sobre calistenia, filosofía de entrenamiento, movilidad, progresión y bienestar.
+
+## Sedes
+
+- Constitución — Av. Constitución 6745, Mar del Plata
+- Jujuy — Jujuy 3761, Mar del Plata
+- Moreno — Moreno 3751, Mar del Plata
+- Juan B. Justo — Juan B. Justo 1018, Mar del Plata
+- Alberti — Alberti 2024, Mar del Plata
+- Mario Bravo — Mario Bravo 618, Mar del Plata
+- Barcelona (Eixample) — Av. Diagonal 368, Barcelona
+
+El Templo Park: espacio de comunidad en el Parque Primavesi (no es una sede).
 
 ## Conceptos clave
 

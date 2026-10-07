@@ -14,7 +14,7 @@ function handlePrefooterCta(): void {
         La primera sesión es sin cargo. Vení a sentir el método.
       </p>
       <a
-        href="https://wa.me/54223XXXXXXX"
+        href="https://wa.me/5492235820521"
         class="btn btn--primary prefooter__cta"
         target="_blank"
         rel="noopener"

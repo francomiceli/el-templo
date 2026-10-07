@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { sedesCount } from "~/data/sedes";
+
 /**
  * Root app component — global head and Organization schema.
  *
@@ -10,7 +12,7 @@ useHead({
   htmlAttrs: { lang: "es" },
   meta: [
     { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:site", content: "@eltemplo" },
+    { name: "twitter:site", content: "@eltemplomdp" },
   ],
   link: [
     { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
@@ -44,9 +46,9 @@ useSchemaOrg([
   defineOrganization({
     name: "El Templo",
     url: "https://eltemplo.org",
-    logo: "https://eltemplo.org/images/logo-eltemplo.svg",
+    logo: "https://eltemplo.org/favicon-192x192.png",
     description:
-      "Escuela de movimiento y calistenia. M\u00E9todo propio, 6 niveles de entrenamiento con peso corporal, 8 sedes en Argentina y Espa\u00F1a.",
+      `Escuela de movimiento y calistenia. M\u00E9todo propio, 6 niveles de entrenamiento con peso corporal, ${sedesCount.total} sedes en Argentina y Espa\u00F1a.`,
     sameAs: [
       "https://www.instagram.com/eltemplomdp/",
       "https://www.youtube.com/@ElTemplomdp/",

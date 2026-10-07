@@ -101,7 +101,7 @@ if (post.value) {
       publisher: {
         name: "El Templo",
         url: "https://eltemplo.org",
-        logo: "https://eltemplo.org/images/logo-eltemplo.svg",
+        logo: "https://eltemplo.org/favicon-192x192.png",
       },
     }),
   ]);

@@ -6,6 +6,9 @@
  * No component logic — typed exports only.
  */
 
+import { sedesCount } from "~/data/sedes";
+
+
 // --- Interfaces ---
 
 export interface AcademyValueCard {
@@ -103,7 +106,7 @@ export const valueCards: AcademyValueCard[] = [
     id: "metodo",
     title: "M\u00E9todo Probado",
     description:
-      "No es teor\u00EDa gen\u00E9rica. Es el sistema que ya funciona en 8 sedes y 2 pa\u00EDses. Aprend\u00E9 de lo que ya se aplica.",
+      `No es teor\u00EDa gen\u00E9rica. Es el sistema que ya funciona en ${sedesCount.total} sedes y 2 pa\u00EDses. Aprend\u00E9 de lo que ya se aplica.`,
   },
   {
     id: "certificacion",
@@ -354,7 +357,7 @@ export const modalidades: AcademyModalidad[] = [
 
 export const ignacioStats: IgnacioStat[] = [
   { value: "+20", label: "a\u00F1os de experiencia" },
-  { value: "8", label: "sedes fundadas" },
+  { value: String(sedesCount.total), label: "sedes activas" },
   { value: "2", label: "pa\u00EDses con presencia activa" },
 ];
 
@@ -375,7 +378,7 @@ export const academyFaqItems: AcademyFaqItem[] = [
   {
     question: "\u00BFEl certificado tiene validez oficial?",
     answer:
-      "La certificaci\u00F3n es emitida por El Templo Calistenia. Est\u00E1 respaldada por una marca con presencia internacional, un m\u00E9todo probado en 8 sedes y 2 pa\u00EDses, y es requisito para trabajar en cualquier sede de la red.",
+      `La certificaci\u00F3n es emitida por El Templo Calistenia. Est\u00E1 respaldada por una marca con presencia internacional, un m\u00E9todo probado en ${sedesCount.total} sedes y 2 pa\u00EDses, y es requisito para trabajar en cualquier sede de la red.`,
   },
   {
     question:
