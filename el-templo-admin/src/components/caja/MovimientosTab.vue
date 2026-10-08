@@ -464,6 +464,7 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatDate } from 'src/utils/format-date';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
@@ -799,9 +800,13 @@ function confirmVoid(transaction: TransactionListItem) {
       loadTransactions();
       loadSummary();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error voiding transaction', { error: message });
-      $q.notify({ type: 'negative', message: 'Error anulando transaccion' });
+      const message = extractError(err, 'Error anulando transaccion');
+      if (isExpectedClientError(err)) {
+        log.warn('Void rejected by server', { error: message });
+      } else {
+        log.error('Error voiding transaction', { error: message });
+      }
+      $q.notify({ type: 'negative', message, timeout: 5000 });
     }
   });
 }
