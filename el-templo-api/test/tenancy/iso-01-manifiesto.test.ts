@@ -326,7 +326,9 @@ import {
 // 2026-10-07: 453 -> 455 por el reporte y la bandeja de leads de Invitaciones
 // (Fase 194-20, D-19/D-18): `GET /api/admin/referrals/invitations/report` y
 // `GET /api/admin/referrals/invitations`, `tenant-scoped`.
-const ENTRADAS_BASELINE = 455;
+// 2026-10-08: 455 -> 456 por el tablero de jornadas del staff (owner/admin):
+// `GET /api/admin/staff-attendance/dashboard`, `tenant-scoped`.
+const ENTRADAS_BASELINE = 456;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;

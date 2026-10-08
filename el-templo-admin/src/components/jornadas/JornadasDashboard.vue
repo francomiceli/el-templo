@@ -1,4 +1,5 @@
 <!--
+  (2026-10-08)
   Tablero de jornadas del staff (owner/admin): quién está en turno ahora por
   sede, jornadas abiertas sin check-out de días anteriores, KPIs del rango y
   horas por persona. Presentacional: los datos y la recarga los maneja

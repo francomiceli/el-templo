@@ -796,6 +796,8 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "POST /api/admin/staff-attendance/check-in": { categoria: "tenant-scoped" },
   "POST /api/admin/staff-attendance/check-out": { categoria: "tenant-scoped" },
   "GET /api/admin/staff-attendance/shifts": { categoria: "tenant-scoped" },
+  // 2026-10-08: tablero de jornadas (owner/admin), sedes del alcance del actor.
+  "GET /api/admin/staff-attendance/dashboard": { categoria: "tenant-scoped" },
 
   // ── /api/admin/subscriptions ──────────────────────────────────────────────
   "GET /api/admin/subscriptions/members/:userId/class-usage": {

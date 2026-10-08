@@ -212,8 +212,10 @@ describe("Staff Attendance API", () => {
       expect(meBody.open.branchId).toBe(branchAId);
       expect(Array.isArray(meBody.checklist)).toBe(true);
       // Lote del posnet solo mié/sáb (día en la zona de la sede, AR por default).
+      // Con el rol: el coach además tiene el recordatorio `videos` (2026-10-08).
       const esperados = checklistForDow(
         dowInTz("America/Argentina/Buenos_Aires"),
+        "coach",
       ).map((c) => c.key);
       expect(meBody.checklist.map((c: { key: string }) => c.key)).toEqual(
         esperados,
