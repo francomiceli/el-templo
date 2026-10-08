@@ -15,6 +15,7 @@ import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { bookings } from "../../src/db/schema/bookings";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
+import { subscriptions } from "../../src/db/schema/subscriptions";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
 import {
   SUBSCRIPTIONS_URL,
@@ -22,6 +23,7 @@ import {
   createMember,
   assignPlan,
   todayStr,
+  dateOffsetStr,
 } from "./_helpers";
 
 describe("Subscriptions API — Renewal with scheduleIds", () => {
@@ -289,5 +291,158 @@ describe("Subscriptions API — Renewal with scheduleIds", () => {
     expect(
       (await renew(flexMember.id, { scheduleIds: [slotA, slotB] })).statusCode,
     ).toBe(400);
+  });
+
+  // -------------------------------------------------------------------------
+  // Renovar una presencial YA VENCIDA (pedido de coaches 2026-10-08): el admin
+  // ofrece "Renovar" sobre la última vencida; la renovación hereda sus turnos
+  // (validados) para no tener que cargarlos de nuevo.
+  // -------------------------------------------------------------------------
+  describe("renovar una presencial vencida", () => {
+    /** Alta fija de 1 turno y la deja vencida hace 10 días. */
+    async function expiredFixedSub(
+      email: string,
+      dni: string,
+      slotId: number,
+    ): Promise<{ memberId: number; subId: number }> {
+      const plan = await createPlan(app, adminToken, {
+        name: `Fixed Expired ${dni}`,
+        bookingMode: "fixed",
+        classesPerWeek: 1,
+      });
+      const member = await createMember(app, { email, dni });
+      const assignResult = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        startDate: todayStr(),
+        scheduleIds: [slotId],
+        priceOverrideAmount: 0,
+        priceOverrideReason: "test no-charge",
+      });
+      expect(assignResult.statusCode).toBe(201);
+      const subId = assignResult.body.id as number;
+      await app.db
+        .update(subscriptions)
+        .set({
+          status: "expired",
+          startDate: dateOffsetStr(-40),
+          endDate: dateOffsetStr(-10),
+        })
+        .where(eq(subscriptions.id, subId));
+      return { memberId: member.id, subId };
+    }
+
+    it("hereda los turnos de la vencida, arranca hoy y genera reservas", async () => {
+      const slotA = await createSlot("RenewExpiredAct", 2);
+      const { memberId, subId } = await expiredFixedSub(
+        "renew-expired@test.com",
+        "72040101",
+        slotA,
+      );
+
+      const { statusCode, body } = await renew(memberId, {
+        subscriptionId: subId,
+      });
+      expect(statusCode).toBe(201);
+      expect(body.status).toBe("active");
+      expect(body.startDate).toBe(todayStr());
+      expect(await anchorsOf(body.id as number)).toEqual([slotA]);
+
+      const generated = await app.db
+        .select({ id: bookings.id })
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.tenantId, TENANT_TEMPLO),
+            eq(bookings.memberId, memberId),
+            eq(bookings.scheduleId, slotA),
+            gte(bookings.bookingDate, todayStr()),
+          ),
+        );
+      expect(generated.length).toBeGreaterThan(0);
+    });
+
+    it("turno heredado desactivado → 400 que pide elegir turnos; con scheduleIds renueva", async () => {
+      const slotA = await createSlot("RenewExpiredInactiveAct", 3);
+      const slotB = await createSlot("RenewExpiredInactiveAct", 4);
+      const { memberId, subId } = await expiredFixedSub(
+        "renew-expired-inactive@test.com",
+        "72040102",
+        slotA,
+      );
+      await app.db
+        .update(schedules)
+        .set({ isActive: false })
+        .where(eq(schedules.id, slotA));
+
+      const rejected = await renew(memberId, { subscriptionId: subId });
+      expect(rejected.statusCode).toBe(400);
+      expect(String(rejected.body.message)).toContain("Modificar turnos");
+
+      const { statusCode, body } = await renew(memberId, {
+        subscriptionId: subId,
+        scheduleIds: [slotB],
+      });
+      expect(statusCode).toBe(201);
+      expect(await anchorsOf(body.id as number)).toEqual([slotB]);
+    });
+
+    it("con otra presencial vigente → 409 (no deja dos activas)", async () => {
+      const slotA = await createSlot("RenewExpiredLiveAct", 5);
+      const { memberId, subId } = await expiredFixedSub(
+        "renew-expired-live@test.com",
+        "72040103",
+        slotA,
+      );
+      const otherPlan = await createPlan(app, adminToken, {
+        name: "Flex vigente",
+        bookingMode: "flexible",
+        classesPerWeek: 2,
+      });
+      const live = await assignPlan(app, adminToken, memberId, {
+        planId: otherPlan.id,
+        startDate: todayStr(),
+        priceOverrideAmount: 0,
+        priceOverrideReason: "test no-charge",
+      });
+      expect(live.statusCode).toBe(201);
+
+      const { statusCode } = await renew(memberId, { subscriptionId: subId });
+      expect(statusCode).toBe(409);
+    });
+
+    it("class-usage?subscriptionId= devuelve los turnos de la vencida y 404 si la sub es de otro alumno", async () => {
+      const slotA = await createSlot("RenewExpiredUsageAct", 1);
+      const { memberId, subId } = await expiredFixedSub(
+        "renew-expired-usage@test.com",
+        "72040104",
+        slotA,
+      );
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/members/${memberId}/class-usage?subscriptionId=${subId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const usage = JSON.parse(res.body) as {
+        scheduleIds: number[];
+        bookingMode: string;
+        weeklyLimit: number | null;
+      };
+      expect(usage.scheduleIds).toEqual([slotA]);
+      expect(usage.bookingMode).toBe("fixed");
+      expect(usage.weeklyLimit).toBe(1);
+
+      const other = await createMember(app, {
+        email: "renew-expired-usage-other@test.com",
+        dni: "72040105",
+      });
+      const foreign = await app.inject({
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/members/${other.id}/class-usage?subscriptionId=${subId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(foreign.statusCode).toBe(404);
+    });
   });
 });

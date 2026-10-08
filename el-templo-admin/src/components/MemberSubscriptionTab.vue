@@ -56,6 +56,16 @@
         @cancel="confirmCancel(presencialScheduledSub!)"
       />
 
+      <!-- Presencial vencida reciente (sin presencial vigente): "Renovar" usa
+           el flujo de renovación, que hereda sus turnos fijos — antes el coach
+           solo tenía "Gestionar Plan" y había que cargarlos de nuevo. -->
+      <SubscriptionCard
+        v-if="presencialExpiredSub"
+        :subscription="presencialExpiredSub"
+        label="Suscripción Presencial (vencida)"
+        @renew="openRenewal(presencialExpiredSub!)"
+      />
+
       <!-- Fixed turnos change history -->
       <q-card v-if="presencialSub && scheduleChanges.length > 0" flat bordered class="q-mb-md">
         <q-expansion-item
@@ -87,7 +97,13 @@
       <!-- No presencial subscription -->
       <q-card v-else-if="!presencialSub" flat bordered class="q-mb-md">
         <q-card-section class="text-center q-pa-lg">
-          <div class="text-grey-5 text-italic q-mb-md">Sin suscripción presencial</div>
+          <div class="text-grey-5 text-italic q-mb-md">
+            {{
+              presencialExpiredSub
+                ? 'Sin suscripción presencial vigente — para otro plan:'
+                : 'Sin suscripción presencial'
+            }}
+          </div>
           <q-btn
             icon="assignment"
             label="Gestionar Plan"
@@ -371,9 +387,9 @@
             v-if="renewalPreview && renewalPreview.source !== 'inherited'"
             class="text-caption text-grey-7 q-mt-xs"
           >
-            El período actual fue prorrateado
-            ({{ formatPrice(renewTarget.pricePaid ?? 0, renewTarget.currency ?? 'ARS') }}). Se
-            renueva sobre el mes completo:
+            El período actual fue prorrateado ({{
+              formatPrice(renewTarget.pricePaid ?? 0, renewTarget.currency ?? 'ARS')
+            }}). Se renueva sobre el mes completo:
             {{ formatPrice(renewalPreview.base, renewTarget.currency ?? 'ARS') }}
             {{
               renewalPreview.source === 'previous_period'
@@ -409,7 +425,7 @@
           </div>
 
           <!-- Turnos fijos del nuevo período -->
-          <div v-if="renewalSupportsTurnos && classUsage" class="q-mt-md">
+          <div v-if="renewalSupportsTurnos && renewalUsage" class="q-mt-md">
             <q-toggle v-model="renewalEditTurnos" label="Modificar turnos" />
             <div v-if="!renewalEditTurnos" class="text-caption text-grey-7 q-mt-xs">
               {{ renewalInheritedTurnosLabel }}
@@ -419,15 +435,15 @@
                 ref="renewalPickerRef"
                 v-model="renewalScheduleIds"
                 :branch-id="renewTarget.branchId"
-                :required-count="classUsage.weeklyLimit"
-                :allow-partial="classUsage.bookingMode === 'flexible'"
+                :required-count="renewalUsage.weeklyLimit"
+                :allow-partial="renewalUsage.bookingMode === 'flexible'"
                 :title="
-                  classUsage.bookingMode === 'flexible'
+                  renewalUsage.bookingMode === 'flexible'
                     ? 'Turnos fijos del nuevo período (opcional)'
                     : 'Turnos fijos del nuevo período'
                 "
                 :branch-name="renewTarget.branchName"
-                :multi-branch="classUsage.multiBranch"
+                :multi-branch="renewalUsage.multiBranch"
                 :available-branches="multiBranchOptions"
                 class="q-mt-xs"
               />
@@ -830,6 +846,10 @@ const renewalStartDate = ref('');
 // admin elige el set en el picker y viaja como scheduleIds en el renew.
 const renewalEditTurnos = ref(false);
 const renewalScheduleIds = ref<number[]>([]);
+// Uso de clases / turnos de la sub que se está renovando: el de la vigente
+// (classUsage) o, al renovar una presencial vencida, el de ESA sub
+// (class-usage?subscriptionId=), que llega asíncrono después de abrir.
+const renewalUsage = ref<ClassUsageInfo | null>(null);
 const renewalPickerRef = ref<InstanceType<typeof FixedSchedulePicker> | null>(null);
 const showEditStartDateDialog = ref(false);
 const editStartDateTarget = ref<SubscriptionDetail | null>(null);
@@ -875,6 +895,28 @@ const presencialScheduledSub = computed(() => {
       (s) => (!s.planCategory || s.planCategory === 'presencial') && s.status === 'scheduled'
     ) ?? null
   );
+});
+
+// Última presencial vencida, solo si no hay presencial vigente y venció hace
+// a lo sumo 90 días (más vieja, sus turnos probablemente ya no sirvan: se
+// arranca de cero con "Gestionar Plan"). Sale del historial, que ya trae la
+// sub completa con sus scheduleIds.
+const EXPIRED_RENEWAL_WINDOW_DAYS = 90;
+const presencialExpiredSub = computed(() => {
+  if (presencialSub.value) return null;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - EXPIRED_RENEWAL_WINDOW_DAYS);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  const candidates = history.value
+    .filter(
+      (s) =>
+        (!s.planCategory || s.planCategory === 'presencial') &&
+        s.status === 'expired' &&
+        !!s.endDate &&
+        s.endDate >= cutoffStr
+    )
+    .sort((a, b) => (b.endDate ?? '').localeCompare(a.endDate ?? ''));
+  return candidates[0] ?? null;
 });
 
 // Aggregated outstanding balance per currency (drives the "Deudor"
@@ -958,12 +1000,12 @@ const renewalSupportsTurnos = computed(
   () =>
     renewTarget.value !== null &&
     (!renewTarget.value.planCategory || renewTarget.value.planCategory === 'presencial') &&
-    classUsage.value !== null
+    renewalUsage.value !== null
 );
 
 // Resumen de lo que hereda la renovación cuando el toggle está apagado.
 const renewalInheritedTurnosLabel = computed(() => {
-  const slots = classUsage.value?.scheduleSlots ?? [];
+  const slots = renewalUsage.value?.scheduleSlots ?? [];
   if (slots.length === 0) {
     return 'El período actual no tiene turnos fijos: la renovación arranca sin turnos. Activá "Modificar turnos" para cargarlos ahora.';
   }
@@ -976,10 +1018,10 @@ const renewalInheritedTurnosLabel = computed(() => {
 // Validación del set elegido (espejo de las reglas del backend, para feedback
 // inmediato): plan fijo = exactamente weeklyLimit; flexible = hasta weeklyLimit.
 const renewalTurnosError = computed(() => {
-  if (!renewalEditTurnos.value || !renewalSupportsTurnos.value || !classUsage.value) return null;
-  const limit = classUsage.value.weeklyLimit;
+  if (!renewalEditTurnos.value || !renewalSupportsTurnos.value || !renewalUsage.value) return null;
+  const limit = renewalUsage.value.weeklyLimit;
   const count = renewalScheduleIds.value.length;
-  if (classUsage.value.bookingMode === 'fixed') {
+  if (renewalUsage.value.bookingMode === 'fixed') {
     if (limit !== null && count !== limit) {
       return `Seleccioná exactamente ${limit} turno${limit === 1 ? '' : 's'} (elegiste ${count}).`;
     }
@@ -1124,7 +1166,9 @@ const renewalOverrideActive = computed(
     renewalOverrideAmount.value >= 0
 );
 
-const renewalStandardPricing = computed(() => !renewalProrate.value && !renewalOverrideActive.value);
+const renewalStandardPricing = computed(
+  () => !renewalProrate.value && !renewalOverrideActive.value
+);
 
 const renewalInvitationAmount = computed(() =>
   renewalStandardPricing.value && renewalPreview.value?.winningDiscount === 'invitation'
@@ -1244,6 +1288,23 @@ async function loadClassUsage() {
   }
 }
 
+async function loadRenewalUsage(sub: SubscriptionDetail) {
+  try {
+    const usage = await subsApi.getClassUsage(props.userId, sub.id);
+    // El diálogo pudo cerrarse o cambiar de sub mientras volaba el pedido.
+    if (renewTarget.value?.id !== sub.id) return;
+    renewalUsage.value = usage;
+    renewalScheduleIds.value = [...(usage?.scheduleIds ?? [])];
+  } catch (err: unknown) {
+    // Sin el detalle de turnos la renovación igual hereda (y el server los
+    // valida); solo se pierde el resumen y el picker.
+    log.warn('Error loading class usage for renewal', {
+      error: extractError(err, 'class usage failed'),
+      subscriptionId: sub.id,
+    });
+  }
+}
+
 async function refreshAll() {
   await Promise.all([loadSubscriptions(), loadHistory(), loadClassUsage()]);
   await loadScheduleChanges();
@@ -1273,7 +1334,16 @@ function openRenewal(sub: SubscriptionDetail) {
   // Turnos: el picker arranca prellenado con los del período actual (lo que
   // la renovación heredaría), así "modificar" es ajustar, no rearmar de cero.
   renewalEditTurnos.value = false;
-  renewalScheduleIds.value = [...(classUsage.value?.scheduleIds ?? [])];
+  if (sub.status === 'expired') {
+    // Presencial vencida: sus turnos no están en classUsage (que es de la
+    // vigente) — se piden aparte y se precargan cuando llegan.
+    renewalUsage.value = null;
+    renewalScheduleIds.value = [...(sub.scheduleIds ?? [])];
+    void loadRenewalUsage(sub);
+  } else {
+    renewalUsage.value = classUsage.value;
+    renewalScheduleIds.value = [...(classUsage.value?.scheduleIds ?? [])];
+  }
   showRenewalDialog.value = true;
   // Preview del servidor: base del mes completo, normalización de recargo y los
   // MONTOS del cobro. No bloquea la apertura; sí el botón de confirmar.
@@ -1304,8 +1374,7 @@ async function loadRenewalPreview(sub: SubscriptionDetail) {
     // recargo está OFF, el servidor normaliza a 'regular': su basePrice (Y) es menor
     // que la base heredada (X). Se guarda Y para la base del prorrateo y el aviso
     // previo a renovar. Con la regla ON (El Templo) Y === X.
-    renewalNormalizedPrice.value =
-      preview.basePrice !== preview.base ? preview.basePrice : null;
+    renewalNormalizedPrice.value = preview.basePrice !== preview.base ? preview.basePrice : null;
     // Si el staff prendió el prorrateo antes de que llegara la base, el monto
     // prellenado se calculó sobre la base provisoria: recalcularlo.
     if (renewalProrate.value) {

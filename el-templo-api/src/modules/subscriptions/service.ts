@@ -5530,6 +5530,53 @@ export class SubscriptionService {
       }
     }
 
+    // Renovar una presencial YA VENCIDA (pedido de coaches 2026-10-08): el
+    // admin la ofrece cuando el alumno no tiene presencial vigente. Dos
+    // resguardos que la renovación anticipada no necesita:
+    //  - no puede haber otra presencial vigente (si no, quedarían dos activas);
+    //  - los turnos heredados pudieron quedar viejos (horario desactivado o
+    //    eliminado, mudanza de sede): se validan antes de copiarlos en vez de
+    //    generar reservas sobre horarios que ya no existen.
+    if (currentSub.status === "expired" && plan.planCategory === "presencial") {
+      const memberSubs = await this.getMemberSubscriptions(ctx, userId);
+      const hasLivePresencial = memberSubs.some(
+        (s) =>
+          s.id !== currentSub.id &&
+          s.planCategory === "presencial" &&
+          (s.status === "active" || s.status === "paused"),
+      );
+      if (hasLivePresencial) {
+        throw new ConflictError(
+          "El alumno ya tiene una suscripción presencial vigente. Renová esa en lugar de la vencida.",
+        );
+      }
+
+      if (input.scheduleIds === undefined) {
+        const inheritedIds = await this.getSubscriptionScheduleIds(
+          ctx,
+          currentSub.id,
+        );
+        try {
+          this.assertScheduleSelectionForPlan(plan, inheritedIds);
+          if (inheritedIds.length > 0) {
+            await this.validateAnchorSet(
+              ctx,
+              inheritedIds,
+              currentSub.branchId,
+              plan,
+            );
+          }
+        } catch (err: unknown) {
+          if (err instanceof BadRequestError) {
+            throw new BadRequestError(
+              `Los turnos de la membresía vencida ya no se pueden usar (${err.message}). Activá "Modificar turnos" y elegí los nuevos.`,
+            );
+          }
+          throw err;
+        }
+      }
+    }
+
     // Inicio del nuevo período (renovación anticipada, ya vencida o fecha custom):
     // misma derivación que `getRenewalPreview`.
     const { today, oldSubExpired, newStartDate } = this.resolveRenewalStart(
@@ -6778,9 +6825,16 @@ export class SubscriptionService {
   async getClassUsageThisWeek(
     ctx: TenantContext,
     userId: number,
+    subscriptionId?: number,
   ): Promise<ClassUsageInfo> {
-    const sub = await this.getMemberSubscription(ctx, userId);
-    if (!sub) {
+    // Con subscriptionId se lee esa sub puntual (p. ej. la presencial vencida
+    // que el admin va a renovar, para mostrar y precargar sus turnos); sin él,
+    // la vigente.
+    const sub =
+      subscriptionId !== undefined
+        ? await this.getSubscriptionById(ctx, subscriptionId)
+        : await this.getMemberSubscription(ctx, userId);
+    if (!sub || sub.userId !== userId) {
       throw new NotFoundError("No se encontro suscripcion activa");
     }
 
