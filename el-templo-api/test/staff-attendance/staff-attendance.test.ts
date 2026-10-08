@@ -30,7 +30,13 @@ const CHECK_IN_URL = "/api/admin/staff-attendance/check-in";
 const CHECK_OUT_URL = "/api/admin/staff-attendance/check-out";
 const SHIFTS_URL = "/api/admin/staff-attendance/shifts";
 
-const VALID_CHECKLIST = { cobros: true, espacio: true, lote: true };
+// `videos` (2026-10-08): el usuario de estos tests es `coach`, que lo tiene siempre.
+const VALID_CHECKLIST = {
+  cobros: true,
+  espacio: true,
+  lote: true,
+  videos: true,
+};
 
 function uniqueSuffix(prefix: string): string {
   const t = Date.now().toString(36).slice(-5);
@@ -338,6 +344,7 @@ describe("Staff Attendance API", () => {
         cobros: true,
         espacio: true,
         lote: loteAplica ? true : null,
+        videos: true,
       });
       expect(row.durationMinutes).toBeGreaterThanOrEqual(0);
     });
@@ -524,10 +531,14 @@ describe("Staff Attendance API", () => {
       });
       expect(
         JSON.parse(meRes.body).checklist.map((c: { key: string }) => c.key),
-      ).toEqual(["cobros", "espacio", "lote"]);
+      ).toEqual(["cobros", "espacio", "lote", "videos"]);
 
       // Cliente con la lista de otro día: no manda `lote`.
-      const sinLote = await checkOut({ cobros: true, espacio: true });
+      const sinLote = await checkOut({
+        cobros: true,
+        espacio: true,
+        videos: true,
+      });
       expect(sinLote.statusCode).toBe(400);
       const msg = JSON.parse(sinLote.body).message as string;
       expect(msg).toContain("Cerré el lote del posnet");
@@ -538,18 +549,25 @@ describe("Staff Attendance API", () => {
         cobros: true,
         espacio: true,
         lote: false,
+        videos: true,
       });
       expect(loteFalse.statusCode).toBe(400);
       const msg2 = JSON.parse(loteFalse.body).message as string;
       expect(msg2).toContain("Cerré el lote del posnet");
       expect(msg2).not.toContain("recargá");
 
-      const ok = await checkOut({ cobros: true, espacio: true, lote: true });
+      const ok = await checkOut({
+        cobros: true,
+        espacio: true,
+        lote: true,
+        videos: true,
+      });
       expect(ok.statusCode).toBe(200);
       expect(await snapshotDeHoy()).toEqual({
         cobros: true,
         espacio: true,
         lote: true,
+        videos: true,
       });
     });
 
@@ -564,24 +582,51 @@ describe("Staff Attendance API", () => {
       });
       expect(
         JSON.parse(meRes.body).checklist.map((c: { key: string }) => c.key),
-      ).toEqual(["cobros", "espacio"]);
+      ).toEqual(["cobros", "espacio", "videos"]);
 
       // Cliente con la lista del miércoles que manda lote: se ignora.
-      const ok = await checkOut({ cobros: true, espacio: true, lote: true });
+      const ok = await checkOut({
+        cobros: true,
+        espacio: true,
+        lote: true,
+        videos: true,
+      });
       expect(ok.statusCode).toBe(200);
       expect(await snapshotDeHoy()).toEqual({
         cobros: true,
         espacio: true,
         lote: null,
+        videos: true,
       });
     });
 
     it("sábado: el check-out sin lote -> 400 (el otro día del lote)", async () => {
       await saltarA(6);
       await checkIn();
-      const sinLote = await checkOut({ cobros: true, espacio: true });
+      const sinLote = await checkOut({
+        cobros: true,
+        espacio: true,
+        videos: true,
+      });
       expect(sinLote.statusCode).toBe(400);
-      const ok = await checkOut({ cobros: true, espacio: true, lote: true });
+      const ok = await checkOut({
+        cobros: true,
+        espacio: true,
+        lote: true,
+        videos: true,
+      });
+      expect(ok.statusCode).toBe(200);
+    });
+
+    it("videos (2026-10-08): el profe sin tildar videos -> 400 que lo nombra", async () => {
+      await saltarA(2);
+      await checkIn();
+      const sinVideos = await checkOut({ cobros: true, espacio: true });
+      expect(sinVideos.statusCode).toBe(400);
+      expect(JSON.parse(sinVideos.body).message as string).toContain(
+        "Grabé videos de ejercicios para la app",
+      );
+      const ok = await checkOut({ cobros: true, espacio: true, videos: true });
       expect(ok.statusCode).toBe(200);
     });
   });

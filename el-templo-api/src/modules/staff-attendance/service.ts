@@ -104,6 +104,8 @@ export interface StaffShiftListRow {
     cobros: boolean | null;
     espacio: boolean;
     lote: boolean | null;
+    /** Solo profes (`coach`); null/ausente = no aplicaba (otro rol o jornada anterior al 2026-10-08). */
+    videos?: boolean | null;
   } | null;
 }
 
@@ -340,6 +342,7 @@ export class StaffAttendanceService {
       cobros: requiredKeys.includes("cobros") ? true : null,
       espacio: true,
       lote: requiredKeys.includes("lote") ? true : null,
+      videos: requiredKeys.includes("videos") ? true : null,
     };
 
     await this.db

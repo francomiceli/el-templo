@@ -26,7 +26,7 @@ export interface StaffAttendanceOpenShift {
 
 /** Ítem del checklist de cierre de jornada. */
 export interface StaffAttendanceChecklistItem {
-  key: 'cobros' | 'espacio' | 'lote';
+  key: 'cobros' | 'espacio' | 'lote' | 'videos';
   label: string;
 }
 
@@ -60,6 +60,8 @@ export interface StaffAttendanceChecklistValues {
   espacio: boolean;
   /** Lote del posnet: solo miércoles y sábados (lo decide el server por sede). */
   lote?: boolean;
+  /** Videos de ejercicios para la app: solo profes (`coach`). null/ausente = no aplicaba. */
+  videos?: boolean | null;
 }
 
 /** Una fila del registro (`GET /admin/staff-attendance/shifts`). */

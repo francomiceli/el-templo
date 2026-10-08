@@ -95,6 +95,8 @@ export const staffAttendanceCheckOutSchema = {
           cobros: { type: "boolean" },
           espacio: { type: "boolean" },
           lote: { type: "boolean" },
+          // 2026-10-08: solo profes (`coach`); el service lo exige a ese rol.
+          videos: { type: "boolean" },
         },
       },
     },
@@ -143,6 +145,7 @@ export const staffAttendanceShiftsSchema = {
                   cobros: { type: ["boolean", "null"] },
                   espacio: { type: "boolean" },
                   lote: { type: ["boolean", "null"] },
+                  videos: { type: ["boolean", "null"] },
                 },
               },
             },
@@ -167,6 +170,8 @@ export interface StaffCheckOutBody {
     espacio: boolean;
     /** Solo miércoles y sábados. */
     lote?: boolean;
+    /** Solo profes (`coach`). */
+    videos?: boolean;
   };
 }
 

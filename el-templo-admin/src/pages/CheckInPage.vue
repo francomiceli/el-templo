@@ -377,7 +377,7 @@ async function performCheckIn(qrToken: string) {
 // Checklist de cierre + check-out
 // =========================================================================
 
-const CHECKLIST_KEYS = ['cobros', 'espacio', 'lote'] as const;
+const CHECKLIST_KEYS = ['cobros', 'espacio', 'lote', 'videos'] as const;
 type ChecklistKey = (typeof CHECKLIST_KEYS)[number];
 
 /** Etiquetas cortas para los chips del Registro (el server manda la etiqueta
@@ -386,6 +386,7 @@ const CHECKLIST_SHORT_LABELS: Record<ChecklistKey, string> = {
   cobros: 'Cobros',
   espacio: 'Espacio',
   lote: 'Lote',
+  videos: 'Videos',
 };
 
 const showChecklistDialog = ref(false);
@@ -395,6 +396,7 @@ const checklistValues = ref<Record<ChecklistKey, boolean>>({
   cobros: false,
   espacio: false,
   lote: false,
+  videos: false,
 });
 
 // Solo los ítems que el server ofrece hoy (lote: mié/sáb) tienen que estar tildados.
@@ -412,7 +414,7 @@ const showCajaDialog = ref(false);
 
 async function openChecklistDialog(qrToken: string) {
   pendingQrToken.value = qrToken;
-  checklistValues.value = { cobros: false, espacio: false, lote: false };
+  checklistValues.value = { cobros: false, espacio: false, lote: false, videos: false };
   // La lista de ítems se cargó al abrir la página, que puede haber quedado
   // abierta desde otro día (incidente 2026-09-09: página del martes, cierre
   // del miércoles → el server exigía el lote y el diálogo no lo ofrecía). Se
@@ -488,6 +490,10 @@ async function confirmCheckOut() {
       ...(checklistItems.value.some((i) => i.key === 'lote')
         ? { lote: checklistValues.value.lote }
         : {}),
+      // Solo profes (`coach`): si el server no lo pide, no se manda.
+      ...(checklistItems.value.some((i) => i.key === 'videos')
+        ? { videos: checklistValues.value.videos }
+        : {}),
     };
     const shift = await attendanceApi.checkOut(pendingQrToken.value, checklist);
     $q.notify({
@@ -549,9 +555,14 @@ const shiftColumns: QTableProps['columns'] = [
 ];
 
 /** Claves del checklist a pintar en el Registro: `cobros: null` = la jornada era
- *  de un rol sin plata (coach_actividad), no se muestra el chip. */
+ *  de un rol sin plata (coach_actividad), no se muestra el chip. Idem `videos`
+ *  null/ausente: no era profe (`coach`) o la jornada es anterior al ítem. */
 function visibleChecklistKeys(checklist: StaffAttendanceChecklistValues): ChecklistKey[] {
-  return CHECKLIST_KEYS.filter((key) => !(key === 'cobros' && checklist.cobros == null));
+  return CHECKLIST_KEYS.filter(
+    (key) =>
+      !(key === 'cobros' && checklist.cobros == null) &&
+      !(key === 'videos' && checklist.videos == null)
+  );
 }
 
 function formatShiftDate(dateStr: string): string {
