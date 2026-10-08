@@ -34,6 +34,7 @@ import type {
   FormatParams,
 } from "./types";
 import { getFinalBlockRole } from "./types";
+import { buildVideoResolver } from "../shared/exercise-video-fallback";
 import { validateSessionForTrace } from "./validators/session-validator";
 import { createSessionLogger } from "./trace/logger";
 import { aggregateBlockTrace, aggregateSessionTrace } from "./trace/emitter";
@@ -665,6 +666,9 @@ export class SessionGeneratorService {
             .orderBy(schema.sessionPrescriptions.sortOrder)
         : [];
 
+    // Video de otra copia del mismo ejercicio si la fila prescrita no tiene.
+    const resolveVideo = await buildVideoResolver(this.db, allPrescriptions);
+
     // Group prescriptions by blockId
     const prescByBlock = new Map<number, typeof allPrescriptions>();
     for (const p of allPrescriptions) {
@@ -700,7 +704,7 @@ export class SessionGeneratorService {
           notes: p.notes ?? undefined,
           dificultadLineal: p.difficulty ?? undefined,
           exerciseType: p.exerciseType as "main" | "mobility",
-          videoUrl: p.videoUrl ?? undefined,
+          videoUrl: resolveVideo(p.exerciseId, p.videoUrl) ?? undefined,
           category: p.category ?? null,
           categorySecondary: p.categorySecondary ?? null,
           exerciseRoute: p.exerciseRoute ?? null,
@@ -824,6 +828,9 @@ export class SessionGeneratorService {
         .where(eq(schema.sessionPrescriptions.blockId, block.id))
         .orderBy(schema.sessionPrescriptions.sortOrder);
 
+      // Video de otra copia del mismo ejercicio si la fila prescrita no tiene.
+      const resolveVideo = await buildVideoResolver(this.db, prescriptions);
+
       const exercises: ExercisePrescription[] = prescriptions.map((p) => ({
         exerciseId: p.exerciseId,
         name: p.exerciseName,
@@ -837,7 +844,7 @@ export class SessionGeneratorService {
         notes: p.notes ?? undefined,
         dificultadLineal: p.difficulty ?? undefined, // Load difficulty for display to users
         exerciseType: p.exerciseType as "main" | "mobility",
-        videoUrl: p.videoUrl ?? undefined,
+        videoUrl: resolveVideo(p.exerciseId, p.videoUrl) ?? undefined,
         category: p.category ?? null,
         categorySecondary: p.categorySecondary ?? null,
         exerciseRoute: p.exerciseRoute ?? null,
