@@ -65,6 +65,14 @@ export type BlockRole =
   | "TECNICA_II_ALT"
   | "STRETCHING";
 
+/**
+ * Bloques alternativos del 2º bloque de técnica/combos (fase 178). Son para
+ * que el profe elija en la TV; la app del alumno no los muestra (/daily y
+ * /weekly los filtran).
+ */
+export const ALTERNATIVE_BLOCK_ROLES: ReadonlySet<BlockRole> =
+  new Set<BlockRole>(["COMBOS_II_ALT", "TECNICA_II_ALT"]);
+
 /** Final block type - alternates by week */
 export type FinalBlockRole = "ATHLOS" | "EPIKOS";
 

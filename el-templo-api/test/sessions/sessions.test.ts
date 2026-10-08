@@ -541,4 +541,135 @@ describe("Session Routes", () => {
         .where(eq(schema.sessions.dayId, "W1-martes-alfa"));
     });
   });
+
+  // ---------------------------------------------------------------
+  // Bloques ALT de técnica/combos (fase 178): son para que el profe elija
+  // en la TV. La app del alumno (/daily y /weekly) no los muestra.
+  // Semana 30 (2026-09-14 lunes) para no chocar con los W1/W3 de otros tests.
+  // ---------------------------------------------------------------
+  describe("bloques ALT ocultos en la app del alumno", () => {
+    const WEEK_START = "2026-09-14";
+    const TECNICA_DATE = "2026-09-16"; // miércoles W30
+    const COMBOS_DATE = "2026-09-17"; // jueves W30
+    const seeded: string[] = [];
+
+    async function seedSession(
+      dayId: string,
+      day: string,
+      sessionMode: "tecnica" | "combos",
+      roles: string[],
+    ): Promise<void> {
+      await app.db
+        .delete(schema.sessions)
+        .where(eq(schema.sessions.dayId, dayId));
+      const [inserted] = await app.db
+        .insert(schema.sessions)
+        .values({
+          dayId,
+          week: 30,
+          day,
+          levelGroup: "alfa",
+          blockCount: roles.length,
+          status: "approved",
+          sessionMode,
+        })
+        .$returningId();
+      seeded.push(dayId);
+      await app.db.insert(schema.sessionBlocks).values(
+        roles.map((role, idx) => ({
+          sessionId: inserted.id,
+          blockId: `${dayId}-${role}`,
+          role,
+          route: "PL",
+          pattern: "PUSH",
+          intensity: 60,
+          repsBudget: 40,
+          formatId: 1,
+          formatName: "Combos",
+          exerciseCount: 0,
+          sortOrder: idx,
+        })),
+      );
+    }
+
+    beforeAll(async () => {
+      await seedSession("W30-miercoles-alfa", "miercoles", "tecnica", [
+        "INITIUM",
+        "TECNICA_I",
+        "TECNICA_II",
+        "TECNICA_II_ALT",
+        "STRETCHING",
+      ]);
+      await seedSession("W30-jueves-alfa", "jueves", "combos", [
+        "INITIUM",
+        "COMBOS_I",
+        "COMBOS_II",
+        "COMBOS_II_ALT",
+        "STRETCHING",
+      ]);
+    });
+
+    afterAll(async () => {
+      for (const dayId of seeded) {
+        await app.db
+          .delete(schema.sessions)
+          .where(eq(schema.sessions.dayId, dayId));
+      }
+    });
+
+    type BlockBody = { role: string; sortOrder: number };
+
+    it("/daily de un día de técnica no trae TECNICA_II_ALT y renumera sortOrder", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/sessions/daily?date=${TECNICA_DATE}`,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        blockCount: number;
+        blocks: BlockBody[];
+      };
+      expect(body.blocks.map((b) => b.role)).toEqual([
+        "INITIUM",
+        "TECNICA_I",
+        "TECNICA_II",
+        "STRETCHING",
+      ]);
+      expect(body.blockCount).toBe(4);
+      expect(body.blocks.map((b) => b.sortOrder)).toEqual([0, 1, 2, 3]);
+    });
+
+    it("/weekly no trae TECNICA_II_ALT ni COMBOS_II_ALT", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/sessions/weekly?weekStart=${WEEK_START}`,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        sessions: Record<
+          string,
+          { blockCount: number; blocks: BlockBody[] } | null
+        >;
+      };
+      const tecnica = body.sessions[TECNICA_DATE];
+      const combos = body.sessions[COMBOS_DATE];
+      expect(tecnica?.blocks.map((b) => b.role)).toEqual([
+        "INITIUM",
+        "TECNICA_I",
+        "TECNICA_II",
+        "STRETCHING",
+      ]);
+      expect(combos?.blocks.map((b) => b.role)).toEqual([
+        "INITIUM",
+        "COMBOS_I",
+        "COMBOS_II",
+        "STRETCHING",
+      ]);
+      expect(combos?.blockCount).toBe(4);
+    });
+  });
 });
