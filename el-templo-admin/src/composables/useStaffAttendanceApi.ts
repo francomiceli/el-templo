@@ -28,6 +28,8 @@ export interface StaffAttendanceOpenShift {
 export interface StaffAttendanceChecklistItem {
   key: 'cobros' | 'espacio' | 'lote' | 'videos';
   label: string;
+  /** false = recordatorio: se ofrece pero no bloquea el cierre. */
+  required: boolean;
 }
 
 /** Respuesta de `GET /admin/staff-attendance/me`. */
@@ -60,7 +62,7 @@ export interface StaffAttendanceChecklistValues {
   espacio: boolean;
   /** Lote del posnet: solo miércoles y sábados (lo decide el server por sede). */
   lote?: boolean;
-  /** Videos de ejercicios para la app: solo profes (`coach`). null/ausente = no aplicaba. */
+  /** Videos de ejercicios para la app (recordatorio de los profes): false = no lo tildó; null/ausente = no aplicaba. */
   videos?: boolean | null;
 }
 

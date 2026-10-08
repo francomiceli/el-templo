@@ -36,6 +36,7 @@ import { todayInTz } from "../shared/date-utils";
 import {
   checklistForDow,
   requiredKeysForDow,
+  offeredKeysForDow,
   checklistIncompletoMessage,
 } from "./checklist";
 import { dowInTz } from "../shared/date-utils";
@@ -72,6 +73,8 @@ export interface StaffShiftClosed extends StaffShiftOpen {
 export interface StaffChecklistItem {
   key: string;
   label: string;
+  /** false = recordatorio (se ofrece, no bloquea el cierre). */
+  required: boolean;
 }
 
 /**
@@ -104,7 +107,7 @@ export interface StaffShiftListRow {
     cobros: boolean | null;
     espacio: boolean;
     lote: boolean | null;
-    /** Solo profes (`coach`); null/ausente = no aplicaba (otro rol o jornada anterior al 2026-10-08). */
+    /** Recordatorio de los profes (`coach`): true/false = lo tildó o no; null/ausente = no aplicaba (otro rol o jornada anterior al 2026-10-08). */
     videos?: boolean | null;
   } | null;
 }
@@ -320,10 +323,11 @@ export class StaffAttendanceService {
         ),
       )
       .limit(1);
-    const requiredKeys = requiredKeysForDow(
-      dowInTz(sede?.timezone ?? DEFAULT_TZ, now),
-      role,
-    );
+    const dowSede = dowInTz(sede?.timezone ?? DEFAULT_TZ, now);
+    const requiredKeys = requiredKeysForDow(dowSede, role);
+    // Ítems recordatorio (no obligatorios, p. ej. `videos` de los profes): se
+    // registra si lo tildó, sin bloquear el cierre.
+    const offeredKeys = offeredKeysForDow(dowSede, role);
     // El 400 nombra lo que falta: si el ítem ni vino en el body, el cliente
     // armó la lista otro día (o es un bundle viejo) y el mensaje pide recargar.
     const faltantes = requiredKeys.filter((key) => checklist[key] !== true);
@@ -342,7 +346,7 @@ export class StaffAttendanceService {
       cobros: requiredKeys.includes("cobros") ? true : null,
       espacio: true,
       lote: requiredKeys.includes("lote") ? true : null,
-      videos: requiredKeys.includes("videos") ? true : null,
+      videos: offeredKeys.includes("videos") ? checklist.videos === true : null,
     };
 
     await this.db

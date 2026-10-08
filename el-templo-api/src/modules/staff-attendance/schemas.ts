@@ -38,6 +38,8 @@ const checklistItemSchema = {
   properties: {
     key: { type: "string" },
     label: { type: "string" },
+    // false = recordatorio: se ofrece pero no bloquea el cierre.
+    required: { type: "boolean" },
   },
 };
 
@@ -95,7 +97,7 @@ export const staffAttendanceCheckOutSchema = {
           cobros: { type: "boolean" },
           espacio: { type: "boolean" },
           lote: { type: "boolean" },
-          // 2026-10-08: solo profes (`coach`); el service lo exige a ese rol.
+          // 2026-10-08: recordatorio de los profes (`coach`), no obligatorio.
           videos: { type: "boolean" },
         },
       },

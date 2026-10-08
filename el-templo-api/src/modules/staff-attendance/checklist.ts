@@ -10,11 +10,26 @@ import { isFinanceBlindRole } from "../shared/permissions";
  * `service.ts:checkOut`.
  */
 export const STAFF_CHECKOUT_CHECKLIST = [
-  { key: "cobros", label: "Cargué todos los cobros del día" },
-  { key: "espacio", label: "Dejé el espacio limpio y ordenado" },
-  { key: "lote", label: "Cerré el lote del posnet (tarjetas)" },
-  // 2026-10-08 (pedido de Franco): solo profes (rol `coach`), ver checklistForDow.
-  { key: "videos", label: "Grabé videos de ejercicios para la app" },
+  { key: "cobros", label: "Cargué todos los cobros del día", required: true },
+  {
+    key: "espacio",
+    label: "Dejé el espacio limpio y ordenado",
+    required: true,
+  },
+  {
+    key: "lote",
+    label: "Cerré el lote del posnet (tarjetas)",
+    required: true,
+  },
+  // 2026-10-08 (pedido de Franco): solo profes (rol `coach`), ver
+  // checklistForDow. Por ahora es un RECORDATORIO: se ofrece y se registra
+  // si lo tildó, pero no bloquea el cierre. Para volverlo obligatorio,
+  // `required: true` (el front ya lo respeta).
+  {
+    key: "videos",
+    label: "Grabé videos de ejercicios para la app",
+    required: false,
+  },
 ] as const;
 
 export type StaffChecklistKey =
@@ -53,12 +68,23 @@ export function checklistForDow(dow: number, role?: string) {
   });
 }
 
+/** Keys que se OFRECEN en el check-out en un día dado (ISO dow) y rol,
+ *  obligatorias o recordatorio. */
+export function offeredKeysForDow(
+  dow: number,
+  role?: string,
+): StaffChecklistKey[] {
+  return checklistForDow(dow, role).map((item) => item.key);
+}
+
 /** Keys obligatorias del check-out en un día dado (ISO dow) y rol. */
 export function requiredKeysForDow(
   dow: number,
   role?: string,
 ): StaffChecklistKey[] {
-  return checklistForDow(dow, role).map((item) => item.key);
+  return checklistForDow(dow, role)
+    .filter((item) => item.required)
+    .map((item) => item.key);
 }
 
 /**

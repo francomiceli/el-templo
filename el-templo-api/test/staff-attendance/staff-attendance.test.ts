@@ -618,16 +618,30 @@ describe("Staff Attendance API", () => {
       expect(ok.statusCode).toBe(200);
     });
 
-    it("videos (2026-10-08): el profe sin tildar videos -> 400 que lo nombra", async () => {
+    it("videos (2026-10-08): recordatorio del profe — se ofrece, no bloquea y queda registrado si no lo tildó", async () => {
       await saltarA(2);
       await checkIn();
+
+      const meRes = await app.inject({
+        method: "GET",
+        url: ME_URL,
+        headers: { Authorization: `Bearer ${coachTok}` },
+      });
+      const items = JSON.parse(meRes.body).checklist as Array<{
+        key: string;
+        required: boolean;
+      }>;
+      expect(items.find((i) => i.key === "videos")?.required).toBe(false);
+      expect(items.find((i) => i.key === "espacio")?.required).toBe(true);
+
       const sinVideos = await checkOut({ cobros: true, espacio: true });
-      expect(sinVideos.statusCode).toBe(400);
-      expect(JSON.parse(sinVideos.body).message as string).toContain(
-        "Grabé videos de ejercicios para la app",
-      );
-      const ok = await checkOut({ cobros: true, espacio: true, videos: true });
-      expect(ok.statusCode).toBe(200);
+      expect(sinVideos.statusCode).toBe(200);
+      expect(await snapshotDeHoy()).toEqual({
+        cobros: true,
+        espacio: true,
+        lote: null,
+        videos: false,
+      });
     });
   });
 });

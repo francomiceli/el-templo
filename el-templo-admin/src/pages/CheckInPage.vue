@@ -137,6 +137,9 @@
             </q-item-section>
             <q-item-section>
               <q-item-label class="text-body1">{{ item.label }}</q-item-label>
+              <q-item-label v-if="item.required === false" caption>
+                Recordatorio · no es obligatorio para cerrar
+              </q-item-label>
             </q-item-section>
           </q-item>
         </q-list>
@@ -399,9 +402,13 @@ const checklistValues = ref<Record<ChecklistKey, boolean>>({
   videos: false,
 });
 
-// Solo los ítems que el server ofrece hoy (lote: mié/sáb) tienen que estar tildados.
+// Solo los ítems OBLIGATORIOS que el server ofrece hoy (lote: mié/sáb) tienen
+// que estar tildados; los recordatorios (`required: false`, p. ej. videos de
+// los profes) no bloquean el cierre.
 const allChecklistChecked = computed(() =>
-  checklistItems.value.every((item) => checklistValues.value[item.key])
+  checklistItems.value
+    .filter((item) => item.required !== false)
+    .every((item) => checklistValues.value[item.key])
 );
 
 // Cierre de caja (2026-09-08): el QR ya validó que el profe está cerrando su
@@ -490,7 +497,7 @@ async function confirmCheckOut() {
       ...(checklistItems.value.some((i) => i.key === 'lote')
         ? { lote: checklistValues.value.lote }
         : {}),
-      // Solo profes (`coach`): si el server no lo pide, no se manda.
+      // Recordatorio de los profes (`coach`): si el server no lo ofrece, no se manda.
       ...(checklistItems.value.some((i) => i.key === 'videos')
         ? { videos: checklistValues.value.videos }
         : {}),
