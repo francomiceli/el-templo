@@ -2,207 +2,257 @@
   "Mi jornada": check-in/check-out del staff con el QR físico de la sede
   (mismo QR que escanean los socios). El staff abre esta página desde el
   celular, escanea al llegar y al irse; al cerrar jornada completa un
-  checklist antes de mandar. Owner/admin ven además "Registro": el
-  historial de jornadas por sede y fechas de todo el staff.
+  checklist antes de mandar.
+
+  Owner/admin NO fichan desde acá: en su lugar ven el TABLERO de jornadas de
+  todas las sedes (en turno ahora, jornadas sin check-out, horas por persona)
+  y el "Registro" histórico, ambos con los mismos filtros (país solo owner,
+  sede o "Todas", rango de fechas).
 -->
 <template>
   <q-page class="q-pa-md">
-    <div class="text-h5 q-mb-md">Mi jornada</div>
+    <!-- ================================================================ -->
+    <!-- Mi jornada (todos los roles MENOS owner/admin) -->
+    <!-- ================================================================ -->
+    <template v-if="!canSeeReport">
+      <div class="text-h5 q-mb-md">Mi jornada</div>
 
-    <!-- ================================================================ -->
-    <!-- Estado actual -->
-    <!-- ================================================================ -->
-    <q-card flat bordered class="q-mb-md">
-      <q-card-section>
-        <div v-if="meLoading" class="row items-center q-gutter-sm">
-          <q-spinner color="primary" size="24px" />
-          <span class="text-body1">Cargando estado…</span>
-        </div>
-        <template v-else>
-          <div v-if="openShift" class="row items-center q-gutter-sm">
-            <q-icon name="schedule" color="positive" size="32px" />
-            <div>
-              <div class="text-h6">Jornada abierta en {{ openShift.branchName }}</div>
-              <div class="text-body2 text-grey-7">
-                Desde las {{ formatTime(openShift.checkedInAt) }}
-              </div>
-              <div v-if="openShift.cashCountedAt" class="text-body2 text-positive">
-                Caja cerrada a las {{ formatTime(openShift.cashCountedAt) }}
+      <!-- ================================================================ -->
+      <!-- Estado actual -->
+      <!-- ================================================================ -->
+      <q-card flat bordered class="q-mb-md">
+        <q-card-section>
+          <div v-if="meLoading" class="row items-center q-gutter-sm">
+            <q-spinner color="primary" size="24px" />
+            <span class="text-body1">Cargando estado…</span>
+          </div>
+          <template v-else>
+            <div v-if="openShift" class="row items-center q-gutter-sm">
+              <q-icon name="schedule" color="positive" size="32px" />
+              <div>
+                <div class="text-h6">Jornada abierta en {{ openShift.branchName }}</div>
+                <div class="text-body2 text-grey-7">
+                  Desde las {{ formatTime(openShift.checkedInAt) }}
+                </div>
+                <div v-if="openShift.cashCountedAt" class="text-body2 text-positive">
+                  Caja cerrada a las {{ formatTime(openShift.cashCountedAt) }}
+                </div>
               </div>
             </div>
-          </div>
-          <div v-else class="row items-center q-gutter-sm">
-            <q-icon name="schedule" color="grey-6" size="32px" />
-            <div class="text-h6 text-grey-7">Sin jornada abierta</div>
-          </div>
-        </template>
-      </q-card-section>
-    </q-card>
+            <div v-else class="row items-center q-gutter-sm">
+              <q-icon name="schedule" color="grey-6" size="32px" />
+              <div class="text-h6 text-grey-7">Sin jornada abierta</div>
+            </div>
+          </template>
+        </q-card-section>
+      </q-card>
 
-    <!-- ================================================================ -->
-    <!-- Botonera -->
-    <!-- ================================================================ -->
-    <div class="row q-col-gutter-md q-mb-lg">
-      <div class="col-12 col-sm-6">
-        <q-btn
-          size="xl"
-          color="positive"
-          icon="login"
-          label="CHECK IN"
-          class="full-width"
-          :disable="!!openShift || meLoading"
-          @click="startCheckIn"
-        />
-      </div>
-      <div class="col-12 col-sm-6">
-        <q-btn
-          size="xl"
-          color="negative"
-          icon="logout"
-          label="CHECK OUT"
-          class="full-width"
-          :disable="!openShift || meLoading"
-          @click="startCheckOut"
-        />
-      </div>
-      <!-- Cierre de caja suelto (2026-09-08): contar sin cerrar la jornada. Si
+      <!-- ================================================================ -->
+      <!-- Botonera -->
+      <!-- ================================================================ -->
+      <div class="row q-col-gutter-md q-mb-lg">
+        <div class="col-12 col-sm-6">
+          <q-btn
+            size="xl"
+            color="positive"
+            icon="login"
+            label="CHECK IN"
+            class="full-width"
+            :disable="!!openShift || meLoading"
+            @click="startCheckIn"
+          />
+        </div>
+        <div class="col-12 col-sm-6">
+          <q-btn
+            size="xl"
+            color="negative"
+            icon="logout"
+            label="CHECK OUT"
+            class="full-width"
+            :disable="!openShift || meLoading"
+            @click="startCheckOut"
+          />
+        </div>
+        <!-- Cierre de caja suelto (2026-09-08): contar sin cerrar la jornada. Si
            ya se contó, el check-out no la vuelve a pedir (2026-10-06). El
            profe de actividad (sin plata, 2026-10-06) no cuenta la caja. -->
-      <div v-if="openShift && !financeBlind" class="col-12 text-center">
-        <q-btn
-          flat
-          no-caps
-          color="primary"
-          icon="point_of_sale"
-          :label="openShift.cashCountedAt ? 'Volver a contar la caja' : 'Contar la caja ahora'"
-          @click="openCajaSuelta"
-        />
-      </div>
-    </div>
-
-    <!-- Scanner compartido entre check-in y check-out -->
-    <QrScannerDialog v-model="showScanner" :title="scannerTitle" @scanned="onScanned" />
-
-    <!-- Cierre de caja (2026-09-08): antes del checklist, si hay jornada abierta,
-         el profe cuenta el efectivo de la caja de su sede. Se puede saltear. -->
-    <CerrarCajaDialog
-      v-if="!financeBlind"
-      v-model="showCajaDialog"
-      mode="coach"
-      :branch-id="openShift?.branchId"
-      :staff-shift-id="openShift?.id"
-      @registered="onCajaDone"
-      @skipped="onCajaDone"
-    />
-
-    <!-- ================================================================ -->
-    <!-- Checklist de cierre (previo a mandar el check-out) -->
-    <!-- ================================================================ -->
-    <q-dialog v-model="showChecklistDialog" persistent>
-      <q-card style="min-width: 340px; max-width: 95vw">
-        <q-card-section>
-          <div class="text-h6">Antes de cerrar tu jornada</div>
-        </q-card-section>
-
-        <!-- La caja ya se cerró en esta jornada: no se vuelve a pedir, pero se
-             puede recontar (2026-10-06). -->
-        <q-card-section v-if="openShift?.cashCountedAt" class="q-pt-none">
-          <div class="row items-center no-wrap q-gutter-sm">
-            <q-icon name="check_circle" color="positive" size="24px" />
-            <div class="col text-body2">
-              Caja cerrada a las {{ formatTime(openShift.cashCountedAt) }}
-            </div>
-            <q-btn
-              flat
-              dense
-              no-caps
-              color="primary"
-              label="Volver a contar"
-              :disable="checkingOut"
-              @click="recontarCaja"
-            />
-          </div>
-        </q-card-section>
-
-        <q-list separator>
-          <q-item
-            v-for="item in checklistItems"
-            :key="item.key"
-            v-ripple
-            clickable
-            @click="toggleChecklistItem(item.key)"
-          >
-            <q-item-section avatar>
-              <q-checkbox v-model="checklistValues[item.key]" size="lg" @click.stop />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="text-body1">{{ item.label }}</q-item-label>
-              <q-item-label v-if="item.required === false" caption>
-                Recordatorio · no es obligatorio para cerrar
-              </q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-
-        <q-card-actions align="right" class="q-pa-md">
-          <q-btn flat label="Cancelar" :disable="checkingOut" @click="cancelCheckOut" />
+        <div v-if="openShift && !financeBlind" class="col-12 text-center">
           <q-btn
-            size="lg"
+            flat
+            no-caps
             color="primary"
-            label="Cerrar jornada"
-            :loading="checkingOut"
-            :disable="!allChecklistChecked"
-            @click="confirmCheckOut"
+            icon="point_of_sale"
+            :label="openShift.cashCountedAt ? 'Volver a contar la caja' : 'Contar la caja ahora'"
+            @click="openCajaSuelta"
           />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+        </div>
+      </div>
+
+      <!-- Scanner compartido entre check-in y check-out -->
+      <QrScannerDialog v-model="showScanner" :title="scannerTitle" @scanned="onScanned" />
+
+      <!-- Cierre de caja (2026-09-08): antes del checklist, si hay jornada abierta,
+         el profe cuenta el efectivo de la caja de su sede. Se puede saltear. -->
+      <CerrarCajaDialog
+        v-if="!financeBlind"
+        v-model="showCajaDialog"
+        mode="coach"
+        :branch-id="openShift?.branchId"
+        :staff-shift-id="openShift?.id"
+        @registered="onCajaDone"
+        @skipped="onCajaDone"
+      />
+
+      <!-- ================================================================ -->
+      <!-- Checklist de cierre (previo a mandar el check-out) -->
+      <!-- ================================================================ -->
+      <q-dialog v-model="showChecklistDialog" persistent>
+        <q-card style="min-width: 340px; max-width: 95vw">
+          <q-card-section>
+            <div class="text-h6">Antes de cerrar tu jornada</div>
+          </q-card-section>
+
+          <!-- La caja ya se cerró en esta jornada: no se vuelve a pedir, pero se
+             puede recontar (2026-10-06). -->
+          <q-card-section v-if="openShift?.cashCountedAt" class="q-pt-none">
+            <div class="row items-center no-wrap q-gutter-sm">
+              <q-icon name="check_circle" color="positive" size="24px" />
+              <div class="col text-body2">
+                Caja cerrada a las {{ formatTime(openShift.cashCountedAt) }}
+              </div>
+              <q-btn
+                flat
+                dense
+                no-caps
+                color="primary"
+                label="Volver a contar"
+                :disable="checkingOut"
+                @click="recontarCaja"
+              />
+            </div>
+          </q-card-section>
+
+          <q-list separator>
+            <q-item
+              v-for="item in checklistItems"
+              :key="item.key"
+              v-ripple
+              clickable
+              @click="toggleChecklistItem(item.key)"
+            >
+              <q-item-section avatar>
+                <q-checkbox v-model="checklistValues[item.key]" size="lg" @click.stop />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-body1">{{ item.label }}</q-item-label>
+                <q-item-label v-if="item.required === false" caption>
+                  Recordatorio · no es obligatorio para cerrar
+                </q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+
+          <q-card-actions align="right" class="q-pa-md">
+            <q-btn flat label="Cancelar" :disable="checkingOut" @click="cancelCheckOut" />
+            <q-btn
+              size="lg"
+              color="primary"
+              label="Cerrar jornada"
+              :loading="checkingOut"
+              :disable="!allChecklistChecked"
+              @click="confirmCheckOut"
+            />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+    </template>
 
     <!-- ================================================================ -->
-    <!-- Registro (solo owner/admin) -->
+    <!-- Tablero + Registro (solo owner/admin) -->
     <!-- ================================================================ -->
     <template v-if="canSeeReport">
-      <q-separator class="q-mb-md" />
-      <div class="text-h6 q-mb-md">Registro</div>
+      <div class="text-h5 q-mb-md">Jornadas del staff</div>
 
-      <div class="row items-end q-col-gutter-sm q-mb-md">
-        <div class="col-12 col-sm-4">
+      <!-- Filtros compartidos por el tablero y el Registro -->
+      <div class="row items-center q-gutter-sm q-mb-md">
+        <div v-if="isOwner" class="col-12 col-sm-auto" style="min-width: 180px">
           <q-select
-            v-model="reportBranchId"
-            :options="branchOptions"
-            option-label="name"
-            option-value="id"
+            v-model="selectedCountry"
+            :options="countryOptions"
+            label="País"
+            dense
+            outlined
             emit-value
             map-options
+            @update:model-value="onCountryChange"
+          />
+        </div>
+
+        <div class="col-12 col-sm-3">
+          <q-select
+            v-model="selectedBranchId"
+            :options="branchOptions"
             label="Sede"
             dense
             outlined
+            emit-value
+            map-options
             :loading="loadingBranches"
+            @update:model-value="reload"
           />
         </div>
-        <div class="col-6 col-sm-3">
-          <q-input v-model="reportFrom" type="date" label="Desde" dense outlined />
-        </div>
-        <div class="col-6 col-sm-3">
-          <q-input v-model="reportTo" type="date" label="Hasta" dense outlined />
-        </div>
-        <div class="col-12 col-sm-2">
-          <q-btn
-            color="primary"
-            label="Buscar"
-            icon="search"
-            class="full-width"
-            :loading="shiftsLoading"
-            @click="loadShifts"
-          />
+
+        <div class="col-auto">
+          <q-btn-dropdown outline no-caps :label="dateRangeLabel" icon="date_range" dense>
+            <q-list dense>
+              <q-item
+                v-for="preset in datePresets"
+                :key="preset.label"
+                v-close-popup
+                clickable
+                @click="applyPreset(preset)"
+              >
+                <q-item-section>{{ preset.label }}</q-item-section>
+              </q-item>
+              <q-separator />
+              <q-item clickable @click="showCustomRange = !showCustomRange">
+                <q-item-section>Personalizado</q-item-section>
+                <q-item-section side>
+                  <q-icon :name="showCustomRange ? 'expand_less' : 'expand_more'" />
+                </q-item-section>
+              </q-item>
+              <template v-if="showCustomRange">
+                <q-item>
+                  <q-item-section>
+                    <q-input v-model="customFrom" type="date" label="Desde" dense outlined />
+                  </q-item-section>
+                </q-item>
+                <q-item>
+                  <q-item-section>
+                    <q-input v-model="customTo" type="date" label="Hasta" dense outlined />
+                  </q-item-section>
+                </q-item>
+                <q-item>
+                  <q-item-section>
+                    <q-btn label="Aplicar" color="primary" dense flat @click="applyCustomRange" />
+                  </q-item-section>
+                </q-item>
+              </template>
+            </q-list>
+          </q-btn-dropdown>
         </div>
       </div>
+
+      <JornadasDashboard :dashboard="dashboard" :loading="reportLoading" @refresh="reload" />
+
+      <q-separator class="q-mb-md" />
+      <div class="text-h6 q-mb-md">Registro</div>
 
       <q-table
         :rows="shifts"
         :columns="shiftColumns"
         row-key="id"
-        :loading="shiftsLoading"
+        :loading="reportLoading"
         :pagination="{ rowsPerPage: 50 }"
         :rows-per-page-options="[20, 50, 100]"
         flat
@@ -263,26 +313,41 @@
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar, type QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
-import { extractError } from 'src/utils/extract-error';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import {
   useStaffAttendanceApi,
   type StaffAttendanceOpenShift,
   type StaffAttendanceChecklistItem,
   type StaffAttendanceChecklistValues,
   type StaffAttendanceShiftRow,
+  type StaffAttendanceDashboard,
 } from 'src/composables/useStaffAttendanceApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { JORNADA_REPORT_ROLES, isFinanceBlindRole } from 'src/config/templo-config';
-import type { BranchOption } from 'src/types/member';
+import {
+  formatTime,
+  formatDuration,
+  formatShiftDate,
+  toLocalIsoDate,
+} from 'src/utils/jornada-format';
 import QrScannerDialog from 'src/components/QrScannerDialog.vue';
 import CerrarCajaDialog from 'src/components/caja/CerrarCajaDialog.vue';
+import JornadasDashboard from 'src/components/jornadas/JornadasDashboard.vue';
 
 const log = createLogger('CheckInPage');
 const $q = useQuasar();
 const authStore = useAuthStore();
 const attendanceApi = useStaffAttendanceApi();
 const membersApi = useMembersApi();
+
+// owner/admin ven el tablero de todas las sedes en vez de "Mi jornada".
+const canSeeReport = computed(() => {
+  const role = authStore.user?.role;
+  return !!role && JORNADA_REPORT_ROLES.includes(role);
+});
+
+const isOwner = computed(() => authStore.user?.role === 'owner');
 
 // =========================================================================
 // Estado actual ("me")
@@ -315,17 +380,6 @@ async function loadMe() {
   } finally {
     meLoading.value = false;
   }
-}
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}min`;
-  return `${h}h ${m}min`;
 }
 
 // =========================================================================
@@ -524,32 +578,131 @@ async function confirmCheckOut() {
 }
 
 // =========================================================================
-// Registro (solo owner/admin)
+// Tablero + Registro (solo owner/admin)
 // =========================================================================
 
-const canSeeReport = computed(() => {
-  const role = authStore.user?.role;
-  return !!role && JORNADA_REPORT_ROLES.includes(role);
-});
+/** Tope del API para `from..to` (días, inclusive). */
+const MAX_RANGE_DAYS = 62;
 
-const branchOptions = ref<BranchOption[]>([]);
+// -- País (solo owner; admin queda siempre en su país por el API) ---------
+
+const countryOptions = [
+  { label: 'Todos', value: undefined },
+  { label: 'Argentina', value: 'AR' as const },
+  { label: 'España', value: 'ES' as const },
+];
+const selectedCountry = ref<'AR' | 'ES' | undefined>(undefined);
+
+// -- Sede -----------------------------------------------------------------
+
+const ALL_BRANCHES_OPTION = { label: 'Todas las sedes', value: undefined };
+const branchOptions = ref<Array<{ label: string; value: number | undefined }>>([
+  ALL_BRANCHES_OPTION,
+]);
+const selectedBranchId = ref<number | undefined>(undefined);
 const loadingBranches = ref(false);
-const reportBranchId = ref<number | undefined>(undefined);
 
-function monthStartIso(d: Date): string {
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+// -- Rango de fechas ------------------------------------------------------
+
+interface DatePreset {
+  label: string;
+  getRange: () => { from: string; to: string };
 }
 
-function todayIso(d: Date): string {
-  return d.toISOString().slice(0, 10);
+const datePresets: DatePreset[] = [
+  {
+    label: 'Hoy',
+    getRange: () => {
+      const iso = toLocalIsoDate(new Date());
+      return { from: iso, to: iso };
+    },
+  },
+  {
+    label: 'Esta semana',
+    getRange: () => {
+      // Lunes a domingo.
+      const d = new Date();
+      const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+      const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+      return { from: toLocalIsoDate(monday), to: toLocalIsoDate(sunday) };
+    },
+  },
+  {
+    label: 'Este mes',
+    getRange: () => {
+      const d = new Date();
+      return {
+        from: toLocalIsoDate(new Date(d.getFullYear(), d.getMonth(), 1)),
+        to: toLocalIsoDate(new Date(d.getFullYear(), d.getMonth() + 1, 0)),
+      };
+    },
+  },
+  {
+    label: 'Mes pasado',
+    getRange: () => {
+      const d = new Date();
+      return {
+        from: toLocalIsoDate(new Date(d.getFullYear(), d.getMonth() - 1, 1)),
+        to: toLocalIsoDate(new Date(d.getFullYear(), d.getMonth(), 0)),
+      };
+    },
+  },
+];
+
+const DEFAULT_PRESET_LABEL = 'Este mes';
+const initialRange = datePresets.find((p) => p.label === DEFAULT_PRESET_LABEL)!.getRange();
+const reportFrom = ref(initialRange.from);
+const reportTo = ref(initialRange.to);
+const activePresetLabel = ref(DEFAULT_PRESET_LABEL);
+const showCustomRange = ref(false);
+const customFrom = ref(initialRange.from);
+const customTo = ref(initialRange.to);
+
+const dateRangeLabel = computed(
+  () =>
+    activePresetLabel.value ||
+    `${formatShiftDate(reportFrom.value)} - ${formatShiftDate(reportTo.value)}`
+);
+
+/** Mensaje de error del rango, o `null` si es válido (≤ 62 días, desde ≤ hasta). */
+function rangeError(from: string, to: string): string | null {
+  if (!from || !to) return 'Completá las fechas Desde y Hasta';
+  const fromMs = new Date(`${from}T12:00:00Z`).getTime();
+  const toMs = new Date(`${to}T12:00:00Z`).getTime();
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return 'Rango de fechas inválido';
+  if (toMs < fromMs) return 'La fecha Hasta no puede ser anterior a Desde';
+  const days = Math.round((toMs - fromMs) / 86_400_000) + 1;
+  if (days > MAX_RANGE_DAYS) return `El rango máximo es de ${MAX_RANGE_DAYS} días`;
+  return null;
 }
 
-const today = new Date();
-const reportFrom = ref(monthStartIso(today));
-const reportTo = ref(todayIso(today));
+function applyPreset(preset: DatePreset) {
+  const range = preset.getRange();
+  reportFrom.value = range.from;
+  reportTo.value = range.to;
+  activePresetLabel.value = preset.label;
+  showCustomRange.value = false;
+  void reload();
+}
 
+function applyCustomRange() {
+  const invalid = rangeError(customFrom.value, customTo.value);
+  if (invalid) {
+    $q.notify({ type: 'negative', message: invalid });
+    return;
+  }
+  reportFrom.value = customFrom.value;
+  reportTo.value = customTo.value;
+  activePresetLabel.value = '';
+  showCustomRange.value = false;
+  void reload();
+}
+
+// -- Datos ----------------------------------------------------------------
+
+const dashboard = ref<StaffAttendanceDashboard | null>(null);
 const shifts = ref<StaffAttendanceShiftRow[]>([]);
-const shiftsLoading = ref(false);
+const reportLoading = ref(false);
 
 const shiftColumns: QTableProps['columns'] = [
   { name: 'userName', label: 'Profe', field: 'userName', align: 'left', sortable: true },
@@ -572,48 +725,71 @@ function visibleChecklistKeys(checklist: StaffAttendanceChecklistValues): Checkl
   );
 }
 
-function formatShiftDate(dateStr: string): string {
-  // Split manual (no `new Date(dateStr)`): una fecha "YYYY-MM-DD" pura no
-  // debe pasar por conversión de timezone del navegador.
-  const [y, m, d] = dateStr.split('-');
-  return `${d}/${m}/${y}`;
-}
-
 async function fetchBranches() {
   loadingBranches.value = true;
   try {
-    const branches = await membersApi.getBranches();
-    branchOptions.value = branches.filter((b) => !b.isVirtual);
-    const homeBranchId = authStore.user?.branchId;
-    if (homeBranchId && branchOptions.value.some((b) => b.id === homeBranchId)) {
-      reportBranchId.value = homeBranchId;
-    } else {
-      reportBranchId.value = branchOptions.value[0]?.id;
+    const branches = await membersApi.getBranches({
+      country: isOwner.value ? selectedCountry.value : undefined,
+    });
+    branchOptions.value = [
+      ALL_BRANCHES_OPTION,
+      ...branches.filter((b) => !b.isVirtual).map((b) => ({ label: b.name, value: b.id })),
+    ];
+    // Si la sede elegida quedó fuera del país seleccionado, volver a "Todas".
+    if (
+      selectedBranchId.value !== undefined &&
+      !branchOptions.value.some((o) => o.value === selectedBranchId.value)
+    ) {
+      selectedBranchId.value = undefined;
     }
   } catch (err: unknown) {
     const message = extractError(err, 'Error cargando sucursales');
-    log.error('Error cargando sucursales', { error: message });
+    if (!isExpectedClientError(err)) log.error('Error cargando sucursales', { error: message });
     $q.notify({ type: 'negative', message });
   } finally {
     loadingBranches.value = false;
   }
 }
 
-async function loadShifts() {
-  if (!reportBranchId.value) return;
-  shiftsLoading.value = true;
+async function onCountryChange() {
+  await fetchBranches();
+  await reload();
+}
+
+// Descarta respuestas de una recarga vieja si el usuario cambió los filtros
+// mientras volaba el request.
+let reloadSeq = 0;
+
+/** Recarga tablero + Registro con los MISMOS filtros (un solo punto de entrada). */
+async function reload() {
+  const invalid = rangeError(reportFrom.value, reportTo.value);
+  if (invalid) {
+    $q.notify({ type: 'negative', message: invalid });
+    return;
+  }
+  const seq = ++reloadSeq;
+  reportLoading.value = true;
+  const params = {
+    branchId: selectedBranchId.value,
+    country: isOwner.value ? selectedCountry.value : undefined,
+    from: reportFrom.value,
+    to: reportTo.value,
+  };
   try {
-    shifts.value = await attendanceApi.getShifts({
-      branchId: reportBranchId.value,
-      from: reportFrom.value,
-      to: reportTo.value,
-    });
+    const [dash, rows] = await Promise.all([
+      attendanceApi.getDashboard(params),
+      attendanceApi.getShifts(params),
+    ]);
+    if (seq !== reloadSeq) return;
+    dashboard.value = dash;
+    shifts.value = rows;
   } catch (err: unknown) {
-    const message = extractError(err, 'No se pudo cargar el registro de jornadas');
-    log.error('Error cargando registro de jornadas', { error: message });
+    if (seq !== reloadSeq) return;
+    const message = extractError(err, 'No se pudo cargar el tablero de jornadas');
+    if (!isExpectedClientError(err)) log.error('Error cargando jornadas', { error: message });
     $q.notify({ type: 'negative', message });
   } finally {
-    shiftsLoading.value = false;
+    if (seq === reloadSeq) reportLoading.value = false;
   }
 }
 
@@ -622,9 +798,11 @@ async function loadShifts() {
 // =========================================================================
 
 onMounted(() => {
-  void loadMe();
   if (canSeeReport.value) {
-    void fetchBranches().then(() => loadShifts());
+    // owner/admin no ven "Mi jornada": ni siquiera se consulta /me.
+    void fetchBranches().then(() => reload());
+  } else {
+    void loadMe();
   }
 });
 </script>

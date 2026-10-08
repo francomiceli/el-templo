@@ -14,7 +14,8 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, isNull, desc, gte, lte, max } from "drizzle-orm";
+import { eq, and, isNull, desc, gte, lte, max, inArray } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import {
@@ -32,6 +33,10 @@ import { validateQrToken } from "../shared/qr-token";
 import { resolveBranchDelGimnasio } from "../shared/branch-consistency";
 import { canAccessBranch, BRANCH_OUT_OF_SCOPE } from "../shared/branch-access";
 import type { CountryScope } from "../shared/country-scope";
+import {
+  listBranchesForScope,
+  type BranchListItem,
+} from "../shared/branch-list";
 import { todayInTz } from "../shared/date-utils";
 import {
   checklistForDow,
@@ -110,6 +115,45 @@ export interface StaffShiftListRow {
     /** Recordatorio de los profes (`coach`): true/false = lo tildó o no; null/ausente = no aplicaba (otro rol o jornada anterior al 2026-10-08). */
     videos?: boolean | null;
   } | null;
+}
+
+export interface StaffDashboardBranch {
+  id: number;
+  name: string;
+}
+
+export interface StaffOpenShiftRow {
+  shiftId: number;
+  userId: number;
+  userName: string;
+  branchId: number;
+  branchName: string;
+  checkedInAt: string;
+}
+
+export interface StaffStaleShiftRow extends StaffOpenShiftRow {
+  shiftDate: string;
+}
+
+export interface StaffPersonSummary {
+  userId: number;
+  userName: string;
+  branchNames: string[];
+  shifts: number;
+  totalMinutes: number;
+}
+
+export interface StaffDashboard {
+  branches: StaffDashboardBranch[];
+  openNow: StaffOpenShiftRow[];
+  staleOpen: StaffStaleShiftRow[];
+  totals: {
+    shifts: number;
+    closedShifts: number;
+    openShifts: number;
+    totalMinutes: number;
+  };
+  byPerson: StaffPersonSummary[];
 }
 
 /** Rango máximo permitido para `GET /shifts` (evita full scans desde el admin sobre un rango sin límite). */
@@ -374,19 +418,182 @@ export class StaffAttendanceService {
   }
 
   /**
-   * Registro de jornadas de una sede en un rango de fechas (rol
-   * `STAFF_ATTENDANCE_REPORT_ROLES`, `requireBranchAccess` ya corrió en la
+   * Sedes sobre las que el actor puede consultar el registro/tablero.
+   * Misma fuente que el selector de sedes del admin (`listBranchesForScope`):
+   * owner = todas (o las del `?country=`), admin = las de su país. Con
+   * `branchId` (ya validado por `requireBranchAccess`) se queda con esa sede;
+   * sin él descarta las virtuales (nadie ficha en "Templo Online").
+   */
+  async resolveBranches(
+    scope: CountryScope,
+    queryCountry: unknown,
+    branchId: number | undefined,
+  ): Promise<BranchListItem[]> {
+    const all = await listBranchesForScope(
+      this.db,
+      scope,
+      queryCountry,
+      "staff-attendance.resolveBranches",
+    );
+    return branchId !== undefined
+      ? all.filter((b) => b.id === branchId)
+      : all.filter((b) => !b.isVirtual);
+  }
+
+  /**
+   * Registro de jornadas de una o varias sedes en un rango de fechas (rol
+   * `STAFF_ATTENDANCE_REPORT_ROLES`; el alcance de sedes ya lo resolvió la
    * ruta). `shiftDate` compara como string (`YYYY-MM-DD`, mismo criterio que
    * `tv_class_state.class_date`) — comparación lexicográfica válida por el
    * formato ISO fijo.
    */
   async listShifts(
     ctx: TenantContext,
-    branchId: number,
+    branchIds: number[],
     from: string,
     to: string,
   ): Promise<StaffShiftListRow[]> {
     this.assertRangoValido(from, to);
+    return this.selectShifts(ctx, branchIds, [
+      gte(schema.staffShifts.shiftDate, from),
+      lte(schema.staffShifts.shiftDate, to),
+    ]);
+  }
+
+  /**
+   * Tablero de jornadas: en turno ahora, abiertas sin check-out de días
+   * anteriores (ambas SIN límite de rango) y totales/horas por persona del
+   * rango `from..to`. "Hoy" se evalúa en la TZ de CADA sede
+   * (`todayInTz(branch.timezone)`), igual que se estampa `shift_date`.
+   * `now` es inyectable para tests.
+   */
+  async getDashboard(
+    ctx: TenantContext,
+    branches: BranchListItem[],
+    from: string,
+    to: string,
+    now: Date = new Date(),
+  ): Promise<StaffDashboard> {
+    this.assertRangoValido(from, to);
+    const branchIds = branches.map((b) => b.id);
+
+    const [rangeRows, openRows] = await Promise.all([
+      this.listShifts(ctx, branchIds, from, to),
+      this.selectShifts(ctx, branchIds, [
+        isNull(schema.staffShifts.checkedOutAt),
+      ]),
+    ]);
+
+    const tzByBranch = new Map(
+      branches.map((b) => [b.id, b.timezone || DEFAULT_TZ]),
+    );
+    const todayByBranch = new Map<number, string>();
+    const todayOf = (branchId: number): string => {
+      let today = todayByBranch.get(branchId);
+      if (today === undefined) {
+        today = todayInTz(tzByBranch.get(branchId) ?? DEFAULT_TZ, now);
+        todayByBranch.set(branchId, today);
+      }
+      return today;
+    };
+
+    const openNow: StaffOpenShiftRow[] = [];
+    const staleOpen: StaffStaleShiftRow[] = [];
+    for (const row of openRows) {
+      const base: StaffOpenShiftRow = {
+        shiftId: row.id,
+        userId: row.userId,
+        userName: row.userName,
+        branchId: row.branchId,
+        branchName: row.branchName,
+        checkedInAt: row.checkedInAt,
+      };
+      if (row.shiftDate < todayOf(row.branchId)) {
+        staleOpen.push({ ...base, shiftDate: row.shiftDate });
+      } else {
+        openNow.push(base);
+      }
+    }
+    openNow.sort(
+      (a, b) =>
+        a.branchName.localeCompare(b.branchName) ||
+        a.checkedInAt.localeCompare(b.checkedInAt),
+    );
+    staleOpen.sort(
+      (a, b) =>
+        a.shiftDate.localeCompare(b.shiftDate) ||
+        a.branchName.localeCompare(b.branchName),
+    );
+
+    const totals = {
+      shifts: rangeRows.length,
+      closedShifts: 0,
+      openShifts: 0,
+      totalMinutes: 0,
+    };
+    const people = new Map<
+      number,
+      {
+        userName: string;
+        branches: Set<string>;
+        shifts: number;
+        minutes: number;
+      }
+    >();
+    for (const row of rangeRows) {
+      const person = people.get(row.userId) ?? {
+        userName: row.userName,
+        branches: new Set<string>(),
+        shifts: 0,
+        minutes: 0,
+      };
+      person.branches.add(row.branchName);
+      person.shifts += 1;
+      if (row.durationMinutes === null) {
+        totals.openShifts += 1;
+      } else {
+        totals.closedShifts += 1;
+        totals.totalMinutes += row.durationMinutes;
+        person.minutes += row.durationMinutes;
+      }
+      people.set(row.userId, person);
+    }
+
+    const byPerson: StaffPersonSummary[] = [...people.entries()]
+      .map(([userId, p]) => ({
+        userId,
+        userName: p.userName,
+        branchNames: [...p.branches].sort((a, b) => a.localeCompare(b)),
+        shifts: p.shifts,
+        totalMinutes: p.minutes,
+      }))
+      .sort(
+        (a, b) =>
+          b.totalMinutes - a.totalMinutes ||
+          a.userName.localeCompare(b.userName),
+      );
+
+    return {
+      branches: branches.map((b) => ({ id: b.id, name: b.name })),
+      openNow,
+      staleOpen,
+      totals,
+      byPerson,
+    };
+  }
+
+  // ─── Helpers privados ─────────────────────────────────────────────────────
+
+  /**
+   * Query común de jornadas (+ mapeo a `StaffShiftListRow`) para el registro y
+   * el tablero. Siempre con `tenantWhere` en `staff_shifts` y `users`.
+   */
+  private async selectShifts(
+    ctx: TenantContext,
+    branchIds: number[],
+    extra: SQL[],
+  ): Promise<StaffShiftListRow[]> {
+    if (branchIds.length === 0) return [];
 
     const rows = await this.db
       .select({
@@ -416,9 +623,8 @@ export class StaffAttendanceService {
       .where(
         and(
           tenantWhere(schema.staffShifts, ctx),
-          eq(schema.staffShifts.branchId, branchId),
-          gte(schema.staffShifts.shiftDate, from),
-          lte(schema.staffShifts.shiftDate, to),
+          inArray(schema.staffShifts.branchId, branchIds),
+          ...extra,
         ),
       )
       .orderBy(desc(schema.staffShifts.checkedInAt));
@@ -443,8 +649,6 @@ export class StaffAttendanceService {
       };
     });
   }
-
-  // ─── Helpers privados ─────────────────────────────────────────────────────
 
   private async findOpenShift(
     ctx: TenantContext,

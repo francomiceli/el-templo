@@ -113,16 +113,22 @@ export const staffAttendanceCheckOutSchema = {
   },
 };
 
-export const staffAttendanceShiftsSchema = {
-  querystring: {
-    type: "object",
-    required: ["branchId", "from", "to"],
-    properties: {
-      branchId: { type: "integer" },
-      from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
-      to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
-    },
+const staffShiftsQuerystring = {
+  type: "object",
+  required: ["from", "to"],
+  properties: {
+    // Opcional: sin `branchId` = todas las sedes del alcance del actor.
+    branchId: { type: "integer" },
+    // Solo lo honra el owner (admin siempre queda en su país). Mismo
+    // contrato que `?country=` del resto del admin.
+    country: { type: "string", enum: ["AR", "ES"] },
+    from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
   },
+};
+
+export const staffAttendanceShiftsSchema = {
+  querystring: staffShiftsQuerystring,
   response: {
     200: {
       type: "object",
@@ -158,6 +164,72 @@ export const staffAttendanceShiftsSchema = {
   },
 };
 
+const dashboardOpenShiftProperties = {
+  shiftId: { type: "integer" },
+  userId: { type: "integer" },
+  userName: { type: "string" },
+  branchId: { type: "integer" },
+  branchName: { type: "string" },
+  checkedInAt: { type: "string" },
+};
+
+export const staffAttendanceDashboardSchema = {
+  querystring: staffShiftsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        branches: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              name: { type: "string" },
+            },
+          },
+        },
+        openNow: {
+          type: "array",
+          items: { type: "object", properties: dashboardOpenShiftProperties },
+        },
+        staleOpen: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              ...dashboardOpenShiftProperties,
+              shiftDate: { type: "string" },
+            },
+          },
+        },
+        totals: {
+          type: "object",
+          properties: {
+            shifts: { type: "integer" },
+            closedShifts: { type: "integer" },
+            openShifts: { type: "integer" },
+            totalMinutes: { type: "integer" },
+          },
+        },
+        byPerson: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              userId: { type: "integer" },
+              userName: { type: "string" },
+              branchNames: { type: "array", items: { type: "string" } },
+              shifts: { type: "integer" },
+              totalMinutes: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 // ─── Tipos de request ───────────────────────────────────────────────────────
 
 export interface StaffCheckInBody {
@@ -178,7 +250,8 @@ export interface StaffCheckOutBody {
 }
 
 export interface StaffShiftsQuery {
-  branchId: number;
+  branchId?: number;
+  country?: "AR" | "ES";
   from: string;
   to: string;
 }
