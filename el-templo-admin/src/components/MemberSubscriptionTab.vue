@@ -897,6 +897,7 @@ const presencialScheduledSub = computed(() => {
   );
 });
 
+// (Renovar vencida, 2026-10-08.)
 // Última presencial vencida, solo si no hay presencial vigente y venció hace
 // a lo sumo 90 días (más vieja, sus turnos probablemente ya no sirvan: se
 // arranca de cero con "Gestionar Plan"). Sale del historial, que ya trae la

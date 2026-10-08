@@ -327,7 +327,12 @@ describe("Subscriptions API — Renewal with scheduleIds", () => {
           startDate: dateOffsetStr(-40),
           endDate: dateOffsetStr(-10),
         })
-        .where(eq(subscriptions.id, subId));
+        .where(
+          and(
+            eq(subscriptions.tenantId, TENANT_TEMPLO),
+            eq(subscriptions.id, subId),
+          ),
+        );
       return { memberId: member.id, subId };
     }
 
@@ -372,7 +377,9 @@ describe("Subscriptions API — Renewal with scheduleIds", () => {
       await app.db
         .update(schedules)
         .set({ isActive: false })
-        .where(eq(schedules.id, slotA));
+        .where(
+          and(eq(schedules.tenantId, TENANT_TEMPLO), eq(schedules.id, slotA)),
+        );
 
       const rejected = await renew(memberId, { subscriptionId: subId });
       expect(rejected.statusCode).toBe(400);
