@@ -1,4 +1,5 @@
 <!--
+  (2026-10-08)
   Forzar el check-out de una jornada abierta de OTRA persona (owner/admin).
   Una jornada colgada bloquea el check-in de esa persona en todas las sedes.
   Pide fecha + hora de salida y un motivo obligatorio; el server deja el
