@@ -243,7 +243,14 @@
         </div>
       </div>
 
-      <JornadasDashboard :dashboard="dashboard" :loading="reportLoading" @refresh="reload" />
+      <JornadasDashboard
+        :dashboard="dashboard"
+        :loading="reportLoading"
+        @refresh="reload"
+        @force-checkout="openForceCheckout"
+      />
+
+      <ForceCheckoutDialog v-model="showForceDialog" :target="forceTarget" @forced="reload" />
 
       <q-separator class="q-mb-md" />
       <div class="text-h6 q-mb-md">Registro</div>
@@ -272,9 +279,19 @@
 
         <template #body-cell-checkedOutAt="props">
           <q-td :props="props">
-            <q-chip v-if="!props.row.checkedOutAt" color="warning" text-color="white" dense
-              >abierta</q-chip
-            >
+            <template v-if="!props.row.checkedOutAt">
+              <q-chip color="warning" text-color="white" dense>abierta</q-chip>
+              <q-btn
+                flat
+                dense
+                no-caps
+                size="sm"
+                color="negative"
+                icon="logout"
+                label="Forzar salida"
+                @click="openForceCheckout(rowToTarget(props.row))"
+              />
+            </template>
             <span v-else>{{ formatTime(props.row.checkedOutAt) }}</span>
           </q-td>
         </template>
@@ -288,7 +305,18 @@
 
         <template #body-cell-checklist="props">
           <q-td :props="props">
-            <template v-if="props.row.checklist">
+            <q-chip
+              v-if="props.row.forcedByName"
+              dense
+              size="sm"
+              color="warning"
+              text-color="white"
+              icon="gavel"
+            >
+              Forzado
+              <q-tooltip>Por {{ props.row.forcedByName }}: {{ props.row.forcedReason }}</q-tooltip>
+            </q-chip>
+            <template v-else-if="props.row.checklist">
               <q-chip
                 v-for="key in visibleChecklistKeys(props.row.checklist)"
                 :key="key"
@@ -321,6 +349,7 @@ import {
   type StaffAttendanceChecklistValues,
   type StaffAttendanceShiftRow,
   type StaffAttendanceDashboard,
+  type ForceCheckoutTarget,
 } from 'src/composables/useStaffAttendanceApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
@@ -334,6 +363,7 @@ import {
 import QrScannerDialog from 'src/components/QrScannerDialog.vue';
 import CerrarCajaDialog from 'src/components/caja/CerrarCajaDialog.vue';
 import JornadasDashboard from 'src/components/jornadas/JornadasDashboard.vue';
+import ForceCheckoutDialog from 'src/components/jornadas/ForceCheckoutDialog.vue';
 
 const log = createLogger('CheckInPage');
 const $q = useQuasar();
@@ -754,6 +784,26 @@ async function fetchBranches() {
 async function onCountryChange() {
   await fetchBranches();
   await reload();
+}
+
+// -- Forzar salida (jornada abierta de otra persona) ------------------------
+
+const showForceDialog = ref(false);
+const forceTarget = ref<ForceCheckoutTarget | null>(null);
+
+function openForceCheckout(target: ForceCheckoutTarget) {
+  forceTarget.value = target;
+  showForceDialog.value = true;
+}
+
+function rowToTarget(row: StaffAttendanceShiftRow): ForceCheckoutTarget {
+  return {
+    shiftId: row.id,
+    userName: row.userName,
+    branchName: row.branchName,
+    checkedInAt: row.checkedInAt,
+    shiftDate: row.shiftDate,
+  };
 }
 
 // Descarta respuestas de una recarga vieja si el usuario cambió los filtros

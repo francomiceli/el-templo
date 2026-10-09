@@ -328,7 +328,9 @@ import {
 // `GET /api/admin/referrals/invitations`, `tenant-scoped`.
 // 2026-10-08: 455 -> 456 por el tablero de jornadas del staff (owner/admin):
 // `GET /api/admin/staff-attendance/dashboard`, `tenant-scoped`.
-const ENTRADAS_BASELINE = 456;
+// 2026-10-08: 456 -> 457 por el cierre forzado de jornadas (owner/admin):
+// `POST /api/admin/staff-attendance/shifts/:id/force-checkout`, `tenant-scoped`.
+const ENTRADAS_BASELINE = 457;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;

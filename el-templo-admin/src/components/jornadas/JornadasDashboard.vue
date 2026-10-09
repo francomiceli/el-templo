@@ -23,9 +23,19 @@
       </div>
       <div class="text-body2">Quedaron abiertas en días anteriores y nadie las cerró.</div>
       <ul class="q-my-sm q-pl-md">
-        <li v-for="s in dashboard.staleOpen" :key="s.shiftId">
+        <li v-for="s in dashboard.staleOpen" :key="s.shiftId" class="q-py-xs">
           {{ s.userName }} — {{ s.branchName }} — {{ formatShiftDate(s.shiftDate) }} (entró
           {{ formatTime(s.checkedInAt) }})
+          <q-btn
+            flat
+            dense
+            no-caps
+            size="sm"
+            icon="logout"
+            label="Forzar salida"
+            class="q-ml-sm bg-white text-negative"
+            @click="emit('force-checkout', toTarget(s, s.shiftDate))"
+          />
         </li>
       </ul>
     </q-banner>
@@ -68,14 +78,24 @@
           </q-card-section>
           <q-card-section class="q-pt-xs">
             <div v-if="group.shifts.length === 0" class="text-grey-6">—</div>
-            <div
-              v-for="s in group.shifts"
-              :key="s.shiftId"
-              class="row items-center no-wrap q-py-xs"
-            >
-              <q-icon name="schedule" color="positive" size="18px" class="q-mr-sm" />
-              <span class="col ellipsis">{{ s.userName }}</span>
-              <span class="text-caption text-grey-7">desde {{ formatTime(s.checkedInAt) }}</span>
+            <div v-for="s in group.shifts" :key="s.shiftId" class="q-py-xs">
+              <div class="row items-center no-wrap">
+                <q-icon name="schedule" color="positive" size="18px" class="q-mr-sm" />
+                <span class="col ellipsis">{{ s.userName }}</span>
+                <span class="text-caption text-grey-7">desde {{ formatTime(s.checkedInAt) }}</span>
+              </div>
+              <div class="text-right">
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  size="sm"
+                  color="negative"
+                  icon="logout"
+                  label="Forzar salida"
+                  @click="emit('force-checkout', toTarget(s, null))"
+                />
+              </div>
             </div>
           </q-card-section>
         </q-card>
@@ -134,6 +154,7 @@ import type { QTableProps } from 'quasar';
 import type {
   StaffAttendanceDashboard,
   StaffDashboardOpenShift,
+  ForceCheckoutTarget,
 } from 'src/composables/useStaffAttendanceApi';
 import {
   formatTime,
@@ -147,7 +168,20 @@ const props = defineProps<{
   loading: boolean;
 }>();
 
-const emit = defineEmits<{ (e: 'refresh'): void }>();
+const emit = defineEmits<{
+  (e: 'refresh'): void;
+  (e: 'force-checkout', target: ForceCheckoutTarget): void;
+}>();
+
+function toTarget(s: StaffDashboardOpenShift, shiftDate: string | null): ForceCheckoutTarget {
+  return {
+    shiftId: s.shiftId,
+    userName: s.userName,
+    branchName: s.branchName,
+    checkedInAt: s.checkedInAt,
+    shiftDate,
+  };
+}
 
 /** Todas las sedes del alcance, las vacías incluidas (se pintan con "—"). */
 const openByBranch = computed(() => {

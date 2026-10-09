@@ -798,6 +798,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   "GET /api/admin/staff-attendance/shifts": { categoria: "tenant-scoped" },
   // 2026-10-08: tablero de jornadas (owner/admin), sedes del alcance del actor.
   "GET /api/admin/staff-attendance/dashboard": { categoria: "tenant-scoped" },
+  // 2026-10-08: cierre forzado de una jornada abierta (owner/admin).
+  "POST /api/admin/staff-attendance/shifts/:id/force-checkout": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/admin/subscriptions ──────────────────────────────────────────────
   "GET /api/admin/subscriptions/members/:userId/class-usage": {

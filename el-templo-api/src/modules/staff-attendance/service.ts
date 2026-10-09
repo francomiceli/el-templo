@@ -16,6 +16,7 @@
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, isNull, desc, gte, lte, max, inArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import {
@@ -38,6 +39,7 @@ import {
   type BranchListItem,
 } from "../shared/branch-list";
 import { todayInTz } from "../shared/date-utils";
+import { auditLog } from "../shared/audit-log";
 import {
   checklistForDow,
   requiredKeysForDow,
@@ -107,6 +109,9 @@ export interface StaffShiftListRow {
   checkedInAt: string;
   checkedOutAt: string | null;
   durationMinutes: number | null;
+  /** Quién forzó el cierre (owner/admin) y por qué. null en un cierre normal. */
+  forcedByName: string | null;
+  forcedReason: string | null;
   /** `cobros`/`lote` null = no aplicaba (lote fuera de mié/sáb; cobros para roles sin plata). */
   checklist: {
     cobros: boolean | null;
@@ -158,6 +163,11 @@ export interface StaffDashboard {
 
 /** Rango máximo permitido para `GET /shifts` (evita full scans desde el admin sobre un rango sin límite). */
 const MAX_RANGE_DAYS = 62;
+
+/** Tolerancia de reloj para `checkedOutAt` de un cierre forzado (no puede estar en el futuro). */
+const FORCE_CHECKOUT_FUTURE_TOLERANCE_MS = 2 * 60 * 1000;
+const FORCE_REASON_MIN = 3;
+const FORCE_REASON_MAX = 255;
 
 export class StaffAttendanceService {
   constructor(
@@ -582,6 +592,123 @@ export class StaffAttendanceService {
     };
   }
 
+  /**
+   * Cierre forzado de la jornada abierta de OTRA persona (owner/admin). Hoy
+   * una jornada colgada bloquea el check-in de esa persona en todas las sedes.
+   *
+   * Orden de validación: motivo/fecha mal formados (400) → jornada inexistente
+   * (404) → sede sin acceso (403, mismo `canAccessBranch` que el check-in) →
+   * ya cerrada (409) → salida antes de la entrada o en el futuro (400).
+   * El cierre deja `checklist = NULL` a propósito (marca de cierre no normal),
+   * guarda quién y por qué, y escribe `audit_log` en la MISMA transacción.
+   */
+  async forceCheckOut(
+    ctx: TenantContext,
+    scope: CountryScope,
+    actorId: number,
+    shiftId: number,
+    checkedOutAtIso: string,
+    rawReason: string,
+    now: Date = new Date(),
+  ): Promise<StaffShiftListRow> {
+    const reason = rawReason.trim();
+    if (reason.length < FORCE_REASON_MIN || reason.length > FORCE_REASON_MAX) {
+      throw new BadRequestError(
+        `El motivo debe tener entre ${FORCE_REASON_MIN} y ${FORCE_REASON_MAX} caracteres`,
+      );
+    }
+    const checkedOutAt = new Date(checkedOutAtIso);
+    if (Number.isNaN(checkedOutAt.getTime())) {
+      throw new BadRequestError("La hora de salida es inválida");
+    }
+
+    const [shift] = await this.db
+      .select({
+        id: schema.staffShifts.id,
+        userId: schema.staffShifts.userId,
+        branchId: schema.staffShifts.branchId,
+        checkedInAt: schema.staffShifts.checkedInAt,
+        checkedOutAt: schema.staffShifts.checkedOutAt,
+      })
+      .from(schema.staffShifts)
+      .where(
+        and(
+          tenantWhere(schema.staffShifts, ctx),
+          eq(schema.staffShifts.id, shiftId),
+        ),
+      )
+      .limit(1);
+    if (!shift) {
+      throw new NotFoundError("Jornada no encontrada");
+    }
+
+    if (!(await canAccessBranch(scope, shift.branchId, this.db))) {
+      throw new BranchOutOfScopeError();
+    }
+
+    if (shift.checkedOutAt !== null) {
+      throw new ConflictError("La jornada ya está cerrada");
+    }
+    if (checkedOutAt.getTime() < shift.checkedInAt.getTime()) {
+      throw new BadRequestError(
+        "La hora de salida no puede ser anterior a la entrada",
+      );
+    }
+    if (
+      checkedOutAt.getTime() >
+      now.getTime() + FORCE_CHECKOUT_FUTURE_TOLERANCE_MS
+    ) {
+      throw new BadRequestError(
+        "La hora de salida no puede estar en el futuro",
+      );
+    }
+
+    await this.db.transaction(async (tx) => {
+      // Condicional: si otra request la cerró entre el SELECT y acá, no pisa.
+      const [result] = await tx
+        .update(schema.staffShifts)
+        .set({
+          checkedOutAt,
+          checklist: null,
+          forcedCheckoutBy: actorId,
+          forcedCheckoutReason: reason,
+        })
+        .where(
+          and(
+            tenantWhere(schema.staffShifts, ctx),
+            eq(schema.staffShifts.id, shift.id),
+            isNull(schema.staffShifts.checkedOutAt),
+          ),
+        );
+      if (Number(result.affectedRows ?? 0) === 0) {
+        throw new ConflictError("La jornada ya está cerrada");
+      }
+
+      await auditLog.write(ctx, tx, {
+        actorId,
+        action: "staff_shift_forced_checkout",
+        targetKind: "staff_shift",
+        targetId: shift.id,
+        reason,
+        payload: {
+          shiftId: shift.id,
+          userId: shift.userId,
+          branchId: shift.branchId,
+          checkedInAt: shift.checkedInAt.toISOString(),
+          checkedOutAt: checkedOutAt.toISOString(),
+          reason,
+        },
+      });
+    });
+
+    const [row] = await this.selectShifts(
+      ctx,
+      [shift.branchId],
+      [eq(schema.staffShifts.id, shift.id)],
+    );
+    return row;
+  }
+
   // ─── Helpers privados ─────────────────────────────────────────────────────
 
   /**
@@ -595,6 +722,10 @@ export class StaffAttendanceService {
   ): Promise<StaffShiftListRow[]> {
     if (branchIds.length === 0) return [];
 
+    // Quién forzó el cierre (LEFT: el filtro de tenant va en el ON, nunca en el
+    // WHERE, o convertiría el LEFT en INNER).
+    const forcer = alias(schema.users, "forcer");
+
     const rows = await this.db
       .select({
         id: schema.staffShifts.id,
@@ -607,6 +738,9 @@ export class StaffAttendanceService {
         checkedInAt: schema.staffShifts.checkedInAt,
         checkedOutAt: schema.staffShifts.checkedOutAt,
         checklist: schema.staffShifts.checklist,
+        forcedByFirstName: forcer.firstName,
+        forcedByLastName: forcer.lastName,
+        forcedReason: schema.staffShifts.forcedCheckoutReason,
       })
       .from(schema.staffShifts)
       .innerJoin(
@@ -618,6 +752,13 @@ export class StaffAttendanceService {
         and(
           tenantWhere(schema.users, ctx),
           eq(schema.staffShifts.userId, schema.users.id),
+        ),
+      )
+      .leftJoin(
+        forcer,
+        and(
+          tenantWhere(forcer, ctx),
+          eq(schema.staffShifts.forcedCheckoutBy, forcer.id),
         ),
       )
       .where(
@@ -645,6 +786,11 @@ export class StaffAttendanceService {
         checkedInAt: row.checkedInAt.toISOString(),
         checkedOutAt: row.checkedOutAt ? row.checkedOutAt.toISOString() : null,
         durationMinutes,
+        forcedByName:
+          row.forcedByFirstName !== null
+            ? `${row.forcedByFirstName} ${row.forcedByLastName ?? ""}`.trim()
+            : null,
+        forcedReason: row.forcedReason ?? null,
         checklist: row.checklist ?? null,
       };
     });

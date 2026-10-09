@@ -77,7 +77,27 @@ export interface StaffAttendanceShiftRow {
   checkedInAt: string;
   checkedOutAt: string | null;
   durationMinutes: number | null;
+  /** Cierre forzado por owner/admin: quién y por qué (null en un cierre normal). */
+  forcedByName: string | null;
+  forcedReason: string | null;
   checklist: StaffAttendanceChecklistValues | null;
+}
+
+/** Jornada abierta que el owner/admin va a cerrar a la fuerza. `shiftDate` null = de hoy (tablero "en turno ahora"). */
+export interface ForceCheckoutTarget {
+  shiftId: number;
+  userName: string;
+  branchName: string;
+  checkedInAt: string;
+  shiftDate: string | null;
+}
+
+/** Body de `POST /admin/staff-attendance/shifts/:id/force-checkout`. */
+export interface StaffAttendanceForceCheckoutBody {
+  /** ISO date-time (instante absoluto, construido desde la hora local del navegador). */
+  checkedOutAt: string;
+  /** 3..255 caracteres. */
+  reason: string;
 }
 
 /** Filtros comunes de `GET /shifts` y `GET /dashboard`. */
@@ -251,6 +271,32 @@ export function useStaffAttendanceApi() {
     }
   }
 
+  /**
+   * POST /admin/staff-attendance/shifts/:id/force-checkout — owner/admin
+   * cierran la jornada abierta de otra persona. Errores esperables: 400 (hora
+   * anterior a la entrada o futura, motivo inválido), 403 (sede de otro
+   * país), 404, 409 (ya cerrada). Devuelve la fila actualizada.
+   */
+  async function forceCheckOut(
+    shiftId: number,
+    body: StaffAttendanceForceCheckoutBody
+  ): Promise<StaffAttendanceShiftRow> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ shift: StaffAttendanceShiftRow }>(
+        `/admin/staff-attendance/shifts/${shiftId}/force-checkout`,
+        body
+      );
+      return data.shift;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo forzar la salida');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   function cleanup() {
     loading.value = false;
     error.value = null;
@@ -264,6 +310,7 @@ export function useStaffAttendanceApi() {
     checkOut,
     getShifts,
     getDashboard,
+    forceCheckOut,
     cleanup,
   };
 }

@@ -5,6 +5,7 @@ import {
   date,
   timestamp,
   json,
+  varchar,
   index,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
@@ -54,6 +55,12 @@ export const staffShifts = mysqlTable(
       /** Lote del posnet: solo mié/sáb. null = no aplicaba ese día. */
       lote: boolean | null;
     }>(),
+    // Cierre forzado por owner/admin (0262). NULL en un cierre normal. Un
+    // cierre forzado deja `checklist` en NULL a propósito.
+    forcedCheckoutBy: int("forced_checkout_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    forcedCheckoutReason: varchar("forced_checkout_reason", { length: 255 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [

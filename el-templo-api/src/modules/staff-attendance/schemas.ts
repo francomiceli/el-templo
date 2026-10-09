@@ -127,39 +127,65 @@ const staffShiftsQuerystring = {
   },
 };
 
+/** Una fila del registro (`GET /shifts`, respuesta de `force-checkout`). */
+const staffShiftRowSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    userId: { type: "integer" },
+    userName: { type: "string" },
+    branchId: { type: "integer" },
+    branchName: { type: "string" },
+    shiftDate: { type: "string" },
+    checkedInAt: { type: "string" },
+    checkedOutAt: { type: ["string", "null"] },
+    durationMinutes: { type: ["integer", "null"] },
+    // Cierre forzado por owner/admin (0262): null en un cierre normal.
+    forcedByName: { type: ["string", "null"] },
+    forcedReason: { type: ["string", "null"] },
+    checklist: {
+      type: ["object", "null"],
+      properties: {
+        cobros: { type: ["boolean", "null"] },
+        espacio: { type: "boolean" },
+        lote: { type: ["boolean", "null"] },
+        videos: { type: ["boolean", "null"] },
+      },
+    },
+  },
+};
+
 export const staffAttendanceShiftsSchema = {
   querystring: staffShiftsQuerystring,
   response: {
     200: {
       type: "object",
       properties: {
-        shifts: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              id: { type: "integer" },
-              userId: { type: "integer" },
-              userName: { type: "string" },
-              branchId: { type: "integer" },
-              branchName: { type: "string" },
-              shiftDate: { type: "string" },
-              checkedInAt: { type: "string" },
-              checkedOutAt: { type: ["string", "null"] },
-              durationMinutes: { type: ["integer", "null"] },
-              checklist: {
-                type: ["object", "null"],
-                properties: {
-                  cobros: { type: ["boolean", "null"] },
-                  espacio: { type: "boolean" },
-                  lote: { type: ["boolean", "null"] },
-                  videos: { type: ["boolean", "null"] },
-                },
-              },
-            },
-          },
-        },
+        shifts: { type: "array", items: staffShiftRowSchema },
       },
+    },
+  },
+};
+
+export const staffAttendanceForceCheckoutSchema = {
+  params: {
+    type: "object",
+    required: ["id"],
+    properties: { id: { type: "integer", minimum: 1 } },
+  },
+  body: {
+    type: "object",
+    required: ["checkedOutAt", "reason"],
+    additionalProperties: false,
+    properties: {
+      checkedOutAt: { type: "string", format: "date-time" },
+      reason: { type: "string", minLength: 3, maxLength: 255 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: { shift: staffShiftRowSchema },
     },
   },
 };
@@ -247,6 +273,17 @@ export interface StaffCheckOutBody {
     /** Solo profes (`coach`). */
     videos?: boolean;
   };
+}
+
+export interface StaffForceCheckoutParams {
+  id: number;
+}
+
+export interface StaffForceCheckoutBody {
+  /** ISO date-time. */
+  checkedOutAt: string;
+  /** 3..255 caracteres tras el trim (lo re-valida el service). */
+  reason: string;
 }
 
 export interface StaffShiftsQuery {

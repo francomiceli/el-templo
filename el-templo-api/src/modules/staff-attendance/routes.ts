@@ -33,9 +33,12 @@ import {
   staffAttendanceCheckOutSchema,
   staffAttendanceShiftsSchema,
   staffAttendanceDashboardSchema,
+  staffAttendanceForceCheckoutSchema,
   type StaffCheckInBody,
   type StaffCheckOutBody,
   type StaffShiftsQuery,
+  type StaffForceCheckoutParams,
+  type StaffForceCheckoutBody,
 } from "./schemas";
 
 export const staffAttendanceRoutes: FastifyPluginAsync = async (fastify) => {
@@ -234,6 +237,55 @@ export const staffAttendanceRoutes: FastifyPluginAsync = async (fastify) => {
           reply,
           request.log,
           "staff attendance dashboard",
+        );
+      }
+    },
+  );
+
+  /**
+   * POST /shifts/:id/force-checkout — owner/admin cierran la jornada abierta
+   * de otra persona (que si no bloquea su check-in en todas las sedes). Exige
+   * hora de salida y motivo; deja el checklist en NULL y un registro en
+   * `audit_log`. Acceso a la sede de la jornada con `canAccessBranch` (dentro
+   * del service: la sede sale de la fila, no del request).
+   */
+  fastify.post<{
+    Params: StaffForceCheckoutParams;
+    Body: StaffForceCheckoutBody;
+  }>(
+    "/shifts/:id/force-checkout",
+    {
+      schema: staffAttendanceForceCheckoutSchema,
+      preHandler: [requireReportRole],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "staff-attendance.forceCheckout",
+        );
+        const shift = await service.forceCheckOut(
+          ctx,
+          request.scope,
+          request.user.userId,
+          request.params.id,
+          request.body.checkedOutAt,
+          request.body.reason,
+        );
+        return reply.send({ shift });
+      } catch (err: unknown) {
+        if (err instanceof AppError && err.code === BRANCH_OUT_OF_SCOPE) {
+          return reply.code(403).send({
+            error: "Forbidden",
+            message: err.message,
+            code: BRANCH_OUT_OF_SCOPE,
+          });
+        }
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "staff attendance force checkout",
         );
       }
     },
