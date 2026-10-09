@@ -56,6 +56,18 @@ import {
   dateOffsetStr,
 } from "./_helpers";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { todayInTz } from "../../src/modules/shared/date-utils";
+
+// Cambio de plan inmediato: el prorrateo cuenta los días con la fecha de la
+// SEDE (todayForBranch), no UTC. Estos escenarios arman las fechas en hora
+// argentina para no romperse entre las 21:00 y las 24:00 AR (2026-10-08).
+const TZ_AR = "America/Argentina/Buenos_Aires";
+const arToday = (): string => todayInTz(TZ_AR);
+function arDateOffset(days: number): string {
+  const d = new Date(`${arToday()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
   let app: FastifyInstance;
@@ -358,7 +370,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
           branchId: 1,
-          startDate: todayStr(),
+          startDate: arToday(),
           priceTypeApplied: "regular",
           paymentMethod: "cash",
           ...overrides,
@@ -387,7 +399,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       });
       await assignPlan(app, adminToken, member.id, {
         planId: planA.id,
-        startDate: dateOffsetStr(-15),
+        startDate: arDateOffset(-15),
       });
 
       const res = await changeNow(member.id as number, { planId: planB.id });
@@ -416,7 +428,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       });
       await assignPlan(app, adminToken, member.id, {
         planId: planA.id,
-        startDate: dateOffsetStr(-15),
+        startDate: arDateOffset(-15),
       });
 
       const res = await changeNow(member.id as number, {
@@ -455,7 +467,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       });
       await assignPlan(app, adminToken, member.id, {
         planId: planA.id,
-        startDate: dateOffsetStr(-15),
+        startDate: arDateOffset(-15),
       });
 
       const res = await changeNow(member.id as number, {
@@ -494,7 +506,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       });
       await assignPlan(app, adminToken, referrer.id, {
         planId: planA.id,
-        startDate: dateOffsetStr(-15),
+        startDate: arDateOffset(-15),
       });
       await seedQualifiedReferral(referrer.id, referred.id, planA.id as number);
 
@@ -994,7 +1006,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       });
       await assignPlan(app, adminToken, member.id, {
         planId: planA.id,
-        startDate: dateOffsetStr(-15),
+        startDate: arDateOffset(-15),
       });
 
       const pv = await preview(member.id as number, planB.id as number);
@@ -1007,7 +1019,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         payload: {
           planId: planB.id,
           branchId: 1,
-          startDate: todayStr(),
+          startDate: arToday(),
           priceTypeApplied: "regular",
           paymentMethod: "cash",
         },
@@ -1042,7 +1054,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
       });
       await assignPlan(app, adminToken, referrer.id, {
         planId: planA.id,
-        startDate: dateOffsetStr(-15),
+        startDate: arDateOffset(-15),
       });
       await seedQualifiedReferral(referrer.id, referred.id, planA.id as number);
 
@@ -1057,7 +1069,7 @@ describe("Subscriptions — Pricing golden (174-02, D-06, diff cero)", () => {
         payload: {
           planId: planB.id,
           branchId: 1,
-          startDate: todayStr(),
+          startDate: arToday(),
           priceTypeApplied: "regular",
           paymentMethod: "cash",
         },

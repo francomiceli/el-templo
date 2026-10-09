@@ -97,6 +97,7 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
+import { todayInTz, DEFAULT_TENANT_TIMEZONE } from "../shared/date-utils";
 import { assertBranchDelGimnasio } from "../shared/branch-consistency";
 import { membershipInEffectSql } from "../shared/membership";
 import { EnrollmentService } from "../programs/enrollment-service";
@@ -3972,6 +3973,28 @@ export class SubscriptionService {
   }
 
   /**
+   * Fecha de hoy ("YYYY-MM-DD") en la zona horaria de la sede. Los períodos de
+   * las suscripciones se cargan en fecha local de la sede, así que los cálculos
+   * por días (prorrateo) tienen que comparar contra el mismo calendario.
+   */
+  private async todayForBranch(
+    ctx: TenantContext,
+    branchId: number,
+  ): Promise<string> {
+    const [branch] = await this.db
+      .select({ timezone: schema.branches.timezone })
+      .from(schema.branches)
+      .where(
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, branchId),
+        ),
+      )
+      .limit(1);
+    return todayInTz(branch?.timezone || DEFAULT_TENANT_TIMEZONE);
+  }
+
+  /**
    * Calculate prorated credit for an active subscription.
    * Class-based plans: ratio of remaining classes to total budget.
    * Unlimited plans: ratio of remaining days to total duration.
@@ -3979,6 +4002,10 @@ export class SubscriptionService {
   calculateProration(
     subscription: SubscriptionDetail,
     plan: PlanDetail,
+    // "Hoy" en la zona de la SEDE (`todayForBranch`), no en UTC: con el día UTC,
+    // un cambio de plan hecho entre las 21:00 y las 24:00 de Argentina contaba
+    // un día más de uso y daba un día menos de crédito (CI rojo 2026-10-08).
+    today: string,
   ): ProrationResult {
     if (plan.classesPerWeek !== null) {
       // Class-based plan — use stored budget (single period, no accumulation)
@@ -3996,7 +4023,6 @@ export class SubscriptionService {
     }
 
     // Unlimited plan — prorate by remaining days using actual subscription duration
-    const today = new Date().toISOString().split("T")[0];
     const endDate = subscription.endDate;
     if (!endDate) {
       return {
@@ -4122,7 +4148,11 @@ export class SubscriptionService {
     }
 
     // Upgrade or same price: calculate proration
-    const proration = this.calculateProration(sub, currentPlan);
+    const proration = this.calculateProration(
+      sub,
+      currentPlan,
+      await this.todayForBranch(ctx, sub.branchId),
+    );
 
     // Fase 194-17 (D-08/D-10b/D-10c/D-20/D-21): el preview llama al MISMO helper que
     // el cobro de `changePlanNow` (`computeChargeDiscounts`, `mode: "preview"`,
@@ -4289,7 +4319,11 @@ export class SubscriptionService {
     }
 
     // Calculate proration from CURRENT subscription only (single record, no accumulation)
-    const proration = this.calculateProration(existingSub, currentPlan);
+    const proration = this.calculateProration(
+      existingSub,
+      currentPlan,
+      await this.todayForBranch(ctx, existingSub.branchId),
+    );
 
     // ── Árbitro de descuentos (fase 194-17: D-08/D-10b/D-10c/D-20/D-21/D-26a) ──
     // Mismo helper que assignPlan y changePlanAfterCurrent (paridad por construcción),
