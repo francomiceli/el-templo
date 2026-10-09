@@ -177,8 +177,11 @@ describe("Staff Attendance — registro multi-sede y tablero", () => {
     person3Id = p3.id;
     person1Name = `persona1 Dash${u}`;
 
+    const pad2 = (n: number): string => String(n).padStart(2, "0");
+    // Hora fija en UTC: ningún assert depende de la hora en que corre CI (el
+    // tablero solo mira shift_date, nunca compara checked_in_at con "ahora").
     const at = (date: string, hour: number, minute = 0): Date =>
-      new Date(`${date}T${String(hour).padStart(2, "0")}:${minute}:00Z`);
+      new Date(`${date}T${pad2(hour)}:${pad2(minute)}:00Z`);
     const minutesLater = (d: Date, min: number): Date =>
       new Date(d.getTime() + min * 60000);
 
