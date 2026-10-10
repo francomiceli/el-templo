@@ -653,7 +653,11 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // GET /members/:userId/class-usage — Get class usage info for a member
-  fastify.get<{ Params: { userId: number } }>(
+  // ?subscriptionId= lee una sub puntual (la presencial vencida a renovar).
+  fastify.get<{
+    Params: { userId: number };
+    Querystring: { subscriptionId?: number };
+  }>(
     "/members/:userId/class-usage",
     { schema: classUsageSchema },
     async (request, reply) => {
@@ -665,6 +669,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         const usage = await subscriptionService.getClassUsageThisWeek(
           classUsageCtx,
           request.params.userId,
+          request.query.subscriptionId,
         );
         const bonusUsage = await bookingService.getBonusUsage(
           classUsageCtx,

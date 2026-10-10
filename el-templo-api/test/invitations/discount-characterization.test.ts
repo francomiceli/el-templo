@@ -50,6 +50,18 @@ import { PRICING_SETTINGS_KEYS } from "../../src/modules/settings/keys";
 import { ReferralService } from "../../src/modules/referrals/service";
 import { tenantWhere } from "../../src/modules/shared/tenant";
 import { TENANT_TEMPLO } from "../fixtures/second-tenant";
+import { todayInTz } from "../../src/modules/shared/date-utils";
+
+// Cambio de plan: el prorrateo cuenta los días con la fecha de la SEDE
+// (todayForBranch), no UTC. Las fechas de esos escenarios van en hora
+// argentina para no romperse entre las 21:00 y las 24:00 AR (2026-10-08).
+const TZ_AR = "America/Argentina/Buenos_Aires";
+const arToday = (): string => todayInTz(TZ_AR);
+function arDateOffset(days: number): string {
+  const d = new Date(`${arToday()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 /** Gimnasio de las lecturas directas de este archivo (El Templo). */
 const TEMPLO_CTX = { tenantId: TENANT_TEMPLO };
@@ -254,7 +266,7 @@ async function changePlan(
     headers: { authorization: `Bearer ${adminToken}` },
     payload: {
       branchId: 1,
-      startDate: todayStr(),
+      startDate: arToday(),
       priceTypeApplied: "regular",
       paymentMethod: "cash",
       ...overrides,
@@ -288,7 +300,7 @@ async function memberWithHalfUsedSub(
   const m = await member(prefix);
   const res = await assignPlan(app, adminToken, m.id, {
     planId: planA.id,
-    startDate: dateOffsetStr(-15),
+    startDate: arDateOffset(-15),
   });
   expect(res.statusCode).toBe(201);
   return { id: m.id, planA, planB };

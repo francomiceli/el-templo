@@ -331,8 +331,12 @@ import {
 // 2026-10-07 (fase 195, plan 10): +2 por los reportes de origen de altas:
 // `GET /api/admin/reports/attribution` y
 // `GET /api/admin/reports/attribution/search-console`, ambas `tenant-scoped`.
-// Integración 194 + 195: 455 + 3 = 458.
-const ENTRADAS_BASELINE = 458;
+// 2026-10-08: +1 por el tablero de jornadas del staff (owner/admin):
+// `GET /api/admin/staff-attendance/dashboard`, `tenant-scoped`.
+// 2026-10-08: +1 por el cierre forzado de jornadas (owner/admin):
+// `POST /api/admin/staff-attendance/shifts/:id/force-checkout`, `tenant-scoped`.
+// Integración 195 + master 2026-10-10: 455 + 3 + 2 = 460.
+const ENTRADAS_BASELINE = 460;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;

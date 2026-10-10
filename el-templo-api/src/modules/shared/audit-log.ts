@@ -58,7 +58,9 @@ export type AuditAction =
   | "trial_booking_cancelled"
   // Fase 194 (LO-06): al activar una invitación el teléfono tipeado reemplazó a otro
   // distinto ya guardado en la ficha. Guarda el anterior para poder recuperarlo.
-  | "invitation_phone_replaced";
+  | "invitation_phone_replaced"
+  // Cierre forzado de una jornada del staff por owner/admin (2026-10-08).
+  | "staff_shift_forced_checkout";
 
 export type AuditTargetKind =
   | "subscription"
@@ -66,7 +68,8 @@ export type AuditTargetKind =
   | "member"
   | "renewal_followup"
   | "trial_followup"
-  | "booking";
+  | "booking"
+  | "staff_shift";
 
 export interface AuditWriteParams {
   actorId: number;

@@ -30,7 +30,13 @@ const CHECK_IN_URL = "/api/admin/staff-attendance/check-in";
 const CHECK_OUT_URL = "/api/admin/staff-attendance/check-out";
 const SHIFTS_URL = "/api/admin/staff-attendance/shifts";
 
-const VALID_CHECKLIST = { cobros: true, espacio: true, lote: true };
+// `videos` (2026-10-08): el usuario de estos tests es `coach`, que lo tiene siempre.
+const VALID_CHECKLIST = {
+  cobros: true,
+  espacio: true,
+  lote: true,
+  videos: true,
+};
 
 function uniqueSuffix(prefix: string): string {
   const t = Date.now().toString(36).slice(-5);
@@ -206,8 +212,10 @@ describe("Staff Attendance API", () => {
       expect(meBody.open.branchId).toBe(branchAId);
       expect(Array.isArray(meBody.checklist)).toBe(true);
       // Lote del posnet solo mié/sáb (día en la zona de la sede, AR por default).
+      // Con el rol: el coach además tiene el recordatorio `videos` (2026-10-08).
       const esperados = checklistForDow(
         dowInTz("America/Argentina/Buenos_Aires"),
+        "coach",
       ).map((c) => c.key);
       expect(meBody.checklist.map((c: { key: string }) => c.key)).toEqual(
         esperados,
@@ -338,6 +346,7 @@ describe("Staff Attendance API", () => {
         cobros: true,
         espacio: true,
         lote: loteAplica ? true : null,
+        videos: true,
       });
       expect(row.durationMinutes).toBeGreaterThanOrEqual(0);
     });
@@ -524,10 +533,14 @@ describe("Staff Attendance API", () => {
       });
       expect(
         JSON.parse(meRes.body).checklist.map((c: { key: string }) => c.key),
-      ).toEqual(["cobros", "espacio", "lote"]);
+      ).toEqual(["cobros", "espacio", "lote", "videos"]);
 
       // Cliente con la lista de otro día: no manda `lote`.
-      const sinLote = await checkOut({ cobros: true, espacio: true });
+      const sinLote = await checkOut({
+        cobros: true,
+        espacio: true,
+        videos: true,
+      });
       expect(sinLote.statusCode).toBe(400);
       const msg = JSON.parse(sinLote.body).message as string;
       expect(msg).toContain("Cerré el lote del posnet");
@@ -538,18 +551,25 @@ describe("Staff Attendance API", () => {
         cobros: true,
         espacio: true,
         lote: false,
+        videos: true,
       });
       expect(loteFalse.statusCode).toBe(400);
       const msg2 = JSON.parse(loteFalse.body).message as string;
       expect(msg2).toContain("Cerré el lote del posnet");
       expect(msg2).not.toContain("recargá");
 
-      const ok = await checkOut({ cobros: true, espacio: true, lote: true });
+      const ok = await checkOut({
+        cobros: true,
+        espacio: true,
+        lote: true,
+        videos: true,
+      });
       expect(ok.statusCode).toBe(200);
       expect(await snapshotDeHoy()).toEqual({
         cobros: true,
         espacio: true,
         lote: true,
+        videos: true,
       });
     });
 
@@ -564,25 +584,66 @@ describe("Staff Attendance API", () => {
       });
       expect(
         JSON.parse(meRes.body).checklist.map((c: { key: string }) => c.key),
-      ).toEqual(["cobros", "espacio"]);
+      ).toEqual(["cobros", "espacio", "videos"]);
 
       // Cliente con la lista del miércoles que manda lote: se ignora.
-      const ok = await checkOut({ cobros: true, espacio: true, lote: true });
+      const ok = await checkOut({
+        cobros: true,
+        espacio: true,
+        lote: true,
+        videos: true,
+      });
       expect(ok.statusCode).toBe(200);
       expect(await snapshotDeHoy()).toEqual({
         cobros: true,
         espacio: true,
         lote: null,
+        videos: true,
       });
     });
 
     it("sábado: el check-out sin lote -> 400 (el otro día del lote)", async () => {
       await saltarA(6);
       await checkIn();
-      const sinLote = await checkOut({ cobros: true, espacio: true });
+      const sinLote = await checkOut({
+        cobros: true,
+        espacio: true,
+        videos: true,
+      });
       expect(sinLote.statusCode).toBe(400);
-      const ok = await checkOut({ cobros: true, espacio: true, lote: true });
+      const ok = await checkOut({
+        cobros: true,
+        espacio: true,
+        lote: true,
+        videos: true,
+      });
       expect(ok.statusCode).toBe(200);
+    });
+
+    it("videos (2026-10-08): recordatorio del profe — se ofrece, no bloquea y queda registrado si no lo tildó", async () => {
+      await saltarA(2);
+      await checkIn();
+
+      const meRes = await app.inject({
+        method: "GET",
+        url: ME_URL,
+        headers: { Authorization: `Bearer ${coachTok}` },
+      });
+      const items = JSON.parse(meRes.body).checklist as Array<{
+        key: string;
+        required: boolean;
+      }>;
+      expect(items.find((i) => i.key === "videos")?.required).toBe(false);
+      expect(items.find((i) => i.key === "espacio")?.required).toBe(true);
+
+      const sinVideos = await checkOut({ cobros: true, espacio: true });
+      expect(sinVideos.statusCode).toBe(200);
+      expect(await snapshotDeHoy()).toEqual({
+        cobros: true,
+        espacio: true,
+        lote: null,
+        videos: false,
+      });
     });
   });
 });

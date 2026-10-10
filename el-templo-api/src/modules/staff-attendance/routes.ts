@@ -13,7 +13,7 @@
  *      que usa el preHandler estándar `requireBranchAccess`.
  */
 
-import { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { StaffAttendanceService } from "./service";
 import { handleServiceError } from "../shared/error-handler";
 import { AppError } from "../shared/errors";
@@ -32,9 +32,13 @@ import {
   staffAttendanceCheckInSchema,
   staffAttendanceCheckOutSchema,
   staffAttendanceShiftsSchema,
+  staffAttendanceDashboardSchema,
+  staffAttendanceForceCheckoutSchema,
   type StaffCheckInBody,
   type StaffCheckOutBody,
   type StaffShiftsQuery,
+  type StaffForceCheckoutParams,
+  type StaffForceCheckoutBody,
 } from "./schemas";
 
 export const staffAttendanceRoutes: FastifyPluginAsync = async (fastify) => {
@@ -148,44 +152,141 @@ export const staffAttendanceRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  /** Solo `STAFF_ATTENDANCE_REPORT_ROLES` (admin/owner): ven el registro ajeno. */
+  const requireReportRole = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    if (
+      !(STAFF_ATTENDANCE_REPORT_ROLES as readonly string[]).includes(
+        request.user.role,
+      )
+    ) {
+      return reply.code(403).send({
+        error: "Acceso denegado",
+        message: "Acceso requerido",
+      });
+    }
+  };
+
   /**
-   * GET /shifts?branchId=NN&from=YYYY-MM-DD&to=YYYY-MM-DD — registro de
-   * jornadas de una sede. Rol MÁS angosto que el resto del plugin
+   * GET /shifts?from=YYYY-MM-DD&to=YYYY-MM-DD[&branchId=NN][&country=AR|ES] —
+   * registro de jornadas. Rol MÁS angosto que el resto del plugin
    * (`STAFF_ATTENDANCE_REPORT_ROLES`): coach/recepcion fichan su propia
    * jornada pero no ven el registro ajeno.
+   *
+   * `branchId` es opcional: sin él devuelve las jornadas de TODAS las sedes del
+   * alcance (owner: todas o las del `country`; admin: las de su país), mismo
+   * criterio que `listBranchesForScope`.
    */
   fastify.get<{ Querystring: StaffShiftsQuery }>(
     "/shifts",
     {
       schema: staffAttendanceShiftsSchema,
       preHandler: [
-        async (request, reply) => {
-          if (
-            !(STAFF_ATTENDANCE_REPORT_ROLES as readonly string[]).includes(
-              request.user.role,
-            )
-          ) {
-            return reply.code(403).send({
-              error: "Acceso denegado",
-              message: "Acceso requerido",
-            });
-          }
-        },
-        requireBranchAccess({ from: "query.branchId" }),
+        requireReportRole,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
       ],
     },
     async (request, reply) => {
       try {
         const ctx = assertTenant(request.scope, "staff-attendance.shifts");
-        const shifts = await service.listShifts(
-          ctx,
-          request.query.branchId,
-          request.query.from,
-          request.query.to,
-        );
+        const { branchId, country, from, to } = request.query;
+        const branchIds =
+          branchId !== undefined
+            ? [branchId]
+            : (
+                await service.resolveBranches(request.scope, country, undefined)
+              ).map((b) => b.id);
+        const shifts = await service.listShifts(ctx, branchIds, from, to);
         return reply.send({ shifts });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "staff attendance shifts");
+      }
+    },
+  );
+
+  /**
+   * GET /dashboard?from&to[&branchId][&country] — tablero de jornadas: en
+   * turno ahora, abiertas sin check-out de días anteriores, totales y horas
+   * por persona del rango. Mismos roles y alcance que `GET /shifts`.
+   */
+  fastify.get<{ Querystring: StaffShiftsQuery }>(
+    "/dashboard",
+    {
+      schema: staffAttendanceDashboardSchema,
+      preHandler: [
+        requireReportRole,
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "staff-attendance.dashboard");
+        const { branchId, country, from, to } = request.query;
+        const branches = await service.resolveBranches(
+          request.scope,
+          country,
+          branchId,
+        );
+        const dashboard = await service.getDashboard(ctx, branches, from, to);
+        return reply.send(dashboard);
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "staff attendance dashboard",
+        );
+      }
+    },
+  );
+
+  /**
+   * POST /shifts/:id/force-checkout — owner/admin cierran la jornada abierta
+   * de otra persona (que si no bloquea su check-in en todas las sedes). Exige
+   * hora de salida y motivo; deja el checklist en NULL y un registro en
+   * `audit_log`. Acceso a la sede de la jornada con `canAccessBranch` (dentro
+   * del service: la sede sale de la fila, no del request).
+   */
+  fastify.post<{
+    Params: StaffForceCheckoutParams;
+    Body: StaffForceCheckoutBody;
+  }>(
+    "/shifts/:id/force-checkout",
+    {
+      schema: staffAttendanceForceCheckoutSchema,
+      preHandler: [requireReportRole],
+    },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(
+          request.scope,
+          "staff-attendance.forceCheckout",
+        );
+        const shift = await service.forceCheckOut(
+          ctx,
+          request.scope,
+          request.user.userId,
+          request.params.id,
+          request.body.checkedOutAt,
+          request.body.reason,
+        );
+        return reply.send({ shift });
+      } catch (err: unknown) {
+        if (err instanceof AppError && err.code === BRANCH_OUT_OF_SCOPE) {
+          return reply.code(403).send({
+            error: "Forbidden",
+            message: err.message,
+            code: BRANCH_OUT_OF_SCOPE,
+          });
+        }
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "staff attendance force checkout",
+        );
       }
     },
   );

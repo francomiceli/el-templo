@@ -694,6 +694,12 @@ export const classUsageSchema = {
       userId: { type: "integer" },
     },
   },
+  querystring: {
+    type: "object",
+    properties: {
+      subscriptionId: { type: "integer" },
+    },
+  },
   response: {
     200: {
       type: "object",

@@ -52,6 +52,7 @@ import { computed, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import { createLogger } from 'src/utils/logger';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -82,7 +83,7 @@ watch(
       reason.value = '';
       submitting.value = false;
     }
-  },
+  }
 );
 
 function onCancel(): void {
@@ -99,12 +100,21 @@ async function onConfirm(): Promise<void> {
     emit('voided');
     emit('update:modelValue', false);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error anulando transacción', {
-      error: message,
-      transactionId: props.transactionId,
-    });
-    $q.notify({ type: 'negative', message });
+    // El 4xx trae el motivo real (p. ej. cobro incluido en un retiro de caja):
+    // se muestra tal cual y no se reporta a Sentry como error.
+    const message = extractError(err, 'Error anulando transacción');
+    if (isExpectedClientError(err)) {
+      log.warn('Anulación rechazada por el servidor', {
+        error: message,
+        transactionId: props.transactionId,
+      });
+    } else {
+      log.error('Error anulando transacción', {
+        error: message,
+        transactionId: props.transactionId,
+      });
+    }
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     submitting.value = false;
   }

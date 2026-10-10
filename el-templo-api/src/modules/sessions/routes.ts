@@ -32,6 +32,7 @@ import {
   type CompleteSessionInput,
 } from "./schemas";
 import type { LevelGroup, DaySession, ExerciseLevel } from "./types";
+import { ALTERNATIVE_BLOCK_ROLES } from "./types";
 import { isKairos } from "./pipeline/utils/kairos";
 import { AuraService } from "../aura/service";
 import { StreakService } from "../streaks";
@@ -116,7 +117,13 @@ function buildDayIdCandidates(
 function sessionToResponse(
   session: DaySession,
   formatDescriptions: Map<string, string>,
+  opts: { hideAlternativeBlocks?: boolean } = {},
 ) {
+  // Rutas del alumno (/daily, /weekly): sin los bloques ALT de técnica/combos.
+  // Se filtra antes de mapear para que blockCount y sortOrder queden contiguos.
+  const blocks = opts.hideAlternativeBlocks
+    ? session.blocks.filter((block) => !ALTERNATIVE_BLOCK_ROLES.has(block.role))
+    : session.blocks;
   return {
     dayId: session.dayId,
     week: session.week,
@@ -124,8 +131,8 @@ function sessionToResponse(
     levelGroup: session.levelGroup,
     memberLevel: session.memberLevel,
     sessionMode: session.sessionMode || "regular",
-    blockCount: session.blocks.length,
-    blocks: session.blocks.map((block, idx) => {
+    blockCount: blocks.length,
+    blocks: blocks.map((block, idx) => {
       // Separate main exercises from mobility
       const mainExercises = block.exercises.filter(
         (ex) => ex.exerciseType !== "mobility",
@@ -513,7 +520,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Phase 104 R8: include `view` alongside session payload (sibling shape).
       return {
-        ...sessionToResponse(session, formatDescriptions),
+        ...sessionToResponse(session, formatDescriptions, {
+          hideAlternativeBlocks: true,
+        }),
         view: viewResult.kind,
       };
     },
@@ -650,7 +659,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           .map((id) => batchSessions.get(id))
           .find(Boolean);
         sessionsMap[date] = session
-          ? sessionToResponse(session, formatDescriptions)
+          ? sessionToResponse(session, formatDescriptions, {
+              hideAlternativeBlocks: true,
+            })
           : null;
       }
 

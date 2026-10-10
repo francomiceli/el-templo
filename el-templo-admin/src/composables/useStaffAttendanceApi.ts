@@ -26,8 +26,10 @@ export interface StaffAttendanceOpenShift {
 
 /** Ítem del checklist de cierre de jornada. */
 export interface StaffAttendanceChecklistItem {
-  key: 'cobros' | 'espacio' | 'lote';
+  key: 'cobros' | 'espacio' | 'lote' | 'videos';
   label: string;
+  /** false = recordatorio: se ofrece pero no bloquea el cierre. */
+  required: boolean;
 }
 
 /** Respuesta de `GET /admin/staff-attendance/me`. */
@@ -60,6 +62,8 @@ export interface StaffAttendanceChecklistValues {
   espacio: boolean;
   /** Lote del posnet: solo miércoles y sábados (lo decide el server por sede). */
   lote?: boolean;
+  /** Videos de ejercicios para la app (recordatorio de los profes): false = no lo tildó; null/ausente = no aplicaba. */
+  videos?: boolean | null;
 }
 
 /** Una fila del registro (`GET /admin/staff-attendance/shifts`). */
@@ -73,7 +77,81 @@ export interface StaffAttendanceShiftRow {
   checkedInAt: string;
   checkedOutAt: string | null;
   durationMinutes: number | null;
+  /** Cierre forzado por owner/admin: quién y por qué (null en un cierre normal). */
+  forcedByName: string | null;
+  forcedReason: string | null;
   checklist: StaffAttendanceChecklistValues | null;
+}
+
+/** Jornada abierta que el owner/admin va a cerrar a la fuerza. `shiftDate` null = de hoy (tablero "en turno ahora"). */
+export interface ForceCheckoutTarget {
+  shiftId: number;
+  userName: string;
+  branchName: string;
+  checkedInAt: string;
+  shiftDate: string | null;
+}
+
+/** Body de `POST /admin/staff-attendance/shifts/:id/force-checkout`. */
+export interface StaffAttendanceForceCheckoutBody {
+  /** ISO date-time (instante absoluto, construido desde la hora local del navegador). */
+  checkedOutAt: string;
+  /** 3..255 caracteres. */
+  reason: string;
+}
+
+/** Filtros comunes de `GET /shifts` y `GET /dashboard`. */
+export interface StaffAttendanceReportParams {
+  /** Sin `branchId` = todas las sedes del alcance del usuario. */
+  branchId?: number;
+  /** Solo lo honra el owner (el admin queda siempre en su país). */
+  country?: 'AR' | 'ES';
+  from: string;
+  to: string;
+}
+
+/** Jornada abierta del tablero (`openNow`). */
+export interface StaffDashboardOpenShift {
+  shiftId: number;
+  userId: number;
+  userName: string;
+  branchId: number;
+  branchName: string;
+  checkedInAt: string;
+}
+
+/** Jornada abierta de un día anterior (sin check-out). */
+export interface StaffDashboardStaleShift extends StaffDashboardOpenShift {
+  shiftDate: string;
+}
+
+export interface StaffDashboardPerson {
+  userId: number;
+  userName: string;
+  branchNames: string[];
+  shifts: number;
+  totalMinutes: number;
+}
+
+/** Respuesta de `GET /admin/staff-attendance/dashboard`. */
+export interface StaffAttendanceDashboard {
+  branches: { id: number; name: string }[];
+  openNow: StaffDashboardOpenShift[];
+  staleOpen: StaffDashboardStaleShift[];
+  totals: {
+    shifts: number;
+    closedShifts: number;
+    openShifts: number;
+    totalMinutes: number;
+  };
+  byPerson: StaffDashboardPerson[];
+}
+
+function reportQuery(opts: StaffAttendanceReportParams): Record<string, string | number> {
+  const params: Record<string, string | number> = { from: opts.from, to: opts.to };
+  if (opts.branchId !== undefined) params.branchId = opts.branchId;
+  if (opts.country !== undefined) params.country = opts.country;
+  return params;
 }
 
 export function useStaffAttendanceApi() {
@@ -147,25 +225,72 @@ export function useStaffAttendanceApi() {
   }
 
   /**
-   * GET /admin/staff-attendance/shifts?branchId=NN&from=YYYY-MM-DD&to=YYYY-MM-DD
-   * — registro de jornadas por sede/fechas (solo owner/admin/gestion en el
-   * API; rango máx 62 días). Usado por la sección "Registro" de JornadaPage.
+   * GET /admin/staff-attendance/shifts?from=YYYY-MM-DD&to=YYYY-MM-DD[&branchId=NN][&country=AR|ES]
+   * — registro de jornadas (solo owner/admin en el API; rango máx 62 días).
+   * Sin `branchId` trae todas las sedes del alcance. Usado por la sección
+   * "Registro" de CheckInPage.
    */
-  async function getShifts(opts: {
-    branchId: number;
-    from: string;
-    to: string;
-  }): Promise<StaffAttendanceShiftRow[]> {
+  async function getShifts(opts: StaffAttendanceReportParams): Promise<StaffAttendanceShiftRow[]> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await api.get<{ shifts: StaffAttendanceShiftRow[] }>(
         '/admin/staff-attendance/shifts',
-        { params: { branchId: opts.branchId, from: opts.from, to: opts.to } }
+        { params: reportQuery(opts) }
       );
       return data.shifts;
     } catch (err: unknown) {
       error.value = extractError(err, 'No se pudo cargar el registro de jornadas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * GET /admin/staff-attendance/dashboard — tablero de jornadas: en turno
+   * ahora, abiertas sin check-out de días anteriores (ambas sin importar el
+   * rango) y totales / horas por persona del rango pedido.
+   */
+  async function getDashboard(
+    opts: StaffAttendanceReportParams
+  ): Promise<StaffAttendanceDashboard> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<StaffAttendanceDashboard>(
+        '/admin/staff-attendance/dashboard',
+        { params: reportQuery(opts) }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo cargar el tablero de jornadas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * POST /admin/staff-attendance/shifts/:id/force-checkout — owner/admin
+   * cierran la jornada abierta de otra persona. Errores esperables: 400 (hora
+   * anterior a la entrada o futura, motivo inválido), 403 (sede de otro
+   * país), 404, 409 (ya cerrada). Devuelve la fila actualizada.
+   */
+  async function forceCheckOut(
+    shiftId: number,
+    body: StaffAttendanceForceCheckoutBody
+  ): Promise<StaffAttendanceShiftRow> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ shift: StaffAttendanceShiftRow }>(
+        `/admin/staff-attendance/shifts/${shiftId}/force-checkout`,
+        body
+      );
+      return data.shift;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'No se pudo forzar la salida');
       throw err;
     } finally {
       loading.value = false;
@@ -184,6 +309,8 @@ export function useStaffAttendanceApi() {
     checkIn,
     checkOut,
     getShifts,
+    getDashboard,
+    forceCheckOut,
     cleanup,
   };
 }

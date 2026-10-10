@@ -409,6 +409,8 @@ describe("Rol coach_actividad — profe sin plata", () => {
       ).checklist.map((c) => c.key);
       expect(keys).toContain("cobros");
       expect(keys).toContain("espacio");
+      // 2026-10-08: los profes (`coach`) además graban videos para la app.
+      expect(keys).toContain("videos");
     });
 
     it("coach normal: check-out sin `cobros` → 400 (sigue exigiéndolo)", async () => {
@@ -436,7 +438,7 @@ describe("Rol coach_actividad — profe sin plata", () => {
         headers: auth(coachToken),
         payload: {
           qrToken,
-          checklist: { cobros: true, espacio: true, lote: true },
+          checklist: { cobros: true, espacio: true, lote: true, videos: true },
         },
       });
       expect(okRes.statusCode).toBe(200);
@@ -490,11 +492,12 @@ describe("Rol coach_actividad — profe sin plata", () => {
             eq(schema.staffShifts.userId, actId),
           ),
         );
-      // `cobros` y `lote` no aplicaban: null, no false.
+      // `cobros`, `lote` y `videos` no aplicaban: null, no false.
       expect(shift.checklist).toEqual({
         cobros: null,
         espacio: true,
         lote: null,
+        videos: null,
       });
     });
   });

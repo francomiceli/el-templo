@@ -405,6 +405,7 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { formatPrice } from 'src/utils/format-price';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import {
@@ -754,9 +755,13 @@ async function submitAnular() {
     anularDialog.value = false;
     await loadBandeja();
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error voiding transaction', { error: message });
-    $q.notify({ type: 'negative', message: 'Error al anular el pago' });
+    const message = extractError(err, 'Error al anular el pago');
+    if (isExpectedClientError(err)) {
+      log.warn('Void rejected by server', { error: message });
+    } else {
+      log.error('Error voiding transaction', { error: message });
+    }
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     dialogLoading.value = false;
   }

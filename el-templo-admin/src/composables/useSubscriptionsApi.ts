@@ -363,12 +363,18 @@ export function useSubscriptionsApi() {
 
   // ─── Class Usage ─────────────────────────────────────────────────────
 
-  async function getClassUsage(userId: number): Promise<ClassUsageInfo | null> {
+  // subscriptionId: uso/turnos de esa sub puntual (p. ej. la presencial
+  // vencida que se va a renovar); sin él, de la vigente.
+  async function getClassUsage(
+    userId: number,
+    subscriptionId?: number
+  ): Promise<ClassUsageInfo | null> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await api.get<ClassUsageInfo>(
-        `/admin/subscriptions/members/${userId}/class-usage`
+        `/admin/subscriptions/members/${userId}/class-usage`,
+        subscriptionId !== undefined ? { params: { subscriptionId } } : undefined
       );
       return data;
     } catch (err: unknown) {
