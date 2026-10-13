@@ -291,6 +291,12 @@ export interface TvRecorridoBloque {
   subtitle: string | null;
   /** Unicas, en el orden de declaracion de `TvZonaMuscular`. */
   zonas: TvZonaMuscular[];
+  /** Formatos de los bloques del grupo (`formatName`), distintos, unidos con " / ";
+   *  `null` si ninguno trae formato. */
+  format: string | null;
+  /** Intensidad (%) de los bloques del grupo en los niveles mostrados: cada nivel
+   *  planifica la suya, así que viaja como rango. `null` sin bloques. */
+  intensity: { min: number; max: number } | null;
 }
 
 export interface TvRecorridoPayload {

@@ -255,6 +255,19 @@ export const tvControlScreenSchema = {
                       title: { type: "string" },
                       subtitle: { type: ["string", "null"] },
                       zonas: { type: "array", items: { type: "string" } },
+                      format: { type: ["string", "null"] },
+                      intensity: {
+                        anyOf: [
+                          { type: "null" },
+                          {
+                            type: "object",
+                            properties: {
+                              min: { type: "integer" },
+                              max: { type: "integer" },
+                            },
+                          },
+                        ],
+                      },
                     },
                   },
                 },

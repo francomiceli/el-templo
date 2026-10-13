@@ -2698,30 +2698,53 @@ onUnmounted(() => {
 #tvScreenRoot .recTexto {
   /* Angosta a propósito: los rótulos de la cadera del cuerpo masculino salen
      hacia la izquierda y no pueden pisar la leyenda (UAT 2026-10-05). */
-  width: 28.5rem;
-  padding-left: 4.5rem;
+  width: 34rem;
+  padding-left: 5rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  /* Centrado vertical corrido hacia arriba (UAT 2026-10-13). */
+  padding-bottom: 7rem;
   position: relative;
   z-index: 2;
-}
-#tvScreenRoot .recKicker {
-  font-family: var(--nunito);
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: 0.34em;
-  color: var(--gold);
-  margin-bottom: 1rem;
 }
 #tvScreenRoot .recTitulo {
   font-family: var(--cinzel);
   font-weight: 700;
-  font-size: 3.5rem;
+  font-size: 4.4rem;
   line-height: 1.04;
   letter-spacing: 0.03em;
   color: var(--navy);
   margin-bottom: 2.6rem;
+}
+/* Ventana de la leyenda (UAT 2026-10-13): alto fijo; la pista se desplaza hasta el
+   bloque en foco y el degradé avisa que hay más arriba/abajo (render: desplazarLeyenda). */
+#tvScreenRoot .recLeyenda {
+  position: relative;
+  max-height: 29rem;
+  overflow: hidden;
+}
+#tvScreenRoot .recLeyenda.masAbajo {
+  -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+}
+#tvScreenRoot .recLeyenda.masArriba {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18%);
+}
+#tvScreenRoot .recLeyenda.masArriba.masAbajo {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 18%,
+    #000 78%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18%, #000 78%, transparent 100%);
+}
+#tvScreenRoot .recPista {
+  transition: transform 0.9s ease;
+  will-change: transform;
 }
 #tvScreenRoot .recItem {
   display: flex;
@@ -2753,45 +2776,85 @@ onUnmounted(() => {
 #tvScreenRoot .recRol {
   font-family: var(--cinzel);
   font-weight: 700;
-  font-size: 2rem;
+  font-size: 2.7rem;
   line-height: 1.05;
   letter-spacing: 0.04em;
 }
+/* Resumen (cuerpo completo, sin bloque en foco): solo el nombre de la ruta. */
+#tvScreenRoot .recRutaSola {
+  display: none;
+  /* Misma letra que los ejercicios de la plani (`.ej-nombre`): Nunito bold. */
+  font-family: var(--nunito);
+  font-weight: 700;
+  font-size: 2.35rem;
+  line-height: 1.25;
+}
+#tvScreenRoot .recLeyenda.resumen .recRutaSola {
+  display: block;
+}
+#tvScreenRoot .recLeyenda.resumen .recItem--unido {
+  display: none;
+}
+#tvScreenRoot .recLeyenda.resumen .recRol,
+#tvScreenRoot .recLeyenda.resumen .recMeta,
+#tvScreenRoot .recLeyenda.resumen .recSub {
+  display: none;
+}
+#tvScreenRoot .recMeta {
+  font-family: var(--nunito);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-top: 0.3rem;
+}
 #tvScreenRoot .recSub {
   font-family: var(--nunito);
-  font-size: 1.1rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--trans-apagado-dia);
   margin: 0.15rem 0 0.35rem;
-}
-#tvScreenRoot .recZonas {
-  font-family: var(--nunito);
-  font-size: 0.98rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-}
-#tvScreenRoot .recPie {
-  position: absolute;
-  left: 4.5rem;
-  bottom: 2.6rem;
-  font-family: var(--nunito);
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0.26em;
-  text-transform: uppercase;
-  color: var(--trans-apagado-dia);
-  z-index: 2;
-}
-#tvScreenRoot .recPie b {
-  color: var(--navy);
 }
 #tvScreenRoot .recCuerpos {
   flex: 1;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  /* Aire a los dos lados para los rótulos (izquierda: el hombre, derecha: la mujer). */
-  padding: 0 7rem 2.4rem 6.5rem;
+  /* La leyenda de zonas va ENTRE los cuerpos (UAT 2026-10-13): poco aire afuera.
+     `relative`: es el offsetParent con el que se miden los puntos de la leyenda. */
+  position: relative;
+  padding: 0 2rem 1.6rem 2rem;
+}
+/* Hueco central para la leyenda de zonas. */
+#tvScreenRoot .recFig + .recFig {
+  margin-left: 13rem;
+}
+/* Leyenda de zonas única: una capa por vista que se funde con el giro, igual que las
+   vistas de las figuras; adentro, una capa por bloque (`.recCall`, encendida por foco). */
+#tvScreenRoot .recCallVista {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 1.5s ease-in-out;
+}
+#tvScreenRoot .recCallVista--espalda,
+#tvScreenRoot .recCuerpos.back .recCallVista--frente {
+  opacity: 0;
+}
+#tvScreenRoot .recCuerpos.back .recCallVista--espalda {
+  opacity: 1;
+}
+#tvScreenRoot .recCallVista .recCall {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 #tvScreenRoot .recFig {
   position: relative;
@@ -2857,6 +2920,7 @@ onUnmounted(() => {
   font-weight: 700;
 }
 #tvScreenRoot.tv-sobrio .recItem,
+#tvScreenRoot.tv-sobrio .recPista,
 #tvScreenRoot.tv-sobrio .recFig,
 #tvScreenRoot.tv-sobrio .recVista,
 #tvScreenRoot.tv-sobrio .recOv,
@@ -2865,6 +2929,7 @@ onUnmounted(() => {
 }
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .recItem,
+  #tvScreenRoot .recPista,
   #tvScreenRoot .recFig,
   #tvScreenRoot .recVista,
   #tvScreenRoot .recOv,

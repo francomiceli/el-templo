@@ -10,9 +10,13 @@
  *    orden, SIN INITIUM (PYROS): la entrada en calor es compartida y no
  *    tiene zonas propias que mostrar.
  *  - Se agrupa por grupo visual (`visualGroupOf`): `*_II` + `*_II_ALT` es UN
- *    item (la alternativa es otro camino del mismo bloque). EXCEPCION: los
+ *    item (la alternativa es otro camino del mismo bloque). EXCEPCIONES: los
  *    deuteros van SIEMPRE desagregados (pedido 2026-10-05) — DEUTEROS_1 y
- *    DEUTEROS_2 trabajan cosas distintas y cada uno lleva su color.
+ *    DEUTEROS_2 trabajan cosas distintas y cada uno lleva su color; y la
+ *    tecnica va JUNTA (2026-10-13) — TECNICA_I y TECNICA_II trabajan lo mismo:
+ *    un item "TÉCNICA I Y II". En el dia de tecnica, el STRETCHING de cierre
+ *    (KINESIS) lleva "Stretching" de subtitulo y las mismas zonas que la
+ *    tecnica.
  *    `role` es el primero del grupo.
  *  - `title`: el rotulo que la TV ya le pone al bloque, o sea la etiqueta de
  *    `roster.title` (todo lo que va antes del " · FORMATO" de `blockTitle`,
@@ -25,11 +29,13 @@
  *    `pairFor(state.level)` — las MISMAS columnas de la plani). Cada nivel hace
  *    un bloque distinto (DEUTEROS I: alfa cuadriceps, sigma empuje, spartan
  *    traccion): unir los seis pintaba el cuerpo entero.
+ *  - `format` / `intensity` (2026-10-13): formatos distintos de los bloques del
+ *    grupo y el rango de intensidad (%) entre los niveles mostrados.
  *  - `zonas`: las zonas DOMINANTES de las prescripciones `main` de esos
  *    niveles (`zonasDelGrupo`, `muscle-zones.ts`), con fallback por rol en ROM.
  *    Un grupo sin zonas igual se incluye (el front no pinta).
  */
-import { findBlock, buildRoster, visualGroupOf } from "./roster";
+import { findBlock, buildRoster, pairFor, visualGroupOf } from "./roster";
 import type { RosterClassDay } from "./roster";
 import type { ClassDay, ClassDayBlock } from "./class-day";
 import { getRouteLabel } from "./route-labels";
@@ -51,10 +57,21 @@ function groupTitle(firstTitle: string): string {
   return firstTitle.split(TITLE_SEPARATOR)[0];
 }
 
-/** Clave de agrupacion: el grupo visual, salvo los deuteros (siempre separados). */
+/** Grupo de los dos bloques de tecnica (con su `_ALT`): trabajan lo mismo y van
+ *  como UN item "TECNICA I Y II" (UAT 2026-10-13). */
+const TECNICA_GROUP = "TECNICA";
+const TECNICA_TITLE = "TÉCNICA I Y II";
+/** El cierre del dia de tecnica (KINESIS): "Stretching" abajo y las mismas zonas
+ *  que la tecnica (UAT 2026-10-13). */
+const STRETCHING_SUBTITLE = "Stretching";
+
+/** Clave de agrupacion: el grupo visual, salvo los deuteros (siempre separados)
+ *  y la tecnica (TECNICA_I + TECNICA_II juntos). */
 function recorridoGroupOf(role: string): string {
   if (role === "DEUTEROS_1" || role === "DEUTEROS_2") return role;
-  return visualGroupOf(role);
+  const visual = visualGroupOf(role);
+  if (visual === "TECNICA_I" || visual === "TECNICA_II") return TECNICA_GROUP;
+  return visual;
 }
 
 export function buildRecorrido(
@@ -117,13 +134,62 @@ export function buildRecorrido(
       }
     }
 
+    const formats: string[] = [];
+    for (const block of blocks) {
+      const name = block.formatName.trim();
+      if (name && !formats.includes(name)) formats.push(name);
+    }
+    const intensidades = blocks.map((b) => b.intensity);
+
     bloques.push({
       role: group.roles[0],
-      title: groupTitle(group.firstTitle),
+      title:
+        key === TECNICA_GROUP && group.roles.length > 1
+          ? TECNICA_TITLE
+          : groupTitle(group.firstTitle),
       subtitle: routes.length > 0 ? routes.join(TITLE_SEPARATOR) : null,
       zonas: zonasDelGrupo(ejercicios, group.roles),
+      format: formats.length > 0 ? formats.join(" / ") : null,
+      intensity:
+        intensidades.length > 0
+          ? {
+              min: Math.min(...intensidades),
+              max: Math.max(...intensidades),
+            }
+          : null,
     });
   }
 
+  // Dia de tecnica: el stretching de cierre señala lo que trabajo la tecnica.
+  const tecnicaRole = groups.get(TECNICA_GROUP)?.roles[0];
+  const tecnica = bloques.find((b) => b.role === tecnicaRole);
+  if (tecnica) {
+    for (const bloque of bloques) {
+      if (bloque.role !== "STRETCHING") continue;
+      bloque.subtitle = STRETCHING_SUBTITLE;
+      bloque.zonas = [...tecnica.zonas];
+    }
+  }
+
   return { bloques };
+}
+
+/**
+ * Nivel de referencia de la pantalla de inicio (decision de Franco,
+ * 2026-10-13): el recorrido muestra el par de ALFA, no todos los niveles.
+ */
+export const NIVEL_REFERENCIA_INICIO = "alfa";
+
+/**
+ * Recorrido de la pantalla de inicio: el par del nivel de referencia (alfa +
+ * delta) filtrado por los niveles del dia. Si ninguno tiene sesion,
+ * `buildRecorrido` cae a todos.
+ */
+export function buildRecorridoDeInicio(classDay: ClassDay): TvRecorridoPayload {
+  return buildRecorrido(
+    classDay,
+    pairFor(NIVEL_REFERENCIA_INICIO).filter((lvl) =>
+      classDay.levels.includes(lvl),
+    ),
+  );
 }

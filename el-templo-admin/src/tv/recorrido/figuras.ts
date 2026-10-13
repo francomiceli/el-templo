@@ -19,8 +19,24 @@ import type { Anatomia, FiguraKey, GrupoAnatomico, PathAnatomico } from './anato
  *  terracota, ámbar, carbón (`--navy`), oro (`--gold`), piedra (`--trans-apagado-dia`). */
 export const COLORES_BLOQUE = ['#96593a', '#d4a843', '#3d3732', '#b08d6e', '#6f6455'];
 
-export function colorDeBloque(i: number): string {
-  return COLORES_BLOQUE[i % COLORES_BLOQUE.length] as string;
+/**
+ * Color de cada bloque, en orden, de la paleta. DEUTEROS I y II comparten color (UAT
+ * 2026-10-13: son el mismo tramo de la clase), así el color que liberan pasa al bloque
+ * siguiente.
+ */
+export function coloresDeBloques(bloques: ReadonlyArray<{ role: string }>): string[] {
+  const colores: string[] = [];
+  let siguiente = 0;
+  bloques.forEach((b, i) => {
+    const previo = bloques[i - 1];
+    if (b.role === 'DEUTEROS_2' && previo?.role === 'DEUTEROS_1') {
+      colores.push(colores[i - 1] as string);
+      return;
+    }
+    colores.push(COLORES_BLOQUE[siguiente % COLORES_BLOQUE.length] as string);
+    siguiente++;
+  });
+  return colores;
 }
 
 export const ZONA_ES: Record<TvZonaMuscular, string> = {
@@ -47,15 +63,19 @@ export interface FiguraDef {
   id: 'm' | 'f';
   frente: FiguraKey;
   espalda: FiguraKey;
-  /** Lado de la pantalla hacia el que salen los rótulos. */
+  /** Lado de ADENTRO (hacia el otro cuerpo): de ahí salen las líneas a la leyenda
+   *  central de zonas (UAT 2026-10-13). */
   lado: 'izq' | 'der';
-  /** Alto relativo al de `ALTO_FIGURA_REM` (hoy los dos a la misma altura). */
+  /** Alto relativo al de `ALTO_FIGURA_REM`. */
   escala: number;
 }
 
 export const FIGURAS: FiguraDef[] = [
+  // Orden en pantalla de izquierda a derecha (UAT 2026-10-13: mujer a la izquierda).
+  // La mujer un 5 % más grande: su caja incluye la cola de pelo y, a la misma caja, el
+  // cuerpo quedaba más bajo que el del hombre (UAT 2026-10-13: "misma altura").
+  { id: 'f', frente: 'fFront', espalda: 'fBack', lado: 'der', escala: 1.05 },
   { id: 'm', frente: 'mFront', espalda: 'mBack', lado: 'izq', escala: 1 },
-  { id: 'f', frente: 'fFront', espalda: 'fBack', lado: 'der', escala: 1 },
 ];
 
 export function contornoDe(an: Anatomia, fig: FiguraDef, vista: Vista): string {
@@ -193,7 +213,13 @@ export function svgBase(defs: Defs, an: Anatomia, key: FiguraKey, contorno: stri
 }
 
 /** Capa de un bloque: solo sus zonas, con el degradé de su color. */
-export function svgBloque(defs: Defs, an: Anatomia, key: FiguraKey, zonas: TvZonaMuscular[], color: string): string {
+export function svgBloque(
+  defs: Defs,
+  an: Anatomia,
+  key: FiguraKey,
+  zonas: TvZonaMuscular[],
+  color: string
+): string {
   const fill = `url(#${defs.color(color)})`;
   const trazo = mezclar(color, '#000000', 0.45);
   let s = '<g opacity="0.93">';
@@ -216,32 +242,26 @@ export function centroX(grupos: GrupoAnatomico[]): number {
   return n > 0 ? s / n : 0;
 }
 
-export interface Caja {
+/** Punto de una zona sobre la figura, en unidades SVG de su vista. */
+export interface PuntoZona {
   x: number;
   y: number;
-  width: number;
-  height: number;
+  zona: TvZonaMuscular;
 }
 
 /**
- * Puntos con línea y rótulo (de la variante C del sketch). Un punto por zona, del lado
- * exterior de la figura; la columna de rótulos se pega al contorno REAL a la altura de
- * los puntos (`cajas` = bboxes de cada parte), no al ancho con los brazos abiertos.
- * `u` = unidades SVG por rem: rótulos del mismo tamaño en H y M (sus fuentes vienen a
- * escalas distintas).
+ * Un punto por zona trabajada, en el borde del lado `lado` de la figura (el path más
+ * extremo de ese lado del centro). La leyenda central (UAT 2026-10-13) usa el lado de
+ * ADENTRO de cada cuerpo (`FiguraDef.lado`): el que mira hacia el otro cuerpo.
  */
-export function svgCallout(
+export function puntosDeZonas(
   grupos: GrupoAnatomico[],
   zonas: TvZonaMuscular[],
-  color: string,
-  lado: 'izq' | 'der',
-  u: number,
-  cajas: Caja[]
-): string {
+  lado: 'izq' | 'der'
+): PuntoZona[] {
   const cx = centroX(grupos);
-  const pts: Array<{ x: number; y: number; ly: number; zona: TvZonaMuscular }> = [];
+  const pts: PuntoZona[] = [];
   for (const g of grupos) {
-    const zona = g.slug as TvZonaMuscular;
     if ((zonas as string[]).indexOf(g.slug) < 0) continue;
     const cands = g.p.filter((p) => (lado === 'izq' ? p[3] < cx : p[3] > cx));
     if (cands.length === 0) continue;
@@ -249,42 +269,7 @@ export function svgCallout(
     for (const q of cands) {
       if (lado === 'izq' ? q[3] < mejor[3] : q[3] > mejor[3]) mejor = q;
     }
-    pts.push({ x: mejor[3], y: mejor[4], ly: mejor[4], zona: zona });
+    pts.push({ x: mejor[3], y: mejor[4], zona: g.slug as TvZonaMuscular });
   }
-  if (pts.length === 0) return '';
-  pts.sort((a, b) => a.y - b.y);
-  let ultimo = -1e9;
-  for (const p of pts) {
-    p.ly = Math.max(p.y, ultimo + 1.7 * u);
-    ultimo = p.ly;
-  }
-  let y0 = Infinity;
-  let y1 = -Infinity;
-  for (const p of pts) {
-    y0 = Math.min(y0, p.y, p.ly);
-    y1 = Math.max(y1, p.y, p.ly);
-  }
-  y0 -= 0.6 * u;
-  y1 += 0.6 * u;
-  const enBanda = cajas.filter((c) => c.y < y1 && c.y + c.height > y0);
-  const borde =
-    enBanda.length === 0
-      ? cx
-      : lado === 'izq'
-        ? Math.min(...enBanda.map((c) => c.x))
-        : Math.max(...enBanda.map((c) => c.x + c.width));
-  const xLabel = lado === 'izq' ? borde - 1.25 * u : borde + 1.25 * u;
-  const anchor = lado === 'izq' ? 'end' : 'start';
-  const tinta = mezclar(color, '#000000', 0.3);
-  let s = '';
-  for (const p of pts) {
-    const xm = lado === 'izq' ? xLabel + u : xLabel - u;
-    const xt = lado === 'izq' ? xLabel - 0.4 * u : xLabel + 0.4 * u;
-    s += `<path d="M${p.x} ${p.y}L${xm} ${p.ly}H${xLabel}" fill="none" stroke="${tinta}" stroke-width="${0.08 * u}"/>`;
-    s += `<circle cx="${p.x}" cy="${p.y}" r="${0.27 * u}" fill="#fffaf2" stroke="${tinta}" stroke-width="${0.1 * u}"/>`;
-    s +=
-      `<text class="recCallTxt" x="${xt}" y="${p.ly + 0.36 * u}" text-anchor="${anchor}" ` +
-      `font-size="${1.02 * u}" letter-spacing="${0.12 * u}" fill="${tinta}">${ZONA_ES[p.zona]}</text>`;
-  }
-  return s;
+  return pts;
 }

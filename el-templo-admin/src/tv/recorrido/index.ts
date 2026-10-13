@@ -5,10 +5,11 @@
  * dos cuerpos de mármol (H/M) con las zonas de cada bloque en su color.
  *
  * Diseño: sketch 004, variante D (escultura + puntos con rótulo + fundido frente/espalda).
- * Coreografía "bloque a bloque" (UAT 2026-10-05): cada bloque dura 8 s — enciende sus
- * zonas con foco, 4 s de frente y 4 s de espalda (fundido). Al terminar quedan todas las
- * zonas coloreadas alternando frente y espalda unos segundos y la vuelta arranca de nuevo,
- * en loop hasta que el profe inicia la clase.
+ * Coreografía "bloque a bloque" (UAT 2026-10-05/13): todos los bloques se ven siempre y
+ * el que se explica queda en foco (el resto atenuado). Cada bloque arranca con el cuerpo
+ * de frente: 4 s de frente y 4 s de espalda (fundido). Al terminar, todos parejos
+ * alternando frente y espalda unos segundos y la vuelta arranca de nuevo, en loop hasta
+ * que el profe inicia la clase.
  *
  * Mismas reglas que `render.ts`: el DOM se arma UNA vez por contenido (clave = bloques) y
  * después solo se alternan clases; los textos del server entran por `textContent`; lo
@@ -19,19 +20,19 @@
 import { createTvLogger } from '../logger';
 import type { TvRecorridoBloque, TvRecorridoPayload } from '../poll';
 import { cargarAnatomia } from './anatomia';
-import type { Anatomia } from './anatomia';
+import type { Anatomia, FiguraKey } from './anatomia';
 import {
-  colorDeBloque,
+  coloresDeBloques,
   contornoDe,
   Defs,
   FIGURAS,
   mezclar,
   svgBase,
   svgBloque,
-  svgCallout,
+  puntosDeZonas,
   ZONA_ES,
 } from './figuras';
-import type { Caja, FiguraDef, Vista } from './figuras';
+import type { FiguraDef, PuntoZona, Vista } from './figuras';
 
 const log = createTvLogger('recorrido');
 
@@ -47,7 +48,7 @@ const T_ESCALON_FUNDIDO = 120;
 /** Cada bloque dura 8 s: la mitad de frente y la mitad de espalda (fundido incluido).
  *  El final alterna las vistas con el mismo ritmo. */
 const T_MEDIO_BLOQUE = 4000;
-/** Vueltas frente/espalda del final (todo encendido) antes de reiniciar el loop. */
+/** Vueltas frente/espalda del resumen (todo encendido) con el que arranca cada vuelta. */
 const VUELTAS_FINAL = 2;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -56,6 +57,34 @@ interface Montaje {
   host: HTMLElement;
   bloques: TvRecorridoBloque[];
   figs: HTMLElement[];
+  /** Por bloque, las vistas en las que tiene zonas para pintar (`vistasDe`). */
+  vistas: Vista[][];
+  /** Contenedor de los cuerpos (lleva `back` con la vista de espalda). */
+  cuerpos: HTMLElement;
+  /** Leyenda: ventana de alto fijo y la pista que se desplaza adentro. */
+  ventana: HTMLElement;
+  pista: HTMLElement;
+}
+
+/**
+ * Vistas en las que un bloque pinta algo (UAT 2026-10-13): un bloque de solo zonas de
+ * atrás (Nordic Curl: lumbares, glúteos, isquios) de frente no mostraba NADA. Con zonas
+ * de los dos lados: frente y después espalda; de un solo lado: solo ese; sin zonas: frente.
+ */
+function vistasDe(an: Anatomia, zonas: readonly string[]): Vista[] {
+  const pinta = (keys: readonly FiguraKey[]): boolean =>
+    keys.some((k) => an[k].some((g) => zonas.indexOf(g.slug) >= 0));
+  const frente = pinta(['mFront', 'fFront']);
+  const espalda = pinta(['mBack', 'fBack']);
+  if (frente && espalda) return ['frente', 'espalda'];
+  if (espalda) return ['espalda'];
+  return ['frente'];
+}
+
+/** Vistas del final (todos parejos): las que pinta algún bloque, en orden frente→espalda. */
+function vistasDelFinal(m: Montaje): Vista[] {
+  const todas = m.vistas.flat();
+  return (['frente', 'espalda'] as Vista[]).filter((v) => todas.indexOf(v) >= 0);
 }
 
 let montaje: Montaje | null = null;
@@ -109,49 +138,93 @@ function zBloque(i: number, total: number): number {
   return total - i + 1;
 }
 
-function construirTexto(bloques: TvRecorridoBloque[]): HTMLElement {
+/** "Quad Curl · 60 %": la ruta del bloque con su intensidad al lado (UAT 2026-10-13).
+ *  La intensidad viaja como rango (cada nivel planifica la suya); si coincide, un valor. */
+function rutaDeBloque(b: TvRecorridoBloque): string {
+  const partes: string[] = [];
+  if (b.subtitle) partes.push(b.subtitle);
+  if (b.intensity) {
+    const { min, max } = b.intensity;
+    partes.push(min === max ? `${min} %` : `${min}–${max} %`);
+  }
+  return partes.join(' · ');
+}
+
+function construirTexto(bloques: TvRecorridoBloque[]): {
+  col: HTMLElement;
+  ventana: HTMLElement;
+  pista: HTMLElement;
+} {
   const col = div('recTexto');
-  const kicker = div('recKicker');
-  kicker.textContent = 'HOY RECORREMOS';
-  const titulo = div('recTitulo');
-  titulo.append(
-    document.createTextNode('El cuerpo'),
-    document.createElement('br'),
-    document.createTextNode('en clase')
-  );
-  const leyenda = div('recLeyenda');
+  const titulo = div('recTitulo', 'La sesión de hoy');
+  // Ventana de alto fijo con la lista adentro (UAT 2026-10-13): con 4-5 bloques no
+  // entraba. La pista se desplaza (transform) hasta el bloque en foco y un degradé
+  // marca que hay más abajo/arriba (`desplazarLeyenda`).
+  const ventana = div('recLeyenda');
+  const pista = div('recPista');
+  ventana.appendChild(pista);
+  const colores = coloresDeBloques(bloques);
   bloques.forEach((b, i) => {
-    const color = colorDeBloque(i);
+    const color = colores[i] as string;
     const item = div('recItem');
     item.setAttribute('data-b', String(i));
     const barra = div('recBarra');
     barra.style.background = color;
     const cuerpo = div('recItemCuerpo');
+    // Vista de resumen (cuerpo completo, sin bloque en foco): solo el nombre de la ruta
+    // (UAT 2026-10-13); sin ruta (KINESIS fuera de técnica…), el nombre del bloque.
+    // DEUTEROS I y II van en UNA línea del resumen: "ruta I / ruta II" en el item de
+    // DEUTEROS I y el de DEUTEROS II se oculta en el resumen (`recItem--unido`).
+    const siguiente = bloques[i + 1];
+    const previo = bloques[i - 1];
+    const nombreRuta = (x: TvRecorridoBloque): string => x.subtitle ?? x.title;
+    const unidoConSiguiente = b.role === 'DEUTEROS_1' && siguiente?.role === 'DEUTEROS_2';
+    if (b.role === 'DEUTEROS_2' && previo?.role === 'DEUTEROS_1')
+      item.classList.add('recItem--unido');
+    const rutaSola = div(
+      'recRutaSola',
+      unidoConSiguiente && siguiente ? `${nombreRuta(b)} / ${nombreRuta(siguiente)}` : nombreRuta(b)
+    );
+    rutaSola.style.color = mezclar(color, '#000000', 0.18);
+    cuerpo.appendChild(rutaSola);
     const rol = div('recRol', b.title);
     rol.style.color = mezclar(color, '#000000', 0.18);
     cuerpo.appendChild(rol);
-    if (b.subtitle) cuerpo.appendChild(div('recSub', b.subtitle));
-    if (b.zonas.length > 0) {
-      const zonas = div('recZonas', b.zonas.map((z) => ZONA_ES[z]).join(' · '));
-      zonas.style.color = mezclar(color, '#000000', 0.12);
-      cuerpo.appendChild(zonas);
+    if (b.format) {
+      const metaEl = div('recMeta', b.format);
+      metaEl.style.color = mezclar(color, '#000000', 0.12);
+      cuerpo.appendChild(metaEl);
     }
+    // Las zonas NO van en la leyenda: se rotulan al lado del cuerpo (UAT 2026-10-13,
+    // "que no estén dos veces").
+    const ruta = rutaDeBloque(b);
+    if (ruta) cuerpo.appendChild(div('recSub', ruta));
     item.append(barra, cuerpo);
-    leyenda.appendChild(item);
+    pista.appendChild(item);
   });
-  col.append(kicker, titulo, leyenda);
-  return col;
+  col.append(titulo, ventana);
+  return { col, ventana, pista };
 }
 
-function construirPie(bloques: TvRecorridoBloque[]): HTMLElement {
-  const pie = div('recPie', 'Entrada en calor completa · arranca ');
-  const primero = bloques[0];
-  if (primero) {
-    const b = document.createElement('b');
-    b.textContent = primero.title;
-    pie.appendChild(b);
+/**
+ * Desplaza la lista para que el bloque `i` quede a la vista y marca con degradé si
+ * queda contenido fuera arriba/abajo. `i === null` vuelve al principio. Solo anima
+ * `transform` (misma regla que el resto de la TV).
+ */
+function desplazarLeyenda(m: Montaje, i: number | null): void {
+  const sobra = m.pista.scrollHeight - m.ventana.clientHeight;
+  let offset = 0;
+  if (sobra > 0 && i !== null) {
+    const item = m.pista.querySelector(`.recItem[data-b="${i}"]`) as HTMLElement | null;
+    if (item) {
+      // El bloque en foco queda con un poco de aire arriba (se ve el anterior asomando).
+      const deseado = item.offsetTop - m.ventana.clientHeight * 0.25;
+      offset = Math.max(0, Math.min(sobra, deseado));
+    }
   }
-  return pie;
+  m.pista.style.transform = `translateY(${-offset}px)`;
+  m.ventana.classList.toggle('masArriba', offset > 1);
+  m.ventana.classList.toggle('masAbajo', sobra - offset > 1);
 }
 
 function construirFigura(
@@ -162,13 +235,18 @@ function construirFigura(
 ): HTMLElement {
   const el = div('recFig');
   const marco = div('recMarcoFig');
+  const colores = coloresDeBloques(bloques);
   for (const v of ['frente', 'espalda'] as Vista[]) {
     const key = v === 'frente' ? fig.frente : fig.espalda;
     const vistaEl = div('recVista recVista--' + v);
     vistaEl.setAttribute('data-key', key);
     vistaEl.appendChild(capaSvg('recCapa recBase', svgBase(defs, an, key, contornoDe(an, fig, v))));
     bloques.forEach((b, i) => {
-      const capa = capaSvg('recCapa recOv', svgBloque(defs, an, key, b.zonas, colorDeBloque(i)), i);
+      const capa = capaSvg(
+        'recCapa recOv',
+        svgBloque(defs, an, key, b.zonas, colores[i] as string),
+        i
+      );
       capa.style.zIndex = String(zBloque(i, bloques.length));
       vistaEl.appendChild(capa);
     });
@@ -183,6 +261,9 @@ function construirFigura(
  * fundido no "salta"; pies apoyados en la base), tamaño en rem y capas de rótulos.
  */
 function medirYRotular(m: Montaje, an: Anatomia): void {
+  const colores = coloresDeBloques(m.bloques);
+  const puntos: PuntosPorVista = { frente: [], espalda: [] };
+  const pendientes: Array<() => void> = [];
   FIGURAS.forEach((fig, fi) => {
     const figEl = m.figs[fi];
     if (!figEl) return;
@@ -200,7 +281,6 @@ function medirYRotular(m: Montaje, an: Anatomia): void {
       marco.style.height = alto + 'rem';
       marco.style.width = (alto * W) / H + 'rem';
     }
-    const u = H / alto; // unidades SVG por rem
     for (const { vi, bb } of medidas) {
       const vb = `${bb.x + bb.width / 2 - W / 2} ${bb.y + bb.height + H * 0.01 - H} ${W} ${H}`;
       const capas = Array.prototype.slice.call(vi.querySelectorAll('svg')) as SVGSVGElement[];
@@ -208,23 +288,126 @@ function medirYRotular(m: Montaje, an: Anatomia): void {
       const key = vi.getAttribute('data-key') as keyof Anatomia;
       const grupos =
         key === 'mFront' || key === 'mBack' || key === 'fFront' || key === 'fBack' ? an[key] : [];
-      const partes = Array.prototype.slice.call(
-        vi.querySelectorAll('.recBase .anat > path')
-      ) as SVGGraphicsElement[];
-      // La primera es el contorno relleno: no cuenta como "parte" para la columna de rótulos.
-      const cajas: Caja[] = partes.slice(1).map((p) => {
-        const b = p.getBBox();
-        return { x: b.x, y: b.y, width: b.width, height: b.height };
-      });
-      m.bloques.forEach((b, i) => {
-        const markup = svgCallout(grupos, b.zonas, colorDeBloque(i), fig.lado, u, cajas);
-        const capa = capaSvg('recCapa recCall', markup, i);
-        capa.style.zIndex = String(Z_FOCO + 10); // los rótulos siempre arriba
-        capa.setAttribute('viewBox', vb);
-        vi.appendChild(capa);
+      const v: Vista = vi.classList.contains('recVista--espalda') ? 'espalda' : 'frente';
+      // SVG de la vista → px dentro de `.recCuerpos` (offsets de layout: no los afecta
+      // el `translateY` de entrada de la figura). viewBox y marco tienen el mismo aspecto.
+      const vbX = bb.x + bb.width / 2 - W / 2;
+      const vbY = bb.y + bb.height + H * 0.01 - H;
+      // Se mide DESPUÉS de dimensionar las dos figuras: están centradas, así que la
+      // posición de una depende del ancho de la otra.
+      pendientes.push(() => {
+        const ox = figEl.offsetLeft + (marco?.offsetLeft ?? 0);
+        const oy = figEl.offsetTop + (marco?.offsetTop ?? 0);
+        const k = (marco?.offsetWidth ?? 0) / W;
+        m.bloques.forEach((b, i) => {
+          const pts = puntosDeZonas(grupos, b.zonas, fig.lado).map((p) => ({
+            ...p,
+            x: ox + (p.x - vbX) * k,
+            y: oy + (p.y - vbY) * k,
+          }));
+          const porBloque = puntos[v][i] ?? (puntos[v][i] = { m: [], f: [] });
+          porBloque[fig.id] = pts;
+        });
       });
     }
   });
+  for (const medir of pendientes) medir();
+  construirLeyendaZonas(m, puntos, colores);
+}
+
+/** Puntos de cada bloque por vista y por figura, en px de `.recCuerpos`. */
+type PuntosPorVista = Record<Vista, Array<{ m: PuntoZona[]; f: PuntoZona[] }>>;
+
+const SVG_NS_LEYENDA = 'http://www.w3.org/2000/svg';
+/** Tamaño de los rótulos de zona (rem) y separación mínima entre filas. */
+const ZONA_FONT_REM = 1.7;
+const ZONA_FILA_REM = 3.6;
+
+/**
+ * Leyenda de zonas ÚNICA entre los dos cuerpos (UAT 2026-10-13: antes cada cuerpo tenía
+ * la suya hacia afuera). Por vista y por bloque, una capa con un rótulo por zona,
+ * centrado en el hueco entre las figuras, con una línea al punto de la zona en cada
+ * cuerpo. Las capas viven en dos envoltorios (frente/espalda) que se funden con el giro
+ * (`.recCuerpos.back`) y se encienden con el foco (`.recCall.on`).
+ */
+function construirLeyendaZonas(m: Montaje, puntos: PuntosPorVista, colores: string[]): void {
+  const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const fontPx = ZONA_FONT_REM * remPx;
+  const filaPx = ZONA_FILA_REM * remPx;
+  const ancho = m.cuerpos.clientWidth;
+  const alto = m.cuerpos.clientHeight;
+  // Figuras en el orden de `FIGURAS` (izquierda → derecha): el hueco central va entre
+  // el borde derecho de la primera y el izquierdo de la segunda.
+  const [figIzq, figDer] = m.figs;
+  const [defIzq, defDer] = FIGURAS;
+  if (!figIzq || !figDer || !defIzq || !defDer) return;
+  const xCentro = (figIzq.offsetLeft + figIzq.offsetWidth + figDer.offsetLeft) / 2;
+  for (const v of ['frente', 'espalda'] as Vista[]) {
+    const envoltorio = div('recCallVista recCallVista--' + v);
+    m.cuerpos.appendChild(envoltorio);
+    m.bloques.forEach((b, i) => {
+      const p = puntos[v][i];
+      if (!p) return;
+      const svg = document.createElementNS(SVG_NS_LEYENDA, 'svg');
+      svg.setAttribute('class', 'recCall');
+      svg.setAttribute('data-b', String(i));
+      svg.setAttribute('viewBox', `0 0 ${ancho} ${alto}`);
+      envoltorio.appendChild(svg);
+      const tinta = mezclar(colores[i] as string, '#000000', 0.3);
+      // Una fila por zona, en el orden de la zona en el cuerpo (de arriba a abajo).
+      const filas = b.zonas
+        .map((zona) => {
+          const pIzq = p[defIzq.id].find((q) => q.zona === zona);
+          const pDer = p[defDer.id].find((q) => q.zona === zona);
+          const ys = [pIzq?.y, pDer?.y].filter((y): y is number => y !== undefined);
+          return {
+            zona,
+            pIzq,
+            pDer,
+            y: ys.length > 0 ? ys.reduce((a, c) => a + c, 0) / ys.length : -1,
+          };
+        })
+        .filter((f) => f.y >= 0)
+        .sort((a, c) => a.y - c.y);
+      let ultimo = -1e9;
+      for (const fila of filas) {
+        const ly = Math.max(fila.y, ultimo + filaPx);
+        ultimo = ly;
+        const txt = document.createElementNS(SVG_NS_LEYENDA, 'text');
+        txt.setAttribute('class', 'recCallTxt');
+        txt.setAttribute('x', String(xCentro));
+        txt.setAttribute('y', String(ly + fontPx * 0.35));
+        txt.setAttribute('text-anchor', 'middle');
+        txt.setAttribute('font-size', String(fontPx));
+        txt.setAttribute('letter-spacing', String(fontPx * 0.1));
+        txt.setAttribute('fill', tinta);
+        txt.textContent = ZONA_ES[fila.zona];
+        svg.appendChild(txt);
+        // El texto ya está en el DOM: su ancho real marca dónde terminan las líneas.
+        const medio = txt.getComputedTextLength() / 2 + fontPx * 0.5;
+        const linea = (pt: PuntoZona | undefined, hacia: number): void => {
+          if (!pt) return;
+          const path = document.createElementNS(SVG_NS_LEYENDA, 'path');
+          const codo = hacia + (pt.x < hacia ? -remPx : remPx);
+          path.setAttribute('d', `M${pt.x} ${pt.y}L${codo} ${ly}H${hacia}`);
+          path.setAttribute('fill', 'none');
+          path.setAttribute('stroke', tinta);
+          path.setAttribute('stroke-width', String(remPx * 0.09));
+          const punto = document.createElementNS(SVG_NS_LEYENDA, 'circle');
+          punto.setAttribute('cx', String(pt.x));
+          punto.setAttribute('cy', String(pt.y));
+          punto.setAttribute('r', String(remPx * 0.32));
+          punto.setAttribute('fill', '#fffaf2');
+          punto.setAttribute('stroke', tinta);
+          punto.setAttribute('stroke-width', String(remPx * 0.1));
+          svg.insertBefore(path, txt);
+          svg.insertBefore(punto, txt);
+        };
+        linea(fila.pIzq, xCentro - medio);
+        linea(fila.pDer, xCentro + medio);
+      }
+    });
+  }
 }
 
 function construir(host: HTMLElement, an: Anatomia, bloques: TvRecorridoBloque[]): Montaje {
@@ -238,12 +421,19 @@ function construir(host: HTMLElement, an: Anatomia, bloques: TvRecorridoBloque[]
   defsSvg.setAttribute('width', '0');
   defsSvg.setAttribute('height', '0');
   defsSvg.setAttribute('aria-hidden', 'true');
-  host.append(defsSvg, construirTexto(bloques), cuerpos, construirPie(bloques));
+  const texto = construirTexto(bloques);
+  host.append(defsSvg, texto.col, cuerpos);
   const m: Montaje = {
     host: host,
     bloques: bloques,
     figs: figs,
+    vistas: bloques.map((b) => vistasDe(an, b.zonas)),
+    cuerpos: cuerpos,
+    ventana: texto.ventana,
+    pista: texto.pista,
   };
+  m.ventana.classList.add('resumen');
+  desplazarLeyenda(m, null);
   medirYRotular(m, an);
   return m;
 }
@@ -256,14 +446,10 @@ function todos(m: Montaje, selector: string): Element[] {
   return Array.prototype.slice.call(m.host.querySelectorAll(selector)) as Element[];
 }
 
-function encender(m: Montaje, i: number): void {
-  for (const el of todos(m, `.recOv[data-b="${i}"], .recItem[data-b="${i}"]`))
-    el.classList.add('on');
-}
-
-/** Apaga todas las zonas e ítems: arranque de una nueva vuelta del loop. */
-function apagarTodo(m: Montaje): void {
-  for (const el of todos(m, '.recOv, .recItem')) el.classList.remove('on');
+/** Enciende todos los bloques (zonas e ítems de la leyenda): se ven SIEMPRE, el foco
+ *  solo atenúa a los que no se están explicando (UAT 2026-10-13). */
+function encenderTodo(m: Montaje): void {
+  for (const el of todos(m, '.recOv, .recItem')) el.classList.add('on');
 }
 
 /** `i === null` → todos parejos, sin rótulos. */
@@ -282,11 +468,15 @@ function foco(m: Montaje, i: number | null): void {
   for (const el of todos(m, '.recCall')) {
     el.classList.toggle('on', i !== null && Number(el.getAttribute('data-b')) === i);
   }
+  // Sin bloque en foco = resumen: la lista muestra solo las rutas.
+  m.ventana.classList.toggle('resumen', i === null);
+  desplazarLeyenda(m, i);
 }
 
 async function cambiarVista(m: Montaje, v: Vista): Promise<void> {
   if (vista === v) return;
   vista = v;
+  m.cuerpos.classList.toggle('back', v === 'espalda');
   m.figs.forEach((f, k) => {
     timeouts.push(
       window.setTimeout(() => f.classList.toggle('back', v === 'espalda'), k * T_ESCALON_FUNDIDO)
@@ -317,23 +507,37 @@ async function coreografia(m: Montaje, id: number): Promise<void> {
   await espera(T_ENTRADA_FIGURAS);
   if (!viva()) return;
 
+  encenderTodo(m);
+
   // Loop de la pantalla de inicio (2026-10-13): corre mientras no haya clase. Cada
-  // vuelta: bloque a bloque (8 s cada uno, sus zonas con foco, 4 s de frente y 4 s
-  // de espalda), después el final con todas las zonas coloreadas alternando frente y
-  // espalda, y vuelve a empezar desde cero.
+  // vuelta: el resumen con todos parejos, después bloque a bloque (8 s cada uno), y
+  // vuelve a empezar. Cada bloque se muestra SOLO en las vistas donde pinta algo
+  // (`vistasDe`): con las dos, 4 s de frente y 4 s de espalda; con una, 8 s en esa. El
+  // giro a su primera vista termina ANTES de poner el foco, así el bloque nunca se
+  // presenta con el cuerpo del lado equivocado (UAT 2026-10-13).
   while (viva()) {
-    apagarTodo(m);
-    for (let i = 0; i < m.bloques.length; i++) {
-      encender(m, i);
-      foco(m, i);
-      await sostener(m, 'frente', T_MEDIO_BLOQUE);
-      if (!viva()) return;
-      await sostener(m, 'espalda', T_MEDIO_BLOQUE);
+    // Cada vuelta ARRANCA con el resumen (todo marcado, solo las rutas en la lista)
+    // el tiempo suficiente para leerlo (UAT 2026-10-13: duraba muy poco).
+    foco(m, null);
+    const finales = vistasDelFinal(m);
+    for (let k = 0; k < VUELTAS_FINAL * 2; k++) {
+      const v =
+        finales.length > 1 ? (vista === 'frente' ? 'espalda' : 'frente') : (finales[0] ?? vista);
+      await sostener(m, v, T_MEDIO_BLOQUE);
       if (!viva()) return;
     }
-    foco(m, null);
-    for (let k = 0; k < VUELTAS_FINAL * 2; k++) {
-      await sostener(m, vista === 'frente' ? 'espalda' : 'frente', T_MEDIO_BLOQUE);
+    for (let i = 0; i < m.bloques.length; i++) {
+      const vistas = m.vistas[i] ?? ['frente'];
+      await cambiarVista(m, vistas[0] ?? 'frente');
+      if (!viva()) return;
+      foco(m, i);
+      if (vistas.length > 1) {
+        await espera(T_MEDIO_BLOQUE);
+        if (!viva()) return;
+        await sostener(m, vistas[1] ?? 'espalda', T_MEDIO_BLOQUE);
+      } else {
+        await espera(2 * T_MEDIO_BLOQUE);
+      }
       if (!viva()) return;
     }
   }
@@ -342,8 +546,15 @@ async function coreografia(m: Montaje, id: number): Promise<void> {
 /** Sin movimiento (`?sobrio=1` / reduced-motion): estado final quieto, todo encendido. */
 function estadoQuieto(m: Montaje): void {
   for (const f of m.figs) f.classList.add('in');
-  m.bloques.forEach((_b, i) => encender(m, i));
+  encenderTodo(m);
   foco(m, null);
+  // Quieto en la vista que más pinta: si nada se ve de frente, de espalda.
+  const finales = vistasDelFinal(m);
+  if (finales.length === 1 && finales[0] === 'espalda') {
+    vista = 'espalda';
+    for (const f of m.figs) f.classList.add('back');
+    m.cuerpos.classList.add('back');
+  }
 }
 
 // =============================================================================

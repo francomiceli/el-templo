@@ -46,7 +46,7 @@ import {
   visualGroupOf,
 } from "./roster";
 import { getRouteLabel } from "./route-labels";
-import { buildRecorrido } from "./recorrido";
+import { buildRecorridoDeInicio } from "./recorrido";
 import { toTimerSpec } from "./timer-spec";
 import type {
   TvAvisoPollPayload,
@@ -459,10 +459,11 @@ export class TvService {
     if (!classDay.approved || !stored) {
       // El recorrido de hoy (2026-10-13): con plani aprobada y sin clase en
       // curso, la pantalla de inicio ES el recorrido (cuerpos con las zonas de
-      // cada bloque, todos los niveles del día) y REEMPLAZA a la flexibilidad
+      // cada bloque, del par del nivel de referencia ALFA/DELTA: una ruta por
+      // bloque, `buildRecorridoDeInicio`) y REEMPLAZA a la flexibilidad
       // inicial / notas técnicas, que quedan para los días sin plani.
       if (classDay.approved) {
-        const recorrido = buildRecorrido(classDay);
+        const recorrido = buildRecorridoDeInicio(classDay);
         if (recorrido.bloques.length > 0) {
           return {
             ...base,

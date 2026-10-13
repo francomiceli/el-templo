@@ -47,6 +47,10 @@ export interface TvRecorridoBloque {
   title: string;
   subtitle: string | null;
   zonas: TvZonaMuscular[];
+  /** Formatos del bloque (distintos, unidos con " / "); `null` si no trae. */
+  format: string | null;
+  /** Rango de intensidad (%) entre los niveles mostrados; `null` sin bloques. */
+  intensity: { min: number; max: number } | null;
 }
 
 /** Payload de la intro: los bloques de la clase sin PYROS, en orden. */
