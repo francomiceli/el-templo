@@ -197,6 +197,15 @@
         <div class="pantalla pantalla--dia" id="pantallaRecorrido">
           <div class="transFoto" aria-hidden="true"></div>
           <div class="recMarco" id="recorridoHost"></div>
+          <!-- Identidad abajo a la izquierda (UAT 2026-10-13): logo, hora y fecha,
+               los mismos nodos de reloj/fecha que reposo, cierre y aviso. -->
+          <aside class="recIdentidad">
+            <img class="transLogo recLogo" :src="tvParthenonCharcoal" alt="El Templo" />
+            <div class="recReloj">
+              <div class="relojXl" id="recorridoReloj">--:--</div>
+              <div class="fechaXl" id="recorridoFecha"></div>
+            </div>
+          </aside>
         </div>
         <!-- Sello de la vista previa (Planis, 2026-09): dentro de #tv para que
              escale con el marco (rem) y por encima de las pantallas de
@@ -2708,6 +2717,35 @@ onUnmounted(() => {
   position: relative;
   z-index: 2;
 }
+#tvScreenRoot .recIdentidad {
+  position: absolute;
+  left: 4rem;
+  bottom: 3rem;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+}
+#tvScreenRoot .recIdentidad .recLogo {
+  width: 7.5rem;
+  margin-bottom: 0;
+}
+#tvScreenRoot #pantallaRecorrido .relojXl {
+  font-size: 3.6rem;
+}
+#tvScreenRoot #pantallaRecorrido .fechaXl {
+  font-size: 1.05rem;
+  letter-spacing: 0.24em;
+  margin-top: 0.6rem;
+}
+#tvScreenRoot .recSubtitulo {
+  font-family: var(--nunito);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: var(--gold);
+  margin-bottom: 2rem;
+}
 #tvScreenRoot .recTitulo {
   font-family: var(--cinzel);
   font-weight: 700;
@@ -2715,13 +2753,15 @@ onUnmounted(() => {
   line-height: 1.04;
   letter-spacing: 0.03em;
   color: var(--navy);
-  margin-bottom: 2.6rem;
+  margin-bottom: 0.9rem;
 }
 /* Ventana de la leyenda (UAT 2026-10-13): alto fijo; la pista se desplaza hasta el
    bloque en foco y el degradé avisa que hay más arriba/abajo (render: desplazarLeyenda). */
 #tvScreenRoot .recLeyenda {
   position: relative;
-  max-height: 29rem;
+  /* Alto FIJO (no max-height): con el resumen, más corto, la columna centrada
+     corría el título hacia abajo (UAT 2026-10-13). */
+  height: 27rem;
   overflow: hidden;
 }
 #tvScreenRoot .recLeyenda.masAbajo {
@@ -2759,19 +2799,87 @@ onUnmounted(() => {
   opacity: 1;
   transform: none;
 }
+/* Los bloques fuera del centro, atenuados y más chicos (UAT 2026-10-13). */
 #tvScreenRoot .recItem.on.dim {
   opacity: 0.38;
+  transform: scale(0.85);
+  transform-origin: left center;
 }
+/* Ancho de los bloques = el que entra agrandado al 112 % (1 / 1.12 ≈ 89 %): el texto
+   largo parte en líneas en vez de cortarse contra el borde del panel. */
+#tvScreenRoot .recPanel--bloques .recItem {
+  max-width: 89%;
+}
+/* El bloque en foco (centrado en la ventana) un poco más grande, anclado a la
+   izquierda: `transform` no mueve el layout, así el centrado no cambia. */
+#tvScreenRoot .recItem.on.focus {
+  transform: scale(1.12);
+  transform-origin: left center;
+}
+/* Barra de color de las rutas del día. */
 #tvScreenRoot .recBarra {
   width: 0.55rem;
   border-radius: 0.3rem;
   margin-right: 1.1rem;
   flex: none;
-  transform-origin: left center;
-  transition: transform 0.5s ease;
 }
-#tvScreenRoot .recItem.focus .recBarra {
-  transform: scaleX(1.7);
+/* Columna del templo parada al costado de cada bloque (UAT 2026-10-13): la tira
+   horizontal de la dórica (mismas piezas) rotada 90° desde su esquina superior
+   izquierda; `left: 100%` la deja dentro del ancho de `.recColumna`. El largo de la
+   tira lo pone `ajustarColumnas` (= alto de la fila). */
+#tvScreenRoot .recColumna {
+  position: relative;
+  flex: none;
+  width: 1.3rem;
+  margin-right: 1.2rem;
+}
+#tvScreenRoot .recColumna__tira {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  height: 1.3rem;
+  transform-origin: top left;
+  transform: rotate(90deg);
+}
+/* El brillo de las listas barre en loop cada 12 s; acá barre UNA vez (de arriba a
+   abajo, por la rotación) cuando el bloque entra en foco. */
+#tvScreenRoot .recColumna .columnaDorica__brillo::after {
+  animation: none;
+}
+#tvScreenRoot .recItem.focus .recColumna .columnaDorica__brillo::after {
+  animation: recColumnaBrillo 2.6s ease-in-out 0.5s 1 both;
+}
+/* Color del bloque: cada pieza es el color plano recortado con su imagen (máscara). */
+#tvScreenRoot .recColumna .columnaDorica__cap,
+#tvScreenRoot .recColumna .columnaDorica__fuste {
+  background-image: none;
+  background-color: var(--recColumnaColor);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+#tvScreenRoot .recColumna .columnaDorica__cap--izq {
+  -webkit-mask-image: url('/tv-col-cap-izq.png');
+  mask-image: url('/tv-col-cap-izq.png');
+}
+#tvScreenRoot .recColumna .columnaDorica__cap--der {
+  -webkit-mask-image: url('/tv-col-cap-der.png');
+  mask-image: url('/tv-col-cap-der.png');
+}
+#tvScreenRoot .recColumna .columnaDorica__fuste {
+  -webkit-mask-image: url('/tv-col-fuste.png');
+  mask-image: url('/tv-col-fuste.png');
+}
+@keyframes recColumnaBrillo {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
 }
 #tvScreenRoot .recRol {
   font-family: var(--cinzel);
@@ -2780,25 +2888,38 @@ onUnmounted(() => {
   line-height: 1.05;
   letter-spacing: 0.04em;
 }
-/* Resumen (cuerpo completo, sin bloque en foco): solo el nombre de la ruta. */
+/* Carril de la leyenda (UAT 2026-10-13): RUTAS DEL DÍA | BLOQUES DEL DÍA lado a lado;
+   el cambio entre los dos se ve como un desplazamiento horizontal. */
+#tvScreenRoot .recCarril {
+  display: flex;
+  width: 200%;
+  transform: translateX(-50%);
+  transition: transform 0.9s cubic-bezier(0.45, 0, 0.2, 1);
+  will-change: transform;
+}
+#tvScreenRoot .recLeyenda.resumen .recCarril {
+  transform: none;
+}
+#tvScreenRoot .recPanel {
+  flex: 0 0 50%;
+  min-width: 0;
+  /* Cada panel recorta lo suyo: nada del panel escondido asoma en el otro. */
+  overflow: hidden;
+}
+/* Las filas de rutas no siguen el foco de los bloques (comparten `data-b`): sin
+   escala ni atenuado; si no, una ruta agrandada asomaba en el panel de bloques. */
+#tvScreenRoot .recItem--ruta.on.focus,
+#tvScreenRoot .recItem--ruta.on.dim {
+  opacity: 1;
+  transform: none;
+}
+/* Rutas del día: solo el nombre, con la letra de los ejercicios (`.ej-nombre`). La
+   barra se estira al alto de la fila (align-items por defecto). */
 #tvScreenRoot .recRutaSola {
-  display: none;
-  /* Misma letra que los ejercicios de la plani (`.ej-nombre`): Nunito bold. */
   font-family: var(--nunito);
   font-weight: 700;
   font-size: 2.35rem;
   line-height: 1.25;
-}
-#tvScreenRoot .recLeyenda.resumen .recRutaSola {
-  display: block;
-}
-#tvScreenRoot .recLeyenda.resumen .recItem--unido {
-  display: none;
-}
-#tvScreenRoot .recLeyenda.resumen .recRol,
-#tvScreenRoot .recLeyenda.resumen .recMeta,
-#tvScreenRoot .recLeyenda.resumen .recSub {
-  display: none;
 }
 #tvScreenRoot .recMeta {
   font-family: var(--nunito);
@@ -2810,7 +2931,7 @@ onUnmounted(() => {
 }
 #tvScreenRoot .recSub {
   font-family: var(--nunito);
-  font-size: 1.5rem;
+  font-size: 1.9rem;
   font-weight: 700;
   color: var(--trans-apagado-dia);
   margin: 0.15rem 0 0.35rem;
@@ -2921,6 +3042,7 @@ onUnmounted(() => {
 }
 #tvScreenRoot.tv-sobrio .recItem,
 #tvScreenRoot.tv-sobrio .recPista,
+#tvScreenRoot.tv-sobrio .recCarril,
 #tvScreenRoot.tv-sobrio .recFig,
 #tvScreenRoot.tv-sobrio .recVista,
 #tvScreenRoot.tv-sobrio .recOv,
@@ -2930,6 +3052,7 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   #tvScreenRoot .recItem,
   #tvScreenRoot .recPista,
+  #tvScreenRoot .recCarril,
   #tvScreenRoot .recFig,
   #tvScreenRoot .recVista,
   #tvScreenRoot .recOv,

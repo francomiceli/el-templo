@@ -15,9 +15,11 @@
 import type { TvZonaMuscular } from '../poll';
 import type { Anatomia, FiguraKey, GrupoAnatomico, PathAnatomico } from './anatomia';
 
-/** Paleta de la plani TV, en orden de bloque (TvScreenPage.vue `#tvScreenRoot`):
- *  terracota, ámbar, carbón (`--navy`), oro (`--gold`), piedra (`--trans-apagado-dia`). */
-export const COLORES_BLOQUE = ['#96593a', '#d4a843', '#3d3732', '#b08d6e', '#6f6455'];
+/** Paleta del recorrido, en orden de bloque: terracota, ámbar, oro (`--gold`), piedra
+ *  (`--trans-apagado-dia`) y oliva (Olive Stone de la marca). Sin el carbón de la plani
+ *  (UAT 2026-10-13: un bloque negro no se leía como zona trabajada; se probaron oliva y
+ *  verde en 3er lugar y quedó el oro). */
+export const COLORES_BLOQUE = ['#96593a', '#d4a843', '#b08d6e', '#6f6455', '#8a8472'];
 
 /**
  * Color de cada bloque, en orden, de la paleta. DEUTEROS I y II comparten color (UAT
@@ -72,9 +74,8 @@ export interface FiguraDef {
 
 export const FIGURAS: FiguraDef[] = [
   // Orden en pantalla de izquierda a derecha (UAT 2026-10-13: mujer a la izquierda).
-  // La mujer un 5 % más grande: su caja incluye la cola de pelo y, a la misma caja, el
-  // cuerpo quedaba más bajo que el del hombre (UAT 2026-10-13: "misma altura").
-  { id: 'f', frente: 'fFront', espalda: 'fBack', lado: 'der', escala: 1.05 },
+  // Misma escala que el hombre (UAT 2026-10-13: se probaron 1.05, 1.03 y 0.93).
+  { id: 'f', frente: 'fFront', espalda: 'fBack', lado: 'der', escala: 1 },
   { id: 'm', frente: 'mFront', espalda: 'mBack', lado: 'izq', escala: 1 },
 ];
 

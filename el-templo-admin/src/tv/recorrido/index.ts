@@ -49,7 +49,7 @@ const T_ESCALON_FUNDIDO = 120;
  *  El final alterna las vistas con el mismo ritmo. */
 const T_MEDIO_BLOQUE = 4000;
 /** Vueltas frente/espalda del resumen (todo encendido) con el que arranca cada vuelta. */
-const VUELTAS_FINAL = 2;
+const VUELTAS_FINAL = 1;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -61,6 +61,8 @@ interface Montaje {
   vistas: Vista[][];
   /** Contenedor de los cuerpos (lleva `back` con la vista de espalda). */
   cuerpos: HTMLElement;
+  /** "RUTAS DEL DÍA" / "BLOQUES DEL DÍA" debajo del título. */
+  subtitulo: HTMLElement;
   /** Leyenda: ventana de alto fijo y la pista que se desplaza adentro. */
   ventana: HTMLElement;
   pista: HTMLElement;
@@ -150,60 +152,125 @@ function rutaDeBloque(b: TvRecorridoBloque): string {
   return partes.join(' · ');
 }
 
+/**
+ * Columna del templo al costado de cada fila (UAT 2026-10-13, en vez de la barra de
+ * color): las MISMAS piezas que la dórica tumbada de las listas de ejercicios
+ * (`columnaDorica__*`, render.ts) en una tira que se rota 90° para quedar parada; su
+ * banda de brillo barre así de arriba hacia abajo, una vez, cuando el bloque entra en
+ * foco (CSS). El largo de la tira = alto de la fila (`ajustarColumnas`).
+ */
+function columnaVertical(color: string): HTMLElement {
+  const col = div('recColumna');
+  // Pintada con el color del bloque: las piezas usan la imagen como máscara (CSS).
+  col.style.setProperty('--recColumnaColor', color);
+  const tira = div('recColumna__tira');
+  const piezas = div('columnaDorica__piezas');
+  piezas.append(
+    div('columnaDorica__cap columnaDorica__cap--izq'),
+    div('columnaDorica__fuste'),
+    div('columnaDorica__cap columnaDorica__cap--der')
+  );
+  tira.append(piezas, div('columnaDorica__brillo'));
+  col.appendChild(tira);
+  return col;
+}
+
+/** Largo de cada tira rotada = alto de su fila (CSS no puede atar el ancho de un
+ *  elemento rotado al alto del padre). Se repite cuando terminan de cargar las fuentes. */
+function ajustarColumnas(host: HTMLElement): void {
+  for (const col of Array.prototype.slice.call(
+    host.querySelectorAll('.recColumna')
+  ) as HTMLElement[]) {
+    const tira = col.firstElementChild as HTMLElement | null;
+    if (tira) tira.style.width = col.clientHeight + 'px';
+  }
+}
+
+/** Subtítulo según el estado (UAT 2026-10-13): resumen = rutas, foco = bloques. */
+const SUBTITULO_RESUMEN = 'RUTAS DEL DÍA';
+const SUBTITULO_BLOQUES = 'BLOQUES DEL DÍA';
+
 function construirTexto(bloques: TvRecorridoBloque[]): {
   col: HTMLElement;
+  subtitulo: HTMLElement;
   ventana: HTMLElement;
   pista: HTMLElement;
 } {
   const col = div('recTexto');
   const titulo = div('recTitulo', 'La sesión de hoy');
-  // Ventana de alto fijo con la lista adentro (UAT 2026-10-13): con 4-5 bloques no
-  // entraba. La pista se desplaza (transform) hasta el bloque en foco y un degradé
-  // marca que hay más abajo/arriba (`desplazarLeyenda`).
+  const subtitulo = div('recSubtitulo', SUBTITULO_RESUMEN);
+  // Ventana de alto fijo con DOS paneles lado a lado en un carril horizontal (UAT
+  // 2026-10-13): "RUTAS DEL DÍA" (resumen) y "BLOQUES DEL DÍA". El cambio entre ellos
+  // desliza el carril (`.resumen` en la ventana). En el de bloques, la pista se
+  // desplaza hasta el bloque en foco y un degradé marca que hay más (`desplazarLeyenda`).
   const ventana = div('recLeyenda');
+  const carril = div('recCarril');
+  const panelRutas = div('recPanel recPanel--rutas');
+  const panelBloques = div('recPanel recPanel--bloques');
   const pista = div('recPista');
-  ventana.appendChild(pista);
+  panelBloques.appendChild(pista);
+  carril.append(panelRutas, panelBloques);
+  ventana.appendChild(carril);
   const colores = coloresDeBloques(bloques);
+  const nombreRuta = (x: TvRecorridoBloque): string => x.subtitle ?? x.title;
   bloques.forEach((b, i) => {
     const color = colores[i] as string;
+    const tinta = mezclar(color, '#000000', 0.18);
+
+    // Panel de rutas: solo el nombre de la ruta (sin ruta, el del bloque). DEUTEROS I
+    // y II van en UNA fila: "ruta I / ruta II".
+    const previo = bloques[i - 1];
+    const siguiente = bloques[i + 1];
+    if (!(b.role === 'DEUTEROS_2' && previo?.role === 'DEUTEROS_1')) {
+      const unido = b.role === 'DEUTEROS_1' && siguiente?.role === 'DEUTEROS_2' ? siguiente : null;
+      const fila = div('recItem recItem--ruta');
+      fila.setAttribute('data-b', String(i));
+      const rutaSola = div(
+        'recRutaSola',
+        unido ? `${nombreRuta(b)} / ${nombreRuta(unido)}` : nombreRuta(b)
+      );
+      rutaSola.style.color = tinta;
+      // En las rutas del día queda la barra de color (UAT 2026-10-13).
+      const barraRuta = div('recBarra');
+      barraRuta.style.background = color;
+      fila.append(barraRuta, rutaSola);
+      panelRutas.appendChild(fila);
+    }
+
+    // Panel de bloques: nombre, formato y "ruta · %". Las zonas NO van en la leyenda:
+    // se rotulan entre los cuerpos ("que no estén dos veces").
     const item = div('recItem');
     item.setAttribute('data-b', String(i));
-    const barra = div('recBarra');
-    barra.style.background = color;
     const cuerpo = div('recItemCuerpo');
-    // Vista de resumen (cuerpo completo, sin bloque en foco): solo el nombre de la ruta
-    // (UAT 2026-10-13); sin ruta (KINESIS fuera de técnica…), el nombre del bloque.
-    // DEUTEROS I y II van en UNA línea del resumen: "ruta I / ruta II" en el item de
-    // DEUTEROS I y el de DEUTEROS II se oculta en el resumen (`recItem--unido`).
-    const siguiente = bloques[i + 1];
-    const previo = bloques[i - 1];
-    const nombreRuta = (x: TvRecorridoBloque): string => x.subtitle ?? x.title;
-    const unidoConSiguiente = b.role === 'DEUTEROS_1' && siguiente?.role === 'DEUTEROS_2';
-    if (b.role === 'DEUTEROS_2' && previo?.role === 'DEUTEROS_1')
-      item.classList.add('recItem--unido');
-    const rutaSola = div(
-      'recRutaSola',
-      unidoConSiguiente && siguiente ? `${nombreRuta(b)} / ${nombreRuta(siguiente)}` : nombreRuta(b)
-    );
-    rutaSola.style.color = mezclar(color, '#000000', 0.18);
-    cuerpo.appendChild(rutaSola);
     const rol = div('recRol', b.title);
-    rol.style.color = mezclar(color, '#000000', 0.18);
+    rol.style.color = tinta;
     cuerpo.appendChild(rol);
     if (b.format) {
       const metaEl = div('recMeta', b.format);
       metaEl.style.color = mezclar(color, '#000000', 0.12);
       cuerpo.appendChild(metaEl);
     }
-    // Las zonas NO van en la leyenda: se rotulan al lado del cuerpo (UAT 2026-10-13,
-    // "que no estén dos veces").
     const ruta = rutaDeBloque(b);
     if (ruta) cuerpo.appendChild(div('recSub', ruta));
-    item.append(barra, cuerpo);
+    item.append(columnaVertical(color), cuerpo);
     pista.appendChild(item);
   });
-  col.append(titulo, ventana);
-  return { col, ventana, pista };
+  // Lista circular (UAT 2026-10-13): arriba del primer bloque asoma el ÚLTIMO y abajo
+  // del último el PRIMERO. Son copias (`recItem--eco`, mismo `data-b`: se atenúan con
+  // el foco); el centrado apunta siempre al bloque real (`desplazarLeyenda`).
+  const reales = Array.prototype.slice.call(pista.children) as HTMLElement[];
+  const primero = reales[0];
+  const ultimo = reales[reales.length - 1];
+  if (primero && ultimo && reales.length > 1) {
+    const ecoUltimo = ultimo.cloneNode(true) as HTMLElement;
+    const ecoPrimero = primero.cloneNode(true) as HTMLElement;
+    ecoUltimo.classList.add('recItem--eco');
+    ecoPrimero.classList.add('recItem--eco');
+    pista.insertBefore(ecoUltimo, primero);
+    pista.appendChild(ecoPrimero);
+  }
+  col.append(titulo, subtitulo, ventana);
+  return { col, subtitulo, ventana, pista };
 }
 
 /**
@@ -212,19 +279,24 @@ function construirTexto(bloques: TvRecorridoBloque[]): {
  * `transform` (misma regla que el resto de la TV).
  */
 function desplazarLeyenda(m: Montaje, i: number | null): void {
-  const sobra = m.pista.scrollHeight - m.ventana.clientHeight;
+  const alto = m.ventana.clientHeight;
   let offset = 0;
-  if (sobra > 0 && i !== null) {
-    const item = m.pista.querySelector(`.recItem[data-b="${i}"]`) as HTMLElement | null;
-    if (item) {
-      // El bloque en foco queda con un poco de aire arriba (se ve el anterior asomando).
-      const deseado = item.offsetTop - m.ventana.clientHeight * 0.25;
-      offset = Math.max(0, Math.min(sobra, deseado));
-    }
+  const item =
+    i === null
+      ? null
+      : (m.pista.querySelector(`.recItem:not(.recItem--eco)[data-b="${i}"]`) as HTMLElement | null);
+  const primerReal = m.pista.querySelector('.recItem:not(.recItem--eco)') as HTMLElement | null;
+  // Sin foco (resumen): la lista arranca en el primer bloque real, no en la copia.
+  if (!item && primerReal) offset = primerReal.offsetTop;
+  if (item) {
+    // El bloque en foco queda en el MEDIO de la ventana, también el primero y el último
+    // (UAT 2026-10-13): sin tope en los extremos, la pista puede bajar o subir de más.
+    offset = item.offsetTop + item.offsetHeight / 2 - alto / 2;
   }
   m.pista.style.transform = `translateY(${-offset}px)`;
-  m.ventana.classList.toggle('masArriba', offset > 1);
-  m.ventana.classList.toggle('masAbajo', sobra - offset > 1);
+  // En el resumen (rutas del día) no hay degradé: la lista de rutas entra entera.
+  m.ventana.classList.toggle('masArriba', item !== null && offset > 1);
+  m.ventana.classList.toggle('masAbajo', item !== null && m.pista.scrollHeight - offset - alto > 1);
 }
 
 function construirFigura(
@@ -319,6 +391,8 @@ function medirYRotular(m: Montaje, an: Anatomia): void {
 type PuntosPorVista = Record<Vista, Array<{ m: PuntoZona[]; f: PuntoZona[] }>>;
 
 const SVG_NS_LEYENDA = 'http://www.w3.org/2000/svg';
+/** Cantidad de zonas del cuerpo: un bloque que las marca todas no se rotula. */
+const TOTAL_ZONAS = Object.keys(ZONA_ES).length;
 /** Tamaño de los rótulos de zona (rem) y separación mínima entre filas. */
 const ZONA_FONT_REM = 1.7;
 const ZONA_FILA_REM = 3.6;
@@ -348,6 +422,9 @@ function construirLeyendaZonas(m: Montaje, puntos: PuntosPorVista, colores: stri
     m.bloques.forEach((b, i) => {
       const p = puntos[v][i];
       if (!p) return;
+      // Cuerpo entero (ruta Full Body): marcado, pero sin rotular las 15 zonas
+      // (UAT 2026-10-13).
+      if (b.zonas.length >= TOTAL_ZONAS) return;
       const svg = document.createElementNS(SVG_NS_LEYENDA, 'svg');
       svg.setAttribute('class', 'recCall');
       svg.setAttribute('data-b', String(i));
@@ -429,10 +506,14 @@ function construir(host: HTMLElement, an: Anatomia, bloques: TvRecorridoBloque[]
     figs: figs,
     vistas: bloques.map((b) => vistasDe(an, b.zonas)),
     cuerpos: cuerpos,
+    subtitulo: texto.subtitulo,
     ventana: texto.ventana,
     pista: texto.pista,
   };
   m.ventana.classList.add('resumen');
+  ajustarColumnas(host);
+  // Las fuentes del TV pueden terminar de cargar después: cambia el alto de las filas.
+  if (document.fonts) void document.fonts.ready.then(() => ajustarColumnas(host));
   desplazarLeyenda(m, null);
   medirYRotular(m, an);
   return m;
@@ -456,8 +537,10 @@ function encenderTodo(m: Montaje): void {
 function foco(m: Montaje, i: number | null): void {
   for (const el of todos(m, '.recOv, .recItem')) {
     const b = Number(el.getAttribute('data-b'));
-    el.classList.toggle('dim', i !== null && b !== i);
-    el.classList.toggle('focus', i !== null && b === i);
+    // Las copias de la lista circular nunca toman el foco: quedan atenuadas.
+    const eco = el.classList.contains('recItem--eco');
+    el.classList.toggle('dim', i !== null && (b !== i || eco));
+    el.classList.toggle('focus', i !== null && b === i && !eco);
   }
   for (const el of todos(m, '.recOv')) {
     const b = Number(el.getAttribute('data-b'));
@@ -470,6 +553,7 @@ function foco(m: Montaje, i: number | null): void {
   }
   // Sin bloque en foco = resumen: la lista muestra solo las rutas.
   m.ventana.classList.toggle('resumen', i === null);
+  m.subtitulo.textContent = i === null ? SUBTITULO_RESUMEN : SUBTITULO_BLOQUES;
   desplazarLeyenda(m, i);
 }
 

@@ -641,7 +641,7 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
     prescriptions: [{ exerciseId: 0 }],
   };
 
-  it("(1d) dia tecnica: TECNICA_I + TECNICA_II + ALT van como UN item 'TÉCNICA I Y II', y KINESIS copia sus zonas", async () => {
+  it("(1d) dia tecnica: TECNICA_I + TECNICA_II van como UN item 'TÉCNICA I Y II' (el ALT no entra), y KINESIS copia sus zonas", async () => {
     await armarDia("tecnica", [
       { ...INITIUM_BLOCK, prescriptions: [{ exerciseId: ex.hip }] },
       {
@@ -670,29 +670,24 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
     const body = await poll();
     expect(body.screen).toBe("idle");
     const bloques = body.recorrido!.bloques;
-    // El grupo va con el primer rol; ni TECNICA_II ni el ALT son items aparte.
+    // El grupo va con el primer rol; TECNICA_II no es item aparte y el ALT
+    // (otro camino del bloque, UAT 2026-10-13) no aporta ruta ni zonas.
     expect(bloques.map((b) => b.role)).toEqual(["TECNICA_I", "STRETCHING"]);
     const [tecnica, kinesis] = bloques;
 
     expect(tecnica.title).toBe("TÉCNICA I Y II");
-    expect(tecnica.subtitle).toBe(
-      "Handstand Push Up · Dominadas · Sissy Squat",
-    );
-    expect(tecnica.zonas).toEqual(
-      expect.arrayContaining([
-        "chest",
-        "deltoids",
-        "triceps",
-        "biceps",
-        "forearm",
-        "upper-back",
-        "gluteal",
-        "quadriceps",
-        "hamstring",
-        "adductors",
-      ]),
-    );
-    expect(tecnica.zonas).toHaveLength(10);
+    expect(tecnica.subtitle).toBe("Handstand Push Up · Dominadas");
+    expect(tecnica.zonas).toEqual([
+      "chest",
+      "deltoids",
+      "triceps",
+      "biceps",
+      "forearm",
+      "upper-back",
+    ]);
+    // Las del ALT (KNEE DOMINANT + ISQUIOS) no aparecen.
+    expect(tecnica.zonas).not.toContain("quadriceps");
+    expect(tecnica.zonas).not.toContain("hamstring");
 
     // KINESIS: subtitulo "Stretching" y las zonas de la tecnica (no las suyas).
     expect(kinesis.title).toBe("KINESIS");
@@ -750,6 +745,14 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
         role: "COMBOS_II",
         route: "OAP",
         prescriptions: [{ exerciseId: ex.pullV }],
+        intensity: 60,
+      },
+      // El ALT (otro camino de COMBOS II) no entra: ni ruta, ni %, ni zonas.
+      {
+        role: "COMBOS_II_ALT",
+        route: "SS",
+        prescriptions: [{ exerciseId: ex.kneeD }],
+        intensity: 65,
       },
       {
         role: "STRETCHING",
@@ -774,6 +777,37 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
     // Y COMBOS_I / COMBOS_II siguen siendo items separados.
     expect(bloques[0].title).toBe("COMBOS I");
     expect(bloques[1].title).toBe("COMBOS II");
+    // COMBOS II: solo el principal (UAT 2026-10-13).
+    expect(bloques[1].subtitle).toBe("Dominadas");
+    expect(bloques[1].intensity).toEqual({ min: 60, max: 60 });
+    expect(bloques[1].zonas).toEqual(["biceps", "forearm", "upper-back"]);
+  });
+
+  it("(1g-bis) ruta Full Body (FB): marca el cuerpo entero, no solo las zonas de sus ejercicios", async () => {
+    await armarDia("combos", [
+      { ...INITIUM_BLOCK, prescriptions: [{ exerciseId: ex.hip }] },
+      {
+        role: "COMBOS_I",
+        route: "HSPU",
+        prescriptions: [{ exerciseId: ex.pushH }],
+      },
+      // EPIKOS Full Body con un solo ejercicio de empuje: igual pinta todo.
+      {
+        role: "EPIKOS",
+        route: "FB",
+        prescriptions: [{ exerciseId: ex.pushH }],
+      },
+    ]);
+
+    const bloques = (await poll()).recorrido!.bloques;
+    const [combos, fullBody] = bloques;
+    expect(fullBody.subtitle).toBe("Full Body");
+    expect(fullBody.zonas).toHaveLength(15);
+    expect(fullBody.zonas).toEqual(
+      expect.arrayContaining(["calves", "hamstring", "abs", "upper-back"]),
+    );
+    // El resto de los bloques sigue con sus zonas dominantes.
+    expect(combos.zonas).toEqual(["chest", "deltoids", "triceps"]);
   });
 
   it("(1h) sabado ROM: sin ejercicios con zonas cae al fallback por rol y el subtitulo es null", async () => {

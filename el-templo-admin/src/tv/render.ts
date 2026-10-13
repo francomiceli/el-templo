@@ -108,6 +108,9 @@ interface Nodes {
   avisoCuerpo: HTMLElement;
   avisoReloj: ClockNodes;
   avisoFecha: HTMLElement;
+  /** Reloj y fecha del recorrido de hoy (pantalla de inicio con plani). */
+  recorridoReloj: ClockNodes;
+  recorridoFecha: HTMLElement;
   /** "El recorrido de hoy" (pantalla de inicio con plani: `screen === 'idle'` y
    *  `recorrido` en el poll): `recorrido/index.ts` arma su contenido dentro de
    *  `recorridoHost`. */
@@ -187,6 +190,8 @@ function ensureNodes(): Nodes {
     avisoCuerpo: byId('avisoCuerpo'),
     avisoReloj: clockNodes(byId('avisoReloj')),
     avisoFecha: byId('avisoFecha'),
+    recorridoReloj: clockNodes(byId('recorridoReloj')),
+    recorridoFecha: byId('recorridoFecha'),
     pantallaRecorrido: byId('pantallaRecorrido'),
     recorridoHost: byId('recorridoHost'),
   };
@@ -765,6 +770,7 @@ export function renderState(payload: TvPollResponse): void {
   setText(n.reposoFecha, fecha);
   setText(n.cierreFecha, fecha);
   setText(n.avisoFecha, fecha);
+  setText(n.recorridoFecha, fecha);
   setText(n.cierreTitulo, 'SESIÓN COMPLETA');
 
   const avisoVelo = avisoVeloFor(payload);
@@ -930,6 +936,7 @@ export function tickClock(): void {
     paintAviso(n, last.aviso, avisoVeloFor(last));
   } else if (last.screen === 'idle') {
     paintClock(n.reposoReloj, d);
+    paintClock(n.recorridoReloj, d);
     paintCapsula(n);
   } else if (last.screen === 'closing') {
     paintClock(n.cierreReloj, d);

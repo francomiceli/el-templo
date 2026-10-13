@@ -9,8 +9,10 @@
  *  - Se recorre el roster del dia (`buildRoster`, el MISMO que usa la TV) en
  *    orden, SIN INITIUM (PYROS): la entrada en calor es compartida y no
  *    tiene zonas propias que mostrar.
- *  - Se agrupa por grupo visual (`visualGroupOf`): `*_II` + `*_II_ALT` es UN
- *    item (la alternativa es otro camino del mismo bloque). EXCEPCIONES: los
+ *  - Los bloques `*_ALT` NO entran (UAT 2026-10-13): son otro camino del mismo
+ *    bloque, no se hacen los dos; sumarlos juntaba dos rutas, dos % y las zonas
+ *    de ambos ("Dominadas · Nordic Curl"). Se muestra solo el principal.
+ *  - Se agrupa por grupo visual (`visualGroupOf`). EXCEPCIONES: los
  *    deuteros van SIEMPRE desagregados (pedido 2026-10-05) — DEUTEROS_1 y
  *    DEUTEROS_2 trabajan cosas distintas y cada uno lleva su color; y la
  *    tecnica va JUNTA (2026-10-13) — TECNICA_I y TECNICA_II trabajan lo mismo:
@@ -39,7 +41,11 @@ import { findBlock, buildRoster, pairFor, visualGroupOf } from "./roster";
 import type { RosterClassDay } from "./roster";
 import type { ClassDay, ClassDayBlock } from "./class-day";
 import { getRouteLabel } from "./route-labels";
-import { zonasDelGrupo, type EjercicioZonaInput } from "./muscle-zones";
+import {
+  ZONAS_ORDEN,
+  zonasDelGrupo,
+  type EjercicioZonaInput,
+} from "./muscle-zones";
 import type { TvRecorridoBloque, TvRecorridoPayload } from "./types";
 
 /** Separador de " · " entre el rotulo y el formato de `blockTitle` (roster.ts). */
@@ -57,13 +63,15 @@ function groupTitle(firstTitle: string): string {
   return firstTitle.split(TITLE_SEPARATOR)[0];
 }
 
-/** Grupo de los dos bloques de tecnica (con su `_ALT`): trabajan lo mismo y van
+/** Grupo de los dos bloques de tecnica: trabajan lo mismo y van
  *  como UN item "TECNICA I Y II" (UAT 2026-10-13). */
 const TECNICA_GROUP = "TECNICA";
 const TECNICA_TITLE = "TÉCNICA I Y II";
 /** El cierre del dia de tecnica (KINESIS): "Stretching" abajo y las mismas zonas
  *  que la tecnica (UAT 2026-10-13). */
 const STRETCHING_SUBTITLE = "Stretching";
+/** Ruta "Full Body" (`route-labels.ts`): marca el cuerpo entero. */
+const FULL_BODY_ROUTE = "FB";
 
 /** Clave de agrupacion: el grupo visual, salvo los deuteros (siempre separados)
  *  y la tecnica (TECNICA_I + TECNICA_II juntos). */
@@ -84,7 +92,7 @@ export function buildRecorrido(
   // Grupos en orden de aparicion, sin INITIUM.
   const groups = new Map<string, { roles: string[]; firstTitle: string }>();
   for (const entry of roster) {
-    if (entry.role === "INITIUM") continue;
+    if (entry.role === "INITIUM" || entry.role.endsWith("_ALT")) continue;
     const key = recorridoGroupOf(entry.role);
     const group = groups.get(key);
     if (group) group.roles.push(entry.role);
@@ -148,7 +156,11 @@ export function buildRecorrido(
           ? TECNICA_TITLE
           : groupTitle(group.firstTitle),
       subtitle: routes.length > 0 ? routes.join(TITLE_SEPARATOR) : null,
-      zonas: zonasDelGrupo(ejercicios, group.roles),
+      // Ruta Full Body (FB): el cuerpo entero, no las zonas dominantes de sus
+      // ejercicios (UAT 2026-10-13: "habría que marcar más cuerpo").
+      zonas: blocks.some((b) => b.route === FULL_BODY_ROUTE)
+        ? [...ZONAS_ORDEN]
+        : zonasDelGrupo(ejercicios, group.roles),
       format: formats.length > 0 ? formats.join(" / ") : null,
       intensity:
         intensidades.length > 0
