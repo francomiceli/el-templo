@@ -200,6 +200,14 @@ async function forceDeleteTvAviso(id: number): Promise<void> {
   await app.db.execute(sql`SET FOREIGN_KEY_CHECKS=1`);
 }
 
+/** Hoy sin plani aprobada: la sesion del martes pasa a draft. */
+async function desaprobarSesionDeHoy(): Promise<void> {
+  await app.db
+    .update(schema.sessions)
+    .set({ status: "draft" })
+    .where(eq(schema.sessions.dayId, "W1-martes-alfa-193-10"));
+}
+
 // ---------------------------------------------------------------------------
 // Llamadas
 // ---------------------------------------------------------------------------
@@ -515,7 +523,12 @@ describe("screen 'aviso' — escritura, poll, salida y degradacion (D-25/D-26)",
 
 
 describe("modo reemplazo — flexibilidad inicial y final (D-28)", () => {
-  it("(6a) flex_inicio activo sin clase iniciada: screen 'idle' con el texto del aviso", async () => {
+  // 2026-10-13 (commit d3f111e93): con plani APROBADA la pantalla de inicio es
+  // el recorrido de hoy y REEMPLAZA al flex_inicio (ver
+  // tv-recorrido-screen.test.ts). El aviso de reemplazo queda para los dias
+  // SIN plani aprobada: por eso estos casos desaprueban la sesion de hoy.
+  it("(6a) flex_inicio activo sin clase iniciada y sin plani aprobada: screen 'idle' con el texto del aviso", async () => {
+    await desaprobarSesionDeHoy();
     await createTvAviso({
       title: "Flexibilidad libre antes de empezar",
       body: "Aprovecha para estirar y elongar",
@@ -533,6 +546,23 @@ describe("modo reemplazo — flexibilidad inicial y final (D-28)", () => {
       title: "Flexibilidad libre antes de empezar",
       body: "Aprovecha para estirar y elongar",
     });
+  });
+
+  it("(6a-bis) flex_inicio activo con plani aprobada: el recorrido lo reemplaza, aviso null", async () => {
+    await createTvAviso({
+      title: "Flexibilidad libre antes de empezar",
+      mode: "flex_inicio",
+      isActive: true,
+    });
+
+    const screenRes = await getScreen(coachToken, branchId);
+    expect(screenRes.statusCode, screenRes.body).toBe(200);
+    const poll = JSON.parse(screenRes.body) as PollBody & {
+      recorrido: { bloques: unknown[] } | null;
+    };
+    expect(poll.screen).toBe("idle");
+    expect(poll.aviso).toBeNull();
+    expect(poll.recorrido?.bloques.length).toBeGreaterThan(0);
   });
 
   it("(6b) flex_final activo con screen 'closing': el aviso viaja junto al cierre", async () => {
@@ -570,7 +600,20 @@ describe("modo reemplazo — flexibilidad inicial y final (D-28)", () => {
     expect(closingPoll.aviso).toBeNull();
   });
 
+  it("(6c-bis) un aviso 'manual' tampoco aparece como reemplazo en idle sin plani aprobada", async () => {
+    await desaprobarSesionDeHoy();
+    await createTvAviso({ mode: "manual", isActive: true });
+
+    const idleRes = await getScreen(coachToken, branchId);
+    const idlePoll = JSON.parse(idleRes.body) as PollBody;
+    expect(idlePoll.screen).toBe("idle");
+    expect(idlePoll.aviso).toBeNull();
+  });
+
   it("(6d) un aviso flex_inicio con scope de otra sede no aparece", async () => {
+    // Sin plani aprobada: con plani el recorrido ya oculta el aviso y el caso
+    // no probaria el alcance por sede.
+    await desaprobarSesionDeHoy();
     const otherBranchId = branchId + 999999;
     await createTvAviso({
       mode: "flex_inicio",
@@ -589,13 +632,6 @@ describe("modo reemplazo — flexibilidad inicial y final (D-28)", () => {
 // 2026-10-06 (yoga): clases sin plani — el profe pone una placa de aviso
 // aunque la sesión de hoy no esté aprobada. Es la ÚNICA escritura aceptada.
 describe("aviso sin plani aprobada (clases de yoga, 2026-10-06)", () => {
-  async function desaprobarSesionDeHoy(): Promise<void> {
-    await app.db
-      .update(schema.sessions)
-      .set({ status: "draft" })
-      .where(eq(schema.sessions.dayId, "W1-martes-alfa-193-10"));
-  }
-
   it("(Y1) fijar un aviso sin sesión aprobada: 200, el control lo refleja y el TV lo muestra", async () => {
     await desaprobarSesionDeHoy();
     const avisoId = await createTvAviso({
