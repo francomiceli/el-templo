@@ -53,6 +53,7 @@ describe("Staff Attendance API", () => {
   let branchBId: number;
   let branchAName: string;
 
+  let coachAId: number;
   let coachAToken: string; // asignado SOLO a branchA (user_branches)
   let coachEmail: string;
   let adminEmail: string;
@@ -96,7 +97,7 @@ describe("Staff Attendance API", () => {
       .$returningId();
     branchBId = b.id;
 
-    const coachAId = await createStaffUser(app, {
+    coachAId = await createStaffUser(app, {
       email: `coach-a-${u}@test.local`,
       password: "test1234",
       firstName: "Coach",
@@ -104,7 +105,6 @@ describe("Staff Attendance API", () => {
       role: "coach",
       branchId: branchAId,
     });
-    void coachAId;
     coachAToken = await getAuthToken(
       app,
       `coach-a-${u}@test.local`,
@@ -335,7 +335,14 @@ describe("Staff Attendance API", () => {
       const body = JSON.parse(res.body);
       expect(Array.isArray(body.shifts)).toBe(true);
       expect(body.shifts.length).toBeGreaterThanOrEqual(1);
-      const row = body.shifts[0];
+      // En branchA hay DOS jornadas de hoy: la del coach y la del owner (test
+      // de QR de otra sede). El orden es por `checkedInAt` con precisión de
+      // segundos, así que `shifts[0]` es una u otra según el reloj — y el
+      // owner no tiene `videos` (solo profes). Se toma la del coach.
+      const row = body.shifts.find(
+        (s: { userId: number }) => s.userId === coachAId,
+      );
+      expect(row).toBeDefined();
       expect(row.branchId).toBe(branchAId);
       expect(typeof row.userName).toBe("string");
       // El snapshot guarda `lote` solo los días que aplica (mié/sáb, tz sede).
