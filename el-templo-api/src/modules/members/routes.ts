@@ -89,7 +89,7 @@ import {
   MEMBER_ROLES,
   FINANCE_READ_ROLES,
   MEMBER_LIFECYCLE_ROLES,
-  INVITATION_ASSISTED_ROLES,
+  INVITATION_ROLES,
   isFinanceBlindRole,
 } from "../shared/permissions";
 import {
@@ -930,9 +930,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         // alta es la de siempre.
         if (inviterId !== undefined) {
           if (
-            !(INVITATION_ASSISTED_ROLES as readonly string[]).includes(
-              request.user.role,
-            )
+            !(INVITATION_ROLES as readonly string[]).includes(request.user.role)
           ) {
             throw new ForbiddenError(
               "No tienes permiso para crear invitaciones",
@@ -2028,20 +2026,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     request: Pick<FastifyRequest, "user" | "scope"> & {
       params: { userId: number };
     },
-    // Fase 194 D-16: el canal asistido de invitaciones lo usa con otro set de
-    // roles (INVITATION_ASSISTED_ROLES incluye recepción). El default conserva
-    // el comportamiento de referidos tal cual.
+    // Set de roles EXPLÍCITO en cada ruta: las de invitaciones usan
+    // INVITATION_ROLES (incluye recepción), las de partner MEMBER_LIFECYCLE_ROLES.
     opts: {
-      allowedRoles?: readonly string[];
+      allowedRoles: readonly string[];
       deniedMessage?: string;
       /** ME-05: además del país, acota a las sedes del actor (`admin_sede`). */
       enforceBranches?: boolean;
-    } = {},
+    },
   ): Promise<number> {
     const { role } = request.user;
-    const allowedRoles: readonly string[] =
-      opts.allowedRoles ?? MEMBER_LIFECYCLE_ROLES;
-    if (!allowedRoles.includes(role)) {
+    if (!opts.allowedRoles.includes(role)) {
       throw new ForbiddenError(
         opts.deniedMessage ?? "No tienes permiso para ver las invitaciones",
       );
@@ -2113,14 +2108,17 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   }
 
   // GET /admin/members/:userId/referrals — Referral overview de la ficha del
-  // alumno (fase 158, D-34). Gestión consulta quién lo trajo y a quiénes trajo
-  // con el MISMO estado derivado (deriveCoveredUntil) que la app.
+  // alumno (fase 158, D-34). Staff (INVITATION_ROLES, incluye recepción)
+  // consulta quién lo trajo y a quiénes trajo con el MISMO estado derivado
+  // (deriveCoveredUntil) que la app.
   fastify.get<{ Params: { userId: number } }>(
     "/:userId/referrals",
     async (request, reply) => {
       const ctx = assertTenant(request.scope, "members.referrals");
       try {
-        const targetId = await assertReferralTargetInScope(ctx, request);
+        const targetId = await assertReferralTargetInScope(ctx, request, {
+          allowedRoles: INVITATION_ROLES,
+        });
         const referralService = new ReferralService(fastify.db, fastify.log);
         return await referralService.getReferralOverview(ctx, targetId);
       } catch (err: unknown) {
@@ -2137,9 +2135,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // 2026-08-04 hubo 352 altas y CERO vínculos `assisted`. Esta ruta es la única
   // forma de cargar el vínculo sin tocar la base a mano.
   //
-  // Mismo guard que el GET (incluido MEMBER_LIFECYCLE_ROLES: recepción carga el
-  // alta pero no atribuye referidos — la decisión de a quién se le acredita un
-  // descuento es de gestión). El `referrerId` se valida SIEMPRE server-side, y a
+  // Mismo guard que el GET (INVITATION_ROLES: desde 2026-10-13 recepción
+  // también lo carga — la pestaña Invitaciones es la de todas las operaciones).
+  // El `referrerId` se valida SIEMPRE server-side, y a
   // diferencia del alta no degrada en silencio: acá la atribución es la
   // operación, un referidor inválido tiene que fallar visible.
   fastify.post<{ Params: { userId: number }; Body: { referrerId: number } }>(
@@ -2148,7 +2146,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const ctx = assertTenant(request.scope, "members.referrals");
       try {
-        const targetId = await assertReferralTargetInScope(ctx, request);
+        const targetId = await assertReferralTargetInScope(ctx, request, {
+          allowedRoles: INVITATION_ROLES,
+        });
         const referralService = new ReferralService(fastify.db, fastify.log);
         const result = await referralService.assignReferrerToMember({
           referredId: targetId,
@@ -2183,7 +2183,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       const ctx = assertTenant(request.scope, "members.assistedInvitation");
       try {
         const invitedUserId = await assertReferralTargetInScope(ctx, request, {
-          allowedRoles: INVITATION_ASSISTED_ROLES,
+          allowedRoles: INVITATION_ROLES,
           deniedMessage: "No tienes permiso para crear invitaciones",
           enforceBranches: true,
         });
@@ -2212,8 +2212,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /admin/members/:userId/invitations/:invitationId/void — Fase 194 D-04:
-  // anulación manual (sin DELETE, con motivo y rastro). Es de gestión
-  // (MEMBER_LIFECYCLE_ROLES): recepción crea pero no anula (T-194-40). La
+  // anulación manual (sin DELETE, con motivo y rastro). INVITATION_ROLES: desde
+  // 2026-10-13 recepción también anula (antes T-194-40 se lo negaba). La
   // invitación tiene que ser de ESTE alumno y de este gimnasio, si no 404.
   fastify.post<{
     Params: { userId: number; invitationId: number };
@@ -2228,6 +2228,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       const ctx = assertTenant(request.scope, "members.voidInvitation");
       try {
         const invitedUserId = await assertReferralTargetInScope(ctx, request, {
+          allowedRoles: INVITATION_ROLES,
           deniedMessage: "No tienes permiso para anular invitaciones",
           enforceBranches: true,
         });
@@ -2248,7 +2249,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // ficha del alumno (fase 179, plan 14, D-15): detalle para la sección
   // "Partner" (nombre/código, fecha, estado del vínculo y del beneficio).
   // `null` si el socio no tiene vínculo. Mismo guard que el GET de
-  // /referrals de arriba, sin schema de respuesta explícito (evita el
+  // /referrals de arriba pero con MEMBER_LIFECYCLE_ROLES (partners y sus
+  // comisiones siguen siendo de gestión), sin schema de respuesta explícito (evita el
   // Pitfall 4 de fast-json-stringify descartando campos en silencio — mismo
   // criterio que ese GET).
   fastify.get<{ Params: { userId: number } }>(
@@ -2257,7 +2259,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       // El gimnasio SIEMPRE sale del scope del request (T-169-02).
       const ctx = assertTenant(request.scope, "referralPartners.getMemberLink");
       try {
-        const targetId = await assertReferralTargetInScope(ctx, request);
+        const targetId = await assertReferralTargetInScope(ctx, request, {
+          allowedRoles: MEMBER_LIFECYCLE_ROLES,
+        });
         const partnerService = new PartnerReferralService(
           fastify.db,
           fastify.log,
@@ -2272,7 +2276,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /admin/members/:userId/partner-referral — Asignación RETROACTIVA de
   // partner sobre un socio ya creado (fase 179, D-15). Calcado íntegro de
   // POST /:userId/referrals de arriba: mismo guard (assertReferralTargetInScope,
-  // MEMBER_LIFECYCLE_ROLES, country-scope), mismo `handleServiceError`. A
+  // country-scope) pero con MEMBER_LIFECYCLE_ROLES, mismo `handleServiceError`. A
   // diferencia del alta (que degrada en silencio, D-12), acá la atribución ES
   // la operación: un partner inválido (404) o un socio con origen ya asignado
   // (409) fallan visible.
@@ -2284,7 +2288,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       // (mass-assignment, T-169-02). Un scope no resoluble es DENY.
       const ctx = assertTenant(request.scope, "referralPartners.assignPartner");
       try {
-        const targetId = await assertReferralTargetInScope(ctx, request);
+        const targetId = await assertReferralTargetInScope(ctx, request, {
+          allowedRoles: MEMBER_LIFECYCLE_ROLES,
+        });
         const partnerService = new PartnerReferralService(
           fastify.db,
           fastify.log,
@@ -2311,7 +2317,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       // El gimnasio SIEMPRE sale del scope del request (T-169-02).
       const ctx = assertTenant(request.scope, "referralPartners.revokeLink");
       try {
-        const targetId = await assertReferralTargetInScope(ctx, request);
+        const targetId = await assertReferralTargetInScope(ctx, request, {
+          allowedRoles: MEMBER_LIFECYCLE_ROLES,
+        });
         const partnerService = new PartnerReferralService(
           fastify.db,
           fastify.log,

@@ -121,19 +121,6 @@
                 no-caps
                 @click="openConvertDialog"
               />
-              <!-- Fase 194 D-16: canal asistido. Recepción incluida (es el canal real:
-                   la pestaña Invitaciones es de gestión, esta acción no). Se oculta a
-                   quien ya es socio vigente; si el servidor rechaza igual (cupo,
-                   elegibilidad), el diálogo muestra el motivo. -->
-              <q-btn
-                v-if="canCreateInvitation"
-                flat
-                icon="card_giftcard"
-                label="Crear invitación"
-                color="primary"
-                no-caps
-                @click="showInvitationDialog = true"
-              />
               <q-btn
                 v-if="canDeleteMember"
                 flat
@@ -274,12 +261,24 @@
             </div>
 
             <!-- Fase 194 SC-5: los leads en prueba no tienen pestañas, así que la etapa
-                 de la invitación (x/N, vencimiento, sedes) se muestra acá. Solo gestión
-                 (el endpoint responde 403 al resto). -->
+                 de la invitación (x/N, vencimiento, sedes) — o, si no tiene, la acción
+                 de crearla (canal asistido D-16) — se muestra acá. -->
             <div v-if="leadInvitedBy" class="q-mt-sm">
               <div class="text-caption text-grey-7">Lo invitó</div>
               <InvitedByBlock :invited-by="leadInvitedBy" />
             </div>
+            <q-btn
+              v-else-if="canCreateInvitation"
+              flat
+              dense
+              no-caps
+              size="sm"
+              color="primary"
+              icon="card_giftcard"
+              label="Crear invitación"
+              class="q-mt-sm"
+              @click="showInvitationDialog = true"
+            />
           </q-card>
         </div>
 
@@ -389,8 +388,7 @@
           <q-tab name="asistencia" label="Asistencia" />
           <q-tab v-if="!financeBlind" name="finanzas" label="Finanzas" />
           <!-- Fase 194: ex "Referidos". El `name` interno `referidos` no se renombra. -->
-          <q-tab v-if="canSeeReferrals" name="referidos" label="Invitaciones" />
-
+          <q-tab v-if="canOperateInvitations" name="referidos" label="Invitaciones" />
         </q-tabs>
         <q-separator />
 
@@ -421,9 +419,15 @@
           </q-tab-panel>
 
           <!-- Invitaciones Tab (Phase 158-04 VIS-03, rebrand fase 194). La key fuerza la
-               recarga cuando se crea una invitación desde el encabezado. -->
-          <q-tab-panel v-if="canSeeReferrals" name="referidos">
-            <MemberReferralsTab :key="invitationsReloadKey" :user-id="userId" />
+               recarga cuando se crea una invitación (el diálogo vive en la página). -->
+          <q-tab-panel v-if="canOperateInvitations" name="referidos">
+            <MemberReferralsTab
+              :key="invitationsReloadKey"
+              :user-id="userId"
+              :can-create-invitation="canCreateInvitation"
+              :can-manage-partner="isLifecycleRole"
+              @create-invitation="showInvitationDialog = true"
+            />
           </q-tab-panel>
 
           <!-- Entrenamiento Tab -->
@@ -862,12 +866,7 @@ import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
 import FinancialHistoryTab from 'src/components/FinancialHistoryTab.vue';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import WhatsappIcon from 'src/components/icons/WhatsappIcon.vue';
-import type {
-  MemberProfile,
-  MemberSegment,
-  BranchOption,
-  InvitedByView,
-} from 'src/types/member';
+import type { MemberProfile, MemberSegment, BranchOption, InvitedByView } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
 import { levelColor } from 'src/constants/levels';
 import { TEMPLO_GREEK_LEVELS, isFinanceBlindRole } from 'src/config/templo-config';
@@ -1126,19 +1125,22 @@ const isLifecycleRole = computed(() => {
 
 const canDeleteMember = computed(() => isLifecycleRole.value);
 
-// El endpoint de referidos responde 403 fuera de MEMBER_LIFECYCLE_ROLES (WR-05),
-// así que el tab no se muestra a quien no lo puede leer.
-const canSeeReferrals = computed(() => isLifecycleRole.value);
+// Fase 194: espejo de INVITATION_ROLES en la API (lifecycle + recepción; coach queda
+// afuera). La pestaña Invitaciones es la de todas las operaciones de invitaciones
+// (ver, crear, cargar quién lo invitó, anular). Solo oculta: la autoridad es el servidor.
+const canOperateInvitations = computed(
+  () => isLifecycleRole.value || currentUser.value?.role === 'recepcion'
+);
 
-// Fase 194 D-16: espejo de INVITATION_ASSISTED_ROLES en la API (lifecycle + recepción;
-// coach queda afuera). Solo oculta el botón: la autoridad es el servidor (T-194-78).
-const canCreateInvitation = computed(() => {
-  const role = currentUser.value?.role;
-  const roleAllowed = isLifecycleRole.value || role === 'recepcion';
-  // Un socio vigente no es elegible; el resto (freemium, prueba, inactivo) lo decide el
-  // servidor con sus reglas (D-11/D-12) y el diálogo muestra el motivo si rechaza.
-  return roleAllowed && memberProfile.value !== null && memberProfile.value.status !== 'activo';
-});
+// Canal asistido (D-16). Un socio vigente no es elegible; el resto (freemium, prueba,
+// inactivo) lo decide el servidor con sus reglas (D-11/D-12) y el diálogo muestra el
+// motivo si rechaza.
+const canCreateInvitation = computed(
+  () =>
+    canOperateInvitations.value &&
+    memberProfile.value !== null &&
+    memberProfile.value.status !== 'activo'
+);
 
 const showInvitationDialog = ref(false);
 // Se incrementa al crear una invitación: remonta la pestaña Invitaciones para que recargue.
@@ -1146,11 +1148,11 @@ const invitationsReloadKey = ref(0);
 // Etapa de la invitación del lead en prueba (sin pestañas): ver "Datos de Lead".
 const leadInvitedBy = ref<InvitedByView | null>(null);
 
-// Los leads en prueba no tienen pestañas: el bloque "Lo invitó" se carga acá (solo
-// gestión, el endpoint responde 403 al resto). No es fatal si falla.
+// Los leads en prueba no tienen pestañas: el bloque "Lo invitó" se carga acá (el
+// endpoint responde 403 fuera de INVITATION_ROLES). No es fatal si falla.
 async function loadLeadInvitedBy(): Promise<void> {
   leadInvitedBy.value = null;
-  if (!canSeeReferrals.value || memberProfile.value?.status !== 'prueba') return;
+  if (!canOperateInvitations.value || memberProfile.value?.status !== 'prueba') return;
   const targetId = userId.value;
   try {
     const overview = await membersApi.getReferrals(targetId);

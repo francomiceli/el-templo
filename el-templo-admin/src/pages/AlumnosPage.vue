@@ -157,19 +157,6 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <!-- Fase 194 (D-18): origen del alumno, combinable con el estado (En Prueba + Invitación) -->
-      <div class="col-6 col-sm-3 col-md-2">
-        <q-select
-          v-model="filters.origin"
-          :options="originFilterOptions"
-          label="Origen"
-          dense
-          outlined
-          emit-value
-          map-options
-          @update:model-value="onFilterChange"
-        />
-      </div>
       <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.segment"
@@ -305,6 +292,15 @@
           <q-badge
             :color="getStatusColor(props.row.status)"
             :label="getStatusLabel(props.row.status, props.row.hasUsedTrial)"
+          />
+          <!-- Fase 194 (D-18): el invitado es un alumno En Prueba más; el chip solo
+               distingue de dónde vino (no es otro estado). -->
+          <q-badge
+            v-if="props.row.status === 'prueba' && props.row.isInvited"
+            outline
+            color="primary"
+            label="Invitación"
+            class="q-ml-xs"
           />
         </q-td>
       </template>
@@ -471,7 +467,8 @@ const exportingSepa = ref(false);
 // owner/admin/gestion, y solo si hay sedes ES dentro del scope del usuario.
 const canExportSepa = computed(() => {
   const role = authStore.user?.role;
-  const roleOk = role === 'owner' || role === 'admin' || role === 'gestion' || role === 'admin_sede';
+  const roleOk =
+    role === 'owner' || role === 'admin' || role === 'gestion' || role === 'admin_sede';
   if (!roleOk) return false;
   // Owner: su scope incluye todas las sedes, así que respetamos el selector de
   // país — no mostrar el export si está viendo Argentina.
@@ -495,10 +492,9 @@ const filters = reactive({
   branchId: null as number | string | null,
   level: null as string | null,
   // Phase 103 R10: replaces previous boolean isActive + leadsOnly toggles.
-  // null = "Todos" (no filter); enum values map 1:1 to users.status.
-  status: null as UserStatus | null,
-  // Fase 194 (D-18): null = "Todos"; 'invitacion' = solo invitados.
-  origin: null as MemberOrigin | null,
+  // null = "Todos" (no filter); enum values map 1:1 to users.status, salvo
+  // 'prueba_invitacion' (ver statusFilterParams).
+  status: null as StatusFilterValue,
   segment: null as MemberSegment | null,
   avatarType: null as string | null,
   debtorOnly: false as boolean,
@@ -549,19 +545,28 @@ const levelFilterOptions = [
   { label: 'Spartan', value: 'spartan' },
 ];
 
-// Phase 103 R10 (D-15.2): 5 options matching the 4 user lifecycle states.
-const statusFilterOptions: Array<{ label: string; value: UserStatus | null }> = [
+// Phase 103 R10 (D-15.2): one option per user lifecycle state. Fase 194 (D-18): el
+// invitado NO es otro estado — es un alumno En Prueba; "En Prueba · Invitación" es un
+// subconjunto de "En Prueba" (status=prueba + origin=invitacion en el API).
+type StatusFilterValue = UserStatus | 'prueba_invitacion' | null;
+
+const statusFilterOptions: Array<{ label: string; value: StatusFilterValue }> = [
   { label: 'Todos', value: null },
   { label: 'Freemium', value: 'freemium' },
   { label: 'En Prueba', value: 'prueba' },
+  { label: 'En Prueba · Invitación', value: 'prueba_invitacion' },
   { label: 'Activos', value: 'activo' },
   { label: 'Inactivos', value: 'inactivo' },
 ];
 
-const originFilterOptions: Array<{ label: string; value: MemberOrigin | null }> = [
-  { label: 'Todos', value: null },
-  { label: 'Invitación', value: 'invitacion' },
-];
+function statusFilterParams(value: StatusFilterValue): {
+  status?: UserStatus;
+  origin?: MemberOrigin;
+} {
+  if (value === null) return {};
+  if (value === 'prueba_invitacion') return { status: 'prueba', origin: 'invitacion' };
+  return { status: value };
+}
 
 const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }> = [
   { label: 'Todos', value: null },
@@ -851,9 +856,8 @@ async function loadMembers() {
       branchId: isMultiBranch ? undefined : ((filters.branchId as number) ?? undefined),
       multiBranch: isMultiBranch || undefined,
       level: filters.level ?? undefined,
-      // Phase 103 R10: single first-class users.status filter.
-      status: filters.status ?? undefined,
-      origin: filters.origin ?? undefined,
+      // Phase 103 R10: single first-class users.status filter (+ origin, fase 194).
+      ...statusFilterParams(filters.status),
       segment: filters.segment ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       debtorOnly: filters.debtorOnly || undefined,
@@ -893,8 +897,9 @@ async function onExport() {
           : ((filters.branchId as number | undefined) ?? undefined),
       multiBranch: filters.branchId === 'multiBranch' ? true : undefined,
       level: filters.level || undefined,
-      // Phase 103 R10: single first-class users.status filter.
-      status: filters.status ?? undefined,
+      // Phase 103 R10: single first-class users.status filter. El export no filtra
+      // por origen: "En Prueba · Invitación" exporta todo "En Prueba".
+      status: statusFilterParams(filters.status).status,
       planId: filters.planId ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       country: isOwner.value ? selectedCountry.value : undefined,

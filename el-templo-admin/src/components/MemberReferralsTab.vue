@@ -11,7 +11,24 @@
            invitación se muestra el vínculo heredado (solo descuento) y, si no hay
            ninguno, la asignación retroactiva (D-17). -->
       <div class="q-mb-md">
-        <div class="text-subtitle2 text-weight-bold q-mb-sm">Lo invitó</div>
+        <div class="row items-center q-mb-sm">
+          <div class="text-subtitle2 text-weight-bold">Lo invitó</div>
+          <q-space />
+          <!-- Canal asistido (D-16): la invitación CON accesos. La ficha decide si el
+               alumno puede recibirla (un socio vigente no); el servidor tiene la última
+               palabra (cupo, elegibilidad) y el diálogo muestra el motivo. -->
+          <q-btn
+            v-if="canCreateInvitation && !overview.invitedBy"
+            flat
+            dense
+            no-caps
+            size="sm"
+            color="primary"
+            icon="card_giftcard"
+            label="Crear invitación"
+            @click="emit('create-invitation')"
+          />
+        </div>
 
         <InvitedByBlock v-if="overview.invitedBy" :invited-by="overview.invitedBy" />
 
@@ -45,7 +62,7 @@
         <!-- Fase 173 / D-17: el alta pregunta "Invitado por" antes de que se sepa, así
              que casi siempre queda vacío. Acá se carga cuando el dato aparece: es un
              vínculo de descuento SIN accesos y SIN cupo (la invitación con accesos se
-             crea desde el botón "Crear invitación" del encabezado). -->
+             crea con "Crear invitación", arriba). -->
         <div v-else>
           <div class="text-caption text-grey-7 q-mb-sm">
             Nadie cargado como quien lo invitó. Si te enterás, cargalo acá: es un vínculo de
@@ -75,7 +92,7 @@
       </div>
 
       <!-- Invitó a: invitaciones activas con estado derivado por el servidor + vínculos
-           heredados (sin accesos). Anular = gestión (la pestaña ya es de gestión). -->
+           heredados (sin accesos). Anular: todo el que ve la pestaña (INVITATION_ROLES). -->
       <div class="q-mb-md">
         <div class="text-subtitle2 text-weight-bold q-mb-sm">Invitó a</div>
 
@@ -83,7 +100,11 @@
           Descuento por invitaciones: {{ overview.invitations.discount.percent }}% ({{
             overview.invitations.discount.activeInvitees
           }}
-          {{ overview.invitations.discount.activeInvitees === 1 ? 'invitado activo' : 'invitados activos' }})
+          {{
+            overview.invitations.discount.activeInvitees === 1
+              ? 'invitado activo'
+              : 'invitados activos'
+          }})
         </div>
         <div v-if="inviteeSidePercent > 0" class="text-caption text-grey-7 q-mb-xs">
           Por haber sido invitado: {{ inviteeSidePercent }}%
@@ -147,8 +168,10 @@
       </div>
 
       <!-- Partner (fase 179, D-15): comercio/marca que trajo al alumno,
-           asignación retroactiva desde la ficha y revocación (D-14). -->
-      <div class="q-mt-md">
+           asignación retroactiva desde la ficha y revocación (D-14). Sigue siendo de
+           gestión (MEMBER_LIFECYCLE_ROLES): mueve comisiones y la API de partners
+           responde 403 al resto. -->
+      <div v-if="canManagePartner" class="q-mt-md">
         <div class="text-subtitle2 text-weight-bold q-mb-sm">Partner</div>
 
         <div v-if="partnerLoading" class="flex flex-center q-pa-md">
@@ -264,7 +287,15 @@ const router = useRouter();
 const membersApi = useMembersApi();
 const partnersApi = usePartnersApi();
 
-const props = defineProps<{ userId: number }>();
+const props = defineProps<{
+  userId: number;
+  /** Canal asistido (D-16): la ficha ya resolvió rol + estado del alumno. */
+  canCreateInvitation: boolean;
+  /** Sección Partner: solo MEMBER_LIFECYCLE_ROLES (la API de partners da 403 al resto). */
+  canManagePartner: boolean;
+}>();
+
+const emit = defineEmits<{ 'create-invitation': [] }>();
 
 const overview = ref<MemberReferralsResponse | null>(null);
 const loading = ref(false);
@@ -274,7 +305,7 @@ const newReferrerId = ref<number | null>(null);
 const referrerSelect = ref<{ reset: () => void } | null>(null);
 const assigning = ref(false);
 
-// Anulación de una invitación (gestión): id de la que se está anulando.
+// Anulación de una invitación: id de la que se está anulando.
 const voidingId = ref<number | null>(null);
 
 // Partner (fase 179, D-15): vínculo actual + asignación retroactiva/revocación.
@@ -340,7 +371,7 @@ function inviteeCaption(invitee: InviteeView): string {
 }
 
 /**
- * Anula una invitación (MEMBER_LIFECYCLE_ROLES). Pide un motivo (3 a 64 caracteres, como
+ * Anula una invitación (INVITATION_ROLES). Pide un motivo (3 a 64 caracteres, como
  * el servidor) y avisa el efecto: libera el cupo, cierra los accesos y cancela las
  * reservas futuras. El servidor es la autoridad: si rechaza, se muestra su motivo.
  */
@@ -614,8 +645,10 @@ async function onAssign(): Promise<void> {
 
 onMounted(() => {
   void load();
-  void loadPartnerLink();
-  void loadActivePartners();
+  if (props.canManagePartner) {
+    void loadPartnerLink();
+    void loadActivePartners();
+  }
 });
 
 // Los cross-links "Lo invitó"/"Invitó a" navegan a otra ficha reutilizando la
@@ -638,7 +671,7 @@ watch(
     partnerLink.value = null;
     selectedPartnerId.value = null;
     partnerSearch.value = '';
-    void loadPartnerLink();
+    if (props.canManagePartner) void loadPartnerLink();
   }
 );
 </script>

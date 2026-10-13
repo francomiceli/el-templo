@@ -118,7 +118,7 @@ const formRef = ref<InstanceType<typeof QForm> | null>(null);
 const inviterSelect = ref<{ reset: () => void } | null>(null);
 const submitting = ref(false);
 
-// Espejo de INVITATION_ASSISTED_ROLES en la API (coach queda afuera). Solo oculta el
+// Espejo de INVITATION_ROLES en la API (coach queda afuera). Solo oculta el
 // campo: con `inviterId` el servidor valida el rol (T-194-78).
 const canInvite = computed(() => {
   const role = authStore.user?.role;

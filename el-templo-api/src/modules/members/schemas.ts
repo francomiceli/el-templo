@@ -41,6 +41,8 @@ const memberListItemSchema = {
     createdAt: { type: "string" },
     // Phase 102 (R7): true iff user has ≥1 is_trial=TRUE booking.
     hasUsedTrial: { type: "boolean" },
+    // Fase 194 (D-18): tiene una invitación `active` (chip "Invitación").
+    isInvited: { type: "boolean" },
   },
 } as const;
 

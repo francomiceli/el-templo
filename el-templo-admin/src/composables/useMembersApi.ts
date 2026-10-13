@@ -474,7 +474,7 @@ export function useMembersApi() {
   //
   // GET /admin/members/:id/referrals → ReferralOverview (incluye `invitations` e
   // `invitedBy`). Alimenta la pestaña "Invitaciones" de la ficha
-  // (MemberReferralsTab). El guard de rol (MEMBER_LIFECYCLE_ROLES) vive en el
+  // (MemberReferralsTab). El guard de rol (INVITATION_ROLES) vive en el
   // backend; el front solo consume.
 
   async function getReferrals(userId: number): Promise<MemberReferralsResponse> {

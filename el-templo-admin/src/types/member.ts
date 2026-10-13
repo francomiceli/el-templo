@@ -127,6 +127,8 @@ export interface MemberListItem {
   endDate: string | null;
   createdAt: string;
   hasUsedTrial: boolean;
+  /** Fase 194 (D-18): tiene una invitación activa (chip "Invitación" en la fila). */
+  isInvited: boolean;
 }
 
 export const AVATAR_LABELS: Record<string, string> = {

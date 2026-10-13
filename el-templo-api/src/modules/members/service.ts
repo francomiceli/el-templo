@@ -362,15 +362,16 @@ export class MemberService {
     // (derivado de `invitations`, la fuente de verdad: sin columna nueva en
     // `users`). Subquery con FROM propio: el gimnasio va INLINE, y la referencia
     // externa como literal `users.id` (trampa Drizzle de columnas sin calificar).
+    // Un solo fragmento para el filtro y para la proyección `isInvited` (chip
+    // "Invitación" de la fila): lo que filtra es exactamente lo que se marca.
+    const hasActiveInvitationExpr = sql<number>`EXISTS (
+      SELECT 1 FROM invitations i
+      WHERE i.tenant_id = ${ctx.tenantId}
+        AND i.invited_user_id = users.id
+        AND i.status = 'active'
+    )`;
     if (origin === "invitacion") {
-      conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM invitations i
-          WHERE i.tenant_id = ${ctx.tenantId}
-            AND i.invited_user_id = users.id
-            AND i.status = 'active'
-        )`,
-      );
+      conditions.push(hasActiveInvitationExpr);
     }
 
     const whereClause = and(...conditions);
@@ -464,6 +465,7 @@ export class MemberService {
         avatarType: avatarTypeSubquery,
         endDate: endDateSubquery,
         hasUsedTrial: hasUsedTrialSubquery,
+        isInvited: sql<number>`(${hasActiveInvitationExpr})`,
       })
       .from(schema.users)
       .innerJoin(
@@ -554,6 +556,7 @@ export class MemberService {
       endDate: r.endDate ?? null,
       createdAt: r.createdAt.toISOString(),
       hasUsedTrial: Boolean(r.hasUsedTrial),
+      isInvited: Boolean(r.isInvited),
     }));
 
     return { members, total, totalDebtByCurrency };
