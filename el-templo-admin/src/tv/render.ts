@@ -108,8 +108,9 @@ interface Nodes {
   avisoCuerpo: HTMLElement;
   avisoReloj: ClockNodes;
   avisoFecha: HTMLElement;
-  /** Intro "el recorrido de hoy" (`screen === 'recorrido'`): `recorrido/index.ts`
-   *  arma su contenido dentro de `recorridoHost`. */
+  /** "El recorrido de hoy" (pantalla de inicio con plani: `screen === 'idle'` y
+   *  `recorrido` en el poll): `recorrido/index.ts` arma su contenido dentro de
+   *  `recorridoHost`. */
   pantallaRecorrido: HTMLElement;
   recorridoHost: HTMLElement;
 }
@@ -430,7 +431,10 @@ export function setCapsulas(next: CapsulaTecnica[]): void {
 function sinMovimiento(): boolean {
   const root = document.getElementById('tvScreenRoot');
   if (root !== null && root.classList.contains('tv-sobrio')) return true;
-  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 }
 
 /** El bloque en curso, o `null` si el payload no trae clase (reposo o cierre). */
@@ -813,9 +817,11 @@ export function renderState(payload: TvPollResponse): void {
     avisoIsVisible
   );
 
-  // Intro del recorrido: pantalla propia en clave diurna (es la continuación de
-  // PYROS). Se hace visible ANTES de montar: el armado mide con getBBox().
-  const recorridoVisible = payload.screen === 'recorrido' && payload.recorrido !== null && !avisoIsVisible;
+  // El recorrido de hoy (2026-10-13): REEMPLAZA a la pantalla de inicio cuando hay
+  // plani aprobada (el server manda `recorrido` solo en ese caso). Clave diurna, como
+  // el reposo. Se hace visible ANTES de montar: el armado mide con getBBox().
+  const recorridoVisible =
+    payload.screen === 'idle' && payload.recorrido !== null && !avisoIsVisible;
   setVisible(n.pantallaRecorrido, 'pantalla pantalla--dia', recorridoVisible);
   if (recorridoVisible && payload.recorrido !== null) {
     mostrarRecorrido(n.recorridoHost, payload.recorrido, sinMovimiento());

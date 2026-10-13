@@ -189,10 +189,11 @@
             </aside>
           </div>
         </div>
-        <!-- Intro "el recorrido de hoy" (screen 'recorrido', sketch 004 D):
-             cuerpos de mármol H/M con las zonas de cada bloque. Clave diurna
-             (continuación de PYROS). `src/tv/recorrido/` arma TODO el
-             contenido dentro de #recorridoHost; acá solo vive el escenario. -->
+        <!-- "El recorrido de hoy" (sketch 004 D): la pantalla de inicio cuando
+             hay plani aprobada (poll `idle` con `recorrido`). Cuerpos de mármol
+             H/M con las zonas de cada bloque, clave diurna. `src/tv/recorrido/`
+             arma TODO el contenido dentro de #recorridoHost; acá solo vive el
+             escenario. -->
         <div class="pantalla pantalla--dia" id="pantallaRecorrido">
           <div class="transFoto" aria-hidden="true"></div>
           <div class="recMarco" id="recorridoHost"></div>
@@ -2712,11 +2713,6 @@ onUnmounted(() => {
   letter-spacing: 0.34em;
   color: var(--gold);
   margin-bottom: 1rem;
-}
-#tvScreenRoot .recKickerOk {
-  color: var(--trans-terracotta);
-  letter-spacing: 0.1em;
-  margin-right: 0.5em;
 }
 #tvScreenRoot .recTitulo {
   font-family: var(--cinzel);

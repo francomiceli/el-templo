@@ -18,12 +18,10 @@ import type { TimerClock, TimerSpec } from './timer';
 
 /** Que esta mostrando el TV. `idle` es tambien el reposo silencioso de D-09.
  *  `aviso` (fase 193, D-25/D-28): placa a pantalla completa con el texto de
- *  un aviso de TV, disparada desde el control del profe.
- *  `recorrido`: intro "el recorrido de hoy" (cuerpos H/M con las zonas de cada
- *  bloque), disparada desde el control durante PYROS. */
-export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso' | 'recorrido';
+ *  un aviso de TV, disparada desde el control del profe. */
+export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso';
 
-/** Zonas musculares que dibuja la intro del recorrido. Son los `slug` de la
+/** Zonas musculares que dibuja el recorrido de hoy. Son los `slug` de la
  *  geometria anatomica (`tv/recorrido/anatomy-data.ts`); el server las deriva
  *  de la categoria de cada ejercicio (`modules/tv/muscle-zones.ts`). */
 export type TvZonaMuscular =
@@ -146,7 +144,8 @@ export interface TvPollResponse {
   class: TvClassPayload | null;
   /** Fase 193 (D-25/D-28): `null` salvo cuando `screen === 'aviso'`. */
   aviso: TvAvisoPollPayload | null;
-  /** `null` salvo cuando `screen === 'recorrido'`. */
+  /** El recorrido de hoy: solo en `screen === 'idle'` con plani aprobada (2026-10-13,
+   *  reemplaza a la pantalla de inicio); `null` en todo otro caso. */
   recorrido: TvRecorridoPayload | null;
 }
 

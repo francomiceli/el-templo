@@ -84,7 +84,7 @@ export type TvTimerStatus = "idle" | "running" | "paused";
  * internal errors). D-08: `closing` after the last block, until the coach ends
  * the class. `class` = the live block.
  */
-export type TvScreen = "idle" | "class" | "closing" | "aviso" | "recorrido";
+export type TvScreen = "idle" | "class" | "closing" | "aviso";
 
 /**
  * Regular weekday session vs. Saturday ROM session (D-23, Pitfall 2), plus
@@ -251,9 +251,10 @@ export interface TvPollResponse {
    */
   aviso: TvAvisoPollPayload | null;
   /**
-   * Intro "el recorrido de hoy": los bloques de la clase con sus zonas
-   * musculares, ya resueltos (el kiosco no hace un segundo fetch). `null`
-   * salvo cuando `screen === "recorrido"`.
+   * El recorrido de hoy: los bloques de la clase con sus zonas musculares,
+   * ya resueltos (el kiosco no hace un segundo fetch). Solo en `screen ===
+   * "idle"` con plani aprobada: es la pantalla de inicio (2026-10-13). `null`
+   * en todo otro caso.
    */
   recorrido: TvRecorridoPayload | null;
 }
@@ -367,10 +368,8 @@ export interface TvStateWrite {
   branchId: number;
   // "idle" NO se acepta (D-08): volver a reposo es `end-class`, no una
   // pantalla. Fase 193: "aviso" se suma con `tvAvisoId` obligatorio en ese
-  // caso (D-25) — validado por el servicio, no por el tipo. "recorrido" es la
-  // intro "el recorrido de hoy": se escribe sin datos extra y sale solo al
-  // cambiar de bloque o escribir "class".
-  screen?: "class" | "closing" | "aviso" | "recorrido";
+  // caso (D-25) — validado por el servicio, no por el tipo.
+  screen?: "class" | "closing" | "aviso";
   blockRole?: string;
   level?: string;
   exerciseIndex?: number;

@@ -1,13 +1,14 @@
 /**
- * Intro "el recorrido de hoy" (`screen === 'recorrido'`): entre PYROS y el primer bloque,
- * el profe la dispara desde el control y la TV presenta los bloques de la clase sobre
+ * "El recorrido de hoy": la pantalla de inicio (FLEXIBILIDAD - INICIO, `screen === 'idle'`
+ * con `recorrido` en el poll) cuando hay plani aprobada (2026-10-13: antes era una intro
+ * que el profe disparaba durante PYROS). La TV presenta los bloques de la clase sobre
  * dos cuerpos de mármol (H/M) con las zonas de cada bloque en su color.
  *
  * Diseño: sketch 004, variante D (escultura + puntos con rótulo + fundido frente/espalda).
  * Coreografía "bloque a bloque" (UAT 2026-10-05): cada bloque dura 8 s — enciende sus
  * zonas con foco, 4 s de frente y 4 s de espalda (fundido). Al terminar quedan todas las
- * zonas coloreadas alternando frente y espalda, hasta que el profe pasa al primer bloque
- * (el server vuelve `screen` a `class`).
+ * zonas coloreadas alternando frente y espalda unos segundos y la vuelta arranca de nuevo,
+ * en loop hasta que el profe inicia la clase.
  *
  * Mismas reglas que `render.ts`: el DOM se arma UNA vez por contenido (clave = bloques) y
  * después solo se alternan clases; los textos del server entran por `textContent`; lo
@@ -46,6 +47,8 @@ const T_ESCALON_FUNDIDO = 120;
 /** Cada bloque dura 8 s: la mitad de frente y la mitad de espalda (fundido incluido).
  *  El final alterna las vistas con el mismo ritmo. */
 const T_MEDIO_BLOQUE = 4000;
+/** Vueltas frente/espalda del final (todo encendido) antes de reiniciar el loop. */
+const VUELTAS_FINAL = 2;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -109,12 +112,13 @@ function zBloque(i: number, total: number): number {
 function construirTexto(bloques: TvRecorridoBloque[]): HTMLElement {
   const col = div('recTexto');
   const kicker = div('recKicker');
-  const ok = document.createElement('span');
-  ok.className = 'recKickerOk';
-  ok.textContent = '✓ PYROS';
-  kicker.append(ok, document.createTextNode('HOY RECORREMOS'));
+  kicker.textContent = 'HOY RECORREMOS';
   const titulo = div('recTitulo');
-  titulo.append(document.createTextNode('El cuerpo'), document.createElement('br'), document.createTextNode('en clase'));
+  titulo.append(
+    document.createTextNode('El cuerpo'),
+    document.createElement('br'),
+    document.createTextNode('en clase')
+  );
   const leyenda = div('recLeyenda');
   bloques.forEach((b, i) => {
     const color = colorDeBloque(i);
@@ -150,7 +154,12 @@ function construirPie(bloques: TvRecorridoBloque[]): HTMLElement {
   return pie;
 }
 
-function construirFigura(defs: Defs, an: Anatomia, fig: FiguraDef, bloques: TvRecorridoBloque[]): HTMLElement {
+function construirFigura(
+  defs: Defs,
+  an: Anatomia,
+  fig: FiguraDef,
+  bloques: TvRecorridoBloque[]
+): HTMLElement {
   const el = div('recFig');
   const marco = div('recMarcoFig');
   for (const v of ['frente', 'espalda'] as Vista[]) {
@@ -197,8 +206,11 @@ function medirYRotular(m: Montaje, an: Anatomia): void {
       const capas = Array.prototype.slice.call(vi.querySelectorAll('svg')) as SVGSVGElement[];
       for (const s of capas) s.setAttribute('viewBox', vb);
       const key = vi.getAttribute('data-key') as keyof Anatomia;
-      const grupos = key === 'mFront' || key === 'mBack' || key === 'fFront' || key === 'fBack' ? an[key] : [];
-      const partes = Array.prototype.slice.call(vi.querySelectorAll('.recBase .anat > path')) as SVGGraphicsElement[];
+      const grupos =
+        key === 'mFront' || key === 'mBack' || key === 'fFront' || key === 'fBack' ? an[key] : [];
+      const partes = Array.prototype.slice.call(
+        vi.querySelectorAll('.recBase .anat > path')
+      ) as SVGGraphicsElement[];
       // La primera es el contorno relleno: no cuenta como "parte" para la columna de rótulos.
       const cajas: Caja[] = partes.slice(1).map((p) => {
         const b = p.getBBox();
@@ -245,7 +257,13 @@ function todos(m: Montaje, selector: string): Element[] {
 }
 
 function encender(m: Montaje, i: number): void {
-  for (const el of todos(m, `.recOv[data-b="${i}"], .recItem[data-b="${i}"]`)) el.classList.add('on');
+  for (const el of todos(m, `.recOv[data-b="${i}"], .recItem[data-b="${i}"]`))
+    el.classList.add('on');
+}
+
+/** Apaga todas las zonas e ítems: arranque de una nueva vuelta del loop. */
+function apagarTodo(m: Montaje): void {
+  for (const el of todos(m, '.recOv, .recItem')) el.classList.remove('on');
 }
 
 /** `i === null` → todos parejos, sin rótulos. */
@@ -257,7 +275,9 @@ function foco(m: Montaje, i: number | null): void {
   }
   for (const el of todos(m, '.recOv')) {
     const b = Number(el.getAttribute('data-b'));
-    (el as SVGSVGElement).style.zIndex = String(i !== null && b === i ? Z_FOCO : zBloque(b, m.bloques.length));
+    (el as SVGSVGElement).style.zIndex = String(
+      i !== null && b === i ? Z_FOCO : zBloque(b, m.bloques.length)
+    );
   }
   for (const el of todos(m, '.recCall')) {
     el.classList.toggle('on', i !== null && Number(el.getAttribute('data-b')) === i);
@@ -268,7 +288,9 @@ async function cambiarVista(m: Montaje, v: Vista): Promise<void> {
   if (vista === v) return;
   vista = v;
   m.figs.forEach((f, k) => {
-    timeouts.push(window.setTimeout(() => f.classList.toggle('back', v === 'espalda'), k * T_ESCALON_FUNDIDO));
+    timeouts.push(
+      window.setTimeout(() => f.classList.toggle('back', v === 'espalda'), k * T_ESCALON_FUNDIDO)
+    );
   });
   await espera(T_FUNDIDO + T_ESCALON_FUNDIDO);
 }
@@ -295,22 +317,25 @@ async function coreografia(m: Montaje, id: number): Promise<void> {
   await espera(T_ENTRADA_FIGURAS);
   if (!viva()) return;
 
-  // Bloque a bloque (8 s cada uno): se encienden sus zonas con foco, 4 s de frente y
-  // 4 s de espalda.
-  for (let i = 0; i < m.bloques.length; i++) {
-    encender(m, i);
-    foco(m, i);
-    await sostener(m, 'frente', T_MEDIO_BLOQUE);
-    if (!viva()) return;
-    await sostener(m, 'espalda', T_MEDIO_BLOQUE);
-    if (!viva()) return;
-  }
-
-  // Final, hasta que el profe pasa al primer bloque: todas las zonas coloreadas,
-  // alternando frente y espalda.
-  foco(m, null);
+  // Loop de la pantalla de inicio (2026-10-13): corre mientras no haya clase. Cada
+  // vuelta: bloque a bloque (8 s cada uno, sus zonas con foco, 4 s de frente y 4 s
+  // de espalda), después el final con todas las zonas coloreadas alternando frente y
+  // espalda, y vuelve a empezar desde cero.
   while (viva()) {
-    await sostener(m, vista === 'frente' ? 'espalda' : 'frente', T_MEDIO_BLOQUE);
+    apagarTodo(m);
+    for (let i = 0; i < m.bloques.length; i++) {
+      encender(m, i);
+      foco(m, i);
+      await sostener(m, 'frente', T_MEDIO_BLOQUE);
+      if (!viva()) return;
+      await sostener(m, 'espalda', T_MEDIO_BLOQUE);
+      if (!viva()) return;
+    }
+    foco(m, null);
+    for (let k = 0; k < VUELTAS_FINAL * 2; k++) {
+      await sostener(m, vista === 'frente' ? 'espalda' : 'frente', T_MEDIO_BLOQUE);
+      if (!viva()) return;
+    }
   }
 }
 
@@ -330,7 +355,11 @@ function estadoQuieto(m: Montaje): void {
  * con bloques nuevos (el profe editó la plani en vivo) rearma y vuelve a empezar.
  * `host` tiene que estar VISIBLE: las medidas salen de `getBBox()`.
  */
-export function mostrarRecorrido(host: HTMLElement, payload: TvRecorridoPayload, sinMovimiento: boolean): void {
+export function mostrarRecorrido(
+  host: HTMLElement,
+  payload: TvRecorridoPayload,
+  sinMovimiento: boolean
+): void {
   const clave = JSON.stringify(payload.bloques);
   // Mismo contenido ya montado (o cargándose): nada que hacer.
   if (clave === claveActual) return;
@@ -347,7 +376,9 @@ export function mostrarRecorrido(host: HTMLElement, payload: TvRecorridoPayload,
     })
     .catch((err: unknown) => {
       claveActual = '';
-      log.error('no se pudo armar el recorrido', { error: err instanceof Error ? err.message : String(err) });
+      log.error('no se pudo armar el recorrido', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
 }
 

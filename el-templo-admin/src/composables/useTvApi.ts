@@ -35,9 +35,8 @@ import type { BranchOption } from 'src/types/member';
 // obliga a tocar acá — el docblock de aquel archivo lo dice explícitamente.
 
 /** Qué está mostrando el TV. `idle` = reposo (D-06); `closing` = cierre (D-08);
- *  `aviso` (fase 193, D-25) = placa de aviso a pantalla completa;
- *  `recorrido` = intro "el recorrido de hoy" (cuerpos con las zonas por bloque). */
-export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso' | 'recorrido';
+ *  `aviso` (fase 193, D-25) = placa de aviso a pantalla completa. */
+export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso';
 
 /** Aviso de TV activo en modo `manual` para una sede — `GET
  *  /communications/tv/control/tv-aviso-activo?branchId=NN` (fase 193, D-29). */
@@ -126,7 +125,7 @@ export interface TvControlContext {
  */
 export interface TvStateWrite {
   branchId: number;
-  screen?: 'class' | 'closing' | 'aviso' | 'recorrido';
+  screen?: 'class' | 'closing' | 'aviso';
   blockRole?: string;
   level?: string;
   exerciseIndex?: number;

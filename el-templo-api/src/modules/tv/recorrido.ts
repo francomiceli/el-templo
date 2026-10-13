@@ -1,12 +1,14 @@
 /**
- * Payload de la intro "el recorrido de hoy" de la TV de sucursal.
+ * Payload de "el recorrido de hoy" de la TV de sucursal: la pantalla de inicio
+ * cuando hay plani aprobada (2026-10-13; antes era una intro durante PYROS).
  *
  * Funcion PURA sobre un `ClassDay` ya resuelto: el servicio solo la invoca
- * cuando `screen === "recorrido"` (el poll normal no paga este calculo).
+ * en el poll de reposo (`idle`) con plani aprobada.
  *
  * Reglas:
  *  - Se recorre el roster del dia (`buildRoster`, el MISMO que usa la TV) en
- *    orden, SIN INITIUM (PYROS): el recorrido se lanza justamente desde ahi.
+ *    orden, SIN INITIUM (PYROS): la entrada en calor es compartida y no
+ *    tiene zonas propias que mostrar.
  *  - Se agrupa por grupo visual (`visualGroupOf`): `*_II` + `*_II_ALT` es UN
  *    item (la alternativa es otro camino del mismo bloque). EXCEPCION: los
  *    deuteros van SIEMPRE desagregados (pedido 2026-10-05) — DEUTEROS_1 y
@@ -74,7 +76,9 @@ export function buildRecorrido(
 
   // Solo los niveles que muestra la TV (si ninguno tiene sesion, todos: nunca
   // un recorrido vacio por un nivel guardado que hoy no se planifico).
-  const delPar = classDay.sessions.filter((s) => niveles.includes(s.memberLevel));
+  const delPar = classDay.sessions.filter((s) =>
+    niveles.includes(s.memberLevel),
+  );
   const base = delPar.length > 0 ? delPar : classDay.sessions;
   // Sesiones en el orden canonico de niveles del dia: subtitulo estable.
   const sessions = [...base].sort(

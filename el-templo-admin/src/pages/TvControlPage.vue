@@ -127,34 +127,17 @@
               @click="onFlexInicio"
             />
           </div>
-          <template v-for="button in blockButtons" :key="button.role">
-            <div class="col-6">
-              <q-btn
-                class="tv-btn full-width"
-                :color="isActiveButton(button.role) ? 'primary' : 'grey-7'"
-                :outline="!isActiveButton(button.role)"
-                :unelevated="isActiveButton(button.role)"
-                :label="button.label"
-                :disable="!canControl"
-                @click="onSelectBlock(button.role)"
-              />
-            </div>
-            <!-- Intro "el recorrido de hoy": fila propia justo después de PYROS
-                 (se presenta al terminar la entrada en calor). Solo se puede
-                 usar durante PYROS; sale con SIGUIENTE o tocando de nuevo. -->
-            <div v-if="button.role === 'INITIUM'" class="col-12">
-              <q-btn
-                class="tv-btn full-width"
-                icon="accessibility_new"
-                :label="isRecorridoScreen ? 'RECORRIDO EN PANTALLA · VOLVER A PYROS' : 'PRESENTAR RECORRIDO'"
-                color="secondary"
-                :outline="!isRecorridoScreen"
-                :unelevated="isRecorridoScreen"
-                :disable="!canControl || !recorridoDisponible"
-                @click="onRecorrido"
-              />
-            </div>
-          </template>
+          <div v-for="button in blockButtons" :key="button.role" class="col-6">
+            <q-btn
+              class="tv-btn full-width"
+              :color="isActiveButton(button.role) ? 'primary' : 'grey-7'"
+              :outline="!isActiveButton(button.role)"
+              :unelevated="isActiveButton(button.role)"
+              :label="button.label"
+              :disable="!canControl"
+              @click="onSelectBlock(button.role)"
+            />
+          </div>
           <div class="col-6">
             <q-btn
               class="tv-btn full-width"
@@ -728,7 +711,7 @@ const blockButtons = computed<BlockButton[]>(() => buildBlockButtons(context.val
  *  extremo de flexibilidad correspondiente (el rol persiste en el estado, pero
  *  mostrarlo encendido confundía al profe). */
 function isActiveButton(role: string): boolean {
-  if (!hasState.value || isClosingScreen.value || isAvisoScreen.value || isRecorridoScreen.value) return false;
+  if (!hasState.value || isClosingScreen.value || isAvisoScreen.value) return false;
   return buttonMatchesRole(role, currentBlockRole.value);
 }
 
@@ -750,12 +733,6 @@ const soundEnabled = computed(() => context.value?.state?.soundEnabled === true)
 const isClosingScreen = computed(() => context.value?.state?.screen === 'closing');
 /** Fase 193 (D-25): el TV está mostrando la placa del aviso disparado. */
 const isAvisoScreen = computed(() => context.value?.state?.screen === 'aviso');
-/** El TV está mostrando la intro del recorrido (cuerpos con las zonas por bloque). */
-const isRecorridoScreen = computed(() => context.value?.state?.screen === 'recorrido');
-/** La intro se presenta al terminar PYROS: solo con clase en curso y parado en INITIUM. */
-const recorridoDisponible = computed(
-  () => hasState.value && currentBlockRole.value === 'INITIUM' && !isClosingScreen.value
-);
 
 /**
  * Los tres pares de nivel, siempre (fila completa); un par sin ningún nivel
@@ -947,21 +924,6 @@ function isShowingAviso(tvAvisoId: number): boolean {
   return isAvisoScreen.value && context.value?.state?.tvAvisoId === tvAvisoId;
 }
 
-/**
- * PRESENTAR RECORRIDO: intro con los cuerpos y las zonas de cada bloque. Sin
- * confirmación (como el aviso: no toca el cronómetro de PYROS). Tocarlo con la
- * intro en pantalla vuelve a la plani de PYROS; SIGUIENTE la cierra pasando al
- * primer bloque (el server vuelve `screen` a `class` en todo cambio de bloque).
- */
-function onRecorrido(): void {
-  if (isRecorridoScreen.value) {
-    void send({ screen: 'class' });
-    return;
-  }
-  if (!recorridoDisponible.value) return;
-  void send({ screen: 'recorrido' });
-}
-
 /** Los dos triángulos recorren la tira completa: inicio → bloques → final. */
 function onBlockStep(delta: number): void {
   const destino = seqIndex.value + delta;
@@ -1011,9 +973,9 @@ function requestBlockChange(role: string): void {
   }
   const current = currentBlockRole.value;
   if (role === current) {
-    // Desde el cierre, el aviso (fase 193) o el recorrido, tocar el bloque en
-    // curso vuelve a la clase.
-    if (isClosingScreen.value || isAvisoScreen.value || isRecorridoScreen.value) {
+    // Desde el cierre o desde el aviso (fase 193), tocar el bloque en curso
+    // vuelve a la clase.
+    if (isClosingScreen.value || isAvisoScreen.value) {
       void send({ screen: 'class' });
     }
     return;
@@ -1032,7 +994,7 @@ function requestBlockChange(role: string): void {
  *  la pantalla de clase (desde inicio, el write CREA el estado). */
 async function sendBlockChange(role: string): Promise<void> {
   const write: Omit<TvStateWrite, 'branchId'> = { blockRole: role };
-  if (isClosingScreen.value || isAvisoScreen.value || isRecorridoScreen.value || !hasState.value) {
+  if (isClosingScreen.value || isAvisoScreen.value || !hasState.value) {
     write.screen = 'class';
   }
   await send(write);

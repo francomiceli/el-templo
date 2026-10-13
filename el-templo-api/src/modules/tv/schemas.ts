@@ -215,10 +215,7 @@ export const tvControlScreenSchema = {
             dateLabel: { type: "string" },
           },
         },
-        screen: {
-          type: "string",
-          enum: ["idle", "class", "closing", "aviso", "recorrido"],
-        },
+        screen: { type: "string", enum: ["idle", "class", "closing", "aviso"] },
         class: {
           anyOf: [{ type: "null" }, tvClassPayloadSchema],
         },
@@ -239,9 +236,10 @@ export const tvControlScreenSchema = {
             },
           ],
         },
-        // Intro "el recorrido de hoy": bloques de la clase con sus zonas
-        // musculares, YA RESUELTOS. `null` salvo cuando `screen ===
-        // "recorrido"`. fast-json-stringify solo serializa lo declarado.
+        // El recorrido de hoy: bloques de la clase con sus zonas musculares,
+        // YA RESUELTOS. Solo en `screen === "idle"` con plani aprobada (es la
+        // pantalla de inicio, 2026-10-13); `null` en todo otro caso.
+        // fast-json-stringify solo serializa lo declarado.
         recorrido: {
           anyOf: [
             { type: "null" },
@@ -342,11 +340,7 @@ export const tvControlStateSchema = {
       timer: { type: "string", enum: ["start", "pause", "resume", "reset"] },
       // "idle" NO se acepta: volver a reposo es `end-class`, no una pantalla.
       // Fase 193 (D-25): "aviso" se suma con `tvAvisoId`.
-      // "recorrido": intro "el recorrido de hoy" (sin campos extra).
-      screen: {
-        type: "string",
-        enum: ["class", "closing", "aviso", "recorrido"],
-      },
+      screen: { type: "string", enum: ["class", "closing", "aviso"] },
       soundEnabled: { type: "boolean" },
       // Fase 193 (D-25): el aviso de TV a mostrar cuando `screen === "aviso"`.
       // La validacion SEMANTICA (existe, es del tenant, esta activo) vive en
