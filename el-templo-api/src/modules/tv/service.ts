@@ -450,7 +450,14 @@ export class TvService {
     // está activo cae al reposo de abajo.
     if (!classDay.approved && stored?.screen === "aviso") {
       const aviso = await this.resolveAviso(stored.tvAvisoId, branch.tenantId);
-      if (aviso) return { ...base, screen: "aviso", class: null, aviso };
+      if (aviso)
+        return {
+          ...base,
+          screen: "aviso",
+          class: null,
+          aviso,
+          recorrido: null,
+        };
     }
 
     if (!classDay.approved || !stored) {
