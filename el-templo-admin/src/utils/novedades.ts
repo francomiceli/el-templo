@@ -1,0 +1,121 @@
+/**
+ * Helpers PUROS de Novedades de Mi Templo para el admin (sin Vue/Quasar).
+ *
+ * `visibleNovedadesForBranch` es el ESPEJO en el cliente de la regla D-4 del
+ * server (`visibleToBranch` en `el-templo-api/src/modules/communications/
+ * novedades-service.ts`): activas, ya publicadas, que coinciden con la sede
+ * (scope null/vacío = todas), top 3 por `publishAt DESC, id DESC`. Sirve SOLO
+ * para la vista previa "Ver como socio de" — la fuente de verdad sigue siendo
+ * el server.
+ *
+ * `relativeDaysLabel` replica D-7 (mismo texto que la app del socio).
+ */
+import type { AdminNovedad } from 'src/composables/useCommunicationsApi';
+import { APP_SECTIONS } from 'src/config/destinations';
+
+/** Máximo de novedades que ve un socio (D-4). */
+export const NOVEDADES_MEMBER_LIMIT = 3;
+/** Largo máximo del texto (D-2, espejo del server). */
+export const NOVEDAD_TEXT_MAX = 80;
+/** Desde este largo el texto puede ocupar 3 líneas en la app. */
+export const NOVEDAD_TEXT_WARN_FROM = 71;
+
+/** Una novedad tal como la dibuja `NovedadPreview.vue` (réplica de la card de la app). */
+export interface NovedadPreviewItem {
+  /** Clave estable para el v-for de los puntos. */
+  key: string | number;
+  text: string;
+  /** Nombre de la sede (null = novedad global: la app no muestra sede). */
+  branchLabel: string | null;
+  /** "hoy", "hace 3 días"... (D-7). */
+  whenLabel: string;
+  hasDestination: boolean;
+}
+
+export function isScheduled(novedad: Pick<AdminNovedad, 'publishAt'>, now: Date): boolean {
+  return new Date(novedad.publishAt).getTime() > now.getTime();
+}
+
+/** Activa y ya publicada: la que cuenta en el KPI. */
+export function isLive(novedad: Pick<AdminNovedad, 'publishAt' | 'status'>, now: Date): boolean {
+  return novedad.status === 'active' && !isScheduled(novedad, now);
+}
+
+function matchesBranch(scope: number[] | null, branchId: number | null): boolean {
+  if (!scope || scope.length === 0) return true;
+  return branchId !== null && scope.includes(branchId);
+}
+
+export function visibleNovedadesForBranch(
+  novedades: readonly AdminNovedad[],
+  branchId: number | null,
+  now: Date,
+): AdminNovedad[] {
+  return novedades
+    .filter((n) => isLive(n, now) && matchesBranch(n.scopeBranchIds, branchId))
+    .sort((a, b) => {
+      const byDate = new Date(b.publishAt).getTime() - new Date(a.publishAt).getTime();
+      return byDate !== 0 ? byDate : b.id - a.id;
+    })
+    .slice(0, NOVEDADES_MEMBER_LIMIT);
+}
+
+/** D-7: "hoy", "ayer", "hace N días" (2-6), "hace 1 semana", "hace N semanas", desde 60 días "hace N meses". */
+export function relativeDaysLabel(publishAtIso: string, now: Date): string {
+  const published = new Date(publishAtIso);
+  // Días de calendario (hora local), no 24h corridas: "ayer" es el día anterior.
+  const startOf = (d: Date): number => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.max(0, Math.round((startOf(now) - startOf(published)) / 86_400_000));
+  if (days === 0) return 'hoy';
+  if (days === 1) return 'ayer';
+  if (days < 7) return `hace ${days} días`;
+  if (days >= 60) return `hace ${Math.floor(days / 30)} meses`;
+  const weeks = Math.floor(days / 7);
+  return weeks === 1 ? 'hace 1 semana' : `hace ${weeks} semanas`;
+}
+
+/** Etiqueta legible del destino ("Reservas", "WhatsApp de ventas") o null si no lleva a ningún lado. */
+export function novedadDestinationLabel(
+  novedad: Pick<AdminNovedad, 'destinationType' | 'destinationSection'>,
+): string | null {
+  if (novedad.destinationType === 'whatsapp_sales') return 'WhatsApp de ventas';
+  if (novedad.destinationType === 'app_section') {
+    return APP_SECTIONS.find((s) => s.key === novedad.destinationSection)?.label ?? 'Mi Templo';
+  }
+  return null;
+}
+
+// ── Fecha/hora local <-> ISO UTC ─────────────────────────────────────────
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+/** ISO UTC -> valores para `<input type="date">` / `<input type="time">` en hora LOCAL del navegador. */
+export function isoToLocalInputs(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+
+/** Valores de los inputs (hora LOCAL del navegador) -> ISO UTC, o null si falta/ es inválido. */
+export function localInputsToIso(date: string, time: string): string | null {
+  if (!date || !time) return null;
+  // 'YYYY-MM-DDTHH:mm' sin offset se interpreta como hora local.
+  const d = new Date(`${date}T${time}`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Fecha de publicación para las cards, formato local es-AR ("14/10/2026, 10:30"). */
+export function formatPublishAt(iso: string): string {
+  return new Date(iso).toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
