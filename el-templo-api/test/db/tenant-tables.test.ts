@@ -115,12 +115,14 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // Prueba, brief Nacho, mig 0241, nace strict): 98 -> 99, 102 -> 103.
     // 2026-10: sumó `invitations` (fase 194, mig 0255, nace strict en el módulo
     // `referrals`): 99 -> 100, 103 -> 104.
-    expect(GYM_OWNED_TABLES.length).toBe(100);
+    // 2026-10-14 sumó `novedades`, `novedad_views` (Novedades en Mi Templo, mig
+    // 0275, nacen strict en `communications`): 100 -> 102, 104 -> 106.
+    expect(GYM_OWNED_TABLES.length).toBe(102);
     expect(TENANT_EXEMPT_TABLES.length).toBe(4);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(104);
+    expect(schemaTables.size).toBe(106);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -441,7 +443,14 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "campaign_unsubscribes",
       "campaigns",
     ],
-    communications: ["aviso_events", "avisos", "tv_avisos"],
+    // 2026-10-14: `novedades` y `novedad_views` (mig 0275) nacen strict acá.
+    communications: [
+      "aviso_events",
+      "avisos",
+      "novedad_views",
+      "novedades",
+      "tv_avisos",
+    ],
     "improvement-proposals": ["improvement_proposals"],
     notifications: [
       "device_tokens",

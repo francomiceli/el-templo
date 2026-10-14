@@ -415,6 +415,16 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM tv_avisos WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Novedades en Mi Templo (0275): `novedad_views` tiene FK a `novedades` y a
+  // `users` (cascade, pero igual salen primero y en orden) y `novedades.created_by`
+  // apunta a `users` — ambas tienen que salir ANTES del `DELETE FROM users` de
+  // más abajo y del `DELETE FROM tenants` final.
+  await app.db.execute(
+    sql`DELETE FROM novedad_views WHERE tenant_id = ${TENANT_DOS}`,
+  );
+  await app.db.execute(
+    sql`DELETE FROM novedades WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM user_branches WHERE tenant_id = ${TENANT_DOS}`,
   );

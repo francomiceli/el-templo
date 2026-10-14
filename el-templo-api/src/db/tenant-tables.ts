@@ -120,6 +120,10 @@ export const GYM_OWNED_TABLES = [
   "member_profiles",
   "notification_preferences",
   "notification_templates",
+  // Novedades en Mi Templo (2026-10-14, migración 0275): nacen con tenant_id y
+  // strict (ver TENANT_STRICT_MODULES["communications"] más abajo).
+  "novedad_views",
+  "novedades",
   "onboarding_analytics",
   "partner_commissions",
   "partner_referrals",
@@ -342,6 +346,8 @@ export const TENANT_UNIQUE_ALLOWLIST: Record<string, string> = {
     "Derivada de FK scopeada: primer campo `user_id` → `users`. Un perfil por socio.",
   "notification_preferences.uq_notification_preferences_user_category":
     "Derivada de FK scopeada: primer campo `user_id` → `users`. Una preferencia por socio y categoría de notificación.",
+  "novedad_views.uq_novedad_views_novedad_user":
+    "Derivada de FK scopeada: primer campo `novedad_id` → `novedades`, tabla gym-owned. Una fila por novedad y socio (D-5).",
   "partner_commissions.unique_partner_commission_sub":
     "Derivada de FK scopeada: primer campo `subscription_id` → `subscriptions`, que ancla en `users`. Una comisión por cargo (D-11).",
   "partner_referrals.partner_referrals_referred_id_unique":
@@ -627,7 +633,13 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "campaigns",
   ],
   // Fase 193: el módulo nace strict, no hay deuda previa que tolerar.
-  communications: ["aviso_events", "avisos", "tv_avisos"],
+  communications: [
+    "aviso_events",
+    "avisos",
+    "novedad_views",
+    "novedades",
+    "tv_avisos",
+  ],
   "improvement-proposals": ["improvement_proposals"],
   notifications: [
     "device_tokens",

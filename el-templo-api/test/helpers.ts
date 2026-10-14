@@ -250,6 +250,10 @@ const TABLES_TO_CLEAN = [
   // Fase 194 (0255): invitaciones. FK a users/subscriptions/branches (FK checks
   // off durante el DELETE); se limpian antes de subscriptions y users.
   schema.invitations,
+  // Novedades en Mi Templo (0275): sin semilla de sistema, así que son basura de
+  // test genuina. Vistas (FK a novedades/users) antes que novedades.
+  schema.novedadViews,
+  schema.novedades,
   // Fase 179: comercio partner. Orden de FK: comisiones (FK a partner_referrals
   // y subscriptions) -> vínculos (FK a referral_partners y users) -> partners.
   schema.partnerCommissions,
