@@ -952,6 +952,21 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
   },
   "GET /api/communications/me/tarjetas": { categoria: "tenant-scoped" },
   "GET /api/communications/me/config": { categoria: "tenant-scoped" },
+  // Novedades en Mi Templo (2026-10-14, mig 0275): CRUD admin (ADMIN_ROLES) +
+  // feed y eventos del socio. Entidad APARTE de `avisos`. Core, sin
+  // `moduleScope`. El `userId` sale SIEMPRE de `request.user.userId`.
+  "DELETE /api/communications/admin/novedades/:id": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/communications/admin/novedades": { categoria: "tenant-scoped" },
+  "POST /api/communications/admin/novedades": { categoria: "tenant-scoped" },
+  "PUT /api/communications/admin/novedades/:id": {
+    categoria: "tenant-scoped",
+  },
+  "GET /api/communications/me/novedades": { categoria: "tenant-scoped" },
+  "POST /api/communications/me/novedades/:id/event": {
+    categoria: "tenant-scoped",
+  },
 
   // ── /api/communications/tv ────────────────────────────────────────────────
   // Fase 193 Plan 07 (COM-04, D-24/D-29): CRUD admin de avisos de TV + lectura

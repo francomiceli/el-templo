@@ -13,13 +13,14 @@ import { and, desc, eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { tvAvisos, branches, tvClassState } from "../../db/schema";
+import { tvAvisos, tvClassState } from "../../db/schema";
 import {
   tenantWhere,
   tenantValues,
   type TenantContext,
 } from "../shared/tenant";
 import { BadRequestError, NotFoundError } from "../shared/errors";
+import { assertBranchesBelongToTenant } from "./branch-scope";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -96,7 +97,11 @@ export class TvAvisosService {
     this.assertTitleAndBody(input.title, input.body);
     this.assertMode(input.mode);
     if (input.tema !== undefined) this.assertTema(input.tema);
-    await this.assertBranchesBelongToTenant(ctx, input.scopeBranchIds ?? null);
+    await assertBranchesBelongToTenant(
+      this.db,
+      ctx,
+      input.scopeBranchIds ?? null,
+    );
 
     const [result] = await this.db.insert(tvAvisos).values(
       tenantValues(ctx, {
@@ -155,7 +160,7 @@ export class TvAvisosService {
       this.assertTema(input.tema);
     }
     if (input.scopeBranchIds !== undefined) {
-      await this.assertBranchesBelongToTenant(ctx, input.scopeBranchIds);
+      await assertBranchesBelongToTenant(this.db, ctx, input.scopeBranchIds);
     }
 
     const updates: Record<string, unknown> = {};
@@ -318,27 +323,6 @@ export class TvAvisosService {
   private assertMode(mode: string): void {
     if (!VALID_MODES.includes(mode as TvAvisoMode)) {
       throw new BadRequestError(`mode inválido: '${mode}'`);
-    }
-  }
-
-  /** T-193-27: cada id de `branchIds` tiene que ser una sede EXISTENTE DEL TENANT. */
-  private async assertBranchesBelongToTenant(
-    ctx: TenantContext,
-    branchIds: number[] | null | undefined,
-  ): Promise<void> {
-    if (!branchIds || branchIds.length === 0) return;
-
-    const rows = await this.db
-      .select({ id: branches.id })
-      .from(branches)
-      .where(tenantWhere(branches, ctx));
-    const validIds = new Set(rows.map((row) => row.id));
-
-    const invalid = branchIds.filter((id) => !validIds.has(id));
-    if (invalid.length > 0) {
-      throw new BadRequestError(
-        `Las sedes [${invalid.join(", ")}] no pertenecen a este gimnasio`,
-      );
     }
   }
 }

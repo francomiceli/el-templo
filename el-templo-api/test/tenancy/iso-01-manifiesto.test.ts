@@ -330,7 +330,11 @@ import {
 // `GET /api/admin/staff-attendance/dashboard`, `tenant-scoped`.
 // 2026-10-08: 456 -> 457 por el cierre forzado de jornadas (owner/admin):
 // `POST /api/admin/staff-attendance/shifts/:id/force-checkout`, `tenant-scoped`.
-const ENTRADAS_BASELINE = 457;
+// 2026-10-14: 457 -> 463 por Novedades en Mi Templo (6 rutas bajo
+// `/api/communications`): `GET/POST /admin/novedades`, `PUT/DELETE
+// /admin/novedades/:id`, `GET /me/novedades` y `POST /me/novedades/:id/event`,
+// todas `tenant-scoped`.
+const ENTRADAS_BASELINE = 463;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -473,7 +477,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 447 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 463 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
