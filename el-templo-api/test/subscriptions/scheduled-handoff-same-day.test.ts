@@ -8,7 +8,8 @@
  * dos presenciales `active` y el admin escondía la renovación (no se podía
  * cancelar ni cambiar de plan). Ahora `activateScheduledSub` cierra la
  * predecesora (`completed`) si está en su último día; si todavía tiene días
- * por delante no la toca.
+ * por delante no la toca. Los socios que ya quedaron superpuestos se reparan
+ * al leer (`getMemberSubscriptions` → `autoExpireSubscriptions`).
  *
  * Las fechas se fijan en UTC (`todayStr`) porque `activateDueScheduledSubs`
  * decide "hoy" en UTC — con fechas en la tz de la sede el test rompería de
@@ -179,6 +180,51 @@ describe("activateScheduledSub — traspaso completo el día del cambio", () => 
 
     expect(await statusOf(nextId)).toBe("active");
     expect(await statusOf(prevId)).toBe("paused");
+  });
+
+  it("reparación al leer: socio que ya quedó con las dos active (estado previo al fix) se arregla al abrir la ficha", async () => {
+    const { userId, prevId, nextId } = await setupRenewal({
+      prevStatus: "active",
+      prevEnd: todayStr(),
+    });
+    // Estado que dejaba el cron viejo: la sucesora active, la predecesora
+    // también.
+    await app.db
+      .update(schema.subscriptions)
+      .set({ status: "active" })
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx.tenant),
+          eq(schema.subscriptions.id, nextId),
+        ),
+      );
+
+    const vigentes = await svc.getMemberSubscriptions(ctx.tenant, userId);
+
+    expect(await statusOf(prevId)).toBe("completed");
+    expect(await statusOf(nextId)).toBe("active");
+    expect(vigentes.map((s) => s.id)).toEqual([nextId]);
+  });
+
+  it("reparación al leer: no toca una predecesora con días por delante", async () => {
+    const { userId, prevId, nextId } = await setupRenewal({
+      prevStatus: "active",
+      prevEnd: addDays(todayStr(), 10),
+    });
+    await app.db
+      .update(schema.subscriptions)
+      .set({ status: "active" })
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx.tenant),
+          eq(schema.subscriptions.id, nextId),
+        ),
+      );
+
+    await svc.getMemberSubscriptions(ctx.tenant, userId);
+
+    expect(await statusOf(prevId)).toBe("active");
+    expect(await statusOf(nextId)).toBe("active");
   });
 
   it("camino auto-expire (predecesora vencida ayer): sigue terminando completed con la sucesora activa", async () => {
