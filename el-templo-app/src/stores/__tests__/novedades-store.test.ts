@@ -114,7 +114,9 @@ describe('useNovedadesStore (D-10/D-12)', () => {
 
     it('si el POST falla no lanza y permite reintentar', async () => {
       vi.mocked(api.get).mockResolvedValue({ data: FEED })
-      vi.mocked(api.post).mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ data: {} })
+      vi.mocked(api.post)
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValue({ data: {} })
       const store = useNovedadesStore()
       await store.load()
 
@@ -158,6 +160,43 @@ describe('useNovedadesStore (D-10/D-12)', () => {
   })
 
   describe('reset', () => {
+    it('una respuesta que llega después del logout se descarta', async () => {
+      let resolveGet: (value: { data: typeof FEED }) => void = () => {}
+      vi.mocked(api.get).mockReturnValue(
+        new Promise((resolve) => {
+          resolveGet = resolve
+        }),
+      )
+      const store = useNovedadesStore()
+
+      const pending = store.load()
+      store.reset()
+      resolveGet({ data: FEED })
+      await pending
+
+      expect(store.novedades).toEqual([])
+      expect(store.loading).toBe(false)
+    })
+
+    it('si se superponen dos load(), gana el más nuevo', async () => {
+      let resolveFirst: (value: { data: typeof FEED }) => void = () => {}
+      vi.mocked(api.get)
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveFirst = resolve
+          }),
+        )
+        .mockResolvedValueOnce({ data: { novedades: [FEED.novedades[1]!] } })
+      const store = useNovedadesStore()
+
+      const first = store.load()
+      await store.load()
+      resolveFirst({ data: FEED })
+      await first
+
+      expect(store.novedades.map((n) => n.id)).toEqual([5])
+    })
+
     it('limpia la lista y el dedupe: la próxima sesión vuelve a reportar', async () => {
       vi.mocked(api.get).mockResolvedValue({ data: FEED })
       vi.mocked(api.post).mockResolvedValue({ data: {} })

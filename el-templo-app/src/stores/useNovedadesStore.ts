@@ -47,19 +47,28 @@ export const useNovedadesStore = defineStore('novedades', () => {
   const loading = ref(false)
   /** Ids ya reportados como vistos en esta sesión (dedupe de `markSeen`). */
   const reportedSeen = new Set<number>()
+  /**
+   * Se incrementa en cada `load()` y en `reset()`. Una respuesta que vuelve
+   * cuando ya cambió (logout a mitad de request, o un `load()` más nuevo) se
+   * descarta: nunca repoblar con el feed del socio anterior.
+   */
+  let generation = 0
 
   async function load(): Promise<void> {
+    const mine = ++generation
     loading.value = true
     try {
       const { data } = await api.get<NovedadesResponse>('/communications/me/novedades')
+      if (mine !== generation) return
       novedades.value = Array.isArray(data?.novedades) ? data.novedades : []
     } catch (err: unknown) {
+      if (mine !== generation) return
       novedades.value = []
       log.warn('Failed to load novedades', {
         error: err instanceof Error ? err.message : String(err),
       })
     } finally {
-      loading.value = false
+      if (mine === generation) loading.value = false
     }
   }
 
@@ -100,6 +109,7 @@ export const useNovedadesStore = defineStore('novedades', () => {
 
   /** Al desloguear: la próxima sesión (otro socio, quizá otra sede) arranca de cero. */
   function reset(): void {
+    generation++
     novedades.value = []
     loading.value = false
     reportedSeen.clear()
