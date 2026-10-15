@@ -27,6 +27,7 @@ import type {
 import type { RuleTriggerType } from 'src/config/rule-triggers';
 import { MEMBER_SEGMENT_OPTIONS } from 'src/config/rule-triggers';
 import type { BranchOption } from 'src/types/member';
+import { countryScopeLabel } from 'src/utils/novedades';
 
 // ── Resolución de sedes/segmentos para el alcance de las propias ─────────
 
@@ -136,7 +137,9 @@ export function audienceOfNovedad(row: AdminNovedad, branches: BranchOption[]): 
   if (!row.scopeBranchIds || row.scopeBranchIds.length === 0) {
     return { label: 'Todas las sedes', icon: 'groups', breadth: 'todos' };
   }
-  return { label: branchesLabel(row.scopeBranchIds, branches), icon: 'location_on', breadth: 'grupo' };
+  const label =
+    countryScopeLabel(row.scopeBranchIds, branches) ?? branchesLabel(row.scopeBranchIds, branches);
+  return { label, icon: 'location_on', breadth: 'grupo' };
 }
 
 // ── Agrupación por amplitud ────────────────────────────────────────────

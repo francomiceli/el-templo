@@ -1,6 +1,6 @@
 <!-- Editor de Novedades de Mi Templo (alta y edición).
      Una novedad es UNA oración (máx. 80, D-2) que el socio ve arriba de Mi
-     Templo. Campos: texto, sedes (vacío = todas), destino opcional (mismo
+     Templo. Campos: texto, sedes (casillas, `NovedadSedesSelector`), destino opcional (mismo
      `DestinoSelector` que avisos/tarjetas), publicación (ahora o fecha y hora)
      y estado. Sin vencimiento (D-3): una novedad deja de verse cuando la
      desplazan 3 más nuevas, se pausa o se borra.
@@ -59,17 +59,10 @@
 
         <q-separator />
         <div class="text-subtitle2">Sedes</div>
-        <q-select
-          v-model="form.scopeBranchIds"
-          :options="branchOptions"
-          label="Sedes"
-          dense
-          outlined
-          multiple
-          emit-value
-          map-options
-          use-chips
-          hint="Vacío = todas las sedes"
+        <NovedadSedesSelector
+          v-model="form.selectedBranchIds"
+          :branches="props.branches"
+          :allow-global="isOwner"
         />
 
         <q-separator />
@@ -158,6 +151,8 @@ import type {
 } from 'src/composables/useCommunicationsApi';
 import DestinoSelector from 'src/components/comunicaciones/DestinoSelector.vue';
 import NovedadPreview from 'src/components/comunicaciones/NovedadPreview.vue';
+import NovedadSedesSelector from 'src/components/comunicaciones/NovedadSedesSelector.vue';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import type { AppSectionKey, Destination } from 'src/config/destinations';
 import type { BranchOption } from 'src/types/member';
 import {
@@ -167,6 +162,8 @@ import {
   isoToLocalInputs,
   localInputsToIso,
   relativeDaysLabel,
+  scopeFromSelection,
+  selectionFromScope,
 } from 'src/utils/novedades';
 import type { NovedadPreviewItem } from 'src/utils/novedades';
 
@@ -175,6 +172,9 @@ type PublishMode = 'now' | 'date';
 const log = createLogger('NovedadEditorDialog');
 const $q = useQuasar();
 const commsApi = useCommunicationsApi();
+const authStore = useAuthStore();
+// Solo el owner ve todas las sedes del tenant: solo él puede guardar "todas" (null).
+const isOwner = computed(() => authStore.user?.role === 'owner');
 
 const props = defineProps<{
   modelValue: boolean;
@@ -202,8 +202,6 @@ const statusOptions: Array<{ label: string; value: NovedadStatus }> = [
   { label: 'Pausada', value: 'paused' },
 ];
 
-const branchOptions = computed(() => props.branches.map((b) => ({ label: b.name, value: b.id })));
-
 // ── Form state ──────────────────────────────────────────────────────────
 
 function emptyDestination(): Destination {
@@ -212,7 +210,7 @@ function emptyDestination(): Destination {
 
 const form = reactive({
   text: '',
-  scopeBranchIds: [] as number[],
+  selectedBranchIds: [] as number[],
   hasDestination: false,
   destination: emptyDestination(),
   publishMode: 'now' as PublishMode,
@@ -221,11 +219,17 @@ const form = reactive({
   status: 'active' as NovedadStatus,
 });
 
+// Sedes tildadas al abrir: al editar, el alcance se manda solo si cambió la
+// selección (un admin que abre una novedad "todas las sedes" del owner ve
+// tildadas solo las de su país, y no debe achicarla sin querer).
+let initialSelection: number[] = [];
+
 function resetForm(): void {
   const n = props.novedad;
+  form.selectedBranchIds = selectionFromScope(n?.scopeBranchIds ?? null, props.branches);
+  initialSelection = [...form.selectedBranchIds];
   if (n) {
     form.text = n.text;
-    form.scopeBranchIds = n.scopeBranchIds ?? [];
     form.hasDestination = n.destinationType !== null;
     form.destination =
       n.destinationType !== null
@@ -243,7 +247,6 @@ function resetForm(): void {
     form.status = n.status;
   } else {
     form.text = '';
-    form.scopeBranchIds = [];
     form.hasDestination = false;
     form.destination = emptyDestination();
     form.publishMode = 'now';
@@ -291,8 +294,12 @@ const publishHint = computed<{ text: string; class: string } | null>(() => {
   return { text: 'Esa fecha ya pasó: se publica de inmediato.', class: 'text-grey-7' };
 });
 
+const formScope = computed(() =>
+  scopeFromSelection(form.selectedBranchIds, props.branches, isOwner.value)
+);
+
 const previewItem = computed<NovedadPreviewItem>(() => {
-  const firstBranchId = form.scopeBranchIds[0];
+  const firstBranchId = formScope.value?.[0];
   const branchLabel =
     firstBranchId !== undefined
       ? (props.branches.find((b) => b.id === firstBranchId)?.name ?? null)
@@ -315,6 +322,7 @@ const previewItem = computed<NovedadPreviewItem>(() => {
 const canSave = computed(() => {
   const len = form.text.trim().length;
   if (len < 1 || len > NOVEDAD_TEXT_MAX) return false;
+  if (form.selectedBranchIds.length === 0) return false;
   if (form.publishMode === 'date' && !publishIso.value) return false;
   return true;
 });
@@ -348,8 +356,8 @@ function formDestination(): DestinationFields {
   };
 }
 
-function sameIds(a: number[] | null, b: number[]): boolean {
-  const left = [...(a ?? [])].sort((x, y) => x - y);
+function sameIds(a: number[], b: number[]): boolean {
+  const left = [...a].sort((x, y) => x - y);
   const right = [...b].sort((x, y) => x - y);
   return left.length === right.length && left.every((id, i) => id === right[i]);
 }
@@ -357,7 +365,7 @@ function sameIds(a: number[] | null, b: number[]): boolean {
 function buildCreatePayload(): CreateNovedadInput {
   const payload: CreateNovedadInput = {
     text: form.text.trim(),
-    scopeBranchIds: form.scopeBranchIds.length ? form.scopeBranchIds : null,
+    scopeBranchIds: formScope.value,
     ...formDestination(),
     status: form.status,
   };
@@ -371,8 +379,8 @@ function buildUpdatePayload(original: AdminNovedad): UpdateNovedadInput {
   const payload: UpdateNovedadInput = {};
   const text = form.text.trim();
   if (text !== original.text) payload.text = text;
-  if (!sameIds(original.scopeBranchIds, form.scopeBranchIds)) {
-    payload.scopeBranchIds = form.scopeBranchIds.length ? form.scopeBranchIds : null;
+  if (!sameIds(initialSelection, form.selectedBranchIds)) {
+    payload.scopeBranchIds = formScope.value;
   }
 
   const dest = formDestination();

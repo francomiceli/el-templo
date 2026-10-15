@@ -12,6 +12,8 @@
  */
 import type { AdminNovedad } from 'src/composables/useCommunicationsApi';
 import { APP_SECTIONS } from 'src/config/destinations';
+import { COUNTRY_OPTIONS, countryLabel } from 'src/config/countries';
+import type { BranchOption } from 'src/types/member';
 
 /** Máximo de novedades que ve un socio (D-4). */
 export const NOVEDADES_MEMBER_LIMIT = 3;
@@ -37,8 +39,17 @@ export interface NovedadPreviewItem {
   hasDestination: boolean;
 }
 
+/**
+ * Margen para considerar "programada" una novedad. Una creada con "Ahora"
+ * puede volver con `publishAt` hasta ~1 s en el futuro respecto del reloj del
+ * navegador (MySQL DATETIME redondea al segundo + desfase de reloj con el
+ * server) y quedaba marcada "Programada" (UAT 2026-10-15). Programar algo a
+ * menos de un minuto es, a efectos del admin, publicarlo ya.
+ */
+export const SCHEDULED_MARGIN_MS = 60_000;
+
 export function isScheduled(novedad: Pick<AdminNovedad, 'publishAt'>, now: Date): boolean {
-  return new Date(novedad.publishAt).getTime() > now.getTime();
+  return new Date(novedad.publishAt).getTime() > now.getTime() + SCHEDULED_MARGIN_MS;
 }
 
 /** Activa y ya publicada: la que cuenta en el KPI. */
@@ -124,4 +135,78 @@ export function formatPublishAt(iso: string): string {
     minute: '2-digit',
     hour12: false,
   });
+}
+
+// ── Alcance por sedes (selector con casillas) ────────────────────────────
+//
+// El alcance se guarda como antes: `scopeBranchIds` null = todas las sedes
+// (incluye las que se abran después), o la lista de IDs. "Todas las sedes de
+// un país" es un ATAJO que tilda sus sedes (decisión de Franco 2026-10-15):
+// se guardan los IDs, una sede nueva de ese país NO la ve.
+
+export interface BranchCountryGroup {
+  /** ISO alfa-2, o '' para sedes sin país. */
+  country: string;
+  label: string;
+  branches: BranchOption[];
+}
+
+/** Sedes agrupadas por país, en el orden de `COUNTRY_OPTIONS` (los desconocidos al final). */
+export function groupBranchesByCountry(branches: readonly BranchOption[]): BranchCountryGroup[] {
+  const order = COUNTRY_OPTIONS.map((c) => c.value);
+  const byCountry = new Map<string, BranchOption[]>();
+  for (const b of branches) {
+    const key = b.country ?? '';
+    byCountry.set(key, [...(byCountry.get(key) ?? []), b]);
+  }
+  const rank = (code: string): number => {
+    const i = order.indexOf(code);
+    return i === -1 ? order.length : i;
+  };
+  return [...byCountry.entries()]
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+    .map(([country, list]) => ({
+      country,
+      label: country ? countryLabel(country) : 'Otras sedes',
+      branches: list,
+    }));
+}
+
+/** Alcance guardado -> sedes tildadas (null/vacío = todas las visibles). */
+export function selectionFromScope(
+  scope: readonly number[] | null,
+  branches: readonly BranchOption[]
+): number[] {
+  if (!scope || scope.length === 0) return branches.map((b) => b.id);
+  return [...scope];
+}
+
+/**
+ * Sedes tildadas -> alcance a guardar. Todas tildadas = null SOLO si
+ * `allowGlobal` (owner): un admin ve solo las sedes de su país, y null
+ * llegaría también al otro país.
+ */
+export function scopeFromSelection(
+  selected: readonly number[],
+  branches: readonly BranchOption[],
+  allowGlobal: boolean
+): number[] | null {
+  const ids = [...new Set(selected)].sort((a, b) => a - b);
+  const all = branches.length > 0 && branches.every((b) => ids.includes(b.id));
+  return allowGlobal && all ? null : ids;
+}
+
+/** "Todas las sedes de Argentina" si el alcance es EXACTAMENTE las sedes de un país; si no, null. */
+export function countryScopeLabel(
+  scope: readonly number[],
+  branches: readonly BranchOption[]
+): string | null {
+  const ids = new Set(scope);
+  for (const group of groupBranchesByCountry(branches)) {
+    if (!group.country) continue;
+    if (group.branches.length === ids.size && group.branches.every((b) => ids.has(b.id))) {
+      return `Todas las sedes de ${group.label}`;
+    }
+  }
+  return null;
 }
