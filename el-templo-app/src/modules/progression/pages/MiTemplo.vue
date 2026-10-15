@@ -18,6 +18,10 @@
       <!-- Notification Permission Banner (per D-24) -->
       <PermissionBanner />
 
+      <!-- Novedades (D-9): después del banner y antes del carrusel premium.
+           Sin novedades no renderiza nada (D-8) y es fail-open (D-12). -->
+      <NovedadesCard />
+
       <!-- Carrusel premium — siempre visible: Mejoras y Referidos van para
            todos; UpsellBadge solo a virtuales y Planes Personalizados cuando
            no corresponde ProgramProgressCard. Los dots son dinámicos. -->
@@ -175,11 +179,13 @@ import ProgramProgressCard from 'src/modules/programs/components/ProgramProgress
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
+import NovedadesCard from '../components/NovedadesCard.vue'
 import ImprovementCtaCard from '../components/ImprovementCtaCard.vue'
 import ReferralCtaCard from '../components/ReferralCtaCard.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
 import AvisoCard from '../components/AvisoCard.vue'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
+import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
@@ -190,6 +196,7 @@ const router = useRouter()
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const avisosStore = useAvisosStore()
+const novedadesStore = useNovedadesStore()
 const { fetchStats, requestEvaluation, fetchWeeklySummary } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const { sessions: weekSessions, fetchWeekSessions } = useWeekData()
@@ -387,6 +394,9 @@ onMounted(async () => {
   // admin), sin bloquear el render — mismo criterio que fetchStats/
   // fetchWeeklySummary de arriba.
   void avisosStore.loadTarjetas()
+  // Novedades (D-12): fail-open, en cada montaje de Mi Templo. No hay
+  // pull-to-refresh en esta página, así que no hay un segundo punto de carga.
+  void novedadesStore.load()
 
   // Hydrate active enrollments so the program dropdown on ProgramProgressCard
   // appears on first load. loadSubscription is only called from /training,
