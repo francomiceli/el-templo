@@ -791,6 +791,47 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
       "Escribe `system_settings` (TENANT_EXEMPT_TABLES): mismo motivo que el GET hermano — valor único de instalación, gateado owner-only server-side.",
   },
 
+  // ── /api/admin/sponsors (fase 199, patrocinadores) ───────────────────────
+  // `sponsor_brands` es la quinta de las `TENANT_EXEMPT_TABLES`: catálogo de
+  // patrocinadores de la PLATAFORMA sin `tenant_id` (D-18). Un plugin con un
+  // único guard `isTemploPlatformAdmin` (owner/admin del tenant El Templo,
+  // D-26) cubre las 7 rutas.
+  "GET /api/admin/sponsors": {
+    categoria: "global",
+    motivo:
+      "Lee `sponsor_brands` (TENANT_EXEMPT_TABLES): catálogo de patrocinadores de la PLATAFORMA sin tenant_id (D-18), gateado server-side a owner/admin del tenant El Templo con `isTemploPlatformAdmin`. Las métricas por marca del listado se leen con `tenantWhere` sobre `sponsor_views`.",
+  },
+  "POST /api/admin/sponsors": {
+    categoria: "global",
+    motivo:
+      "Escribe `sponsor_brands` (TENANT_EXEMPT_TABLES): catálogo de patrocinadores de la PLATAFORMA sin tenant_id (D-18), gateado server-side a owner/admin del tenant El Templo con `isTemploPlatformAdmin`. El partner vinculado se valida con `tenantWhere` sobre `referral_partners`.",
+  },
+  "PUT /api/admin/sponsors/:id": {
+    categoria: "global",
+    motivo:
+      "Edita una fila de `sponsor_brands` (TENANT_EXEMPT_TABLES): catálogo de patrocinadores de la PLATAFORMA sin tenant_id (D-18), gateado server-side a owner/admin del tenant El Templo con `isTemploPlatformAdmin`. El partner vinculado se valida con `tenantWhere` sobre `referral_partners`.",
+  },
+  "DELETE /api/admin/sponsors/:id": {
+    categoria: "global",
+    motivo:
+      "Borra una fila de `sponsor_brands` (TENANT_EXEMPT_TABLES): catálogo de patrocinadores de la PLATAFORMA sin tenant_id (D-18), gateado server-side a owner/admin del tenant El Templo con `isTemploPlatformAdmin`. Las vistas de los socios caen por ON DELETE CASCADE.",
+  },
+  "GET /api/admin/sponsors/settings": {
+    categoria: "global",
+    motivo:
+      "Lee `system_settings` (TENANT_EXEMPT_TABLES): el límite de patrocinadores activos por país es configuración de plataforma (D-24), un valor único de instalación, gateado a admins de El Templo.",
+  },
+  "PUT /api/admin/sponsors/settings": {
+    categoria: "global",
+    motivo:
+      "Escribe `system_settings` (TENANT_EXEMPT_TABLES): el límite de patrocinadores activos por país es configuración de plataforma (D-24), un valor único de instalación, gateado a admins de El Templo.",
+  },
+  "POST /api/admin/sponsors/logo-upload-url": {
+    categoria: "global",
+    motivo:
+      "Genera una URL prefirmada de R2 bajo `sponsors/logos/` sin leer ni escribir datos de ningún gimnasio: el logo pertenece a una marca de plataforma (D-19), gateado a admins de El Templo.",
+  },
+
   // ── /api/admin/staff-attendance ───────────────────────────────────────────
   "GET /api/admin/staff-attendance/me": { categoria: "tenant-scoped" },
   "POST /api/admin/staff-attendance/check-in": { categoria: "tenant-scoped" },
@@ -1057,6 +1098,12 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "tenant-scoped",
   },
   "POST /api/members/scheduling/reserve-trial": { categoria: "tenant-scoped" },
+
+  // ── /api/members/sponsors (fase 199, patrocinadores) ─────────────────────
+  // Feed del socio y eventos (escriben `sponsor_views`, gym-owned). El
+  // `userId` sale siempre del token.
+  "GET /api/members/sponsors": { categoria: "tenant-scoped" },
+  "POST /api/members/sponsors/:id/event": { categoria: "tenant-scoped" },
 
   // ── /api/members/subscription ─────────────────────────────────────────────
   "GET /api/members/subscription/coverage": { categoria: "tenant-scoped" },

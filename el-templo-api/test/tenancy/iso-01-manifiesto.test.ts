@@ -334,7 +334,11 @@ import {
 // `/api/communications`): `GET/POST /admin/novedades`, `PUT/DELETE
 // /admin/novedades/:id`, `GET /me/novedades` y `POST /me/novedades/:id/event`,
 // todas `tenant-scoped`.
-const ENTRADAS_BASELINE = 463;
+// 2026-10-15: 463 -> 472 por Patrocinadores (fase 199): 7 rutas `global` bajo
+// `/api/admin/sponsors` (catálogo de plataforma en `sponsor_brands`, límite en
+// `system_settings`, URL de logo en R2) y 2 `tenant-scoped` bajo
+// `/api/members/sponsors` (feed y eventos, escriben `sponsor_views`).
+const ENTRADAS_BASELINE = 472;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -477,7 +481,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 463 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 472 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
