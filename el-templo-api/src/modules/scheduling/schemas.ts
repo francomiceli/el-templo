@@ -150,6 +150,20 @@ const bookingRecordSchema = {
   },
 } as const;
 
+// Fase 199 (D-03/D-04/D-06): my-bookings suma sede/zona/asistencia. Sin declarar
+// estas properties acá, fast-json-stringify las recorta de la respuesta. El
+// `bookingRecordSchema` compartido (roster admin, slot detail) NO se toca.
+const myBookingRecordSchema = {
+  type: "object",
+  properties: {
+    ...bookingRecordSchema.properties,
+    branchId: { type: "integer" },
+    branchName: { type: "string" },
+    branchTimezone: { type: "string" },
+    checkedInAt: { type: ["string", "null"] },
+  },
+} as const;
+
 const holidayRecordSchema = {
   type: "object",
   properties: {
@@ -1161,7 +1175,7 @@ export const myBookingsSchema = {
     200: {
       type: "object",
       properties: {
-        bookings: { type: "array", items: bookingRecordSchema },
+        bookings: { type: "array", items: myBookingRecordSchema },
       },
     },
   },

@@ -30,11 +30,13 @@ import {
   buildClassDateTime,
   todayInTz,
   toDateString,
+  DEFAULT_TENANT_TIMEZONE,
 } from "../shared/date-utils";
 import { dateToWeekNumber } from "../shared/week-dates";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
 import type {
   BookingRecord,
+  MyBookingRecord,
   BookingStatus,
   AttendanceWeekRecord,
 } from "./types";
@@ -672,7 +674,7 @@ export class BookingService {
     ctx: TenantContext,
     memberId: number,
     weekStartDate: string,
-  ): Promise<BookingRecord[]> {
+  ): Promise<MyBookingRecord[]> {
     const weekEnd = addDays(weekStartDate, 5); // Saturday
 
     const rows = await this.db
@@ -693,6 +695,10 @@ export class BookingService {
         isTrial: schema.bookings.isTrial,
         isSpecial: schema.activities.isSpecial,
         specialLine: schema.activities.specialLine,
+        // Fase 199 (D-04): sede de la CLASE (schedules.branch_id).
+        branchId: schema.schedules.branchId,
+        branchName: schema.branches.name,
+        branchTimezone: schema.branches.timezone,
       })
       .from(schema.bookings)
       .innerJoin(
@@ -705,6 +711,13 @@ export class BookingService {
       .innerJoin(
         schema.schedules,
         eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.branches,
+        and(
+          tenantWhere(schema.branches, ctx),
+          eq(schema.branches.id, schema.schedules.branchId),
+        ),
       )
       .innerJoin(
         schema.activities,
@@ -720,6 +733,34 @@ export class BookingService {
       )
       .orderBy(schema.bookings.bookingDate, schema.schedules.startTime);
 
+    // Fase 199 (D-03): asistencia registrada para ESA clase y fecha. Segunda
+    // query (no left join) para que una reserva nunca duplique filas; si hubiera
+    // más de una asistencia para la misma clase/fecha gana la más temprana.
+    const attendanceRows = await this.db
+      .select({
+        scheduleId: schema.attendance.scheduleId,
+        sessionDate: schema.attendance.sessionDate,
+        checkedInAt: schema.attendance.checkedInAt,
+      })
+      .from(schema.attendance)
+      .where(
+        and(
+          tenantWhere(schema.attendance, ctx),
+          eq(schema.attendance.memberId, memberId),
+          isNotNull(schema.attendance.scheduleId),
+          sql`${schema.attendance.sessionDate} >= ${weekStartDate}`,
+          sql`${schema.attendance.sessionDate} <= ${weekEnd}`,
+        ),
+      )
+      .orderBy(asc(schema.attendance.checkedInAt));
+    const checkedInByClass = new Map<string, string>();
+    for (const a of attendanceRows) {
+      const key = `${a.scheduleId}|${a.sessionDate}`;
+      if (!checkedInByClass.has(key)) {
+        checkedInByClass.set(key, a.checkedInAt.toISOString());
+      }
+    }
+
     // Phase 160-06 (SEM-14): derivar Combos/Tecnica/General para la
     // actividad generica antes de mapear a BookingRecord (misma regla que
     // getWeeklyGrid).
@@ -728,10 +769,22 @@ export class BookingService {
     return rows.map((r) => {
       const dayName = DAY_OF_WEEK_MAP[r.dayOfWeek];
       const dayMode = dayName ? modeByDay.get(dayName) : undefined;
-      return this.mapBookingRow({
-        ...r,
-        activityName: deriveActivityLabel(r.activityName, r.isSpecial, dayMode),
-      });
+      const { branchId, branchName, branchTimezone, ...bookingRow } = r;
+      return {
+        ...this.mapBookingRow({
+          ...bookingRow,
+          activityName: deriveActivityLabel(
+            r.activityName,
+            r.isSpecial,
+            dayMode,
+          ),
+        }),
+        branchId,
+        branchName,
+        branchTimezone: branchTimezone ?? DEFAULT_TENANT_TIMEZONE,
+        checkedInAt:
+          checkedInByClass.get(`${r.scheduleId}|${r.bookingDate}`) ?? null,
+      };
     });
   }
 
