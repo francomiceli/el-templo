@@ -204,6 +204,7 @@ import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 import { useCommunicationsStore } from 'src/stores/useCommunicationsStore'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
+import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
@@ -223,6 +224,7 @@ const userStore = useUserStore()
 const progressionStore = useProgressionStore()
 const communicationsStore = useCommunicationsStore()
 const avisosStore = useAvisosStore()
+const novedadesStore = useNovedadesStore()
 
 // Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
 // por defecto de WhatsApp una vez por sesión, mismo patrón `watch` +
@@ -251,6 +253,8 @@ watch(
       void avisosStore.evaluate()
     } else {
       avisosStore.reset()
+      // Novedades de Mi Templo: la próxima sesión (otro socio/sede) arranca de cero.
+      novedadesStore.reset()
     }
   },
   { immediate: true },
