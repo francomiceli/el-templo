@@ -25,6 +25,7 @@
  *   GET /api/admin/subscriptions/subscriptions/:subscriptionId/schedule-changes
  *   GET /api/members/subscription/coverage
  *   GET /api/members/subscription/me/especial-pass
+ *   GET /api/members/subscription/me/plan-status
  *   GET /api/members/subscription/me/subscription
  *   GET /api/members/subscription/plans
  *
@@ -75,7 +76,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { createTestApp, cleanAllTestData } from "../helpers";
+import { createTestApp, cleanAllTestData, createTestMember } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { tenantWhere } from "../../src/modules/shared/tenant";
 import {
@@ -837,6 +838,56 @@ describe("suscripcion propia del socio — GET /api/members/subscription/me/subs
     );
     expect(body.pricePaid).toBe(fx.dos.pricePaid);
     expect(body.planCategory).toBe("presencial");
+  });
+});
+
+describe("estado de plan del socio — GET /api/members/subscription/me/plan-status", () => {
+  const RUTA = "GET /api/members/subscription/me/plan-status";
+
+  it("aislamiento: un socio del gimnasio 2 SIN historial no recibe el plan de otro socio (ni propio del gimnasio ni de El Templo)", async () => {
+    // Socio nuevo del gimnasio 2, sin ninguna fila en `subscriptions`. Existen
+    // suscripciones activas en AMBOS gimnasios (El Templo y los socios[0]/[1]
+    // del gimnasio 2): si la ruta perdiera el filtro por usuario o por tenant,
+    // este socio vería `hasActivePlan` o un `lastPlan` ajeno.
+    const sinHistorial = await createTestMember(app, {
+      branchId: gym2.branchId,
+      tenantId: TENANT_DOS,
+    });
+    const res = await getMemberComo("/me/plan-status", sinHistorial.token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      hasActivePlan: boolean;
+      hadPlan: boolean;
+      hasScheduledPlan: boolean;
+      lastPlan: unknown;
+    };
+    expect(
+      body.hasActivePlan,
+      porQueImportaElListado(RUTA, fx.templo.subscriptionId),
+    ).toBe(false);
+    expect(
+      body.hadPlan,
+      porQueImportaElListado(RUTA, fx.templo.subscriptionId),
+    ).toBe(false);
+    expect(body.hasScheduledPlan).toBe(false);
+    expect(
+      body.lastPlan,
+      porQueImportaElListado(RUTA, fx.templo.subscriptionId),
+    ).toBeNull();
+  });
+
+  it("control: el socio del gimnasio 2 que SI tiene la suscripcion sembrada la ve como plan activo", async () => {
+    const res = await getMemberComo("/me/plan-status", gym2.socios[0].token);
+    expect(res.statusCode, `${RUTA} fallo: ${res.body}`).toBe(200);
+    const body = JSON.parse(res.body) as {
+      hasActivePlan: boolean;
+      hadPlan: boolean;
+    };
+    expect(
+      body.hasActivePlan,
+      porQueImportaElControl(RUTA, gym2.socios[0].id),
+    ).toBe(true);
+    expect(body.hadPlan).toBe(false);
   });
 });
 

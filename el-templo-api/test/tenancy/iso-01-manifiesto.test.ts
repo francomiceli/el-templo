@@ -338,7 +338,9 @@ import {
 // `/api/admin/sponsors` (catálogo de plataforma en `sponsor_brands`, límite en
 // `system_settings`, URL de logo en R2) y 2 `tenant-scoped` bajo
 // `/api/members/sponsors` (feed y eventos, escriben `sponsor_views`).
-const ENTRADAS_BASELINE = 472;
+// 2026-10-15: 472 -> 473 por GET /api/members/subscription/me/plan-status
+// (fase 199, D-05), `tenant-scoped`.
+const ENTRADAS_BASELINE = 473;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -481,7 +483,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 472 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 473 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(
