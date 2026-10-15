@@ -17,8 +17,13 @@ import { APP_SECTIONS } from 'src/config/destinations';
 export const NOVEDADES_MEMBER_LIMIT = 3;
 /** Largo máximo del texto (D-2, espejo del server). */
 export const NOVEDAD_TEXT_MAX = 80;
-/** Desde este largo el texto puede ocupar 3 líneas en la app. */
-export const NOVEDAD_TEXT_WARN_FROM = 71;
+/**
+ * Desde este largo el texto probablemente no entra en UNA línea y la app lo
+ * corta con "…" (decisión de Franco 2026-10-14: la card muestra una sola
+ * línea que va rotando). Es una estimación por caracteres para un celular de
+ * 375px — la vista previa del editor, al mismo ancho, es la que manda.
+ */
+export const NOVEDAD_TEXT_WARN_FROM = 38;
 
 /** Una novedad tal como la dibuja `NovedadPreview.vue` (réplica de la card de la app). */
 export interface NovedadPreviewItem {
@@ -49,7 +54,7 @@ function matchesBranch(scope: number[] | null, branchId: number | null): boolean
 export function visibleNovedadesForBranch(
   novedades: readonly AdminNovedad[],
   branchId: number | null,
-  now: Date,
+  now: Date
 ): AdminNovedad[] {
   return novedades
     .filter((n) => isLive(n, now) && matchesBranch(n.scopeBranchIds, branchId))
@@ -64,7 +69,8 @@ export function visibleNovedadesForBranch(
 export function relativeDaysLabel(publishAtIso: string, now: Date): string {
   const published = new Date(publishAtIso);
   // Días de calendario (hora local), no 24h corridas: "ayer" es el día anterior.
-  const startOf = (d: Date): number => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const startOf = (d: Date): number =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.max(0, Math.round((startOf(now) - startOf(published)) / 86_400_000));
   if (days === 0) return 'hoy';
   if (days === 1) return 'ayer';
@@ -76,7 +82,7 @@ export function relativeDaysLabel(publishAtIso: string, now: Date): string {
 
 /** Etiqueta legible del destino ("Reservas", "WhatsApp de ventas") o null si no lleva a ningún lado. */
 export function novedadDestinationLabel(
-  novedad: Pick<AdminNovedad, 'destinationType' | 'destinationSection'>,
+  novedad: Pick<AdminNovedad, 'destinationType' | 'destinationSection'>
 ): string | null {
   if (novedad.destinationType === 'whatsapp_sales') return 'WhatsApp de ventas';
   if (novedad.destinationType === 'app_section') {

@@ -17,7 +17,8 @@
      Novedades de Mi Templo (2026-10-14, D-13) es la 5ª categoría y va
      PRIMERA. Grid de 5: 2 columnas en mobile/tablet (la última queda a ancho
      completo para no dejar un hueco) y 5 iguales en desktop ancho — ver
-     `.kpi-grid` abajo.
+     `.kpi-grid` abajo. Sin `?tab=` la página abre en Novedades (decisión de
+     Franco 2026-10-14: es la primera card y lo que más se carga).
 
      Ajustes (WhatsApp de ventas) ya no vive dentro de Tarjetas: es un botón
      con ícono de engranaje en la cabecera de la página que abre
@@ -159,7 +160,7 @@ const VALID_TABS = ['novedades', 'push', 'avisos', 'tarjetas', 'tv'];
 
 function initialTab(): string {
   const requested = typeof route.query.tab === 'string' ? route.query.tab : null;
-  return requested && VALID_TABS.includes(requested) ? requested : 'push';
+  return requested && VALID_TABS.includes(requested) ? requested : 'novedades';
 }
 
 const tab = ref(initialTab());

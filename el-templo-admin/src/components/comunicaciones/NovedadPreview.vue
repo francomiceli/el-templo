@@ -9,8 +9,8 @@
      la directiva de HTML crudo de Vue: una novedad con HTML nunca debe
      ejecutarse en el admin (mismo criterio que AvisoPreview.vue, T-193-42).
 
-     El stage tiene alto fijo (como en la app) y deja entrar 3 líneas, que es
-     lo que puede ocupar un texto de 71 a 80 caracteres. -->
+     El stage tiene alto fijo (como en la app): UNA línea de texto + la meta
+     (decisión de Franco 2026-10-14). Lo que no entra se corta con "…". -->
 <template>
   <div class="nov-preview">
     <div v-if="!items.length" class="nov-preview__empty">
@@ -69,7 +69,7 @@ const props = withDefaults(
   {
     showNew: true,
     emptyText: 'Sin novedades para esta sede: la sección no se muestra en la app.',
-  },
+  }
 );
 
 const current = ref(0);
@@ -79,10 +79,12 @@ watch(
   () => props.items.length,
   (length) => {
     if (current.value >= length) current.value = 0;
-  },
+  }
 );
 
-const currentItem = computed<NovedadPreviewItem>(() => props.items[current.value] ?? props.items[0]!);
+const currentItem = computed<NovedadPreviewItem>(
+  () => props.items[current.value] ?? props.items[0]!
+);
 </script>
 
 <style lang="scss" scoped>
@@ -182,7 +184,8 @@ $border: #e5dbcd;
 
 .nov-card__stage {
   position: relative;
-  height: 98px;
+  // 1 línea de texto (14.5 × 1.38 ≈ 20px) + meta (4 + 16px) + padding 10+10.
+  height: 62px;
   overflow: hidden;
 }
 
@@ -217,11 +220,9 @@ $border: #e5dbcd;
   line-height: 1.38;
   font-weight: 500;
   color: $charcoal;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nov-item--new .nov-item__text {

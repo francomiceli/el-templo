@@ -5,8 +5,10 @@
      y estado. Sin vencimiento (D-3): una novedad deja de verse cuando la
      desplazan 3 más nuevas, se pausa o se borra.
 
-     El límite de 80 espeja `el-templo-api/.../novedades-service.ts`. El
-     contador pasa a ámbar desde 71 (puede ocupar 3 líneas en la app) pero
+     El límite de 80 espeja `el-templo-api/.../novedades-service.ts`. La app
+     muestra UNA sola línea (decisión de Franco 2026-10-14) y corta con "…"
+     lo que no entra: el contador pasa a ámbar desde `NOVEDAD_TEXT_WARN_FROM`
+     y la vista previa (mismo ancho que un celular) muestra el corte real.
      NO bloquea antes de 80 (el `maxlength` del input corta ahí).
 
      Semántica del PUT (server): cada key es opcional, y si viene
@@ -40,7 +42,7 @@
             <div class="col text-caption" :class="warnLong ? 'text-amber-10' : 'text-grey-7'">
               {{
                 warnLong
-                  ? 'Puede ocupar 3 líneas en la app.'
+                  ? 'Puede cortarse con “…” en el celular: mirá la vista previa.'
                   : 'Una oración corta. Se muestra arriba de Mi Templo.'
               }}
             </div>
@@ -200,9 +202,7 @@ const statusOptions: Array<{ label: string; value: NovedadStatus }> = [
   { label: 'Pausada', value: 'paused' },
 ];
 
-const branchOptions = computed(() =>
-  props.branches.map((b) => ({ label: b.name, value: b.id })),
-);
+const branchOptions = computed(() => props.branches.map((b) => ({ label: b.name, value: b.id })));
 
 // ── Form state ──────────────────────────────────────────────────────────
 
@@ -257,7 +257,7 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) resetForm();
-  },
+  }
 );
 
 /** Al pasar a "Fecha y hora" en un alta, arranca en el momento actual. */
@@ -276,7 +276,7 @@ const textLength = computed(() => form.text.length);
 const warnLong = computed(() => textLength.value >= NOVEDAD_TEXT_WARN_FROM);
 
 const publishIso = computed(() =>
-  form.publishMode === 'date' ? localInputsToIso(form.publishDate, form.publishTime) : null,
+  form.publishMode === 'date' ? localInputsToIso(form.publishDate, form.publishTime) : null
 );
 
 const publishHint = computed<{ text: string; class: string } | null>(() => {
@@ -388,10 +388,7 @@ function buildUpdatePayload(original: AdminNovedad): UpdateNovedadInput {
     payload.publishAt = new Date().toISOString();
   } else if (publishIso.value) {
     const originalInputs = isoToLocalInputs(original.publishAt);
-    if (
-      form.publishDate !== originalInputs.date ||
-      form.publishTime !== originalInputs.time
-    ) {
+    if (form.publishDate !== originalInputs.date || form.publishTime !== originalInputs.time) {
       payload.publishAt = publishIso.value;
     }
   }
