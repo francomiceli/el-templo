@@ -6497,6 +6497,33 @@ export class SubscriptionService {
     // If there's no predecessor (shouldn't happen for scheduled), we're done.
     if (!scheduled.previousSubscriptionId) return;
 
+    // Traspaso completo (fix 2026-10-15). Una renovación normal arranca el
+    // MISMO día que vence la anterior (startDate = endDate), así que el cron
+    // `activateDueScheduledSubs` la activa mientras la predecesora todavía no
+    // venció (`autoExpireSubscriptions` recién la cierra con endDate < hoy, al
+    // día siguiente). Durante ese día el socio quedaba con DOS presenciales
+    // `active`: el admin mostraba la vieja como vigente y la renovación no
+    // aparecía en ninguna tarjeta (no se podía cancelar ni cambiar), y al día
+    // siguiente la predecesora terminaba `expired` en vez de `completed`. Acá
+    // se cierra la predecesora en el mismo paso, pero SOLO si está en su
+    // último día (endDate <= hoy): si todavía tiene días por delante (fecha
+    // de renovación adelantada a mano, pausa que corrió el vencimiento) no se
+    // toca. En el camino de `autoExpireSubscriptions` ya viene `completed`,
+    // así que el guard por status lo vuelve un no-op.
+    await this.db
+      .update(schema.subscriptions)
+      .set({ status: "completed" })
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          eq(schema.subscriptions.id, scheduled.previousSubscriptionId),
+          eq(schema.subscriptions.status, "active"),
+          sql`${schema.subscriptions.endDate} <= ${todayDateString()}`,
+        ),
+      );
+
     // Phase 112 D-19: transfer admin add-ons from the predecessor sub to
     // the freshly-activated successor BEFORE any teardown below cancels
     // them. Runs on this.db (no tx — matches the existing best-effort
