@@ -56,6 +56,7 @@ import { communicationsRoutes, tvAvisosRoutes } from "./modules/communications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
 import { referralAdminRoutes } from "./modules/referrals/admin-routes";
 import { referralPartnersAdminRoutes } from "./modules/referral-partners";
+import { sponsorsAdminRoutes, sponsorsMemberRoutes } from "./modules/sponsors";
 import { campaignRoutes } from "./modules/campaigns/routes";
 import { wellhubWebhookRoutes } from "./modules/wellhub/routes";
 import { wellhubOccupancyListener } from "./modules/wellhub/occupancy-listener";
@@ -276,6 +277,11 @@ export async function buildApp(opts: BuildAppOptions = {}) {
   await app.register(referralPartnersAdminRoutes, {
     prefix: "/api/admin/referral-partners",
   });
+
+  // Patrocinadores (fase 199, D-17..D-26): admin solo El Templo + feed y
+  // eventos del socio.
+  await app.register(sponsorsAdminRoutes, { prefix: "/api/admin/sponsors" });
+  await app.register(sponsorsMemberRoutes, { prefix: "/api/members/sponsors" });
 
   // Scheduling management routes (activities, schedules, bookings, holidays)
   await app.register(schedulingAdminRoutes, {

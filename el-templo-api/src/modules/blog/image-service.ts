@@ -40,9 +40,10 @@ export class BlogImageService {
 
   async generateUploadUrl(
     filename: string,
+    prefix = "blog/images",
   ): Promise<{ uploadUrl: string; publicUrl: string }> {
     const sanitized = sanitizeFilename(filename);
-    const key = `blog/images/${Date.now()}-${sanitized}`;
+    const key = `${prefix}/${Date.now()}-${sanitized}`;
     const contentType = getContentType(filename);
 
     const command = new PutObjectCommand({
@@ -58,7 +59,7 @@ export class BlogImageService {
     const r2PublicUrl = process.env.R2_PUBLIC_URL || "";
     const publicUrl = `${r2PublicUrl}/${key}`;
 
-    this.log.info({ key, contentType }, "Blog image upload URL generated");
+    this.log.info({ key, contentType, prefix }, "Image upload URL generated");
 
     return { uploadUrl, publicUrl };
   }
