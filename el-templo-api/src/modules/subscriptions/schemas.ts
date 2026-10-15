@@ -319,6 +319,40 @@ export const deactivatePlanSchema = {
 // =============================================================================
 
 /**
+ * D-05 (fase 199): respuesta de GET /me/plan-status. Todas las claves son
+ * obligatorias para que la app distinga "nunca tuvo plan" de "venció".
+ */
+export const memberPlanStatusSchema = {
+  response: {
+    200: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "hasActivePlan",
+        "hasScheduledPlan",
+        "scheduledStartDate",
+        "hadPlan",
+        "lastPlan",
+      ],
+      properties: {
+        hasActivePlan: { type: "boolean" },
+        hasScheduledPlan: { type: "boolean" },
+        scheduledStartDate: { type: ["string", "null"] },
+        hadPlan: { type: "boolean" },
+        lastPlan: {
+          type: ["object", "null"],
+          properties: {
+            planName: { type: "string" },
+            endDate: { type: ["string", "null"] },
+            status: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+/**
  * Phase 162-02 (APP-02): response schema for GET /me/especial-pass.
  * fast-json-stringify strips any property not declared here, so all 5 fields
  * must be whitelisted or the member's x/2 counter (classesRemaining/isSocio)

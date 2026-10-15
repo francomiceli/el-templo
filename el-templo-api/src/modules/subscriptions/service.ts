@@ -222,6 +222,21 @@ export interface ListPlansFilters {
 }
 
 /**
+ * D-05 (fase 199): estado de plan del socio. Ver `getMemberPlanStatus`.
+ */
+export interface MemberPlanStatus {
+  hasActivePlan: boolean;
+  hasScheduledPlan: boolean;
+  scheduledStartDate: string | null;
+  hadPlan: boolean;
+  lastPlan: {
+    planName: string;
+    endDate: string | null;
+    status: "expired" | "completed" | "cancelled" | "changed";
+  } | null;
+}
+
+/**
  * Filter options for listPromoPlans.
  */
 export interface ListPromoPlansFilters {
@@ -1411,6 +1426,100 @@ export class SubscriptionService {
     if (rows.length === 0) return null;
 
     return this.enrichWithScheduleIds(ctx, this.mapSubscriptionRow(rows[0]));
+  }
+
+  /**
+   * D-05 (fase 199): estado de plan del socio para la card de "sin plan" de la
+   * app. Nunca tuvo -> `hadPlan=false`. Tuvo y venció -> `hadPlan=true` +
+   * `lastPlan` (nombre y fecha de fin). NO reemplaza a `getMemberSubscription`
+   * (el 204 de `/me/subscription` es contrato de apps viejas en las tiendas).
+   *
+   * LECTURA PURA (L10): no llama a `autoExpireSubscriptions` desde un GET. La
+   * regla replica su criterio sin escribir: una sub `active` con `endDate` menor
+   * que hoy (UTC, igual que el barrido) todavía no barrida cuenta como vencida
+   * (`expired`), no como plan activo. `paused` cuenta como plan activo; las
+   * `scheduled` se informan aparte. Misma regla que `hasActivePlan` de
+   * `SponsorsService`, para que canje y card nunca diverjan. Los
+   * `membership_kind` staff/bonificadas son filas normales de `subscriptions`,
+   * por eso cuentan igual.
+   *
+   * `tenantWhere` en `subscriptions` y en `subscription_plans` (T-199-18); el
+   * `userId` viene siempre del token en la ruta.
+   */
+  async getMemberPlanStatus(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<MemberPlanStatus> {
+    const todayUtc = new Date().toISOString().split("T")[0];
+
+    const rows = await this.db
+      .select({
+        status: schema.subscriptions.status,
+        startDate: schema.subscriptions.startDate,
+        endDate: schema.subscriptions.endDate,
+        planName: schema.subscriptionPlans.name,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        and(
+          eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+          tenantWhere(schema.subscriptionPlans, ctx),
+        ),
+      )
+      .where(
+        and(
+          tenantWhere(schema.subscriptions, ctx),
+          eq(schema.subscriptions.userId, userId),
+        ),
+      )
+      .orderBy(
+        desc(schema.subscriptions.endDate),
+        desc(schema.subscriptions.id),
+      );
+
+    let hasActivePlan = false;
+    let scheduledStartDate: string | null = null;
+    const past: MemberPlanStatus["lastPlan"][] = [];
+
+    for (const row of rows) {
+      if (row.status === "paused") {
+        hasActivePlan = true;
+      } else if (row.status === "active") {
+        if (row.endDate === null || row.endDate >= todayUtc) {
+          hasActivePlan = true;
+        } else {
+          // Vencida por fecha, todavía sin barrer (L10): se informa como vencida.
+          past.push({
+            planName: row.planName,
+            endDate: row.endDate,
+            status: "expired",
+          });
+        }
+      } else if (row.status === "scheduled") {
+        if (scheduledStartDate === null || row.startDate < scheduledStartDate) {
+          scheduledStartDate = row.startDate;
+        }
+      } else {
+        past.push({
+          planName: row.planName,
+          endDate: row.endDate,
+          status: row.status,
+        });
+      }
+    }
+
+    // Más reciente primero por fecha de fin (los `null` quedan al final). El
+    // orden de la query ya desempata por id; el sort es estable.
+    past.sort((a, b) => (b?.endDate ?? "").localeCompare(a?.endDate ?? ""));
+
+    return {
+      hasActivePlan,
+      hasScheduledPlan: scheduledStartDate !== null,
+      scheduledStartDate,
+      hadPlan: past.length > 0,
+      lastPlan: past[0] ?? null,
+    };
   }
 
   /**

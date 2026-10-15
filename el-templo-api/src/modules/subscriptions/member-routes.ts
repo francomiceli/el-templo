@@ -22,7 +22,7 @@ import {
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant, tenantWhere } from "../shared/tenant";
 import { todayInTz } from "../shared/date-utils";
-import { especialPassSchema } from "./schemas";
+import { especialPassSchema, memberPlanStatusSchema } from "./schemas";
 import { specialLineLabel } from "../scheduling/special-line";
 import { getEspecialTrialLines } from "../scheduling/especial-trial-service";
 
@@ -247,6 +247,23 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         passes,
         trialLines,
       };
+    },
+  );
+
+  // GET /me/plan-status — D-05 (fase 199): ¿nunca tuvo plan o tuvo y venció?
+  //
+  // Ruta NUEVA y no un dato colgado de /me/subscription: ese endpoint devuelve
+  // 204 sin plan y ese 204 es contrato de las apps viejas en las tiendas. Acá
+  // el socio siempre recibe 200 con el estado y, si tuvo, el último plan.
+  //
+  // IDOR (T-199-18): el userId sale del token; la ruta NO acepta userId.
+  // Lectura pura: el servicio no barre (autoExpire) desde un GET.
+  fastify.get(
+    "/me/plan-status",
+    { schema: memberPlanStatusSchema },
+    async (request) => {
+      const ctx = assertTenant(request.scope, "subscriptions.planStatus");
+      return subscriptionService.getMemberPlanStatus(ctx, request.user.userId);
     },
   );
 
