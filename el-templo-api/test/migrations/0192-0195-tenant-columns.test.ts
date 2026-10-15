@@ -59,6 +59,7 @@
  * 2026-10: invitations (fase 194, 0255) nace tenancy-native -> 100.
  * 2026-10-14: novedades/novedad_views (0275, Novedades en Mi Templo) nacen
  * tenancy-native -> 102.
+ * 2026-10-15: sponsor_views (fase 199, 0279) nace tenancy-native -> 103.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { sql, eq } from "drizzle-orm";
@@ -161,7 +162,7 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
   });
 
   // ─── 2. Cobertura ───────────────────────────────────────────────────────
-  it("Test 2: la verificacion cubre las 102 tablas gym-owned, no un subconjunto", () => {
+  it("Test 2: la verificacion cubre las 103 tablas gym-owned, no un subconjunto", () => {
     // 87 de la tanda C (fase 167) + session_week_regime (fase 159, SEM-05)
     // + 3 tablas de partners (referral_partners/partner_referrals/
     // partner_commissions, fase 179, tenancy-native en la 0215)
@@ -175,7 +176,8 @@ describe("Migraciones 0192-0195 — tenant_id en las 87 tablas gym-owned", () =>
     // + invitations (fase 194, 2026-10, tenancy-native en la 0255) = 100.
     // + novedades/novedad_views (Novedades en Mi Templo, 2026-10-14,
     //   tenancy-native en la 0275) = 102.
-    expect(report.gymOwnedChecked).toBe(102);
+    // + sponsor_views (fase 199, 2026-10-15, tenancy-native en la 0279) = 103.
+    expect(report.gymOwnedChecked).toBe(103);
   });
 
   // ─── 3. Exclusiones de diseño ───────────────────────────────────────────

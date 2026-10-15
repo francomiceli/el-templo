@@ -152,6 +152,10 @@ export const GYM_OWNED_TABLES = [
   "sessions",
   "spom_config",
   "spom_rules",
+  // Patrocinadores (fase 199, mig 0279): métricas por socio y marca con el
+  // tenant_id del socio (D-25). Nace strict (ver
+  // TENANT_STRICT_MODULES["sponsors"]).
+  "sponsor_views",
   "staff_shifts",
   "subscription_plans",
   "subscription_schedule_changes",
@@ -178,8 +182,8 @@ export const GYM_OWNED_TABLES = [
 ] as const;
 
 /**
- * Tablas EXENTAS de `tenant_id`, con el motivo de cada una. Son cuatro y no hay
- * una quinta por descuido: cualquier tabla que no esté acá ni en
+ * Tablas EXENTAS de `tenant_id`, con el motivo de cada una. Son cinco y no hay
+ * una sexta por descuido: cualquier tabla que no esté acá ni en
  * `GYM_OWNED_TABLES` deja el test en rojo.
  *
  * - `tenants` — la raíz del modelo. No puede pertenecer a un tenant: ES el
@@ -193,12 +197,18 @@ export const GYM_OWNED_TABLES = [
  *   fuentes de verdad para la misma clave durante la transición.
  * - `labs_inquiries` — leads del PROPIO SaaS (El Templo Labs), no de un
  *   gimnasio: es GLOBAL de plataforma (doc 05 §4).
+ * - `sponsor_brands` (fase 199, mig 0279) — catálogo de patrocinadores de la
+ *   PLATAFORMA (D-18). Los gimnasios no tienen publicidad propia. Hoy no existe
+ *   `platform_users` en esta base (vive en la fase 182, rama del tren): al
+ *   integrar, esta tabla convive con `platform_users`/`platform_audit_log` en
+ *   esta lista.
  */
 export const TENANT_EXEMPT_TABLES = [
   "tenants",
   "tenant_settings",
   "system_settings",
   "labs_inquiries",
+  "sponsor_brands",
 ] as const;
 
 export type GymOwnedTable = (typeof GYM_OWNED_TABLES)[number];
@@ -360,6 +370,8 @@ export const TENANT_UNIQUE_ALLOWLIST: Record<string, string> = {
     "Derivada de FK scopeada: `referred_id` → `users`. Un socio es referido una sola vez, y el socio pertenece a un solo tenant.",
   "schedule_exceptions.idx_schedule_exceptions_schedule_date":
     "Derivada de FK scopeada: primer campo `schedule_id` → `schedules`, tabla gym-owned. Una excepción por horario y fecha.",
+  "sponsor_views.uq_sponsor_views_user_brand":
+    "Derivada de FK scopeada: primer campo `user_id` → `users`, tabla gym-owned. Una fila por socio y marca (D-25). El primer campo no puede ser `brand_id` porque `sponsor_brands` es de plataforma (TENANT_EXEMPT_TABLES).",
   "subscription_schedules.idx_sub_schedule":
     "Derivada de FK scopeada: primer campo `subscription_id` → `subscriptions`. Es el puente suscripción↔turno y ambos extremos son del mismo tenant por sus FKs.",
   "transaction_links.uniq_tx_target":
@@ -657,6 +669,8 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
   // deuda previa que tolerar (mismo criterio que `communications`/
   // `staff-attendance`).
   renewals: ["renewal_followups", "renewal_reasons"],
+  // Fase 199: el módulo nace strict.
+  sponsors: ["sponsor_views"],
   // 2026-09-07: el modulo nace strict, no hay deuda previa que tolerar
   // (mismo criterio que `communications`, fase 193).
   "staff-attendance": ["staff_shifts"],

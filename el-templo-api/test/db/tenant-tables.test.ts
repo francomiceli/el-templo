@@ -117,12 +117,14 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // `referrals`): 99 -> 100, 103 -> 104.
     // 2026-10-14 sumó `novedades`, `novedad_views` (Novedades en Mi Templo, mig
     // 0275, nacen strict en `communications`): 100 -> 102, 104 -> 106.
-    expect(GYM_OWNED_TABLES.length).toBe(102);
-    expect(TENANT_EXEMPT_TABLES.length).toBe(4);
+    // 2026-10-15 sumó `sponsor_views` (gym-owned) y `sponsor_brands` (exenta) —
+    // fase 199, mig 0279: 102 -> 103, 4 -> 5, 106 -> 108.
+    expect(GYM_OWNED_TABLES.length).toBe(103);
+    expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(106);
+    expect(schemaTables.size).toBe(108);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -468,6 +470,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
     // 2026-09-24: módulo de Renovaciones (brief Nacho). Nace strict, sin
     // deuda de allowlist previa.
     renewals: ["renewal_followups", "renewal_reasons"],
+    // Fase 199: el módulo nace strict.
+    sponsors: ["sponsor_views"],
     // 2026-09-07: jornada laboral del staff (check-in/out con el QR de sede).
     // Nace strict, sin deuda de allowlist previa.
     "staff-attendance": ["staff_shifts"],

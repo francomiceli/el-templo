@@ -613,7 +613,7 @@ describe("Verificador de uniques e índices por tenant — gate fail-closed (CON
     ).toEqual([]);
   });
 
-  it("Test 10: el reporte cierra en 0 discrepancias y cubre las 102 tablas gym-owned", () => {
+  it("Test 10: el reporte cierra en 0 discrepancias y cubre las 103 tablas gym-owned", () => {
     // El reporte completo va DENTRO del mensaje: un fallo en CI trae el detalle
     // en el log y nadie tiene que reproducirlo local para saber qué pasó.
     expect(
@@ -637,14 +637,15 @@ describe("Verificador de uniques e índices por tenant — gate fail-closed (CON
     // + invitations (fase 194, 2026-10, tenancy-native en la 0255) = 100.
     // + novedades/novedad_views (Novedades en Mi Templo, 2026-10-14,
     //   tenancy-native en la 0275) = 102.
+    // + sponsor_views (fase 199, 2026-10-15, tenancy-native en la 0279) = 103.
     expect(
       report.gymOwnedChecked,
-      `El verificador solo pudo mirar ${report.gymOwnedChecked} de las 102 tablas gym-owned ` +
+      `El verificador solo pudo mirar ${report.gymOwnedChecked} de las 103 tablas gym-owned ` +
         `(87 de la fase 167 + session_week_regime de la 159 + 3 de partners de la 179 ` +
         `+ 3 de comunicaciones de la 193 + staff_shifts de la 0223 + cash_counts de la 0226 ` +
-        `+ 2 de renovaciones de la 0237 + trial_followups de la 0241 + invitations de la 0255 + 2 de novedades de la 0275): faltan tablas en ` +
+        `+ 2 de renovaciones de la 0237 + trial_followups de la 0241 + invitations de la 0255 + 2 de novedades de la 0275 + sponsor_views de la 0279): faltan tablas en ` +
         `${report.database} y el resultado no es concluyente.`,
-    ).toBe(102);
+    ).toBe(103);
     expect(
       report.uniquesChecked,
       `El verificador evaluó ${report.uniquesChecked} uniques de tablas gym-owned. Tienen que ` +

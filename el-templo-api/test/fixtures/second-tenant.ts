@@ -425,6 +425,12 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM novedades WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Patrocinadores (0279): las vistas por socio (gym-owned) tienen FK a `users` y
+  // tienen que salir ANTES del `DELETE FROM users`. `sponsor_brands` no se limpia
+  // acá: es de plataforma y no tiene tenant.
+  await app.db.execute(
+    sql`DELETE FROM sponsor_views WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM user_branches WHERE tenant_id = ${TENANT_DOS}`,
   );
