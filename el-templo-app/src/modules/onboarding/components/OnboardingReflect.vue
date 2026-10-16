@@ -63,6 +63,7 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 @import 'src/css/brand';
+@import 'src/css/premium-card';
 
 $terracotta: $brand-terracotta;
 $cream: #f2ede5;
@@ -92,7 +93,7 @@ $cream: #f2ede5;
   font-size: 0.6875rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba($cream, 0.5);
+  color: $pd-cream-3;
   margin: 0;
   animation: fade-in 400ms ease both;
 }
@@ -138,7 +139,7 @@ $cream: #f2ede5;
   font-size: 0.6875rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba($cream, 0.3);
+  color: $pd-cream-3;
   margin: 24px 0 0;
   animation: fade-in 600ms 1200ms ease both;
 }
