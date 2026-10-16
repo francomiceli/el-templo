@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { FastifyBaseLogger } from "fastify";
+import { getR2PublicBase } from "../shared/video-url";
 
 /** Presigned URL expiry: 15 minutes */
 const PRESIGN_EXPIRY_SECONDS = 900;
@@ -56,8 +57,7 @@ export class BlogImageService {
       expiresIn: PRESIGN_EXPIRY_SECONDS,
     });
 
-    const r2PublicUrl = process.env.R2_PUBLIC_URL || "";
-    const publicUrl = `${r2PublicUrl}/${key}`;
+    const publicUrl = `${getR2PublicBase()}/${key}`;
 
     this.log.info({ key, contentType, prefix }, "Image upload URL generated");
 

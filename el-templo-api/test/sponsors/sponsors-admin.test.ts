@@ -35,6 +35,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { S3Client } from "@aws-sdk/client-s3";
 import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
@@ -934,6 +935,87 @@ describe("logoUrl del R2 propio (T-199-09/T-199-48)", () => {
     } finally {
       process.env.R2_PUBLIC_URL = R2_BASE;
     }
+  });
+
+  describe("la publicUrl que devuelve /logo-upload-url se acepta como logoUrl (WR-01)", () => {
+    // La firma de la URL es local (sin red). Si CI no tiene R2 se inyecta un
+    // cliente S3 con credenciales falsas en el decorador de la app.
+    const hadR2 = (): boolean => app.hasDecorator("r2");
+    let previoR2: S3Client | undefined;
+    let previoBucket: string | undefined;
+
+    beforeAll(() => {
+      previoR2 = hadR2() ? app.r2 : undefined;
+      previoBucket = hadR2() ? app.r2Bucket : undefined;
+      app.r2 = new S3Client({
+        region: "auto",
+        endpoint: "https://cuenta-falsa.r2.cloudflarestorage.com",
+        credentials: { accessKeyId: "test", secretAccessKey: "test" },
+      });
+      app.r2Bucket = "bucket-test";
+    });
+
+    afterAll(() => {
+      if (previoR2 !== undefined && previoBucket !== undefined) {
+        app.r2 = previoR2;
+        app.r2Bucket = previoBucket;
+      } else {
+        // CI sin R2: sacar el cliente inyectado para que el resto del archivo
+        // siga viendo la app sin almacenamiento (503).
+        Reflect.deleteProperty(app, "r2");
+        Reflect.deleteProperty(app, "r2Bucket");
+      }
+    });
+
+    async function subirYGuardar(): Promise<{
+      publicUrl: string;
+      guardado: AdminSponsor;
+    }> {
+      const up = await req("POST", "/logo-upload-url", ownerToken, {
+        filename: "logo.png",
+      });
+      expect(up.statusCode, up.body).toBe(200);
+      const { publicUrl } = JSON.parse(up.body) as { publicUrl: string };
+      const res = await req(
+        "POST",
+        "",
+        ownerToken,
+        body({ logoUrl: publicUrl }),
+      );
+      expect(res.statusCode, res.body).toBe(201);
+      return {
+        publicUrl,
+        guardado: (JSON.parse(res.body) as { sponsor: AdminSponsor }).sponsor,
+      };
+    }
+
+    it("base sin barra final → el logo subido se guarda", async () => {
+      const { publicUrl, guardado } = await subirYGuardar();
+      expect(publicUrl.startsWith(`${R2_BASE}/sponsors/logos/`)).toBe(true);
+      expect(guardado.logoUrl).toBe(publicUrl);
+    });
+
+    it("base CON barra final → sin '//' y el logo subido se guarda", async () => {
+      process.env.R2_PUBLIC_URL = `${R2_BASE}/`;
+      try {
+        const { publicUrl, guardado } = await subirYGuardar();
+        expect(publicUrl.startsWith(`${R2_BASE}/sponsors/logos/`)).toBe(true);
+        expect(publicUrl.replace("https://", "")).not.toContain("//");
+        expect(guardado.logoUrl).toBe(publicUrl);
+      } finally {
+        process.env.R2_PUBLIC_URL = R2_BASE;
+      }
+    });
+
+    it("base con varias barras finales → misma normalización", async () => {
+      process.env.R2_PUBLIC_URL = `${R2_BASE}///`;
+      try {
+        const { publicUrl } = await subirYGuardar();
+        expect(publicUrl.startsWith(`${R2_BASE}/sponsors/logos/`)).toBe(true);
+      } finally {
+        process.env.R2_PUBLIC_URL = R2_BASE;
+      }
+    });
   });
 
   it("logoUrl null → 201 (sin logo)", async () => {

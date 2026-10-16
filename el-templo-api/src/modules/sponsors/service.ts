@@ -63,6 +63,7 @@ import {
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
 import { TEMPLO_TENANT_ID } from "../shared/platform";
+import { getR2PublicBase } from "../shared/video-url";
 import type { SettingsService } from "../settings/service";
 import { MIN_TEXT_CONTRAST, contrastRatio } from "./contrast";
 import {
@@ -547,7 +548,7 @@ export class SponsorsService {
    */
   private assertOwnLogoUrl(logoUrl: string | null | undefined): void {
     if (logoUrl === null || logoUrl === undefined) return;
-    const base = (process.env.R2_PUBLIC_URL ?? "").replace(/\/+$/, "");
+    const base = getR2PublicBase();
     if (base === "") {
       throw new BadRequestError(
         "No hay almacenamiento de imágenes configurado: no se puede asignar un logo",
