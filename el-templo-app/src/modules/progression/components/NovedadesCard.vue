@@ -17,7 +17,7 @@
       <span v-if="items.length > 1" class="nov-card__dots">
         <button
           v-for="(item, i) in items"
-          :key="item.id"
+          :key="item.key"
           type="button"
           class="nov-card__dot"
           :class="{ 'nov-card__dot--on': i === current }"
@@ -38,10 +38,10 @@
     >
       <Transition :name="transitionName">
         <div
-          :key="currentItem.id"
+          :key="currentItem.key"
           class="nov-item"
           :class="{
-            'nov-item--new': isNew(currentItem.id),
+            'nov-item--new': isNew(currentItem),
             'nov-item--tappable': currentItem.destination !== null,
           }"
           :role="currentItem.destination ? 'button' : undefined"
@@ -52,7 +52,7 @@
           <div class="nov-item__body">
             <div class="nov-item__text">{{ currentItem.text }}</div>
             <div class="nov-item__meta">
-              <span v-if="isNew(currentItem.id)" class="nov-item__new">NUEVO</span>
+              <span v-if="isNew(currentItem)" class="nov-item__new">NUEVO</span>
               <span v-if="currentItem.branchLabel" class="nov-item__sede">
                 <q-icon name="location_on" size="13px" />{{ currentItem.branchLabel }}
               </span>
@@ -121,34 +121,34 @@ const now = ref(new Date())
 // estado) y los saca cuando el slide sale de pantalla. Como el store ya los
 // marcó vistos, no vuelven a entrar. La próxima apertura de Mi Templo viene
 // con `seen = true` del server y no hay "NUEVO".
-const newIds = reactive(new Set<number>())
+const newIds = reactive(new Set<string>())
 
 watch(
   items,
   (list) => {
     for (const item of list) {
-      if (!item.seen) newIds.add(item.id)
+      if (!item.seen) newIds.add(item.key)
     }
   },
   { immediate: true },
 )
 
 watch(
-  () => currentItem.value?.id,
-  (_id, prevId) => {
-    if (prevId === undefined) return
+  () => currentItem.value?.key,
+  (_key, prevKey) => {
+    if (prevKey === undefined) return
     // Solo si de verdad se reportó como vista (seen local): si la lista se
     // reemplazó sin que esa novedad llegara a estar visible, no la apagamos.
-    const prev = items.value.find((n) => n.id === prevId)
-    if (prev?.seen) newIds.delete(prevId)
+    const prev = items.value.find((n) => n.key === prevKey)
+    if (prev?.seen) newIds.delete(prevKey)
   },
 )
 
-function isNew(id: number): boolean {
-  return newIds.has(id)
+function isNew(item: Novedad): boolean {
+  return newIds.has(item.key)
 }
 
-const newCount = computed(() => items.value.filter((n) => newIds.has(n.id)).length)
+const newCount = computed(() => items.value.filter((n) => newIds.has(n.key)).length)
 
 // ── Visibilidad de la página (app en background) ─────────────────────────────
 const pageVisible = ref(!document.hidden)
@@ -160,9 +160,10 @@ function onVisibilityChange(): void {
 
 // ── Vista (D-10): slide activo + página visible → una vez por sesión ─────────
 watch(
-  [() => currentItem.value?.id, pageVisible],
-  ([id, visible]) => {
-    if (id !== undefined && visible) void store.markSeen(id)
+  [() => currentItem.value?.key, pageVisible],
+  ([key, visible]) => {
+    const item = currentItem.value
+    if (key !== undefined && visible && item) void store.markSeen(item)
   },
   { immediate: true },
 )
@@ -240,7 +241,7 @@ function onTap(item: Novedad): void {
     return
   }
   if (!item.destination) return
-  void store.markClicked(item.id)
+  void store.markClicked(item)
   navigateToAvisoDestination(router, item.destination)
 }
 
