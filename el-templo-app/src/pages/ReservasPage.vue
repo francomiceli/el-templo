@@ -707,7 +707,7 @@
               <template v-else-if="slot.isFull && !slot.isSpecial">
                 <span class="slot-card__avail slot-card__avail--full">Completo</span>
                 <button
-                  v-if="!isSlotPast(slot)"
+                  v-if="canJoinWaitlist(slot)"
                   type="button"
                   class="slot-card__go slot-card__go--wait"
                   :aria-label="`Lista de espera de las ${formatTime(slot.startTime)}`"
@@ -725,6 +725,7 @@
                 <template v-if="slot.isFull">
                   <span class="slot-card__avail slot-card__avail--full">Completo</span>
                   <button
+                    v-if="canJoinWaitlist(slot)"
                     type="button"
                     class="slot-card__go slot-card__go--wait"
                     :aria-label="`Lista de espera de las ${formatTime(slot.startTime)}`"
@@ -1827,6 +1828,34 @@ const currentBranchShortName = computed(() => {
   return shortBranchName(fromList ?? userStore.profile?.branchName ?? '')
 })
 
+/**
+ * Reserva activa del socio que choca con `slot` el mismo día. El choque diario es POR CATEGORÍA, igual
+ * que la guarda 8b del server: una especial (pase Aura) no colisiona con una regular del mismo día — el
+ * socio puede tener ROM el sábado y la clase con Aura ese mismo sábado. Sin este filtro la app ofrecía
+ * "Cambiar horario" y le cancelaba la otra reserva. Entre especiales el choque es POR LÍNEA (yoga + Aura
+ * el mismo día están permitidos).
+ */
+function findSameDayBooking(slot: WeeklySlotView, date: string): BookingRecord | undefined {
+  return myBookings.value.find(
+    (b) =>
+      b.bookingDate === date &&
+      b.isSpecial === slot.isSpecial &&
+      (!slot.isSpecial || sameSpecialLine(b.specialLine, slot.specialLine)) &&
+      ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
+  )
+}
+
+/**
+ * ¿Se ofrece "Lista de espera" en este horario completo? La guarda 8b del server rechaza CUALQUIER
+ * reserva (también la que cae en lista de espera) si el socio ya tiene otra el mismo día y categoría
+ * ("Cancela la existente primero"): anotarse implicaría soltar la reserva confirmada sin garantía de
+ * entrar. Con una reserva ese día no se ofrece, queda solo el chip "Completo".
+ */
+function canJoinWaitlist(slot: WeeklySlotView): boolean {
+  if (isSlotPast(slot)) return false
+  return !findSameDayBooking(slot, dateForDay(slot.dayOfWeek as DayOfWeek))
+}
+
 function onSlotTap(slot: WeeklySlotView) {
   if (isSlotHoliday(slot)) return
   if (isSlotBooked(slot)) return
@@ -1863,18 +1892,11 @@ function onSlotTap(slot: WeeklySlotView) {
   const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
   const timeStr = formatTime(slot.startTime)
 
-  // El choque diario es POR CATEGORÍA, igual que la guarda 8b del server: una
-  // especial (pase Aura) no colisiona con una regular del mismo día — el socio
-  // puede tener ROM el sábado y la clase con Aura ese mismo sábado. Sin este
-  // filtro la app ofrecía "Cambiar horario" y le cancelaba la otra reserva. Entre
-  // especiales el choque es POR LÍNEA (yoga + Aura el mismo día están permitidos).
-  const existingBooking = myBookings.value.find(
-    (b) =>
-      b.bookingDate === date &&
-      b.isSpecial === slot.isSpecial &&
-      (!slot.isSpecial || sameSpecialLine(b.specialLine, slot.specialLine)) &&
-      ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
-  )
+  const existingBooking = findSameDayBooking(slot, date)
+
+  // Horario completo + reserva ese día: no hay cambio posible (el server no admite lista de espera
+  // sin soltar la reserva) → sin acción, el card ya muestra "Completo".
+  if (existingBooking && slot.isFull) return
 
   if (existingBooking) {
     const existingTime = formatTime(existingBooking.startTime)
