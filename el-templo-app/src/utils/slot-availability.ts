@@ -51,8 +51,8 @@ export function availabilityText(slot: SlotAvailabilityInput, trialMode: boolean
   if (level === 'full') return 'Completo'
   if (level === 'last') return 'Queda 1 lugar'
   if (level === 'few') return `Quedan ${spotsLeft(slot, trialMode)} lugares`
-  // 'available': prueba social. (En modo prueba nunca se llega acá: el tope de SP es 3, siempre
-  // < FEW_THRESHOLD, así que cae en 'few'/'last'/'full'.)
+  // 'available': prueba social. En modo prueba hoy no se llega acá (el tope de SP es 3, siempre
+  // < FEW_THRESHOLD); si el tope llegara a 5+ se usa `bookedCount` del cupo general (ver tests).
   const booked = Math.max(0, slot.bookedCount)
   if (booked === 0) return 'Sé el primero'
   if (booked === 1) return '1 anotado'

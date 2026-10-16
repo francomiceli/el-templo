@@ -69,6 +69,36 @@ describe('availabilityText (cupo general)', () => {
   })
 })
 
+describe('bordes de capacidad', () => {
+  it('maxCapacity 0 (horario sin cupo cargado) → completo, sin lugares', () => {
+    const s = slot({ maxCapacity: 0, bookedCount: 0, isFull: false })
+    expect(spotsLeft(s, false)).toBe(0)
+    expect(availabilityLevel(s, false)).toBe('full')
+    expect(availabilityText(s, false)).toBe('Completo')
+  })
+})
+
+describe('copy del chip de cupo (no debe revertirse)', () => {
+  it('prueba social con "anotados", sin "personas anotadas"', () => {
+    const copies = [0, 1, 2, 7, 15].map((bookedCount) =>
+      availabilityText(slot({ bookedCount }), false),
+    )
+    expect(copies).toEqual([
+      'Sé el primero',
+      '1 anotado',
+      '2 anotados',
+      '7 anotados',
+      '15 anotados',
+    ])
+    for (const c of copies) expect(c).not.toMatch(/persona/i)
+  })
+
+  it('cambia a lugares restantes recién cuando quedan menos de 5', () => {
+    expect(availabilityText(slot({ bookedCount: 15 }), false)).toBe('15 anotados') // quedan 5
+    expect(availabilityText(slot({ bookedCount: 16 }), false)).toBe('Quedan 4 lugares')
+  })
+})
+
 describe('modo prueba (cupo especial de SP)', () => {
   it('usa trialSpotsRemaining, no el cupo general', () => {
     const s = slot({ bookedCount: 0, trialSpotsRemaining: 2 })
@@ -93,5 +123,24 @@ describe('modo prueba (cupo especial de SP)', () => {
 
   it('isFull general NO marca completo en modo prueba', () => {
     expect(slotIsFull(slot({ isFull: true, trialSpotsRemaining: 2 }), true)).toBe(false)
+  })
+
+  it('cupo de prueba >= 5 → "available" y el chip cuenta los anotados del cupo GENERAL', () => {
+    // Hoy el tope de SP es 3, así que no pasa en producción; si el tope subiera, el copy cae en la
+    // rama de prueba social con `bookedCount` (cupo general). Fijado a propósito.
+    const s = slot({ bookedCount: 6, trialSpotsRemaining: 5 })
+    expect(availabilityLevel(s, true)).toBe('available')
+    expect(availabilityText(s, true)).toBe('6 anotados')
+    expect(availabilityText(slot({ bookedCount: 0, trialSpotsRemaining: 8 }), true)).toBe(
+      'Sé el primero',
+    )
+    expect(availabilityText(slot({ bookedCount: 1, trialSpotsRemaining: 5 }), true)).toBe(
+      '1 anotado',
+    )
+  })
+
+  it('el umbral de "few" también rige en modo prueba (4 → few, 5 → available)', () => {
+    expect(availabilityLevel(slot({ trialSpotsRemaining: 4 }), true)).toBe('few')
+    expect(availabilityLevel(slot({ trialSpotsRemaining: 5 }), true)).toBe('available')
   })
 })
