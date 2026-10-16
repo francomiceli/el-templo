@@ -196,21 +196,7 @@ export class PromptService {
 
     const today = todayInTz(AR_TIMEZONE);
 
-    const candidates = await this.db
-      .select()
-      .from(avisos)
-      .where(
-        and(
-          tenantWhere(avisos, ctx),
-          eq(avisos.placement, "popup"),
-          eq(avisos.status, "active"),
-          or(
-            isNull(avisos.code),
-            notInArray(avisos.code, [...ORCHESTRATED_POPUP_CODES]),
-          ),
-        ),
-      )
-      .orderBy(avisos.sortOrder, avisos.id);
+    const candidates = await this.loadPopupCandidates(ctx);
 
     if (candidates.length === 0) return null;
 
@@ -221,7 +207,7 @@ export class PromptService {
     );
 
     for (const candidate of candidates) {
-      if (!this.withinVigencia(candidate, today)) continue;
+      if (!avisoWithinVigencia(candidate, today)) continue;
       if (!matchesScope(candidate, member)) continue;
       const lastShown = lastShownByAviso.get(candidate.id) ?? null;
       if (!frequencyAllows(candidate, lastShown, now)) continue;
@@ -322,6 +308,58 @@ export class PromptService {
     );
   }
 
+  // ── D-13 (fase 199): avisos pop-up como primeras novedades ──────────────
+
+  /**
+   * D-13 fase 199: los avisos pop-up vigentes que matchean al socio, para
+   * espejarlos en Novedades. Usa EXACTAMENTE los mismos candidatos, vigencia y
+   * alcance que {@link resolveAvisoVigente} (una sola fuente de verdad de
+   * "aviso vigente"), pero SIN `frequencyAllows`: el espejo en Novedades
+   * ignora la frecuencia del pop-up — cerrarlo no borra la novedad.
+   * `branchName` es el nombre de la sede del socio.
+   */
+  async listPopupAvisosForFeed(
+    ctx: TenantContext,
+    userId: number,
+  ): Promise<{ aviso: AvisoRow; branchName: string | null }[]> {
+    const member = await this.getMemberScopeInfo(ctx, userId);
+    if (!member) return [];
+
+    const today = todayInTz(AR_TIMEZONE);
+    const candidates = await this.loadPopupCandidates(ctx);
+
+    return candidates
+      .filter(
+        (candidate) =>
+          avisoWithinVigencia(candidate, today) &&
+          matchesScope(candidate, member),
+      )
+      .map((aviso) => ({ aviso, branchName: member.branchName }));
+  }
+
+  /**
+   * Candidatos a aviso pop-up del tenant: `placement:'popup'`, activos y fuera
+   * de los codes orquestados, ordenados por `sortOrder`/`id`. Sin vigencia,
+   * alcance ni frecuencia (cada llamador aplica los suyos).
+   */
+  private async loadPopupCandidates(ctx: TenantContext): Promise<AvisoRow[]> {
+    return this.db
+      .select()
+      .from(avisos)
+      .where(
+        and(
+          tenantWhere(avisos, ctx),
+          eq(avisos.placement, "popup"),
+          eq(avisos.status, "active"),
+          or(
+            isNull(avisos.code),
+            notInArray(avisos.code, [...ORCHESTRATED_POPUP_CODES]),
+          ),
+        ),
+      )
+      .orderBy(avisos.sortOrder, avisos.id);
+  }
+
   // ── D-15b: tarjetas del carrusel ─────────────────────────────────────────
 
   /**
@@ -369,7 +407,7 @@ export class PromptService {
 
     const tarjetas: PromptAviso[] = [];
     for (const row of rows) {
-      if (!this.withinVigencia(row, today)) continue;
+      if (!avisoWithinVigencia(row, today)) continue;
       if (!matchesScope(row, member)) continue;
       tarjetas.push(buildPromptAviso(row, whatsappNumber));
     }
@@ -436,24 +474,15 @@ export class PromptService {
     return map;
   }
 
-  /** D-14: `startsOn <= hoy <= endsOn`, `null` en cualquiera de los dos = sin límite. */
-  private withinVigencia(
-    aviso: Pick<AvisoRow, "startsOn" | "endsOn">,
-    today: string,
-  ): boolean {
-    if (aviso.startsOn && aviso.startsOn > today) return false;
-    if (aviso.endsOn && aviso.endsOn < today) return false;
-    return true;
-  }
-
   /** `matchesScope` necesita sede, país y segmento del socio (D-13). */
   private async getMemberScopeInfo(
     ctx: TenantContext,
     userId: number,
-  ): Promise<MemberScopeInfo | null> {
+  ): Promise<(MemberScopeInfo & { branchName: string }) | null> {
     const [row] = await this.db
       .select({
         branchId: users.branchId,
+        branchName: branches.name,
         country: branches.country,
         segment: memberProfiles.segment,
       })
@@ -471,7 +500,12 @@ export class PromptService {
 
     if (!row) return null;
     const country: CountryCode = row.country === "ES" ? "ES" : "AR";
-    return { branchId: row.branchId, country, segment: row.segment };
+    return {
+      branchId: row.branchId,
+      branchName: row.branchName,
+      country,
+      segment: row.segment,
+    };
   }
 
   /** Wrapper async: resuelve `whatsappNumber` SOLO si el destino lo necesita. */
@@ -519,6 +553,16 @@ export function matchesScope(
       return false;
     }
   }
+  return true;
+}
+
+/** D-14: `startsOn <= hoy <= endsOn`, `null` en cualquiera de los dos = sin límite. */
+export function avisoWithinVigencia(
+  aviso: Pick<AvisoRow, "startsOn" | "endsOn">,
+  today: string,
+): boolean {
+  if (aviso.startsOn && aviso.startsOn > today) return false;
+  if (aviso.endsOn && aviso.endsOn < today) return false;
   return true;
 }
 

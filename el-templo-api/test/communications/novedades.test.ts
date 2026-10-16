@@ -24,7 +24,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -99,6 +99,8 @@ interface AdminNovedad {
 }
 
 interface MemberNovedad {
+  source: "novedad" | "aviso";
+  key: string;
   id: number;
   text: string;
   branchLabel: string | null;
@@ -242,6 +244,12 @@ beforeEach(async () => {
   // cleanAllTestData borra TODOS los users salvo admin@test.com y vacía
   // novedades/novedad_views: el coach se re-siembra en cada test.
   await cleanAllTestData(app);
+  // D-13 (199-07): el feed también trae los avisos pop-up custom activos;
+  // `avisos` no está en TABLES_TO_CLEAN, así que se borran los custom que otro
+  // archivo haya dejado para que el feed de este archivo vea solo novedades.
+  await app.db.execute(
+    sql`/* tenant-safe: limpieza global de prueba — solo custom, los avisos de sistema (migracion 0217) son dato semilla estable (193-03, L5) */ DELETE FROM avisos WHERE kind <> 'system'`,
+  );
   await createStaffUser(app, {
     email: COACH_EMAIL,
     password: COACH_PASSWORD,
@@ -889,6 +897,10 @@ describe("socio — GET /me/novedades", () => {
 
     const informa = byId.get(sinDestino);
     expect(informa?.destination).toBeNull();
+    expect(informa).toMatchObject({
+      source: "novedad",
+      key: `novedad:${sinDestino}`,
+    });
     expect(informa?.publishedAt).toBe(
       new Date(informa?.publishedAt ?? "").toISOString(),
     );
