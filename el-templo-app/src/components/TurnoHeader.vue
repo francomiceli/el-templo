@@ -55,7 +55,7 @@ const coachName = computed(() =>
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #2c2318; // 199-29: texto sólido sobre la página (antes rgba($accent, .4), 2.05); UAT D10
+  color: #5a5347; // 199-29: sólido y más suave que el contenido (5.8:1, AA) — Franco eligió gris cálido; antes rgba($accent, .4), 2.05
   margin: 16px 0 6px;
 
   &:first-child {
