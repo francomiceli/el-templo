@@ -92,7 +92,7 @@ function onContinue() {
   padding: 14px 16px;
   border-radius: 10px;
   background: rgba(240, 230, 214, 0.05);
-  border: 1px solid rgba(240, 230, 214, 0.32);
+  border: 1px solid $pd-field-border;
   color: $pd-cream;
   font-family: 'Geologica', sans-serif;
   font-size: 1.0625rem;

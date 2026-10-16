@@ -22,7 +22,12 @@ $pd-ink: #2c2318;
 $pd-ink-2: #6b6459;
 $pd-terra-ink: #96593a; // íconos / acentos sobre crema, 5.2:1
 $pd-light-line: #e5dbcd; // borde de las filas (sedes)
-$pd-light-field-border: #d9cfc1;
+// Borde de los campos claros (WCAG 1.4.11, >= 3:1): #948878 da 3.28:1 sobre la card #fbf8f3 y 3.47:1
+// sobre el fondo blanco del campo (antes #d9cfc1: 1.45:1 y 1.54:1).
+$pd-light-field-border: #948878;
+// Borde de los campos OSCUROS: crema al 50% da 4.24:1 sobre #2c2318, 3.97:1 sobre el fondo del campo
+// (#362d22) y 3.4-3.9:1 sobre la card translúcida con una foto media por detrás (antes .32: 2.55 / 2.48).
+$pd-field-border: rgba(240, 230, 214, 0.5);
 $pd-neg-a: #b34a4a; // destructivo: blanco encima 5.3:1
 $pd-neg-b: #8f3434; // blanco encima 7.9:1
 $pd-neg-title: #a8423f;
@@ -118,7 +123,7 @@ $pd-wa-b: #0f6b52;
 
   .q-field__control::before {
     border-radius: 10px;
-    border-color: rgba(240, 230, 214, 0.32);
+    border-color: $pd-field-border;
   }
 
   .q-field__control::after {
@@ -141,7 +146,7 @@ $pd-wa-b: #0f6b52;
   }
 }
 
-// Campo Quasar CLARO (q-input outlined sobre la card crema): radio 10, borde #d9cfc1, fondo blanco,
+// Campo Quasar CLARO (q-input outlined sobre la card crema): radio 10, borde #948878, fondo blanco,
 // texto tinta, label/ayuda tinta-2. Se incluye dentro del selector de la raíz del campo, igual que
 // `pd-field`. El error vuelve al rojo de la marca (borde, label y mensaje).
 @mixin pd-field-light($font-size: 15px) {
