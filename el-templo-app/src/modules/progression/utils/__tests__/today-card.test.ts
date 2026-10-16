@@ -33,6 +33,7 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     subscription: ACTIVE_SUB,
     planStatus: null,
     planLoading: false,
+    bookingsLoading: false,
     todayRoute: 'Muscle Up',
     tomorrowRoute: null,
     todayCompleted: false,
@@ -134,6 +135,47 @@ describe('resolveTodayCard — carga (nunca un gate de "sin plan" por una carrer
       baseInput({ subscription: { ...ACTIVE_SUB, status: 'paused' }, planLoading: true }),
     )
     expect(m.kind).toBe('presencial-sin-turno')
+  })
+})
+
+describe('resolveTodayCard — reservas de hoy todavía cargando (A1)', () => {
+  it('presencial con plan, sin reserva en memoria y bookingsLoading → cargando (no "No tenés turno hoy")', () => {
+    const m = resolveTodayCard(baseInput({ bookingsLoading: true }))
+    expect(m.kind).toBe('cargando')
+    expect(m.primary).toBeNull()
+    expect(flat(m.meta)).toBe('')
+  })
+
+  it('domingo con bookingsLoading → cargando, no "descanso" (puede tener turno)', () => {
+    const m = resolveTodayCard(baseInput({ dow: 7, todayRoute: null, bookingsLoading: true }))
+    expect(m.kind).toBe('cargando')
+  })
+
+  it('con reserva ya en memoria el turno gana aunque bookingsLoading siga true', () => {
+    const m = resolveTodayCard(baseInput({ booking: BOOKING, bookingsLoading: true }))
+    expect(m.kind).toBe('presencial-turno')
+  })
+
+  it('al terminar de cargar sin reserva → presencial-sin-turno', () => {
+    const m = resolveTodayCard(baseInput({ bookingsLoading: false }))
+    expect(m.kind).toBe('presencial-sin-turno')
+  })
+
+  it('no afecta al virtual (no usa reservas) ni a la sesión completada', () => {
+    expect(
+      resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM, bookingsLoading: true }))
+        .kind,
+    ).toBe('online-programa')
+    expect(resolveTodayCard(baseInput({ todayCompleted: true, bookingsLoading: true })).kind).toBe(
+      'completada',
+    )
+  })
+
+  it('sin plan no depende de las reservas: sin-plan-nunca igual', () => {
+    const m = resolveTodayCard(
+      baseInput({ subscription: null, planStatus: null, bookingsLoading: true }),
+    )
+    expect(m.kind).toBe('sin-plan-nunca')
   })
 })
 

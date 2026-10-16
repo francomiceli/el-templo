@@ -386,6 +386,8 @@ const todayCard = computed(() => {
       : null,
     planStatus: userStore.planStatus,
     planLoading: userStore.planStateLoading,
+    // Hasta que respondan las reservas de hoy la card no afirma "No tenés turno hoy" (A1).
+    bookingsLoading: !todayBookingStore.loaded,
     todayRoute: todayRouteName.value,
     tomorrowRoute: tomorrowRoute.value,
     todayCompleted: todayCompleted.value,
@@ -441,8 +443,9 @@ onMounted(async () => {
   // (boot/auth.ts solo la dispara al arrancar con sesión): sin esto, tras un login
   // sin reinicio un socio con plan vería "Arrancá tu plan". Sin await y DESPUÉS de los
   // fetch de arriba para no demorar el loader; la card muestra su skeleton mientras carga.
-  // Misma guarda que PlanesPage/TrainingIndex.
-  if (!userStore.subscription && !userStore.subscriptionLoading) {
+  // Se recarga también si lo que hay en memoria NO es un plan activo (p.ej. una suscripción
+  // `expired` vieja): si el socio renovó en esta misma sesión, sin esto vería "Renová tu plan".
+  if (!userStore.hasActiveSubscription && !userStore.subscriptionLoading) {
     void userStore.loadSubscription()
   }
 

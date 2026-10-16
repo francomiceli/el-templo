@@ -23,8 +23,9 @@
  *  3. Con plan, virtual: con programa → domingo (en la zona de la sede) o
  *     (`weekLoaded` y sin sesión hoy) → `descanso` (variante online); si no →
  *     `online-programa`. Sin programa → `online-libre`, TODOS los días.
- *  4. Con plan, presencial: reserva de hoy → `presencial-turno`; sin reserva y
- *     (domingo o (`weekLoaded` y sin sesión hoy)) → `descanso`; si no →
+ *  4. Con plan, presencial: reserva de hoy → `presencial-turno`; sin reserva y con las
+ *     reservas todavía cargando (`bookingsLoading`) → `cargando` (no afirma "sin turno" por una
+ *     carrera); sin reserva y (domingo o (`weekLoaded` y sin sesión hoy)) → `descanso`; si no →
  *     `presencial-sin-turno` (con variante de lista de espera).
  *
  * Guarda de semana cargada: "sin sesión hoy" solo cuenta como descanso si
@@ -91,6 +92,12 @@ export interface TodayCardInput {
   planStatus: MemberPlanStatus | null
   /** userStore.planStateLoading: suscripción no intentada/cargando o plan-status pendiente. */
   planLoading: boolean
+  /**
+   * useTodayBookingStore aún no respondió (`!loaded`). Solo importa al socio presencial con plan:
+   * sin las reservas de hoy no se sabe si tiene turno, así que no se afirma "No tenés turno hoy".
+   * El store es fail-open (tras un error también queda cargado), no traba la card.
+   */
+  bookingsLoading: boolean
   todayRoute: string | null
   tomorrowRoute: string | null
   todayCompleted: boolean
@@ -447,6 +454,8 @@ export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
 
   // 4. Presencial.
   if (input.booking) return withExtraPrograms(presencialTurno(input, input.booking), input)
+  // Sin saber si hay turno hoy no se decide "sin turno" ni "descanso" (A1 del plan 20).
+  if (input.bookingsLoading) return emptyModel('cargando', formatDayKicker(input.todayStr), '')
   if (isSunday || noSessionToday) return withExtraPrograms(descansoPresencial(input), input)
   return withExtraPrograms(presencialSinTurno(input), input)
 }
