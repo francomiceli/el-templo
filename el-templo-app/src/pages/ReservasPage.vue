@@ -765,168 +765,156 @@
       </q-expansion-item>
     </template>
 
+    <!-- Diálogos de trámite: PremiumDialogCard tone="light" (sketch 012 A · Hermana clara).
+         Primario terracota con destello; lo destructivo (cancelar reserva / prueba) en rojo sin
+         destello (`pd-cta--neg`); el secundario es un link. -->
+
     <!-- Reserve confirmation dialog -->
     <q-dialog v-model="reserveDialog.show" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">{{ reserveDialog.title }}</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          {{ reserveDialog.message }}
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancelar" color="grey" v-close-popup />
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">{{ reserveDialog.title }}</h3>
+        <p class="pd-text">{{ reserveDialog.message }}</p>
+        <div class="pd-acts">
           <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta"
+            :class="{ 'pd-cta--neg': reserveDialog.confirmColor === 'negative' }"
             :label="reserveDialog.confirmLabel"
-            :color="reserveDialog.confirmColor"
             :loading="reserveDialog.loading"
             @click="confirmReserve"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn flat no-caps dense class="pd-skip" label="Cancelar" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Trial reserve confirmation dialog (no-cancel copy, D-03) -->
     <q-dialog v-model="trialDialog.show" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Reservar tu sesión de prueba</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          {{ trialDialog.message }}
-        </q-card-section>
-        <q-card-section v-if="trialPhoneRequired" class="q-pt-none">
-          <q-input
-            v-model="trialDialog.phone"
-            type="tel"
-            inputmode="tel"
-            label="Teléfono"
-            outlined
-            dense
-            :rules="[
-              (v) => (v ?? '').replace(/\D/g, '').length >= 6 || 'Ingresá un teléfono válido',
-            ]"
-            hint="Lo necesitamos para coordinar tu sesión de prueba"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancelar" color="grey" v-close-popup />
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">Reservar tu sesión de prueba</h3>
+        <p class="pd-text">{{ trialDialog.message }}</p>
+        <q-input
+          v-if="trialPhoneRequired"
+          v-model="trialDialog.phone"
+          class="pd-input"
+          type="tel"
+          inputmode="tel"
+          label="Teléfono"
+          outlined
+          :rules="[(v) => (v ?? '').replace(/\D/g, '').length >= 6 || 'Ingresá un teléfono válido']"
+          hint="Lo necesitamos para coordinar tu sesión de prueba"
+        />
+        <div class="pd-acts">
           <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta"
             label="Confirmar prueba"
-            color="primary"
             :loading="trialDialog.loading"
             :disable="trialPhoneRequired && trialDialog.phone.replace(/\D/g, '').length < 6"
             @click="confirmTrialReserve"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn flat no-caps dense class="pd-skip" label="Cancelar" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Trial cancel confirmation dialog (D-03 revised, >24h only) -->
     <q-dialog v-model="trialCancelDialog" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Cancelar tu sesión de prueba</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">Cancelar tu sesión de prueba</h3>
+        <p class="pd-text">
           ¿Seguro que querés cancelar tu sesión de prueba? Vas a poder reservar otra cuando quieras.
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="No, volver" color="grey" v-close-popup :disable="trialCancelLoading" />
+        </p>
+        <div class="pd-acts">
           <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta pd-cta--neg"
             label="Sí, cancelar"
-            color="negative"
             :loading="trialCancelLoading"
             @click="confirmTrialCancel"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn
+            flat
+            no-caps
+            dense
+            class="pd-skip"
+            label="No, volver"
+            :disable="trialCancelLoading"
+            v-close-popup
+          />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Partner free-week reserve confirmation dialog (Phase 179, D-05/D-06) -->
     <q-dialog v-model="partnerDialog.show" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Arrancar tu semana de regalo</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          {{ partnerDialog.message }}
-        </q-card-section>
-        <q-card-actions align="right">
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">Arrancar tu semana de regalo</h3>
+        <p class="pd-text">{{ partnerDialog.message }}</p>
+        <div class="pd-acts">
           <q-btn
-            flat
-            label="Cancelar"
-            color="grey"
-            v-close-popup
-            :disable="partnerDialog.loading"
-          />
-          <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta"
             label="Confirmar"
-            color="primary"
             :loading="partnerDialog.loading"
             @click="confirmPartnerReserve"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn
+            flat
+            no-caps
+            dense
+            class="pd-skip"
+            label="Cancelar"
+            :disable="partnerDialog.loading"
+            v-close-popup
+          />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Cancel confirmation dialog -->
     <q-dialog v-model="cancelDialog.show" persistent>
-      <q-card style="min-width: 300px">
-        <q-card-section>
-          <div class="text-h6">Cancelar reserva</div>
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          {{ cancelDialog.message }}
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Volver" color="grey" v-close-popup />
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title">Cancelar reserva</h3>
+        <p class="pd-text">{{ cancelDialog.message }}</p>
+        <div class="pd-acts">
           <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta pd-cta--neg"
             label="Cancelar reserva"
-            color="negative"
             :loading="cancelDialog.loading"
             @click="confirmCancel"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn flat no-caps dense class="pd-skip" label="Volver" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Phase 144-04 (D-15): booking-block renewal dialog (COVERAGE_EXPIRED).
          NOT persistent — action-scoped, re-shows on every too-late retry. -->
     <q-dialog v-model="showCoverageDialog">
-      <q-card class="coverage-dialog">
-        <q-card-section class="coverage-dialog__body">
-          <q-icon class="coverage-dialog__icon" name="event_busy" size="2.5em" />
-          <h3 class="coverage-dialog__title">Necesitás renovar tu membresía</h3>
-          <p class="coverage-dialog__text">
-            Esta clase es posterior al vencimiento de tu plan. Renovalo por WhatsApp para poder
-            reservarla.
-          </p>
-        </q-card-section>
-
-        <q-card-actions class="coverage-dialog__actions">
+      <PremiumDialogCard tone="light" icon="event_busy">
+        <h3 class="pd-title">Necesitás renovar tu membresía</h3>
+        <p class="pd-text">
+          Esta clase es posterior al vencimiento de tu plan. Renovalo por WhatsApp para poder
+          reservarla.
+        </p>
+        <div class="pd-acts">
           <q-btn
             unelevated
             no-caps
-            class="coverage-dialog__primary full-width"
+            class="pd-cta"
             label="Renovar por WhatsApp"
             @click="openCoverageWhatsApp"
           />
-          <q-btn
-            flat
-            no-caps
-            dense
-            class="coverage-dialog__secondary"
-            label="Entendido"
-            v-close-popup
-          />
-        </q-card-actions>
-      </q-card>
+          <q-btn flat no-caps dense class="pd-skip" label="Entendido" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Phase 162-05 (APP-03/D-02): dialog informativo del pase especial. Se dispara
@@ -934,32 +922,29 @@
          (code PASS_REQUIRED). Consciente de la LÍNEA (Aura, Yoga...) que lo abrió y sin
          precios (cambian). SIN pago in-app — la venta es por gestión/PoS (el CTA
          "Adquirí tu pase" de la clase de prueba solo abre el WhatsApp de administración).
-         Acento dorado (Aura). NOT persistent. -->
+         NOT persistent salvo mientras se reserva la prueba. -->
     <q-dialog v-model="showAuraInfoDialog" :persistent="trialClaimLoading">
-      <q-card class="aura-dialog">
-        <q-card-section class="aura-dialog__body">
-          <q-icon class="aura-dialog__icon" name="auto_awesome" size="2.5em" />
-          <h3 class="aura-dialog__title">{{ passInfoTitle }}</h3>
-          <p v-if="passInfoTrialSlot" class="aura-dialog__text">
-            Podés probar una clase gratis con tu plan. Si te gustó, podés pedir tu pase especial de
-            <strong>{{ passInfoLine }}</strong> contactándote con nosotros.
-          </p>
-          <p v-else class="aura-dialog__text">
-            Esta clase se reserva con el pase de <strong>{{ passInfoLine }}</strong
-            >, aparte de tu plan. Pedilo en la recepción de tu sede.
-          </p>
-        </q-card-section>
+      <PremiumDialogCard tone="light" icon="auto_awesome">
+        <h3 class="pd-title">{{ passInfoTitle }}</h3>
+        <p v-if="passInfoTrialSlot" class="pd-text">
+          Podés probar una clase gratis con tu plan. Si te gustó, podés pedir tu pase especial de
+          <strong>{{ passInfoLine }}</strong> contactándote con nosotros.
+        </p>
+        <p v-else class="pd-text">
+          Esta clase se reserva con el pase de <strong>{{ passInfoLine }}</strong
+          >, aparte de tu plan. Pedilo en la recepción de tu sede.
+        </p>
 
         <!-- Clase de prueba gratis (2026-09-29): si el server marcó la línea como elegible
              (trialLines) y hay un turno concreto detrás del tap, el CTA primario es probarla.
              2026-10-01: un solo paso — "Probá una clase gratis" reserva ese turno directo,
              sin confirmación. "Adquirí tu pase" lleva al WhatsApp de administración. Sin
              turno o sin elegibilidad queda el "Entendido" de siempre. -->
-        <q-card-actions v-if="passInfoTrialSlot" vertical class="aura-dialog__actions">
+        <div v-if="passInfoTrialSlot" class="pd-acts">
           <q-btn
             unelevated
             no-caps
-            class="aura-dialog__primary full-width"
+            class="pd-cta"
             label="Probá una clase gratis"
             :loading="trialClaimLoading"
             :disable="trialClaimLoading"
@@ -968,7 +953,7 @@
           <q-btn
             unelevated
             no-caps
-            class="aura-dialog__primary full-width"
+            class="pd-cta"
             label="Adquirí tu pase"
             :disable="trialClaimLoading"
             @click="openPassWhatsApp"
@@ -977,22 +962,16 @@
             flat
             no-caps
             dense
-            class="coverage-dialog__secondary"
+            class="pd-skip"
             label="Ahora no"
             :disable="trialClaimLoading"
             v-close-popup
           />
-        </q-card-actions>
-        <q-card-actions v-else class="aura-dialog__actions">
-          <q-btn
-            unelevated
-            no-caps
-            class="aura-dialog__primary full-width"
-            label="Entendido"
-            v-close-popup
-          />
-        </q-card-actions>
-      </q-card>
+        </div>
+        <div v-else class="pd-acts">
+          <q-btn unelevated no-caps class="pd-cta" label="Entendido" v-close-popup />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
 
     <!-- Plan 180-13 (D-18): hoja de detalle de actividad, montada una sola vez. -->
@@ -1011,6 +990,7 @@ import axios from 'axios'
 import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import FirstVisitTipBanner from 'src/components/FirstVisitTipBanner.vue'
+import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import TurnoHeader from 'src/components/TurnoHeader.vue'
@@ -1845,7 +1825,7 @@ function onSlotTap(slot: WeeklySlotView) {
     reserveDialog.value = {
       show: true,
       title: 'Cambiar horario',
-      message: `Ya tenés una reserva el ${dayLabel} ${dateStr} a las ${existingTime}. Querés cambiarla por las ${timeStr}?`,
+      message: `Ya tenés una reserva el ${dayLabel.toLowerCase()} ${dateStr} a las ${existingTime}. ¿Querés cambiarla por la de las ${timeStr}?`,
       confirmLabel: 'Cambiar',
       confirmColor: 'primary',
       loading: false,
@@ -1857,7 +1837,7 @@ function onSlotTap(slot: WeeklySlotView) {
     reserveDialog.value = {
       show: true,
       title: 'Horario completo',
-      message: `Este horario está completo. Querés anotarte en la lista de espera?`,
+      message: 'Este horario está completo. ¿Querés anotarte en la lista de espera?',
       confirmLabel: 'Lista de espera',
       confirmColor: 'warning',
       loading: false,
@@ -1869,7 +1849,7 @@ function onSlotTap(slot: WeeklySlotView) {
     reserveDialog.value = {
       show: true,
       title: 'Reservar',
-      message: `Reservar ${slot.activityName} ${dayLabel} ${dateStr} ${timeStr}?`,
+      message: `¿Reservar ${slot.activityName} el ${dayLabel.toLowerCase()} ${dateStr} a las ${timeStr}?`,
       confirmLabel: 'Confirmar',
       confirmColor: 'primary',
       loading: false,
@@ -1892,7 +1872,7 @@ async function confirmReserve() {
     if (booking.status === 'lista_espera') {
       $q.notify({
         type: 'warning',
-        message: `Te anotaste en la lista de espera (posicion #${booking.waitlistPosition})`,
+        message: `Te anotaste en la lista de espera (posición #${booking.waitlistPosition})`,
       })
     } else {
       $q.notify({
@@ -1962,7 +1942,7 @@ function onTrialSlotTap(slot: WeeklySlotView) {
 
   trialDialog.value = {
     show: true,
-    message: `¿Reservar ${slot.activityName} el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}? Es tu única sesión de prueba. ${policyLine}`,
+    message: `¿Reservar ${slot.activityName} el ${dayLabel.toLowerCase()} ${dateStr} a las ${timeStr} en ${sede}? Es tu única sesión de prueba. ${policyLine}`,
     loading: false,
     scheduleId: slot.id,
     date,
@@ -2068,7 +2048,7 @@ function onPartnerSlotTap(slot: WeeklySlotView) {
 
   partnerDialog.value = {
     show: true,
-    message: `¿Reservar ${slot.activityName} el ${dayLabel} ${formatDateLabel(date)} a las ${timeStr} en ${sede}? Al confirmar arranca tu semana de regalo (3 clases).`,
+    message: `¿Reservar ${slot.activityName} el ${dayLabel.toLowerCase()} ${formatDateLabel(date)} a las ${timeStr} en ${sede}? Al confirmar arranca tu semana de regalo (3 clases).`,
     loading: false,
     scheduleId: slot.id,
     date,
@@ -2123,7 +2103,7 @@ function promptCancelBooking(booking: BookingRecord) {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
   cancelDialog.value = {
     show: true,
-    message: `Cancelar reserva de ${dayLabel} ${formatTime(booking.startTime)}?`,
+    message: `¿Cancelar tu reserva del ${dayLabel.toLowerCase()} a las ${formatTime(booking.startTime)}?`,
     loading: false,
     bookingId: booking.id,
   }
@@ -2315,74 +2295,6 @@ onBeforeUnmount(() => cleanup())
   margin: 0 auto;
 }
 
-// Phase 144-04 (D-15): booking-block renewal dialog — reuses the charcoal-card
-// visual from RatingPromptDialog/PushPermissionDialog (no new styling per
-// UI-SPEC §143). $primary (#96593a) is the brand terracotta; $dark-page the
-// charcoal card; $cream the marble-cream text.
-.coverage-dialog {
-  width: 100%;
-  max-width: 340px;
-  background: $dark-page;
-  color: $cream;
-  border-radius: 16px;
-  border-top: 2px solid rgba($primary, 0.6);
-  padding: 8px 4px 16px;
-}
-
-.coverage-dialog__body {
-  text-align: center;
-  padding-top: 16px;
-}
-
-.coverage-dialog__icon {
-  color: $primary;
-  margin-bottom: 12px;
-}
-
-.coverage-dialog__title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: 0.04em;
-  margin: 0 0 12px 0;
-  color: $cream;
-}
-
-.coverage-dialog__text {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: rgba($cream, 0.75);
-  margin: 0;
-}
-
-.coverage-dialog__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 20px 4px;
-}
-
-.coverage-dialog__primary {
-  background: linear-gradient(135deg, $primary 0%, #ad6540 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 8px;
-}
-
-.coverage-dialog__secondary {
-  color: rgba($cream, 0.55) !important;
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.8125rem;
-  margin-top: 4px;
-}
-
 // ─── Phase 162 (APP-02): chip contador x/2 del plan especial ─────────
 // Acento dorado "Aura" (RESERVADO). En 0/2 pasa a olive apagado.
 .especial-chip-row {
@@ -2403,74 +2315,6 @@ onBeforeUnmount(() => cleanup())
     color: $info !important;
     background: rgba($info, 0.1) !important;
   }
-}
-
-// ─── Phase 162 (APP-03): dialog informativo "Actividades con Aura" ───
-// Clona coverage-dialog (charcoal card) con acento dorado en vez de terracotta.
-// El botón "Entendido" es neutro (cream) — el dorado queda reservado al ícono.
-.aura-dialog {
-  width: 100%;
-  max-width: 340px;
-  background: $dark-page;
-  color: $cream;
-  border-radius: 16px;
-  border-top: 2px solid rgba($warning, 0.7);
-  padding: 8px 4px 16px;
-}
-
-.aura-dialog__body {
-  text-align: center;
-  padding-top: 16px;
-}
-
-.aura-dialog__icon {
-  color: #d4b896; // bronze-light — legible sobre charcoal (el $warning puro es muy oscuro)
-  margin-bottom: 12px;
-}
-
-.aura-dialog__title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: 0.04em;
-  color: $cream;
-  margin: 0 0 8px;
-}
-
-.aura-dialog__text {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: rgba($cream, 0.75);
-  margin: 0 0 8px;
-}
-
-.aura-dialog__price {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  color: #d4b896;
-  margin: 8px 0;
-}
-
-.aura-dialog__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 20px 4px;
-}
-
-.aura-dialog__primary {
-  background: $cream !important;
-  color: $dark !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  min-height: 44px;
-  border-radius: 8px;
 }
 
 .bonus-banner {

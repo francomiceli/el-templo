@@ -3,11 +3,11 @@
        columnata del logo, el halo ni el borde que fluye. El marco es QUIETO; lo único que se
        mueve es el destello del botón primario (solo con prefers-reduced-motion: no-preference). -->
   <div class="pd-frame">
-    <div class="pd-card">
-      <span class="pd-line" aria-hidden="true" />
+    <div class="pd-card" :class="{ 'pd-card--light': tone === 'light' }">
+      <span v-if="tone !== 'light'" class="pd-line" aria-hidden="true" />
       <div class="pd-content">
         <q-icon v-if="icon" :name="icon" size="40px" class="pd-icon" aria-hidden="true" />
-        <p class="pd-kicker">{{ kicker }}</p>
+        <p v-if="kicker" class="pd-kicker">{{ kicker }}</p>
         <slot />
       </div>
     </div>
@@ -16,21 +16,30 @@
 
 <script setup lang="ts">
 /**
- * Marco compartido de los 4 pop-ups de Mi Templo (calificar, sugerencia, vencimiento, aviso).
+ * Marco compartido de los pop-ups de Mi Templo (calificar, sugerencia, vencimiento, aviso) y,
+ * con `tone="light"`, de los diálogos de trámite (Reservas, eliminar cuenta, elegir sede; sketch 012 A).
  *
  * El CSS del CONTENIDO (título, texto, etiquetas, estrellas, textarea, ayuda, acciones, botón
  * primario con destello, link secundario) vive acá, en un solo lugar, vía `:slotted(...)`. Los
  * diálogos solo ponen las clases `pd-*` sobre sus elementos:
  *   pd-title · pd-text · pd-label · pd-rating · pd-area · pd-help · pd-acts · pd-cta · pd-skip
+ * y, para los trámites: pd-input (campo de una línea) · pd-title--neg · pd-cta--neg (destructivo,
+ * sin destello) · pd-rows / pd-row / pd-row-name / pd-row-sub / pd-row-go (lista de sedes).
+ * Los colores de texto salen de variables CSS del `.pd-card`, así `dark` y `light` comparten reglas.
  * El marco, la línea, el campo oscuro y el botón con destello vienen del partial
  * `src/css/_premium-card.scss`, compartido con `PremiumGlassCard` (login / registro / onboarding).
  */
-defineProps<{
-  /** Título chico en Cinzel sobre el título ("Tu opinión", "Aviso", …). */
-  kicker: string
-  /** Ícono opcional arriba del kicker (Material), en crema cálido. */
-  icon?: string
-}>()
+withDefaults(
+  defineProps<{
+    /** Título chico en Cinzel sobre el título ("Tu opinión", "Aviso", …). Opcional en `light`. */
+    kicker?: string
+    /** Ícono opcional arriba del kicker (Material), en crema cálido (terracota en `light`). */
+    icon?: string
+    /** `dark` (pop-ups de Mi Templo) o `light` (trámites: crema, tinta, sin línea luminosa). */
+    tone?: 'dark' | 'light'
+  }>(),
+  { kicker: undefined, icon: undefined, tone: 'dark' },
+)
 </script>
 
 <style lang="scss" scoped>
@@ -46,10 +55,22 @@ $cream-3: $pd-cream-3;
   max-width: 340px;
 }
 
+// Colores de texto por tono (variables del card): los `:slotted` de abajo las leen y no se duplican.
 .pd-card {
   @include pd-card($surface);
+  --pd-fg: #{$cream};
+  --pd-fg-2: #{$cream-3};
+  --pd-accent: #{$cream-2};
   padding: 22px 18px 12px;
   text-align: left;
+}
+
+.pd-card--light {
+  background: $pd-light-surface;
+  --pd-fg: #{$pd-ink};
+  --pd-fg-2: #{$pd-ink-2};
+  --pd-accent: #{$pd-terra-ink};
+  padding: 20px 18px 10px;
 }
 
 .pd-content {
@@ -64,7 +85,7 @@ $cream-3: $pd-cream-3;
 .pd-icon {
   display: block;
   margin-bottom: 8px;
-  color: $cream-2;
+  color: var(--pd-accent);
 }
 
 .pd-kicker {
@@ -74,7 +95,7 @@ $cream-3: $pd-cream-3;
   font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: $cream-2;
+  color: var(--pd-accent);
 }
 
 // ── Contenido que ponen los diálogos (clases pd-*) ──────────────────────────────
@@ -85,14 +106,26 @@ $cream-3: $pd-cream-3;
   font-size: 22px;
   line-height: 1.2;
   letter-spacing: -0.01em;
-  color: $cream;
+  color: var(--pd-fg);
+}
+
+// Trámites: título 20px; sin kicker arriba no necesita el aire de 6px.
+.pd-card--light :slotted(.pd-title) {
+  margin-top: 0;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+// Eliminar cuenta: el título también avisa (5.6:1 sobre la card crema).
+:slotted(.pd-title--neg) {
+  color: $pd-neg-title;
 }
 
 :slotted(.pd-text) {
   margin: 10px 0 0;
   font-size: 15px;
   line-height: 1.45;
-  color: $cream;
+  color: var(--pd-fg);
 }
 
 :slotted(.pd-label) {
@@ -103,12 +136,12 @@ $cream-3: $pd-cream-3;
   font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: $cream-3;
+  color: var(--pd-fg-2);
 }
 
 // Estrellas en crema (ni doradas ni terracota). Sin `color` en el q-rating: hereda de acá.
 :slotted(.pd-rating) {
-  color: $cream;
+  color: var(--pd-fg);
 }
 
 // Quasar baja la opacidad de las vacías: acá la forma (star_border / star) ya las distingue.
@@ -130,11 +163,17 @@ $cream-3: $pd-cream-3;
   color: $cream-2;
 }
 
+// Campo de una línea de los trámites (teléfono, contraseña): claro sobre la card crema.
+.pd-card--light :slotted(.pd-input) {
+  @include pd-field-light(15px);
+  margin-top: 14px;
+}
+
 :slotted(.pd-help) {
   margin: 8px 0 0;
   font-size: 13px;
   line-height: 1.4;
-  color: $cream-3;
+  color: var(--pd-fg-2);
 }
 
 :slotted(.pd-acts) {
@@ -150,23 +189,85 @@ $cream-3: $pd-cream-3;
   @include pd-cta(48px);
 }
 
+// Destructivo: rojo y sin destello (va después de `.pd-cta` para ganarle por orden).
+:slotted(.pd-cta.pd-cta--neg) {
+  @include pd-cta-negative;
+}
+
 :slotted(.pd-cta.disabled) {
   @include pd-cta-disabled;
 }
 
-// Secundario: crema subrayado, 44px de alto.
+// Secundario: link subrayado, 44px de alto (crema en `dark`, tinta-2 en `light`).
 :slotted(.pd-skip) {
   min-height: 44px;
   padding: 0 12px;
-  color: $cream;
+  color: var(--pd-fg);
   font-family: 'Geologica', sans-serif;
   font-weight: 500;
   font-size: 14px;
 }
 
+.pd-card--light :slotted(.pd-skip) {
+  color: $pd-ink-2;
+}
+
 :slotted(.pd-skip) .q-btn__content {
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+// Filas tocables (elegir sede): borde #e5dbcd, radio 12, fondo blanco; nombre en tinta,
+// dirección en tinta-2 y acción en terracota.
+:slotted(.pd-rows) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+:slotted(.pd-row) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid $pd-light-line;
+  border-radius: 12px;
+  background: #fff;
+  color: $pd-ink;
+  text-align: left;
+  cursor: pointer;
+}
+
+:slotted(.pd-row:focus-visible) {
+  outline: 2px solid $pd-terra-ink;
+  outline-offset: 2px;
+}
+
+:slotted(.pd-row-name) {
+  margin: 0;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  color: $pd-ink;
+}
+
+:slotted(.pd-row-sub) {
+  margin: 2px 0 0;
+  font-family: 'Geologica', sans-serif;
+  font-size: 13px;
+  color: $pd-ink-2;
+}
+
+:slotted(.pd-row-go) {
+  flex-shrink: 0;
+  min-height: 44px;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: $pd-terra-ink;
 }
 
 @include pd-sheen-keyframes;

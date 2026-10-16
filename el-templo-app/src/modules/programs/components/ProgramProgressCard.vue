@@ -130,17 +130,13 @@
 
   <!-- Text content dialog -->
   <q-dialog v-model="textDialogVisible">
-    <q-card style="min-width: 300px; max-width: 500px">
-      <q-card-section>
-        <div class="text-h6">{{ textDialogTitle }}</div>
-      </q-card-section>
-      <q-card-section class="q-pt-none">
-        <div class="text-body2" style="white-space: pre-wrap">{{ textDialogContent }}</div>
-      </q-card-section>
-      <q-card-actions align="right">
-        <q-btn flat label="Cerrar" color="primary" v-close-popup />
-      </q-card-actions>
-    </q-card>
+    <PremiumDialogCard tone="light">
+      <h3 class="pd-title">{{ textDialogTitle }}</h3>
+      <p class="pd-text pd-text--pre">{{ textDialogContent }}</p>
+      <div class="pd-acts">
+        <q-btn unelevated no-caps class="pd-cta" label="Cerrar" v-close-popup />
+      </div>
+    </PremiumDialogCard>
   </q-dialog>
 </template>
 
@@ -148,6 +144,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
+import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useCurrentProgram } from 'src/modules/training/composables/useCurrentProgram'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
@@ -269,6 +266,11 @@ function openRenewalWhatsApp() {
 </script>
 
 <style lang="scss" scoped>
+// Texto del diálogo (contenido del programa): respeta los saltos de línea.
+.pd-text--pre {
+  white-space: pre-wrap;
+}
+
 // Fase 199 (D-15): superficie clara con texto sólido por rol. Principal #2c2318,
 // secundario #6b6459, acentos #96593a, positivo #3b7249. Sin brillos ni dorado
 // (el dorado es de Aura). La opacidad solo se usa en FONDOS, nunca en `color`.

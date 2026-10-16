@@ -14,6 +14,24 @@ $pd-cream-3: #c9bba6;
 $pd-btn-a: #a35f3c; // blanco encima 4.9:1
 $pd-btn-b: #7e4529; // blanco encima 7.4:1
 
+// Variante CLARA (sketch 012 A · Hermana clara): diálogos de trámite (Reservas, eliminar cuenta,
+// elegir sede). Mismo marco y botón; cambia la superficie (crema) y el texto (tinta).
+// Contraste: tinta 14.6:1 sobre la card, tinta-2 5.5:1, título de eliminar cuenta 5.6:1.
+$pd-light-surface: #fbf8f3;
+$pd-ink: #2c2318;
+$pd-ink-2: #6b6459;
+$pd-terra-ink: #96593a; // íconos / acentos sobre crema, 5.2:1
+$pd-light-line: #e5dbcd; // borde de las filas (sedes)
+$pd-light-field-border: #d9cfc1;
+$pd-neg-a: #b34a4a; // destructivo: blanco encima 5.3:1
+$pd-neg-b: #8f3434; // blanco encima 7.9:1
+$pd-neg-title: #a8423f;
+
+// Verde de WhatsApp oscurecido para que el texto blanco llegue a AA: #1f7a4d 5.3:1, #0f6b52 6.5:1
+// (el #25d366 de la marca da 2:1 con blanco). Sigue leyéndose como WhatsApp.
+$pd-wa-a: #1f7a4d;
+$pd-wa-b: #0f6b52;
+
 // Cabecera de las pantallas sobre la estatua (login, crear cuenta, olvidé mi contraseña, invitación):
 // "Bienvenido al Templo" en Cinzel 700 1.22rem, UNA línea hasta 360px. Subtítulo en #c9bba6.
 @mixin pd-screen-title {
@@ -123,6 +141,54 @@ $pd-btn-b: #7e4529; // blanco encima 7.4:1
   }
 }
 
+// Campo Quasar CLARO (q-input outlined sobre la card crema): radio 10, borde #d9cfc1, fondo blanco,
+// texto tinta, label/ayuda tinta-2. Se incluye dentro del selector de la raíz del campo, igual que
+// `pd-field`. El error vuelve al rojo de la marca (borde, label y mensaje).
+@mixin pd-field-light($font-size: 15px) {
+  --q-primary: #{$pd-terra-ink};
+
+  .q-field__control {
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  .q-field__control::before {
+    border-radius: 10px;
+    border-color: $pd-light-field-border;
+  }
+
+  .q-field__control::after {
+    border-radius: 10px;
+  }
+
+  .q-field__native,
+  .q-field__input,
+  .q-field__prefix,
+  .q-field__suffix {
+    color: $pd-ink;
+    font-family: 'Geologica', sans-serif;
+    font-size: $font-size;
+  }
+
+  .q-field__label,
+  .q-field__native::placeholder,
+  .q-field__bottom {
+    color: $pd-ink-2;
+  }
+
+  &.q-field--error {
+    .q-field__control::before {
+      border-color: $pd-neg-a;
+    }
+
+    .q-field__label,
+    .q-field__bottom {
+      color: $pd-neg-title;
+    }
+  }
+}
+
 // Botón primario (q-btn o <button> nativo): degradé terracota, radio 10, Geologica 600 15px, sombra
 // y destello que cruza cada 5 s. Se incluye dentro del selector del botón.
 @mixin pd-cta($min-height: 48px) {
@@ -162,6 +228,19 @@ $pd-btn-b: #7e4529; // blanco encima 7.4:1
     &::after {
       animation: pd-sheen 5s ease-in-out 1.2s infinite;
     }
+  }
+}
+
+// Variante destructiva del botón primario (cancelar reserva, eliminar cuenta): rojo y SIN destello.
+// Se incluye junto a `pd-cta`, en el selector del botón destructivo.
+@mixin pd-cta-negative {
+  background: linear-gradient(135deg, $pd-neg-a, $pd-neg-b);
+  box-shadow:
+    0 4px 14px rgba(143, 52, 52, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  &::after {
+    display: none;
   }
 }
 

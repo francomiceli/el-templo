@@ -147,39 +147,36 @@
       </div>
     </div>
 
-    <!-- Delete Account Dialog -->
+    <!-- Delete Account Dialog (sketch 012 A: destructivo en rojo, sin destello) -->
     <q-dialog v-model="showDeleteDialog" persistent>
-      <q-card style="min-width: 320px">
-        <q-card-section>
-          <div class="text-h6 text-negative">Eliminar cuenta</div>
-        </q-card-section>
-        <q-card-section>
-          <p class="q-mb-sm">
-            Esta accion es <strong>permanente</strong>. Se eliminaran todos tus datos personales y
-            no podras recuperar tu cuenta.
-          </p>
-          <q-input
-            v-model="deletePassword"
-            type="password"
-            label="Confirma tu contraseña"
-            outlined
-            dense
-            :error="!!deleteError"
-            :error-message="deleteError"
-          />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancelar" @click="cancelDelete" />
+      <PremiumDialogCard tone="light">
+        <h3 class="pd-title pd-title--neg">Eliminar cuenta</h3>
+        <p class="pd-text">
+          Esta acción es <strong>permanente</strong>. Se eliminarán todos tus datos personales y no
+          podrás recuperar tu cuenta.
+        </p>
+        <q-input
+          v-model="deletePassword"
+          class="pd-input"
+          type="password"
+          label="Confirmá tu contraseña"
+          outlined
+          :error="!!deleteError"
+          :error-message="deleteError"
+        />
+        <div class="pd-acts">
           <q-btn
-            flat
+            unelevated
+            no-caps
+            class="pd-cta pd-cta--neg"
             label="Eliminar cuenta"
-            color="negative"
             :loading="deleteLoading"
             :disable="!deletePassword"
             @click="confirmDeleteAccount"
           />
-        </q-card-actions>
-      </q-card>
+          <q-btn flat no-caps dense class="pd-skip" label="Cancelar" @click="cancelDelete" />
+        </div>
+      </PremiumDialogCard>
     </q-dialog>
   </q-page>
 </template>
@@ -194,6 +191,7 @@ import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 
 const log = createLogger('ProfilePage')
 const router = useRouter()

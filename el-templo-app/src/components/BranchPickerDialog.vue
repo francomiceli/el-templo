@@ -1,55 +1,46 @@
 <template>
-  <!-- D-07/D-08: salteable → el q-dialog NO usa el modo bloqueante. -->
+  <!-- D-07/D-08: salteable → el q-dialog NO usa el modo bloqueante. Sketch 012 A: card clara,
+       filas blancas con borde #e5dbcd y "Cómo llegar" en terracota; "Ahora no" como link. -->
   <q-dialog :model-value="modelValue" @update:model-value="onUpdateModelValue">
-    <q-card class="branch-picker-dialog">
-      <q-card-section class="branch-picker-dialog__body">
-        <q-icon name="location_on" class="branch-picker-dialog__icon" size="40px" />
+    <PremiumDialogCard tone="light">
+      <h3 class="pd-title">¿En qué sede querés entrenar?</h3>
 
-        <h3 class="branch-picker-dialog__title">¿En qué sede querés entrenar?</h3>
-
-        <div class="branch-picker-dialog__list">
-          <div
-            v-for="branch in branches"
-            :key="branch.id"
-            class="branch-picker-dialog__row"
-            @click="onSelect(branch.id)"
-          >
-            <div class="branch-picker-dialog__row-info">
-              <p class="branch-picker-dialog__row-name">{{ branch.name }}</p>
-              <p class="branch-picker-dialog__row-address">
-                {{ branch.address ?? 'Dirección no disponible' }}
-              </p>
-            </div>
-            <q-btn
-              v-if="branch.mapsUrl"
-              flat
-              dense
-              no-caps
-              size="sm"
-              class="branch-picker-dialog__maps-btn"
-              label="Cómo llegar"
-              @click.stop="onOpenMaps(branch.mapsUrl)"
-            />
+      <div class="pd-rows">
+        <div
+          v-for="branch in branches"
+          :key="branch.id"
+          class="pd-row"
+          role="button"
+          tabindex="0"
+          @click="onSelect(branch.id)"
+          @keydown.enter.self="onSelect(branch.id)"
+        >
+          <div class="branch-picker-dialog__row-info">
+            <p class="pd-row-name">{{ branch.name }}</p>
+            <p class="pd-row-sub">{{ branch.address ?? 'Dirección no disponible' }}</p>
           </div>
+          <q-btn
+            v-if="branch.mapsUrl"
+            flat
+            dense
+            no-caps
+            class="pd-row-go"
+            label="Cómo llegar"
+            @click.stop="onOpenMaps(branch.mapsUrl)"
+          />
         </div>
-      </q-card-section>
+      </div>
 
-      <q-card-actions class="branch-picker-dialog__actions">
-        <q-btn
-          flat
-          no-caps
-          dense
-          class="branch-picker-dialog__secondary"
-          label="Ahora no"
-          @click="onSkip"
-        />
-      </q-card-actions>
-    </q-card>
+      <div class="pd-acts">
+        <q-btn flat no-caps dense class="pd-skip" label="Ahora no" @click="onSkip" />
+      </div>
+    </PremiumDialogCard>
   </q-dialog>
 </template>
 
 <script setup lang="ts">
 import { createLogger } from 'src/utils/logger'
+import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import type { BranchOption } from 'src/composables/useSchedulingApi'
 
 const log = createLogger('BranchPickerDialog')
@@ -84,107 +75,8 @@ function onOpenMaps(mapsUrl: string): void {
 </script>
 
 <style lang="scss" scoped>
-@import 'src/css/brand';
-
-$terracotta: $brand-terracotta;
-$cream: #f2ede5;
-$charcoal: #2e2a26;
-
-// Estilos copiados de PlanExpiryDialog.vue (mismo mandato de reuse de UI-SPEC):
-// card charcoal #2e2a26, gradiente terracotta, secundario flat cream-55,
-// max-width 340px, border-radius 16px. NO re-estilizar.
-.branch-picker-dialog {
-  width: 100%;
-  max-width: 340px;
-  background: $charcoal;
-  color: $cream;
-  border-radius: 16px;
-  border-top: 2px solid rgba($terracotta, 0.6);
-  padding: 8px 4px 16px;
-}
-
-.branch-picker-dialog__body {
-  text-align: center;
-  padding-top: 16px;
-}
-
-.branch-picker-dialog__icon {
-  color: #e3c9a8; // 199-29: kick-dark sobre el modal oscuro (antes $terracotta 2.57)
-  margin-bottom: 8px;
-}
-
-.branch-picker-dialog__title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.125rem;
-  letter-spacing: 0.04em;
-  margin: 0 0 16px 0;
-  color: $cream;
-}
-
-.branch-picker-dialog__list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.branch-picker-dialog__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  text-align: left;
-  background: rgba($cream, 0.06);
-  border: 1px solid rgba($cream, 0.12);
-  border-radius: 10px;
-  padding: 10px 12px;
-  cursor: pointer;
-
-  &:hover {
-    background: rgba($cream, 0.1);
-  }
-}
-
+// El texto de la fila puede encogerse para que "Cómo llegar" no se corte en 360px.
 .branch-picker-dialog__row-info {
   min-width: 0;
-}
-
-.branch-picker-dialog__row-name {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 600;
-  font-size: 0.9375rem;
-  margin: 0;
-  color: $cream;
-}
-
-.branch-picker-dialog__row-address {
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.8125rem;
-  margin: 2px 0 0 0;
-  color: #b9b1a4; // 199-29: sólido (antes rgba($cream, .7), mismo aspecto)
-}
-
-.branch-picker-dialog__maps-btn {
-  color: #e3c9a8 !important; // 199-29: kick-dark sobre #393530 (antes $terracotta 2.19)
-  font-family: 'Geologica', sans-serif;
-  font-weight: 600;
-  font-size: 0.75rem;
-  flex-shrink: 0;
-}
-
-.branch-picker-dialog__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 20px 4px;
-}
-
-.branch-picker-dialog__secondary {
-  color: #b9b1a4 !important; // 199-29: sólido (antes rgba($cream, .55) 4.80)
-  font-family: 'Geologica', sans-serif;
-  font-weight: 400;
-  font-size: 0.8125rem;
-  margin-top: 4px;
 }
 </style>
