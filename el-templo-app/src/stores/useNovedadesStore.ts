@@ -12,15 +12,12 @@ const log = createLogger('useNovedadesStore')
  * resuelve `route` y `whatsappText`), así `navigateToAvisoDestination` lo
  * recibe tal cual.
  *
- * D-13 (fase 199): el feed mezcla dos fuentes. `source: 'aviso'` es el espejo de
- * un aviso pop-up activo (su `id` es el de `avisos`, no el de `novedades`), así
- * que el `id` solo NO identifica: `key` (`novedad:<id>` / `aviso:<id>`) es la
- * identidad para dedupe, `:key` del v-for y "NUEVO".
+ * Novedades es SOLO la tabla `novedades` (los pop-ups de Comunicaciones no se
+ * espejan acá). `key` (`novedad:<id>`) es la identidad para dedupe, `:key` del
+ * v-for y "NUEVO" de la card.
  */
 export interface Novedad {
-  /** De dónde sale el ítem (D-13). */
-  source: 'novedad' | 'aviso'
-  /** Identidad única del feed: `${source}:${id}` (la calcula el server). */
+  /** Identidad única del feed: `novedad:${id}` (la calcula el server). */
   key: string
   id: number
   text: string
@@ -34,9 +31,8 @@ export interface Novedad {
   seen: boolean
 }
 
-/** Lo que llega del server: `source`/`key` pueden faltar con una API vieja. */
-type NovedadFromServer = Omit<Novedad, 'source' | 'key'> & {
-  source?: string
+/** Lo que llega del server: `key` puede faltar con una API vieja. */
+type NovedadFromServer = Omit<Novedad, 'key'> & {
   key?: unknown
 }
 
@@ -44,11 +40,10 @@ interface NovedadesResponse {
   novedades: NovedadFromServer[]
 }
 
-/** Normaliza un ítem del server: con API vieja (sin `source`/`key`) cae a `novedad:<id>`. */
+/** Normaliza un ítem del server: con API vieja (sin `key`) cae a `novedad:<id>`. */
 function normalize(item: NovedadFromServer): Novedad {
-  const source: Novedad['source'] = item.source === 'aviso' ? 'aviso' : 'novedad'
-  const key = typeof item.key === 'string' ? item.key : `${source}:${item.id}`
-  return { ...item, source, key }
+  const key = typeof item.key === 'string' ? item.key : `novedad:${item.id}`
+  return { ...item, key }
 }
 
 type NovedadEventType = 'seen' | 'clicked'
@@ -62,16 +57,12 @@ type NovedadEventType = 'seen' | 'clicked'
  *   por ítem por sesión de app) y es optimista: marca `seen = true` local sin
  *   esperar al server. Si el POST falla, se saca del `Set` para reintentar la
  *   próxima vez que la novedad esté en pantalla.
- * - D-13: un ítem `aviso` NUNCA postea `seen` (solo local): no hay endpoint de
- *   "vista" para avisos y no se quieren tocar las métricas ni la frecuencia del
- *   pop-up. Su `markClicked` va al endpoint de eventos de avisos
- *   (`clicked`, que no afecta la frecuencia: solo `shown` la mira).
  * - `reset()` al desloguear (MainLayout, junto a `useAvisosStore.reset()`).
  */
 export const useNovedadesStore = defineStore('novedades', () => {
   const novedades = ref<Novedad[]>([])
   const loading = ref(false)
-  /** Keys (`source:id`) ya vistas en esta sesión (dedupe de `markSeen`). */
+  /** Keys (`novedad:<id>`) ya vistas en esta sesión (dedupe de `markSeen`). */
   const reportedSeen = new Set<string>()
   /**
    * Se incrementa en cada `load()` y en `reset()`. Una respuesta que vuelve
@@ -117,25 +108,11 @@ export const useNovedadesStore = defineStore('novedades', () => {
     }
   }
 
-  /** D-13: el clic de un espejo de aviso va a `aviso_events` (fail-open). */
-  async function reportAvisoClick(avisoId: number): Promise<void> {
-    try {
-      await api.post(`/communications/me/avisos/${avisoId}/event`, { type: 'clicked' })
-    } catch (err: unknown) {
-      log.warn('Failed to report aviso click from novedades', {
-        avisoId,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-  }
-
   /** El ítem estuvo en pantalla (D-10). Una sola vez por ítem por sesión. */
   async function markSeen(item: Novedad): Promise<void> {
     if (reportedSeen.has(item.key)) return
     reportedSeen.add(item.key)
     setSeenLocal(item.key)
-    // D-13: el espejo de un aviso solo se marca local (sin POST).
-    if (item.source === 'aviso') return
     const ok = await reportEvent(item.id, 'seen')
     if (!ok) reportedSeen.delete(item.key)
   }
@@ -144,10 +121,6 @@ export const useNovedadesStore = defineStore('novedades', () => {
   async function markClicked(item: Novedad): Promise<void> {
     reportedSeen.add(item.key)
     setSeenLocal(item.key)
-    if (item.source === 'aviso') {
-      await reportAvisoClick(item.id)
-      return
-    }
     await reportEvent(item.id, 'clicked')
   }
 

@@ -24,7 +24,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createTestApp,
   cleanAllTestData,
@@ -32,7 +32,13 @@ import {
   createTestMember,
   getAuthToken,
 } from "../helpers";
-import { branches, novedades, novedadViews, users } from "../../src/db/schema";
+import {
+  avisos,
+  branches,
+  novedades,
+  novedadViews,
+  users,
+} from "../../src/db/schema";
 import {
   tenantWhere,
   tenantValues,
@@ -99,7 +105,6 @@ interface AdminNovedad {
 }
 
 interface MemberNovedad {
-  source: "novedad" | "aviso";
   key: string;
   id: number;
   text: string;
@@ -244,12 +249,6 @@ beforeEach(async () => {
   // cleanAllTestData borra TODOS los users salvo admin@test.com y vacía
   // novedades/novedad_views: el coach se re-siembra en cada test.
   await cleanAllTestData(app);
-  // D-13 (199-07): el feed también trae los avisos pop-up custom activos;
-  // `avisos` no está en TABLES_TO_CLEAN, así que se borran los custom que otro
-  // archivo haya dejado para que el feed de este archivo vea solo novedades.
-  await app.db.execute(
-    sql`/* tenant-safe: limpieza global de prueba — solo custom, los avisos de sistema (migracion 0217) son dato semilla estable (193-03, L5) */ DELETE FROM avisos WHERE kind <> 'system'`,
-  );
   await createStaffUser(app, {
     email: COACH_EMAIL,
     password: COACH_PASSWORD,
@@ -897,10 +896,6 @@ describe("socio — GET /me/novedades", () => {
 
     const informa = byId.get(sinDestino);
     expect(informa?.destination).toBeNull();
-    expect(informa).toMatchObject({
-      source: "novedad",
-      key: `novedad:${sinDestino}`,
-    });
     expect(informa?.publishedAt).toBe(
       new Date(informa?.publishedAt ?? "").toISOString(),
     );
@@ -963,6 +958,49 @@ describe("socio — GET /me/novedades", () => {
       type: "clicked",
     });
     expect((await listMember(socio.token))[0]?.seen).toBe(true);
+  });
+
+  it("los avisos pop-up de Comunicaciones NO aparecen en el feed (Novedades es solo la tabla novedades)", async () => {
+    // Regresión de la reversión de D-13 (fase 199): un aviso pop-up activo,
+    // global y vigente no se espeja como novedad. `avisos` no está en
+    // TABLES_TO_CLEAN: este test borra el aviso que crea.
+    const [inserted] = await app.db.insert(avisos).values(
+      tenantValues(CTX_TEMPLO, {
+        kind: "custom" as const,
+        code: null,
+        placement: "popup" as const,
+        title: "Aviso pop-up que no es novedad",
+        body: "Cuerpo del aviso",
+        buttonText: "Ver",
+        destinationType: "app_section" as const,
+        destinationSection: "mi_templo",
+        whatsappText: null,
+        frequencyType: "every_open" as const,
+        frequencyDays: null,
+        status: "active" as const,
+        sortOrder: 0,
+      }),
+    );
+    const avisoId = Number(inserted.insertId);
+    try {
+      const socio = await socioEn(branchA);
+
+      // Sin novedades: el feed es [] aunque haya un aviso pop-up vigente.
+      expect(await listMember(socio.token)).toEqual([]);
+
+      // Con una novedad: el feed trae solo esa, nunca el aviso.
+      const id = await insertNovedad({ text: "Solo novedades" });
+      const feed = await listMember(socio.token);
+      expect(feed.map((n) => n.id)).toEqual([id]);
+      expect(feed.map((n) => n.key)).toEqual([`novedad:${id}`]);
+      expect(feed.map((n) => n.text)).not.toContain(
+        "Aviso pop-up que no es novedad",
+      );
+    } finally {
+      await app.db
+        .delete(avisos)
+        .where(and(tenantWhere(avisos, CTX_TEMPLO), eq(avisos.id, avisoId)));
+    }
   });
 });
 

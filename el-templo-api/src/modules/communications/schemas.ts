@@ -658,7 +658,6 @@ export const memberNovedadesResponseSchema = {
         items: {
           type: "object",
           properties: {
-            source: { type: "string", enum: ["novedad", "aviso"] },
             key: { type: "string" },
             id: { type: "integer" },
             text: { type: "string" },

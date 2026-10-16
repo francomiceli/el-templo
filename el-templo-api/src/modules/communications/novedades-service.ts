@@ -39,14 +39,7 @@ import {
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import {
-  novedades,
-  novedadViews,
-  avisos,
-  avisoEvents,
-  users,
-  branches,
-} from "../../db/schema";
+import { novedades, novedadViews, users, branches } from "../../db/schema";
 import {
   tenantWhere,
   tenantValues,
@@ -62,11 +55,9 @@ import {
   type DestinationType,
 } from "./destinations";
 import { assertBranchesBelongToTenant } from "./branch-scope";
-import { PromptService } from "./prompt-service";
 
 type DbInstance = MySql2Database<typeof schema>;
 type NovedadRow = typeof novedades.$inferSelect;
-type AvisoRow = typeof avisos.$inferSelect;
 
 /** D-2: largo máximo de la oración (cabe en 2 líneas de la card). */
 export const NOVEDAD_TEXT_MAX_LENGTH = 80;
@@ -98,12 +89,7 @@ export interface NovedadAdminItem {
 
 /** Forma que consume la app (D-4, D-6). */
 export interface NovedadMemberItem {
-  /**
-   * D-13 (fase 199): de dónde sale el ítem. `aviso` = espejo de un aviso
-   * pop-up activo (su `id` es el de `avisos`, NO el de `novedades`).
-   */
-  source: "novedad" | "aviso";
-  /** `"novedad:<id>"` / `"aviso:<id>"`: los ids de las dos tablas pueden coincidir. */
+  /** `"novedad:<id>"`: identidad estable para dedupe / `:key` / "NUEVO" en la app. */
   key: string;
   id: number;
   text: string;
@@ -340,10 +326,6 @@ export class NovedadesService {
     const member = await this.getMemberBranch(ctx, userId);
     if (!member) return [];
 
-    // D-13 (fase 199): los avisos pop-up vigentes van primero. Fail-open: si
-    // falla su lectura, el feed sigue solo con las novedades.
-    const mirrors = await this.loadAvisoMirrors(ctx, userId);
-
     const rows = await this.db
       .select()
       .from(novedades)
@@ -355,73 +337,26 @@ export class NovedadesService {
       )
       .orderBy(desc(novedades.publishAt), desc(novedades.id))
       .limit(NOVEDADES_MEMBER_LIMIT);
-    if (rows.length === 0 && mirrors.length === 0) return [];
+    if (rows.length === 0) return [];
 
-    let novedadItems: NovedadMemberItem[] = [];
-    if (rows.length > 0) {
-      const seenRows = await this.db
-        .select({ novedadId: novedadViews.novedadId })
-        .from(novedadViews)
-        .where(
-          and(
-            tenantWhere(novedadViews, ctx),
-            eq(novedadViews.userId, userId),
-            inArray(
-              novedadViews.novedadId,
-              rows.map((row) => row.id),
-            ),
+    const seenRows = await this.db
+      .select({ novedadId: novedadViews.novedadId })
+      .from(novedadViews)
+      .where(
+        and(
+          tenantWhere(novedadViews, ctx),
+          eq(novedadViews.userId, userId),
+          inArray(
+            novedadViews.novedadId,
+            rows.map((row) => row.id),
           ),
-        );
-      const seenIds = new Set(seenRows.map((row) => row.novedadId));
-      novedadItems = rows.map((row) =>
-        this.toMemberItem(row, member.branchName, seenIds),
+        ),
       );
-    }
+    const seenIds = new Set(seenRows.map((row) => row.novedadId));
 
-    return [...mirrors, ...novedadItems].slice(0, NOVEDADES_MEMBER_LIMIT);
-  }
-
-  /**
-   * D-13: avisos pop-up activos del socio como ítems del feed. La vigencia y el
-   * alcance salen de `PromptService.listPopupAvisosForFeed` (misma lógica que
-   * el pop-up, sin frecuencia). `seen` = el socio tocó el aviso (`clicked` en
-   * `aviso_events`); verlo o cerrarlo en el modal NO apaga el NUEVO.
-   */
-  private async loadAvisoMirrors(
-    ctx: TenantContext,
-    userId: number,
-  ): Promise<NovedadMemberItem[]> {
-    try {
-      const prompt = new PromptService(this.db, this.log);
-      const popups = await prompt.listPopupAvisosForFeed(ctx, userId);
-      if (popups.length === 0) return [];
-
-      const clickedRows = await this.db
-        .select({ avisoId: avisoEvents.avisoId })
-        .from(avisoEvents)
-        .where(
-          and(
-            tenantWhere(avisoEvents, ctx),
-            eq(avisoEvents.userId, userId),
-            eq(avisoEvents.eventType, "clicked"),
-            inArray(
-              avisoEvents.avisoId,
-              popups.map((p) => p.aviso.id),
-            ),
-          ),
-        );
-      const clickedIds = new Set(clickedRows.map((row) => row.avisoId));
-
-      return popups.map((p) =>
-        this.toAvisoMirrorItem(p.aviso, p.branchName, clickedIds),
-      );
-    } catch (err: unknown) {
-      this.log.warn(
-        { err, userId, tenantId: ctx.tenantId },
-        "No se pudieron leer los avisos pop-up para Novedades",
-      );
-      return [];
-    }
+    return rows.map((row) =>
+      this.toMemberItem(row, member.branchName, seenIds),
+    );
   }
 
   /**
@@ -636,7 +571,6 @@ export class NovedadesService {
     }
 
     return {
-      source: "novedad",
       key: `novedad:${row.id}`,
       id: row.id,
       text: row.text,
@@ -644,46 +578,6 @@ export class NovedadesService {
       publishedAt: row.publishAt.toISOString(),
       destination,
       seen: seenIds.has(row.id),
-    };
-  }
-
-  /**
-   * D-13: aviso pop-up visto como novedad. `text = title`; el destino sale de
-   * la MISMA resolución que el pop-up (`resolveDestinationRoute`, texto de
-   * WhatsApp con default para `whatsapp_sales`).
-   */
-  private toAvisoMirrorItem(
-    aviso: AvisoRow,
-    memberBranchName: string | null,
-    clickedIds: ReadonlySet<number>,
-  ): NovedadMemberItem {
-    const hasScope = !!aviso.scopeBranchIds && aviso.scopeBranchIds.length > 0;
-    const base: Destination = {
-      type: aviso.destinationType,
-      section: aviso.destinationSection as AppSectionKey | null,
-      whatsappText: aviso.whatsappText,
-    };
-    const publishedAt = aviso.startsOn
-      ? new Date(`${aviso.startsOn}T00:00:00.000Z`)
-      : aviso.createdAt;
-
-    return {
-      source: "aviso",
-      key: `aviso:${aviso.id}`,
-      id: aviso.id,
-      text: aviso.title,
-      branchLabel: hasScope ? memberBranchName : null,
-      publishedAt: publishedAt.toISOString(),
-      destination: {
-        type: base.type,
-        section: base.section,
-        route: resolveDestinationRoute(base),
-        whatsappText:
-          base.type === "whatsapp_sales"
-            ? (base.whatsappText ?? DEFAULT_WHATSAPP_TEXT)
-            : null,
-      },
-      seen: clickedIds.has(aviso.id),
     };
   }
 }
