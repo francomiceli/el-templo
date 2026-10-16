@@ -43,9 +43,8 @@ const coachName = computed(() =>
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-// Mismo estilo que el <p class="day-slots__period"> original (600,
-// rgba($accent, 0.4)) — el bold + contraste pleno de la 1.7.9 se revirtió a
-// pedido de Franco. El profe va a la derecha en la misma fila, mismo estilo.
+// Mismo estilo que el <p class="day-slots__period"> original (600) — el bold de
+// la 1.7.9 se revirtió a pedido de Franco; el color pasó a sólido en 199-29 (UAT D10). El profe va a la derecha en la misma fila, mismo estilo.
 .turno-header {
   display: flex;
   align-items: center;
@@ -56,7 +55,7 @@ const coachName = computed(() =>
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgba($accent, 0.4);
+  color: #2c2318; // 199-29: texto sólido sobre la página (antes rgba($accent, .4), 2.05); UAT D10
   margin: 16px 0 6px;
 
   &:first-child {
