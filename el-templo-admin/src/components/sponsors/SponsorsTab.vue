@@ -229,6 +229,7 @@ import { useQuasar, type QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
 import { monogram } from 'src/utils/sponsors';
+import { planCountryReorder } from 'src/utils/sponsors-reorder';
 import {
   isForbidden,
   useSponsorsApi,
@@ -381,7 +382,7 @@ async function toggleActive(row: AdminSponsor, isActive: boolean): Promise<void>
   }
 }
 
-// ── Orden (subir/bajar dentro del país visible) ─────────────────────────
+// ── Orden (subir/bajar dentro del país visible; el orden guardado es global) ──
 
 function canMoveUp(row: AdminSponsor): boolean {
   return rowsForCountry.value.findIndex((s) => s.id === row.id) > 0;
@@ -392,41 +393,16 @@ function canMoveDown(row: AdminSponsor): boolean {
   return idx >= 0 && idx < rowsForCountry.value.length - 1;
 }
 
-/**
- * Nuevos `sortOrder` para el orden pedido: reparte los valores que ya tenía la
- * lista (ordenados) sobre el nuevo orden y los fuerza estrictamente crecientes,
- * así también funciona si dos marcas comparten `sortOrder` (un swap simple no
- * movería nada). Devuelve solo las marcas cuyo valor cambia.
- */
-function planReorder(reordered: AdminSponsor[]): Array<{ sponsor: AdminSponsor; next: number }> {
-  const values = reordered.map((s) => s.sortOrder).sort((a, b) => a - b);
-  const plan: Array<{ sponsor: AdminSponsor; next: number }> = [];
-  let prev = Number.NEGATIVE_INFINITY;
-  reordered.forEach((sponsor, i) => {
-    const next = Math.max(values[i] ?? 0, prev + 1);
-    prev = next;
-    if (next !== sponsor.sortOrder) plan.push({ sponsor, next });
-  });
-  return plan;
-}
-
 async function move(row: AdminSponsor, direction: 'up' | 'down'): Promise<void> {
-  const list = rowsForCountry.value;
-  const idx = list.findIndex((s) => s.id === row.id);
-  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-  if (idx < 0 || swapIdx < 0 || swapIdx >= list.length) return;
-
-  const reordered = [...list];
-  const [moved] = reordered.splice(idx, 1);
-  if (!moved) return;
-  reordered.splice(swapIdx, 0, moved);
-  const plan = planReorder(reordered);
+  // `sortOrder` es GLOBAL (el feed de cada país es la lista global filtrada): se reordena
+  // sobre la lista global para no desordenar el otro país (REVIEW-admin WR-01).
+  const plan = planCountryReorder(sponsors.value, row.id, direction, countryTab.value);
   if (plan.length === 0) return;
 
   reorderingId.value = row.id;
   try {
     const results = await Promise.allSettled(
-      plan.map((p) => sponsorsApi.update(p.sponsor.id, { sortOrder: p.next }))
+      plan.map((p) => sponsorsApi.update(p.id, { sortOrder: p.next }))
     );
     const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
     if (failed) {
@@ -435,7 +411,7 @@ async function move(row: AdminSponsor, direction: 'up' | 'down'): Promise<void> 
       await Promise.allSettled(
         plan
           .filter((_, i) => results[i]?.status === 'fulfilled')
-          .map((p) => sponsorsApi.update(p.sponsor.id, { sortOrder: p.sponsor.sortOrder }))
+          .map((p) => sponsorsApi.update(p.id, { sortOrder: p.previous }))
       );
       const message = extractError(failed.reason, 'No se pudo reordenar');
       log.error('Error reordering sponsors', { error: message, sponsorId: row.id });
