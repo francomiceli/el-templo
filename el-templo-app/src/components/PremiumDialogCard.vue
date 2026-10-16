@@ -24,7 +24,7 @@
  * diálogos solo ponen las clases `pd-*` sobre sus elementos:
  *   pd-title · pd-text · pd-label · pd-rating · pd-area · pd-help · pd-acts · pd-cta · pd-skip
  * y, para los trámites: pd-input (campo de una línea) · pd-title--neg · pd-cta--neg (destructivo,
- * sin destello) · pd-rows / pd-row / pd-row-name / pd-row-sub / pd-row-go (lista de sedes).
+ * sin destello) · pd-rows / pd-row / pd-row-main / pd-row-name / pd-row-sub / pd-row-go (lista de sedes).
  * Los colores de texto salen de variables CSS del `.pd-card`, así `dark` y `light` comparten reglas.
  * El marco, la línea, el campo oscuro y el botón con destello vienen del partial
  * `src/css/_premium-card.scss`, compartido con `PremiumGlassCard` (login / registro / onboarding).
@@ -217,7 +217,7 @@ $cream-3: $pd-cream-3;
   text-underline-offset: 3px;
 }
 
-// Filas tocables (elegir sede): borde #e5dbcd, radio 12, fondo blanco; nombre en tinta,
+// Filas tocables (elegir sede): borde $pd-light-line, radio 12, fondo blanco; nombre en tinta,
 // dirección en tinta-2 y acción en terracota.
 :slotted(.pd-rows) {
   display: flex;
@@ -229,24 +229,39 @@ $cream-3: $pd-cream-3;
 :slotted(.pd-row) {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   min-height: 48px;
-  padding: 10px 12px;
+  padding: 0 4px 0 0;
   border: 1px solid $pd-light-line;
   border-radius: 12px;
   background: #fff;
   color: $pd-ink;
+}
+
+// Zona tocable de la fila: <button> nativo (Enter / Space gratis) con nombre + dirección. "Cómo llegar"
+// va como hermano, no adentro (un botón dentro de un botón no es accesible).
+:slotted(.pd-row-main) {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  margin: 0;
+  padding: 10px 8px 10px 12px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-:slotted(.pd-row:focus-visible) {
+:slotted(.pd-row-main:focus-visible) {
   outline: 2px solid $pd-terra-ink;
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 :slotted(.pd-row-name) {
+  display: block;
   margin: 0;
   font-family: 'Geologica', sans-serif;
   font-weight: 600;
@@ -255,6 +270,7 @@ $cream-3: $pd-cream-3;
 }
 
 :slotted(.pd-row-sub) {
+  display: block;
   margin: 2px 0 0;
   font-family: 'Geologica', sans-serif;
   font-size: 13px;
