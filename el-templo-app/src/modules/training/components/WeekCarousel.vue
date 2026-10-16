@@ -248,11 +248,11 @@ watch(
     }
 
     &--rest {
-      border-color: rgba($secondary, 0.2);
+      border: 2px solid rgba($secondary, 0.2);
       background: rgba($secondary, 0.08);
 
       .week-carousel__dot-label {
-        color: rgba($primary, 0.4);
+        color: #6b6459;
       }
     }
   }

@@ -201,7 +201,7 @@ onMounted(() => {
     font-family: 'Montserrat', sans-serif;
     font-size: 15px;
     font-weight: 700;
-    color: $primary;
+    color: #2c2318;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }

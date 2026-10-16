@@ -690,24 +690,21 @@ $story-glyph-size: 56px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   animation: story-tap-hint 1.8s ease-in-out infinite;
-
-  .guia-page--noche & {
-    color: $story-dark-accent;
-  }
-
-  .guia-page--dia & {
-    color: $story-light-accent;
-  }
+  // Pastilla sólida: la pista se lee sobre cualquier foto/video (UAT D10)
+  width: fit-content;
+  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #2c2318;
+  color: #f0e6d6;
 }
 
 @keyframes story-tap-hint {
   0%,
   100% {
-    opacity: 0.55;
     transform: translateX(0);
   }
   50% {
-    opacity: 1;
     transform: translateX(4px);
   }
 }
