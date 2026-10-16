@@ -140,6 +140,7 @@ import type {
   TemplateRow,
   TvAvisoRow,
 } from 'src/composables/useCommunicationsApi';
+import { withoutHiddenSystemAvisos } from 'src/config/hidden-system-avisos';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import type { BranchOption } from 'src/types/member';
 import {
@@ -213,7 +214,7 @@ async function loadAvisos(): Promise<void> {
       commsApi.listAvisos('tarjeta'),
     ]);
     avisosPopup.value = popup;
-    avisosTarjeta.value = tarjeta;
+    avisosTarjeta.value = withoutHiddenSystemAvisos(tarjeta);
   } catch (err: unknown) {
     log.error('Error loading avisos', { error: extractError(err, 'Error cargando avisos') });
   } finally {
