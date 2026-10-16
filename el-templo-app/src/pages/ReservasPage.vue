@@ -150,13 +150,27 @@
       </div>
 
       <template v-else>
-        <div class="day-strip q-mb-md">
+        <div class="day-strip">
           <div class="day-strip__nav">
-            <q-btn flat dense round icon="chevron_left" size="sm" @click="changeWeek(-1)" />
+            <q-btn
+              flat
+              round
+              icon="chevron_left"
+              class="week-nav-btn"
+              aria-label="Semana anterior"
+              @click="changeWeek(-1)"
+            />
             <q-btn flat dense no-caps class="day-strip__week-label" @click="goToCurrentWeek">
               {{ weekLabel }}
             </q-btn>
-            <q-btn flat dense round icon="chevron_right" size="sm" @click="changeWeek(1)" />
+            <q-btn
+              flat
+              round
+              icon="chevron_right"
+              class="week-nav-btn"
+              aria-label="Semana siguiente"
+              @click="changeWeek(1)"
+            />
           </div>
           <div class="day-strip__days">
             <button
@@ -168,10 +182,12 @@
                 'day-pill--today': isToday(day),
                 'day-pill--past': isDayPast(day),
               }"
+              :aria-pressed="selectedDay === day"
               @click="selectedDay = day"
             >
               <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
               <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
+              <span class="day-pill__dot" aria-hidden="true"></span>
             </button>
           </div>
         </div>
@@ -200,7 +216,7 @@
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
-                  <q-badge color="accent" label="Feriado" />
+                  <span class="slot-card__avail slot-card__avail--few">Feriado</span>
                 </template>
                 <template v-else-if="slot.isFull">
                   <span class="slot-card__avail slot-card__avail--full">Completo</span>
@@ -212,15 +228,14 @@
                     :class="`slot-card__avail--${availabilityLevel(slot)}`"
                     >{{ availabilityText(slot) }}</span
                   >
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    label="Reservar"
-                    class="slot-card__action"
+                  <button
+                    type="button"
+                    class="slot-card__go"
+                    :aria-label="`Reservar ${formatTime(slot.startTime)}`"
                     @click.stop="onPartnerSlotTap(slot)"
-                  />
+                  >
+                    Reservar
+                  </button>
                 </template>
               </div>
             </div>
@@ -357,18 +372,25 @@
 
       <template v-else>
         <!-- Day selector strip (30-day window, D-05) -->
-        <div class="day-strip q-mb-md">
+        <div class="day-strip">
           <div class="day-strip__nav">
-            <q-btn flat dense round icon="chevron_left" size="sm" @click="changeWeek(-1)" />
+            <q-btn
+              flat
+              round
+              icon="chevron_left"
+              class="week-nav-btn"
+              aria-label="Semana anterior"
+              @click="changeWeek(-1)"
+            />
             <q-btn flat dense no-caps class="day-strip__week-label" @click="goToCurrentWeek">
               {{ weekLabel }}
             </q-btn>
             <q-btn
               flat
-              dense
               round
               icon="chevron_right"
-              size="sm"
+              class="week-nav-btn"
+              aria-label="Semana siguiente"
               :disable="!canGoForward"
               @click="changeWeek(1)"
             />
@@ -383,10 +405,12 @@
                 'day-pill--today': isToday(day),
                 'day-pill--past': isDayPast(day),
               }"
+              :aria-pressed="selectedDay === day"
               @click="selectedDay = day"
             >
               <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
               <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
+              <span class="day-pill__dot" aria-hidden="true"></span>
             </button>
           </div>
         </div>
@@ -412,7 +436,10 @@
                 <span
                   class="slot-card__activity"
                   :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                  :role="slot.activityDescription ? 'button' : undefined"
+                  :tabindex="slot.activityDescription ? 0 : undefined"
                   @click="onActivityNameTap(slot, $event)"
+                  @keydown.enter="onActivityNameTap(slot, $event)"
                   >{{ slot.activityName }}</span
                 >
                 <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
@@ -421,7 +448,7 @@
               </div>
               <div class="slot-card__right">
                 <template v-if="isSlotHoliday(slot)">
-                  <q-badge color="accent" label="Feriado" />
+                  <span class="slot-card__avail slot-card__avail--few">Feriado</span>
                 </template>
                 <template v-else-if="slotIsFull(slot)">
                   <span class="slot-card__avail slot-card__avail--full">Completo</span>
@@ -433,15 +460,14 @@
                     :class="`slot-card__avail--${availabilityLevel(slot)}`"
                     >{{ availabilityText(slot) }}</span
                   >
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    label="Reservar"
-                    class="slot-card__action"
+                  <button
+                    type="button"
+                    class="slot-card__go"
+                    :aria-label="`Reservar ${formatTime(slot.startTime)}`"
                     @click.stop="onTrialSlotTap(slot)"
-                  />
+                  >
+                    Reservar
+                  </button>
                 </template>
               </div>
             </div>
@@ -453,19 +479,16 @@
           </div>
         </div>
 
-        <p class="reservas__policy">
+        <ReservasRulesNote>
           Es tu sesión de prueba gratis. Podés cancelarla o cambiarla hasta 24 horas antes; dentro
           de las 24 horas queda fija.
-        </p>
+        </ReservasRulesNote>
       </template>
     </template>
 
     <template v-else>
       <!-- Branch selector -->
-      <div
-        v-if="isMultiBranch && branches.length > 1"
-        class="q-mb-md flex justify-center items-center"
-      >
+      <div v-if="isMultiBranch && branches.length > 1" class="branch-row">
         <q-select
           v-model="selectedBranchId"
           :options="branchOptions"
@@ -474,13 +497,15 @@
           outlined
           emit-value
           map-options
-          class="branch-select"
+          class="branch-select branch-select--chip"
+          :display-value="currentBranchShortName"
+          aria-label="Sede"
         >
           <template #prepend>
-            <q-icon name="location_on" size="18px" color="primary" />
+            <q-icon name="place" size="18px" />
           </template>
           <template #append>
-            <q-icon name="unfold_more" size="16px" color="info" />
+            <q-icon name="expand_more" size="18px" />
           </template>
           <template #option="scope">
             <q-item v-bind="scope.itemProps">
@@ -506,10 +531,12 @@
           @click="openBranchMaps(mapsUrlForBranch(selectedBranchId)!)"
         />
       </div>
-      <p v-else class="branch-label">
-        <q-icon name="location_on" size="14px" class="q-mr-xs" />
-        {{ userStore.branchDisplayName }}
-      </p>
+      <div v-else class="branch-row">
+        <p class="branch-chip">
+          <q-icon name="place" size="18px" />
+          {{ currentBranchShortName }}
+        </p>
+      </div>
 
       <!-- Phase 162 (APP-02): contador del pase especial — un chip dorado POR PASE
            (línea Aura, Yoga...), visible sólo si el usuario tiene algún pase. En 0/N
@@ -542,44 +569,58 @@
         </span>
       </div>
 
-      <!-- Next class hero card -->
-      <div class="next-class-card q-mb-md">
-        <div class="next-class-card__icon">
-          <q-icon :name="nextBooking ? 'event' : 'event_available'" size="28px" color="primary" />
+      <!-- Próxima clase (sketch 013 A): card clara con marco degradé fino -->
+      <div class="next-card">
+        <div class="next-card__body">
+          <span class="next-card__icon">
+            <q-icon :name="nextBooking ? 'event' : 'event_available'" size="22px" />
+          </span>
+          <div class="next-card__info">
+            <p class="next-card__kicker">Tu próxima clase</p>
+            <p class="next-card__title">
+              {{ nextBooking ? nextBookingTitle(nextBooking) : 'Elegí un horario' }}
+            </p>
+            <p class="next-card__meta">
+              {{
+                nextBooking
+                  ? `${nextBooking.activityName} · ${currentBranchShortName}`
+                  : 'Podés reservar hasta 2 días en adelante'
+              }}
+            </p>
+          </div>
+          <button
+            v-if="nextBooking"
+            type="button"
+            class="link-btn next-card__cancel"
+            @click="promptCancelBooking(nextBooking)"
+          >
+            Cancelar
+          </button>
         </div>
-        <div v-if="nextBooking" class="next-class-card__info">
-          <p class="next-class-card__label">Próxima clase</p>
-          <p class="next-class-card__activity">{{ nextBooking.activityName }}</p>
-          <p class="next-class-card__time">
-            {{ formatBookingDay(nextBooking) }} · {{ formatTime(nextBooking.startTime) }}
-          </p>
-        </div>
-        <div v-else class="next-class-card__info">
-          <p class="next-class-card__label">Próxima clase</p>
-          <p class="next-class-card__activity-empty">Elegí un horario para reservar</p>
-        </div>
-        <q-btn
-          v-if="nextBooking"
-          flat
-          round
-          dense
-          icon="close"
-          color="negative"
-          size="sm"
-          @click="promptCancelBooking(nextBooking)"
-        >
-          <q-tooltip>Cancelar</q-tooltip>
-        </q-btn>
       </div>
 
       <!-- Day selector strip -->
-      <div class="day-strip q-mb-md">
+      <div class="day-strip">
         <div class="day-strip__nav">
-          <q-btn flat dense round icon="chevron_left" size="sm" @click="changeWeek(-1)" />
+          <q-btn
+            flat
+            round
+            icon="chevron_left"
+            class="week-nav-btn"
+            aria-label="Semana anterior"
+            @click="changeWeek(-1)"
+          />
           <q-btn flat dense no-caps class="day-strip__week-label" @click="goToCurrentWeek">
             {{ weekLabel }}
           </q-btn>
-          <q-btn flat dense round icon="chevron_right" size="sm" @click="changeWeek(1)" />
+          <q-btn
+            flat
+            round
+            icon="chevron_right"
+            class="week-nav-btn"
+            aria-label="Semana siguiente"
+            @click="changeWeek(1)"
+          />
         </div>
         <div class="day-strip__days">
           <button
@@ -592,11 +633,13 @@
               'day-pill--has-booking': dayHasBooking(day),
               'day-pill--past': isDayPast(day),
             }"
+            :aria-pressed="selectedDay === day"
             @click="selectedDay = day"
           >
             <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
             <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
-            <span v-if="dayHasBooking(day)" class="day-pill__dot"></span>
+            <span class="day-pill__dot" aria-hidden="true"></span>
+            <span v-if="dayHasBooking(day)" class="day-pill__sr">con reserva</span>
           </button>
         </div>
       </div>
@@ -624,7 +667,10 @@
               <span
                 class="slot-card__activity"
                 :class="{ 'slot-card__activity--tappable': slot.activityDescription }"
+                :role="slot.activityDescription ? 'button' : undefined"
+                :tabindex="slot.activityDescription ? 0 : undefined"
                 @click="onActivityNameTap(slot, $event)"
+                @keydown.enter="onActivityNameTap(slot, $event)"
                 >{{ slot.activityName }}</span
               >
               <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
@@ -638,58 +684,73 @@
             </div>
             <div class="slot-card__right">
               <template v-if="isSlotHoliday(slot)">
-                <q-badge color="accent" label="Feriado" />
+                <span class="slot-card__avail slot-card__avail--few">Feriado</span>
               </template>
               <template v-else-if="isSlotAttended(slot)">
-                <q-icon name="verified" size="20px" color="positive" />
-                <span class="slot-card__badge slot-card__badge--positive">Asististe</span>
+                <span class="slot-card__chip slot-card__chip--ok">
+                  <q-icon name="verified" size="16px" />Asististe
+                </span>
               </template>
               <template v-else-if="isSlotBooked(slot)">
-                <q-icon name="check_circle" size="20px" color="positive" />
-                <span class="slot-card__badge slot-card__badge--positive">Reservado</span>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  icon="close"
-                  color="negative"
-                  size="sm"
+                <span class="slot-card__chip slot-card__chip--ok">
+                  <q-icon name="check" size="16px" />Reservado
+                </span>
+                <button
+                  type="button"
+                  class="link-btn"
+                  :aria-label="`Cancelar reserva de las ${formatTime(slot.startTime)}`"
                   @click.stop="cancelSlotBooking(slot)"
                 >
-                  <q-tooltip>Cancelar</q-tooltip>
-                </q-btn>
+                  Cancelar
+                </button>
               </template>
               <template v-else-if="slot.isFull && !slot.isSpecial">
                 <span class="slot-card__avail slot-card__avail--full">Completo</span>
+                <button
+                  v-if="!isSlotPast(slot)"
+                  type="button"
+                  class="slot-card__go slot-card__go--wait"
+                  :aria-label="`Lista de espera de las ${formatTime(slot.startTime)}`"
+                  @click.stop="onSlotTap(slot)"
+                >
+                  Lista de espera
+                </button>
               </template>
               <template v-else-if="isSlotPast(slot)"></template>
               <!-- Phase 162 (APP-01): estados de la actividad especial. Se evalúan
                    DESPUÉS de holiday/attended/booked/full/past (que conservan prioridad).
-                   Bloqueo en olive/grey, nunca rojo (no es error, es condición de acceso). -->
+                   Bloqueo en tono apagado, nunca rojo (no es error, es condición de acceso). -->
               <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'reservable'">
                 <!-- E1/E4: plan especial con saldo → flujo de reserva normal -->
-                <span v-if="slot.isFull" class="slot-card__avail slot-card__avail--full"
-                  >Completo</span
-                >
+                <template v-if="slot.isFull">
+                  <span class="slot-card__avail slot-card__avail--full">Completo</span>
+                  <button
+                    type="button"
+                    class="slot-card__go slot-card__go--wait"
+                    :aria-label="`Lista de espera de las ${formatTime(slot.startTime)}`"
+                    @click.stop="onSlotTap(slot)"
+                  >
+                    Lista de espera
+                  </button>
+                </template>
                 <template v-else>
                   <span
                     class="slot-card__avail"
                     :class="`slot-card__avail--${availabilityLevel(slot)}`"
                     >{{ availabilityText(slot) }}</span
                   >
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    label="Reservar"
-                    class="slot-card__action"
+                  <button
+                    type="button"
+                    class="slot-card__go"
+                    :aria-label="`Reservar ${formatTime(slot.startTime)}`"
                     @click.stop="onSlotTap(slot)"
-                  />
+                  >
+                    Reservar
+                  </button>
                 </template>
               </template>
               <template v-else-if="slot.isSpecial && slotSpecialState(slot) === 'exhausted'">
-                <!-- E2: pase de la línea sin saldo (0/N) — pill apagada, sin botón -->
+                <!-- E2: pase de la línea sin saldo (0/N) — chip apagado, sin botón -->
                 <span class="slot-card__pill slot-card__pill--muted">Usaste tus clases</span>
               </template>
               <template v-else-if="slot.isSpecial">
@@ -700,10 +761,10 @@
                   v-if="canClaimTrial(userStore.trialLines, slot.specialLine ?? null)"
                   class="slot-card__pill slot-card__pill--trial"
                 >
-                  <q-icon name="redeem" size="13px" class="q-mr-xs" />¡Probá una clase!
+                  <q-icon name="redeem" size="14px" />¡Probá una clase!
                 </span>
                 <span v-else class="slot-card__pill slot-card__pill--locked">
-                  <q-icon name="lock" size="13px" class="q-mr-xs" />{{ specialLockedLabel(slot) }}
+                  <q-icon name="lock" size="14px" />{{ specialLockedLabel(slot) }}
                 </span>
               </template>
               <template v-else>
@@ -712,15 +773,14 @@
                   :class="`slot-card__avail--${availabilityLevel(slot)}`"
                   >{{ availabilityText(slot) }}</span
                 >
-                <q-btn
-                  flat
-                  dense
-                  no-caps
-                  color="primary"
-                  label="Reservar"
-                  class="slot-card__action"
+                <button
+                  type="button"
+                  class="slot-card__go"
+                  :aria-label="`Reservar ${formatTime(slot.startTime)}`"
                   @click.stop="onSlotTap(slot)"
-                />
+                >
+                  Reservar
+                </button>
               </template>
             </div>
           </div>
@@ -733,10 +793,10 @@
         </div>
       </div>
 
-      <p class="reservas__policy">
+      <ReservasRulesNote>
         Podés reservar desde hoy hasta 2 días en adelante, hasta 5 minutos antes del inicio de la
         clase. Las cancelaciones deben hacerse con al menos 20 minutos de anticipación.
-      </p>
+      </ReservasRulesNote>
 
       <!-- Week activity summary (collapsible) -->
       <q-expansion-item
@@ -995,6 +1055,14 @@ import BranchPickerDialog from 'src/components/BranchPickerDialog.vue'
 import ActivityInfoSheet from 'src/components/ActivityInfoSheet.vue'
 import TurnoHeader from 'src/components/TurnoHeader.vue'
 import { splitDaySections } from 'src/utils/turno-sections'
+import {
+  availabilityLevel as availabilityLevelFor,
+  availabilityText as availabilityTextFor,
+  slotIsFull as slotIsFullFor,
+  type AvailabilityLevel,
+} from 'src/utils/slot-availability'
+import { shortBranchName } from 'src/modules/progression/utils/today-card'
+import ReservasRulesNote from 'src/components/ReservasRulesNote.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
 import type {
   TrialEligibility,
@@ -1643,52 +1711,20 @@ function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
 }
 
 // ─── Availability tier ──────────────────────────────────────────────
-// Mirrors the admin Horarios grid thresholds (HorariosPage.vue cellClass):
-// 1 lugar → 'last' (pill NARANJA), 2-4 → 'few' (pill amarilla), 5+ →
-// 'available' (verde), 0 → 'full'. Umbral ABSOLUTO (no porcentual) para que el
-// aviso sea consistente sin importar el tamaño de la clase.
-//
-// Copy (pedido de negocio): cuando hay lugar de sobra la etiqueta muestra
-// cuánta gente YA reservó ("N personas anotadas" = prueba social); cuando queda
-// poco lugar pasa a mostrar los lugares RESTANTES ("Quedan N lugares" =
-// urgencia). El color sale del CSS por nivel.
-type AvailabilityLevel = 'available' | 'few' | 'last' | 'full'
-
-const FEW_THRESHOLD = 5
-
-// En modo prueba (freemium eligiendo SP) la disponibilidad NO es la del cupo
-// general de la clase, sino la del cupo ESPECIAL de SP (tope 3, `trialSpotsRemaining`).
-// El bloque de prueba y el regular son mutuamente excluyentes (v-if/v-else-if
-// sobre `trialEligible`), así que estas funciones ramifican por `isTrialMode`.
+// Nivel y copy del chip de cupo: lógica pura en `utils/slot-availability` (con tests). Acá solo se
+// ata al modo del componente: en modo prueba (freemium eligiendo SP) la disponibilidad es la del
+// cupo ESPECIAL de SP. El bloque de prueba y el regular son mutuamente excluyentes (v-if/v-else-if
+// sobre `trialEligible`), así que las funciones ramifican por `isTrialMode`.
 function slotIsFull(slot: WeeklySlotView): boolean {
-  if (isTrialMode.value) return slot.trialSpotsRemaining <= 0
-  return slot.isFull
-}
-
-function spotsLeft(slot: WeeklySlotView): number {
-  if (isTrialMode.value) return Math.max(0, slot.trialSpotsRemaining)
-  return Math.max(0, slot.maxCapacity - slot.bookedCount)
+  return slotIsFullFor(slot, isTrialMode.value)
 }
 
 function availabilityLevel(slot: WeeklySlotView): AvailabilityLevel {
-  const left = spotsLeft(slot)
-  if (slotIsFull(slot) || left <= 0) return 'full'
-  if (left === 1) return 'last'
-  if (left < FEW_THRESHOLD) return 'few'
-  return 'available'
+  return availabilityLevelFor(slot, isTrialMode.value)
 }
 
 function availabilityText(slot: WeeklySlotView): string {
-  const level = availabilityLevel(slot)
-  if (level === 'full') return 'Completo'
-  if (level === 'last') return 'Queda 1 lugar'
-  if (level === 'few') return `Quedan ${spotsLeft(slot)} lugares`
-  // 'available': prueba social — cuántos ya se anotaron. (En modo prueba nunca
-  // se llega acá: el tope de SP es 3, siempre < FEW_THRESHOLD, así que cae en
-  // 'few'/'last'/'full' y muestra los cupos restantes.)
-  const booked = Math.max(0, slot.bookedCount)
-  if (booked === 1) return '1 persona anotada'
-  return `${booked} personas anotadas`
+  return availabilityTextFor(slot, isTrialMode.value)
 }
 
 // ─── Week events (for collapsible summary) ──────────────────────────
@@ -1765,11 +1801,20 @@ const weekEvents = computed<WeekEvent[]>(() => {
 
 // ─── Booking flow ───────────────────────────────────────────────────
 
-function formatBookingDay(booking: BookingRecord): string {
+/** "Viernes 16 · 19:00": título de la card "Tu próxima clase". */
+function nextBookingTitle(booking: BookingRecord): string {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
   const d = new Date(booking.bookingDate + 'T00:00:00')
-  return `${dayLabel} ${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
+  return `${dayLabel} ${d.getDate()} · ${formatTime(booking.startTime)}`
 }
+
+/** Nombre corto de la sede que se está viendo ("Mario Bravo"), para el chip de sede y la meta. */
+const currentBranchShortName = computed(() => {
+  const picked =
+    isTrialMode.value || partnerBenefitEligible.value ? trialBranchId.value : selectedBranchId.value
+  const fromList = branches.value.find((b) => b.id === picked)?.name
+  return shortBranchName(fromList ?? userStore.profile?.branchName ?? '')
+})
 
 function onSlotTap(slot: WeeklySlotView) {
   if (isSlotHoliday(slot)) return
@@ -2289,10 +2334,13 @@ onBeforeUnmount(() => cleanup())
 <style scoped lang="scss">
 @use 'sass:color';
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .reservas {
   max-width: 600px;
   margin: 0 auto;
+  // Mismo margen lateral que Mi Templo (sketch 013 A); antes 8px del padding de q-page.
+  padding: 16px 16px 24px;
 }
 
 // ─── Phase 162 (APP-02): chip contador x/2 del plan especial ─────────
@@ -2406,19 +2454,35 @@ onBeforeUnmount(() => cleanup())
 }
 
 // ─── Branch ─────────────────────────────────────────────────────────
+// Sede como chip (sketch 013 A): pastilla blanca con borde y sombra suave. En multi-sede el chip ES
+// el q-select (abre el mismo menú de siempre); con una sola sede es un chip sin caret ni toque.
 
-.branch-label {
+.branch-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 18px;
-  font-weight: 800;
-  color: #2c2318; // 199-29: sobre la página (antes $primary 4.23)
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 12px;
-  padding-top: 8px;
+  margin-bottom: 14px;
+}
+
+.branch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  margin: 0;
+  padding: 0 14px 0 10px;
+  border-radius: 999px;
+  border: 1px solid #e5dbcd;
+  background: #fff;
+  color: #2c2318;
+  font-family: 'Geologica', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(150, 89, 58, 0.08);
+
+  .q-icon {
+    color: #96593a;
+  }
 }
 
 .branch-select {
@@ -2453,6 +2517,44 @@ onBeforeUnmount(() => cleanup())
     .q-icon {
       color: $info;
     }
+  }
+}
+
+.branch-select--chip {
+  margin-top: 0;
+
+  :deep(.q-field__control) {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(150, 89, 58, 0.08);
+
+    &::before {
+      border-radius: 999px;
+      border: 1px solid #e5dbcd;
+    }
+
+    &::after {
+      border-radius: 999px;
+    }
+  }
+
+  :deep(.q-field__native) {
+    min-height: 34px;
+    padding: 0 4px;
+    font-family: 'Geologica', sans-serif;
+    color: #2c2318;
+    letter-spacing: 0;
+  }
+
+  :deep(.q-field__prepend .q-icon) {
+    color: #96593a;
+  }
+
+  :deep(.q-field__append .q-icon) {
+    color: #6b6459;
   }
 }
 
@@ -2491,15 +2593,6 @@ onBeforeUnmount(() => cleanup())
   min-width: 0;
 }
 
-.next-class-card__label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #6b6459; // 199-29: sólido sobre card blanca (antes rgba .5, 2.12)
-  margin: 0;
-}
-
 .next-class-card__activity {
   font-family: 'Montserrat', sans-serif;
   font-size: 16px;
@@ -2530,69 +2623,73 @@ onBeforeUnmount(() => cleanup())
   padding: 10px 24px;
 }
 
-.next-class-card__activity-empty {
-  font-size: 14px;
-  color: #6b6459; // 199-29: sobre card blanca (antes $grey-6 2.68)
-  margin: 2px 0 0;
-}
-
 // ─── Day strip ──────────────────────────────────────────────────────
+
+.day-strip {
+  margin-bottom: 14px;
+}
 
 .day-strip__nav {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  margin-bottom: 8px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+// Flechas: 36px redondas (sketch 013 A). El ícono va en tinta (15:1).
+.week-nav-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  color: #2c2318;
 }
 
 .day-strip__week-label {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Geologica', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: #2c2318; // 199-29: sobre la página (antes rgba .6, 2.23)
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: #6b6459;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .day-strip__days {
   display: flex;
   gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
 }
 
+// Fichas de día (sketch 013 A): blanca con borde suave; la elegida con el degradé terracota del
+// botón y texto blanco; hoy con borde tinta; punto salvia donde el socio tiene una reserva.
 .day-pill {
   display: flex;
   flex-direction: column;
   align-items: center;
   flex: 1;
-  min-width: 48px;
-  padding: 8px 4px;
-  border: 1px solid rgba($primary, 0.12);
-  border-radius: 12px;
-  background: white;
+  min-width: 0;
+  padding: 8px 0 9px;
+  border: 1px solid #e5dbcd;
+  border-radius: 14px;
+  background: #fff;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
   position: relative;
 
   &--selected {
-    background: $primary;
-    border-color: $primary;
+    border-color: transparent;
+    background: linear-gradient(135deg, #a35f3c, #7e4529);
+    box-shadow: 0 4px 12px rgba(126, 69, 41, 0.3);
 
     .day-pill__abbrev,
     .day-pill__date {
-      color: white;
+      color: #fff;
     }
   }
 
   &--today:not(&--selected) {
-    border-color: $primary;
+    border-color: #2c2318;
   }
 
   // 199-29: día pasado = fondo atenuado y texto sólido (antes opacity .5 sobre todo, 1.4-2.1)
@@ -2607,32 +2704,47 @@ onBeforeUnmount(() => cleanup())
 
   &__abbrev {
     font-family: 'Montserrat', sans-serif;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
-    color: #6b6459; // 199-29: antes rgba .5 (2.12 sobre blanco)
+    color: #6b6459;
     letter-spacing: 0.03em;
   }
 
   &__date {
-    font-size: 18px;
+    margin-top: 2px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 19px;
     font-weight: 700;
-    color: $primary;
+    color: #2c2318;
     line-height: 1.2;
   }
 
+  // Siempre ocupa su lugar (así las fichas no cambian de alto); se pinta solo con reserva.
   &__dot {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 6px;
-    height: 6px;
+    display: block;
+    width: 5px;
+    height: 5px;
+    margin-top: 4px;
     border-radius: 50%;
-    background: $primary;
+    background: transparent;
   }
 
-  &--selected &__dot {
-    background: white;
+  &--has-booking &__dot {
+    background: #3f6a47;
+  }
+
+  &--selected.day-pill--has-booking &__dot {
+    background: #fff;
+  }
+
+  &__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }
 
@@ -2643,10 +2755,10 @@ onBeforeUnmount(() => cleanup())
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: rgba($accent, 0.08);
-  border-radius: 10px;
+  background: #f6efdc;
+  border-radius: 14px;
   font-size: 14px;
-  color: $accent;
+  color: #7d6520; // ocre sobre tinte: 5.0:1
   margin-bottom: 12px;
 }
 
@@ -2660,54 +2772,126 @@ onBeforeUnmount(() => cleanup())
   gap: 8px;
 }
 
-.reservas__policy {
-  font-size: 12px;
-  color: #2c2318; // 199-29: sobre la página (antes $grey-6)
-  margin: 16px 0 0;
-  line-height: 1.5;
+// Link de acción discreto ("Cancelar"): tinta-2 subrayado, 32px de alto para el toque.
+.link-btn {
+  flex: none;
+  min-height: 32px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: #6b6459; // 5.4:1 sobre blanco
+  font-family: 'Geologica', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
+
+// ─── Próxima clase (sketch 013 A) ───────────────────────────────────
+// Marco degradé fino en versión clara (mismo marco que la card de hoy, borde de 1.5px).
+
+.next-card {
+  @include pd-frame-light;
+  margin-bottom: 14px;
+}
+
+.next-card__body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: $pd-light-surface;
+}
+
+.next-card__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f3ede4;
+  color: #96593a;
+}
+
+.next-card__info {
+  flex: 1;
+  min-width: 0;
+
+  p {
+    margin: 0;
+  }
+}
+
+.next-card__kicker {
+  font-family: 'Cinzel', serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #96593a;
+}
+
+.next-card__title {
+  margin-top: 2px !important;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #2c2318;
+}
+
+.next-card__meta {
+  font-size: 13.5px;
+  color: #6b6459;
+}
+
+.next-card__cancel {
+  align-self: center;
+}
+
+// ─── Horarios (sketch 013 A) ────────────────────────────────────────
 
 .slot-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  margin-bottom: 6px;
-  border-radius: 10px;
-  background: white;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  transition: all 0.15s ease;
+  gap: 10px;
+  padding: 12px 12px 12px 16px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e5dbcd;
+  box-shadow: 0 6px 18px rgba(150, 89, 58, 0.06);
+  transition: background 0.15s ease;
 
-  &--available {
-    cursor: pointer;
-
-    &:active {
-      background: rgba($primary, 0.04);
-    }
-  }
-
-  &--booked {
-    border-color: rgba($primary, 0.3);
-    background: rgba($primary, 0.04);
-  }
-
-  &--attended {
-    border-color: rgba($positive, 0.3);
-    background: rgba($positive, 0.04);
-  }
-
+  &--available,
   &--full {
     cursor: pointer;
 
     &:active {
-      background: rgba($negative, 0.04);
+      background: #fbf8f3;
     }
   }
 
-  // 199-29: feriado / horario pasado = fondo atenuado y texto sólido (antes opacity .5/.4 sobre todo, 1.6-2.1)
+  // Reservado: borde salvia.
+  &--booked {
+    border-color: #3f6a47;
+    box-shadow: 0 6px 18px rgba(63, 106, 71, 0.12);
+  }
+
+  &--attended {
+    border-color: #3f6a47;
+  }
+
+  // Pasado / feriado: sin fondo, borde punteado, hora en tinta-2 (6.0:1 sobre la página).
   &--holiday,
   &--past {
-    background: #f0ece7;
+    background: transparent;
+    border-style: dashed;
+    border-color: #cbbfae;
+    box-shadow: none;
 
     .slot-card__hour,
     .slot-card__activity,
@@ -2719,135 +2903,168 @@ onBeforeUnmount(() => cleanup())
   &__time {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
   }
 
   // 2026-09-29: profe propio del horario (ej. la profe de yoga dentro del turno de
   // otro profe). Línea secundaria discreta bajo el nombre de la actividad.
   &__coach {
-    font-size: 11px;
-    color: #6b6459; // 199-29: antes $grey-6 (2.68)
+    font-size: 12px;
+    color: #6b6459;
     margin-top: 1px;
   }
 
   &__hour {
     font-family: 'Montserrat', sans-serif;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
-    color: $primary;
+    color: #2c2318;
   }
 
   &__activity {
-    font-size: 12px;
-    color: $grey-7;
+    margin-top: 2px;
+    font-size: 13px;
+    color: #6b6459;
 
-    // Plan 180-13 (D-18): affordance de tap SOLO cuando el slot trae
-    // activityDescription (:class condicional en el template — sin copy
-    // cargado, este modificador nunca se aplica).
+    // Plan 180-13 (D-18): affordance de tap SOLO cuando el slot trae activityDescription
+    // (:class condicional en el template — sin copy cargado, este modificador nunca se aplica).
+    // Subrayado suave que invita a abrir la hoja de info.
     &--tappable {
-      text-decoration: underline dotted rgba($grey-7, 0.5);
-      text-underline-offset: 2px;
+      text-decoration: underline;
+      text-decoration-color: #cbbfae;
+      text-underline-offset: 3px;
       cursor: pointer;
+
+      &:focus-visible {
+        outline: 2px solid #96593a;
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
     }
   }
 
+  // Derecha: arriba el chip (cupo / estado), abajo la acción.
   &__right {
+    flex: none;
     display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  // Chips (pastillas de 999): salvia = anotados / reservado, ocre = pocos lugares / feriado,
+  // rojo tierra = completo. Todos ≥ 4.5:1 sobre su tinte.
+  &__avail,
+  &__chip,
+  &__pill {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-family: 'Geologica', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
   }
 
   &__avail {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 9px;
-    border-radius: 8px;
-    white-space: nowrap;
-    letter-spacing: 0.01em;
-
     &--available {
-      color: #2e7d32;
-      background: #e8f5e9;
+      color: #3f6a47; // 5.4:1 sobre #e9f0e6
+      background: #e9f0e6;
     }
 
-    &--few {
-      color: #a06a00;
-      background: #fff8e1;
-    }
-
+    &--few,
     &--last {
-      color: #e65100;
-      background: #fff3e0;
+      color: #7d6520; // 5.0:1 sobre #f6efdc
+      background: #f6efdc;
     }
 
     &--full {
-      color: $negative;
-      background: #ffebee;
+      color: #a8423f; // 4.9:1 sobre #f7e6e2
+      background: #f7e6e2;
     }
   }
 
-  &__badge {
-    font-size: 12px;
-    font-weight: 600;
-
-    &--positive {
-      color: $positive;
-    }
+  &__chip--ok {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 13px;
+    color: #3f6a47;
+    background: #e9f0e6;
   }
 
-  // Phase 162 (APP-01): distintivo dorado "Aura" — RESERVADO a la actividad especial.
-  // Espeja el patrón de .slot-card__avail. Aged Gold ($warning #7d6520) sobre tinte #f5ecd9.
+  // Phase 162 (APP-01): distintivo "Especial" — ocre, bajo la actividad.
   &__badge--special {
     margin-top: 4px;
     align-self: flex-start;
-    color: $warning;
-    background: #f5ecd9;
-    padding: 2px 9px;
-    border-radius: 8px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 11px;
+    color: #7d6520;
+    background: #f6efdc;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-family: 'Geologica', sans-serif;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1.2;
   }
 
-  // Phase 162 (E2/E3): estados de bloqueo del plan especial. Olive/grey apagado, NUNCA
-  // rojo — no es un error, es una condición de acceso (UI-SPEC §Color).
+  // Phase 162 (E2/E3): estados de bloqueo del plan especial. Tono apagado, NUNCA rojo — no es un
+  // error, es una condición de acceso (UI-SPEC §Color).
   &__pill {
-    display: inline-flex;
-    align-items: center;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 9px;
-    border-radius: 8px;
-    white-space: nowrap;
-    letter-spacing: 0.01em;
-
     &--muted,
     &--locked {
-      color: $info; // Olive Stone
-      background: rgba($info, 0.1);
+      color: #6b6459; // 5.0:1 sobre #f3ede4
+      background: #f3ede4;
     }
 
     // 2026-10-01: clase de prueba gratis disponible — invitación, no bloqueo.
     &--trial {
-      color: $primary;
-      background: rgba($primary, 0.1);
+      color: #96593a; // 4.9:1 sobre #f7ece4
+      background: #f7ece4;
     }
   }
 
-  &__action {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 12px;
+  // "Reservar": pastilla terracota sólida, SIN destello (se repite en cada horario).
+  &__go {
+    height: 36px;
+    padding: 0 16px;
+    border: 1.5px solid #96593a;
+    border-radius: 999px;
+    background: #96593a;
+    color: #fff; // 5.6:1
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
     font-weight: 600;
-    letter-spacing: 0.03em;
+    white-space: nowrap;
+    cursor: pointer;
+
+    // "Lista de espera": borde terracota sobre blanco.
+    &--wait {
+      background: #fff;
+      color: #96593a;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #2c2318;
+      outline-offset: 2px;
+    }
   }
 }
 
 // ─── Week summary ───────────────────────────────────────────────────
 
-.week-summary {
-  border: 1px solid rgba($primary, 0.12);
-  border-radius: 12px;
+.week-summary,
+.first-timer-card {
+  border: 1px solid #e5dbcd;
+  border-radius: 14px;
+  background: #fff;
   overflow: hidden;
+}
+
+.week-summary {
+  margin-top: 16px;
 }
 
 :deep(.week-summary__header) {
@@ -2876,12 +3093,6 @@ onBeforeUnmount(() => cleanup())
 
 // ─── D-16: "¿Primera vez? Qué esperar" ───────────────────────────────
 // Mismo patrón que .week-summary (borde redondeado, header en $primary).
-.first-timer-card {
-  border: 1px solid rgba($primary, 0.12);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
 :deep(.first-timer-card__header) {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;

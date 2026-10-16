@@ -79,6 +79,25 @@ $pd-wa-b: #0f6b52;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
 }
 
+// Marco CLARO (sketch 013 A, "Tu próxima clase"): mismo degradé quieto, más suave en las puntas
+// (#d9c6b0), borde de 1.5px y radio 17/16. Sin sombra: va sobre la página, no sobre un overlay.
+@mixin pd-frame-light($radius: 17px) {
+  position: relative;
+  box-sizing: border-box;
+  border-radius: $radius;
+  padding: 1.5px;
+  background: linear-gradient(
+    115deg,
+    #d9c6b0 0%,
+    #a35f3c 30%,
+    #f0d2b4 45%,
+    #a35f3c 60%,
+    #d9c6b0 100%
+  );
+  background-size: 250% 250%;
+  background-position: 0% 50%;
+}
+
 // Card: sólida (`$pd-surface`) o translúcida (`$pd-surface-glass` + `$blur: true`).
 @mixin pd-card($surface: $pd-surface, $blur: false) {
   position: relative;
