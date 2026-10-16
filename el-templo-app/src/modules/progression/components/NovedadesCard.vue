@@ -22,8 +22,12 @@
   >
     <div class="nov-card__head">
       <span class="nov-card__title">Novedades</span>
-      <span v-if="newCount > 0" class="nov-card__count">
-        {{ newCount }} {{ newCount === 1 ? 'nueva' : 'nuevas' }}
+      <span
+        v-if="newCount > 0"
+        class="nov-card__count"
+        :aria-label="`${newCount} ${newCount === 1 ? 'novedad nueva' : 'novedades nuevas'}`"
+      >
+        {{ newCount }}
       </span>
       <span v-if="items.length > 1" class="nov-card__dots">
         <button
@@ -429,12 +433,7 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
 }
 
 .nov-card__title {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 800;
-  font-size: 15px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: $mt-block-title-color;
+  @include mt-block-title;
 }
 
 .nov-card__count {
@@ -442,8 +441,10 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
   color: #fff;
   font-size: 11px;
   font-weight: 600;
-  padding: 3px 9px;
+  min-width: 20px;
+  padding: 3px 7px;
   border-radius: 999px;
+  text-align: center;
 }
 
 .nov-card__dots {
@@ -579,11 +580,11 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
 // ── Barra de progreso (UAT D13) ──────────────────────────────────────────────
 // Riel `$border` de 3px + relleno `$primary` sólido (contraste de componente
 // ≥ 3:1) que va de 0 a 100% durante `dwellMs`. Sin opacity: antes era de 2px al
-// 55% y Franco no la percibió.
+// 55% y Franco no la percibió. Va al ras del borde inferior, de lado a lado; el
+// `overflow: hidden` de la card la recorta con el radio de las esquinas.
 .nov-card__progress {
   height: 3px;
-  margin: 0 16px 10px;
-  border-radius: 999px;
+  margin: 0;
   background-color: $border;
   overflow: hidden;
 }
@@ -592,7 +593,6 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 999px;
   background-color: $primary;
   transform-origin: left center;
   animation-name: nov-progress;

@@ -6,3 +6,14 @@ $brand-terracotta: #96593a; // Primary — 4.75:1 on cream
 $brand-aged-gold: #7d5d42; // Secondary — 5.12:1 on cream
 $brand-cream: #f2ede5; // Background — Marble Cream
 $mt-block-title-color: $brand-terracotta; // títulos de bloque de Mi Templo (UAT D14): mismo color que NOVEDADES
+
+// Título de bloque de Mi Templo (NOVEDADES, REGISTRO DEL DÍA, TUS SESIONES): un solo estilo
+// para que no se desfasen (UAT 2026-10-16: NOVEDADES había quedado en 15px).
+@mixin mt-block-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: $mt-block-title-color;
+}
