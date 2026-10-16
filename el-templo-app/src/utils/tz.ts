@@ -44,6 +44,12 @@ export function zonedWallClockToUtc(dateStr: string, timeStr: string, tz: string
   return new Date(guess - offset)
 }
 
+/**
+ * Zona por defecto cuando el perfil no trae `branchTimezone` (API vieja o sede
+ * sin zona). Única definición en la app: check-in-window.ts (plan 12) la re-exporta.
+ */
+export const DEFAULT_BRANCH_TZ = 'America/Argentina/Buenos_Aires'
+
 /** "YYYY-MM-DD" in the given timezone. */
 export function todayInTz(tz: string, now: Date = new Date()): string {
   return now.toLocaleDateString('en-CA', { timeZone: tz })

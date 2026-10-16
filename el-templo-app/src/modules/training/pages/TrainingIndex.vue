@@ -76,7 +76,7 @@ onMounted(async () => {
 @import 'src/css/quasar.variables.scss';
 
 .training-index {
-  background-color: $cream;
+  background-color: transparent; // D-16: la foto de fondo se ve detrás
   min-height: var(--app-vh);
   max-width: none !important;
 }

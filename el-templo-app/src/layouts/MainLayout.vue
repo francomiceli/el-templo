@@ -1,5 +1,8 @@
 <template>
   <q-layout view="lHh Lpr lFf">
+    <!-- D-16 (fase 199): la foto de fondo es el primer hijo y va DETRÁS (z-index -1) -->
+    <div class="app-bg" aria-hidden="true" />
+
     <!-- Header: full bar on mobile, greeting-only on desktop Mi Templo, hidden otherwise -->
     <q-header
       v-if="!isDesktop || isMiTemplo"
@@ -140,8 +143,6 @@
       </div>
     </transition>
 
-    <div class="app-bg" />
-
     <!-- Mobile bottom tab bar -->
     <q-footer v-if="!isDesktop" elevated class="mobile-footer">
       <div class="mobile-tabs">
@@ -215,6 +216,7 @@ import VeteranSeal from 'src/components/VeteranSeal.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
 import { isNewMember } from 'src/modules/guia/new-member'
+import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -300,14 +302,23 @@ const memberName = computed(() => {
   return profile.firstName ?? profile.displayName ?? 'Atleta'
 })
 
-const formattedDate = computed(() => {
-  const date = new Date().toLocaleDateString('es-ES', {
+// Formatea un 'YYYY-MM-DD' como "Hoy es <día> <n> de <mes>". Mediodía UTC +
+// timeZone 'UTC' = el día calendario exacto, sin corrimiento por zona.
+function formatGreetingDate(dateStr: string): string {
+  const date = new Date(`${dateStr}T12:00:00Z`).toLocaleDateString('es-ES', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
+    timeZone: 'UTC',
   })
   return 'Hoy es ' + date.charAt(0).toUpperCase() + date.slice(1)
-})
+}
+
+// D-04: 'hoy' en la zona de la sede, no del teléfono (un socio de Madrid con el
+// teléfono en hora AR veía el día equivocado de 19 a 24).
+const formattedDate = computed(() =>
+  formatGreetingDate(todayInTz(userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ)),
+)
 
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
@@ -400,6 +411,10 @@ async function onLogout() {
 @import 'src/css/brand';
 @import 'src/css/quasar.variables.scss';
 
+// D-16 fase 199: la foto va DETRÁS de páginas y cards. z-index negativo dentro
+// del stacking context raíz: se pinta sobre el fondo crema del body/canvas y
+// debajo de todo el contenido en flujo. Antes iba después de q-page-container
+// con z-index 0 y velaba las cards.
 .app-bg {
   position: fixed;
   top: 0;
@@ -410,7 +425,7 @@ async function onLogout() {
   filter: saturate(0.3) sepia(0.4) contrast(1.05);
   opacity: 0.08;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1;
 }
 
 .main-header {
@@ -492,8 +507,8 @@ async function onLogout() {
 
   &__date {
     font-family: 'Geologica', sans-serif;
-    font-size: 12px;
-    color: rgba(white, 0.7);
+    font-size: 13px;
+    color: #fff;
     margin: 2px 0 0;
   }
 
@@ -501,7 +516,7 @@ async function onLogout() {
     display: flex;
     flex-direction: column;
     align-items: center;
-    opacity: 0.6;
+    opacity: 1;
     padding-bottom: 2px;
     margin-right: 6px;
   }
@@ -513,7 +528,7 @@ async function onLogout() {
   }
 
   &__level {
-    font-size: 8px;
+    font-size: 10px;
     color: #fff;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -525,7 +540,7 @@ async function onLogout() {
    ------------------------------------------------------------------ */
 .mobile-greeting {
   position: relative;
-  z-index: 1; // above app-bg overlay
+  z-index: 1;
   background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
   margin: -1px 0 0; // close gap with header
 }
@@ -728,12 +743,16 @@ async function onLogout() {
   flex: 1;
   height: 100%;
   text-decoration: none;
-  color: rgba(white, 0.6);
+  color: #f2ede5; // inactiva: crema sólido (4.75 sobre el gradiente, D-15)
   transition: color 200ms ease;
   -webkit-tap-highlight-color: transparent;
 
   &--active {
-    color: white;
+    color: #fff;
+
+    .mobile-tab__label {
+      font-weight: 700;
+    }
   }
 
   &__label {
@@ -750,9 +769,9 @@ async function onLogout() {
   }
 
   // img-based icons (SVG via img: prefix) don't inherit CSS color.
-  // Match active/inactive opacity to the text color alpha.
+  // El ícono no es texto (>= 3:1 alcanza): inactivo 0.9, activo 1.
   :deep(.q-icon img) {
-    opacity: 0.6;
+    opacity: 0.9;
     transition: opacity 200ms ease;
   }
 

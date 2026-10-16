@@ -119,8 +119,10 @@ body {
 }
 
 // Q-page default background
+// D-16: la página es transparente para que la foto (.app-bg, z-index -1) se vea
+// en los huecos. body sigue crema (!important) y es el color base.
 .q-page {
-  background-color: $brand-cream;
+  background-color: transparent;
 }
 
 

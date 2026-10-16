@@ -16,13 +16,7 @@ export type { Level }
 export type MemberSegment = 'optima' | 'regular' | 'alerta' | 'ausente'
 
 export type SubscriptionStatus =
-  | 'active'
-  | 'paused'
-  | 'cancelled'
-  | 'expired'
-  | 'completed'
-  | 'changed'
-  | 'scheduled'
+  'active' | 'paused' | 'cancelled' | 'expired' | 'completed' | 'changed' | 'scheduled'
 
 export interface UserProfile {
   id: number
@@ -35,6 +29,8 @@ export interface UserProfile {
   branchName: string
   branchIsVirtual: boolean
   branchCountry: 'AR' | 'ES'
+  // Fase 199 (D-04): zona de la sede para 'hoy'. Opcional: API vieja no lo manda → `DEFAULT_BRANCH_TZ`
+  branchTimezone?: string
   segment: MemberSegment | null
   onboardingCompleted: boolean
   // SPEC "Empezá acá" B (persistencia y métrica): null hasta la primera

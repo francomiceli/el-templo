@@ -419,7 +419,7 @@ onMounted(async () => {
 
 .mi-templo {
   padding: 16px;
-  background-color: $cream;
+  background-color: transparent; // D-16: la foto de fondo se ve detrás
 
   &__loading,
   &__error {
