@@ -1,58 +1,80 @@
 <template>
+  <!-- Sketch 008 A ("Píldora"): pregunta con ícono salvia + control segmentado. Completo: el
+       consejo del día según las respuestas (antes era un chip de la card de hoy). -->
   <section class="check-in-panel" aria-live="polite">
-    <!-- Colapsado: las tres respondidas y no se está editando (L42: sale de los datos del día) -->
-    <div v-if="collapsed" class="check-in-panel__done">
-      <span class="check-in-panel__tick" aria-hidden="true">
-        <q-icon name="check" size="14px" />
-      </span>
-      <span class="check-in-panel__done-text">
-        <b class="check-in-panel__done-title">Registro del día</b> · {{ summaryText }}
-      </span>
-      <button type="button" class="check-in-panel__edit" @click="startEditing">editar</button>
-    </div>
+    <!-- Completo: las tres respondidas y no se está editando (L42: sale de los datos del día) -->
+    <template v-if="collapsed">
+      <div class="check-in-panel__head">
+        <span class="check-in-panel__title">Registro del día</span>
+        <button type="button" class="check-in-panel__link" @click="startEditing">
+          Editar registro
+        </button>
+      </div>
+      <p class="check-in-panel__advice" :class="`check-in-panel__advice--${advice.tone}`">
+        <span class="check-in-panel__advice-ico" aria-hidden="true">
+          <q-icon :name="advice.tone === 'ok' ? 'check' : 'self_improvement'" />
+        </span>
+        {{ advice.text }}
+      </p>
+    </template>
 
     <!-- Una pregunta por vez -->
-    <div v-else-if="current" class="check-in-panel__card">
-      <div class="check-in-panel__title">
-        Registro del día
-        <span class="check-in-panel__aux">{{ progressLabel }}</span>
+    <template v-else-if="current">
+      <div class="check-in-panel__head">
+        <span class="check-in-panel__title">Registro del día</span>
+        <span class="check-in-panel__steps" role="img" :aria-label="progressLabel">
+          <i
+            v-for="(on, i) in steps"
+            :key="i"
+            :class="{ 'check-in-panel__step--on': on }"
+            class="check-in-panel__step"
+          />
+        </span>
       </div>
 
       <!-- Paso de zona del cuerpo (molestia leve/moderada) -->
       <template v-if="pendingValue !== null">
-        <div class="check-in-panel__question">¿Dónde?</div>
-        <div class="check-in-panel__areas">
+        <div class="check-in-panel__q">
+          <span class="check-in-panel__ico" aria-hidden="true">
+            <q-icon :name="current.icon" />
+          </span>
+          <span class="check-in-panel__question">¿Dónde?</span>
+          <button
+            type="button"
+            class="check-in-panel__link check-in-panel__back"
+            :disabled="submitting"
+            @click="pendingValue = null"
+          >
+            volver
+          </button>
+        </div>
+        <div class="check-in-panel__seg check-in-panel__seg--areas">
           <button
             v-for="area in BODY_AREA_OPTIONS"
             :key="area.value"
             type="button"
-            class="check-in-panel__btn"
+            class="check-in-panel__opt"
             :disabled="submitting"
             @click="choose(current, pendingValue, area.value)"
           >
             {{ area.label }}
           </button>
         </div>
-        <button
-          type="button"
-          class="check-in-panel__back"
-          :disabled="submitting"
-          @click="pendingValue = null"
-        >
-          Volver
-        </button>
       </template>
 
       <template v-else>
-        <div class="check-in-panel__question">{{ current.question }}</div>
-        <div class="check-in-panel__options">
+        <div class="check-in-panel__q">
+          <span class="check-in-panel__ico" aria-hidden="true">
+            <q-icon :name="current.icon" />
+          </span>
+          <span class="check-in-panel__question">{{ current.question }}</span>
+        </div>
+        <div class="check-in-panel__seg">
           <button
             v-for="option in current.options"
             :key="option.value"
             type="button"
-            class="check-in-panel__btn"
-            :class="{ 'check-in-panel__btn--selected': isSelected(current, option.value) }"
-            :aria-pressed="isSelected(current, option.value)"
+            class="check-in-panel__opt"
             :disabled="submitting"
             @click="onOption(current, option.value)"
           >
@@ -64,7 +86,7 @@
       <p v-if="saveError" class="check-in-panel__error" role="alert">
         No pudimos guardar tu respuesta. Probá de nuevo.
       </p>
-    </div>
+    </template>
   </section>
 </template>
 
@@ -75,8 +97,8 @@ import { BODY_AREA_OPTIONS } from '../types'
 import type { CheckInQuestionConfig } from '../types'
 import {
   answeredCount,
+  checkInAdvice,
   nextUnanswered,
-  summaryParts,
   type CheckInAnswers,
 } from '../utils/check-in-summary'
 
@@ -117,11 +139,13 @@ const progressLabel = computed(() => {
   return `${Math.min(n, props.questions.length)} de ${props.questions.length}`
 })
 
-const summaryText = computed(() => summaryParts(props.questions, props.answers).join(' · '))
+/** Tres rayitas de progreso: respondida (o ya pasada si se está editando). */
+const steps = computed(() =>
+  props.questions.map((q, i) => (editing.value ? i < editIndex.value : !!props.answers[q.type])),
+)
 
-function isSelected(q: CheckInQuestionConfig, value: string): boolean {
-  return editing.value && props.answers[q.type]?.value === value
-}
+/** Consejo del día con el registro completo (energía baja > molestia > sueño > todo bien). */
+const advice = computed(() => checkInAdvice(props.answers))
 
 function startEditing() {
   editing.value = true
@@ -169,81 +193,142 @@ async function choose(q: CheckInQuestionConfig, value: string, bodyArea?: string
 <style scoped lang="scss">
 @import 'src/css/brand';
 
+// Valores del sketch 008 A sin variable propia en la app. Salvia = bienestar, sin azul.
+$border: #e5dbcd;
+$ink: #2c2318;
+$ink-2: #6b6459;
+$terra: #96593a;
+$sand: #f3ede4;
+$sage: #3f6a47; // 6.0:1 sobre blanco; blanco sobre salvia 6.0:1
+$sage-tint: #e9f0e6; // salvia sobre el tinte 5.4:1
+// Consejo del día: todo bien (salvia) o cuidate (ocre).
+$good-bg: $sage-tint;
+$good-fg: $sage;
+$mid-bg: #f6efdc;
+$mid-fg: #7d6520;
+
+// Misma card que Novedades y Tus sesiones (borde + sombra cálida).
 .check-in-panel {
   background: #fff;
+  border: 1px solid $border;
   border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 1px 2px rgba(44, 35, 24, 0.06);
+  box-shadow: 0 6px 18px rgba($terra, 0.08);
+  padding: 12px 14px 14px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 24px;
+  }
 
   &__title {
+    @include mt-block-title;
+  }
+
+  &__steps {
+    display: flex;
+    gap: 4px;
+  }
+
+  &__step {
+    width: 14px;
+    height: 4px;
+    border-radius: 2px;
+    background: $border;
+
+    &--on {
+      background: $sage;
+    }
+  }
+
+  &__q {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 0 8px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: $mt-block-title-color;
+    margin-top: 8px;
   }
 
-  &__aux {
-    margin-left: auto;
-    font-family: 'Geologica', sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0;
-    text-transform: none;
-    color: #6b6459;
+  &__ico {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: $sage-tint;
+    color: $sage;
+    font-size: 16px;
   }
 
   &__question {
-    margin: 2px 0 12px;
-    font-family: 'Geologica', sans-serif;
-    font-size: 16px;
-    font-weight: 600;
-    color: #2c2318;
-  }
-
-  &__options,
-  &__areas {
-    display: flex;
-    gap: 8px;
-  }
-
-  &__areas {
-    flex-wrap: wrap;
-
-    .check-in-panel__btn {
-      flex: 1 1 calc(33.333% - 8px);
-    }
-  }
-
-  &__btn {
-    flex: 1;
-    height: 44px;
-    border-radius: 12px;
-    border: 1.5px solid #96593a;
-    background: #fff;
-    color: #96593a;
     font-family: 'Geologica', sans-serif;
     font-size: 15px;
     font-weight: 600;
+    color: $ink;
+  }
+
+  // Control segmentado: una píldora con las opciones adentro.
+  &__seg {
+    display: flex;
+    gap: 3px;
+    margin-top: 10px;
+    padding: 3px;
+    border-radius: 999px;
+    background: $sand;
+
+    &--areas {
+      overflow-x: auto;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
+      .check-in-panel__opt {
+        flex: 0 0 auto;
+        padding: 0 14px;
+      }
+    }
+  }
+
+  &__opt {
+    flex: 1;
+    min-width: 0;
+    height: 38px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: $ink;
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
     cursor: pointer;
 
-    &:hover:not(:disabled) {
-      background: #f8f1ea;
+    // Ninguna opción arranca elegida, tampoco al editar (UAT 2026-10-16). El hover solo con
+    // mouse: en touch queda "pegado" y la opción de la pregunta siguiente parecía elegida.
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background: rgba(#fff, 0.7);
+      }
     }
 
-    &--selected {
-      background: #96593a;
+    // Respuesta al toque mientras se aprieta (al soltar ya pasa a la pregunta siguiente).
+    &:active:not(:disabled) {
+      background: $sage;
       color: #fff;
     }
 
     &:disabled {
       cursor: default;
       opacity: 0.6;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $sage;
+      outline-offset: 1px;
     }
 
     @media (prefers-reduced-motion: no-preference) {
@@ -253,69 +338,68 @@ async function choose(q: CheckInQuestionConfig, value: string, bodyArea?: string
     }
   }
 
-  &__back {
-    min-height: 44px;
-    margin-top: 4px;
-    padding: 0;
+  &__link {
+    flex: none;
+    min-width: 44px;
+    min-height: 32px;
+    padding: 0 2px;
     border: 0;
     background: none;
-    color: #96593a;
+    color: $terra;
     font-family: 'Geologica', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     text-decoration: underline;
     text-underline-offset: 3px;
     cursor: pointer;
+  }
+
+  &__back {
+    margin-left: auto;
   }
 
   &__error {
     margin: 10px 0 0;
     font-size: 13px;
-    color: #96593a;
+    color: $terra;
   }
 
-  &__done {
+  // Consejo del día: ícono en círculo + frase. Salvia si está todo bien, ocre si conviene
+  // cuidarse (texto sobre blanco: salvia 6.0:1, ocre 5.8:1).
+  &__advice {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 14px;
-    color: #2c2318;
+    gap: 8px;
+    margin: 8px 0 0;
+    font-family: 'Geologica', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+
+    &--ok {
+      color: $good-fg;
+    }
+
+    &--care {
+      color: $mid-fg;
+    }
   }
 
-  &__tick {
+  &__advice-ico {
     flex: none;
     display: grid;
     place-items: center;
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    background: #3b7249;
-    color: #fff;
-  }
+    font-size: 16px;
 
-  &__done-text {
-    min-width: 0;
-  }
+    .check-in-panel__advice--ok & {
+      background: $good-bg;
+    }
 
-  &__done-title {
-    color: $mt-block-title-color;
-  }
-
-  &__edit {
-    flex: none;
-    min-width: 44px;
-    min-height: 44px;
-    margin-left: auto;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: #96593a;
-    font-family: 'Geologica', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    cursor: pointer;
+    .check-in-panel__advice--care & {
+      background: $mid-bg;
+    }
   }
 }
 </style>

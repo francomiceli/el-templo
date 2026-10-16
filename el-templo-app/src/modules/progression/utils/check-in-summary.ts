@@ -1,8 +1,7 @@
-// Helpers puros del Registro del día compacto y de Tu semana (fase 199, D-07/D-09).
+// Helpers puros del Registro del día compacto y de Tus sesiones (fase 199, D-07/D-09).
 // Sin reloj ni estado: la fecha de hoy y las respuestas se inyectan.
 
 import { addDaysStr } from 'src/utils/check-in-window'
-import { BODY_AREA_OPTIONS } from '../types'
 import type { CheckInAnswerValue, CheckInQuestionConfig, CheckInQuestionType } from '../types'
 
 export type CheckInAnswers = Record<CheckInQuestionType, CheckInAnswerValue | null>
@@ -20,33 +19,25 @@ export function answeredCount(ordered: CheckInQuestionConfig[], answers: CheckIn
   return ordered.filter((q) => answers[q.type]).length
 }
 
-const ANSWER_LABELS: Record<CheckInQuestionType, Record<string, string>> = {
-  // UAT D16 + confirmación C4: el resumen usa la misma etiqueta que el botón; el valor guardado sigue siendo alto.
-  energy: { bajo: 'Energía: bajo', normal: 'Energía: normal', alto: 'Energía: bien' },
-  soreness: { ninguna: 'Sin molestias', leve: 'Molestia leve', moderada: 'Molestia moderada' },
-  sleep: { mal: 'Dormiste mal', ok: 'Dormiste ok', bien: 'Dormiste bien' },
+export type CheckInAdviceTone = 'ok' | 'care'
+
+export interface CheckInAdvice {
+  text: string
+  tone: CheckInAdviceTone
 }
 
-/** "Energía: normal", "Sin molestias", "Molestia leve (hombros)", "Dormiste bien". */
-export function answerLabel(
-  type: CheckInQuestionType,
-  value: string,
-  bodyArea: string | null,
-): string {
-  const base = ANSWER_LABELS[type][value] ?? value
-  if (type !== 'soreness' || value === 'ninguna' || !bodyArea) return base
-  const area = BODY_AREA_OPTIONS.find((a) => a.value === bodyArea)?.label ?? bodyArea
-  return `${base} (${area.toLowerCase()})`
-}
-
-/** Etiquetas de las respuestas existentes, en el orden de `ordered` (las sin responder se omiten). */
-export function summaryParts(ordered: CheckInQuestionConfig[], answers: CheckInAnswers): string[] {
-  const parts: string[] = []
-  for (const q of ordered) {
-    const a = answers[q.type]
-    if (a) parts.push(answerLabel(q.type, a.value, a.bodyArea))
+/**
+ * Cierre del registro completo (UAT 2026-10-16): un consejo según las respuestas en vez del
+ * resumen. Prioridad (D-10 de v4.4): energía baja > molestia moderada > dormiste mal. Si
+ * nada de eso pasa, un mensaje positivo. Antes era un chip de la card de hoy.
+ */
+export function checkInAdvice(answers: CheckInAnswers): CheckInAdvice {
+  if (answers.energy?.value === 'bajo') return { text: 'Hoy priorizá la técnica', tone: 'care' }
+  if (answers.soreness?.value === 'moderada') {
+    return { text: 'Considerá movilidad hoy', tone: 'care' }
   }
-  return parts
+  if (answers.sleep?.value === 'mal') return { text: 'Escuchá a tu cuerpo hoy', tone: 'care' }
+  return { text: '¡Hoy estás para darlo todo!', tone: 'ok' }
 }
 
 export interface WeekDot {
@@ -54,6 +45,8 @@ export interface WeekDot {
   date: string
   trained: boolean
   isToday: boolean
+  /** Día de esta semana que todavía no llegó (posterior a hoy). */
+  isFuture: boolean
 }
 
 const LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
@@ -63,7 +56,14 @@ export function weekDots(weekStart: string, todayStr: string, completedDates: st
   const trained = new Set(completedDates)
   return LETTERS.map((letter, i) => {
     const date = addDaysStr(weekStart, i)
-    return { letter, date, trained: trained.has(date), isToday: date === todayStr }
+    // YYYY-MM-DD compara bien como string.
+    return {
+      letter,
+      date,
+      trained: trained.has(date),
+      isToday: date === todayStr,
+      isFuture: date > todayStr,
+    }
   })
 }
 
@@ -75,15 +75,15 @@ export function sessionsThisWeek(weekStart: string, completedDates: string[]): n
 
 const DAY_NAMES = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
-/** "lunes 13: entrenaste", "jueves 16 (hoy): no entrenaste". */
+/** "lunes 13: entrenaste", "jueves 16 (hoy): no entrenaste", "sábado 18: todavía no llegó". */
 export function dotAriaLabel(dot: WeekDot, index: number): string {
   const day = Number(dot.date.slice(8, 10))
   const today = dot.isToday ? ' (hoy)' : ''
-  return `${DAY_NAMES[index]} ${day}${today}: ${dot.trained ? 'entrenaste' : 'no entrenaste'}`
+  const status = dot.trained ? 'entrenaste' : dot.isFuture ? 'todavía no llegó' : 'no entrenaste'
+  return `${DAY_NAMES[index]} ${day}${today}: ${status}`
 }
 
-/** Texto que sigue al badge del total en "Tu semana": "sesiones en total", "sesión en El Templo" (UAT D21). */
-export function sessionsTotalCaption(label: 'total' | 'templo', count: number): string {
-  const noun = count === 1 ? 'sesión' : 'sesiones'
-  return `${noun} ${label === 'templo' ? 'en El Templo' : 'en total'}`
+/** Texto que acompaña al total en "Tus sesiones": "sesiones totales en El Templo" (sketch 007 A). */
+export function sessionsTotalCaption(count: number): string {
+  return `${count === 1 ? 'sesión total' : 'sesiones totales'} en El Templo`
 }

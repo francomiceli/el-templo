@@ -2,12 +2,11 @@ import { describe, it, expect } from 'vitest'
 import {
   nextUnanswered,
   answeredCount,
-  answerLabel,
-  summaryParts,
   weekDots,
   sessionsThisWeek,
   dotAriaLabel,
   sessionsTotalCaption,
+  checkInAdvice,
   type CheckInAnswers,
 } from '../check-in-summary'
 import { CHECK_IN_QUESTIONS } from '../../types'
@@ -49,33 +48,6 @@ describe('nextUnanswered / answeredCount', () => {
   })
 })
 
-describe('answerLabel', () => {
-  it.each([
-    ['energy', 'bajo', 'Energía: bajo'],
-    ['energy', 'normal', 'Energía: normal'],
-    ['energy', 'alto', 'Energía: bien'],
-    ['soreness', 'ninguna', 'Sin molestias'],
-    ['soreness', 'leve', 'Molestia leve'],
-    ['soreness', 'moderada', 'Molestia moderada'],
-    ['sleep', 'mal', 'Dormiste mal'],
-    ['sleep', 'ok', 'Dormiste ok'],
-    ['sleep', 'bien', 'Dormiste bien'],
-  ] as const)('%s/%s -> %s', (type, value, expected) => {
-    expect(answerLabel(type, value, null)).toBe(expected)
-  })
-
-  it('agrega la zona del cuerpo solo en molestia leve/moderada', () => {
-    expect(answerLabel('soreness', 'leve', 'hombros')).toBe('Molestia leve (hombros)')
-    expect(answerLabel('soreness', 'moderada', 'espalda')).toBe('Molestia moderada (espalda)')
-    expect(answerLabel('soreness', 'ninguna', 'hombros')).toBe('Sin molestias')
-    expect(answerLabel('energy', 'alto', 'hombros')).toBe('Energía: bien')
-  })
-
-  it('un valor desconocido se muestra tal cual', () => {
-    expect(answerLabel('energy', 'raro', null)).toBe('raro')
-  })
-})
-
 describe('CHECK_IN_QUESTIONS (UAT D16/D18)', () => {
   it('energía: etiquetas Bajo/Normal/Bien con los valores guardados intactos (T-199-65)', () => {
     expect(energy.options.map((o) => o.label)).toEqual(['Bajo', 'Normal', 'Bien'])
@@ -84,46 +56,6 @@ describe('CHECK_IN_QUESTIONS (UAT D16/D18)', () => {
 
   it('las 3 preguntas hablan de hoy', () => {
     for (const q of CHECK_IN_QUESTIONS) expect(q.question).toMatch(/\bhoy\?$/)
-  })
-
-  it.each(energy.options.map((o) => [o.value, o.label] as const))(
-    'el resumen de energía %s usa la misma etiqueta que el botón (C4)',
-    (value, label) => {
-      expect(answerLabel('energy', value, null)).toBe(`Energía: ${label.toLowerCase()}`)
-    },
-  )
-})
-
-describe('summaryParts', () => {
-  it('energía alta, sin molestias y dormiste bien, en el orden de las preguntas', () => {
-    const a = answers({
-      energy: { value: 'alto', bodyArea: null },
-      soreness: { value: 'ninguna', bodyArea: null },
-      sleep: { value: 'bien', bodyArea: null },
-    })
-    expect(summaryParts(CHECK_IN_QUESTIONS, a)).toEqual([
-      'Energía: bien',
-      'Sin molestias',
-      'Dormiste bien',
-    ])
-  })
-
-  it('respeta el orden de las preguntas', () => {
-    const a = answers({
-      energy: { value: 'normal', bodyArea: null },
-      soreness: { value: 'leve', bodyArea: 'core' },
-      sleep: { value: 'bien', bodyArea: null },
-    })
-    expect(summaryParts(ORDERED, a)).toEqual([
-      'Molestia leve (core)',
-      'Dormiste bien',
-      'Energía: normal',
-    ])
-  })
-
-  it('omite las sin responder', () => {
-    const a = answers({ energy: { value: 'bajo', bodyArea: null } })
-    expect(summaryParts(ORDERED, a)).toEqual(['Energía: bajo'])
   })
 })
 
@@ -138,6 +70,16 @@ describe('weekDots / sessionsThisWeek', () => {
     expect(dots[6].date).toBe('2026-10-18')
     expect(dots.map((d) => d.trained)).toEqual([true, true, false, false, false, false, false])
     expect(dots.map((d) => d.isToday)).toEqual([false, false, false, true, false, false, false])
+  })
+
+  it('marca como futuros solo los días posteriores a hoy', () => {
+    const dots = weekDots(WEEK, '2026-10-15', [])
+    expect(dots.map((d) => d.isFuture)).toEqual([false, false, false, false, true, true, true])
+  })
+
+  it('el domingo no hay días futuros y el lunes hay seis', () => {
+    expect(weekDots(WEEK, '2026-10-18', []).some((d) => d.isFuture)).toBe(false)
+    expect(weekDots(WEEK, '2026-10-12', []).filter((d) => d.isFuture)).toHaveLength(6)
   })
 
   it('hoy puede ser un día entrenado', () => {
@@ -178,24 +120,66 @@ describe('dotAriaLabel', () => {
     expect(dotAriaLabel(dots[0], 0)).toBe('lunes 12: entrenaste')
     expect(dotAriaLabel(dots[3], 3)).toBe('jueves 15 (hoy): no entrenaste')
     expect(dotAriaLabel(dots[2], 2)).toBe('miércoles 14: no entrenaste')
+    expect(dotAriaLabel(dots[4], 4)).toBe('viernes 16: todavía no llegó')
   })
 })
 
 describe('sessionsTotalCaption', () => {
-  it('total -> "sesiones en total"', () => {
-    expect(sessionsTotalCaption('total', 42)).toBe('sesiones en total')
+  it('plural -> "sesiones totales en El Templo"', () => {
+    expect(sessionsTotalCaption(42)).toBe('sesiones totales en El Templo')
   })
 
-  it('templo -> "sesiones en El Templo"', () => {
-    expect(sessionsTotalCaption('templo', 42)).toBe('sesiones en El Templo')
-  })
-
-  it('con 1 va en singular en ambas variantes', () => {
-    expect(sessionsTotalCaption('total', 1)).toBe('sesión en total')
-    expect(sessionsTotalCaption('templo', 1)).toBe('sesión en El Templo')
+  it('con 1 va en singular', () => {
+    expect(sessionsTotalCaption(1)).toBe('sesión total en El Templo')
   })
 
   it('con 0 va en plural', () => {
-    expect(sessionsTotalCaption('total', 0)).toBe('sesiones en total')
+    expect(sessionsTotalCaption(0)).toBe('sesiones totales en El Templo')
+  })
+})
+
+describe('checkInAdvice', () => {
+  it('sin nada negativo → mensaje positivo', () => {
+    expect(checkInAdvice(answers())).toEqual({
+      text: '¡Hoy estás para darlo todo!',
+      tone: 'ok',
+    })
+    const good = answers({
+      energy: { value: 'alto', bodyArea: null },
+      soreness: { value: 'leve', bodyArea: 'core' },
+      sleep: { value: 'ok', bodyArea: null },
+    })
+    expect(checkInAdvice(good).tone).toBe('ok')
+  })
+
+  it('cada respuesta negativa tiene su consejo', () => {
+    expect(checkInAdvice(answers({ energy: { value: 'bajo', bodyArea: null } })).text).toBe(
+      'Hoy priorizá la técnica',
+    )
+    expect(
+      checkInAdvice(answers({ soreness: { value: 'moderada', bodyArea: 'piernas' } })).text,
+    ).toBe('Considerá movilidad hoy')
+    expect(checkInAdvice(answers({ sleep: { value: 'mal', bodyArea: null } })).text).toBe(
+      'Escuchá a tu cuerpo hoy',
+    )
+  })
+
+  it('prioridad: energía baja > molestia moderada > dormiste mal', () => {
+    const all = answers({
+      energy: { value: 'bajo', bodyArea: null },
+      soreness: { value: 'moderada', bodyArea: 'piernas' },
+      sleep: { value: 'mal', bodyArea: null },
+    })
+    expect(checkInAdvice(all)).toEqual({ text: 'Hoy priorizá la técnica', tone: 'care' })
+    expect(checkInAdvice({ ...all, energy: { value: 'normal', bodyArea: null } }).text).toBe(
+      'Considerá movilidad hoy',
+    )
+    expect(
+      checkInAdvice({
+        ...all,
+        energy: null,
+        soreness: { value: 'leve', bodyArea: 'core' },
+      }).text,
+    ).toBe('Escuchá a tu cuerpo hoy')
   })
 })

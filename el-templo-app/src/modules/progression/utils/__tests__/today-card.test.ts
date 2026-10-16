@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   resolveTodayCard,
-  formatDayKicker,
   formatLongDate,
   formatNextClassTitle,
   shortBranchName,
@@ -46,7 +45,6 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     nextBooking: null,
     program: null,
     hasExtraPrograms: false,
-    checkInMessage: null,
     trialEligible: false,
     ...over,
   }
@@ -103,7 +101,7 @@ describe('resolveTodayCard — carga (nunca un gate de "sin plan" por una carrer
       baseInput({ subscription: null, planStatus: null, planLoading: true }),
     )
     expect(m.kind).toBe('cargando')
-    expect(m.kicker).toBe('Hoy · jueves 15')
+    expect(m.kicker).toBe('')
     expect(m.title).toBe('')
     expect(m.meta).toBeNull()
     expect(m.chips).toEqual([])
@@ -230,7 +228,7 @@ describe('resolveTodayCard — presencial con clase hoy', () => {
   it('copy de D-03/D11: kicker, ruta, "Tu clase: 19:00 · Alem", Ver la sesión + Cambiar clase', () => {
     const m = resolveTodayCard(baseInput({ booking: BOOKING }))
     expect(m.kind).toBe('presencial-turno')
-    expect(m.kicker).toBe('Hoy · jueves 15')
+    expect(m.kicker).toBe('Tu clase de hoy')
     expect(m.title).toBe('Muscle Up')
     expect(m.meta).toContainEqual({ text: '19:00', strong: true })
     expect(flat(m.meta)).toBe('Tu clase: 19:00 · Alem')
@@ -296,19 +294,11 @@ describe('resolveTodayCard — presencial con clase hoy', () => {
     expect(flat(m.meta)).toBe('Tu clase: 19:00 · Moreno')
   })
 
-  it('checkInMessage → chip dentro de la card, después del de ventana', () => {
+  it('ventana abierta → solo el chip de la ventana (el consejo del registro vive en el registro)', () => {
     const m = resolveTodayCard(
-      baseInput({
-        booking: BOOKING,
-        windowState: 'open',
-        minutesToStart: 12,
-        checkInMessage: 'Sesión liviana sugerida',
-      }),
+      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: 12 }),
     )
-    expect(m.chips.map((c) => c.text)).toEqual([
-      'Tu clase empieza en 12 min',
-      'Sesión liviana sugerida',
-    ])
+    expect(m.chips.map((c) => c.text)).toEqual(['Tu clase empieza en 12 min'])
   })
 
   it('día hábil sin sesión hoy pero CON reserva hoy → presencial-turno', () => {
@@ -433,11 +423,8 @@ describe('resolveTodayCard — presencial: próxima clase (C1)', () => {
     expect(flat(m.meta)).toBe('Moreno')
   })
 
-  it('el checkInMessage aparece como chip', () => {
-    const m = resolveTodayCard(
-      baseInput({ nextBooking: NEXT_MONDAY, checkInMessage: 'Considerá movilidad hoy' }),
-    )
-    expect(m.chips.map((c) => c.text)).toEqual(['Considerá movilidad hoy'])
+  it('sin chips', () => {
+    expect(resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY })).chips).toEqual([])
   })
 
   it('hasExtraPrograms → tertiary "Tus programas"', () => {
@@ -459,10 +446,10 @@ describe('resolveTodayCard — presencial: próxima clase (C1)', () => {
 })
 
 describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () => {
-  it('copy: "Hoy · jueves 15", "Reservá tu clase", "Elegí día, horario y sede", Reservar y sin secundario', () => {
+  it('copy: "Sin clase reservada", "Reservá tu clase", "Elegí día, horario y sede", Reservar y sin secundario', () => {
     const m = resolveTodayCard(baseInput())
     expect(m.kind).toBe('presencial-sin-turno')
-    expect(m.kicker).toBe('Hoy · jueves 15')
+    expect(m.kicker).toBe('Sin clase reservada')
     expect(m.title).toBe('Reservá tu clase')
     expect(flat(m.meta)).toBe('Elegí día, horario y sede')
     expect(m.primary).toEqual({ label: 'Reservar', to: '/reservas' })
@@ -475,10 +462,10 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
     expect(sinRuta).toEqual(conRuta)
   })
 
-  it('domingo: misma card, kicker "Hoy · domingo 18", sin descanso ni "Ver la sesión"', () => {
+  it('domingo: misma card, kicker "Sin clase reservada", sin descanso ni "Ver la sesión"', () => {
     const m = resolveTodayCard(baseInput({ todayStr: '2026-10-18', dow: 7, todayRoute: null }))
     expect(m.kind).toBe('presencial-sin-turno')
-    expect(m.kicker).toBe('Hoy · domingo 18')
+    expect(m.kicker).toBe('Sin clase reservada')
     expect(m.title).toBe('Reservá tu clase')
     expect(m.secondary).toBeNull()
     const copy = allCopy(m)
@@ -497,9 +484,8 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
     expect(m.secondary).toBeNull()
   })
 
-  it('el checkInMessage aparece como chip', () => {
-    const m = resolveTodayCard(baseInput({ checkInMessage: 'Considerá movilidad hoy' }))
-    expect(m.chips.map((c) => c.text)).toEqual(['Considerá movilidad hoy'])
+  it('sin chips', () => {
+    expect(resolveTodayCard(baseInput()).chips).toEqual([])
   })
 
   it('hasExtraPrograms → tertiary "Tus programas"', () => {
@@ -507,11 +493,12 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
     expect(m.tertiary).toEqual({ label: 'Tus programas', action: 'open-program' })
   })
 
-  it('los 7 días de la semana dan la misma card (solo cambia el kicker)', () => {
-    const titles = DAYS.map(
-      ({ todayStr, dow }) => resolveTodayCard(baseInput({ todayStr, dow, todayRoute: null })).title,
+  it('los 7 días de la semana dan la misma card, sin la fecha (ya está en el saludo)', () => {
+    const cards = DAYS.map(({ todayStr, dow }) =>
+      resolveTodayCard(baseInput({ todayStr, dow, todayRoute: null })),
     )
-    expect(new Set(titles)).toEqual(new Set(['Reservá tu clase']))
+    expect(new Set(cards.map((m) => m.title))).toEqual(new Set(['Reservá tu clase']))
+    expect(new Set(cards.map((m) => m.kicker))).toEqual(new Set(['Sin clase reservada']))
   })
 })
 
@@ -524,6 +511,7 @@ describe('resolveTodayCard — completada', () => {
       }),
     )
     expect(m.kind).toBe('completada')
+    expect(m.kicker).toBe('Hoy ya entrenaste')
     expect(m.chips).toEqual([
       { icon: 'check_circle', text: 'Completada · 55 min · RPE 7', tone: 'ok' },
     ])
@@ -612,11 +600,8 @@ describe('resolveTodayCard — online', () => {
     expect(flat(m.meta)).toBe('Semana 3 · 1 de 3 sesiones esta semana')
   })
 
-  it('el checkInMessage aparece también en online-programa', () => {
-    const m = resolveTodayCard(
-      baseInput({ isVirtual: true, program: PROGRAM, checkInMessage: 'Escuchá tu cuerpo hoy' }),
-    )
-    expect(m.chips.map((c) => c.text)).toEqual(['Escuchá tu cuerpo hoy'])
+  it('online-programa sin chips', () => {
+    expect(resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM })).chips).toEqual([])
   })
 
   it('online-libre con plan y sin programa: Entrenar, sin "Ver planes"', () => {
@@ -957,12 +942,6 @@ describe('resolveTodayCard — programas extra', () => {
 })
 
 describe('helpers de fecha y sede', () => {
-  it('formatDayKicker es independiente de la zona del proceso', () => {
-    expect(formatDayKicker('2026-10-18')).toBe('Hoy · domingo 18')
-    expect(formatDayKicker('2026-10-15')).toBe('Hoy · jueves 15')
-    expect(formatDayKicker('2026-01-01')).toBe('Hoy · jueves 1')
-  })
-
   it('formatLongDate arma "30 de septiembre" y tolera timestamps ISO', () => {
     expect(formatLongDate('2026-09-30')).toBe('30 de septiembre')
     expect(formatLongDate('2026-10-20')).toBe('20 de octubre')
@@ -970,7 +949,6 @@ describe('helpers de fecha y sede', () => {
   })
 
   it('fechas inválidas no explotan', () => {
-    expect(formatDayKicker('basura')).toBe('Hoy')
     expect(formatLongDate('basura')).toBe('basura')
   })
 

@@ -61,7 +61,6 @@
             class="today-card__btn"
             @click="onAction(model.primary)"
           >
-            <q-icon :name="primaryIcon" size="18px" aria-hidden="true" />
             {{ model.primary.label }}
           </button>
           <button
@@ -103,7 +102,7 @@
  */
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import type { TodayCardAction, TodayCardKind, TodayCardModel } from '../utils/today-card'
+import type { TodayCardAction, TodayCardModel } from '../utils/today-card'
 
 const props = defineProps<{
   model: TodayCardModel
@@ -114,24 +113,6 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
-
-/**
- * Ícono del botón primario según el caso (sketch 006, confirmación C5). Exhaustivo: un kind
- * nuevo obliga a mapearlo. `cargando` no tiene botón.
- */
-const PRIMARY_ICON: Record<TodayCardKind, string> = {
-  cargando: '',
-  'presencial-turno': 'play_arrow',
-  'presencial-sin-turno': 'add',
-  'presencial-proxima': 'event',
-  completada: 'arrow_forward',
-  'online-programa': 'play_arrow',
-  'online-libre': 'play_arrow',
-  'sin-plan-nunca': 'arrow_forward',
-  'sin-plan-vencio': 'arrow_forward',
-}
-
-const primaryIcon = computed(() => PRIMARY_ICON[props.model.kind])
 
 const progressPercent = computed(() =>
   props.model.progress === null

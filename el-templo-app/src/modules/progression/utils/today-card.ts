@@ -113,7 +113,6 @@ export interface TodayCardInput {
     sessionsPerWeekToAdvance: number
   } | null
   hasExtraPrograms: boolean
-  checkInMessage: string | null
   trialEligible: boolean
 }
 
@@ -130,11 +129,6 @@ function utcMidnight(dateStr: string): number | null {
   return p ? Date.UTC(p.y, p.m - 1, p.d) : null
 }
 
-const DAY_KICKER_FMT = new Intl.DateTimeFormat('es-AR', {
-  timeZone: 'UTC',
-  weekday: 'long',
-  day: 'numeric',
-})
 const LONG_DATE_FMT = new Intl.DateTimeFormat('es-AR', {
   timeZone: 'UTC',
   day: 'numeric',
@@ -143,12 +137,11 @@ const LONG_DATE_FMT = new Intl.DateTimeFormat('es-AR', {
 
 const WEEKDAY_FMT = new Intl.DateTimeFormat('es-AR', { timeZone: 'UTC', weekday: 'long' })
 
-/** "2026-10-15" → "Hoy · jueves 15". */
-export function formatDayKicker(todayStr: string): string {
-  const ms = utcMidnight(todayStr)
-  if (ms === null) return 'Hoy'
-  return `Hoy · ${DAY_KICKER_FMT.format(ms)}`
-}
+// Kickers de los casos de hoy: dicen de qué es la card. La fecha ya está en el saludo
+// del encabezado ("Hoy es viernes, 16 de octubre"), no se repite acá (UAT 2026-10-16).
+const KICKER_TURNO = 'Tu clase de hoy'
+const KICKER_SIN_TURNO = 'Sin clase reservada'
+const KICKER_COMPLETADA = 'Hoy ya entrenaste'
 
 /** "2026-09-30" → "30 de septiembre". */
 export function formatLongDate(dateStr: string): string {
@@ -179,10 +172,6 @@ export function formatNextClassTitle(dateStr: string, time: string): string {
 
 const PLANES: TodayCardAction = { label: 'Ver planes', to: '/planes' }
 const OPEN_PROGRAM: TodayCardAction = { label: 'Mi programa', action: 'open-program' }
-
-function messageChip(message: string | null): TodayCardChip[] {
-  return message ? [{ icon: 'self_improvement', text: message, tone: 'neutral' }] : []
-}
 
 function emptyModel(
   kind: TodayCardKind,
@@ -217,7 +206,6 @@ function hookFor(input: TodayCardInput): TodayCardText | null {
 
 function onlineLibre(input: TodayCardInput, canTrain: boolean): TodayCardModel {
   return emptyModel('online-libre', 'Hoy', input.todayRoute ?? 'Sesión libre', {
-    chips: messageChip(input.checkInMessage),
     primary: { label: 'Entrenar', to: '/training' },
     secondary: canTrain ? null : PLANES,
   })
@@ -257,15 +245,10 @@ function completada(input: TodayCardInput): TodayCardModel {
   const parts = ['Completada']
   if (session?.durationMinutes != null) parts.push(`${session.durationMinutes} min`)
   if (session?.rpe != null) parts.push(`RPE ${session.rpe}`)
-  return emptyModel(
-    'completada',
-    formatDayKicker(input.todayStr),
-    input.todayRoute ?? 'Sesión completada',
-    {
-      chips: [{ icon: 'check_circle', text: parts.join(' · '), tone: 'ok' }],
-      primary: { label: 'Ver resumen', to: { name: 'session-summary' } },
-    },
-  )
+  return emptyModel('completada', KICKER_COMPLETADA, input.todayRoute ?? 'Sesión completada', {
+    chips: [{ icon: 'check_circle', text: parts.join(' · '), tone: 'ok' }],
+    primary: { label: 'Ver resumen', to: { name: 'session-summary' } },
+  })
 }
 
 function onlinePrograma(
@@ -288,7 +271,6 @@ function onlinePrograma(
     {
       meta: [{ text: `${week} · ${sessions}` }],
       progress: target > 0 ? Math.min(done / target, 1) : null,
-      chips: messageChip(input.checkInMessage),
       primary: { label: 'Entrenar', to: '/training' },
       secondary: OPEN_PROGRAM,
     },
@@ -314,24 +296,18 @@ function presencialTurno(
       tone: 'neutral',
     })
   }
-  chips.push(...messageChip(input.checkInMessage))
 
   const branch = shortBranchName(booking.branchName)
-  return emptyModel(
-    'presencial-turno',
-    formatDayKicker(input.todayStr),
-    input.todayRoute ?? booking.activityName,
-    {
-      meta: [
-        { text: 'Tu clase: ' },
-        { text: hhmm(booking.time), strong: true },
-        { text: ` · ${branch}` },
-      ],
-      chips,
-      primary: { label: 'Ver la sesión', to: '/training' },
-      secondary: { label: 'Cambiar clase', to: '/reservas' },
-    },
-  )
+  return emptyModel('presencial-turno', KICKER_TURNO, input.todayRoute ?? booking.activityName, {
+    meta: [
+      { text: 'Tu clase: ' },
+      { text: hhmm(booking.time), strong: true },
+      { text: ` · ${branch}` },
+    ],
+    chips,
+    primary: { label: 'Ver la sesión', to: '/training' },
+    secondary: { label: 'Cambiar clase', to: '/reservas' },
+  })
 }
 
 /** C1: el título es la fecha y hora de la próxima clase reservada, no la sesión. */
@@ -345,7 +321,6 @@ function presencialProxima(
     formatNextClassTitle(next.date, next.time),
     {
       meta: [{ text: shortBranchName(next.branchName) }],
-      chips: messageChip(input.checkInMessage),
       primary: { label: 'Mis clases', to: '/reservas' },
       secondary: { label: 'Cambiar clase', to: '/reservas' },
     },
@@ -357,9 +332,8 @@ function presencialSinTurno(input: TodayCardInput): TodayCardModel {
   const meta: TodayCardText = input.waitlistTime
     ? [{ text: `Estás en lista de espera · ${hhmm(input.waitlistTime)}` }]
     : [{ text: 'Elegí día, horario y sede' }]
-  return emptyModel('presencial-sin-turno', formatDayKicker(input.todayStr), 'Reservá tu clase', {
+  return emptyModel('presencial-sin-turno', KICKER_SIN_TURNO, 'Reservá tu clase', {
     meta,
-    chips: messageChip(input.checkInMessage),
     primary: { label: 'Reservar', to: '/reservas' },
     secondary: null,
   })
@@ -383,7 +357,7 @@ export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
 
   // 0. Nada de "sin plan" mientras algo carga.
   if (!canTrain && input.planLoading) {
-    return emptyModel('cargando', formatDayKicker(input.todayStr), '')
+    return emptyModel('cargando', '', '')
   }
 
   // 1. Sin plan (ni programado).
@@ -408,7 +382,7 @@ export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
   const activeBooking = missedToday ? null : input.booking
   if (activeBooking) return withExtraPrograms(presencialTurno(input, activeBooking), input)
   // Sin saber si hay clase hoy no se decide "reservá" (A1 del plan 20).
-  if (input.bookingsLoading) return emptyModel('cargando', formatDayKicker(input.todayStr), '')
+  if (input.bookingsLoading) return emptyModel('cargando', '', '')
   if (input.waitlistTime) return withExtraPrograms(presencialSinTurno(input), input)
   if (input.nextBooking) {
     return withExtraPrograms(presencialProxima(input, input.nextBooking), input)

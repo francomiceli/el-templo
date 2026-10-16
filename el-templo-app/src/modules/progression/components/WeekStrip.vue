@@ -1,32 +1,33 @@
 <template>
-  <section class="week-strip" aria-label="Tu semana">
-    <div class="week-strip__title">Tu semana</div>
-    <div class="week-strip__row">
-      <div class="week-strip__big">{{ sessionsCount }}</div>
-      <div class="week-strip__label">{{ weekNoun }}<br />esta semana</div>
-      <ul class="week-strip__days">
-        <li
-          v-for="(dot, i) in dots"
-          :key="dot.date"
-          class="week-strip__day"
-          :aria-label="dotAriaLabel(dot, i)"
-        >
-          <i
-            class="week-strip__dot"
-            :class="{
-              'week-strip__dot--trained': dot.trained,
-              'week-strip__dot--today': dot.isToday,
-            }"
-            aria-hidden="true"
-          ></i>
-          <span aria-hidden="true">{{ dot.letter }}</span>
-        </li>
-      </ul>
+  <!-- Sketch 007 A ("Tablero"): título con las sesiones de la semana en la misma
+       fila, los 7 días a todo el ancho (letra dentro del círculo) y el total al pie
+       en una franja crema. -->
+  <section class="week-strip" aria-label="Tus sesiones">
+    <div class="week-strip__head">
+      <span class="week-strip__title">Tus sesiones</span>
+      <span class="week-strip__week">
+        <strong class="week-strip__week-num">{{ sessionsCount }}</strong>
+        {{ weekNoun }} esta semana
+      </span>
     </div>
-    <!-- UAT D21: el total se resalta con el número en una pastilla terracota -->
+    <ul class="week-strip__days">
+      <li
+        v-for="(dot, i) in dots"
+        :key="dot.date"
+        class="week-strip__day"
+        :class="{
+          'week-strip__day--trained': dot.trained,
+          'week-strip__day--today': dot.isToday,
+          'week-strip__day--future': dot.isFuture,
+        }"
+        :aria-label="dotAriaLabel(dot, i)"
+      >
+        <span class="week-strip__dot" aria-hidden="true">{{ dot.letter }}</span>
+      </li>
+    </ul>
     <div class="week-strip__total">
-      <span class="week-strip__badge">{{ totalSessions }}</span>
-      <span>{{ sessionsTotalCaption(totalLabel, totalSessions) }}</span>
+      <span class="week-strip__total-num">{{ totalText }}</span>
+      <span>{{ sessionsTotalCaption(totalSessions) }}</span>
     </div>
   </section>
 </template>
@@ -40,120 +41,143 @@ import {
   weekDots,
 } from '../utils/check-in-summary'
 
-const props = withDefaults(
-  defineProps<{
-    weekStart: string
-    todayStr: string
-    completedDates: string[]
-    totalSessions: number
-    totalLabel?: 'total' | 'templo'
-  }>(),
-  { totalLabel: 'total' },
-)
+const props = defineProps<{
+  weekStart: string
+  todayStr: string
+  completedDates: string[]
+  totalSessions: number
+}>()
 
 const dots = computed(() => weekDots(props.weekStart, props.todayStr, props.completedDates))
 const sessionsCount = computed(() => sessionsThisWeek(props.weekStart, props.completedDates))
 const weekNoun = computed(() => (sessionsCount.value === 1 ? 'sesión' : 'sesiones'))
+/** "1.284": separador de miles como en el resto de la app. */
+const totalText = computed(() => props.totalSessions.toLocaleString('es-AR'))
 </script>
 
 <style scoped lang="scss">
 @import 'src/css/brand';
 
+// Valores del sketch 007 sin variable propia en la app.
+$border: #e5dbcd;
+$ink: #2c2318; // 15.6:1 sobre blanco
+$ink-2: #6b6459; // 5.8:1 sobre blanco, 5.3:1 sobre $plaque
+$terra: #96593a; // 5.6:1 sobre blanco, 5.1:1 sobre $plaque
+$empty: #f3ede4;
+$plaque: #f7f1e8;
+
+// Misma card que Novedades (borde + sombra cálida).
 .week-strip {
+  overflow: hidden;
   background: #fff;
+  border: 1px solid $border;
   border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 1px 2px rgba(44, 35, 24, 0.06);
+  box-shadow: 0 6px 18px rgba($terra, 0.08);
+  padding: 14px 16px 0;
 
-  &__title {
-    margin: 0 0 8px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: $mt-block-title-color;
-  }
-
-  &__row {
+  // Título a la izquierda y la semana a la derecha; si no entran (fuente grande
+  // del sistema), la semana baja y arranca desde la izquierda.
+  &__head {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 14px;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
   }
 
-  &__big {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 32px;
-    font-weight: 700;
-    line-height: 1;
-    color: #2c2318;
+  &__title {
+    @include mt-block-title;
   }
 
-  &__label {
-    white-space: nowrap;
+  &__week {
     font-size: 13px;
     line-height: 1.3;
-    color: #6b6459;
+    color: $ink-2;
   }
 
+  &__week-num {
+    margin-right: 1px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: $ink;
+    font-variant-numeric: tabular-nums;
+  }
+
+  // Los 7 días a todo el ancho: a 360 cada columna mide ~38px, entra siempre.
   &__days {
-    display: flex;
-    gap: 5px;
-    margin: 0 0 0 auto;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin: 12px 0 14px;
     padding: 0;
     list-style: none;
   }
 
   &__day {
-    width: 22px;
-    text-align: center;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 10px;
-    font-weight: 600;
-    color: #6b6459;
+    display: flex;
+    justify-content: center;
   }
 
+  // Letra dentro del círculo: $ink-2 sobre $empty 5.1:1, blanco sobre $terra 5.6:1.
   &__dot {
-    display: block;
+    display: grid;
+    place-items: center;
     box-sizing: border-box;
-    width: 22px;
-    height: 22px;
-    margin-bottom: 3px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
-    border: 1.5px solid #d9cfc1;
-
-    &--trained {
-      background: #96593a;
-      border-color: #96593a;
-    }
-
-    &--today {
-      border-width: 2px;
-      border-color: #2c2318;
-    }
+    background: $empty;
+    border: 1.5px solid $border;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    color: $ink-2;
   }
 
+  &__day--trained &__dot {
+    background: $terra;
+    border-color: $terra;
+    color: #fff;
+  }
+
+  // Día que todavía no llegó: vacío y punteado, para que no se lea como "faltaste".
+  &__day--future &__dot {
+    background: #fff;
+    border-style: dashed;
+  }
+
+  &__day--today:not(&__day--trained) &__dot {
+    color: $ink;
+  }
+
+  &__day--today &__dot {
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 4px $ink;
+  }
+
+  // Franja crema al pie, de borde a borde.
   &__total {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    margin-top: 10px;
+    gap: 12px;
+    margin: 0 -16px;
+    padding: 12px 16px;
+    border-top: 1px solid $border;
+    background: $plaque;
     font-size: 13px;
-    color: #6b6459;
+    line-height: 1.3;
+    color: $ink-2;
   }
 
-  // Pastilla terracota con el número del total: #fff sobre #96593a = 5.6:1 (AA).
-  &__badge {
-    padding: 1px 9px;
-    border-radius: 999px;
-    background: #96593a;
-    color: #ffffff;
+  &__total-num {
     font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 1.4;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    color: $terra;
     font-variant-numeric: tabular-nums;
   }
 }

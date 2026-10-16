@@ -14,7 +14,7 @@
     </div>
 
     <!-- Content State. Orden fijo de la pila (D-02):
-         card de hoy → Novedades → Registro del día → Patrocinadores → Tu semana
+         card de hoy → Novedades → Registro del día → Patrocinadores → Tus sesiones
          (con la evaluación si aplica) → Para vos → Frase del día. El saludo vive en el layout. -->
     <div
       v-else
@@ -45,7 +45,7 @@
            Sin marcas no renderiza nada (L50). El tap abre la hoja de detalle (abajo). -->
       <SponsorsCarousel @open="openSponsor" />
 
-      <!-- Tu semana (D-09, UAT D21): cifra de la semana + puntos L–D + total en pastilla, sin RPE. La evaluación de nivel (solo si es
+      <!-- Tus sesiones (D-09, sketch 007 A): sesiones de la semana + días L–D + total al pie, sin RPE. La evaluación de nivel (solo si es
            accionable o está pendiente) pertenece a este bloque. -->
       <WeekStrip
         v-if="todayCard.kind !== 'sin-plan-nunca'"
@@ -53,7 +53,6 @@
         :today-str="todayStr"
         :completed-dates="completedDates"
         :total-sessions="progressionStore.stats?.totalSessions ?? 0"
-        :total-label="todayCard.kind === 'sin-plan-vencio' ? 'templo' : 'total'"
       />
       <GeneralContent
         :evaluation="progressionStore.evaluation"
@@ -119,7 +118,7 @@
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *
  * Una sola pantalla con gates (fase 199): card de hoy, Novedades, Registro del día,
- * Patrocinadores, Tu semana (con evaluación si aplica), Para vos y la frase del día.
+ * Patrocinadores, Tus sesiones (con evaluación si aplica), Para vos y la frase del día.
  */
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'
@@ -248,34 +247,6 @@ const orderedCheckIns = computed((): CheckInQuestionConfig[] => {
   return [...soreness, ...rotated]
 })
 
-/**
- * Derive session CTA messaging from today's check-in answers (per D-10).
- * Priority: energy > soreness > sleep (most impactful first).
- * Only "negative" answers produce a message; normal/good = null.
- */
-const checkInMessage = computed((): string | null => {
-  const state = progressionStore.checkInState
-  if (!state) return null
-
-  // Low energy takes highest priority (per D-10)
-  if (state.answers.energy?.value === 'bajo') {
-    return 'Sesión liviana sugerida'
-  }
-
-  // Moderate soreness second priority (per D-10)
-  if (state.answers.soreness?.value === 'moderada') {
-    return 'Considerá movilidad hoy'
-  }
-
-  // Bad sleep third priority (per D-10)
-  if (state.answers.sleep?.value === 'mal') {
-    return 'Escuchá tu cuerpo hoy'
-  }
-
-  // Normal/good answers → no change (per D-10)
-  return null
-})
-
 // Respuestas vacías mientras no llega el estado del día (el panel igual se oculta sin preguntas).
 const emptyAnswers: CheckInAnswers = { energy: null, soreness: null, sleep: null }
 
@@ -397,7 +368,6 @@ const todayCard = computed(() => {
         }
       : null,
     hasExtraPrograms: programProgressCard.value !== null && !isVirtual.value,
-    checkInMessage: checkInMessage.value,
     trialEligible: trialEligible.value,
   })
 })
