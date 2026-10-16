@@ -64,38 +64,23 @@
         </div>
       </div>
 
-      <!-- Check-in Cards — horizontal swipeable row (Phase 82) -->
-      <template v-if="orderedCheckIns.length > 0">
-        <p class="mi-templo__section-title">Registro del día</p>
-        <div class="mi-templo__check-ins">
-          <button class="scroll-arrow scroll-arrow--left" @click="scrollCheckIns('left')">
-            <q-icon name="chevron_left" size="20px" />
-          </button>
-          <div ref="checkInsRowRef" class="mi-templo__check-ins-row">
-            <CheckInCard
-              v-for="config in orderedCheckIns"
-              :key="config.type"
-              :config="config"
-              :answer="progressionStore.checkInState?.answers[config.type] ?? null"
-              class="mi-templo__check-in-item"
-              @submit="
-                (value: string, bodyArea?: string) =>
-                  handleCheckInSubmit(config.type, value, bodyArea)
-              "
-            />
-          </div>
-          <button class="scroll-arrow scroll-arrow--right" @click="scrollCheckIns('right')">
-            <q-icon name="chevron_right" size="20px" />
-          </button>
-        </div>
-      </template>
+      <!-- Registro del día (D-07): una pregunta por vez, colapsa a una línea. Se oculta
+           para quien nunca tuvo plan (sin-plan-nunca), como el sketch. -->
+      <CheckInPanel
+        v-if="orderedCheckIns.length > 0 && todayCard.kind !== 'sin-plan-nunca'"
+        :questions="orderedCheckIns"
+        :answers="progressionStore.checkInState?.answers ?? emptyAnswers"
+        :save="handleCheckInSubmit"
+      />
 
-      <!-- Weekly Summary -->
-      <WeeklySummaryCard
-        :loading="progressionStore.weeklySummaryLoading"
-        :error="progressionStore.weeklySummaryError"
-        :summary="progressionStore.weeklySummary"
+      <!-- Tu semana (D-09): fila compacta, sin RPE. -->
+      <WeekStrip
+        v-if="todayCard.kind !== 'sin-plan-nunca'"
+        :week-start="weekStartsFor(todayStr)[0]"
+        :today-str="todayStr"
+        :completed-dates="completedDates"
         :total-sessions="progressionStore.stats?.totalSessions ?? 0"
+        :total-label="todayCard.kind === 'sin-plan-vencio' ? 'templo' : 'total'"
       />
 
       <!-- Mi Árbol — entry point into the skill-tree advancement view (Phase 127).
@@ -109,9 +94,8 @@
         <q-icon name="chevron_right" class="mi-arbol-card__chevron" />
       </button>
 
-      <!-- Existing stats, RPE trend, and evaluation sections -->
+      <!-- Evaluación de nivel: solo si es accionable o está pendiente -->
       <GeneralContent
-        :rpe-trend="progressionStore.rpeTrend"
         :evaluation="progressionStore.evaluation"
         @request-evaluation="handleRequestEvaluation"
       />
@@ -145,7 +129,8 @@ import DailyQuote from '../components/DailyQuote.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { useCheckInApi } from '../composables/useCheckInApi'
-import CheckInCard from '../components/CheckInCard.vue'
+import CheckInPanel from '../components/CheckInPanel.vue'
+import WeekStrip from '../components/WeekStrip.vue'
 import { CHECK_IN_QUESTIONS, type CheckInQuestionConfig, type CheckInQuestionType } from '../types'
 import { useUserStore } from 'src/stores/useUserStore'
 import { MEMBER_TREE_ENABLED } from 'src/config/featureFlags'
@@ -155,7 +140,7 @@ import type { Session } from 'src/modules/training/types/session'
 import TodayCard from '../components/TodayCard.vue'
 import ProgramSheet from '../components/ProgramSheet.vue'
 import { resolveTodayCard } from '../utils/today-card'
-import WeeklySummaryCard from '../components/WeeklySummaryCard.vue'
+import type { CheckInAnswers } from '../utils/check-in-summary'
 import GeneralContent from '../components/GeneralContent.vue'
 import ProgramCtaCard from 'src/modules/programs/components/ProgramCtaCard.vue'
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
@@ -183,11 +168,16 @@ const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const avisosStore = useAvisosStore()
 const novedadesStore = useNovedadesStore()
-const { fetchStats, requestEvaluation, fetchWeeklySummary } = useProgressionApi()
+const { fetchStats, requestEvaluation } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const todayBookingStore = useTodayBookingStore()
 const schedulingApi = useSchedulingApi()
-const { sessions: weekSessions, error: weekError, fetchWeekSessions } = useWeekData()
+const {
+  sessions: weekSessions,
+  completedDates,
+  error: weekError,
+  fetchWeekSessions,
+} = useWeekData()
 // Domingo: "mañana" cae en la semana siguiente (otra instancia, cada una guarda UNA semana).
 const { sessions: nextWeekSessions, fetchWeekSessions: fetchNextWeekSessions } = useWeekData()
 const { getMyProgress } = useProgramsApi()
@@ -196,18 +186,11 @@ const programSheetOpen = ref(false)
 // El fetch de la semana terminó OK: sin esto la card no afirma "Hoy descansás" (plan 14).
 const weekLoaded = ref(false)
 const trialEligible = ref(false)
-const checkInsRowRef = ref<HTMLElement | null>(null)
 const premiumScroller = ref<HTMLElement | null>(null) as Ref<HTMLElement | null>
 const premiumSlide = ref(0)
 
 function goToMiArbol() {
   void router.push('/mi-arbol')
-}
-
-function scrollCheckIns(direction: 'left' | 'right') {
-  const el = checkInsRowRef.value
-  if (!el) return
-  el.scrollBy({ left: direction === 'left' ? -280 : 280, behavior: 'smooth' })
 }
 
 // ProgramProgressCard: non-linked program, OR linked-program member with at
@@ -311,12 +294,16 @@ const checkInMessage = computed((): string | null => {
   return null
 })
 
-async function handleCheckInSubmit(
+// Respuestas vacías mientras no llega el estado del día (el panel igual se oculta sin preguntas).
+const emptyAnswers: CheckInAnswers = { energy: null, soreness: null, sleep: null }
+
+// Mismo endpoint y payload que siempre (L41): devuelve si se guardó para que el panel no avance si falló.
+function handleCheckInSubmit(
   questionType: CheckInQuestionType,
   value: string,
   bodyArea?: string,
-) {
-  await submitCheckIn(questionType, value, bodyArea)
+): Promise<boolean> {
+  return submitCheckIn(questionType, value, bodyArea)
 }
 
 async function handleRequestEvaluation() {
@@ -446,11 +433,9 @@ const todayCard = computed(() => {
 
 onMounted(async () => {
   fetchStats()
-  fetchWeeklySummary()
   fetchTodayCheckIns()
   // D-15b: tarjetas del carrusel (fijas con copy editable + libres del
-  // admin), sin bloquear el render — mismo criterio que fetchStats/
-  // fetchWeeklySummary de arriba.
+  // admin), sin bloquear el render — mismo criterio que fetchStats de arriba.
   void avisosStore.loadTarjetas()
   // Novedades (D-12): fail-open, en cada montaje de Mi Templo. No hay
   // pull-to-refresh en esta página, así que no hay un segundo punto de carga.
@@ -524,62 +509,6 @@ onUnmounted(() => {
     flex-direction: column;
     gap: 16px;
   }
-
-  &__section-title {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 16px;
-    font-weight: 800;
-    color: $primary;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin: -4px 0 -8px;
-  }
-
-  &__check-ins {
-    position: relative;
-
-    &::before,
-    &::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 24px;
-      z-index: 1;
-      pointer-events: none;
-    }
-
-    &::before {
-      left: 0;
-      background: linear-gradient(to right, $cream, transparent);
-    }
-
-    &::after {
-      right: 0;
-      background: linear-gradient(to left, $cream, transparent);
-    }
-  }
-
-  &__check-ins-row {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding: 0 4px;
-
-    &::-webkit-scrollbar {
-      display: none;
-    }
-  }
-
-  &__check-in-item {
-    min-width: 260px;
-    max-width: 280px;
-    flex-shrink: 0;
-    scroll-snap-align: start;
-  }
 }
 
 // Mi Árbol entry-point card (Phase 127)
@@ -629,42 +558,6 @@ onUnmounted(() => {
     font-size: 22px;
     color: rgba($secondary, 0.6);
     flex-shrink: 0;
-  }
-}
-
-// Scroll arrows (desktop only)
-.scroll-arrow {
-  display: none;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(white, 0.9);
-  color: $primary;
-  cursor: pointer;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: background 200ms ease;
-
-  &:hover {
-    background: white;
-  }
-
-  &--left {
-    left: 4px;
-  }
-
-  &--right {
-    right: 4px;
-  }
-
-  @media (min-width: 768px) {
-    display: flex;
   }
 }
 
