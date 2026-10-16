@@ -305,6 +305,10 @@ async function loadTrialEligibility(): Promise<void> {
 
 // Plan-status y prueba gratis SOLO cuando la suscripción terminó de cargar sin plan activo
 // (si todavía carga, esperamos: nunca decidimos "sin plan" por una carrera). L37.
+// Sin `immediate` (REVIEW-app WR-03): `onMounted` recarga la suscripción siempre que no haya
+// plan activo, así que la transición loading -> loaded de esa recarga dispara esto UNA vez por
+// visita. Con `immediate` corría también en el setup con la suscripción vieja en memoria y la
+// recarga lo repetía (doble plan-status y doble trial-eligibility).
 watch(
   () => userStore.subscriptionLoaded && !userStore.subscriptionLoading,
   (ready) => {
@@ -312,7 +316,6 @@ watch(
     void userStore.loadPlanStatus()
     if (!isVirtual.value) void loadTrialEligibility()
   },
-  { immediate: true },
 )
 
 // D-03: el modelo de la card sale de una función pura; acá solo se arma el input.

@@ -245,13 +245,11 @@ export const useUserStore = defineStore('user', () => {
   // Fase 199: la card de hoy y la hoja de patrocinadores no deciden "sin plan"
   // mientras esto sea true. Mi Templo dispara loadSubscription al montar y
   // loadPlanStatus cuando la suscripción terminó sin plan activo (plan 15).
+  // Es true hasta que cada fuente respondió POR PRIMERA VEZ: un refresco de algo
+  // ya resuelto (`*Loading` con `*Loaded` true) no devuelve la card al skeleton,
+  // porque ya hay un dato con qué decidir (REVIEW-app WR-03).
   const planStateLoading = computed(
-    () =>
-      !hasActiveSubscription.value &&
-      (!subscriptionLoaded.value ||
-        subscriptionLoading.value ||
-        !planStatusLoaded.value ||
-        planStatusLoading.value),
+    () => !hasActiveSubscription.value && (!subscriptionLoaded.value || !planStatusLoaded.value),
   )
 
   // Phase 104 (R11 + R10): single source of truth for "this user has presencial
