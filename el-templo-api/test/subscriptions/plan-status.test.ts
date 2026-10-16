@@ -22,7 +22,7 @@
  *  - aislamiento entre socios; 401 sin token.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
 import {
@@ -229,7 +229,9 @@ describe("GET /me/plan-status — nunca tuvo plan vs. tuvo y venció (D-05)", ()
     const [row] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subId));
+      .where(
+        sql`/* tenant-safe: lectura por PK propia (subId), fila creada por este mismo test */ ${eq(schema.subscriptions.id, subId)}`,
+      );
     expect(row.status).toBe("active");
   });
 
@@ -484,7 +486,9 @@ describe("GET /me/plan-status — nunca tuvo plan vs. tuvo y venció (D-05)", ()
     const [row] = await app.db
       .select({ status: schema.subscriptions.status })
       .from(schema.subscriptions)
-      .where(eq(schema.subscriptions.id, subId));
+      .where(
+        sql`/* tenant-safe: lectura por PK propia (subId), fila creada por este mismo test */ ${eq(schema.subscriptions.id, subId)}`,
+      );
     expect(row.status).toBe("expired");
 
     const despues = await fetchPlanStatus(member.token);
