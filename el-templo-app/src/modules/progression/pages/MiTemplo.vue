@@ -13,18 +13,63 @@
       <q-btn color="primary" unelevated no-caps @click="fetchStats"> Reintentar </q-btn>
     </div>
 
-    <!-- Content State -->
-    <div v-else class="mi-templo__content">
-      <!-- Notification Permission Banner (per D-24) -->
+    <!-- Content State. Orden fijo de la pila (D-02):
+         card de hoy → Novedades → Registro del día → Patrocinadores → Tu semana
+         (con la evaluación si aplica) → Para vos → Frase del día. El saludo vive en el layout. -->
+    <div
+      v-else
+      class="mi-templo__content"
+      :class="{ 'mi-templo__content--fab': todayBookingStore.fabVisible }"
+    >
+      <!-- Notification Permission Banner (per D-24): arriba de todo -->
       <PermissionBanner />
 
-      <!-- Card de hoy (D-03, variante A'): reemplaza a las 4 cards viejas del día (sesión,
-           turno, descanso y programa). Solo pinta el modelo de resolveTodayCard. -->
+      <!-- Card de hoy (D-01/D-03, variante A'): la acción del día arriba de todo. Reemplaza a las
+           4 cards viejas (sesión, turno, descanso y programa). Solo pinta el modelo de resolveTodayCard. -->
       <TodayCard :model="todayCard" @open-program="programSheetOpen = true" />
 
-      <!-- Novedades (D-9): después del banner y antes del carrusel premium.
-           Sin novedades no renderiza nada (D-8) y es fail-open (D-12). -->
+      <!-- Novedades (D-08): mismo diseño del sketch 004, debajo de la card de hoy.
+           Sin novedades no renderiza nada (L50) y es fail-open (D-12). -->
       <NovedadesCard />
+
+      <!-- Registro del día (D-07): una pregunta por vez, colapsa a una línea. Se oculta
+           para quien nunca tuvo plan (sin-plan-nunca), como el sketch. -->
+      <CheckInPanel
+        v-if="orderedCheckIns.length > 0 && todayCard.kind !== 'sin-plan-nunca'"
+        :questions="orderedCheckIns"
+        :answers="progressionStore.checkInState?.answers ?? emptyAnswers"
+        :save="handleCheckInSubmit"
+      />
+
+      <!-- Patrocinadores (D-20/D-23): carrusel de marcas por país, a sangre y sin título.
+           Sin marcas no renderiza nada (L50). El tap abre la hoja de detalle (abajo). -->
+      <SponsorsCarousel @open="openSponsor" />
+
+      <!-- Tu semana (D-09): fila compacta, sin RPE. La evaluación de nivel (solo si es
+           accionable o está pendiente) pertenece a este bloque. -->
+      <WeekStrip
+        v-if="todayCard.kind !== 'sin-plan-nunca'"
+        :week-start="weekStartsFor(todayStr)[0]"
+        :today-str="todayStr"
+        :completed-dates="completedDates"
+        :total-sessions="progressionStore.stats?.totalSessions ?? 0"
+        :total-label="todayCard.kind === 'sin-plan-vencio' ? 'templo' : 'total'"
+      />
+      <GeneralContent
+        :evaluation="progressionStore.evaluation"
+        @request-evaluation="handleRequestEvaluation"
+      />
+
+      <!-- Mi Árbol — entry point into the skill-tree advancement view (Phase 127).
+           Gated off for members until the v5.1 training-data rollout runs (featureFlags). -->
+      <button v-if="MEMBER_TREE_ENABLED" class="mi-arbol-card" @click="goToMiArbol">
+        <q-icon name="park" class="mi-arbol-card__icon" />
+        <span class="mi-arbol-card__text">
+          <span class="mi-arbol-card__title">Mi Árbol</span>
+          <span class="mi-arbol-card__subtitle">Tu avance por cada familia de ejercicios</span>
+        </span>
+        <q-icon name="chevron_right" class="mi-arbol-card__chevron" />
+      </button>
 
       <!-- Para vos (D-10): carrusel de cards claras sin dots; la siguiente asoma ~24 px.
            Orden: Invitaciones, Presencial (solo online), Planes personalizados (si no hay
@@ -47,47 +92,7 @@
         </div>
       </section>
 
-      <!-- Registro del día (D-07): una pregunta por vez, colapsa a una línea. Se oculta
-           para quien nunca tuvo plan (sin-plan-nunca), como el sketch. -->
-      <CheckInPanel
-        v-if="orderedCheckIns.length > 0 && todayCard.kind !== 'sin-plan-nunca'"
-        :questions="orderedCheckIns"
-        :answers="progressionStore.checkInState?.answers ?? emptyAnswers"
-        :save="handleCheckInSubmit"
-      />
-
-      <!-- Patrocinadores (D-20/D-23): carrusel de marcas por país, a sangre y sin título.
-           Sin marcas no renderiza nada. La hoja de detalle y el carnet los conecta el plan 19. -->
-      <SponsorsCarousel @open="openSponsor" />
-
-      <!-- Tu semana (D-09): fila compacta, sin RPE. -->
-      <WeekStrip
-        v-if="todayCard.kind !== 'sin-plan-nunca'"
-        :week-start="weekStartsFor(todayStr)[0]"
-        :today-str="todayStr"
-        :completed-dates="completedDates"
-        :total-sessions="progressionStore.stats?.totalSessions ?? 0"
-        :total-label="todayCard.kind === 'sin-plan-vencio' ? 'templo' : 'total'"
-      />
-
-      <!-- Mi Árbol — entry point into the skill-tree advancement view (Phase 127).
-           Gated off for members until the v5.1 training-data rollout runs (featureFlags). -->
-      <button v-if="MEMBER_TREE_ENABLED" class="mi-arbol-card" @click="goToMiArbol">
-        <q-icon name="park" class="mi-arbol-card__icon" />
-        <span class="mi-arbol-card__text">
-          <span class="mi-arbol-card__title">Mi Árbol</span>
-          <span class="mi-arbol-card__subtitle">Tu avance por cada familia de ejercicios</span>
-        </span>
-        <q-icon name="chevron_right" class="mi-arbol-card__chevron" />
-      </button>
-
-      <!-- Evaluación de nivel: solo si es accionable o está pendiente -->
-      <GeneralContent
-        :evaluation="progressionStore.evaluation"
-        @request-evaluation="handleRequestEvaluation"
-      />
-
-      <!-- Daily quote — scroll closure -->
+      <!-- Frase del día (D-12): cierre del scroll -->
       <DailyQuote />
     </div>
 
@@ -114,9 +119,8 @@
 /**
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *
- * Shows segment-driven greeting, session CTA with today's route,
- * booking status, weekly progress, weekly summary, and existing
- * stats/RPE trend/evaluation sections.
+ * Una sola pantalla con gates (fase 199): card de hoy, Novedades, Registro del día,
+ * Patrocinadores, Tu semana (con evaluación si aplica), Para vos y la frase del día.
  */
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'
@@ -488,7 +492,7 @@ onUnmounted(() => {
   &__loading-text {
     margin: 16px 0 0;
     font-size: 14px;
-    color: rgba($primary, 0.7);
+    color: #6b6459; // D-15: texto sólido
   }
 
   &__error-icon {
@@ -499,7 +503,7 @@ onUnmounted(() => {
 
   &__error-text {
     font-size: 14px;
-    color: rgba($primary, 0.8);
+    color: #2c2318; // D-15: texto sólido
     margin-bottom: 16px;
   }
 
@@ -507,6 +511,16 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     gap: 16px;
+
+    // D-06/L28: `.mi-templo__content--fab` reserva el espacio del botón QR flotante SOLO mientras se ve.
+    // Sin transición no hay salto brusco al aparecer; con reduced-motion cambia de golpe.
+    @media (prefers-reduced-motion: no-preference) {
+      transition: padding-bottom 0.2s ease;
+    }
+
+    &--fab {
+      padding-bottom: 88px;
+    }
   }
 }
 
