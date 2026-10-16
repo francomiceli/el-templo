@@ -24,7 +24,7 @@
             }}
           </p>
 
-          <div class="forgot-card">
+          <PremiumGlassCard class="forgot-card">
             <!-- Paso 1: pedir el código -->
             <q-form v-if="step === 'email'" class="q-gutter-y-md" @submit="onRequestCode">
               <q-input
@@ -39,13 +39,14 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               />
 
               <q-btn
                 type="submit"
                 label="Enviar código"
                 :loading="loading"
-                class="full-width enter-btn"
+                class="full-width pd-cta"
                 unelevated
                 no-caps
               />
@@ -72,6 +73,7 @@
                 label-color="cream"
                 input-class="text-cream code-input"
                 color="primary"
+                class="pd-field"
               />
 
               <q-input
@@ -86,6 +88,7 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               >
                 <template #append>
                   <q-icon
@@ -108,30 +111,31 @@
                 label-color="cream"
                 input-class="text-cream"
                 color="primary"
+                class="pd-field"
               />
 
               <q-btn
                 type="submit"
                 label="Cambiar contraseña"
                 :loading="loading"
-                class="full-width enter-btn"
+                class="full-width pd-cta"
                 unelevated
                 no-caps
               />
             </q-form>
 
-            <div class="card-links">
+            <div class="pd-links">
               <template v-if="step === 'email'">
-                <a href="#" class="card-link" @click.prevent="goToCodeStep">Ya tengo un código</a>
-                <span class="card-link-separator">·</span>
+                <a href="#" class="pd-link" @click.prevent="goToCodeStep">Ya tengo un código</a>
+                <span class="pd-links-sep">·</span>
               </template>
               <template v-else>
-                <a href="#" class="card-link" @click.prevent="step = 'email'">Pedir otro código</a>
-                <span class="card-link-separator">·</span>
+                <a href="#" class="pd-link" @click.prevent="step = 'email'">Pedir otro código</a>
+                <span class="pd-links-sep">·</span>
               </template>
-              <router-link to="/login" class="card-link">Volver a ingresar</router-link>
+              <router-link to="/login" class="pd-link">Volver a ingresar</router-link>
             </div>
-          </div>
+          </PremiumGlassCard>
         </div>
       </q-page>
     </q-page-container>
@@ -146,6 +150,7 @@ import { api } from 'boot/axios'
 import { useAuthStore } from 'stores/useAuthStore'
 import { extractError, isExpectedClientError } from 'src/utils/extract-error'
 import { createLogger } from 'src/utils/logger'
+import PremiumGlassCard from 'src/components/PremiumGlassCard.vue'
 
 /** Espejo de PASSWORD_RESET_CODE_TTL_MS de la API (solo para el texto). */
 const CODE_TTL_MINUTES = 15
@@ -243,6 +248,7 @@ async function onResetPassword() {
 
 <style lang="scss" scoped>
 @import 'src/css/brand';
+@import 'src/css/premium-card';
 $terracotta: $brand-terracotta;
 $cream: #f2ede5;
 $charcoal: #2e2a26;
@@ -293,47 +299,20 @@ $charcoal-mid: #3d3732;
   margin-bottom: 16px;
 }
 
+// "Recuperá tu contraseña" es más largo que "Bienvenido al Templo": acá el título puede partirse.
 .brand-welcome {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.25rem;
-  letter-spacing: 0.06em;
-  color: $cream;
-  margin: 0 0 6px 0;
-  text-align: center;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+  @include pd-screen-title;
+  margin-bottom: 6px;
+  white-space: normal;
+  text-wrap: balance;
 }
 
 .brand-subtitle {
-  color: rgba($cream, 0.5);
-  font-size: 0.95rem;
-  margin: 0 0 24px 0;
-  text-align: center;
+  @include pd-screen-subtitle;
 }
 
-.forgot-card {
-  width: 100%;
-  background: rgba($charcoal-mid, 0.85);
-  border-top: 2px solid rgba($terracotta, 0.6);
-  border-radius: 8px;
-  padding: 28px 24px 20px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.forgot-card :deep(.q-field--outlined .q-field__control:before) {
-  border-color: rgba($cream, 0.2);
-}
-
-.forgot-card :deep(.q-field--outlined.q-field--focused .q-field__control:before) {
-  border-color: $terracotta;
-}
-
-.forgot-card :deep(.q-field__label) {
-  color: rgba($cream, 0.5);
-}
-
-.forgot-card :deep(.code-input) {
+// Marco, campos, botón y links viven en PremiumGlassCard; acá solo el código de 6 dígitos y el texto.
+.forgot-card :deep(.q-field__native.code-input) {
   font-family: 'Montserrat', sans-serif;
   font-size: 1.4rem;
   letter-spacing: 0.4em;
@@ -345,53 +324,13 @@ $charcoal-mid: #3d3732;
 }
 
 .sent-hint {
-  color: rgba($cream, 0.6);
+  color: $pd-cream-3;
   font-size: 0.85rem;
   line-height: 1.4;
   margin: 0;
 
   strong {
-    color: rgba($cream, 0.85);
+    color: $pd-cream;
   }
-}
-
-.enter-btn {
-  background: linear-gradient(135deg, $terracotta 0%, #855038 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 600;
-  font-size: 0.95rem;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.card-links {
-  text-align: center;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba($cream, 0.08);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-}
-
-.card-link {
-  color: rgba($cream, 0.45);
-  text-decoration: none;
-  font-size: 0.8rem;
-  letter-spacing: 0.02em;
-  transition: color 0.2s ease;
-
-  &:hover {
-    color: $terracotta;
-  }
-}
-
-.card-link-separator {
-  color: rgba($cream, 0.2);
-  font-size: 0.8rem;
 }
 </style>

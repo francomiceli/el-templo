@@ -1,0 +1,190 @@
+// Lenguaje de la card de hoy (sketches 006/010/011): marco con borde degradé quieto, línea luminosa
+// abajo, botón terracota con destello y campos oscuros. Lo usan PremiumDialogCard (pop-ups, superficie
+// SÓLIDA) y PremiumGlassCard (login / registro / onboarding, superficie TRANSLÚCIDA sobre la estatua).
+// Un solo lugar para el look: los componentes solo eligen superficie y paddings.
+//
+// Contraste sobre #2c2318: crema 12.5:1, crema-2 9.6:1, crema-3 7.6:1 (≈ 6.5:1 sobre la card translúcida).
+// Uso: `@import 'src/css/premium-card';` dentro del <style> del componente.
+
+$pd-surface: #2c2318;
+$pd-surface-glass: rgba(44, 35, 24, 0.78);
+$pd-cream: #f0e6d6;
+$pd-cream-2: #e3c9a8;
+$pd-cream-3: #c9bba6;
+$pd-btn-a: #a35f3c; // blanco encima 4.9:1
+$pd-btn-b: #7e4529; // blanco encima 7.4:1
+
+// Cabecera de las pantallas sobre la estatua (login, crear cuenta, olvidé mi contraseña, invitación):
+// "Bienvenido al Templo" en Cinzel 700 1.22rem, UNA línea hasta 360px. Subtítulo en #c9bba6.
+@mixin pd-screen-title {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 1.22rem;
+  letter-spacing: 0.08em;
+  color: $pd-cream;
+  text-align: center;
+  white-space: nowrap;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+
+@mixin pd-screen-subtitle {
+  margin: 0 0 24px;
+  font-size: 0.95rem;
+  color: $pd-cream-3;
+  text-align: center;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+// Marco: el borde degradé es el fondo del contenedor y la card lo tapa salvo 1.5px (radio 21/20).
+@mixin pd-frame {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: 21px;
+  padding: 1.5px;
+  background: linear-gradient(
+    115deg,
+    #4a3a2b 0%,
+    #a35f3c 30%,
+    #f0d2b4 45%,
+    #a35f3c 60%,
+    #4a3a2b 100%
+  );
+  background-size: 250% 250%;
+  background-position: 0% 50%;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+}
+
+// Card: sólida (`$pd-surface`) o translúcida (`$pd-surface-glass` + `$blur: true`).
+@mixin pd-card($surface: $pd-surface, $blur: false) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: $surface;
+  color: $pd-cream;
+  border-radius: 20px;
+
+  @if $blur {
+    backdrop-filter: blur(10px);
+  }
+}
+
+// Línea luminosa pegada al borde de abajo. Decoración: detrás del texto, sin toques.
+@mixin pd-line {
+  position: absolute;
+  z-index: 1;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #a35f3c, #e9bf9b, #a35f3c, transparent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+// Campo Quasar oscuro (q-input / q-select outlined): se incluye DENTRO del selector de la raíz del
+// campo, p. ej. `:slotted(.pd-area) { @include pd-field; }`. Todo lo del campo va acá: radio 10, borde
+// y fondo de crema translúcido, texto crema, label/placeholder/contador #c9bba6.
+// `--q-primary` reemplaza el aro de foco (que usa el color primario si el campo trae `color="primary"`)
+// por crema cálido; los estados de error siguen usando `--q-negative`.
+@mixin pd-field($font-size: 15px) {
+  --q-primary: #{$pd-cream-2};
+
+  .q-field__control {
+    border-radius: 10px;
+    background: rgba(240, 230, 214, 0.05);
+    box-shadow: none;
+  }
+
+  .q-field__control::before {
+    border-radius: 10px;
+    border-color: rgba(240, 230, 214, 0.32);
+  }
+
+  .q-field__control::after {
+    border-radius: 10px;
+  }
+
+  .q-field__native,
+  .q-field__input,
+  .q-field__prefix,
+  .q-field__suffix {
+    color: $pd-cream;
+    font-family: 'Geologica', sans-serif;
+    font-size: $font-size;
+  }
+
+  .q-field__label,
+  .q-field__native::placeholder,
+  .q-field__bottom {
+    color: $pd-cream-3;
+  }
+}
+
+// Botón primario (q-btn o <button> nativo): degradé terracota, radio 10, Geologica 600 15px, sombra
+// y destello que cruza cada 5 s. Se incluye dentro del selector del botón.
+@mixin pd-cta($min-height: 48px) {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: $min-height;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b);
+  color: #fff;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  box-shadow:
+    0 4px 14px rgba(126, 69, 41, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  // Destello: reposa fuera del botón; solo se anima bajo `no-preference` (abajo).
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -60%;
+    width: 40%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+    transform: skewX(-18deg);
+    pointer-events: none;
+  }
+
+  // Todo el movimiento va acá: con `prefers-reduced-motion: reduce` el destello queda quieto.
+  @media (prefers-reduced-motion: no-preference) {
+    &::after {
+      animation: pd-sheen 5s ease-in-out 1.2s infinite;
+    }
+  }
+}
+
+// Deshabilitado: .55 (Quasar fija `.disabled { opacity: .6 !important }`, por eso el !important).
+// Va aparte porque el selector cambia (`.pd-cta.disabled` / `.pd-cta:disabled`), no el cuerpo.
+@mixin pd-cta-disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed;
+
+  &::after {
+    display: none;
+  }
+}
+
+// Va a nivel raíz del <style> (Vue scoped renombra la animación junto con la referencia).
+@mixin pd-sheen-keyframes {
+  @keyframes pd-sheen {
+    0%,
+    70% {
+      left: -60%;
+    }
+    100% {
+      left: 130%;
+    }
+  }
+}

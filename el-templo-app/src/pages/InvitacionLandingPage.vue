@@ -11,7 +11,7 @@
 
           <p class="brand-welcome">Bienvenido al Templo</p>
 
-          <div class="invitacion-card">
+          <PremiumGlassCard class="invitacion-card">
             <p class="invitacion-headline" data-test="landing-copy">
               Te invitaron a entrenar en El Templo: tenés accesos gratis para probar
             </p>
@@ -20,7 +20,7 @@
             </p>
 
             <q-btn
-              class="full-width enter-btn"
+              class="full-width pd-cta"
               unelevated
               no-caps
               label="Crear cuenta"
@@ -34,7 +34,7 @@
               label="Ya tengo cuenta"
               :to="loginTo"
             />
-          </div>
+          </PremiumGlassCard>
         </div>
       </q-page>
     </q-page-container>
@@ -46,6 +46,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { useAuthStore } from 'stores/useAuthStore'
 import { normalizeInvitationCode, pendingInvitation } from 'src/utils/pending-invitation'
+import PremiumGlassCard from 'src/components/PremiumGlassCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -75,6 +76,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 @import 'src/css/brand';
+@import 'src/css/premium-card';
 $terracotta: $brand-terracotta;
 $cream: #f2ede5;
 $charcoal: #2e2a26;
@@ -106,22 +108,8 @@ $charcoal-mid: #3d3732;
 }
 
 .brand-welcome {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 1.35rem;
-  letter-spacing: 0.08em;
-  color: $cream;
-  margin: 0 0 24px;
-  text-align: center;
-}
-
-.invitacion-card {
-  width: 100%;
-  background: rgba($charcoal-mid, 0.85);
-  border-top: 2px solid rgba($terracotta, 0.6);
-  border-radius: 8px;
-  padding: 28px 24px 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  @include pd-screen-title;
+  margin-bottom: 24px;
 }
 
 .invitacion-headline {
@@ -137,18 +125,8 @@ $charcoal-mid: #3d3732;
 .invitacion-note {
   font-size: 0.85rem;
   line-height: 1.5;
-  color: rgba($cream, 0.6);
+  color: $pd-cream-3;
   margin: 0 0 24px;
   text-align: center;
-}
-
-.enter-btn {
-  background: linear-gradient(135deg, $terracotta 0%, #855038 100%) !important;
-  color: $cream !important;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  padding: 12px 0;
-  border-radius: 6px;
 }
 </style>
