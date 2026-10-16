@@ -27,6 +27,9 @@
 --
 -- Numeracion: 0279 porque la fase 196 reserva hasta la 0278.
 --
+-- benefit varchar(12): decision UAT D6 de Franco (2026-10-16), editada antes de
+-- cualquier push.
+--
 -- Un comentario SQL NUNCA debe contener el separador de statements, el
 -- runner parte los statements crudos primero y recien despues borra los
 -- comentarios de doble guion.
@@ -39,7 +42,7 @@ CREATE TABLE `sponsor_brands` (
   `icon` varchar(40) NULL,
   `bg_color` varchar(7) NOT NULL,
   `text_color` varchar(7) NOT NULL,
-  `benefit` varchar(16) NOT NULL,
+  `benefit` varchar(12) NOT NULL,
   `detail` varchar(80) NOT NULL,
   `conditions` text NULL,
   `redeem_type` enum('code','carnet') NOT NULL,

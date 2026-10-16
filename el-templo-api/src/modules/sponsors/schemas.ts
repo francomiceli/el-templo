@@ -35,7 +35,7 @@ const sponsorBodyProperties = {
   icon: { type: ["string", "null"], pattern: "^[a-z0-9_]{1,40}$" },
   bgColor: { type: "string", pattern: HEX_COLOR_PATTERN },
   textColor: { type: "string", pattern: HEX_COLOR_PATTERN },
-  benefit: { type: "string", minLength: 1, maxLength: 16 },
+  benefit: { type: "string", minLength: 1, maxLength: 12 },
   detail: { type: "string", minLength: 1, maxLength: 80 },
   conditions: { type: ["string", "null"], maxLength: 600 },
   redeemType: { type: "string", enum: REDEEM_TYPE_ENUM },

@@ -33,7 +33,7 @@ export const sponsorRedeemTypeEnum = mysqlEnum("redeem_type", [
  * ≠ Partner (D-17).
  *
  * Nace inactiva (`isActive` false): activar pasa por el límite de D-24.
- * `benefit` se muestra a 30 px sin quiebre, por eso el tope corto de 16.
+ * `benefit` se muestra a 30 px sin quiebre, por eso el tope corto de 12 (UAT D6).
  */
 export const sponsorBrands = mysqlTable(
   "sponsor_brands",
@@ -49,7 +49,7 @@ export const sponsorBrands = mysqlTable(
     // Formato `#rrggbb`.
     bgColor: varchar("bg_color", { length: 7 }).notNull(),
     textColor: varchar("text_color", { length: 7 }).notNull(),
-    benefit: varchar("benefit", { length: 16 }).notNull(),
+    benefit: varchar("benefit", { length: 12 }).notNull(),
     detail: varchar("detail", { length: 80 }).notNull(),
     conditions: text("conditions"),
     redeemType: sponsorRedeemTypeEnum.notNull(),

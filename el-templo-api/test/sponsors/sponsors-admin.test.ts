@@ -714,9 +714,9 @@ describe("validaciones (D-19)", () => {
     expect((await brandRow(ok.id))?.name).toBe("Marca de prueba");
   });
 
-  it("largos máximos del schema: benefit de 17 y detail de 81 → 400; 16 y 80 → 201", async () => {
+  it("largos máximos del schema: benefit de 13 y detail de 81 → 400; 12 y 80 → 201", async () => {
     expect(
-      (await req("POST", "", ownerToken, body({ benefit: "x".repeat(17) })))
+      (await req("POST", "", ownerToken, body({ benefit: "x".repeat(13) })))
         .statusCode,
     ).toBe(400);
     expect(
@@ -727,9 +727,25 @@ describe("validaciones (D-19)", () => {
       "POST",
       "",
       ownerToken,
-      body({ benefit: "x".repeat(16), detail: "y".repeat(80) }),
+      body({ benefit: "x".repeat(12), detail: "y".repeat(80) }),
     );
     expect(limite.statusCode, limite.body).toBe(201);
+  });
+
+  it("PUT: benefit de 13 → 400 y la fila conserva el original, de 12 → 200", async () => {
+    const creada = await crear({ benefit: "20% OFF" });
+
+    const larga = await req("PUT", `/${creada.id}`, ownerToken, {
+      benefit: "x".repeat(13),
+    });
+    expect(larga.statusCode, larga.body).toBe(400);
+    expect((await brandRow(creada.id))?.benefit).toBe("20% OFF");
+
+    const limite = await req("PUT", `/${creada.id}`, ownerToken, {
+      benefit: "x".repeat(12),
+    });
+    expect(limite.statusCode, limite.body).toBe(200);
+    expect((await brandRow(creada.id))?.benefit).toBe("x".repeat(12));
   });
 
   it("bgColor/textColor que no son #rrggbb → 400 (schema)", async () => {
