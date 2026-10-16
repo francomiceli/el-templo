@@ -137,7 +137,7 @@ import { getRouteName } from 'src/modules/training/utils/routeNames'
 import type { Session } from 'src/modules/training/types/session'
 import TodayCard from '../components/TodayCard.vue'
 import ProgramSheet from '../components/ProgramSheet.vue'
-import { resolveTodayCard } from '../utils/today-card'
+import { pickNextRoute, resolveTodayCard } from '../utils/today-card'
 import type { CheckInAnswers } from '../utils/check-in-summary'
 import GeneralContent from '../components/GeneralContent.vue'
 import ProgramCtaCard from 'src/modules/programs/components/ProgramCtaCard.vue'
@@ -228,6 +228,13 @@ function routeNameOf(session: Session | null | undefined): string | null {
 }
 
 const todayRouteName = computed(() => routeNameOf(weekSessions.value.get(todayStr.value)))
+
+// "Próxima: <plani>" (card sin clase reservada): hoy o el próximo día cargado con sesión.
+const nextRouteName = computed(() => {
+  const routeByDate = new Map<string, string | null>()
+  for (const [date, session] of weekSessions.value) routeByDate.set(date, routeNameOf(session))
+  return pickNextRoute(todayStr.value, routeByDate)
+})
 
 const isVirtual = computed(() => userStore.profile?.branchIsVirtual ?? false)
 
@@ -355,6 +362,7 @@ const todayCard = computed(() => {
     minutesToStart: todayBookingStore.minutesToStart,
     attendanceMarkedAt: todayBookingStore.attendanceMarkedAt,
     waitlistTime: waitlist ? formatHHMM(waitlist.startTime) : null,
+    nextRoute: nextRouteName.value,
     nextBooking: next
       ? {
           date: next.bookingDate,

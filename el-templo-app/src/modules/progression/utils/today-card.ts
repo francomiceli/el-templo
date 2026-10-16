@@ -104,6 +104,11 @@ export interface TodayCardInput {
   minutesToStart: number | null
   attendanceMarkedAt: string | null
   waitlistTime: string | null
+  /**
+   * Plani de hoy si existe; si no, la del próximo día cargado con sesión (ver `pickNextRoute`).
+   * Solo la usa `presencial-sin-turno` ("Próxima: <plani>"); null → respaldo "Elegí día, horario y sede".
+   */
+  nextRoute: string | null
   nextBooking: { date: string; time: string; branchName: string } | null
   program: {
     programName: string
@@ -166,6 +171,25 @@ export function formatNextClassTitle(dateStr: string, time: string): string {
   const weekday = WEEKDAY_FMT.format(Date.UTC(p.y, p.m - 1, p.d))
   const capitalized = weekday.charAt(0).toUpperCase() + weekday.slice(1)
   return `${capitalized} ${p.d} · ${hhmm(time)}`
+}
+
+/**
+ * Plani a mostrar en "Próxima: …": la de HOY si tiene nombre; si no, la del primer día
+ * posterior a hoy (orden cronológico) con plani. PURA: `routeByDate` es fecha "YYYY-MM-DD"
+ * → nombre de la plani (null si ese día no tiene sesión). Las fechas anteriores a hoy se ignoran.
+ */
+export function pickNextRoute(
+  todayStr: string,
+  routeByDate: ReadonlyMap<string, string | null>,
+): string | null {
+  const today = routeByDate.get(todayStr)
+  if (today) return today
+  const later = [...routeByDate.keys()].filter((d) => d > todayStr).sort()
+  for (const date of later) {
+    const name = routeByDate.get(date)
+    if (name) return name
+  }
+  return null
 }
 
 // ── Piezas reutilizables ──
@@ -331,7 +355,9 @@ function presencialProxima(
 function presencialSinTurno(input: TodayCardInput): TodayCardModel {
   const meta: TodayCardText = input.waitlistTime
     ? [{ text: `Estás en lista de espera · ${hhmm(input.waitlistTime)}` }]
-    : [{ text: 'Elegí día, horario y sede' }]
+    : input.nextRoute
+      ? [{ text: 'Próxima: ' }, { text: input.nextRoute, strong: true }]
+      : [{ text: 'Elegí día, horario y sede' }]
   return emptyModel('presencial-sin-turno', KICKER_SIN_TURNO, 'Reservá tu clase', {
     meta,
     primary: { label: 'Reservar', to: '/reservas' },

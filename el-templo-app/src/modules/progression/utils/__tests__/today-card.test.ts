@@ -4,6 +4,7 @@ import {
   formatLongDate,
   formatNextClassTitle,
   shortBranchName,
+  pickNextRoute,
   type TodayCardInput,
   type TodayCardModel,
 } from '../today-card'
@@ -42,6 +43,7 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     minutesToStart: null,
     attendanceMarkedAt: null,
     waitlistTime: null,
+    nextRoute: null,
     nextBooking: null,
     program: null,
     hasExtraPrograms: false,
@@ -446,20 +448,33 @@ describe('resolveTodayCard — presencial: próxima clase (C1)', () => {
 })
 
 describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () => {
-  it('copy: "Sin clase reservada", "Reservá tu clase", "Elegí día, horario y sede", Reservar y sin secundario', () => {
-    const m = resolveTodayCard(baseInput())
+  it('copy: "Sin clase reservada", "Reservá tu clase", "Próxima: <plani>" (plani de hoy), Reservar y sin secundario', () => {
+    const m = resolveTodayCard(baseInput({ nextRoute: 'Muscle Up' }))
     expect(m.kind).toBe('presencial-sin-turno')
     expect(m.kicker).toBe('Sin clase reservada')
     expect(m.title).toBe('Reservá tu clase')
-    expect(flat(m.meta)).toBe('Elegí día, horario y sede')
+    expect(flat(m.meta)).toBe('Próxima: Muscle Up')
+    expect(m.meta?.[1]).toEqual({ text: 'Muscle Up', strong: true })
     expect(m.primary).toEqual({ label: 'Reservar', to: '/reservas' })
     expect(m.secondary).toBeNull()
   })
 
-  it('es la misma card con o sin sesión hoy', () => {
-    const conRuta = resolveTodayCard(baseInput({ todayRoute: 'Muscle Up' }))
-    const sinRuta = resolveTodayCard(baseInput({ todayRoute: null }))
-    expect(sinRuta).toEqual(conRuta)
+  it('sin plani hoy pero con un día siguiente: "Próxima: <plani de ese día>"', () => {
+    const m = resolveTodayCard(baseInput({ todayRoute: null, nextRoute: 'Press to Handstand' }))
+    expect(flat(m.meta)).toBe('Próxima: Press to Handstand')
+    expect(m.meta?.[1]).toEqual({ text: 'Press to Handstand', strong: true })
+  })
+
+  it('sin ninguna plani (nextRoute null): respaldo "Elegí día, horario y sede"', () => {
+    const m = resolveTodayCard(baseInput({ todayRoute: null, nextRoute: null }))
+    expect(m.kind).toBe('presencial-sin-turno')
+    expect(m.meta).toEqual([{ text: 'Elegí día, horario y sede' }])
+  })
+
+  it('el resto de la card no depende de la plani (solo cambia la meta)', () => {
+    const conRuta = resolveTodayCard(baseInput({ todayRoute: 'Muscle Up', nextRoute: 'Muscle Up' }))
+    const sinRuta = resolveTodayCard(baseInput({ todayRoute: null, nextRoute: null }))
+    expect({ ...sinRuta, meta: null }).toEqual({ ...conRuta, meta: null })
   })
 
   it('domingo: misma card, kicker "Sin clase reservada", sin descanso ni "Ver la sesión"', () => {
@@ -476,7 +491,7 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
   })
 
   it('lista de espera → "Estás en lista de espera · 19:00", título y botón igual', () => {
-    const m = resolveTodayCard(baseInput({ waitlistTime: '19:00' }))
+    const m = resolveTodayCard(baseInput({ waitlistTime: '19:00', nextRoute: 'Muscle Up' }))
     expect(m.kind).toBe('presencial-sin-turno')
     expect(m.title).toBe('Reservá tu clase')
     expect(flat(m.meta)).toBe('Estás en lista de espera · 19:00')
@@ -938,6 +953,42 @@ describe('resolveTodayCard — programas extra', () => {
       baseInput({ subscription: null, planStatus: planStatus(), hasExtraPrograms: true }),
     )
     expect(m.tertiary).toBeNull()
+  })
+})
+
+describe('pickNextRoute', () => {
+  const week = (entries: [string, string | null][]) => new Map(entries)
+
+  it('la plani de hoy gana sobre las de días siguientes', () => {
+    const routes = week([
+      ['2026-10-15', 'Muscle Up'],
+      ['2026-10-16', 'Press to Handstand'],
+    ])
+    expect(pickNextRoute('2026-10-15', routes)).toBe('Muscle Up')
+  })
+
+  it('sin plani hoy toma el próximo día (> hoy, en orden) con plani, salteando los vacíos', () => {
+    const routes = week([
+      ['2026-10-17', 'Piernas'],
+      ['2026-10-16', null],
+      ['2026-10-15', null],
+      ['2026-10-18', 'Domingo'],
+    ])
+    expect(pickNextRoute('2026-10-15', routes)).toBe('Piernas')
+  })
+
+  it('ignora días anteriores a hoy', () => {
+    const routes = week([
+      ['2026-10-13', 'Martes'],
+      ['2026-10-14', 'Miércoles'],
+      ['2026-10-15', null],
+    ])
+    expect(pickNextRoute('2026-10-15', routes)).toBeNull()
+  })
+
+  it('sin ninguna plani (o mapa vacío) → null', () => {
+    expect(pickNextRoute('2026-10-15', week([]))).toBeNull()
+    expect(pickNextRoute('2026-10-15', week([['2026-10-16', null]]))).toBeNull()
   })
 })
 
