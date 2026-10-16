@@ -7,6 +7,7 @@ import { api } from 'src/boot/axios'
 import type {
   WeeklySlotView,
   BookingRecord,
+  MyBookingRecord,
   HolidayRecord,
   AttendanceWeekRecord,
 } from 'src/types/scheduling'
@@ -19,8 +20,25 @@ interface WeeklyGridResponse {
   branchTimezone: string
 }
 
-interface MyBookingsResponse {
-  bookings: BookingRecord[]
+export interface MyBookingsResponse {
+  bookings: MyBookingRecord[]
+}
+
+/**
+ * `GET /members/scheduling/my-bookings` (rango lunes..sábado de `weekStart`).
+ * Función pura de módulo, sin estado: la URL vive SOLO acá y la reusan el
+ * composable y `useTodayBookingStore` (que pide dos semanas en paralelo y por
+ * eso no puede usar el `abortController` de un solo slot del composable).
+ */
+export async function fetchMyBookings(
+  weekStart: string,
+  signal?: AbortSignal,
+): Promise<MyBookingsResponse> {
+  const response = await api.get<MyBookingsResponse>('/members/scheduling/my-bookings', {
+    params: { weekStart },
+    signal,
+  })
+  return response.data
 }
 
 export interface BranchOption {
@@ -129,11 +147,7 @@ export function useSchedulingApi() {
   }
 
   async function getMyBookings(weekStart: string): Promise<MyBookingsResponse> {
-    const response = await api.get<MyBookingsResponse>('/members/scheduling/my-bookings', {
-      params: { weekStart },
-      signal: getSignal(),
-    })
-    return response.data
+    return fetchMyBookings(weekStart, getSignal())
   }
 
   async function getTrialEligibility(): Promise<TrialEligibility> {
