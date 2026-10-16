@@ -280,8 +280,9 @@ $particle-colors: $bronze, $amber;
   text-align: center;
 }
 
-// El verde de WhatsApp conserva su identidad; forma, tipografía y destello vienen de `pd-cta`.
+// El verde de WhatsApp conserva su identidad pero oscurecido (blanco encima 5.3:1 a 6.5:1; el
+// #25d366 de la marca daba 2:1). Forma, tipografía y destello vienen de `pd-cta`.
 .recommendation-cta--whatsapp {
-  background: linear-gradient(135deg, #25d366 0%, #128c7e 100%) !important;
+  background: linear-gradient(135deg, $pd-wa-a 0%, $pd-wa-b 100%) !important;
 }
 </style>
