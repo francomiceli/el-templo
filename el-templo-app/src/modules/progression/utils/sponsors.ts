@@ -4,10 +4,10 @@
 
 /**
  * Cada cuánto avanza solo el carrusel a la marca siguiente.
- * D-23: 2 s según el brief; el sketch probó 2 s / 4 s — se decide en UAT con Franco.
+ * D-23: 4 s, decisión de Franco en el UAT de 199-21 (D1).
  * Cambiar SOLO esta constante.
  */
-export const SPONSOR_ADVANCE_MS = 2000
+export const SPONSOR_ADVANCE_MS = 4000
 
 /** Tras tocar o arrastrar el carrusel, el auto-avance retoma a los 3 s (D-23). */
 export const SPONSOR_TOUCH_PAUSE_MS = 3000
@@ -26,6 +26,44 @@ export function monogram(name: string): string {
     .map((w) => Array.from(w)[0])
     .join('')
     .toUpperCase()
+}
+
+/** Piso del tamaño del beneficio (px): bajo este valor solo queda la elipsis del CSS. */
+export const SPONSOR_BENEFIT_MIN_PX = 16
+
+/**
+ * Tamaño inicial (px) del beneficio según su largo en caracteres (no en bytes):
+ * hasta 8 → 30, 9-10 → 26, 11 o más → 22.
+ *
+ * El beneficio nunca se corta (UAT D6): arranca en un escalón por largo y se ajusta
+ * midiendo el elemento real (`fitBenefitFontPx`), porque glifos anchos (M, W) no entran
+ * con un tamaño fijo. La elipsis del CSS queda solo como red bajo el piso.
+ * Espejo de `utils/sponsors.ts` del admin: la vista previa tiene que verse igual
+ * que la card. Cambiar los dos juntos.
+ */
+export function sponsorBenefitFontPx(benefit: string): number {
+  const len = Array.from(benefit.trim()).length
+  if (len <= 8) return 30
+  if (len <= 10) return 26
+  return 22
+}
+
+/**
+ * Ajuste por medición: devuelve el primer tamaño desde `startPx` bajando de a 1 px
+ * para el que `fits(px)` es verdadero. Si ninguno entra, devuelve `floorPx`. Nunca
+ * devuelve más que `startPx`.
+ * Espejo de `utils/sponsors.ts` del admin.
+ */
+export function fitBenefitFontPx(
+  startPx: number,
+  fits: (px: number) => boolean,
+  floorPx = SPONSOR_BENEFIT_MIN_PX,
+): number {
+  if (startPx <= floorPx) return startPx
+  for (let px = startPx; px >= floorPx; px--) {
+    if (fits(px)) return px
+  }
+  return floorPx
 }
 
 /** Qué muestra la pastilla de canje de una card (D-21/D-23). */

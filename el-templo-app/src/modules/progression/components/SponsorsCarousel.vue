@@ -8,6 +8,8 @@
        SPONSOR_TOUCH_PAUSE_MS), con la pestaña oculta, fuera de pantalla o con
        prefers-reduced-motion (L47). Nunca dos timers.
      - Misma card que `SponsorCardPreview.vue` del admin (L49).
+     - El beneficio (máx. 12 caracteres) nunca se corta (UAT D6): su tamaño arranca en un
+       escalón por largo y se ajusta midiendo el elemento real (`fitBenefitFontPx`).
      - Textos con `{{ }}` (Vue escapa); PROHIBIDO el HTML crudo de Vue (T-199-47).
      - El tap emite `open`; la hoja de detalle y el carnet los conecta el plan 19. -->
 <template>
@@ -58,7 +60,7 @@
         </div>
         <div class="sp-deal">
           <div class="sp-deal__text">
-            <b class="sp-benefit">{{ s.benefit }}</b>
+            <b :ref="(el) => setBenefitEl(s.id, el)" class="sp-benefit">{{ s.benefit }}</b>
             <span class="sp-detail">{{ s.detail }}</span>
           </div>
           <span class="sp-how">
@@ -95,7 +97,9 @@ import { useInViewport } from 'src/composables/useInViewport'
 import {
   SPONSOR_ADVANCE_MS,
   SPONSOR_TOUCH_PAUSE_MS,
+  fitBenefitFontPx,
   monogram,
+  sponsorBenefitFontPx,
   sponsorRedeemPill,
   type SponsorRedeemPill,
 } from '../utils/sponsors'
@@ -127,6 +131,50 @@ watch(count, (n) => {
 function redeemPill(s: Sponsor): SponsorRedeemPill {
   return sponsorRedeemPill(s, store.canRedeem)
 }
+
+// ── Tamaño del beneficio: ajuste por medición (UAT D6) ────────────────────────
+// Mismo algoritmo, umbrales y piso que `SponsorCardPreview.vue` del admin (L15/L16):
+// cambiar los dos juntos. Las cards no activas van a scale(.94): el transform no cambia
+// clientWidth/scrollWidth, así que la medición es la del layout real.
+const benefitEls = new Map<number, HTMLElement>()
+let resizeObserver: ResizeObserver | null = null
+let observedWidth = -1
+let disposed = false
+
+function setBenefitEl(id: number, el: unknown): void {
+  if (el instanceof HTMLElement) benefitEls.set(id, el)
+  else benefitEls.delete(id)
+}
+
+function fitAllBenefits(): void {
+  for (const s of sponsors.value) {
+    const el = benefitEls.get(s.id)
+    if (!el) continue
+    const px = fitBenefitFontPx(sponsorBenefitFontPx(s.benefit), (candidate) => {
+      el.style.fontSize = `${candidate}px`
+      return el.scrollWidth <= el.clientWidth + 1
+    })
+    el.style.fontSize = `${px}px`
+  }
+}
+
+// Al cambiar las marcas (o su texto) se re-mide con el DOM ya actualizado.
+watch(sponsors, fitAllBenefits, { flush: 'post' })
+
+// El track existe solo con marcas: el observer sigue su ancho (no su alto, que cambia al
+// achicar la letra y no debe disparar otra medición).
+watch(trackEl, (el) => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  if (!el || typeof ResizeObserver === 'undefined') return
+  resizeObserver = new ResizeObserver(() => {
+    const width = trackEl.value?.clientWidth ?? 0
+    if (width === observedWidth) return
+    observedWidth = width
+    fitAllBenefits()
+  })
+  resizeObserver.observe(el)
+})
 
 // ── Estado del entorno: pestaña visible, reduced-motion, sección en pantalla ──
 const pageVisible = ref(!document.hidden)
@@ -301,9 +349,18 @@ onMounted(() => {
     motionQuery.addEventListener('change', onMotionChange)
   }
   if (sectionEl.value) observe(sectionEl.value)
+  fitAllBenefits()
+  // Cuando cargan las fuentes cambian los anchos de los glifos: se vuelve a medir una vez.
+  void document.fonts?.ready.then(() => {
+    if (!disposed) fitAllBenefits()
+  })
 })
 
 onUnmounted(() => {
+  disposed = true
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  benefitEls.clear()
   clearTimer()
   clearPauseTimer()
   if (raf !== null) cancelAnimationFrame(raf)
