@@ -18,6 +18,10 @@
       <!-- Notification Permission Banner (per D-24) -->
       <PermissionBanner />
 
+      <!-- Card de hoy (D-03, variante A'): reemplaza a las 4 cards viejas del día (sesión,
+           turno, descanso y programa). Solo pinta el modelo de resolveTodayCard. -->
+      <TodayCard :model="todayCard" @open-program="programSheetOpen = true" />
+
       <!-- Novedades (D-9): después del banner y antes del carrusel premium.
            Sin novedades no renderiza nada (D-8) y es fail-open (D-12). -->
       <NovedadesCard />
@@ -60,17 +64,6 @@
         </div>
       </div>
 
-      <!-- Program/Premium card — non-linked program, OR linked-program member
-           with at least one extra enrollment (admin add-on, bundle, etc) so
-           the dropdown can surface those alternatives. Phase 112: without the
-           multi-enrollment branch, presencial+linked members would have no
-           UI surface to reach an admin-assigned addon. -->
-      <ProgramProgressCard
-        v-if="programProgressCard"
-        :progress="programProgressCard"
-        @program-changed="onProgramChanged"
-      />
-
       <!-- Check-in Cards — horizontal swipeable row (Phase 82) -->
       <template v-if="orderedCheckIns.length > 0">
         <p class="mi-templo__section-title">Registro del día</p>
@@ -95,26 +88,6 @@
             <q-icon name="chevron_right" size="20px" />
           </button>
         </div>
-      </template>
-
-      <!-- Tu Dia Cards — ordered by segment -->
-      <template v-for="card in cardOrder" :key="card">
-        <template v-if="card === 'session'">
-          <RestDayCard v-if="showRestDay" />
-          <SessionCtaCard
-            v-else
-            :today-completed="todayCompleted"
-            :today-session="progressionStore.todaySession"
-            :route-name="todayRouteName"
-            :is-goal-plan="isGoalPlan"
-            :check-in-message="checkInMessage"
-          />
-        </template>
-        <BookingStatusCard
-          v-if="card === 'booking' && showReservaCta"
-          :has-booking="false"
-          :next-class-time="null"
-        />
       </template>
 
       <!-- Weekly Summary -->
@@ -146,6 +119,15 @@
       <!-- Daily quote — scroll closure -->
       <DailyQuote />
     </div>
+
+    <!-- Hoja "Mi programa": selector de programa, bloques de contenido y aviso de renovación
+         (antes ProgramProgressCard suelto en la pila). Programa: non-linked, o linked con
+         al menos un enrollment extra (Phase 112). -->
+    <ProgramSheet
+      v-model="programSheetOpen"
+      :progress="programProgress"
+      @program-changed="onProgramChanged"
+    />
   </q-page>
 </template>
 
@@ -157,7 +139,7 @@
  * booking status, weekly progress, weekly summary, and existing
  * stats/RPE trend/evaluation sections.
  */
-import { computed, ref, onMounted, type Ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, type Ref } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import DailyQuote from '../components/DailyQuote.vue'
 import { useProgressionStore } from '../stores/progressionStore'
@@ -169,13 +151,13 @@ import { useUserStore } from 'src/stores/useUserStore'
 import { MEMBER_TREE_ENABLED } from 'src/config/featureFlags'
 import { useWeekData } from 'src/modules/training/composables/useWeekData'
 import { getRouteName } from 'src/modules/training/utils/routeNames'
-import SessionCtaCard from '../components/SessionCtaCard.vue'
-import BookingStatusCard from '../components/BookingStatusCard.vue'
-import RestDayCard from '../components/RestDayCard.vue'
+import type { Session } from 'src/modules/training/types/session'
+import TodayCard from '../components/TodayCard.vue'
+import ProgramSheet from '../components/ProgramSheet.vue'
+import { resolveTodayCard } from '../utils/today-card'
 import WeeklySummaryCard from '../components/WeeklySummaryCard.vue'
 import GeneralContent from '../components/GeneralContent.vue'
 import ProgramCtaCard from 'src/modules/programs/components/ProgramCtaCard.vue'
-import ProgramProgressCard from 'src/modules/programs/components/ProgramProgressCard.vue'
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
@@ -187,6 +169,10 @@ import AvisoCard from '../components/AvisoCard.vue'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { useNovedadesStore } from 'src/stores/useNovedadesStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
+import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
+import { useSchedulingApi } from 'src/composables/useSchedulingApi'
+import { addDaysStr, formatHHMM, weekStartsFor } from 'src/utils/check-in-window'
+import { dowInTz, todayInTz } from 'src/utils/tz'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
 
@@ -199,9 +185,17 @@ const avisosStore = useAvisosStore()
 const novedadesStore = useNovedadesStore()
 const { fetchStats, requestEvaluation, fetchWeeklySummary } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
-const { sessions: weekSessions, fetchWeekSessions } = useWeekData()
+const todayBookingStore = useTodayBookingStore()
+const schedulingApi = useSchedulingApi()
+const { sessions: weekSessions, error: weekError, fetchWeekSessions } = useWeekData()
+// Domingo: "mañana" cae en la semana siguiente (otra instancia, cada una guarda UNA semana).
+const { sessions: nextWeekSessions, fetchWeekSessions: fetchNextWeekSessions } = useWeekData()
 const { getMyProgress } = useProgramsApi()
 const programProgress = ref<MemberEnrollmentProgress | null>(null)
+const programSheetOpen = ref(false)
+// El fetch de la semana terminó OK: sin esto la card no afirma "Hoy descansás" (plan 14).
+const weekLoaded = ref(false)
+const trialEligible = ref(false)
 const checkInsRowRef = ref<HTMLElement | null>(null)
 const premiumScroller = ref<HTMLElement | null>(null) as Ref<HTMLElement | null>
 const premiumSlide = ref(0)
@@ -251,55 +245,31 @@ function onPremiumScroll() {
   premiumSlide.value = Math.min(Math.max(index, 0), premiumSlideCount.value - 1)
 }
 
-const todayStr = computed(() => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-})
+// D-04: "hoy", día de la semana y semana actual en la zona de la SEDE, nunca la del teléfono.
+const tz = computed(() => todayBookingStore.tz)
+const todayStr = computed(() => todayInTz(tz.value, todayBookingStore.now))
+const dow = computed(() => dowInTz(tz.value, todayBookingStore.now))
+const tomorrowStr = computed(() => addDaysStr(todayStr.value, 1))
 
-const todayRouteName = computed(() => {
-  const session = weekSessions.value.get(todayStr.value)
+function routeNameOf(session: Session | null | undefined): string | null {
   if (!session || !session.blocks || session.blocks.length === 0) return null
   const mainBlock = session.blocks.find((b) => b.role === 'NUCLEUS') || session.blocks[0]
   return getRouteName(mainBlock.route)
+}
+
+const todayRouteName = computed(() => routeNameOf(weekSessions.value.get(todayStr.value)))
+
+const tomorrowRoute = computed(() => {
+  const source = dow.value === 7 ? nextWeekSessions.value : weekSessions.value
+  return routeNameOf(source.get(tomorrowStr.value))
 })
 
-const isRestDay = computed(() => {
-  const d = new Date()
-  const dayOfWeek = d.getDay()
-  // Sunday = 0 is rest day
-  if (dayOfWeek === 0) return true
-  // If weekly data loaded and today has no session
-  if (weekSessions.value.size > 0 && !weekSessions.value.get(todayStr.value)) return true
-  return false
-})
+const isVirtual = computed(() => userStore.profile?.branchIsVirtual ?? false)
 
-const showRestDay = computed(() => {
-  if (userStore.profile?.branchIsVirtual && !userStore.hasActiveSubscription) {
-    return false
-  }
-  return isRestDay.value
-})
-
-const showUpsellBadge = computed(() => {
-  return userStore.profile?.branchIsVirtual ?? false
-})
+const showUpsellBadge = computed(() => isVirtual.value)
 
 const todayCompleted = computed(() => {
   return progressionStore.todaySession?.completed ?? false
-})
-
-const isGoalPlan = computed(() => {
-  return userStore.hasActiveGoalPlan
-})
-
-const showReservaCta = computed(() => {
-  return !userStore.profile?.branchIsVirtual
-})
-
-type CardId = 'session' | 'booking'
-
-const cardOrder = computed((): CardId[] => {
-  return ['booking', 'session']
 })
 
 const orderedCheckIns = computed((): CheckInQuestionConfig[] => {
@@ -353,21 +323,26 @@ async function handleRequestEvaluation() {
   await requestEvaluation()
 }
 
+// Lunes..domingo de la semana actual / siguiente, a partir de la fecha de la sede.
+function weekDatesFrom(monday: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => addDaysStr(monday, i))
+}
+
 function currentWeekDates(): string[] {
-  const now = new Date()
-  const dayOfWeek = now.getDay()
-  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-  const monday = new Date(now)
-  monday.setDate(now.getDate() + diffToMonday)
-  const dates: string[] = []
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    dates.push(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-    )
-  }
-  return dates
+  return weekDatesFrom(weekStartsFor(todayStr.value)[0])
+}
+
+function nextWeekDates(): string[] {
+  return weekDatesFrom(weekStartsFor(todayStr.value)[1])
+}
+
+/** Semana actual (+ la siguiente los domingos, para "Mañana: ...") y bandera de carga OK. */
+async function loadWeeks(): Promise<void> {
+  await fetchWeekSessions(currentWeekDates())
+  // useWeekData no lanza: deja `error` y la semana vacía. Si falló, weekLoaded queda false
+  // y la card no dice "Hoy descansás" por error.
+  weekLoaded.value = weekError.value === null
+  if (dow.value === 7) await fetchNextWeekSessions(nextWeekDates())
 }
 
 async function loadProgramProgress(): Promise<void> {
@@ -383,8 +358,91 @@ async function onProgramChanged(): Promise<void> {
   // Bundle members switching programs from the home card. Re-fetch progress
   // (the my-progress endpoint follows the server-side current-program pointer)
   // and the week sessions so today's route + day cards reflect the new program.
-  await Promise.all([loadProgramProgress(), fetchWeekSessions(currentWeekDates())])
+  await Promise.all([loadProgramProgress(), loadWeeks()])
 }
+
+async function loadTrialEligibility(): Promise<void> {
+  try {
+    const eligibility = await schedulingApi.getTrialEligibility()
+    trialEligible.value = eligibility.eligible && !eligibility.alreadyBooked
+  } catch (err: unknown) {
+    // Fail-open: sin dato no se ofrece la clase de prueba, la card sigue con su gate por defecto.
+    trialEligible.value = false
+    log.warn('Failed to load trial eligibility', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+// Plan-status y prueba gratis SOLO cuando la suscripción terminó de cargar sin plan activo
+// (si todavía carga, esperamos: nunca decidimos "sin plan" por una carrera). L37.
+watch(
+  () => userStore.subscriptionLoaded && !userStore.subscriptionLoading,
+  (ready) => {
+    if (!ready || userStore.hasActiveSubscription) return
+    void userStore.loadPlanStatus()
+    if (!isVirtual.value) void loadTrialEligibility()
+  },
+  { immediate: true },
+)
+
+// D-03: el modelo de la card sale de una función pura; acá solo se arma el input.
+const todayCard = computed(() => {
+  const sub = userStore.subscription
+  const booking = todayBookingStore.todayBooking
+  const waitlist = todayBookingStore.todayWaitlist
+  const next = todayBookingStore.nextBooking
+  const profileBranch = userStore.profile?.branchName ?? ''
+  const program = isVirtual.value ? programProgress.value : null
+  return resolveTodayCard({
+    todayStr: todayStr.value,
+    dow: dow.value,
+    firstName: userStore.profile?.firstName ?? null,
+    branchName: profileBranch,
+    isVirtual: isVirtual.value,
+    subscription: sub
+      ? { status: sub.status, planName: sub.planName, startDate: sub.startDate }
+      : null,
+    planStatus: userStore.planStatus,
+    planLoading: userStore.planStateLoading,
+    todayRoute: todayRouteName.value,
+    tomorrowRoute: tomorrowRoute.value,
+    todayCompleted: todayCompleted.value,
+    todaySession: progressionStore.todaySession,
+    booking: booking
+      ? {
+          time: formatHHMM(booking.startTime),
+          branchName: booking.branchName ?? profileBranch,
+          activityName: booking.activityName,
+          status: booking.status,
+        }
+      : null,
+    windowState: todayBookingStore.windowState,
+    minutesToStart: todayBookingStore.minutesToStart,
+    attendanceMarkedAt: todayBookingStore.attendanceMarkedAt,
+    waitlistTime: waitlist ? formatHHMM(waitlist.startTime) : null,
+    nextBooking: next
+      ? {
+          date: next.bookingDate,
+          time: formatHHMM(next.startTime),
+          branchName: next.branchName ?? profileBranch,
+        }
+      : null,
+    program: program
+      ? {
+          programName: program.programName,
+          currentWeek: program.currentWeek,
+          durationWeeks: program.durationWeeks,
+          sessionsCompletedThisWeek: program.sessionsCompletedThisWeek,
+          sessionsPerWeekToAdvance: program.sessionsPerWeekToAdvance,
+        }
+      : null,
+    hasExtraPrograms: programProgressCard.value !== null && !isVirtual.value,
+    checkInMessage: checkInMessage.value,
+    trialEligible: trialEligible.value,
+    weekLoaded: weekLoaded.value,
+  })
+})
 
 onMounted(async () => {
   fetchStats()
@@ -398,19 +456,30 @@ onMounted(async () => {
   // pull-to-refresh en esta página, así que no hay un segundo punto de carga.
   void novedadesStore.load()
 
+  // Fase 199: Mi Templo carga la suscripción al montar porque el login no lo hace
+  // (boot/auth.ts solo la dispara al arrancar con sesión): sin esto, tras un login
+  // sin reinicio un socio con plan vería "Arrancá tu plan". Sin await y DESPUÉS de los
+  // fetch de arriba para no demorar el loader; la card muestra su skeleton mientras carga.
+  // Misma guarda que PlanesPage/TrainingIndex.
+  if (!userStore.subscription && !userStore.subscriptionLoading) {
+    void userStore.loadSubscription()
+  }
+
   // Hydrate active enrollments so the program dropdown on ProgramProgressCard
-  // appears on first load. loadSubscription is only called from /training,
-  // /reservas, /profile, /planes — without this, the dropdown would only
-  // light up after visiting one of those pages.
+  // (hoja "Mi programa") appears on first load.
   await Promise.all([loadProgramProgress(), userStore.fetchCurrentProgram()])
 
-  fetchWeekSessions(currentWeekDates())
+  void loadWeeks()
 
   // Handle pending deep link from notification tap (per D-30)
   const pendingRoute = notificationStore.consumePendingRoute()
   if (pendingRoute && pendingRoute !== '/mi-templo') {
     router.push(pendingRoute)
   }
+})
+
+onUnmounted(() => {
+  schedulingApi.cleanup()
 })
 </script>
 
