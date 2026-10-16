@@ -276,7 +276,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useQuasar, type QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import {
@@ -294,6 +294,7 @@ import PartnerQrDialog from 'src/components/partners/PartnerQrDialog.vue';
 import PartnerConversionsTable from 'src/components/partners/PartnerConversionsTable.vue';
 import PartnerSettleDialog from 'src/components/partners/PartnerSettleDialog.vue';
 import SponsorsTab from 'src/components/sponsors/SponsorsTab.vue';
+import { useSponsorsApi } from 'src/composables/useSponsorsApi';
 import type { SponsorPrefill } from 'src/components/sponsors/SponsorEditorDialog.vue';
 
 const log = createLogger('PartnersPage');
@@ -331,8 +332,30 @@ function onCountryChange() {
 
 const activeTab = ref('partners');
 
-// D-26: solo owner/admin; el gate real es el API (isTemploPlatformAdmin, tenant El Templo).
-const canManageSponsors = computed(() => ['owner', 'admin'].includes(authStore.user?.role ?? ''));
+// D-26 / REVIEW-admin WR-03: la gestión de patrocinadores es SOLO de los admins de El Templo
+// (la plataforma carga las marcas; los otros gimnasios solo las consumen). El gate real es el
+// API (`isTemploPlatformAdmin`: rol de admin Y tenant El Templo). El front no conoce el tenant
+// del usuario, así que además del rol owner/admin se usa el resultado de la primera llamada
+// (`canManage`: 200/403): mientras no responde, o si responde 403, no se muestra la pestaña
+// ni el botón `add_card` ni se puede abrir el editor.
+const sponsorsApi = useSponsorsApi();
+const hasSponsorRole = computed(() => ['owner', 'admin'].includes(authStore.user?.role ?? ''));
+const sponsorsAllowed = ref(false);
+const canManageSponsors = computed(() => hasSponsorRole.value && sponsorsAllowed.value);
+
+watch(
+  hasSponsorRole,
+  (hasRole) => {
+    if (!hasRole) {
+      sponsorsAllowed.value = false;
+      return;
+    }
+    void sponsorsApi.canManage().then((allowed) => {
+      sponsorsAllowed.value = allowed;
+    });
+  },
+  { immediate: true }
+);
 
 // Atajo de la fila (add_card): precarga el editor de patrocinadores desde un partner.
 const sponsorPrefill = ref<SponsorPrefill | null>(null);

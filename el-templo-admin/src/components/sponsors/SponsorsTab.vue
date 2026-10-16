@@ -213,7 +213,9 @@
       </q-table>
     </template>
 
+    <!-- Sin acceso (403) el editor no existe: ni abrirlo desde el prefill de un partner. -->
     <SponsorEditorDialog
+      v-if="!forbidden"
       v-model="editorOpen"
       :sponsor="editing"
       :prefill="activePrefill"
@@ -447,6 +449,10 @@ watch(
   () => props.prefill,
   (prefill) => {
     if (!prefill) return;
+    if (forbidden.value) {
+      emit('prefill-consumed');
+      return;
+    }
     editing.value = null;
     activePrefill.value = prefill;
     editorOpen.value = true;

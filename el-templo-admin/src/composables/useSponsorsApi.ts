@@ -165,6 +165,27 @@ export function useSponsorsApi() {
     }
   }
 
+  /**
+   * ¿El usuario puede administrar patrocinadores? Solo los admins de El Templo (el API
+   * autoriza con `isTemploPlatformAdmin`: rol de admin Y tenant El Templo) y el front no
+   * conoce el tenant, así que se pregunta al API con la ruta más liviana: 200 → sí,
+   * 403 → no (sin log de error: para un admin de otro gimnasio es lo esperado). Cualquier
+   * otro fallo (red, 5xx) devuelve true: no esconde la función por un error transitorio y
+   * cada ruta igual valida en el server.
+   */
+  async function canManage(): Promise<boolean> {
+    try {
+      await api.get(`${SPONSORS_BASE}/settings`);
+      return true;
+    } catch (err: unknown) {
+      if (isForbidden(err)) return false;
+      log.warn('canManage check failed, assuming access', {
+        error: extractError(err, 'Error verificando el acceso a patrocinadores'),
+      });
+      return true;
+    }
+  }
+
   async function updateSettings(
     maxActivePerCountry: number
   ): Promise<{ maxActivePerCountry: number }> {
@@ -204,6 +225,7 @@ export function useSponsorsApi() {
     update,
     remove,
     getSettings,
+    canManage,
     updateSettings,
     uploadLogo,
     isForbidden,
