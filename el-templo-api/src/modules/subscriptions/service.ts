@@ -6403,6 +6403,33 @@ export class SubscriptionService {
   ): Promise<void> {
     const today = new Date().toISOString().split("T")[0];
 
+    // Reparación al leer (fix 2026-10-15): si una sucesora ya está `active`
+    // y su predecesora sigue `active` en su último día (estado que dejaba el
+    // cron antes del fix), se completa el traspaso acá. Así los socios que
+    // quedaron superpuestos se arreglan apenas alguien abre la ficha, sin
+    // esperar al día siguiente ni tocar datos a mano.
+    const activeSuccessors = await this.db
+      .select({
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
+      })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          eq(schema.subscriptions.userId, userId),
+          eq(schema.subscriptions.status, "active"),
+          isNotNull(schema.subscriptions.previousSubscriptionId),
+        ),
+      );
+    await this.completePredecessorsOnLastDay(
+      ctx,
+      activeSuccessors.flatMap((s) =>
+        s.previousSubscriptionId === null ? [] : [s.previousSubscriptionId],
+      ),
+    );
+
     // Find active subs past their end date
     const expiredSubs = await this.db
       .select({ id: schema.subscriptions.id })
@@ -6544,6 +6571,44 @@ export class SubscriptionService {
   }
 
   /**
+   * Fix 2026-10-15 — cierra (`completed`) las predecesoras que siguen
+   * `active` en su último día (endDate <= hoy) cuando su sucesora ya arrancó.
+   *
+   * Una renovación normal arranca el MISMO día que vence la anterior
+   * (startDate = endDate), así que el cron `activateDueScheduledSubs` la
+   * activa mientras la predecesora todavía no venció
+   * (`autoExpireSubscriptions` recién la cierra con endDate < hoy, al día
+   * siguiente). Durante ese día el socio quedaba con DOS presenciales
+   * `active`: el admin mostraba la vieja como vigente y la renovación no
+   * aparecía en ninguna tarjeta (no se podía cancelar ni cambiar), y al día
+   * siguiente la predecesora terminaba `expired` en vez de `completed`.
+   *
+   * Solo toca predecesoras `active` en su último día: si todavía tienen días
+   * por delante (fecha de renovación adelantada a mano, pausa que corrió el
+   * vencimiento) o están pausadas, no se tocan. Idempotente: una ya
+   * `completed` no matchea el guard por status.
+   */
+  private async completePredecessorsOnLastDay(
+    ctx: TenantContext | null,
+    predecessorIds: number[],
+  ): Promise<void> {
+    if (predecessorIds.length === 0) return;
+    await this.db
+      .update(schema.subscriptions)
+      .set({ status: "completed" })
+      .where(
+        and(
+          ctx
+            ? tenantWhere(schema.subscriptions, ctx)
+            : isNotNull(schema.subscriptions.tenantId),
+          inArray(schema.subscriptions.id, predecessorIds),
+          eq(schema.subscriptions.status, "active"),
+          sql`${schema.subscriptions.endDate} <= ${todayDateString()}`,
+        ),
+      );
+  }
+
+  /**
    * Activate a scheduled subscription. Flips status to "active", and if the
    * incoming plan differs from the outgoing plan (scheduled plan change),
    * handles program enrollment transitions and branch migration from virtual.
@@ -6605,6 +6670,12 @@ export class SubscriptionService {
 
     // If there's no predecessor (shouldn't happen for scheduled), we're done.
     if (!scheduled.previousSubscriptionId) return;
+
+    // Traspaso completo: la predecesora se cierra en el mismo paso (ver
+    // `completePredecessorsOnLastDay`).
+    await this.completePredecessorsOnLastDay(ctx, [
+      scheduled.previousSubscriptionId,
+    ]);
 
     // Phase 112 D-19: transfer admin add-ons from the predecessor sub to
     // the freshly-activated successor BEFORE any teardown below cancels
