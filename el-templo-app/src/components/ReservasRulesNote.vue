@@ -10,13 +10,15 @@
 </template>
 
 <style scoped lang="scss">
+@import 'src/css/premium-card';
+
 // Nota plegable de Reservas (sketch 013 A): card blanca con borde, cerrada por defecto. <details>
 // da el botón accesible (teclado, aria-expanded implícito) sin JS.
 .rules-note {
   margin-top: 16px;
   border-radius: 14px;
   background: #fff;
-  border: 1px solid #e5dbcd;
+  border: 1px solid $pd-light-line;
 }
 
 .rules-note__summary {
@@ -30,26 +32,26 @@
   font-family: 'Geologica', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: #2c2318;
+  color: $pd-ink;
 
   &::-webkit-details-marker {
     display: none;
   }
 
   &:focus-visible {
-    outline: 2px solid #96593a;
+    outline: 2px solid $pd-terra-ink;
     outline-offset: 2px;
     border-radius: 14px;
   }
 }
 
 .rules-note__icon {
-  color: #96593a;
+  color: $pd-terra-ink;
 }
 
 .rules-note__chevron {
   margin-left: auto;
-  color: #6b6459;
+  color: $pd-ink-2;
   transition: transform 0.2s ease;
 }
 
@@ -62,7 +64,7 @@
   padding: 0 14px 14px 42px;
   font-size: 13.5px;
   line-height: 1.45;
-  color: #6b6459;
+  color: $pd-ink-2;
 }
 
 @media (prefers-reduced-motion: reduce) {

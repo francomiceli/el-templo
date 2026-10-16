@@ -440,6 +440,7 @@
                   :tabindex="slot.activityDescription ? 0 : undefined"
                   @click="onActivityNameTap(slot, $event)"
                   @keydown.enter="onActivityNameTap(slot, $event)"
+                  @keydown.space.prevent="onActivityNameTap(slot, $event)"
                   >{{ slot.activityName }}</span
                 >
                 <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
@@ -671,6 +672,7 @@
                 :tabindex="slot.activityDescription ? 0 : undefined"
                 @click="onActivityNameTap(slot, $event)"
                 @keydown.enter="onActivityNameTap(slot, $event)"
+                @keydown.space.prevent="onActivityNameTap(slot, $event)"
                 >{{ slot.activityName }}</span
               >
               <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
@@ -2441,13 +2443,13 @@ onBeforeUnmount(() => cleanup())
   font-family: 'Montserrat', sans-serif;
   font-size: 16px;
   font-weight: 700;
-  color: #2c2318; // 199-29: texto sólido sobre Sandy Beige (11.7)
+  color: $pd-ink; // 199-29: texto sólido sobre Sandy Beige (11.7)
   margin: 0;
 }
 
 .trial-banner__body {
   font-size: 13px;
-  color: #2c2318; // 199-29: antes Olive Stone #8a8472 (2.68)
+  color: $pd-ink; // 199-29: antes Olive Stone #8a8472 (2.68)
   margin: 4px 0 0;
   line-height: 1.4;
 }
@@ -2508,14 +2510,14 @@ onBeforeUnmount(() => cleanup())
   border-radius: 999px;
   border: 1px solid $pd-light-edge;
   background: #fff;
-  color: #2c2318;
+  color: $pd-ink;
   font-family: 'Geologica', sans-serif;
   font-size: 14px;
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(150, 89, 58, 0.08);
 
   .q-icon {
-    color: #96593a;
+    color: $pd-terra-ink;
   }
 }
 
@@ -2579,16 +2581,16 @@ onBeforeUnmount(() => cleanup())
     min-height: 34px;
     padding: 0 4px;
     font-family: 'Geologica', sans-serif;
-    color: #2c2318;
+    color: $pd-ink;
     letter-spacing: 0;
   }
 
   :deep(.q-field__prepend .q-icon) {
-    color: #96593a;
+    color: $pd-terra-ink;
   }
 
   :deep(.q-field__append .q-icon) {
-    color: #6b6459;
+    color: $pd-ink-2;
   }
 }
 
@@ -2598,7 +2600,7 @@ onBeforeUnmount(() => cleanup())
 .branch-maps-link {
   align-self: center;
   text-decoration: underline;
-  color: #2c2318 !important; // 199-29: sobre la página (antes $primary 4.35)
+  color: $pd-ink !important; // 199-29: sobre la página (antes $primary 4.35)
 
   :deep(.q-btn__content) {
     text-decoration: underline;
@@ -2643,7 +2645,7 @@ onBeforeUnmount(() => cleanup())
 
 .next-class-card__address {
   font-size: 12px;
-  color: #6b6459; // 199-29: sobre card blanca (antes Olive Stone #8a8472)
+  color: $pd-ink-2; // 199-29: sobre card blanca (antes Olive Stone #8a8472)
   margin: 4px 0 0;
 }
 
@@ -2676,14 +2678,14 @@ onBeforeUnmount(() => cleanup())
   height: 36px;
   min-width: 36px;
   min-height: 36px;
-  color: #2c2318;
+  color: $pd-ink;
 }
 
 .day-strip__week-label {
   font-family: 'Geologica', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: #6b6459;
+  color: $pd-ink-2;
   text-transform: none;
   letter-spacing: 0;
 }
@@ -2713,7 +2715,7 @@ onBeforeUnmount(() => cleanup())
 
   &--selected {
     border-color: transparent;
-    background: linear-gradient(135deg, #a35f3c, #7e4529);
+    background: linear-gradient(135deg, $pd-btn-a, $pd-btn-b);
     box-shadow: 0 4px 12px rgba(126, 69, 41, 0.3);
 
     .day-pill__abbrev,
@@ -2723,7 +2725,7 @@ onBeforeUnmount(() => cleanup())
   }
 
   &--today:not(&--selected) {
-    border-color: #2c2318;
+    border-color: $pd-ink;
   }
 
   // 199-29: día pasado = fondo atenuado y texto sólido (antes opacity .5 sobre todo, 1.4-2.1)
@@ -2732,7 +2734,7 @@ onBeforeUnmount(() => cleanup())
 
     .day-pill__abbrev,
     .day-pill__date {
-      color: #6b6459;
+      color: $pd-ink-2;
     }
   }
 
@@ -2741,7 +2743,7 @@ onBeforeUnmount(() => cleanup())
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
-    color: #6b6459;
+    color: $pd-ink-2;
     letter-spacing: 0.03em;
   }
 
@@ -2750,7 +2752,7 @@ onBeforeUnmount(() => cleanup())
     font-family: 'Montserrat', sans-serif;
     font-size: 19px;
     font-weight: 700;
-    color: #2c2318;
+    color: $pd-ink;
     line-height: 1.2;
   }
 
@@ -2801,7 +2803,7 @@ onBeforeUnmount(() => cleanup())
   flex-direction: column;
   align-items: center;
   padding: 32px 0;
-  color: #2c2318; // 199-29: sobre la página (antes $grey-6)
+  color: $pd-ink; // 199-29: sobre la página (antes $grey-6)
   font-size: 14px;
   gap: 8px;
 }
@@ -2813,7 +2815,7 @@ onBeforeUnmount(() => cleanup())
   padding: 0 2px;
   border: 0;
   background: none;
-  color: #6b6459; // 5.4:1 sobre blanco
+  color: $pd-ink-2; // 5.4:1 sobre blanco
   font-family: 'Geologica', sans-serif;
   font-size: 13px;
   font-weight: 500;
@@ -2847,7 +2849,7 @@ onBeforeUnmount(() => cleanup())
   height: 40px;
   border-radius: 50%;
   background: #f3ede4;
-  color: #96593a;
+  color: $pd-terra-ink;
 }
 
 .next-card__info {
@@ -2865,20 +2867,20 @@ onBeforeUnmount(() => cleanup())
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #96593a;
+  color: $pd-terra-ink;
 }
 
-.next-card__title {
-  margin-top: 2px !important;
+.next-card__info .next-card__title {
+  margin-top: 2px;
   font-family: 'Montserrat', sans-serif;
   font-size: 16px;
   font-weight: 700;
-  color: #2c2318;
+  color: $pd-ink;
 }
 
 .next-card__meta {
   font-size: 13.5px;
-  color: #6b6459;
+  color: $pd-ink-2;
 }
 
 .next-card__cancel {
@@ -2905,7 +2907,7 @@ onBeforeUnmount(() => cleanup())
     cursor: pointer;
 
     &:active {
-      background: #fbf8f3;
+      background: $pd-light-surface;
     }
   }
 
@@ -2930,7 +2932,7 @@ onBeforeUnmount(() => cleanup())
     .slot-card__hour,
     .slot-card__activity,
     .slot-card__coach {
-      color: #6b6459;
+      color: $pd-ink-2;
     }
   }
 
@@ -2945,7 +2947,7 @@ onBeforeUnmount(() => cleanup())
   // otro profe). Línea secundaria discreta bajo el nombre de la actividad.
   &__coach {
     font-size: 12px;
-    color: #6b6459;
+    color: $pd-ink-2;
     margin-top: 1px;
   }
 
@@ -2953,13 +2955,13 @@ onBeforeUnmount(() => cleanup())
     font-family: 'Montserrat', sans-serif;
     font-size: 18px;
     font-weight: 700;
-    color: #2c2318;
+    color: $pd-ink;
   }
 
   &__activity {
     margin-top: 2px;
     font-size: 13px;
-    color: #6b6459;
+    color: $pd-ink-2;
 
     // Plan 180-13 (D-18): affordance de tap SOLO cuando el slot trae activityDescription
     // (:class condicional en el template — sin copy cargado, este modificador nunca se aplica).
@@ -2971,7 +2973,7 @@ onBeforeUnmount(() => cleanup())
       cursor: pointer;
 
       &:focus-visible {
-        outline: 2px solid #96593a;
+        outline: 2px solid $pd-terra-ink;
         outline-offset: 2px;
         border-radius: 4px;
       }
@@ -3049,13 +3051,13 @@ onBeforeUnmount(() => cleanup())
   &__pill {
     &--muted,
     &--locked {
-      color: #6b6459; // 5.0:1 sobre #f3ede4
+      color: $pd-ink-2; // 5.0:1 sobre #f3ede4
       background: #f3ede4;
     }
 
     // 2026-10-01: clase de prueba gratis disponible — invitación, no bloqueo.
     &--trial {
-      color: #96593a; // 4.9:1 sobre #f7ece4
+      color: $pd-terra-ink; // 4.9:1 sobre #f7ece4
       background: #f7ece4;
     }
   }
@@ -3064,9 +3066,9 @@ onBeforeUnmount(() => cleanup())
   &__go {
     height: 36px;
     padding: 0 16px;
-    border: 1.5px solid #96593a;
+    border: 1.5px solid $pd-terra-ink;
     border-radius: 999px;
-    background: #96593a;
+    background: $pd-terra-ink;
     color: #fff; // 5.6:1
     font-family: 'Geologica', sans-serif;
     font-size: 14px;
@@ -3077,11 +3079,11 @@ onBeforeUnmount(() => cleanup())
     // "Lista de espera": borde terracota sobre blanco.
     &--wait {
       background: #fff;
-      color: #96593a;
+      color: $pd-terra-ink;
     }
 
     &:focus-visible {
-      outline: 2px solid #2c2318;
+      outline: 2px solid $pd-ink;
       outline-offset: 2px;
     }
   }
@@ -3105,7 +3107,7 @@ onBeforeUnmount(() => cleanup())
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 600;
-  color: #2c2318; // 199-29: sobre la página (antes $primary 4.15)
+  color: $pd-ink; // 199-29: sobre la página (antes $primary 4.15)
 }
 
 .week-summary__list {
@@ -3131,7 +3133,7 @@ onBeforeUnmount(() => cleanup())
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 600;
-  color: #2c2318; // 199-29: sobre la página (antes $primary 4.35)
+  color: $pd-ink; // 199-29: sobre la página (antes $primary 4.35)
 }
 
 .first-timer-card__list {
