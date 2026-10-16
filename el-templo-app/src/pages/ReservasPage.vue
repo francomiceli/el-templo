@@ -583,7 +583,7 @@
             <p class="next-card__meta">
               {{
                 nextBooking
-                  ? `${nextBooking.activityName} · ${currentBranchShortName}`
+                  ? nextBookingMeta(nextBooking)
                   : 'Podés reservar hasta 2 días en adelante'
               }}
             </p>
@@ -1806,6 +1806,17 @@ function nextBookingTitle(booking: BookingRecord): string {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
   const d = new Date(booking.bookingDate + 'T00:00:00')
   return `${dayLabel} ${d.getDate()} · ${formatTime(booking.startTime)}`
+}
+
+/**
+ * Meta de la card "Tu próxima clase": actividad + sede de la RESERVA. El weekly-grid trae las reservas
+ * de todas las sedes sin `branchName`; la sede se toma del slot de la grilla con el mismo `scheduleId`
+ * (que sí la trae). Si la clase no está en la grilla que se está viendo, se omite en vez de inventarla.
+ */
+function nextBookingMeta(booking: BookingRecord): string {
+  const branchName = slots.value.find((s) => s.id === booking.scheduleId)?.branchName
+  const short = branchName ? shortBranchName(branchName) : ''
+  return short ? `${booking.activityName} · ${short}` : booking.activityName
 }
 
 /** Nombre corto de la sede que se está viendo ("Mario Bravo"), para el chip de sede y la meta. */
