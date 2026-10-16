@@ -279,7 +279,7 @@ describe('useTodayBookingStore', () => {
     expect(store.nextBooking?.id).toBe(monday.id)
   })
 
-  it('error de red: bookings = [] sin lanzar (fail-open)', async () => {
+  it('error de red en la primera carga: bookings = [] sin lanzar (fail-open)', async () => {
     setNow(CLASS_19_UTC - 60 * MIN)
     vi.mocked(api.get).mockRejectedValue(new Error('network'))
     const store = useTodayBookingStore()
@@ -287,6 +287,58 @@ describe('useTodayBookingStore', () => {
     expect(store.bookings).toEqual([])
     expect(store.loaded).toBe(true)
     expect(warn).toHaveBeenCalled()
+  })
+
+  it('error después de una carga buena conserva las reservas (el refresco no borra nada)', async () => {
+    const evening = booking()
+    const store = await loadedStore({ '2026-10-12': [evening] }, CLASS_19_UTC - 10 * MIN)
+    expect(store.fabVisible).toBe(true)
+    warn.mockClear()
+
+    vi.mocked(api.get).mockRejectedValue(new Error('network'))
+    await expect(store.load()).resolves.toBeUndefined()
+
+    expect(store.bookings.map((b) => b.id)).toEqual([evening.id])
+    expect(store.loaded).toBe(true)
+    expect(store.fabVisible).toBe(true)
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it('si falla solo una de las semanas en un refresco, conserva todo lo anterior', async () => {
+    const evening = booking()
+    const store = await loadedStore({ '2026-10-12': [evening] }, CLASS_19_UTC - 10 * MIN)
+
+    vi.mocked(api.get).mockImplementation(async (_url: string, config?: unknown) => {
+      const weekStart = (config as { params: { weekStart: string } }).params.weekStart
+      if (weekStart === '2026-10-19') throw new Error('timeout')
+      return { data: { bookings: [] } }
+    })
+    await store.load()
+
+    expect(store.bookings.map((b) => b.id)).toEqual([evening.id])
+  })
+
+  it('un refresco exitoso reemplaza las reservas anteriores', async () => {
+    const first = booking()
+    const store = await loadedStore({ '2026-10-12': [first] }, CLASS_19_UTC - 10 * MIN)
+    const second = booking({ startTime: '20:00:00' })
+    mockWeeks({ '2026-10-12': [second] })
+    await store.load()
+    expect(store.bookings.map((b) => b.id)).toEqual([second.id])
+  })
+
+  it('primera carga con una sola semana caída: usa la que sí respondió', async () => {
+    setNow(CLASS_19_UTC - 10 * MIN)
+    const evening = booking()
+    vi.mocked(api.get).mockImplementation(async (_url: string, config?: unknown) => {
+      const weekStart = (config as { params: { weekStart: string } }).params.weekStart
+      if (weekStart === '2026-10-19') throw new Error('timeout')
+      return { data: { bookings: [evening] } }
+    })
+    const store = useTodayBookingStore()
+    await store.load()
+    expect(store.bookings.map((b) => b.id)).toEqual([evening.id])
+    expect(store.loaded).toBe(true)
   })
 
   it('reset() descarta una respuesta en vuelo', async () => {

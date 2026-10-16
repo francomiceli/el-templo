@@ -39,7 +39,8 @@ const UPCOMING_STATUSES: ReadonlyArray<MyBookingRecord['status']> = ['reservado'
  * lunes). "Hoy" y la hora de la clase se calculan SIEMPRE en la zona de la sede
  * (nunca con la hora local del teléfono).
  *
- * - `load()` es fail-open: ante error deja la lista vacía y loguea.
+ * - `load()` es fail-open: ante error loguea; la primera carga queda vacía (o con
+ *   la semana que sí respondió) y un refresco conserva las reservas anteriores.
  * - El reloj se arranca/para desde `MainLayout` (`startClock`/`stopClock`,
  *   equivalente al `cleanup()` de los composables); `reset()` lo para.
  * - La asistencia ya marcada se evalúa POR CATEGORÍA, igual que el server (una
@@ -76,19 +77,26 @@ export const useTodayBookingStore = defineStore('todayBooking', () => {
     const mine = ++generation
     now.value = new Date()
     const [thisMonday, nextMonday] = weekStartsFor(todayStr.value)
-    try {
-      const [current, next] = await Promise.all([
-        fetchMyBookings(thisMonday),
-        fetchMyBookings(nextMonday),
-      ])
-      if (mine !== generation) return
-      bookings.value = [...current.bookings, ...next.bookings]
-    } catch (err: unknown) {
-      if (mine !== generation) return
-      bookings.value = []
+    const results = await Promise.allSettled([
+      fetchMyBookings(thisMonday),
+      fetchMyBookings(nextMonday),
+    ])
+    if (mine !== generation) return
+    const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+    if (failed.length === 0) {
+      bookings.value = results.flatMap((r) => (r.status === 'fulfilled' ? r.value.bookings : []))
+    } else {
+      const reason: unknown = failed[0]!.reason
       log.warn('Failed to load my-bookings', {
-        error: err instanceof Error ? err.message : String(err),
+        error: reason instanceof Error ? reason.message : String(reason),
+        keptPrevious: loaded.value,
       })
+      // Un refresco fallido NO borra lo ya cargado (si no, un error de red al
+      // volver de Reservas apaga el botón QR y la card de hoy). Solo la primera
+      // carga queda con lo que haya llegado (la semana que sí respondió) o vacía.
+      if (!loaded.value) {
+        bookings.value = results.flatMap((r) => (r.status === 'fulfilled' ? r.value.bookings : []))
+      }
     }
     loaded.value = true
   }
