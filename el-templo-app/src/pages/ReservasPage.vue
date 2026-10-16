@@ -133,6 +133,7 @@
           emit-value
           map-options
           class="branch-select"
+          hide-dropdown-icon
           :display-value="trialBranchId ? undefined : 'Elegí una sede para ver los horarios'"
         >
           <template #prepend>
@@ -332,6 +333,7 @@
           emit-value
           map-options
           class="branch-select"
+          hide-dropdown-icon
           :display-value="trialBranchId ? undefined : 'Elegí una sede para ver los horarios'"
         >
           <template #prepend>
@@ -501,6 +503,7 @@
           emit-value
           map-options
           class="branch-select branch-select--chip"
+          hide-dropdown-icon
           :display-value="currentBranchShortName"
           aria-label="Sede"
         >

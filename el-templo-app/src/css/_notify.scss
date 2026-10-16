@@ -68,11 +68,12 @@ body:has(.check-in-fab) .q-notifications {
 
   align-items: center;
   width: max-content;
-  max-width: calc(100% - 32px);
+  // vw y no %: la lista crece con el contenido, así que el % nunca cortaba el texto.
+  max-width: calc(100vw - 32px);
   min-height: 0;
   margin: 8px 16px 0;
   padding: 11px 16px 11px 12px;
-  border-radius: 999px;
+  border-radius: 24px; // píldora en 1 línea, card redondeada si el texto ocupa 2 o más
   // Quasar pinta `.bg-<tipo>` con !important: la píldora oscura también.
   background: $notify-dark !important;
   color: $notify-cream;
@@ -96,9 +97,13 @@ body:has(.check-in-fab) .q-notifications {
   }
 
   // El texto lo pone el tema (Quasar suma text-white / text-dark según el tipo).
+  // Textos largos: varias líneas en vez de pasarse del ancho de la pantalla.
   .q-notification__message {
+    min-width: 0;
     padding: 0;
     color: $notify-cream;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .q-notification__caption {
