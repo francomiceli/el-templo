@@ -99,6 +99,14 @@
       :progress="programProgress"
       @program-changed="onProgramChanged"
     />
+
+    <!-- Hoja de detalle de la marca tocada en el carrusel + carnet de socio (D-22). -->
+    <SponsorSheet
+      v-model="sheetOpen"
+      :sponsor="selectedSponsor"
+      @show-card="memberCardOpen = true"
+    />
+    <MemberCard v-model="memberCardOpen" />
   </q-page>
 </template>
 
@@ -135,6 +143,8 @@ import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
 import NovedadesCard from '../components/NovedadesCard.vue'
 import SponsorsCarousel from '../components/SponsorsCarousel.vue'
+import SponsorSheet from '../components/SponsorSheet.vue'
+import MemberCard from '../components/MemberCard.vue'
 import ReferralCtaCard from '../components/ReferralCtaCard.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
 import AvisoCard from '../components/AvisoCard.vue'
@@ -175,8 +185,15 @@ const programSheetOpen = ref(false)
 // El fetch de la semana terminó OK: sin esto la card no afirma "Hoy descansás" (plan 14).
 const weekLoaded = ref(false)
 const trialEligible = ref(false)
-// Marca tocada en el carrusel de patrocinadores; la hoja que la muestra la conecta el plan 19.
+// Marca tocada en el carrusel de patrocinadores: abre la hoja de detalle (plan 19).
 const selectedSponsor = ref<Sponsor | null>(null)
+const sheetOpen = computed({
+  get: () => selectedSponsor.value !== null,
+  set: (open: boolean) => {
+    if (!open) selectedSponsor.value = null
+  },
+})
+const memberCardOpen = ref(false)
 
 function openSponsor(sponsor: Sponsor): void {
   selectedSponsor.value = sponsor
