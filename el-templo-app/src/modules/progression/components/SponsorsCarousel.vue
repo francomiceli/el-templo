@@ -389,6 +389,14 @@ $sp-side: 16px;
   &::-webkit-scrollbar {
     display: none;
   }
+
+  // Cola vacía: sin ella la última card no puede llegar a su punto de snap (no hay más
+  // contenido que scrollear) y queda a ~80px del borde en vez de 16. El ancho es lo que
+  // le falta a la última card para quedar como las demás: (100% - 82%) menos el gap.
+  &::after {
+    content: '';
+    flex: 0 0 calc(18% - 10px);
+  }
 }
 
 .sp-card {
