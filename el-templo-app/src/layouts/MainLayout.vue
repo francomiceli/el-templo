@@ -59,7 +59,13 @@
           class="desktop-rail__tab"
           :class="{ 'desktop-rail__tab--active': isTabActive(tab.to) }"
         >
-          <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
+          <span
+            v-if="tab.logo"
+            class="tab-logo"
+            :style="{ '--tab-logo-size': tab.size ?? '24px' }"
+            aria-hidden="true"
+          />
+          <q-icon v-else :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="desktop-rail__label">{{ tab.label }}</span>
           <q-badge
             v-if="tab.badge && progressionStore.evaluationEligible"
@@ -153,7 +159,13 @@
           class="mobile-tab"
           :class="{ 'mobile-tab--active': isTabActive(tab.to) }"
         >
-          <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
+          <span
+            v-if="tab.logo"
+            class="tab-logo"
+            :style="{ '--tab-logo-size': tab.size ?? '24px' }"
+            aria-hidden="true"
+          />
+          <q-icon v-else :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="mobile-tab__label">{{ tab.label }}</span>
           <q-badge
             v-if="tab.badge && progressionStore.evaluationEligible"
@@ -398,13 +410,22 @@ interface MobileTab {
   label: string
   size?: string
   badge?: boolean
+  /** Usa el logo real de El Templo (public/logo.webp) en vez de `icon`. */
+  logo?: boolean
   /** Pelotita roja con "1" mientras el socio no abrió "Empezá acá". */
   introBadge?: boolean
 }
 
 const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
-    { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
+    {
+      to: '/mi-templo',
+      icon: 'account_balance',
+      logo: true,
+      label: 'Mi Templo',
+      size: '26px',
+      badge: true,
+    },
     { to: '/training/guia', icon: 'menu_book', label: 'Guía', size: '26px', introBadge: true },
     { to: '/training', icon: 'img:/icons/entrenar.svg', label: 'Entrenar', size: '26px' },
   ]
@@ -755,6 +776,20 @@ async function onLogout() {
   align-items: center;
   height: 56px;
   padding: 0 4px;
+}
+
+// Logo real de El Templo como ícono de pestaña (UAT 2026-10-16): el logo.webp (fondo
+// transparente) es la MÁSCARA y el color es `currentColor`, así sigue los colores de
+// activa/inactiva igual que los íconos de fuente. El dibujo trae ~17% de margen por lado:
+// la máscara al 150% lo lleva al tamaño visual de los demás íconos.
+.tab-logo {
+  display: inline-block;
+  flex: none;
+  width: var(--tab-logo-size, 24px);
+  height: var(--tab-logo-size, 24px);
+  background-color: currentColor;
+  -webkit-mask: url('/logo.webp') center / 150% auto no-repeat;
+  mask: url('/logo.webp') center / 150% auto no-repeat;
 }
 
 .mobile-tab {
