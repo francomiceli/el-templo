@@ -5,6 +5,10 @@ import { createLogger } from 'src/utils/logger'
 import { useLevelSelectionStorage } from 'src/composables/useLevelSelectionStorage'
 import { isTrainingLevel, type Level } from 'src/modules/training/level-display'
 import { fullLineLabel, sameSpecialLine } from 'src/utils/special-line'
+import type { MemberPlanStatus } from 'src/types/plan-status'
+
+// Fase 199 (D-05): el tipo vive en types/ para que utilidades puras lo usen sin Pinia.
+export type { MemberPlanStatus }
 
 // Re-export Level for backward compatibility with existing imports.
 export type { Level }
@@ -150,6 +154,15 @@ export const useUserStore = defineStore('user', () => {
   const profileStale = ref(false)
   const subscription = ref<MemberSubscription | null>(null)
   const subscriptionLoading = ref(false)
+  // Fase 199: `subscription === null` significa a la vez "no tiene" y "todavía no
+  // se cargó". Este flag distingue los dos casos (se prende en el finally de
+  // loadSubscription, haya habido plan, 204 o error).
+  const subscriptionLoaded = ref(false)
+  // Fase 199 (D-05): estado de plan para distinguir "nunca tuvo" de "venció".
+  // null = sin cargar o error de red (fail-open → la card cae a "Arrancá tu plan").
+  const planStatus = ref<MemberPlanStatus | null>(null)
+  const planStatusLoading = ref(false)
+  const planStatusLoaded = ref(false)
   // Phase 162 (APP-02): pase especial. AISLADO del singular `subscription`
   // (D-06): sus capabilities son aditivas y NO alteran hasPresencialPlan /
   // hasPresencialReservationAccess. null = sin pase (o error/204).
@@ -221,6 +234,25 @@ export const useUserStore = defineStore('user', () => {
   const hasActiveSubscription = computed(() => {
     return subscription.value?.status === 'active' || subscription.value?.status === 'paused'
   })
+
+  // Fase 199: respaldo con plan-status cuando la suscripción no vino (error de red
+  // en /me/subscription pero plan-status sí respondió). NO reemplaza a
+  // `hasActiveSubscription`, que usan el FAB y otras pantallas.
+  const memberHasActivePlan = computed(
+    () => hasActiveSubscription.value || planStatus.value?.hasActivePlan === true,
+  )
+
+  // Fase 199: la card de hoy y la hoja de patrocinadores no deciden "sin plan"
+  // mientras esto sea true. Mi Templo dispara loadSubscription al montar y
+  // loadPlanStatus cuando la suscripción terminó sin plan activo (plan 15).
+  const planStateLoading = computed(
+    () =>
+      !hasActiveSubscription.value &&
+      (!subscriptionLoaded.value ||
+        subscriptionLoading.value ||
+        !planStatusLoaded.value ||
+        planStatusLoading.value),
+  )
 
   // Phase 104 (R11 + R10): single source of truth for "this user has presencial
   // access". Plan 06 (ReservasPage gating) imports this same computed —
@@ -328,6 +360,11 @@ export const useUserStore = defineStore('user', () => {
   function clearProfile() {
     profile.value = null
     subscription.value = null
+    // Fase 199 (T-199-39): el estado de plan no sobrevive al logout.
+    planStatus.value = null
+    planStatusLoaded.value = false
+    planStatusLoading.value = false
+    subscriptionLoaded.value = false
     // Phase 162: limpiar el pase especial junto al singular en logout / reset.
     especialPass.value = null
     trialLines.value = []
@@ -377,6 +414,26 @@ export const useUserStore = defineStore('user', () => {
     loading.value = state
   }
 
+  /**
+   * Fase 199 (D-05): lee el estado de plan del socio (API 199-05). Fail-open: ante
+   * cualquier error `planStatus` queda null y NUNCA lanza.
+   */
+  async function loadPlanStatus(): Promise<void> {
+    planStatusLoading.value = true
+    try {
+      const response = await api.get<MemberPlanStatus>('/members/subscription/me/plan-status')
+      planStatus.value = response.data ?? null
+    } catch (err: unknown) {
+      planStatus.value = null
+      log.warn('plan-status no disponible (fail-open)', {
+        message: err instanceof Error ? err.message : String(err),
+      })
+    } finally {
+      planStatusLoading.value = false
+      planStatusLoaded.value = true
+    }
+  }
+
   async function loadSubscription() {
     subscriptionLoading.value = true
     try {
@@ -392,6 +449,7 @@ export const useUserStore = defineStore('user', () => {
       subscription.value = null
     } finally {
       subscriptionLoading.value = false
+      subscriptionLoaded.value = true
     }
 
     // Fetch program enrollment status (per D-08: gates Personalizadas access)
@@ -605,6 +663,8 @@ export const useUserStore = defineStore('user', () => {
     loading,
     subscription,
     subscriptionLoading,
+    subscriptionLoaded,
+    planStatus,
     especialPass,
     trialLines,
     selectedLevel,
@@ -621,6 +681,8 @@ export const useUserStore = defineStore('user', () => {
     onboardingCompleted,
     hasActiveGoalPlan,
     hasActiveSubscription,
+    memberHasActivePlan,
+    planStateLoading,
     branchDisplayName,
     activeLevel,
     // Phase 104: presencial / selector capability flags
@@ -647,6 +709,7 @@ export const useUserStore = defineStore('user', () => {
     retryProfileLoad,
     setLoading,
     loadSubscription,
+    loadPlanStatus,
     loadEspecialPass,
     fetchProgramEnrollmentStatus,
     // Phase 104: current-program actions
