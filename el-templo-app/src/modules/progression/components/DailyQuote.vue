@@ -65,7 +65,6 @@ onUnmounted(() => cleanup())
 <style scoped lang="scss">
 .daily-quote {
   position: relative;
-  margin: 8px 0 0;
   padding: 20px 8px 28px;
   text-align: left;
 }
