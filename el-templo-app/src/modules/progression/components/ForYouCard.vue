@@ -1,15 +1,12 @@
 <!-- Card clara y compacta del carrusel "Para vos" (fase 199, D-10). Presentacional: la lógica
      de copy editable, fallbacks, eventos y destino vive en cada tarjeta que la usa
      (ReferralCtaCard, UpsellBadge, ProgramCtaCard, AvisoCard). Texto siempre interpolado
-     con {{ }}, nunca v-html. Dorado reservado a Aura: el link va en terracota. -->
+     con {{ }}, nunca v-html. Dorado reservado a Aura: el link va en terracota.
+     Un solo control accesible: el botón de adentro (teclado, lector de pantalla, Espacio y Enter
+     nativos). El click del article es solo comodidad para el toque en el resto de la card y no es
+     un elemento interactivo (sin role ni tabindex: nada anidado). -->
 <template>
-  <article
-    class="for-you-card"
-    role="button"
-    tabindex="0"
-    @click="emit('action')"
-    @keydown.enter.self="emit('action')"
-  >
+  <article class="for-you-card" @click="emit('action')">
     <span class="for-you-card__kicker">{{ kicker }}</span>
     <h4 class="for-you-card__title">{{ title }}</h4>
     <p class="for-you-card__body">{{ body }}</p>
@@ -41,11 +38,6 @@ const emit = defineEmits<{ action: [] }>()
   border: 1px solid #e5dbcd;
   border-radius: 16px;
   cursor: pointer;
-
-  &:focus-visible {
-    outline: 2px solid #96593a;
-    outline-offset: 2px;
-  }
 
   &__kicker {
     font-family: 'Montserrat', sans-serif;
@@ -93,6 +85,11 @@ const emit = defineEmits<{ action: [] }>()
 
     &:hover {
       text-decoration: underline;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #96593a;
+      outline-offset: 2px;
     }
   }
 }
