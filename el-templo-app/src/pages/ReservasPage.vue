@@ -2472,7 +2472,7 @@ onBeforeUnmount(() => cleanup())
   margin: 0;
   padding: 0 14px 0 10px;
   border-radius: 999px;
-  border: 1px solid #e5dbcd;
+  border: 1px solid $pd-light-edge;
   background: #fff;
   color: #2c2318;
   font-family: 'Geologica', sans-serif;
@@ -2533,7 +2533,7 @@ onBeforeUnmount(() => cleanup())
 
     &::before {
       border-radius: 999px;
-      border: 1px solid #e5dbcd;
+      border: 1px solid $pd-light-edge;
     }
 
     &::after {
@@ -2668,7 +2668,7 @@ onBeforeUnmount(() => cleanup())
   flex: 1;
   min-width: 0;
   padding: 8px 0 9px;
-  border: 1px solid #e5dbcd;
+  border: 1px solid $pd-light-edge;
   border-radius: 14px;
   background: #fff;
   cursor: pointer;
@@ -2862,7 +2862,7 @@ onBeforeUnmount(() => cleanup())
   margin-bottom: 10px;
   border-radius: 14px;
   background: #fff;
-  border: 1px solid #e5dbcd;
+  border: 1px solid $pd-light-edge;
   box-shadow: 0 6px 18px rgba(150, 89, 58, 0.06);
   transition: background 0.15s ease;
 
@@ -3057,7 +3057,7 @@ onBeforeUnmount(() => cleanup())
 
 .week-summary,
 .first-timer-card {
-  border: 1px solid #e5dbcd;
+  border: 1px solid $pd-light-line;
   border-radius: 14px;
   background: #fff;
   overflow: hidden;

@@ -21,7 +21,11 @@ $pd-light-surface: #fbf8f3;
 $pd-ink: #2c2318;
 $pd-ink-2: #6b6459;
 $pd-terra-ink: #96593a; // íconos / acentos sobre crema, 5.2:1
-$pd-light-line: #e5dbcd; // borde de las filas (sedes)
+$pd-light-line: #e5dbcd; // borde decorativo de las filas (sedes) y separadores
+// Borde de los controles tocables sobre la PÁGINA crema (#f2ede5): chip de sede, fichas de día y cards
+// de horario de Reservas (WCAG 1.4.11). Cálido, no gris: 3.32:1 sobre la página #f2ede5, 3.65:1 sobre
+// la card #fbf8f3 y 3.87:1 sobre blanco (antes #e5dbcd: 1.17 / 1.29 / 1.37).
+$pd-light-edge: #8c806f;
 // Borde de los campos claros (WCAG 1.4.11, >= 3:1): #948878 da 3.28:1 sobre la card #fbf8f3 y 3.47:1
 // sobre el fondo blanco del campo (antes #d9cfc1: 1.45:1 y 1.54:1).
 $pd-light-field-border: #948878;
