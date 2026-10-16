@@ -56,6 +56,10 @@
         :save="handleCheckInSubmit"
       />
 
+      <!-- Patrocinadores (D-20/D-23): carrusel de marcas por país, a sangre y sin título.
+           Sin marcas no renderiza nada. La hoja de detalle y el carnet los conecta el plan 19. -->
+      <SponsorsCarousel @open="openSponsor" />
+
       <!-- Tu semana (D-09): fila compacta, sin RPE. -->
       <WeekStrip
         v-if="todayCard.kind !== 'sin-plan-nunca'"
@@ -130,11 +134,13 @@ import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
 import NovedadesCard from '../components/NovedadesCard.vue'
+import SponsorsCarousel from '../components/SponsorsCarousel.vue'
 import ReferralCtaCard from '../components/ReferralCtaCard.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
 import AvisoCard from '../components/AvisoCard.vue'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { useNovedadesStore } from 'src/stores/useNovedadesStore'
+import { useSponsorsStore, type Sponsor } from 'src/stores/useSponsorsStore'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
@@ -150,6 +156,7 @@ const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const avisosStore = useAvisosStore()
 const novedadesStore = useNovedadesStore()
+const sponsorsStore = useSponsorsStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const todayBookingStore = useTodayBookingStore()
@@ -168,6 +175,12 @@ const programSheetOpen = ref(false)
 // El fetch de la semana terminó OK: sin esto la card no afirma "Hoy descansás" (plan 14).
 const weekLoaded = ref(false)
 const trialEligible = ref(false)
+// Marca tocada en el carrusel de patrocinadores; la hoja que la muestra la conecta el plan 19.
+const selectedSponsor = ref<Sponsor | null>(null)
+
+function openSponsor(sponsor: Sponsor): void {
+  selectedSponsor.value = sponsor
+}
 
 function goToMiArbol() {
   void router.push('/mi-arbol')
@@ -404,6 +417,8 @@ onMounted(async () => {
   // Novedades (D-12): fail-open, en cada montaje de Mi Templo. No hay
   // pull-to-refresh en esta página, así que no hay un segundo punto de carga.
   void novedadesStore.load()
+  // Patrocinadores (D-20): fail-open; el feed ya viene filtrado por país y vigencia.
+  void sponsorsStore.load()
 
   // Fase 199: Mi Templo carga la suscripción al montar porque el login no lo hace
   // (boot/auth.ts solo la dispara al arrancar con sesión): sin esto, tras un login
