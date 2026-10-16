@@ -261,7 +261,7 @@ onUnmounted(() => {
 // Valores del sketch 004 sin variable propia en la app.
 $border: #e5dbcd;
 $dot-idle: #e2d6c6;
-$chevron: #c7b9a6;
+$chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral 3:1 de íconos, 199-21)
 
 .nov-card {
   position: relative;
