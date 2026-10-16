@@ -25,7 +25,7 @@
       <PermissionBanner />
 
       <!-- Card de hoy (D-01/D-03, variante A'): la acción del día arriba de todo. Reemplaza a las
-           4 cards viejas (sesión, turno, descanso y programa). Solo pinta el modelo de resolveTodayCard. -->
+           4 cards viejas (sesión, clase reservada, estado sin sesión y programa). Solo pinta el modelo de resolveTodayCard. -->
       <TodayCard :model="todayCard" @open-program="programSheetOpen = true" />
 
       <!-- Novedades (D-08): mismo diseño del sketch 004, debajo de la card de hoy.
@@ -175,19 +175,10 @@ const { fetchStats, requestEvaluation } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const todayBookingStore = useTodayBookingStore()
 const schedulingApi = useSchedulingApi()
-const {
-  sessions: weekSessions,
-  completedDates,
-  error: weekError,
-  fetchWeekSessions,
-} = useWeekData()
-// Domingo: "mañana" cae en la semana siguiente (otra instancia, cada una guarda UNA semana).
-const { sessions: nextWeekSessions, fetchWeekSessions: fetchNextWeekSessions } = useWeekData()
+const { sessions: weekSessions, completedDates, fetchWeekSessions } = useWeekData()
 const { getMyProgress } = useProgramsApi()
 const programProgress = ref<MemberEnrollmentProgress | null>(null)
 const programSheetOpen = ref(false)
-// El fetch de la semana terminó OK: sin esto la card no afirma "Hoy descansás" (plan 14).
-const weekLoaded = ref(false)
 const trialEligible = ref(false)
 // Marca tocada en el carrusel de patrocinadores: abre la hoja de detalle (plan 19).
 const selectedSponsor = ref<Sponsor | null>(null)
@@ -230,7 +221,6 @@ const showProgramCta = computed(() => !showProgramProgress.value)
 const tz = computed(() => todayBookingStore.tz)
 const todayStr = computed(() => todayInTz(tz.value, todayBookingStore.now))
 const dow = computed(() => dowInTz(tz.value, todayBookingStore.now))
-const tomorrowStr = computed(() => addDaysStr(todayStr.value, 1))
 
 function routeNameOf(session: Session | null | undefined): string | null {
   if (!session || !session.blocks || session.blocks.length === 0) return null
@@ -239,11 +229,6 @@ function routeNameOf(session: Session | null | undefined): string | null {
 }
 
 const todayRouteName = computed(() => routeNameOf(weekSessions.value.get(todayStr.value)))
-
-const tomorrowRoute = computed(() => {
-  const source = dow.value === 7 ? nextWeekSessions.value : weekSessions.value
-  return routeNameOf(source.get(tomorrowStr.value))
-})
 
 const isVirtual = computed(() => userStore.profile?.branchIsVirtual ?? false)
 
@@ -308,26 +293,15 @@ async function handleRequestEvaluation() {
   await requestEvaluation()
 }
 
-// Lunes..domingo de la semana actual / siguiente, a partir de la fecha de la sede.
-function weekDatesFrom(monday: string): string[] {
+// Lunes..domingo de la semana actual, a partir de la fecha de la sede.
+function currentWeekDates(): string[] {
+  const monday = weekStartsFor(todayStr.value)[0]
   return Array.from({ length: 7 }, (_, i) => addDaysStr(monday, i))
 }
 
-function currentWeekDates(): string[] {
-  return weekDatesFrom(weekStartsFor(todayStr.value)[0])
-}
-
-function nextWeekDates(): string[] {
-  return weekDatesFrom(weekStartsFor(todayStr.value)[1])
-}
-
-/** Semana actual (+ la siguiente los domingos, para "Mañana: ...") y bandera de carga OK. */
+/** Semana actual: de ahí sale el nombre de la sesión de hoy y los días completados. */
 async function loadWeeks(): Promise<void> {
   await fetchWeekSessions(currentWeekDates())
-  // useWeekData no lanza: deja `error` y la semana vacía. Si falló, weekLoaded queda false
-  // y la card no dice "Hoy descansás" por error.
-  weekLoaded.value = weekError.value === null
-  if (dow.value === 7) await fetchNextWeekSessions(nextWeekDates())
 }
 
 async function loadProgramProgress(): Promise<void> {
@@ -390,10 +364,9 @@ const todayCard = computed(() => {
       : null,
     planStatus: userStore.planStatus,
     planLoading: userStore.planStateLoading,
-    // Hasta que respondan las reservas de hoy la card no afirma "No tenés turno hoy" (A1).
+    // Hasta que respondan las reservas de hoy la card no afirma que falte reservar (A1).
     bookingsLoading: !todayBookingStore.loaded,
     todayRoute: todayRouteName.value,
-    tomorrowRoute: tomorrowRoute.value,
     todayCompleted: todayCompleted.value,
     todaySession: progressionStore.todaySession,
     booking: booking
@@ -427,7 +400,6 @@ const todayCard = computed(() => {
     hasExtraPrograms: programProgressCard.value !== null && !isVirtual.value,
     checkInMessage: checkInMessage.value,
     trialEligible: trialEligible.value,
-    weekLoaded: weekLoaded.value,
   })
 })
 

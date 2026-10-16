@@ -35,7 +35,6 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     planLoading: false,
     bookingsLoading: false,
     todayRoute: 'Muscle Up',
-    tomorrowRoute: null,
     todayCompleted: false,
     todaySession: null,
     booking: null,
@@ -48,7 +47,6 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     hasExtraPrograms: false,
     checkInMessage: null,
     trialEligible: false,
-    weekLoaded: true,
     ...over,
   }
 }
@@ -355,7 +353,6 @@ describe('resolveTodayCard — descanso presencial', () => {
         todayStr: '2026-10-18',
         dow: 7,
         todayRoute: null,
-        tomorrowRoute: 'Back Lever',
         nextBooking: { date: '2026-10-19', time: '19:00', branchName: 'El Templo Alem' },
       }),
     )
@@ -374,7 +371,6 @@ describe('resolveTodayCard — descanso presencial', () => {
         todayStr: '2026-10-18',
         dow: 7,
         todayRoute: null,
-        tomorrowRoute: 'Back Lever',
         nextBooking: { date: '2026-10-21', time: '19:00', branchName: 'El Templo Alem' },
       }),
     )
@@ -382,9 +378,7 @@ describe('resolveTodayCard — descanso presencial', () => {
   })
 
   it('sin ruta de mañana → "Reservá tu turno" y sin secundario duplicado', () => {
-    const m = resolveTodayCard(
-      baseInput({ todayStr: '2026-10-18', dow: 7, todayRoute: null, tomorrowRoute: null }),
-    )
+    const m = resolveTodayCard(baseInput({ todayStr: '2026-10-18', dow: 7, todayRoute: null }))
     expect(m.kind).toBe('descanso')
     expect(m.meta).toBeNull()
     expect(m.primary).toEqual({ label: 'Reservá tu turno', to: '/reservas' })
@@ -392,7 +386,7 @@ describe('resolveTodayCard — descanso presencial', () => {
   })
 
   it('día hábil sin sesión hoy (semana cargada) y sin reserva → descanso', () => {
-    const m = resolveTodayCard(baseInput({ todayRoute: null, tomorrowRoute: 'Planche' }))
+    const m = resolveTodayCard(baseInput({ todayRoute: null }))
     expect(m.kind).toBe('descanso')
   })
 
@@ -414,26 +408,24 @@ describe('resolveTodayCard — descanso presencial', () => {
 
 describe('resolveTodayCard — guarda de semana no cargada', () => {
   it('presencial con plan, sin ruta, sin reserva y semana NO cargada → presencial-sin-turno (no descanso)', () => {
-    const m = resolveTodayCard(baseInput({ todayRoute: null, weekLoaded: false }))
+    const m = resolveTodayCard(baseInput({ todayRoute: null }))
     expect(m.kind).toBe('presencial-sin-turno')
     expect(m.title).toBe('Tu sesión de hoy')
   })
 
   it('virtual con programa, sin ruta y semana NO cargada → online-programa', () => {
-    const m = resolveTodayCard(
-      baseInput({ isVirtual: true, program: PROGRAM, todayRoute: null, weekLoaded: false }),
-    )
+    const m = resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM, todayRoute: null }))
     expect(m.kind).toBe('online-programa')
   })
 
   it('domingo con semana NO cargada → sigue siendo descanso', () => {
-    const m = resolveTodayCard(baseInput({ dow: 7, todayRoute: null, weekLoaded: false }))
+    const m = resolveTodayCard(baseInput({ dow: 7, todayRoute: null }))
     expect(m.kind).toBe('descanso')
   })
 
   it('virtual con programa, domingo y semana NO cargada → descanso online', () => {
     const m = resolveTodayCard(
-      baseInput({ isVirtual: true, program: PROGRAM, dow: 7, todayRoute: null, weekLoaded: false }),
+      baseInput({ isVirtual: true, program: PROGRAM, dow: 7, todayRoute: null }),
     )
     expect(m.kind).toBe('descanso')
   })
@@ -529,7 +521,6 @@ describe('resolveTodayCard — online', () => {
       baseInput({
         isVirtual: true,
         todayRoute: null,
-        weekLoaded: false,
         program: { ...PROGRAM, durationWeeks: null },
       }),
     )
@@ -590,7 +581,6 @@ describe('resolveTodayCard — descanso online con programa', () => {
         program: PROGRAM,
         dow: 7,
         todayRoute: null,
-        tomorrowRoute: 'Back Lever',
         nextBooking: { date: '2026-10-16', time: '19:00', branchName: 'El Templo Alem' },
       }),
     )
@@ -605,9 +595,7 @@ describe('resolveTodayCard — descanso online con programa', () => {
   })
 
   it('día hábil sin sesión hoy (semana cargada) → descanso online', () => {
-    const m = resolveTodayCard(
-      baseInput({ isVirtual: true, program: PROGRAM, todayRoute: null, tomorrowRoute: 'Planche' }),
-    )
+    const m = resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM, todayRoute: null }))
     expect(m.kind).toBe('descanso')
   })
 

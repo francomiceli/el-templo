@@ -6,31 +6,30 @@
  * así cada gate se prueba sin montar componentes. La vista (plan 15) solo pinta
  * el `TodayCardModel`.
  *
- * Precedencia de gates (de arriba hacia abajo, gana el primero que aplica):
+ * Precedencia de gates (de arriba hacia abajo, gana el primero que aplica). Fuente: UAT
+ * D3/D4/D5/D11 y confirmaciones C1/C2 de Franco (la card nunca le dice al socio que frene):
  *
- *  0. `hasPlan` = suscripción active/paused O `planStatus.hasActivePlan` (respaldo:
- *     si la suscripción no vino pero el plan-status dice que hay plan, NUNCA es
- *     "sin plan"). Sin plan y `planLoading` → `cargando` (estado neutro; ningún
- *     gate de "sin plan" se decide mientras algo carga).
- *  1. Sin plan (y nada cargando):
- *     a. plan programado (`subscription.status === 'scheduled'` o
- *        `planStatus.hasScheduledPlan`) → `plan-programado` (el socio ya renovó;
- *        no se le dice "Renová tu plan");
- *     b. sede virtual → `online-libre` (con "Ver planes");
- *     c. `planStatus.hadPlan` → `sin-plan-vencio`;
- *     d. si no (incluye `planStatus` null por error de red, fail-open) → `sin-plan-nunca`.
- *  2. Con plan: sesión de hoy completada → `completada`.
- *  3. Con plan, virtual: con programa → domingo (en la zona de la sede) o
- *     (`weekLoaded` y sin sesión hoy) → `descanso` (variante online); si no →
- *     `online-programa`. Sin programa → `online-libre`, TODOS los días.
- *  4. Con plan, presencial: reserva de hoy → `presencial-turno`; sin reserva y con las
- *     reservas todavía cargando (`bookingsLoading`) → `cargando` (no afirma "sin turno" por una
- *     carrera); sin reserva y (domingo o (`weekLoaded` y sin sesión hoy)) → `descanso`; si no →
- *     `presencial-sin-turno` (con variante de lista de espera).
- *
- * Guarda de semana cargada: "sin sesión hoy" solo cuenta como descanso si
- * `weekLoaded` (el fetch de la semana terminó OK). El domingo es descanso aunque
- * la semana no haya cargado.
+ *  0. `hasPlan` = suscripción active/paused O `planStatus.hasActivePlan` (respaldo: si la
+ *     suscripción no vino pero el plan-status dice que hay plan, NUNCA es "sin plan").
+ *     `hasScheduled` = suscripción `scheduled` O `planStatus.hasScheduledPlan` (D4: un plan
+ *     programado se trata igual que uno activo). `canTrain = hasPlan || hasScheduled`.
+ *     Sin `canTrain` y `planLoading` → `cargando` (ningún gate de "sin plan" se decide
+ *     mientras algo carga).
+ *  1. Sin `canTrain` (y nada cargando): sede virtual → `online-libre` (con "Ver planes");
+ *     `planStatus.hadPlan` → `sin-plan-vencio`; si no (incluye `planStatus` null por error
+ *     de red, fail-open) → `sin-plan-nunca`.
+ *  2. Sesión de hoy completada → `completada`.
+ *  3. Virtual: con programa → `online-programa` SIEMPRE (domingo y días sin sesión
+ *     incluidos, D3); sin programa → `online-libre` con "Entrenar" y sin "Ver planes".
+ *  4. Presencial:
+ *     - D5: una clase de hoy con la ventana cerrada (`windowState === 'after'`) y sin
+ *       asistencia se trata como si no existiera;
+ *     a. clase de hoy vigente → `presencial-turno`;
+ *     b. reservas todavía cargando (`bookingsLoading`) → `cargando` (no se afirma que
+ *        falta reservar por una carrera);
+ *     c. lista de espera de hoy → `presencial-sin-turno` (variante lista de espera);
+ *     d. próxima clase reservada (`nextBooking`) → `presencial-proxima` (C1);
+ *     e. si no → `presencial-sin-turno` con "Reservá tu clase" (C2, cualquier día).
  *
  * El QR de check-in NO se decide acá: su única fuente de verdad es
  * `useTodayBookingStore.fabVisible`. La card solo informa la ventana con chips.
@@ -42,15 +41,14 @@ export type TodayCardKind =
   | 'cargando'
   | 'presencial-turno'
   | 'presencial-sin-turno'
-  | 'descanso'
+  | 'presencial-proxima'
   | 'completada'
   | 'online-programa'
   | 'online-libre'
   | 'sin-plan-nunca'
   | 'sin-plan-vencio'
-  | 'plan-programado'
 
-/** Texto en tramos: permite resaltar ("Tu turno: **19:00**") sin HTML. */
+/** Texto en tramos: permite resaltar ("Tu clase: **19:00**") sin HTML. */
 export type TodayCardText = { text: string; strong?: boolean }[]
 
 export interface TodayCardAction {
@@ -94,12 +92,11 @@ export interface TodayCardInput {
   planLoading: boolean
   /**
    * useTodayBookingStore aún no respondió (`!loaded`). Solo importa al socio presencial con plan:
-   * sin las reservas de hoy no se sabe si tiene turno, así que no se afirma "No tenés turno hoy".
+   * sin las reservas de hoy no se sabe si tiene clase, así que no se afirma que falte reservar.
    * El store es fail-open (tras un error también queda cargado), no traba la card.
    */
   bookingsLoading: boolean
   todayRoute: string | null
-  tomorrowRoute: string | null
   todayCompleted: boolean
   todaySession: { durationMinutes: number | null; rpe: number | null } | null
   booking: { time: string; branchName: string; activityName: string; status: string } | null
@@ -118,8 +115,6 @@ export interface TodayCardInput {
   hasExtraPrograms: boolean
   checkInMessage: string | null
   trialEligible: boolean
-  /** El fetch de la semana terminó OK. */
-  weekLoaded: boolean
 }
 
 // ── Helpers de fecha (siempre sobre el string de la sede, nunca la zona del teléfono) ──
@@ -135,12 +130,6 @@ function utcMidnight(dateStr: string): number | null {
   return p ? Date.UTC(p.y, p.m - 1, p.d) : null
 }
 
-function addDays(dateStr: string, days: number): string {
-  const base = utcMidnight(dateStr)
-  if (base === null) return dateStr
-  return new Date(base + days * 86_400_000).toISOString().slice(0, 10)
-}
-
 const DAY_KICKER_FMT = new Intl.DateTimeFormat('es-AR', {
   timeZone: 'UTC',
   weekday: 'long',
@@ -151,6 +140,8 @@ const LONG_DATE_FMT = new Intl.DateTimeFormat('es-AR', {
   day: 'numeric',
   month: 'long',
 })
+
+const WEEKDAY_FMT = new Intl.DateTimeFormat('es-AR', { timeZone: 'UTC', weekday: 'long' })
 
 /** "2026-10-15" → "Hoy · jueves 15". */
 export function formatDayKicker(todayStr: string): string {
@@ -173,6 +164,15 @@ export function shortBranchName(name: string): string {
 
 function hhmm(time: string): string {
   return time.slice(0, 5)
+}
+
+/** ("2026-10-19", "19:00") → "Lunes 19 · 19:00". Fecha inválida → solo la hora. */
+export function formatNextClassTitle(dateStr: string, time: string): string {
+  const p = parseYmd(dateStr)
+  if (!p) return hhmm(time)
+  const weekday = WEEKDAY_FMT.format(Date.UTC(p.y, p.m - 1, p.d))
+  const capitalized = weekday.charAt(0).toUpperCase() + weekday.slice(1)
+  return `${capitalized} ${p.d} · ${hhmm(time)}`
 }
 
 // ── Piezas reutilizables ──
@@ -205,12 +205,6 @@ function emptyModel(
   }
 }
 
-function tomorrowMeta(route: string, suffix: string): TodayCardText {
-  const parts: TodayCardText = [{ text: 'Mañana: ' }, { text: route, strong: true }]
-  if (suffix) parts.push({ text: suffix })
-  return parts
-}
-
 function hookFor(input: TodayCardInput): TodayCardText | null {
   if (input.isVirtual || !input.todayRoute) return null
   return [
@@ -221,32 +215,11 @@ function hookFor(input: TodayCardInput): TodayCardText | null {
 
 // ── Gates ──
 
-function planProgramado(input: TodayCardInput): TodayCardModel {
-  const startDate =
-    input.subscription?.status === 'scheduled'
-      ? input.subscription.startDate
-      : (input.planStatus?.scheduledStartDate ?? null)
-  const planName = input.subscription?.status === 'scheduled' ? input.subscription.planName : null
-  return emptyModel(
-    'plan-programado',
-    'Tu plan',
-    startDate && parseYmd(startDate)
-      ? `Arranca el ${formatLongDate(startDate)}`
-      : 'Tu plan ya está programado',
-    {
-      meta: planName
-        ? [{ text: planName }]
-        : [{ text: 'Ya renovaste: te avisamos cuando arranque.' }],
-      primary: PLANES,
-    },
-  )
-}
-
-function onlineLibre(input: TodayCardInput, hasPlan: boolean): TodayCardModel {
+function onlineLibre(input: TodayCardInput, canTrain: boolean): TodayCardModel {
   return emptyModel('online-libre', 'Hoy', input.todayRoute ?? 'Sesión libre', {
     chips: messageChip(input.checkInMessage),
     primary: { label: 'Entrenar', to: '/training' },
-    secondary: hasPlan ? null : PLANES,
+    secondary: canTrain ? null : PLANES,
   })
 }
 
@@ -295,32 +268,6 @@ function completada(input: TodayCardInput): TodayCardModel {
   )
 }
 
-function descansoOnline(input: TodayCardInput): TodayCardModel {
-  const hasTomorrow = input.tomorrowRoute !== null
-  return emptyModel('descanso', formatDayKicker(input.todayStr), 'Hoy descansás', {
-    meta: input.tomorrowRoute ? tomorrowMeta(input.tomorrowRoute, '') : null,
-    chips: messageChip(input.checkInMessage),
-    primary: hasTomorrow ? { label: 'Ver la de mañana', to: '/training' } : OPEN_PROGRAM,
-    secondary: hasTomorrow ? OPEN_PROGRAM : null,
-  })
-}
-
-function descansoPresencial(input: TodayCardInput): TodayCardModel {
-  const tomorrow = addDays(input.todayStr, 1)
-  let suffix = ''
-  if (input.nextBooking && input.nextBooking.date === tomorrow) {
-    suffix = ` · tu turno ${hhmm(input.nextBooking.time)} · ${shortBranchName(input.nextBooking.branchName)}`
-  }
-  const hasTomorrow = input.tomorrowRoute !== null
-  return emptyModel('descanso', formatDayKicker(input.todayStr), 'Hoy descansás', {
-    meta: input.tomorrowRoute ? tomorrowMeta(input.tomorrowRoute, suffix) : null,
-    primary: hasTomorrow
-      ? { label: 'Ver la de mañana', to: '/training' }
-      : { label: 'Reservá tu turno', to: '/reservas' },
-    secondary: hasTomorrow ? { label: 'Mis turnos', to: '/reservas' } : null,
-  })
-}
-
 function onlinePrograma(
   input: TodayCardInput,
   program: NonNullable<TodayCardInput['program']>,
@@ -366,14 +313,9 @@ function presencialTurno(
       text: min !== null && min > 0 ? `Tu clase empieza en ${min} min` : 'Tu clase ya empezó',
       tone: 'neutral',
     })
-  } else if (input.windowState === 'after') {
-    // L35: reserva de hoy con la ventana ya cerrada y sin asistencia. No es "próxima
-    // clase" ni se ofrece marcar asistencia (el QR lo decide fabVisible, no la card).
-    chips.push({ icon: 'schedule', text: 'Tu clase ya pasó', tone: 'neutral' })
   }
   chips.push(...messageChip(input.checkInMessage))
 
-  const passed = input.windowState === 'after' && !input.attendanceMarkedAt
   const branch = shortBranchName(booking.branchName)
   return emptyModel(
     'presencial-turno',
@@ -381,34 +323,46 @@ function presencialTurno(
     input.todayRoute ?? booking.activityName,
     {
       meta: [
-        { text: passed ? 'Tu turno fue: ' : 'Tu turno: ' },
+        { text: 'Tu clase: ' },
         { text: hhmm(booking.time), strong: true },
         { text: ` · ${branch}` },
       ],
       chips,
       primary: { label: 'Ver la sesión', to: '/training' },
-      secondary: passed
-        ? { label: 'Mis turnos', to: '/reservas' }
-        : { label: 'Cambiar turno', to: '/reservas' },
+      secondary: { label: 'Cambiar clase', to: '/reservas' },
     },
   )
 }
 
+/** C1: el título es la fecha y hora de la próxima clase reservada, no la sesión. */
+function presencialProxima(
+  input: TodayCardInput,
+  next: NonNullable<TodayCardInput['nextBooking']>,
+): TodayCardModel {
+  return emptyModel(
+    'presencial-proxima',
+    'Tu próxima clase',
+    formatNextClassTitle(next.date, next.time),
+    {
+      meta: [{ text: shortBranchName(next.branchName) }],
+      chips: messageChip(input.checkInMessage),
+      primary: { label: 'Mis clases', to: '/reservas' },
+      secondary: { label: 'Cambiar clase', to: '/reservas' },
+    },
+  )
+}
+
+/** C2: sin ninguna clase reservada, cualquier día, la card invita a reservar. */
 function presencialSinTurno(input: TodayCardInput): TodayCardModel {
   const meta: TodayCardText = input.waitlistTime
     ? [{ text: `Estás en lista de espera · ${hhmm(input.waitlistTime)}` }]
-    : [{ text: 'No tenés turno hoy' }]
-  return emptyModel(
-    'presencial-sin-turno',
-    formatDayKicker(input.todayStr),
-    input.todayRoute ?? 'Tu sesión de hoy',
-    {
-      meta,
-      chips: messageChip(input.checkInMessage),
-      primary: { label: 'Reservá tu turno', to: '/reservas' },
-      secondary: { label: 'Ver la sesión', to: '/training' },
-    },
-  )
+    : [{ text: 'Elegí día, horario y sede' }]
+  return emptyModel('presencial-sin-turno', formatDayKicker(input.todayStr), 'Reservá tu clase', {
+    meta,
+    chips: messageChip(input.checkInMessage),
+    primary: { label: 'Reservar', to: '/reservas' },
+    secondary: null,
+  })
 }
 
 function withExtraPrograms(model: TodayCardModel, input: TodayCardInput): TodayCardModel {
@@ -423,17 +377,17 @@ export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
     input.subscription?.status === 'active' ||
     input.subscription?.status === 'paused' ||
     input.planStatus?.hasActivePlan === true
+  const hasScheduled =
+    input.subscription?.status === 'scheduled' || input.planStatus?.hasScheduledPlan === true
+  const canTrain = hasPlan || hasScheduled
 
   // 0. Nada de "sin plan" mientras algo carga.
-  if (!hasPlan && input.planLoading) {
+  if (!canTrain && input.planLoading) {
     return emptyModel('cargando', formatDayKicker(input.todayStr), '')
   }
 
-  // 1. Sin plan activo.
-  if (!hasPlan) {
-    if (input.subscription?.status === 'scheduled' || input.planStatus?.hasScheduledPlan === true) {
-      return planProgramado(input)
-    }
+  // 1. Sin plan (ni programado).
+  if (!canTrain) {
     if (input.isVirtual) return onlineLibre(input, false)
     if (input.planStatus?.hadPlan === true) return sinPlanVencio(input)
     return sinPlanNunca(input)
@@ -442,20 +396,22 @@ export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
   // 2. Sesión de hoy completada.
   if (input.todayCompleted) return withExtraPrograms(completada(input), input)
 
-  const isSunday = input.dow === 7
-  const noSessionToday = input.weekLoaded && input.todayRoute === null
-
-  // 3. Virtual.
+  // 3. Virtual: siempre se puede entrenar.
   if (input.isVirtual) {
     if (!input.program) return onlineLibre(input, true)
-    if (isSunday || noSessionToday) return descansoOnline(input)
     return onlinePrograma(input, input.program)
   }
 
-  // 4. Presencial.
-  if (input.booking) return withExtraPrograms(presencialTurno(input, input.booking), input)
-  // Sin saber si hay turno hoy no se decide "sin turno" ni "descanso" (A1 del plan 20).
+  // 4. Presencial. D5: una clase de hoy ya pasada y sin asistencia es como si no existiera.
+  const missedToday =
+    input.booking !== null && input.windowState === 'after' && input.attendanceMarkedAt === null
+  const activeBooking = missedToday ? null : input.booking
+  if (activeBooking) return withExtraPrograms(presencialTurno(input, activeBooking), input)
+  // Sin saber si hay clase hoy no se decide "reservá" (A1 del plan 20).
   if (input.bookingsLoading) return emptyModel('cargando', formatDayKicker(input.todayStr), '')
-  if (isSunday || noSessionToday) return withExtraPrograms(descansoPresencial(input), input)
+  if (input.waitlistTime) return withExtraPrograms(presencialSinTurno(input), input)
+  if (input.nextBooking) {
+    return withExtraPrograms(presencialProxima(input, input.nextBooking), input)
+  }
   return withExtraPrograms(presencialSinTurno(input), input)
 }
