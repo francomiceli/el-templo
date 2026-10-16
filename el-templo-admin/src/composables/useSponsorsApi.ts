@@ -70,6 +70,9 @@ export interface SponsorFormInput {
   partnerId: number | null;
 }
 
+/** Cuerpo de alta: `sortOrder` es opcional (sin él el API deja la marca al final, max + 1). */
+export type CreateSponsorInput = Omit<SponsorFormInput, 'sortOrder'> & { sortOrder?: number };
+
 /** PUT parcial (el API exige al menos una propiedad). */
 export type UpdateSponsorInput = Partial<SponsorFormInput>;
 
@@ -103,7 +106,7 @@ export function useSponsorsApi() {
     }
   }
 
-  async function create(input: SponsorFormInput): Promise<AdminSponsor> {
+  async function create(input: CreateSponsorInput): Promise<AdminSponsor> {
     loading.value = true;
     error.value = null;
     try {
