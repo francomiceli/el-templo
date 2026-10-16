@@ -28,6 +28,13 @@ export const SPONSOR_LOGO_PREFIX = "sponsors/logos";
 
 // ── Cuerpo de alta / edición ────────────────────────────────────────────────
 
+/**
+ * Tope del orden manual. La columna es `int` de 32 bits: sin tope, un valor
+ * fuera de rango pasaba el schema y MySQL respondía 500. Holgado respecto de
+ * cualquier lista real y deja margen para el `max(sortOrder) + 1` del alta.
+ */
+export const MAX_SORT_ORDER = 1_000_000;
+
 const sponsorBodyProperties = {
   name: { type: "string", minLength: 1, maxLength: 60 },
   category: { type: "string", minLength: 1, maxLength: 60 },
@@ -52,7 +59,7 @@ const sponsorBodyProperties = {
   startsOn: { type: ["string", "null"], pattern: DATE_PATTERN },
   endsOn: { type: ["string", "null"], pattern: DATE_PATTERN },
   isActive: { type: "boolean" },
-  sortOrder: { type: "integer", minimum: 0 },
+  sortOrder: { type: "integer", minimum: 0, maximum: MAX_SORT_ORDER },
   partnerId: { type: ["integer", "null"] },
 } as const;
 

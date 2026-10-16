@@ -760,6 +760,30 @@ describe("validaciones (D-19)", () => {
     ).toBe(400);
   });
 
+  it("sortOrder fuera de rango (negativo, > tope, > int de MySQL) → 400 en alta y edición, no 500 (WR-04)", async () => {
+    const existente = await crear({ name: "Existente" });
+    for (const sortOrder of [-1, 1_000_001, 99_999_999_999]) {
+      const alta = await req("POST", "", ownerToken, body({ sortOrder }));
+      expect(alta.statusCode, `alta ${sortOrder}: ${alta.body}`).toBe(400);
+      const edicion = await req("PUT", `/${existente.id}`, ownerToken, {
+        sortOrder,
+      });
+      expect(edicion.statusCode, `edición ${sortOrder}: ${edicion.body}`).toBe(
+        400,
+      );
+    }
+    expect((await brandRow(existente.id))?.sortOrder).toBe(0);
+    expect((await listar()).sponsors).toHaveLength(1);
+
+    // El tope es inclusivo y sigue habiendo lugar para el próximo alta.
+    const enElTope = await req("PUT", `/${existente.id}`, ownerToken, {
+      sortOrder: 1_000_000,
+    });
+    expect(enElTope.statusCode, enElTope.body).toBe(200);
+    const siguiente = await crear({ name: "Siguiente" });
+    expect(siguiente.sortOrder).toBe(1_000_001);
+  });
+
   it("logoUrl que no es https → 400", async () => {
     const http = await req(
       "POST",
