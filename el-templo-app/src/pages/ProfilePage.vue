@@ -95,6 +95,17 @@
 
       <div class="settings-card__divider" />
 
+      <div
+        class="settings-card__item settings-card__item--clickable"
+        @click="router.push('/proponer-mejora')"
+      >
+        <q-icon name="lightbulb" size="22px" color="primary" />
+        <span class="settings-card__label">Proponer una mejora</span>
+        <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
+      </div>
+
+      <div class="settings-card__divider" />
+
       <div class="settings-card__section-label">
         <q-icon name="notifications" size="18px" color="grey-6" />
         <span>Notificaciones</span>

@@ -102,7 +102,8 @@ $charcoal: #2e2a26;
 
 // Estilos copiados de RatingPromptDialog.vue (mandato de reuse): card
 // charcoal, gradiente terracotta, secundario flat cream-55, max-width 340px,
-// border-radius 16px. NO re-estilizar.
+// border-radius 16px. NO re-estilizar, salvo contraste (fase 199, D-15): botón
+// sólido #96593a/#fff y textos sólidos.
 .aviso-dialog {
   width: 100%;
   max-width: 340px;
@@ -132,7 +133,7 @@ $charcoal: #2e2a26;
   font-weight: 400;
   font-size: 0.9375rem;
   line-height: 1.5;
-  color: rgba($cream, 0.85);
+  color: #d9cfc1;
   margin: 0;
 }
 
@@ -144,8 +145,8 @@ $charcoal: #2e2a26;
 }
 
 .aviso-dialog__primary {
-  background: linear-gradient(135deg, $terracotta 0%, #ad6540 100%) !important;
-  color: $cream !important;
+  background: #96593a !important;
+  color: #fff !important;
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
   font-size: 0.9375rem;
@@ -155,7 +156,7 @@ $charcoal: #2e2a26;
 }
 
 .aviso-dialog__secondary {
-  color: rgba($cream, 0.55) !important;
+  color: #c9bfb2 !important;
   font-family: 'Geologica', sans-serif;
   font-weight: 400;
   font-size: 0.8125rem;

@@ -26,43 +26,26 @@
            Sin novedades no renderiza nada (D-8) y es fail-open (D-12). -->
       <NovedadesCard />
 
-      <!-- Carrusel premium — siempre visible: Mejoras y Referidos van para
-           todos; UpsellBadge solo a virtuales y Planes Personalizados cuando
-           no corresponde ProgramProgressCard. Los dots son dinámicos. -->
-      <div class="premium-carousel">
-        <div class="premium-carousel__dots">
-          <span
-            v-for="i in premiumSlideCount"
-            :key="i"
-            class="premium-carousel__dot"
-            :class="{ 'premium-carousel__dot--active': premiumSlide === i - 1 }"
+      <!-- Para vos (D-10): carrusel de cards claras sin dots; la siguiente asoma ~24 px.
+           Orden: Invitaciones, Presencial (solo online), Planes personalizados (si no hay
+           card de programa) y avisos libres del admin (D-15b). "Sugerencias" vive en Perfil (D-11). -->
+      <section class="for-you" aria-label="Para vos">
+        <h3 class="for-you__title">Para vos</h3>
+        <div class="for-you__rail">
+          <ReferralCtaCard />
+          <UpsellBadge v-if="showUpsellBadge" />
+          <ProgramCtaCard v-if="showProgramCta" :segment="userStore.segment" />
+          <AvisoCard
+            v-for="t in avisosStore.tarjetasLibres"
+            :key="t.id"
+            :aviso-id="t.id"
+            :title="t.title"
+            :body="t.body"
+            :button-text="t.buttonText"
+            :destination="t.destination"
           />
         </div>
-        <div ref="premiumScroller" class="premium-carousel__scroller" @scroll="onPremiumScroll">
-          <div class="premium-carousel__slide">
-            <ImprovementCtaCard />
-          </div>
-          <div class="premium-carousel__slide">
-            <ReferralCtaCard />
-          </div>
-          <div v-if="showUpsellBadge" class="premium-carousel__slide">
-            <UpsellBadge />
-          </div>
-          <div v-if="showProgramCta" class="premium-carousel__slide">
-            <ProgramCtaCard :segment="userStore.segment" />
-          </div>
-          <!-- D-15b: tarjetas libres del admin, DESPUÉS de las fijas visibles. -->
-          <div v-for="t in avisosStore.tarjetasLibres" :key="t.id" class="premium-carousel__slide">
-            <AvisoCard
-              :aviso-id="t.id"
-              :title="t.title"
-              :body="t.body"
-              :button-text="t.buttonText"
-              :destination="t.destination"
-            />
-          </div>
-        </div>
-      </div>
+      </section>
 
       <!-- Registro del día (D-07): una pregunta por vez, colapsa a una línea. Se oculta
            para quien nunca tuvo plan (sin-plan-nunca), como el sketch. -->
@@ -123,7 +106,7 @@
  * booking status, weekly progress, weekly summary, and existing
  * stats/RPE trend/evaluation sections.
  */
-import { computed, ref, onMounted, onUnmounted, watch, type Ref } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import DailyQuote from '../components/DailyQuote.vue'
 import { useProgressionStore } from '../stores/progressionStore'
@@ -147,7 +130,6 @@ import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
 import NovedadesCard from '../components/NovedadesCard.vue'
-import ImprovementCtaCard from '../components/ImprovementCtaCard.vue'
 import ReferralCtaCard from '../components/ReferralCtaCard.vue'
 import UpsellBadge from '../components/UpsellBadge.vue'
 import AvisoCard from '../components/AvisoCard.vue'
@@ -186,8 +168,6 @@ const programSheetOpen = ref(false)
 // El fetch de la semana terminó OK: sin esto la card no afirma "Hoy descansás" (plan 14).
 const weekLoaded = ref(false)
 const trialEligible = ref(false)
-const premiumScroller = ref<HTMLElement | null>(null) as Ref<HTMLElement | null>
-const premiumSlide = ref(0)
 
 function goToMiArbol() {
   void router.push('/mi-arbol')
@@ -211,22 +191,6 @@ const programProgressCard = computed(() =>
 // Planes Personalizados vive en el carrusel siempre que no corresponda la
 // card de progreso (mismo criterio que el viejo v-else).
 const showProgramCta = computed(() => !showProgramProgress.value)
-
-const premiumSlideCount = computed(() => {
-  return (
-    2 +
-    (showUpsellBadge.value ? 1 : 0) +
-    (showProgramCta.value ? 1 : 0) +
-    avisosStore.tarjetasLibres.length
-  )
-})
-
-function onPremiumScroll() {
-  const el = premiumScroller.value
-  if (!el) return
-  const index = Math.round(el.scrollLeft / el.clientWidth)
-  premiumSlide.value = Math.min(Math.max(index, 0), premiumSlideCount.value - 1)
-}
 
 // D-04: "hoy", día de la semana y semana actual en la zona de la SEDE, nunca la del teléfono.
 const tz = computed(() => todayBookingStore.tz)
@@ -561,48 +525,41 @@ onUnmounted(() => {
   }
 }
 
-// Premium cards carousel
-.premium-carousel {
-  margin: 0 -16px; // bleed to page edges
+// Para vos (D-10): carrusel compacto de cards claras. Cada hijo directo del rail es una card
+// (ReferralCtaCard, UpsellBadge, ProgramCtaCard, AvisoCard → ForYouCard).
+.for-you {
+  margin: 0 -16px; // sangra a los bordes de la página
 
-  &__dots {
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-    padding: 0 0 8px;
+  &__title {
+    margin: 0 0 8px;
+    padding: 0 16px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #2c2318;
   }
 
-  &__dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: rgba(#2c2318, 0.25);
-    transition: all 0.2s ease;
-
-    &--active {
-      width: 18px;
-      border-radius: 3px;
-      background: #2c2318;
-    }
-  }
-
-  &__scroller {
+  &__rail {
     display: flex;
+    gap: 10px;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
+    scroll-padding-inline: 16px;
+    padding: 0 16px 2px;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 
     &::-webkit-scrollbar {
       display: none;
     }
-  }
 
-  &__slide {
-    flex: 0 0 100%;
-    scroll-snap-align: center;
-    padding: 0 16px;
-    box-sizing: border-box;
+    // Ancho = pantalla - márgenes (2 × 16) - 24 px de la siguiente asomando.
+    > :deep(.for-you-card) {
+      flex: 0 0 calc(100% - 2 * 16px - 24px);
+      scroll-snap-align: start;
+    }
   }
 }
 </style>
