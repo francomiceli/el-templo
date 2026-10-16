@@ -106,9 +106,16 @@ import { useInViewport } from 'src/composables/useInViewport'
 import {
   SPONSOR_ADVANCE_MS,
   SPONSOR_TOUCH_PAUSE_MS,
+  buildSlidePlan,
+  clampSlide,
   fitBenefitFontPx,
   isCardTap,
+  jumpTarget,
   monogram,
+  positionAfterCountChange,
+  positionFromScroll,
+  progressOffset,
+  realIndex,
   sponsorBenefitFontPx,
   sponsorRedeemPill,
   type SponsorRedeemPill,
@@ -136,33 +143,31 @@ const trackEl = ref<HTMLElement | null>(null)
 // Con 2+ marcas se agregan al final copias de las DOS primeras: estando en la última ya
 // asoma la primera, y al llegar a la copia se salta sin animación a la real. Con dos
 // copias, mientras se ve la copia de la primera asoma la de la segunda (no un hueco).
-const COPIES = 2
-
+// Las cuentas (copias, `position % n`, destino del salto) viven en `utils/sponsors.ts`.
 interface Slide {
   sponsor: Sponsor
   key: string
   copy: boolean
 }
 
-const slides = computed((): Slide[] => {
-  const list = sponsors.value.map((sponsor) => ({ sponsor, key: `${sponsor.id}`, copy: false }))
-  if (list.length < 2) return list
-  const copies = sponsors.value
-    .slice(0, COPIES)
-    .map((sponsor) => ({ sponsor, key: `${sponsor.id}-copia`, copy: true }))
-  return [...list, ...copies]
-})
+// La estructura (cuántas cards y cuáles son copias) sale de `buildSlidePlan` (utils, con tests).
+const slides = computed((): Slide[] =>
+  buildSlidePlan(sponsors.value.length).flatMap(({ index, copy }) => {
+    const sponsor = sponsors.value[index]
+    return sponsor ? [{ sponsor, key: copy ? `${sponsor.id}-copia` : `${sponsor.id}`, copy }] : []
+  }),
+)
 
 /** Card que se ve (0..n-1 reales, n.. copias). */
 const position = ref(0)
 /** Marca real que se ve: es la que cuenta para vistas, timer y progreso. */
-const current = computed(() => (count.value > 0 ? position.value % count.value : 0))
+const current = computed(() => realIndex(position.value, count.value))
 /** Durante el salto de la copia a la real se apagan las transiciones (no se ve el cambio). */
 const jumping = ref(false)
 
 // Si la lista se achica (recarga, otro país) no quedamos fuera de rango.
 watch(count, (n) => {
-  if (position.value >= slides.value.length || (n < 2 && position.value >= n)) position.value = 0
+  position.value = positionAfterCountChange(position.value, n)
 })
 
 function redeemPill(s: Sponsor): SponsorRedeemPill {
@@ -299,8 +304,7 @@ function scrollToPosition(target: number, smooth: boolean): void {
 /** Auto-avance a la card siguiente; de la última pasa a la copia de la primera. */
 function goTo(index: number): void {
   if (count.value === 0) return
-  const target = Math.min(Math.max(index, 0), slides.value.length - 1)
-  scrollToPosition(target, !reducedMotion.value)
+  scrollToPosition(clampSlide(index, count.value), !reducedMotion.value)
 }
 
 /**
@@ -308,13 +312,15 @@ function goTo(index: number): void {
  * lugar, así que no se ve. La línea de progreso sigue desde donde iba.
  */
 function jumpFromCopy(): void {
-  const n = count.value
-  if (n < 2 || position.value < n) return
-  progressOffsetMs.value = running.value
-    ? Math.min(performance.now() - cycleStartedAt, SPONSOR_ADVANCE_MS)
-    : 0
+  const target = jumpTarget(position.value, count.value)
+  if (target === null) return
+  progressOffsetMs.value = progressOffset(
+    running.value,
+    performance.now() - cycleStartedAt,
+    SPONSOR_ADVANCE_MS,
+  )
   jumping.value = true
-  scrollToPosition(position.value - n, false)
+  scrollToPosition(target, false)
   // Dos frames: el navegador pinta la card real activa sin transición y recién ahí vuelven.
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
@@ -360,13 +366,14 @@ function syncPositionFromScroll(): void {
   if (performance.now() < programmaticUntil) return
   const track = trackEl.value
   const first = track?.children[0] as HTMLElement | undefined
-  const last = slides.value.length - 1
-  if (!track || !first || last < 0) return
-  const step = first.offsetWidth + CARD_GAP_PX
-  let index = Math.round(track.scrollLeft / step)
-  // Por si la última no llega a su punto de snap: el fin del scroll la cuenta.
-  if (track.scrollLeft >= track.scrollWidth - track.clientWidth - 2) index = last
-  index = Math.min(Math.max(index, 0), last)
+  if (!track || !first || slides.value.length === 0) return
+  // Por si la última no llega a su punto de snap, el fin del scroll la cuenta (en la función).
+  const index = positionFromScroll(
+    track.scrollLeft,
+    first.offsetWidth + CARD_GAP_PX,
+    track.scrollWidth - track.clientWidth,
+    slides.value.length,
+  )
   if (index !== position.value) position.value = index
 }
 

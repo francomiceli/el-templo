@@ -104,3 +104,93 @@ export function isCardTap(
   if (downScrollLeft === null) return true
   return Math.abs(scrollLeft - downScrollLeft) <= slopPx
 }
+
+// ── Lista continua del carrusel (copias al final) ─────────────────────────────
+// Lógica numérica del salto copia → real de `SponsorsCarousel.vue`, sin DOM para poder
+// probarla (REVIEW-app WR-06). Una "posición" es un índice de la pista (0..n-1 son las
+// marcas reales, n.. las copias), no el índice de la marca.
+
+/** Cuántas de las primeras marcas se repiten al final: asoma la primera y la segunda. */
+export const SPONSOR_COPIES = 2
+
+/** Una card de la pista: de qué marca es (índice en la lista) y si es una copia. */
+export interface SponsorSlide {
+  index: number
+  copy: boolean
+}
+
+/**
+ * Cards de la pista para `count` marcas: las reales en orden y, con 2 o más, al final copias
+ * de las `SPONSOR_COPIES` primeras (con menos marcas que copias, de todas). Con 0 o 1 marca
+ * no hay copias (no hay a dónde avanzar).
+ */
+export function buildSlidePlan(count: number): SponsorSlide[] {
+  const real: SponsorSlide[] = Array.from({ length: Math.max(count, 0) }, (_, index) => ({
+    index,
+    copy: false,
+  }))
+  if (count < 2) return real
+  const copies: SponsorSlide[] = Array.from(
+    { length: Math.min(SPONSOR_COPIES, count) },
+    (_, index) => ({
+      index,
+      copy: true,
+    }),
+  )
+  return [...real, ...copies]
+}
+
+/** Marca real (0..count-1) que corresponde a una posición de la pista; 0 sin marcas. */
+export function realIndex(position: number, count: number): number {
+  return count > 0 ? position % count : 0
+}
+
+/**
+ * Posición a conservar cuando cambia la cantidad de marcas (recarga, otro país): la misma si
+ * sigue existiendo en la pista nueva y 0 si quedó fuera de rango.
+ */
+export function positionAfterCountChange(position: number, count: number): number {
+  return position >= buildSlidePlan(count).length ? 0 : position
+}
+
+/** Limita una posición pedida al rango de la pista (`count` marcas); 0 si está vacía. */
+export function clampSlide(index: number, count: number): number {
+  const last = buildSlidePlan(count).length - 1
+  return last < 0 ? 0 : Math.min(Math.max(index, 0), last)
+}
+
+/**
+ * Posición a la que saltar (sin animación) estando en una copia: la real equivalente, que
+ * se ve idéntica. `null` si no hay que saltar (menos de 2 marcas o ya está en una real).
+ */
+export function jumpTarget(position: number, count: number): number | null {
+  if (count < 2 || position < count) return null
+  return position - count
+}
+
+/**
+ * Posición según el scroll del track (swipe): la card más cercana al `scrollLeft`
+ * (`step` = ancho de card + separación). Si el scroll llegó al final, la última cuenta
+ * aunque no alcance su punto de snap. Siempre dentro de la pista; 0 sin cards.
+ */
+export function positionFromScroll(
+  scrollLeft: number,
+  step: number,
+  maxScrollLeft: number,
+  slideCount: number,
+): number {
+  const last = slideCount - 1
+  if (last < 0 || step <= 0) return 0
+  let index = Math.round(scrollLeft / step)
+  if (scrollLeft >= maxScrollLeft - 2) index = last
+  return Math.min(Math.max(index, 0), last)
+}
+
+/**
+ * Cuánto llevaba la línea de progreso al saltar de la copia a la real, para que siga desde
+ * ahí: el tiempo de la vuelta si el auto-avance corre (sin pasarse del intervalo) y 0 si no.
+ */
+export function progressOffset(running: boolean, elapsedMs: number, advanceMs: number): number {
+  if (!running) return 0
+  return Math.min(Math.max(elapsedMs, 0), advanceMs)
+}
