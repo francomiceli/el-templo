@@ -14,7 +14,7 @@
     </div>
 
     <!-- Content State. Orden fijo de la pila (D-02):
-         card de hoy → Novedades → Registro del día → Patrocinadores → Tus sesiones
+         card de hoy → Novedades → Registro del día → Patrocinadores → Tu semana
          (con la evaluación si aplica) → Para vos → Frase del día. El saludo vive en el layout. -->
     <div
       v-else
@@ -45,7 +45,7 @@
            Sin marcas no renderiza nada (L50). El tap abre la hoja de detalle (abajo). -->
       <SponsorsCarousel @open="openSponsor" />
 
-      <!-- Tus sesiones (D-09, UAT D17): dos cifras + puntos L–D, sin RPE. La evaluación de nivel (solo si es
+      <!-- Tu semana (D-09, UAT D21): cifra de la semana + puntos L–D + total en pastilla, sin RPE. La evaluación de nivel (solo si es
            accionable o está pendiente) pertenece a este bloque. -->
       <WeekStrip
         v-if="todayCard.kind !== 'sin-plan-nunca'"
@@ -119,7 +119,7 @@
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *
  * Una sola pantalla con gates (fase 199): card de hoy, Novedades, Registro del día,
- * Patrocinadores, Tus sesiones (con evaluación si aplica), Para vos y la frase del día.
+ * Patrocinadores, Tu semana (con evaluación si aplica), Para vos y la frase del día.
  */
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'

@@ -1,34 +1,33 @@
 <template>
-  <section class="week-strip" aria-label="Tus sesiones">
-    <div class="week-strip__title">Tus sesiones</div>
-    <div class="week-strip__figures">
-      <div class="week-strip__figure">
-        <div class="week-strip__big">{{ sessionsCount }}</div>
-        <div class="week-strip__label">esta semana</div>
-      </div>
-      <div class="week-strip__figure">
-        <div class="week-strip__big">{{ totalSessions }}</div>
-        <div class="week-strip__label">{{ sessionsTotalCaption(totalLabel) }}</div>
-      </div>
+  <section class="week-strip" aria-label="Tu semana">
+    <div class="week-strip__title">Tu semana</div>
+    <div class="week-strip__row">
+      <div class="week-strip__big">{{ sessionsCount }}</div>
+      <div class="week-strip__label">{{ weekNoun }}<br />esta semana</div>
+      <ul class="week-strip__days">
+        <li
+          v-for="(dot, i) in dots"
+          :key="dot.date"
+          class="week-strip__day"
+          :aria-label="dotAriaLabel(dot, i)"
+        >
+          <i
+            class="week-strip__dot"
+            :class="{
+              'week-strip__dot--trained': dot.trained,
+              'week-strip__dot--today': dot.isToday,
+            }"
+            aria-hidden="true"
+          ></i>
+          <span aria-hidden="true">{{ dot.letter }}</span>
+        </li>
+      </ul>
     </div>
-    <ul class="week-strip__days">
-      <li
-        v-for="(dot, i) in dots"
-        :key="dot.date"
-        class="week-strip__day"
-        :aria-label="dotAriaLabel(dot, i)"
-      >
-        <i
-          class="week-strip__dot"
-          :class="{
-            'week-strip__dot--trained': dot.trained,
-            'week-strip__dot--today': dot.isToday,
-          }"
-          aria-hidden="true"
-        ></i>
-        <span aria-hidden="true">{{ dot.letter }}</span>
-      </li>
-    </ul>
+    <!-- UAT D21: el total se resalta con el número en una pastilla terracota -->
+    <div class="week-strip__total">
+      <span class="week-strip__badge">{{ totalSessions }}</span>
+      <span>{{ sessionsTotalCaption(totalLabel, totalSessions) }}</span>
+    </div>
   </section>
 </template>
 
@@ -54,6 +53,7 @@ const props = withDefaults(
 
 const dots = computed(() => weekDots(props.weekStart, props.todayStr, props.completedDates))
 const sessionsCount = computed(() => sessionsThisWeek(props.weekStart, props.completedDates))
+const weekNoun = computed(() => (sessionsCount.value === 1 ? 'sesión' : 'sesiones'))
 </script>
 
 <style scoped lang="scss">
@@ -75,20 +75,11 @@ const sessionsCount = computed(() => sessionsThisWeek(props.weekStart, props.com
     color: $mt-block-title-color;
   }
 
-  // Dos cifras de igual jerarquía, columnas iguales con un filete vertical en el medio.
-  &__figures {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    margin-bottom: 14px;
-  }
-
-  &__figure {
-    min-width: 0;
-    text-align: center;
-
-    & + & {
-      border-left: 1px solid #e5dbcd;
-    }
+  &__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
   }
 
   &__big {
@@ -96,12 +87,11 @@ const sessionsCount = computed(() => sessionsThisWeek(props.weekStart, props.com
     font-size: 32px;
     font-weight: 700;
     line-height: 1;
-    font-variant-numeric: tabular-nums;
     color: #2c2318;
   }
 
   &__label {
-    margin-top: 4px;
+    white-space: nowrap;
     font-size: 13px;
     line-height: 1.3;
     color: #6b6459;
@@ -109,8 +99,8 @@ const sessionsCount = computed(() => sessionsThisWeek(props.weekStart, props.com
 
   &__days {
     display: flex;
-    justify-content: space-between;
-    margin: 0;
+    gap: 5px;
+    margin: 0 0 0 auto;
     padding: 0;
     list-style: none;
   }
@@ -142,6 +132,29 @@ const sessionsCount = computed(() => sessionsThisWeek(props.weekStart, props.com
       border-width: 2px;
       border-color: #2c2318;
     }
+  }
+
+  &__total {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: #6b6459;
+  }
+
+  // Pastilla terracota con el número del total: #fff sobre #96593a = 5.6:1 (AA).
+  &__badge {
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: #96593a;
+    color: #ffffff;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
   }
 }
 </style>

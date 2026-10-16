@@ -182,11 +182,20 @@ describe('dotAriaLabel', () => {
 })
 
 describe('sessionsTotalCaption', () => {
-  it('total -> "en total"', () => {
-    expect(sessionsTotalCaption('total')).toBe('en total')
+  it('total -> "sesiones en total"', () => {
+    expect(sessionsTotalCaption('total', 42)).toBe('sesiones en total')
   })
 
-  it('templo -> "en El Templo"', () => {
-    expect(sessionsTotalCaption('templo')).toBe('en El Templo')
+  it('templo -> "sesiones en El Templo"', () => {
+    expect(sessionsTotalCaption('templo', 42)).toBe('sesiones en El Templo')
+  })
+
+  it('con 1 va en singular en ambas variantes', () => {
+    expect(sessionsTotalCaption('total', 1)).toBe('sesión en total')
+    expect(sessionsTotalCaption('templo', 1)).toBe('sesión en El Templo')
+  })
+
+  it('con 0 va en plural', () => {
+    expect(sessionsTotalCaption('total', 0)).toBe('sesiones en total')
   })
 })
