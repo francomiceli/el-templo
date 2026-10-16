@@ -61,6 +61,32 @@ export function fitBenefitFontPx(
   return floorPx;
 }
 
+/** Qué muestra la pastilla de canje de una card (D-21/D-23). */
+export interface SponsorRedeemPill {
+  icon: 'sell' | 'card_membership' | 'lock';
+  label: string;
+}
+
+/**
+ * Pastilla de canje: `sell` + código si el socio puede canjear, `card_membership` +
+ * "Mostrá tu carnet" para marcas de carnet, `lock` + "Socios con plan" si es un código
+ * y el socio no puede canjear (el server no manda el código sin plan activo).
+ *
+ * Espejo de `sponsorRedeemPill` de `el-templo-app/src/modules/progression/utils/sponsors.ts`:
+ * la vista previa tiene que mostrar lo mismo que la card. Cambiar los dos juntos.
+ */
+export function sponsorRedeemPill(
+  sponsor: { redeemType: SponsorRedeemType; redeemCode: string | null },
+  canRedeem: boolean
+): SponsorRedeemPill {
+  if (sponsor.redeemType === 'carnet') {
+    return { icon: 'card_membership', label: 'Mostrá tu carnet' };
+  }
+  const code = sponsor.redeemCode?.trim();
+  if (canRedeem && code) return { icon: 'sell', label: code };
+  return { icon: 'lock', label: 'Socios con plan' };
+}
+
 export const SPONSOR_COUNTRY_OPTIONS: { label: string; value: SponsorCountry }[] = [
   { label: 'Argentina', value: 'AR' },
   { label: 'España', value: 'ES' },

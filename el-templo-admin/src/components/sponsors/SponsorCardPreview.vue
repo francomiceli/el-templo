@@ -37,8 +37,8 @@
             <span class="spc-detail">{{ shownDetail }}</span>
           </div>
           <span class="spc-how">
-            <q-icon :name="redeemType === 'code' ? 'sell' : 'card_membership'" size="14px" />
-            {{ redeemLabel }}
+            <q-icon :name="redeemPill.icon" size="14px" />
+            {{ redeemPill.label }}
           </span>
         </div>
       </article>
@@ -49,23 +49,33 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { isHexColor } from 'src/utils/contrast';
-import { fitBenefitFontPx, monogram, sponsorBenefitFontPx } from 'src/utils/sponsors';
+import {
+  fitBenefitFontPx,
+  monogram,
+  sponsorBenefitFontPx,
+  sponsorRedeemPill,
+} from 'src/utils/sponsors';
 
 const FALLBACK_BG = '#3d3732';
 const FALLBACK_FG = '#f2ede5';
 
-const props = defineProps<{
-  name: string;
-  category: string;
-  logoUrl: string | null;
-  icon: string | null;
-  bgColor: string;
-  textColor: string;
-  benefit: string;
-  detail: string;
-  redeemType: 'code' | 'carnet';
-  redeemCode: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    name: string;
+    category: string;
+    logoUrl: string | null;
+    icon: string | null;
+    bgColor: string;
+    textColor: string;
+    benefit: string;
+    detail: string;
+    redeemType: 'code' | 'carnet';
+    redeemCode: string | null;
+    /** Socio sin plan activo: el código de canje se ve bloqueado (igual que en la app). */
+    locked?: boolean;
+  }>(),
+  { locked: false }
+);
 
 // [card activa, card fantasma]: se renderiza la misma marca dos veces.
 const cards = [false, true];
@@ -81,8 +91,13 @@ const shownCategory = computed(() => props.category.trim() || 'Rubro');
 const shownBenefit = computed(() => props.benefit.trim() || '20% OFF');
 const shownDetail = computed(() => props.detail.trim() || 'detalle del beneficio');
 const initials = computed(() => monogram(shownName.value));
-const redeemLabel = computed(() =>
-  props.redeemType === 'code' ? props.redeemCode?.trim() || 'CÓDIGO' : 'Mostrá tu carnet'
+// Misma función que la app (`sponsorRedeemPill`): con `locked` el socio sin plan ve el candado.
+// Sin código cargado todavía se muestra el placeholder "CÓDIGO" (solo en la vista previa).
+const redeemPill = computed(() =>
+  sponsorRedeemPill(
+    { redeemType: props.redeemType, redeemCode: props.redeemCode?.trim() || 'CÓDIGO' },
+    !props.locked
+  )
 );
 
 // ── Tamaño del beneficio: el mismo ajuste por medición que la card de la app (UAT D6) ──
@@ -234,10 +249,14 @@ onUnmounted(() => {
 .spc-deal__text {
   flex: 1 1 auto;
   min-width: 96px;
+  max-width: 100%;
 }
 
+/* Bajo el piso del ajuste (16 px) la app corta con elipsis: la vista previa lo muestra igual. */
 .spc-benefit {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font:
     800 30px/1 'Montserrat',
     sans-serif;

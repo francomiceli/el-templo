@@ -258,13 +258,13 @@
 
           <!-- ── Vista previa ─────────────────────────────────────────── -->
           <div class="col-12 col-md-5 preview-col">
-            <div class="text-subtitle2 q-mb-xs">Vista previa</div>
-            <div class="text-caption text-grey-7 q-mb-sm">Card del carrusel</div>
-            <SponsorCardPreview v-bind="cardProps" />
-            <div class="row items-center justify-between q-mt-md q-mb-sm">
-              <div class="text-caption text-grey-7">Hoja de detalle</div>
+            <div class="row items-center justify-between q-mb-xs">
+              <div class="text-subtitle2">Vista previa</div>
               <q-toggle v-model="previewLocked" dense color="primary" label="Ver sin plan" />
             </div>
+            <div class="text-caption text-grey-7 q-mb-sm">Card del carrusel</div>
+            <SponsorCardPreview v-bind="cardProps" :locked="previewLocked" />
+            <div class="text-caption text-grey-7 q-mt-md q-mb-sm">Hoja de detalle</div>
             <SponsorSheetPreview
               v-bind="cardProps"
               :conditions="form.conditions"
