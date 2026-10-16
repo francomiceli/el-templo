@@ -1246,7 +1246,7 @@ const trialConfirmationBody = computed(() => {
   const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
   const timeStr = formatTime(b.startTime)
   const sede = b.branchAddress ? `${b.branchName} (${b.branchAddress})` : b.branchName
-  return `Te esperamos el ${dayLabel} ${dateStr} a las ${timeStr} en ${sede}. ¡Llegá unos minutos antes!`
+  return `Te esperamos el ${dayLabel.toLowerCase()} ${dateStr} a las ${timeStr} en ${sede}. ¡Llegá unos minutos antes!`
 })
 
 // D-20: botón primario "Agregar al calendario" de la confirmación de prueba
@@ -1453,19 +1453,20 @@ const partnerDialog = ref({
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
+// Meses en minúscula ("16 oct", "12 al 16 de octubre"): van dentro de frases.
 const MONTH_ABBREV = [
-  'Ene',
-  'Feb',
-  'Mar',
-  'Abr',
-  'May',
-  'Jun',
-  'Jul',
-  'Ago',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dic',
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
 ]
 
 /**
@@ -1549,18 +1550,18 @@ const visibleDays = computed<DayOfWeek[]>(() => {
 
 const weekLabel = computed(() => {
   const monthNames = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre',
+    'enero',
+    'febrero',
+    'marzo',
+    'abril',
+    'mayo',
+    'junio',
+    'julio',
+    'agosto',
+    'septiembre',
+    'octubre',
+    'noviembre',
+    'diciembre',
   ]
   // weekStart is anchored at UTC noon so calendar math uses UTC methods —
   // see getMondayInTz() for why.
