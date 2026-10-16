@@ -113,14 +113,14 @@
     <q-btn
       v-if="showCheckInFab && !isDesktop"
       fab
+      no-caps
       icon="qr_code_scanner"
-      color="primary"
-      class="check-in-fab"
+      label="Marcar asistencia"
+      aria-label="Marcar asistencia"
+      class="check-in-fab check-in-fab--extended"
       :class="{ 'check-in-fab--with-footer': !isDesktop }"
       @click="router.push('/check-in')"
-    >
-      <q-tooltip>Registrar asistencia</q-tooltip>
-    </q-btn>
+    />
 
     <!-- Tip de primer uso del QR (SPEC "Empezá acá" A2): globo persistente
          anclado al FAB, una sola vez por socio (useTipsSeenStorage). -->
@@ -197,7 +197,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
@@ -206,6 +206,7 @@ import { useProgressionStore } from 'src/modules/progression/stores/progressionS
 import { useCommunicationsStore } from 'src/stores/useCommunicationsStore'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { useNovedadesStore } from 'src/stores/useNovedadesStore'
+import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
 import RatingPromptDialog from 'src/components/RatingPromptDialog.vue'
@@ -216,7 +217,6 @@ import VeteranSeal from 'src/components/VeteranSeal.vue'
 import { useTipsSeenStorage } from 'src/composables/useTipsSeenStorage'
 import { TIPS_CONTENT } from 'src/config/tips-content'
 import { isNewMember } from 'src/modules/guia/new-member'
-import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -227,6 +227,7 @@ const progressionStore = useProgressionStore()
 const communicationsStore = useCommunicationsStore()
 const avisosStore = useAvisosStore()
 const novedadesStore = useNovedadesStore()
+const todayBookingStore = useTodayBookingStore()
 
 // Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
 // por defecto de WhatsApp una vez por sesión, mismo patrón `watch` +
@@ -253,14 +254,31 @@ watch(
   (isAuth) => {
     if (isAuth) {
       void avisosStore.evaluate()
+      // D-04/D-06: turno de hoy + reloj de la ventana ±20 min (compartido con Mi Templo).
+      void todayBookingStore.load()
+      todayBookingStore.startClock()
     } else {
       avisosStore.reset()
       // Novedades de Mi Templo: la próxima sesión (otro socio/sede) arranca de cero.
       novedadesStore.reset()
+      // Reservas del socio anterior + reloj: nada vivo tras el logout.
+      todayBookingStore.reset()
     }
   },
   { immediate: true },
 )
+
+// Refresca el turno de hoy al volver del escáner o de reservar (D-06).
+watch(
+  () => route.path,
+  (path) => {
+    if (authStore.isAuthenticated && (path === '/mi-templo' || path === '/reservas')) {
+      void todayBookingStore.load()
+    }
+  },
+)
+
+onUnmounted(() => todayBookingStore.stopClock())
 
 // SPEC "Empezá acá" B — apertura automática: la primera vez que un socio
 // entra DESPUÉS de completar el onboarding (o ya lo tenía completo) y nunca
@@ -315,16 +333,18 @@ function formatGreetingDate(dateStr: string): string {
 }
 
 // D-04: 'hoy' en la zona de la sede, no del teléfono (un socio de Madrid con el
-// teléfono en hora AR veía el día equivocado de 19 a 24).
-const formattedDate = computed(() =>
-  formatGreetingDate(todayInTz(userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ)),
-)
+// teléfono en hora AR veía el día equivocado de 19 a 24). Sale del store del
+// turno de hoy: su reloj de 30 s cambia la fecha solo a la medianoche de la sede.
+const formattedDate = computed(() => formatGreetingDate(todayBookingStore.todayStr))
 
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
   if (!userStore.profile) return false
   if (userStore.profile.branchIsVirtual) return false
   if (!userStore.hasActiveSubscription) return false
+  // Solo en la ventana ±20 min de una reserva `reservado` de hoy, misma ventana
+  // que el server. Fuera de la ventana escanear siempre falla (D-06).
+  if (!todayBookingStore.fabVisible) return false
   return route.path === '/mi-templo' || route.path === '/reservas'
 })
 
@@ -792,6 +812,47 @@ async function onLogout() {
   &--with-footer {
     // Above mobile footer tabs (56px height + safe area)
     bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+
+  // D-06: extendido con "Marcar asistencia", solo aparece en la ventana ±20 min.
+  &--extended {
+    right: 16px;
+    height: 56px;
+    min-height: 56px;
+    padding: 0 22px 0 18px;
+    border-radius: 28px;
+    background: #96593a;
+    color: #fff;
+    font-family: 'Geologica', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    box-shadow: 0 8px 20px rgba(150, 89, 58, 0.45);
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation:
+        fabIn 0.35s ease,
+        pulse 2s ease-in-out 0.4s infinite;
+    }
+  }
+}
+
+@keyframes fabIn {
+  from {
+    transform: translateY(20px) scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    box-shadow:
+      0 8px 20px rgba(150, 89, 58, 0.45),
+      0 0 0 10px rgba(150, 89, 58, 0.15);
   }
 }
 
