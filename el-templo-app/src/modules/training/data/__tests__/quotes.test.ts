@@ -7,6 +7,7 @@ import {
   quoteOfTheDay,
   rotationIndex,
   segmentsToQuote,
+  splitWordsKeepingSpaces,
 } from '../quotes'
 
 describe('tanda de frases (copia de las activas del TV)', () => {
@@ -181,5 +182,26 @@ describe('getQuoteForBlock (reproductor)', () => {
     const q = getQuoteForBlock(0)
     expect(QUOTES).toContain(q)
     expect(getQuoteForBlock(3, 2)).toBe(QUOTES[9])
+  })
+})
+
+describe('splitWordsKeepingSpaces', () => {
+  it('cada palabra conserva su espacio final', () => {
+    expect(splitWordsKeepingSpaces('La fortuna favorece')).toEqual(['La ', 'fortuna ', 'favorece'])
+  })
+
+  it('igual que el split con lookbehind: espacios dobles, al principio y al final', () => {
+    for (const text of ['Hola  mundo', ' arranca', 'termina ', 'a\nb', '', '   ']) {
+      // Referencia: lo que hacía el componente (Node sí soporta lookbehind).
+      const expected = text.split(/(?<=\s)/).filter(Boolean)
+      expect(splitWordsKeepingSpaces(text)).toEqual(expected)
+    }
+  })
+
+  it('todas las frases se reconstruyen exactas', () => {
+    for (const q of SESSION_QUOTES) {
+      for (const seg of q.segments)
+        expect(splitWordsKeepingSpaces(seg.text).join('')).toBe(seg.text)
+    }
   })
 })

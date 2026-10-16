@@ -216,3 +216,13 @@ export function getQuoteForBlock(blockIndex: number, dayOffset = 0): Quote {
   const index = (blockIndex + dayOffset * 3) % QUOTES.length
   return QUOTES[Math.abs(index)]!
 }
+
+/**
+ * Parte un texto en palabras que conservan el espacio que las sigue ("Hola  mundo" →
+ * ["Hola ", " ", "mundo"]), para la entrada palabra por palabra de la frase del día.
+ * Sin lookbehind (`split(/(?<=\s)/)`): Safari lo soporta recién desde 16.4 y la app
+ * apunta a iOS 15; esbuild lo pasaba a `new RegExp` y tiraba al ejecutarse.
+ */
+export function splitWordsKeepingSpaces(text: string): string[] {
+  return text.match(/\S*\s|\S+/g) ?? []
+}

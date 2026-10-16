@@ -25,7 +25,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { quoteOfTheDay } from 'src/modules/training/data/quotes'
+import { quoteOfTheDay, splitWordsKeepingSpaces } from 'src/modules/training/data/quotes'
 import { useUserStore } from 'src/stores/useUserStore'
 import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
 import { useInViewport } from 'src/composables/useInViewport'
@@ -38,13 +38,10 @@ const tz = computed(() => userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ
 /** Frase del día en la zona de la sede (estable todo el día de la sede) */
 const quote = computed(() => quoteOfTheDay(todayInTz(tz.value)))
 
-/** Palabras con su espacio final (`split` con lookbehind), marcando los tramos dorados */
+/** Palabras con su espacio final, marcando los tramos dorados */
 const words = computed(() =>
   quote.value.segments.flatMap((s) =>
-    s.text
-      .split(/(?<=\s)/)
-      .filter(Boolean)
-      .map((text) => ({ text, gold: s.gold === true })),
+    splitWordsKeepingSpaces(s.text).map((text) => ({ text, gold: s.gold === true })),
   ),
 )
 const fullText = computed(() => quote.value.segments.map((s) => s.text).join(''))
