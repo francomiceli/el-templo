@@ -109,7 +109,7 @@ $charcoal: #2e2a26;
 }
 
 .branch-picker-dialog__icon {
-  color: $terracotta;
+  color: #e3c9a8; // 199-29: kick-dark sobre el modal oscuro (antes $terracotta 2.57)
   margin-bottom: 8px;
 }
 
@@ -162,11 +162,11 @@ $charcoal: #2e2a26;
   font-weight: 400;
   font-size: 0.8125rem;
   margin: 2px 0 0 0;
-  color: rgba($cream, 0.7);
+  color: #b9b1a4; // 199-29: sólido (antes rgba($cream, .7), mismo aspecto)
 }
 
 .branch-picker-dialog__maps-btn {
-  color: $terracotta !important;
+  color: #e3c9a8 !important; // 199-29: kick-dark sobre #393530 (antes $terracotta 2.19)
   font-family: 'Geologica', sans-serif;
   font-weight: 600;
   font-size: 0.75rem;
@@ -181,7 +181,7 @@ $charcoal: #2e2a26;
 }
 
 .branch-picker-dialog__secondary {
-  color: rgba($cream, 0.55) !important;
+  color: #b9b1a4 !important; // 199-29: sólido (antes rgba($cream, .55) 4.80)
   font-family: 'Geologica', sans-serif;
   font-weight: 400;
   font-size: 0.8125rem;

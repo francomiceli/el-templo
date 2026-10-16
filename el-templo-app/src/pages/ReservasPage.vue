@@ -139,13 +139,13 @@
             <q-icon name="location_on" size="18px" color="primary" />
           </template>
           <template #append>
-            <q-icon name="unfold_more" size="16px" color="grey-6" />
+            <q-icon name="unfold_more" size="16px" color="info" />
           </template>
         </q-select>
       </div>
 
       <div v-if="!trialBranchId" class="day-slots__empty">
-        <q-icon name="event_busy" size="40px" color="grey-4" />
+        <q-icon name="event_busy" size="40px" color="info" />
         <p>Elegí una sede para ver los horarios disponibles.</p>
       </div>
 
@@ -233,7 +233,7 @@
          benefit lapsed 30 days after signup without a first reservation. No
          grid, no reserve — same visual language as the blocked muro below. -->
     <div v-else-if="partnerBenefitExpired" class="reservas__empty">
-      <q-icon name="event_busy" size="64px" color="grey-5" />
+      <q-icon name="event_busy" size="64px" color="info" />
       <h2 class="reservas__empty-title">Tu semana de regalo venció</h2>
       <p class="reservas__empty-text">
         El beneficio de tu semana gratis venció porque no llegaste a reservar a tiempo. Consultá por
@@ -322,7 +322,7 @@
             <q-icon name="location_on" size="18px" color="primary" />
           </template>
           <template #append>
-            <q-icon name="unfold_more" size="16px" color="grey-6" />
+            <q-icon name="unfold_more" size="16px" color="info" />
           </template>
           <template #option="scope">
             <q-item v-bind="scope.itemProps">
@@ -351,7 +351,7 @@
 
       <!-- Grid hidden until a sede is chosen -->
       <div v-if="!trialBranchId" class="day-slots__empty">
-        <q-icon name="event_busy" size="40px" color="grey-4" />
+        <q-icon name="event_busy" size="40px" color="info" />
         <p>Elegí una sede para ver los horarios disponibles.</p>
       </div>
 
@@ -447,11 +447,8 @@
             </div>
           </template>
 
-          <div
-            v-if="daySections.length === 0"
-            class="day-slots__empty"
-          >
-            <q-icon name="event_busy" size="40px" color="grey-4" />
+          <div v-if="daySections.length === 0" class="day-slots__empty">
+            <q-icon name="event_busy" size="40px" color="info" />
             <p>No hay horarios este día</p>
           </div>
         </div>
@@ -483,7 +480,7 @@
             <q-icon name="location_on" size="18px" color="primary" />
           </template>
           <template #append>
-            <q-icon name="unfold_more" size="16px" color="grey-6" />
+            <q-icon name="unfold_more" size="16px" color="info" />
           </template>
           <template #option="scope">
             <q-item v-bind="scope.itemProps">
@@ -730,11 +727,8 @@
         </template>
 
         <!-- No slots -->
-        <div
-          v-if="daySections.length === 0"
-          class="day-slots__empty"
-        >
-          <q-icon name="event_busy" size="40px" color="grey-4" />
+        <div v-if="daySections.length === 0" class="day-slots__empty">
+          <q-icon name="event_busy" size="40px" color="info" />
           <p>No hay horarios este día</p>
         </div>
       </div>
@@ -2521,13 +2515,13 @@ onBeforeUnmount(() => cleanup())
   font-family: 'Montserrat', sans-serif;
   font-size: 16px;
   font-weight: 700;
-  color: $primary;
+  color: #2c2318; // 199-29: texto sólido sobre Sandy Beige (11.7)
   margin: 0;
 }
 
 .trial-banner__body {
   font-size: 13px;
-  color: #8a8472; // Olive Stone
+  color: #2c2318; // 199-29: antes Olive Stone #8a8472 (2.68)
   margin: 4px 0 0;
   line-height: 1.4;
 }
@@ -2576,7 +2570,7 @@ onBeforeUnmount(() => cleanup())
   font-family: 'Montserrat', sans-serif;
   font-size: 18px;
   font-weight: 800;
-  color: $primary;
+  color: #2c2318; // 199-29: sobre la página (antes $primary 4.23)
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0 0 12px;
@@ -2610,9 +2604,10 @@ onBeforeUnmount(() => cleanup())
     letter-spacing: 0.02em;
   }
 
+  // 199-29: sin opacity en el ícono (antes .5, medía 1.57-1.94)
   :deep(.q-field__append) {
     .q-icon {
-      opacity: 0.5;
+      color: $info;
     }
   }
 }
@@ -2623,6 +2618,7 @@ onBeforeUnmount(() => cleanup())
 .branch-maps-link {
   align-self: center;
   text-decoration: underline;
+  color: #2c2318 !important; // 199-29: sobre la página (antes $primary 4.35)
 
   :deep(.q-btn__content) {
     text-decoration: underline;
@@ -2656,7 +2652,7 @@ onBeforeUnmount(() => cleanup())
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgba($primary, 0.5);
+  color: #6b6459; // 199-29: sólido sobre card blanca (antes rgba .5, 2.12)
   margin: 0;
 }
 
@@ -2676,7 +2672,7 @@ onBeforeUnmount(() => cleanup())
 
 .next-class-card__address {
   font-size: 12px;
-  color: #8a8472; // Olive Stone, igual que .trial-banner__body
+  color: #6b6459; // 199-29: sobre card blanca (antes Olive Stone #8a8472)
   margin: 4px 0 0;
 }
 
@@ -2692,7 +2688,7 @@ onBeforeUnmount(() => cleanup())
 
 .next-class-card__activity-empty {
   font-size: 14px;
-  color: $grey-6;
+  color: #6b6459; // 199-29: sobre card blanca (antes $grey-6 2.68)
   margin: 2px 0 0;
 }
 
@@ -2710,7 +2706,7 @@ onBeforeUnmount(() => cleanup())
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: rgba($primary, 0.6);
+  color: #2c2318; // 199-29: sobre la página (antes rgba .6, 2.23)
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -2755,8 +2751,14 @@ onBeforeUnmount(() => cleanup())
     border-color: $primary;
   }
 
+  // 199-29: día pasado = fondo atenuado y texto sólido (antes opacity .5 sobre todo, 1.4-2.1)
   &--past:not(&--selected) {
-    opacity: 0.5;
+    background: #f4f1ed;
+
+    .day-pill__abbrev,
+    .day-pill__date {
+      color: #6b6459;
+    }
   }
 
   &__abbrev {
@@ -2764,7 +2766,7 @@ onBeforeUnmount(() => cleanup())
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
-    color: rgba($primary, 0.5);
+    color: #6b6459; // 199-29: antes rgba .5 (2.12 sobre blanco)
     letter-spacing: 0.03em;
   }
 
@@ -2809,14 +2811,14 @@ onBeforeUnmount(() => cleanup())
   flex-direction: column;
   align-items: center;
   padding: 32px 0;
-  color: $grey-6;
+  color: #2c2318; // 199-29: sobre la página (antes $grey-6)
   font-size: 14px;
   gap: 8px;
 }
 
 .reservas__policy {
   font-size: 12px;
-  color: $grey-6;
+  color: #2c2318; // 199-29: sobre la página (antes $grey-6)
   margin: 16px 0 0;
   line-height: 1.5;
 }
@@ -2858,12 +2860,16 @@ onBeforeUnmount(() => cleanup())
     }
   }
 
-  &--holiday {
-    opacity: 0.5;
-  }
-
+  // 199-29: feriado / horario pasado = fondo atenuado y texto sólido (antes opacity .5/.4 sobre todo, 1.6-2.1)
+  &--holiday,
   &--past {
-    opacity: 0.4;
+    background: #f0ece7;
+
+    .slot-card__hour,
+    .slot-card__activity,
+    .slot-card__coach {
+      color: #6b6459;
+    }
   }
 
   &__time {
@@ -2875,7 +2881,7 @@ onBeforeUnmount(() => cleanup())
   // otro profe). Línea secundaria discreta bajo el nombre de la actividad.
   &__coach {
     font-size: 11px;
-    color: $grey-6;
+    color: #6b6459; // 199-29: antes $grey-6 (2.68)
     margin-top: 1px;
   }
 
@@ -3004,7 +3010,7 @@ onBeforeUnmount(() => cleanup())
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 600;
-  color: $primary;
+  color: #2c2318; // 199-29: sobre la página (antes $primary 4.15)
 }
 
 .week-summary__list {
@@ -3036,7 +3042,7 @@ onBeforeUnmount(() => cleanup())
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
   font-weight: 600;
-  color: $primary;
+  color: #2c2318; // 199-29: sobre la página (antes $primary 4.35)
 }
 
 .first-timer-card__list {
