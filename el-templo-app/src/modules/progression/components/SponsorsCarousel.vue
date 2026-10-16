@@ -68,24 +68,19 @@
             {{ redeemPill(s).label }}
           </span>
         </div>
-      </article>
-    </div>
-
-    <div v-if="count > 1" class="sp-dots" :class="{ 'sp-dots--paused': !running }">
-      <button
-        v-for="(s, i) in sponsors"
-        :key="s.id"
-        type="button"
-        class="sp-dot-btn"
-        :aria-label="`Marca ${i + 1} de ${count}`"
-        :aria-current="i === current ? 'true' : undefined"
-        @click="goTo(i, true)"
-      >
-        <span class="sp-dot" :class="{ 'sp-dot--on': i === current }">
-          <!-- `:key="cycle"` reinicia la barra cada vez que se rearma el timer. -->
-          <span v-if="i === current" :key="cycle" class="sp-dot__fill" />
+        <!-- Línea de progreso al ras del borde inferior de la card activa, como en
+             Novedades. `:key="cycle"` la reinicia cada vez que se rearma el timer.
+             Decorativa: cada card ya dice su marca en el aria-label. -->
+        <span
+          v-if="count > 1 && i === current"
+          :key="cycle"
+          class="sp-progress"
+          :class="{ 'sp-progress--paused': !running }"
+          aria-hidden="true"
+        >
+          <span class="sp-progress__fill" />
         </span>
-      </button>
+      </article>
     </div>
   </section>
 </template>
@@ -240,11 +235,11 @@ function pause(): void {
   }, SPONSOR_TOUCH_PAUSE_MS)
 }
 
-function goTo(index: number, manual: boolean): void {
+/** Auto-avance a la card `index` (el socio navega con swipe, no hay controles). */
+function goTo(index: number): void {
   const n = count.value
   if (n === 0) return
   const target = ((index % n) + n) % n
-  if (manual) pause()
   const track = trackEl.value
   const card = track?.children[target] as HTMLElement | undefined
   if (!track || !card) {
@@ -252,7 +247,7 @@ function goTo(index: number, manual: boolean): void {
     return
   }
   // Volver de la última a la primera sin recorrer todas las cards.
-  const wrapping = !manual && target === 0 && current.value === n - 1
+  const wrapping = target === 0 && current.value === n - 1
   const smooth = !reducedMotion.value && !wrapping
   current.value = target
   programmaticUntil =
@@ -270,7 +265,7 @@ watch(
     clearTimer()
     if (!running.value) return
     cycle.value++
-    timer = setTimeout(() => goTo(current.value + 1, false), SPONSOR_ADVANCE_MS)
+    timer = setTimeout(() => goTo(current.value + 1), SPONSOR_ADVANCE_MS)
   },
   { immediate: true },
 )
@@ -374,9 +369,6 @@ onUnmounted(() => {
 // Valores del sketch 005 (`.spon`, `.sp`) sin variable propia en la app.
 // Margen de la pila de Mi Templo: 16 (no los 28 del mockup de presentación, D-23).
 $sp-side: 16px;
-$terra: #96593a;
-$dot-idle: #d9cfc1;
-$dot-on: #e2d6c6;
 
 .sp-section {
   margin: 0 (-$sp-side); // sangra a los bordes de la página; sin título (D-23)
@@ -388,7 +380,7 @@ $dot-on: #e2d6c6;
   gap: 10px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  padding: 2px $sp-side 8px;
+  padding: 0 $sp-side; // sin padding vertical: el espacio entre bloques lo da la pila (16)
   scroll-padding-inline: $sp-side;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
@@ -415,6 +407,10 @@ $dot-on: #e2d6c6;
   cursor: pointer;
   transition: transform 0.3s ease;
   transform: scale(0.94);
+  // Escala anclada al borde izquierdo: Chrome calcula el snap con la caja YA
+  // transformada, y con el origen al centro la card activa quedaba en 8px en vez
+  // de 16 (el 3% que le sacaba el .94). Así el borde izquierdo no se mueve.
+  transform-origin: left center;
 
   &--on {
     transform: scale(1);
@@ -527,49 +523,32 @@ $dot-on: #e2d6c6;
   white-space: nowrap;
 }
 
-// ── Puntos con barra de progreso ──────────────────────────────────────────────
-.sp-dots {
-  display: flex;
-  justify-content: center;
-  margin-top: 2px;
-}
-
-// Área táctil de 44 px de alto alrededor del punto de 7 px.
-.sp-dot-btn {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 3px;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.sp-dot {
-  position: relative;
-  overflow: hidden;
-  width: 7px;
-  height: 7px;
-  border-radius: 4px;
-  background: $dot-idle;
-  transition: width 0.2s;
-
-  &--on {
-    width: 24px;
-    background: $dot-on;
-  }
-}
-
-.sp-dot__fill {
+// ── Línea de progreso (como Novedades) ────────────────────────────────────────
+// De lado a lado, al ras del borde inferior; el `overflow: hidden` de la card la
+// recorta con el radio. Riel y relleno en el color de texto de la marca (el relleno
+// es el mismo color que el texto, que ya pasa contraste sobre `--b-bg`).
+.sp-progress {
   position: absolute;
-  inset: 0;
-  background: $terra;
-  transform-origin: left;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--b-fg) 25%, transparent);
+  pointer-events: none;
+}
+
+.sp-progress__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--b-fg);
+  transform-origin: left center;
   transform: scaleX(0);
   animation: sp-fill var(--spd, 2s) linear forwards;
 }
 
-.sp-dots--paused .sp-dot__fill {
+.sp-progress--paused .sp-progress__fill {
   animation-play-state: paused;
 }
 
@@ -579,14 +558,14 @@ $dot-on: #e2d6c6;
   }
 }
 
+// Sin auto-avance (reduced-motion) la línea no tiene nada que contar: no se muestra.
 @media (prefers-reduced-motion: reduce) {
   .sp-card {
     transition: none;
   }
 
-  .sp-dot__fill {
-    animation: none;
-    transform: scaleX(1);
+  .sp-progress {
+    display: none;
   }
 }
 </style>
