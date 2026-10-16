@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   QUOTES,
+  displayAuthor,
   SESSION_QUOTES,
   getQuoteForBlock,
   quoteOfTheDay,
@@ -37,7 +38,59 @@ describe('tanda de frases (copia de las activas del TV)', () => {
   })
 })
 
+describe('displayAuthor', () => {
+  it.each([
+    ['Virgilio.', 'Virgilio'],
+    ['T. S. Eliot.', 'T. S. Eliot'],
+    ['Lao-Tsé.', 'Lao-Tsé'],
+    ['Confucio', 'Confucio'],
+    [' Bhagavad Gita. ', 'Bhagavad Gita'],
+    ['X..', 'X'],
+  ])('%j -> %j', (input, expected) => {
+    expect(displayAuthor(input)).toBe(expected)
+  })
+})
+
+describe('autor sin punto final (UAT D9)', () => {
+  it('ningún autor del reproductor termina en punto y deriva del literal del TV', () => {
+    QUOTES.forEach((q, i) => {
+      expect(q.author.endsWith('.')).toBe(false)
+      expect(q.author).toBe(displayAuthor(SESSION_QUOTES[i]!.author))
+    })
+  })
+
+  it('SESSION_QUOTES sigue literal (copia del TV): algún autor conserva el punto', () => {
+    expect(SESSION_QUOTES.some((s) => s.author.endsWith('.'))).toBe(true)
+    expect(SESSION_QUOTES.some((s) => s.author === 'Virgilio.')).toBe(true)
+  })
+
+  it('ninguna frase del día muestra el autor con punto final (10 días seguidos)', () => {
+    for (let d = 1; d <= 10; d++) {
+      const q = quoteOfTheDay(`2026-11-${String(d).padStart(2, '0')}`)
+      expect(q.author.endsWith('.')).toBe(false)
+    }
+  })
+
+  it('quoteOfTheDay conserva el texto literal y solo cambia el autor', () => {
+    const q = quoteOfTheDay('1970-01-01')
+    const literal = SESSION_QUOTES[rotationIndex(0, 10)]!
+    expect(q.segments).toEqual(literal.segments)
+    expect(q.author).toBe(displayAuthor(literal.author))
+  })
+})
+
 describe('segmentsToQuote', () => {
+  it('quita el punto final del autor y deja intacto el texto', () => {
+    expect(segmentsToQuote({ segments: [{ text: 'A.' }], author: 'X.' })).toEqual({
+      text: 'A.',
+      goldText: '',
+      author: 'X',
+    })
+    expect(
+      segmentsToQuote({ segments: [{ text: 'A ' }, { text: 'B.', gold: true }], author: 'X.' }),
+    ).toEqual({ text: 'A ', goldText: 'B.', author: 'X' })
+  })
+
   it('[normal, gold]', () => {
     expect(
       segmentsToQuote({
@@ -113,8 +166,12 @@ describe('quoteOfTheDay', () => {
 
   it('cruza cambio de mes y año sin saltos (paso = días desde 1970)', () => {
     // 1970-01-01 es el paso 0
-    expect(quoteOfTheDay('1970-01-01')).toBe(SESSION_QUOTES[rotationIndex(0, 10)])
-    expect(quoteOfTheDay('1970-01-02')).toBe(SESSION_QUOTES[rotationIndex(1, 10)])
+    expect(quoteOfTheDay('1970-01-01').segments).toBe(
+      SESSION_QUOTES[rotationIndex(0, 10)]!.segments,
+    )
+    expect(quoteOfTheDay('1970-01-02').segments).toBe(
+      SESSION_QUOTES[rotationIndex(1, 10)]!.segments,
+    )
     expect(quoteOfTheDay('2026-12-31')).not.toBe(quoteOfTheDay('2027-01-01'))
   })
 })

@@ -9,9 +9,14 @@
  *
  * Dos vistas sobre la misma tanda:
  * - `SESSION_QUOTES` + `quoteOfTheDay`: formato del TV, para la frase del día de Mi Templo.
+ *   `SESSION_QUOTES` sigue siendo copia LITERAL del TV (autores con punto final).
  * - `QUOTES` / `getQuoteForBlock`: adaptador a la interfaz `Quote` vieja para el
  *   reproductor de sesión (SplashScreen, DayPlayer, GoalPlanSession,
  *   TransitionScreen y CelebrationScreen), que no se tocó.
+ *
+ * El autor se MUESTRA sin punto final en la app (UAT D9): `displayAuthor` se aplica en
+ * `segmentsToQuote` (reproductor) y en `quoteOfTheDay` (Mi Templo). El TV no se toca y
+ * el texto de las frases conserva su puntuación.
  */
 import { parseDateParts } from 'src/utils/tz'
 
@@ -133,6 +138,11 @@ export function rotationIndex(step: number, n: number): number {
   return order[k]
 }
 
+/** Autor tal como se muestra en la app: sin el punto final de la copia del TV ("T. S. Eliot." -> "T. S. Eliot"). */
+export function displayAuthor(author: string): string {
+  return author.trim().replace(/\.+$/, '')
+}
+
 /**
  * Adaptador al formato `Quote` del reproductor de sesión: `text` = tramos antes
  * del primer `gold`, `goldText` = desde el primer `gold` hasta el final. Sin
@@ -141,7 +151,11 @@ export function rotationIndex(step: number, n: number): number {
 export function segmentsToQuote(q: SessionQuote): Quote {
   const firstGold = q.segments.findIndex((s) => s.gold === true)
   if (firstGold === -1) {
-    return { text: q.segments.map((s) => s.text).join(''), goldText: '', author: q.author }
+    return {
+      text: q.segments.map((s) => s.text).join(''),
+      goldText: '',
+      author: displayAuthor(q.author),
+    }
   }
   return {
     text: q.segments
@@ -152,7 +166,7 @@ export function segmentsToQuote(q: SessionQuote): Quote {
       .slice(firstGold)
       .map((s) => s.text)
       .join(''),
-    author: q.author,
+    author: displayAuthor(q.author),
   }
 }
 
@@ -162,6 +176,15 @@ export function segmentsToQuote(q: SessionQuote): Quote {
  */
 export const QUOTES: Quote[] = SESSION_QUOTES.map(segmentsToQuote)
 
+/**
+ * `SESSION_QUOTES` con el autor listo para mostrar. Se calcula una sola vez para que
+ * `quoteOfTheDay` devuelva siempre la misma referencia por frase (estable para Vue).
+ */
+const DISPLAY_SESSION_QUOTES: SessionQuote[] = SESSION_QUOTES.map((q) => ({
+  ...q,
+  author: displayAuthor(q.author),
+}))
+
 /** Días desde 1970-01-01 de un "YYYY-MM-DD" (aritmética UTC, sin zona local). */
 function daysSinceEpoch(dateStr: string): number {
   const { y, m, d } = parseDateParts(dateStr)
@@ -170,11 +193,12 @@ function daysSinceEpoch(dateStr: string): number {
 
 /**
  * Frase del día para una fecha "YYYY-MM-DD" (la del día en la zona de la sede).
- * Pura: no lee el reloj, así que es estable todo el día en esa zona.
+ * Pura: no lee el reloj, así que es estable todo el día en esa zona. El autor sale sin
+ * punto final (`displayAuthor`).
  */
 export function quoteOfTheDay(dateStr: string): SessionQuote {
   const step = daysSinceEpoch(dateStr)
-  return SESSION_QUOTES[rotationIndex(step, SESSION_QUOTES.length)]!
+  return DISPLAY_SESSION_QUOTES[rotationIndex(step, DISPLAY_SESSION_QUOTES.length)]!
 }
 
 /**
