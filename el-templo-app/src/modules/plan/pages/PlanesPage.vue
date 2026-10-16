@@ -6,7 +6,7 @@
     </div>
 
     <!-- Empty state -->
-    <div v-if="!loading && plans.length === 0" class="text-center text-grey-6 q-pa-xl">
+    <div v-if="!loading && plans.length === 0" class="text-center planes-empty q-pa-xl">
       No hay planes disponibles
     </div>
 
@@ -23,7 +23,7 @@
           />
         </div>
         <div class="plan-card__badges">
-          <q-badge v-if="currentPlan.classesPerWeek" outline color="grey-7">
+          <q-badge v-if="currentPlan.classesPerWeek" outline color="info">
             {{ currentPlan.classesPerWeek }} clases/semana
           </q-badge>
         </div>
@@ -37,7 +37,7 @@
     <!-- Planes Por Objetivos -->
     <div v-if="experiencias.length > 0" class="q-mb-lg">
       <p class="planes-section-title">Planes Por Objetivos</p>
-      <div class="text-body2 text-grey-7 q-mb-md" style="padding-left: 4px">
+      <div class="text-body2 planes-subtitle q-mb-md" style="padding-left: 4px">
         Planes diseñados a tu medida para potenciar tu entrenamiento.
       </div>
       <div
@@ -52,8 +52,12 @@
         </div>
         <div v-if="exp.description" class="plan-card__desc">{{ exp.description }}</div>
         <div class="plan-card__badges">
-          <q-badge v-if="!exp.hasContent" color="grey" label="Proximamente" />
-          <q-badge outline color="grey-7">{{ exp.durationWeeks }} semanas</q-badge>
+          <q-badge
+            v-if="!exp.hasContent"
+            :style="{ backgroundColor: '#6b6459' }"
+            label="Proximamente"
+          />
+          <q-badge outline color="info">{{ exp.durationWeeks }} semanas</q-badge>
           <q-badge v-if="exp.price != null" outline color="primary">{{
             formatPrice(exp.price, exp.currency ?? 'ARS')
           }}</q-badge>
@@ -94,10 +98,10 @@
         </div>
         <div v-if="plan.description" class="plan-card__desc">{{ plan.description }}</div>
         <div class="plan-card__badges">
-          <q-badge v-if="plan.durationDays" outline color="grey-7">
+          <q-badge v-if="plan.durationDays" outline color="info">
             {{ plan.durationDays }} dias
           </q-badge>
-          <q-badge v-if="plan.classesPerWeek" outline color="grey-7">
+          <q-badge v-if="plan.classesPerWeek" outline color="info">
             {{ plan.classesPerWeek }} clases/semana
           </q-badge>
         </div>
@@ -280,11 +284,16 @@ onMounted(async () => {
   min-height: 40vh;
 }
 
+.planes-empty,
+.planes-subtitle {
+  color: #2c2318; // 199-27: texto sobre la página (crema + foto), ink sólido
+}
+
 .planes-section-title {
   font-family: 'Montserrat', sans-serif;
   font-size: 18px;
   font-weight: 800;
-  color: $primary;
+  color: #2c2318; // 199-27: sobre la página, ink sólido
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 4px 0 12px;

@@ -62,7 +62,9 @@
       </div>
       <div v-else class="info-card__content">
         <span class="info-card__label">Mi Suscripcion</span>
-        <span class="info-card__value text-grey-5 text-italic">Sin suscripcion activa</span>
+        <span class="info-card__value info-card__value--muted text-italic"
+          >Sin suscripcion activa</span
+        >
       </div>
     </div>
 
@@ -79,7 +81,7 @@
       >
         <q-icon name="lock" size="22px" color="primary" />
         <span class="settings-card__label">Cambiar contraseña</span>
-        <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
+        <q-icon name="chevron_right" size="20px" color="info" class="settings-card__chevron" />
       </div>
 
       <div class="settings-card__divider" />
@@ -90,7 +92,7 @@
       >
         <q-icon name="card_giftcard" size="22px" color="primary" />
         <span class="settings-card__label">Mis invitados</span>
-        <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
+        <q-icon name="chevron_right" size="20px" color="info" class="settings-card__chevron" />
       </div>
 
       <div class="settings-card__divider" />
@@ -101,13 +103,13 @@
       >
         <q-icon name="lightbulb" size="22px" color="primary" />
         <span class="settings-card__label">Proponer una mejora</span>
-        <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
+        <q-icon name="chevron_right" size="20px" color="info" class="settings-card__chevron" />
       </div>
 
       <div class="settings-card__divider" />
 
       <div class="settings-card__section-label">
-        <q-icon name="notifications" size="18px" color="grey-6" />
+        <q-icon name="notifications" size="18px" color="info" />
         <span>Notificaciones</span>
       </div>
 
@@ -118,7 +120,9 @@
         <q-item v-for="cat in notificationCategories" :key="cat.key" tag="label" dense>
           <q-item-section>
             <q-item-label class="settings-card__label">{{ cat.label }}</q-item-label>
-            <q-item-label caption class="text-grey-6">{{ cat.description }}</q-item-label>
+            <q-item-label caption class="settings-card__caption">{{
+              cat.description
+            }}</q-item-label>
           </q-item-section>
           <q-item-section side>
             <q-toggle
@@ -139,7 +143,7 @@
       >
         <q-icon name="delete_forever" size="22px" color="negative" />
         <span class="settings-card__label settings-card__label--danger">Eliminar cuenta</span>
-        <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
+        <q-icon name="chevron_right" size="20px" color="info" class="settings-card__chevron" />
       </div>
     </div>
 
@@ -321,7 +325,7 @@ onMounted(async () => {
 
   &__email {
     font-size: 13px;
-    color: $grey-7;
+    color: #2c2318; // 199-27: texto sobre la página (crema + foto), ink sólido
     margin-top: 2px;
   }
 }
@@ -330,7 +334,7 @@ onMounted(async () => {
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: rgba($primary, 0.6);
+  color: #2c2318; // 199-27: sobre la página, ink sólido
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 4px 0 8px;
@@ -383,7 +387,7 @@ onMounted(async () => {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: rgba($primary, 0.5);
+    color: #6b6459; // 199-27: sólido sobre card blanca
     display: block;
   }
 
@@ -392,6 +396,10 @@ onMounted(async () => {
     font-size: 14px;
     font-weight: 600;
     color: $primary;
+
+    &--muted {
+      color: #6b6459;
+    }
   }
 }
 
@@ -408,7 +416,7 @@ onMounted(async () => {
 
   &__label {
     font-size: 13px;
-    color: rgba($accent, 0.5);
+    color: #6b6459; // 199-27: sólido sobre card blanca
   }
 
   &__value {
@@ -454,6 +462,10 @@ onMounted(async () => {
     flex-shrink: 0;
   }
 
+  &__caption {
+    color: #6b6459; // 199-27: sólido sobre card blanca
+  }
+
   &__divider {
     height: 1px;
     background: rgba($primary, 0.08);
@@ -467,7 +479,7 @@ onMounted(async () => {
     padding: 12px 16px 4px;
     font-size: 11px;
     font-weight: 600;
-    color: $grey-6;
+    color: #6b6459; // 199-27: sólido sobre card blanca
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
