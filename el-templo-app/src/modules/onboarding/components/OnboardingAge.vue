@@ -84,41 +84,17 @@ function onContinue() {
   line-height: 1.3;
 }
 
-// Mismo campo oscuro que los q-input del login: radio 10, borde y fondo de crema translúcido.
+// Campo nativo con el look de los q-input del login (mixin `pd-field-native` del partial).
 .dob-input {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: rgba(240, 230, 214, 0.05);
-  border: 1px solid $pd-field-border;
-  color: $pd-cream;
-  font-family: 'Geologica', sans-serif;
-  font-size: 1.0625rem;
+  @include pd-field-native(1.0625rem);
   letter-spacing: 0.08em;
   text-align: center;
-  outline: none;
-
-  &::placeholder {
-    color: $pd-cream-3;
-  }
-
-  &:focus {
-    border-color: $pd-cream-2;
-    box-shadow: 0 0 0 1px $pd-cream-2;
-  }
-
-  &[aria-invalid='true'] {
-    border-color: rgba(220, 80, 80, 0.8);
-    box-shadow: none;
-  }
 }
 
 .dob-error {
   font-family: 'Geologica', sans-serif;
   font-size: 0.8125rem;
-  color: #e89a9a;
+  color: $pd-neg-on-dark;
   margin: 8px 0 0;
   text-align: center;
 }

@@ -32,6 +32,8 @@ $pd-light-field-border: #948878;
 // Borde de los campos OSCUROS: crema al 50% da 4.24:1 sobre #2c2318, 3.97:1 sobre el fondo del campo
 // (#362d22) y 3.4-3.9:1 sobre la card translúcida con una foto media por detrás (antes .32: 2.55 / 2.48).
 $pd-field-border: rgba(240, 230, 214, 0.5);
+$pd-field-bg: rgba(240, 230, 214, 0.05);
+$pd-field-radius: 10px;
 $pd-neg-a: #b34a4a; // destructivo: blanco encima 5.3:1
 $pd-neg-b: #8f3434; // blanco encima 7.9:1
 $pd-neg-title: #a8423f;
@@ -142,18 +144,18 @@ $pd-wa-b: #0f6b52;
   --q-primary: #{$pd-cream-2};
 
   .q-field__control {
-    border-radius: 10px;
-    background: rgba(240, 230, 214, 0.05);
+    border-radius: $pd-field-radius;
+    background: $pd-field-bg;
     box-shadow: none;
   }
 
   .q-field__control::before {
-    border-radius: 10px;
+    border-radius: $pd-field-radius;
     border-color: $pd-field-border;
   }
 
   .q-field__control::after {
-    border-radius: 10px;
+    border-radius: $pd-field-radius;
   }
 
   .q-field__native,
@@ -182,6 +184,37 @@ $pd-wa-b: #0f6b52;
     .q-field__bottom {
       color: $pd-neg-on-dark;
     }
+  }
+}
+
+// Campo NATIVO oscuro (<input> sin Quasar, p. ej. la fecha de nacimiento del onboarding): mismos tokens
+// que `pd-field` (radio, fondo, borde crema 50%, foco crema-2) y el rojo de error sobre oscuro con
+// `aria-invalid="true"`. El que lo incluye agrega solo lo suyo (letter-spacing, text-align...).
+@mixin pd-field-native($font-size: 16px) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border-radius: $pd-field-radius;
+  background: $pd-field-bg;
+  border: 1px solid $pd-field-border;
+  color: $pd-cream;
+  font-family: 'Geologica', sans-serif;
+  font-size: $font-size;
+  outline: none;
+
+  &::placeholder {
+    color: $pd-cream-3;
+  }
+
+  &:focus {
+    border-color: $pd-cream-2;
+    box-shadow: 0 0 0 1px $pd-cream-2;
+  }
+
+  &[aria-invalid='true'] {
+    border-color: $pd-neg-on-dark;
+    box-shadow: none;
   }
 }
 
