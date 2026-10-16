@@ -50,9 +50,9 @@ describe('nextUnanswered / answeredCount', () => {
 
 describe('answerLabel', () => {
   it.each([
-    ['energy', 'bajo', 'Energía baja'],
-    ['energy', 'normal', 'Energía normal'],
-    ['energy', 'alto', 'Energía alta'],
+    ['energy', 'bajo', 'Energía: bajo'],
+    ['energy', 'normal', 'Energía: normal'],
+    ['energy', 'alto', 'Energía: bien'],
     ['soreness', 'ninguna', 'Sin molestias'],
     ['soreness', 'leve', 'Molestia leve'],
     ['soreness', 'moderada', 'Molestia moderada'],
@@ -67,7 +67,7 @@ describe('answerLabel', () => {
     expect(answerLabel('soreness', 'leve', 'hombros')).toBe('Molestia leve (hombros)')
     expect(answerLabel('soreness', 'moderada', 'espalda')).toBe('Molestia moderada (espalda)')
     expect(answerLabel('soreness', 'ninguna', 'hombros')).toBe('Sin molestias')
-    expect(answerLabel('energy', 'alto', 'hombros')).toBe('Energía alta')
+    expect(answerLabel('energy', 'alto', 'hombros')).toBe('Energía: bien')
   })
 
   it('un valor desconocido se muestra tal cual', () => {
@@ -75,7 +75,38 @@ describe('answerLabel', () => {
   })
 })
 
+describe('CHECK_IN_QUESTIONS (UAT D16/D18)', () => {
+  it('energía: etiquetas Bajo/Normal/Bien con los valores guardados intactos (T-199-65)', () => {
+    expect(energy.options.map((o) => o.label)).toEqual(['Bajo', 'Normal', 'Bien'])
+    expect(energy.options.map((o) => o.value)).toEqual(['bajo', 'normal', 'alto'])
+  })
+
+  it('las 3 preguntas hablan de hoy', () => {
+    for (const q of CHECK_IN_QUESTIONS) expect(q.question).toMatch(/\bhoy\?$/)
+  })
+
+  it.each(energy.options.map((o) => [o.value, o.label] as const))(
+    'el resumen de energía %s usa la misma etiqueta que el botón (C4)',
+    (value, label) => {
+      expect(answerLabel('energy', value, null)).toBe(`Energía: ${label.toLowerCase()}`)
+    },
+  )
+})
+
 describe('summaryParts', () => {
+  it('energía alta, sin molestias y dormiste bien, en el orden de las preguntas', () => {
+    const a = answers({
+      energy: { value: 'alto', bodyArea: null },
+      soreness: { value: 'ninguna', bodyArea: null },
+      sleep: { value: 'bien', bodyArea: null },
+    })
+    expect(summaryParts(CHECK_IN_QUESTIONS, a)).toEqual([
+      'Energía: bien',
+      'Sin molestias',
+      'Dormiste bien',
+    ])
+  })
+
   it('respeta el orden de las preguntas', () => {
     const a = answers({
       energy: { value: 'normal', bodyArea: null },
@@ -85,13 +116,13 @@ describe('summaryParts', () => {
     expect(summaryParts(ORDERED, a)).toEqual([
       'Molestia leve (core)',
       'Dormiste bien',
-      'Energía normal',
+      'Energía: normal',
     ])
   })
 
   it('omite las sin responder', () => {
     const a = answers({ energy: { value: 'bajo', bodyArea: null } })
-    expect(summaryParts(ORDERED, a)).toEqual(['Energía baja'])
+    expect(summaryParts(ORDERED, a)).toEqual(['Energía: bajo'])
   })
 })
 

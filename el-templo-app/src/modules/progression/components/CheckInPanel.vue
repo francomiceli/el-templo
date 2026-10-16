@@ -1,18 +1,17 @@
 <template>
-  <section class="check-in-panel" aria-live="polite">
+  <section class="check-in-panel" aria-label="Registro del día" aria-live="polite">
     <!-- Colapsado: las tres respondidas y no se está editando (L42: sale de los datos del día) -->
     <div v-if="collapsed" class="check-in-panel__done">
       <span class="check-in-panel__tick" aria-hidden="true">
         <q-icon name="check" size="14px" />
       </span>
-      <span class="check-in-panel__done-text"> <b>Registro del día</b> · {{ summaryText }} </span>
+      <span class="check-in-panel__done-text">{{ summaryText }}</span>
       <button type="button" class="check-in-panel__edit" @click="startEditing">editar</button>
     </div>
 
     <!-- Una pregunta por vez -->
     <div v-else-if="current" class="check-in-panel__card">
-      <div class="check-in-panel__title">
-        Registro del día
+      <div class="check-in-panel__progress">
         <span class="check-in-panel__aux">{{ progressLabel }}</span>
       </div>
 
@@ -171,21 +170,13 @@ async function choose(q: CheckInQuestionConfig, value: string, bodyArea?: string
   padding: 16px;
   box-shadow: 0 1px 2px rgba(44, 35, 24, 0.06);
 
-  &__title {
+  &__progress {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 8px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #2c2318;
+    justify-content: flex-end;
+    margin: 0 0 4px;
   }
 
   &__aux {
-    margin-left: auto;
     font-family: 'Geologica', sans-serif;
     font-size: 12px;
     font-weight: 500;

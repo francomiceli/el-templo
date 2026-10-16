@@ -21,12 +21,13 @@ export function answeredCount(ordered: CheckInQuestionConfig[], answers: CheckIn
 }
 
 const ANSWER_LABELS: Record<CheckInQuestionType, Record<string, string>> = {
-  energy: { bajo: 'Energía baja', normal: 'Energía normal', alto: 'Energía alta' },
+  // UAT D16 + confirmación C4: el resumen usa la misma etiqueta que el botón; el valor guardado sigue siendo alto.
+  energy: { bajo: 'Energía: bajo', normal: 'Energía: normal', alto: 'Energía: bien' },
   soreness: { ninguna: 'Sin molestias', leve: 'Molestia leve', moderada: 'Molestia moderada' },
   sleep: { mal: 'Dormiste mal', ok: 'Dormiste ok', bien: 'Dormiste bien' },
 }
 
-/** "Energía normal", "Sin molestias", "Molestia leve (hombros)", "Dormiste bien". */
+/** "Energía: normal", "Sin molestias", "Molestia leve (hombros)", "Dormiste bien". */
 export function answerLabel(
   type: CheckInQuestionType,
   value: string,
