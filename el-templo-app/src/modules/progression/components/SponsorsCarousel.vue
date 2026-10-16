@@ -6,7 +6,8 @@
        decorativa va atenuada (D-15).
      - Auto-avance constante (SPONSOR_ADVANCE_MS), pausa al tocar/arrastrar (retoma a los
        SPONSOR_TOUCH_PAUSE_MS), con la pestaña oculta, fuera de pantalla o con
-       prefers-reduced-motion (L47). Nunca dos timers.
+       prefers-reduced-motion (L47). También se pausa mientras haya foco de teclado dentro
+       del carrusel y mientras el mouse esté encima (WCAG 2.2.2). Nunca dos timers.
      - Lista continua (UAT 2026-10-16): al final van copias de las dos primeras; al llegar a
        la copia se salta sin animación a la real. Las copias no se anuncian ni toman foco.
      - Misma card que `SponsorCardPreview.vue` del admin (L49).
@@ -29,6 +30,10 @@
       :class="{ 'sp-track--jump': jumping }"
       aria-live="off"
       @pointerdown="onTrackPointerDown"
+      @pointerenter="onPointerEnter"
+      @pointerleave="onPointerLeave"
+      @focusin="onFocusIn"
+      @focusout="onFocusOut"
       @scroll.passive="onTrackScroll"
     >
       <!-- Las copias del final (lista continua) no se anuncian ni reciben foco. -->
@@ -42,8 +47,9 @@
         :tabindex="copy ? -1 : 0"
         :aria-hidden="copy ? 'true' : undefined"
         :aria-label="copy ? undefined : `${s.name}: ${s.benefit} ${s.detail}`"
-        @click="onCardClick(s)"
+        @click="onCardClick(s, $event)"
         @keydown.enter.self.prevent="open(s)"
+        @keydown.space.self.prevent="open(s)"
       >
         <q-icon v-if="s.icon" :name="s.icon" class="sp-wm" aria-hidden="true" />
         <div class="sp-top">
@@ -101,6 +107,7 @@ import {
   SPONSOR_ADVANCE_MS,
   SPONSOR_TOUCH_PAUSE_MS,
   fitBenefitFontPx,
+  isCardTap,
   monogram,
   sponsorBenefitFontPx,
   sponsorRedeemPill,
@@ -209,6 +216,10 @@ watch(trackEl, (el) => {
 const pageVisible = ref(!document.hidden)
 const reducedMotion = ref(false)
 const paused = ref(false)
+/** Foco de teclado dentro del carrusel (el scroll automático se llevaría la card enfocada). */
+const focusInside = ref(false)
+/** Mouse encima: solo `pointerType === 'mouse'` (un toque no deja "hover" pegado). */
+const hovering = ref(false)
 const {
   isVisible: inViewport,
   observe,
@@ -234,6 +245,8 @@ const running = computed(
     count.value > 1 &&
     pageVisible.value &&
     !paused.value &&
+    !focusInside.value &&
+    !hovering.value &&
     !reducedMotion.value &&
     inViewport.value,
 )
@@ -337,6 +350,8 @@ watch(count, (n) => {
     clearPauseTimer()
     clearSettleTimer()
     paused.value = false
+    focusInside.value = false
+    hovering.value = false
   }
 })
 
@@ -392,7 +407,8 @@ watch(
 )
 
 // ── Gestos: pausa al tocar + tap vs. swipe ────────────────────────────────────
-let downScrollLeft = 0
+/** `null` = no hay un pointerdown pendiente (click sintético o ya consumido). */
+let downScrollLeft: number | null = null
 
 function onTrackPointerDown(): void {
   pause()
@@ -401,16 +417,51 @@ function onTrackPointerDown(): void {
   downScrollLeft = trackEl.value?.scrollLeft ?? 0
 }
 
-/** Abre la marca (tap o Enter): registra el toque (D-25) y avisa al padre. */
+// ── Pausa por foco y por mouse encima (WCAG 2.2.2) ────────────────────────────
+/**
+ * ¿El foco vino del teclado o de un lector? Un toque que enfoca la card no debe dejar el
+ * carrusel pausado hasta tocar afuera. Si el navegador no entiende `:focus-visible` (iOS
+ * < 15.4) se asume que sí: ahí un toque no enfoca elementos no editables.
+ */
+function isKeyboardFocus(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  try {
+    return target.matches(':focus-visible')
+  } catch {
+    return true
+  }
+}
+
+function onFocusIn(event: FocusEvent): void {
+  if (isKeyboardFocus(event.target)) focusInside.value = true
+}
+
+function onFocusOut(event: FocusEvent): void {
+  const next = event.relatedTarget
+  // Pasar el foco de una card a otra del mismo carrusel no lo "suelta".
+  if (next instanceof Node && sectionEl.value?.contains(next)) return
+  focusInside.value = false
+}
+
+function onPointerEnter(event: PointerEvent): void {
+  if (event.pointerType === 'mouse') hovering.value = true
+}
+
+function onPointerLeave(): void {
+  hovering.value = false
+}
+
+/** Abre la marca (tap o Enter/Espacio): registra el toque (D-25) y avisa al padre. */
 function open(sponsor: Sponsor): void {
   void store.markTapped(sponsor.id)
   emit('open', sponsor)
 }
 
-function onCardClick(sponsor: Sponsor): void {
-  const track = trackEl.value
-  // Si el track se movió fue un swipe, no un tap.
-  if (track && Math.abs(track.scrollLeft - downScrollLeft) > TAP_SLOP_PX) return
+function onCardClick(sponsor: Sponsor, event: MouseEvent): void {
+  const down = downScrollLeft
+  // Se consume: el siguiente click sin pointerdown (AT, teclado) no hereda un valor viejo.
+  downScrollLeft = null
+  if (!isCardTap(trackEl.value?.scrollLeft ?? 0, down, event.detail, TAP_SLOP_PX)) return
   open(sponsor)
 }
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   fitBenefitFontPx,
+  isCardTap,
   monogram,
   sponsorBenefitFontPx,
   sponsorRedeemPill,
@@ -137,5 +138,26 @@ describe('sponsorRedeemPill (D-21/D-23)', () => {
     const expected = { icon: 'card_membership', label: 'Mostrá tu carnet' }
     expect(sponsorRedeemPill({ redeemType: 'carnet', redeemCode: null }, true)).toEqual(expected)
     expect(sponsorRedeemPill({ redeemType: 'carnet', redeemCode: null }, false)).toEqual(expected)
+  })
+})
+
+describe('isCardTap (REVIEW-app WR-04)', () => {
+  it('tap: el track no se movió o se movió dentro del margen', () => {
+    expect(isCardTap(100, 100, 1, 8)).toBe(true)
+    expect(isCardTap(108, 100, 1, 8)).toBe(true)
+    expect(isCardTap(92, 100, 1, 8)).toBe(true)
+  })
+
+  it('swipe: el track se movió más que el margen (en cualquier sentido) → se descarta', () => {
+    expect(isCardTap(109, 100, 1, 8)).toBe(false)
+    expect(isCardTap(91, 100, 1, 8)).toBe(false)
+  })
+
+  it('click sintético (detail 0, teclado o lector) → siempre tap aunque el carrusel haya avanzado', () => {
+    expect(isCardTap(900, 100, 0, 8)).toBe(true)
+  })
+
+  it('sin pointerdown pendiente → tap', () => {
+    expect(isCardTap(900, null, 1, 8)).toBe(true)
   })
 })

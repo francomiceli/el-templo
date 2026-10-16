@@ -86,3 +86,21 @@ export function sponsorRedeemPill(
   if (canRedeem && code) return { icon: 'sell', label: code }
   return { icon: 'lock', label: 'Socios con plan' }
 }
+
+/**
+ * ¿Un `click` sobre una card es un tap (abre la marca) o el final de un swipe (se descarta)?
+ * - `detail === 0`: click sintético (teclado, lector de pantalla): siempre es una activación,
+ *   aunque el carrusel haya avanzado solo desde el último pointerdown.
+ * - Sin `downScrollLeft` (no hubo pointerdown pendiente): no hay con qué comparar, es un tap.
+ * - Con pointerdown: es tap si el track se movió `slopPx` o menos.
+ */
+export function isCardTap(
+  scrollLeft: number,
+  downScrollLeft: number | null,
+  detail: number,
+  slopPx: number,
+): boolean {
+  if (detail === 0) return true
+  if (downScrollLeft === null) return true
+  return Math.abs(scrollLeft - downScrollLeft) <= slopPx
+}
