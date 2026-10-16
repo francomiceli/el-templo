@@ -275,7 +275,7 @@
       </q-card-section>
 
       <q-card-actions align="right">
-        <q-btn flat label="Cancelar" v-close-popup :disable="saving" />
+        <q-btn flat label="Cancelar" v-close-popup :disable="saving || uploadingLogo" />
         <q-btn
           color="primary"
           label="Guardar"
@@ -362,8 +362,15 @@ const saving = ref(false);
 const serverError = ref<string | null>(null);
 const previewLocked = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+/**
+ * Identifica "este formulario": sube en cada apertura (`resetForm`) y al cerrar. Una subida
+ * de logo que termina cuando ya es otro formulario (otra marca, o cerrado) se descarta en vez
+ * de pisar el logo de la marca equivocada (REVIEW-admin WR-02).
+ */
+let formSession = 0;
 
 function resetForm(): void {
+  formSession++;
   if (props.sponsor) {
     Object.assign(form, sponsorToForm(props.sponsor));
   } else {
@@ -382,6 +389,7 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) resetForm();
+    else formSession++;
   },
   { immediate: true }
 );
@@ -451,9 +459,17 @@ async function onLogoSelected(event: Event): Promise<void> {
   const file = input.files?.[0];
   input.value = '';
   if (!file) return;
+  const session = formSession;
   try {
-    form.logoUrl = await uploadLogo(file);
+    const url = await uploadLogo(file);
+    if (session !== formSession) {
+      // El diálogo se cerró o se reabrió para otra marca mientras subía: no pisar su logo.
+      log.warn('Logo upload finished after the editor changed, result discarded');
+      return;
+    }
+    form.logoUrl = url;
   } catch (err: unknown) {
+    if (session !== formSession) return;
     // Sin R2 configurado el API responde 503: el resto del editor sigue funcionando.
     const message =
       axios.isAxiosError(err) && err.response?.status === 503
