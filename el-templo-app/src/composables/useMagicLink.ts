@@ -96,6 +96,8 @@ interface ExchangeResponseUser {
   branchName: string | null
   branchIsVirtual: boolean
   branchCountry: string
+  // Opcional en el TIPO por apps viejas contra API vieja; el API (plan 06) lo manda siempre.
+  branchTimezone?: string
   gender: string | null
   dateOfBirth: string | null
   onboardingCompleted: boolean
@@ -153,6 +155,7 @@ export function useMagicLink() {
           branchName: user.branchName ?? '',
           branchIsVirtual: user.branchIsVirtual,
           branchCountry: (user.branchCountry as UserProfile['branchCountry']) ?? 'AR',
+          branchTimezone: user.branchTimezone,
           segment: null,
           onboardingCompleted: user.onboardingCompleted,
           // SPEC "Empezá acá" B: el canje de magic-link no trae estos 3
