@@ -8,7 +8,7 @@
     <!-- ================================================================== -->
     <!-- Global Filters: Country (owner only) + Branch (calcado ReportesPage) -->
     <!-- ================================================================== -->
-    <div class="row items-center q-gutter-sm q-mb-md">
+    <div v-if="activeTab !== 'patrocinadores'" class="row items-center q-gutter-sm q-mb-md">
       <div v-if="isOwner" class="col-auto" style="min-width: 180px">
         <q-select
           v-model="selectedCountry"
@@ -51,6 +51,7 @@
       <q-tab name="partners" label="Partners" />
       <q-tab name="conversiones" label="Conversiones" />
       <q-tab name="liquidacion" label="Liquidación" />
+      <q-tab v-if="canManageSponsors" name="patrocinadores" label="Patrocinadores" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -135,6 +136,17 @@
                 @click="openQrDialog(props.row)"
               >
                 <q-tooltip>QR</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="canManageSponsors"
+                flat
+                dense
+                round
+                icon="add_card"
+                color="primary"
+                @click="createSponsorFromPartner(props.row)"
+              >
+                <q-tooltip>Crear card para Mi Templo</q-tooltip>
               </q-btn>
             </q-td>
           </template>
@@ -252,6 +264,13 @@
           @settled="onSettled"
         />
       </q-tab-panel>
+
+      <!-- ================================================================ -->
+      <!-- Tab: Patrocinadores (D-26) — marcas de Mi Templo, NO partners (D-17) -->
+      <!-- ================================================================ -->
+      <q-tab-panel v-if="canManageSponsors" name="patrocinadores">
+        <SponsorsTab :prefill="sponsorPrefill" @prefill-consumed="sponsorPrefill = null" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -274,6 +293,8 @@ import PartnerFormDialog from 'src/components/partners/PartnerFormDialog.vue';
 import PartnerQrDialog from 'src/components/partners/PartnerQrDialog.vue';
 import PartnerConversionsTable from 'src/components/partners/PartnerConversionsTable.vue';
 import PartnerSettleDialog from 'src/components/partners/PartnerSettleDialog.vue';
+import SponsorsTab from 'src/components/sponsors/SponsorsTab.vue';
+import type { SponsorPrefill } from 'src/components/sponsors/SponsorEditorDialog.vue';
 
 const log = createLogger('PartnersPage');
 const $q = useQuasar();
@@ -309,6 +330,24 @@ function onCountryChange() {
 // =========================================================================
 
 const activeTab = ref('partners');
+
+// D-26: solo owner/admin; el gate real es el API (isTemploPlatformAdmin, tenant El Templo).
+const canManageSponsors = computed(() => ['owner', 'admin'].includes(authStore.user?.role ?? ''));
+
+// Atajo de la fila (add_card): precarga el editor de patrocinadores desde un partner.
+const sponsorPrefill = ref<SponsorPrefill | null>(null);
+
+function createSponsorFromPartner(partner: PartnerListItem) {
+  sponsorPrefill.value = {
+    name: partner.name,
+    country: partner.country === 'ES' ? 'ES' : 'AR',
+    partnerId: partner.id,
+    partnerName: partner.name,
+    contactName: partner.contactName,
+    contactPhone: partner.contactPhone,
+  };
+  activeTab.value = 'patrocinadores';
+}
 
 // =========================================================================
 // Partners state
