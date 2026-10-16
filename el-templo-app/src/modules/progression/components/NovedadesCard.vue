@@ -1,14 +1,25 @@
 <!-- Card "Novedades" de Mi Templo (spec "Novedades en Mi Templo", D-8..D-11 +
      enmienda 2026-10-14). Variante D del sketch 004, SIN íconos de tipo:
-     una novedad por vez en UNA sola línea, rotación automática cada 4,5 s,
-     puntos tocables, swipe horizontal y barra de progreso de 2px.
+     una novedad por vez en UNA sola línea, rotación automática, puntos
+     tocables, swipe horizontal y barra de progreso visible (UAT D13).
 
-     - 0 novedades: no se renderiza nada. 1: sin puntos, sin barra, sin rotación.
-     - El texto se interpola con `{{ }}` (Vue escapa): PROHIBIDO `v-html`, una
+     - Rotación: 4,5 s, o lo que tarde el texto en desplazarse si no entra en la
+       línea (UAT D19, C3). Un solo `dwellMs` gobierna el timer, la barra y el
+       desplazamiento (ver `novedades-rotation.ts`). Nunca se corta con "…".
+     - 0 novedades: no se renderiza nada. 1: sin puntos, sin barra, sin rotación
+       (si desborda, el desplazamiento se repite).
+     - `prefers-reduced-motion`: sin desplazamiento ni barra animada; el texto hace
+       wrap a 2 líneas en un stage de alto fijo y la barra queda llena y estática.
+     - El texto se interpola con `{{ }}` (Vue escapa): PROHIBIDO inyectar HTML crudo (la directiva de HTML), una
        novedad con HTML nunca debe ejecutarse en la app del socio.
      - Réplica visual de `NovedadPreview.vue` del admin (stage de 62px). -->
 <template>
-  <section v-if="currentItem" class="nov-card" aria-label="Novedades">
+  <section
+    v-if="currentItem"
+    class="nov-card"
+    :class="{ 'nov-card--reduced': reducedMotion }"
+    aria-label="Novedades"
+  >
     <div class="nov-card__head">
       <span class="nov-card__title">Novedades</span>
       <span v-if="newCount > 0" class="nov-card__count">
@@ -29,6 +40,7 @@
     </div>
 
     <div
+      ref="stageEl"
       class="nov-card__stage"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
@@ -50,7 +62,9 @@
           @keydown.enter="onTap(currentItem)"
         >
           <div class="nov-item__body">
-            <div class="nov-item__text">{{ currentItem.text }}</div>
+            <div class="nov-item__text">
+              <span class="nov-item__line" :data-key="currentItem.key">{{ currentItem.text }}</span>
+            </div>
             <div class="nov-item__meta">
               <span v-if="isNew(currentItem)" class="nov-item__new">NUEVO</span>
               <span v-if="currentItem.branchLabel" class="nov-item__sede">
@@ -64,16 +78,20 @@
       </Transition>
     </div>
 
-    <!-- `:key="current"` reinicia la animación en cada cambio de slide; en pausa
-         (dedo apoyado / app en background) la barra se apaga y vuelve a
-         arrancar de cero al reanudar, igual que el timer. -->
+    <!-- Riel + relleno sólido (UAT D13). La `key` basada en `cycle` reinicia la barra cada vez
+         que se arma el timer; dura `dwellMs`, lo mismo que el timer y el
+         desplazamiento. En pausa (dedo apoyado / app en background) queda
+         congelada y vuelve a arrancar de cero al reanudar, igual que el timer.
+         Decorativa: los puntos ya dicen "Ver novedad i de n". -->
     <div
       v-if="items.length > 1"
-      :key="current"
+      :key="cycle"
       class="nov-card__progress"
       :class="{ 'nov-card__progress--paused': !running }"
-      :style="{ animationDuration: `${ROTATE_MS}ms` }"
-    />
+      aria-hidden="true"
+    >
+      <span class="nov-card__progress-fill" :style="{ animationDuration: `${dwellMs}ms` }" />
+    </div>
   </section>
 </template>
 
@@ -83,9 +101,12 @@ import { useRouter } from 'vue-router'
 import { useNovedadesStore, type Novedad } from 'src/stores/useNovedadesStore'
 import { navigateToAvisoDestination } from 'src/utils/aviso-navigation'
 import { relativeDaysLabel } from 'src/utils/relative-days'
+import {
+  marqueeKeyframes,
+  marqueeOverflowPx,
+  novedadDwellMs,
+} from 'src/modules/progression/utils/novedades-rotation'
 
-/** Cada cuánto pasa sola a la siguiente (D-8). */
-const ROTATE_MS = 4500
 /** Máximo de novedades que ve el socio (D-4). El server ya recorta; esto es defensivo. */
 const MAX_ITEMS = 3
 /** Desplazamiento horizontal mínimo para que cuente como swipe. */
@@ -168,12 +189,30 @@ watch(
   { immediate: true },
 )
 
-// ── Rotación ──────────────────────────────────────────────────────────────────
+// ── Rotación + barra + desplazamiento: UN solo reloj (L47) ───────────────────
 const touching = ref(false)
-const running = computed(() => items.value.length > 1 && pageVisible.value && !touching.value)
+/** Dedo apoyado o página oculta: todo (timer, barra, desplazamiento) se detiene. */
+const animating = computed(() => pageVisible.value && !touching.value)
+const running = computed(() => items.value.length > 1 && animating.value)
 const transitionName = ref<`nov-${SlideDirection}`>('nov-up')
 
+/** Cuántos px sobra el texto de la novedad actual (0 = entra en la línea). */
+const overflowPx = ref(0)
+/** Cuánto se muestra la novedad actual: timer, barra y desplazamiento comparten este valor. */
+const dwellMs = computed(() => novedadDwellMs(overflowPx.value))
+/** Se incrementa cada vez que se arma el timer: reinicia la barra (`:key`). */
+const cycle = ref(0)
+
+const stageEl = ref<HTMLElement | null>(null)
+const reducedMotion = ref(false)
+
 let timer: ReturnType<typeof setTimeout> | null = null
+let marquee: Animation | null = null
+let marqueeEl: HTMLElement | null = null
+let resizeObserver: ResizeObserver | null = null
+let lastStageWidth = -1
+let motionQuery: MediaQueryList | null = null
+let disposed = false
 
 function clearTimer(): void {
   if (timer !== null) {
@@ -191,17 +230,100 @@ function goTo(index: number, direction?: SlideDirection): void {
   current.value = target
 }
 
-// Cualquier cambio de slide (automático o a mano), de pausa o de largo de la
-// lista reinicia el intervalo completo.
+/** El `.nov-item__line` de la novedad actual (con el <Transition> conviven dos un instante). */
+function currentLine(): HTMLElement | null {
+  const key = currentItem.value?.key
+  const stage = stageEl.value
+  if (key === undefined || !stage) return null
+  const lines = Array.from(stage.querySelectorAll<HTMLElement>('.nov-item__line'))
+  return lines.find((el) => el.dataset.key === key) ?? null
+}
+
+/** Mide cuánto desborda el texto actual. Con reduced-motion no se mide (hace wrap). */
+function measure(): void {
+  const line = reducedMotion.value ? null : currentLine()
+  const text = line?.parentElement
+  overflowPx.value = line && text ? marqueeOverflowPx(line.scrollWidth, text.clientWidth) : 0
+}
+
+function cancelMarquee(): void {
+  // Si el slide ya salió (se está yendo en el <Transition>) se deja terminar su
+  // animación: cancelarla lo haría saltar a la posición inicial mientras se va.
+  if (marquee && marqueeEl && marqueeEl === currentLine()) marquee.cancel()
+  marquee = null
+  marqueeEl = null
+}
+
+function startMarquee(): void {
+  if (reducedMotion.value || overflowPx.value <= 0) return
+  const line = currentLine()
+  if (!line || typeof line.animate !== 'function') return
+  marquee = line.animate(marqueeKeyframes(overflowPx.value, dwellMs.value), {
+    duration: dwellMs.value,
+    fill: 'forwards',
+    // Con 1 sola novedad no hay timer: el desplazamiento se repite.
+    iterations: items.value.length > 1 ? 1 : Infinity,
+  })
+  marqueeEl = line
+  if (!animating.value) marquee.pause()
+}
+
+/**
+ * Arma de cero el reloj de la novedad actual: mide, reinicia la barra, rearma el
+ * timer con `dwellMs` y crea el desplazamiento. Se llama con el DOM ya actualizado.
+ */
+function restart(): void {
+  if (disposed) return
+  clearTimer()
+  cancelMarquee()
+  measure()
+  if (items.value.length > 1) cycle.value++
+  if (running.value) timer = setTimeout(() => goTo(current.value + 1, 'up'), dwellMs.value)
+  startMarquee()
+}
+
+/** Cambió el ancho disponible o cargaron las fuentes: si cambia el desborde, se rearma. */
+function remeasure(): void {
+  if (disposed || reducedMotion.value) return
+  const before = overflowPx.value
+  measure()
+  if (overflowPx.value !== before) restart()
+}
+
+// Cualquier cambio de slide (automático o a mano), de largo de la lista o de
+// modo de movimiento rearma el reloj. `flush: 'post'`: hace falta el DOM nuevo
+// para medir el texto de la novedad que entra.
+watch([() => currentItem.value?.key, () => items.value.length, reducedMotion], () => restart(), {
+  flush: 'post',
+})
+
+// Pausa (dedo apoyado / background): se congela. Al reanudar, todo desde cero.
 watch(
-  [running, current, () => items.value.length],
-  () => {
+  animating,
+  (on) => {
+    if (on) {
+      restart()
+      return
+    }
     clearTimer()
-    if (!running.value) return
-    timer = setTimeout(() => goTo(current.value + 1, 'up'), ROTATE_MS)
+    marquee?.pause()
   },
-  { immediate: true },
+  { flush: 'post' },
 )
+
+function onMotionChange(e: MediaQueryListEvent): void {
+  reducedMotion.value = e.matches
+}
+
+/** Observa el ancho del stage (L23: solo cambios de ANCHO, para no generar loops al re-medir). */
+function observeStage(): void {
+  resizeObserver?.disconnect()
+  lastStageWidth = -1
+  if (resizeObserver && stageEl.value) resizeObserver.observe(stageEl.value)
+}
+
+// El stage existe solo con novedades: se observa cuando aparece.
+watch(stageEl, observeStage, { flush: 'post' })
 
 // ── Gestos: pausa con el dedo apoyado + swipe horizontal ─────────────────────
 let startX: number | null = null
@@ -247,10 +369,36 @@ function onTap(item: Novedad): void {
 
 onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange)
+  if (typeof window.matchMedia === 'function') {
+    motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    reducedMotion.value = motionQuery.matches
+    motionQuery.addEventListener('change', onMotionChange)
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width
+      if (width === undefined || width === lastStageWidth) return
+      const firstReading = lastStageWidth < 0
+      lastStageWidth = width
+      // La primera lectura es la inicial: no cambió nada que re-medir.
+      if (!firstReading) remeasure()
+    })
+    observeStage()
+  }
+  restart()
+  // Montserrat/Geologica cargan después del primer render y cambian los anchos.
+  void document.fonts?.ready.then(() => remeasure())
 })
 
 onUnmounted(() => {
+  disposed = true
   clearTimer()
+  marquee?.cancel()
+  marquee = null
+  marqueeEl = null
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  motionQuery?.removeEventListener('change', onMotionChange)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>
@@ -383,7 +531,13 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
   color: $accent;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+// Span interno que se desplaza (Web Animations) cuando el texto no entra (UAT D19).
+.nov-item__line {
+  display: inline-block;
+  vertical-align: top;
+  white-space: nowrap;
 }
 
 .nov-item--new .nov-item__text {
@@ -421,25 +575,33 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
   font-size: 20px;
 }
 
-// ── Barra de progreso (2px, abajo) ───────────────────────────────────────────
+// ── Barra de progreso (UAT D13) ──────────────────────────────────────────────
+// Riel `$border` de 3px + relleno `$primary` sólido (contraste de componente
+// ≥ 3:1) que va de 0 a 100% durante `dwellMs`. Sin opacity: antes era de 2px al
+// 55% y Franco no la percibió.
 .nov-card__progress {
-  position: absolute;
-  left: 0;
-  bottom: 0;
+  height: 3px;
+  margin: 0 16px 10px;
+  border-radius: 999px;
+  background-color: $border;
+  overflow: hidden;
+}
+
+.nov-card__progress-fill {
+  display: block;
   width: 100%;
-  height: 2px;
+  height: 100%;
+  border-radius: 999px;
   background-color: $primary;
-  opacity: 0.55;
   transform-origin: left center;
   animation-name: nov-progress;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
+}
 
-  &--paused {
-    animation: none;
-    opacity: 0.2;
-    transform: scaleX(0);
-  }
+// En pausa la barra queda congelada donde estaba (no se apaga ni vuelve a 0).
+.nov-card__progress--paused .nov-card__progress-fill {
+  animation-play-state: paused;
 }
 
 @keyframes nov-progress {
@@ -508,9 +670,34 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
   .nov-card__dot {
     transition: none;
   }
+}
 
-  .nov-card__progress {
-    display: none;
-  }
+// Reduced motion (UAT D13/D19): sin desplazamiento ni barra animada. El texto hace
+// wrap a 2 líneas en un stage de alto FIJO (no cambia al rotar) y la barra queda
+// llena. Límite conocido: una novedad que en 2 líneas no entra (el API admite 200
+// caracteres) cae al clamp con "…" como último recurso.
+.nov-card--reduced .nov-item__line {
+  display: inline;
+  white-space: normal;
+  transform: none;
+}
+
+.nov-card--reduced .nov-item__text {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+// 2 líneas (2 × 14.5 × 1.38 ≈ 40) + meta (4 + 16) + padding (10 + 10) + 2 de margen.
+.nov-card--reduced .nov-card__stage {
+  height: 82px;
+}
+
+.nov-card--reduced .nov-card__progress-fill {
+  animation: none;
+  transform: scaleX(1);
 }
 </style>
