@@ -206,6 +206,7 @@ import { useProgressionStore } from 'src/modules/progression/stores/progressionS
 import { useCommunicationsStore } from 'src/stores/useCommunicationsStore'
 import { useAvisosStore } from 'src/stores/useAvisosStore'
 import { useNovedadesStore } from 'src/stores/useNovedadesStore'
+import { useSponsorsStore } from 'src/stores/useSponsorsStore'
 import { useTodayBookingStore } from 'src/stores/useTodayBookingStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 import ImprovementPromptDialog from 'src/components/ImprovementPromptDialog.vue'
@@ -227,6 +228,7 @@ const progressionStore = useProgressionStore()
 const communicationsStore = useCommunicationsStore()
 const avisosStore = useAvisosStore()
 const novedadesStore = useNovedadesStore()
+const sponsorsStore = useSponsorsStore()
 const todayBookingStore = useTodayBookingStore()
 
 // Fase 193 (D-20/D-21): hidrata el número de ventas del servidor + el texto
@@ -261,6 +263,8 @@ watch(
       avisosStore.reset()
       // Novedades de Mi Templo: la próxima sesión (otro socio/sede) arranca de cero.
       novedadesStore.reset()
+      // Patrocinadores (D-20): el feed (y sus vistas) de un socio no se arrastra al siguiente.
+      sponsorsStore.reset()
       // Reservas del socio anterior + reloj: nada vivo tras el logout.
       todayBookingStore.reset()
     }
