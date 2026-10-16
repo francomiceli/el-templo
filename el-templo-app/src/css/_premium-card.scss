@@ -35,6 +35,9 @@ $pd-field-border: rgba(240, 230, 214, 0.5);
 $pd-neg-a: #b34a4a; // destructivo: blanco encima 5.3:1
 $pd-neg-b: #8f3434; // blanco encima 7.9:1
 $pd-neg-title: #a8423f;
+// Rojo de error SOBRE oscuro (mensaje y borde de campo con error): #ff9b94 da 7.6:1 sobre la card
+// #2c2318, 6.7:1 sobre el fondo del campo (#362d22) y 5.4:1 aun sobre #4a3a2b (card translúcida clara).
+$pd-neg-on-dark: #ff9b94;
 
 // Verde de WhatsApp oscurecido para que el texto blanco llegue a AA: #1f7a4d 5.3:1, #0f6b52 6.5:1
 // (el #25d366 de la marca da 2:1 con blanco). Sigue leyéndose como WhatsApp.
@@ -166,6 +169,19 @@ $pd-wa-b: #0f6b52;
   .q-field__native::placeholder,
   .q-field__bottom {
     color: $pd-cream-3;
+  }
+
+  // Error: sin esto la regla de arriba (más específica que la de Quasar) pinta el mensaje en crema.
+  &.q-field--error {
+    .q-field__control::before,
+    .q-field__control::after {
+      border-color: $pd-neg-on-dark;
+    }
+
+    .q-field__label,
+    .q-field__bottom {
+      color: $pd-neg-on-dark;
+    }
   }
 }
 
