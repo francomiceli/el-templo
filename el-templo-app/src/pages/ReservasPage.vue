@@ -188,6 +188,7 @@
               <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
               <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
               <span class="day-pill__dot" aria-hidden="true"></span>
+              <span v-if="isToday(day)" class="day-pill__sr">hoy</span>
             </button>
           </div>
         </div>
@@ -411,6 +412,7 @@
               <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
               <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
               <span class="day-pill__dot" aria-hidden="true"></span>
+              <span v-if="isToday(day)" class="day-pill__sr">hoy</span>
             </button>
           </div>
         </div>
@@ -640,6 +642,7 @@
             <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
             <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
             <span class="day-pill__dot" aria-hidden="true"></span>
+            <span v-if="isToday(day)" class="day-pill__sr">hoy</span>
             <span v-if="dayHasBooking(day)" class="day-pill__sr">con reserva</span>
           </button>
         </div>
