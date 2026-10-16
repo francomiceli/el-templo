@@ -126,6 +126,9 @@ h6,
 // Brand colors (single source of truth)
 @import 'brand';
 
+// Mensajes flash (sketch 014 B)
+@import 'notify';
+
 // Override white backgrounds globally
 body {
   background-color: $brand-cream !important;

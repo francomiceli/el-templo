@@ -17,6 +17,7 @@ export default defineConfig((/* ctx */) => {
       'axios',
       'auth',
       'modules',
+      'notify',
       'push-notifications',
       'deep-links',
       'staging-marker',
@@ -106,6 +107,11 @@ export default defineConfig((/* ctx */) => {
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
     framework: {
       config: {
+        // Mensajes flash (sketch 014 B): abajo, encima de la barra. El resto (píldora,
+        // offset) vive en src/css/_notify.scss; íconos por tipo en src/boot/notify.ts.
+        notify: {
+          position: 'bottom',
+        },
         capacitor: {
           iosStatusBarPadding: true,
           backButtonExit: false,
