@@ -7,6 +7,8 @@
      - Auto-avance constante (SPONSOR_ADVANCE_MS), pausa al tocar/arrastrar (retoma a los
        SPONSOR_TOUCH_PAUSE_MS), con la pestaña oculta, fuera de pantalla o con
        prefers-reduced-motion (L47). Nunca dos timers.
+     - Lista continua (UAT 2026-10-16): al final van copias de las dos primeras; al llegar a
+       la copia se salta sin animación a la real. Las copias no se anuncian ni toman foco.
      - Misma card que `SponsorCardPreview.vue` del admin (L49).
      - El beneficio (máx. 12 caracteres) nunca se corta (UAT D6): su tamaño arranca en un
        escalón por largo y se ajusta midiendo el elemento real (`fitBenefitFontPx`).
@@ -24,19 +26,22 @@
     <div
       ref="trackEl"
       class="sp-track"
+      :class="{ 'sp-track--jump': jumping }"
       aria-live="off"
       @pointerdown="onTrackPointerDown"
       @scroll.passive="onTrackScroll"
     >
+      <!-- Las copias del final (lista continua) no se anuncian ni reciben foco. -->
       <article
-        v-for="(s, i) in sponsors"
-        :key="s.id"
+        v-for="({ sponsor: s, key, copy }, i) in slides"
+        :key="key"
         class="sp-card"
-        :class="{ 'sp-card--on': i === current }"
+        :class="{ 'sp-card--on': i === position }"
         :style="{ '--b-bg': s.bgColor, '--b-fg': s.textColor }"
-        role="button"
-        tabindex="0"
-        :aria-label="`${s.name}: ${s.benefit} ${s.detail}`"
+        :role="copy ? undefined : 'button'"
+        :tabindex="copy ? -1 : 0"
+        :aria-hidden="copy ? 'true' : undefined"
+        :aria-label="copy ? undefined : `${s.name}: ${s.benefit} ${s.detail}`"
         @click="onCardClick(s)"
         @keydown.enter.self.prevent="open(s)"
       >
@@ -60,7 +65,9 @@
         </div>
         <div class="sp-deal">
           <div class="sp-deal__text">
-            <b :ref="(el) => setBenefitEl(s.id, el)" class="sp-benefit">{{ s.benefit }}</b>
+            <b :ref="(el) => setBenefitEl(key, s.benefit, el)" class="sp-benefit">{{
+              s.benefit
+            }}</b>
             <span class="sp-detail">{{ s.detail }}</span>
           </div>
           <span class="sp-how">
@@ -69,16 +76,17 @@
           </span>
         </div>
         <!-- Línea de progreso al ras del borde inferior de la card activa, como en
-             Novedades. `:key="cycle"` la reinicia cada vez que se rearma el timer.
+             Novedades. `:key="cycle"` la reinicia cada vez que se rearma el timer; al
+             saltar de la copia a la primera real sigue desde donde iba (`progressOffsetMs`).
              Decorativa: cada card ya dice su marca en el aria-label. -->
         <span
-          v-if="count > 1 && i === current"
+          v-if="count > 1 && i === position"
           :key="cycle"
           class="sp-progress"
           :class="{ 'sp-progress--paused': !running }"
           aria-hidden="true"
         >
-          <span class="sp-progress__fill" />
+          <span class="sp-progress__fill" :style="{ animationDelay: `-${progressOffsetMs}ms` }" />
         </span>
       </article>
     </div>
@@ -116,11 +124,38 @@ const count = computed(() => sponsors.value.length)
 
 const sectionEl = ref<HTMLElement | null>(null)
 const trackEl = ref<HTMLElement | null>(null)
-const current = ref(0)
+
+// ── Lista continua (UAT 2026-10-16) ───────────────────────────────────────────
+// Con 2+ marcas se agregan al final copias de las DOS primeras: estando en la última ya
+// asoma la primera, y al llegar a la copia se salta sin animación a la real. Con dos
+// copias, mientras se ve la copia de la primera asoma la de la segunda (no un hueco).
+const COPIES = 2
+
+interface Slide {
+  sponsor: Sponsor
+  key: string
+  copy: boolean
+}
+
+const slides = computed((): Slide[] => {
+  const list = sponsors.value.map((sponsor) => ({ sponsor, key: `${sponsor.id}`, copy: false }))
+  if (list.length < 2) return list
+  const copies = sponsors.value
+    .slice(0, COPIES)
+    .map((sponsor) => ({ sponsor, key: `${sponsor.id}-copia`, copy: true }))
+  return [...list, ...copies]
+})
+
+/** Card que se ve (0..n-1 reales, n.. copias). */
+const position = ref(0)
+/** Marca real que se ve: es la que cuenta para vistas, timer y progreso. */
+const current = computed(() => (count.value > 0 ? position.value % count.value : 0))
+/** Durante el salto de la copia a la real se apagan las transiciones (no se ve el cambio). */
+const jumping = ref(false)
 
 // Si la lista se achica (recarga, otro país) no quedamos fuera de rango.
 watch(count, (n) => {
-  if (current.value >= n) current.value = 0
+  if (position.value >= slides.value.length || (n < 2 && position.value >= n)) position.value = 0
 })
 
 function redeemPill(s: Sponsor): SponsorRedeemPill {
@@ -131,21 +166,20 @@ function redeemPill(s: Sponsor): SponsorRedeemPill {
 // Mismo algoritmo, umbrales y piso que `SponsorCardPreview.vue` del admin (L15/L16):
 // cambiar los dos juntos. Las cards no activas van a scale(.94): el transform no cambia
 // clientWidth/scrollWidth, así que la medición es la del layout real.
-const benefitEls = new Map<number, HTMLElement>()
+/** Por slide (la copia tiene su propio elemento): elemento + texto del beneficio. */
+const benefitEls = new Map<string, { el: HTMLElement; benefit: string }>()
 let resizeObserver: ResizeObserver | null = null
 let observedWidth = -1
 let disposed = false
 
-function setBenefitEl(id: number, el: unknown): void {
-  if (el instanceof HTMLElement) benefitEls.set(id, el)
-  else benefitEls.delete(id)
+function setBenefitEl(key: string, benefit: string, el: unknown): void {
+  if (el instanceof HTMLElement) benefitEls.set(key, { el, benefit })
+  else benefitEls.delete(key)
 }
 
 function fitAllBenefits(): void {
-  for (const s of sponsors.value) {
-    const el = benefitEls.get(s.id)
-    if (!el) continue
-    const px = fitBenefitFontPx(sponsorBenefitFontPx(s.benefit), (candidate) => {
+  for (const { el, benefit } of benefitEls.values()) {
+    const px = fitBenefitFontPx(sponsorBenefitFontPx(benefit), (candidate) => {
       el.style.fontSize = `${candidate}px`
       return el.scrollWidth <= el.clientWidth + 1
     })
@@ -154,7 +188,7 @@ function fitAllBenefits(): void {
 }
 
 // Al cambiar las marcas (o su texto) se re-mide con el DOM ya actualizado.
-watch(sponsors, fitAllBenefits, { flush: 'post' })
+watch(slides, fitAllBenefits, { flush: 'post' })
 
 // El track existe solo con marcas: el observer sigue su ancho (no su alto, que cambia al
 // achicar la letra y no debe disparar otra medición).
@@ -235,21 +269,12 @@ function pause(): void {
   }, SPONSOR_TOUCH_PAUSE_MS)
 }
 
-/** Auto-avance a la card `index` (el socio navega con swipe, no hay controles). */
-function goTo(index: number): void {
-  const n = count.value
-  if (n === 0) return
-  const target = ((index % n) + n) % n
+/** Lleva el track a la card `target` (posición visual). */
+function scrollToPosition(target: number, smooth: boolean): void {
   const track = trackEl.value
   const card = track?.children[target] as HTMLElement | undefined
-  if (!track || !card) {
-    current.value = target
-    return
-  }
-  // Volver de la última a la primera sin recorrer todas las cards.
-  const wrapping = target === 0 && current.value === n - 1
-  const smooth = !reducedMotion.value && !wrapping
-  current.value = target
+  position.value = target
+  if (!track || !card) return
   programmaticUntil =
     performance.now() + (smooth ? SMOOTH_SCROLL_GUARD_MS : INSTANT_SCROLL_GUARD_MS)
   track.scrollTo({
@@ -258,14 +283,49 @@ function goTo(index: number): void {
   })
 }
 
-// Cualquier cambio de card (automático o a mano), de pausa o de cantidad reinicia el intervalo.
+/** Auto-avance a la card siguiente; de la última pasa a la copia de la primera. */
+function goTo(index: number): void {
+  if (count.value === 0) return
+  const target = Math.min(Math.max(index, 0), slides.value.length - 1)
+  scrollToPosition(target, !reducedMotion.value)
+}
+
+/**
+ * Estando en una copia, salta sin animación a la real equivalente: misma imagen en el mismo
+ * lugar, así que no se ve. La línea de progreso sigue desde donde iba.
+ */
+function jumpFromCopy(): void {
+  const n = count.value
+  if (n < 2 || position.value < n) return
+  progressOffsetMs.value = running.value
+    ? Math.min(performance.now() - cycleStartedAt, SPONSOR_ADVANCE_MS)
+    : 0
+  jumping.value = true
+  scrollToPosition(position.value - n, false)
+  // Dos frames: el navegador pinta la card real activa sin transición y recién ahí vuelven.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      jumping.value = false
+    }),
+  )
+}
+
+/** Cuándo empezó la vuelta actual del timer (para continuar la línea tras el salto). */
+let cycleStartedAt = 0
+/** Cuánto llevaba la línea de progreso al saltar de la copia a la real (0 al rearmar). */
+const progressOffsetMs = ref(0)
+
+// Cualquier cambio de marca (automático o a mano), de pausa o de cantidad reinicia el
+// intervalo. El salto copia → real no cambia `current`, así que no lo reinicia.
 watch(
   [running, current, count],
   () => {
     clearTimer()
     if (!running.value) return
     cycle.value++
-    timer = setTimeout(() => goTo(current.value + 1), SPONSOR_ADVANCE_MS)
+    cycleStartedAt = performance.now()
+    progressOffsetMs.value = 0
+    timer = setTimeout(() => goTo(position.value + 1), SPONSOR_ADVANCE_MS)
   },
   { immediate: true },
 )
@@ -275,31 +335,49 @@ watch(count, (n) => {
   if (n === 0) {
     clearTimer()
     clearPauseTimer()
+    clearSettleTimer()
     paused.value = false
   }
 })
 
 // ── Índice según el scroll (swipe del socio) ──────────────────────────────────
-function syncCurrentFromScroll(): void {
+function syncPositionFromScroll(): void {
   if (performance.now() < programmaticUntil) return
   const track = trackEl.value
   const first = track?.children[0] as HTMLElement | undefined
-  const n = count.value
-  if (!track || !first || n === 0) return
+  const last = slides.value.length - 1
+  if (!track || !first || last < 0) return
   const step = first.offsetWidth + CARD_GAP_PX
   let index = Math.round(track.scrollLeft / step)
-  // La última card puede no llegar a su punto de snap: el fin del scroll la cuenta.
-  if (track.scrollLeft >= track.scrollWidth - track.clientWidth - 2) index = n - 1
-  index = Math.min(Math.max(index, 0), n - 1)
-  if (index !== current.value) current.value = index
+  // Por si la última no llega a su punto de snap: el fin del scroll la cuenta.
+  if (track.scrollLeft >= track.scrollWidth - track.clientWidth - 2) index = last
+  index = Math.min(Math.max(index, 0), last)
+  if (index !== position.value) position.value = index
+}
+
+/** El scroll se quedó quieto (auto-avance terminado o swipe soltado). */
+const SCROLL_SETTLE_MS = 120
+let settleTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearSettleTimer(): void {
+  if (settleTimer !== null) {
+    clearTimeout(settleTimer)
+    settleTimer = null
+  }
 }
 
 function onTrackScroll(): void {
   if (raf !== null) cancelAnimationFrame(raf)
   raf = requestAnimationFrame(() => {
     raf = null
-    syncCurrentFromScroll()
+    syncPositionFromScroll()
   })
+  clearSettleTimer()
+  settleTimer = setTimeout(() => {
+    settleTimer = null
+    syncPositionFromScroll()
+    jumpFromCopy()
+  }, SCROLL_SETTLE_MS)
 }
 
 // ── Vista (D-25): card activa + sección en pantalla + pestaña visible ─────────
@@ -358,6 +436,7 @@ onUnmounted(() => {
   benefitEls.clear()
   clearTimer()
   clearPauseTimer()
+  clearSettleTimer()
   if (raf !== null) cancelAnimationFrame(raf)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   motionQuery?.removeEventListener('change', onMotionChange)
@@ -423,6 +502,11 @@ $sp-side: 16px;
   &--on {
     transform: scale(1);
   }
+}
+
+// Salto de la copia a la real: sin transición de escala (no se tiene que ver).
+.sp-track--jump .sp-card {
+  transition: none;
 }
 
 // Marca de agua decorativa: lo único con opacidad, no es texto.
