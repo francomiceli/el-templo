@@ -1,4 +1,4 @@
-// Helpers puros del Registro del día compacto y de Tu semana (fase 199, D-07/D-09).
+// Helpers puros del Registro del día compacto y de Tus sesiones (fase 199, D-07/D-09).
 // Sin reloj ni estado: la fecha de hoy y las respuestas se inyectan.
 
 import { addDaysStr } from 'src/utils/check-in-window'
@@ -80,4 +80,9 @@ export function dotAriaLabel(dot: WeekDot, index: number): string {
   const day = Number(dot.date.slice(8, 10))
   const today = dot.isToday ? ' (hoy)' : ''
   return `${DAY_NAMES[index]} ${day}${today}: ${dot.trained ? 'entrenaste' : 'no entrenaste'}`
+}
+
+/** Caption de la cifra de sesiones totales de "Tus sesiones" (UAT D17). */
+export function sessionsTotalCaption(label: 'total' | 'templo'): string {
+  return label === 'templo' ? 'en El Templo' : 'en total'
 }

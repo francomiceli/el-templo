@@ -7,6 +7,7 @@ import {
   weekDots,
   sessionsThisWeek,
   dotAriaLabel,
+  sessionsTotalCaption,
   type CheckInAnswers,
 } from '../check-in-summary'
 import { CHECK_IN_QUESTIONS } from '../../types'
@@ -177,5 +178,15 @@ describe('dotAriaLabel', () => {
     expect(dotAriaLabel(dots[0], 0)).toBe('lunes 12: entrenaste')
     expect(dotAriaLabel(dots[3], 3)).toBe('jueves 15 (hoy): no entrenaste')
     expect(dotAriaLabel(dots[2], 2)).toBe('miércoles 14: no entrenaste')
+  })
+})
+
+describe('sessionsTotalCaption', () => {
+  it('total -> "en total"', () => {
+    expect(sessionsTotalCaption('total')).toBe('en total')
+  })
+
+  it('templo -> "en El Templo"', () => {
+    expect(sessionsTotalCaption('templo')).toBe('en El Templo')
   })
 })

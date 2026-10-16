@@ -1,35 +1,45 @@
 <template>
-  <section class="week-strip" aria-label="Tu semana">
-    <div class="week-strip__title">Tu semana</div>
-    <div class="week-strip__row">
-      <div class="week-strip__big">{{ sessionsCount }}</div>
-      <div class="week-strip__label">sesiones<br />esta semana</div>
-      <ul class="week-strip__days">
-        <li
-          v-for="(dot, i) in dots"
-          :key="dot.date"
-          class="week-strip__day"
-          :aria-label="dotAriaLabel(dot, i)"
-        >
-          <i
-            class="week-strip__dot"
-            :class="{
-              'week-strip__dot--trained': dot.trained,
-              'week-strip__dot--today': dot.isToday,
-            }"
-            aria-hidden="true"
-          ></i>
-          <span aria-hidden="true">{{ dot.letter }}</span>
-        </li>
-      </ul>
+  <section class="week-strip" aria-label="Tus sesiones">
+    <div class="week-strip__title">Tus sesiones</div>
+    <div class="week-strip__figures">
+      <div class="week-strip__figure">
+        <div class="week-strip__big">{{ sessionsCount }}</div>
+        <div class="week-strip__label">esta semana</div>
+      </div>
+      <div class="week-strip__figure">
+        <div class="week-strip__big">{{ totalSessions }}</div>
+        <div class="week-strip__label">{{ sessionsTotalCaption(totalLabel) }}</div>
+      </div>
     </div>
-    <div class="week-strip__total">{{ totalText }}</div>
+    <ul class="week-strip__days">
+      <li
+        v-for="(dot, i) in dots"
+        :key="dot.date"
+        class="week-strip__day"
+        :aria-label="dotAriaLabel(dot, i)"
+      >
+        <i
+          class="week-strip__dot"
+          :class="{
+            'week-strip__dot--trained': dot.trained,
+            'week-strip__dot--today': dot.isToday,
+          }"
+          aria-hidden="true"
+        ></i>
+        <span aria-hidden="true">{{ dot.letter }}</span>
+      </li>
+    </ul>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { dotAriaLabel, sessionsThisWeek, weekDots } from '../utils/check-in-summary'
+import {
+  dotAriaLabel,
+  sessionsThisWeek,
+  sessionsTotalCaption,
+  weekDots,
+} from '../utils/check-in-summary'
 
 const props = withDefaults(
   defineProps<{
@@ -44,15 +54,11 @@ const props = withDefaults(
 
 const dots = computed(() => weekDots(props.weekStart, props.todayStr, props.completedDates))
 const sessionsCount = computed(() => sessionsThisWeek(props.weekStart, props.completedDates))
-
-const totalText = computed(() => {
-  const n = props.totalSessions
-  const noun = n === 1 ? 'sesión' : 'sesiones'
-  return `${n} ${noun} ${props.totalLabel === 'templo' ? 'en El Templo' : 'en total'}`
-})
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/brand';
+
 .week-strip {
   background: #fff;
   border-radius: 16px;
@@ -66,13 +72,23 @@ const totalText = computed(() => {
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #2c2318;
+    color: $mt-block-title-color;
   }
 
-  &__row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
+  // Dos cifras de igual jerarquía, columnas iguales con un filete vertical en el medio.
+  &__figures {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    margin-bottom: 14px;
+  }
+
+  &__figure {
+    min-width: 0;
+    text-align: center;
+
+    & + & {
+      border-left: 1px solid #e5dbcd;
+    }
   }
 
   &__big {
@@ -80,11 +96,12 @@ const totalText = computed(() => {
     font-size: 32px;
     font-weight: 700;
     line-height: 1;
+    font-variant-numeric: tabular-nums;
     color: #2c2318;
   }
 
   &__label {
-    white-space: nowrap;
+    margin-top: 4px;
     font-size: 13px;
     line-height: 1.3;
     color: #6b6459;
@@ -92,8 +109,8 @@ const totalText = computed(() => {
 
   &__days {
     display: flex;
-    gap: 5px;
-    margin: 0 0 0 auto;
+    justify-content: space-between;
+    margin: 0;
     padding: 0;
     list-style: none;
   }
@@ -125,12 +142,6 @@ const totalText = computed(() => {
       border-width: 2px;
       border-color: #2c2318;
     }
-  }
-
-  &__total {
-    margin-top: 10px;
-    font-size: 13px;
-    color: #6b6459;
   }
 }
 </style>

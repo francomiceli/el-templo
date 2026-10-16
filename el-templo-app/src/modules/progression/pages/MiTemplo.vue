@@ -14,7 +14,7 @@
     </div>
 
     <!-- Content State. Orden fijo de la pila (D-02):
-         card de hoy → Novedades → Registro del día → Patrocinadores → Tu semana
+         card de hoy → Novedades → Registro del día → Patrocinadores → Tus sesiones
          (con la evaluación si aplica) → Para vos → Frase del día. El saludo vive en el layout. -->
     <div
       v-else
@@ -45,7 +45,7 @@
            Sin marcas no renderiza nada (L50). El tap abre la hoja de detalle (abajo). -->
       <SponsorsCarousel @open="openSponsor" />
 
-      <!-- Tu semana (D-09): fila compacta, sin RPE. La evaluación de nivel (solo si es
+      <!-- Tus sesiones (D-09, UAT D17): dos cifras + puntos L–D, sin RPE. La evaluación de nivel (solo si es
            accionable o está pendiente) pertenece a este bloque. -->
       <WeekStrip
         v-if="todayCard.kind !== 'sin-plan-nunca'"
@@ -75,7 +75,6 @@
            Orden: Invitaciones, Presencial (solo online), Planes personalizados (si no hay
            card de programa) y avisos libres del admin (D-15b). "Sugerencias" vive en Perfil (D-11). -->
       <section class="for-you" aria-label="Para vos">
-        <h3 class="for-you__title">Para vos</h3>
         <div class="for-you__rail">
           <ReferralCtaCard />
           <UpsellBadge v-if="showUpsellBadge" />
@@ -120,7 +119,7 @@
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *
  * Una sola pantalla con gates (fase 199): card de hoy, Novedades, Registro del día,
- * Patrocinadores, Tu semana (con evaluación si aplica), Para vos y la frase del día.
+ * Patrocinadores, Tus sesiones (con evaluación si aplica), Para vos y la frase del día.
  */
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'
@@ -550,17 +549,6 @@ onUnmounted(() => {
 // (ReferralCtaCard, UpsellBadge, ProgramCtaCard, AvisoCard → ForYouCard).
 .for-you {
   margin: 0 -16px; // sangra a los bordes de la página
-
-  &__title {
-    margin: 0 0 8px;
-    padding: 0 16px;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 800;
-    font-size: 13px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #2c2318;
-  }
 
   &__rail {
     display: flex;

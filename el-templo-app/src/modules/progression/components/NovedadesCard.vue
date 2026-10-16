@@ -405,6 +405,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/brand';
 
 // Valores del sketch 004 sin variable propia en la app.
 $border: #e5dbcd;
@@ -433,7 +434,7 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
   font-size: 15px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: $primary;
+  color: $mt-block-title-color;
 }
 
 .nov-card__count {
