@@ -9,7 +9,7 @@
      `{{ }}` (Vue escapa) — PROHIBIDA la directiva de HTML crudo de Vue: una
      marca con HTML nunca debe ejecutarse en el admin (T-199-28). -->
 <template>
-  <div class="spc-phone">
+  <div ref="phoneEl" class="spc-phone">
     <div class="spc-track">
       <article
         v-for="(ghost, i) in cards"
@@ -47,9 +47,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { isHexColor } from 'src/utils/contrast';
-import { monogram } from 'src/utils/sponsors';
+import { fitBenefitFontPx, monogram, sponsorBenefitFontPx } from 'src/utils/sponsors';
 
 const FALLBACK_BG = '#3d3732';
 const FALLBACK_FG = '#f2ede5';
@@ -84,6 +84,52 @@ const initials = computed(() => monogram(shownName.value));
 const redeemLabel = computed(() =>
   props.redeemType === 'code' ? props.redeemCode?.trim() || 'CÓDIGO' : 'Mostrá tu carnet'
 );
+
+// ── Tamaño del beneficio: el mismo ajuste por medición que la card de la app (UAT D6) ──
+// Mismo algoritmo, umbrales y piso que `SponsorsCarousel.vue` de la app (L15/L16):
+// cambiar los dos juntos.
+const phoneEl = ref<HTMLElement | null>(null);
+let resizeObserver: ResizeObserver | null = null;
+let lastWidth = -1;
+let disposed = false;
+
+function fitBenefit(): void {
+  const start = sponsorBenefitFontPx(shownBenefit.value);
+  phoneEl.value?.querySelectorAll<HTMLElement>('.spc-benefit').forEach((el) => {
+    const px = fitBenefitFontPx(start, (candidate) => {
+      el.style.fontSize = `${candidate}px`;
+      return el.scrollWidth <= el.clientWidth + 1;
+    });
+    el.style.fontSize = `${px}px`;
+  });
+}
+
+watch(shownBenefit, () => {
+  void nextTick(fitBenefit);
+});
+
+onMounted(() => {
+  fitBenefit();
+  if (typeof ResizeObserver !== 'undefined' && phoneEl.value) {
+    resizeObserver = new ResizeObserver(() => {
+      // Solo el ancho cambia el ajuste: el alto cambia al achicar la letra y no debe re-medir.
+      const width = phoneEl.value?.clientWidth ?? 0;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      fitBenefit();
+    });
+    resizeObserver.observe(phoneEl.value);
+  }
+  void document.fonts?.ready.then(() => {
+    if (!disposed) fitBenefit();
+  });
+});
+
+onUnmounted(() => {
+  disposed = true;
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+});
 </script>
 
 <style scoped>

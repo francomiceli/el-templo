@@ -18,11 +18,48 @@ import { MIN_TEXT_CONTRAST, contrastRatio, formatRatio, isHexColor } from 'src/u
 export const SPONSOR_LIMITS = {
   name: 60,
   category: 60,
-  benefit: 16,
+  benefit: 12,
   detail: 80,
   conditions: 600,
   redeemCode: 40,
 } as const;
+
+/** Piso del tamaño del beneficio (px): bajo este valor solo queda la elipsis del CSS. */
+export const SPONSOR_BENEFIT_MIN_PX = 16;
+
+/**
+ * Tamaño inicial (px) del beneficio según su largo en caracteres (no en bytes):
+ * hasta 8 → 30, 9-10 → 26, 11 o más → 22.
+ *
+ * Espejo de `el-templo-app/src/modules/progression/utils/sponsors.ts`: la vista
+ * previa tiene que verse igual que la card (UAT D6). Cambiar los dos juntos.
+ */
+export function sponsorBenefitFontPx(benefit: string): number {
+  const len = Array.from(benefit.trim()).length;
+  if (len <= 8) return 30;
+  if (len <= 10) return 26;
+  return 22;
+}
+
+/**
+ * Ajuste por medición: devuelve el primer tamaño desde `startPx` bajando de a 1 px
+ * para el que `fits(px)` es verdadero. Si ninguno entra, devuelve `floorPx`. Nunca
+ * devuelve más que `startPx`. El beneficio nunca se corta (UAT D6): glifos anchos
+ * (M, W) no entran con un tamaño fijo, así que se mide el elemento real.
+ *
+ * Espejo de `el-templo-app/src/modules/progression/utils/sponsors.ts`.
+ */
+export function fitBenefitFontPx(
+  startPx: number,
+  fits: (px: number) => boolean,
+  floorPx = SPONSOR_BENEFIT_MIN_PX
+): number {
+  if (startPx <= floorPx) return startPx;
+  for (let px = startPx; px >= floorPx; px--) {
+    if (fits(px)) return px;
+  }
+  return floorPx;
+}
 
 export const SPONSOR_COUNTRY_OPTIONS: { label: string; value: SponsorCountry }[] = [
   { label: 'Argentina', value: 'AR' },

@@ -61,7 +61,7 @@
               outlined
               :maxlength="SPONSOR_LIMITS.benefit"
               counter
-              hint="Corto: se muestra grande en una línea. Si se corta en la vista previa, acortalo."
+              hint="Hasta 12 caracteres: se muestra grande en una línea."
               placeholder="Ej: 20% OFF"
             />
             <q-input
