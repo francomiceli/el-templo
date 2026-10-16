@@ -802,6 +802,41 @@ async function onLogout() {
   &--active :deep(.q-icon img) {
     opacity: 1;
   }
+
+  // Pestaña activa (sketch 009 A): píldora translúcida detrás del ícono que se estira
+  // al activarse. El ícono blanco sobre la píldora queda ≥ 3:1 (no es texto).
+  .q-icon {
+    position: relative;
+    z-index: 0;
+
+    &::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      left: 50%;
+      top: 50%;
+      width: 58px;
+      height: 30px;
+      border-radius: 999px;
+      background: rgba(#fff, 0.2);
+      opacity: 0;
+      transform: translate(-50%, -50%) scaleX(0.5);
+      transition:
+        transform 250ms ease,
+        opacity 200ms ease;
+    }
+  }
+
+  &--active .q-icon::before {
+    opacity: 1;
+    transform: translate(-50%, -50%) scaleX(1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .q-icon::before {
+      transition: none;
+    }
+  }
 }
 
 /* ------------------------------------------------------------------
