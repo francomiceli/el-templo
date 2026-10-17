@@ -1,8 +1,19 @@
 <template>
   <q-dialog :model-value="show" persistent @update:model-value="$emit('update:show', $event)">
     <q-card style="width: 500px; max-width: 95vw">
+      <!-- Salida siempre visible: en mobile el "Cerrar" de abajo puede quedar inalcanzable -->
+      <q-btn
+        flat
+        dense
+        round
+        icon="close"
+        color="grey-7"
+        class="slot-dialog__close"
+        aria-label="Cerrar"
+        @click="$emit('update:show', false)"
+      />
       <!-- Header -->
-      <q-card-section>
+      <q-card-section class="slot-dialog__header">
         <div class="slot-header">
           <template v-if="!editingActivity">
             <div class="slot-header__title">
@@ -1050,9 +1061,7 @@ const canEditActivity = computed(() => !!slotDetail.value && !isSlotDeleted.valu
 const canEditTime = computed(() => !!slotDetail.value && !isSlotDeleted.value);
 
 // El server responde 403 a no-owners; el lápiz se oculta para no ofrecer algo que falla.
-const canEditCoach = computed(
-  () => authStore.user?.role === 'owner' && !isSlotDeleted.value
-);
+const canEditCoach = computed(() => authStore.user?.role === 'owner' && !isSlotDeleted.value);
 
 const coachDisplayName = computed(() => {
   const coachId = slotDetail.value?.schedule.coachUserId ?? null;
@@ -1808,6 +1817,17 @@ watch(
 </script>
 
 <style scoped>
+.slot-dialog__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+
+.slot-dialog__header {
+  padding-right: 48px;
+}
+
 .slot-header__title {
   display: flex;
   align-items: center;
