@@ -233,7 +233,7 @@ describe('resolveTodayCard — presencial con clase hoy', () => {
     expect(m.kicker).toBe('Tu clase de hoy')
     expect(m.title).toBe('Muscle Up')
     expect(m.meta).toContainEqual({ text: '19:00', strong: true })
-    expect(flat(m.meta)).toBe('Tu clase: 19:00 · Alem')
+    expect(flat(m.meta)).toBe('Tu clase: 19:00 · Sede Alem')
     expect(m.primary).toEqual({ label: 'Ver la sesión', to: '/training' })
     expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
   })
@@ -293,7 +293,7 @@ describe('resolveTodayCard — presencial con clase hoy', () => {
     const m = resolveTodayCard(
       baseInput({ booking: { ...BOOKING, branchName: 'El Templo Moreno' } }),
     )
-    expect(flat(m.meta)).toBe('Tu clase: 19:00 · Moreno')
+    expect(flat(m.meta)).toBe('Tu clase: 19:00 · Sede Moreno')
   })
 
   it('ventana abierta → solo el chip de la ventana (el consejo del registro vive en el registro)', () => {
@@ -325,7 +325,7 @@ describe('resolveTodayCard — D5: la clase de hoy ya pasada y sin asistencia no
   it('sin próxima clase → "Reservá tu clase" (no "Tu turno fue", no "Tu clase ya pasó")', () => {
     const m = resolveTodayCard(baseInput({ ...PASADA, windowState: 'after' }))
     expect(m.kind).toBe('presencial-sin-turno')
-    expect(m.title).toBe('Reservá tu clase')
+    expect(m.title).toBe('Reservá\ntu clase')
     const copy = allCopy(m)
     expect(copy).not.toContain('Tu turno fue')
     expect(copy).not.toContain('Tu clase ya pasó')
@@ -347,7 +347,7 @@ describe('resolveTodayCard — D5: la clase de hoy ya pasada y sin asistencia no
     )
     expect(m.kind).toBe('presencial-turno')
     expect(m.chips.map((c) => c.text)).toEqual(['Asistencia registrada 19:05'])
-    expect(flat(m.meta)).toBe('Tu clase: 19:00 · Alem')
+    expect(flat(m.meta)).toBe('Tu clase: 19:00 · Sede Alem')
     expect(m.secondary?.label).toBe('Cambiar clase')
   })
 
@@ -385,8 +385,8 @@ describe('resolveTodayCard — presencial: próxima clase (C1)', () => {
     expect(m.kind).toBe('presencial-proxima')
     expect(m.kicker).toBe('Tu próxima clase')
     expect(m.title).toBe('Lunes 19 · 19:00')
-    expect(m.meta).toEqual([{ text: 'Alem' }])
-    expect(flat(m.meta)).toBe('Alem')
+    expect(m.meta).toEqual([{ text: 'Sede Alem' }])
+    expect(flat(m.meta)).toBe('Sede Alem')
     expect(m.primary).toEqual({ label: 'Mis clases', to: '/reservas' })
     expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
     expect(m.progress).toBeNull()
@@ -422,7 +422,7 @@ describe('resolveTodayCard — presencial: próxima clase (C1)', () => {
         nextBooking: { date: '2026-10-19', time: '19:00', branchName: 'El Templo Moreno' },
       }),
     )
-    expect(flat(m.meta)).toBe('Moreno')
+    expect(flat(m.meta)).toBe('Sede Moreno')
   })
 
   it('sin chips', () => {
@@ -452,7 +452,7 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
     const m = resolveTodayCard(baseInput({ nextRoute: 'Muscle Up' }))
     expect(m.kind).toBe('presencial-sin-turno')
     expect(m.kicker).toBe('Sin clase reservada')
-    expect(m.title).toBe('Reservá tu clase')
+    expect(m.title).toBe('Reservá\ntu clase')
     expect(flat(m.meta)).toBe('Próxima: Muscle Up')
     expect(m.meta?.[1]).toEqual({ text: 'Muscle Up', strong: true })
     expect(m.primary).toEqual({ label: 'Reservar', to: '/reservas' })
@@ -481,7 +481,7 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
     const m = resolveTodayCard(baseInput({ todayStr: '2026-10-18', dow: 7, todayRoute: null }))
     expect(m.kind).toBe('presencial-sin-turno')
     expect(m.kicker).toBe('Sin clase reservada')
-    expect(m.title).toBe('Reservá tu clase')
+    expect(m.title).toBe('Reservá\ntu clase')
     expect(m.secondary).toBeNull()
     const copy = allCopy(m)
     expect(copy).not.toContain('Entrenar')
@@ -493,7 +493,7 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
   it('lista de espera → "Estás en lista de espera · 19:00", título y botón igual', () => {
     const m = resolveTodayCard(baseInput({ waitlistTime: '19:00', nextRoute: 'Muscle Up' }))
     expect(m.kind).toBe('presencial-sin-turno')
-    expect(m.title).toBe('Reservá tu clase')
+    expect(m.title).toBe('Reservá\ntu clase')
     expect(flat(m.meta)).toBe('Estás en lista de espera · 19:00')
     expect(m.primary).toEqual({ label: 'Reservar', to: '/reservas' })
     expect(m.secondary).toBeNull()
@@ -512,7 +512,7 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
     const cards = DAYS.map(({ todayStr, dow }) =>
       resolveTodayCard(baseInput({ todayStr, dow, todayRoute: null })),
     )
-    expect(new Set(cards.map((m) => m.title))).toEqual(new Set(['Reservá tu clase']))
+    expect(new Set(cards.map((m) => m.title))).toEqual(new Set(['Reservá\ntu clase']))
     expect(new Set(cards.map((m) => m.kicker))).toEqual(new Set(['Sin clase reservada']))
   })
 })
@@ -814,7 +814,7 @@ describe('resolveTodayCard — plan programado igual que plan activo (D4)', () =
       baseInput({ subscription: SCHEDULED_SUB, planStatus: planStatus({ hadPlan: true }) }),
     )
     expect(m.kind).toBe('presencial-sin-turno')
-    expect(m.title).toBe('Reservá tu clase')
+    expect(m.title).toBe('Reservá\ntu clase')
     sinFechas(m)
   })
 

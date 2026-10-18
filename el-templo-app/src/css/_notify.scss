@@ -42,6 +42,8 @@ $notify-fab: 56px + 16px;
 
 .q-notifications__list {
   position: relative !important;
+  // Ancho completo: es el contenedor del toast que se va (ver `leave-active` abajo).
+  align-self: stretch;
   top: auto !important;
   bottom: auto !important;
   margin-bottom: 0;
@@ -171,12 +173,26 @@ body:has(.check-in-fab) .q-notifications {
     opacity 0.25s;
 }
 
-// El plugin deja los toasts que se van como `position: absolute; top: 0`
-// (listas top/center); acá van abajo con el resto.
-.q-notification--top-leave-active,
-.q-notification--center-leave-active {
+// El plugin deja los toasts que se van como `position: absolute` (top: 0 en las listas
+// top/center, bottom: 0 en las bottom); acá van todos abajo con el resto. Sin `left/right`
+// el toast absoluto arrancaba en el centro de la lista (que se quedó sin contenido) y el
+// ícono quedaba solo en el medio de la pantalla mientras se desvanecía (2026-10-18):
+// left/right 0 + margen auto lo dejan centrado donde estaba. `!important` en left/right: al
+// descartar, Quasar fija `left` inline (el offsetLeft de antes) y, sin el `!important`, ese
+// valor + `right: 0` + margen auto corrían el toast ~46 px a la derecha mientras se iba.
+.q-notifications .q-notification--top-leave-active,
+.q-notifications .q-notification--center-leave-active,
+.q-notifications .q-notification--bottom-leave-active {
   top: auto;
   bottom: 0;
+  left: 0 !important;
+  right: 0 !important;
+  margin-left: auto;
+  margin-right: auto;
+  // Vue (FLIP del <TransitionGroup>) le pone un `transform` inline de ~55 px: al pasar a
+  // absoluto la lista se colapsa y el toast arrancaba esa distancia más abajo, tapando la
+  // barra de navegación mientras se desvanecía. Sin desplazamiento: solo se desvanece en su lugar.
+  transform: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

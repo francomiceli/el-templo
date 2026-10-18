@@ -16,10 +16,12 @@ $pd-btn-b: #7e4529; // blanco encima 7.4:1
 
 // Variante CLARA (sketch 012 A · Hermana clara): diálogos de trámite (Reservas, eliminar cuenta,
 // elegir sede). Mismo marco y botón; cambia la superficie (crema) y el texto (tinta).
-// Contraste: tinta 14.6:1 sobre la card, tinta-2 5.5:1, título de eliminar cuenta 5.6:1.
+// Contraste: tinta 14.6:1 sobre la card, tinta-2 6.8:1, título de eliminar cuenta 5.6:1.
 $pd-light-surface: #fbf8f3;
 $pd-ink: #2c2318;
-$pd-ink-2: #6b6459;
+// 2026-10-18: era #6b6459 — sobre la PÁGINA de Reservas (beige real #e4dfd7–#e9e3db, no blanco)
+// daba 4.3–4.5:1 en el rótulo de semana, la nota de reglas y las clases pasadas. Ahora ≥ 5.2:1.
+$pd-ink-2: #5f584d;
 $pd-terra-ink: #96593a; // íconos / acentos sobre crema, 5.2:1
 $pd-light-line: #e5dbcd; // borde decorativo de las filas (sedes) y separadores
 // Borde de los controles tocables sobre la PÁGINA crema (#f2ede5): chip de sede, fichas de día y cards

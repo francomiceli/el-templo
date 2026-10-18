@@ -160,6 +160,11 @@ export function shortBranchName(name: string): string {
   return name.replace(/^El Templo\s+/i, '').trim()
 }
 
+/** "El Templo Moreno" → "Sede Moreno": en la card de hoy "Moreno" solo no se entendía (2026-10-18). */
+function sedeLabel(name: string): string {
+  return `Sede ${shortBranchName(name)}`
+}
+
 function hhmm(time: string): string {
   return time.slice(0, 5)
 }
@@ -321,7 +326,7 @@ function presencialTurno(
     })
   }
 
-  const branch = shortBranchName(booking.branchName)
+  const branch = sedeLabel(booking.branchName)
   return emptyModel('presencial-turno', KICKER_TURNO, input.todayRoute ?? booking.activityName, {
     meta: [
       { text: 'Tu clase: ' },
@@ -344,7 +349,7 @@ function presencialProxima(
     'Tu próxima clase',
     formatNextClassTitle(next.date, next.time),
     {
-      meta: [{ text: shortBranchName(next.branchName) }],
+      meta: [{ text: sedeLabel(next.branchName) }],
       primary: { label: 'Mis clases', to: '/reservas' },
       secondary: { label: 'Cambiar clase', to: '/reservas' },
     },
@@ -358,7 +363,9 @@ function presencialSinTurno(input: TodayCardInput): TodayCardModel {
     : input.nextRoute
       ? [{ text: 'Próxima: ' }, { text: input.nextRoute, strong: true }]
       : [{ text: 'Elegí día, horario y sede' }]
-  return emptyModel('presencial-sin-turno', KICKER_SIN_TURNO, 'Reservá tu clase', {
+  // Corte de línea a mano (`white-space: pre-line` en TodayCard): "Reservá" / "tu clase",
+  // no "Reservá tu" / "clase" (2026-10-18).
+  return emptyModel('presencial-sin-turno', KICKER_SIN_TURNO, 'Reservá\ntu clase', {
     meta,
     primary: { label: 'Reservar', to: '/reservas' },
     secondary: null,

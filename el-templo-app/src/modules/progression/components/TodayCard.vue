@@ -226,6 +226,8 @@ function onAction(action: TodayCardAction): void {
     line-height: 1.15;
     letter-spacing: -0.01em;
     color: #f0e6d6;
+    // Respeta los "\n" del modelo ("Reservá\ntu clase").
+    white-space: pre-line;
   }
 
   &__meta {

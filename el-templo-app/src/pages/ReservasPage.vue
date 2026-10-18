@@ -188,7 +188,6 @@
             >
               <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
               <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
-              <span class="day-pill__dot" aria-hidden="true"></span>
               <span v-if="isToday(day)" class="day-pill__sr">hoy</span>
             </button>
           </div>
@@ -413,7 +412,6 @@
             >
               <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
               <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
-              <span class="day-pill__dot" aria-hidden="true"></span>
               <span v-if="isToday(day)" class="day-pill__sr">hoy</span>
             </button>
           </div>
@@ -644,7 +642,6 @@
           >
             <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
             <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
-            <span class="day-pill__dot" aria-hidden="true"></span>
             <span v-if="isToday(day)" class="day-pill__sr">hoy</span>
             <span v-if="dayHasBooking(day)" class="day-pill__sr">con reserva</span>
           </button>
@@ -684,11 +681,6 @@
               <span v-if="slot.coachOverride && slot.coachFirstName" class="slot-card__coach"
                 >Profe {{ slot.coachFirstName }}</span
               >
-              <!-- Phase 162 (APP-01): distintivo dorado en actividades especiales (todos los
-                   estados). 2026-10-01: mismo "Especial" para todas las líneas (Yoga incluida). -->
-              <q-badge v-if="slot.isSpecial" class="slot-card__badge--special">
-                <q-icon name="auto_awesome" size="12px" class="q-mr-xs" />Especial
-              </q-badge>
             </div>
             <div class="slot-card__right">
               <template v-if="isSlotHoliday(slot)">
@@ -2702,7 +2694,8 @@ onBeforeUnmount(() => cleanup())
 }
 
 // Fichas de día (sketch 013 A): blanca con borde suave; la elegida con el degradé terracota del
-// botón y texto blanco; hoy con borde tinta; punto salvia donde el socio tiene una reserva.
+// botón y texto blanco; hoy con borde tinta. Día con reserva: el número va dentro de un círculo
+// salvia (2026-10-18; antes un punto debajo que le robaba alto a la ficha).
 .day-pill {
   display: flex;
   flex-direction: column;
@@ -2753,31 +2746,32 @@ onBeforeUnmount(() => cleanup())
     letter-spacing: 0.03em;
   }
 
+  // El círculo siempre ocupa su lugar (así las fichas no cambian de alto); se pinta solo con reserva.
   &__date {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
     margin-top: 2px;
+    border-radius: 50%;
     font-family: 'Montserrat', sans-serif;
     font-size: 19px;
     font-weight: 700;
     color: $pd-ink;
-    line-height: 1.2;
+    line-height: 1;
   }
 
-  // Siempre ocupa su lugar (así las fichas no cambian de alto); se pinta solo con reserva.
-  &__dot {
-    display: block;
-    width: 5px;
-    height: 5px;
-    margin-top: 4px;
-    border-radius: 50%;
-    background: transparent;
-  }
-
-  &--has-booking &__dot {
+  // Con reserva: círculo salvia y número blanco (6.2:1).
+  &--has-booking &__date,
+  &--has-booking.day-pill--past:not(.day-pill--selected) &__date {
     background: #3f6a47;
+    color: #fff;
   }
 
-  &--selected.day-pill--has-booking &__dot {
+  // Elegido y con reserva: sobre el degradé, círculo blanco con el número salvia.
+  &--selected.day-pill--has-booking &__date {
     background: #fff;
+    color: #3f6a47;
   }
 
   &__sr {
@@ -2927,7 +2921,7 @@ onBeforeUnmount(() => cleanup())
     border-color: #3f6a47;
   }
 
-  // Pasado / feriado: sin fondo, borde punteado, hora en tinta-2 (6.0:1 sobre la página).
+  // Pasado / feriado: sin fondo, borde punteado, hora en tinta-2 (≥ 5.2:1 sobre la página).
   &--holiday,
   &--past {
     background: transparent;
@@ -3036,20 +3030,6 @@ onBeforeUnmount(() => cleanup())
     font-size: 13px;
     color: #3f6a47;
     background: #e9f0e6;
-  }
-
-  // Phase 162 (APP-01): distintivo "Especial" — ocre, bajo la actividad.
-  &__badge--special {
-    margin-top: 4px;
-    align-self: flex-start;
-    color: #7d6520;
-    background: #f6efdc;
-    padding: 3px 8px;
-    border-radius: 999px;
-    font-family: 'Geologica', sans-serif;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.2;
   }
 
   // Phase 162 (E2/E3): estados de bloqueo del plan especial. Tono apagado, NUNCA rojo — no es un

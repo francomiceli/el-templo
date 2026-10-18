@@ -238,8 +238,11 @@ const ariaAnnouncement = computed(
 // `TvScreenPage.vue` (diurno/nocturno), gradiente adaptado a vertical
 // (180deg, más denso arriba detrás de kicker+título) en vez del 100deg de la
 // TV (pensado para texto a la izquierda en horizontal).
+// Velo del día: en la mitad de abajo (donde caen bullets y niveles) el velo
+// era de 0.66 → 0.55 y la foto asomaba tanto que el texto terracotta quedaba
+// en 2.6:1; ahora 0.8 → 0.72 (fondo ≈ #ddd2c1, texto ≥ 5.1:1, 199-contraste).
 const DIA_GRADIENT =
-  'linear-gradient(180deg, rgba(242,236,226,0.9) 0%, rgba(242,236,226,0.82) 42%, rgba(240,232,220,0.66) 68%, rgba(238,229,214,0.55) 100%)'
+  'linear-gradient(180deg, rgba(242,236,226,0.9) 0%, rgba(242,236,226,0.84) 42%, rgba(240,232,220,0.8) 68%, rgba(238,229,214,0.72) 100%)'
 const NOCHE_GRADIENT =
   'linear-gradient(180deg, rgba(20,18,16,0.87) 0%, rgba(20,18,16,0.78) 42%, rgba(26,23,20,0.55) 68%, rgba(33,30,27,0.4) 100%)'
 
@@ -405,7 +408,11 @@ $story-dark-accent: $bronze-light; // #d4b896
 
 $story-light-text: $accent; // #3d3732
 $story-light-muted: rgba($accent, 0.88);
-$story-light-accent: $primary; // #96593a
+// Terracotta profundo para kicker, lead en negrita y glifos de nivel sobre el
+// velo del día: ≥ 5.1:1 (era $primary #96593a: 4.2:1 el kicker, 2.6:1 los
+// bullets y 2.6:1 los glifos Δ Σ Ω). Mismo matiz, más oscuro; $primary queda
+// para el botón, que lleva su propio fondo.
+$story-light-accent: #6f3f25;
 
 // Escala tipográfica (TV → mobile, ver SPEC punto 4): título domina, kicker
 // chico con tracking amplio, cuerpo legible sin achicarse en pantallas
@@ -723,8 +730,12 @@ $story-glyph-size: 56px;
 .story-cta-secondary {
   font-family: 'Nunito Sans', sans-serif;
   font-weight: 600;
-  color: inherit;
-  opacity: 0.85;
+  // Pastilla sólida como la pista "Tocá para seguir": 12.5:1 sobre su fondo
+  // (era crema al 85 % sobre la foto del cierre, 3.6:1).
+  background: #2c2318;
+  color: #f0e6d6;
+  border-radius: 22px;
+  padding: 6px 18px;
 }
 
 // ─── Transición entre slides: opacity+translateY, NUNCA blur/filter/scale.
