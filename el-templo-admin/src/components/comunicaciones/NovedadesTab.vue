@@ -47,7 +47,8 @@
     <div v-if="!novedades.length" class="text-center q-pa-lg text-grey-6">
       <q-icon name="campaign" size="40px" color="grey-5" />
       <div class="q-mt-sm">
-        Todavía no hay novedades. Contale algo a tus socios con "Nueva novedad": una oración alcanza.
+        Todavía no hay novedades. Contale algo a tus socios con "Nueva novedad": una oración
+        alcanza.
       </div>
     </div>
 
@@ -61,7 +62,11 @@
           :meta="cardMeta(row)"
           :metrics="[
             { label: 'Vistas', value: row.views, hint: 'Socios que la tuvieron en pantalla' },
-            { label: 'Clics', value: row.clicks, hint: 'Socios que la tocaron (si lleva a algún lado)' },
+            {
+              label: 'Clics',
+              value: row.clicks,
+              hint: 'Socios que la tocaron (si lleva a algún lado)',
+            },
           ]"
           @update:enabled="(val) => toggleActive(row, val)"
           @edit="openEdit(row)"
@@ -128,7 +133,7 @@ watch(
   () => props.novedades,
   () => {
     now.value = new Date();
-  },
+  }
 );
 
 // ── Vista previa "Ver como socio de" ─────────────────────────────────────
@@ -146,16 +151,13 @@ watch(
       viewBranchId.value = branches[0]!.id;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 const previewItems = computed<NovedadPreviewItem[]>(() => {
-  const branchName = props.branches.find((b) => b.id === viewBranchId.value)?.name ?? null;
   return visibleNovedadesForBranch(props.novedades, viewBranchId.value, now.value).map((n) => ({
     key: n.id,
     text: n.text,
-    // D-6: global = sin etiqueta de sede; con scope = sede del socio.
-    branchLabel: n.scopeBranchIds && n.scopeBranchIds.length > 0 ? branchName : null,
     whenLabel: relativeDaysLabel(n.publishAt, now.value),
     hasDestination: n.destinationType !== null,
   }));

@@ -3,7 +3,7 @@
  * clics por novedad) + lectura y eventos del socio.
  *
  * Entidad APARTE de `avisos` (D-1): sin botón, sin frecuencia, sin vigencia.
- * Solo una oración corta (máx. 80), sedes, destino opcional, fecha de
+ * Solo un texto corto (máx. 120, era 80 hasta 2026-10-18), sedes, destino opcional, fecha de
  * publicación y estado. Modelo base: `tv_avisos` (docblock de `novedades`).
  *
  * VISIBILIDAD DEL SOCIO (D-4): `status='active' AND publish_at <= ahora` y
@@ -60,7 +60,7 @@ type DbInstance = MySql2Database<typeof schema>;
 type NovedadRow = typeof novedades.$inferSelect;
 
 /** D-2: largo máximo de la oración (cabe en 2 líneas de la card). */
-export const NOVEDAD_TEXT_MAX_LENGTH = 80;
+export const NOVEDAD_TEXT_MAX_LENGTH = 120;
 /** D-4: cuántas novedades ve como máximo un socio. */
 export const NOVEDADES_MEMBER_LIMIT = 3;
 

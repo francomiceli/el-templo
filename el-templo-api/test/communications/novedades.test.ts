@@ -5,7 +5,7 @@
  *   socio:  GET /me/novedades, POST /me/novedades/:id/event
  *
  * Cobertura (spec `.docs/novedades-mi-templo-spec.md`):
- *   (1) CRUD admin y validaciones: texto vacío / de 81, destino incoherente,
+ *   (1) CRUD admin y validaciones: texto vacío / de 121, destino incoherente,
  *       sede de otro tenant, status inválido, props de más.
  *   (2) Roles: coach y socio reciben 403 en las 4 rutas admin, sin token 401.
  *   (3) `/me/novedades`: filtra por sede (global, otra sede, multi-sede),
@@ -291,7 +291,7 @@ describe("admin — CRUD", () => {
     expect(row?.tenantId).toBe(TENANT_TEMPLO);
   });
 
-  it("hace trim del texto y acepta justo 80 caracteres", async () => {
+  it("hace trim del texto y acepta justo 120 caracteres", async () => {
     const trimmed = await postComo("/admin/novedades", adminToken, {
       text: "   Open gym el sábado   ",
     });
@@ -301,13 +301,13 @@ describe("admin — CRUD", () => {
     );
 
     const exact = await postComo("/admin/novedades", adminToken, {
-      text: "x".repeat(80),
+      text: "x".repeat(120),
     });
     expect(exact.statusCode, exact.body).toBe(201);
 
-    // 80 caracteres reales + espacios alrededor: el largo se mide DESPUÉS del trim.
+    // 120 caracteres reales + espacios alrededor: el largo se mide DESPUÉS del trim.
     const padded = await postComo("/admin/novedades", adminToken, {
-      text: `  ${"y".repeat(80)}  `,
+      text: `  ${"y".repeat(120)}  `,
     });
     expect(padded.statusCode, padded.body).toBe(201);
   });
@@ -315,7 +315,7 @@ describe("admin — CRUD", () => {
   it.each([
     ["vacío", ""],
     ["solo espacios", "     "],
-    ["de 81 caracteres", "z".repeat(81)],
+    ["de 121 caracteres", "z".repeat(121)],
   ])("rechaza un texto %s con 400 y no persiste", async (_label, text) => {
     const res = await postComo("/admin/novedades", adminToken, { text });
     expect(res.statusCode, res.body).toBe(400);
@@ -548,10 +548,10 @@ describe("admin — CRUD", () => {
       expect((await novedadRow(id, CTX_TEMPLO))?.destinationSection).toBeNull();
     });
 
-    it("rechaza con 400 texto de 81, sede ajena y body vacío", async () => {
+    it("rechaza con 400 texto de 121, sede ajena y body vacío", async () => {
       const id = await insertNovedad({ text: "Intacta" });
       for (const payload of [
-        { text: "z".repeat(81) },
+        { text: "z".repeat(121) },
         { scopeBranchIds: [99999999] },
         {},
       ]) {

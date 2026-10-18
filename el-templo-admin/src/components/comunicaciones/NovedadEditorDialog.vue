@@ -1,15 +1,15 @@
 <!-- Editor de Novedades de Mi Templo (alta y edición).
-     Una novedad es UNA oración (máx. 80, D-2) que el socio ve arriba de Mi
+     Una novedad es un texto corto (máx. 120, D-2, era 80) que el socio ve arriba de Mi
      Templo. Campos: texto, sedes (casillas, `NovedadSedesSelector`), destino opcional (mismo
      `DestinoSelector` que avisos/tarjetas), publicación (ahora o fecha y hora)
      y estado. Sin vencimiento (D-3): una novedad deja de verse cuando la
      desplazan 3 más nuevas, se pausa o se borra.
 
-     El límite de 80 espeja `el-templo-api/.../novedades-service.ts`. La app
-     muestra UNA sola línea (decisión de Franco 2026-10-14) y corta con "…"
-     lo que no entra: el contador pasa a ámbar desde `NOVEDAD_TEXT_WARN_FROM`
-     y la vista previa (mismo ancho que un celular) muestra el corte real.
-     NO bloquea antes de 80 (el `maxlength` del input corta ahí).
+     El límite de 120 espeja `el-templo-api/.../novedades-service.ts`. La app
+     muestra DOS líneas (decisión de Franco 2026-10-18) y lo que no entra sube
+     despacio: el contador pasa a ámbar desde `NOVEDAD_TEXT_WARN_FROM` y la
+     vista previa (mismo ancho que un celular) muestra dónde se corta.
+     NO bloquea antes de 120 (el `maxlength` del input corta ahí).
 
      Semántica del PUT (server): cada key es opcional, y si viene
      `destinationType` (aunque sea null) REEMPLAZA el destino entero. Por eso
@@ -42,7 +42,7 @@
             <div class="col text-caption" :class="warnLong ? 'text-amber-10' : 'text-grey-7'">
               {{
                 warnLong
-                  ? 'Puede cortarse con “…” en el celular: mirá la vista previa.'
+                  ? 'Pasa de dos líneas: en el celular sube despacio para mostrar el resto. Mirá la vista previa.'
                   : 'Una oración corta. Se muestra arriba de Mi Templo.'
               }}
             </div>
@@ -299,11 +299,6 @@ const formScope = computed(() =>
 );
 
 const previewItem = computed<NovedadPreviewItem>(() => {
-  const firstBranchId = formScope.value?.[0];
-  const branchLabel =
-    firstBranchId !== undefined
-      ? (props.branches.find((b) => b.id === firstBranchId)?.name ?? null)
-      : null;
   const whenLabel =
     publishIso.value && new Date(publishIso.value).getTime() <= Date.now()
       ? relativeDaysLabel(publishIso.value, new Date())
@@ -311,7 +306,6 @@ const previewItem = computed<NovedadPreviewItem>(() => {
   return {
     key: 'editor',
     text: form.text.trim() || 'Escribí la novedad…',
-    branchLabel,
     whenLabel,
     hasDestination: form.hasDestination,
   };

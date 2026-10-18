@@ -544,7 +544,7 @@ export const tvAvisoActivoResponseSchema = {
 
 // =============================================================================
 // Novedades de Mi Templo — entidad APARTE de `avisos` (D-1). Una oración corta
-// (máx. 80), sedes, destino opcional, fecha de publicación y estado.
+// (máx. 120), sedes, destino opcional, fecha de publicación y estado.
 // `additionalProperties: false` en los 2 bodies. El largo del texto se valida
 // en el service DESPUÉS de `trim` (acá solo hay una cota gruesa), igual que la
 // coherencia del destino, que solo conoce `destinations.ts`.

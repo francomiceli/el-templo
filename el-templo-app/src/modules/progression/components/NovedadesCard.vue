@@ -1,15 +1,19 @@
 <!-- Card "Novedades" de Mi Templo (spec "Novedades en Mi Templo", D-8..D-11 +
      enmienda 2026-10-14). Variante D del sketch 004, SIN íconos de tipo:
-     una novedad por vez en UNA sola línea, rotación automática, puntos
+     una novedad por vez en DOS líneas de texto, rotación automática, puntos
      tocables, swipe horizontal y barra de progreso visible (UAT D13).
+     2026-10-18 (Franco): sin la línea de sede/"NUEVO"/fecha — la sede propia no
+     sumaba (las novedades invitan a cosas en otras sedes) y ese renglón ahora es
+     texto. El "hace N días" de la novedad actual pasó al encabezado. Lo no visto
+     se sigue marcando con el filete, la negrita y el contador.
 
-     - Rotación: 4,5 s, o lo que tarde el texto en desplazarse si no entra en la
-       línea (UAT D19, C3). Un solo `dwellMs` gobierna el timer, la barra y el
+     - Rotación: 4,5 s, o lo que tarde el texto en subir si no entra en las dos
+       líneas (UAT D19, C3). Un solo `dwellMs` gobierna el timer, la barra y el
        desplazamiento (ver `novedades-rotation.ts`). Nunca se corta con "…".
      - 0 novedades: no se renderiza nada. 1: sin puntos, sin barra, sin rotación
        (si desborda, el desplazamiento se repite).
-     - `prefers-reduced-motion`: sin desplazamiento ni barra animada; el texto hace
-       wrap a 2 líneas en un stage de alto fijo y la barra queda llena y estática.
+     - `prefers-reduced-motion`: sin desplazamiento ni barra animada; el texto se
+       corta a 2 líneas con "…" y la barra queda llena y estática.
      - El texto se interpola con `{{ }}` (Vue escapa): PROHIBIDO inyectar HTML crudo (la directiva de HTML), una
        novedad con HTML nunca debe ejecutarse en la app del socio.
      - Réplica visual de `NovedadPreview.vue` del admin (stage de 62px). -->
@@ -29,6 +33,7 @@
       >
         {{ newCount }}
       </span>
+      <span class="nov-card__when">{{ relativeDaysLabel(currentItem.publishedAt, now) }}</span>
       <span v-if="items.length > 1" class="nov-card__dots">
         <button
           v-for="(item, i) in items"
@@ -68,13 +73,6 @@
           <div class="nov-item__body">
             <div class="nov-item__text">
               <span class="nov-item__line" :data-key="currentItem.key">{{ currentItem.text }}</span>
-            </div>
-            <div class="nov-item__meta">
-              <span v-if="isNew(currentItem)" class="nov-item__new">NUEVO</span>
-              <span v-if="currentItem.branchLabel" class="nov-item__sede">
-                <q-icon name="location_on" size="13px" />{{ currentItem.branchLabel }}
-              </span>
-              <span>{{ relativeDaysLabel(currentItem.publishedAt, now) }}</span>
             </div>
           </div>
           <q-icon v-if="currentItem.destination" name="chevron_right" class="nov-item__chev" />
@@ -127,6 +125,9 @@ const items = computed<Novedad[]>(() => store.novedades.slice(0, MAX_ITEMS))
 const current = ref(0)
 const currentItem = computed<Novedad | undefined>(() => items.value[current.value])
 
+// ── "Hace N días": `now` se refresca al volver de background (cruce de día) ──
+const now = ref(new Date())
+
 // Si la lista se achica (recarga, otra sede) no quedamos fuera de rango.
 watch(
   () => items.value.length,
@@ -134,9 +135,6 @@ watch(
     if (current.value >= length) current.value = 0
   },
 )
-
-// ── "Hace N días": `now` se refresca al volver de background (cruce de día) ──
-const now = ref(new Date())
 
 // ── "NUEVO" (D-5/D-10) ────────────────────────────────────────────────────────
 // `markSeen` pone `seen = true` en el store apenas la novedad es el slide activo,
@@ -200,7 +198,7 @@ const animating = computed(() => pageVisible.value && !touching.value)
 const running = computed(() => items.value.length > 1 && animating.value)
 const transitionName = ref<`nov-${SlideDirection}`>('nov-up')
 
-/** Cuántos px sobra el texto de la novedad actual (0 = entra en la línea). */
+/** Cuántos px de alto sobra el texto de la novedad actual (0 = entra en las dos líneas). */
 const overflowPx = ref(0)
 /** Cuánto se muestra la novedad actual: timer, barra y desplazamiento comparten este valor. */
 const dwellMs = computed(() => novedadDwellMs(overflowPx.value))
@@ -243,11 +241,11 @@ function currentLine(): HTMLElement | null {
   return lines.find((el) => el.dataset.key === key) ?? null
 }
 
-/** Mide cuánto desborda el texto actual. Con reduced-motion no se mide (hace wrap). */
+/** Mide cuánto desborda el texto actual. Con reduced-motion no se mide (se corta con "…"). */
 function measure(): void {
   const line = reducedMotion.value ? null : currentLine()
   const text = line?.parentElement
-  overflowPx.value = line && text ? marqueeOverflowPx(line.scrollWidth, text.clientWidth) : 0
+  overflowPx.value = line && text ? marqueeOverflowPx(line.scrollHeight, text.clientHeight) : 0
 }
 
 function cancelMarquee(): void {
@@ -439,12 +437,19 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
 .nov-card__count {
   background-color: $primary;
   color: #fff;
-  font-size: 11px;
+  // 2026-10-18: más chica (era 11px, 20px de mínimo, padding 3/7): competía con el título.
+  font-size: 10px;
   font-weight: 600;
-  min-width: 20px;
-  padding: 3px 7px;
+  line-height: 16px;
+  min-width: 16px;
+  padding: 0 5px;
   border-radius: 999px;
   text-align: center;
+}
+
+.nov-card__when {
+  font-size: 11.5px;
+  color: $info;
 }
 
 .nov-card__dots {
@@ -486,8 +491,8 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
 
 .nov-card__stage {
   position: relative;
-  // Alto fijo (enmienda D-8): 1 línea de texto (14.5 × 1.38 ≈ 20px) + meta
-  // (4 + 16px) + padding 10 + 10. Así el layout no salta al rotar.
+  // Alto fijo (enmienda D-8): 2 líneas de texto (2 × 14.5 × 1.38 ≈ 40px) +
+  // padding 10 + 10 + 2 de aire. Así el layout no salta al rotar.
   height: 62px;
   overflow: hidden;
   // Deja pasar el scroll vertical de la página; el swipe horizontal es nuestro.
@@ -531,44 +536,20 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
   line-height: 1.38;
   font-weight: 500;
   color: $accent;
-  white-space: nowrap;
+  // Ventana de hasta 2 líneas (una novedad corta queda centrada en el stage): lo que
+  // sobra queda abajo y sube (UAT D19).
+  max-height: 2 * 1.38em;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
-// Span interno que se desplaza (Web Animations) cuando el texto no entra (UAT D19).
+// Bloque interno que se desplaza hacia arriba (Web Animations) cuando el texto no entra.
 .nov-item__line {
-  display: inline-block;
-  vertical-align: top;
-  white-space: nowrap;
+  display: block;
 }
 
 .nov-item--new .nov-item__text {
   font-weight: 600;
-}
-
-.nov-item__meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 11.5px;
-  color: $info;
-}
-
-.nov-item__new {
-  color: $primary;
-  font-weight: 600;
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
-}
-
-.nov-item__sede {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 11px;
-  font-weight: 500;
-  color: $secondary;
 }
 
 .nov-item__chev {
@@ -673,28 +654,18 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
   }
 }
 
-// Reduced motion (UAT D13/D19): sin desplazamiento ni barra animada. El texto hace
-// wrap a 2 líneas en un stage de alto FIJO (no cambia al rotar) y la barra queda
-// llena. Límite conocido: una novedad que en 2 líneas no entra (el API admite 200
-// caracteres) cae al clamp con "…" como último recurso.
-.nov-card--reduced .nov-item__line {
-  display: inline;
-  white-space: normal;
-  transform: none;
-}
-
+// Reduced motion (UAT D13/D19): sin desplazamiento ni barra animada. El texto se
+// corta a 2 líneas (mismo alto de stage) y la barra queda llena. Una novedad que no
+// entra en 2 líneas (el API admite 120 caracteres, unas 3 líneas) cae al clamp con "…".
 .nov-card--reduced .nov-item__text {
-  white-space: normal;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  overflow: hidden;
 }
 
-// 2 líneas (2 × 14.5 × 1.38 ≈ 40) + meta (4 + 16) + padding (10 + 10) + 2 de margen.
-.nov-card--reduced .nov-card__stage {
-  height: 82px;
+.nov-card--reduced .nov-item__line {
+  display: inline;
 }
 
 .nov-card--reduced .nov-card__progress-fill {

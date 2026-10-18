@@ -17,24 +17,22 @@ import type { BranchOption } from 'src/types/member';
 
 /** Máximo de novedades que ve un socio (D-4). */
 export const NOVEDADES_MEMBER_LIMIT = 3;
-/** Largo máximo del texto (D-2, espejo del server). */
-export const NOVEDAD_TEXT_MAX = 80;
+/** Largo máximo del texto (D-2, espejo del server; 120 desde la migración 0283, era 80). */
+export const NOVEDAD_TEXT_MAX = 120;
 /**
- * Desde este largo el texto probablemente no entra en UNA línea y la app lo
- * corta con "…" (decisión de Franco 2026-10-14: la card muestra una sola
- * línea que va rotando). Es una estimación por caracteres para un celular de
- * 375px — la vista previa del editor, al mismo ancho, es la que manda.
+ * Desde este largo el texto probablemente no entra en las DOS líneas visibles de
+ * la card (decisión de Franco 2026-10-18; antes era una sola) y en la app sube
+ * despacio para mostrar la tercera. No es un error: solo avisa. Es una estimación por caracteres (~38 por línea) para un
+ * celular de 375px — la vista previa del editor, al mismo ancho, es la que manda.
  */
-export const NOVEDAD_TEXT_WARN_FROM = 38;
+export const NOVEDAD_TEXT_WARN_FROM = 76;
 
 /** Una novedad tal como la dibuja `NovedadPreview.vue` (réplica de la card de la app). */
 export interface NovedadPreviewItem {
   /** Clave estable para el v-for de los puntos. */
   key: string | number;
   text: string;
-  /** Nombre de la sede (null = novedad global: la app no muestra sede). */
-  branchLabel: string | null;
-  /** "hoy", "hace 3 días"... (D-7). */
+  /** "hoy", "hace 3 días"... (D-7), en el encabezado de la card. */
   whenLabel: string;
   hasDestination: boolean;
 }

@@ -2,15 +2,17 @@
      sketch 004, SIN íconos de tipo — decisión D-8). Réplica de lo que ve el
      socio en la app, pero SIN auto-rotación: se pasa de una novedad a otra
      tocando los puntos. Muestra una por vez, con el filete terracota y el
-     "NUEVO" de una novedad no vista (acá se asume que el socio no vio
+     contador de una novedad no vista (acá se asume que el socio no vio
      ninguna: es la mejor forma de ver cómo luce).
 
      Solo lectura. El texto se interpola con `{{ }}` (Vue escapa) — PROHIBIDA
      la directiva de HTML crudo de Vue: una novedad con HTML nunca debe
      ejecutarse en el admin (mismo criterio que AvisoPreview.vue, T-193-42).
 
-     El stage tiene alto fijo (como en la app): UNA línea de texto + la meta
-     (decisión de Franco 2026-10-14). Lo que no entra se corta con "…". -->
+     El stage tiene alto fijo (como en la app): DOS líneas de texto, sin la línea
+     de sede/"NUEVO"/fecha; el "hace N días" va en el encabezado (decisión de
+     Franco 2026-10-18). Lo que no entra se
+     corta con "…" acá; en la app sube despacio para que se lea entero. -->
 <template>
   <div class="nov-preview">
     <div v-if="!items.length" class="nov-preview__empty">
@@ -23,6 +25,7 @@
         <span v-if="showNew" class="nov-card__count">
           {{ items.length }} {{ items.length === 1 ? 'nueva' : 'nuevas' }}
         </span>
+        <span class="nov-card__when">{{ currentItem.whenLabel }}</span>
         <span v-if="items.length > 1" class="nov-card__dots">
           <button
             v-for="(item, i) in items"
@@ -41,13 +44,6 @@
         <div class="nov-item" :class="{ 'nov-item--new': showNew }">
           <div class="nov-item__body">
             <div class="nov-item__text">{{ currentItem.text }}</div>
-            <div class="nov-item__meta">
-              <span v-if="showNew" class="nov-item__new">NUEVO</span>
-              <span v-if="currentItem.branchLabel" class="nov-item__sede">
-                <q-icon name="location_on" size="13px" />{{ currentItem.branchLabel }}
-              </span>
-              <span>{{ currentItem.whenLabel }}</span>
-            </div>
           </div>
           <q-icon v-if="currentItem.hasDestination" name="chevron_right" class="nov-item__chev" />
         </div>
@@ -91,7 +87,6 @@ const currentItem = computed<NovedadPreviewItem>(
 // Paleta de marca copiada del sketch 004 (themes/default.css) y de
 // el-templo-app/src/css/_brand.scss — mismo criterio que AvisoPreview.vue.
 $terracotta: #96593a;
-$clay: #7d5d42;
 $charcoal: #3d3732;
 $olive-stone: #6b6459;
 $border: #e5dbcd;
@@ -139,10 +134,16 @@ $border: #e5dbcd;
 .nov-card__count {
   background-color: $terracotta;
   color: #fff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 3px 9px;
+  line-height: 16px;
+  padding: 0 7px;
   border-radius: 999px;
+}
+
+.nov-card__when {
+  font-size: 11.5px;
+  color: $olive-stone;
 }
 
 .nov-card__dots {
@@ -184,7 +185,7 @@ $border: #e5dbcd;
 
 .nov-card__stage {
   position: relative;
-  // 1 línea de texto (14.5 × 1.38 ≈ 20px) + meta (4 + 16px) + padding 10+10.
+  // 2 líneas de texto (2 × 14.5 × 1.38 ≈ 40px) + padding 10+10 + 2 de aire.
   height: 62px;
   overflow: hidden;
 }
@@ -220,38 +221,16 @@ $border: #e5dbcd;
   line-height: 1.38;
   font-weight: 500;
   color: $charcoal;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .nov-item--new .nov-item__text {
   font-weight: 600;
-}
-
-.nov-item__meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 11.5px;
-  color: $olive-stone;
-}
-
-.nov-item__new {
-  color: $terracotta;
-  font-weight: 600;
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
-}
-
-.nov-item__sede {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 11px;
-  font-weight: 500;
-  color: $clay;
 }
 
 .nov-item__chev {

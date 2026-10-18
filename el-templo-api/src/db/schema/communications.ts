@@ -218,7 +218,7 @@ export const novedades = mysqlTable(
     id: int("id").primaryKey().autoincrement(),
     // Valor server-side, nunca de payload. Ver src/db/schema/tenant-column.ts
     tenantId: tenantIdColumn(),
-    text: varchar("text", { length: 80 }).notNull(),
+    text: varchar("text", { length: 120 }).notNull(), // 0283: era 80 (2026-10-18, card a 2 líneas + desplazamiento)
     scopeBranchIds: json("scope_branch_ids").$type<number[]>(),
     // Nullable a propósito: NULL = sin destino, solo informa. Enum propio (ver
     // DESTINATION_TYPE_VALUES).
