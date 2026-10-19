@@ -27,7 +27,15 @@
  * locally only `pnpm exec tsc --noEmit` is run.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq, and } from "drizzle-orm";
 import {
@@ -542,6 +550,53 @@ describe("Ratings module (Phase 143)", () => {
       coachId: ctx.coachArId,
     });
     expect(status).toBe(400);
+  });
+
+  it("la semana en curso se calcula en la zona de la sede, no en UTC (domingo 23:30 en Argentina)", async () => {
+    // 2026-10-19T02:30Z = domingo 18 a las 23:30 en Buenos Aires (semana del lunes 12)
+    // y lunes 19 a las 04:30 en Madrid (semana del 19). Antes el server usaba la fecha
+    // UTC y rechazaba la semana en curso de AR (CI rojo 2026-10-18). Solo se falsea
+    // `Date`: el pool de MySQL y los timers reales siguen andando.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-19T02:30:00Z"));
+    try {
+      // Token firmado con el reloj falso: firma y verificación usan la misma hora,
+      // corra cuando corra el CI.
+      const ownerToken = await getAuthToken(
+        app,
+        "owner-ratings@test.com",
+        "owner-pass-123",
+      );
+      const arCurrentWeek = await assignRoster(app, ownerToken, {
+        branchId: ctx.arBranchId,
+        weekStartDate: "2026-10-12",
+        dayOfWeek: 1,
+        slot: "morning",
+        coachId: ctx.coachArId,
+      });
+      expect(arCurrentWeek).toBe(204);
+
+      // En Madrid ya es lunes: la semana del 12 es pasada.
+      const esPastWeek = await assignRoster(app, ownerToken, {
+        branchId: ctx.esBranchId,
+        weekStartDate: "2026-10-12",
+        dayOfWeek: 1,
+        slot: "morning",
+        coachId: ctx.coachEsId,
+      });
+      expect(esPastWeek).toBe(400);
+
+      const arPastWeek = await assignRoster(app, ownerToken, {
+        branchId: ctx.arBranchId,
+        weekStartDate: "2026-10-05",
+        dayOfWeek: 1,
+        slot: "morning",
+        coachId: ctx.coachArId,
+      });
+      expect(arPastWeek).toBe(400);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a change propagates forward: a future week reflects the current-week coach", async () => {
