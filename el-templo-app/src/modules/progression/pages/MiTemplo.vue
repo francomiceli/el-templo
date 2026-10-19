@@ -114,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-// deploy: forzar build de la app tras el fix de test de la 199 (paths-filter, 2026-10-16)
+// deploy: forzar build de la app tras el deploy fallido de ad6453fc4 (paths-filter, 2026-10-18)
 /**
  * MiTemplo page — personalized daily briefing ("Tu Dia").
  *

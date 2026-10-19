@@ -276,7 +276,7 @@
 </template>
 
 <script setup lang="ts">
-// deploy: forzar build del admin tras el fix de test de la 199 (paths-filter, 2026-10-16)
+// deploy: forzar build del admin tras el deploy fallido de ad6453fc4 (paths-filter, 2026-10-18)
 import { ref, computed, onMounted, watch } from 'vue';
 import { useQuasar, type QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
