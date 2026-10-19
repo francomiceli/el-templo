@@ -90,6 +90,7 @@ $terracotta: #96593a;
 $charcoal: #3d3732;
 $olive-stone: #6b6459;
 $border: #e5dbcd;
+$error-red: #b34a4a;
 
 .nov-preview {
   width: 100%;
@@ -132,7 +133,7 @@ $border: #e5dbcd;
 }
 
 .nov-card__count {
-  background-color: $terracotta;
+  background-color: $error-red; // igual que la app ($negative, rojo de error de la marca)
   color: #fff;
   font-size: 10px;
   font-weight: 600;

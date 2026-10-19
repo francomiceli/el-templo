@@ -435,7 +435,8 @@ $chevron: #6b6459; // 5.8:1 sobre blanco (era #c7b9a6 = 1.9:1, fallaba el umbral
 }
 
 .nov-card__count {
-  background-color: $primary;
+  // Rojo de error de la marca (blanco encima 4.51:1): se lee como "nuevo" de un vistazo.
+  background-color: $negative;
   color: #fff;
   // 2026-10-18: más chica (era 11px, 20px de mínimo, padding 3/7): competía con el título.
   font-size: 10px;
