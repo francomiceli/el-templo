@@ -46,6 +46,9 @@ $pd-neg-on-dark: #ff9b94;
 // Fase 197 D-18: tokens de Entrenar (sketches 015 ronda 3b y 016). Contrastes medidos sobre el fondo real.
 $pd-sage: #3f6a47; // salvia "hecho": 5.4:1 sobre su tinte
 $pd-sage-tint: #e9f0e6;
+// Fase 197 D-16: verde "hecho" SOBRE oscuro (ícono de bloque completo / transición): 7.7:1 sobre #2a2622,
+// 6.0:1 sobre #3e3732 (el $positive #3b7249 daba 2.05-2.6:1 ahí). Solo íconos, nunca texto sobre claro.
+$pd-sage-on-dark: #8fc79a;
 $pd-gold: #d4b46a; // SOLO AURA: 7.7:1 sobre #2c2318 (no sirve como texto sobre claro)
 $pd-gold-ink: #7d6520; // dorado como texto sobre claro: 5.0:1 sobre su tinte
 $pd-gold-tint: #f6efdc;

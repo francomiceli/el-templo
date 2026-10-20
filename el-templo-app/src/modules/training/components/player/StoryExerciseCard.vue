@@ -4,7 +4,7 @@
     <div class="story-card__video-area">
       <!-- All exercises completed — prompt to advance -->
       <div v-if="allExercisesCompleted && !readOnly" class="story-card__block-done">
-        <q-icon name="check_circle" size="48px" color="positive" class="q-mb-md" />
+        <q-icon name="check_circle" size="48px" class="story-card__block-done-icon q-mb-md" />
         <div class="story-card__block-done-title">{{ blockDoneTitle }}</div>
         <div class="story-card__block-done-subtitle">{{ blockDoneSubtitle }}</div>
         <div class="story-card__block-done-actions">
@@ -133,6 +133,7 @@ const blockDoneButtonLabel = computed(() => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .story-card {
   display: flex;
@@ -197,6 +198,11 @@ const blockDoneButtonLabel = computed(() => {
   gap: 4px;
 }
 
+.story-card__block-done-icon {
+  // Fase 197 D-16: ícono sólido sobre oscuro (antes $positive #3b7249, 2.60:1 medido)
+  color: $pd-sage-on-dark;
+}
+
 .story-card__block-done-title {
   font-family: 'Montserrat', sans-serif;
   font-size: 24px;
@@ -206,7 +212,8 @@ const blockDoneButtonLabel = computed(() => {
 
 .story-card__block-done-subtitle {
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.7);
+  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.7))
+  color: $pd-cream-2;
   margin-bottom: 24px;
 }
 

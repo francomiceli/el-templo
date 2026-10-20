@@ -102,6 +102,7 @@ watch([() => props.activeIndex, () => props.completedIds.size], () => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .compact-list {
   background: $cream;
@@ -140,7 +141,8 @@ watch([() => props.activeIndex, () => props.completedIds.size], () => {
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 2px;
-  color: rgba(0, 0, 0, 0.4);
+  // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.4), 2.79:1 medido)
+  color: $pd-ink-2;
   margin-bottom: 1px;
 }
 
@@ -171,7 +173,8 @@ watch([() => props.activeIndex, () => props.completedIds.size], () => {
 .compact-list__dose {
   font-size: 12px;
   font-weight: 700;
-  color: rgba(0, 0, 0, 0.55);
+  // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.55), 4.41:1 medido)
+  color: $pd-ink-2;
   letter-spacing: 0.3px;
 }
 
@@ -190,7 +193,8 @@ watch([() => props.activeIndex, () => props.completedIds.size], () => {
   padding: 2px 8px;
   font-size: 11px;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.4);
+  // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.4), 2.74:1 medido)
+  color: $pd-ink-2;
   background: none;
   border: 1px solid rgba($secondary, 0.2);
   border-radius: 10px;

@@ -690,7 +690,8 @@ function onAdjust(direction: 'up' | 'down'): void {
 
 .block-progression__route-name {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.7))
+  color: $pd-cream-2;
 }
 
 .block-progression__header-right {
@@ -781,13 +782,15 @@ function onAdjust(direction: 'up' | 'down'): void {
 
 .block-progression__detail-format-params {
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.5);
+  // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.5), 3.86:1 medido)
+  color: $pd-ink-2;
   text-transform: none;
 }
 
 .block-progression__detail-format-desc {
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.45);
+  // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.45), 3.27:1 medido)
+  color: $pd-ink-2;
   line-height: 1.3;
 }
 
@@ -827,7 +830,8 @@ function onAdjust(direction: 'up' | 'down'): void {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgba($secondary, 0.65);
+  // Fase 197 D-16: texto sólido (antes rgba($secondary,.65), 2.6:1)
+  color: $pd-ink-2;
 }
 
 .block-progression__detail-adjust-row {
@@ -853,7 +857,8 @@ function onAdjust(direction: 'up' | 'down'): void {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgba(0, 0, 0, 0.4);
+  // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.4), 2.79:1 medido)
+  color: $pd-ink-2;
   margin-bottom: 8px;
 }
 
@@ -873,14 +878,15 @@ function onAdjust(direction: 'up' | 'down'): void {
   white-space: nowrap;
   border: 1.5px solid rgba($secondary, 0.2);
   background: transparent;
-  color: rgba(0, 0, 0, 0.4);
+  // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.4), 2.79:1 medido)
+  color: $pd-ink-2;
   cursor: default;
   transition: all 0.2s ease;
 
   &--completed {
     cursor: pointer;
-    color: rgba(0, 0, 0, 0.6);
-    border-color: rgba($secondary, 0.3);
+    color: $pd-ink;
+    border-color: mix($secondary, $cream, 30%);
   }
 
   &--current {
