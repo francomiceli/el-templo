@@ -1,7 +1,21 @@
 // Fase 197: extraído de sessions/routes.ts para que /weekly y la canasta compartan gate y forma
 import { assembleVideoUrl } from "../shared/video-url";
-import type { BlockPlan, DaySession } from "./types";
+import {
+  gruposDeZonas,
+  zonasDelBloque,
+  type EjercicioZonaInput,
+} from "../tv/muscle-zones";
+import type { BlockPlan, DaySession, ExercisePrescription } from "./types";
 import { ALTERNATIVE_BLOCK_ROLES } from "./types";
+
+/** Fase 197 D-10: insumo del mapeo de zonas, sale del join con exercises. */
+function toZoneInput(ex: ExercisePrescription): EjercicioZonaInput {
+  return {
+    category: ex.category ?? null,
+    categorySecondary: ex.categorySecondary ?? null,
+    route: ex.exerciseRoute ?? null,
+  };
+}
 
 /**
  * Convert a single block to its API response shape (shared by /daily, /weekly,
@@ -19,6 +33,10 @@ export function blockToResponse(
   const mobilityEx = block.exercises.find(
     (ex) => ex.exerciseType === "mobility",
   );
+
+  // Fase 197 D-10: zonas para la figura de Semana y la canasta; unión de los
+  // main, ROM cae al fallback por rol, la movilidad no suma (igual que la TV).
+  const zones = zonasDelBloque(mainExercises.map(toZoneInput), block.role);
 
   return {
     blockId: block.blockId,
@@ -62,6 +80,8 @@ export function blockToResponse(
           videoUrl: assembleVideoUrl(mobilityEx.videoUrl),
         }
       : null,
+    zones,
+    groups: gruposDeZonas(zones),
   };
 }
 

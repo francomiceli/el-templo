@@ -652,6 +652,9 @@ export class SessionGeneratorService {
               exerciseType: schema.sessionPrescriptions.exerciseType,
               sortOrder: schema.sessionPrescriptions.sortOrder,
               videoUrl: schema.exercises.videoUrl,
+              category: schema.exercises.category,
+              categorySecondary: schema.exercises.categorySecondary,
+              exerciseRoute: schema.exercises.route,
             })
             .from(schema.sessionPrescriptions)
             .leftJoin(
@@ -698,6 +701,9 @@ export class SessionGeneratorService {
           dificultadLineal: p.difficulty ?? undefined,
           exerciseType: p.exerciseType as "main" | "mobility",
           videoUrl: p.videoUrl ?? undefined,
+          category: p.category ?? null,
+          categorySecondary: p.categorySecondary ?? null,
+          exerciseRoute: p.exerciseRoute ?? null,
         }));
 
         let role: BlockRole = block.role as BlockRole;
@@ -806,6 +812,9 @@ export class SessionGeneratorService {
           exerciseType: schema.sessionPrescriptions.exerciseType,
           sortOrder: schema.sessionPrescriptions.sortOrder,
           videoUrl: schema.exercises.videoUrl,
+          category: schema.exercises.category,
+          categorySecondary: schema.exercises.categorySecondary,
+          exerciseRoute: schema.exercises.route,
         })
         .from(schema.sessionPrescriptions)
         .leftJoin(
@@ -829,6 +838,9 @@ export class SessionGeneratorService {
         dificultadLineal: p.difficulty ?? undefined, // Load difficulty for display to users
         exerciseType: p.exerciseType as "main" | "mobility",
         videoUrl: p.videoUrl ?? undefined,
+        category: p.category ?? null,
+        categorySecondary: p.categorySecondary ?? null,
+        exerciseRoute: p.exerciseRoute ?? null,
       }));
 
       // Transform legacy ATHLOS_EPIKOS to correct role based on week
