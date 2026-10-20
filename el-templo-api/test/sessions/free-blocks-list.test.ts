@@ -545,6 +545,8 @@ describe("canasta de bloques libres: GET /api/sessions/free-blocks (197-07)", ()
           userId: online.id,
           programId: program.id,
           status: "active" as const,
+          // source es NOT NULL sin default (fase 112).
+          source: "plan_linked" as const,
           currentWeek: 1,
           sessionsCompletedThisWeek: 0,
         }),
