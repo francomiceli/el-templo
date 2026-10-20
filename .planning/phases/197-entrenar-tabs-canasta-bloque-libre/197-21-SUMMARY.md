@@ -28,7 +28,7 @@ Campo `libreLink` en el modelo de la card de hoy, con la regla conservadora de D
 
 - `resolveTodayCard` ahora envuelve al resolver anterior (renombrado `resolveBaseCard`, sin cambios de lógica) con `withLibreLink`. Se extrajo `hasCurrentPlan(input)` (misma expresión que antes) para no duplicarla.
 - Regla (solo con plan active/paused o `planStatus.hasActivePlan`; un plan solo programado no): `completada` y `presencial-proxima` sí; `presencial-turno` solo con `attendanceMarkedAt`; `presencial-sin-turno` solo sin lista de espera (cubre la clase de hoy perdida por la regla D5); `online-programa`/`online-libre` solo con `todayRoute` null. `cargando`, `sin-plan-*` y el resto: null.
-- Tests: `describe('libreLink (fase 197 D-17)')` con 22 casos (24 menciones de `libreLink`).
+- Tests: `describe('libreLink (fase 197 D-17)')` con 21 casos (24 menciones de `libreLink`).
 - Vista: `<button class="today-card__libre">` debajo del hook, 13 px / 600, color sólido `#e3c9a8`, subrayado, `min-height: 44px`, alineado a la izquierda, dentro de `__content` (z-index 2), con `:focus-visible`. Navega vía `onAction` a `/training?tab=libre` (EntrenarView ya lee `query.tab`).
 
 ## Desvíos/decisiones
