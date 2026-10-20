@@ -1105,3 +1105,146 @@ describe('resolveTodayCard — matriz anti-regresión (UAT D3 + D11)', () => {
     }
   })
 })
+
+describe('resolveTodayCard — libreLink (fase 197 D-17)', () => {
+  const LIBRE = { label: 'Probá el modo Libre', to: '/training?tab=libre' }
+
+  it('sesión de hoy completada → link a Libre', () => {
+    const m = resolveTodayCard(baseInput({ todayCompleted: true }))
+    expect(m.kind).toBe('completada')
+    expect(m.libreLink).toEqual(LIBRE)
+  })
+
+  it('antes de la clase (ventana before, sin asistencia) → sin link', () => {
+    const m = resolveTodayCard(
+      baseInput({ booking: BOOKING, windowState: 'before', minutesToStart: 90 }),
+    )
+    expect(m.kind).toBe('presencial-turno')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('durante la clase (ventana open, sin asistencia) → sin link', () => {
+    const m = resolveTodayCard(
+      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: 12 }),
+    )
+    expect(m.kind).toBe('presencial-turno')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('clase de hoy con asistencia registrada → link a Libre', () => {
+    const m = resolveTodayCard(
+      baseInput({ booking: BOOKING, windowState: 'open', attendanceMarkedAt: '18:55' }),
+    )
+    expect(m.kind).toBe('presencial-turno')
+    expect(m.libreLink).toEqual(LIBRE)
+  })
+
+  it('presencial sin reserva y sin lista de espera → link a Libre', () => {
+    const m = resolveTodayCard(baseInput())
+    expect(m.kind).toBe('presencial-sin-turno')
+    expect(m.libreLink).toEqual(LIBRE)
+  })
+
+  it('presencial en lista de espera → sin link', () => {
+    const m = resolveTodayCard(baseInput({ waitlistTime: '19:00' }))
+    expect(m.kind).toBe('presencial-sin-turno')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('próxima clase reservada otro día (hoy no hay clase) → link a Libre', () => {
+    const m = resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY }))
+    expect(m.kind).toBe('presencial-proxima')
+    expect(m.libreLink).toEqual(LIBRE)
+  })
+
+  it('clase de hoy perdida (ventana after, sin asistencia, sin próxima) → link a Libre', () => {
+    const m = resolveTodayCard(baseInput({ booking: BOOKING, windowState: 'after' }))
+    expect(m.kind).toBe('presencial-sin-turno')
+    expect(m.libreLink).toEqual(LIBRE)
+  })
+
+  it('reservas de hoy todavía cargando → sin link', () => {
+    const m = resolveTodayCard(baseInput({ bookingsLoading: true }))
+    expect(m.kind).toBe('cargando')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('online con programa y plani hoy → sin link', () => {
+    const m = resolveTodayCard(
+      baseInput({ isVirtual: true, program: PROGRAM, todayRoute: 'Muscle Up' }),
+    )
+    expect(m.kind).toBe('online-programa')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('online con programa y sin plani hoy → link a Libre', () => {
+    const m = resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM, todayRoute: null }))
+    expect(m.kind).toBe('online-programa')
+    expect(m.libreLink).toEqual(LIBRE)
+  })
+
+  it('online libre con plan y sin plani hoy → link a Libre', () => {
+    const m = resolveTodayCard(baseInput({ isVirtual: true, todayRoute: null }))
+    expect(m.kind).toBe('online-libre')
+    expect(m.libreLink).toEqual(LIBRE)
+  })
+
+  it('online libre con plan y plani hoy → sin link', () => {
+    const m = resolveTodayCard(baseInput({ isVirtual: true, todayRoute: 'Muscle Up' }))
+    expect(m.kind).toBe('online-libre')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('online completada → link a Libre', () => {
+    const m = resolveTodayCard(baseInput({ isVirtual: true, todayCompleted: true }))
+    expect(m.kind).toBe('completada')
+    expect(m.libreLink).toEqual(LIBRE)
+  })
+
+  it('sin plan nunca → sin link', () => {
+    const m = resolveTodayCard(baseInput({ subscription: null, planStatus: null }))
+    expect(m.kind).toBe('sin-plan-nunca')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('sin plan vencido → sin link', () => {
+    const m = resolveTodayCard(
+      baseInput({ subscription: null, planStatus: planStatus({ hadPlan: true }) }),
+    )
+    expect(m.kind).toBe('sin-plan-vencio')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('sin plan online (vidriera "Ver planes") → sin link', () => {
+    const m = resolveTodayCard(baseInput({ isVirtual: true, subscription: null, todayRoute: null }))
+    expect(m.kind).toBe('online-libre')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('cargando el plan → sin link', () => {
+    const m = resolveTodayCard(baseInput({ subscription: null, planLoading: true }))
+    expect(m.kind).toBe('cargando')
+    expect(m.libreLink).toBeNull()
+  })
+
+  it('solo plan programado (sin plan activo) → sin link, ni siquiera completada', () => {
+    const scheduled = { ...ACTIVE_SUB, status: 'scheduled' }
+    expect(resolveTodayCard(baseInput({ subscription: scheduled })).libreLink).toBeNull()
+    expect(
+      resolveTodayCard(baseInput({ subscription: scheduled, todayCompleted: true })).libreLink,
+    ).toBeNull()
+  })
+
+  it('plan pausado cuenta como plan: sin reserva hoy → link', () => {
+    const m = resolveTodayCard(baseInput({ subscription: { ...ACTIVE_SUB, status: 'paused' } }))
+    expect(m.libreLink).toEqual(LIBRE)
+  })
+
+  it('el link no altera ningún otro campo del modelo', () => {
+    const { libreLink, ...rest } = resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY }))
+    expect(libreLink).toEqual(LIBRE)
+    expect(rest.primary).toEqual({ label: 'Mis clases', to: '/reservas' })
+    expect(rest.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+    expect(rest.tertiary).toBeNull()
+  })
+})

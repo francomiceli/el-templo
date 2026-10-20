@@ -31,6 +31,13 @@
  *     d. próxima clase reservada (`nextBooking`) → `presencial-proxima` (C1);
  *     e. si no → `presencial-sin-turno` con "Reservá tu clase" (C2, cualquier día).
  *
+ * Fase 197 D-17: `libreLink` ("Probá el modo Libre") se agrega al final sobre el modelo ya
+ * resuelto (`withLibreLink`), sin tocar ningún otro campo de los gates. Criterio conservador
+ * (ante la duda NO se muestra): solo con plan active/paused (un plan solo programado no) y
+ * (a) `completada`, (b) `presencial-turno` con asistencia registrada, (c) `presencial-sin-turno`
+ * sin lista de espera (incluye la clase de hoy perdida, regla D5), (d) `presencial-proxima`
+ * (hoy no hay clase), (e) `online-*` sin plani hoy (`todayRoute` null). Nunca antes de la clase.
+ *
  * El QR de check-in NO se decide acá: su única fuente de verdad es
  * `useTodayBookingStore.fabVisible`. La card solo informa la ventana con chips.
  */
@@ -76,6 +83,8 @@ export interface TodayCardModel {
   secondary: TodayCardAction | null
   tertiary: TodayCardAction | null
   hook: TodayCardText | null
+  /** Fase 197 D-17: invitación a la tab Libre de Entrenar; null salvo "después de la clase". */
+  libreLink: TodayCardAction | null
 }
 
 export interface TodayCardInput {
@@ -201,6 +210,8 @@ export function pickNextRoute(
 
 const PLANES: TodayCardAction = { label: 'Ver planes', to: '/planes' }
 const OPEN_PROGRAM: TodayCardAction = { label: 'Mi programa', action: 'open-program' }
+// Fase 197 D-17: abre Entrenar directo en la tab Libre (EntrenarView lee `query.tab === 'libre'`).
+const LIBRE_LINK: TodayCardAction = { label: 'Probá el modo Libre', to: '/training?tab=libre' }
 
 function emptyModel(
   kind: TodayCardKind,
@@ -219,6 +230,7 @@ function emptyModel(
     secondary: null,
     tertiary: null,
     hook: null,
+    libreLink: null,
     ...over,
   }
 }
@@ -379,11 +391,49 @@ function withExtraPrograms(model: TodayCardModel, input: TodayCardInput): TodayC
   return model
 }
 
-export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
-  const hasPlan =
+/** Plan active/paused, o el plan-status dice que hay plan (respaldo). Un plan solo programado NO cuenta. */
+function hasCurrentPlan(input: TodayCardInput): boolean {
+  return (
     input.subscription?.status === 'active' ||
     input.subscription?.status === 'paused' ||
     input.planStatus?.hasActivePlan === true
+  )
+}
+
+/**
+ * Fase 197 D-17: agrega el link a Libre solo "después de la clase o en días sin clase".
+ * Criterio conservador: ver el docblock del archivo. Cualquier otro caso devuelve el modelo intacto.
+ */
+function withLibreLink(model: TodayCardModel, input: TodayCardInput): TodayCardModel {
+  if (!hasCurrentPlan(input)) return model
+  let show = false
+  switch (model.kind) {
+    case 'completada':
+    case 'presencial-proxima':
+      show = true
+      break
+    case 'presencial-turno':
+      show = input.attendanceMarkedAt !== null
+      break
+    case 'presencial-sin-turno':
+      show = !input.waitlistTime
+      break
+    case 'online-programa':
+    case 'online-libre':
+      show = !input.todayRoute
+      break
+    default:
+      show = false
+  }
+  return show ? { ...model, libreLink: LIBRE_LINK } : model
+}
+
+export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
+  return withLibreLink(resolveBaseCard(input), input)
+}
+
+function resolveBaseCard(input: TodayCardInput): TodayCardModel {
+  const hasPlan = hasCurrentPlan(input)
   const hasScheduled =
     input.subscription?.status === 'scheduled' || input.planStatus?.hasScheduledPlan === true
   const canTrain = hasPlan || hasScheduled
