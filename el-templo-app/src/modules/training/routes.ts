@@ -14,6 +14,13 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    // Fase 197 D-15: modo bloque libre (Session sintética de 1 bloque, dayId `XB-{blockId}`)
+    path: 'training/libre/:blockId',
+    name: 'free-block-player',
+    component: () => import('./pages/FreeBlockPlayer.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: 'training/resumen',
     name: 'session-summary',
     component: () => import('./pages/SessionSummaryPage.vue'),
