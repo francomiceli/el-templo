@@ -18,16 +18,12 @@
     </header>
 
     <ol class="block-exercises-card__list">
-      <li v-for="ex in exercises" :key="`${ex.sortOrder}-${ex.exerciseId}`" class="exercise-row">
-        <span class="exercise-row__thumb" aria-hidden="true">
-          <q-icon
-            v-if="ex.videoUrl"
-            name="play_arrow"
-            size="22px"
-            class="exercise-row__icon exercise-row__icon--video"
-          />
-          <q-icon v-else name="fitness_center" size="20px" class="exercise-row__icon" />
-        </span>
+      <li
+        v-for="(ex, i) in exercises"
+        :key="`${ex.sortOrder}-${ex.exerciseId}`"
+        class="exercise-row"
+      >
+        <span class="exercise-row__idx" aria-hidden="true">{{ i + 1 }}</span>
         <span class="exercise-row__name">{{ ex.exerciseName }}</span>
         <span class="exercise-row__dose">{{ formatDose(ex) }}</span>
       </li>
@@ -45,7 +41,7 @@ import { blockDisplayName, blockMetaLine } from '../../utils/blockMeta'
 import { formatDose } from '../../utils/formatDose'
 
 // Fase 197 D-03: lista de ejercicios del bloque elegido en Semana. Sin cruz de cerrar (Franco la
-// sacó) y sin reproducir video: la miniatura solo indica si el ejercicio tiene uno (T-197-33).
+// sacó). Sin video ni indicio de video: los videos se ven solo en el player (Franco, 2026-10-20).
 const props = defineProps<{
   block: Block
 }>()
@@ -147,22 +143,14 @@ function openGuia(): void {
     border-top: 1px solid $pd-light-line;
   }
 
-  &__thumb {
+  &__idx {
     flex: none;
-    display: grid;
-    place-items: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, $fig-skin, $fig-muscle);
-  }
-
-  &__icon {
+    width: 24px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
     color: $pd-ink-3;
-
-    &--video {
-      color: $pd-terra-ink;
-    }
+    text-align: center;
   }
 
   &__name {
