@@ -522,26 +522,36 @@ describe("cierre del bloque libre: POST /api/sessions/free-blocks/complete (197-
     );
     expect(otroBloque.status).toBe(404);
 
-    // campo extra (tenantId) -> 400
-    const extra = await postComplete({
-      blockId: blockA,
-      startedAt: minutesAgo(12),
-      exercisesCompleted: [],
-      tenantId: 2,
-    });
-    expect(extra.status).toBe(400);
-
     // Ningún rechazo escribió filas ni AURA para el socio original.
     expect(await filas()).toHaveLength(0);
     expect(await auraTx()).toHaveLength(0);
   });
 
+  it("un tenantId en el body se descarta: la fila queda en el gimnasio del token", async () => {
+    // Fastify (ajv removeAdditional) saca los campos que el schema no declara:
+    // no es un 400, pero el tenant nunca sale del body (D-13, tenancy).
+    const res = await postComplete({
+      blockId: blockA,
+      startedAt: minutesAgo(12),
+      exercisesCompleted: [],
+      tenantId: 2,
+    });
+    expect(res.status).toBe(200);
+    const rows = await filas();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].tenantId).toBe(1);
+  });
+
   it("gate: un socio sin plan recibe el mismo status que /weekly y no se escribe nada", async () => {
     const sinPlan = await createTestMember(app, { branchId: 1 });
 
+    // /weekly exige weekStart: sin él respondería 400 de validación y no el gate.
+    const monday = new Date(`${wednesday}T12:00:00Z`);
+    monday.setUTCDate(monday.getUTCDate() - 2);
+    const weekStart = monday.toISOString().slice(0, 10);
     const weekly = await app.inject({
       method: "GET",
-      url: "/api/sessions/weekly",
+      url: `/api/sessions/weekly?weekStart=${weekStart}`,
       headers: { authorization: `Bearer ${sinPlan.token}` },
     });
     expect(weekly.statusCode).toBeGreaterThanOrEqual(400);
