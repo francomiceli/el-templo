@@ -431,6 +431,10 @@ export async function limpiarSegundoGimnasio(
   await app.db.execute(
     sql`DELETE FROM sponsor_views WHERE tenant_id = ${TENANT_DOS}`,
   );
+  // Bloque libre (0286): FK a users, sale antes que users.
+  await app.db.execute(
+    sql`DELETE FROM extra_blocks_completed WHERE tenant_id = ${TENANT_DOS}`,
+  );
   await app.db.execute(
     sql`DELETE FROM user_branches WHERE tenant_id = ${TENANT_DOS}`,
   );

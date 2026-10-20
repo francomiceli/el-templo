@@ -242,6 +242,8 @@ const TABLES_TO_CLEAN = [
   schema.userStatusHistory,
   // Tables referencing layer-3 parents
   schema.attendance,
+  // Bloque libre (0286): FK a users, basura de test genuina.
+  schema.extraBlocksCompleted,
   schema.auraTransactions,
   // Fase 157: vínculo de referido + registro auditable. FK a users/subscriptions
   // (FK checks off durante el DELETE), se limpian para no filtrar vínculos entre tests.
