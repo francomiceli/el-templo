@@ -32,7 +32,7 @@ function ymdOf(ms: number): string {
   return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`
 }
 
-/** Suma `n` días (puede ser negativo) a una fecha "YYYY-MM-DD". Fecha inválida: se devuelve igual. */
+/** Suma `n` días (puede ser negativo) a "YYYY-MM-DD". Fecha inválida: se devuelve igual. */
 export function addDays(date: string, n: number): string {
   const ms = utcMs(date)
   if (ms === null) return date
