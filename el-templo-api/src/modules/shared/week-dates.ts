@@ -13,7 +13,7 @@
  * pre-extraction implementation, so `/sessions/daily` and `/sessions/weekly`
  * keep resolving exactly the same dayIds they resolved before.
  */
-import { DAY_OF_WEEK_MAP } from "./training-constants";
+import { DAY_NAME_TO_NUMBER, DAY_OF_WEEK_MAP } from "./training-constants";
 
 /**
  * Monday of SPOM week 1. Parsed as a LOCAL wall-clock date on purpose (no
@@ -48,6 +48,29 @@ function formatLocalDate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/**
+ * Inverse of `dateToWeekNumber` + `dateToDayName`: the "YYYY-MM-DD" date of a
+ * SPOM week (1-52) + Spanish day name ("lunes".."sabado"; accents accepted).
+ * Built from the same `WEEK_ONE_MONDAY` anchor, so
+ * `dateToWeekNumber(weekDayToDate(w, d)) === w` and
+ * `dateToDayName(...) === d`. Returns `null` for a non-training day (e.g.
+ * "domingo") or a week outside 1-52.
+ */
+export function weekDayToDate(week: number, dayName: string): string | null {
+  if (!Number.isInteger(week) || week < 1 || week > 52) return null;
+  const normalized = dayName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(DAY_NAME_TO_NUMBER, normalized)) {
+    return null;
+  }
+  const dayNumber = DAY_NAME_TO_NUMBER[normalized];
+  const d = new Date(WEEK_ONE_MONDAY.getTime());
+  d.setDate(d.getDate() + (week - 1) * 7 + (dayNumber - 1));
+  return formatLocalDate(d);
 }
 
 /**
