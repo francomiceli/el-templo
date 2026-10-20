@@ -87,6 +87,16 @@
             <template v-else>{{ part.text }}</template>
           </template>
         </p>
+
+        <!-- Fase 197 D-17: link chico a la tab Libre, solo "después de la clase" (regla en el modelo). -->
+        <button
+          v-if="model.libreLink"
+          type="button"
+          class="today-card__libre"
+          @click="onAction(model.libreLink)"
+        >
+          {{ model.libreLink.label }}
+        </button>
       </div>
     </section>
   </div>
@@ -343,8 +353,27 @@ function onAction(action: TodayCardAction): void {
     cursor: pointer;
   }
 
+  // Fase 197 D-17: link a Libre. Texto sólido crema-2 (#e3c9a8, 9,6:1 sobre #2c2318), hitbox 44.
+  &__libre {
+    display: block;
+    min-height: 44px;
+    margin-top: 4px;
+    padding: 12px 0;
+    border: 0;
+    background: none;
+    color: #e3c9a8;
+    font-family: 'Geologica', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
   &__btn:focus-visible,
-  &__link:focus-visible {
+  &__link:focus-visible,
+  &__libre:focus-visible {
     outline: 2px solid #e3c9a8;
     outline-offset: 2px;
   }
