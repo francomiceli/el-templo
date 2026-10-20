@@ -6,14 +6,18 @@
  * ("templo-training") y no generar la variante con barra final.
  */
 import type { FastifyPluginAsync } from "fastify";
+import { AuraService } from "../aura/service";
 import { attachCountryScope } from "../shared/country-scope";
 import { assertTenant } from "../shared/tenant";
 import { FreeBlocksService } from "./free-blocks-service";
 import {
+  completeFreeBlockResponse,
+  completeFreeBlockSchema,
   freeBlockResponse,
   freeBlocksListResponse,
   getFreeBlockSchema,
   getFreeBlocksSchema,
+  type CompleteFreeBlockBody,
   type GetFreeBlockParams,
   type GetFreeBlockQuery,
   type GetFreeBlocksInput,
@@ -32,6 +36,8 @@ export const freeBlocksRoutes: FastifyPluginAsync<
     fastify.db,
     opts.sessionService,
     opts.formatDescriptions,
+    new AuraService(fastify.db),
+    fastify.log,
   );
 
   // GET /sessions/free-blocks - Canasta paginada, con filtro por grupo
@@ -100,6 +106,48 @@ export const freeBlocksRoutes: FastifyPluginAsync<
         resolved.member,
       );
       return { item, auraAvailableToday };
+    },
+  );
+
+  // POST /sessions/free-blocks/complete - Cierre del bloque libre (D-12/D-13)
+  fastify.post<{ Body: CompleteFreeBlockBody }>(
+    "/free-blocks/complete",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        ...completeFreeBlockSchema,
+        response: completeFreeBlockResponse,
+      },
+    },
+    async (request, reply) => {
+      const { userId } = request.user;
+      const { blockId, startedAt, exercisesCompleted, completionId, level } =
+        request.body;
+
+      await attachCountryScope(request, fastify.db);
+      const ctx = assertTenant(request.scope, "sessions.free-blocks");
+
+      const resolved = await service.resolveMember(ctx, userId, level);
+      if (resolved.kind === "deny") {
+        return reply.status(resolved.status).send({ error: resolved.message });
+      }
+
+      const result = await service.complete(ctx, resolved.member, {
+        blockId,
+        startedAt,
+        exercisesCompleted,
+        completionId,
+      });
+      if (result.kind === "error") {
+        return reply.status(result.status).send({ error: result.message });
+      }
+
+      return {
+        completionId: result.completionId,
+        durationSeconds: result.durationSeconds,
+        auraAwarded: result.auraAwarded,
+        auraAvailableToday: result.auraAvailableToday,
+      };
     },
   );
 };

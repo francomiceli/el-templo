@@ -275,6 +275,52 @@ export const freeBlockResponse = {
   404: errorResponseSchema,
 };
 
+export const completeFreeBlockSchema = {
+  body: {
+    type: "object",
+    required: ["blockId", "startedAt", "exercisesCompleted"],
+    additionalProperties: false,
+    properties: {
+      blockId: {
+        type: "string",
+        maxLength: 100,
+        pattern: "^[A-Za-z0-9_-]+$",
+      },
+      startedAt: { type: "string", maxLength: 40 },
+      exercisesCompleted: {
+        type: "array",
+        maxItems: 50,
+        items: { type: "integer" },
+      },
+      completionId: { type: "integer", minimum: 1 },
+      level: { type: "string", enum: FREE_BLOCK_LEVELS },
+    },
+  },
+};
+
+export interface CompleteFreeBlockBody {
+  blockId: string;
+  startedAt: string;
+  exercisesCompleted: number[];
+  completionId?: number;
+  level?: "kairos" | "alfa" | "delta" | "sigma" | "omega" | "spartan";
+}
+
+export const completeFreeBlockResponse = {
+  200: {
+    type: "object",
+    properties: {
+      completionId: { type: "integer" },
+      durationSeconds: { type: "integer" },
+      auraAwarded: { type: "boolean" },
+      auraAvailableToday: { type: "boolean" },
+    },
+  },
+  400: errorResponseSchema,
+  403: errorResponseSchema,
+  404: errorResponseSchema,
+};
+
 // =============================================================================
 // Session completion types
 // =============================================================================

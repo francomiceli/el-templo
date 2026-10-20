@@ -1184,6 +1184,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
+  "POST /api/sessions/free-blocks/complete": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
   "GET /api/sessions/weekly": {
     categoria: "templo-module",
     modulo: "templo-training",

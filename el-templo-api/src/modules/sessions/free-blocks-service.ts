@@ -16,10 +16,17 @@
  * queries); sin cache a proposito para no servir planis viejas.
  */
 import { and, eq, gte, inArray, like, lte, notLike, or } from "drizzle-orm";
+import type { FastifyBaseLogger } from "fastify";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
+import type { AuraService } from "../aura/service";
 import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
-import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { isDuplicateKeyError } from "../shared/sql-errors";
+import {
+  tenantValues,
+  tenantWhere,
+  type TenantContext,
+} from "../shared/tenant";
 import {
   DAY_NAME_TO_NUMBER,
   isTrainingLevel,
@@ -75,6 +82,10 @@ import {
  */
 export const FREE_BLOCK_AURA_MIN_SECONDS = 600;
 
+/** Fase 197 D-12: ventana valida de `startedAt` (T-197-20). */
+const STARTED_AT_MAX_FUTURE_MS = 60_000;
+const STARTED_AT_MAX_PAST_MS = 4 * 60 * 60 * 1000;
+
 /** Titulo de las cards ROM (D-09): el rol no tiene ruta con nombre propio. */
 const ROM_TITULOS: Readonly<Record<string, string>> = {
   ROM_LOWER: "Tren Inferior",
@@ -114,6 +125,25 @@ export interface FreeBlocksMember {
 export type ResolveMemberResult =
   | { kind: "ok"; member: FreeBlocksMember }
   | { kind: "deny"; status: 403 | 404; message: string };
+
+export interface CompleteFreeBlockInput {
+  blockId: string;
+  /** ISO 8601. Solo se usa en el alta: "Seguir entrenando" parte de la fila. */
+  startedAt: string;
+  exercisesCompleted: number[];
+  /** Fila de `extra_blocks_completed` a continuar ("Seguir entrenando"). */
+  completionId?: number;
+}
+
+export type CompleteFreeBlockResult =
+  | {
+      kind: "ok";
+      completionId: number;
+      durationSeconds: number;
+      auraAwarded: boolean;
+      auraAvailableToday: boolean;
+    }
+  | { kind: "error"; status: 400 | 404; message: string };
 
 export interface FreeBlocksListResult {
   items: FreeBlockItem[];
@@ -172,6 +202,8 @@ export class FreeBlocksService {
     private db: MySql2Database<typeof schema>,
     private sessionService: SessionGeneratorService,
     private formatDescriptions: Map<string, string>,
+    private auraService: AuraService,
+    private log: FastifyBaseLogger,
   ) {}
 
   /**
@@ -357,6 +389,146 @@ export class FreeBlocksService {
   }
 
   /**
+   * Fase 197 D-12/D-13: cierre del bloque libre.
+   *
+   * Guarda el bloque en `extra_blocks_completed` con la duracion calculada en
+   * el SERVIDOR y, si corresponde, acredita +5 AURA (fuente `extra_block`).
+   * Con `completionId` ("Seguir entrenando") actualiza la MISMA fila: la
+   * duracion corre desde el inicio original y puede cruzar los 10'.
+   *
+   * D-13: NO escribe `completed_sessions` ni toca racha, programa, RPE ni
+   * notificaciones (invariante testeado en 197-09).
+   */
+  async complete(
+    ctx: TenantContext,
+    member: FreeBlocksMember,
+    input: CompleteFreeBlockInput,
+  ): Promise<CompleteFreeBlockResult> {
+    const now = new Date();
+
+    const item = await this.getOne(ctx, member, input.blockId);
+    if (!item) {
+      return { kind: "error", status: 404, message: "Bloque no disponible" };
+    }
+
+    // T-197-24: solo ejercicios main del bloque, sin duplicados.
+    const idsDelBloque = new Set(item.exercises.map((ex) => ex.exerciseId));
+    const ejercicios = [...new Set(input.exercisesCompleted)].filter((id) =>
+      idsDelBloque.has(id),
+    );
+
+    let completionId: number;
+    let durationSeconds: number;
+    let localDate: string;
+    let yaCobrado: boolean;
+
+    if (input.completionId === undefined) {
+      // T-197-20: startedAt acotado a [-4 h, +60 s].
+      const startedMs = Date.parse(input.startedAt);
+      const nowMs = now.getTime();
+      if (
+        Number.isNaN(startedMs) ||
+        startedMs - nowMs > STARTED_AT_MAX_FUTURE_MS ||
+        nowMs - startedMs > STARTED_AT_MAX_PAST_MS
+      ) {
+        return { kind: "error", status: 400, message: "startedAt invalido" };
+      }
+      const startedAt = new Date(Math.min(startedMs, nowMs));
+      durationSeconds = Math.floor((nowMs - startedAt.getTime()) / 1000);
+      localDate = member.today;
+      yaCobrado = false;
+
+      const [creada] = await this.db
+        .insert(schema.extraBlocksCompleted)
+        .values(
+          tenantValues(ctx, {
+            userId: member.userId,
+            sourceBlockId: item.blockId,
+            sourceDayId: item.sourceDayId,
+            blockRole: item.role,
+            localDate,
+            startedAt,
+            endedAt: now,
+            durationSeconds,
+            exercisesCompleted: ejercicios,
+            auraAwarded: false,
+          }),
+        )
+        .$returningId();
+      completionId = creada.id;
+    } else {
+      // T-197-22: la fila tiene que ser del socio y del mismo bloque.
+      const [fila] = await this.db
+        .select({
+          id: schema.extraBlocksCompleted.id,
+          localDate: schema.extraBlocksCompleted.localDate,
+          startedAt: schema.extraBlocksCompleted.startedAt,
+          exercisesCompleted: schema.extraBlocksCompleted.exercisesCompleted,
+          auraAwarded: schema.extraBlocksCompleted.auraAwarded,
+        })
+        .from(schema.extraBlocksCompleted)
+        .where(
+          and(
+            tenantWhere(schema.extraBlocksCompleted, ctx),
+            eq(schema.extraBlocksCompleted.id, input.completionId),
+            eq(schema.extraBlocksCompleted.userId, member.userId),
+            eq(schema.extraBlocksCompleted.sourceBlockId, item.blockId),
+          ),
+        )
+        .limit(1);
+      if (!fila) {
+        return { kind: "error", status: 404, message: "Bloque no disponible" };
+      }
+
+      // Misma ventana de 4 h que el alta: sin ella una fila vieja cobraria.
+      const nowMs = now.getTime();
+      if (nowMs - fila.startedAt.getTime() > STARTED_AT_MAX_PAST_MS) {
+        return { kind: "error", status: 400, message: "startedAt invalido" };
+      }
+      durationSeconds = Math.max(
+        0,
+        Math.floor((nowMs - fila.startedAt.getTime()) / 1000),
+      );
+      localDate = fila.localDate;
+      yaCobrado = fila.auraAwarded;
+      completionId = fila.id;
+
+      const union = [...new Set([...fila.exercisesCompleted, ...ejercicios])];
+      await this.db
+        .update(schema.extraBlocksCompleted)
+        .set({ endedAt: now, durationSeconds, exercisesCompleted: union })
+        .where(
+          and(
+            tenantWhere(schema.extraBlocksCompleted, ctx),
+            eq(schema.extraBlocksCompleted.id, completionId),
+          ),
+        );
+    }
+
+    // D-12: >= 10', primero del dia que llega a 10' (un bloque guardado sin
+    // AURA no consume el cupo) y fila sin AURA todavia.
+    let auraAwarded = false;
+    if (
+      durationSeconds >= FREE_BLOCK_AURA_MIN_SECONDS &&
+      !yaCobrado &&
+      (await this.isAuraAvailableToday(ctx, member, localDate))
+    ) {
+      auraAwarded = await this.awardDailyAura(ctx, member, {
+        completionId,
+        localDate,
+      });
+    }
+
+    return {
+      kind: "ok",
+      completionId,
+      durationSeconds,
+      auraAwarded,
+      auraAvailableToday: await this.isAuraAvailableToday(ctx, member),
+    };
+  }
+
+  /**
    * Zonas de la sesion de hoy del socio (`null` si es domingo o no hay sesion)
    * y zonas trabajadas esta semana (lunes -> hoy, segun `completed_sessions`).
    */
@@ -377,6 +549,64 @@ export class FreeBlocksService {
   // ---------------------------------------------------------------------------
   // Privados
   // ---------------------------------------------------------------------------
+
+  /**
+   * Fase 197 D-12: acredita la AURA del dia. El candado es el unique
+   * `unique_user_source_ref` de `aura_transactions` (extra_block,
+   * extra_block_day, YYYYMMDD local): el segundo intento tira ER_DUP_ENTRY, se
+   * captura y el bloque queda guardado sin AURA. Devuelve si acredito.
+   */
+  private async awardDailyAura(
+    ctx: TenantContext,
+    member: FreeBlocksMember,
+    row: { completionId: number; localDate: string },
+  ): Promise<boolean> {
+    try {
+      await this.auraService.award({
+        userId: member.userId,
+        sourceType: "extra_block",
+        referenceType: "extra_block_day",
+        referenceId: Number(row.localDate.replace(/-/g, "")),
+        description: "Bloque libre del día",
+      });
+    } catch (err: unknown) {
+      const { isDuplicate, detail } = isDuplicateKeyError(err);
+      const logCtx = { userId: member.userId, localDate: row.localDate };
+      if (isDuplicate) {
+        this.log.info(logCtx, "AURA del bloque libre ya cobrada hoy");
+      } else {
+        this.log.warn(
+          { ...logCtx, detail },
+          "No se pudo acreditar la AURA del bloque libre",
+        );
+      }
+      return false;
+    }
+
+    try {
+      await this.db
+        .update(schema.extraBlocksCompleted)
+        .set({ auraAwarded: true })
+        .where(
+          and(
+            tenantWhere(schema.extraBlocksCompleted, ctx),
+            eq(schema.extraBlocksCompleted.id, row.completionId),
+          ),
+        );
+    } catch (err: unknown) {
+      // La AURA ya esta en el ledger (el unique impide un segundo cobro): se
+      // informa el cobro igual y se deja rastro del flag que no se pudo marcar.
+      this.log.error(
+        {
+          userId: member.userId,
+          completionId: row.completionId,
+          detail: err instanceof Error ? err.message : String(err),
+        },
+        "AURA acreditada pero aura_awarded no se pudo marcar",
+      );
+    }
+    return true;
+  }
 
   /**
    * Candidatos de la canasta: una aparicion por bloque de trabajo en cada
