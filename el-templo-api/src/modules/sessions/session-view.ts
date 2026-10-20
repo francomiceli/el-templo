@@ -3,7 +3,7 @@ import { eq, and, or, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { PRESENCIAL_GROUP_CATEGORIES } from "../subscriptions/types";
-import type { LevelGroup } from "./types";
+import type { ExerciseLevel, LevelGroup } from "./types";
 import { isKairos } from "./pipeline/utils/kairos";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
 
@@ -164,7 +164,13 @@ export async function resolveSessionView(
         schema.programs,
         eq(schema.programs.id, schema.programEnrollments.programId),
       )
-      .where(eq(schema.programEnrollments.id, enrollmentId))
+      .where(
+        and(
+          tenantWhere(schema.programEnrollments, ctx),
+          tenantWhere(schema.programs, ctx),
+          eq(schema.programEnrollments.id, enrollmentId),
+        ),
+      )
       .limit(1);
     return row ?? null;
   }
@@ -250,6 +256,8 @@ export async function resolveSessionView(
     )
     .where(
       and(
+        tenantWhere(schema.programEnrollments, ctx),
+        tenantWhere(schema.programs, ctx),
         eq(schema.programEnrollments.userId, userId),
         eq(schema.programEnrollments.status, "active"),
       ),
@@ -276,7 +284,7 @@ export async function resolveSessionView(
  * niveles se reducen a alfa/delta (per D-29).
  */
 export function effectiveLevelForDay(
-  memberLevel: string,
+  memberLevel: ExerciseLevel,
   isRomDay: boolean,
 ): string {
   if (!isRomDay) return memberLevel;

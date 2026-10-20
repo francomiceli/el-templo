@@ -74,6 +74,7 @@ import {
   ALTERNATIVE_BLOCK_ROLES,
   type BlockPlan,
   type DaySession,
+  type ExerciseLevel,
 } from "./types";
 
 /**
@@ -111,7 +112,7 @@ export interface FreeBlockItem extends SessionBlockResponse {
 /** El socio ya resuelto: nivel, zona horaria, dia local y vista de acceso. */
 export interface FreeBlocksMember {
   userId: number;
-  memberLevel: string;
+  memberLevel: ExerciseLevel;
   /** Subnivel de la canasta (D-08): kairos -> alfa. */
   basketLevel: string;
   /** Nivel de los ROM (mismo mapeo que /weekly en dias ROM). */
@@ -234,10 +235,13 @@ export class FreeBlocksService {
       return { kind: "deny", status: 404, message: "Usuario no encontrado" };
     }
 
-    const memberLevel =
+    // Mismo cast que /weekly (routes.ts): users.level y los TrainingLevel son
+    // ExerciseLevel.
+    const memberLevel = (
       levelOverride !== undefined && isTrainingLevel(levelOverride)
         ? levelOverride
-        : user.level;
+        : user.level
+    ) as ExerciseLevel;
     // Fase 197 D-08: kairos hereda la canasta de alfa.
     const basketLevel = isKairos(memberLevel) ? "alfa" : memberLevel;
     const romLevel = effectiveLevelForDay(memberLevel, true);
