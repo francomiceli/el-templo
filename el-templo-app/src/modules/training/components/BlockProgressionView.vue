@@ -15,14 +15,40 @@
         <div class="block-progression__header-gradient" />
         <div class="block-progression__header-content">
           <div class="block-progression__header-left">
-            <q-btn flat round dense icon="arrow_back" color="white" @click="emit('back')" />
-            <div class="block-progression__header-info q-ml-sm">
+            <q-btn
+              flat
+              round
+              dense
+              icon="arrow_back"
+              color="white"
+              class="block-progression__back"
+              aria-label="Volver"
+              @click="emit('back')"
+            />
+            <div
+              class="block-progression__header-info q-ml-sm"
+              :class="{ 'block-progression__header-info--free': mode === 'free' }"
+            >
               <div class="block-progression__block-name">{{ viewingBlockName }}</div>
               <div class="block-progression__route-name">{{ viewingRouteName }}</div>
             </div>
           </div>
           <div class="block-progression__header-right">
-            <div class="block-progression__timer">{{ formattedTime }}</div>
+            <div class="block-progression__timer-wrap">
+              <div class="block-progression__timer">{{ formattedTime }}</div>
+              <!-- Fase 197 D-12: barrita dorada hasta 10', solo en modo libre con AURA disponible -->
+              <div
+                v-if="showAuraBar"
+                class="block-progression__aura-bar"
+                role="progressbar"
+                aria-label="Minutos para sumar AURA"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-valuenow="auraBarPercent"
+              >
+                <i :style="{ width: auraBarPercent + '%' }" />
+              </div>
+            </div>
             <q-btn flat round dense icon="more_vert" color="white">
               <q-menu>
                 <q-list style="min-width: 150px">
@@ -48,6 +74,7 @@
         :block-role="viewingBlock.role"
         :all-exercises-completed="allExercisesCompleted"
         :read-only="isReviewingPrevious"
+        :mode="mode"
         @tap-next="storyNav.next()"
         @tap-prev="storyNav.prev()"
         @complete-block="emit('complete-block')"
@@ -59,8 +86,19 @@
     <div class="block-progression__content">
       <!-- Exercise detail panel -->
       <div v-if="viewingBlock" class="block-progression__detail">
-        <!-- Format info -->
-        <div v-if="viewingBlock.format" class="block-progression__detail-format">
+        <!-- Format info — modo libre: "AMRAP · 10' · 3 rondas" (D-11) -->
+        <div
+          v-if="viewingBlock.format && mode === 'free'"
+          class="block-progression__detail-format"
+        >
+          <div class="block-progression__detail-format-name">
+            {{ formatLabel(viewingBlock) }}
+          </div>
+          <div v-if="viewingBlock.formatDescription" class="block-progression__detail-format-desc">
+            {{ viewingBlock.formatDescription }}
+          </div>
+        </div>
+        <div v-else-if="viewingBlock.format" class="block-progression__detail-format">
           <div class="block-progression__detail-format-name">
             Formato: {{ detailFormatName
             }}<span
@@ -132,7 +170,7 @@
 
       <!-- Change Deuteros option -->
       <div
-        v-if="isViewingDeuteros && !isReviewingPrevious"
+        v-if="mode === 'session' && isViewingDeuteros && !isReviewingPrevious"
         class="block-progression__change-deuteros"
         @click="emit('change-deuteros')"
       >
@@ -141,7 +179,10 @@
       </div>
 
       <!-- Previous blocks navigation — only show when there are completed blocks -->
-      <div v-if="completedBlocks.length > 0" class="block-progression__block-nav">
+      <div
+        v-if="mode === 'session' && completedBlocks.length > 0"
+        class="block-progression__block-nav"
+      >
         <div class="block-progression__block-nav-label">Ver bloques anteriores</div>
         <div class="block-progression__block-chips">
           <button
@@ -189,6 +230,7 @@ import { getRouteName } from '../utils/routeNames'
 import { IN_SESSION_ADJUST_ENABLED } from 'src/config/featureFlags'
 import { formatDose, formatQuickDose, isPyramidBlock } from '../utils/formatDose'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
+import { blockDisplayName, formatLabel } from '../utils/blockMeta'
 
 // Override intencional (confirmado con Franco, fase 160-05): esta vista
 // históricamente rotula INITIUM como 'Pyros'; el resto del app usa el
@@ -204,6 +246,13 @@ interface Props {
   elapsedSeconds: number
   completedExercises: Record<string, number[]>
   isAdjusting?: boolean
+  /**
+   * Fase 197 D-15: 'free' = bloque libre (encabezado propio, sin bloques anteriores, sin cambiar
+   * Deuteros y sin ajuste de dificultad). El default es el comportamiento de la sesión completa.
+   */
+  mode?: 'session' | 'free'
+  /** Fase 197 D-12: segundos para sumar AURA (600). `null` = sin barrita. Solo se usa en modo libre. */
+  auraGoalSeconds?: number | null
 }
 
 interface Emits {
@@ -217,6 +266,8 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   isAdjusting: false,
+  mode: 'session',
+  auraGoalSeconds: null,
 })
 const emit = defineEmits<Emits>()
 
@@ -303,6 +354,17 @@ watch(
   () => viewingBlock.value?.blockId,
   () => {
     storyNav.reset()
+  },
+)
+
+// Fase 197 D-15: "Seguir entrenando" vacía el bloque completado en el composable; el bloque mostrado
+// sigue siendo el mismo (no cambia el blockId), así que se vuelve al primer ejercicio a mano.
+watch(
+  () => props.completedBlocks.length,
+  (len, prev) => {
+    if (props.mode === 'free' && len === 0 && prev > 0) {
+      storyNav.reset()
+    }
   },
 )
 
@@ -470,6 +532,7 @@ const compactListData = computed(() => {
 // Computed display values
 const viewingRouteName = computed(() => {
   if (!viewingBlock.value) return ''
+  if (props.mode === 'free') return blockDisplayName(viewingBlock.value)
   if (viewingBlock.value.role.startsWith('ROM_')) return 'ROM'
   return getRouteName(viewingBlock.value.route)
 })
@@ -483,7 +546,21 @@ const formattedTime = computed(() => {
 const viewingBlockName = computed(() => {
   if (!viewingBlock.value) return ''
   const role = viewingBlock.value.role
+  if (props.mode === 'free') return `Bloque libre · ${ROLE_LABELS[role] ?? role}`
   return LABEL_OVERRIDES[role] ?? ROLE_LABELS[role] ?? role
+})
+
+// Fase 197 D-12: la barrita solo existe en modo libre y con una meta de AURA válida
+const showAuraBar = computed(() => {
+  return (
+    props.mode === 'free' && typeof props.auraGoalSeconds === 'number' && props.auraGoalSeconds > 0
+  )
+})
+
+const auraBarPercent = computed(() => {
+  const goal = props.auraGoalSeconds
+  if (typeof goal !== 'number' || goal <= 0) return 0
+  return Math.round(Math.min(props.elapsedSeconds / goal, 1) * 100)
 })
 
 const currentBlockName = computed(() => {
@@ -508,6 +585,7 @@ function onSlideComplete(): void {
 // this also hides the objective-criterion label that lives in the same block.
 const canAdjustCurrentSlide = computed(() => {
   return (
+    props.mode === 'session' &&
     IN_SESSION_ADJUST_ENABLED &&
     !isMobilitySlide.value &&
     !isReviewingPrevious.value &&
@@ -539,6 +617,7 @@ function onAdjust(direction: 'up' | 'down'): void {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .block-progression {
   display: flex;
@@ -617,6 +696,54 @@ function onAdjust(direction: 'up' | 'down'): void {
 .block-progression__header-right {
   display: flex;
   align-items: center;
+}
+
+// Fase 197 D-15: hitbox de 44 px en la flecha atrás (los dos modos)
+.block-progression__back.q-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+// Fase 197 D-15 (sketch 016 .n-head): línea 1 = "BLOQUE LIBRE · ROL", línea 2 = nombre del bloque
+.block-progression__header-info--free {
+  .block-progression__block-name {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $pd-cream-2;
+  }
+
+  .block-progression__route-name {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+  }
+}
+
+.block-progression__timer-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+// Fase 197 D-12 (sketch 016 .n-min): barrita de 92x4 bajo el timer
+.block-progression__aura-bar {
+  width: 92px;
+  height: 4px;
+  margin: 4px 4px 0 0;
+  border-radius: 2px;
+  background: rgba(240, 230, 214, 0.25);
+  overflow: hidden;
+
+  i {
+    display: block;
+    height: 100%;
+    background: $pd-gold;
+  }
 }
 
 .block-progression__timer {

@@ -18,7 +18,7 @@
           <q-btn
             flat
             color="white"
-            label="Volver al ultimo ejercicio"
+            label="Volver al último ejercicio"
             icon="undo"
             class="story-card__block-done-btn"
             @click="emit('undo-last')"
@@ -67,6 +67,8 @@ interface Props {
   blockRole: BlockRole
   allExercisesCompleted: boolean
   readOnly?: boolean
+  /** Fase 197 D-15: en 'free' el bloque único siempre es el último. */
+  mode?: 'session' | 'free'
 }
 
 interface Emits {
@@ -76,7 +78,10 @@ interface Emits {
   (e: 'undo-last'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  readOnly: false,
+  mode: 'session',
+})
 const emit = defineEmits<Emits>()
 
 // Active data: exercise or mobility
@@ -101,21 +106,27 @@ const activeContraction = computed(() => {
   return props.exercise?.contraction ?? ''
 })
 
+const isFreeMode = computed(() => props.mode === 'free')
+
 const isLastBlock = computed(() => {
-  return props.blockRole === 'ATHLOS' || props.blockRole === 'EPIKOS'
+  // Fase 197 D-15: en modo libre el bloque único siempre es el último
+  return isFreeMode.value || props.blockRole === 'ATHLOS' || props.blockRole === 'EPIKOS'
 })
 
 const blockDoneTitle = computed(() => {
+  if (isFreeMode.value) return 'Bloque completo'
   return isLastBlock.value ? 'Sesión completa' : 'Bloque completo'
 })
 
 const blockDoneSubtitle = computed(() => {
+  if (isFreeMode.value) return 'Hacé una elongación antes de terminar.'
   return isLastBlock.value
     ? 'Hacé una elongación final antes de terminar'
-    : 'Listo para pasar al siguiente?'
+    : '¿Listo para pasar al siguiente?'
 })
 
 const blockDoneButtonLabel = computed(() => {
+  if (isFreeMode.value) return 'Ver resumen'
   return isLastBlock.value ? 'Ver resumen de sesión' : 'Siguiente bloque'
 })
 </script>
