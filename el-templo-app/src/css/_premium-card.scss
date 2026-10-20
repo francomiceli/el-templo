@@ -43,6 +43,17 @@ $pd-neg-title: #a8423f;
 // #2c2318, 6.7:1 sobre el fondo del campo (#362d22) y 5.4:1 aun sobre #4a3a2b (card translúcida clara).
 $pd-neg-on-dark: #ff9b94;
 
+// Fase 197 D-18: tokens de Entrenar (sketches 015 ronda 3b y 016). Contrastes medidos sobre el fondo real.
+$pd-sage: #3f6a47; // salvia "hecho": 5.4:1 sobre su tinte
+$pd-sage-tint: #e9f0e6;
+$pd-gold: #d4b46a; // SOLO AURA: 7.7:1 sobre #2c2318 (no sirve como texto sobre claro)
+$pd-gold-ink: #7d6520; // dorado como texto sobre claro: 5.0:1 sobre su tinte
+$pd-gold-tint: #f6efdc;
+$pd-kicker-ink: #7e4529; // kicker Cinzel sobre crema: 6.5:1
+$pd-ink-3: #5a5347; // rótulos de 11 px en mayúsculas
+$pd-soon-dot: #b4892f; // punto ocre de "pronto" (D-02)
+$pd-unavailable-bg: #e7dfd3; // CTA no disponible (futuro): texto $pd-ink-2 sólido encima
+
 // Verde de WhatsApp oscurecido para que el texto blanco llegue a AA: #1f7a4d 5.3:1, #0f6b52 6.5:1
 // (el #25d366 de la marca da 2:1 con blanco). Sigue leyéndose como WhatsApp.
 $pd-wa-a: #1f7a4d;
@@ -345,4 +356,135 @@ $pd-wa-b: #0f6b52;
       left: 130%;
     }
   }
+}
+
+// ── Fase 197 D-18: mixins de Entrenar (Semana, Libre, player en modo bloque libre) ──
+
+// Kicker Cinzel de las pantallas claras ("HOY · VIERNES 16"). Escala 11.
+@mixin pd-kicker-light {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $pd-kicker-ink;
+}
+
+// Rótulo de 11 px en mayúsculas (rango de la semana, contadores, leyendas).
+@mixin pd-label-11 {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: $pd-ink-3;
+}
+
+// Rol del bloque arriba del nombre (chips y cards de bloque).
+@mixin pd-role-label {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: $pd-terra-ink;
+}
+
+// Botón secundario claro ("Ver resumen"): se incluye junto a `pd-cta`, que aporta tamaño y tipografía.
+@mixin pd-cta-secondary-light {
+  background: #fff;
+  color: $pd-terra-ink;
+  border: 1.5px solid $pd-terra-ink;
+  box-shadow: none;
+
+  &::after {
+    display: none;
+  }
+}
+
+// Botón no disponible ("Disponible el lunes"): fondo arena, texto sólido, sin sombra ni destello.
+// No usa opacidad: el texto mantiene su contraste (D-16).
+@mixin pd-cta-unavailable {
+  background: $pd-unavailable-bg;
+  color: $pd-ink-2;
+  box-shadow: none;
+  cursor: default;
+
+  &::after {
+    display: none;
+  }
+}
+
+// Chip de AURA: `light` sobre página crema, `dark` sobre el player. `$available: false` = ya cobrada hoy.
+@mixin pd-chip-aura($tone: light, $available: true) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+
+  @if $tone == light {
+    @if $available {
+      background: $pd-gold-tint;
+      color: $pd-gold-ink;
+    } @else {
+      background: #fff;
+      border: 1px solid $pd-light-line;
+      color: $pd-ink-2;
+    }
+  } @else {
+    @if $available {
+      background: rgba(212, 180, 106, 0.14);
+      color: $pd-gold;
+    } @else {
+      background: rgba(240, 230, 214, 0.08);
+      color: $pd-cream-3;
+    }
+  }
+}
+
+// Chip salvia "Hecha".
+@mixin pd-chip-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: $pd-sage-tint;
+  color: $pd-sage;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+// Amplía el área tocable a >= 44 px sin cambiar el tamaño visual (el elemento necesita `position: relative`).
+@mixin pd-hit-44 {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    min-width: 44px;
+    min-height: 44px;
+    transform: translate(-50%, -50%);
+    background: transparent;
+  }
+}
+
+// Superficie clara de las cards de Entrenar (lista de ejercicios, cards de bloque).
+@mixin pd-surface-light {
+  background: #fff;
+  border: 1px solid $pd-light-line;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(150, 89, 58, 0.06);
 }

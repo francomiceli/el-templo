@@ -17,3 +17,23 @@ $mt-block-title-color: $brand-terracotta; // títulos de bloque de Mi Templo (UA
   text-transform: uppercase;
   color: $mt-block-title-color;
 }
+
+// Figura anatómica (fase 197, sketch 015 ronda 3b). Los componentes usan estos tokens, no hex sueltos.
+// Para el degradé del SVG (necesita el color como atributo), BodyFigure.vue replica $fig-lit-a/b en TS.
+$fig-muscle: #e2d7c8; // músculo sin trabajar
+$fig-muscle-edge: #c9bba8;
+$fig-skin: #ece4d8; // piel / contorno / partes no musculares
+$fig-skin-edge: #b9a993;
+$fig-lit-a: #c47a52; // bloque elegido: degradé terracota
+$fig-lit-b: #8a4e30;
+$fig-lit-edge: #7e4529;
+$fig-lit2: #d39a78; // zonas de los otros bloques de la sesión
+$fig-lit2-edge: #b57b59;
+$fig-done-lit: #6f8f73; // sesión completada: bloque elegido en salvia
+$fig-done-lit-edge: #3f6a47;
+$fig-done-lit2: #b9cdb9; // sesión completada: otros bloques
+$fig-done-lit2-edge: #8fae92;
+$fig-tap: #d8c9b5; // modo tocable, sin elegir
+$fig-tap-edge: #bba891;
+$fig-dim: #ebe3d7; // modo tocable, atenuado
+$fig-dim-edge: #d8ccbc;
