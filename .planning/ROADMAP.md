@@ -371,27 +371,27 @@ Plans:
 
 Plans:
 
-- [ ] 197-01-PLAN.md — API: migraciones 0285 (fuente AURA `extra_block` = 5) y 0286 (`extra_blocks_completed`) + schema + AuraSourceType
-- [ ] 197-02-PLAN.md — API: gates de tenancy de la tabla nueva (gym-owned strict `free-blocks`, conteos 104/109, limpieza de fixtures)
-- [ ] 197-03-PLAN.md — API: `session-view`/`session-response` fuera de sessions/routes + grupos de zona puros en muscle-zones (D-10)
-- [ ] 197-04-PLAN.md — API: `zones`/`groups` por bloque en /weekly y /daily + fixtures de la canasta
-- [ ] 197-05-PLAN.md — API (TDD): ranking puro de la canasta (dedupe, orden, "ya lo trabajaste hoy", página) + weekDayToDate
-- [ ] 197-06-PLAN.md — API: FreeBlocksService (subnivel, ≤ hoy en tz de la sede, sin GP, roles, contexto de hoy, AURA disponible)
-- [ ] 197-07-PLAN.md — API: GET /sessions/free-blocks y /free-blocks/:blockId + manifiesto 475 + integración de la canasta
-- [ ] 197-08-PLAN.md — API: POST /sessions/free-blocks/complete con AURA del día (≥10', primero del día, extra_block_day) + manifiesto 476 + tests
-- [ ] 197-09-PLAN.md — API: invariante de contadores (D-13) + aislamiento de tenant de las 3 rutas
-- [ ] 197-10-PLAN.md — App: tokens/mixins del rework + figura anatómica compartida (copia única con cmp, chunk propio, D-07)
-- [ ] 197-11-PLAN.md — App: utilidades puras (formato D-11, CTA de Semana, rótulos de semana, sugerencia de Libre) + tests
-- [ ] 197-12-PLAN.md — App: Semana A (useTrainingWeek, rótulo y flechas, tira de días, título + CTA) + DayPlayer abre otras semanas
-- [ ] 197-13-PLAN.md — App: Semana B (chips apilados, figura con Nucleus por defecto, lista de ejercicios)
-- [ ] 197-14-PLAN.md — App: tipos, store de la canasta y cierre del bloque libre
-- [ ] 197-15-PLAN.md — App: player en modo libre (neutraliza NUCLEUS/DEUTEROS, último bloque, barrita dorada, sin ajustes)
-- [ ] 197-16-PLAN.md — App: pantallas del bloque libre (inicio, celebración, resumen con "Seguir entrenando")
-- [ ] 197-17-PLAN.md — App: ruta /training/libre/:blockId y FreeBlockPlayer (Session sintética XB, guardado y AURA)
-- [ ] 197-18-PLAN.md — App: tab Libre (aviso de AURA, sugerencia, figura tocable, chips, lista de 20 en 20, vacío)
-- [ ] 197-19-PLAN.md — App: Entrenar en 4 tabs "puertas" + Próximamente + ?tab=libre + vidriera sin plan; fin del carrusel viejo
-- [ ] 197-20-PLAN.md — App: contraste D-16 en player (sesión completa incluida) y Guía
-- [ ] 197-21-PLAN.md — App: link "Probá el modo Libre" en la card de hoy de Mi Templo (D-17)
+- [x] 197-01-PLAN.md — API: migraciones 0285 (fuente AURA `extra_block` = 5) y 0286 (`extra_blocks_completed`) + schema + AuraSourceType
+- [x] 197-02-PLAN.md — API: gates de tenancy de la tabla nueva (gym-owned strict `free-blocks`, conteos 104/109, limpieza de fixtures)
+- [x] 197-03-PLAN.md — API: `session-view`/`session-response` fuera de sessions/routes + grupos de zona puros en muscle-zones (D-10)
+- [x] 197-04-PLAN.md — API: `zones`/`groups` por bloque en /weekly y /daily + fixtures de la canasta
+- [x] 197-05-PLAN.md — API (TDD): ranking puro de la canasta (dedupe, orden, "ya lo trabajaste hoy", página) + weekDayToDate
+- [x] 197-06-PLAN.md — API: FreeBlocksService (subnivel, ≤ hoy en tz de la sede, sin GP, roles, contexto de hoy, AURA disponible)
+- [x] 197-07-PLAN.md — API: GET /sessions/free-blocks y /free-blocks/:blockId + manifiesto 475 + integración de la canasta
+- [x] 197-08-PLAN.md — API: POST /sessions/free-blocks/complete con AURA del día (≥10', primero del día, extra_block_day) + manifiesto 476 + tests
+- [x] 197-09-PLAN.md — API: invariante de contadores (D-13) + aislamiento de tenant de las 3 rutas
+- [x] 197-10-PLAN.md — App: tokens/mixins del rework + figura anatómica compartida (copia única con cmp, chunk propio, D-07)
+- [x] 197-11-PLAN.md — App: utilidades puras (formato D-11, CTA de Semana, rótulos de semana, sugerencia de Libre) + tests
+- [x] 197-12-PLAN.md — App: Semana A (useTrainingWeek, rótulo y flechas, tira de días, título + CTA) + DayPlayer abre otras semanas
+- [x] 197-13-PLAN.md — App: Semana B (chips apilados, figura con Nucleus por defecto, lista de ejercicios)
+- [x] 197-14-PLAN.md — App: tipos, store de la canasta y cierre del bloque libre
+- [x] 197-15-PLAN.md — App: player en modo libre (neutraliza NUCLEUS/DEUTEROS, último bloque, barrita dorada, sin ajustes)
+- [x] 197-16-PLAN.md — App: pantallas del bloque libre (inicio, celebración, resumen con "Seguir entrenando")
+- [x] 197-17-PLAN.md — App: ruta /training/libre/:blockId y FreeBlockPlayer (Session sintética XB, guardado y AURA)
+- [x] 197-18-PLAN.md — App: tab Libre (aviso de AURA, sugerencia, figura tocable, chips, lista de 20 en 20, vacío)
+- [x] 197-19-PLAN.md — App: Entrenar en 4 tabs "puertas" + Próximamente + ?tab=libre + vidriera sin plan; fin del carrusel viejo
+- [x] 197-20-PLAN.md — App: contraste D-16 en player (sesión completa incluida) y Guía
+- [x] 197-21-PLAN.md — App: link "Probá el modo Libre" en la card de hoy de Mi Templo (D-17)
 - [ ] 197-22-PLAN.md — Verificación visual medida (capturas 360/390/412, contraste, viewport, desborde) — checkpoint de build
 - [ ] 197-23-PLAN.md — UAT guiado de Franco en staging (checkpoint)
 
