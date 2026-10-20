@@ -13,7 +13,9 @@ export type AuraSourceType =
   | "onboarding_completion"
   | "program_week_completion"
   | "program_completion"
-  | "tenure_milestone";
+  | "tenure_milestone"
+  // Fase 197 D-12: primer bloque libre del día que llega a 10 minutos
+  | "extra_block";
 
 export interface AwardInput {
   userId: number;
