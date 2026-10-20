@@ -5,6 +5,8 @@
  * and provide the foundation for all Weekly View components.
  */
 
+import type { ZoneGroup, ZoneSlug } from 'src/components/anatomy/zones'
+
 /**
  * Block role in session structure
  * Defines the purpose and positioning of each block in a training session
@@ -103,6 +105,13 @@ export interface Block {
 
   /** Position within the session (0-indexed) */
   sortOrder: number
+
+  // Fase 197 D-10: vienen calculadas del API (opcionales: payloads viejos no las traen)
+  /** Zonas musculares que trabaja el bloque (unión de las de sus ejercicios) */
+  zones?: ZoneSlug[]
+
+  /** Grupos de zona del bloque (Hombros, Pecho, ...) en el orden de los chips */
+  groups?: ZoneGroup[]
 
   /** Ordered list of exercises in this block */
   exercises: Prescription[]
