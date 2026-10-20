@@ -340,7 +340,9 @@ import {
 // `/api/members/sponsors` (feed y eventos, escriben `sponsor_views`).
 // 2026-10-15: 472 -> 473 por GET /api/members/subscription/me/plan-status
 // (fase 199, D-05), `tenant-scoped`.
-const ENTRADAS_BASELINE = 473;
+// 2026-10-20: 473 -> 475 por la canasta del bloque libre (fase 197): GET
+// /api/sessions/free-blocks y /free-blocks/:blockId, templo-module.
+const ENTRADAS_BASELINE = 475;
 
 describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
   let app: FastifyInstance | undefined;
@@ -483,7 +485,7 @@ describe("manifiesto de rutas — contra el app real (ISO-01)", () => {
     ).toEqual([]);
   });
 
-  it("el manifiesto tiene exactamente las 473 entradas del baseline", () => {
+  it("el manifiesto tiene exactamente las 475 entradas del baseline", () => {
     const total = Object.keys(TENANT_MANIFEST).length;
 
     expect(

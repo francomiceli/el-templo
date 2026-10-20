@@ -35,6 +35,7 @@ import {
   resolveSessionView,
 } from "./session-view";
 import { sessionToResponse } from "./session-response";
+import { freeBlocksRoutes } from "./free-blocks-routes";
 import { AuraService } from "../aura/service";
 import { StreakService } from "../streaks";
 import { ProgramsService } from "../programs/service";
@@ -61,6 +62,13 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       .filter((r) => r.description !== null)
       .map((r) => [r.name, r.description!]),
   );
+
+  // Fase 197 D-14: canasta del bloque libre, mismo gate que /weekly.
+  // Sin prefix: las rutas llevan el path completo para no crear `prefix + "/"`.
+  await fastify.register(freeBlocksRoutes, {
+    sessionService,
+    formatDescriptions,
+  });
 
   // GET /sessions/daily - Get member's session for a date
   fastify.get<{ Querystring: GetDailySessionInput }>(
