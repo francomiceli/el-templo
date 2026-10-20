@@ -23,6 +23,7 @@ export * from "./session-blocks";
 export * from "./session-prescriptions";
 export * from "./session-traces";
 export * from "./completed-sessions";
+export * from "./extra-blocks-completed";
 export * from "./evaluation-requests";
 export * from "./session-edit-logs";
 export * from "./saved-blocks";
