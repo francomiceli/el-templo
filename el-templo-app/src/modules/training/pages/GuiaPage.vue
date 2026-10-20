@@ -364,6 +364,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 // ─── Fuentes de la TV, SOLO para esta página (SPEC punto 4) — extraídas de
 // los base64 de `el-templo-admin/src/utils/pdf/pdf-assets.ts` a archivos
@@ -403,11 +404,13 @@ onUnmounted(() => {
 // Tokens de color por tema (mismos valores de marca que ya usaba el viewer
 // anterior — sin token nuevo en quasar.variables.scss).
 $story-dark-text: $cream; // #f2ede5
-$story-dark-muted: rgba($cream, 0.9);
+// Fase 197 D-16: texto sólido, nunca rgba (antes rgba($cream, .9))
+$story-dark-muted: $pd-cream-2;
 $story-dark-accent: $bronze-light; // #d4b896
 
 $story-light-text: $accent; // #3d3732
-$story-light-muted: rgba($accent, 0.88);
+// Fase 197 D-16: texto sólido, nunca rgba (antes rgba($accent, .88))
+$story-light-muted: $pd-ink-2;
 // Terracotta profundo para kicker, lead en negrita y glifos de nivel sobre el
 // velo del día: ≥ 5.1:1 (era $primary #96593a: 4.2:1 el kicker, 2.6:1 los
 // bullets y 2.6:1 los glifos Δ Σ Ω). Mismo matiz, más oscuro; $primary queda
@@ -589,7 +592,7 @@ $story-glyph-size: 56px;
   font-size: 13px;
   font-style: italic;
   margin-top: 16px;
-  opacity: 0.9;
+  // Fase 197 D-16: sin transparencia en el texto (antes .9), hereda el color sólido del tema
 }
 
 .story-bullets {
@@ -641,7 +644,7 @@ $story-glyph-size: 56px;
   font-family: 'Nunito Sans', sans-serif;
   font-size: 14px;
   line-height: 1.4;
-  opacity: 0.95;
+  // Fase 197 D-16: sin transparencia en el texto (antes .95), hereda el color sólido del tema
   margin-top: 2px;
 }
 
@@ -681,7 +684,7 @@ $story-glyph-size: 56px;
   font-family: 'Nunito Sans', sans-serif;
   font-size: 14px;
   line-height: 1.4;
-  opacity: 0.95;
+  // Fase 197 D-16: sin transparencia en el texto (antes .95), hereda el color sólido del tema
   margin: 2px 0 0;
 }
 

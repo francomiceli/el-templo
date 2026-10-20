@@ -4,7 +4,7 @@
     <div class="transition-overlay__card">
       <!-- Completed badge -->
       <div class="transition-overlay__badge">
-        <q-icon name="check_circle" color="positive" size="20px" />
+        <q-icon name="check_circle" size="20px" class="transition-overlay__badge-icon" />
         <span class="transition-overlay__badge-text">{{ completedBlockName }} completado</span>
       </div>
 
@@ -62,6 +62,8 @@ const emit = defineEmits<Emits>()
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/premium-card';
+
 .transition-overlay {
   position: fixed;
   inset: 0;
@@ -100,6 +102,11 @@ const emit = defineEmits<Emits>()
   gap: 8px;
 }
 
+.transition-overlay__badge-icon {
+  // Fase 197 D-16: ícono sólido sobre oscuro (antes $positive #3b7249, 2.05:1 medido)
+  color: $pd-sage-on-dark;
+}
+
 .transition-overlay__badge-text {
   font-size: 14px;
   text-transform: uppercase;
@@ -118,7 +125,8 @@ const emit = defineEmits<Emits>()
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 2px;
-  color: rgba(255, 255, 255, 0.5);
+  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.5), 4.23:1 medido)
+  color: $pd-cream-3;
 }
 
 .transition-overlay__mobility-name {
@@ -145,12 +153,14 @@ const emit = defineEmits<Emits>()
 }
 
 .transition-overlay__quote-gold {
-  color: #b89b5e; // Aged Gold
+  // Fase 197 D-16: dorado de cita subido para pasar 4.5:1 (antes #b89b5e, 4.39:1 medido)
+  color: $pd-aged-gold-on-dark;
 }
 
 .transition-overlay__quote-author {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.5), 4.23:1 medido)
+  color: $pd-cream-3;
   margin-top: 8px;
 }
 

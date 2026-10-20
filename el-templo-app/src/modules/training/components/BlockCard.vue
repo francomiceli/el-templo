@@ -192,6 +192,11 @@ const blockCaption = computed(() => {
   color: #2c2318;
 }
 
+// Fase 197 D-16: flecha de expandir en tinta sólida (antes #757575 de Quasar, 2.73:1 medido)
+.block-card :deep(.q-item__section--side) {
+  color: #2c2318;
+}
+
 .block-guia-link {
   vertical-align: middle;
   margin-left: 2px;
@@ -239,7 +244,8 @@ const blockCaption = computed(() => {
 
   &__format {
     font-size: 11px;
-    color: color.adjust($secondary, $lightness: -5%);
+    // Fase 197 D-16: texto sólido de la tinta del rework (antes secondary -5%, 3.9-4.5:1 medido sobre su chip)
+    color: #2c2318;
     background: rgba($secondary, 0.15);
     padding: 2px 6px;
     border-radius: 4px;

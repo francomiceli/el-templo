@@ -61,12 +61,12 @@
       <div class="days-stats-row q-mb-lg">
         <div class="days-stat">
           <div class="text-h3 text-weight-bold text-primary">{{ daysCompletedThisWeek }}</div>
-          <div class="text-body2 text-grey-7">esta semana</div>
+          <div class="text-body2 days-stat__label">esta semana</div>
         </div>
         <div class="days-divider"></div>
         <div class="days-stat">
           <div class="text-h3 text-weight-bold text-secondary">{{ totalDaysTrained }}</div>
-          <div class="text-body2 text-grey-7">dias totales</div>
+          <div class="text-body2 days-stat__label">dias totales</div>
         </div>
       </div>
 
@@ -104,10 +104,9 @@
         </q-btn>
         <q-btn
           flat
-          color="grey-7"
           label="Repetir Sesión"
           icon="replay"
-          class="session-summary__secondary-btn"
+          class="session-summary__secondary-btn session-summary__secondary-btn--ink"
           size="md"
           @click="emit('restart')"
         />
@@ -202,6 +201,7 @@ function onFinish(): void {
 <style scoped lang="scss">
 @use 'sass:color';
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .session-summary {
   background: transparent;
@@ -255,7 +255,8 @@ function onFinish(): void {
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: rgba($primary, 0.6);
+  // Fase 197 D-16: texto sólido (antes rgba($primary, .6), 2.35:1 medido)
+  color: $pd-kicker-ink;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0;
@@ -263,13 +264,19 @@ function onFinish(): void {
 
 .session-summary__date-label {
   font-size: 14px;
-  color: $grey-7;
+  // Fase 197 D-16: texto sólido (antes $grey-7 #757575, 3.55:1 medido)
+  color: $pd-ink-2;
   margin: 4px 0 0;
   text-transform: capitalize;
 }
 
 .session-summary__content {
   overflow-y: auto;
+}
+
+// Fase 197 D-16: contador "0 / 500" en color sólido (antes rgba(0,0,0,.54) de Quasar, 4.30:1 medido)
+.notes-section :deep(.q-field__bottom) {
+  color: $pd-ink-2;
 }
 
 .session-summary__actions {
@@ -281,6 +288,11 @@ function onFinish(): void {
 
 .session-summary__secondary-btn {
   max-width: 300px;
+
+  // Fase 197 D-16: texto sólido (antes el gris 7 de Quasar #757575 en el botón, 3.55:1 medido)
+  &--ink {
+    color: $pd-ink-2;
+  }
 }
 
 .session-summary__readonly-footer {
@@ -341,6 +353,11 @@ function onFinish(): void {
   text-align: center;
 }
 
+.days-stat__label {
+  // Fase 197 D-16: texto sólido (antes el gris 7 de Quasar #757575, 3.4-3.9:1 medido)
+  color: $pd-ink-2;
+}
+
 .days-divider {
   width: 1px;
   height: 48px;
@@ -376,7 +393,8 @@ function onFinish(): void {
 
   &__notes {
     font-size: 13px;
-    color: $grey-7;
+    // Fase 197 D-16: texto sólido (antes $grey-7 #757575)
+    color: $pd-ink-2;
     font-style: italic;
   }
 }

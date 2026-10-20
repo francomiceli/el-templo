@@ -19,10 +19,10 @@
     <div class="rpe-slider__description text-center q-mt-md text-body2">
       <template v-if="hasInteracted">
         <span class="text-weight-medium">{{ internalValue }}</span>
-        <span class="text-grey-7"> - {{ rpeDescriptions[internalValue] }}</span>
+        <span class="rpe-slider__hint"> - {{ rpeDescriptions[internalValue] }}</span>
       </template>
       <template v-else>
-        <span class="text-grey-6">Desliza para indicar tu esfuerzo</span>
+        <span class="rpe-slider__hint">Desliza para indicar tu esfuerzo</span>
       </template>
     </div>
   </div>
@@ -90,6 +90,7 @@ watch(
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .rpe-slider {
   padding: 16px 8px;
@@ -98,12 +99,18 @@ watch(
 }
 
 .rpe-slider__label {
-  color: $primary;
+  // Fase 197 D-16: texto sólido (antes $primary #96593a, 4.01:1 sobre el beige real)
+  color: $pd-kicker-ink;
   font-family: 'Montserrat', sans-serif;
   letter-spacing: 0.05em;
 }
 
 .rpe-slider__description {
   min-height: 24px;
+}
+
+// Fase 197 D-16: texto sólido (antes grises 7 y 6 de Quasar #757575 y #9e9e9e, 1.94-3.34:1 medido)
+.rpe-slider__hint {
+  color: $pd-ink-2;
 }
 </style>

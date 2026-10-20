@@ -80,6 +80,8 @@ const welcomeQuote = computed(() => {
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/premium-card';
+
 .splash-overlay {
   position: fixed;
   inset: 0;
@@ -135,7 +137,8 @@ const welcomeQuote = computed(() => {
 .splash-overlay__subtitle {
   font-family: 'Geologica', sans-serif;
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.65);
+  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.65))
+  color: $pd-cream-2;
 }
 
 .splash-overlay__quote {
@@ -146,17 +149,20 @@ const welcomeQuote = computed(() => {
   font-family: 'Cormorant Garamond', serif;
   font-style: italic;
   font-size: 16px;
-  color: rgba(255, 255, 255, 0.7);
+  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.7))
+  color: $pd-cream-2;
   line-height: 1.5;
 }
 
 .splash-overlay__quote-gold {
-  color: #b89b5e; // Aged Gold
+  // Fase 197 D-16: dorado de cita subido para pasar 4.5:1 (antes #b89b5e, 4.39:1 medido)
+  color: $pd-aged-gold-on-dark;
 }
 
 .splash-overlay__quote-author {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.5), 4.23:1 medido)
+  color: $pd-cream-3;
   margin-top: 8px;
 }
 

@@ -51,6 +51,8 @@ const emit = defineEmits<Emits>()
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/premium-card';
+
 .celebration-overlay {
   position: fixed;
   inset: 0;
@@ -120,12 +122,14 @@ const emit = defineEmits<Emits>()
 }
 
 .celebration-overlay__quote-gold {
-  color: #b89b5e; // Aged Gold
+  // Fase 197 D-16: dorado de cita subido para pasar 4.5:1 (antes #b89b5e, 4.39:1 medido)
+  color: $pd-aged-gold-on-dark;
 }
 
 .celebration-overlay__quote-author {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
+  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.5), 4.23:1 medido)
+  color: $pd-cream-3;
   margin-top: 8px;
 }
 
