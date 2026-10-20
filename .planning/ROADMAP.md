@@ -54,6 +54,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [ ] **Phase 191: Panel del profesor** - Lista de alumnos con señales servidas sin buscarlas y ficha con planificado vs realizado
 - [ ] **Phase 192: Onboarding del tenant 2 (cierre del milestone)** - Un gimnasio real dado de alta con el wizard y operando en producción
 - [ ] **Phase 194: Invitaciones (fuera del milestone)** - Referidos → Invitaciones: 3 accesos gratis en prueba, cupo 2/mes, ventana 90 días, descuento por conversión con flag por plan, leads con origen Invitación
+- [ ] **Phase 197: Entrenar en tabs + canasta + bloque libre (fuera del milestone)** - Entrenar con 4 tabs (Semana · Libre · Desafíos · Conquer), canasta de bloques de su subnivel filtrada por figura tocable, bloque libre en el player con +5 AURA (primero del día que llega a 10')
 
 ## Phase Details
 
@@ -351,6 +352,23 @@ Plans:
 - [ ] 194-28-PLAN.md — App: landing `/invitacion/:code` + Activar invitación + registro/login con código + versión 1.8.2
 - [ ] 194-29-PLAN.md — Pre-flight de release: numeración, gates y builds de los 3 paquetes, checklist
 - [ ] 194-30-PLAN.md — Checkpoints humanos: feriados ES (D-29), backup + validación, UAT AR+ES, SEPA con Leandro
+
+### Phase 197: Entrenar en tabs + canasta de bloques + bloque libre (fuera del milestone v6.1)
+
+**Goal**: Entrenar se ordena en 4 tabs y el socio puede elegir y hacer un bloque de trabajo suelto de las planis aprobadas de su subnivel, buscándolo por zona del cuerpo, en el player, sumando 5 AURA con el primer bloque del día que llega a 10 minutos
+**Depends on**: intro TV "recorrido" en master (`tv/muscle-zones.ts`, `25f941f4d`). Independiente de la 196 (D-01: Conquer queda "Próximamente")
+**Requirements**: `197-CONTEXT.md` (D-01..D-18), decisiones de Franco 2026-10-20
+**Success Criteria** (what must be TRUE):
+
+1. Entrenar muestra 4 tabs (Semana · Libre · Desafíos · Conquer). Semana: tira de días, título + CTA, chips de bloque con figura (Nucleus por defecto) y lista de ejercicios. Desafíos y Conquer: "Próximamente". Sin plan: vidriera desenfocada con "Activá Tu Plan"
+2. Libre lista los bloques de trabajo aprobados del subnivel hasta hoy (sin GP, con ROM, sin INITIUM), sin duplicados, de 20 en 20, filtrables por grupo de zona tocando la figura o los chips, con la sugerencia de complemento
+3. Un bloque se juega en el player en modo bloque libre. Cuenta y se guarda al terminar sus ejercicios (si abandona, no se guarda nada). Si el formato no declara minutos, el reloj corre libre
+4. +5 AURA (fuente nueva `extra_block` en `aura_config`) solo para el primer bloque libre del día (zona de la sede) que llega a 10 minutos
+5. El bloque libre se registra en `extra_blocks_completed` y no cambia racha, programa, RPE/evaluación, `todaySession` ni contadores (tests de integración)
+6. Contrastes del player y la Guía en sólido (WCAG 2.2) y link "Probá el modo Libre" en la card de hoy de Mi Templo
+
+**Plans**: TBD
+
 
 ## Progress
 
