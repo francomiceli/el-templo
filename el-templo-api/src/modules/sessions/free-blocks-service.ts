@@ -447,8 +447,9 @@ export class FreeBlocksService {
     const respuesta = blockToResponse(block, 0, this.formatDescriptions);
     const main = ejerciciosMain(block);
     const formatName = block.format.name;
+    // `??` y `||` no se pueden mezclar sin paréntesis (SyntaxError en TS/JS).
     const titulo =
-      ROM_TITULOS[block.role] ?? getRouteLabel(block.route) || block.route;
+      ROM_TITULOS[block.role] ?? (getRouteLabel(block.route) || block.route);
 
     const base: Omit<FreeBlockItem, "workedToday"> = {
       ...respuesta,
