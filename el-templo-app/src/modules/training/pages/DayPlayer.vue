@@ -543,7 +543,8 @@ onBeforeRouteLeave((_to, _from, next) => {
 async function loadWeekDataIfEmpty() {
   if (weekDay.value || weekLoading.value) return
   try {
-    const dates = getWeekDates()
+    // Fase 197 D-03: la semana del día pedido ("Hacerla igual" de otra semana), no la actual
+    const dates = getWeekDates(new Date(dateParam.value + 'T00:00:00'))
     await fetchWeekSessions(dates)
     weekStore.setWeekDays(
       dates.map((date) => ({
@@ -633,7 +634,7 @@ watch(
     if (player.value && anyExerciseStarted.value) {
       await player.value.clearProgress()
     }
-    await fetchWeekSessions(getWeekDates())
+    await fetchWeekSessions(getWeekDates(new Date(dateParam.value + 'T00:00:00')))
   },
 )
 
