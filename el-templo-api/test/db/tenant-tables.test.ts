@@ -119,12 +119,14 @@ describe("tenant-tables — clasificación canónica de tablas (COL-01)", () => 
     // 0275, nacen strict en `communications`): 100 -> 102, 104 -> 106.
     // 2026-10-15 sumó `sponsor_views` (gym-owned) y `sponsor_brands` (exenta) —
     // fase 199, mig 0279: 102 -> 103, 4 -> 5, 106 -> 108.
-    expect(GYM_OWNED_TABLES.length).toBe(103);
+    // 2026-10-20 sumó `extra_blocks_completed` (fase 197, mig 0286, nace strict
+    // en `free-blocks`): 103 -> 104, 108 -> 109.
+    expect(GYM_OWNED_TABLES.length).toBe(104);
     expect(TENANT_EXEMPT_TABLES.length).toBe(5);
     // Sin duplicados dentro de cada lista.
     expect(gymOwned.size).toBe(GYM_OWNED_TABLES.length);
     expect(exempt.size).toBe(TENANT_EXEMPT_TABLES.length);
-    expect(schemaTables.size).toBe(108);
+    expect(schemaTables.size).toBe(109);
     expect(gymOwned.size + exempt.size).toBe(schemaTables.size);
   });
 
@@ -453,6 +455,8 @@ describe("TENANT_STRICT_MODULES (fase 170, D-05/D-06)", () => {
       "novedades",
       "tv_avisos",
     ],
+    // Fase 197: el módulo nace strict.
+    "free-blocks": ["extra_blocks_completed"],
     "improvement-proposals": ["improvement_proposals"],
     notifications: [
       "device_tokens",

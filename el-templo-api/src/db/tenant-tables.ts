@@ -105,6 +105,9 @@ export const GYM_OWNED_TABLES = [
   "exercise_milestone_proposals",
   "exercise_progressions",
   "exercises",
+  // Bloque libre (fase 197, mig 0286): nace con tenant_id y strict, ver
+  // TENANT_STRICT_MODULES["free-blocks"].
+  "extra_blocks_completed",
   "financial_transactions",
   "format_compatibility",
   "formats",
@@ -652,6 +655,8 @@ export const TENANT_STRICT_MODULES: Record<string, readonly string[]> = {
     "novedades",
     "tv_avisos",
   ],
+  // Fase 197: el módulo nace strict, no hay deuda previa que tolerar.
+  "free-blocks": ["extra_blocks_completed"],
   "improvement-proposals": ["improvement_proposals"],
   notifications: [
     "device_tokens",
