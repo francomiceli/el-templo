@@ -28,6 +28,28 @@
     <!-- 3-2-1 antes de arrancar -->
     <CountdownOverlay v-else-if="stage === 'countdown'" @done="onCountdownDone" />
 
+    <!-- Pantalla 4: celebración. T-197-39: el "+5" sale de la respuesta del servidor -->
+    <FreeBlockCelebration
+      v-else-if="stage === 'celebration'"
+      :aura-awarded="lastResult?.auraAwarded === true"
+      :quote="celebrationQuote"
+      @view-summary="onCelebrationViewSummary"
+    />
+
+    <!-- Pantalla 5: resumen -->
+    <FreeBlockSummary
+      v-else-if="stage === 'summary' && item && lastResult"
+      :block="item"
+      :completed-exercise-ids="savedExerciseIds"
+      :duration-seconds="lastResult.durationSeconds"
+      :aura-awarded="awardedInRun"
+      :can-earn-aura="canEarnAura"
+      :day-label="dayLabel"
+      @done="onSummaryDone"
+      @pick-another="onPickAnother"
+      @keep-training="onKeepTraining"
+    />
+
     <!-- Pantalla 2 y 3: en curso / bloque completo (el cierre vive en StoryExerciseCard) -->
     <template v-else-if="(stage === 'playing' || stage === 'saving') && player">
       <BlockProgressionView
@@ -44,6 +66,9 @@
         @complete-block="onBlockComplete"
         @toggle-exercise-complete="onToggleExerciseComplete"
       />
+      <div v-if="stage === 'saving'" class="free-block-player__saving flex flex-center">
+        <TemploLoader size="lg" />
+      </div>
     </template>
   </q-page>
 </template>
@@ -57,28 +82,40 @@ import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import CountdownOverlay from '../components/player/CountdownOverlay.vue'
 import FreeBlockSplash from '../components/player/FreeBlockSplash.vue'
+import FreeBlockCelebration from '../components/player/FreeBlockCelebration.vue'
+import FreeBlockSummary from '../components/player/FreeBlockSummary.vue'
 import BlockProgressionView from '../components/BlockProgressionView.vue'
 
 // Composables, stores and helpers
 import { useSessionPlayer } from '../composables/useSessionPlayer'
 import { useWakeLock } from '../composables/useWakeLock'
+import { useFreeBlockCompletion } from '../composables/useFreeBlockCompletion'
 import { useFreeBlocksStore } from '../stores/freeBlocksStore'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
+import { dayKicker } from '../utils/weekLabels'
 import { getQuoteForBlock } from '../data/quotes'
 import { FREE_BLOCK_AURA_MIN_SECONDS } from '../types/free-blocks'
-import type { FreeBlockItem } from '../types/free-blocks'
+import type { FreeBlockCompleteResponse, FreeBlockItem } from '../types/free-blocks'
 import type { Session } from '../types/session'
 
 const log = createLogger('FreeBlockPlayer')
 
 // Fase 197 D-15: modo bloque libre. Orquesta
-// inicio -> 3-2-1 -> en curso -> (guardado, celebración y resumen: tarea 2).
+// inicio -> 3-2-1 -> en curso -> guardado -> celebración -> resumen (-> "Seguir entrenando").
 // D-13: esta página NO toca la semana, la racha, el RPE, las notas ni los ajustes de dificultad.
 // D-12: si abandona antes de terminar no se guarda nada.
 
-type Stage = 'loading' | 'missing' | 'splash' | 'countdown' | 'playing' | 'saving'
+type Stage =
+  | 'loading'
+  | 'missing'
+  | 'splash'
+  | 'countdown'
+  | 'playing'
+  | 'saving'
+  | 'celebration'
+  | 'summary'
 
 const route = useRoute()
 const router = useRouter()
@@ -86,14 +123,21 @@ const $q = useQuasar()
 const userStore = useUserStore()
 const freeBlocksStore = useFreeBlocksStore()
 const wakeLock = useWakeLock()
+const completion = useFreeBlockCompletion()
 
 const stage = ref<Stage>('loading')
 const item = ref<FreeBlockItem | null>(null)
 const session = shallowRef<Session | null>(null)
 const player = shallowRef<ReturnType<typeof useSessionPlayer> | null>(null)
 
-/** Fila ya guardada en el servidor (se llena en el primer cierre, tarea 2) */
+/** Fila ya guardada en el servidor: el segundo cierre ("Seguir entrenando") la actualiza (D-12) */
 const completionId = ref<number | null>(null)
+/** Última respuesta del servidor: manda la celebración y el resumen (T-197-39) */
+const lastResult = ref<FreeBlockCompleteResponse | null>(null)
+/** Ejercicios hechos en todas las vueltas guardadas (el servidor une los de cada cierre) */
+const savedExerciseIds = ref<number[]>([])
+/** true si algún cierre de esta visita acreditó el AURA del día */
+const awardedInRun = ref(false)
 /** true una vez confirmada la salida: el guard de la ruta no vuelve a preguntar */
 const exitConfirmed = ref(false)
 let disposed = false
@@ -110,6 +154,20 @@ const userLevel = computed(() => userStore.activeLevel ?? item.value?.level ?? '
 const today = computed(() => todayInTz(userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ))
 const dayOffset = computed(() => new Date(today.value + 'T00:00:00').getDay())
 const splashQuote = computed(() => getQuoteForBlock(0, dayOffset.value))
+// Índice 4, distinto de las citas de bloque (igual que la celebración de la sesión completa)
+const celebrationQuote = computed(() => getQuoteForBlock(4, dayOffset.value))
+const dayLabel = computed(() => dayKicker(today.value, ''))
+
+// "Seguir entrenando" solo si terminó en menos de 10' y todavía hay AURA hoy (D-12)
+const canEarnAura = computed(() => {
+  const res = lastResult.value
+  if (!res) return false
+  return (
+    res.auraAvailableToday &&
+    !awardedInRun.value &&
+    res.durationSeconds < FREE_BLOCK_AURA_MIN_SECONDS
+  )
+})
 
 // Barrita dorada de AURA: solo si todavía queda AURA por cobrar hoy (D-12)
 const auraGoalSeconds = computed(() =>
@@ -246,10 +304,73 @@ function restartBlock(): void {
   })
 }
 
+/**
+ * Cierre del bloque (D-12): pausa el reloj, guarda en el servidor y recién ahí celebra.
+ * D-13: va a /sessions/free-blocks/complete, nunca a /sessions/complete.
+ */
 async function onBlockComplete(): Promise<void> {
+  const p = player.value
+  const block = item.value
+  if (!p || !block || stage.value === 'saving') return
+
+  await p.completeBlock() // pausa el reloj
+  stage.value = 'saving'
+
+  const exercisesCompleted = [...(p.completedExercises.value[block.role] ?? [])]
+  // El inicio sale del reloj que ve el socio: la duración del servidor coincide con la barrita
+  const startedAt = new Date(Date.now() - p.elapsedSeconds.value * 1000).toISOString()
+
+  const res = await completion.complete({
+    blockId: block.blockId,
+    startedAt,
+    exercisesCompleted,
+    ...(completionId.value !== null ? { completionId: completionId.value } : {}),
+  })
+  if (disposed) return
+
+  if (!res) {
+    $q.notify({
+      type: 'negative',
+      message: 'No pudimos guardar el bloque. Probá de nuevo.',
+      icon: 'error',
+      position: 'top',
+      timeout: 3000,
+    })
+    p.startTimer() // el reloj sigue mientras reintenta
+    stage.value = 'playing'
+    return
+  }
+
+  completionId.value = res.completionId
+  lastResult.value = res
+  savedExerciseIds.value = [...new Set([...savedExerciseIds.value, ...exercisesCompleted])]
+  if (res.auraAwarded) awardedInRun.value = true
+  await wakeLock.releaseWakeLock()
+  stage.value = 'celebration'
+}
+
+function onCelebrationViewSummary(): void {
+  stage.value = 'summary'
+}
+
+/** "Seguir entrenando": otra vuelta con el reloj corriendo, el cierre actualiza la misma fila */
+async function onKeepTraining(): Promise<void> {
   if (!player.value) return
-  // Pausa el reloj. El guardado en el servidor, la celebración y el resumen se suman en la tarea 2.
-  await player.value.completeBlock()
+  await player.value.startAnotherRound()
+  void wakeLock.requestWakeLock()
+  stage.value = 'playing'
+}
+
+/** "Listo": ya está guardado, vuelve a Libre */
+function onSummaryDone(): void {
+  exitConfirmed.value = true
+  void leaveWithoutSaving().then(goToLibre)
+}
+
+/** "Elegir otro bloque": limpia el filtro de grupo y vuelve a Libre */
+function onPickAnother(): void {
+  void freeBlocksStore.setGroup(null)
+  onSummaryDone()
 }
 
 onMounted(async () => {
@@ -276,6 +397,7 @@ onUnmounted(() => {
   disposed = true
   if (player.value) player.value.cleanup()
   wakeLock.cleanup()
+  completion.cleanup()
 })
 </script>
 
@@ -293,6 +415,13 @@ onUnmounted(() => {
 .free-block-player__center {
   flex: 1;
   padding: 24px;
+}
+
+.free-block-player__saving {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba($cream, 0.7);
 }
 
 .free-block-player__missing {
