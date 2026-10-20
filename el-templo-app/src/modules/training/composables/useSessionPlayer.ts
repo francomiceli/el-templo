@@ -38,9 +38,11 @@ export interface SessionPlayerState {
  * - Block completion tracking
  *
  * @param session - The training session to play
+ * @param options - Fase 197 D-15: `freeBlock` activa el modo bloque libre (Session sintética de
+ *   1 bloque). Sin la opción el comportamiento es el de siempre.
  * @returns Reactive state and control methods for session playback
  */
-export function useSessionPlayer(session: Session) {
+export function useSessionPlayer(session: Session, options: { freeBlock?: boolean } = {}) {
   const store = useSessionPlayerStore()
 
   // Core state
@@ -63,6 +65,9 @@ export function useSessionPlayer(session: Session) {
    * ROM and other non-Deuteros sessions skip the choice screen entirely.
    */
   const hasDeuterosBlocks = computed(() => {
+    // Fase 197 D-15: modo bloque libre, una Session sintética de 1 bloque. Un DEUTEROS suelto
+    // no dispara la elección ni el flujo de 4 bloques (riesgos.md §3): se reproduce el bloque tal cual.
+    if (options.freeBlock) return false
     return session.blocks.some((b) => b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS_2')
   })
 
@@ -238,7 +243,8 @@ export function useSessionPlayer(session: Session) {
 
     // Special case: After NUCLEUS, advance to index 2 to trigger Deuteros choice
     // (even though playableBlocks doesn't have a block at index 2 yet)
-    if (block.role === 'NUCLEUS' && !deuterosChoice.value) {
+    // Fase 197 D-15: en modo bloque libre el NUCLEUS suelto no salta al índice 2 (riesgos.md §3).
+    if (block.role === 'NUCLEUS' && !deuterosChoice.value && !options.freeBlock) {
       currentBlockIndex.value = 2
       selectedExerciseIndex.value = 0
       await store.saveCurrentBlockIndex(session.dayId, currentBlockIndex.value)
@@ -268,6 +274,25 @@ export function useSessionPlayer(session: Session) {
    */
   async function completeBlockAuto(): Promise<void> {
     return completeBlock()
+  }
+
+  /**
+   * Fase 197 D-15 / D-12: "Seguir entrenando". Reinicia los ejercicios y el bloque completado
+   * (memoria y persistencia del `dayId`) y deja el reloj corriendo desde donde estaba:
+   * `accumulatedSeconds` / `elapsedSeconds` no se tocan.
+   */
+  async function startAnotherRound(): Promise<void> {
+    pauseTimer() // fija accumulatedSeconds = elapsedSeconds y lo persiste (no-op si ya estaba en pausa)
+    currentBlockIndex.value = 0
+    selectedExerciseIndex.value = 0
+    completedBlocks.value = []
+    completedExercises.value = {}
+    await store.saveProgress(session.dayId, {
+      currentBlockIndex: 0,
+      completedBlocks: [],
+      completedExercises: {},
+    })
+    startTimer()
   }
 
   // Deuteros selection
@@ -467,6 +492,7 @@ export function useSessionPlayer(session: Session) {
     // Block/exercise navigation
     completeBlock,
     completeBlockAuto,
+    startAnotherRound,
     selectDeuteros,
     selectExercise,
 
