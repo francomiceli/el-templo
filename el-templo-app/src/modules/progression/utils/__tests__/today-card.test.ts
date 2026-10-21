@@ -1340,7 +1340,7 @@ describe('resolveTodayCard — alto fijo: pill, un solo link y sin hook (fase 19
     expect(con.secondary).toEqual(LIBRE)
   })
 
-  it('presencial-proxima con plan solo programado + hasExtraPrograms → "Tus programas" (sin Libre)', () => {
+  it('presencial-proxima con plan solo programado + extras → "Cambiar clase" (sin Libre)', () => {
     const m = resolveTodayCard(
       baseInput({
         subscription: { ...ACTIVE_SUB, status: 'scheduled' },
@@ -1349,7 +1349,8 @@ describe('resolveTodayCard — alto fijo: pill, un solo link y sin hook (fase 19
       }),
     )
     expect(m.kind).toBe('presencial-proxima')
-    expect(m.secondary).toEqual(TUS_PROGRAMAS)
+    // Sin Libre (el plan solo programado no cuenta) gana el link propio del gate, no "Tus programas".
+    expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
   })
 
   it('sin-plan-vencio → título "Renová\\ntu plan" y el modelo no tiene hook', () => {
