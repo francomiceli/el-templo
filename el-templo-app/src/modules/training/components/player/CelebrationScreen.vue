@@ -1,45 +1,24 @@
 <template>
-  <div class="celebration-overlay">
-    <div class="celebration-overlay__backdrop" />
-    <div class="celebration-overlay__card">
-      <!-- Flame icon with pulse animation -->
-      <div class="celebration-overlay__flame">
-        <q-icon name="local_fire_department" size="80px" />
-      </div>
-
-      <!-- Title -->
-      <div class="celebration-overlay__title">Sesión Completada!</div>
-
-      <!-- Final quote -->
-      <div class="celebration-overlay__quote">
-        <div class="celebration-overlay__quote-text">
-          {{ quote.text
-          }}<span v-if="quote.goldText" class="celebration-overlay__quote-gold">{{
-            quote.goldText
-          }}</span>
-        </div>
-        <div class="celebration-overlay__quote-author">&mdash; {{ quote.author }}</div>
-      </div>
-
-      <!-- Ver Resumen button — NO auto-advance per CONTEXT.md -->
-      <div class="celebration-overlay__action">
-        <q-btn
-          color="primary"
-          unelevated
-          label="Ver Resumen"
-          class="full-width"
-          size="lg"
-          @click="emit('view-summary')"
-        />
-      </div>
-    </div>
-  </div>
+  <!-- Celebración de la sesión completa. Mismo marco que la del bloque libre (CelebrationFrame),
+       sin AURA (eso es solo del bloque libre). NO avanza sola: el socio toca "Ver resumen". -->
+  <CelebrationFrame
+    kicker="Sesión"
+    title="¡Sesión completada!"
+    cta-label="Ver resumen"
+    @cta="emit('view-summary')"
+  >
+    <CelebrationQuote :quote="quote" />
+  </CelebrationFrame>
 </template>
 
 <script setup lang="ts">
+import type { Quote } from '../../data/quotes'
+import CelebrationFrame from './CelebrationFrame.vue'
+import CelebrationQuote from './CelebrationQuote.vue'
+
 interface Props {
   /** Final motivational quote to display */
-  quote: { text: string; goldText: string; author: string }
+  quote: Quote
 }
 
 interface Emits {
@@ -49,92 +28,3 @@ interface Emits {
 defineProps<Props>()
 const emit = defineEmits<Emits>()
 </script>
-
-<style scoped lang="scss">
-@import 'src/css/premium-card';
-
-.celebration-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.celebration-overlay__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(46, 42, 38, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
-.celebration-overlay__card {
-  position: relative;
-  max-width: 360px;
-  width: 100%;
-  border-radius: 20px;
-  background: rgba(61, 55, 50, 0.95);
-  padding: 40px 32px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 16px;
-}
-
-.celebration-overlay__flame {
-  color: #b89b5e; // Aged Gold
-  animation: flame-pulse 1s ease-in-out infinite;
-}
-
-@keyframes flame-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-}
-
-.celebration-overlay__title {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 28px;
-  font-weight: 800;
-  color: white;
-  letter-spacing: 0.05em;
-  line-height: 1.2;
-}
-
-.celebration-overlay__quote {
-  margin-top: 8px;
-}
-
-.celebration-overlay__quote-text {
-  font-family: 'Cormorant Garamond', serif;
-  font-style: italic;
-  font-size: 18px;
-  color: white;
-  line-height: 1.5;
-}
-
-.celebration-overlay__quote-gold {
-  // Fase 197 D-16: dorado de cita subido para pasar 4.5:1 (antes #b89b5e, 4.39:1 medido)
-  color: $pd-aged-gold-on-dark;
-}
-
-.celebration-overlay__quote-author {
-  font-size: 13px;
-  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.5), 4.23:1 medido)
-  color: $pd-cream-3;
-  margin-top: 8px;
-}
-
-.celebration-overlay__action {
-  width: 100%;
-  margin-top: 16px;
-}
-</style>

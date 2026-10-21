@@ -9,48 +9,9 @@
       <p class="fb-sum__sub">Esto es lo que hiciste.</p>
     </header>
 
-    <section class="fb-sum__block" aria-label="Bloque">
-      <div class="fb-sum__block-head">
-        <span class="fb-sum__role">{{ roleLabel }}</span>
-        <span class="fb-sum__name">{{ blockDisplayName(block) }}</span>
-        <span class="fb-sum__meta">{{
-          keepHyphenWords(blockMetaLine(block, { withEstimate: false }))
-        }}</span>
-      </div>
-      <ul class="fb-sum__list">
-        <li v-for="(ex, i) in block.exercises" :key="`${ex.exerciseId}-${i}`" class="fb-sum__row">
-          <q-icon
-            v-if="isDone(ex.exerciseId)"
-            name="check_circle"
-            size="18px"
-            class="fb-sum__check"
-            role="img"
-            aria-label="Hecho"
-          />
-          <q-icon
-            v-else
-            name="radio_button_unchecked"
-            size="18px"
-            class="fb-sum__check fb-sum__check--off"
-            role="img"
-            aria-label="Sin hacer"
-          />
-          <span class="fb-sum__ex">{{ ex.exerciseName }}</span>
-          <span class="fb-sum__dose">{{ doseOf(ex) }}</span>
-        </li>
-      </ul>
-    </section>
+    <SummaryBlockCard :block="block" :done-ids="completedExerciseIds" />
 
-    <div class="fb-sum__stats">
-      <div class="fb-sum__stat">
-        <strong class="fb-sum__num">{{ workMinutes }}'</strong>
-        <span class="fb-sum__label">de trabajo</span>
-      </div>
-      <div class="fb-sum__stat">
-        <strong class="fb-sum__num">{{ doneCount }}</strong>
-        <span class="fb-sum__label">ejercicios</span>
-      </div>
-    </div>
+    <SummaryStats :stats="stats" />
 
     <div v-if="auraAwarded" class="fb-sum__aura">
       <q-icon name="auto_awesome" size="22px" aria-hidden="true" />
@@ -80,11 +41,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ROLE_LABELS } from 'src/constants/roleLabels'
-import type { Prescription } from '../../types/session'
 import type { FreeBlockItem } from '../../types/free-blocks'
-import { blockDisplayName, blockMetaLine, keepHyphenWords } from '../../utils/blockMeta'
-import { formatDose, formatQuickDose, isPyramidBlock } from '../../utils/formatDose'
+import SummaryBlockCard from './SummaryBlockCard.vue'
+import SummaryStats from './SummaryStats.vue'
 
 interface Props {
   /** Bloque que se hizo */
@@ -110,13 +69,7 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const roleLabel = computed(() => ROLE_LABELS[props.block.role] ?? props.block.role)
-
 const doneIds = computed(() => new Set(props.completedExerciseIds))
-
-function isDone(exerciseId: number): boolean {
-  return doneIds.value.has(exerciseId)
-}
 
 const doneCount = computed(
   () => props.block.exercises.filter((ex) => doneIds.value.has(ex.exerciseId)).length,
@@ -124,12 +77,10 @@ const doneCount = computed(
 
 const workMinutes = computed(() => Math.max(1, Math.round(props.durationSeconds / 60)))
 
-// formatDose no es consciente de las pirámides: para esos bloques se usa la versión compacta.
-const pyramid = computed(() => isPyramidBlock(props.block))
-
-function doseOf(ex: Prescription): string {
-  return pyramid.value ? formatQuickDose(ex, true) : formatDose(ex)
-}
+const stats = computed(() => [
+  { value: `${workMinutes.value}'`, label: 'de trabajo' },
+  { value: doneCount.value, label: 'ejercicios' },
+])
 </script>
 
 <style scoped lang="scss">
@@ -160,111 +111,6 @@ function doseOf(ex: Prescription): string {
   margin: 2px 0 0;
   font-family: 'Geologica', sans-serif;
   font-size: 13px;
-  color: $pd-ink-2;
-}
-
-.fb-sum__block {
-  @include pd-surface-light;
-  overflow: hidden;
-}
-
-.fb-sum__block-head {
-  display: flex;
-  flex-direction: column;
-  padding: 12px 16px;
-  border-bottom: 1px solid $pd-light-line;
-}
-
-.fb-sum__role {
-  @include pd-role-label;
-}
-
-.fb-sum__name {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 16px;
-  color: $pd-ink;
-  overflow-wrap: anywhere;
-}
-
-.fb-sum__meta {
-  font-family: 'Geologica', sans-serif;
-  font-size: 13px;
-  color: $pd-ink-2;
-}
-
-.fb-sum__list {
-  margin: 0;
-  padding: 4px 16px;
-  list-style: none;
-}
-
-.fb-sum__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 40px;
-  font-family: 'Geologica', sans-serif;
-  font-size: 13px;
-  color: $pd-ink;
-
-  & + & {
-    border-top: 1px solid $pd-light-line;
-  }
-}
-
-.fb-sum__check {
-  flex-shrink: 0;
-  color: $pd-sage;
-
-  &--off {
-    color: $pd-ink-3;
-  }
-}
-
-.fb-sum__ex {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.fb-sum__dose {
-  flex-shrink: 0;
-  margin-left: auto;
-  font-weight: 600;
-  color: $pd-ink-2;
-}
-
-.fb-sum__stats {
-  @include pd-surface-light;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-
-.fb-sum__stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 12px 8px;
-
-  & + & {
-    border-left: 1px solid $pd-light-line;
-  }
-}
-
-.fb-sum__num {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 17px;
-  color: $pd-ink;
-}
-
-.fb-sum__label {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: $pd-ink-2;
 }
 

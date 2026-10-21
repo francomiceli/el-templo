@@ -54,9 +54,14 @@
 
     <!-- No Session State -->
     <div v-else-if="!session" class="goal-plan-session__empty flex flex-center column">
-      <q-icon name="event_busy" size="80px" color="grey-4" />
-      <div class="text-h6 text-grey-6 q-mt-md">No hay sesion disponible</div>
-      <p class="text-grey-5 text-center q-px-lg">
+      <q-icon
+        name="event_busy"
+        size="80px"
+        class="goal-plan-session__empty-icon"
+        aria-hidden="true"
+      />
+      <div class="goal-plan-session__empty-text text-h6 q-mt-md">No hay sesion disponible</div>
+      <p class="goal-plan-session__empty-hint text-center q-px-lg">
         Es posible que no se hayan generado sesiones para esta semana. Intenta mas tarde.
       </p>
       <q-btn flat color="primary" label="Volver" class="q-mt-lg" @click="navigateBack" />
@@ -433,7 +438,8 @@ const exitDialogOpts = {
   title: 'Salir de la sesion?',
   message: 'Tu progreso se guardara y podras continuar despues.',
   cancel: { label: 'Cancelar', flat: true },
-  ok: { label: 'Salir', color: 'negative', flat: true },
+  // Clase global (css/app.scss): rojo oscuro sólido, igual que el bloque libre
+  ok: { label: 'Salir', flat: true, class: 'player-exit-ok' },
   persistent: true,
 }
 
@@ -575,6 +581,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+@import 'src/css/premium-card';
 
 .goal-plan-session {
   display: flex;
@@ -604,5 +611,16 @@ onUnmounted(() => {
 .goal-plan-session__empty {
   flex: 1;
   padding: 24px;
+}
+
+// Estado vacío en tinta sólida (mismo criterio que el bloque libre y el player de sesión)
+.goal-plan-session__empty-text {
+  color: $pd-ink;
+  text-align: center;
+}
+
+.goal-plan-session__empty-icon,
+.goal-plan-session__empty-hint {
+  color: $pd-ink-2;
 }
 </style>

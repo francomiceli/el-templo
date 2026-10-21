@@ -227,9 +227,9 @@ const exitDialogOpts = {
   title: '¿Salir del bloque libre?',
   message: 'Si salís ahora, el bloque no se guarda.',
   cancel: { label: 'Cancelar', flat: true },
-  // Gap 197-24 (hallazgo 10): `color: 'negative'` daba 4,43:1 sobre el diálogo. La clase pone el rojo
-  // oscuro $pd-neg-b (>= 7:1); el estilo vive en el bloque no-scoped de abajo (el diálogo se monta en body).
-  ok: { label: 'Salir', flat: true, class: 'free-block-exit-ok' },
+  // Gap 197-24 (hallazgo 10): `color: 'negative'` daba 4,43:1 sobre el diálogo. La clase global
+  // `player-exit-ok` (css/app.scss) pone el rojo oscuro $pd-neg-b (>= 7:1).
+  ok: { label: 'Salir', flat: true, class: 'player-exit-ok' },
   persistent: true,
 }
 
@@ -439,14 +439,5 @@ onUnmounted(() => {
 // Gap 197-24 (hallazgo 8): el ícono 404 era grey-4 (1,13:1). Los íconos de UI piden >= 3:1.
 .free-block-player__missing-icon {
   color: $pd-ink-2;
-}
-</style>
-
-<style lang="scss">
-@import 'src/css/premium-card';
-
-// Gap 197-24 (hallazgo 10): "Salir" del diálogo de salida, rojo oscuro sólido (el $negative daba 4,43:1)
-.q-btn.free-block-exit-ok {
-  color: $pd-neg-b;
 }
 </style>

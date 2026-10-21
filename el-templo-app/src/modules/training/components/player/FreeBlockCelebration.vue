@@ -1,44 +1,31 @@
 <template>
-  <!-- Fase 197 D-15 (pantalla 4): celebración del bloque libre. Mismo marco que el inicio.
+  <!-- Fase 197 D-15 (pantalla 4): celebración del bloque libre. Mismo marco que la de la sesión
+       completa (CelebrationFrame).
        T-197-38: el "+5 AURA" se muestra SOLO con `auraAwarded`, que viene de la respuesta del
        servidor (el cliente nunca lo decide). -->
-  <div class="fb-overlay" role="dialog" aria-modal="true" :aria-labelledby="titleId">
-    <PremiumDialogCard kicker="Bloque libre">
-      <div class="fb-body">
-        <h2 :id="titleId" class="fb-title">¡Bloque completado!</h2>
-
-        <template v-if="auraAwarded">
-          <div class="fb-aura">
-            <span class="fb-aura__amount">+5</span>
-            <span class="fb-aura__label">AURA</span>
-          </div>
-          <p class="fb-meta">Tu primer bloque libre de hoy</p>
-        </template>
-        <p v-else class="fb-meta">Sumaste otro bloque a tu día.</p>
-
-        <figure class="fb-quote">
-          <blockquote class="fb-quote__text">
-            {{ quote.text }}<span v-if="quote.goldText" class="fb-quote__hl">{{
-              quote.goldText
-            }}</span>
-          </blockquote>
-          <figcaption class="fb-quote__author">&mdash; {{ quote.author }}</figcaption>
-        </figure>
-
-        <div class="pd-acts">
-          <button ref="summaryBtn" type="button" class="pd-cta" @click="emit('view-summary')">
-            Ver resumen
-          </button>
-        </div>
+  <CelebrationFrame
+    kicker="Bloque libre"
+    title="¡Bloque completado!"
+    cta-label="Ver resumen"
+    @cta="emit('view-summary')"
+  >
+    <template v-if="auraAwarded">
+      <div class="fb-aura">
+        <span class="fb-aura__amount">+5</span>
+        <span class="fb-aura__label">AURA</span>
       </div>
-    </PremiumDialogCard>
-  </div>
+      <p class="fb-meta">Tu primer bloque libre de hoy</p>
+    </template>
+    <p v-else class="fb-meta">Sumaste otro bloque a tu día.</p>
+
+    <CelebrationQuote :quote="quote" />
+  </CelebrationFrame>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, useId } from 'vue'
-import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import type { Quote } from '../../data/quotes'
+import CelebrationFrame from './CelebrationFrame.vue'
+import CelebrationQuote from './CelebrationQuote.vue'
 
 interface Props {
   /** true solo si el servidor acreditó los +5 AURA de este bloque */
@@ -53,54 +40,10 @@ interface Emits {
 
 defineProps<Props>()
 const emit = defineEmits<Emits>()
-
-const titleId = `fb-celebration-title-${useId()}`
-const summaryBtn = ref<HTMLButtonElement | null>(null)
-
-// Foco inicial en el CTA: el diálogo es modal.
-onMounted(() => {
-  summaryBtn.value?.focus()
-})
 </script>
 
 <style scoped lang="scss">
 @import 'src/css/premium-card';
-
-.fb-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(30, 24, 18, 0.82);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-// El kicker lo pinta PremiumDialogCard alineado a la izquierda: acá va centrado.
-.fb-overlay :deep(.pd-kicker) {
-  text-align: center;
-}
-
-.fb-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding-top: 8px;
-  text-align: center;
-}
-
-.fb-title {
-  margin: 0;
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 28px;
-  line-height: 1.15;
-  color: $pd-cream;
-}
 
 // "+5 AURA": el único dorado de la pantalla (D-18). El glow es decoración, el texto es sólido.
 .fb-aura {
@@ -133,39 +76,6 @@ onMounted(() => {
   font-family: 'Geologica', sans-serif;
   font-size: 13px;
   color: $pd-cream-3;
-}
-
-.fb-quote {
-  margin: 4px 0 0;
-  padding: 0;
-}
-
-.fb-quote__text {
-  margin: 0;
-  font-family: 'Cormorant Garamond', serif;
-  font-style: italic;
-  font-weight: 500;
-  font-size: 17px;
-  line-height: 1.4;
-  color: $pd-cream-2;
-}
-
-// D-18: el dorado es solo de AURA. El tramo destacado de la cita va en crema, más pesado.
-.fb-quote__hl {
-  font-weight: 600;
-  color: $pd-cream;
-}
-
-.fb-quote__author {
-  margin-top: 6px;
-  font-family: 'Geologica', sans-serif;
-  font-size: 13px;
-  color: $pd-cream-3;
-}
-
-.fb-body .pd-acts {
-  align-self: stretch;
-  margin-top: 4px;
 }
 
 // Pulso del "+5": solo escala (el texto nunca baja su opacidad) y solo con movimiento permitido.

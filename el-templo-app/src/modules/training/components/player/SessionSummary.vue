@@ -1,83 +1,59 @@
 <template>
+  <!-- Resumen de la sesión completa. Lenguaje visual de FreeBlockSummary (página crema, cards
+       claras, CTA terracota). En curso (`!readOnly`) es una pantalla fija con RPE y notas; en
+       solo lectura (`readOnly`) se ve desde Mi Templo / Semana con el botón de volver. -->
   <div class="session-summary" :class="{ 'fixed-full column': !readOnly }">
-    <!-- Read-only header: light, matches Mi Templo / Planes section style -->
-    <div v-if="readOnly" class="session-summary__header q-pa-md q-pb-none">
-      <q-btn
-        flat
-        round
-        dense
-        icon="arrow_back"
-        color="primary"
-        class="session-summary__back-btn"
-        @click="emit('back')"
-      />
-      <div class="session-summary__header-text">
-        <p class="session-summary__section-title">Resumen de sesión</p>
-        <p class="session-summary__date-label">{{ formattedDate }}</p>
-      </div>
-    </div>
-
-    <!-- In-session header: same layout, check icon instead of back arrow -->
-    <div v-else class="session-summary__header q-pa-md q-pb-none">
-      <q-icon name="check_circle" color="positive" size="36px" />
-      <div class="session-summary__header-text">
-        <p class="session-summary__section-title">Resumen de sesión</p>
-        <p class="session-summary__date-label">{{ formattedDate }}</p>
-      </div>
-    </div>
-
-    <!-- Scrollable Content -->
-    <div class="session-summary__content col q-pa-md">
-      <!-- Blocks Completed — reuses BlockCard from DayCard -->
-      <div v-if="blocks.length > 0" class="blocks-section q-mb-lg">
-        <BlockCard
-          v-for="block in blocks"
-          :key="block.blockId"
-          :block="block"
-          :color-class="getBlockColorClass(block.role)"
+    <div class="session-summary__content col">
+      <header class="session-summary__head">
+        <q-btn
+          v-if="readOnly"
+          flat
+          round
+          dense
+          icon="arrow_back"
+          class="session-summary__back-btn"
+          aria-label="Volver"
+          @click="emit('back')"
         />
-      </div>
+        <div class="session-summary__head-text">
+          <p class="session-summary__kicker">{{ formattedDate }}</p>
+          <h2 class="session-summary__title">Resumen de sesión</h2>
+        </div>
+      </header>
 
-      <!-- Read-only: Session completion card -->
-      <div v-if="readOnly" class="completion-card q-mb-lg">
-        <div class="completion-card__row">
-          <q-icon name="timer" size="20px" color="primary" />
-          <span v-if="durationMinutes" class="completion-card__text">
+      <!-- Bloques completados -->
+      <SummaryBlockCard v-for="block in blocks" :key="block.blockId" :block="block" show-guia />
+
+      <!-- Solo lectura: cierre de la sesión (duración, RPE y notas guardados) -->
+      <section v-if="readOnly" class="session-summary__done" aria-label="Cierre de la sesión">
+        <div class="session-summary__done-row">
+          <q-icon name="timer" size="20px" class="session-summary__done-icon" aria-hidden="true" />
+          <span v-if="durationMinutes" class="session-summary__done-text">
             Sesión completada en {{ durationMinutes }} minutos
           </span>
-          <span v-else class="completion-card__text">Sesión completada</span>
+          <span v-else class="session-summary__done-text">Sesión completada</span>
         </div>
-        <div v-if="savedRpe" class="completion-card__row">
-          <q-icon name="speed" size="20px" color="primary" />
-          <span class="completion-card__text">RPE {{ savedRpe }}</span>
+        <div v-if="savedRpe" class="session-summary__done-row">
+          <q-icon name="speed" size="20px" class="session-summary__done-icon" aria-hidden="true" />
+          <span class="session-summary__done-text">RPE {{ savedRpe }}</span>
         </div>
-        <div v-if="savedNotes" class="completion-card__row">
-          <q-icon name="notes" size="20px" color="primary" />
-          <span class="completion-card__notes">{{ savedNotes }}</span>
+        <div v-if="savedNotes" class="session-summary__done-row">
+          <q-icon name="notes" size="20px" class="session-summary__done-icon" aria-hidden="true" />
+          <span class="session-summary__done-notes">{{ savedNotes }}</span>
         </div>
-      </div>
+      </section>
 
-      <!-- Days Stats Row: This Week / Total -->
-      <div class="days-stats-row q-mb-lg">
-        <div class="days-stat">
-          <div class="text-h3 text-weight-bold text-primary">{{ daysCompletedThisWeek }}</div>
-          <div class="text-body2 days-stat__label">esta semana</div>
-        </div>
-        <div class="days-divider"></div>
-        <div class="days-stat">
-          <div class="text-h3 text-weight-bold text-secondary">{{ totalDaysTrained }}</div>
-          <div class="text-body2 days-stat__label">dias totales</div>
-        </div>
-      </div>
+      <!-- Esta semana / días totales -->
+      <SummaryStats :stats="stats" />
 
-      <!-- In-session: RPE Input + Notes -->
+      <!-- En curso: RPE + notas -->
       <template v-if="!readOnly">
-        <div class="rpe-section q-mb-lg">
+        <div class="session-summary__card">
           <RpeSlider v-model="rpeValue" />
           <RpeContextualMessage :rpe-value="rpeValue" :has-interacted="hasInteracted" />
         </div>
 
-        <div class="notes-section">
+        <div class="session-summary__card notes-section">
           <q-input
             v-model="notesValue"
             type="textarea"
@@ -90,35 +66,32 @@
         </div>
       </template>
 
-      <!-- Actions -->
-      <div v-if="!readOnly" class="session-summary__actions q-mt-lg">
-        <q-btn
-          unelevated
-          class="start-button start-button--primary q-mb-sm"
-          size="lg"
-          :loading="isSubmitting"
-          @click="onFinish"
-        >
-          <q-icon name="check" size="24px" class="q-mr-sm" />
-          <span class="text-weight-bold">Terminar Sesión</span>
-        </q-btn>
-        <q-btn
-          flat
-          label="Repetir Sesión"
-          icon="replay"
-          class="session-summary__secondary-btn session-summary__secondary-btn--ink"
-          size="md"
-          @click="emit('restart')"
-        />
+      <!-- Acciones -->
+      <div class="session-summary__foot">
+        <template v-if="!readOnly">
+          <button
+            type="button"
+            class="session-summary__cta"
+            :disabled="isSubmitting"
+            :aria-busy="isSubmitting"
+            @click="onFinish"
+          >
+            <q-spinner v-if="isSubmitting" size="22px" aria-label="Guardando" />
+            <template v-else>
+              <q-icon name="check" size="22px" aria-hidden="true" />
+              Terminar Sesión
+            </template>
+          </button>
+          <button type="button" class="session-summary__link" @click="emit('restart')">
+            <q-icon name="replay" size="18px" aria-hidden="true" />
+            Repetir Sesión
+          </button>
+        </template>
+        <button v-else type="button" class="session-summary__cta" @click="emit('restart')">
+          <q-icon name="replay" size="22px" aria-hidden="true" />
+          Repetir Sesión
+        </button>
       </div>
-    </div>
-
-    <!-- Read-only footer: in-flow, uses DayCard start-button style -->
-    <div v-if="readOnly" class="session-summary__readonly-footer q-px-md q-pb-md">
-      <q-btn unelevated class="start-button" size="lg" @click="emit('restart')">
-        <q-icon name="replay" size="24px" class="q-mr-sm" />
-        <span class="text-weight-bold">Repetir Sesión</span>
-      </q-btn>
     </div>
   </div>
 </template>
@@ -126,10 +99,10 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { Block } from '../../types/session'
-import { getBlockColorClass } from '../../utils/blockColors'
-import BlockCard from '../BlockCard.vue'
 import RpeSlider from './RpeSlider.vue'
 import RpeContextualMessage from './RpeContextualMessage.vue'
+import SummaryBlockCard from './SummaryBlockCard.vue'
+import SummaryStats from './SummaryStats.vue'
 
 interface Props {
   /** Date of the session (YYYY-MM-DD) */
@@ -189,6 +162,11 @@ const formattedDate = computed(() => {
   })
 })
 
+const stats = computed(() => [
+  { value: props.daysCompletedThisWeek, label: 'esta semana' },
+  { value: props.totalDaysTrained, label: 'días totales' },
+])
+
 // Actions
 function onFinish(): void {
   emit('finish', {
@@ -199,7 +177,6 @@ function onFinish(): void {
 </script>
 
 <style scoped lang="scss">
-@use 'sass:color';
 @import 'src/css/quasar.variables.scss';
 @import 'src/css/premium-card';
 
@@ -222,56 +199,92 @@ function onFinish(): void {
     @media (min-width: 1025px) {
       left: 200px;
     }
-
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-      opacity: 0.3;
-      pointer-events: none;
-      mix-blend-mode: multiply;
-    }
   }
 }
 
-// Read-only header — light, matches Planes section style
-.session-summary__header {
+.session-summary__content {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  color: $pd-ink;
+}
+
+.session-summary__head {
+  display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.session-summary__header-text {
+.session-summary__head-text {
+  min-width: 0;
+}
+
+// Hitbox de 44 px en la flecha de volver (solo lectura)
+.session-summary__back-btn.q-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin-left: -8px;
+  color: $pd-terra-ink;
+}
+
+.session-summary__kicker {
+  @include pd-kicker-light;
+}
+
+.session-summary__title {
+  margin: 4px 0 0;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.15;
+  color: $pd-ink;
+}
+
+// Cierre de la sesión (solo lectura): duración, RPE y notas
+.session-summary__done {
+  @include pd-surface-light;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
 }
 
-.session-summary__section-title {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
+.session-summary__done-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.session-summary__done-icon {
+  flex-shrink: 0;
+  color: $pd-terra-ink;
+}
+
+.session-summary__done-text {
+  font-family: 'Geologica', sans-serif;
   font-weight: 600;
-  // Fase 197 D-16: texto sólido (antes rgba($primary, .6), 2.35:1 medido)
-  color: $pd-kicker-ink;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0;
-}
-
-.session-summary__date-label {
   font-size: 14px;
-  // Fase 197 D-16: texto sólido (antes $grey-7 #757575, 3.55:1 medido)
-  color: $pd-ink-2;
-  margin: 4px 0 0;
-  text-transform: capitalize;
+  color: $pd-ink;
 }
 
-.session-summary__content {
-  overflow-y: auto;
+.session-summary__done-notes {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: 'Geologica', sans-serif;
+  font-size: 13px;
+  font-style: italic;
+  color: $pd-ink-2;
+}
+
+// RPE y notas (en curso)
+.session-summary__card {
+  @include pd-surface-light;
+  padding: 14px 16px;
 }
 
 // Fase 197 D-16: contador "0 / 500" en color sólido (antes rgba(0,0,0,.54) de Quasar, 4.30:1 medido)
@@ -279,123 +292,49 @@ function onFinish(): void {
   color: $pd-ink-2;
 }
 
-.session-summary__actions {
+.session-summary__foot {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  align-items: stretch;
+  gap: 4px;
+  margin-top: 4px;
 }
 
-.session-summary__secondary-btn {
-  max-width: 300px;
-
-  // Fase 197 D-16: texto sólido (antes el gris 7 de Quasar #757575 en el botón, 3.55:1 medido)
-  &--ink {
-    color: $pd-ink-2;
-  }
-}
-
-.session-summary__readonly-footer {
-  padding-bottom: max(16px, env(safe-area-inset-bottom));
-}
-
-// Same button style as DayCard's start-button
-.start-button {
-  width: 100%;
-  max-width: 300px;
-  height: 52px;
-  border-radius: 26px;
-  font-size: 16px;
-  font-family: 'Montserrat', sans-serif;
-  letter-spacing: 0.08em;
-  color: white;
-  background: linear-gradient(
-    135deg,
-    $secondary 0%,
-    color.adjust($secondary, $lightness: 8%) 50%,
-    mix($secondary, $primary, 70%) 100%
-  ) !important;
-  box-shadow: 0 4px 12px rgba($secondary, 0.3);
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: 0 6px 16px rgba($secondary, 0.4);
-    transform: translateY(-1px);
-  }
-
-  // Primary variant — for "Terminar Sesión"
-  &--primary {
-    background: linear-gradient(
-      135deg,
-      $primary 0%,
-      color.adjust($primary, $lightness: 8%) 50%,
-      mix($primary, $secondary, 70%) 100%
-    ) !important;
-    box-shadow: 0 4px 12px rgba($primary, 0.3);
-
-    &:hover {
-      box-shadow: 0 6px 16px rgba($primary, 0.4);
-    }
-  }
-}
-
-.days-stats-row {
+.session-summary__cta {
+  @include pd-cta(56px);
   display: flex;
   align-items: center;
-  background: linear-gradient(135deg, rgba(245, 240, 232, 0.8) 0%, rgba(232, 224, 212, 0.6) 100%);
-  border: 1px solid rgba(184, 155, 94, 0.3);
-  border-radius: 16px;
-  padding: 24px 16px;
-}
+  justify-content: center;
+  gap: 8px;
 
-.days-stat {
-  flex: 1;
-  text-align: center;
-}
-
-.days-stat__label {
-  // Fase 197 D-16: texto sólido (antes el gris 7 de Quasar #757575, 3.4-3.9:1 medido)
-  color: $pd-ink-2;
-}
-
-.days-divider {
-  width: 1px;
-  height: 48px;
-  background: rgba(0, 0, 0, 0.12);
-  margin: 0 8px;
-}
-
-.blocks-section {
-  padding: 0;
-}
-
-.completion-card {
-  background: white;
-  border-radius: 12px;
-  border: 1px solid rgba($secondary, 0.2);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  &__row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  &:disabled {
+    cursor: default;
   }
 
-  &__text {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    color: $primary;
-  }
-
-  &__notes {
-    font-size: 13px;
-    // Fase 197 D-16: texto sólido (antes $grey-7 #757575)
-    color: $pd-ink-2;
-    font-style: italic;
+  &:focus-visible {
+    outline: 2px solid $pd-ink;
+    outline-offset: 2px;
   }
 }
+
+.session-summary__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: $pd-terra-ink;
+  font-family: 'Geologica', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+@include pd-sheen-keyframes;
 </style>

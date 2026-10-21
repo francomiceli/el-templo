@@ -14,10 +14,7 @@
       <div class="block-progression__header-overlay">
         <div class="block-progression__header-gradient" />
         <div class="block-progression__header-content">
-          <div
-            class="block-progression__header-left"
-            :class="{ 'block-progression__header-left--free': mode === 'free' }"
-          >
+          <div class="block-progression__header-left">
             <q-btn
               flat
               round
@@ -28,12 +25,10 @@
               aria-label="Volver"
               @click="emit('back')"
             />
-            <div
-              class="block-progression__header-info q-ml-sm"
-              :class="{ 'block-progression__header-info--free': mode === 'free' }"
-            >
-              <div class="block-progression__block-name">{{ viewingBlockName }}</div>
-              <div class="block-progression__route-name">{{ viewingRouteName }}</div>
+            <!-- Dos líneas en los dos modos: kicker (rol) y nombre del bloque -->
+            <div class="block-progression__header-info q-ml-sm">
+              <div class="block-progression__block-name">{{ headerLines.kicker }}</div>
+              <div class="block-progression__route-name">{{ headerLines.name }}</div>
             </div>
           </div>
           <div class="block-progression__header-right">
@@ -90,27 +85,10 @@
     <div class="block-progression__content">
       <!-- Exercise detail panel -->
       <div v-if="viewingBlock" class="block-progression__detail">
-        <!-- Format info — modo libre: "AMRAP · 10' · 3 rondas" (D-11) -->
-        <div
-          v-if="viewingBlock.format && mode === 'free'"
-          class="block-progression__detail-format"
-        >
+        <!-- Línea de formato, igual en los dos modos: "AMRAP · 10' · 3 rondas" (D-11) -->
+        <div v-if="viewingBlock.format" class="block-progression__detail-format">
           <div class="block-progression__detail-format-name">
-            {{ keepHyphenWords(formatLabel(viewingBlock)) }}
-          </div>
-          <div v-if="viewingBlock.formatDescription" class="block-progression__detail-format-desc">
-            {{ viewingBlock.formatDescription }}
-          </div>
-        </div>
-        <div v-else-if="viewingBlock.format" class="block-progression__detail-format">
-          <div class="block-progression__detail-format-name">
-            Formato: {{ detailFormatName
-            }}<span
-              v-if="detailFormatParamsSummary"
-              class="block-progression__detail-format-params"
-            >
-              · {{ detailFormatParamsSummary }}</span
-            >
+            {{ playerFormatLine(viewingBlock) }}
           </div>
           <div v-if="viewingBlock.formatDescription" class="block-progression__detail-format-desc">
             {{ viewingBlock.formatDescription }}
@@ -199,7 +177,7 @@
             @click="viewBlock(blockIndexOf(block))"
           >
             <q-icon name="arrow_back" size="12px" class="q-mr-xs" />
-            {{ LABEL_OVERRIDES[block.role] ?? ROLE_LABELS[block.role] ?? block.role }}
+            {{ playerRoleLabel(block.role) }}
           </button>
         </div>
       </div>
@@ -230,17 +208,9 @@ import CompactExerciseList from './player/CompactExerciseList.vue'
 import { useStoryNavigation } from '../composables/useStoryNavigation'
 
 // Utils
-import { getRouteName } from '../utils/routeNames'
 import { IN_SESSION_ADJUST_ENABLED } from 'src/config/featureFlags'
 import { formatDose, formatQuickDose, isPyramidBlock } from '../utils/formatDose'
-import { ROLE_LABELS } from 'src/constants/roleLabels'
-import { blockDisplayName, formatLabel, keepHyphenWords } from '../utils/blockMeta'
-
-// Override intencional (confirmado con Franco, fase 160-05): esta vista
-// históricamente rotula INITIUM como 'Pyros'; el resto del app usa el
-// canónico 'Initium' del diccionario centralizado (roleLabels.ts). NO
-// propagar este override a otras superficies.
-const LABEL_OVERRIDES: Partial<Record<BlockRole, string>> = { INITIUM: 'Pyros' }
+import { playerFormatLine, playerHeaderLines, playerRoleLabel } from '../utils/playerHeader'
 
 interface Props {
   dayName: string
@@ -436,49 +406,6 @@ const detailActiveName = computed(() => {
   return currentSlideExercise.value?.exerciseName ?? ''
 })
 
-const detailFormatName = computed(() => {
-  const format = viewingBlock.value?.format ?? ''
-  const dash = format.indexOf('-')
-  return dash > 0 ? format.slice(0, dash) : format
-})
-
-const detailFormatParamsSummary = computed(() => {
-  const p = viewingBlock.value?.formatParams
-  if (!p || !('type' in p) || p.type === 'standard') {
-    // Fallback: parse from format string (e.g. "amrap-series" → "series")
-    const format = viewingBlock.value?.format ?? ''
-    const dash = format.indexOf('-')
-    return dash > 0 ? format.slice(dash + 1) : ''
-  }
-  const parts: string[] = []
-  // ROM format: show rounds + rest
-  if (p.type === 'rom') {
-    if ('rounds' in p && typeof p.rounds === 'number') parts.push(`${p.rounds} rondas`)
-    if ('restSeconds' in p && typeof p.restSeconds === 'number')
-      parts.push(`descanso ${p.restSeconds}s`)
-    return parts.join(' · ')
-  }
-  if ('minutes' in p && typeof p.minutes === 'number') parts.push(`${p.minutes} min`)
-  if ('rounds' in p && typeof p.rounds === 'number') parts.push(`${p.rounds} rondas`)
-  if ('totalMinutes' in p && typeof p.totalMinutes === 'number') parts.push(`${p.totalMinutes} min`)
-  if ('intervalSeconds' in p && typeof p.intervalSeconds === 'number')
-    parts.push(`cada ${p.intervalSeconds}s`)
-  if (
-    'workSeconds' in p &&
-    typeof p.workSeconds === 'number' &&
-    'restSeconds' in p &&
-    typeof p.restSeconds === 'number'
-  )
-    parts.push(`${p.workSeconds}s/${p.restSeconds}s`)
-  if ('totalRounds' in p && typeof p.totalRounds === 'number') parts.push(`${p.totalRounds} rondas`)
-  if ('tempo' in p && typeof p.tempo === 'string') parts.push(p.tempo as string)
-  if ('timeCapMinutes' in p && typeof p.timeCapMinutes === 'number')
-    parts.push(`cap ${p.timeCapMinutes} min`)
-  if ('target' in p && typeof p.target === 'number' && 'unit' in p)
-    parts.push(`${p.target} ${p.unit}`)
-  return parts.join(' · ')
-})
-
 // Whether the current slide's exercise is completed
 const isCurrentSlideCompleted = computed(() => {
   if (isMobilitySlide.value) return false
@@ -545,24 +472,15 @@ const compactListData = computed(() => {
 })
 
 // Computed display values
-const viewingRouteName = computed(() => {
-  if (!viewingBlock.value) return ''
-  if (props.mode === 'free') return blockDisplayName(viewingBlock.value)
-  if (viewingBlock.value.role.startsWith('ROM_')) return 'ROM'
-  return getRouteName(viewingBlock.value.route)
+const headerLines = computed(() => {
+  if (!viewingBlock.value) return { kicker: '', name: '' }
+  return playerHeaderLines(viewingBlock.value, props.mode)
 })
 
 const formattedTime = computed(() => {
   const s = props.elapsedSeconds
   const m = Math.floor(s / 60)
   return `${m.toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
-})
-
-const viewingBlockName = computed(() => {
-  if (!viewingBlock.value) return ''
-  const role = viewingBlock.value.role
-  if (props.mode === 'free') return `Bloque libre · ${ROLE_LABELS[role] ?? role}`
-  return LABEL_OVERRIDES[role] ?? ROLE_LABELS[role] ?? role
 })
 
 // Fase 197 D-12: la barrita solo existe en modo libre y con una meta de AURA válida
@@ -581,7 +499,7 @@ const auraBarPercent = computed(() => {
 const currentBlockName = computed(() => {
   const block = props.playableBlocks[props.activeBlockIndex]
   if (!block) return ''
-  return LABEL_OVERRIDES[block.role] ?? ROLE_LABELS[block.role] ?? block.role
+  return playerRoleLabel(block.role)
 })
 
 // Handle exercise completion from story card (only on active block)
@@ -687,26 +605,45 @@ function onAdjust(direction: 'up' | 'down'): void {
   pointer-events: auto;
 }
 
+// Gap 197-24 (hallazgo 5): a 360 con rutas largas (FLR, PLPU, HSPU, HD/ID) el encabezado ocupaba
+// 3 líneas y chocaba con el check de "Bloque completo". El bloque izquierdo puede encogerse
+// (min-width: 0) y cada línea es de UNA línea con "…" -> máximo 2 líneas. Vale en los dos modos.
 .block-progression__header-left {
   display: flex;
   align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 8px;
 }
 
 .block-progression__header-info {
+  min-width: 0;
   line-height: 1.3;
 }
 
+.block-progression__block-name,
+.block-progression__route-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Fase 197 D-15 (sketch 016 .n-head): línea 1 = kicker (rol; en libre "BLOQUE LIBRE · ROL")
 .block-progression__block-name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: $pd-cream-2;
+}
+
+// Línea 2 = nombre del bloque (ruta en sesión)
+.block-progression__route-name {
   font-family: 'Montserrat', sans-serif;
   font-size: 16px;
   font-weight: 700;
-  color: white;
-}
-
-.block-progression__route-name {
-  font-size: 12px;
-  // Fase 197 D-16: texto sólido sobre oscuro (antes rgba(255,255,255,.7))
-  color: $pd-cream-2;
+  color: #fff;
 }
 
 .block-progression__header-right {
@@ -720,42 +657,6 @@ function onAdjust(direction: 'up' | 'down'): void {
   height: 44px;
   min-width: 44px;
   min-height: 44px;
-}
-
-// Gap 197-24 (hallazgo 5): a 360 con rutas largas (FLR, PLPU, HSPU, HD/ID) el encabezado libre ocupaba
-// 3 líneas y chocaba con el check de "Bloque completo". El bloque izquierdo puede encogerse
-// (min-width: 0) y cada línea es de UNA línea con "…" -> máximo 2 líneas. Solo modo libre.
-.block-progression__header-left--free {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin-right: 8px;
-}
-
-// Fase 197 D-15 (sketch 016 .n-head): línea 1 = "BLOQUE LIBRE · ROL", línea 2 = nombre del bloque
-.block-progression__header-info--free {
-  min-width: 0;
-
-  .block-progression__block-name,
-  .block-progression__route-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .block-progression__block-name {
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: $pd-cream-2;
-  }
-
-  .block-progression__route-name {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 16px;
-    font-weight: 700;
-    color: #fff;
-  }
 }
 
 .block-progression__timer-wrap {
@@ -811,13 +712,6 @@ function onAdjust(direction: 'up' | 'down'): void {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: $secondary;
-}
-
-.block-progression__detail-format-params {
-  font-weight: 500;
-  // Fase 197 D-16: texto sólido (antes rgba(0,0,0,.5), 3.86:1 medido)
-  color: $pd-ink-2;
-  text-transform: none;
 }
 
 .block-progression__detail-format-desc {
