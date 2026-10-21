@@ -77,6 +77,41 @@ function decodeAuthUser(token: string): AuthUser | null {
 }
 
 /**
+ * Tope de espera de cada llamada de red del boot (refresh y /auth/me). Quasar no
+ * monta NADA hasta que el boot termina: mientras tanto el socio ve la pantalla
+ * vacía (blanca en iOS, negra en Android con modo oscuro).
+ *
+ * El `timeout: 10000` de axios no alcanza: en nativo `CapacitorHttp` reemplaza
+ * el XHR y no le pasa ese timeout al lado nativo (iOS espera 600 s, Android sin
+ * límite). Con mala señal el boot quedaba colgado minutos — reporte 2026-10-21
+ * ("abren la app y queda en blanco"), sin requests al server ni eventos en Sentry.
+ */
+export const BOOT_NETWORK_TIMEOUT_MS = 8000
+
+export class BootTimeoutError extends Error {
+  constructor() {
+    super(`El boot dejó de esperar a la red tras ${BOOT_NETWORK_TIMEOUT_MS} ms`)
+    this.name = 'BootTimeoutError'
+  }
+}
+
+/**
+ * Deja de ESPERAR la promesa a los {@link BOOT_NETWORK_TIMEOUT_MS} ms, pero NO la
+ * cancela: un abort perdería el token rotado si el server ya procesó el refresh
+ * (la gracia de reuso del server es de 10 s y el próximo intento caería como
+ * replay → deslogueo). El refresh sigue en vuelo dentro del lock de `runRefresh`:
+ * si responde tarde guarda los tokens nuevos, y los 401 de las primeras pantallas
+ * esperan ese mismo refresh en vez de mandar el token viejo.
+ */
+function withBootTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new BootTimeoutError()), BOOT_NETWORK_TIMEOUT_MS)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+/**
  * Core boot logic, exported (unwrapped from `boot()`) so the unit test can
  * exercise it directly — same pattern as `createAuthErrorHandler` in
  * `boot/axios.ts`.
@@ -103,7 +138,13 @@ export async function runAuthBoot(): Promise<void> {
   // Reuses the SAME shared refresh (lock + discrimination) as the axios
   // interceptor — one place decides "rejected vs. network", never two.
   if (!legacyOnly && refreshToken && isJwtExpired(accessToken, true)) {
-    const result = await runRefresh()
+    // Pasado el tope se trata como 'network' (boot optimista); el refresh sigue
+    // en vuelo — ver withBootTimeout.
+    const result = await withBootTimeout(runRefresh()).catch((err: unknown) => {
+      if (!(err instanceof BootTimeoutError)) throw err
+      log.warn('El refresh del boot no respondió a tiempo; arranca optimista')
+      return { kind: 'network' } as const
+    })
     if (result.kind === 'ok') {
       accessToken = result.token
     } else if (result.kind === 'rejected') {
@@ -136,7 +177,8 @@ export async function runAuthBoot(): Promise<void> {
 
   try {
     // Verify token is still valid by calling /me
-    const response = await api.get('/auth/me')
+    // Un BootTimeoutError cae en el catch como error de red (sin status).
+    const response = await withBootTimeout(api.get('/auth/me'))
     authStore.setAuth(accessToken, {
       id: response.data.id,
       email: response.data.email,
@@ -162,7 +204,10 @@ export async function runAuthBoot(): Promise<void> {
       // servidor tampoco dijo que no — se mantiene logueado (boot
       // optimista) con el `AuthUser` mínimo de los claims del token, y el
       // perfil rico queda marcado para reintentar cuando vuelva la red.
-      log.warn('No se pudo verificar la sesión (/auth/me); se mantiene logueado', { status })
+      log.warn('No se pudo verificar la sesión (/auth/me); se mantiene logueado', {
+        status,
+        timedOut: err instanceof BootTimeoutError,
+      })
       const optimisticUser = decodeAuthUser(accessToken)
       if (optimisticUser) {
         authStore.setAuth(accessToken, optimisticUser)

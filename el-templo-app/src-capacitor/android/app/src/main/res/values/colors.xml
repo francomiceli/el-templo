@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- $brand-cream de src/css/_brand.scss -->
+    <color name="templo_cream">#F2EDE5</color>
+</resources>
