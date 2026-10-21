@@ -55,6 +55,7 @@ El recorrido: primero se cierra la **fase de diseño bloqueante** (las 7 definic
 - [ ] **Phase 192: Onboarding del tenant 2 (cierre del milestone)** - Un gimnasio real dado de alta con el wizard y operando en producción
 - [ ] **Phase 194: Invitaciones (fuera del milestone)** - Referidos → Invitaciones: 3 accesos gratis en prueba, cupo 2/mes, ventana 90 días, descuento por conversión con flag por plan, leads con origen Invitación
 - [ ] **Phase 197: Entrenar en tabs + canasta + bloque libre (fuera del milestone)** - Entrenar con 4 tabs (Semana · Libre · Desafíos · Conquer), canasta de bloques de su subnivel filtrada por figura tocable, bloque libre en el player con +5 AURA (primero del día que llega a 10')
+- [ ] **Phase 200: Anatomía funcional (fuera del milestone)** - Un solo modelo de contenido (archivos) músculo ↔ zona ↔ ruta ↔ rol que reemplaza a `muscle-zones.ts`, con la sección Anatomía del admin para profes, la Guía partida en dos (Empezá acá + Tu cuerpo) y el cuerpo tocable en Entrenar
 
 ## Phase Details
 
@@ -438,3 +439,20 @@ Plans:
 ---
 
 _Roadmap v6.1 creado 2026-08-27. Fases 181-192. Migraciones reservan desde 0216._
+
+### Phase 200: Anatomía funcional — profes, Guía y Entrenar (fuera del milestone v6.1)
+
+**Goal**: Profes y socios entienden qué trabaja cada ejercicio: un modelo de contenido único (músculo, zona del dibujo, ruta, rol, ficha) alimenta la sección Anatomía del admin, la vista Tu cuerpo de la Guía y el cuerpo tocable de Entrenar, y reemplaza a `muscle-zones.ts` como fuente de zonas
+**Depends on**: fase 197 (pantalla Semana con chips + figura, `BodyFigure.vue`, zonas por bloque). Base `origin/staging` `99152a195`; sale con o después del tren de la 197
+**Requirements**: `200-CONTEXT.md` (D1–D20 + P1–P4), investigación `.planning/research/anatomia-profes-2026-10-21.md`, sketches 019 (B2), 020 (síntesis), 021 (A2)
+**Success Criteria** (what must be TRUE):
+
+1. El contenido (28 músculos, 30 rutas con roles, fichas de profe y de alumno, glosario) vive en archivos versionados, validados por tests de coherencia contra `routes` y el dibujo, en estado borrador
+2. TV, `/weekly`/`/daily` y la canasta pintan zonas desde el modelo nuevo; las diferencias con `muscle-zones.ts` están documentadas como correcciones
+3. Admin › Anatomía (celular): cuerpo tocable → hoja con músculos y roles como frase con (i) → ficha completa de la ruta con marcas de evidencia y "Borrador · sin validar"
+4. Guía en dos cards (Empezá acá + Tu cuerpo) y Tu cuerpo en tono alumno (qué hace, 3 grupos, ficha corta), detrás de `ANATOMIA_ALUMNOS_ENABLED`
+5. Entrenar › Semana: tocar una zona abre la hoja con "Hoy en tu clase", marca los chips de los bloques que la trabajan y no mezcla los dos modos ni recarga la lista
+6. Nombres D1 en DB/TV/app y los 5 SISSY SQ OL en SS, por migraciones 0287+
+
+**Plans**: por planificar
+
