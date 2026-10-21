@@ -1,0 +1,35 @@
+// Fase 200: colores por rol del sketch 019 base.css
+// Tokens únicos de Admin › Anatomía (paleta cálida, sin azul). Se importan con
+// `@import 'src/css/anatomia';` desde los componentes de la sección.
+
+$anat-page: #f2ede5;
+$anat-ink: #2c2318;
+$anat-ink-2: #6b6459;
+$anat-terra: #96593a;
+$anat-clay: #7d5d42;
+$anat-line: #e5dbcd;
+$anat-soft: #f7f2ea;
+$anat-warn: #7d6520;
+
+// Roles en el dibujo
+$anat-r-motor: #96593a;
+$anat-r-sinergista: #c27c54;
+$anat-r-estabilizador: #e3b892;
+$anat-r-estira: #f4ead9;
+$anat-base: #e9e0d4;
+$anat-skip: #f1ebe2;
+$anat-ol: #d4c7b6;
+$anat-ol-fill: #fbf8f3;
+
+@mixin anat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid $anat-line;
+  background: #fff;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+  color: $anat-ink-2;
+  white-space: nowrap;
+}
