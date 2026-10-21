@@ -3,7 +3,7 @@
     <!-- Fondo: Entrenar completo con una plani de ejemplo FIJA (sin API), desenfocado y sin
          ninguna interacción: ni toques ni foco ni lectores de pantalla. -->
     <div class="vidriera__bg" aria-hidden="true" inert>
-      <EntrenarTabs :model-value="'semana'" :interactive="false" />
+      <EntrenarTabs v-if="ENTRENAR_TABS_ENABLED" :model-value="'semana'" :interactive="false" />
       <SemanaTab
         :days="days"
         :selected-date="selectedDate"
@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
+import { ENTRENAR_TABS_ENABLED } from 'src/config/featureFlags'
 import { useUserStore } from 'src/stores/useUserStore'
 import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'

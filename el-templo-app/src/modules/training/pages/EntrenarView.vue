@@ -1,13 +1,14 @@
 <template>
   <div class="entrenar-view">
-    <EntrenarTabs v-model="activeTab" />
+    <EntrenarTabs v-if="ENTRENAR_TABS_ENABLED" v-model="activeTab" />
 
-    <!-- Panes con v-if (nunca v-show): la figura tiene que estar visible para medirse -->
+    <!-- Panes con v-if (nunca v-show): la figura tiene que estar visible para medirse.
+         Sin tabs, Semana no es un tabpanel (no hay tab que lo nombre). -->
     <section
       v-if="activeTab === 'semana'"
       :id="paneId('semana')"
-      role="tabpanel"
-      :aria-labelledby="tabId('semana')"
+      :role="ENTRENAR_TABS_ENABLED ? 'tabpanel' : undefined"
+      :aria-labelledby="ENTRENAR_TABS_ENABLED ? tabId('semana') : undefined"
       class="entrenar-view__pane"
     >
       <div v-if="loading" class="entrenar-view__loading">
@@ -82,7 +83,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TemploLoader from 'src/components/TemploLoader.vue'
-import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
+import { ENTRENAR_TABS_ENABLED, FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useTrainingWeek } from '../composables/useTrainingWeek'
 import { useFreeBlocksStore } from '../stores/freeBlocksStore'
@@ -100,9 +101,12 @@ const userStore = useUserStore()
 const freeBlocks = useFreeBlocksStore()
 
 // ── Tab activa ──
-const QUERY_TABS: readonly TabKey[] = FREE_BLOCKS_ENABLED
-  ? ['libre', 'desafios', 'conquer']
-  : ['desafios', 'conquer']
+// Con ENTRENAR_TABS_ENABLED apagado no hay tabs: ningún `?tab=` sale de Semana.
+const QUERY_TABS: readonly TabKey[] = !ENTRENAR_TABS_ENABLED
+  ? []
+  : FREE_BLOCKS_ENABLED
+    ? ['libre', 'desafios', 'conquer']
+    : ['desafios', 'conquer']
 
 /** Solo valores conocidos: cualquier otra cosa abre Semana (T-197-45) */
 function tabFromQuery(raw: unknown): TabKey {

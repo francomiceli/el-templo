@@ -23,3 +23,10 @@ export const IN_SESSION_ADJUST_ENABLED = false
  * links de Semana y de la card de hoy, y sin la ruta del player. El código y la API quedan.
  */
 export const FREE_BLOCKS_ENABLED = false
+
+/**
+ * Fase 197: tabs de Entrenar (Semana / Libre / Desafíos / Conquer). Apagadas por ahora
+ * (2026-10-21): Entrenar muestra solo el contenido de Semana, sin la barra de tabs (tampoco en
+ * la vidriera sin plan) y cualquier `?tab=` abre Semana. El código de las tabs queda.
+ */
+export const ENTRENAR_TABS_ENABLED = false
