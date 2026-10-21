@@ -454,5 +454,30 @@ _Roadmap v6.1 creado 2026-08-27. Fases 181-192. Migraciones reservan desde 0216.
 5. Entrenar › Semana: tocar una zona abre la hoja con "Hoy en tu clase", marca los chips de los bloques que la trabajan y no mezcla los dos modos ni recarga la lista
 6. Nombres D1 en DB/TV/app y los 5 SISSY SQ OL en SS, por migraciones 0287+
 
-**Plans**: por planificar
+**Plans:** 23 plans (ejecución secuencial, un plan por wave)
+
+Plans:
+- [ ] 200-01-PLAN.md — Contrato de tipos, 16 regiones, 28 músculos, glosario, grupos de alumno y validador
+- [ ] 200-02-PLAN.md — Catálogo de banderas (§3.1/§3.2) y citas del Apéndice A con validación
+- [ ] 200-03-PLAN.md — Relaciones de las 7 rutas PULL + ficha completa de FL
+- [ ] 200-04-PLAN.md — Relaciones de las 8 rutas PUSH + HR, índice RUTAS y validarRutas
+- [ ] 200-05-PLAN.md — Relaciones de las 14 rutas LOWER/MOVILIDAD/FLOW + ficha de PS + cobertura de las 30
+- [ ] 200-06-PLAN.md — Proyección ruta → zonas, hits "Hoy en tu clase" (con fallback ROM), snapshot pre-200 y diferencias aprobadas
+- [ ] 200-07-PLAN.md — TV, /weekly, /daily y canasta al modelo + zoneHits; adiós al mapeo anterior de zonas
+- [ ] 200-08-PLAN.md — Tests de integración de canasta, /weekly y TV por ruta
+- [ ] 200-09-PLAN.md — GET /api/admin/anatomy y GET /api/anatomy con recorte por audiencia, roles R1 y manifiesto
+- [ ] 200-10-PLAN.md — Migraciones 0287 (nombres D1) y 0288 (SISSY → SS) + route-labels ×3
+- [ ] 200-11-PLAN.md — Admin: tipos, store, figura por rol, ruta /anatomia y menú
+- [ ] 200-12-PLAN.md — Admin: hoja desde abajo con roles como frase e (i), profundos y escritorio
+- [ ] 200-13-PLAN.md — Admin: ficha de ruta a pantalla completa con marcas y glosario
+- [ ] 200-14-PLAN.md — App: flag ANATOMIA_ALUMNOS_ENABLED, tibialis, BodyFigure extensible, store y hoja de alumno
+- [ ] 200-15-PLAN.md — App: Guía en dos cards, Tu cuerpo y ficha corta
+- [ ] 200-16-PLAN.md — App: Semana tocable con Hoy en tu clase y modos sin mezclar
+- [ ] 200-17-PLAN.md — Fichas FLR, OAP, OAR, MU, TTB
+- [ ] 200-18-PLAN.md — Fichas MN/RP, BL, HD/ID, OAPU, PL
+- [ ] 200-19-PLAN.md — Fichas PLPU, HS, HSPU, PHS, HR
+- [ ] 200-20-PLAN.md — Fichas L, QC, SS, SU, DS
+- [ ] 200-21-PLAN.md — Fichas HT, NC, REVERSE HYPER, SPAGAT
+- [ ] 200-22-PLAN.md — Fichas BRIDGE, SIDE PCK, PIKE, AF
+- [ ] 200-23-PLAN.md — Cierre: coherencia estricta, barrido, UAT y firma de validación
 

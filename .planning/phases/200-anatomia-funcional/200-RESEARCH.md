@@ -528,7 +528,9 @@ export function zoneHitsDeRutas(codes: readonly string[]): Partial<Record<ZonaSl
 | A5 | Los slugs de ruta para el alumno (`front-lever`, `manna`…) cumplen la restricción "sin códigos" del endpoint de alumno | Patrón 4 | Si Franco interpreta otra cosa, cambia solo el serializador |
 | A6 | La figura del admin por defecto es la de hombre | Patrón 5 | Cambio cosmético |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> Resueltas en `200-CONTEXT.md` como R1–R5 (2026-10-21): R1 roles de Planis para Admin › Anatomía · R2 relaciones S8/TI-H + §2 · R3 `getRouteLabel` · R4 HT/NC/QC sin `display_name` · R5 gestos como texto en v1.
 
 1. **¿Quién ve Admin › Anatomía?** (bloqueante para el plan del admin)
    - Qué sabemos: D6 dice "todo el staff que ve Entrenamiento", pero hoy Entrenamiento es `trainingOnly`, o sea solo owner + `Scaine7@hotmail.com` (`trainingAccess.ts`). El objetivo de la sección son los **profes desde el celular**.
