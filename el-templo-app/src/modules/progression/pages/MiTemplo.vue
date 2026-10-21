@@ -134,6 +134,7 @@ import { useUserStore } from 'src/stores/useUserStore'
 import { FREE_BLOCKS_ENABLED, MEMBER_TREE_ENABLED } from 'src/config/featureFlags'
 import { useWeekData } from 'src/modules/training/composables/useWeekData'
 import { getRouteName } from 'src/modules/training/utils/routeNames'
+import { mainBlock } from 'src/modules/training/utils/blockMeta'
 import type { Session } from 'src/modules/training/types/session'
 import TodayCard from '../components/TodayCard.vue'
 import ProgramSheet from '../components/ProgramSheet.vue'
@@ -222,9 +223,9 @@ const todayStr = computed(() => todayInTz(tz.value, todayBookingStore.now))
 const dow = computed(() => dowInTz(tz.value, todayBookingStore.now))
 
 function routeNameOf(session: Session | null | undefined): string | null {
-  if (!session || !session.blocks || session.blocks.length === 0) return null
-  const mainBlock = session.blocks.find((b) => b.role === 'NUCLEUS') || session.blocks[0]
-  return getRouteName(mainBlock.route)
+  if (!session || !session.blocks) return null
+  const main = mainBlock(session.blocks)
+  return main ? getRouteName(main.route) : null
 }
 
 const todayRouteName = computed(() => routeNameOf(weekSessions.value.get(todayStr.value)))

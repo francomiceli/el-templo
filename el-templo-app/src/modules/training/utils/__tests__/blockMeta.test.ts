@@ -9,6 +9,7 @@ import {
   figureZones,
   formatLabel,
   keepHyphenWords,
+  mainBlock,
   sessionTitle,
 } from '../blockMeta'
 
@@ -222,6 +223,36 @@ describe('defaultBlockIndex', () => {
   it('solo INITIUM o vacío: 0', () => {
     expect(defaultBlockIndex([block({ role: 'INITIUM' })])).toBe(0)
     expect(defaultBlockIndex([])).toBe(0)
+  })
+})
+
+describe('mainBlock', () => {
+  it('prefiere el NUCLEUS aunque haya otros bloques antes', () => {
+    const blocks = [
+      block({ role: 'INITIUM' }),
+      block({ role: 'COMBOS_I' }),
+      block({ role: 'NUCLEUS' }),
+    ]
+    expect(mainBlock(blocks)?.role).toBe('NUCLEUS')
+  })
+
+  it('día de combos: COMBOS_I, no INITIUM', () => {
+    const blocks = [
+      block({ role: 'INITIUM' }),
+      block({ role: 'COMBOS_II' }),
+      block({ role: 'COMBOS_I' }),
+    ]
+    expect(mainBlock(blocks)?.role).toBe('COMBOS_I')
+  })
+
+  it('día de técnica: TECNICA_I', () => {
+    const blocks = [block({ role: 'INITIUM' }), block({ role: 'TECNICA_I' })]
+    expect(mainBlock(blocks)?.role).toBe('TECNICA_I')
+  })
+
+  it('sin bloque principal (solo INITIUM, ROM o vacío): null', () => {
+    expect(mainBlock([block({ role: 'INITIUM' }), block({ role: 'ROM_CORE' })])).toBeNull()
+    expect(mainBlock([])).toBeNull()
   })
 })
 

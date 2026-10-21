@@ -5,7 +5,7 @@
 import { getRouteLabel } from 'src/constants/route-labels'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
 import { ZONE_GROUP_LABELS, groupsOfZones, type ZoneGroup } from 'src/components/anatomy/zones'
-import type { Block, Session } from '../types/session'
+import type { Block, BlockRole, Session } from '../types/session'
 
 /** Segundos que se asumen por repetición cuando el ejercicio no declara tiempo (corpus §5). */
 const SECONDS_PER_REP = 3
@@ -149,6 +149,21 @@ export function defaultBlockIndex(blocks: Block[]): number {
   if (nucleus >= 0) return nucleus
   const other = blocks.findIndex((b) => b.role !== 'INITIUM')
   return other >= 0 ? other : 0
+}
+
+/** Bloque que da nombre a la sesión, en orden: el de un día normal, el de combos, el de técnica. */
+const MAIN_BLOCK_ROLES: readonly BlockRole[] = ['NUCLEUS', 'COMBOS_I', 'TECNICA_I']
+
+/**
+ * Bloque principal de la sesión (la ruta de "Próxima: …" en Mi Templo): NUCLEUS; en días de
+ * combos o técnica, COMBOS_I o TECNICA_I. Sin ninguno → null (nunca cae a INITIUM, 2026-10-21).
+ */
+export function mainBlock(blocks: Block[]): Block | null {
+  for (const role of MAIN_BLOCK_ROLES) {
+    const found = blocks.find((b) => b.role === role)
+    if (found) return found
+  }
+  return null
 }
 
 /**
