@@ -40,7 +40,7 @@ import { computed, onMounted, ref, useId } from 'vue'
 import PremiumDialogCard from 'src/components/PremiumDialogCard.vue'
 import type { Quote } from '../../data/quotes'
 import type { FreeBlockItem } from '../../types/free-blocks'
-import { blockDisplayName, formatLabel } from '../../utils/blockMeta'
+import { blockDisplayName, formatLabel, keepHyphenWords } from '../../utils/blockMeta'
 import { formatLevelName } from '../../utils/levelDisplay'
 
 interface Props {
@@ -76,7 +76,7 @@ const metaLine = computed(() => {
   const n = props.block.exercises.length
   const count = `${n} ${n === 1 ? 'ejercicio' : 'ejercicios'}`
   const label = formatLabel(props.block)
-  return label ? `${label} · ${count}` : count
+  return keepHyphenWords(label ? `${label} · ${count}` : count)
 })
 </script>
 

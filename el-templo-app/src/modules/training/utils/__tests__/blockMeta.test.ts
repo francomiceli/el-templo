@@ -8,6 +8,7 @@ import {
   estimatedMinutes,
   figureZones,
   formatLabel,
+  keepHyphenWords,
   sessionTitle,
 } from '../blockMeta'
 
@@ -240,5 +241,17 @@ describe('figureZones', () => {
   it('bloques sin zonas o índice fuera de rango no rompen', () => {
     expect(figureZones([block({})], 0)).toEqual({ lit: [], lit2: [] })
     expect(figureZones(blocks, 9).lit).toEqual([])
+  })
+})
+
+describe('keepHyphenWords', () => {
+  it('no ofrece corte en el guion de Buy-in / Cash-out (word joiner)', () => {
+    const out = keepHyphenWords('Front Lever Pull Ups · Buy-in / Cash-out')
+    expect(out).toBe('Front Lever Pull Ups · Buy-\u2060in / Cash-\u2060out')
+    expect(out.replace(/\u2060/g, '')).toBe('Front Lever Pull Ups · Buy-in / Cash-out')
+  })
+
+  it('deja igual el resto de los textos', () => {
+    expect(keepHyphenWords("AMRAP · 10' · 3 rondas")).toBe("AMRAP · 10' · 3 rondas")
   })
 })

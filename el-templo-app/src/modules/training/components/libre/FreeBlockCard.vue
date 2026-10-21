@@ -2,9 +2,9 @@
   <article class="free-block-card">
     <div class="free-block-card__body">
       <span class="free-block-card__role">{{ ROLE_LABELS[item.role] }}</span>
-      <h3 class="free-block-card__title">{{ item.title }}</h3>
+      <h3 class="free-block-card__title">{{ keepHyphenWords(item.title) }}</h3>
       <p v-if="item.subtitle" class="free-block-card__sub">{{ item.subtitle }}</p>
-      <p class="free-block-card__meta">{{ meta }}</p>
+      <p class="free-block-card__meta">{{ keepHyphenWords(meta) }}</p>
       <p v-if="item.workedToday" class="free-block-card__worked">
         <q-icon name="replay" size="14px" />
         Ya lo trabajaste hoy
@@ -26,7 +26,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
 import type { FreeBlockItem } from '../../types/free-blocks'
-import { blockMetaLine } from '../../utils/blockMeta'
+import { blockMetaLine, keepHyphenWords } from '../../utils/blockMeta'
 
 // Fase 197 D-04, D-09: card de la canasta. Título "Ruta · Formato", los primeros ejercicios como
 // subtítulo, meta con minutos o "≈N'" y el botón que abre el player en modo bloque libre.

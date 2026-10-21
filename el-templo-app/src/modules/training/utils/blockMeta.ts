@@ -87,6 +87,16 @@ export function formatLabel(b: Pick<Block, 'format' | 'formatParams'>): string {
 }
 
 /**
+ * Gap 197-24 (hallazgo 6): "Buy-in" / "Cash-out" no se parten en el guion ("Buy-" / "in"). Pone un
+ * WORD JOINER (U+2060, ancho cero, sin glifo) después del guion: el navegador no ofrece ahí un punto
+ * de corte, y el resto del texto sigue cortando normal en los espacios. Solo para MOSTRAR: la
+ * búsqueda, los aria-label y los datos siguen con el texto original.
+ */
+export function keepHyphenWords(text: string): string {
+  return text.replace(/\b(buy|cash)-(in|out)\b/gi, '$1-\u2060$2')
+}
+
+/**
  * Minutos estimados de UNA pasada del bloque (D-04 `≈N'`): por ejercicio los `seconds` o
  * `reps × 3`, más el descanso; × rondas (`rounds` / `totalRounds` si son número); redondeado y
  * con mínimo 1.

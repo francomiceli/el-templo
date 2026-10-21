@@ -95,7 +95,7 @@
           class="block-progression__detail-format"
         >
           <div class="block-progression__detail-format-name">
-            {{ formatLabel(viewingBlock) }}
+            {{ keepHyphenWords(formatLabel(viewingBlock)) }}
           </div>
           <div v-if="viewingBlock.formatDescription" class="block-progression__detail-format-desc">
             {{ viewingBlock.formatDescription }}
@@ -233,7 +233,7 @@ import { getRouteName } from '../utils/routeNames'
 import { IN_SESSION_ADJUST_ENABLED } from 'src/config/featureFlags'
 import { formatDose, formatQuickDose, isPyramidBlock } from '../utils/formatDose'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
-import { blockDisplayName, formatLabel } from '../utils/blockMeta'
+import { blockDisplayName, formatLabel, keepHyphenWords } from '../utils/blockMeta'
 
 // Override intencional (confirmado con Franco, fase 160-05): esta vista
 // históricamente rotula INITIUM como 'Pyros'; el resto del app usa el

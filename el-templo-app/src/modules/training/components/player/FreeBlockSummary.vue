@@ -13,7 +13,9 @@
       <div class="fb-sum__block-head">
         <span class="fb-sum__role">{{ roleLabel }}</span>
         <span class="fb-sum__name">{{ blockDisplayName(block) }}</span>
-        <span class="fb-sum__meta">{{ blockMetaLine(block, { withEstimate: false }) }}</span>
+        <span class="fb-sum__meta">{{
+          keepHyphenWords(blockMetaLine(block, { withEstimate: false }))
+        }}</span>
       </div>
       <ul class="fb-sum__list">
         <li v-for="(ex, i) in block.exercises" :key="`${ex.exerciseId}-${i}`" class="fb-sum__row">
@@ -81,7 +83,7 @@ import { computed } from 'vue'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
 import type { Prescription } from '../../types/session'
 import type { FreeBlockItem } from '../../types/free-blocks'
-import { blockDisplayName, blockMetaLine } from '../../utils/blockMeta'
+import { blockDisplayName, blockMetaLine, keepHyphenWords } from '../../utils/blockMeta'
 import { formatDose, formatQuickDose, isPyramidBlock } from '../../utils/formatDose'
 
 interface Props {
