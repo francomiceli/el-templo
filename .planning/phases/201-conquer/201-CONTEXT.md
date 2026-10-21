@@ -54,3 +54,13 @@ El resto de la síntesis se sigue tal cual, sin decisiones de Franco pendientes:
 - §8 catálogo: lo carga una migración con los datos de Nacho
 - §9 datos: el modelo lo define el planner
 - §12: criterios de éxito
+
+## Decisiones post-research (Franco, 2026-10-21)
+
+- **D-17 Alumno sin plan activo.** Puede abrir la tab Conquer aunque Entrenar le muestre la vidriera. Ve Bloqueado y puede pedir el desbloqueo. Si se lo activan, entrena Conquer sin tener plan del Templo. (Revierte AS-4 del research.)
+- **D-18 Precarga = objetivo, sin exigir toque.** Como en el oráculo: un "Guardar" sin cambios cuenta como cumplido (AS-15/A9).
+- **D-19 Sin dependencias nuevas.** NO se instala `@fontsource/jost`. El texto de Conquer usa la letra actual de El Templo y Cormorant Garamond (ya instalada) queda para títulos y números grandes. Si faltan los pesos 600/700 de Cormorant, se usan los que estén instalados, sin agregar paquetes.
+- **D-20 Ambigüedades de la spec: se adoptan los defaults del research.** Son A1–A16 y A19 (§9.2 de `201-RESEARCH.md`), A17 (manda la síntesis) y A18 (para Hoy, Sábado y Progreso manda `conquer-app.html`, no el registro por serie del prototipo). Las que son de Nacho van a una lista para que las valide en la prueba: calibración de todo el ejercicio, bloque = semanas desde la activación, escalón del recorte 6, caída, paso de nivel, finishers de 2/3 días, marcas y zonas de la semilla.
+- **D-21 Migraciones desde 0290.** La 200 (anatomía) se queda con 0287–0289. Antes de crear el primer `.sql`, el ejecutor vuelve a chequear `origin/master`, `origin/staging` y los worktrees `et-*`.
+- **D-22 UI.** No hay UI-SPEC aparte. El contrato visual es `ref/conquer-prototipo.html` (tokens, sol, nubes, columnas, letras griegas, íconos de nivel, Bloqueado, Inicio, Niveles, Evolución) más `conquer-app.html` para Hoy, Sábado y Progreso. El mapa usa `BodyFigure.vue` de la 197.
+- **Infra pendiente de Franco (no bloquea planificar):** bucket R2 privado + CORS + secrets `R2_PRIVATE_BUCKET_NAME` / `STAGING_R2_PRIVATE_BUCKET_NAME`. Sin eso, el control físico responde 503 (nunca cae al bucket público).
