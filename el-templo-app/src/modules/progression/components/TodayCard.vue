@@ -54,7 +54,10 @@
           <span>{{ chip.text }}</span>
         </div>
 
-        <div v-if="model.primary || model.secondary || model.tertiary" class="today-card__actions">
+        <div
+          v-if="model.primary || model.secondary || model.tertiary || model.libreLink"
+          class="today-card__actions"
+        >
           <button
             v-if="model.primary"
             type="button"
@@ -79,6 +82,16 @@
           >
             {{ model.tertiary.label }}
           </button>
+          <!-- Fase 197 D-17: link chico a la tab Libre, solo "después de la clase" (regla en el modelo).
+               Va en la fila de acciones para no sumarle una fila a la card. -->
+          <button
+            v-if="model.libreLink"
+            type="button"
+            class="today-card__libre"
+            @click="onAction(model.libreLink)"
+          >
+            {{ model.libreLink.label }}
+          </button>
         </div>
 
         <p v-if="model.hook" class="today-card__hook">
@@ -87,16 +100,6 @@
             <template v-else>{{ part.text }}</template>
           </template>
         </p>
-
-        <!-- Fase 197 D-17: link chico a la tab Libre, solo "después de la clase" (regla en el modelo). -->
-        <button
-          v-if="model.libreLink"
-          type="button"
-          class="today-card__libre"
-          @click="onAction(model.libreLink)"
-        >
-          {{ model.libreLink.label }}
-        </button>
       </div>
     </section>
   </div>
@@ -353,11 +356,10 @@ function onAction(action: TodayCardAction): void {
     cursor: pointer;
   }
 
-  // Fase 197 D-17: link a Libre. Texto sólido crema-2 (#e3c9a8, 9,6:1 sobre #2c2318), hitbox 44.
+  // Fase 197 D-17: link a Libre, inline en la fila de acciones. Texto sólido crema-2
+  // (#e3c9a8, 9,6:1 sobre #2c2318), hitbox 44.
   &__libre {
-    display: block;
     min-height: 44px;
-    margin-top: 4px;
     padding: 12px 0;
     border: 0;
     background: none;
@@ -365,7 +367,6 @@ function onAction(action: TodayCardAction): void {
     font-family: 'Geologica', sans-serif;
     font-weight: 600;
     font-size: 13px;
-    text-align: left;
     text-decoration: underline;
     text-underline-offset: 3px;
     cursor: pointer;
