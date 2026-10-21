@@ -32,3 +32,8 @@
 ## Lectura punto por punto de la síntesis
 
 (Las respuestas se anotan acá antes de pasar a la sección siguiente.)
+
+- **D-08 Quién maneja Conquer (§5, §7.2).** Por ahora solo los roles `owner` y `admin`: activan alumnos, ven el tablero y las fichas, aceptan recortes y pasos de nivel. Más adelante se abre a los `coach`. Para que abrirlo después sea barato, el alumno guarda igual su campo `coach` (§9), y los permisos se resuelven en un solo helper. Las fotos (§6, "solo el alumno, su coach y Nacho") las ven por ahora el alumno, owner y admin.
+- **D-09 Estética (§10).** Se usa la submarca de Nacho: azul noche, dorado y crema, Cormorant Garamond + Jost, sol, nubes, templo de columnas, letras griegas. Aplica **solo dentro de Conquer**; el resto de la app sigue con la paleta de El Templo. Revierte la D-51 de la fase 196. Las fuentes van empaquetadas en el build, sin CDN en producción.
+- **D-10 Dónde vive en la app.** Conquer va dentro de **Entrenar**, como tab. Vuelven las tabs de la fase 197, que hoy están apagadas con `ENTRENAR_TABS_ENABLED = false` (`99152a195`). Por ahora son solo dos: **"Semana"** y **"Conquer"**. Libre sigue apagado. Por eso la rama 201 se basa en `origin/staging`, que tiene la 197.
+- **D-11 Pop-up de lanzamiento.** Se diseña un pop-up que se muestra **una vez a todos los alumnos** cuando Conquer esté listo y lleva a Entrenar ▸ Conquer. Se arma con el sistema de pop-ups de Comunicaciones (fase 193, modo "una vez"), más un destino nuevo hacia la tab Conquer. El diseño va en un boceto antes de planificar.
