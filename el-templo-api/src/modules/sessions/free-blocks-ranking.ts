@@ -8,7 +8,7 @@
  *   - D-09: cuando dos apariciones son "el mismo bloque" (queda la mas reciente).
  *   - D-04: orden, filtro por grupo y "Ya lo trabajaste hoy" al final.
  */
-import type { GrupoZona } from "../tv/muscle-zones";
+import type { GrupoZona } from "../anatomy/projection";
 
 /**
  * Rango de desempate por rol (menor = primero). Los `ROM_*` comparten el 5 y
@@ -173,9 +173,6 @@ export function paginar<T>(
 }
 
 /** Subtitulo de la card: los primeros `max` nombres limpios, con ", ". */
-export function subtituloDeBloque(
-  nombres: readonly string[],
-  max = 3,
-): string {
+export function subtituloDeBloque(nombres: readonly string[], max = 3): string {
   return nombres.slice(0, max).map(limpiarNombre).join(", ");
 }

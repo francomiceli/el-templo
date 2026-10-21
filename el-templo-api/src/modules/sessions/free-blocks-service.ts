@@ -38,15 +38,15 @@ import {
   mondayOf,
   weekDayToDate,
 } from "../shared/week-dates";
+import type { ZonaSlug } from "../anatomy/content/regiones";
 import {
   ZONAS_ORDEN,
   ejerciciosPorGrupo,
+  zonaInputDe,
   zonasDelBloque,
-  type EjercicioZonaInput,
   type GrupoZona,
-} from "../tv/muscle-zones";
+} from "../anatomy/projection";
 import { getRouteLabel } from "../tv/route-labels";
-import type { TvZonaMuscular } from "../tv/types";
 import {
   deduplicarMasReciente,
   claveDeDuplicado,
@@ -58,10 +58,7 @@ import {
   trabajadoHoy,
   type CandidatoCanasta,
 } from "./free-blocks-ranking";
-import {
-  blockToResponse,
-  type SessionBlockResponse,
-} from "./session-response";
+import { blockToResponse, type SessionBlockResponse } from "./session-response";
 import {
   buildDayIdCandidates,
   effectiveLevelForDay,
@@ -152,26 +149,13 @@ export interface FreeBlocksListResult {
   page: number;
   limit: number;
   auraAvailableToday: boolean;
-  todayZones: TvZonaMuscular[] | null;
-  weekWorkedZones: TvZonaMuscular[];
+  todayZones: ZonaSlug[] | null;
+  weekWorkedZones: ZonaSlug[];
 }
 
 /** Candidato interno: lo del ranking mas el item sin `workedToday`. */
 interface CandidatoConItem extends CandidatoCanasta {
   base: Omit<FreeBlockItem, "workedToday">;
-}
-
-/** Insumo de zonas de un ejercicio (mismo mapeo que `session-response.ts`). */
-function aEjercicioZona(ex: {
-  category?: string | null;
-  categorySecondary?: string | null;
-  exerciseRoute?: string | null;
-}): EjercicioZonaInput {
-  return {
-    category: ex.category ?? null,
-    categorySecondary: ex.categorySecondary ?? null,
-    route: ex.exerciseRoute ?? null,
-  };
 }
 
 /** Ejercicios principales de un bloque (la movilidad no cuenta). */
@@ -180,12 +164,12 @@ function ejerciciosMain(block: BlockPlan) {
 }
 
 /** Union de zonas de los bloques de trabajo de una sesion, en `ZONAS_ORDEN`. */
-function zonasDeSesion(session: DaySession): Set<TvZonaMuscular> {
-  const out = new Set<TvZonaMuscular>();
+function zonasDeSesion(session: DaySession): Set<ZonaSlug> {
+  const out = new Set<ZonaSlug>();
   for (const block of session.blocks) {
     if (!esRolDeCanasta(block.role)) continue;
     const zonas = zonasDelBloque(
-      ejerciciosMain(block).map(aEjercicioZona),
+      ejerciciosMain(block).map(zonaInputDe),
       block.role,
     );
     for (const z of zonas) out.add(z);
@@ -194,7 +178,7 @@ function zonasDeSesion(session: DaySession): Set<TvZonaMuscular> {
 }
 
 /** Zonas en el orden estable de `ZONAS_ORDEN`. */
-function ordenarZonas(zonas: ReadonlySet<TvZonaMuscular>): TvZonaMuscular[] {
+function ordenarZonas(zonas: ReadonlySet<ZonaSlug>): ZonaSlug[] {
   return ZONAS_ORDEN.filter((z) => zonas.has(z));
 }
 
@@ -540,8 +524,8 @@ export class FreeBlocksService {
     ctx: TenantContext,
     member: FreeBlocksMember,
   ): Promise<{
-    todayZones: TvZonaMuscular[] | null;
-    weekWorkedZones: TvZonaMuscular[];
+    todayZones: ZonaSlug[] | null;
+    weekWorkedZones: ZonaSlug[];
   }> {
     const [todayZones, weekWorkedZones] = await Promise.all([
       this.loadTodayZones(ctx, member),
@@ -707,7 +691,7 @@ export class FreeBlocksService {
       role: block.role,
       zones: respuesta.zones,
       groups: respuesta.groups,
-      groupHits: ejerciciosPorGrupo(main.map(aEjercicioZona), block.role),
+      groupHits: ejerciciosPorGrupo(main.map(zonaInputDe), block.role),
       base,
     };
   }
@@ -738,7 +722,7 @@ export class FreeBlocksService {
   private async loadTodayZones(
     ctx: TenantContext,
     member: FreeBlocksMember,
-  ): Promise<TvZonaMuscular[] | null> {
+  ): Promise<ZonaSlug[] | null> {
     const dayName = dateToDayName(member.today);
     if (dayName === "domingo") return null;
 
@@ -784,7 +768,7 @@ export class FreeBlocksService {
   private async loadWeekWorkedZones(
     ctx: TenantContext,
     member: FreeBlocksMember,
-  ): Promise<TvZonaMuscular[]> {
+  ): Promise<ZonaSlug[]> {
     const completadas = await this.db
       .select({ dayId: schema.completedSessions.dayId })
       .from(schema.completedSessions)
@@ -804,7 +788,7 @@ export class FreeBlocksService {
       propios,
       false,
     );
-    const out = new Set<TvZonaMuscular>();
+    const out = new Set<ZonaSlug>();
     for (const sesion of sesiones.values()) {
       for (const z of zonasDeSesion(sesion)) out.add(z);
     }

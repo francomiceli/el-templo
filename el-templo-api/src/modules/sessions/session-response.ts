@@ -2,20 +2,12 @@
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   gruposDeZonas,
+  zonaInputDe,
   zonasDelBloque,
-  type EjercicioZonaInput,
-} from "../tv/muscle-zones";
+} from "../anatomy/projection";
+import { zoneHitsDelBloque } from "../anatomy/zone-hits";
 import type { BlockPlan, DaySession, ExercisePrescription } from "./types";
 import { ALTERNATIVE_BLOCK_ROLES } from "./types";
-
-/** Fase 197 D-10: insumo del mapeo de zonas, sale del join con exercises. */
-function toZoneInput(ex: ExercisePrescription): EjercicioZonaInput {
-  return {
-    category: ex.category ?? null,
-    categorySecondary: ex.categorySecondary ?? null,
-    route: ex.exerciseRoute ?? null,
-  };
-}
 
 /**
  * Convert a single block to its API response shape (shared by /daily, /weekly,
@@ -36,7 +28,9 @@ export function blockToResponse(
 
   // Fase 197 D-10: zonas para la figura de Semana y la canasta; unión de los
   // main, ROM cae al fallback por rol, la movilidad no suma (igual que la TV).
-  const zones = zonasDelBloque(mainExercises.map(toZoneInput), block.role);
+  // Fase 200 D20: salen del modelo de anatomía (por ruta), un solo conversor.
+  const insumos = mainExercises.map(zonaInputDe);
+  const zones = zonasDelBloque(insumos, block.role);
 
   return {
     blockId: block.blockId,
@@ -82,6 +76,10 @@ export function blockToResponse(
       : null,
     zones,
     groups: gruposDeZonas(zones),
+    // Fase 200 D17/D18: "Hoy en tu clase" (zona -> músculos por grupo de alumno)
+    // calculado acá; el app solo lo pinta. Bloque sin ruta: INITIUM da {}, ROM
+    // cae al mismo fallback por rol que las zonas (movilidad: true).
+    zoneHits: zoneHitsDelBloque(insumos, block.role),
   };
 }
 
