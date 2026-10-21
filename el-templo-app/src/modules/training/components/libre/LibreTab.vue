@@ -350,7 +350,7 @@ watch(
     padding: 0;
     border: 0;
     background: none;
-    color: $pd-terra-ink;
+    color: $pd-kicker-ink;
     font-family: 'Geologica', sans-serif;
     font-weight: 600;
     font-size: 13px;
