@@ -19,18 +19,7 @@
       <q-btn flat color="primary" label="Volver a Libre" class="q-mt-lg" @click="goToLibre" />
     </div>
 
-    <!-- Pantalla 1: inicio -->
-    <FreeBlockSplash
-      v-else-if="stage === 'splash' && item"
-      :block="item"
-      :level="userLevel"
-      :aura-available="freeBlocksStore.auraAvailableToday"
-      :quote="splashQuote"
-      @start="onSplashStart"
-      @back="requestExit"
-    />
-
-    <!-- 3-2-1 antes de arrancar -->
+    <!-- 3-2-1 antes de arrancar (se entra directo, sin pantalla de inicio) -->
     <CountdownOverlay v-else-if="stage === 'countdown'" @done="onCountdownDone" />
 
     <!-- Pantalla 4: celebración. T-197-39: el "+5" sale de la respuesta del servidor -->
@@ -86,7 +75,6 @@ import { useQuasar } from 'quasar'
 // Components
 import TemploLoader from 'src/components/TemploLoader.vue'
 import CountdownOverlay from '../components/player/CountdownOverlay.vue'
-import FreeBlockSplash from '../components/player/FreeBlockSplash.vue'
 import FreeBlockCelebration from '../components/player/FreeBlockCelebration.vue'
 import FreeBlockSummary from '../components/player/FreeBlockSummary.vue'
 import BlockProgressionView from '../components/BlockProgressionView.vue'
@@ -108,14 +96,13 @@ import type { Session } from '../types/session'
 const log = createLogger('FreeBlockPlayer')
 
 // Fase 197 D-15: modo bloque libre. Orquesta
-// inicio -> 3-2-1 -> en curso -> guardado -> celebración -> resumen (-> "Seguir entrenando").
+// 3-2-1 -> en curso -> guardado -> celebración -> resumen (-> "Seguir entrenando").
 // D-13: esta página NO toca la semana, la racha, el RPE, las notas ni los ajustes de dificultad.
 // D-12: si abandona antes de terminar no se guarda nada.
 
 type Stage =
   | 'loading'
   | 'missing'
-  | 'splash'
   | 'countdown'
   | 'playing'
   | 'saving'
@@ -146,19 +133,17 @@ const awardedInRun = ref(false)
 /** true una vez confirmada la salida: el guard de la ruta no vuelve a preguntar */
 const exitConfirmed = ref(false)
 let disposed = false
+/** Guard del arranque automático: corre UNA sola vez por montaje ("Reiniciar" arranca a mano) */
+let autoStarted = false
 
 const blockIdParam = computed(() => {
   const raw = route.params.blockId
   return Array.isArray(raw) ? (raw[0] ?? '') : raw
 })
 
-// Nivel del header (cae al nivel de la plani de origen)
-const userLevel = computed(() => userStore.activeLevel ?? item.value?.level ?? '')
-
 // Hoy en la zona de la sede (D-12): varía la cita y el día del resumen
 const today = computed(() => todayInTz(userStore.profile?.branchTimezone ?? DEFAULT_BRANCH_TZ))
 const dayOffset = computed(() => new Date(today.value + 'T00:00:00').getDay())
-const splashQuote = computed(() => getQuoteForBlock(0, dayOffset.value))
 // Índice 4, distinto de las citas de bloque (igual que la celebración de la sesión completa)
 const celebrationQuote = computed(() => getQuoteForBlock(4, dayOffset.value))
 const dayLabel = computed(() => dayKicker(today.value, ''))
@@ -269,7 +254,8 @@ onBeforeRouteLeave((_to, _from, next) => {
     .onCancel(() => next(false))
 })
 
-function onSplashStart(): void {
+/** Arranca el bloque (antes lo hacía el botón "Empezar" del inicio): reloj, pantalla y 3-2-1 */
+function beginBlock(): void {
   if (!player.value) return
   player.value.startTimer()
   void wakeLock.requestWakeLock()
@@ -286,7 +272,7 @@ async function onToggleExerciseComplete(payload: { prescriptionId: number }): Pr
   }
 }
 
-/** "Reiniciar": sin guardar vuelve al inicio con un player nuevo, ya guardado es otra vuelta */
+/** "Reiniciar": sin guardar re-arranca al 3-2-1 con un player nuevo, ya guardado es otra vuelta */
 function restartBlock(): void {
   $q.dialog({
     title: 'Reiniciar bloque',
@@ -306,8 +292,9 @@ function restartBlock(): void {
     // clearProgress no reinicia el acumulado interno del reloj: un player nuevo arranca en cero.
     createPlayer(s)
     await player.value?.initialize()
+    // beginBlock vuelve a pedir el wake lock: se suelta antes para no dejar un sentinel huérfano
     await wakeLock.releaseWakeLock()
-    stage.value = 'splash'
+    beginBlock()
   })
 }
 
@@ -397,7 +384,9 @@ onMounted(async () => {
   await player.value?.initialize()
   if (disposed) return
   log.info('Bloque libre listo', { blockId: found.blockId })
-  stage.value = 'splash'
+  if (autoStarted) return
+  autoStarted = true
+  beginBlock()
 })
 
 onUnmounted(() => {

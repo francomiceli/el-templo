@@ -19,7 +19,8 @@
         :disabled="cta.variant === 'unavailable'"
         @click="onCta"
       >
-        {{ cta.label }}
+        <q-icon v-if="cta.startsTraining" name="play_arrow" size="20px" aria-hidden="true" />
+        <span>{{ cta.label }}</span>
       </button>
     </div>
 
@@ -47,6 +48,7 @@ import { resolveSemanaCta } from '../../utils/semanaCta'
 import { dayKicker } from '../../utils/weekLabels'
 
 // Fase 197 D-03: fila título + CTA mitad y mitad, con los 6 estados del CTA (resolveSemanaCta).
+// Los CTA que arrancan a entrenar (`startsTraining`) llevan el ícono de play.
 const props = defineProps<{
   /** Día elegido en la tira */
   day: WeekDay | undefined
@@ -162,6 +164,7 @@ function onCta(): void {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     padding: 6px 10px;
     border-radius: 14px;
     font-size: 16px;

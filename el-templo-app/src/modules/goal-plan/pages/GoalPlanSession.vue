@@ -1,22 +1,17 @@
 <template>
   <q-page class="goal-plan-session">
-    <!-- Initial Splash Screen -->
-    <SplashScreen
-      v-if="showSplash && session"
-      :day="splashInfo.day"
-      :level="splashInfo.level"
-      @start="onSplashComplete"
-    />
-
     <!-- Between-block Transition Screen -->
     <TransitionScreen
-      v-else-if="showBlockTransition"
+      v-if="showBlockTransition"
       :completed-block-name="transitionCompletedBlock"
       :mobility-exercise-name="transitionMobilityName"
       :quote="transitionQuote"
       :action-label="transitionActionLabel"
       @continue="onTransitionContinue"
     />
+
+    <!-- 3-2-1 al arrancar la sesión -->
+    <CountdownOverlay v-else-if="showCountdown" @done="onCountdownDone" />
 
     <!-- Celebration Screen -->
     <CelebrationScreen
@@ -49,7 +44,7 @@
     />
 
     <!-- Loading State -->
-    <div v-else-if="isLoading" class="goal-plan-session__loading flex flex-center">
+    <div v-else-if="showLoader" class="goal-plan-session__loading flex flex-center">
       <TemploLoader size="lg" />
     </div>
 
@@ -93,8 +88,8 @@ import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useQuasar } from 'quasar'
 
 // Reused training components
-import SplashScreen from '../../training/components/player/SplashScreen.vue'
 import TransitionScreen from '../../training/components/player/TransitionScreen.vue'
+import CountdownOverlay from '../../training/components/player/CountdownOverlay.vue'
 import CelebrationScreen from '../../training/components/player/CelebrationScreen.vue'
 import SessionSummary from '../../training/components/player/SessionSummary.vue'
 import BlockProgressionView from '../../training/components/BlockProgressionView.vue'
@@ -105,6 +100,7 @@ import GoalPlanProgressIndicator from '../components/GoalPlanProgressIndicator.v
 // Composables and stores
 import { useGoalPlanSession } from '../composables/useGoalPlanSession'
 import { useWakeLock } from '../../training/composables/useWakeLock'
+import { resolvePlayerStart, type PlayerStartMode } from '../../training/utils/playerStart'
 import { useGoalPlanStore } from '../stores/goalPlanStore'
 import { createLogger } from 'src/utils/logger'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
@@ -127,8 +123,13 @@ const isLoading = ref(true)
 const isSubmitting = ref(false)
 
 // Flow state
-const splashDismissed = ref(false)
 const isInitialized = ref(false)
+/**
+ * Guard del arranque automático: corre UNA sola vez por entrada. El watch de `session` puede
+ * dispararse de nuevo mientras espera el `await` y un segundo arranque duplicaría el timer.
+ * "Reiniciar" arranca a mano, no pasa por acá.
+ */
+let startClaimed = false
 const sessionStartedAt = ref<string | null>(null)
 
 // Block transition state
@@ -143,6 +144,7 @@ const pendingCelebration = ref(false)
 const showCelebration = ref(false)
 const showSummary = ref(false)
 const showProgress = ref(false)
+const showCountdown = ref(false)
 
 // Today's date in YYYY-MM-DD format
 const todayDate = computed(() => {
@@ -188,17 +190,15 @@ const dayOffset = computed(() => new Date().getDay())
 const celebrationQuote = computed(() => getQuoteForBlock(4, dayOffset.value))
 
 // Display helpers
-const showSplash = computed(() => !splashDismissed.value && session.value !== null)
+// Con sesión pero sin arrancar todavía: loader (así no se asoma la vista del bloque antes del 3-2-1)
+const showLoader = computed(
+  () => isLoading.value || (session.value !== null && !isInitialized.value),
+)
 
 const dayLabel = computed(() => {
   const dayName = todaySpanishDay.value
   return dayName.charAt(0).toUpperCase() + dayName.slice(1)
 })
-
-const splashInfo = computed(() => ({
-  day: todaySpanishDay.value,
-  level: '', // Goal plan sessions don't use level display in splash
-}))
 
 // Bridge player state to sub-components (null-safe accessors)
 const playableBlocks = computed(() => player.value?.visibleBlocks.value ?? [])
@@ -231,13 +231,22 @@ const hasUnsavedProgress = computed(() => {
 
 // --- Event Handlers ---
 
-function onSplashComplete(): void {
-  splashDismissed.value = true
-  sessionStartedAt.value = new Date().toISOString()
+/**
+ * Arranca el player (antes lo hacía el botón COMENZAR de la pantalla intermedia): startedAt, timer,
+ * wake lock y el 3-2-1. Al retomar (`resume`) no hay countdown y el startedAt no se pisa.
+ */
+function beginSession(mode: PlayerStartMode): void {
+  const isFreshStart = mode !== 'resume'
+  if (isFreshStart) sessionStartedAt.value = new Date().toISOString()
   if (player.value) {
     player.value.startTimer()
   }
-  wakeLock.requestWakeLock()
+  void wakeLock.requestWakeLock()
+  if (isFreshStart) showCountdown.value = true
+}
+
+function onCountdownDone(): void {
+  showCountdown.value = false
 }
 
 function onTransitionContinue(): void {
@@ -391,15 +400,18 @@ async function restartSession(): Promise<void> {
   }).onOk(async () => {
     if (player.value && session.value) {
       await player.value.clearProgress()
-      splashDismissed.value = false
       sessionStartedAt.value = null
       showCelebration.value = false
       showSummary.value = false
       showProgress.value = false
       showBlockTransition.value = false
+      showCountdown.value = false
       pendingCelebration.value = false
       isInitialized.value = false
       await player.value.initialize()
+      // Reinicio explícito: arranca de nuevo directo al 3-2-1 (el progreso ya se borró)
+      beginSession('countdown')
+      isInitialized.value = true
     }
   })
 }
@@ -463,19 +475,18 @@ async function loadSession(): Promise<void> {
 watch(
   session,
   async (s) => {
-    if (s && !isInitialized.value) {
+    if (s && !isInitialized.value && !startClaimed) {
+      startClaimed = true // sincrónico, antes del primer await
       await new Promise((r) => setTimeout(r, 0))
       if (player.value) {
         await player.value.initialize()
-        // Check if there's existing progress to resume
-        if (
-          player.value.elapsedSeconds.value > 0 ||
-          player.value.completedBlocks.value.length > 0
-        ) {
-          splashDismissed.value = true
-          player.value.startTimer()
-          wakeLock.requestWakeLock()
-        }
+        // Con progreso previo retoma sin countdown; sin progreso arranca solo (3-2-1)
+        const mode = resolvePlayerStart({
+          hasPriorProgress:
+            player.value.elapsedSeconds.value > 0 || player.value.completedBlocks.value.length > 0,
+          needsDeuterosChoice: false, // las sesiones de plan por objetivo no tienen Deuteros
+        })
+        beginSession(mode)
       }
       isInitialized.value = true
     }

@@ -15,6 +15,7 @@
       :aria-label="`Empezar ${item.title}`"
       @click="onStart"
     >
+      <q-icon name="play_arrow" size="18px" aria-hidden="true" />
       Empezar
     </button>
   </article>
@@ -93,6 +94,9 @@ function onStart(): void {
 
   &__go {
     @include pd-hit-44;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     flex: none;
     height: 36px;
     margin-left: auto;

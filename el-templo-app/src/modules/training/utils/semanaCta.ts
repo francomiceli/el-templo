@@ -20,6 +20,8 @@ export interface SemanaCta {
   label: string
   variant: 'primary' | 'secondary' | 'unavailable'
   action: 'start' | 'summary' | 'redo' | 'libre' | null
+  /** true si el botón arranca a entrenar (lleva al 3-2-1): el botón lleva el ícono de play */
+  startsTraining: boolean
   /** Chip salvia "Hecha" debajo del título */
   showDoneChip: boolean
   /** Link "¿Te quedaste con ganas? Sumá un bloque libre" (solo si la completó hoy) */
@@ -39,6 +41,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: 'Elegir un bloque libre',
       variant: 'primary',
       action: 'libre',
+      startsTraining: false,
       showDoneChip: false,
       showLibreLink: false,
       hint: i.isSunday ? HINT_SUNDAY : HINT_NO_SESSION,
@@ -53,6 +56,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
         label: 'Hacerla igual',
         variant: 'primary',
         action: 'redo',
+        startsTraining: true,
         showDoneChip: true,
         showLibreLink: false,
         hint: null,
@@ -62,6 +66,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: 'Ver resumen',
       variant: 'secondary',
       action: 'summary',
+      startsTraining: false,
       showDoneChip: true,
       showLibreLink: i.date === i.today,
       hint: null,
@@ -74,6 +79,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: availableLabel(i.date),
       variant: 'unavailable',
       action: null,
+      startsTraining: false,
       showDoneChip: false,
       showLibreLink: false,
       hint: null,
@@ -86,6 +92,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       label: 'Hacerla igual',
       variant: 'primary',
       action: 'start',
+      startsTraining: true,
       showDoneChip: false,
       showLibreLink: false,
       hint: null,
@@ -97,6 +104,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
     label: i.hasProgress ? 'Continuar' : 'Empezar',
     variant: 'primary',
     action: 'start',
+    startsTraining: true,
     showDoneChip: false,
     showLibreLink: false,
     hint: null,

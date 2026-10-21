@@ -1,16 +1,8 @@
 <template>
   <q-page class="day-player">
-    <!-- Initial Splash Screen Overlay -->
-    <SplashScreen
-      v-if="showSplash && session"
-      :day="session.day"
-      :level="userLevel"
-      @start="onSplashStart"
-    />
-
     <!-- Between-block Transition Screen -->
     <TransitionScreen
-      v-else-if="showBlockTransition"
+      v-if="showBlockTransition"
       :completed-block-name="transitionCompletedBlock"
       :mobility-exercise-name="transitionMobilityName"
       :quote="transitionQuote"
@@ -90,7 +82,6 @@ import { useQuasar } from 'quasar'
 
 // Components
 import TemploLoader from 'src/components/TemploLoader.vue'
-import SplashScreen from '../components/player/SplashScreen.vue'
 import TransitionScreen from '../components/player/TransitionScreen.vue'
 import CountdownOverlay from '../components/player/CountdownOverlay.vue'
 import CelebrationScreen from '../components/player/CelebrationScreen.vue'
@@ -106,6 +97,7 @@ import { useExerciseAdjustment } from '../composables/useExerciseAdjustment'
 import { useWeekStore } from '../stores/weekStore'
 import { useWeekData } from '../composables/useWeekData'
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation'
+import { resolvePlayerStart, type PlayerStartMode } from '../utils/playerStart'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
@@ -117,7 +109,8 @@ import type { Quote } from '../data/quotes'
 const log = createLogger('DayPlayer')
 
 // Day Player Page - Orchestrator for session flow:
-// splash -> deuteros choice -> block progression (stories) -> transition -> ... -> celebration -> summary
+// 3-2-1 (o retoma) -> deuteros choice -> block progression (stories) -> transition -> ...
+// -> celebration -> summary
 
 const route = useRoute()
 const router = useRouter()
@@ -150,8 +143,17 @@ const weekDay = computed(() => weekStore.weekDays.find((day) => day.date === dat
 const session = computed(() => weekDay.value?.session ?? null)
 
 // Reactive state
-const splashDismissed = ref(false)
+/** true una vez que el player arrancó (o retomó): habilita el selector de Deuteros */
+const sessionBegun = ref(false)
 const isInitialized = ref(false)
+/**
+ * Guard del arranque automático: corre UNA sola vez por entrada. El watch de `session` puede
+ * dispararse de nuevo (recarga de la semana, cambio de nivel) mientras espera el `await`, y un
+ * segundo arranque duplicaría el timer y el 3-2-1. "Reiniciar" arranca a mano, no pasa por acá.
+ */
+let startClaimed = false
+/** initialize() del wake lock: en nativo carga el plugin con un import dinámico */
+let wakeLockReady: Promise<void> = Promise.resolve()
 
 // Block transition state
 const showBlockTransition = ref(false)
@@ -182,11 +184,6 @@ watch(
   { immediate: true },
 )
 
-// Selected level for splash screen (falls back to profile.level when no override is set)
-const userLevel = computed(() => {
-  return userStore.activeLevel ?? session.value?.levelGroup ?? ''
-})
-
 // Day offset for quote variety across days
 const dayOffset = computed(() => {
   if (!dateParam.value) return 0
@@ -198,13 +195,17 @@ const dayOffset = computed(() => {
 const celebrationQuote = computed(() => getQuoteForBlock(4, dayOffset.value))
 
 // Computed display states
-const isLoading = computed(() => weekLoading.value || (!session.value && !weekDay.value))
-
-const showSplash = computed(() => !splashDismissed.value && session.value !== null)
+// Con sesión pero sin arrancar todavía: loader (así no se asoma la vista del bloque antes del 3-2-1)
+const isLoading = computed(
+  () =>
+    weekLoading.value ||
+    (!session.value && !weekDay.value) ||
+    (session.value !== null && !isInitialized.value),
+)
 
 const showDeuterosChoice = computed(() => {
   if (!player.value) return false
-  return splashDismissed.value && player.value.needsDeuterosChoice.value
+  return sessionBegun.value && player.value.needsDeuterosChoice.value
 })
 
 // Day name for header
@@ -264,16 +265,22 @@ const anyExerciseStarted = computed(() => {
   return false
 })
 
-function onSplashStart(): void {
-  splashDismissed.value = true
-  sessionStartedAt.value = new Date().toISOString()
-  if (player.value) {
-    player.value.startTimer()
-  }
-  wakeLock.requestWakeLock()
-  if (!player.value?.needsDeuterosChoice.value) {
-    showCountdown.value = true
-  }
+/**
+ * Arranca el player (antes lo hacía el botón COMENZAR de la pantalla intermedia): timer, wake lock
+ * y, si es un arranque nuevo, el 3-2-1. Con Deuteros por elegir el 3-2-1 llega en `onDeuterosSelect`.
+ */
+function applyStartMode(mode: PlayerStartMode): void {
+  const p = player.value
+  sessionBegun.value = true
+  // Al retomar, startedAt se reconstruye del tiempo persistido: sin esto la sesión retomada
+  // registraría duración cero (onSummaryFinish caería a startedAt = ahora).
+  sessionStartedAt.value =
+    mode === 'resume' && p
+      ? new Date(Date.now() - p.elapsedSeconds.value * 1000).toISOString()
+      : new Date().toISOString()
+  if (p) p.startTimer()
+  void wakeLockReady.then(() => wakeLock.requestWakeLock())
+  if (mode === 'countdown') showCountdown.value = true
 }
 
 function onDeuterosSelect(choiceId: 'DEUTEROS_1' | 'DEUTEROS_2'): void {
@@ -514,7 +521,7 @@ async function restartSession(): Promise<void> {
   }).onOk(async () => {
     if (player.value && session.value) {
       await player.value.clearProgress()
-      splashDismissed.value = false
+      sessionBegun.value = false
       sessionStartedAt.value = null
       showCelebration.value = false
       showSummary.value = false
@@ -523,6 +530,14 @@ async function restartSession(): Promise<void> {
       pendingCelebration.value = false
       isInitialized.value = false
       await player.value.initialize()
+      // Reinicio explícito: arranca de nuevo directo al 3-2-1 (el progreso ya se borró)
+      applyStartMode(
+        resolvePlayerStart({
+          hasPriorProgress: false,
+          needsDeuterosChoice: player.value.needsDeuterosChoice.value,
+        }),
+      )
+      isInitialized.value = true
     }
   })
 }
@@ -565,7 +580,8 @@ async function loadWeekDataIfEmpty() {
 watch(
   session,
   async (s) => {
-    if (s && !isInitialized.value) {
+    if (s && !isInitialized.value && !startClaimed) {
+      startClaimed = true // sincrónico, antes del primer await
       await new Promise((r) => setTimeout(r, 0))
       if (player.value) {
         // If the day is already completed (re-entry via "Repetir Sesión"),
@@ -576,20 +592,16 @@ watch(
         }
 
         await player.value.initialize()
-        if (
+        const hasPriorProgress =
           !isCompleted &&
           (player.value.elapsedSeconds.value > 0 || player.value.completedBlocks.value.length > 0)
-        ) {
-          splashDismissed.value = true
-          // Reconstruct startedAt from persisted elapsedSeconds so a resumed
-          // session doesn't record a zero-duration completion. Without this
-          // the onSummaryFinish fallback stamps startedAt = now at completion.
-          sessionStartedAt.value = new Date(
-            Date.now() - player.value.elapsedSeconds.value * 1000,
-          ).toISOString()
-          player.value.startTimer()
-          wakeLock.requestWakeLock()
-        }
+        // Sin progreso previo arranca solo (3-2-1); con progreso retoma sin countdown
+        applyStartMode(
+          resolvePlayerStart({
+            hasPriorProgress,
+            needsDeuterosChoice: player.value.needsDeuterosChoice.value,
+          }),
+        )
       }
       isInitialized.value = true
     }
@@ -599,7 +611,7 @@ watch(
 
 onMounted(() => {
   loadWeekDataIfEmpty()
-  wakeLock.initialize()
+  wakeLockReady = wakeLock.initialize()
 
   // Phase 99 R7 — register the mid-session confirmation guard. Returns true
   // to proceed with the level change, false to cancel. If no exercise has

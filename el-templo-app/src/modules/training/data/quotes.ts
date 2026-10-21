@@ -11,8 +11,8 @@
  * - `SESSION_QUOTES` + `quoteOfTheDay`: formato del TV, para la frase del día de Mi Templo.
  *   `SESSION_QUOTES` sigue siendo copia LITERAL del TV (autores con punto final).
  * - `QUOTES` / `getQuoteForBlock`: adaptador a la interfaz `Quote` vieja para el
- *   reproductor de sesión (SplashScreen, DayPlayer, GoalPlanSession,
- *   TransitionScreen y CelebrationScreen), que no se tocó.
+ *   reproductor de sesión (DayPlayer, GoalPlanSession, TransitionScreen y
+ *   CelebrationScreen), que no se tocó.
  *
  * El autor se MUESTRA sin punto final en la app (UAT D9): `displayAuthor` se aplica en
  * `segmentsToQuote` (reproductor) y en `quoteOfTheDay` (Mi Templo). El TV no se toca y
@@ -171,7 +171,7 @@ export function segmentsToQuote(q: SessionQuote): Quote {
 }
 
 /**
- * Adaptador para el reproductor de sesión: SplashScreen, DayPlayer, GoalPlanSession,
+ * Adaptador para el reproductor de sesión: DayPlayer, GoalPlanSession,
  * TransitionScreen y CelebrationScreen siguen leyendo `Quote`.
  */
 export const QUOTES: Quote[] = SESSION_QUOTES.map(segmentsToQuote)

@@ -58,6 +58,7 @@
       <q-btn
         :disable="!selected"
         :label="buttonLabel"
+        icon="play_arrow"
         :color="selected ? 'primary' : 'grey-4'"
         size="lg"
         class="full-width"

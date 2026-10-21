@@ -22,6 +22,7 @@ describe('resolveSemanaCta (D-03)', () => {
       label: 'Empezar',
       variant: 'primary',
       action: 'start',
+      startsTraining: true,
       showDoneChip: false,
       showLibreLink: false,
       hint: null,
@@ -33,6 +34,7 @@ describe('resolveSemanaCta (D-03)', () => {
     expect(r.label).toBe('Continuar')
     expect(r.variant).toBe('primary')
     expect(r.action).toBe('start')
+    expect(r.startsTraining).toBe(true)
   })
 
   it('hoy completada: Ver resumen secundario, chip Hecha y link a Libre', () => {
@@ -40,6 +42,7 @@ describe('resolveSemanaCta (D-03)', () => {
     expect(r.label).toBe('Ver resumen')
     expect(r.variant).toBe('secondary')
     expect(r.action).toBe('summary')
+    expect(r.startsTraining).toBe(false)
     expect(r.showDoneChip).toBe(true)
     expect(r.showLibreLink).toBe(true)
   })
@@ -49,6 +52,7 @@ describe('resolveSemanaCta (D-03)', () => {
     expect(r.label).toBe('Hacerla igual')
     expect(r.variant).toBe('primary')
     expect(r.action).toBe('start')
+    expect(r.startsTraining).toBe(true)
     expect(r.showDoneChip).toBe(false)
   })
 
@@ -56,6 +60,7 @@ describe('resolveSemanaCta (D-03)', () => {
     const r = resolveSemanaCta(input({ date: '2026-10-14', completed: true }))
     expect(r.label).toBe('Hacerla igual')
     expect(r.action).toBe('redo')
+    expect(r.startsTraining).toBe(true)
     expect(r.showDoneChip).toBe(true)
     expect(r.showLibreLink).toBe(false)
   })
@@ -65,12 +70,14 @@ describe('resolveSemanaCta (D-03)', () => {
     expect(r.label).toBe('Disponible el sábado')
     expect(r.variant).toBe('unavailable')
     expect(r.action).toBeNull()
+    expect(r.startsTraining).toBe(false)
   })
 
   it('domingo sin plani: Elegir un bloque libre con el hint del domingo', () => {
     const r = resolveSemanaCta(input({ date: '2026-10-18', hasSession: false, isSunday: true }))
     expect(r.label).toBe('Elegir un bloque libre')
     expect(r.action).toBe('libre')
+    expect(r.startsTraining).toBe(false)
     expect(r.hint).toContain('Domingo sin plani')
   })
 
@@ -78,6 +85,7 @@ describe('resolveSemanaCta (D-03)', () => {
     const r = resolveSemanaCta(input({ hasSession: false }))
     expect(r.label).toBe('Elegir un bloque libre')
     expect(r.action).toBe('libre')
+    expect(r.startsTraining).toBe(false)
     expect(r.hint).toContain('Todavía no está la plani de este día')
   })
 
