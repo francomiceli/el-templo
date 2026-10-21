@@ -43,3 +43,4 @@
   - plantillas de 2 y 3 días (§2.1), como datos
   - arranque de Novillo y Ternero: 1 y 2 peldaños más fáciles que Toro (§8.2), como parámetro por nivel
   - regla de combos (§14.3): si completa el objetivo de series N semanas seguidas (N = 2, editable), aparece Subir en la progresión de arranque, con el mismo patrón que los escalones (§4.5)
+- **D-15 Control físico del día 0 (§6).** La primera vez que el alumno entra a Conquer (ya activado), lo primero que ve es el control físico: 3 fotos (frente, perfil y espalda) y perímetros, en menos de 3 minutos. Tiene un **"Lo hago después"** chico. No es obligatorio para entrenar. Si lo saltea, queda un aviso fijo en Inicio y a owner y admin les aparece una alerta 🟡 "Control día 0 pendiente". Esa alerta se suma a las del §5, junto a "Control físico vencido".
