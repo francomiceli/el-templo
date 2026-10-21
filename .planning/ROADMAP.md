@@ -466,7 +466,7 @@ Plans:
 - [x] 200-07-PLAN.md — TV, /weekly, /daily y canasta al modelo + zoneHits; adiós al mapeo anterior de zonas
 - [x] 200-08-PLAN.md — Tests de integración de canasta, /weekly y TV por ruta
 - [x] 200-09-PLAN.md — GET /api/admin/anatomy y GET /api/anatomy con recorte por audiencia, roles R1 y manifiesto
-- [ ] 200-10-PLAN.md — Migraciones 0287 (nombres D1) y 0288 (SISSY → SS) + route-labels ×3
+- [x] 200-10-PLAN.md — Migraciones 0287 (nombres D1) y 0288 (SISSY → SS) + route-labels ×3
 - [ ] 200-11-PLAN.md — Admin: tipos, store, figura por rol, ruta /anatomia y menú
 - [ ] 200-12-PLAN.md — Admin: hoja desde abajo con roles como frase e (i), profundos y escritorio
 - [ ] 200-13-PLAN.md — Admin: ficha de ruta a pantalla completa con marcas y glosario
