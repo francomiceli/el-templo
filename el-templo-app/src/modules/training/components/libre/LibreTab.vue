@@ -42,7 +42,7 @@
         :gender="gender"
         :lit="litZones"
         :dim="store.group !== null"
-        :height="210"
+        :height="188"
         interactive
         @select-group="toggleGroup"
       />
@@ -276,7 +276,9 @@ watch(
   &__stage {
     position: relative;
     isolation: isolate;
-    padding: 4px 0;
+    // Gap 197-24 (hallazgo 4): figura 210 -> 188 y sin padding vertical (-30 px): el "Empezar" de la
+    // primera card termina en ~763 a 390x844 (antes 793, tapado por la tab bar). Mismo orden y layout.
+    padding: 0;
   }
 
   &__halo {
@@ -284,8 +286,8 @@ watch(
     top: 52%;
     left: 50%;
     z-index: -1;
-    width: 300px;
-    height: 190px;
+    width: 280px;
+    height: 170px;
     transform: translate(-50%, -50%);
     border-radius: 50%;
     background: radial-gradient(closest-side, rgba(163, 95, 60, 0.16), transparent);
