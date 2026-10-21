@@ -29,7 +29,7 @@ key-files:
     - el-templo-api/test/tenant-manifest.ts
     - el-templo-api/test/tenancy/iso-01-manifiesto.test.ts
 key-decisions:
-  - "notaInterna de las banderas no sale en ninguna vista (BanderaVista no tiene el campo; test en serializadores y en el endpoint, incluso sobre el body crudo)"
+  - "notaInterna de las banderas no sale en ninguna vista (BanderaProfe no tiene el campo; test en serializadores y en el endpoint, incluso sobre el body crudo)"
   - "El filtro de ruta del query compara UPPER(TRIM(route)) contra los 30 codigos: un ejercicio con route 'fl ' (CSV) igual cuenta en FL"
   - "Los errores del handler van por handleServiceError (AppError de assertTenant sale como 403), mismo patron que programs/routes.ts"
 requirements-completed: [D3, D8, D9, D10, D11, D14, D15, P3, R1, R3, SC3, SC4]
@@ -46,6 +46,7 @@ completed: 2026-10-21
 1. **Task 1: serializadores por audiencia + test unitario** - `f187f034b` (feat)
 2. **Task 2: endpoints, rol y registro del modulo** - `70db8011f` (feat)
 3. **Task 3: manifiesto, sets de roles y test de integracion** - `86906f545` (test)
+4. **Follow-up (pedido del orquestador): banderas en catalogo global + `banderaIds` por ruta** - codigo `a65b4c5ff` (refactor), tests `c9b38a8fd` (test)
 
 ## Contrato para los planes 11 (admin) y 14 (app)
 
@@ -57,9 +58,10 @@ Tipos exportados de `el-templo-api/src/modules/anatomy/serializers.ts` (los espe
 - `estado: "borrador"`.
 - `regiones[16]`: `{ slug, nombre, vista, grupo, musculos: string[] }` (ids de musculos con esa zona, orden MUSCULOS; >1 = "esta zona es un grupo").
 - `musculos[28]`: `{ id, nombre, zona: {slug, vista} | null, precision | null, nota: Afirmacion | null, roles: Record<Rol, string[]> }` (`roles` = CODIGOS de ruta por rol, orden RUTAS; los 5 roles siempre presentes aunque vacios).
-- `rutas[30]` (`RutaProfe`): `{ code, nombre (getRouteLabel), slug, patron, categoria, estado, nEjercicios, ejercicios: string[], relaciones: Record<Rol, {m, nombre, c, nota|null}[]>, zonasFicha: {slug, vista, rol}[], sinDibujo: {m, nombre, rol}[], fichaProfe: FichaProfeVista | null }`.
+- `rutas[30]` (`RutaProfe`): `{ code, nombre (getRouteLabel), slug, patron, categoria, estado, nEjercicios, ejercicios: string[], relaciones: Record<Rol, {m, nombre, c, nota|null}[]>, zonasFicha: {slug, vista, rol}[], sinDibujo: {m, nombre, rol}[], banderaIds: string[], fichaProfe: FichaProfeVista | null }`.
   - `zonasFicha`: una entrada por (slug, vista), rol de mayor prioridad, orden de REGIONES. FL tiene `trapezius` dos veces (vista `back` motor y vista `both` antagonista) porque `trap-inf` y `trap-sup` tienen vistas distintas: es una entrada por (slug, vista), tal como pide el plan. El admin decide como pintar ambas.
-  - `fichaProfe` = `FichaProfe` + `escalones: string[] | Pendiente` (FL: `["Tuck","Adv tuck","Super adv","Straddle","Half layout","Full"]`, PS: lista propia de la ficha) + `banderas: {id, nivel, senal, accion, fuente, umbralH}[]` (sin `notaInterna`). 28 de 30 rutas viajan hoy con `fichaProfe: null` ("en preparacion"); solo FL y PS tienen ficha.
+  - `fichaProfe` = `FichaProfe` + `escalones: string[] | Pendiente` (FL: `["Tuck","Adv tuck","Super adv","Straddle","Half layout","Full"]`, PS: lista propia de la ficha) (ya NO lleva banderas embebidas). 28 de 30 rutas viajan hoy con `fichaProfe: null` ("en preparacion"); solo FL y PS tienen ficha.
+- `banderas[34]` (`BanderaProfe`, catalogo global, una vez cada una, orden de BANDERAS): `{ id, nivel, senal, accion, fuente, umbralH }`, sin `notaInterna`. Cada ruta lleva solo `banderaIds` (ids de este catalogo: las de `rutas: "todas"` mas las que nombran la ruta; viajan en TODAS las rutas, tengan ficha o no). FL trae b9 y b21, PS no trae b9. Todo id de ruta existe en el catalogo (test).
 - `glosario: { roles, contracciones, precision }`, `citas: CitaDef[]`, `leyenda: {C,M,R,H,N}`.
 
 ### `GET /api/anatomy` -> `VistaAlumno` (cualquier autenticado)
@@ -75,10 +77,10 @@ Tipos exportados de `el-templo-api/src/modules/anatomy/serializers.ts` (los espe
 
 | Payload                                                      | Hoy (2 fichas de 30) | Estimado con las 30 fichas |
 | ------------------------------------------------------------ | -------------------- | -------------------------- |
-| Profe (`vistaProfe(new Map())`, sin ejercicios del catalogo) | 118 KB               | ~450-480 KB sin comprimir  |
+| Profe (`vistaProfe(new Map())`, sin ejercicios del catalogo) | 121.9 KB             | ~330 KB sin comprimir      |
 | Alumno                                                       | 35 KB                | ~60-80 KB                  |
 
-Desglose profe: ruta con ficha ~14 KB (FL y PS), ruta sin ficha ~1.9 KB, glosario + citas + leyenda ~29 KB. Cada ficha repite sus ~16 banderas heredadas (senal + accion), y eso es mas de la mitad de los 14 KB. Con las 30 fichas el payload de profe supera la estimacion A1 (150-250 KB). Con gzip del proxy deberia quedar en ~50-80 KB; ver "Items abiertos".
+Medicion tras normalizar las banderas (follow-up del orquestador, `a65b4c5ff`): catalogo de 34 banderas 10.8 KB, ruta con ficha ~9.3 KB (FL y PS; antes 14.0 KB, las banderas embebidas pesaban ~4.7 KB por ficha), ruta sin ficha ~1.9-2.1 KB (ahora con `banderaIds`), glosario + citas + leyenda ~29 KB. **Hoy el total sube de 118 a 121.9 KB** porque el catalogo se paga completo desde ya y solo 2 rutas tenian banderas embebidas; el ahorro aparece a medida que entran fichas: con las 30 fichas baja de ~450-480 KB a ~330 KB. Sigue por encima de la estimacion A1 (150-250 KB): lo que queda es el peso de las fichas mismas (fases, articulaciones, compensaciones, cues). Sin gzip confirmado en el vhost del API; si hace falta bajar mas, el siguiente candidato es partir las fichas en un endpoint por ruta.
 
 ## Verificacion
 
@@ -111,7 +113,7 @@ Desglose profe: ruta con ficha ~14 KB (FL y PS), ruta sin ficha ~1.9 KB, glosari
 
 ## Items abiertos / notas para el orquestador
 
-- **Tamano del payload de profe (A1):** proyectado ~450 KB con las 30 fichas. Opcion barata si molesta: sacar `banderas` de cada `fichaProfe` y mandar un catalogo `banderas` global + `banderaIds` por ruta (baja a ~200 KB). Cambia el contrato de `RutaProfe`, asi que hay que decidirlo antes del plan 11. No se toco porque `<interfaces>` lo fija asi. Confirmar que el proxy/Fastify comprime JSON (no se verifico).
+- **Tamano del payload de profe (A1):** banderas normalizadas (ver arriba). ~330 KB proyectados con las 30 fichas, sin gzip verificado en el vhost del API (solo el de la web lo tiene). Si molesta, partir en indice + ficha por ruta (los codigos tienen `/` y espacios: usar query `?code=` o slug).
 - **Tests de aislamiento de tenant (T-200-23):** el test de integracion usa solo el gimnasio 1. No se sembro un ejercicio de un segundo gimnasio (requiere tenant 2 con sus usuarios). `lint:tenant` y `tenantWhere` cubren la mitigacion; si se quiere un caso de aislamiento explicito, es un agregado chico en CI.
 - **Deploy:** este plan toca codigo de produccion del API (rutas, permisos, app.ts), asi que el `paths-filter` dispara.
 - `ROUTE_LABELS` del API sigue con los nombres viejos hasta el plan 10; `nombre` en ambas vistas sale de `getRouteLabel` y cambiara solo.
