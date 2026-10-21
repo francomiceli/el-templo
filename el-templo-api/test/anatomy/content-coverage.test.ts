@@ -13,7 +13,7 @@ import { REGIONES } from "../../src/modules/anatomy/content/regiones";
 import { RUTAS } from "../../src/modules/anatomy/content/rutas";
 import { ROUTE_PROGRESSION_MAP } from "../../src/modules/exercises/route-progression-map";
 import { ROUTE_LABELS } from "../../src/modules/tv/route-labels";
-import { ZONAS_ORDEN } from "../../src/modules/tv/muscle-zones";
+import { ZONAS_TV } from "../../src/modules/anatomy/projection";
 
 const ADMIN_JSON = path.resolve(
   __dirname,
@@ -110,7 +110,7 @@ describe("cobertura del dibujo — regiones vs anatomia.json", () => {
       ZONAS_TV_ORDEN,
     );
     expect(REGIONES.filter((r) => r.enTv).map((r) => r.slug)).toEqual([
-      ...ZONAS_ORDEN,
+      ...ZONAS_TV,
     ]);
   });
 

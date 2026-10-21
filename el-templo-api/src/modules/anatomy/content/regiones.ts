@@ -4,7 +4,7 @@ import type { RegionDef } from "../types";
  * Fase 200 D4: zonas como datos. Las 16 regiones del dibujo (anatomia.json).
  * `tibialis` existe en el dibujo y no viaja a la TV en v1 (flag enTv apagado).
  *
- * Orden: las 15 de `ZONAS_ORDEN` (tv/muscle-zones.ts) y `tibialis` al final.
+ * Orden: las 15 de la TV (`ZONAS_TV` de anatomy/projection.ts) y `tibialis` al final.
  * Las vistas están verificadas contra anatomia.json.
  */
 export const REGIONES = [

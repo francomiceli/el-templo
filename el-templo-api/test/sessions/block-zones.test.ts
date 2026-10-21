@@ -1,6 +1,7 @@
 /**
  * Unit puro de los grupos de zona y las zonas por bloque (fase 197, D-10).
- * Sin DB: son funciones puras de `tv/muscle-zones.ts`.
+ * Fase 200 D20: las zonas salen de las RUTAS del modelo de anatomía, no de la
+ * categoría. Sin DB: son funciones puras de `anatomy/projection.ts`.
  *
  *   pnpm exec vitest run test/sessions/block-zones.test.ts
  */
@@ -11,15 +12,21 @@ import {
   GRUPOS_ZONA,
   grupoDeZona,
   gruposDeZonas,
+  zonasDeRuta,
   zonasDelBloque,
   zonasDelGrupo,
   ejerciciosPorGrupo,
-} from "../../src/modules/tv/muscle-zones";
-import type { TvZonaMuscular } from "../../src/modules/tv/types";
+} from "../../src/modules/anatomy/projection";
+import type { ZonaSlug } from "../../src/modules/anatomy/content/regiones";
 
-/** Ejercicio con solo categoria principal (sin secundaria ni ruta). */
-function porCategoria(category: string | null) {
-  return { category, categorySecondary: null, route: null };
+/** Ejercicio con ruta del modelo (la categoría no cuenta si la ruta existe). */
+function porRuta(route: string) {
+  return { route, category: null };
+}
+
+/** Ejercicio sin ruta: solo cuenta el fallback por categoría. */
+function sinRuta(category: string | null) {
+  return { route: null, category };
 }
 
 describe("GRUPOS_ORDEN / GRUPOS_ZONA (D-10)", () => {
@@ -41,7 +48,7 @@ describe("GRUPOS_ORDEN / GRUPOS_ZONA (D-10)", () => {
     expect([...todas].sort()).toEqual([...ZONAS_ORDEN].sort());
   });
 
-  it("la composicion de cada grupo es la de D-10", () => {
+  it("la composicion de cada grupo es la de D-10 (tibialis cae en piernas)", () => {
     expect(GRUPOS_ZONA.hombros).toEqual(["deltoids"]);
     expect(GRUPOS_ZONA.pecho).toEqual(["chest"]);
     expect([...GRUPOS_ZONA.espalda].sort()).toEqual(
@@ -49,7 +56,14 @@ describe("GRUPOS_ORDEN / GRUPOS_ZONA (D-10)", () => {
     );
     expect([...GRUPOS_ZONA.core].sort()).toEqual(["abs", "obliques"]);
     expect([...GRUPOS_ZONA.piernas].sort()).toEqual(
-      ["adductors", "calves", "gluteal", "hamstring", "quadriceps"].sort(),
+      [
+        "adductors",
+        "calves",
+        "gluteal",
+        "hamstring",
+        "quadriceps",
+        "tibialis",
+      ].sort(),
     );
     expect([...GRUPOS_ZONA.brazos].sort()).toEqual(
       ["biceps", "forearm", "triceps"].sort(),
@@ -58,7 +72,7 @@ describe("GRUPOS_ORDEN / GRUPOS_ZONA (D-10)", () => {
 });
 
 describe("grupoDeZona", () => {
-  it("cubre las 15 zonas de ZONAS_ORDEN y cada una cae en exactamente un grupo", () => {
+  it("cubre todas las zonas de ZONAS_ORDEN y cada una cae en exactamente un grupo", () => {
     for (const zona of ZONAS_ORDEN) {
       const grupos = GRUPOS_ORDEN.filter((g) => GRUPOS_ZONA[g].includes(zona));
       expect(grupos).toHaveLength(1);
@@ -70,6 +84,10 @@ describe("grupoDeZona", () => {
     expect(grupoDeZona("calves")).toBe("piernas");
     expect(grupoDeZona("trapezius")).toBe("espalda");
   });
+
+  it("tibialis cae en piernas y no tira (Pitfall 2)", () => {
+    expect(grupoDeZona("tibialis")).toBe("piernas");
+  });
 });
 
 describe("gruposDeZonas", () => {
@@ -77,12 +95,16 @@ describe("gruposDeZonas", () => {
     expect(gruposDeZonas(["calves"])).toEqual(["piernas"]);
   });
 
+  it("tibialis -> piernas", () => {
+    expect(gruposDeZonas(["tibialis"])).toEqual(["piernas"]);
+  });
+
   it("sin repetidos y en el orden de GRUPOS_ORDEN, no el de entrada", () => {
     expect(gruposDeZonas(["trapezius", "deltoids"])).toEqual([
       "hombros",
       "espalda",
     ]);
-    const zonas: TvZonaMuscular[] = ["quadriceps", "gluteal", "calves", "abs"];
+    const zonas: ZonaSlug[] = ["quadriceps", "gluteal", "calves", "abs"];
     expect(gruposDeZonas(zonas)).toEqual(["core", "piernas"]);
   });
 
@@ -92,34 +114,40 @@ describe("gruposDeZonas", () => {
 });
 
 describe("zonasDelBloque", () => {
-  it("es la UNION de las zonas de sus ejercicios (sin dominancia 0.4)", () => {
-    const ejercicios = [
-      porCategoria("PULL VERTICAL"),
-      porCategoria("KNEE DOMINANT"),
-    ];
-    expect(zonasDelBloque(ejercicios, "NUCLEUS")).toEqual([
-      "biceps",
-      "forearm",
-      "upper-back",
-      "gluteal",
-      "quadriceps",
-      "adductors",
-    ]);
+  it("es la UNION de las zonas de las rutas de sus ejercicios (sin dominancia 0.4)", () => {
+    const esperado = ZONAS_ORDEN.filter(
+      (z) => zonasDeRuta("OAP").includes(z) || zonasDeRuta("SS").includes(z),
+    );
+    expect(zonasDelBloque([porRuta("OAP"), porRuta("SS")], "NUCLEUS")).toEqual(
+      esperado,
+    );
+  });
+
+  it("SS aporta cuadriceps (invariante nombrada)", () => {
+    expect(zonasDelBloque([porRuta("SS")], "NUCLEUS")).toContain("quadriceps");
   });
 
   it("conserva zonas que la dominancia de la TV descartaria", () => {
-    // 5 ejercicios de piernas + 1 de tracción: la TV (umbral 0.4) descarta
-    // dorsales/biceps, la canasta los conserva.
+    // 5 ejercicios SS (cuadriceps) + 1 OAP (tracción): la TV (umbral 0.4)
+    // descarta lo de OAP, la canasta lo conserva.
     const ejercicios = [
-      ...Array.from({ length: 5 }, () => porCategoria("KNEE DOMINANT")),
-      porCategoria("PULL VERTICAL"),
+      ...Array.from({ length: 5 }, () => porRuta("SS")),
+      porRuta("OAP"),
     ];
     expect(zonasDelGrupo(ejercicios, ["NUCLEUS"])).not.toContain("upper-back");
     expect(zonasDelBloque(ejercicios, "NUCLEUS")).toContain("upper-back");
   });
 
-  it("ROM sin categorias cae al fallback por rol, en orden ZONAS_ORDEN", () => {
-    const ejercicios = [porCategoria(null), porCategoria("MOVILIDAD")];
+  it("un ejercicio sin ruta usa el fallback por categoria (PLYO)", () => {
+    expect(zonasDelBloque([sinRuta("PLYO")], "NUCLEUS")).toEqual([
+      "gluteal",
+      "quadriceps",
+      "calves",
+    ]);
+  });
+
+  it("ROM sin rutas ni categorias cae al fallback por rol, en orden ZONAS_ORDEN", () => {
+    const ejercicios = [sinRuta(null), sinRuta("MOVILIDAD")];
     expect(zonasDelBloque(ejercicios, "ROM_CORE")).toEqual([
       "lower-back",
       "abs",
@@ -128,13 +156,13 @@ describe("zonasDelBloque", () => {
   });
 
   it("el fallback ROM no pisa las zonas propias de los ejercicios", () => {
-    expect(
-      zonasDelBloque([porCategoria("CORE ANTERIOR")], "ROM_CORE"),
-    ).toEqual(["abs", "obliques"]);
+    expect(zonasDelBloque([porRuta("SS")], "ROM_CORE")).toEqual(
+      zonasDeRuta("SS"),
+    );
   });
 
-  it("rol de trabajo sin categorias -> [] (sin fallback)", () => {
-    expect(zonasDelBloque([porCategoria(null)], "NUCLEUS")).toEqual([]);
+  it("rol de trabajo sin rutas ni categorias -> [] (sin fallback)", () => {
+    expect(zonasDelBloque([sinRuta(null)], "NUCLEUS")).toEqual([]);
     expect(zonasDelBloque([], "NUCLEUS")).toEqual([]);
   });
 });
@@ -142,34 +170,28 @@ describe("zonasDelBloque", () => {
 describe("ejerciciosPorGrupo", () => {
   it("cuenta por grupo los ejercicios con al menos una zona del grupo", () => {
     const cuenta = ejerciciosPorGrupo(
-      [
-        porCategoria("PUSH HORIZONTAL"),
-        porCategoria("PUSH VERTICAL"),
-        porCategoria("KNEE DOMINANT"),
-      ],
+      [porRuta("OAP"), porRuta("SS"), porRuta("SS")],
       "NUCLEUS",
     );
+    // OAP: pecho, brazos y espalda. SS: solo cuadriceps (piernas).
     expect(cuenta).toEqual({
-      hombros: 2,
-      brazos: 2,
+      hombros: 0,
       pecho: 1,
       espalda: 1,
-      piernas: 1,
       core: 0,
+      piernas: 2,
+      brazos: 1,
     });
   });
 
   it("un ejercicio con varias zonas del mismo grupo cuenta una sola vez", () => {
-    // CORE ANTERIOR -> abs + obliques (ambos en core).
-    const cuenta = ejerciciosPorGrupo(
-      [porCategoria("CORE ANTERIOR")],
-      "NUCLEUS",
-    );
-    expect(cuenta.core).toBe(1);
+    // OAP pinta trapecio y dorsal (ambos en espalda): cuenta 1.
+    const cuenta = ejerciciosPorGrupo([porRuta("OAP")], "NUCLEUS");
+    expect(cuenta.espalda).toBe(1);
   });
 
-  it("ROM_LOWER sin categorias -> piernas 1 y el resto 0", () => {
-    expect(ejerciciosPorGrupo([porCategoria(null)], "ROM_LOWER")).toEqual({
+  it("ROM_LOWER sin rutas ni categorias -> piernas 1 y el resto 0", () => {
+    expect(ejerciciosPorGrupo([sinRuta(null)], "ROM_LOWER")).toEqual({
       hombros: 0,
       pecho: 0,
       espalda: 0,

@@ -23,7 +23,7 @@ import {
   dateToWeekNumber,
   dateToDayName,
 } from "../../src/modules/shared/week-dates";
-import type { GrupoZona } from "../../src/modules/tv/muscle-zones";
+import type { GrupoZona } from "../../src/modules/anatomy/projection";
 
 const HITS_EN_CERO: Record<GrupoZona, number> = {
   hombros: 0,
@@ -99,7 +99,9 @@ describe("rangoDeRol", () => {
 
 describe("limpiarNombre", () => {
   it("recorta y colapsa los espacios internos", () => {
-    expect(limpiarNombre("  Sentadilla   goblet \t ")).toBe("Sentadilla goblet");
+    expect(limpiarNombre("  Sentadilla   goblet \t ")).toBe(
+      "Sentadilla goblet",
+    );
   });
 });
 
