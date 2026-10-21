@@ -5,6 +5,7 @@
  *   pnpm exec vitest run test/anatomy/serializers.test.ts
  */
 import { describe, it, expect } from "vitest";
+import { BANDERAS } from "../../src/modules/anatomy/content/banderas";
 import { MUSCULOS } from "../../src/modules/anatomy/content/musculos";
 import { RUTAS_POR_CODIGO } from "../../src/modules/anatomy/content/rutas";
 import {
@@ -204,24 +205,45 @@ describe("vistaProfe (D8-D11, T-200-22)", () => {
     ]);
   });
 
-  it("banderas heredadas: FL incluye b9 y b21, PS no incluye b9", () => {
+  it("banderas: catalogo global una vez cada una y las rutas llevan solo ids", () => {
+    const catalogo = vista.banderas;
+    expect(catalogo.length).toBeGreaterThan(0);
+    const idsCatalogo = catalogo.map((b) => b.id);
+    expect(new Set(idsCatalogo).size).toBe(idsCatalogo.length);
+    // Cada bandera viaja con senal y accion, nunca con la nota interna.
+    for (const b of catalogo) {
+      expect(Object.keys(b).sort()).toEqual([
+        "accion",
+        "fuente",
+        "id",
+        "nivel",
+        "senal",
+        "umbralH",
+      ]);
+    }
+    // Cada id de ruta existe en el catalogo; ninguna ruta embebe banderas.
+    for (const r of vista.rutas) {
+      for (const id of r.banderaIds) {
+        expect(idsCatalogo, `${r.code} -> ${id}`).toContain(id);
+      }
+      expect(r).not.toHaveProperty("banderas");
+      expect(r.fichaProfe ?? {}).not.toHaveProperty("banderas");
+    }
+  });
+
+  it("banderas heredadas por id: FL incluye b9 y b21, PS no incluye b9", () => {
     const ids = (code: string) =>
-      vista.rutas
-        .find((r) => r.code === code)
-        ?.fichaProfe?.banderas.map((b) => b.id) ?? [];
+      vista.rutas.find((r) => r.code === code)?.banderaIds ?? [];
     expect(ids("FL")).toEqual(expect.arrayContaining(["b9", "b21"]));
     expect(ids("PS")).not.toContain("b9");
-    // Las banderas viajan con senal y accion, nunca con la nota interna.
-    const primera = vista.rutas.find((r) => r.code === "FL")?.fichaProfe
-      ?.banderas[0];
-    expect(Object.keys(primera ?? {}).sort()).toEqual([
-      "accion",
-      "fuente",
-      "id",
-      "nivel",
-      "senal",
-      "umbralH",
-    ]);
+  });
+
+  it("las banderas de 'todas' llegan a todas las rutas", () => {
+    const todas = BANDERAS.filter((b) => b.rutas === "todas").map((b) => b.id);
+    expect(todas.length).toBeGreaterThan(0);
+    for (const r of vista.rutas) {
+      expect(r.banderaIds).toEqual(expect.arrayContaining(todas));
+    }
   });
 
   it("zonasFicha de FL: upper-back motor y rol de mayor prioridad por zona", () => {

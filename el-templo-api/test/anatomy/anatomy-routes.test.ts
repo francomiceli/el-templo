@@ -28,12 +28,14 @@ interface RutaProfePayload {
   nombre: string;
   ejercicios: string[];
   nEjercicios: number;
-  fichaProfe: { banderas: { id: string }[] } | null;
+  banderaIds: string[];
+  fichaProfe: object | null;
 }
 
 interface VistaProfePayload {
   estado: string;
   rutas: RutaProfePayload[];
+  banderas: { id: string }[];
   musculos: unknown[];
   regiones: unknown[];
 }
@@ -175,18 +177,23 @@ describe("Anatomia — endpoints de solo lectura (fase 200)", () => {
       const token = await tokenDeStaff("coach");
       const res = await get("/api/admin/anatomy", token);
       expect(res.statusCode).toBe(200);
-      const fl = res
-        .json<VistaProfePayload>()
-        .rutas.find((r) => r.code === "FL");
+      const body = res.json<VistaProfePayload>();
+      const fl = body.rutas.find((r) => r.code === "FL");
       expect(fl).toBeDefined();
       expect(fl?.ejercicios).toEqual(
         expect.arrayContaining([nombre1, nombre2, nombre3]),
       );
       expect(fl?.nEjercicios).toBeGreaterThanOrEqual(3);
       expect(fl?.nEjercicios).toBe(fl?.ejercicios.length);
-      expect(fl?.fichaProfe?.banderas.map((b) => b.id)).toEqual(
-        expect.arrayContaining(["b9", "b21"]),
-      );
+      // Banderas normalizadas: catalogo global + ids por ruta.
+      expect(fl?.banderaIds).toEqual(expect.arrayContaining(["b9", "b21"]));
+      const ps = body.rutas.find((r) => r.code === "PS");
+      expect(ps?.banderaIds).not.toContain("b9");
+      const idsCatalogo = body.banderas.map((b) => b.id);
+      expect(new Set(idsCatalogo).size).toBe(idsCatalogo.length);
+      for (const r of body.rutas) {
+        for (const id of r.banderaIds) expect(idsCatalogo).toContain(id);
+      }
     });
 
     it("un ejercicio de otra ruta no aparece en FL", async () => {
