@@ -1,7 +1,6 @@
 <template>
   <article class="free-block-card">
     <div class="free-block-card__body">
-      <span class="free-block-card__role">{{ ROLE_LABELS[item.role] }}</span>
       <h3 class="free-block-card__title">{{ keepHyphenWords(item.title) }}</h3>
       <p v-if="item.subtitle" class="free-block-card__sub">{{ item.subtitle }}</p>
       <p class="free-block-card__meta">{{ keepHyphenWords(meta) }}</p>
@@ -24,7 +23,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ROLE_LABELS } from 'src/constants/roleLabels'
 import type { FreeBlockItem } from '../../types/free-blocks'
 import { blockMetaLine, keepHyphenWords } from '../../utils/blockMeta'
 
@@ -56,11 +54,6 @@ function onStart(): void {
   &__body {
     flex: 1;
     min-width: 0;
-  }
-
-  &__role {
-    @include pd-role-label;
-    display: block;
   }
 
   &__title {
