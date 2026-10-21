@@ -2,10 +2,12 @@
  * Fase 200 (T-200-01/02): validador puro del contenido de anatomía.
  *
  * Cada `validarX` devuelve la lista de errores legibles (vacía = contenido
- * válido). `validarContenido()` los junta y un test de CI exige `[]`. Los
- * planes 02 y 04 suman citas, banderas y rutas a `validarContenido`.
+ * válido). `validarContenido()` los junta y un test de CI exige `[]`. El
+ * plan 04 suma las rutas a `validarContenido`.
  */
 import { ROUTE_PROGRESSION_MAP } from "../exercises/route-progression-map";
+import { BANDERAS } from "./content/banderas";
+import { CITAS } from "./content/citas";
 import {
   GLOSARIO_CONTRACCIONES,
   GLOSARIO_PRECISION,
@@ -16,6 +18,8 @@ import { MUSCULOS } from "./content/musculos";
 import { REGIONES } from "./content/regiones";
 import { GRUPO_DE_ROL, ROLES } from "./types";
 import type {
+  BanderaDef,
+  CitaDef,
   GrupoAlumnoDef,
   GrupoZona,
   Marca,
@@ -51,6 +55,37 @@ const PRECISIONES: readonly Precision[] = ["exacta", "agrupada", "aproximada"];
 
 /** Última cita numerada del Apéndice A de la investigación. */
 const MAX_CITA = 109;
+
+/** Ids de cita que existen en el catálogo (las marcas se validan contra esto). */
+const IDS_CITA: ReadonlySet<number | string> = new Set(
+  CITAS.map((cita) => cita.id),
+);
+
+/** Nivel que le corresponde a cada letra del id de una bandera (a1, b3, c2). */
+const NIVEL_DE_LETRA: Readonly<Record<string, BanderaDef["nivel"]>> = {
+  a: "urgencia",
+  b: "derivar",
+  c: "precaucion",
+};
+
+/**
+ * Banderas que pueden quedar sin rutas en v1: b17 aplicaba solo a PLYO y
+ * CARDIO, fuera de las 30 rutas por D2.
+ */
+const BANDERAS_SIN_RUTAS_V1: readonly string[] = ["b17"];
+
+/**
+ * Rótulos clínicos que no pueden aparecer en la señal ni en la acción de una
+ * bandera (T21): van solo en `notaInterna`. Minúsculas, sin tildes.
+ */
+export const ROTULOS_CLINICOS: readonly string[] = [
+  "cauda equina",
+  "rabdomiolisis",
+  "epifisiolisis",
+  "escafoides",
+  "slump",
+  "maniobra",
+];
 
 const ID_KEBAB = /^[a-z]+(-[a-z]+)*$/;
 
@@ -124,7 +159,10 @@ export function textoAlumnoProblemas(texto: string, donde: string): string[] {
   return errores;
 }
 
-/** Marcas de evidencia: citas enteras 1..109, letras conocidas, sin repetidas. */
+/**
+ * Marcas de evidencia: citas enteras 1..109 que existen en `CITAS`, letras
+ * conocidas (L1..L5 también deben existir en `CITAS`), sin repetidas.
+ */
 export function validarMarcas(
   marcas: readonly Marca[],
   donde: string,
@@ -135,9 +173,13 @@ export function validarMarcas(
     if (typeof marca === "number") {
       if (!Number.isInteger(marca) || marca < 1 || marca > MAX_CITA) {
         errores.push(`${donde}: marca numérica inválida ${String(marca)}`);
+      } else if (!IDS_CITA.has(marca)) {
+        errores.push(`${donde}: la marca ${marca} no existe en las citas`);
       }
     } else if (!MARCAS_LETRA.includes(marca)) {
       errores.push(`${donde}: marca desconocida "${String(marca)}"`);
+    } else if (marca.startsWith("L") && !IDS_CITA.has(marca)) {
+      errores.push(`${donde}: la marca ${marca} no existe en las citas`);
     }
     if (vistas.has(marca)) {
       errores.push(`${donde}: marca repetida ${String(marca)}`);
@@ -318,9 +360,85 @@ export function validarGruposAlumno(
   return errores;
 }
 
+/** Ids únicos, enteros 1..109 o L1..L5, texto y lectura no vacíos. */
+export function validarCitas(citas: readonly CitaDef[]): string[] {
+  const errores: string[] = [];
+  const ids = new Set<number | string>();
+  for (const cita of citas) {
+    const donde = `cita ${String(cita.id)}`;
+    if (ids.has(cita.id)) errores.push(`${donde}: id duplicado`);
+    ids.add(cita.id);
+    if (typeof cita.id === "number") {
+      if (!Number.isInteger(cita.id) || cita.id < 1 || cita.id > MAX_CITA) {
+        errores.push(`${donde}: id numérico fuera de 1..${MAX_CITA}`);
+      }
+    } else if (!/^L[1-5]$/.test(cita.id)) {
+      errores.push(`${donde}: id de libro fuera de L1..L5`);
+    }
+    if (cita.texto.trim() === "") errores.push(`${donde}: texto vacío`);
+    if (cita.lectura.trim() === "") errores.push(`${donde}: lectura vacía`);
+  }
+  return errores;
+}
+
 /**
- * Todo el contenido de anatomía. Hoy: regiones, músculos, glosario y grupos de
- * alumno. Los planes 02 y 04 suman citas, banderas y rutas.
+ * Banderas (T21): ids únicos `a|b|c` + número, nivel coherente con la letra,
+ * rutas = "todas" o códigos de las 30 rutas sin repetir, y sin rótulos clínicos
+ * en la señal ni en la acción (van en `notaInterna`).
+ */
+export function validarBanderas(
+  banderas: readonly BanderaDef[] = BANDERAS,
+): string[] {
+  const errores: string[] = [];
+  const ids = new Set<string>();
+  const codigos = Object.keys(ROUTE_PROGRESSION_MAP);
+  for (const bandera of banderas) {
+    const donde = `bandera ${bandera.id}`;
+    if (ids.has(bandera.id)) errores.push(`${donde}: id duplicado`);
+    ids.add(bandera.id);
+    if (!/^[abc][0-9]+$/.test(bandera.id)) {
+      errores.push(`${donde}: id fuera del formato [abc][0-9]+`);
+    } else if (NIVEL_DE_LETRA[bandera.id[0]] !== bandera.nivel) {
+      errores.push(
+        `${donde}: el nivel "${bandera.nivel}" no corresponde a la letra ${bandera.id[0]}`,
+      );
+    }
+    if (bandera.senal.trim() === "") errores.push(`${donde}: señal vacía`);
+    if (bandera.accion.trim() === "") errores.push(`${donde}: acción vacía`);
+    if (bandera.fuente.trim() === "") errores.push(`${donde}: fuente vacía`);
+
+    if (bandera.rutas !== "todas") {
+      if (
+        bandera.rutas.length === 0 &&
+        !BANDERAS_SIN_RUTAS_V1.includes(bandera.id)
+      ) {
+        errores.push(`${donde}: rutas vacías (usar "todas" o una lista)`);
+      }
+      const vistas = new Set<string>();
+      for (const code of bandera.rutas) {
+        if (!codigos.includes(code)) {
+          errores.push(`${donde}: la ruta "${code}" no está entre las 30`);
+        }
+        if (vistas.has(code)) errores.push(`${donde}: ruta repetida "${code}"`);
+        vistas.add(code);
+      }
+    }
+
+    const visible = normalizar(`${bandera.senal} ${bandera.accion}`);
+    for (const rotulo of ROTULOS_CLINICOS) {
+      if (visible.includes(rotulo)) {
+        errores.push(
+          `${donde}: rótulo clínico "${rotulo}" en el texto visible (va en notaInterna)`,
+        );
+      }
+    }
+  }
+  return errores;
+}
+
+/**
+ * Todo el contenido de anatomía. Hoy: regiones, músculos, glosario, grupos de
+ * alumno, citas y banderas. El plan 04 suma las rutas.
  */
 export function validarContenido(): string[] {
   return [
@@ -328,5 +446,7 @@ export function validarContenido(): string[] {
     ...validarMusculos(MUSCULOS, REGIONES),
     ...validarGlosario(),
     ...validarGruposAlumno(),
+    ...validarCitas(CITAS),
+    ...validarBanderas(BANDERAS),
   ];
 }
