@@ -44,3 +44,13 @@
   - arranque de Novillo y Ternero: 1 y 2 peldaños más fáciles que Toro (§8.2), como parámetro por nivel
   - regla de combos (§14.3): si completa el objetivo de series N semanas seguidas (N = 2, editable), aparece Subir en la progresión de arranque, con el mismo patrón que los escalones (§4.5)
 - **D-15 Control físico del día 0 (§6).** La primera vez que el alumno entra a Conquer (ya activado), lo primero que ve es el control físico: 3 fotos (frente, perfil y espalda) y perímetros, en menos de 3 minutos. Tiene un **"Lo hago después"** chico. No es obligatorio para entrenar. Si lo saltea, queda un aviso fijo en Inicio y a owner y admin les aparece una alerta 🟡 "Control día 0 pendiente". Esa alerta se suma a las del §5, junto a "Control físico vencido".
+- **D-16 Qué día le toca (§1.3, §2.1, §7.1 Hoy).** Hoy no elige la sesión por día de la semana, como hace la app de Nacho. Muestra **el primer día del plan que le falta en la semana calendario en curso** (lunes a domingo, en la zona horaria de la sede), en el orden del plan: Plancha → Front → Vertical → Dominadas, y el sábado al final para Toro. El alumno puede cambiarlo con un toque. Si ya completó todos los días de la semana, ve "Semana completa" y puede repetir cualquiera. La semana calendario es la misma unidad que usan el paso de nivel (§2.2, "4 semanas seguidas") y la semana del bloque de los combos (§3.2).
+
+## Lectura cerrada (2026-10-21)
+
+El resto de la síntesis se sigue tal cual, sin decisiones de Franco pendientes:
+- §4 motor: el oráculo es `next()` de `ref/conquer-app.html`
+- §5 alertas y recortes
+- §8 catálogo: lo carga una migración con los datos de Nacho
+- §9 datos: el modelo lo define el planner
+- §12: criterios de éxito
