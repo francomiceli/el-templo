@@ -392,7 +392,7 @@ Plans:
 - [x] 197-19-PLAN.md — App: Entrenar en 4 tabs "puertas" + Próximamente + ?tab=libre + vidriera sin plan; fin del carrusel viejo
 - [x] 197-20-PLAN.md — App: contraste D-16 en player (sesión completa incluida) y Guía
 - [x] 197-21-PLAN.md — App: link "Probá el modo Libre" en la card de hoy de Mi Templo (D-17)
-- [ ] 197-22-PLAN.md — Verificación visual medida (capturas 360/390/412, contraste, viewport, desborde) — checkpoint de build
+- [x] 197-22-PLAN.md — Verificación visual medida (capturas 360/390/412, contraste, viewport, desborde) — checkpoint de build
 - [ ] 197-23-PLAN.md — UAT guiado de Franco en staging (checkpoint)
 
 
