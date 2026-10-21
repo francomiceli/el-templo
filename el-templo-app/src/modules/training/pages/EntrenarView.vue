@@ -1,5 +1,5 @@
 <template>
-  <div class="entrenar-view" :style="{ '--entrenar-tabs-top': `${tabsTop}px` }">
+  <div class="entrenar-view">
     <EntrenarTabs v-model="activeTab" />
 
     <!-- Panes con v-if (nunca v-show): la figura tiene que estar visible para medirse -->
@@ -79,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
@@ -172,21 +172,7 @@ watch(
   { immediate: true },
 )
 
-// ── Header fijo: las tabs pegajosas quedan debajo ──
-const tabsTop = ref(0)
-
-function measureHeader(): void {
-  const header = document.querySelector<HTMLElement>('.q-header')
-  tabsTop.value = header ? header.offsetHeight : 0
-}
-
-onMounted(() => {
-  measureHeader()
-  window.addEventListener('resize', measureHeader)
-})
-
 onUnmounted(() => {
-  window.removeEventListener('resize', measureHeader)
   week.cleanup()
 })
 </script>

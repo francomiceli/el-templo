@@ -1,10 +1,5 @@
 <template>
-  <div
-    ref="rootRef"
-    class="entrenar-tabs"
-    :class="{ 'entrenar-tabs--static': !interactive }"
-    :inert="interactive ? undefined : true"
-  >
+  <div ref="rootRef" class="entrenar-tabs" :inert="interactive ? undefined : true">
     <div
       class="entrenar-tabs__doors"
       role="tablist"
@@ -116,18 +111,11 @@ function onKeydown(event: KeyboardEvent, key: TabKey): void {
 @import 'src/css/brand';
 @import 'src/css/premium-card';
 
-// Contenedor pegajoso: queda debajo del header fijo (EntrenarView mide su alto y lo publica en
-// `--entrenar-tabs-top`; sin header, 0). El fondo es un tinte del fondo, no un color de texto.
+// No es pegajoso: se va con el scroll para no robarle alto al contenido (2026-10-21).
+// El fondo es un tinte del fondo, no un color de texto.
 .entrenar-tabs {
-  position: sticky;
-  top: var(--entrenar-tabs-top, 0px);
-  z-index: 5;
   padding: 12px 16px 10px;
   background: rgba($brand-cream, 0.96);
-
-  &--static {
-    position: static;
-  }
 
   &__doors {
     display: grid;
