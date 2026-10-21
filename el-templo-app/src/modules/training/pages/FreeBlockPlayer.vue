@@ -7,7 +7,12 @@
 
     <!-- El bloque ya no está en la canasta (404) -->
     <div v-else-if="stage === 'missing'" class="free-block-player__center flex flex-center column">
-      <q-icon name="event_busy" size="80px" color="grey-4" aria-hidden="true" />
+      <q-icon
+        name="event_busy"
+        size="80px"
+        class="free-block-player__missing-icon"
+        aria-hidden="true"
+      />
       <div class="free-block-player__missing text-h6 q-mt-md">
         Este bloque ya no está disponible.
       </div>
@@ -226,7 +231,9 @@ const exitDialogOpts = {
   title: '¿Salir del bloque libre?',
   message: 'Si salís ahora, el bloque no se guarda.',
   cancel: { label: 'Cancelar', flat: true },
-  ok: { label: 'Salir', color: 'negative', flat: true },
+  // Gap 197-24 (hallazgo 10): `color: 'negative'` daba 4,43:1 sobre el diálogo. La clase pone el rojo
+  // oscuro $pd-neg-b (>= 7:1); el estilo vive en el bloque no-scoped de abajo (el diálogo se monta en body).
+  ok: { label: 'Salir', flat: true, class: 'free-block-exit-ok' },
   persistent: true,
 }
 
@@ -427,5 +434,19 @@ onUnmounted(() => {
 .free-block-player__missing {
   color: $pd-ink;
   text-align: center;
+}
+
+// Gap 197-24 (hallazgo 8): el ícono 404 era grey-4 (1,13:1). Los íconos de UI piden >= 3:1.
+.free-block-player__missing-icon {
+  color: $pd-ink-2;
+}
+</style>
+
+<style lang="scss">
+@import 'src/css/premium-card';
+
+// Gap 197-24 (hallazgo 10): "Salir" del diálogo de salida, rojo oscuro sólido (el $negative daba 4,43:1)
+.q-btn.free-block-exit-ok {
+  color: $pd-neg-b;
 }
 </style>
