@@ -23,7 +23,8 @@ export type TvScreen = 'idle' | 'class' | 'closing' | 'aviso';
 
 /** Zonas musculares que dibuja el recorrido de hoy. Son los `slug` de la
  *  geometria anatomica (`tv/recorrido/anatomy-data.ts`); el server las deriva
- *  de la categoria de cada ejercicio (`modules/tv/muscle-zones.ts`). */
+ *  desde el modelo de anatomia del API (`modules/anatomy/projection.ts`); la TV
+ *  recibe solo estas 15 zonas. */
 export type TvZonaMuscular =
   | 'chest'
   | 'deltoids'

@@ -60,7 +60,8 @@ export interface ClassDayPrescription {
   videoKey: string | null;
   /**
    * Datos del ejercicio para el mapeo a zonas musculares del recorrido
-   * (`muscle-zones.ts`). `null` cuando la prescripcion no tiene fila en
+   * (`anatomy/projection.ts`, por ruta; la categoría solo cuenta para
+   * ejercicios sin ruta). `null` cuando la prescripcion no tiene fila en
    * `exercises` (hay prescripciones sueltas sin `exercise_id`) o la columna es
    * NULL: el mapeo lo tolera.
    */

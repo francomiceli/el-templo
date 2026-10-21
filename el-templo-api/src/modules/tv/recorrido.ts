@@ -34,7 +34,8 @@
  *  - `format` / `intensity` (2026-10-13): formatos distintos de los bloques del
  *    grupo y el rango de intensidad (%) entre los niveles mostrados.
  *  - `zonas`: las zonas DOMINANTES de las prescripciones `main` de esos
- *    niveles (`zonasDelGrupo`, `muscle-zones.ts`), con fallback por rol en ROM.
+ *    niveles, desde el modelo de anatomía (`anatomy/projection.ts`), con
+ *    fallback por rol en ROM. Solo viajan las 15 zonas de la TV (`soloTv`).
  *    Un grupo sin zonas igual se incluye (el front no pinta).
  */
 import { findBlock, buildRoster, pairFor, visualGroupOf } from "./roster";
@@ -42,10 +43,11 @@ import type { RosterClassDay } from "./roster";
 import type { ClassDay, ClassDayBlock } from "./class-day";
 import { getRouteLabel } from "./route-labels";
 import {
-  ZONAS_ORDEN,
+  ZONAS_TV,
+  soloTv,
   zonasDelGrupo,
   type EjercicioZonaInput,
-} from "./muscle-zones";
+} from "../anatomy/projection";
 import type { TvRecorridoBloque, TvRecorridoPayload } from "./types";
 
 /** Separador de " · " entre el rotulo y el formato de `blockTitle` (roster.ts). */
@@ -127,9 +129,8 @@ export function buildRecorrido(
       for (const p of block.prescriptions) {
         if (p.exerciseType !== "main") continue;
         ejercicios.push({
-          category: p.exerciseCategory,
-          categorySecondary: p.exerciseCategorySecondary,
           route: p.exerciseRoute,
+          category: p.exerciseCategory,
         });
       }
     }
@@ -158,9 +159,10 @@ export function buildRecorrido(
       subtitle: routes.length > 0 ? routes.join(TITLE_SEPARATOR) : null,
       // Ruta Full Body (FB): el cuerpo entero, no las zonas dominantes de sus
       // ejercicios (UAT 2026-10-13: "habría que marcar más cuerpo").
+      // Fase 200 D20: la TV recibe solo sus 15 zonas (tibialis no viaja, T20).
       zonas: blocks.some((b) => b.route === FULL_BODY_ROUTE)
-        ? [...ZONAS_ORDEN]
-        : zonasDelGrupo(ejercicios, group.roles),
+        ? [...ZONAS_TV]
+        : soloTv(zonasDelGrupo(ejercicios, group.roles)),
       format: formats.length > 0 ? formats.join(" / ") : null,
       intensity:
         intensidades.length > 0

@@ -18,6 +18,9 @@
  *  - No `any` (CLAUDE.md / C-03).
  */
 
+// Solo tipos (se borra al compilar): sigue sin haber imports de runtime.
+import type { TvZonaSlug } from "../anatomy/content/regiones";
+
 // =============================================================================
 // Timer — normalized spec and computed frame
 // =============================================================================
@@ -260,25 +263,11 @@ export interface TvPollResponse {
 }
 
 /**
- * Zonas musculares que pintan los cuerpos H/M del recorrido. El ORDEN de
- * declaracion es el orden estable de salida (`ZONAS_ORDEN`, `muscle-zones.ts`).
+ * Zonas musculares que pintan los cuerpos H/M del recorrido. Fase 200 D20: las
+ * 15 regiones con `enTv` del modelo de anatomía (tibialis no viaja a la TV en
+ * v1). Orden = `ZONAS_TV` (`anatomy/projection.ts`).
  */
-export type TvZonaMuscular =
-  | "chest"
-  | "deltoids"
-  | "triceps"
-  | "biceps"
-  | "forearm"
-  | "trapezius"
-  | "upper-back"
-  | "lower-back"
-  | "abs"
-  | "obliques"
-  | "gluteal"
-  | "quadriceps"
-  | "hamstring"
-  | "adductors"
-  | "calves";
+export type TvZonaMuscular = TvZonaSlug;
 
 /** Un item del recorrido: un bloque (con su `_ALT`, si tiene). Los deuteros
  *  van siempre separados: DEUTEROS I y DEUTEROS II son dos items. */
