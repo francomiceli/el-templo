@@ -396,6 +396,12 @@ Plans:
 - [x] 197-22-PLAN.md — Verificación visual medida (capturas 360/390/412, contraste, viewport, desborde) — checkpoint de build
 - [ ] 197-23-PLAN.md — UAT guiado de Franco en staging (checkpoint)
 
+### Phase 201: Conquer v2 (de cero, simple)
+
+**Goal**: Modo Conquer simple según la síntesis de Nacho del 2026-10-21. El coach activa al alumno eligiendo nivel y días. El alumno carga un número por escalón y la app calcula objetivos y cuándo subir. El coach trabaja por excepción con alertas.
+**Depends on**: Phase 197 (tabs de Entrenar, en staging); de cero, la rama 196 queda guardada como cantera
+**Requirements**: `.planning/phases/201-conquer/ref/conquer-desarrollo-sintesis.md` + decisiones en `201-CONTEXT.md`. Los criterios de éxito son el §12 de la síntesis.
+**Plans**: TBD
 
 ## Progress
 
