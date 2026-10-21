@@ -304,7 +304,12 @@ export function validarGruposAlumno(
       cubiertos.add(rol);
     }
   }
-  const requeridos = ["motor", "sinergista", "estabilizador", "estira"] as const;
+  const requeridos = [
+    "motor",
+    "sinergista",
+    "estabilizador",
+    "estira",
+  ] as const;
   for (const rol of requeridos) {
     if (!cubiertos.has(rol)) {
       errores.push(`grupos de alumno: ningún grupo cubre el rol ${rol}`);

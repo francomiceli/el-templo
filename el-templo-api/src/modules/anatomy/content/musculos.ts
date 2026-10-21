@@ -46,8 +46,7 @@ export const MUSCULOS = [
     precision: "exacta",
     queHaceAlumno: "Sube los hombros. En los colgados no tiene que mandar él.",
     nota: {
-      t:
-        'En los colgados no tiene que dominar: es el que "encoge los hombros".',
+      t: 'En los colgados no tiene que dominar: es el que "encoge los hombros".',
       c: [],
     },
   },
@@ -173,8 +172,7 @@ export const MUSCULOS = [
     precision: "agrupada",
     queHaceAlumno: "Estira la rodilla y levanta la pierna.",
     nota: {
-      t:
-        "También flexiona la cadera: en FL sostiene las piernas en línea (isométrico).",
+      t: "También flexiona la cadera: en FL sostiene las piernas en línea (isométrico).",
       c: ["R"],
     },
   },

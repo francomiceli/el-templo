@@ -67,11 +67,7 @@ describe("contenido de anatomía — coherencia", () => {
 
   it("el glosario tiene 5 roles en orden, 3 contracciones y 3 precisiones", () => {
     expect(GLOSARIO_ROLES.map((g) => g.rol)).toEqual([...ROLES]);
-    expect(GLOSARIO_CONTRACCIONES.map((g) => g.clave)).toEqual([
-      "C",
-      "E",
-      "I",
-    ]);
+    expect(GLOSARIO_CONTRACCIONES.map((g) => g.clave)).toEqual(["C", "E", "I"]);
     expect(GLOSARIO_PRECISION.map((g) => g.clave)).toEqual([
       "exacta",
       "agrupada",
