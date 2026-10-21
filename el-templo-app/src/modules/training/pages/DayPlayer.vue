@@ -1,17 +1,21 @@
 <template>
   <q-page class="day-player">
-    <!-- Between-block Transition Screen -->
+    <!-- Between-block Transition Screen: overlay sobre el player, que queda montado debajo para que
+         "Volver al último ejercicio" encuentre la historia donde estaba -->
     <TransitionScreen
-      v-if="showBlockTransition"
-      :completed-block-name="transitionCompletedBlock"
-      :mobility-exercise-name="transitionMobilityName"
-      :quote="transitionQuote"
-      :action-label="transitionActionLabel"
-      @continue="onTransitionContinue"
+      v-if="transitionData"
+      :data="transitionData"
+      @start="onTransitionStart"
+      @back="onTransitionBack"
     />
 
-    <!-- 3-2-1 Countdown before next block starts -->
-    <CountdownOverlay v-else-if="showCountdown" @done="onCountdownDone" />
+    <!-- 3-2-1 Countdown before a block starts (session start, Deuteros choice, between blocks) -->
+    <CountdownOverlay
+      v-if="showCountdown"
+      :kicker="countdownCopy.kicker"
+      :subtitle="countdownCopy.subtitle"
+      @done="onCountdownDone"
+    />
 
     <!-- Celebration Screen (after completing all blocks) -->
     <CelebrationScreen
@@ -57,6 +61,7 @@
       <!-- Block Progression View (Stories-style) -->
       <BlockProgressionView
         v-else
+        ref="progressionView"
         :day-name="dayName"
         :playable-blocks="playableBlocks"
         :active-block-index="activeBlockIndex"
@@ -64,6 +69,7 @@
         :elapsed-seconds="elapsedSeconds"
         :completed-exercises="allCompletedExercises"
         :is-adjusting="isAdjusting"
+        :is-final-block="activeIsFinal"
         @back="handleBackNavigation"
         @restart="restartSession"
         @complete-block="onBlockComplete"
@@ -100,17 +106,25 @@ import { getWeekDates, formatDayName, getDateState } from '../composables/useDat
 import { resolvePlayerStart, type PlayerStartMode } from '../utils/playerStart'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
-import { ROLE_LABELS } from 'src/constants/roleLabels'
+import { sessionTitle } from '../utils/blockMeta'
+import {
+  blockCountdownCopy,
+  buildBlockTransition,
+  isBlockExercisesDone,
+  isFinalBlock,
+  sessionJourney,
+  type BlockTransitionData,
+  type CountdownCopy,
+} from '../utils/blockTransition'
 
 // Data
 import { getQuoteForBlock } from '../data/quotes'
-import type { Quote } from '../data/quotes'
 
 const log = createLogger('DayPlayer')
 
 // Day Player Page - Orchestrator for session flow:
-// 3-2-1 (o retoma) -> deuteros choice -> block progression (stories) -> transition -> ...
-// -> celebration -> summary
+// 3-2-1 (o retoma) -> deuteros choice -> block progression (stories) -> transition (recorrido +
+// descanso activo) -> 3-2-1 -> ... -> celebration -> summary
 
 const route = useRoute()
 const router = useRouter()
@@ -155,12 +169,15 @@ let startClaimed = false
 /** initialize() del wake lock: en nativo carga el plugin con un import dinámico */
 let wakeLockReady: Promise<void> = Promise.resolve()
 
-// Block transition state
-const showBlockTransition = ref(false)
-const transitionCompletedBlock = ref('')
-const transitionMobilityName = ref<string | null>(null)
-const transitionQuote = ref<Quote>({ text: '', goldText: '', author: '' })
-const transitionActionLabel = ref('Siguiente Bloque')
+// Block transition state (fase 197, sketch 018 D): entre bloques hay UNA pantalla, con el recorrido
+// y el descanso activo. Se muestra mientras el bloque activo tenga todos los ejercicios tildados y
+// todavía no esté dado por terminado: el bloque se completa recién con "Empezar", así "Volver al
+// último ejercicio" es un simple destildar y la reanudación cae en la misma pantalla.
+const transitionData = shallowRef<BlockTransitionData | null>(null)
+/** true mientras "Empezar" completa el bloque (el guardado es async): congela la pantalla */
+const isAdvancing = ref(false)
+const countdownCopy = ref<CountdownCopy>({ kicker: '', subtitle: '' })
+const progressionView = ref<InstanceType<typeof BlockProgressionView> | null>(null)
 
 // Completion flow state
 const showCelebration = ref(false)
@@ -226,6 +243,61 @@ const allCompletedExercises = computed<Record<string, number[]>>(() => {
   return player.value?.completedExercises.value ?? {}
 })
 
+// Sesión con Deuteros y todavía sin elegir: el recorrido muestra un solo lugar "Deuteros"
+const awaitingDeuteros = computed(() => {
+  const p = player.value
+  return !!p && p.hasDeuterosBlocks.value && !p.deuterosChoice.value
+})
+
+/** Todos los pasos de la sesión en orden (4 con Deuteros aunque todavía no se haya elegido) */
+const journey = computed(() => {
+  const s = session.value
+  const p = player.value
+  if (!s || !p) return []
+  return sessionJourney({
+    allBlocks: s.blocks,
+    playable: p.playableBlocks.value,
+    awaitingDeuteros: awaitingDeuteros.value,
+  })
+})
+
+/** El bloque activo es el último de la sesión: no hay transición, queda "Sesión completa" */
+const activeIsFinal = computed(() =>
+  isFinalBlock({
+    index: activeBlockIndex.value,
+    playableCount: playableBlocks.value.length,
+    awaitingDeuteros: awaitingDeuteros.value,
+  }),
+)
+
+/** El bloque activo tiene todos los ejercicios tildados y todavía no se dio por terminado */
+const blockReadyForTransition = computed(() => {
+  const p = player.value
+  if (!p || !sessionBegun.value || !isInitialized.value || activeIsFinal.value) return false
+  const block = p.currentBlock.value
+  if (!block || p.completedBlocks.value.includes(block.role)) return false
+  return isBlockExercisesDone(block, p.completedExercises.value)
+})
+
+// La pantalla se arma una sola vez al quedar lista (foto fija de los datos) y se apaga al destildar
+// un ejercicio ("Volver al último ejercicio"). Mientras "Empezar" guarda, no se toca.
+watch(
+  blockReadyForTransition,
+  (ready) => {
+    if (isAdvancing.value) return
+    const s = session.value
+    transitionData.value =
+      ready && s
+        ? buildBlockTransition({
+            title: sessionTitle(s),
+            entries: journey.value,
+            completedIndex: activeBlockIndex.value,
+          })
+        : null
+  },
+  { immediate: true },
+)
+
 // Summary computed data
 const daysCompletedThisWeek = computed(() => {
   const done = weekStore.weekDays.filter((d) => d.state === 'completed').length
@@ -280,13 +352,29 @@ function applyStartMode(mode: PlayerStartMode): void {
       : new Date().toISOString()
   if (p) p.startTimer()
   void wakeLockReady.then(() => wakeLock.requestWakeLock())
-  if (mode === 'countdown') showCountdown.value = true
+  if (mode === 'countdown') openCountdown()
+}
+
+/**
+ * Abre el 3-2-1 del bloque activo ("Bloque 2 de 4 · Combos I" + su primer ejercicio). Se usa donde
+ * el índice ya apunta al bloque que arranca (inicio de sesión, elección de Deuteros); entre bloques
+ * los textos se arman antes de avanzar (`onTransitionStart`).
+ */
+function openCountdown(): void {
+  const p = player.value
+  const block = p?.currentBlock.value
+  countdownCopy.value =
+    p && block
+      ? blockCountdownCopy(block, p.currentBlockIndex.value, journey.value.length)
+      : { kicker: '', subtitle: '' }
+  showCountdown.value = true
 }
 
 function onDeuterosSelect(choiceId: 'DEUTEROS_1' | 'DEUTEROS_2'): void {
   if (player.value) {
-    player.value.selectDeuteros(choiceId)
-    showCountdown.value = true
+    // selectDeuteros fija la elección antes de su primer await: el índice 2 ya apunta al elegido
+    void player.value.selectDeuteros(choiceId)
+    openCountdown()
   }
 }
 
@@ -297,25 +385,47 @@ function onChangeDeuteros(): void {
   }
 }
 
-function onTransitionContinue(): void {
-  showBlockTransition.value = false
-
-  // If transition was for session complete, show celebration (no countdown)
-  if (pendingCelebration.value) {
-    pendingCelebration.value = false
-    showCelebration.value = true
-    return
+/**
+ * "Empezar {bloque}": completa el bloque que se terminó y arranca el 3-2-1 del que sigue. Con el
+ * Deuteros por elegir va directo al selector (que tiene su propio 3-2-1).
+ */
+async function onTransitionStart(): Promise<void> {
+  const p = player.value
+  const data = transitionData.value
+  if (!p || !data || isAdvancing.value) return
+  isAdvancing.value = true
+  try {
+    if (data.next === 'block') {
+      // El 3-2-1 se arma ANTES de avanzar: el índice cambia recién cuando termina el guardado
+      const nextIndex = activeBlockIndex.value + 1
+      const nextBlock = p.playableBlocks.value[nextIndex]
+      if (nextBlock) {
+        countdownCopy.value = blockCountdownCopy(nextBlock, nextIndex, journey.value.length)
+        showCountdown.value = true
+        transitionData.value = null
+      }
+    }
+    await p.completeBlock()
+    // Camino defensivo: una transición hacia el final cierra la sesión sin 3-2-1
+    if (data.next === 'end' || p.isSessionComplete.value) {
+      showCountdown.value = false
+      showCelebration.value = true
+      await wakeLock.releaseWakeLock()
+    }
+  } finally {
+    transitionData.value = null
+    isAdvancing.value = false
   }
+}
 
-  // Show 3-2-1 countdown before next block
-  showCountdown.value = true
+/** "Volver al último ejercicio": destilda el último (la historia vuelve a él) y la pantalla se apaga sola */
+function onTransitionBack(): void {
+  progressionView.value?.undoLast()
 }
 
 function onCountdownDone(): void {
   showCountdown.value = false
 }
-
-const pendingCelebration = ref(false)
 
 function onCelebrationViewSummary(): void {
   showCelebration.value = false
@@ -399,53 +509,22 @@ async function onAdjustExercise(payload: {
   }
 }
 
-/** Called when BlockProgressionView confirms block completion (after exercise check dialog) */
+/**
+ * Cierre de la sesión: BlockProgressionView lo emite desde el "Sesión completa" del último bloque
+ * (entre bloques lo resuelve la pantalla de transición, no esto).
+ */
 async function onBlockComplete(): Promise<void> {
-  if (!player.value) return
-
   const p = player.value
-  const completedRole = p.currentBlock.value?.role
-  const completedName = completedRole ? (ROLE_LABELS[completedRole] ?? '') : ''
-  const completedBlockIndex = p.currentBlockIndex.value
+  if (!p) return
+  const wasFinal = activeIsFinal.value
 
-  // Get mobility name for the current block
-  const mobilityName = p.currentBlock.value?.mobilityExercise?.exerciseName ?? null
-
-  // Determine what happens next
-  const role = p.currentBlock.value?.role
-  let actionLabel = 'Siguiente Bloque'
-
-  if (role === 'NUCLEUS' && !p.deuterosChoice.value) {
-    // Deuteros not chosen yet — playableBlocks only has INITIUM+NUCLEUS
-    actionLabel = 'Siguiente bloque'
-  } else {
-    const isLastBlock = p.currentBlockIndex.value >= p.playableBlocks.value.length - 1
-    if (isLastBlock) {
-      actionLabel = 'Finalizar Sesión'
-    } else {
-      const nb = p.playableBlocks.value[p.currentBlockIndex.value + 1]
-      if (nb) {
-        actionLabel = `Siguiente: ${ROLE_LABELS[nb.role] ?? nb.role}`
-      }
-    }
-  }
-
-  // Complete the block first (for state tracking)
   await p.completeBlock()
 
-  // Session complete — go straight to celebration
-  if (p.isSessionComplete.value) {
+  // Sesión completa: directo a la celebración
+  if (wasFinal || p.isSessionComplete.value) {
     showCelebration.value = true
     await wakeLock.releaseWakeLock()
-    return
   }
-
-  // Show between-block transition
-  transitionCompletedBlock.value = completedName
-  transitionMobilityName.value = mobilityName
-  transitionQuote.value = getQuoteForBlock(completedBlockIndex, dayOffset.value)
-  transitionActionLabel.value = actionLabel
-  showBlockTransition.value = true
 }
 
 async function onSummaryFinish(data: { rpe: number | null; notes: string | null }): Promise<void> {
@@ -525,9 +604,9 @@ async function restartSession(): Promise<void> {
       sessionStartedAt.value = null
       showCelebration.value = false
       showSummary.value = false
-      showBlockTransition.value = false
+      transitionData.value = null
+      isAdvancing.value = false
       showCountdown.value = false
-      pendingCelebration.value = false
       isInitialized.value = false
       await player.value.initialize()
       // Reinicio explícito: arranca de nuevo directo al 3-2-1 (el progreso ya se borró)

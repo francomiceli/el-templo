@@ -1,9 +1,10 @@
 <template>
   <div class="story-card">
-    <!-- Story area (video or name hero or block-complete prompt) -->
+    <!-- Story area (video or name hero or block-complete prompt). El prompt solo existe en el último
+         bloque (o en modo libre): entre bloques la pantalla de transición ocupa su lugar. -->
     <div class="story-card__video-area">
-      <!-- All exercises completed — prompt to advance -->
-      <div v-if="allExercisesCompleted && !readOnly" class="story-card__block-done">
+      <!-- All exercises completed — cierre de la sesión o del bloque libre -->
+      <div v-if="showBlockDone" class="story-card__block-done">
         <q-icon name="check_circle" size="48px" class="story-card__block-done-icon q-mb-md" />
         <div class="story-card__block-done-title">{{ blockDoneTitle }}</div>
         <div class="story-card__block-done-subtitle">{{ blockDoneSubtitle }}</div>
@@ -69,6 +70,11 @@ interface Props {
   readOnly?: boolean
   /** Fase 197 D-15: en 'free' el bloque único siempre es el último. */
   mode?: 'session' | 'free'
+  /**
+   * Es el último bloque de la sesión. Si no lo es, no hay "Bloque completo" acá: al tildar el
+   * último ejercicio aparece la pantalla de transición (DayPlayer / GoalPlanSession).
+   */
+  isLastBlock?: boolean
 }
 
 interface Emits {
@@ -81,6 +87,7 @@ interface Emits {
 const props = withDefaults(defineProps<Props>(), {
   readOnly: false,
   mode: 'session',
+  isLastBlock: true,
 })
 const emit = defineEmits<Emits>()
 
@@ -108,26 +115,25 @@ const activeContraction = computed(() => {
 
 const isFreeMode = computed(() => props.mode === 'free')
 
-const isLastBlock = computed(() => {
-  // Fase 197 D-15: en modo libre el bloque único siempre es el último
-  return isFreeMode.value || props.blockRole === 'ATHLOS' || props.blockRole === 'EPIKOS'
-})
+// Fase 197 D-15: en modo libre el bloque único siempre es el último
+const isFinal = computed(() => isFreeMode.value || props.isLastBlock)
+
+const showBlockDone = computed(
+  () => props.allExercisesCompleted && !props.readOnly && isFinal.value,
+)
 
 const blockDoneTitle = computed(() => {
   if (isFreeMode.value) return 'Bloque completo'
-  return isLastBlock.value ? 'Sesión completa' : 'Bloque completo'
+  return 'Sesión completa'
 })
 
 const blockDoneSubtitle = computed(() => {
   if (isFreeMode.value) return 'Hacé una elongación antes de terminar.'
-  return isLastBlock.value
-    ? 'Hacé una elongación final antes de terminar'
-    : '¿Listo para pasar al siguiente?'
+  return 'Hacé una elongación final antes de terminar'
 })
 
 const blockDoneButtonLabel = computed(() => {
-  if (isFreeMode.value) return 'Ver resumen'
-  return isLastBlock.value ? 'Ver resumen de sesión' : 'Siguiente bloque'
+  return isFreeMode.value ? 'Ver resumen' : 'Ver resumen de sesión'
 })
 </script>
 

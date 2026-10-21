@@ -20,7 +20,12 @@
     </div>
 
     <!-- 3-2-1 antes de arrancar (se entra directo, sin pantalla de inicio) -->
-    <CountdownOverlay v-else-if="stage === 'countdown'" @done="onCountdownDone" />
+    <CountdownOverlay
+      v-else-if="stage === 'countdown'"
+      :kicker="countdownCopy.kicker"
+      :subtitle="countdownCopy.subtitle"
+      @done="onCountdownDone"
+    />
 
     <!-- Pantalla 4: celebración. T-197-39: el "+5" sale de la respuesta del servidor -->
     <FreeBlockCelebration
@@ -88,6 +93,7 @@ import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { DEFAULT_BRANCH_TZ, todayInTz } from 'src/utils/tz'
 import { dayKicker } from '../utils/weekLabels'
+import { freeCountdownCopy } from '../utils/blockTransition'
 import { getQuoteForBlock } from '../data/quotes'
 import { FREE_BLOCK_AURA_MIN_SECONDS } from '../types/free-blocks'
 import type { FreeBlockCompleteResponse, FreeBlockItem } from '../types/free-blocks'
@@ -162,6 +168,11 @@ const canEarnAura = computed(() => {
 // Barrita dorada de AURA: solo si todavía queda AURA por cobrar hoy (D-12)
 const auraGoalSeconds = computed(() =>
   freeBlocksStore.auraAvailableToday ? FREE_BLOCK_AURA_MIN_SECONDS : null,
+)
+
+// Textos del 3-2-1: "Bloque libre · {nombre}" y el primer ejercicio
+const countdownCopy = computed(() =>
+  item.value ? freeCountdownCopy(item.value) : { kicker: 'Bloque libre', subtitle: '' },
 )
 
 // Puente player -> vista

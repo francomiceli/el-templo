@@ -196,6 +196,7 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
+import { NOCHE_GRADIENT, sceneBackgroundStyle } from 'src/constants/sceneVeil'
 import { useStoryNavigation } from '../composables/useStoryNavigation'
 import SegmentedProgressBar from '../components/player/SegmentedProgressBar.vue'
 import { LEVEL_GREEK_MAP, LEVEL_DISPLAY_MAP } from '../level-display'
@@ -243,15 +244,12 @@ const ariaAnnouncement = computed(
 // en 2.6:1; ahora 0.8 → 0.72 (fondo ≈ #ddd2c1, texto ≥ 5.1:1, 199-contraste).
 const DIA_GRADIENT =
   'linear-gradient(180deg, rgba(242,236,226,0.9) 0%, rgba(242,236,226,0.84) 42%, rgba(240,232,220,0.8) 68%, rgba(238,229,214,0.72) 100%)'
-const NOCHE_GRADIENT =
-  'linear-gradient(180deg, rgba(20,18,16,0.87) 0%, rgba(20,18,16,0.78) 42%, rgba(26,23,20,0.55) 68%, rgba(33,30,27,0.4) 100%)'
 
-const sceneStyle = computed(() => ({
-  backgroundImage: `${currentSlide.value.theme === 'noche' ? NOCHE_GRADIENT : DIA_GRADIENT}, url(/bars-open.webp)`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  backgroundRepeat: 'no-repeat',
-}))
+// El velo "noche" vive en `src/constants/sceneVeil.ts`: el player (transición entre bloques y 3-2-1)
+// usa el mismo.
+const sceneStyle = computed(() =>
+  sceneBackgroundStyle(currentSlide.value.theme === 'noche' ? NOCHE_GRADIENT : DIA_GRADIENT),
+)
 
 // Entrada escalonada de bullets/filas: 150ms después del título + 80ms por
 // ítem. `prefers-reduced-motion` anula todo esto vía CSS puro (media query

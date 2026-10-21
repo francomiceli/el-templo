@@ -1,24 +1,41 @@
 <template>
-  <div class="countdown-overlay">
-    <div class="countdown-overlay__backdrop" />
+  <PhotoScene class="countdown-overlay">
     <div class="countdown-overlay__content">
-      <Transition name="countdown-pop" mode="out-in">
-        <div v-if="current > 0" :key="current" class="countdown-overlay__number">
-          {{ current }}
-        </div>
-        <div v-else key="go" class="countdown-overlay__go">VAMOS!</div>
-      </Transition>
+      <p v-if="kicker" class="countdown-overlay__kicker">{{ kicker }}</p>
+      <div class="countdown-overlay__stage" role="timer" aria-label="Cuenta regresiva">
+        <Transition name="countdown-pop" mode="out-in">
+          <div v-if="current > 0" :key="current" class="countdown-overlay__number">
+            {{ current }}
+          </div>
+          <div v-else key="go" class="countdown-overlay__go">VAMOS!</div>
+        </Transition>
+      </div>
+      <p v-if="subtitle" class="countdown-overlay__subtitle">{{ subtitle }}</p>
     </div>
-  </div>
+  </PhotoScene>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import PhotoScene from './PhotoScene.vue'
+
+// 3-2-1 sobre la foto de Guía con su velo (fase 197, sketch 018). Los textos los arma cada página:
+// el kicker dice dónde estás ("Bloque 2 de 4 · Combos I") y el subtítulo qué viene primero.
+interface Props {
+  /** Cinzel arriba del número */
+  kicker?: string
+  /** Debajo del número (el primer ejercicio) */
+  subtitle?: string
+}
 
 interface Emits {
   (e: 'done'): void
 }
 
+withDefaults(defineProps<Props>(), {
+  kicker: '',
+  subtitle: '',
+})
 const emit = defineEmits<Emits>()
 
 const current = ref(3)
@@ -52,40 +69,51 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
-
-.countdown-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.countdown-overlay__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(30, 27, 24, 0.9);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
+@import 'src/css/premium-card';
 
 .countdown-overlay__content {
-  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.countdown-overlay__kicker {
+  margin: 0;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: $pd-cream-2;
+}
+
+// Alto fijo: el cartel de "VAMOS!" (círculo de 160) y el número no mueven el texto de abajo
+.countdown-overlay__stage {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 160px;
-  height: 160px;
+  width: 100%;
+  height: 176px;
+  margin: 8px 0;
 }
 
 .countdown-overlay__number {
   font-family: 'Montserrat', sans-serif;
-  font-size: 96px;
+  font-size: 168px;
   font-weight: 800;
-  color: #d4b46a;
-  text-shadow: 0 0 40px rgba(212, 180, 106, 0.4);
+  color: #fff;
+  text-shadow: 0 6px 40px rgba(212, 180, 106, 0.35);
   line-height: 1;
+}
+
+.countdown-overlay__subtitle {
+  margin: 0;
+  font-size: 16px;
+  color: $pd-cream-2;
 }
 
 .countdown-overlay__go {
@@ -132,6 +160,14 @@ onUnmounted(() => {
   100% {
     opacity: 0;
     transform: scale(0.6);
+  }
+}
+
+// Sin movimiento con `prefers-reduced-motion`: el número cambia sin zoom
+@media (prefers-reduced-motion: reduce) {
+  .countdown-pop-enter-active,
+  .countdown-pop-leave-active {
+    animation: none;
   }
 }
 </style>

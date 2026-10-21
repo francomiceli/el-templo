@@ -78,6 +78,7 @@
         :all-exercises-completed="allExercisesCompleted"
         :read-only="isReviewingPrevious"
         :mode="mode"
+        :is-last-block="isFinalBlock"
         @tap-next="storyNav.next()"
         @tap-prev="storyNav.prev()"
         @complete-block="emit('complete-block')"
@@ -256,6 +257,12 @@ interface Props {
   mode?: 'session' | 'free'
   /** Fase 197 D-12: segundos para sumar AURA (600). `null` = sin barrita. Solo se usa en modo libre. */
   auraGoalSeconds?: number | null
+  /**
+   * El bloque activo es el último de la sesión: ahí queda el cierre "Sesión completa" dentro de la
+   * historia. En los demás, la página muestra la pantalla de transición al tildar el último
+   * ejercicio. Default `true` (modo libre y quien no lo pase conservan el cierre de siempre).
+   */
+  isFinalBlock?: boolean
 }
 
 interface Emits {
@@ -271,6 +278,7 @@ const props = withDefaults(defineProps<Props>(), {
   isAdjusting: false,
   mode: 'session',
   auraGoalSeconds: null,
+  isFinalBlock: true,
 })
 const emit = defineEmits<Emits>()
 
@@ -502,6 +510,10 @@ function onUndoLast(): void {
     }
   }
 }
+
+// La pantalla de transición (DayPlayer / GoalPlanSession) llama a esto desde "Volver al último
+// ejercicio": mismo gesto que el botón de la historia (va al ejercicio y lo destilda).
+defineExpose({ undoLast: onUndoLast })
 
 // Compact list data
 const compactListData = computed(() => {
