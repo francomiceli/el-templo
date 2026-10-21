@@ -80,7 +80,8 @@ export interface RelacionVista {
   nota: string | null;
 }
 
-export interface BanderaVista {
+/** Bandera del catálogo global (una vez cada una). SIN notaInterna. */
+export interface BanderaProfe {
   id: string;
   nivel: NivelBandera;
   senal: string;
@@ -91,7 +92,6 @@ export interface BanderaVista {
 
 export type FichaProfeVista = Omit<FichaProfe, "escalones"> & {
   escalones: string[] | Pendiente;
-  banderas: BanderaVista[];
 };
 
 export interface RutaProfe {
@@ -106,6 +106,8 @@ export interface RutaProfe {
   relaciones: Record<Rol, RelacionVista[]>;
   zonasFicha: { slug: ZonaSlug; vista: Vista; rol: Rol }[];
   sinDibujo: { m: string; nombre: string; rol: Rol }[];
+  /** Ids de `VistaProfe.banderas` que aplican a la ruta (las de "todas" y las que la nombran). */
+  banderaIds: string[];
   fichaProfe: FichaProfeVista | null;
 }
 
@@ -114,6 +116,8 @@ export interface VistaProfe {
   regiones: RegionVista[];
   musculos: MusculoProfe[];
   rutas: RutaProfe[];
+  /** Catálogo global de banderas (una vez cada una); las rutas llevan solo ids. */
+  banderas: BanderaProfe[];
   glosario: {
     roles: GlosarioRol[];
     contracciones: GlosarioEntrada[];
@@ -311,11 +315,9 @@ function escalonesDe(ruta: RutaContenido): string[] | Pendiente {
   return steps.map(sentenceCase);
 }
 
-/** Banderas que aplican a la ruta (las de "todas" y las que la nombran). SIN notaInterna. */
-function banderasDe(code: string): BanderaVista[] {
-  return BANDERAS_DEF.filter(
-    (b) => b.rutas === "todas" || b.rutas.includes(code),
-  ).map((b) => ({
+/** Catálogo global de banderas, en el orden de BANDERAS. SIN notaInterna. */
+function catalogoBanderas(): BanderaProfe[] {
+  return BANDERAS_DEF.map((b) => ({
     id: b.id,
     nivel: b.nivel,
     senal: b.senal,
@@ -323,6 +325,13 @@ function banderasDe(code: string): BanderaVista[] {
     fuente: b.fuente,
     umbralH: b.umbralH,
   }));
+}
+
+/** Ids de las banderas que aplican a la ruta (las de "todas" y las que la nombran). */
+function banderaIdsDe(code: string): string[] {
+  return BANDERAS_DEF.filter(
+    (b) => b.rutas === "todas" || b.rutas.includes(code),
+  ).map((b) => b.id);
 }
 
 /** Una sección pendiente viaja como `null` ("Pronto") en la vista de alumno. */
@@ -365,12 +374,9 @@ function rutaProfe(
     relaciones,
     zonasFicha: zonasFichaDe(ruta),
     sinDibujo: sinDibujoDe(ruta),
+    banderaIds: banderaIdsDe(ruta.code),
     fichaProfe: ruta.fichaProfe
-      ? {
-          ...ruta.fichaProfe,
-          escalones: escalonesDe(ruta),
-          banderas: banderasDe(ruta.code),
-        }
+      ? { ...ruta.fichaProfe, escalones: escalonesDe(ruta) }
       : null,
   };
 }
@@ -396,6 +402,7 @@ export function vistaProfe(
       roles: roles.get(m.id) ?? rolesVacios(),
     })),
     rutas: RUTAS.map((r) => rutaProfe(r, ejerciciosPorRuta)),
+    banderas: catalogoBanderas(),
     glosario: {
       roles: [...GLOSARIO_ROLES],
       contracciones: [...GLOSARIO_CONTRACCIONES],
