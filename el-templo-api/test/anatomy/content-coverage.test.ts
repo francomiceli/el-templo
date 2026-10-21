@@ -144,4 +144,24 @@ describe("cobertura de rutas — códigos vs el mapa de progresión y las etique
   it("los códigos de RUTAS no se repiten", () => {
     expect(new Set(RUTAS.map((r) => r.code)).size).toBe(RUTAS.length);
   });
+
+  // FB queda fuera a propósito: sin ejercicios, la TV pinta el cuerpo entero.
+  it("el contenido cubre exactamente las 30 rutas de ROUTE_PROGRESSION_MAP (T1/T2)", () => {
+    const delContenido = RUTAS.map((r) => r.code).sort();
+    const delMapa = Object.keys(ROUTE_PROGRESSION_MAP).sort();
+    expect(delMapa).toHaveLength(30);
+    expect(delContenido).toEqual(delMapa);
+  });
+
+  it("ninguna ruta del contenido es PLYO, CARDIO ni KL (D2)", () => {
+    const codigos = RUTAS.map((r) => r.code);
+    for (const fuera of ["PLYO", "CARDIO", "KL"]) {
+      expect(codigos, fuera).not.toContain(fuera);
+    }
+  });
+
+  it("los 30 slugs de ruta son únicos", () => {
+    expect(RUTAS).toHaveLength(30);
+    expect(new Set(RUTAS.map((r) => r.slug)).size).toBe(30);
+  });
 });

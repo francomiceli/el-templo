@@ -39,6 +39,7 @@ import type {
   GrupoAlumnoDef,
   MusculoDef,
   RegionDef,
+  Rol,
   RutaContenido,
 } from "../../src/modules/anatomy/types";
 
@@ -250,7 +251,7 @@ describe("contenido de anatomía — coherencia", () => {
     expect(BANDERAS.find((b) => b.id === "b17")?.rutas).toEqual([]);
   });
 
-  it("las rutas cargadas incluyen las 16 de tren superior y core (planes 03 y 04)", () => {
+  it("las rutas de tren superior y core (planes 03 y 04) siguen cargadas", () => {
     const esperadas = [
       "BL",
       "HD/ID",
@@ -276,10 +277,45 @@ describe("contenido de anatomía — coherencia", () => {
     }
   });
 
-  it("FL tiene fichaProfe y fichaAlumno", () => {
-    const fl = RUTAS_POR_CODIGO.get("FL");
-    expect(fl?.fichaProfe).not.toBeNull();
-    expect(fl?.fichaAlumno).not.toBeNull();
+  it("FL y PS tienen ficha de profe y de alumno", () => {
+    for (const code of ["FL", "PS"]) {
+      const ruta = RUTAS_POR_CODIGO.get(code);
+      expect(ruta?.fichaProfe, `${code} fichaProfe`).not.toBeNull();
+      expect(ruta?.fichaAlumno, `${code} fichaAlumno`).not.toBeNull();
+    }
+  });
+
+  it("todas las rutas en borrador (D5)", () => {
+    expect(RUTAS).toHaveLength(30);
+    for (const r of RUTAS) {
+      expect(r.estado, r.code).toBe("borrador");
+    }
+  });
+
+  it("PS es linear: sus escalones salen de la ficha, no del mapa", () => {
+    const ficha = RUTAS_POR_CODIGO.get("PS")?.fichaProfe;
+    expect(ficha?.escalones).toMatchObject({ fuente: "ficha" });
+  });
+
+  it("tren inferior (§1.7.2): SS con cuádriceps y sin glúteo, DS con vastos, NC con gemelos, QC con tibial", () => {
+    const de = (code: string, roles: readonly Rol[]): string[] =>
+      roles.flatMap((rol) =>
+        (RUTAS_POR_CODIGO.get(code)?.relaciones[rol] ?? []).map((r) => r.m),
+      );
+    expect(de("SS", ["motor"])).toContain("vastos");
+    expect(de("SS", ["motor", "sinergista"])).not.toContain("gluteo-mayor");
+    expect(de("SS", ["motor", "sinergista"])).not.toContain("gluteo-medio");
+    expect(de("SS", ["motor", "sinergista"])).not.toContain("aductores");
+    expect(de("DS", ["motor", "sinergista"])).toContain("vastos");
+    expect(de("NC", ["motor", "sinergista"])).toContain("gemelo");
+    expect(de("QC", ["motor", "sinergista"])).toContain("tibial");
+    expect(de("PS", ["motor"])).toContain("soleo");
+    expect(de("PS", ["estabilizador"])).toEqual(
+      expect.arrayContaining(["gemelo", "tibial"]),
+    );
+    expect(de("SIDE PCK", ["motor"])).toEqual(
+      expect.arrayContaining(["oblicuos", "cuadrado"]),
+    );
   });
 
   it("BL no es copia de PL: cambian el bíceps, el dorsal y los roles", () => {
