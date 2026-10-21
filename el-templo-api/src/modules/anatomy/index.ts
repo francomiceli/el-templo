@@ -1,0 +1,1 @@
+export { anatomyRoutes } from "./routes";

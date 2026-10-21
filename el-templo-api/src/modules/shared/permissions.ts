@@ -385,6 +385,19 @@ export const TV_CONTROL_ROLES = [
 ] as const;
 
 /**
+ * Fase 200 R1: Admin › Anatomía = staff de piso, mismo valor que PLANIS_ROLES
+ * del admin (`coach`, `admin`, `owner`, `coach_actividad`). No es trainingOnly:
+ * si no, los profes no la ven (200-RESEARCH Open Question 1). Deliberadamente
+ * EXCLUYE gestion, recepcion, member, tv y admin_sede. Fijado byte a byte por
+ * `rbac-sets.test.ts`.
+ */
+export const ANATOMIA_STAFF_ROLES = [
+  ...ADMIN_ROLES,
+  "coach",
+  "coach_actividad",
+] as const;
+
+/**
  * Rol de la cuenta dedicada de los televisores (2026-09-07, migración 0222).
  *
  * Nació de un incidente: las pantallas de dos sedes estaban logueadas con la

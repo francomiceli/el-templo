@@ -51,6 +51,7 @@ import {
   checkInRosterRoutes,
 } from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
+import { anatomyRoutes } from "./modules/anatomy";
 import { notificationRoutes } from "./modules/notifications";
 import { communicationsRoutes, tvAvisosRoutes } from "./modules/communications";
 import { referralMemberRoutes } from "./modules/referrals/routes";
@@ -384,6 +385,9 @@ export async function buildApp(opts: BuildAppOptions = {}) {
 
   // Program management routes (admin CRUD + member catalog/progress)
   await moduleScope(app, "templo-training", programRoutes, { prefix: "/api" });
+
+  // Fase 200: contenido de anatomía (solo lectura)
+  await moduleScope(app, "templo-training", anatomyRoutes, { prefix: "/api" });
 
   // Notification routes (push notifications, preferences, admin templates)
   await app.register(notificationRoutes, { prefix: "/api/notifications" });
