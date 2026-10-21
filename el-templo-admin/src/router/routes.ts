@@ -8,6 +8,7 @@ import {
   DUENO_ROLES,
   TV_CONTROL_ROLES,
   PLANIS_ROLES,
+  ANATOMIA_ROLES,
   PARTNERS_ROLES,
   JORNADA_ROLES,
   ANALITICAS_ROLES,
@@ -246,6 +247,13 @@ const routes: RouteRecordRaw[] = [
         path: 'planis',
         component: () => import('pages/PlanisPage.vue'),
         meta: { allowedRoles: PLANIS_ROLES },
+      },
+      {
+        // Anatomía (fase 200 D6/R1): músculos por zona y por ruta para el staff de piso.
+        // Mismo set que Planis; el gate real es GET /api/admin/anatomy (ANATOMIA_STAFF_ROLES).
+        path: 'anatomia',
+        component: () => import('pages/AnatomiaPage.vue'),
+        meta: { allowedRoles: ANATOMIA_ROLES },
       },
       {
         path: 'analiticas',

@@ -192,6 +192,13 @@ export const TV_CONTROL_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'tv', '
 export const PLANIS_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'coach_actividad'];
 
 /**
+ * "Anatomía" (fase 200 D6): qué músculos trabaja cada ruta, para el staff de piso.
+ * Fase 200 R1: = PLANIS_ROLES; espejo de ANATOMIA_STAFF_ROLES del API (el gate real es el API,
+ * el nav y la ruta solo ordenan la navegación).
+ */
+export const ANATOMIA_ROLES: AdminRole[] = ['coach', 'admin', 'owner', 'coach_actividad'];
+
+/**
  * "Mi jornada" (check-in/check-out de staff con el QR de la sede): jornada
  * laboral, el staff que trabaja en piso. Excluye `gestion` (decisión de
  * Franco 2026-09-07: no ve Check-in en absoluto) y `tv` (la cuenta dedicada
@@ -265,6 +272,8 @@ export const NAV_MODEL: NavCategory[] = [
     // Entrenamiento (revisión v5.4): la capa de entrenamiento del Templo, arriba de todo.
     // Toda la categoría es Templo (`templo: true`) → un white-label sin Templo no la ve.
     // Sesiones/Programador/Ejercicios/Árbol son trainingOnly (canAccessTraining).
+    // Anatomía (fase 200 R1) NO es trainingOnly: se ve por roles (ANATOMIA_ROLES), así el
+    // staff de piso (coach, coach_actividad) la tiene aunque no administre el entrenamiento.
     header: 'Entrenamiento',
     templo: true,
     items: [
@@ -278,6 +287,7 @@ export const NAV_MODEL: NavCategory[] = [
       { path: '/generate', label: 'Programador', icon: 'auto_awesome', trainingOnly: true },
       { path: '/exercises', label: 'Ejercicios', icon: 'sports_gymnastics', trainingOnly: true },
       { path: '/tree-map', label: 'Árbol', icon: 'hub', trainingOnly: true },
+      { path: '/anatomia', label: 'Anatomía', icon: 'accessibility_new', roles: ANATOMIA_ROLES },
     ],
   },
   {
