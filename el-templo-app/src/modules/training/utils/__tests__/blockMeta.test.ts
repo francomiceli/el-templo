@@ -168,8 +168,8 @@ describe('blockDisplayName y sessionTitle', () => {
     expect(blockDisplayName({ role: 'INITIUM', route: 'PL' })).toBe('Entrada en calor')
   })
 
-  it('ROM usa el rótulo del rol', () => {
-    expect(blockDisplayName({ role: 'ROM_LOWER', route: 'MOVILIDAD' })).toBe('Tren Inferior')
+  it('ROM es Movilidad · ROM y TECNICA usa el rótulo del rol', () => {
+    expect(blockDisplayName({ role: 'ROM_LOWER', route: 'MOVILIDAD' })).toBe('Movilidad · ROM')
     expect(blockDisplayName({ role: 'TECNICA_I', route: 'PL' })).toBe('Técnica I')
   })
 

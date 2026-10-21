@@ -20,13 +20,15 @@ function paramType(p: Block['formatParams']): string {
 }
 
 /**
- * Nombre visible del bloque: INITIUM es "Entrada en calor"; ROM/COMBOS/TECNICA/STRETCHING usan el
- * rótulo del rol; el resto, la etiqueta de la ruta ("Planche").
+ * Nombre visible del bloque: INITIUM es "Entrada en calor"; ROM_* es "Movilidad · ROM" (gap 197-24,
+ * hallazgo 9: antes repetía el rótulo del rol que el chip ya muestra arriba, "Tren Inferior" dos
+ * veces; la zona la da el rol, y el nombre sigue el "Ruta · Formato" del título del API);
+ * COMBOS/TECNICA/STRETCHING usan el rótulo del rol; el resto, la etiqueta de la ruta ("Planche").
  */
 export function blockDisplayName(b: Pick<Block, 'role' | 'route'>): string {
   if (b.role === 'INITIUM') return 'Entrada en calor'
+  if (b.role.startsWith('ROM_')) return 'Movilidad · ROM'
   if (
-    b.role.startsWith('ROM_') ||
     b.role.startsWith('COMBOS_') ||
     b.role.startsWith('TECNICA_') ||
     b.role === 'STRETCHING'

@@ -82,6 +82,10 @@ function onPick(index: number): void {
     @include pd-role-label;
     display: block;
     line-height: 1.2;
+    // Gap 197-24 (hallazgo 9): una línea, para que los chips queden parejos a 360
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   &__chip--on &__role {
