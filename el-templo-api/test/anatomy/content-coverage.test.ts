@@ -10,6 +10,9 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { REGIONES } from "../../src/modules/anatomy/content/regiones";
+import { RUTAS } from "../../src/modules/anatomy/content/rutas";
+import { ROUTE_PROGRESSION_MAP } from "../../src/modules/exercises/route-progression-map";
+import { ROUTE_LABELS } from "../../src/modules/tv/route-labels";
 import { ZONAS_ORDEN } from "../../src/modules/tv/muscle-zones";
 
 const ADMIN_JSON = path.resolve(
@@ -118,5 +121,27 @@ describe("cobertura del dibujo — regiones vs anatomia.json", () => {
     const tibialis = REGIONES.find((r) => r.slug === "tibialis");
     expect(tibialis?.grupo).toBe("piernas");
     expect(tibialis?.enTv).toBe(false);
+  });
+});
+
+describe("cobertura de rutas — códigos vs el mapa de progresión y las etiquetas", () => {
+  it("todo código de RUTAS está en ROUTE_PROGRESSION_MAP", () => {
+    const codigos = Object.keys(ROUTE_PROGRESSION_MAP);
+    for (const ruta of RUTAS) {
+      expect(codigos, `${ruta.code} en ROUTE_PROGRESSION_MAP`).toContain(
+        ruta.code,
+      );
+    }
+  });
+
+  it("todo código de RUTAS está en ROUTE_LABELS (R3: nombres de getRouteLabel)", () => {
+    const codigos = Object.keys(ROUTE_LABELS);
+    for (const ruta of RUTAS) {
+      expect(codigos, `${ruta.code} en ROUTE_LABELS`).toContain(ruta.code);
+    }
+  });
+
+  it("los códigos de RUTAS no se repiten", () => {
+    expect(new Set(RUTAS.map((r) => r.code)).size).toBe(RUTAS.length);
   });
 });

@@ -9,6 +9,10 @@ import { BANDERAS } from "../../src/modules/anatomy/content/banderas";
 import { CITAS, LEYENDA_MARCAS } from "../../src/modules/anatomy/content/citas";
 import { REGIONES } from "../../src/modules/anatomy/content/regiones";
 import { MUSCULOS } from "../../src/modules/anatomy/content/musculos";
+import {
+  RUTAS,
+  RUTAS_POR_CODIGO,
+} from "../../src/modules/anatomy/content/rutas";
 import { GRUPOS_ALUMNO } from "../../src/modules/anatomy/content/grupos-alumno";
 import {
   GLOSARIO_CONTRACCIONES,
@@ -24,14 +28,18 @@ import {
   validarMarcas,
   validarMusculos,
   validarRegiones,
+  validarRutas,
 } from "../../src/modules/anatomy/validate";
 import { ROLES, esPendiente } from "../../src/modules/anatomy/types";
 import type {
   BanderaDef,
   CitaDef,
+  FichaAlumno,
+  FichaProfe,
   GrupoAlumnoDef,
   MusculoDef,
   RegionDef,
+  RutaContenido,
 } from "../../src/modules/anatomy/types";
 
 const REGIONES_DEF: readonly RegionDef[] = REGIONES;
@@ -69,6 +77,76 @@ function musculo(parcial: Partial<MusculoDef> = {}): MusculoDef {
     zona: { slug: "chest", vista: "front" },
     precision: "exacta",
     queHaceAlumno: "Estira el codo.",
+    ...parcial,
+  };
+}
+
+/** Ruta válida de base para los casos negativos (BL es de strategy token). */
+function ruta(parcial: Partial<RutaContenido> = {}): RutaContenido {
+  return {
+    code: "BL",
+    slug: "back-lever",
+    patron: "PUSH",
+    categoria: "Push horizontal",
+    estado: "borrador",
+    relaciones: {
+      motor: [{ m: "dorsal", c: ["L1"] }],
+      sinergista: [],
+      estabilizador: [{ m: "triceps", c: [] }],
+      antagonista: [],
+      estira: [],
+    },
+    fichaProfe: null,
+    fichaAlumno: null,
+    ...parcial,
+  };
+}
+
+/** Relaciones de base con el motor y el estabilizador reemplazados. */
+function relaciones(
+  motor: RutaContenido["relaciones"]["motor"],
+  estabilizador: RutaContenido["relaciones"]["estabilizador"] = [],
+): RutaContenido["relaciones"] {
+  return {
+    motor,
+    sinergista: [],
+    estabilizador,
+    antagonista: [],
+    estira: [],
+  };
+}
+
+/** Pendiente de fuente para completar las secciones de una ficha sintética. */
+const FALTA = { pendiente: "falta", quien: "fuente" } as const;
+
+/** Ficha de profe sintética: lo mínimo válido, el resto pendiente. */
+function fichaProfe(parcial: Partial<FichaProfe> = {}): FichaProfe {
+  return {
+    resumen: { t: "Resumen de la ruta.", c: [] },
+    tipo: "Isométrica",
+    brazo: null,
+    escalones: { fuente: "mapa" },
+    fases: FALTA,
+    articulaciones: FALTA,
+    progresa: FALTA,
+    siente: FALTA,
+    compensa: FALTA,
+    cues: FALTA,
+    banderasRuta: FALTA,
+    evidencia: { t: "Sin estudios.", c: [] },
+    gestos: [],
+    pendientes: [],
+    ...parcial,
+  };
+}
+
+/** Ficha de alumno sintética: lo mínimo válido, el resto pendiente. */
+function fichaAlumno(parcial: Partial<FichaAlumno> = {}): FichaAlumno {
+  return {
+    que: "Un ejercicio de empuje.",
+    siente: FALTA,
+    tips: FALTA,
+    errores: FALTA,
     ...parcial,
   };
 }
@@ -170,6 +248,61 @@ describe("contenido de anatomía — coherencia", () => {
       expect(BANDERAS.find((b) => b.id === id)?.rutas, id).toBe("todas");
     }
     expect(BANDERAS.find((b) => b.id === "b17")?.rutas).toEqual([]);
+  });
+
+  it("las rutas cargadas incluyen las 16 de tren superior y core (planes 03 y 04)", () => {
+    const esperadas = [
+      "BL",
+      "HD/ID",
+      "OAPU",
+      "PL",
+      "PLPU",
+      "HS",
+      "HSPU",
+      "PHS",
+      "MU",
+      "OAP",
+      "TTB",
+      "FL",
+      "FLR",
+      "MN/RP",
+      "OAR",
+      "HR",
+    ];
+    expect(RUTAS.map((r) => r.code)).toEqual(expect.arrayContaining(esperadas));
+    expect(RUTAS_POR_CODIGO.size).toBe(RUTAS.length);
+    for (const code of esperadas) {
+      expect(RUTAS_POR_CODIGO.get(code)?.estado, code).toBe("borrador");
+    }
+  });
+
+  it("FL tiene fichaProfe y fichaAlumno", () => {
+    const fl = RUTAS_POR_CODIGO.get("FL");
+    expect(fl?.fichaProfe).not.toBeNull();
+    expect(fl?.fichaAlumno).not.toBeNull();
+  });
+
+  it("BL no es copia de PL: cambian el bíceps, el dorsal y los roles", () => {
+    const roles = (code: string): string =>
+      JSON.stringify(
+        ROLES.map((rol) =>
+          (RUTAS_POR_CODIGO.get(code)?.relaciones[rol] ?? [])
+            .map((r) => r.m)
+            .sort(),
+        ),
+      );
+    expect(roles("BL")).not.toBe(roles("PL"));
+  });
+
+  it("HS lleva deltoides anterior y HR lleva oblicuos, cuadrado lumbar, erectores y glúteo", () => {
+    const musculosDe = (code: string): string[] =>
+      ROLES.flatMap((rol) =>
+        (RUTAS_POR_CODIGO.get(code)?.relaciones[rol] ?? []).map((r) => r.m),
+      );
+    expect(musculosDe("HS")).toContain("delt-ant");
+    for (const id of ["oblicuos", "cuadrado", "erectores", "gluteo-mayor"]) {
+      expect(musculosDe("HR"), id).toContain(id);
+    }
   });
 
   it("esPendiente distingue una sección pendiente de contenido", () => {
@@ -392,5 +525,187 @@ describe("validador — casos negativos (el validador muerde)", () => {
     );
     const sinEstira: GrupoAlumnoDef[] = [fuerte, sostiene];
     expect(validarGruposAlumno(sinEstira).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("validador de rutas — casos negativos (el validador muerde)", () => {
+  it("la ruta base es válida, con o sin fichas mínimas", () => {
+    expect(validarRutas([ruta()], MUSCULOS)).toEqual([]);
+    expect(
+      validarRutas(
+        [ruta({ fichaProfe: fichaProfe(), fichaAlumno: fichaAlumno() })],
+        MUSCULOS,
+      ),
+    ).toEqual([]);
+  });
+
+  it("código fuera de las 30 rutas (PLYO)", () => {
+    const errores = validarRutas([ruta({ code: "PLYO" })], MUSCULOS);
+    expect(errores.length).toBeGreaterThanOrEqual(1);
+    expect(errores.join("\n")).toContain("PLYO");
+  });
+
+  it("músculo inexistente (deltoides-medio no es uno de los 28)", () => {
+    const errores = validarRutas(
+      [
+        ruta({
+          relaciones: relaciones([{ m: "deltoides-medio", c: [] }]),
+        }),
+      ],
+      MUSCULOS,
+    );
+    expect(errores.length).toBeGreaterThanOrEqual(1);
+    expect(errores.join("\n")).toContain("deltoides-medio");
+  });
+
+  it("músculo repetido en motor y estabilizador", () => {
+    const errores = validarRutas(
+      [
+        ruta({
+          relaciones: relaciones(
+            [{ m: "dorsal", c: [] }],
+            [{ m: "dorsal", c: [] }],
+          ),
+        }),
+      ],
+      MUSCULOS,
+    );
+    expect(errores.length).toBeGreaterThanOrEqual(1);
+    expect(errores.join("\n")).toContain("una sola vez");
+  });
+
+  it("fichaAlumno con 'antagonista' o con un código de ruta", () => {
+    const conJerga = validarRutas(
+      [ruta({ fichaAlumno: fichaAlumno({ que: "Trabaja el antagonista." }) })],
+      MUSCULOS,
+    );
+    expect(conJerga.length).toBeGreaterThanOrEqual(1);
+    expect(conJerga.join("\n")).toContain("antagonista");
+    const conCodigo = validarRutas(
+      [ruta({ fichaAlumno: fichaAlumno({ tips: ["Mejora tu PS."] }) })],
+      MUSCULOS,
+    );
+    expect(conCodigo.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("escalones 'mapa' en una ruta linear (PS sintética) da error y en una token no", () => {
+    const enLinear = validarRutas(
+      [
+        ruta({
+          code: "PS",
+          slug: "pistol-squat",
+          patron: "LOWER",
+          fichaProfe: fichaProfe({ escalones: { fuente: "mapa" } }),
+        }),
+      ],
+      MUSCULOS,
+    );
+    expect(enLinear.length).toBeGreaterThanOrEqual(1);
+    expect(enLinear.join("\n")).toContain("mapa");
+    expect(
+      validarRutas([ruta({ fichaProfe: fichaProfe() })], MUSCULOS),
+    ).toEqual([]);
+  });
+
+  it("escalones 'ficha' sin pasos", () => {
+    const errores = validarRutas(
+      [
+        ruta({
+          fichaProfe: fichaProfe({ escalones: { fuente: "ficha", pasos: [] } }),
+        }),
+      ],
+      MUSCULOS,
+    );
+    expect(errores.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("código y slug duplicados entre rutas", () => {
+    expect(
+      validarRutas([ruta(), ruta({ slug: "otro-slug" })], MUSCULOS).join("\n"),
+    ).toContain("código duplicado");
+    expect(
+      validarRutas([ruta(), ruta({ code: "PL" })], MUSCULOS).join("\n"),
+    ).toContain("duplicado");
+  });
+
+  it("slug mal formado, patrón inválido y estado distinto de borrador", () => {
+    expect(
+      validarRutas([ruta({ slug: "Back_Lever" })], MUSCULOS).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      validarRutas(
+        [ruta({ patron: "CARDIO" as unknown as RutaContenido["patron"] })],
+        MUSCULOS,
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      validarRutas(
+        [ruta({ estado: "validado" as unknown as RutaContenido["estado"] })],
+        MUSCULOS,
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("rol faltante y ruta que solo tiene antagonistas", () => {
+    const sinEstira = {
+      motor: [{ m: "dorsal", c: [] }],
+      sinergista: [],
+      estabilizador: [],
+      antagonista: [],
+    } as unknown as RutaContenido["relaciones"];
+    expect(
+      validarRutas([ruta({ relaciones: sinEstira })], MUSCULOS).join("\n"),
+    ).toContain("estira");
+    const soloAntagonista: RutaContenido["relaciones"] = {
+      motor: [],
+      sinergista: [],
+      estabilizador: [],
+      antagonista: [{ m: "dorsal", c: [] }],
+      estira: [],
+    };
+    expect(
+      validarRutas([ruta({ relaciones: soloAntagonista })], MUSCULOS).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("marca inexistente en una relación y en una afirmación de la ficha", () => {
+    expect(
+      validarRutas(
+        [ruta({ relaciones: relaciones([{ m: "dorsal", c: [999] }]) })],
+        MUSCULOS,
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      validarRutas(
+        [
+          ruta({
+            fichaProfe: fichaProfe({ resumen: { t: "Texto.", c: [999] } }),
+          }),
+        ],
+        MUSCULOS,
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  it("afirmación con texto vacío y pendiente con 'quien' inválido", () => {
+    expect(
+      validarRutas(
+        [ruta({ fichaProfe: fichaProfe({ resumen: { t: " ", c: [] } }) })],
+        MUSCULOS,
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
+    const quienMal = { pendiente: "falta", quien: "Z" };
+    expect(
+      validarRutas(
+        [
+          ruta({
+            fichaProfe: fichaProfe({
+              pendientes: [quienMal as unknown as FichaProfe["pendientes"][0]],
+            }),
+          }),
+        ],
+        MUSCULOS,
+      ).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 });

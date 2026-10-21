@@ -2,8 +2,7 @@
  * Fase 200 (T-200-01/02): validador puro del contenido de anatomía.
  *
  * Cada `validarX` devuelve la lista de errores legibles (vacía = contenido
- * válido). `validarContenido()` los junta y un test de CI exige `[]`. El
- * plan 04 suma las rutas a `validarContenido`.
+ * válido). `validarContenido()` los junta y un test de CI exige `[]`.
  */
 import { ROUTE_PROGRESSION_MAP } from "../exercises/route-progression-map";
 import { BANDERAS } from "./content/banderas";
@@ -16,17 +15,26 @@ import {
 import { GRUPOS_ALUMNO } from "./content/grupos-alumno";
 import { MUSCULOS } from "./content/musculos";
 import { REGIONES } from "./content/regiones";
-import { GRUPO_DE_ROL, ROLES } from "./types";
+import { RUTAS } from "./content/rutas";
+import { GRUPO_DE_ROL, ROLES, esPendiente } from "./types";
 import type {
+  Afirmacion,
   BanderaDef,
   CitaDef,
+  FichaAlumno,
+  FichaProfe,
   GrupoAlumnoDef,
   GrupoZona,
   Marca,
   MarcaLetra,
   MusculoDef,
+  Patron,
   Precision,
+  QuienResuelve,
   RegionDef,
+  Relacion,
+  RutaContenido,
+  Seccion,
 } from "./types";
 
 const GRUPOS_ZONA_VALIDOS: readonly GrupoZona[] = [
@@ -52,6 +60,20 @@ const MARCAS_LETRA: readonly MarcaLetra[] = [
 ];
 
 const PRECISIONES: readonly Precision[] = ["exacta", "agrupada", "aproximada"];
+
+const PATRONES: readonly Patron[] = [
+  "PUSH",
+  "PULL",
+  "LOWER",
+  "CORE",
+  "MOVILIDAD",
+  "FLOW",
+];
+
+const QUIENES: readonly QuienResuelve[] = ["H", "N", "fuente"];
+
+/** Slug de ruta: kebab en minúsculas (admite dígitos). */
+const SLUG_RUTA = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /** Última cita numerada del Apéndice A de la investigación. */
 const MAX_CITA = 109;
@@ -436,9 +458,232 @@ export function validarBanderas(
   return errores;
 }
 
+/** `true` si el valor tiene forma de sección pendiente (aunque `quien` esté mal). */
+function tienePendiente(x: unknown): boolean {
+  return typeof x === "object" && x !== null && "pendiente" in x;
+}
+
+/** Los elementos de una sección de lista; vacía si la sección es pendiente. */
+function itemsDe<T>(seccion: Seccion<readonly T[]>): readonly T[] {
+  return esPendiente(seccion) || tienePendiente(seccion) ? [] : seccion;
+}
+
+/** Texto no vacío y marcas válidas. */
+function validarAfirmacion(a: Afirmacion, donde: string): string[] {
+  const errores: string[] = [];
+  if (a.t.trim() === "") errores.push(`${donde}: texto vacío`);
+  errores.push(...validarMarcas(a.c, donde));
+  return errores;
+}
+
+/** Un pendiente con texto y `quien` ∈ H/N/fuente. No hace nada si no lo es. */
+function validarPendiente(x: unknown, donde: string): string[] {
+  if (!tienePendiente(x)) return [];
+  const errores: string[] = [];
+  const { pendiente, quien } = x as { pendiente?: unknown; quien?: unknown };
+  if (typeof pendiente !== "string" || pendiente.trim() === "") {
+    errores.push(`${donde}: pendiente sin texto`);
+  }
+  if (!QUIENES.includes(quien as QuienResuelve)) {
+    errores.push(`${donde}: quien "${String(quien)}" no es H, N ni fuente`);
+  }
+  return errores;
+}
+
+/** Ficha de profe: escalones, afirmaciones con marcas y pendientes. */
+function validarFichaProfe(
+  ruta: RutaContenido,
+  ficha: FichaProfe,
+  donde: string,
+): string[] {
+  const errores: string[] = [];
+
+  const { escalones } = ficha;
+  if (tienePendiente(escalones)) {
+    errores.push(...validarPendiente(escalones, `${donde} escalones`));
+  } else if ("fuente" in escalones && escalones.fuente === "mapa") {
+    if (ROUTE_PROGRESSION_MAP[ruta.code]?.strategy !== "token") {
+      errores.push(
+        `${donde}: escalones "mapa" solo en rutas de strategy token (${ruta.code} no lo es)`,
+      );
+    }
+  } else if ("fuente" in escalones && escalones.fuente === "ficha") {
+    if (
+      escalones.pasos.length === 0 ||
+      escalones.pasos.some((paso) => paso.trim() === "")
+    ) {
+      errores.push(`${donde}: escalones "ficha" sin pasos o con pasos vacíos`);
+    }
+  } else {
+    errores.push(`${donde}: escalones con una fuente desconocida`);
+  }
+
+  const afirmaciones: Array<readonly [string, Afirmacion]> = [];
+  const unica = (nombre: string, seccion: Seccion<Afirmacion>): void => {
+    if (!esPendiente(seccion) && !tienePendiente(seccion)) {
+      afirmaciones.push([`${donde} ${nombre}`, seccion]);
+    }
+  };
+  unica("resumen", ficha.resumen);
+  unica("siente", ficha.siente);
+  afirmaciones.push([`${donde} evidencia`, ficha.evidencia]);
+  itemsDe(ficha.fases).forEach((fase, i) => {
+    if (fase.nombre.trim() === "") {
+      errores.push(`${donde} fases[${i}]: nombre vacío`);
+    }
+    afirmaciones.push([`${donde} fases[${i}]`, fase.texto]);
+  });
+  itemsDe(ficha.progresa).forEach((a, i) => {
+    afirmaciones.push([`${donde} progresa[${i}]`, a]);
+  });
+  itemsDe(ficha.compensa).forEach((c, i) => {
+    afirmaciones.push([`${donde} compensa[${i}]`, c.porque]);
+  });
+  itemsDe(ficha.cues).forEach((a, i) => {
+    afirmaciones.push([`${donde} cues[${i}]`, a]);
+  });
+  itemsDe(ficha.banderasRuta).forEach((b, i) => {
+    afirmaciones.push([`${donde} banderasRuta[${i}]`, b.texto]);
+  });
+  for (const [nombre, a] of afirmaciones) {
+    errores.push(...validarAfirmacion(a, nombre));
+  }
+  itemsDe(ficha.articulaciones).forEach((fila, i) => {
+    errores.push(...validarMarcas(fila.c, `${donde} articulaciones[${i}]`));
+  });
+
+  for (const nombre of [
+    "resumen",
+    "fases",
+    "articulaciones",
+    "progresa",
+    "siente",
+    "compensa",
+    "cues",
+    "banderasRuta",
+  ] as const) {
+    errores.push(...validarPendiente(ficha[nombre], `${donde} ${nombre}`));
+  }
+  ficha.pendientes.forEach((p, i) => {
+    if (!tienePendiente(p)) {
+      errores.push(`${donde} pendientes[${i}]: no tiene forma de pendiente`);
+    }
+    errores.push(...validarPendiente(p, `${donde} pendientes[${i}]`));
+  });
+  return errores;
+}
+
+/** Ficha de alumno (D15): cada texto pasa `textoAlumnoProblemas`. */
+function validarFichaAlumno(ficha: FichaAlumno, donde: string): string[] {
+  const errores: string[] = [];
+  const textos: Array<readonly [string, string]> = [];
+  for (const nombre of ["que", "siente"] as const) {
+    const valor = ficha[nombre];
+    if (typeof valor === "string") textos.push([nombre, valor]);
+    else errores.push(...validarPendiente(valor, `${donde} ${nombre}`));
+  }
+  itemsDe(ficha.tips).forEach((tip, i) => textos.push([`tips[${i}]`, tip]));
+  itemsDe(ficha.errores).forEach((e, i) => {
+    textos.push([`errores[${i}] error`, e.error]);
+    textos.push([`errores[${i}] texto`, e.texto]);
+  });
+  errores.push(
+    ...validarPendiente(ficha.tips, `${donde} tips`),
+    ...validarPendiente(ficha.errores, `${donde} errores`),
+  );
+  for (const [nombre, texto] of textos) {
+    if (texto.trim() === "") errores.push(`${donde} ${nombre}: texto vacío`);
+    errores.push(...textoAlumnoProblemas(texto, `${donde} ${nombre}`));
+  }
+  return errores;
+}
+
 /**
- * Todo el contenido de anatomía. Hoy: regiones, músculos, glosario, grupos de
- * alumno, citas y banderas. El plan 04 suma las rutas.
+ * Rutas (R2, R3): código ∈ `ROUTE_PROGRESSION_MAP` y único, slug kebab único,
+ * estado borrador, patrón válido, los 5 roles presentes, músculos que existen
+ * y una sola vez por ruta, marcas válidas, al menos una relación que no sea
+ * solo antagonista, y las fichas (escalones, afirmaciones, pendientes, textos
+ * de alumno sin jerga).
+ */
+export function validarRutas(
+  rutas: readonly RutaContenido[],
+  musculos: readonly MusculoDef[],
+): string[] {
+  const errores: string[] = [];
+  const idsMusculo = new Set(musculos.map((m) => m.id));
+  const codigos = new Set<string>();
+  const slugs = new Set<string>();
+  for (const ruta of rutas) {
+    const donde = `ruta ${ruta.code}`;
+    if (!(ruta.code in ROUTE_PROGRESSION_MAP)) {
+      errores.push(`${donde}: el código no está entre las 30 rutas`);
+    }
+    if (codigos.has(ruta.code)) errores.push(`${donde}: código duplicado`);
+    codigos.add(ruta.code);
+    if (!SLUG_RUTA.test(ruta.slug)) {
+      errores.push(
+        `${donde}: slug "${ruta.slug}" fuera del formato kebab-case`,
+      );
+    }
+    if (slugs.has(ruta.slug)) {
+      errores.push(`${donde}: slug "${ruta.slug}" duplicado`);
+    }
+    slugs.add(ruta.slug);
+    if (ruta.estado !== "borrador") {
+      errores.push(`${donde}: el estado debe ser "borrador" (D5)`);
+    }
+    if (!PATRONES.includes(ruta.patron)) {
+      errores.push(`${donde}: patrón inválido "${String(ruta.patron)}"`);
+    }
+    if (ruta.categoria.trim() === "") errores.push(`${donde}: categoría vacía`);
+
+    const rolDeMusculo = new Map<string, string>();
+    let utiles = 0;
+    for (const rol of ROLES) {
+      const lista = ruta.relaciones[rol] as readonly Relacion[] | undefined;
+      if (!lista) {
+        errores.push(`${donde}: falta el rol ${rol}`);
+        continue;
+      }
+      if (rol !== "antagonista") utiles += lista.length;
+      for (const relacion of lista) {
+        const cual = `${donde} ${rol} ${relacion.m}`;
+        if (!idsMusculo.has(relacion.m)) {
+          errores.push(`${cual}: el músculo no existe`);
+        }
+        const previo = rolDeMusculo.get(relacion.m);
+        if (previo !== undefined) {
+          errores.push(
+            `${cual}: el músculo ya está en la ruta como ${previo} (una sola vez por ruta)`,
+          );
+        }
+        rolDeMusculo.set(relacion.m, rol);
+        errores.push(...validarMarcas(relacion.c, cual));
+      }
+    }
+    if (utiles === 0) {
+      errores.push(
+        `${donde}: sin relaciones en motor, sinergista, estabilizador ni estira`,
+      );
+    }
+
+    if (ruta.fichaProfe !== null) {
+      errores.push(
+        ...validarFichaProfe(ruta, ruta.fichaProfe, `${donde} fichaProfe`),
+      );
+    }
+    if (ruta.fichaAlumno !== null) {
+      errores.push(
+        ...validarFichaAlumno(ruta.fichaAlumno, `${donde} fichaAlumno`),
+      );
+    }
+  }
+  return errores;
+}
+
+/**
+ * Todo el contenido de anatomía: regiones, músculos, glosario, grupos de
+ * alumno, citas, banderas y rutas.
  */
 export function validarContenido(): string[] {
   return [
@@ -448,5 +693,6 @@ export function validarContenido(): string[] {
     ...validarGruposAlumno(),
     ...validarCitas(CITAS),
     ...validarBanderas(BANDERAS),
+    ...validarRutas(RUTAS, MUSCULOS),
   ];
 }
