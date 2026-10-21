@@ -14,7 +14,10 @@
       <div class="block-progression__header-overlay">
         <div class="block-progression__header-gradient" />
         <div class="block-progression__header-content">
-          <div class="block-progression__header-left">
+          <div
+            class="block-progression__header-left"
+            :class="{ 'block-progression__header-left--free': mode === 'free' }"
+          >
             <q-btn
               flat
               round
@@ -707,8 +710,26 @@ function onAdjust(direction: 'up' | 'down'): void {
   min-height: 44px;
 }
 
+// Gap 197-24 (hallazgo 5): a 360 con rutas largas (FLR, PLPU, HSPU, HD/ID) el encabezado libre ocupaba
+// 3 líneas y chocaba con el check de "Bloque completo". El bloque izquierdo puede encogerse
+// (min-width: 0) y cada línea es de UNA línea con "…" -> máximo 2 líneas. Solo modo libre.
+.block-progression__header-left--free {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 8px;
+}
+
 // Fase 197 D-15 (sketch 016 .n-head): línea 1 = "BLOQUE LIBRE · ROL", línea 2 = nombre del bloque
 .block-progression__header-info--free {
+  min-width: 0;
+
+  .block-progression__block-name,
+  .block-progression__route-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .block-progression__block-name {
     font-size: 11px;
     font-weight: 800;
