@@ -85,10 +85,10 @@
     <div class="block-progression__content">
       <!-- Exercise detail panel -->
       <div v-if="viewingBlock" class="block-progression__detail">
-        <!-- Línea de formato, igual en los dos modos: "AMRAP · 10' · 3 rondas" (D-11) -->
+        <!-- Línea de formato sin "Formato:": corta en libre (D-11), con todos los parámetros en sesión -->
         <div v-if="viewingBlock.format" class="block-progression__detail-format">
           <div class="block-progression__detail-format-name">
-            {{ playerFormatLine(viewingBlock) }}
+            {{ playerFormatLine(viewingBlock, mode) }}
           </div>
           <div v-if="viewingBlock.formatDescription" class="block-progression__detail-format-desc">
             {{ viewingBlock.formatDescription }}
