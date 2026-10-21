@@ -16,7 +16,9 @@ import type {
 const log = createLogger('freeBlocksStore')
 
 const PAGE_SIZE = 20
-const LOAD_ERROR = 'No pudimos cargar los bloques'
+// Gap 197-24 (hallazgo 7): mensaje fijo en español para el socio. `extractError` devolvía el
+// `err.message` de axios en inglés ("Request failed with status code 500"): el detalle técnico va al log.
+const LOAD_ERROR = 'No pudimos cargar los bloques. Probá de nuevo.'
 
 /**
  * Store de la canasta de bloques libres (fase 197 D-04, D-14).
@@ -88,8 +90,8 @@ export const useFreeBlocksStore = defineStore('freeBlocks', () => {
       loaded.value = true
     } catch (err: unknown) {
       if (seq !== requestSeq) return
-      error.value = extractError(err, LOAD_ERROR)
-      log.error('No se pudo cargar la canasta', { error: error.value })
+      error.value = LOAD_ERROR
+      log.error('No se pudo cargar la canasta', { error: extractError(err, 'desconocido') })
     } finally {
       if (seq === requestSeq) loading.value = false
     }
@@ -120,8 +122,10 @@ export const useFreeBlocksStore = defineStore('freeBlocks', () => {
       applyMeta(response.data)
     } catch (err: unknown) {
       if (seq !== requestSeq) return
-      error.value = extractError(err, LOAD_ERROR)
-      log.error('No se pudo traer más bloques de la canasta', { error: error.value })
+      error.value = LOAD_ERROR
+      log.error('No se pudo traer más bloques de la canasta', {
+        error: extractError(err, 'desconocido'),
+      })
     } finally {
       if (seq === requestSeq) loadingMore.value = false
     }
@@ -146,8 +150,11 @@ export const useFreeBlocksStore = defineStore('freeBlocks', () => {
       return response.data.item
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.status === 404) return null
-      error.value = extractError(err, LOAD_ERROR)
-      log.error('No se pudo cargar el bloque libre', { blockId, error: error.value })
+      error.value = LOAD_ERROR
+      log.error('No se pudo cargar el bloque libre', {
+        blockId,
+        error: extractError(err, 'desconocido'),
+      })
       return null
     }
   }
