@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { AxiosError } from 'axios'
 
 /**
@@ -85,7 +85,7 @@ vi.mock('../axios', () => ({
   isSessionRejectedStatus: (status: number | undefined) => status === 401 || status === 403,
 }))
 
-import { runAuthBoot } from '../auth'
+import { runAuthBoot, BOOT_NETWORK_TIMEOUT_MS } from '../auth'
 
 /** Fabrica un JWT sin firmar con el payload dado (alcanza para el decode del boot). */
 function makeJwt(claims: Record<string, unknown>): string {
@@ -231,6 +231,101 @@ describe('boot/auth.ts — runAuthBoot (App 1.7.9, causa raíz de deslogueos)', 
       expect(userStoreMock.hydrateSelection).toHaveBeenCalledTimes(1)
       expect(userStoreMock.loadSubscription).toHaveBeenCalledTimes(1)
       expect(userStoreMock.markProfileStale).not.toHaveBeenCalled()
+    })
+  })
+
+  // Reporte 2026-10-21 ("abren la app y queda en blanco"): en nativo CapacitorHttp
+  // ignora el timeout de axios, así que una request colgada dejaba el boot — y la
+  // pantalla vacía — esperando minutos. El boot deja de esperar al tope y arranca
+  // optimista, sin cancelar ni desloguear.
+  describe('red colgada → el boot deja de esperar al tope', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    /** Promesa que nunca se resuelve sola: simula la request nativa colgada. */
+    function hanging<T>(): { promise: Promise<T>; reject: (err: unknown) => void } {
+      let reject: (err: unknown) => void = () => {}
+      const promise = new Promise<T>((_, rej) => {
+        reject = rej
+      })
+      return { promise, reject }
+    }
+
+    it('refresh colgado → al tope arranca optimista, sin desloguear ni llamar /auth/me', async () => {
+      tokenState.access = expiredToken()
+      runRefresh.mockReturnValueOnce(hanging().promise)
+
+      let done = false
+      const boot = runAuthBoot().then(() => {
+        done = true
+      })
+
+      await vi.advanceTimersByTimeAsync(BOOT_NETWORK_TIMEOUT_MS - 1)
+      expect(done).toBe(false) // antes del tope sigue esperando
+
+      await vi.advanceTimersByTimeAsync(1)
+      await boot
+
+      expect(clearTokens).not.toHaveBeenCalled()
+      expect(authStoreMock.clearAuth).not.toHaveBeenCalled()
+      expect(authStoreMock.setAuth).toHaveBeenCalledWith(
+        tokenState.access,
+        expect.objectContaining({ id: 7, email: 'socio@test.com', role: 'member' }),
+      )
+      expect(userStoreMock.markProfileStale).toHaveBeenCalledTimes(1)
+      expect(apiGet).not.toHaveBeenCalled()
+    })
+
+    it('/auth/me colgado → al tope se mantiene logueado optimista con el perfil a reintentar', async () => {
+      tokenState.access = freshToken()
+      apiGet.mockReturnValueOnce(hanging().promise)
+
+      const boot = runAuthBoot()
+      await vi.advanceTimersByTimeAsync(BOOT_NETWORK_TIMEOUT_MS)
+      await boot
+
+      expect(clearTokens).not.toHaveBeenCalled()
+      expect(authStoreMock.clearAuth).not.toHaveBeenCalled()
+      expect(authStoreMock.setAuth).toHaveBeenCalledWith(
+        tokenState.access,
+        expect.objectContaining({ id: 7, email: 'socio@test.com', role: 'member' }),
+      )
+      expect(userStoreMock.markProfileStale).toHaveBeenCalledTimes(1)
+      expect(userStoreMock.setProfile).not.toHaveBeenCalled()
+    })
+
+    it('un 401 de /auth/me que llega DESPUÉS del tope no desloguea (el boot ya terminó)', async () => {
+      tokenState.access = freshToken()
+      const me = hanging()
+      apiGet.mockReturnValueOnce(me.promise)
+
+      const boot = runAuthBoot()
+      await vi.advanceTimersByTimeAsync(BOOT_NETWORK_TIMEOUT_MS)
+      await boot
+
+      me.reject(rejectedError(401))
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(clearTokens).not.toHaveBeenCalled()
+      expect(authStoreMock.clearAuth).not.toHaveBeenCalled()
+    })
+
+    it('si la red responde antes del tope, no queda ningún timer vivo', async () => {
+      tokenState.access = expiredToken()
+      runRefresh.mockResolvedValueOnce({ kind: 'ok', token: freshToken() })
+      apiGet.mockResolvedValueOnce({
+        data: { id: 7, email: 'socio@test.com', role: 'member' },
+      })
+
+      await runAuthBoot()
+
+      expect(userStoreMock.setProfile).toHaveBeenCalledTimes(1)
+      expect(vi.getTimerCount()).toBe(0)
     })
   })
 })
