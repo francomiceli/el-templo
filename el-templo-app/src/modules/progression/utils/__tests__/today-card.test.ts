@@ -594,13 +594,13 @@ describe('resolveTodayCard — online', () => {
 })
 
 describe('resolveTodayCard — online siempre Entrena (D3)', () => {
-  it('virtual con programa en domingo → online-programa con Entrenar + Libre (sin plani hoy)', () => {
+  it('virtual con programa en domingo → online-programa, Entrenar + Mi programa', () => {
     const m = resolveTodayCard(
       baseInput({ isVirtual: true, program: PROGRAM, dow: 7, todayRoute: null }),
     )
     expect(m.kind).toBe('online-programa')
     expect(m.primary).toEqual({ label: 'Entrenar', to: '/training' })
-    expect(m.secondary).toEqual({ label: 'Probá el modo Libre', to: '/training?tab=libre' })
+    expect(m.secondary).toEqual({ label: 'Mi programa', action: 'open-program' })
   })
 
   it('virtual con programa, día hábil sin sesión → online-programa con el nombre del programa', () => {
@@ -1123,10 +1123,10 @@ describe('resolveTodayCard — link a Libre en el único link (fase 197 D-17)', 
     expect(m.secondary).not.toEqual(LIBRE)
   })
 
-  it('online con programa y sin plani hoy → link a Libre', () => {
+  it('online con programa y sin plani hoy → sin link a Libre (queda "Mi programa")', () => {
     const m = resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM, todayRoute: null }))
     expect(m.kind).toBe('online-programa')
-    expect(m.secondary).toEqual(LIBRE)
+    expect(m.secondary).toEqual({ label: 'Mi programa', action: 'open-program' })
   })
 
   it('online libre con plan y sin plani hoy → link a Libre', () => {
@@ -1198,10 +1198,10 @@ describe('resolveTodayCard — link a Libre en el único link (fase 197 D-17)', 
     expect(allCopy(m)).not.toContain('Cambiar clase')
   })
 
-  it('online-programa sin plani hoy: Libre reemplaza a "Mi programa"', () => {
+  it('online-programa sin plani hoy: "Mi programa" gana, nunca Libre', () => {
     const m = resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM, todayRoute: null }))
-    expect(m.secondary).toEqual(LIBRE)
-    expect(allCopy(m)).not.toContain('Mi programa')
+    expect(m.secondary).toEqual({ label: 'Mi programa', action: 'open-program' })
+    expect(allCopy(m)).not.toContain('Probá el modo Libre')
   })
 })
 

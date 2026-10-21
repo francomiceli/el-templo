@@ -43,7 +43,8 @@
  * (ante la duda NO se muestra): solo con plan active/paused (un plan solo programado no) y
  * (a) `completada`, (b) `presencial-turno` con asistencia registrada, (c) `presencial-sin-turno`
  * sin lista de espera (incluye la clase de hoy perdida, regla D5), (d) `presencial-proxima`
- * (hoy no hay clase), (e) `online-*` sin plani hoy (`todayRoute` null). Nunca antes de la clase.
+ * (hoy no hay clase), (e) `online-libre` sin plani hoy (`todayRoute` null). Nunca antes de la clase.
+ * `online-programa` nunca: su link es "Mi programa", que para quien sigue un programa pesa más.
  * Después va `withExtraPrograms`: pone "Tus programas" en `secondary` solo si quedó vacío
  * (completada y presenciales, nunca virtual ni sin plan).
  *
@@ -441,7 +442,6 @@ function withLibreLink(model: TodayCardModel, input: TodayCardInput): TodayCardM
     case 'presencial-sin-turno':
       show = !input.waitlistTime
       break
-    case 'online-programa':
     case 'online-libre':
       show = !input.todayRoute
       break
