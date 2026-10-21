@@ -3,7 +3,8 @@
  * weekly-zones, free-blocks-list, free-blocks-complete, free-blocks-invariants
  * e iso-03-free-blocks.
  *
- * - `seedExercise`: ejercicio con categoría/secundaria/ruta (insumo de las zonas).
+ * - `seedExercise`: ejercicio con ruta/categoría/secundaria (insumo de las zonas:
+ *   fase 200 D20, las zonas salen de la RUTA del modelo de anatomía).
  * - `seedSession`: sesión con bloques y prescripciones. `main` en el orden de
  *   `exerciseIds`; la movilidad con `exercise_type = "mobility"` y
  *   `sort_order = 999`. Idempotente: borra antes la sesión con el mismo `dayId`.
@@ -50,7 +51,13 @@ export function dayIdFor(date: string, level: string): string {
   return `W${dateToWeekNumber(date)}-${dateToDayName(date)}-${level}`;
 }
 
-/** Ejercicio sembrado; sin categoría queda en una que la TV no mapea a zonas. */
+/**
+ * Ejercicio sembrado. Fase 200 D20: las zonas salen de la RUTA (`zonasDeRuta`);
+ * sin ruta y con la categoría por defecto (COORDINATIVO, sin fallback) no hay
+ * zonas, igual que antes. La categoría solo aporta zonas sin ruta si es PLYO,
+ * POTENCIA, LUNGE o KNEE DOMINANT, y `categorySecondary` (columna real) ya no
+ * afecta las zonas.
+ */
 export async function seedExercise(
   app: FastifyInstance,
   opts: {
@@ -71,7 +78,7 @@ export async function seedExercise(
         categorySecondary: opts.categorySecondary ?? null,
         exercise: opts.name,
         effort: "high",
-        route: opts.route ?? "AF",
+        route: opts.route ?? "",
         videoUrl: null,
       }),
     )

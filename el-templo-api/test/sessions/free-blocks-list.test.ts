@@ -39,6 +39,10 @@ import {
   shiftDate,
   weekDayToDate,
 } from "../../src/modules/shared/week-dates";
+import {
+  gruposDeZonas,
+  zonasDeRuta,
+} from "../../src/modules/anatomy/projection";
 import { getRouteLabel } from "../../src/modules/tv/route-labels";
 import {
   CTX_TEMPLO,
@@ -51,6 +55,16 @@ import {
 
 const AR_TZ = "America/Argentina/Buenos_Aires";
 const LEVEL = "sigma";
+
+// Fase 200 D20: las zonas de un ejercicio salen de su RUTA del modelo, no de la
+// categoría. Rutas elegidas para los casos de zonas (sus zonas se calculan con
+// `zonasDeRuta`, el valor literal lo fija test/anatomy/projection-parity):
+//  - EMPUJE "HD/ID": trabaja pecho (y hombros, tríceps, espalda alta).
+//  - TRACCION "OAR": trabaja espalda, hombros y brazos, SIN pecho ni piernas.
+//  - PIERNA "L": cuádriceps, glúteos, isquios y aductores (todo piernas).
+const RUTA_EMPUJE = "HD/ID";
+const RUTA_TRACCION = "OAR";
+const RUTA_PIERNA = "L";
 
 const LEVEL_GROUP: Record<string, string> = {
   kairos: "alfa_delta",
@@ -136,14 +150,12 @@ describe("canasta de bloques libres: GET /api/sessions/free-blocks (197-07)", ()
           eq(schema.dayModes.dayOfWeek, dayNumber),
         ),
       );
-    await app.db
-      .insert(schema.dayModes)
-      .values(
-        tenantValues(CTX_TEMPLO, {
-          dayOfWeek: dayNumber,
-          sessionMode: "regular",
-        }),
-      );
+    await app.db.insert(schema.dayModes).values(
+      tenantValues(CTX_TEMPLO, {
+        dayOfWeek: dayNumber,
+        sessionMode: "regular",
+      }),
+    );
 
     const member = await createPresencialMember(app, { level: LEVEL });
     token = member.token;
@@ -156,12 +168,15 @@ describe("canasta de bloques libres: GET /api/sessions/free-blocks (197-07)", ()
 
   // ─── helpers ───────────────────────────────────────────────────────────
 
-  /** Ejercicio nuevo con nombre único; sin categoría no aporta zonas. */
-  async function ex(category?: string): Promise<number> {
+  /** Ejercicio nuevo con nombre único; sin ruta (ni categoría con fallback) no aporta zonas. */
+  async function ex(
+    opts: { route?: string; category?: string } = {},
+  ): Promise<number> {
     exerciseSeq += 1;
     return seedExercise(app, {
       name: `Ejercicio 197-07 ${exerciseSeq}`,
-      category,
+      route: opts.route,
+      category: opts.category,
     });
   }
 
@@ -360,12 +375,16 @@ describe("canasta de bloques libres: GET /api/sessions/free-blocks (197-07)", ()
   });
 
   it("orden: sin filtro la aparición más reciente primero; con group=pecho primero el de más ejercicios de pecho", async () => {
-    const pushA = await ex("PUSH HORIZONTAL");
-    const pushB = await ex("PUSH HORIZONTAL");
-    const pushC = await ex("PUSH HORIZONTAL");
-    const pullA = await ex("PULL VERTICAL");
-    const pullB = await ex("PULL VERTICAL");
-    const pullC = await ex("PULL VERTICAL");
+    // Las rutas elegidas separan los grupos: empuje toca pecho, tracción no.
+    expect(gruposDeZonas(zonasDeRuta(RUTA_EMPUJE))).toContain("pecho");
+    expect(gruposDeZonas(zonasDeRuta(RUTA_TRACCION))).not.toContain("pecho");
+
+    const pushA = await ex({ route: RUTA_EMPUJE });
+    const pushB = await ex({ route: RUTA_EMPUJE });
+    const pushC = await ex({ route: RUTA_EMPUJE });
+    const pullA = await ex({ route: RUTA_TRACCION });
+    const pullB = await ex({ route: RUTA_TRACCION });
+    const pullC = await ex({ route: RUTA_TRACCION });
 
     const [oldId] = await seed(shiftDate(monday, -7), LEVEL, [
       { role: "NUCLEUS", route: "OAP", exerciseIds: [pushA, pushB] },
@@ -389,25 +408,34 @@ describe("canasta de bloques libres: GET /api/sessions/free-blocks (197-07)", ()
   });
 
   it("ya lo trabajaste hoy: el bloque que cruza 2 o más zonas con la sesión de hoy va al final con workedToday", async () => {
-    const kneeToday = await ex("KNEE DOMINANT");
-    const kneePast = await ex("KNEE DOMINANT");
-    const pull = await ex("PULL VERTICAL");
+    // La ruta de pierna comparte 4 zonas con la sesión de hoy, la de tracción ninguna.
+    const zonasPierna = zonasDeRuta(RUTA_PIERNA);
+    expect(zonasPierna.length).toBeGreaterThanOrEqual(2);
+    expect(
+      zonasDeRuta(RUTA_TRACCION).filter((z) => zonasPierna.includes(z)),
+    ).toEqual([]);
+
+    const kneeToday = await ex({ route: RUTA_PIERNA });
+    const kneePast = await ex({ route: RUTA_PIERNA });
+    const pull = await ex({ route: RUTA_TRACCION });
 
     const [todayId] = await seed(today, LEVEL, [
-      { role: "NUCLEUS", route: "SS", exerciseIds: [kneeToday] },
+      { role: "NUCLEUS", route: RUTA_PIERNA, exerciseIds: [kneeToday] },
     ]);
     const [pullId] = await seed(shiftDate(today, -1), LEVEL, [
-      { role: "NUCLEUS", route: "OAP", exerciseIds: [pull] },
+      { role: "NUCLEUS", route: RUTA_TRACCION, exerciseIds: [pull] },
     ]);
     const [kneePastId] = await seed(monday, LEVEL, [
-      { role: "DEUTEROS_1", route: "SS", exerciseIds: [kneePast] },
+      { role: "DEUTEROS_1", route: RUTA_PIERNA, exerciseIds: [kneePast] },
     ]);
 
     const { status, body } = await getList();
     expect(status).toBe(200);
     expect(body.todayZones).not.toBeNull();
+    // Invariante literal (L trabaja cuádriceps y glúteos) + cableado al modelo.
     expect(body.todayZones).toContain("quadriceps");
     expect(body.todayZones).toContain("gluteal");
+    expect(body.todayZones).toEqual(zonasPierna);
     expect(Array.isArray(body.weekWorkedZones)).toBe(true);
 
     // Los de cuádriceps/glúteos al final (más reciente primero); la espalda arriba.
@@ -466,11 +494,13 @@ describe("canasta de bloques libres: GET /api/sessions/free-blocks (197-07)", ()
   });
 
   it("filtro: group=core sin bloques de core da items vacío; group=gemelos da 400", async () => {
+    expect(gruposDeZonas(zonasDeRuta(RUTA_TRACCION))).not.toContain("core");
     await seed(monday, LEVEL, [
       {
         role: "NUCLEUS",
         route: "OAP",
-        exerciseIds: [await ex("PULL VERTICAL")],
+        // Tracción: espalda/hombros/brazos, sin core.
+        exerciseIds: [await ex({ route: RUTA_TRACCION })],
       },
     ]);
 

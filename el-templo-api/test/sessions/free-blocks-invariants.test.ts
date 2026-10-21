@@ -166,14 +166,12 @@ describe("invariante de contadores: el bloque libre no toca el entrenamiento reg
           eq(schema.dayModes.dayOfWeek, dayNumber),
         ),
       );
-    await app.db
-      .insert(schema.dayModes)
-      .values(
-        tenantValues(CTX_TEMPLO, {
-          dayOfWeek: dayNumber,
-          sessionMode: "regular",
-        }),
-      );
+    await app.db.insert(schema.dayModes).values(
+      tenantValues(CTX_TEMPLO, {
+        dayOfWeek: dayNumber,
+        sessionMode: "regular",
+      }),
+    );
 
     // Template de la notificación post-sesión: sin él, un encolado indebido
     // se perdería en silencio y el invariante no vería nada.
@@ -249,8 +247,12 @@ describe("invariante de contadores: el bloque libre no toca el entrenamiento reg
       }),
     );
 
-    idsA = [await ex("PECHO"), await ex("PECHO"), await ex("PECHO")];
-    const idsB = [await ex("PECHO"), await ex("PECHO")];
+    idsA = [
+      await ex({ route: "HD/ID" }),
+      await ex({ route: "HD/ID" }),
+      await ex({ route: "HD/ID" }),
+    ];
+    const idsB = [await ex({ route: "HD/ID" }), await ex({ route: "HD/ID" })];
     [blockA] = await seed(shiftDate(today, -1), [
       { role: "NUCLEUS", route: "OAP", exerciseIds: idsA },
     ]);
@@ -265,12 +267,16 @@ describe("invariante de contadores: el bloque libre no toca el entrenamiento reg
 
   // ─── helpers ───────────────────────────────────────────────────────────
 
-  /** Ejercicio nuevo con nombre único. */
-  async function ex(category?: string): Promise<number> {
+  /**
+   * Ejercicio nuevo con nombre único. Fase 200 D20: las zonas salen de la ruta;
+   * acá las zonas no importan (el invariante son los contadores), pero se
+   * siembra la ruta de empuje "HD/ID" para que los bloques tengan zonas reales.
+   */
+  async function ex(opts: { route?: string } = {}): Promise<number> {
     exerciseSeq += 1;
     return seedExercise(app, {
       name: `Ejercicio 197-09 ${exerciseSeq}`,
-      category,
+      route: opts.route,
     });
   }
 
