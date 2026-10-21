@@ -464,7 +464,7 @@ Plans:
 - [x] 200-05-PLAN.md — Relaciones de las 14 rutas LOWER/MOVILIDAD/FLOW + ficha de PS + cobertura de las 30
 - [x] 200-06-PLAN.md — Proyección ruta → zonas, hits "Hoy en tu clase" (con fallback ROM), snapshot pre-200 y diferencias aprobadas
 - [x] 200-07-PLAN.md — TV, /weekly, /daily y canasta al modelo + zoneHits; adiós al mapeo anterior de zonas
-- [ ] 200-08-PLAN.md — Tests de integración de canasta, /weekly y TV por ruta
+- [x] 200-08-PLAN.md — Tests de integración de canasta, /weekly y TV por ruta
 - [ ] 200-09-PLAN.md — GET /api/admin/anatomy y GET /api/anatomy con recorte por audiencia, roles R1 y manifiesto
 - [ ] 200-10-PLAN.md — Migraciones 0287 (nombres D1) y 0288 (SISSY → SS) + route-labels ×3
 - [ ] 200-11-PLAN.md — Admin: tipos, store, figura por rol, ruta /anatomia y menú
