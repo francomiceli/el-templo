@@ -6,7 +6,7 @@
 
 ## Decisiones (Franco, 2026-10-21)
 
-- **D-01 De cero sobre master.** Conquer se rehace en esta rama (`feat/201-conquer`, worktree `et-201-conquer`, base `origin/master` `6d0298eef`). No se refactoriza la Conquer de la fase 196.
+- **D-01 De cero.** Conquer se rehace en esta rama (`feat/201-conquer`, worktree `et-201-conquer`, base `origin/staging` `9964701ba` porque necesita la 197; ver D-10). No se refactoriza la Conquer de la fase 196.
 - **D-02 Sin el circuito de Personalizados.** No hay solicitud, cuestionario, pago ni entrega. El coach activa Conquer a mano y elige nivel y días (§7.2). La pantalla Bloqueado tiene el botón "Quiero desbloquearlo", que avisa al admin (§7.1).
 - **D-03 La rama 196 queda guardada** (`feat/196-personalizados`, worktree `et-196-personalizados`). No se borra ni se publica. Sirve de consulta y de cantera para copiar piezas.
 - **D-04 Híbrido: piezas que se copian de la 196 y se adaptan:**
