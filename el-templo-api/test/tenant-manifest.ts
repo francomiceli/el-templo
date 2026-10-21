@@ -120,6 +120,19 @@
 //   ─────────────────────────
 //   TOTAL          400 → 405   (+5)
 //
+// 2026-10-21 — **478 rutas**: la anatomía funcional (fase 200) agregó
+// `GET /api/admin/anatomy` (vista de profe, ANATOMIA_STAFF_ROLES) y
+// `GET /api/anatomy` (vista de alumno, cualquier autenticado). Las 2 son
+// `templo-module` (`moduleScope` de `templo-training`). Entre 431 y 476 hubo
+// altas que no actualizaron este header (ver el bloque de `ENTRADAS_BASELINE`
+// en `iso-01-manifiesto.test.ts`), así que acá solo se contabiliza esta unidad:
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +2   (las rutas nuevas)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          476 → 478   (+2)
+//
 // 2026-09-10 — **431 rutas**: "Planis", vista previa de la plani para el staff
 // (reemplaza el PDF que se subía al Drive): `GET /api/admin/tv/preview/day` +
 // `GET /api/admin/tv/preview/week`. Las 2 son `tenant-scoped` (gate
@@ -1498,6 +1511,16 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "POST /api/progression/request-evaluation": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+
+  // ── templo-training · anatomy (fase 200) ─────────────────────────────────
+  "GET /api/admin/anatomy": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/anatomy": {
     categoria: "templo-module",
     modulo: "templo-training",
   },

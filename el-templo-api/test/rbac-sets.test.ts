@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   ALL_STAFF_ROLES,
   ANALYTICS_ADMIN_ROLES,
+  ANATOMIA_STAFF_ROLES,
   ANALYTICS_OPERATIONAL_ROLES,
   ATTENDANCE_ROLES,
   CAJA_ROLES,
@@ -153,6 +154,21 @@ describe("RBAC sets — core white-label + Templo overrides", () => {
     expect([...CHECKIN_ROSTER_ROLES]).not.toContain("recepcion");
   });
 
+  it("ANATOMIA_STAFF_ROLES = staff de piso (fase 200 R1)", () => {
+    // Admin > Anatomia la ven los profes (coach, coach_actividad) y el dueño.
+    // Mismo valor que PLANIS_ROLES del admin. NO entran gestion, recepcion,
+    // member, tv ni admin_sede.
+    expect([...ANATOMIA_STAFF_ROLES]).toEqual([
+      "admin",
+      "owner",
+      "coach",
+      "coach_actividad",
+    ]);
+    for (const rol of ["gestion", "recepcion", "member", "tv", "admin_sede"]) {
+      expect([...ANATOMIA_STAFF_ROLES]).not.toContain(rol);
+    }
+  });
+
   it("TEMPLO_RBAC_OVERRIDES holds only the extra roles layered over the core", () => {
     expect([...TEMPLO_RBAC_OVERRIDES.reportes]).toEqual([
       "gestion",
@@ -209,6 +225,7 @@ describe("RBAC — rol admin_sede (sede-scoped)", () => {
     STAFF_ATTENDANCE_ROLES,
     STAFF_ATTENDANCE_REPORT_ROLES,
     REFERRAL_PROGRAM_REPORT_ROLES,
+    ANATOMIA_STAFF_ROLES,
   };
 
   it.each(Object.entries(ENTRA))(
@@ -247,6 +264,7 @@ describe("RBAC — rol coach_actividad (profe sin plata)", () => {
     TV_CONTROL_ROLES,
     CHECKIN_ROSTER_ROLES,
     STAFF_ATTENDANCE_ROLES,
+    ANATOMIA_STAFF_ROLES,
   };
 
   const NO_ENTRA = {
