@@ -74,6 +74,14 @@ Los sketches viven en el checkout principal (commits del master local, que está
 - **P3 · Dónde vive el contenido:** archivos tipados en el **API** (fuente única), validados con un esquema en tests, y servidos por endpoints de solo lectura (staff: todo; socio: solo vista alumno, sin banderas ni códigos). La TV, `/weekly` y la canasta consumen una **proyección** ruta → zonas compatible con lo que hoy produce `muscle-zones.ts`. El planner puede elegir otra forma si la justifica.
 - **P4 · Fuera de esta fase:** la prueba de dividir `upper-back` (D4, va como spike aparte), la explicación por ejercicio en el control de la TV, y Nacho/siglas sin resolver (⚑N): quedan como pendientes en el contenido.
 
+## Decisiones del orquestador sobre las preguntas abiertas del RESEARCH (2026-10-21, recomendación adoptada en modo autónomo; Franco puede revertir)
+
+- **R1 · Quién ve Admin › Anatomía:** los mismos roles que Planis (`coach`, `admin`, `owner`, `coach_actividad`), espejados en el API (`ANATOMIA_STAFF_ROLES`). Reemplaza la lectura literal de D6 ("staff que ve Entrenamiento"), que hoy dejaría afuera a los profes.
+- **R2 · Relaciones:** base = tablas S8/TI-H; en las rutas donde la tabla sola contradice el §2 (BL = PL, DS sin cuádriceps, HS sin deltoides, MN/RP sin abdomen, HR sin oblicuos, etc.) se completa desde la tabla articular de la ruta en el §2. Toda diferencia con las zonas pre-200 queda en `diferencias-aprobadas.ts` con su motivo.
+- **R3 · Nombres de ruta en Anatomía:** `getRouteLabel` (fuente existente, ya con los nombres D1), no los nombres de los sketches.
+- **R4 · `display_name` de HT, NC y QC:** se dejan como están (D1 no los nombra).
+- **R5 · Gestos (FL, NC, TTB…):** texto dentro de la ficha en v1; el modelo por gesto queda como pendiente explícito.
+
 ## Fuera de alcance
 
 - PLYO, CARDIO, KL (D2). Rutas nuevas.
