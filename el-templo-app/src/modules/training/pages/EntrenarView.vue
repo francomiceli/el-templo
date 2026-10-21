@@ -82,6 +82,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useTrainingWeek } from '../composables/useTrainingWeek'
 import { useFreeBlocksStore } from '../stores/freeBlocksStore'
@@ -92,14 +93,16 @@ import SemanaTab from '../components/semana/SemanaTab.vue'
 import LibreTab from '../components/libre/LibreTab.vue'
 
 // Fase 197 D-02, D-05: Entrenar en 4 tabs. Siempre abre en Semana; `?tab=libre` (resumen del
-// bloque libre, link de Mi Templo) abre Libre. Reemplaza a WeeklyView.
+// bloque libre, link de Mi Templo) abre Libre, solo con FREE_BLOCKS_ENABLED. Reemplaza a WeeklyView.
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const freeBlocks = useFreeBlocksStore()
 
 // ── Tab activa ──
-const QUERY_TABS: readonly TabKey[] = ['libre', 'desafios', 'conquer']
+const QUERY_TABS: readonly TabKey[] = FREE_BLOCKS_ENABLED
+  ? ['libre', 'desafios', 'conquer']
+  : ['desafios', 'conquer']
 
 /** Solo valores conocidos: cualquier otra cosa abre Semana (T-197-45) */
 function tabFromQuery(raw: unknown): TabKey {

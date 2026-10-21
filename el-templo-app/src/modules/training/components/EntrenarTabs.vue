@@ -5,7 +5,12 @@
     :class="{ 'entrenar-tabs--static': !interactive }"
     :inert="interactive ? undefined : true"
   >
-    <div class="entrenar-tabs__doors" role="tablist" aria-label="Secciones de Entrenar">
+    <div
+      class="entrenar-tabs__doors"
+      role="tablist"
+      aria-label="Secciones de Entrenar"
+      :style="{ '--entrenar-tabs-count': TABS.length }"
+    >
       <button
         v-for="tab in TABS"
         :id="tabId(tab.key)"
@@ -45,9 +50,11 @@ export function paneId(key: TabKey): string {
 
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
+import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
 
 // Fase 197 D-02: 4 tabs "puertas" SIN íconos (sketch 015 ronda 3). Desafíos y Conquer llevan un
 // punto ocre de "pronto" (D-05). Tablist accesible: flechas izquierda/derecha mueven la selección.
+// Libre solo existe con FREE_BLOCKS_ENABLED (apagada no aparece ni como "pronto").
 const props = withDefaults(
   defineProps<{
     modelValue: TabKey
@@ -67,12 +74,14 @@ interface TabDef {
   soon: boolean
 }
 
-const TABS: readonly TabDef[] = [
+const ALL_TABS: readonly TabDef[] = [
   { key: 'semana', label: 'Semana', soon: false },
   { key: 'libre', label: 'Libre', soon: false },
   { key: 'desafios', label: 'Desafíos', soon: true },
   { key: 'conquer', label: 'Conquer', soon: true },
 ]
+
+const TABS: readonly TabDef[] = ALL_TABS.filter((t) => t.key !== 'libre' || FREE_BLOCKS_ENABLED)
 
 const rootRef = ref<HTMLElement | null>(null)
 
@@ -122,7 +131,7 @@ function onKeydown(event: KeyboardEvent, key: TabKey): void {
 
   &__doors {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--entrenar-tabs-count, 4), minmax(0, 1fr));
     gap: 6px;
   }
 

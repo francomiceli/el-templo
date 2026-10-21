@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useQuasar } from 'quasar'
+import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
 import type { WeekDay } from '../../types/session'
 import { sessionTitle } from '../../utils/blockMeta'
 import { resolveSemanaCta } from '../../utils/semanaCta'
@@ -79,6 +80,7 @@ const cta = computed(() =>
     isSunday: props.day?.dayOfWeek === 0,
     completed: props.day?.state === 'completed',
     hasProgress: props.hasProgress,
+    libreEnabled: FREE_BLOCKS_ENABLED,
   }),
 )
 

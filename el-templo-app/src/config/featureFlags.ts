@@ -16,3 +16,10 @@ export const MEMBER_TREE_ENABLED = false
 
 /** In-session difficulty adjustment — "más fácil / más difícil" + objective label. */
 export const IN_SESSION_ADJUST_ENABLED = false
+
+/**
+ * Fase 197: modo "Libre" (canasta de bloques + player de bloque libre). Apagado mientras se
+ * decide a quiénes se les presenta: sin la tab (ni como "pronto"), sin `?tab=libre`, sin los
+ * links de Semana y de la card de hoy, y sin la ruta del player. El código y la API quedan.
+ */
+export const FREE_BLOCKS_ENABLED = false

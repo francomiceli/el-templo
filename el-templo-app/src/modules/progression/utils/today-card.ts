@@ -44,6 +44,7 @@
  * (a) `completada`, (b) `presencial-turno` con asistencia registrada, (c) `presencial-sin-turno`
  * sin lista de espera (incluye la clase de hoy perdida, regla D5), (d) `presencial-proxima`
  * (hoy no hay clase), (e) `online-libre` sin plani hoy (`todayRoute` null). Nunca antes de la clase.
+ * Con `libreEnabled` en false (FREE_BLOCKS_ENABLED apagado) no se pone nunca.
  * `online-programa` nunca: su link es "Mi programa", que para quien sigue un programa pesa más.
  * Después va `withExtraPrograms`: pone "Tus programas" en `secondary` solo si quedó vacío
  * (completada y presenciales, nunca virtual ni sin plan).
@@ -137,6 +138,8 @@ export interface TodayCardInput {
   } | null
   hasExtraPrograms: boolean
   trialEligible: boolean
+  /** FREE_BLOCKS_ENABLED: apagado, nunca se pone el link a Libre (queda el `secondary` del gate) */
+  libreEnabled: boolean
 }
 
 // ── Helpers de fecha (siempre sobre el string de la sede, nunca la zona del teléfono) ──
@@ -429,7 +432,7 @@ function hasCurrentPlan(input: TodayCardInput): boolean {
  * caso devuelve el modelo intacto.
  */
 function withLibreLink(model: TodayCardModel, input: TodayCardInput): TodayCardModel {
-  if (!hasCurrentPlan(input)) return model
+  if (!input.libreEnabled || !hasCurrentPlan(input)) return model
   let show = false
   switch (model.kind) {
     case 'completada':

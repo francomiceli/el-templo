@@ -12,6 +12,7 @@ function input(over: Partial<SemanaCtaInput>): SemanaCtaInput {
     isSunday: false,
     completed: false,
     hasProgress: false,
+    libreEnabled: true,
     ...over,
   }
 }
@@ -93,5 +94,57 @@ describe('resolveSemanaCta (D-03)', () => {
     const r = resolveSemanaCta(input({ date: '2026-10-17', hasSession: false }))
     expect(r.action).toBe('libre')
     expect(r.variant).toBe('primary')
+  })
+})
+
+describe('resolveSemanaCta — Libre apagado (FREE_BLOCKS_ENABLED en false)', () => {
+  it('domingo sin plani: "Día de descanso", deshabilitado, sin acción ni hint', () => {
+    const r = resolveSemanaCta(
+      input({ date: '2026-10-18', hasSession: false, isSunday: true, libreEnabled: false }),
+    )
+    expect(r).toEqual({
+      label: 'Día de descanso',
+      variant: 'unavailable',
+      action: null,
+      startsTraining: false,
+      showDoneChip: false,
+      showLibreLink: false,
+      hint: null,
+    })
+  })
+
+  it('otro día sin plani: "Todavía sin plani", deshabilitado, sin acción ni hint', () => {
+    const r = resolveSemanaCta(input({ hasSession: false, libreEnabled: false }))
+    expect(r.label).toBe('Todavía sin plani')
+    expect(r.variant).toBe('unavailable')
+    expect(r.action).toBeNull()
+    expect(r.hint).toBeNull()
+  })
+
+  it('completada hoy: "Ver resumen" sin el link a bloque libre', () => {
+    const r = resolveSemanaCta(input({ completed: true, libreEnabled: false }))
+    expect(r.action).toBe('summary')
+    expect(r.showDoneChip).toBe(true)
+    expect(r.showLibreLink).toBe(false)
+  })
+
+  it('ningún estado lleva a Libre ni la menciona', () => {
+    const cases: Partial<SemanaCtaInput>[] = [
+      {},
+      { hasProgress: true },
+      { completed: true },
+      { date: '2026-10-14' },
+      { date: '2026-10-14', completed: true },
+      { date: '2026-10-17' },
+      { hasSession: false },
+      { date: '2026-10-18', hasSession: false, isSunday: true },
+      { date: '2026-10-17', hasSession: false },
+    ]
+    for (const c of cases) {
+      const r = resolveSemanaCta(input({ ...c, libreEnabled: false }))
+      expect(r.action).not.toBe('libre')
+      expect(r.showLibreLink).toBe(false)
+      expect(`${r.label} ${r.hint ?? ''}`.toLowerCase()).not.toContain('libre')
+    }
   })
 })

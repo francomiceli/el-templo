@@ -14,6 +14,8 @@ export interface SemanaCtaInput {
   completed: boolean
   /** Hay progreso guardado de la sesión de ese día (para "Continuar") */
   hasProgress: boolean
+  /** FREE_BLOCKS_ENABLED: apagado, ningún estado lleva a Libre ni la menciona */
+  libreEnabled: boolean
 }
 
 export interface SemanaCta {
@@ -35,6 +37,19 @@ const HINT_NO_SESSION =
   'Todavía no está la plani de este día. Si querés moverte, elegí un bloque libre.'
 
 export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
+  // Sin plani y Libre apagado: no hay a dónde ir, el CTA queda deshabilitado y sin hint
+  if (!i.hasSession && !i.libreEnabled) {
+    return {
+      label: i.isSunday ? 'Día de descanso' : 'Todavía sin plani',
+      variant: 'unavailable',
+      action: null,
+      startsTraining: false,
+      showDoneChip: false,
+      showLibreLink: false,
+      hint: null,
+    }
+  }
+
   // Sin plani: el CTA lleva a Libre (el domingo y los días sin sesión cargada)
   if (!i.hasSession) {
     return {
@@ -68,7 +83,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
       action: 'summary',
       startsTraining: false,
       showDoneChip: true,
-      showLibreLink: i.date === i.today,
+      showLibreLink: i.libreEnabled && i.date === i.today,
       hint: null,
     }
   }

@@ -48,6 +48,7 @@ function baseInput(over: Partial<TodayCardInput> = {}): TodayCardInput {
     program: null,
     hasExtraPrograms: false,
     trialEligible: false,
+    libreEnabled: true,
     ...over,
   }
 }
@@ -1421,5 +1422,71 @@ describe('resolveTodayCard — alto fijo: pill, un solo link y sin hook (fase 19
         'sin-plan-vencio',
       ].sort(),
     )
+  })
+})
+
+describe('resolveTodayCard — Libre apagado (FREE_BLOCKS_ENABLED en false)', () => {
+  const off = (over: Partial<TodayCardInput> = {}): TodayCardInput =>
+    baseInput({ libreEnabled: false, ...over })
+
+  it('completada → sin link (ningún otro lo ocupa)', () => {
+    const m = resolveTodayCard(off({ todayCompleted: true }))
+    expect(m.kind).toBe('completada')
+    expect(m.secondary).toBeNull()
+  })
+
+  it('completada con otros programas → "Tus programas" toma el link', () => {
+    const m = resolveTodayCard(off({ todayCompleted: true, hasExtraPrograms: true }))
+    expect(m.secondary).toEqual({ label: 'Tus programas', action: 'open-program' })
+  })
+
+  it('clase de hoy con asistencia registrada → conserva "Cambiar clase"', () => {
+    const m = resolveTodayCard(
+      off({ booking: BOOKING, windowState: 'open', attendanceMarkedAt: '18:55' }),
+    )
+    expect(m.kind).toBe('presencial-turno')
+    expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+  })
+
+  it('presencial sin reserva → sin link', () => {
+    const m = resolveTodayCard(off())
+    expect(m.kind).toBe('presencial-sin-turno')
+    expect(m.secondary).toBeNull()
+  })
+
+  it('próxima clase reservada otro día → conserva "Cambiar clase"', () => {
+    const m = resolveTodayCard(off({ nextBooking: NEXT_MONDAY }))
+    expect(m.kind).toBe('presencial-proxima')
+    expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+  })
+
+  it('clase de hoy perdida → sin link', () => {
+    const m = resolveTodayCard(off({ booking: BOOKING, windowState: 'after' }))
+    expect(m.kind).toBe('presencial-sin-turno')
+    expect(m.secondary).toBeNull()
+  })
+
+  it('online sin programa y sin plani hoy → sin link', () => {
+    const m = resolveTodayCard(off({ isVirtual: true, todayRoute: null }))
+    expect(m.kind).toBe('online-libre')
+    expect(m.secondary).toBeNull()
+  })
+
+  it('ningún día de la semana ni estado menciona el modo Libre', () => {
+    const variants: Partial<TodayCardInput>[] = [
+      {},
+      { todayCompleted: true },
+      { booking: BOOKING, windowState: 'open', attendanceMarkedAt: '18:55' },
+      { booking: BOOKING, windowState: 'after' },
+      { nextBooking: NEXT_MONDAY },
+      { isVirtual: true, todayRoute: null },
+    ]
+    for (const day of DAYS) {
+      for (const v of variants) {
+        const m = resolveTodayCard(off({ ...day, ...v }))
+        expect(allCopy(m)).not.toContain('Libre')
+        expect(m.secondary?.to).not.toBe('/training?tab=libre')
+      }
+    }
   })
 })

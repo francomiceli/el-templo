@@ -131,7 +131,7 @@ import CheckInPanel from '../components/CheckInPanel.vue'
 import WeekStrip from '../components/WeekStrip.vue'
 import { CHECK_IN_QUESTIONS, type CheckInQuestionConfig, type CheckInQuestionType } from '../types'
 import { useUserStore } from 'src/stores/useUserStore'
-import { MEMBER_TREE_ENABLED } from 'src/config/featureFlags'
+import { FREE_BLOCKS_ENABLED, MEMBER_TREE_ENABLED } from 'src/config/featureFlags'
 import { useWeekData } from 'src/modules/training/composables/useWeekData'
 import { getRouteName } from 'src/modules/training/utils/routeNames'
 import type { Session } from 'src/modules/training/types/session'
@@ -381,6 +381,7 @@ const todayCard = computed(() => {
       : null,
     hasExtraPrograms: programProgressCard.value !== null && !isVirtual.value,
     trialEligible: trialEligible.value,
+    libreEnabled: FREE_BLOCKS_ENABLED,
   })
 })
 
