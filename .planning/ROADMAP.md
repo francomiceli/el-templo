@@ -458,7 +458,7 @@ _Roadmap v6.1 creado 2026-08-27. Fases 181-192. Migraciones reservan desde 0216.
 
 Plans:
 - [x] 200-01-PLAN.md — Contrato de tipos, 16 regiones, 28 músculos, glosario, grupos de alumno y validador
-- [ ] 200-02-PLAN.md — Catálogo de banderas (§3.1/§3.2) y citas del Apéndice A con validación
+- [x] 200-02-PLAN.md — Catálogo de banderas (§3.1/§3.2) y citas del Apéndice A con validación
 - [ ] 200-03-PLAN.md — Relaciones de las 7 rutas PULL + ficha completa de FL
 - [ ] 200-04-PLAN.md — Relaciones de las 8 rutas PUSH + HR, índice RUTAS y validarRutas
 - [ ] 200-05-PLAN.md — Relaciones de las 14 rutas LOWER/MOVILIDAD/FLOW + ficha de PS + cobertura de las 30
