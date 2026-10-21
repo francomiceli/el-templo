@@ -404,13 +404,15 @@ onUnmounted(() => {
 // Tokens de color por tema (mismos valores de marca que ya usaba el viewer
 // anterior — sin token nuevo en quasar.variables.scss).
 $story-dark-text: $cream; // #f2ede5
-// Fase 197 D-16: texto sólido, nunca rgba (antes rgba($cream, .9))
-$story-dark-muted: $pd-cream-2;
+// Fase 197 D-16: texto sólido, nunca rgba (antes rgba($cream, .9)). Gap 197-24: $pd-cream-2 (#e3c9a8)
+// era MÁS oscuro que el .9 de antes y daba 4.29:1 sobre la foto: el crema pleno es el sólido más claro.
+$story-dark-muted: $cream;
 $story-dark-accent: $bronze-light; // #d4b896
 
 $story-light-text: $accent; // #3d3732
-// Fase 197 D-16: texto sólido, nunca rgba (antes rgba($accent, .88))
-$story-light-muted: $pd-ink-2;
+// Fase 197 D-16: texto sólido, nunca rgba (antes rgba($accent, .88)). Gap 197-24: $pd-ink-2 (#5f584d)
+// daba 4.26-4.49:1 sobre el velo claro: la tinta plena ($accent #3d3732) equivale al .88 que sí pasaba.
+$story-light-muted: $accent;
 // Terracotta profundo para kicker, lead en negrita y glifos de nivel sobre el
 // velo del día: ≥ 5.1:1 (era $primary #96593a: 4.2:1 el kicker, 2.6:1 los
 // bullets y 2.6:1 los glifos Δ Σ Ω). Mismo matiz, más oscuro; $primary queda
