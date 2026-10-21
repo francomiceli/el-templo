@@ -1,63 +1,68 @@
 <template>
-  <!-- Estado `cargando` (L38): mismo marco (borde, radio y padding) y alto mínimo que la card final
-       para que el slot de hoy no salte cuando se resuelve el gate. Sin textos ni acciones. -->
+  <!-- Estado `cargando` (L38): mismo marco (borde, radio y padding) y MISMAS filas que la card final
+       (kicker, título de 2 líneas, línea de estado, botón) para que el slot de hoy no salte cuando
+       se resuelve el gate. Sin textos ni acciones. -->
   <div v-if="model.kind === 'cargando'" class="today-card today-card--loading">
     <section class="today-card__surface" aria-busy="true" aria-label="Cargando tu día">
       <q-skeleton dark animation="none" class="today-card__sk today-card__sk--kicker" />
       <q-skeleton dark animation="none" class="today-card__sk today-card__sk--title" />
-      <q-skeleton dark animation="none" class="today-card__sk today-card__sk--meta" />
+      <q-skeleton dark animation="none" class="today-card__sk today-card__sk--status" />
       <q-skeleton dark animation="none" class="today-card__sk today-card__sk--btn" />
     </section>
   </div>
 
   <!-- La card solo PINTA el modelo de resolveTodayCard (L36): ninguna lógica de gates acá.
        Los textos van por interpolación; los tramos `strong` salen como <b> (T-199-41).
-       Halo, marca del logo y línea son decoración: aria-hidden, detrás del texto, sin toques. -->
+       Halo, marca del logo y línea son decoración: aria-hidden, detrás del texto, sin toques.
+       Alto fijo (fase 197, sketch 017): siempre las mismas 4 filas (kicker, título de 2 líneas,
+       línea de estado, acciones), así el alto sale igual en todos los estados por estructura. -->
   <div v-else class="today-card">
     <section class="today-card__surface" :aria-label="model.kicker">
       <span class="today-card__halo" aria-hidden="true" />
       <span class="today-card__mark" aria-hidden="true" />
-      <span class="today-card__line" aria-hidden="true" />
+      <!-- Con progreso (online-programa) la barra reemplaza a la línea decorativa de abajo. -->
+      <span
+        v-if="model.progress !== null"
+        class="today-card__progress"
+        role="progressbar"
+        aria-label="Sesiones de esta semana"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        :aria-valuenow="progressPercent"
+      >
+        <i :style="{ width: `${progressPercent}%` }" />
+      </span>
+      <span v-else class="today-card__line" aria-hidden="true" />
 
       <div class="today-card__content">
         <p class="today-card__kicker">{{ model.kicker }}</p>
         <h2 class="today-card__title">{{ model.title }}</h2>
 
-        <p v-if="model.meta" class="today-card__meta">
-          <span class="today-card__meta-text">
+        <!-- Línea de estado: pill, o meta como texto, o vacía; el div está SIEMPRE (alto fijo). -->
+        <div class="today-card__status">
+          <span
+            v-if="model.pill"
+            class="today-card__pill"
+            :class="{ 'today-card__pill--ok': model.pill.tone === 'ok' }"
+          >
+            <q-icon :name="model.pill.icon" size="16px" />
+            <span class="today-card__pill-text">
+              <template v-for="(part, i) in model.pill.text" :key="i">
+                <b v-if="part.strong">{{ part.text }}</b>
+                <template v-else>{{ part.text }}</template>
+              </template>
+            </span>
+          </span>
+          <p v-else-if="model.meta" class="today-card__meta">
             <template v-for="(part, i) in model.meta" :key="i">
               <b v-if="part.strong">{{ part.text }}</b>
               <template v-else>{{ part.text }}</template>
             </template>
-          </span>
-        </p>
-
-        <div
-          v-if="model.progress !== null"
-          class="today-card__bar"
-          role="progressbar"
-          aria-label="Sesiones de esta semana"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          :aria-valuenow="progressPercent"
-        >
-          <i :style="{ width: `${progressPercent}%` }" />
+          </p>
         </div>
 
-        <div
-          v-for="(chip, i) in model.chips"
-          :key="i"
-          class="today-card__chip"
-          :class="{ 'today-card__chip--ok': chip.tone === 'ok' }"
-        >
-          <q-icon :name="chip.icon" size="16px" />
-          <span>{{ chip.text }}</span>
-        </div>
-
-        <div
-          v-if="model.primary || model.secondary || model.tertiary || model.libreLink"
-          class="today-card__actions"
-        >
+        <!-- Una sola fila: botón principal + como máximo UN link (la prioridad la decide el modelo). -->
+        <div v-if="model.primary || model.secondary" class="today-card__actions">
           <button
             v-if="model.primary"
             type="button"
@@ -74,32 +79,7 @@
           >
             {{ model.secondary.label }}
           </button>
-          <button
-            v-if="model.tertiary"
-            type="button"
-            class="today-card__link"
-            @click="onAction(model.tertiary)"
-          >
-            {{ model.tertiary.label }}
-          </button>
-          <!-- Fase 197 D-17: link chico a la tab Libre, solo "después de la clase" (regla en el modelo).
-               Va en la fila de acciones para no sumarle una fila a la card. -->
-          <button
-            v-if="model.libreLink"
-            type="button"
-            class="today-card__libre"
-            @click="onAction(model.libreLink)"
-          >
-            {{ model.libreLink.label }}
-          </button>
         </div>
-
-        <p v-if="model.hook" class="today-card__hook">
-          <template v-for="(part, i) in model.hook" :key="i">
-            <b v-if="part.strong">{{ part.text }}</b>
-            <template v-else>{{ part.text }}</template>
-          </template>
-        </p>
       </div>
     </section>
   </div>
@@ -110,8 +90,10 @@
  * Card de hoy de Mi Templo (fase 199, variante A', D-03).
  * Look: ganador del sketch 006 (C3 + borde A, UAT D12).
  *
- * Solo pinta un `TodayCardModel` (ver `resolveTodayCard`). Navegación: las acciones con
- * `to` hacen `router.push`; la acción `open-program` se delega al padre (abre la hoja).
+ * Solo pinta un `TodayCardModel` (ver `resolveTodayCard`). Alto fijo (fase 197, sketch 017):
+ * kicker / título (2 líneas reservadas) / línea de estado (pill o texto) / acciones (botón + un
+ * link). Navegación: las acciones con `to` hacen `router.push`; la acción `open-program` se
+ * delega al padre (abre la hoja).
  */
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -225,13 +207,18 @@ function onAction(action: TodayCardAction): void {
     font-family: 'Cinzel', serif;
     font-weight: 700;
     font-size: 12px;
+    line-height: 16px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #e3c9a8;
+    // Fila fija de 1 línea.
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__title {
-    margin: 6px 0 4px;
+    margin: 6px 0 6px;
     max-width: 78%;
     font-family: 'Montserrat', sans-serif;
     font-weight: 700;
@@ -241,39 +228,41 @@ function onAction(action: TodayCardAction): void {
     color: #f0e6d6;
     // Respeta los "\n" del modelo ("Reservá\ntu clase").
     white-space: pre-line;
+    // Reserva SIEMPRE 2 líneas (máx 2, con clamp): el alto no depende del largo del título.
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: calc(28px * 1.15 * 2);
+  }
+
+  // Línea de estado: alto fijo, siempre presente (aunque vacía). La pill o el texto, 1 línea.
+  &__status {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    min-width: 0;
   }
 
   &__meta {
     margin: 0;
+    min-width: 0;
     font-size: 15px;
     color: #f0e6d6;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 10px;
-    align-items: center;
-  }
-
-  &__bar {
-    height: 6px;
-    border-radius: 3px;
-    margin-top: 12px;
+    white-space: nowrap;
     overflow: hidden;
-    background: #4a3f33;
-
-    i {
-      display: block;
-      height: 100%;
-      border-radius: 3px;
-      background: #e3c9a8;
-    }
+    text-overflow: ellipsis;
   }
 
-  &__chip {
+  &__pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-top: 10px;
-    padding: 5px 10px;
+    min-width: 0;
+    max-width: 100%;
+    height: 28px;
+    box-sizing: border-box;
+    padding: 0 10px;
     border-radius: 999px;
     font-size: 13px;
     font-weight: 500;
@@ -286,12 +275,38 @@ function onAction(action: TodayCardAction): void {
     }
   }
 
+  &__pill-text {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Barra de progreso (online-programa): pegada al borde inferior de la superficie, en lugar de
+  // la línea decorativa. Sin padding propio: la superficie ya recorta con `overflow: hidden`.
+  &__progress {
+    position: absolute;
+    z-index: 1;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    background: #4a3f33;
+
+    i {
+      display: block;
+      height: 100%;
+      background: #e3c9a8;
+    }
+  }
+
+  // Una sola fila, sin salto de línea: botón principal + como máximo un link.
   &__actions {
     display: flex;
     align-items: center;
     gap: 14px;
-    margin-top: 18px;
-    flex-wrap: wrap;
+    margin-top: 12px;
+    flex-wrap: nowrap;
   }
 
   // Botón primario: CTA premium en terracota (blanco sobre #a35f3c 4.9:1, sobre #7e4529 7.4:1).
@@ -301,6 +316,7 @@ function onAction(action: TodayCardAction): void {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    flex: none;
     height: 48px;
     min-width: 44px;
     padding: 0 20px;
@@ -342,7 +358,9 @@ function onAction(action: TodayCardAction): void {
     }
   }
 
+  // Hitbox 44. Si el texto no entra, se corta con elipsis (la fila nunca salta de línea).
   &__link {
+    min-width: 0;
     min-height: 44px;
     padding: 12px 0;
     border: 0;
@@ -353,44 +371,22 @@ function onAction(action: TodayCardAction): void {
     font-size: 14px;
     text-decoration: underline;
     text-underline-offset: 3px;
-    cursor: pointer;
-  }
-
-  // Fase 197 D-17: link a Libre, inline en la fila de acciones. Texto sólido crema-2
-  // (#e3c9a8, 9,6:1 sobre #2c2318), hitbox 44.
-  &__libre {
-    min-height: 44px;
-    padding: 12px 0;
-    border: 0;
-    background: none;
-    color: #e3c9a8;
-    font-family: 'Geologica', sans-serif;
-    font-weight: 600;
-    font-size: 13px;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     cursor: pointer;
   }
 
   &__btn:focus-visible,
-  &__link:focus-visible,
-  &__libre:focus-visible {
+  &__link:focus-visible {
     outline: 2px solid #e3c9a8;
     outline-offset: 2px;
   }
 
-  &__hook {
-    margin: 16px 0 0;
-    padding-top: 12px;
-    border-top: 1px solid #4a3f33;
-    font-size: 14px;
-    color: #f0e6d6;
-  }
-
-  // ── Skeleton `cargando`: mismo marco y mismas medidas que el contenido real ──
+  // ── Skeleton `cargando`: mismas filas que el contenido real (kicker 16, título 2 líneas,
+  // estado 28, botón 48), así la card mide igual y no salta al resolverse el gate ──
   &--loading {
     display: flex;
-    min-height: 180px;
     box-sizing: border-box;
 
     .today-card__surface {
@@ -404,24 +400,25 @@ function onAction(action: TodayCardAction): void {
 
     &--kicker {
       width: 40%;
-      height: 11px;
+      height: 16px;
     }
 
     &--title {
       width: 70%;
-      height: 28px;
-      margin: 8px 0 8px;
+      height: calc(28px * 1.15 * 2);
+      margin: 6px 0 6px;
     }
 
-    &--meta {
+    &--status {
       width: 55%;
-      height: 15px;
+      height: 28px;
+      border-radius: 999px;
     }
 
     &--btn {
       width: 140px;
       height: 48px;
-      margin-top: 18px;
+      margin-top: 12px;
       border-radius: 12px;
     }
   }

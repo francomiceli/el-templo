@@ -89,11 +89,9 @@ function allCopy(m: TodayCardModel): string {
     m.kicker,
     m.title,
     flat(m.meta),
-    flat(m.hook),
+    flat(m.pill?.text ?? null),
     m.primary?.label ?? '',
     m.secondary?.label ?? '',
-    m.tertiary?.label ?? '',
-    ...m.chips.map((c) => c.text),
   ].join(' | ')
 }
 
@@ -106,15 +104,13 @@ describe('resolveTodayCard — carga (nunca un gate de "sin plan" por una carrer
     expect(m.kicker).toBe('')
     expect(m.title).toBe('')
     expect(m.meta).toBeNull()
-    expect(m.chips).toEqual([])
+    expect(m.pill).toBeNull()
     expect(m.progress).toBeNull()
     expect(m.primary).toBeNull()
     expect(m.secondary).toBeNull()
-    expect(m.tertiary).toBeNull()
-    expect(m.hook).toBeNull()
     const copy = allCopy(m)
     expect(copy).not.toContain('Arrancá tu plan')
-    expect(copy).not.toContain('Renová tu plan')
+    expect(copy).not.toContain('Renová')
     expect(copy).not.toContain('Ver planes')
   })
 
@@ -243,64 +239,11 @@ describe('resolveTodayCard — presencial con clase hoy', () => {
     expect(m.title).toBe('Calistenia')
   })
 
-  it('ventana abierta con minutesToStart 12 → chip "Tu clase empieza en 12 min"', () => {
-    const m = resolveTodayCard(
-      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: 12 }),
-    )
-    expect(m.chips).toContainEqual({
-      icon: 'schedule',
-      text: 'Tu clase empieza en 12 min',
-      tone: 'neutral',
-    })
-  })
-
-  it('ventana abierta con minutesToStart -3 → "Tu clase ya empezó"', () => {
-    const m = resolveTodayCard(
-      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: -3 }),
-    )
-    expect(m.chips.map((c) => c.text)).toEqual(['Tu clase ya empezó'])
-  })
-
-  it('ventana abierta con minutesToStart 0 → "Tu clase ya empezó" (borde)', () => {
-    const m = resolveTodayCard(
-      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: 0 }),
-    )
-    expect(m.chips.map((c) => c.text)).toEqual(['Tu clase ya empezó'])
-  })
-
-  it('ventana "before" → sin chip de ventana', () => {
-    const m = resolveTodayCard(
-      baseInput({ booking: BOOKING, windowState: 'before', minutesToStart: 90 }),
-    )
-    expect(m.chips).toEqual([])
-  })
-
-  it('asistencia marcada → chip ok "Asistencia registrada 18:52" y sin chip de ventana', () => {
-    const m = resolveTodayCard(
-      baseInput({
-        booking: BOOKING,
-        windowState: 'open',
-        minutesToStart: 8,
-        attendanceMarkedAt: '18:52',
-      }),
-    )
-    expect(m.chips).toEqual([
-      { icon: 'check_circle', text: 'Asistencia registrada 18:52', tone: 'ok' },
-    ])
-  })
-
   it('reserva de otra sede → usa el nombre corto de ESA sede', () => {
     const m = resolveTodayCard(
       baseInput({ booking: { ...BOOKING, branchName: 'El Templo Moreno' } }),
     )
     expect(flat(m.meta)).toBe('Tu clase: 19:00 · Sede Moreno')
-  })
-
-  it('ventana abierta → solo el chip de la ventana (el consejo del registro vive en el registro)', () => {
-    const m = resolveTodayCard(
-      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: 12 }),
-    )
-    expect(m.chips.map((c) => c.text)).toEqual(['Tu clase empieza en 12 min'])
   })
 
   it('día hábil sin sesión hoy pero CON reserva hoy → presencial-turno', () => {
@@ -341,20 +284,20 @@ describe('resolveTodayCard — D5: la clase de hoy ya pasada y sin asistencia no
     expect(m.title).toBe('Lunes 19 · 19:00')
   })
 
-  it('ventana pasada pero CON asistencia → presencial-turno con el chip ok y copy normal', () => {
+  it('ventana pasada pero CON asistencia → presencial-turno con la pill ok y link a Libre', () => {
     const m = resolveTodayCard(
       baseInput({ ...PASADA, windowState: 'after', attendanceMarkedAt: '19:05' }),
     )
     expect(m.kind).toBe('presencial-turno')
-    expect(m.chips.map((c) => c.text)).toEqual(['Asistencia registrada 19:05'])
-    expect(flat(m.meta)).toBe('Tu clase: 19:00 · Sede Alem')
-    expect(m.secondary?.label).toBe('Cambiar clase')
+    expect(flat(m.pill?.text ?? null)).toBe('Asistencia registrada 19:05 · Sede Alem')
+    expect(m.meta).toBeNull()
+    expect(m.secondary?.label).toBe('Probá el modo Libre')
   })
 
-  it('ventana abierta sin asistencia → sigue siendo presencial-turno con chip de ventana', () => {
+  it('ventana abierta sin asistencia → sigue siendo presencial-turno con pill de ventana', () => {
     const m = resolveTodayCard(baseInput({ ...PASADA, windowState: 'open', minutesToStart: 5 }))
     expect(m.kind).toBe('presencial-turno')
-    expect(m.chips.map((c) => c.text)).toEqual(['Tu clase empieza en 5 min'])
+    expect(flat(m.pill?.text ?? null)).toBe('Empieza en 5 min · Sede Alem')
   })
 
   it('ventana "before" → sigue siendo presencial-turno', () => {
@@ -378,7 +321,7 @@ describe('resolveTodayCard — D5: la clase de hoy ya pasada y sin asistencia no
 })
 
 describe('resolveTodayCard — presencial: próxima clase (C1)', () => {
-  it('domingo con clase el lunes → "Tu próxima clase", "Lunes 19 · 19:00", sede, Mis clases + Cambiar clase', () => {
+  it('domingo con clase el lunes → "Tu próxima clase", "Lunes 19 · 19:00", sede, Mis clases + Libre', () => {
     const m = resolveTodayCard(
       baseInput({ todayStr: '2026-10-18', dow: 7, todayRoute: null, nextBooking: NEXT_MONDAY }),
     )
@@ -388,7 +331,8 @@ describe('resolveTodayCard — presencial: próxima clase (C1)', () => {
     expect(m.meta).toEqual([{ text: 'Sede Alem' }])
     expect(flat(m.meta)).toBe('Sede Alem')
     expect(m.primary).toEqual({ label: 'Mis clases', to: '/reservas' })
-    expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+    // Un solo link: con plan, "Probá el modo Libre" reemplaza a "Cambiar clase" ("Mis clases" ya va a /reservas).
+    expect(m.secondary).toEqual({ label: 'Probá el modo Libre', to: '/training?tab=libre' })
     expect(m.progress).toBeNull()
     const copy = allCopy(m)
     expect(copy).not.toContain('Ver la sesión')
@@ -425,14 +369,8 @@ describe('resolveTodayCard — presencial: próxima clase (C1)', () => {
     expect(flat(m.meta)).toBe('Sede Moreno')
   })
 
-  it('sin chips', () => {
-    expect(resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY })).chips).toEqual([])
-  })
-
-  it('hasExtraPrograms → tertiary "Tus programas"', () => {
-    const m = resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY, hasExtraPrograms: true }))
-    expect(m.kind).toBe('presencial-proxima')
-    expect(m.tertiary).toEqual({ label: 'Tus programas', action: 'open-program' })
+  it('sin pill', () => {
+    expect(resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY })).pill).toBeNull()
   })
 
   it('con bookingsLoading y próxima clase, sin reserva de hoy → cargando', () => {
@@ -448,7 +386,7 @@ describe('resolveTodayCard — presencial: próxima clase (C1)', () => {
 })
 
 describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () => {
-  it('copy: "Sin clase reservada", "Reservá tu clase", "Próxima: <plani>" (plani de hoy), Reservar y sin secundario', () => {
+  it('copy: "Sin clase reservada", "Reservá tu clase", "Próxima: <plani>" (plani de hoy), Reservar y Libre como único link', () => {
     const m = resolveTodayCard(baseInput({ nextRoute: 'Muscle Up' }))
     expect(m.kind).toBe('presencial-sin-turno')
     expect(m.kicker).toBe('Sin clase reservada')
@@ -456,7 +394,7 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
     expect(flat(m.meta)).toBe('Próxima: Muscle Up')
     expect(m.meta?.[1]).toEqual({ text: 'Muscle Up', strong: true })
     expect(m.primary).toEqual({ label: 'Reservar', to: '/reservas' })
-    expect(m.secondary).toBeNull()
+    expect(m.secondary).toEqual({ label: 'Probá el modo Libre', to: '/training?tab=libre' })
   })
 
   it('sin plani hoy pero con un día siguiente: "Próxima: <plani de ese día>"', () => {
@@ -482,7 +420,7 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
     expect(m.kind).toBe('presencial-sin-turno')
     expect(m.kicker).toBe('Sin clase reservada')
     expect(m.title).toBe('Reservá\ntu clase')
-    expect(m.secondary).toBeNull()
+    expect(m.secondary?.label).toBe('Probá el modo Libre')
     const copy = allCopy(m)
     expect(copy).not.toContain('Entrenar')
     expect(copy).not.toContain('Ver la sesión')
@@ -499,13 +437,8 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
     expect(m.secondary).toBeNull()
   })
 
-  it('sin chips', () => {
-    expect(resolveTodayCard(baseInput()).chips).toEqual([])
-  })
-
-  it('hasExtraPrograms → tertiary "Tus programas"', () => {
-    const m = resolveTodayCard(baseInput({ hasExtraPrograms: true }))
-    expect(m.tertiary).toEqual({ label: 'Tus programas', action: 'open-program' })
+  it('sin pill', () => {
+    expect(resolveTodayCard(baseInput()).pill).toBeNull()
   })
 
   it('los 7 días de la semana dan la misma card, sin la fecha (ya está en el saludo)', () => {
@@ -518,7 +451,7 @@ describe('resolveTodayCard — presencial sin ninguna clase reservada (C2)', () 
 })
 
 describe('resolveTodayCard — completada', () => {
-  it('chip ok "Completada · 55 min · RPE 7" y primario session-summary', () => {
+  it('pill ok "Completada · 55 min · RPE 7" y primario session-summary', () => {
     const m = resolveTodayCard(
       baseInput({
         todayCompleted: true,
@@ -527,9 +460,12 @@ describe('resolveTodayCard — completada', () => {
     )
     expect(m.kind).toBe('completada')
     expect(m.kicker).toBe('Hoy ya entrenaste')
-    expect(m.chips).toEqual([
-      { icon: 'check_circle', text: 'Completada · 55 min · RPE 7', tone: 'ok' },
-    ])
+    expect(m.pill).toEqual({
+      icon: 'check_circle',
+      tone: 'ok',
+      text: [{ text: 'Completada · 55 min · RPE 7' }],
+    })
+    expect(m.meta).toBeNull()
     expect(m.primary).toEqual({ label: 'Ver resumen', to: { name: 'session-summary' } })
   })
 
@@ -537,13 +473,13 @@ describe('resolveTodayCard — completada', () => {
     const sinRpe = resolveTodayCard(
       baseInput({ todayCompleted: true, todaySession: { durationMinutes: 40, rpe: null } }),
     )
-    expect(sinRpe.chips[0]!.text).toBe('Completada · 40 min')
+    expect(flat(sinRpe.pill?.text ?? null)).toBe('Completada · 40 min')
     const sinMin = resolveTodayCard(
       baseInput({ todayCompleted: true, todaySession: { durationMinutes: null, rpe: 6 } }),
     )
-    expect(sinMin.chips[0]!.text).toBe('Completada · RPE 6')
+    expect(flat(sinMin.pill?.text ?? null)).toBe('Completada · RPE 6')
     const nada = resolveTodayCard(baseInput({ todayCompleted: true, todaySession: null }))
-    expect(nada.chips[0]!.text).toBe('Completada')
+    expect(flat(nada.pill?.text ?? null)).toBe('Completada')
   })
 
   it('completada gana sobre la reserva de hoy y sobre el domingo', () => {
@@ -615,8 +551,8 @@ describe('resolveTodayCard — online', () => {
     expect(flat(m.meta)).toBe('Semana 3 · 1 de 3 sesiones esta semana')
   })
 
-  it('online-programa sin chips', () => {
-    expect(resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM })).chips).toEqual([])
+  it('online-programa sin pill', () => {
+    expect(resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM })).pill).toBeNull()
   })
 
   it('online-libre con plan y sin programa: Entrenar, sin "Ver planes"', () => {
@@ -658,13 +594,13 @@ describe('resolveTodayCard — online', () => {
 })
 
 describe('resolveTodayCard — online siempre Entrena (D3)', () => {
-  it('virtual con programa en domingo → online-programa con Entrenar + Mi programa', () => {
+  it('virtual con programa en domingo → online-programa con Entrenar + Libre (sin plani hoy)', () => {
     const m = resolveTodayCard(
       baseInput({ isVirtual: true, program: PROGRAM, dow: 7, todayRoute: null }),
     )
     expect(m.kind).toBe('online-programa')
     expect(m.primary).toEqual({ label: 'Entrenar', to: '/training' })
-    expect(m.secondary).toEqual({ label: 'Mi programa', action: 'open-program' })
+    expect(m.secondary).toEqual({ label: 'Probá el modo Libre', to: '/training?tab=libre' })
   })
 
   it('virtual con programa, día hábil sin sesión → online-programa con el nombre del programa', () => {
@@ -711,7 +647,7 @@ describe('resolveTodayCard — online siempre Entrena (D3)', () => {
 })
 
 describe('resolveTodayCard — sin plan (D-05)', () => {
-  it('nunca tuvo plan: copy exacto + gancho con la sede y la ruta', () => {
+  it('nunca tuvo plan: copy exacto, sin gancho aunque haya plani hoy', () => {
     const m = resolveTodayCard(
       baseInput({ subscription: null, planStatus: planStatus({ hadPlan: false }) }),
     )
@@ -720,10 +656,7 @@ describe('resolveTodayCard — sin plan (D-05)', () => {
     expect(m.title).toBe('Arrancá tu plan')
     expect(flat(m.meta)).toBe('Elegí cómo querés entrenar: en tu sede o online.')
     expect(m.primary).toEqual({ label: 'Ver planes', to: '/planes' })
-    expect(m.hook).toEqual([
-      { text: 'Hoy en Alem se entrena ' },
-      { text: 'Muscle Up', strong: true },
-    ])
+    expect(allCopy(m)).not.toContain('se entrena')
   })
 
   it('"Clase de prueba gratis" solo si es trial-eligible', () => {
@@ -737,14 +670,7 @@ describe('resolveTodayCard — sin plan (D-05)', () => {
     expect(sin.secondary).toBeNull()
   })
 
-  it('sin ruta hoy → sin gancho', () => {
-    const m = resolveTodayCard(
-      baseInput({ subscription: null, planStatus: planStatus(), todayRoute: null }),
-    )
-    expect(m.hook).toBeNull()
-  })
-
-  it('venció: kicker con nombre, "Renová tu plan", meta con la fecha larga y gancho', () => {
+  it('venció: kicker con nombre, "Renová\\ntu plan", meta con la fecha larga y sin gancho', () => {
     const m = resolveTodayCard(
       baseInput({
         subscription: null,
@@ -756,11 +682,11 @@ describe('resolveTodayCard — sin plan (D-05)', () => {
     )
     expect(m.kind).toBe('sin-plan-vencio')
     expect(m.kicker).toBe('Te extrañamos, Andre')
-    expect(m.title).toBe('Renová tu plan')
+    expect(m.title).toBe('Renová\ntu plan')
     expect(flat(m.meta)).toBe('Tu Pase Libre venció el 30 de septiembre.')
     expect(m.primary).toEqual({ label: 'Renovar', to: '/planes' })
     expect(m.secondary).toEqual({ label: 'Ver otros planes', to: '/planes' })
-    expect(flat(m.hook)).toBe('Hoy en Alem se entrena Muscle Up')
+    expect(allCopy(m)).not.toContain('se entrena')
   })
 
   it('venció sin nombre de pila → "Te extrañamos"; sin endDate → "terminó."', () => {
@@ -925,34 +851,53 @@ describe('resolveTodayCard — plan programado igual que plan activo (D4)', () =
 })
 
 describe('resolveTodayCard — programas extra', () => {
-  it('presencial con hasExtraPrograms → tertiary "Tus programas" (open-program)', () => {
-    const m = resolveTodayCard(baseInput({ hasExtraPrograms: true }))
-    expect(m.tertiary).toEqual({ label: 'Tus programas', action: 'open-program' })
+  const TUS_PROGRAMAS = { label: 'Tus programas', action: 'open-program' }
+
+  it('"Tus programas" ocupa el único link solo si el gate no tiene otro (lista de espera)', () => {
+    const m = resolveTodayCard(baseInput({ hasExtraPrograms: true, waitlistTime: '19:00' }))
+    expect(m.secondary).toEqual(TUS_PROGRAMAS)
   })
 
-  it('también en clase de hoy, sin reserva y completada', () => {
+  it('con Libre o con el secondary propio del gate, esos ganan', () => {
+    // Sin reserva (y sin lista de espera), completada y próxima clase: Libre.
+    expect(resolveTodayCard(baseInput({ hasExtraPrograms: true })).secondary?.label).toBe(
+      'Probá el modo Libre',
+    )
     expect(
-      resolveTodayCard(baseInput({ hasExtraPrograms: true, booking: BOOKING })).tertiary,
-    ).not.toBeNull()
-    expect(resolveTodayCard(baseInput({ hasExtraPrograms: true, dow: 7 })).tertiary).not.toBeNull()
+      resolveTodayCard(baseInput({ hasExtraPrograms: true, todayCompleted: true })).secondary
+        ?.label,
+    ).toBe('Probá el modo Libre')
+    // Clase de hoy sin asistencia: el "Cambiar clase" del gate.
     expect(
-      resolveTodayCard(baseInput({ hasExtraPrograms: true, todayCompleted: true })).tertiary,
-    ).not.toBeNull()
+      resolveTodayCard(baseInput({ hasExtraPrograms: true, booking: BOOKING })).secondary?.label,
+    ).toBe('Cambiar clase')
   })
 
-  it('virtual o sin programas extra → sin tertiary', () => {
-    expect(resolveTodayCard(baseInput({ hasExtraPrograms: false })).tertiary).toBeNull()
+  it('virtual o sin programas extra → nunca "Tus programas"', () => {
+    expect(
+      resolveTodayCard(baseInput({ hasExtraPrograms: false, waitlistTime: '19:00' })).secondary,
+    ).toBeNull()
     expect(
       resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM, hasExtraPrograms: true }))
-        .tertiary,
-    ).toBeNull()
+        .secondary,
+    ).not.toEqual(TUS_PROGRAMAS)
+    expect(
+      resolveTodayCard(baseInput({ isVirtual: true, program: null, hasExtraPrograms: true }))
+        .secondary,
+    ).not.toEqual(TUS_PROGRAMAS)
   })
 
   it('sin plan nunca muestra "Tus programas"', () => {
     const m = resolveTodayCard(
       baseInput({ subscription: null, planStatus: planStatus(), hasExtraPrograms: true }),
     )
-    expect(m.tertiary).toBeNull()
+    expect(m.secondary).toBeNull()
+  })
+
+  it('cargando nunca muestra "Tus programas"', () => {
+    const m = resolveTodayCard(baseInput({ bookingsLoading: true, hasExtraPrograms: true }))
+    expect(m.kind).toBe('cargando')
+    expect(m.secondary).toBeNull()
   })
 })
 
@@ -1079,6 +1024,7 @@ describe('resolveTodayCard — matriz anti-regresión (UAT D3 + D11)', () => {
                       expect(String(m.kind), where).not.toBe('plan-programado')
                       expect(allCopy(m), where).not.toMatch(/descans/i)
                       expect(allCopy(m), where).not.toMatch(/turno/i)
+                      expect(m.pill === null || m.meta === null, where).toBe(true)
                       if (m.kind === 'presencial-proxima') {
                         expect(m.title, where).not.toMatch(/mañana/i)
                       }
@@ -1106,13 +1052,13 @@ describe('resolveTodayCard — matriz anti-regresión (UAT D3 + D11)', () => {
   })
 })
 
-describe('resolveTodayCard — libreLink (fase 197 D-17)', () => {
+describe('resolveTodayCard — link a Libre en el único link (fase 197 D-17)', () => {
   const LIBRE = { label: 'Probá el modo Libre', to: '/training?tab=libre' }
 
   it('sesión de hoy completada → link a Libre', () => {
     const m = resolveTodayCard(baseInput({ todayCompleted: true }))
     expect(m.kind).toBe('completada')
-    expect(m.libreLink).toEqual(LIBRE)
+    expect(m.secondary).toEqual(LIBRE)
   })
 
   it('antes de la clase (ventana before, sin asistencia) → sin link', () => {
@@ -1120,7 +1066,7 @@ describe('resolveTodayCard — libreLink (fase 197 D-17)', () => {
       baseInput({ booking: BOOKING, windowState: 'before', minutesToStart: 90 }),
     )
     expect(m.kind).toBe('presencial-turno')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('durante la clase (ventana open, sin asistencia) → sin link', () => {
@@ -1128,7 +1074,7 @@ describe('resolveTodayCard — libreLink (fase 197 D-17)', () => {
       baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: 12 }),
     )
     expect(m.kind).toBe('presencial-turno')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('clase de hoy con asistencia registrada → link a Libre', () => {
@@ -1136,37 +1082,37 @@ describe('resolveTodayCard — libreLink (fase 197 D-17)', () => {
       baseInput({ booking: BOOKING, windowState: 'open', attendanceMarkedAt: '18:55' }),
     )
     expect(m.kind).toBe('presencial-turno')
-    expect(m.libreLink).toEqual(LIBRE)
+    expect(m.secondary).toEqual(LIBRE)
   })
 
   it('presencial sin reserva y sin lista de espera → link a Libre', () => {
     const m = resolveTodayCard(baseInput())
     expect(m.kind).toBe('presencial-sin-turno')
-    expect(m.libreLink).toEqual(LIBRE)
+    expect(m.secondary).toEqual(LIBRE)
   })
 
   it('presencial en lista de espera → sin link', () => {
     const m = resolveTodayCard(baseInput({ waitlistTime: '19:00' }))
     expect(m.kind).toBe('presencial-sin-turno')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('próxima clase reservada otro día (hoy no hay clase) → link a Libre', () => {
     const m = resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY }))
     expect(m.kind).toBe('presencial-proxima')
-    expect(m.libreLink).toEqual(LIBRE)
+    expect(m.secondary).toEqual(LIBRE)
   })
 
   it('clase de hoy perdida (ventana after, sin asistencia, sin próxima) → link a Libre', () => {
     const m = resolveTodayCard(baseInput({ booking: BOOKING, windowState: 'after' }))
     expect(m.kind).toBe('presencial-sin-turno')
-    expect(m.libreLink).toEqual(LIBRE)
+    expect(m.secondary).toEqual(LIBRE)
   })
 
   it('reservas de hoy todavía cargando → sin link', () => {
     const m = resolveTodayCard(baseInput({ bookingsLoading: true }))
     expect(m.kind).toBe('cargando')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('online con programa y plani hoy → sin link', () => {
@@ -1174,37 +1120,37 @@ describe('resolveTodayCard — libreLink (fase 197 D-17)', () => {
       baseInput({ isVirtual: true, program: PROGRAM, todayRoute: 'Muscle Up' }),
     )
     expect(m.kind).toBe('online-programa')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('online con programa y sin plani hoy → link a Libre', () => {
     const m = resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM, todayRoute: null }))
     expect(m.kind).toBe('online-programa')
-    expect(m.libreLink).toEqual(LIBRE)
+    expect(m.secondary).toEqual(LIBRE)
   })
 
   it('online libre con plan y sin plani hoy → link a Libre', () => {
     const m = resolveTodayCard(baseInput({ isVirtual: true, todayRoute: null }))
     expect(m.kind).toBe('online-libre')
-    expect(m.libreLink).toEqual(LIBRE)
+    expect(m.secondary).toEqual(LIBRE)
   })
 
   it('online libre con plan y plani hoy → sin link', () => {
     const m = resolveTodayCard(baseInput({ isVirtual: true, todayRoute: 'Muscle Up' }))
     expect(m.kind).toBe('online-libre')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('online completada → link a Libre', () => {
     const m = resolveTodayCard(baseInput({ isVirtual: true, todayCompleted: true }))
     expect(m.kind).toBe('completada')
-    expect(m.libreLink).toEqual(LIBRE)
+    expect(m.secondary).toEqual(LIBRE)
   })
 
   it('sin plan nunca → sin link', () => {
     const m = resolveTodayCard(baseInput({ subscription: null, planStatus: null }))
     expect(m.kind).toBe('sin-plan-nunca')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('sin plan vencido → sin link', () => {
@@ -1212,39 +1158,267 @@ describe('resolveTodayCard — libreLink (fase 197 D-17)', () => {
       baseInput({ subscription: null, planStatus: planStatus({ hadPlan: true }) }),
     )
     expect(m.kind).toBe('sin-plan-vencio')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('sin plan online (vidriera "Ver planes") → sin link', () => {
     const m = resolveTodayCard(baseInput({ isVirtual: true, subscription: null, todayRoute: null }))
     expect(m.kind).toBe('online-libre')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('cargando el plan → sin link', () => {
     const m = resolveTodayCard(baseInput({ subscription: null, planLoading: true }))
     expect(m.kind).toBe('cargando')
-    expect(m.libreLink).toBeNull()
+    expect(m.secondary).not.toEqual(LIBRE)
   })
 
   it('solo plan programado (sin plan activo) → sin link, ni siquiera completada', () => {
     const scheduled = { ...ACTIVE_SUB, status: 'scheduled' }
-    expect(resolveTodayCard(baseInput({ subscription: scheduled })).libreLink).toBeNull()
+    expect(resolveTodayCard(baseInput({ subscription: scheduled })).secondary).not.toEqual(LIBRE)
     expect(
-      resolveTodayCard(baseInput({ subscription: scheduled, todayCompleted: true })).libreLink,
-    ).toBeNull()
+      resolveTodayCard(baseInput({ subscription: scheduled, todayCompleted: true })).secondary,
+    ).not.toEqual(LIBRE)
   })
 
   it('plan pausado cuenta como plan: sin reserva hoy → link', () => {
     const m = resolveTodayCard(baseInput({ subscription: { ...ACTIVE_SUB, status: 'paused' } }))
-    expect(m.libreLink).toEqual(LIBRE)
+    expect(m.secondary).toEqual(LIBRE)
   })
 
-  it('el link no altera ningún otro campo del modelo', () => {
-    const { libreLink, ...rest } = resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY }))
-    expect(libreLink).toEqual(LIBRE)
-    expect(rest.primary).toEqual({ label: 'Mis clases', to: '/reservas' })
-    expect(rest.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
-    expect(rest.tertiary).toBeNull()
+  it('el link reemplaza al secondary del gate y no altera ningún otro campo', () => {
+    const m = resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY }))
+    expect(m.kind).toBe('presencial-proxima')
+    expect(m.secondary).toEqual(LIBRE)
+    expect(m.primary).toEqual({ label: 'Mis clases', to: '/reservas' })
+    expect(m.kicker).toBe('Tu próxima clase')
+    expect(m.title).toBe('Lunes 19 · 19:00')
+    expect(flat(m.meta)).toBe('Sede Alem')
+    expect(m.pill).toBeNull()
+    expect(allCopy(m)).not.toContain('Cambiar clase')
+  })
+
+  it('online-programa sin plani hoy: Libre reemplaza a "Mi programa"', () => {
+    const m = resolveTodayCard(baseInput({ isVirtual: true, program: PROGRAM, todayRoute: null }))
+    expect(m.secondary).toEqual(LIBRE)
+    expect(allCopy(m)).not.toContain('Mi programa')
+  })
+})
+
+describe('resolveTodayCard — alto fijo: pill, un solo link y sin hook (fase 197, sketch 017)', () => {
+  const LIBRE = { label: 'Probá el modo Libre', to: '/training?tab=libre' }
+  const TUS_PROGRAMAS = { label: 'Tus programas', action: 'open-program' }
+
+  it('asistencia registrada → pill ok con la hora en strong y la sede; meta null; link a Libre', () => {
+    const m = resolveTodayCard(
+      baseInput({
+        booking: BOOKING,
+        windowState: 'open',
+        minutesToStart: 8,
+        attendanceMarkedAt: '18:55',
+      }),
+    )
+    expect(m.kind).toBe('presencial-turno')
+    expect(m.pill).toEqual({
+      icon: 'check_circle',
+      tone: 'ok',
+      text: [
+        { text: 'Asistencia registrada ' },
+        { text: '18:55', strong: true },
+        { text: ' · Sede Alem' },
+      ],
+    })
+    expect(m.meta).toBeNull()
+    expect(m.secondary).toEqual(LIBRE)
+    expect(allCopy(m)).not.toContain('Cambiar clase')
+  })
+
+  it('asistencia en una reserva de otra sede → la sede de ESA reserva', () => {
+    const m = resolveTodayCard(
+      baseInput({
+        booking: { ...BOOKING, branchName: 'El Templo Moreno' },
+        attendanceMarkedAt: '18:55',
+      }),
+    )
+    expect(flat(m.pill?.text ?? null)).toBe('Asistencia registrada 18:55 · Sede Moreno')
+  })
+
+  it('ventana abierta con 12 min → pill neutral "Empieza en 12 min · Sede Alem"; meta null; "Cambiar clase"', () => {
+    const m = resolveTodayCard(
+      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: 12 }),
+    )
+    expect(m.pill).toEqual({
+      icon: 'schedule',
+      tone: 'neutral',
+      text: [{ text: 'Empieza en ' }, { text: '12 min', strong: true }, { text: ' · Sede Alem' }],
+    })
+    expect(flat(m.pill?.text ?? null)).toBe('Empieza en 12 min · Sede Alem')
+    expect(m.meta).toBeNull()
+    expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+  })
+
+  it.each([0, -3, null])(
+    'ventana abierta con minutesToStart %s → pill neutral "Tu clase ya empezó · Sede Alem"',
+    (minutesToStart) => {
+      const m = resolveTodayCard(
+        baseInput({ booking: BOOKING, windowState: 'open', minutesToStart }),
+      )
+      expect(m.pill).toEqual({
+        icon: 'schedule',
+        tone: 'neutral',
+        text: [{ text: 'Tu clase ya empezó · Sede Alem' }],
+      })
+      expect(m.meta).toBeNull()
+      expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+    },
+  )
+
+  it('antes de la clase → sin pill, meta "Tu clase: 19:00 · Sede Alem" y "Cambiar clase"', () => {
+    const m = resolveTodayCard(
+      baseInput({ booking: BOOKING, windowState: 'before', minutesToStart: 90 }),
+    )
+    expect(m.pill).toBeNull()
+    expect(flat(m.meta)).toBe('Tu clase: 19:00 · Sede Alem')
+    expect(m.meta).toContainEqual({ text: '19:00', strong: true })
+    expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+  })
+
+  it('completada con plan → pill ok con el resumen, meta null y link a Libre', () => {
+    const m = resolveTodayCard(
+      baseInput({ todayCompleted: true, todaySession: { durationMinutes: 55, rpe: 7 } }),
+    )
+    expect(m.kind).toBe('completada')
+    expect(m.pill).toEqual({
+      icon: 'check_circle',
+      tone: 'ok',
+      text: [{ text: 'Completada · 55 min · RPE 7' }],
+    })
+    expect(m.meta).toBeNull()
+    expect(m.secondary).toEqual(LIBRE)
+  })
+
+  it('completada con hasExtraPrograms → sigue siendo Libre (prioridad sobre "Tus programas")', () => {
+    const m = resolveTodayCard(baseInput({ todayCompleted: true, hasExtraPrograms: true }))
+    expect(m.kind).toBe('completada')
+    expect(m.secondary).toEqual(LIBRE)
+  })
+
+  it('presencial-turno sin asistencia + hasExtraPrograms → "Cambiar clase" (no "Tus programas")', () => {
+    for (const windowState of ['before', 'open'] as const) {
+      const m = resolveTodayCard(
+        baseInput({ booking: BOOKING, windowState, minutesToStart: 12, hasExtraPrograms: true }),
+      )
+      expect(m.kind).toBe('presencial-turno')
+      expect(m.secondary).toEqual({ label: 'Cambiar clase', to: '/reservas' })
+    }
+  })
+
+  it('presencial-turno con asistencia + hasExtraPrograms → Libre (prioridad)', () => {
+    const m = resolveTodayCard(
+      baseInput({ booking: BOOKING, attendanceMarkedAt: '18:55', hasExtraPrograms: true }),
+    )
+    expect(m.secondary).toEqual(LIBRE)
+  })
+
+  it('presencial-sin-turno con lista de espera + hasExtraPrograms → "Tus programas" (sin Libre)', () => {
+    const m = resolveTodayCard(baseInput({ waitlistTime: '19:00', hasExtraPrograms: true }))
+    expect(m.kind).toBe('presencial-sin-turno')
+    expect(m.secondary).toEqual(TUS_PROGRAMAS)
+  })
+
+  it('presencial-sin-turno sin lista de espera + hasExtraPrograms → Libre', () => {
+    const m = resolveTodayCard(baseInput({ hasExtraPrograms: true }))
+    expect(m.kind).toBe('presencial-sin-turno')
+    expect(m.secondary).toEqual(LIBRE)
+  })
+
+  it('presencial-proxima con plan → Libre (reemplaza a "Cambiar clase"); con extra también Libre', () => {
+    const sin = resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY }))
+    expect(sin.kind).toBe('presencial-proxima')
+    expect(sin.secondary).toEqual(LIBRE)
+    const con = resolveTodayCard(baseInput({ nextBooking: NEXT_MONDAY, hasExtraPrograms: true }))
+    expect(con.secondary).toEqual(LIBRE)
+  })
+
+  it('presencial-proxima con plan solo programado + hasExtraPrograms → "Tus programas" (sin Libre)', () => {
+    const m = resolveTodayCard(
+      baseInput({
+        subscription: { ...ACTIVE_SUB, status: 'scheduled' },
+        nextBooking: NEXT_MONDAY,
+        hasExtraPrograms: true,
+      }),
+    )
+    expect(m.kind).toBe('presencial-proxima')
+    expect(m.secondary).toEqual(TUS_PROGRAMAS)
+  })
+
+  it('sin-plan-vencio → título "Renová\\ntu plan" y el modelo no tiene hook', () => {
+    const m = resolveTodayCard(
+      baseInput({ subscription: null, planStatus: planStatus({ hadPlan: true }) }),
+    )
+    expect(m.kind).toBe('sin-plan-vencio')
+    expect(m.title).toBe('Renová\ntu plan')
+    expect('hook' in m).toBe(false)
+  })
+
+  it('sin-plan-nunca no tiene hook aunque haya plani hoy', () => {
+    const m = resolveTodayCard(baseInput({ subscription: null, planStatus: planStatus() }))
+    expect(m.kind).toBe('sin-plan-nunca')
+    expect('hook' in m).toBe(false)
+    expect(allCopy(m)).not.toContain('se entrena')
+  })
+
+  it('el modelo ya no expone chips, tertiary ni libreLink', () => {
+    const m = resolveTodayCard(baseInput({ booking: BOOKING, hasExtraPrograms: true }))
+    expect(Object.keys(m).sort()).toEqual(
+      ['kind', 'kicker', 'title', 'meta', 'pill', 'progress', 'primary', 'secondary'].sort(),
+    )
+  })
+
+  it('invariante: pill y meta nunca conviven (todos los kinds, con y sin extras)', () => {
+    const inputs: TodayCardInput[] = [
+      baseInput({ subscription: null, planStatus: null, planLoading: true }),
+      baseInput({ bookingsLoading: true }),
+      baseInput({ booking: BOOKING }),
+      baseInput({ booking: BOOKING, windowState: 'before', minutesToStart: 90 }),
+      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: 12 }),
+      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: 0 }),
+      baseInput({ booking: BOOKING, windowState: 'open', minutesToStart: null }),
+      baseInput({ booking: BOOKING, attendanceMarkedAt: '18:55' }),
+      baseInput({ booking: BOOKING, windowState: 'after', attendanceMarkedAt: '19:05' }),
+      baseInput({ booking: BOOKING, windowState: 'after' }),
+      baseInput({ nextBooking: NEXT_MONDAY }),
+      baseInput({ waitlistTime: '19:00' }),
+      baseInput({ nextRoute: 'Muscle Up' }),
+      baseInput({ todayCompleted: true, todaySession: { durationMinutes: 55, rpe: 7 } }),
+      baseInput({ todayCompleted: true, todaySession: null }),
+      baseInput({ isVirtual: true, program: PROGRAM }),
+      baseInput({ isVirtual: true, program: null }),
+      baseInput({ isVirtual: true, subscription: null, planStatus: planStatus() }),
+      baseInput({ subscription: null, planStatus: planStatus() }),
+      baseInput({ subscription: null, planStatus: planStatus({ hadPlan: true }) }),
+    ]
+    const kinds = new Set<string>()
+    for (const input of inputs) {
+      for (const hasExtraPrograms of [false, true]) {
+        const m = resolveTodayCard({ ...input, hasExtraPrograms })
+        kinds.add(m.kind)
+        const where = JSON.stringify({ kind: m.kind, hasExtraPrograms })
+        expect(m.pill === null || m.meta === null, where).toBe(true)
+      }
+    }
+    expect([...kinds].sort()).toEqual(
+      [
+        'cargando',
+        'presencial-turno',
+        'presencial-sin-turno',
+        'presencial-proxima',
+        'completada',
+        'online-programa',
+        'online-libre',
+        'sin-plan-nunca',
+        'sin-plan-vencio',
+      ].sort(),
+    )
   })
 })

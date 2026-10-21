@@ -31,15 +31,24 @@
  *     d. próxima clase reservada (`nextBooking`) → `presencial-proxima` (C1);
  *     e. si no → `presencial-sin-turno` con "Reservá tu clase" (C2, cualquier día).
  *
- * Fase 197 D-17: `libreLink` ("Probá el modo Libre") se agrega al final sobre el modelo ya
+ * Alto fijo (fase 197, sketch 017): la card tiene SIEMPRE las mismas 4 filas (kicker, título de
+ * 2 líneas, línea de estado, una fila de acciones), así que el modelo respeta dos reglas:
+ *  - Línea de estado: o `pill` (estado: asistencia, ventana de la clase, completada) o `meta`
+ *    (texto), nunca las dos. Si hay `pill`, `meta` va null.
+ *  - Un solo link por card (`secondary`), con prioridad: link a Libre > el `secondary` propio
+ *    del gate > "Tus programas".
+ *
+ * Fase 197 D-17: el link "Probá el modo Libre" REEMPLAZA a `secondary` sobre el modelo ya
  * resuelto (`withLibreLink`), sin tocar ningún otro campo de los gates. Criterio conservador
  * (ante la duda NO se muestra): solo con plan active/paused (un plan solo programado no) y
  * (a) `completada`, (b) `presencial-turno` con asistencia registrada, (c) `presencial-sin-turno`
  * sin lista de espera (incluye la clase de hoy perdida, regla D5), (d) `presencial-proxima`
  * (hoy no hay clase), (e) `online-*` sin plani hoy (`todayRoute` null). Nunca antes de la clase.
+ * Después va `withExtraPrograms`: pone "Tus programas" en `secondary` solo si quedó vacío
+ * (completada y presenciales, nunca virtual ni sin plan).
  *
  * El QR de check-in NO se decide acá: su única fuente de verdad es
- * `useTodayBookingStore.fabVisible`. La card solo informa la ventana con chips.
+ * `useTodayBookingStore.fabVisible`. La card solo informa la ventana con una pill.
  */
 
 import type { MemberPlanStatus } from 'src/types/plan-status'
@@ -64,27 +73,26 @@ export interface TodayCardAction {
   action?: 'open-program'
 }
 
-export interface TodayCardChip {
+/** Estado de la card (asistencia, ventana de la clase, completada): ocupa la línea de estado. */
+export interface TodayCardPill {
   icon: string
-  text: string
   tone: 'neutral' | 'ok'
+  text: TodayCardText
 }
 
 export interface TodayCardModel {
   kind: TodayCardKind
   kicker: string
   title: string
+  /** Texto de la línea de estado. Si hay `pill`, ocupa esa línea y `meta` va null. */
   meta: TodayCardText | null
-  chips: TodayCardChip[]
+  pill: TodayCardPill | null
   /** 0..1 o null (sin barra). */
   progress: number | null
   /** null solo en `cargando`. */
   primary: TodayCardAction | null
+  /** El único link de la fila de acciones (ver prioridad en el docblock del archivo). */
   secondary: TodayCardAction | null
-  tertiary: TodayCardAction | null
-  hook: TodayCardText | null
-  /** Fase 197 D-17: invitación a la tab Libre de Entrenar; null salvo "después de la clase". */
-  libreLink: TodayCardAction | null
 }
 
 export interface TodayCardInput {
@@ -224,23 +232,12 @@ function emptyModel(
     kicker,
     title,
     meta: null,
-    chips: [],
+    pill: null,
     progress: null,
     primary: null,
     secondary: null,
-    tertiary: null,
-    hook: null,
-    libreLink: null,
     ...over,
   }
-}
-
-function hookFor(input: TodayCardInput): TodayCardText | null {
-  if (input.isVirtual || !input.todayRoute) return null
-  return [
-    { text: `Hoy en ${shortBranchName(input.branchName)} se entrena ` },
-    { text: input.todayRoute, strong: true },
-  ]
 }
 
 // ── Gates ──
@@ -262,12 +259,12 @@ function sinPlanVencio(input: TodayCardInput): TodayCardModel {
   return emptyModel(
     'sin-plan-vencio',
     input.firstName ? `Te extrañamos, ${input.firstName}` : 'Te extrañamos',
-    'Renová tu plan',
+    // Corte de línea a mano (`white-space: pre-line` en TodayCard), igual que "Reservá\ntu clase".
+    'Renová\ntu plan',
     {
       meta: [{ text: meta }],
       primary: { label: 'Renovar', to: '/planes' },
       secondary: { label: 'Ver otros planes', to: '/planes' },
-      hook: hookFor(input),
     },
   )
 }
@@ -277,7 +274,6 @@ function sinPlanNunca(input: TodayCardInput): TodayCardModel {
     meta: [{ text: 'Elegí cómo querés entrenar: en tu sede o online.' }],
     primary: PLANES,
     secondary: input.trialEligible ? { label: 'Clase de prueba gratis', to: '/reservas' } : null,
-    hook: hookFor(input),
   })
 }
 
@@ -287,7 +283,7 @@ function completada(input: TodayCardInput): TodayCardModel {
   if (session?.durationMinutes != null) parts.push(`${session.durationMinutes} min`)
   if (session?.rpe != null) parts.push(`RPE ${session.rpe}`)
   return emptyModel('completada', KICKER_COMPLETADA, input.todayRoute ?? 'Sesión completada', {
-    chips: [{ icon: 'check_circle', text: parts.join(' · '), tone: 'ok' }],
+    pill: { icon: 'check_circle', tone: 'ok', text: [{ text: parts.join(' · ') }] },
     primary: { label: 'Ver resumen', to: { name: 'session-summary' } },
   })
 }
@@ -322,30 +318,46 @@ function presencialTurno(
   input: TodayCardInput,
   booking: NonNullable<TodayCardInput['booking']>,
 ): TodayCardModel {
-  const chips: TodayCardChip[] = []
+  const branch = sedeLabel(booking.branchName)
+  // La línea de estado es la pill (asistencia / ventana abierta) o, si no hay estado que
+  // informar, el texto "Tu clase: HH:mm · Sede X". Nunca las dos.
+  let pill: TodayCardPill | null = null
+  let meta: TodayCardText | null = [
+    { text: 'Tu clase: ' },
+    { text: hhmm(booking.time), strong: true },
+    { text: ` · ${branch}` },
+  ]
   if (input.attendanceMarkedAt) {
-    chips.push({
+    pill = {
       icon: 'check_circle',
-      text: `Asistencia registrada ${input.attendanceMarkedAt}`,
       tone: 'ok',
-    })
+      text: [
+        { text: 'Asistencia registrada ' },
+        { text: input.attendanceMarkedAt, strong: true },
+        { text: ` · ${branch}` },
+      ],
+    }
+    meta = null
   } else if (input.windowState === 'open') {
     const min = input.minutesToStart
-    chips.push({
+    pill = {
       icon: 'schedule',
-      text: min !== null && min > 0 ? `Tu clase empieza en ${min} min` : 'Tu clase ya empezó',
       tone: 'neutral',
-    })
+      text:
+        min !== null && min > 0
+          ? [
+              { text: 'Empieza en ' },
+              { text: `${min} min`, strong: true },
+              { text: ` · ${branch}` },
+            ]
+          : [{ text: `Tu clase ya empezó · ${branch}` }],
+    }
+    meta = null
   }
 
-  const branch = sedeLabel(booking.branchName)
   return emptyModel('presencial-turno', KICKER_TURNO, input.todayRoute ?? booking.activityName, {
-    meta: [
-      { text: 'Tu clase: ' },
-      { text: hhmm(booking.time), strong: true },
-      { text: ` · ${branch}` },
-    ],
-    chips,
+    meta,
+    pill,
     primary: { label: 'Ver la sesión', to: '/training' },
     secondary: { label: 'Cambiar clase', to: '/reservas' },
   })
@@ -384,11 +396,21 @@ function presencialSinTurno(input: TodayCardInput): TodayCardModel {
   })
 }
 
+/**
+ * "Tus programas" en el único link, solo si ningún otro lo ocupa (se aplica DESPUÉS de
+ * `withLibreLink`). Solo en `completada` y los `presencial-*`; nunca virtual ni sin plan.
+ */
 function withExtraPrograms(model: TodayCardModel, input: TodayCardInput): TodayCardModel {
-  if (input.hasExtraPrograms && !input.isVirtual) {
-    return { ...model, tertiary: { label: 'Tus programas', action: 'open-program' } }
+  if (!input.hasExtraPrograms || input.isVirtual || model.secondary !== null) return model
+  switch (model.kind) {
+    case 'completada':
+    case 'presencial-turno':
+    case 'presencial-proxima':
+    case 'presencial-sin-turno':
+      return { ...model, secondary: { label: 'Tus programas', action: 'open-program' } }
+    default:
+      return model
   }
-  return model
 }
 
 /** Plan active/paused, o el plan-status dice que hay plan (respaldo). Un plan solo programado NO cuenta. */
@@ -401,8 +423,9 @@ function hasCurrentPlan(input: TodayCardInput): boolean {
 }
 
 /**
- * Fase 197 D-17: agrega el link a Libre solo "después de la clase o en días sin clase".
- * Criterio conservador: ver el docblock del archivo. Cualquier otro caso devuelve el modelo intacto.
+ * Fase 197 D-17: pone el link a Libre (en lugar del `secondary` del gate) solo "después de la
+ * clase o en días sin clase". Criterio conservador: ver el docblock del archivo. Cualquier otro
+ * caso devuelve el modelo intacto.
  */
 function withLibreLink(model: TodayCardModel, input: TodayCardInput): TodayCardModel {
   if (!hasCurrentPlan(input)) return model
@@ -425,11 +448,12 @@ function withLibreLink(model: TodayCardModel, input: TodayCardInput): TodayCardM
     default:
       show = false
   }
-  return show ? { ...model, libreLink: LIBRE_LINK } : model
+  return show ? { ...model, secondary: LIBRE_LINK } : model
 }
 
+// El orden importa: Libre primero (reemplaza al secondary), "Tus programas" solo si quedó libre.
 export function resolveTodayCard(input: TodayCardInput): TodayCardModel {
-  return withLibreLink(resolveBaseCard(input), input)
+  return withExtraPrograms(withLibreLink(resolveBaseCard(input), input), input)
 }
 
 function resolveBaseCard(input: TodayCardInput): TodayCardModel {
@@ -451,7 +475,7 @@ function resolveBaseCard(input: TodayCardInput): TodayCardModel {
   }
 
   // 2. Sesión de hoy completada.
-  if (input.todayCompleted) return withExtraPrograms(completada(input), input)
+  if (input.todayCompleted) return completada(input)
 
   // 3. Virtual: siempre se puede entrenar.
   if (input.isVirtual) {
@@ -463,12 +487,10 @@ function resolveBaseCard(input: TodayCardInput): TodayCardModel {
   const missedToday =
     input.booking !== null && input.windowState === 'after' && input.attendanceMarkedAt === null
   const activeBooking = missedToday ? null : input.booking
-  if (activeBooking) return withExtraPrograms(presencialTurno(input, activeBooking), input)
+  if (activeBooking) return presencialTurno(input, activeBooking)
   // Sin saber si hay clase hoy no se decide "reservá" (A1 del plan 20).
   if (input.bookingsLoading) return emptyModel('cargando', '', '')
-  if (input.waitlistTime) return withExtraPrograms(presencialSinTurno(input), input)
-  if (input.nextBooking) {
-    return withExtraPrograms(presencialProxima(input, input.nextBooking), input)
-  }
-  return withExtraPrograms(presencialSinTurno(input), input)
+  if (input.waitlistTime) return presencialSinTurno(input)
+  if (input.nextBooking) return presencialProxima(input, input.nextBooking)
+  return presencialSinTurno(input)
 }
