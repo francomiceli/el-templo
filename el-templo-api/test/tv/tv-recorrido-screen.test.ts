@@ -56,6 +56,12 @@ import {
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import {
+  ZONAS_ORDEN,
+  ZONAS_TV,
+  soloTv,
+  zonasDeRuta,
+} from "../../src/modules/anatomy/projection";
+import {
   seedSecondTenant,
   limpiarSegundoGimnasio,
 } from "../fixtures/second-tenant";
@@ -77,6 +83,20 @@ let coachToken: string;
 
 /** Ejercicios del catalogo de prueba, por clave. */
 const ex: Record<string, number> = {};
+
+/**
+ * Fase 200 D20: las zonas de un ejercicio salen de su RUTA del modelo de
+ * anatomia (la categoria y la secundaria ya no pintan). Zonas que la TV recibe
+ * de uno o mas grupos de una sola prescripcion `main` por ruta: la union de
+ * `zonasDeRuta` de cada una, en el orden de la TV y sin `tibialis`. Con una
+ * prescripcion por ruta la dominancia (0.4) no recorta nada. Los valores
+ * literales de cada ruta los fija test/anatomy/projection-parity.
+ */
+function zonasTvDeRutas(...codes: string[]): string[] {
+  return soloTv(
+    ZONAS_ORDEN.filter((z) => codes.some((c) => zonasDeRuta(c).includes(z))),
+  );
+}
 
 function uniqueCode(prefix: string): string {
   return `${prefix}${randomBytes(3).toString("hex")}`;
@@ -481,27 +501,27 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
     ]);
 
     // Solo el par alfa/delta (delta no tiene sesion hoy): NUCLEUS = alfa
-    // pushH (chest, deltoids, triceps). El NUCLEUS de sigma (pullV, ruta
-    // "Remos") NO aparece en zonas ni subtitulo, y la movilidad (CORE
-    // POSTERIOR) tampoco suma.
-    expect(bloques[0].zonas).toEqual(["chest", "deltoids", "triceps"]);
+    // pushH (ruta HSPU). El NUCLEUS de sigma (pullV, ruta "Remos") NO aparece
+    // en zonas ni subtitulo, y la movilidad (ruta AF) tampoco suma.
+    expect(bloques[0].zonas).toEqual(zonasTvDeRutas("HSPU"));
+    expect(bloques[0].zonas).toContain("chest");
+    expect(bloques[0].zonas).not.toContain("upper-back");
     expect(bloques[0].subtitle).toBe("Handstand Push Up");
     expect(bloques[0].subtitle).not.toContain("Remos");
 
-    // DEUTEROS I: pullV en ambos niveles. DEUTEROS II: kneeD (+ ISQUIOS
-    // secundaria -> hamstring) en ambos.
-    expect(bloques[1].zonas).toEqual(["biceps", "forearm", "upper-back"]);
+    // DEUTEROS I: pullV (ruta OAP) en ambos niveles. DEUTEROS II: kneeD (ruta
+    // SS) en ambos; la categoria secundaria ISQUIOS ya no suma hamstring.
+    expect(bloques[1].zonas).toEqual(zonasTvDeRutas("OAP"));
+    expect(bloques[1].zonas).toContain("upper-back");
     expect(bloques[1].subtitle).toBe("Dominadas");
-    expect(bloques[2].zonas).toEqual([
-      "gluteal",
-      "quadriceps",
-      "hamstring",
-      "adductors",
-    ]);
+    expect(bloques[2].zonas).toEqual(zonasTvDeRutas("SS"));
+    expect(bloques[2].zonas).toContain("quadriceps");
+    expect(bloques[2].zonas).not.toContain("hamstring");
     expect(bloques[2].subtitle).toBe("Sissy Squat");
 
-    // EPIKOS: core + ruta TTB; la prescripcion huerfana no rompe nada.
-    expect(bloques[3].zonas).toEqual(["abs", "obliques"]);
+    // EPIKOS: ruta TTB; la prescripcion huerfana no rompe nada ni suma zonas.
+    expect(bloques[3].zonas).toEqual(zonasTvDeRutas("TTB"));
+    expect(bloques[3].zonas).toContain("abs");
     expect(bloques[3].subtitle).toBe("Toe to Bar");
 
     // Es solo un campo del poll: no se escribio ningun estado de clase.
@@ -677,15 +697,8 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
 
     expect(tecnica.title).toBe("TÉCNICA I Y II");
     expect(tecnica.subtitle).toBe("Handstand Push Up · Dominadas");
-    expect(tecnica.zonas).toEqual([
-      "chest",
-      "deltoids",
-      "triceps",
-      "biceps",
-      "forearm",
-      "upper-back",
-    ]);
-    // Las del ALT (KNEE DOMINANT + ISQUIOS) no aparecen.
+    expect(tecnica.zonas).toEqual(zonasTvDeRutas("HSPU", "OAP"));
+    // Las del ALT (ruta SS) no aparecen.
     expect(tecnica.zonas).not.toContain("quadriceps");
     expect(tecnica.zonas).not.toContain("hamstring");
 
@@ -693,6 +706,8 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
     expect(kinesis.title).toBe("KINESIS");
     expect(kinesis.subtitle).toBe("Stretching");
     expect(kinesis.zonas).toEqual(tecnica.zonas);
+    // TTB (la ruta del ejercicio de KINESIS) trabaja abs: no se copia.
+    expect(zonasDeRuta("TTB")).toContain("abs");
     expect(kinesis.zonas).not.toContain("abs");
   });
 
@@ -730,7 +745,7 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
 
     const bloques = (await poll()).recorrido!.bloques;
     expect(bloques.map((b) => b.title)).toEqual(["TÉCNICA I"]);
-    expect(bloques[0].zonas).toEqual(["chest", "deltoids", "triceps"]);
+    expect(bloques[0].zonas).toEqual(zonasTvDeRutas("HSPU"));
   });
 
   it("(1g) STRETCHING sin grupo de tecnica (dia combos): queda como antes — sin subtitulo ni zonas copiadas", async () => {
@@ -770,17 +785,20 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
     const kinesis = bloques[2];
     expect(kinesis.title).toBe("KINESIS");
     expect(kinesis.subtitle).toBeNull();
-    // Sus propias zonas (core), no las de COMBOS.
+    // Sus propias zonas (las de su ejercicio, ruta TTB), no las de COMBOS
+    // (HSPU: chest, deltoids, triceps / OAP: chest, biceps...).
+    expect(kinesis.zonas).toEqual(zonasTvDeRutas("TTB"));
     expect(kinesis.zonas).toContain("abs");
     expect(kinesis.zonas).not.toContain("chest");
-    expect(kinesis.zonas).not.toContain("upper-back");
+    expect(kinesis.zonas).not.toContain("deltoids");
+    expect(kinesis.zonas).not.toContain("biceps");
     // Y COMBOS_I / COMBOS_II siguen siendo items separados.
     expect(bloques[0].title).toBe("COMBOS I");
     expect(bloques[1].title).toBe("COMBOS II");
     // COMBOS II: solo el principal (UAT 2026-10-13).
     expect(bloques[1].subtitle).toBe("Dominadas");
     expect(bloques[1].intensity).toEqual({ min: 60, max: 60 });
-    expect(bloques[1].zonas).toEqual(["biceps", "forearm", "upper-back"]);
+    expect(bloques[1].zonas).toEqual(zonasTvDeRutas("OAP"));
   });
 
   it("(1g-bis) ruta Full Body (FB): marca el cuerpo entero, no solo las zonas de sus ejercicios", async () => {
@@ -803,11 +821,13 @@ describe("recorrido de hoy — pantalla de inicio con plani aprobada", () => {
     const [combos, fullBody] = bloques;
     expect(fullBody.subtitle).toBe("Full Body");
     expect(fullBody.zonas).toHaveLength(15);
+    // Las 15 zonas de la TV en su orden (sin tibialis).
+    expect(fullBody.zonas).toEqual([...ZONAS_TV]);
     expect(fullBody.zonas).toEqual(
       expect.arrayContaining(["calves", "hamstring", "abs", "upper-back"]),
     );
-    // El resto de los bloques sigue con sus zonas dominantes.
-    expect(combos.zonas).toEqual(["chest", "deltoids", "triceps"]);
+    // El resto de los bloques sigue con sus zonas por ruta (HSPU).
+    expect(combos.zonas).toEqual(zonasTvDeRutas("HSPU"));
   });
 
   it("(1h) sabado ROM: sin ejercicios con zonas cae al fallback por rol y el subtitulo es null", async () => {

@@ -7,6 +7,12 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  ZONAS_ORDEN,
+  ZONAS_TV,
+  soloTv,
+  zonasDeRuta,
+} from "../../src/modules/anatomy/projection";
+import {
   NIVEL_REFERENCIA_INICIO,
   buildRecorrido,
   buildRecorridoDeInicio,
@@ -165,7 +171,9 @@ describe("buildRecorridoDeInicio", () => {
     expect(nucleus.subtitle).toBe("Handstand Push Up");
     expect(nucleus.intensity).toEqual({ min: 60, max: 60 });
     expect(nucleus.format).toBe("AMRAP");
-    expect(nucleus.zonas).toEqual(["chest", "deltoids", "triceps"]);
+    // Fase 200 D20: las zonas salen de la ruta (HSPU), no de la categoria.
+    expect(nucleus.zonas).toEqual(soloTv(zonasDeRuta("HSPU")));
+    expect(nucleus.zonas).toContain("chest");
   });
 
   it("solo delta (sin alfa): el par igual alcanza", () => {
@@ -185,6 +193,57 @@ describe("buildRecorridoDeInicio", () => {
     expect(bloques[0].subtitle).toBe("Handstand Push Up · Remos");
     // Idem al comportamiento de buildRecorrido sin niveles.
     expect(bloques).toEqual(buildRecorrido(classDay).bloques);
+  });
+
+  it("la TV no recibe tibialis aunque la ruta lo pinte (QC), y las zonas van en el orden de ZONAS_TV (T20)", () => {
+    // QC pinta cuadriceps y tibialis en el modelo, pero tibialis no viaja a la
+    // TV en v1: el contrato del poll son 15 zonas ordenadas.
+    expect(zonasDeRuta("QC")).toContain("tibialis");
+
+    const soloQc = day([
+      session("alfa", {
+        route: "QC",
+        category: "KNEE DOMINANT",
+        intensity: 70,
+      }),
+    ]);
+    const [qc] = buildRecorridoDeInicio(soloQc).bloques;
+    expect(qc.zonas).not.toContain("tibialis");
+    expect(qc.zonas).toContain("quadriceps");
+    expect(qc.zonas).toEqual(["quadriceps"]);
+
+    // Alfa (HSPU) + delta (QC): union en el orden de ZONAS_TV, sin tibialis.
+    const par = day([
+      session("alfa", ALFA),
+      session("delta", {
+        route: "QC",
+        category: "KNEE DOMINANT",
+        intensity: 70,
+      }),
+    ]);
+    const [nucleus] = buildRecorridoDeInicio(par).bloques;
+    const esperadas = ZONAS_ORDEN.filter(
+      (z) => zonasDeRuta("HSPU").includes(z) || zonasDeRuta("QC").includes(z),
+    );
+    expect(nucleus.zonas).toEqual(soloTv(esperadas));
+    expect(nucleus.zonas).toEqual(
+      ZONAS_TV.filter((z) => nucleus.zonas.includes(z)),
+    );
+    expect(nucleus.zonas).not.toContain("tibialis");
+  });
+
+  it("ruta Full Body (FB): las 15 zonas de la TV, en orden y sin tibialis", () => {
+    const classDay = day([
+      session("alfa", {
+        route: "FB",
+        category: "PUSH HORIZONTAL",
+        intensity: 70,
+      }),
+    ]);
+    const [fullBody] = buildRecorridoDeInicio(classDay).bloques;
+    expect(fullBody.zonas).toHaveLength(15);
+    expect(fullBody.zonas).toEqual([...ZONAS_TV]);
+    expect(fullBody.zonas).not.toContain("tibialis");
   });
 
   it("nunca incluye INITIUM", () => {
