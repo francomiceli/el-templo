@@ -19,9 +19,11 @@ export interface SemanaCtaInput {
 }
 
 export interface SemanaCta {
+  /** false: no se dibuja el botón (días pasados; solo se entrena el día de hoy) */
+  showButton: boolean
   label: string
   variant: 'primary' | 'secondary' | 'unavailable'
-  action: 'start' | 'summary' | 'redo' | 'libre' | null
+  action: 'start' | 'summary' | 'libre' | null
   /** true si el botón arranca a entrenar (lleva al 3-2-1): el botón lleva el ícono de play */
   startsTraining: boolean
   /** Chip salvia "Hecha" debajo del título */
@@ -37,9 +39,39 @@ const HINT_NO_SESSION =
   'Todavía no está la plani de este día. Si querés moverte, elegí un bloque libre.'
 
 export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
+  // Solo se entrena el día de hoy: en un día pasado no hay botón (ni "Hacerla igual" ni Libre).
+  // Si la completó, el chip "Hecha" se mantiene.
+  if (i.date < i.today) {
+    return {
+      showButton: false,
+      label: '',
+      variant: 'unavailable',
+      action: null,
+      startsTraining: false,
+      showDoneChip: i.hasSession && i.completed,
+      showLibreLink: false,
+      hint: null,
+    }
+  }
+
+  // Hoy es domingo: día de descanso, sin botón (la pantalla muestra el aviso sobre el contenido)
+  if (i.isSunday && i.date === i.today) {
+    return {
+      showButton: false,
+      label: '',
+      variant: 'unavailable',
+      action: null,
+      startsTraining: false,
+      showDoneChip: false,
+      showLibreLink: false,
+      hint: null,
+    }
+  }
+
   // Sin plani y Libre apagado: no hay a dónde ir, el CTA queda deshabilitado y sin hint
   if (!i.hasSession && !i.libreEnabled) {
     return {
+      showButton: true,
       label: i.isSunday ? 'Día de descanso' : 'Todavía sin plani',
       variant: 'unavailable',
       action: null,
@@ -53,6 +85,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
   // Sin plani: el CTA lleva a Libre (el domingo y los días sin sesión cargada)
   if (!i.hasSession) {
     return {
+      showButton: true,
       label: 'Elegir un bloque libre',
       variant: 'primary',
       action: 'libre',
@@ -63,21 +96,10 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
     }
   }
 
-  // Completada: hoy se ve el resumen (y se ofrece sumar un bloque libre); otro día se puede repetir
+  // Completada: hoy se ve el resumen (y se ofrece sumar un bloque libre)
   if (i.completed) {
-    const isPast = i.date < i.today
-    if (isPast) {
-      return {
-        label: 'Hacerla igual',
-        variant: 'primary',
-        action: 'redo',
-        startsTraining: true,
-        showDoneChip: true,
-        showLibreLink: false,
-        hint: null,
-      }
-    }
     return {
+      showButton: true,
       label: 'Ver resumen',
       variant: 'secondary',
       action: 'summary',
@@ -91,6 +113,7 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
   // Futuro: "Disponible el {día}" (copy en weekLabels.availableLabel), deshabilitado y sin acción
   if (i.date > i.today) {
     return {
+      showButton: true,
       label: availableLabel(i.date),
       variant: 'unavailable',
       action: null,
@@ -101,21 +124,9 @@ export function resolveSemanaCta(i: SemanaCtaInput): SemanaCta {
     }
   }
 
-  // Pasado sin completar
-  if (i.date < i.today) {
-    return {
-      label: 'Hacerla igual',
-      variant: 'primary',
-      action: 'start',
-      startsTraining: true,
-      showDoneChip: false,
-      showLibreLink: false,
-      hint: null,
-    }
-  }
-
   // Hoy
   return {
+    showButton: true,
     label: i.hasProgress ? 'Continuar' : 'Empezar',
     variant: 'primary',
     action: 'start',

@@ -3,7 +3,7 @@
     <div class="anatomia__col" :class="{ 'anatomia__col--ancha': !esMovil }">
       <!-- Con la hoja abierta en el celular el título y el kicker se ocultan (.scr.has-sheet .intro) -->
       <div v-if="!(esMovil && hojaAbierta)" class="anatomia__intro">
-        <p class="anatomia__kicker">Anatomía · borrador</p>
+        <p class="anatomia__kicker">Anatomía</p>
         <h1 class="anatomia__title">Tocá una zona</h1>
         <p class="anatomia__lead">Ves sus músculos y en qué rutas trabajan.</p>
       </div>

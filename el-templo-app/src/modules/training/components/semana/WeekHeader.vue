@@ -28,7 +28,7 @@
 import { weekRangeLabel } from '../../utils/weekLabels'
 
 // Fase 197 D-03: rótulo "12 AL 18 DE OCTUBRE" con flechas de hitbox 44 que no suman alto
-// (alto del bloque 24, botones de 44 con margen vertical -10).
+// (alto del bloque 24 + 8 de padding inferior, botones de 44 con margen vertical -10).
 defineProps<{
   /** Lunes de la semana que se ve ("YYYY-MM-DD") */
   monday: string
@@ -50,7 +50,9 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 24px;
+  // 24 de contenido + 8 de aire debajo del rótulo (box-sizing: border-box)
+  height: 32px;
+  padding-bottom: 8px;
 
   &__label {
     @include pd-label-11;

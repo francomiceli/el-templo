@@ -1,47 +1,61 @@
 <template>
-  <section v-if="day" class="semana-hero">
-    <div class="semana-hero__head">
-      <div class="semana-hero__text">
-        <p class="semana-hero__kicker">{{ dayKicker(day.date, today) }}</p>
-        <h1 class="semana-hero__title">{{ title }}</h1>
-        <span v-if="cta.showDoneChip" class="semana-hero__done">
-          <q-icon name="check" size="16px" />
-          Hecha
-        </span>
+  <section v-if="day" class="semana-hero" :class="{ 'semana-hero--rest': restToday }">
+    <!-- Hoy es domingo: todo el contenido se ve desenfocado, inerte y oculto a lectores de pantalla -->
+    <div
+      class="semana-hero__body"
+      :aria-hidden="restToday ? 'true' : undefined"
+      :inert="restToday ? true : undefined"
+    >
+      <div class="semana-hero__head" :class="{ 'semana-hero__head--solo': !cta.showButton }">
+        <div class="semana-hero__text">
+          <MarqueeText tag="p" class="semana-hero__kicker">{{
+            dayKicker(day.date, today)
+          }}</MarqueeText>
+          <MarqueeText tag="h1" class="semana-hero__title">{{ title }}</MarqueeText>
+          <span v-if="cta.showDoneChip" class="semana-hero__done">
+            <q-icon name="check" size="16px" />
+            Hecha
+          </span>
+        </div>
+        <button
+          v-if="cta.showButton"
+          type="button"
+          class="semana-hero__cta"
+          :class="{
+            'semana-hero__cta--secondary': cta.variant === 'secondary',
+            'semana-hero__cta--unavailable': cta.variant === 'unavailable',
+          }"
+          :disabled="cta.variant === 'unavailable'"
+          @click="onCta"
+        >
+          <q-icon v-if="cta.startsTraining" name="play_arrow" size="20px" aria-hidden="true" />
+          <span>{{ cta.label }}</span>
+        </button>
       </div>
+
+      <!-- Área de bloques (197-13): figura, chips y lista de ejercicios del bloque elegido -->
+      <slot />
+
       <button
+        v-if="cta.showLibreLink"
         type="button"
-        class="semana-hero__cta"
-        :class="{
-          'semana-hero__cta--secondary': cta.variant === 'secondary',
-          'semana-hero__cta--unavailable': cta.variant === 'unavailable',
-        }"
-        :disabled="cta.variant === 'unavailable'"
-        @click="onCta"
+        class="semana-hero__link"
+        @click="emit('go-libre')"
       >
-        <q-icon v-if="cta.startsTraining" name="play_arrow" size="20px" aria-hidden="true" />
-        <span>{{ cta.label }}</span>
+        ¿Te quedaste con ganas? Sumá un bloque libre
       </button>
+      <p v-if="cta.hint" class="semana-hero__hint">{{ cta.hint }}</p>
     </div>
 
-    <!-- Área de bloques (197-13): figura, chips y lista de ejercicios del bloque elegido -->
-    <slot />
-
-    <button
-      v-if="cta.showLibreLink"
-      type="button"
-      class="semana-hero__link"
-      @click="emit('go-libre')"
-    >
-      ¿Te quedaste con ganas? Sumá un bloque libre
-    </button>
-    <p v-if="cta.hint" class="semana-hero__hint">{{ cta.hint }}</p>
+    <p v-if="restToday" class="semana-hero__rest" role="status">
+      Hoy es día de descanso. Nos vemos el lunes.
+    </p>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useQuasar } from 'quasar'
+import MarqueeText from 'src/components/MarqueeText.vue'
 import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
 import type { WeekDay } from '../../types/session'
 import { sessionTitle } from '../../utils/blockMeta'
@@ -49,6 +63,7 @@ import { resolveSemanaCta } from '../../utils/semanaCta'
 import { dayKicker } from '../../utils/weekLabels'
 
 // Fase 197 D-03: fila título + CTA mitad y mitad, con los 6 estados del CTA (resolveSemanaCta).
+// Título y kicker en una línea con desplazamiento si no entran (item 6, 2026-10-21).
 // Los CTA que arrancan a entrenar (`startsTraining`) llevan el ícono de play.
 const props = defineProps<{
   /** Día elegido en la tira */
@@ -60,17 +75,17 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   start: [date: string]
-  redo: [date: string]
   summary: []
   'go-libre': []
 }>()
-
-const $q = useQuasar()
 
 const title = computed(() => {
   const session = props.day?.session
   return (session ? sessionTitle(session) : '') || 'Sin plani'
 })
+
+// Hoy es domingo: día de descanso (el chip del domingo tampoco se puede elegir)
+const restToday = computed(() => props.day?.dayOfWeek === 0 && props.day.date === props.today)
 
 const cta = computed(() =>
   resolveSemanaCta({
@@ -97,19 +112,6 @@ function onCta(): void {
     case 'libre':
       emit('go-libre')
       break
-    case 'redo':
-      // Pisa el registro previo de ese día: se pide confirmación (T-197-32)
-      $q.dialog({
-        title: 'Hacerla igual',
-        message:
-          'Vas a reiniciar la sesión de este día. El progreso registrado anteriormente se perderá.',
-        cancel: { label: 'Cancelar', flat: true },
-        ok: { label: 'Hacerla igual', color: 'primary' },
-        persistent: true,
-      }).onOk(() => {
-        emit('redo', date)
-      })
-      break
     default:
       break
   }
@@ -121,15 +123,51 @@ function onCta(): void {
 @import 'src/css/premium-card';
 
 .semana-hero {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  // Domingo de hoy: contenido desenfocado y mensaje encima (sin botón)
+  &--rest &__body {
+    min-height: 180px;
+    filter: blur(6px);
+    opacity: 0.7;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  &__rest {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    padding: 0 24px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 1.3;
+    text-align: center;
+    color: $pd-ink;
+  }
 
   &__head {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 12px;
     align-items: center;
+
+    // Sin botón (días pasados): el texto usa todo el ancho
+    &--solo {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   &__text {
@@ -140,14 +178,9 @@ function onCta(): void {
     @include pd-kicker-light;
   }
 
+  // Una sola línea: si el título no entra se desplaza (MarqueeText)
   &__title {
-    display: -webkit-box;
     margin: 2px 0 0;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
     font-family: 'Montserrat', sans-serif;
     font-weight: 700;
     font-size: 28px;

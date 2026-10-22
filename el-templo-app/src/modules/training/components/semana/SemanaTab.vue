@@ -20,7 +20,6 @@
       :today="today"
       :has-progress="hasProgress"
       @start="onStart"
-      @redo="onRedo"
       @summary="onSummary"
       @go-libre="onGoLibre"
     >
@@ -160,7 +159,6 @@ const emit = defineEmits<{
   'prev-week': []
   'next-week': []
   start: [date: string]
-  redo: [date: string]
   summary: []
   'go-libre': []
 }>()
@@ -329,10 +327,6 @@ function onNext(): void {
 
 function onStart(date: string): void {
   if (props.interactive) emit('start', date)
-}
-
-function onRedo(date: string): void {
-  if (props.interactive) emit('redo', date)
 }
 
 function onSummary(): void {

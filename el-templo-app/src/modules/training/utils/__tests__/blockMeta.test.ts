@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { getRouteLabel } from 'src/constants/route-labels'
 import type { Block, BlockRole, Prescription, Session } from '../../types/session'
 import {
   blockDisplayName,
@@ -199,6 +200,38 @@ describe('blockDisplayName y sessionTitle', () => {
         ]),
       ),
     ).toBe('Front Lever')
+  })
+
+  it('días de combos y técnica: la ruta de COMBOS_I / TECNICA_I, no la de INITIUM', () => {
+    expect(
+      sessionTitle(
+        session([
+          ['INITIUM', 'FL'],
+          ['COMBOS_I', 'PL'],
+          ['COMBOS_II', 'HS'],
+        ]),
+      ),
+    ).toBe('Planche')
+    expect(
+      sessionTitle(
+        session([
+          ['INITIUM', 'FL'],
+          ['TECNICA_I', 'HS'],
+        ]),
+      ),
+    ).toBe(getRouteLabel('HS'))
+  })
+
+  it('NUCLEUS gana sobre COMBOS_I y TECNICA_I', () => {
+    expect(
+      sessionTitle(
+        session([
+          ['INITIUM', 'FL'],
+          ['COMBOS_I', 'HS'],
+          ['NUCLEUS', 'PL'],
+        ]),
+      ),
+    ).toBe('Planche')
   })
 
   it('sesión sin bloques: título vacío', () => {

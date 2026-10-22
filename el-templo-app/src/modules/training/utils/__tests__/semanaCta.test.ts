@@ -20,6 +20,7 @@ function input(over: Partial<SemanaCtaInput>): SemanaCtaInput {
 describe('resolveSemanaCta (D-03)', () => {
   it('hoy sin progreso: Empezar', () => {
     expect(resolveSemanaCta(input({}))).toEqual({
+      showButton: true,
       label: 'Empezar',
       variant: 'primary',
       action: 'start',
@@ -48,22 +49,45 @@ describe('resolveSemanaCta (D-03)', () => {
     expect(r.showLibreLink).toBe(true)
   })
 
-  it('día pasado sin completar: Hacerla igual (start)', () => {
+  it('día pasado sin completar: sin botón (solo se entrena el día de hoy)', () => {
     const r = resolveSemanaCta(input({ date: '2026-10-14' }))
-    expect(r.label).toBe('Hacerla igual')
-    expect(r.variant).toBe('primary')
-    expect(r.action).toBe('start')
-    expect(r.startsTraining).toBe(true)
+    expect(r.showButton).toBe(false)
+    expect(r.action).toBeNull()
+    expect(r.startsTraining).toBe(false)
     expect(r.showDoneChip).toBe(false)
+    expect(r.showLibreLink).toBe(false)
+    expect(r.hint).toBeNull()
   })
 
-  it('día pasado completado: Hacerla igual (redo) con chip y sin link', () => {
+  it('día pasado completado: sin botón ni link a Libre, pero con el chip Hecha', () => {
     const r = resolveSemanaCta(input({ date: '2026-10-14', completed: true }))
-    expect(r.label).toBe('Hacerla igual')
-    expect(r.action).toBe('redo')
-    expect(r.startsTraining).toBe(true)
+    expect(r.showButton).toBe(false)
+    expect(r.action).toBeNull()
     expect(r.showDoneChip).toBe(true)
     expect(r.showLibreLink).toBe(false)
+  })
+
+  it('día pasado sin plani: sin botón ni hint', () => {
+    const r = resolveSemanaCta(input({ date: '2026-10-14', hasSession: false }))
+    expect(r.showButton).toBe(false)
+    expect(r.action).toBeNull()
+    expect(r.hint).toBeNull()
+  })
+
+  it('hoy es domingo: sin botón, sin hint y sin link a Libre (con o sin plani)', () => {
+    const SUNDAY = '2026-10-18'
+    for (const hasSession of [true, false]) {
+      const r = resolveSemanaCta(input({ date: SUNDAY, today: SUNDAY, isSunday: true, hasSession }))
+      expect(r.showButton).toBe(false)
+      expect(r.action).toBeNull()
+      expect(r.hint).toBeNull()
+      expect(r.showLibreLink).toBe(false)
+    }
+  })
+
+  it('hoy y días futuros siguen con botón', () => {
+    expect(resolveSemanaCta(input({})).showButton).toBe(true)
+    expect(resolveSemanaCta(input({ date: '2026-10-17' })).showButton).toBe(true)
   })
 
   it('día futuro: "Disponible el sábado", no disponible y sin acción', () => {
@@ -103,6 +127,7 @@ describe('resolveSemanaCta — Libre apagado (FREE_BLOCKS_ENABLED en false)', ()
       input({ date: '2026-10-18', hasSession: false, isSunday: true, libreEnabled: false }),
     )
     expect(r).toEqual({
+      showButton: true,
       label: 'Día de descanso',
       variant: 'unavailable',
       action: null,

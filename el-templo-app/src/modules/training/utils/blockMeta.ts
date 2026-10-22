@@ -28,11 +28,7 @@ function paramType(p: Block['formatParams']): string {
 export function blockDisplayName(b: Pick<Block, 'role' | 'route'>): string {
   if (b.role === 'INITIUM') return 'Entrada en calor'
   if (b.role.startsWith('ROM_')) return 'Movilidad · ROM'
-  if (
-    b.role.startsWith('COMBOS_') ||
-    b.role.startsWith('TECNICA_') ||
-    b.role === 'STRETCHING'
-  ) {
+  if (b.role.startsWith('COMBOS_') || b.role.startsWith('TECNICA_') || b.role === 'STRETCHING') {
     return ROLE_LABELS[b.role]
   }
   return getRouteLabel(b.route)
@@ -40,12 +36,13 @@ export function blockDisplayName(b: Pick<Block, 'role' | 'route'>): string {
 
 /**
  * Título de la sesión: misma regla que `DayCard.getSessionRouteName` (D-03, no se inventa uno
- * derivado). Con bloques ROM_* es "Movilidad"; si no, la ruta del NUCLEUS (o del primer bloque).
+ * derivado). Con bloques ROM_* es "Movilidad"; si no, la ruta del bloque principal (`mainBlock`:
+ * NUCLEUS, o COMBOS_I / TECNICA_I en días de combos y técnica) o, sin ninguno, la del primer bloque.
  */
 export function sessionTitle(s: Session): string {
   if (s.blocks.length === 0) return ''
   if (s.blocks.some((b) => b.role.startsWith('ROM_'))) return 'Movilidad'
-  const main = s.blocks.find((b) => b.role === 'NUCLEUS') ?? s.blocks[0]
+  const main = mainBlock(s.blocks) ?? s.blocks[0]
   return getRouteLabel(main.route)
 }
 
