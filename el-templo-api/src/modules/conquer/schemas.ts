@@ -116,6 +116,7 @@ const memberStateSchema = {
     cutStage: { type: "integer" },
     publishEnabled: { type: "boolean" },
     publishNoFace: { type: "boolean" },
+    guideSeen: { type: "boolean" },
     home: homeSchema,
     bodyCheck: bodyCheckSummarySchema,
   },
@@ -1216,6 +1217,23 @@ export const skipDay0Schema = {
     additionalProperties: false,
   },
   response: { 200: bodyCheckSummarySchema },
+} as const;
+
+/** `POST /guide-seen` (alumno, fase 201 DA-21): sin body, responde `{ guideSeen: true }`. */
+export const guideSeenSchema = {
+  body: {
+    type: ["object", "null"],
+    properties: {},
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: { guideSeen: { type: "boolean" } },
+      required: ["guideSeen"],
+      additionalProperties: false,
+    },
+  },
 } as const;
 
 // ── Publicación, controles en el admin y galería (plan 201-13) ──────

@@ -1683,6 +1683,10 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     categoria: "templo-module",
     modulo: "templo-training",
   },
+  "POST /api/members/conquer/guide-seen": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
   "PUT /api/members/conquer/publish-permission": {
     categoria: "templo-module",
     modulo: "templo-training",

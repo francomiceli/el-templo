@@ -23,6 +23,7 @@ import type { CountedStep, StepKey } from "./engine";
 import { sendConquerError } from "./errors";
 import {
   getConquerState,
+  markGuideSeen,
   requestUnlock,
   setPublishPermission,
 } from "./member-service";
@@ -31,6 +32,7 @@ import { buildProgress } from "./progress-service";
 import {
   changeStepSchema,
   conquerStateResponseSchema,
+  guideSeenSchema,
   listBodyChecksSchema,
   photoConfirmSchema,
   photoUploadUrlSchema,
@@ -292,6 +294,21 @@ export const conquerMemberRoutes: FastifyPluginAsync = async (fastify) => {
         return await skipDay0(fastify.db, ctx, request.user.userId);
       } catch (err: unknown) {
         sendConquerError(err, reply, request.log, "conquer.member.skip_day0");
+      }
+    },
+  );
+
+  // POST /guide-seen — la guía "¿Cómo funciona?" ya se vio (DA-21).
+  fastify.post(
+    "/guide-seen",
+    { onRequest: [fastify.authenticate], schema: guideSeenSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.guide_seen");
+        return await markGuideSeen(fastify.db, ctx, request.user.userId);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.member.guide_seen");
       }
     },
   );

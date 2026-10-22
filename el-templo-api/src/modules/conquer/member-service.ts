@@ -8,7 +8,7 @@
 //
 // El app NUNCA recalcula nada: pinta lo que manda `getConquerState`
 // (201-07 le suma `home`, 201-12 le suma `bodyCheck`).
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type { ConquerLevel } from "../../db/schema/conquer";
@@ -43,6 +43,8 @@ export interface ConquerMemberState {
   cutStage: number;
   publishEnabled: boolean;
   publishNoFace: boolean;
+  /** Fase 201 DA-21: el alumno ya vio la guía "¿Cómo funciona?" (vive en la base, no en el teléfono). */
+  guideSeen: boolean;
   /** Fase 201 §7.1: resumen de Inicio (semana del plan y última sesión por día). */
   home: HomeView;
   /** Fase 201 §6, D-15: banderas del control físico (día 0 y vencimiento). */
@@ -127,6 +129,7 @@ export async function getConquerState(
       cutStage: row.cutStage,
       publishEnabled: row.publishEnabled,
       publishNoFace: row.publishNoFace,
+      guideSeen: row.guideSeenAt !== null,
       home,
       bodyCheck,
     },
@@ -277,4 +280,29 @@ export async function setPublishPermission(
     noFace: row?.publishNoFace ?? body.noFace,
     changedAt: toIso(row?.publishChangedAt ?? null) ?? new Date().toISOString(),
   };
+}
+
+/**
+ * Fase 201 DA-21: marca la guía "¿Cómo funciona?" como vista. Solo alumnos
+ * activos (409 `CONQUER_NO_ACTIVO`). Idempotente: el UPDATE lleva
+ * `guide_seen_at IS NULL`, así que conserva la PRIMERA fecha. `userId` siempre
+ * sale de `request.user` (T-201-99).
+ */
+export async function markGuideSeen(
+  db: DbInstance,
+  ctx: TenantContext,
+  userId: number,
+): Promise<{ guideSeen: true }> {
+  await requireOwnActiveMember(db, ctx, userId);
+  await db
+    .update(schema.conquerMembers)
+    .set({ guideSeenAt: sql`NOW()` })
+    .where(
+      and(
+        tenantWhere(schema.conquerMembers, ctx),
+        eq(schema.conquerMembers.userId, userId),
+        isNull(schema.conquerMembers.guideSeenAt),
+      ),
+    );
+  return { guideSeen: true };
 }
