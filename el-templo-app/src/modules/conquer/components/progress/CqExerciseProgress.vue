@@ -3,35 +3,39 @@
     <h3 class="cq-pe__name">{{ exercise.name }}</h3>
 
     <div v-for="row in rows" :key="row.step" class="cq-pe__row">
-      <span class="cq-pe__label">{{ row.label }}</span>
-      <span class="cq-pe__marks">
-        {{ row.last }} →
-        <b>{{ row.target }}</b>
-      </span>
+      <CqGreek :step="row.step" size="sm" />
+      <div class="cq-pe__text">
+        <span class="cq-pe__label">{{ row.label }}</span>
+        <span class="cq-pe__marks">
+          {{ row.last }} →
+          <b class="cq-num">{{ row.target }}</b>
+        </span>
+      </div>
       <span class="cq-chip" :class="row.chipClass">{{ row.chipLabel }}</span>
     </div>
 
-    <CqSparkline
-      v-if="exercise.e1Curve.length > 0"
-      :values="exercise.e1Curve"
-      :unit="exercise.unit"
-    />
+    <template v-if="exercise.e1Curve.length > 0">
+      <CqSparkline :values="exercise.e1Curve" :unit="exercise.unit" />
+      <p class="cq-sub cq-pe__curve">Escalón 1, últimas {{ exercise.e1Curve.length }} sesiones</p>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { estadoChip, unitText } from '../../utils/format'
-import type { ProgressExercise } from '../../types'
+import type { ProgressExercise, StepKey } from '../../types'
+import CqGreek from '../brand/CqGreek.vue'
 import CqSparkline from './CqSparkline.vue'
 
-// Fase 201 §7.1 Progreso (ref `vProg`): un ejercicio con sus escalones E1-E3. Por cada uno: el
-// peldaño (con "neg." si es negativa), la última marca → el próximo objetivo que calculó el motor y
-// el chip de estado (verde solo "Subir"). Abajo, la curva del E1. El app no recalcula nada.
+// Fase 201 §7.1 Progreso, DA-35 (sketch 022 B `.pe`): un ejercicio con sus escalones E1-E3. Por cada
+// uno: el disco griego, el peldaño (con "neg." si es negativa), la última marca → el próximo objetivo
+// que calculó el motor y el chip de estado (verde solo "Subir"). Abajo, la curva del E1. El app no
+// recalcula nada.
 const props = defineProps<{ exercise: ProgressExercise }>()
 
 interface Row {
-  step: string
+  step: StepKey
   label: string
   last: string
   target: string
@@ -60,47 +64,52 @@ const rows = computed<Row[]>(() =>
 .cq-pe {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 0;
-  border-top: 1px solid var(--cq-hair2);
+  padding-top: 12px;
+  border-top: 1px solid var(--cq-line);
 
   &__name {
-    margin: 0;
-    font-family: var(--cq-display);
-    font-size: 19px;
-    font-weight: 600;
-    color: var(--cq-cream);
+    // Quasar da estilos globales a h1-h6: se fijan todos los que importan
+    margin: 0 0 6px;
+    font-family: var(--cq-font-head);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: normal;
+    color: var(--cq-text);
   }
 
+  // El aro de 3 px de la letra griega sobresale del disco: el gap lo deja respirar
   &__row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 10px;
-    row-gap: 2px;
+    display: flex;
     align-items: center;
-    font-size: 13px;
+    gap: 12px;
+    min-height: 44px;
   }
 
-  &__label {
-    grid-column: 1;
-    color: var(--cq-muted);
+  &__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+    color: var(--cq-text);
+    overflow-wrap: anywhere;
   }
 
   &__marks {
-    grid-column: 1;
-    color: var(--cq-cream);
+    font-size: 13px;
+    color: var(--cq-text-2);
 
-    b {
-      color: var(--cq-gold-hi);
+    // Más específico que `.cq-root .cq-num` (0,2,0): el número va un poco más grande que el texto
+    .cq-num {
+      font-size: 15px;
     }
   }
 
-  .cq-chip {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    justify-self: end;
-    font-size: 11.5px;
-    padding: 5px 9px;
+  // `.cq-sub` (0,2,0) empata con una sola clase scoped: se duplica la clase
+  &__curve.cq-sub {
+    margin-top: 4px;
+    font-size: 12px;
   }
 }
 </style>
