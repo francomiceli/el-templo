@@ -3,7 +3,7 @@
   su color y su `label`, y la acción que corresponde (`alertActionKind`):
   - molestia / caída: aceptar el recorte de una etapa (`cutProposal.label`) o, si ya no quedan
     etapas, elegir qué escalón bajar (ConquerCutDialog);
-  - tope de escalera: texto "extendé la escalera desde Catálogo";
+  - tope de escalera: texto "extendé la escalera desde Catálogo" con el link a ?tab=catalogo;
   - paso de nivel: confirmar el nivel nuevo con los días (ConquerLevelUpDialog);
   - inactivo, control vencido, día 0 pendiente: solo el texto de lo que propone §5.
   Las alertas guardadas (con id) se pueden marcar vistas o resueltas. Con `cutStage > 0` se puede
@@ -74,6 +74,19 @@
                 style="min-height: 44px"
                 data-test="conquer-alert-level-up"
                 @click="levelUpOpen = true"
+              />
+            </template>
+
+            <template v-else-if="actionOf(a) === 'extender_escalera'">
+              <span class="text-body2 text-accent">{{ hintOf(a) }}</span>
+              <q-btn
+                flat
+                no-caps
+                color="secondary"
+                label="Ir al Catálogo"
+                :to="{ name: 'conquer', query: { tab: 'catalogo' } }"
+                style="min-height: 44px"
+                data-test="conquer-alert-go-catalog"
               />
             </template>
 

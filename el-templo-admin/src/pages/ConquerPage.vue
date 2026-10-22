@@ -1,7 +1,8 @@
-<!-- Conquer (fase 201, §7.2, D-08/D-12): la pantalla del coach. Tres tabs — Tablero (semáforo de
-     los alumnos activos), Pedidos (alumnos que pidieron el desbloqueo) y Galería (antes y después)
-     — y el botón "Activar alumno" para dar de alta a cualquiera buscándolo. 201-23 suma Catálogo y
-     Ajustes. El tab activo viaja en ?tab= para deep links. El gate real es el API (owner/admin). -->
+<!-- Conquer (fase 201, §7.2, D-08/D-12/D-14): la pantalla del coach. Cinco tabs — Tablero (semáforo
+     de los alumnos activos), Pedidos (alumnos que pidieron el desbloqueo), Galería (antes y
+     después), Catálogo (escaleras, arranque, zonas y plantillas) y Ajustes (parámetros del método)
+     — y el botón "Activar alumno" para dar de alta a cualquiera buscándolo. El tab activo viaja
+     en ?tab= para deep links. El gate real es el API (owner/admin). -->
 <template>
   <q-page padding>
     <div class="row items-center q-mb-md q-col-gutter-sm">
@@ -37,6 +38,8 @@
         />
       </q-tab>
       <q-tab name="galeria" label="Galería" icon="photo_library" no-caps />
+      <q-tab name="catalogo" label="Catálogo" icon="stairs" no-caps />
+      <q-tab name="ajustes" label="Ajustes" icon="tune" no-caps />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -48,6 +51,12 @@
       </q-tab-panel>
       <q-tab-panel name="galeria" class="q-pa-none">
         <ConquerGallery :reload-token="reloadToken" />
+      </q-tab-panel>
+      <q-tab-panel name="catalogo" class="q-pa-none">
+        <ConquerCatalog :reload-token="reloadToken" />
+      </q-tab-panel>
+      <q-tab-panel name="ajustes" class="q-pa-none">
+        <ConquerSettings :reload-token="reloadToken" />
       </q-tab-panel>
     </q-tab-panels>
 
@@ -63,13 +72,15 @@
 import { onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ConquerBoard from 'src/components/conquer/ConquerBoard.vue';
+import ConquerCatalog from 'src/components/conquer/ConquerCatalog.vue';
 import ConquerGallery from 'src/components/conquer/ConquerGallery.vue';
 import ConquerRequests from 'src/components/conquer/ConquerRequests.vue';
+import ConquerSettings from 'src/components/conquer/ConquerSettings.vue';
 import ConquerActivateDialog from 'src/components/conquer/ConquerActivateDialog.vue';
 import { useAdminStore } from 'src/stores/useAdminStore';
 
-type ConquerTab = 'tablero' | 'pedidos' | 'galeria';
-const TAB_NAMES: ConquerTab[] = ['tablero', 'pedidos', 'galeria'];
+type ConquerTab = 'tablero' | 'pedidos' | 'galeria' | 'catalogo' | 'ajustes';
+const TAB_NAMES: ConquerTab[] = ['tablero', 'pedidos', 'galeria', 'catalogo', 'ajustes'];
 
 const route = useRoute();
 const router = useRouter();
