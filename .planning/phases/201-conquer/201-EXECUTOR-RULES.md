@@ -285,3 +285,11 @@ con preguntas.
   `params.userId` (el tablero ya navega ahí). `q-tab-panel` desmonta el inactivo: cada tab carga en `onMounted` y recarga
   con la prop `reloadToken`; tabs nuevas → nombre en `TAB_NAMES` de `ConquerPage`. "Hace N días": `utils/conquer-format.ts`.
   Colores: `secondary`/`accent`, nunca `primary`/`info`.
+- (201-22) En `q-select` que dispara una llamada: `:model-value` + `@update:model-value` (no `v-model`), para revertir
+  si el API falla. `conquer-format.ts` del admin ya tiene labels, marcas, alertas, poses y `SEVERITY_CHIP_COLOR`: reusar.
+  `ConquerPhoto.vue` pide la URL firmada (Evolución y Galería lo comparten).
+  **Encargo del orquestador para 201-23:** las banderas "Autorizó publicar"/"Sin cara" no vienen en la ficha: hoy
+  `ConquerEvolution` llama a `getGallery()` y busca al alumno (falla si no tiene controles con contenido). Sumar
+  `publishEnabled` y `publishNoFace` a `FichaMember` en el API (servicio + `schemas.ts` + un `expect` en el test de ficha
+  existente), usarlos en `ConquerEvolution` y quitar la llamada a la galería. Commit propio `fix(201-23): ...`. Y enlazar
+  "Extendé la escalera desde Catálogo" con `?tab=catalogo` cuando exista la tab.
