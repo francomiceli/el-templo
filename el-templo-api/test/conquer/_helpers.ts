@@ -373,6 +373,8 @@ export interface TodayStepBody {
   rungId: number;
   rungName: string;
   mode: string;
+  /** 201-26 DA-10: modos que ofrece el desplegable (anexo §1). */
+  modes: string[];
   target: number | null;
   estado: string | null;
   value: number;
@@ -1146,6 +1148,8 @@ export async function patchConquerStep(
   step: StepKey,
   patch: {
     rungCode?: string;
+    /** 201-26: modo viejo fuera de la regla del anexo §1 (dato legado). */
+    mode?: "completa" | "negativa" | "hold";
     calibration?: "pendiente" | "resuelta";
     sinceDate?: string | null;
   },
@@ -1196,6 +1200,7 @@ export async function patchConquerStep(
     if (!rung) throw new Error(`patchConquerStep: peldaño ${patch.rungCode}`);
     set.rungId = rung.id;
   }
+  if (patch.mode !== undefined) set.mode = patch.mode;
   if (patch.calibration !== undefined) set.calibration = patch.calibration;
   if (patch.sinceDate !== undefined) set.sinceDate = patch.sinceDate;
   await app.db

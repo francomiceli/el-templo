@@ -179,7 +179,8 @@ describe("GET /api/members/conquer/today", () => {
     expect(body.level).toBe("toro");
     expect(body.alreadySaved).toBe(false);
     expect(body.pain).toBe(0);
-    expect(body.finisher).toBe("Tuck planche hold o lean, 20–30 s");
+    // 201-26: la 0293 pone el finisher del anexo §4 (sobrevivía el de la 0292).
+    expect(body.finisher).toBe("Tuck planche hold o planche lean, 20–30 s");
     expect(body.weekComplete).toBe(false);
     expect(body.nextDayKey).toBe("plancha");
     // Toro suma el sábado de combos al final del plan (201-10, §3.2, D-16).
@@ -278,6 +279,37 @@ describe("GET /api/members/conquer/today", () => {
       expect(stepOf(plancha, "planche_press", step).brazosRectos, step).toBe(
         true,
       );
+    }
+  });
+
+  // 201-26 DA-10 / §1 del anexo: Hoy manda los modos que ofrece cada escalón.
+  it("modes: los isométricos y todo hold solo `hold`; los dinámicos `completa` y `negativa`", async () => {
+    const { token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+
+    const plancha = await today(token, "plancha");
+    const vertical = await today(token, "vertical");
+
+    for (const step of ["e1", "e2", "e3", "hold"] as const) {
+      expect(stepOf(plancha, "planche_hold", step).modes, step).toEqual([
+        "hold",
+      ]);
+    }
+    for (const step of ["e1", "e2", "e3"] as const) {
+      expect(stepOf(plancha, "planche_press", step).modes, step).toEqual([
+        "completa",
+        "negativa",
+      ]);
+      expect(stepOf(vertical, "hspu", step).modes, step).toEqual([
+        "completa",
+        "negativa",
+      ]);
+    }
+    for (const code of ["planche_press", "hspu", "press_90"]) {
+      const body = code === "planche_press" ? plancha : vertical;
+      expect(stepOf(body, code, "hold").modes, code).toEqual(["hold"]);
     }
   });
 

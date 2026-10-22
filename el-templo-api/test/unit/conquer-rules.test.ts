@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  allowedModes,
   LEVELS,
   LEVEL_DAYS,
   PAIN_ALERT_MIN,
@@ -76,6 +77,25 @@ describe("niveles y dias validos (A14)", () => {
     ["toro", null],
   ] as [Level, Level | null][])("nextLevel(%s) = %s", (level, expected) => {
     expect(nextLevel(level)).toBe(expected);
+  });
+});
+
+describe("allowedModes (anexo 1, DA-10)", () => {
+  it.each([
+    ["s", "e1", ["hold"]],
+    ["s", "e2", ["hold"]],
+    ["s", "e3", ["hold"]],
+    ["reps", "e1", ["completa", "negativa"]],
+    ["reps", "e2", ["completa", "negativa"]],
+    ["reps", "e3", ["completa", "negativa"]],
+    ["reps", "hold", ["hold"]],
+    ["s", "hold", ["hold"]],
+  ] as [
+    "reps" | "s",
+    "e1" | "e2" | "e3" | "hold",
+    ("completa" | "negativa" | "hold")[],
+  ][])("unidad %s, escalon %s -> %j", (unit, step, expected) => {
+    expect(allowedModes(unit, step)).toEqual(expected);
   });
 });
 

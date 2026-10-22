@@ -51,7 +51,6 @@ interface RungBody {
   code: string;
   name: string;
   position: number;
-  brazosRectos: boolean;
   unilateral: boolean;
   isActive: boolean;
   inUse: boolean;
@@ -66,15 +65,26 @@ interface LadderBody {
   rungs: RungBody[];
 }
 
+interface StartStepBody {
+  step: string;
+  rung: string;
+  mode: string;
+}
+
 interface ExerciseBody {
   id: number;
   code: string;
   name: string;
   ladderId: number;
   ladderCode: string;
+  holdLadderId: number | null;
+  holdLadderCode: string | null;
+  brazosRectos: boolean;
   unit: string;
   muscles: { zone: string; role: string }[];
-  startSteps: { step: string; rung: string; mode: string }[];
+  startSteps: StartStepBody[];
+  startStepsNovillo: StartStepBody[];
+  startStepsTernero: StartStepBody[];
   isActive: boolean;
 }
 
@@ -179,7 +189,6 @@ async function restoreRungs(): Promise<void> {
     if (
       current &&
       current.name === original.name &&
-      current.brazosRectos === original.brazosRectos &&
       current.unilateral === original.unilateral &&
       current.isActive === original.isActive
     ) {
@@ -189,7 +198,6 @@ async function restoreRungs(): Promise<void> {
       .update(schema.conquerRungs)
       .set({
         name: original.name,
-        brazosRectos: original.brazosRectos,
         unilateral: original.unilateral,
         isActive: original.isActive,
       })
@@ -208,7 +216,12 @@ async function restoreExercisesAndDays(): Promise<void> {
       .update(schema.conquerExercises)
       .set({
         name: original.name,
+        // 201-26: el editor ahora toca la marca y las 3 tablas de arranque.
+        brazosRectos: original.brazosRectos,
+        holdLadderId: original.holdLadderId,
         startSteps: original.startSteps,
+        startStepsNovillo: original.startStepsNovillo,
+        startStepsTernero: original.startStepsTernero,
         muscles: original.muscles,
       })
       .where(
@@ -277,11 +290,10 @@ async function insertTestLadder(): Promise<number> {
 async function addRung(
   ladderId: number,
   name: string,
-  extra: { brazosRectos?: boolean; unilateral?: boolean } = {},
+  extra: { unilateral?: boolean } = {},
 ) {
   return call("POST", `/ladders/${ladderId}/rungs`, adminToken, {
     name,
-    brazosRectos: extra.brazosRectos ?? false,
     unilateral: extra.unilateral ?? false,
   });
 }
@@ -305,6 +317,15 @@ async function getCatalog(): Promise<CatalogBody> {
   const res = await call("GET", "/catalog", adminToken);
   expect(res.statusCode).toBe(200);
   return res.json<CatalogBody>();
+}
+
+/** Peldaño del catálogo por código de escalera y de peldaño. */
+async function rungOf(ladderCode: string, rungCode: string): Promise<RungBody> {
+  const rung = (await getCatalog()).ladders
+    .find((l) => l.code === ladderCode)
+    ?.rungs.find((r) => r.code === rungCode);
+  if (!rung) throw new Error(`peldaño sin sembrar: ${ladderCode}/${rungCode}`);
+  return rung;
 }
 
 async function exerciseByCode(code: string): Promise<ExerciseBody> {
@@ -411,7 +432,7 @@ async function purgeGym2Catalog(): Promise<void> {
     .where(tenantWhere(schema.conquerLadders, GYM2_CTX));
 }
 
-/** `startSteps` válido de Planche press (Palanca), con el e1 en `tuck`. */
+/** `startSteps` válido de Planche press (escalera `planche_press`), con el e1 en `tuck`. */
 const VALID_START_STEPS = [
   { step: "e1", rung: "tuck", mode: "completa" },
   { step: "e2", rung: "adv_tuck", mode: "negativa" },
@@ -445,10 +466,11 @@ afterAll(async () => {
 });
 
 describe("GET /api/admin/conquer/catalog — catálogo completo para el editor (§8.1)", () => {
-  it("trae las 8 escaleras, 12 ejercicios, 9 plantillas y las 15 zonas con su nombre", async () => {
+  // 201-26: la 0293 manda. 12 de ejercicios y de hold, 1 de combos y la vieja `lsit` inactiva.
+  it("trae las 20 escaleras, 12 ejercicios, 9 plantillas y las 15 zonas con su nombre", async () => {
     const catalog = await getCatalog();
 
-    expect(catalog.ladders).toHaveLength(8);
+    expect(catalog.ladders).toHaveLength(20);
     expect(catalog.exercises).toHaveLength(12);
     expect(catalog.templateDays).toHaveLength(9);
     expect(catalog.zones).toHaveLength(15);
@@ -464,14 +486,53 @@ describe("GET /api/admin/conquer/catalog — catálogo completo para el editor (
       "lean",
     ]);
     const press = catalog.exercises.find((e) => e.code === "planche_press");
-    expect(press?.ladderCode).toBe("palanca");
+    expect(press?.ladderCode).toBe("planche_press");
     expect(press?.startSteps).toHaveLength(4);
   });
 
+  it("cada ejercicio trae la escalera de hold, la marca de brazos rectos y las 3 tablas de arranque", async () => {
+    const catalog = await getCatalog();
+
+    const hspu = catalog.exercises.find((e) => e.code === "hspu");
+    expect(hspu?.holdLadderCode).toBe("hspu_hold");
+    expect(hspu?.holdLadderId).toBe(
+      catalog.ladders.find((l) => l.code === "hspu_hold")?.id,
+    );
+    const press = catalog.exercises.find((e) => e.code === "planche_press");
+    expect(press?.holdLadderId).toBeNull();
+    expect(press?.holdLadderCode).toBeNull();
+    expect(press?.brazosRectos).toBe(true);
+    expect(
+      catalog.exercises.find((e) => e.code === "front_pullups")?.brazosRectos,
+    ).toBe(false);
+    for (const exercise of catalog.exercises) {
+      expect(exercise.startSteps, exercise.code).toHaveLength(4);
+      expect(exercise.startStepsNovillo, exercise.code).toHaveLength(4);
+      expect(exercise.startStepsTernero, exercise.code).toHaveLength(4);
+    }
+    expect(
+      catalog.exercises.find((e) => e.code === "planche_hold")
+        ?.startStepsTernero,
+    ).toEqual([
+      { step: "e1", rung: "straddle", mode: "hold" },
+      { step: "e2", rung: "adv_tuck", mode: "hold" },
+      { step: "e3", rung: "lean", mode: "hold" },
+      { step: "hold", rung: "lean", mode: "hold" },
+    ]);
+    // 201-26: el peldaño ya no trae brazosRectos en ninguna escalera.
+    for (const ladder of catalog.ladders) {
+      for (const rung of ladder.rungs) {
+        expect(rung).not.toHaveProperty("brazosRectos");
+      }
+    }
+  });
+
+  // 201-26: la 0293 manda. `palanca` ya solo la usan los combos: el escalón de un
+  // Toro vive en la escalera de su ejercicio (Planche hold: hold final en `tuck`).
   it("inUse es true en los peldaños que usa algún alumno, y false mientras nadie los usa", async () => {
     const tuck = async () =>
       (await getCatalog()).ladders
-        .find((l) => l.code === "palanca")
+        .find((l) => l.code === "planche_hold")
         ?.rungs.find((r) => r.code === "tuck");
     expect((await tuck())?.inUse).toBe(false);
 
@@ -479,7 +540,7 @@ describe("GET /api/admin/conquer/catalog — catálogo completo para el editor (
 
     expect((await tuck())?.inUse).toBe(true);
     const halfLay = (await getCatalog()).ladders
-      .find((l) => l.code === "palanca")
+      .find((l) => l.code === "planche_hold")
       ?.rungs.find((r) => r.code === "half_lay");
     expect(halfLay?.inUse).toBe(false);
   });
@@ -490,7 +551,7 @@ describe("POST /ladders/:ladderId/rungs y PUT /ladders/:ladderId/order — pelda
     const ladderId = await insertTestLadder();
 
     const first = await addRung(ladderId, "Beta");
-    const second = await addRung(ladderId, "Beta", { brazosRectos: true });
+    const second = await addRung(ladderId, "Beta");
     const third = await addRung(ladderId, "Árbol  rojo", { unilateral: true });
 
     expect(first.statusCode).toBe(201);
@@ -502,7 +563,6 @@ describe("POST /ladders/:ladderId/rungs y PUT /ladders/:ladderId/order — pelda
       ["beta_2", 1, "Beta"],
       ["arbol_rojo", 2, "Árbol  rojo"],
     ]);
-    expect(rungs[1].brazosRectos).toBe(true);
     expect(rungs[2].unilateral).toBe(true);
     expect(rungs.every((r) => r.isActive && !r.inUse)).toBe(true);
     const rows = await rungRows(ladderId);
@@ -601,13 +661,10 @@ describe("POST /ladders/:ladderId/rungs y PUT /ladders/:ladderId/order — pelda
   });
 
   it.each([
-    ["nombre vacío", { name: "   ", brazosRectos: false, unilateral: false }],
-    [
-      "nombre de 61 caracteres",
-      { name: "x".repeat(61), brazosRectos: false, unilateral: false },
-    ],
-    ["sin brazosRectos", { name: "Ok", unilateral: false }],
-    ["sin unilateral", { name: "Ok", brazosRectos: true }],
+    ["nombre vacío", { name: "   ", unilateral: false }],
+    ["nombre de 61 caracteres", { name: "x".repeat(61), unilateral: false }],
+    ["sin unilateral", { name: "Ok" }],
+    ["sin nombre", { unilateral: false }],
   ])("crear con %s: 400 y no escribe nada", async (_caso, payload) => {
     const ladderId = await insertTestLadder();
 
@@ -624,12 +681,11 @@ describe("POST /ladders/:ladderId/rungs y PUT /ladders/:ladderId/order — pelda
 });
 
 describe("PUT /rungs/:rungId — renombrar, marcar y desactivar (D-04, T-201-51)", () => {
-  it("renombra y marca brazos rectos y unilateral; el code no cambia", async () => {
+  it("renombra y marca unilateral; el code no cambia", async () => {
     const { a } = await ladderWithThreeRungs();
 
     const res = await call("PUT", `/rungs/${a}`, adminToken, {
       name: "  Alfa renombrado ",
-      brazosRectos: true,
       unilateral: true,
     });
 
@@ -638,10 +694,21 @@ describe("PUT /rungs/:rungId — renombrar, marcar y desactivar (D-04, T-201-51)
     expect(rung).toMatchObject({
       code: "alfa",
       name: "Alfa renombrado",
-      brazosRectos: true,
       unilateral: true,
       isActive: true,
     });
+    // 201-26 DA-4: la marca de brazos rectos ya no es del peldaño.
+    expect(rung).not.toHaveProperty("brazosRectos");
+  });
+
+  it("un admin viejo que manda solo brazosRectos: la clave se descarta y queda un body vacío (400)", async () => {
+    const { a } = await ladderWithThreeRungs();
+
+    const res = await call("PUT", `/rungs/${a}`, adminToken, {
+      brazosRectos: true,
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 
   it("desactiva y reactiva un peldaño que no usa la tabla de arranque; nunca se borra", async () => {
@@ -662,12 +729,10 @@ describe("PUT /rungs/:rungId — renombrar, marcar y desactivar (D-04, T-201-51)
     );
   });
 
-  it("desactivar un peldaño usado en la tabla de arranque (straddle de Palanca): 409 CONQUER_PELDANO_EN_ARRANQUE", async () => {
-    const palanca = (await getCatalog()).ladders.find(
-      (l) => l.code === "palanca",
-    );
-    const straddle = palanca?.rungs.find((r) => r.code === "straddle");
-    if (!straddle) throw new Error("straddle sin sembrar");
+  // 201-26: la 0293 manda. El `straddle` de Palanca ya es solo de los combos; el
+  // de la tabla de arranque de Toro es el de Planche hold (E2).
+  it("desactivar un peldaño usado en la tabla de arranque (straddle de Planche hold): 409 CONQUER_PELDANO_EN_ARRANQUE", async () => {
+    const straddle = await rungOf("planche_hold", "straddle");
 
     const res = await call("PUT", `/rungs/${straddle.id}`, adminToken, {
       isActive: false,
@@ -675,10 +740,84 @@ describe("PUT /rungs/:rungId — renombrar, marcar y desactivar (D-04, T-201-51)
 
     expect(res.statusCode).toBe(409);
     expect(res.json<ErrorBody>().code).toBe("CONQUER_PELDANO_EN_ARRANQUE");
-    const after = (await getCatalog()).ladders
-      .find((l) => l.code === "palanca")
-      ?.rungs.find((r) => r.code === "straddle");
-    expect(after?.isActive).toBe(true);
+    expect(res.json<ErrorBody>().error).toContain("Toro");
+    expect((await rungOf("planche_hold", "straddle")).isActive).toBe(true);
+  });
+
+  // Anexo 3: el peldaño que solo usa la tabla de Novillo o la de Ternero también
+  // está protegido (antes solo se miraba la de Toro).
+  it.each([
+    ["Novillo", "planche_hold", "super_adv_tuck"],
+    ["Novillo", "hspu", "pared"],
+    ["Ternero", "trac", "al_pecho"],
+  ])(
+    "desactivar un peldaño que solo usa la tabla de %s (escalera %s, peldaño %s): 409",
+    async (level, ladderCode, rungCode) => {
+      const rung = await rungOf(ladderCode, rungCode);
+
+      const res = await call("PUT", `/rungs/${rung.id}`, adminToken, {
+        isActive: false,
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json<ErrorBody>().code).toBe("CONQUER_PELDANO_EN_ARRANQUE");
+      expect(res.json<ErrorBody>().error).toContain(level);
+      expect((await rungOf(ladderCode, rungCode)).isActive).toBe(true);
+    },
+  );
+
+  // DA-3: el hold de HSPU se elige en su escalera de hold. `pike` está en la
+  // tabla de arranque de los tres niveles como hold final.
+  it("desactivar el pike de la escalera de HOLD de HSPU (hold final de los 3 niveles): 409", async () => {
+    const pike = await rungOf("hspu_hold", "pike");
+
+    const res = await call("PUT", `/rungs/${pike.id}`, adminToken, {
+      isActive: false,
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<ErrorBody>().code).toBe("CONQUER_PELDANO_EN_ARRANQUE");
+    expect((await rungOf("hspu_hold", "pike")).isActive).toBe(true);
+  });
+
+  // `pike elevado` solo está en la escalera de E1-E3 de HSPU (E3 de Novillo) y
+  // `pike` de esa escalera es E3 de Ternero: el de la de hold no se mezcla.
+  it("desactivar un peldaño de la escalera de hold que NINGUNA tabla usa: 200 (no se confunde con la de E1-E3)", async () => {
+    const libre = await rungOf("hspu_hold", "vertical_libre");
+    const res = await call("PUT", `/rungs/${libre.id}`, adminToken, {
+      isActive: false,
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  // Anexo 6 / T-201-98: los combos arrancan en `straddle` de la palanca.
+  it("desactivar el straddle de Palanca (arranque de los combos): 409 y el mensaje lo dice", async () => {
+    const straddle = await rungOf("palanca", "straddle");
+
+    const res = await call("PUT", `/rungs/${straddle.id}`, adminToken, {
+      isActive: false,
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<ErrorBody>().code).toBe("CONQUER_PELDANO_EN_ARRANQUE");
+    expect(res.json<ErrorBody>().error).toContain("arranque de los combos");
+    expect((await rungOf("palanca", "straddle")).isActive).toBe(true);
+  });
+
+  it("los otros peldaños de Palanca sí se desactivan (lean) y se reactivan", async () => {
+    const lean = await rungOf("palanca", "lean");
+
+    const off = await call("PUT", `/rungs/${lean.id}`, adminToken, {
+      isActive: false,
+    });
+    const on = await call("PUT", `/rungs/${lean.id}`, adminToken, {
+      isActive: true,
+    });
+
+    expect(off.statusCode).toBe(200);
+    expect(on.statusCode).toBe(200);
+    expect((await rungOf("palanca", "lean")).isActive).toBe(true);
   });
 
   it("desactivar el último peldaño activo de la escalera: 409 CONQUER_ESCALERA_VACIA", async () => {
@@ -836,11 +975,7 @@ describe("PUT /exercises/:exerciseId — tabla de arranque y zonas (D-14, D-20)"
 
   it("un peldaño desactivado no sirve para la tabla de arranque: 400", async () => {
     const press = await exerciseByCode("planche_press");
-    const palanca = (await getCatalog()).ladders.find(
-      (l) => l.code === "palanca",
-    );
-    const halfLay = palanca?.rungs.find((r) => r.code === "half_lay");
-    if (!halfLay) throw new Error("half_lay sin sembrar");
+    const halfLay = await rungOf("planche_press", "half_lay");
     const off = await call("PUT", `/rungs/${halfLay.id}`, adminToken, {
       isActive: false,
     });
@@ -854,6 +989,169 @@ describe("PUT /exercises/:exerciseId — tabla de arranque y zonas (D-14, D-20)"
 
     expect(res.statusCode).toBe(400);
     expect(res.json<ErrorBody>().code).toBe("CONQUER_CATALOGO_INVALIDO");
+  });
+
+  // ── 201-26: marca de brazos rectos, 3 tablas, hold en su escalera, modos (§1, §3) ──
+
+  const NOVILLO_PRESS = [
+    { step: "e1", rung: "lean", mode: "completa" },
+    { step: "e2", rung: "lean", mode: "negativa" },
+    { step: "e3", rung: "lean", mode: "completa" },
+    { step: "hold", rung: "lean", mode: "hold" },
+  ];
+
+  it("guarda cada tabla por separado: Novillo y Ternero no pisan la de Toro", async () => {
+    const press = await exerciseByCode("planche_press");
+    const novillo = [
+      { step: "e1", rung: "tuck", mode: "completa" },
+      { step: "e2", rung: "lean", mode: "negativa" },
+      { step: "e3", rung: "lean", mode: "completa" },
+      { step: "hold", rung: "lean", mode: "hold" },
+    ];
+
+    const res = await call("PUT", `/exercises/${press.id}`, adminToken, {
+      startStepsNovillo: novillo,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<ExerciseBody>();
+    expect(body.startStepsNovillo).toEqual(novillo);
+    expect(body.startSteps).toEqual(press.startSteps);
+    expect(body.startStepsTernero).toEqual(press.startStepsTernero);
+  });
+
+  it("editar startStepsTernero de Pull-ups en front lever (válido): 200 y un Ternero activado después lo usa", async () => {
+    const pullups = await exerciseByCode("front_pullups");
+    const ternero = [
+      { step: "e1", rung: "adv_tuck", mode: "completa" },
+      { step: "e2", rung: "tuck", mode: "negativa" },
+      { step: "e3", rung: "tuck", mode: "completa" },
+      { step: "hold", rung: "tuck", mode: "hold" },
+    ];
+
+    const res = await call("PUT", `/exercises/${pullups.id}`, adminToken, {
+      startStepsTernero: ternero,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json<ExerciseBody>().startStepsTernero).toEqual(ternero);
+    // Ternero de 3 días: el día "traccion" trae front_hold, front_pullups y muscle_up.
+    const member = await createActiveConquerMember(app, {
+      level: "ternero",
+      daysCount: 3,
+    });
+    const steps = await readConquerSteps(app, member.userId);
+    expect(steps.get("front_pullups:e1")?.rungCode).toBe("adv_tuck");
+    expect(steps.get("front_pullups:e2")?.mode).toBe("negativa");
+    expect(steps.get("front_pullups:e3")?.rungCode).toBe("tuck");
+  });
+
+  it("el hold de HSPU se valida contra su escalera de hold: vertical_en_pared es válido y pike_elevado (de la de E1-E3) es 400", async () => {
+    const hspu = await exerciseByCode("hspu");
+    const withHold = (rung: string) =>
+      hspu.startStepsNovillo.map((s) =>
+        s.step === "hold" ? { ...s, rung } : s,
+      );
+
+    const bad = await call("PUT", `/exercises/${hspu.id}`, adminToken, {
+      startStepsNovillo: withHold("pike_elevado"),
+    });
+    const ok = await call("PUT", `/exercises/${hspu.id}`, adminToken, {
+      startStepsNovillo: withHold("vertical_en_pared"),
+    });
+
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json<ErrorBody>().code).toBe("CONQUER_CATALOGO_INVALIDO");
+    expect(ok.statusCode).toBe(200);
+    expect(
+      ok.json<ExerciseBody>().startStepsNovillo.find((s) => s.step === "hold")
+        ?.rung,
+    ).toBe("vertical_en_pared");
+  });
+
+  it("E1-E3 de HSPU no aceptan un peldaño de la escalera de hold (vertical_libre): 400", async () => {
+    const hspu = await exerciseByCode("hspu");
+
+    const res = await call("PUT", `/exercises/${hspu.id}`, adminToken, {
+      startStepsTernero: hspu.startStepsTernero.map((s) =>
+        s.step === "e1" ? { ...s, rung: "vertical_libre" } : s,
+      ),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json<ErrorBody>().code).toBe("CONQUER_CATALOGO_INVALIDO");
+  });
+
+  // Anexo 1: los isométricos solo hold y los dinámicos completa o negativa.
+  it.each([
+    ["planche_hold", "startSteps", "e1", "completa"],
+    ["planche_hold", "startStepsNovillo", "e2", "negativa"],
+    ["front_hold", "startStepsTernero", "e3", "completa"],
+    ["hspu", "startSteps", "e1", "hold"],
+    ["hspu", "startStepsTernero", "e3", "hold"],
+    ["planche_press", "startSteps", "hold", "completa"],
+  ])(
+    "%s %s: el escalón %s con modo %s no corresponde: 400 y no cambia nada",
+    async (code, field, step, mode) => {
+      const exercise = await exerciseByCode(code);
+      const table = (exercise as unknown as Record<string, StartStepBody[]>)[
+        field
+      ];
+
+      const res = await call("PUT", `/exercises/${exercise.id}`, adminToken, {
+        [field]: table.map((s) => (s.step === step ? { ...s, mode } : s)),
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json<ErrorBody>().code).toBe("CONQUER_CATALOGO_INVALIDO");
+      expect(await exerciseByCode(code)).toEqual(exercise);
+    },
+  );
+
+  it("una de las tres tablas inválida: 400 y NINGUNA de las tres cambia (todo o nada)", async () => {
+    const press = await exerciseByCode("planche_press");
+
+    const res = await call("PUT", `/exercises/${press.id}`, adminToken, {
+      startStepsNovillo: NOVILLO_PRESS,
+      startStepsTernero: [{ step: "e1", rung: "lean", mode: "completa" }],
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(await exerciseByCode("planche_press")).toEqual(press);
+  });
+
+  it("brazosRectos: true en Pull-ups en front lever: Hoy del alumno lo manda en sus 4 escalones", async () => {
+    const pullups = await exerciseByCode("front_pullups");
+    expect(pullups.brazosRectos).toBe(false);
+    const member = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+
+    const res = await call("PUT", `/exercises/${pullups.id}`, adminToken, {
+      brazosRectos: true,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json<ExerciseBody>().brazosRectos).toBe(true);
+    const front = await fetchToday(app, member.token, "front");
+    const exercise = front.exercises.find((e) => e.code === "front_pullups");
+    expect(exercise?.steps.map((s) => s.brazosRectos)).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+  });
+
+  it("brazosRectos que no es booleano: 400", async () => {
+    const pullups = await exerciseByCode("front_pullups");
+
+    const res = await call("PUT", `/exercises/${pullups.id}`, adminToken, {
+      brazosRectos: "si",
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 
   it.each([
@@ -1069,7 +1367,7 @@ describe("aislamiento entre gimnasios y roles (T-201-49, T-201-50)", () => {
       (ids) => ({
         method: "POST",
         url: `/ladders/${ids.ladderId}/rungs`,
-        payload: { name: "Intruso", brazosRectos: false, unilateral: false },
+        payload: { name: "Intruso", unilateral: false },
       }),
     ],
     [
@@ -1189,7 +1487,7 @@ describe("aislamiento entre gimnasios y roles (T-201-49, T-201-50)", () => {
       "POST /ladders/:ladderId/rungs",
       "POST",
       "/ladders/1/rungs",
-      { name: "X", brazosRectos: false, unilateral: false },
+      { name: "X", unilateral: false },
     ],
     ["PUT /rungs/:rungId", "PUT", "/rungs/1", { name: "X" }],
     [
@@ -1237,7 +1535,6 @@ describe("aislamiento entre gimnasios y roles (T-201-49, T-201-50)", () => {
 
     const res = await call("POST", `/ladders/${ladderId}/rungs`, owner.token, {
       name: "Del owner",
-      brazosRectos: false,
       unilateral: false,
     });
 

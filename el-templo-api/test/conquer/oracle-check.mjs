@@ -41,6 +41,7 @@ import {
   lightZones,
 } from "../../src/modules/conquer/lighting.ts";
 import {
+  allowedModes,
   cutProposal,
   openingTarget,
   saturdayPlan,
@@ -419,6 +420,15 @@ function reglasDiffs() {
   same("cutProposal toro 4", cutProposal("toro", 4).stage, 5);
   same("cutProposal toro 5", cutProposal("toro", 5).kind, "bajar_escalon");
   same("cutProposal novillo", cutProposal("novillo", 0).kind, "bajar_escalon");
+  // allowedModes (anexo 1, 201-26 DA-10): isometricos y hold final solo hold.
+  same("allowedModes s e1", allowedModes("s", "e1"), ["hold"]);
+  same("allowedModes s e3", allowedModes("s", "e3"), ["hold"]);
+  same("allowedModes reps e2", allowedModes("reps", "e2"), [
+    "completa",
+    "negativa",
+  ]);
+  same("allowedModes reps hold", allowedModes("reps", "hold"), ["hold"]);
+  same("allowedModes s hold", allowedModes("s", "hold"), ["hold"]);
   same("openingTarget semana 2", openingTarget("toro", 2, 0), 3);
   same("openingTarget semana 3", openingTarget("toro", 3, 0), 4);
   same("openingTarget etapa 4", openingTarget("toro", 3, 4), 3);

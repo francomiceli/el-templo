@@ -37,6 +37,7 @@ import {
   createActiveConquerMember,
   insertConquerSession,
   memberToday,
+  patchConquerStep,
   readConquerSteps,
   readSessionSteps,
   sessionBodyFromToday,
@@ -355,6 +356,105 @@ describe("PUT /api/members/conquer/steps/:exerciseId/:step", () => {
       estado: null,
       value: 8,
     });
+  });
+
+  // 201-26 DA-10 / §1 del anexo: los isométricos solo hold, los dinámicos completa o negativa.
+  it.each<[string, string, string]>([
+    ["planche_hold", "e1", "completa"],
+    ["planche_hold", "e2", "negativa"],
+    ["front_hold", "e3", "completa"],
+    ["hspu", "e1", "hold"],
+    ["hspu", "e3", "hold"],
+    ["planche_press", "hold", "negativa"],
+  ])(
+    "%s %s con modo %s no corresponde: 400 CONQUER_MODO_INVALIDO y el escalón no cambia",
+    async (code, step, mode) => {
+      const { userId, token } = await createActiveConquerMember(app, {
+        level: "toro",
+        daysCount: 4,
+      });
+      const ids = await conquerExerciseIds(app);
+      const antes = (await readConquerSteps(app, userId)).get(
+        `${code}:${step}`,
+      );
+
+      const res = await putStep(token, ids.get(code) ?? 0, step, {
+        rungId: antes?.rungId ?? 0,
+        mode,
+      });
+
+      expect(res.statusCode, res.body).toBe(400);
+      expect(res.json<ErrorBody>().code).toBe("CONQUER_MODO_INVALIDO");
+      const despues = (await readConquerSteps(app, userId)).get(
+        `${code}:${step}`,
+      );
+      expect(despues).toEqual(antes);
+    },
+  );
+
+  it("un dinámico admite completa y negativa: HSPU E1 pasa a negativa y vuelve a completa (200)", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    const actual = (await readConquerSteps(app, userId)).get("hspu:e1");
+
+    const aNegativa = await putStep(token, ids.get("hspu") ?? 0, "e1", {
+      rungId: actual?.rungId ?? 0,
+      mode: "negativa",
+    });
+    const aCompleta = await putStep(token, ids.get("hspu") ?? 0, "e1", {
+      rungId: actual?.rungId ?? 0,
+      mode: "completa",
+    });
+
+    expect(aNegativa.statusCode, aNegativa.body).toBe(200);
+    expect(aNegativa.json<TodayStepBody>().mode).toBe("negativa");
+    expect(aCompleta.statusCode, aCompleta.body).toBe(200);
+    expect((await readConquerSteps(app, userId)).get("hspu:e1")?.mode).toBe(
+      "completa",
+    );
+  });
+
+  // DA-10: un escalón con un modo viejo fuera de la regla (dato de la base local)
+  // se tolera mientras el pedido no cambie el modo; Hoy lo muestra igual.
+  it("un escalón con modo viejo inválido: cambiar solo el peldaño con el mismo modo es 200, y pedir otro modo fuera de la regla es 400", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    const exerciseId = ids.get("planche_hold") ?? 0;
+    await patchConquerStep(app, userId, "planche_hold", "e1", {
+      mode: "completa",
+    });
+    const vista = await today(token, "plancha");
+    const hold = vista.exercises.find((e) => e.code === "planche_hold");
+    expect(hold?.steps[0].modes).toEqual(["hold", "completa"]);
+    const straddle = await conquerRungId(app, "planche_hold", "straddle");
+
+    const mismoModo = await putStep(token, exerciseId, "e1", {
+      rungId: straddle,
+      mode: "completa",
+    });
+    const otroInvalido = await putStep(token, exerciseId, "e1", {
+      rungId: straddle,
+      mode: "negativa",
+    });
+    const alHold = await putStep(token, exerciseId, "e1", {
+      rungId: straddle,
+      mode: "hold",
+    });
+
+    expect(mismoModo.statusCode, mismoModo.body).toBe(200);
+    expect(mismoModo.json<TodayStepBody>().mode).toBe("completa");
+    expect(otroInvalido.statusCode, otroInvalido.body).toBe(400);
+    expect(otroInvalido.json<ErrorBody>().code).toBe("CONQUER_MODO_INVALIDO");
+    expect(alHold.statusCode, alHold.body).toBe(200);
+    expect(
+      (await readConquerSteps(app, userId)).get("planche_hold:e1")?.mode,
+    ).toBe("hold");
   });
 
   // 201-25 DA-3 / T-201-93: el hold final elige en SU escalera, E1-E3 en la del ejercicio.
