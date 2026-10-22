@@ -202,3 +202,10 @@ con preguntas.
   reusarlo, no duplicarlo. Helpers de test: `readConquerSteps` (Map `"ejercicio:e1|e2|e3|hold"` → code de peldaño) y
   `createActiveConquerMember` (crea un admin nuevo por llamada). 4 escalones por ejercicio: Toro 4 días = 48 filas.
   Manifiesto: 484 entradas tras 201-06.
+- (201-07) `lint:tenant` mira cada statement por separado: armar condiciones en un array y pasar `and(...conditions)` FALLA.
+  Poner `tenantWhere` inline en el `.where(and(tenantWhere(...), ...))` y, para condiciones opcionales,
+  `cond ? ne(...) : undefined`. `loadMemberContext` ya crea los escalones faltantes (no repetirlo). Recalcular escalón:
+  `computeTodayStep` (`today-service.ts`) y `applyRungChange` (`step-service.ts`). `resolveMemberTimezone` vive en
+  `timezone.ts`; `sendConquerError` en `errors.ts` (compartido). Ojo con imports circulares entre servicios del módulo.
+  En 201-12, `bodyCheck` de `GET /state` con UNA query más, sin otro `loadMemberContext`. Manifiesto: 487 tras 201-07.
+  Contratos `TodayResponse`, `HomeView` y PUT de sesión: `201-07-SUMMARY.md`.
