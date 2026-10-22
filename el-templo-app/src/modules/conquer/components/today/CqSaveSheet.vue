@@ -7,61 +7,72 @@
     @hide="figureReady = false"
   >
     <div class="cq-root cq-sheet" role="dialog" aria-label="Sesión guardada">
-      <h2 class="cq-display cq-sheet__title">Guardado</h2>
-      <p class="cq-ital cq-sheet__lead">{{ lead }}</p>
+      <div class="cq-sheet__scroll">
+        <p class="cq-kicker">Guardado</p>
+        <h2 class="cq-title">Sesión guardada</h2>
 
-      <!-- BodyFigure mide con getBBox: se monta recién con el diálogo ya visible -->
-      <CqBodyMap
-        v-if="figureReady && zones > 0"
-        :primary="lighting?.primary ?? []"
-        :secondary="lighting?.secondary ?? []"
-        :gender="gender"
-        :height="200"
-      />
+        <!-- BodyFigure mide con getBBox: se monta recién con el diálogo ya visible -->
+        <div v-if="figureReady && zones > 0" class="cq-card cq-sheet__fig">
+          <CqBodyMap
+            :primary="lighting?.primary ?? []"
+            :secondary="lighting?.secondary ?? []"
+            :gender="gender"
+            :height="200"
+          />
+        </div>
+        <p class="cq-sheet__lead">{{ lead }}</p>
 
-      <!-- Anexo §9 `fin_sesion_techo`: los techos los calcula el API, el app solo los muestra -->
-      <p v-for="item in techo" :key="`${item.exerciseName}-${item.step}`" class="cq-sub">
-        {{ techoText(item) }}
-      </p>
+        <!-- Anexo §9 `fin_sesion_techo`: los techos los calcula el API, el app solo los muestra -->
+        <p
+          v-for="item in techo"
+          :key="`${item.exerciseName}-${item.step}`"
+          class="cq-notice cq-sheet__techo"
+        >
+          {{ techoText(item) }}
+        </p>
 
-      <div v-for="item in calibration" :key="item.exerciseId" class="cq-card cq-sheet__calib">
-        <div class="cq-sheet__calib-text">{{ calibrationText(item) }}</div>
-        <div v-if="canResolveCalibration(item)" class="cq-sheet__calib-actions">
-          <button
-            type="button"
-            class="cq-small cq-small--fill"
-            :disabled="resolving"
-            @click="emit('resolve', item.exerciseId, true)"
-          >
-            Aceptar
-          </button>
-          <button
-            type="button"
-            class="cq-small"
-            :disabled="resolving"
-            @click="emit('resolve', item.exerciseId, false)"
-          >
-            Ahora no
-          </button>
+        <div v-for="item in calibration" :key="item.exerciseId" class="cq-card cq-sheet__calib">
+          <p class="cq-sheet__calib-text">{{ calibrationText(item) }}</p>
+          <div v-if="canResolveCalibration(item)" class="cq-sheet__calib-actions">
+            <CqButton
+              class="cq-sheet__calib-btn"
+              label="Aceptar"
+              small
+              :disabled="resolving"
+              @click="emit('resolve', item.exerciseId, true)"
+            />
+            <CqButton
+              class="cq-sheet__calib-btn"
+              label="Ahora no"
+              variant="secondary"
+              small
+              :disabled="resolving"
+              @click="emit('resolve', item.exerciseId, false)"
+            />
+          </div>
         </div>
       </div>
 
-      <CqCloudButton label="Listo" :disabled="resolving" @click="emit('done')" />
+      <!-- Fuera del scroll: "Listo" queda siempre a la vista -->
+      <div class="cq-sheet__foot">
+        <CqButton label="Listo" :disabled="resolving" @click="emit('done')" />
+      </div>
     </div>
   </q-dialog>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import '../../styles/conquer.scss'
 import { isZoneSlug } from 'src/components/anatomy/zones'
 import { calibrationText, canResolveCalibration, techoText } from '../../utils/format'
 import type { CalibrationProposal, Lighting, SessionTecho } from '../../types'
 import CqBodyMap from '../CqBodyMap.vue'
-import CqCloudButton from '../brand/CqCloudButton.vue'
+import CqButton from '../brand/CqButton.vue'
 
 // El diálogo se monta fuera de .cq-root (teleport): la hoja lleva su propia raíz con los tokens.
-// Fase 201 D-13 a, S12-4: la hoja de después de Guardar. Muestra la figura con lo que se encendió
-// hoy (sin números de series ni porcentajes ni rojo) y, por cada ejercicio con propuesta de
+// Fase 201 D-13 a, S12-4, DA-32: la hoja clara de después de Guardar. Muestra la figura en azul noche y
+// dorado con lo que se encendió hoy (sin números de series ni porcentajes ni rojo) y, por cada ejercicio con propuesta de
 // calibración, "Aceptar" o "Ahora no". "Listo" cierra la hoja (la página vuelve a Inicio).
 const props = withDefaults(
   defineProps<{
@@ -97,49 +108,62 @@ const lead = computed(() => {
 
 <style scoped lang="scss">
 .cq-sheet {
-  --cq-pad-x: 22px;
-  --cq-pad-bottom: 22px;
-
   display: flex;
   flex-direction: column;
-  gap: 14px;
   width: 100%;
   max-width: 460px;
-  max-height: 92vh;
-  overflow-y: auto;
-  padding: 24px var(--cq-pad-x) var(--cq-pad-bottom);
+  // El contenido scrollea adentro y "Listo" (`__foot`) no se mueve
+  max-height: 90vh;
+  overflow: hidden;
   border-radius: 20px 20px 0 0;
-  background: linear-gradient(180deg, var(--cq-sky2), var(--cq-sky1));
-  border: 1px solid var(--cq-hair);
-  border-bottom: 0;
+  background: var(--cq-surface-2);
 
-  &__title {
-    text-align: center;
-    font-size: 30px;
+  &__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 16px 4px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  &__foot {
+    flex: none;
+    padding: 12px 16px 24px;
+  }
+
+  &__fig {
+    align-items: center;
   }
 
   &__lead {
     margin: 0;
     text-align: center;
-    font-size: 19px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--cq-night);
   }
 
-  &__calib {
-    gap: 10px;
+  &__techo {
+    margin: 0;
+    font-size: 14px;
   }
 
   &__calib-text {
+    margin: 0;
     font-size: 14px;
-    color: var(--cq-cream);
+    color: var(--cq-text);
   }
 
   &__calib-actions {
     display: flex;
     gap: 8px;
+  }
 
-    button {
-      flex: 1;
-    }
+  &__calib-btn {
+    flex: 1;
   }
 }
 </style>

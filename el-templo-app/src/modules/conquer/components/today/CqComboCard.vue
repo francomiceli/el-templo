@@ -1,11 +1,14 @@
 <template>
-  <div class="cq-card cq-card--sel cq-combo">
-    <div class="cq-caps">{{ title }}</div>
-    <div class="cq-ital cq-combo__seq">
-      Press <b>{{ combo.press }}</b> (sube y baja) → Push <b>{{ combo.push }}</b> → Hold
-      <b>{{ combo.hold }}</b>
+  <div class="cq-card cq-combo">
+    <div class="cq-combo__head cq-dark">
+      <p class="cq-kicker">{{ kicker }}</p>
+      <h3 v-if="heading" class="cq-combo__title">{{ heading }}</h3>
     </div>
-    <div v-if="hint" class="cq-sub">{{ hint }}</div>
+    <p class="cq-combo__seq">
+      Press <b>{{ combo.press }}</b> (sube y baja) <span class="cq-combo__ar">→</span> Push
+      <b>{{ combo.push }}</b> <span class="cq-combo__ar">→</span> Hold <b>{{ combo.hold }}</b>
+    </p>
+    <p v-if="hint" class="cq-sub">{{ hint }}</p>
 
     <div class="cq-combo__line">
       <div class="cq-combo__label"><b>Progresión de arranque</b></div>
@@ -23,7 +26,7 @@
     <div class="cq-combo__line">
       <div class="cq-combo__label">
         <b>Series completadas</b>
-        <span>objetivo {{ combo.target }}</span>
+        <span class="cq-sub">objetivo {{ combo.target }}</span>
       </div>
       <CqCounter
         :model-value="seriesValue"
@@ -35,29 +38,31 @@
     </div>
 
     <template v-if="combo.subir.ready">
-      <button
+      <CqButton
         v-if="combo.subir.toRungName"
-        type="button"
-        class="cq-small cq-small--fill"
+        class="cq-combo__subir"
+        variant="subir"
+        small
+        :label="`Subir a ${combo.subir.toRungName}`"
         :disabled="busy"
         @click="emit('subir')"
-      >
-        Subir a {{ combo.subir.toRungName }}
-      </button>
-      <div v-else class="cq-sub cq-combo__top">Ya estás en la progresión más difícil</div>
+      />
+      <p v-else class="cq-sub cq-combo__top">Ya estás en la progresión más difícil</p>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ComboView } from '../../types'
+import CqButton from '../brand/CqButton.vue'
 import CqCounter from './CqCounter.vue'
 
-// Fase 201 §3, D-14, §7.1 Hoy: combo de Toro (apertura de cada día o push/pull del sábado):
+// Fase 201 §3, D-14, §7.1 Hoy, DA-31 (sketch 022 B): combo de Toro (apertura de cada día o push/pull del sábado):
 // "Press X (sube y baja) → Push Y → Hold Z", progresión de arranque, series completadas con su
 // objetivo y, cuando el API lo habilita, el botón Subir. `rungId` y `seriesValue` son los del
 // formulario (lo que el alumno eligió), no los del API.
-withDefaults(
+const props = withDefaults(
   defineProps<{
     combo: ComboView
     title: string
@@ -78,6 +83,14 @@ const emit = defineEmits<{
   subir: []
 }>()
 
+// La cabecera oscura parte el título en rótulo y encabezado: "Combo de apertura · al fallo" va como
+// kicker "Combo de apertura" y título "Al fallo". Sin " · " el título entero queda de kicker.
+const kicker = computed(() => props.title.split(' · ')[0] ?? props.title)
+const heading = computed(() => {
+  const rest = props.title.split(' · ').slice(1).join(' · ')
+  return rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : ''
+})
+
 function onRungChange(event: Event): void {
   emit('update:rung', Number((event.target as HTMLSelectElement).value))
 }
@@ -85,23 +98,52 @@ function onRungChange(event: Event): void {
 
 <style scoped lang="scss">
 .cq-combo {
+  &__head.cq-dark {
+    margin: -16px -16px 0;
+    padding: 14px 16px;
+    border: 0;
+    border-radius: 16px 16px 0 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__title {
+    margin: 0;
+    font-family: var(--cq-font-head);
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: normal;
+    color: var(--cq-on-night);
+  }
+
   &__seq {
-    font-size: 15px;
-    line-height: 1.35;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--cq-text);
 
     b {
-      font-style: normal;
-      color: var(--cq-gold-hi);
+      font-weight: 600;
+      color: var(--cq-night);
     }
+  }
+
+  &__ar {
+    padding: 0 2px;
+    font-weight: 700;
+    color: var(--cq-text-gold);
   }
 
   &__line {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    padding-top: 8px;
-    border-top: 1px solid var(--cq-hair2);
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--cq-line);
   }
 
   &__label {
@@ -110,19 +152,20 @@ function onRungChange(event: Event): void {
     flex-direction: column;
 
     b {
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    span {
-      font-size: 12px;
-      color: var(--cq-gold);
+      font-size: 15px;
+      font-weight: 600;
     }
   }
 
-  &__select {
-    width: auto;
-    max-width: 150px;
+  // El padre delante: `.cq-select` (ancho 100 %) y este selector empatan en especificidad
+  .cq-combo__select {
+    flex: none;
+    width: 150px;
+  }
+
+  &__subir {
+    align-self: flex-end;
+    max-width: 100%;
   }
 
   &__top {
