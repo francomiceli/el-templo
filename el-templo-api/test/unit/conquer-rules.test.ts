@@ -1,6 +1,7 @@
 /**
  * Fase 201 Plan 04: reglas de niveles, recortes y alertas de Conquer
- * (sintesis §2, §3.2, §5, §5.1, §8.2; A11-A14, D-14, D-15).
+ * (sintesis §2, §3.2, §5, §5.1; A11-A14, D-14, D-15). El arranque por nivel
+ * (offset de peldaños, §8.2) se borró en el plan 201-25 (DA-5).
  *
  * Sin DB, sin servidor: corre con `vitest.config.unit.ts`.
  */
@@ -8,7 +9,6 @@ import { describe, it, expect } from "vitest";
 import {
   LEVELS,
   LEVEL_DAYS,
-  DEFAULT_START_OFFSET,
   PAIN_ALERT_MIN,
   INACTIVE_DAYS,
   CHECK_INTERVAL_DAYS,
@@ -24,7 +24,6 @@ import {
   isValidLevelDays,
   levelHasCombos,
   nextLevel,
-  shiftStartPosition,
   cutProposal,
   openingTarget,
   saturdayPlan,
@@ -92,28 +91,6 @@ describe("umbrales", () => {
     expect(OPENING_FROM_WEEK3).toBe(4);
     expect(MAX_TORO_CUT_STAGE).toBe(5);
   });
-
-  it("arranque por nivel (8.2): ternero 2, novillo 1, toro 0", () => {
-    expect(DEFAULT_START_OFFSET).toEqual({ ternero: 2, novillo: 1, toro: 0 });
-  });
-});
-
-describe("shiftStartPosition (8.2, D-14)", () => {
-  it.each([
-    ["offset 2 desde 0", 0, 2, [0, 1, 2, 3, 4, 5, 6], 2],
-    ["offset 0 no mueve", 4, 0, [0, 1, 2, 3, 4, 5, 6], 4],
-    ["offset 1 desde 3", 3, 1, [0, 1, 2, 3, 4, 5, 6], 4],
-    ["clamp al mas facil activo", 5, 2, [0, 1, 2, 3, 4, 5, 6], 6],
-    ["salta inactivos", 0, 1, [0, 2, 3], 2],
-    ["salta inactivos y clamp", 2, 3, [0, 2, 3], 3],
-    ["la base inactiva avanza al siguiente activo", 1, 1, [0, 2, 3], 2],
-    ["una sola activa", 0, 2, [0], 0],
-  ] as [string, number, number, number[], number][])(
-    "%s",
-    (_label, from, offset, active, expected) => {
-      expect(shiftStartPosition(from, offset, active)).toBe(expected);
-    },
-  );
 });
 
 describe("cutProposal (5.1, A12)", () => {

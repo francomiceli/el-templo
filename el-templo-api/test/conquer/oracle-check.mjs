@@ -44,7 +44,6 @@ import {
   cutProposal,
   openingTarget,
   saturdayPlan,
-  shiftStartPosition,
   worstLight,
 } from "../../src/modules/conquer/rules.ts";
 
@@ -416,13 +415,7 @@ function reglasDiffs() {
     1,
   );
 
-  // rules.ts (8.2, 5.1, 3.2, 5)
-  same(
-    "shiftStartPosition clamp",
-    shiftStartPosition(5, 2, [0, 1, 2, 3, 4, 5, 6]),
-    6,
-  );
-  same("shiftStartPosition inactivo", shiftStartPosition(0, 1, [0, 2, 3]), 2);
+  // rules.ts (5.1, 3.2, 5). El arranque por nivel (8.2) ya no esta: 201-25 DA-5.
   same("cutProposal toro 4", cutProposal("toro", 4).stage, 5);
   same("cutProposal toro 5", cutProposal("toro", 5).kind, "bajar_escalon");
   same("cutProposal novillo", cutProposal("novillo", 0).kind, "bajar_escalon");

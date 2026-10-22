@@ -21,10 +21,10 @@ import {
 import type { FastifyInstance } from "fastify";
 import { and, eq, sql } from "drizzle-orm";
 import * as schema from "../../src/db/schema";
+import type { ConquerStartStep } from "../../src/db/schema/conquer";
 import { resolveMemberTimezone } from "../../src/modules/conquer/member-service";
-import { CONQUER_SETTING_KEYS } from "../../src/modules/conquer/settings";
 import { addDays, todayInTz } from "../../src/modules/shared/date-utils";
-import { tenantValues, tenantWhere } from "../../src/modules/shared/tenant";
+import { tenantWhere } from "../../src/modules/shared/tenant";
 import { cleanAllTestData, createTestApp, createTestMember } from "../helpers";
 import {
   limpiarSegundoGimnasio,
@@ -146,7 +146,7 @@ afterAll(async () => {
   await app.close();
 });
 
-describe("POST /api/admin/conquer/members — escalones iniciales por nivel (§8.2, D-14)", () => {
+describe("POST /api/admin/conquer/members — escalones iniciales por nivel (anexo §3, 201-25)", () => {
   it("Toro 4 días: 48 escalones con la tabla de Toro y el contrato JSON del alta", async () => {
     const admin = await createConquerStaff(app, "admin");
     const socio = await createTestMember(app);
@@ -187,7 +187,7 @@ describe("POST /api/admin/conquer/members — escalones iniciales por nivel (§8
     }
   });
 
-  it("Novillo 3 días: 36 escalones, un peldaño más fácil que Toro", async () => {
+  it("Novillo 3 días: 36 escalones con la tabla explícita del anexo (§3)", async () => {
     const admin = await createConquerStaff(app, "admin");
     const socio = await createTestMember(app);
 
@@ -198,11 +198,40 @@ describe("POST /api/admin/conquer/members — escalones iniciales por nivel (§8
     expect(steps.size).toBe(36);
     expect(steps.get("planche_hold:e1")?.rungCode).toBe("half_lay");
     expect(steps.get("hspu:e1")?.rungCode).toBe("pared");
-    // El modo no se desplaza: es el del escalón de Toro.
+    // El modo sale de la tabla del nivel.
     expect(steps.get("planche_press:e2")?.mode).toBe("negativa");
   });
 
-  it("Ternero 2 días: 24 escalones, dos peldaños más fáciles y sin pasarse del último", async () => {
+  // Estos escalones difieren del "Toro corrido N peldaños" que se construyó
+  // primero: manda la tabla explícita del anexo (§3).
+  it.each([
+    // [escalón, peldaño, escalera, modo]
+    ["front_hold:hold", "tuck", "front_hold", "hold"],
+    ["planche_pushup:hold", "pseudo", "planche_pushup_hold", "hold"],
+    ["press_90:hold", "tuck", "press_90_hold", "hold"],
+    ["one_arm_archer:hold", "dominada", "one_arm_archer_hold", "hold"],
+    ["one_arm_archer:e2", "oap_asistida", "trac", "negativa"],
+  ])(
+    "Novillo 3 días §3 del anexo: %s = %s en la escalera %s (%s)",
+    async (stepKey, rungCode, ladderCode, mode) => {
+      const admin = await createConquerStaff(app, "admin");
+      const socio = await createTestMember(app);
+
+      const res = await activateViaApi(
+        app,
+        admin.token,
+        socio.id,
+        "novillo",
+        3,
+      );
+
+      expect(res.statusCode).toBe(201);
+      const steps = await readConquerSteps(app, socio.id);
+      expect(steps.get(stepKey)).toMatchObject({ rungCode, ladderCode, mode });
+    },
+  );
+
+  it("Ternero 2 días: 24 escalones con la tabla explícita del anexo (§3)", async () => {
     const admin = await createConquerStaff(app, "admin");
     const socio = await createTestMember(app);
 
@@ -213,26 +242,140 @@ describe("POST /api/admin/conquer/members — escalones iniciales por nivel (§8
     expect(steps.size).toBe(24);
     expect(steps.get("planche_hold:e1")?.rungCode).toBe("straddle");
     expect(steps.get("muscle_up:e1")?.rungCode).toBe("al_pecho");
-    // `dominada` ya es el peldaño más fácil de la escalera: clamp (D-14).
-    expect(steps.get("muscle_up:hold")?.rungCode).toBe("dominada");
   });
 
-  it("con conquer.start_offset.novillo = 0 Novillo arranca igual que Toro (D-14)", async () => {
-    await app.db.insert(schema.tenantSettings).values(
-      tenantValues(TEMPLO_CTX, {
-        settingKey: CONQUER_SETTING_KEYS.startOffsetNovillo,
-        settingValue: "0",
-      }),
-    );
+  it.each([
+    ["front_hold:e3", "tuck", "front_hold", "hold"],
+    ["one_arm_archer:e2", "archer", "trac", "negativa"],
+    ["muscle_up:hold", "dominada", "muscle_up_hold", "hold"],
+    ["planche_pushup:hold", "pseudo", "planche_pushup_hold", "hold"],
+  ])(
+    "Ternero 2 días §3 del anexo: %s = %s en la escalera %s (%s)",
+    async (stepKey, rungCode, ladderCode, mode) => {
+      const admin = await createConquerStaff(app, "admin");
+      const socio = await createTestMember(app);
+
+      await activateViaApi(app, admin.token, socio.id, "ternero", 2);
+
+      const steps = await readConquerSteps(app, socio.id);
+      expect(steps.get(stepKey)).toMatchObject({ rungCode, ladderCode, mode });
+    },
+  );
+
+  it("Ternero 3 días §3 del anexo: los 4 escalones de Pull-ups en front lever arrancan en tuck de su escalera", async () => {
     const admin = await createConquerStaff(app, "admin");
     const socio = await createTestMember(app);
 
-    const res = await activateViaApi(app, admin.token, socio.id, "novillo", 3);
+    const res = await activateViaApi(app, admin.token, socio.id, "ternero", 3);
 
     expect(res.statusCode).toBe(201);
     const steps = await readConquerSteps(app, socio.id);
-    expect(steps.get("planche_hold:e1")?.rungCode).toBe("full");
-    expect(steps.get("hspu:e1")?.rungCode).toBe("paralelas_profundas");
+    for (const step of ["e1", "e2", "e3", "hold"]) {
+      expect(steps.get(`front_pullups:${step}`), step).toMatchObject({
+        rungCode: "tuck",
+        ladderCode: "front_pullups",
+      });
+    }
+  });
+
+  it("Toro 4 días: el hold de HSPU arranca en pike de hspu_hold y el de Planche hold en la escalera del ejercicio", async () => {
+    const admin = await createConquerStaff(app, "admin");
+    const socio = await createTestMember(app);
+
+    await activateViaApi(app, admin.token, socio.id, "toro", 4);
+
+    const steps = await readConquerSteps(app, socio.id);
+    expect(steps.get("hspu:hold")).toMatchObject({
+      rungCode: "pike",
+      ladderCode: "hspu_hold",
+    });
+    expect(steps.get("hspu:e1")?.ladderCode).toBe("hspu");
+    expect(steps.get("planche_hold:hold")).toMatchObject({
+      rungCode: "tuck",
+      ladderCode: "planche_hold",
+    });
+  });
+
+  describe("tabla de arranque editable por ejercicio (201-25 DA-5)", () => {
+    let original: ConquerStartStep[] | null = null;
+
+    async function setPlancheHoldNovillo(
+      value: ConquerStartStep[] | null,
+    ): Promise<void> {
+      await app.db
+        .update(schema.conquerExercises)
+        .set({ startStepsNovillo: value })
+        .where(
+          and(
+            tenantWhere(schema.conquerExercises, TEMPLO_CTX),
+            eq(schema.conquerExercises.code, "planche_hold"),
+          ),
+        );
+    }
+
+    beforeAll(async () => {
+      const [row] = await app.db
+        .select({ value: schema.conquerExercises.startStepsNovillo })
+        .from(schema.conquerExercises)
+        .where(
+          and(
+            tenantWhere(schema.conquerExercises, TEMPLO_CTX),
+            eq(schema.conquerExercises.code, "planche_hold"),
+          ),
+        );
+      original = row.value;
+    });
+
+    // El catálogo no se limpia entre tests: se restaura la tabla original.
+    afterEach(async () => {
+      await setPlancheHoldNovillo(original);
+    });
+
+    it("activar un Novillo usa la tabla start_steps_novillo del ejercicio, aunque se la edite", async () => {
+      await setPlancheHoldNovillo([
+        { step: "e1", rung: "straddle", mode: "hold" },
+        { step: "e2", rung: "straddle", mode: "hold" },
+        { step: "e3", rung: "tuck", mode: "hold" },
+        { step: "hold", rung: "lean", mode: "hold" },
+      ]);
+      const admin = await createConquerStaff(app, "admin");
+      const socio = await createTestMember(app);
+
+      const res = await activateViaApi(
+        app,
+        admin.token,
+        socio.id,
+        "novillo",
+        3,
+      );
+
+      expect(res.statusCode).toBe(201);
+      const steps = await readConquerSteps(app, socio.id);
+      expect(steps.get("planche_hold:e1")?.rungCode).toBe("straddle");
+      expect(steps.get("planche_hold:e3")?.rungCode).toBe("tuck");
+    });
+
+    it("con start_steps_novillo NULL el ejercicio arranca con la tabla de Toro", async () => {
+      await setPlancheHoldNovillo(null);
+      const admin = await createConquerStaff(app, "admin");
+      const socio = await createTestMember(app);
+
+      const res = await activateViaApi(
+        app,
+        admin.token,
+        socio.id,
+        "novillo",
+        3,
+      );
+
+      expect(res.statusCode).toBe(201);
+      const steps = await readConquerSteps(app, socio.id);
+      // Toro: full, straddle, adv_tuck y tuck de hold.
+      expect(steps.get("planche_hold:e1")?.rungCode).toBe("full");
+      expect(steps.get("planche_hold:hold")?.rungCode).toBe("tuck");
+      // Los otros ejercicios siguen con su tabla de Novillo.
+      expect(steps.get("hspu:e1")?.rungCode).toBe("pared");
+    });
   });
 
   it("un alumno sin plan del Templo se activa igual (D-17)", async () => {

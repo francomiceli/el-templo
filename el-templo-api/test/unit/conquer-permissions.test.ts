@@ -63,67 +63,43 @@ describe("parseConquerSettings (D-14)", () => {
     }
   });
 
-  it("sin filas devuelve los defaults (2 / 1 / 0 y N = 2)", () => {
+  it("sin filas devuelve los defaults (N = 2)", () => {
     const s = parseConquerSettings([]);
     expect(s).toEqual(CONQUER_SETTING_DEFAULTS);
-    expect(s.startOffset).toEqual({ ternero: 2, novillo: 1, toro: 0 });
     expect(s.comboWeeksN).toBe(2);
   });
 
   it("un valor válido pisa el default", () => {
-    const s = parseConquerSettings([
-      fila(K.startOffsetTernero, "3"),
-      fila(K.startOffsetNovillo, "0"),
-      fila(K.comboWeeksN, "5"),
-    ]);
-    expect(s.startOffset.ternero).toBe(3);
-    expect(s.startOffset.novillo).toBe(0);
+    const s = parseConquerSettings([fila(K.comboWeeksN, "5")]);
     expect(s.comboWeeksN).toBe(5);
   });
 
-  it("toro siempre es 0, aunque venga una fila", () => {
-    const s = parseConquerSettings([fila("conquer.start_offset.toro", "3")]);
-    expect(s.startOffset.toro).toBe(0);
+  // 201-25 DA-5: las filas viejas de los offsets se ignoran y ya no existen en el tipo.
+  it.each(["conquer.start_offset.ternero", "conquer.start_offset.novillo"])(
+    "una fila vieja %s se ignora",
+    (key) => {
+      const s = parseConquerSettings([fila(key, "3")]);
+      expect(s).toEqual(CONQUER_SETTING_DEFAULTS);
+      expect(Object.keys(s)).toEqual(["comboWeeksN"]);
+    },
+  );
+
+  it.each([
+    ["combo_weeks_n en 0", "0"],
+    ["combo_weeks_n en 9", "9"],
+    ["combo_weeks_n no numérico", "dos"],
+    ["combo_weeks_n decimal", "1.5"],
+    ["combo_weeks_n vacío", ""],
+  ])("%s cae al default", (_nombre, valor) => {
+    const s = parseConquerSettings([fila(K.comboWeeksN, valor)]);
+    expect(s.comboWeeksN).toBe(2);
   });
 
   it.each([
-    ["offset ternero fuera de rango (9)", K.startOffsetTernero, "9", 2],
-    ["offset ternero negativo", K.startOffsetTernero, "-1", 2],
-    ["offset novillo no numérico", K.startOffsetNovillo, "abc", 1],
-    ["offset novillo decimal", K.startOffsetNovillo, "1.5", 1],
-    ["offset novillo vacío", K.startOffsetNovillo, "", 1],
-    ["combo_weeks_n en 0", K.comboWeeksN, "0", 2],
-    ["combo_weeks_n en 9", K.comboWeeksN, "9", 2],
-    ["combo_weeks_n no numérico", K.comboWeeksN, "dos", 2],
-  ])("%s cae al default", (_nombre, key, valor, esperado) => {
-    const s = parseConquerSettings([fila(key, valor)]);
-    const obtenido =
-      key === K.comboWeeksN
-        ? s.comboWeeksN
-        : key === K.startOffsetTernero
-          ? s.startOffset.ternero
-          : s.startOffset.novillo;
-    expect(obtenido).toBe(esperado);
-  });
-
-  it.each([
-    ["offset ternero en el mínimo (0)", K.startOffsetTernero, "0", 0],
-    ["offset ternero en el máximo (4)", K.startOffsetTernero, "4", 4],
-    ["combo_weeks_n en el mínimo (1)", K.comboWeeksN, "1", 1],
-    ["combo_weeks_n en el máximo (8)", K.comboWeeksN, "8", 8],
-  ])("%s es válido (límites inclusivos)", (_nombre, key, valor, esperado) => {
-    const s = parseConquerSettings([fila(key, valor)]);
-    const obtenido =
-      key === K.comboWeeksN ? s.comboWeeksN : s.startOffset.ternero;
-    expect(obtenido).toBe(esperado);
-  });
-
-  it("un valor inválido no contamina a los otros parámetros", () => {
-    const s = parseConquerSettings([
-      fila(K.startOffsetTernero, "9"),
-      fila(K.comboWeeksN, "4"),
-    ]);
-    expect(s.startOffset.ternero).toBe(2);
-    expect(s.comboWeeksN).toBe(4);
+    ["combo_weeks_n en el mínimo (1)", "1", 1],
+    ["combo_weeks_n en el máximo (8)", "8", 8],
+  ])("%s es válido (límites inclusivos)", (_nombre, valor, esperado) => {
+    const s = parseConquerSettings([fila(K.comboWeeksN, valor)]);
+    expect(s.comboWeeksN).toBe(esperado);
   });
 });

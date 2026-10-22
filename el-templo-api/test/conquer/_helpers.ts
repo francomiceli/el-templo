@@ -146,6 +146,8 @@ export async function createActiveConquerMember(
 export interface StepSnapshot {
   rungId: number;
   rungCode: string;
+  /** Código de la escalera del peldaño (201-25: cada ejercicio y cada hold tiene la suya). */
+  ladderCode: string;
   mode: string;
   sinceDate: string | null;
   calibration: string;
@@ -165,6 +167,7 @@ export async function readConquerSteps(
       step: schema.conquerSteps.step,
       rungId: schema.conquerSteps.rungId,
       rungCode: schema.conquerRungs.code,
+      ladderCode: schema.conquerLadders.code,
       mode: schema.conquerSteps.mode,
       sinceDate: schema.conquerSteps.sinceDate,
       calibration: schema.conquerSteps.calibration,
@@ -182,12 +185,17 @@ export async function readConquerSteps(
       schema.conquerRungs,
       eq(schema.conquerRungs.id, schema.conquerSteps.rungId),
     )
+    .innerJoin(
+      schema.conquerLadders,
+      eq(schema.conquerLadders.id, schema.conquerRungs.ladderId),
+    )
     .where(
       and(
         tenantWhere(schema.conquerSteps, TEMPLO_CTX),
         tenantWhere(schema.conquerMembers, TEMPLO_CTX),
         tenantWhere(schema.conquerExercises, TEMPLO_CTX),
         tenantWhere(schema.conquerRungs, TEMPLO_CTX),
+        tenantWhere(schema.conquerLadders, TEMPLO_CTX),
         eq(schema.conquerMembers.userId, userId),
       ),
     );
@@ -197,6 +205,7 @@ export async function readConquerSteps(
       {
         rungId: r.rungId,
         rungCode: r.rungCode,
+        ladderCode: r.ladderCode,
         mode: r.mode,
         sinceDate: r.sinceDate,
         calibration: r.calibration,
