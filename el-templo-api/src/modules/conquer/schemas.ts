@@ -339,6 +339,8 @@ const todayStepSchema = {
     rungId: { type: "integer" },
     rungName: { type: "string" },
     mode: { type: "string", enum: [...MODE_ENUM] },
+    // Fase 201 DA-10: modos que ofrece el desplegable (anexo §1).
+    modes: { type: "array", items: { type: "string", enum: [...MODE_ENUM] } },
     target: { type: ["integer", "null"] },
     estado: { type: ["string", "null"], enum: [...ESTADO_ENUM, null] },
     value: { type: "integer" },
@@ -350,6 +352,7 @@ const todayStepSchema = {
     "rungId",
     "rungName",
     "mode",
+    "modes",
     "target",
     "estado",
     "value",
@@ -1301,7 +1304,6 @@ const rungAdminSchema = {
     code: { type: "string" },
     name: { type: "string" },
     position: { type: "integer" },
-    brazosRectos: { type: "boolean" },
     unilateral: { type: "boolean" },
     isActive: { type: "boolean" },
     inUse: { type: "boolean" },
@@ -1311,7 +1313,6 @@ const rungAdminSchema = {
     "code",
     "name",
     "position",
-    "brazosRectos",
     "unilateral",
     "isActive",
     "inUse",
@@ -1333,6 +1334,24 @@ const ladderAdminSchema = {
   additionalProperties: false,
 } as const;
 
+/**
+ * Tabla de arranque de un ejercicio (anexo §3). Fase 201 DA-5: Toro, Novillo y
+ * Ternero tienen cada una la suya (`[]` si la columna es NULL).
+ */
+const startStepsAdminSchema = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      step: { type: "string", enum: [...CONQUER_STEP_KEYS] },
+      rung: { type: "string" },
+      mode: { type: "string", enum: [...MODE_ENUM] },
+    },
+    required: ["step", "rung", "mode"],
+    additionalProperties: false,
+  },
+} as const;
+
 const exerciseAdminSchema = {
   type: "object",
   properties: {
@@ -1341,6 +1360,11 @@ const exerciseAdminSchema = {
     name: { type: "string" },
     ladderId: { type: "integer" },
     ladderCode: { type: "string" },
+    // Fase 201 DA-3: escalera propia del hold final (null = usa la de E1-E3).
+    holdLadderId: { type: ["integer", "null"] },
+    holdLadderCode: { type: ["string", "null"] },
+    // Fase 201 DA-4: marca de brazos rectos del ejercicio.
+    brazosRectos: { type: "boolean" },
     unit: { type: "string", enum: [...UNIT_ENUM] },
     muscles: {
       type: "array",
@@ -1354,19 +1378,9 @@ const exerciseAdminSchema = {
         additionalProperties: false,
       },
     },
-    startSteps: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          step: { type: "string", enum: [...CONQUER_STEP_KEYS] },
-          rung: { type: "string" },
-          mode: { type: "string", enum: [...MODE_ENUM] },
-        },
-        required: ["step", "rung", "mode"],
-        additionalProperties: false,
-      },
-    },
+    startSteps: startStepsAdminSchema,
+    startStepsNovillo: startStepsAdminSchema,
+    startStepsTernero: startStepsAdminSchema,
     sortOrder: { type: "integer" },
     isActive: { type: "boolean" },
   },
@@ -1376,9 +1390,14 @@ const exerciseAdminSchema = {
     "name",
     "ladderId",
     "ladderCode",
+    "holdLadderId",
+    "holdLadderCode",
+    "brazosRectos",
     "unit",
     "muscles",
     "startSteps",
+    "startStepsNovillo",
+    "startStepsTernero",
     "sortOrder",
     "isActive",
   ],
@@ -1451,16 +1470,19 @@ export const createRungSchema = {
     type: "object",
     properties: {
       name: { type: "string", maxLength: 60 },
-      brazosRectos: { type: "boolean" },
       unilateral: { type: "boolean" },
     },
-    required: ["name", "brazosRectos", "unilateral"],
+    required: ["name", "unilateral"],
     additionalProperties: false,
   },
   response: { 201: ladderAdminSchema },
 } as const;
 
-/** `PUT /rungs/:rungId` (admin): renombra, marca o activa y desactiva. */
+/**
+ * `PUT /rungs/:rungId` (admin): renombra, marca unilateral o activa y desactiva.
+ * Fase 201 DA-4: sin `brazosRectos` (Fastify descarta la clave si un admin viejo
+ * la manda).
+ */
 export const updateRungSchema = {
   params: {
     type: "object",
@@ -1471,7 +1493,6 @@ export const updateRungSchema = {
     type: "object",
     properties: {
       name: { type: "string", maxLength: 60 },
-      brazosRectos: { type: "boolean" },
       unilateral: { type: "boolean" },
       isActive: { type: "boolean" },
     },
@@ -1499,9 +1520,22 @@ export const reorderRungsSchema = {
   response: { 200: ladderAdminSchema },
 } as const;
 
+/** Tabla de arranque del body: el contenido se valida en el servicio. */
+const startStepsBodySchema = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      step: { type: "string" },
+      rung: { type: "string" },
+      mode: { type: "string" },
+    },
+  },
+} as const;
+
 /**
- * `PUT /exercises/:exerciseId` (admin). La estructura de `startSteps` y
- * `muscles` se valida en el servicio (detrás del 404, con `code`).
+ * `PUT /exercises/:exerciseId` (admin). La estructura de las tres tablas de
+ * arranque y de `muscles` se valida en el servicio (detrás del 404, con `code`).
  */
 export const updateExerciseSchema = {
   params: {
@@ -1513,17 +1547,10 @@ export const updateExerciseSchema = {
     type: "object",
     properties: {
       name: { type: "string", maxLength: 80 },
-      startSteps: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            step: { type: "string" },
-            rung: { type: "string" },
-            mode: { type: "string" },
-          },
-        },
-      },
+      brazosRectos: { type: "boolean" },
+      startSteps: startStepsBodySchema,
+      startStepsNovillo: startStepsBodySchema,
+      startStepsTernero: startStepsBodySchema,
       muscles: {
         type: "array",
         items: {

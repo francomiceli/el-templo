@@ -37,6 +37,22 @@ export function nextLevel(level: Level): Level | null {
   return LEVELS[index + 1] ?? null;
 }
 
+// ------------------------------------------------------------ modos (anexo §1)
+
+/**
+ * Fase 201 DA-10 / anexo §1: modos posibles de un escalón. Los isométricos
+ * (unidad `s`: Planche hold, Front lever hold) y el hold final solo se hacen en
+ * modo `hold`; los dinámicos, `completa` o `negativa` (la excéntrica de la misma
+ * variante).
+ */
+export function allowedModes(
+  unit: "reps" | "s",
+  step: "e1" | "e2" | "e3" | "hold",
+): ("completa" | "negativa" | "hold")[] {
+  if (step === "hold" || unit === "s") return ["hold"];
+  return ["completa", "negativa"];
+}
+
 // ----------------------------------------------------------------- umbrales
 
 /** §5: molestia reportada desde este valor dispara la alerta roja. */

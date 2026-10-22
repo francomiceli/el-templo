@@ -55,6 +55,7 @@ import {
   type MemberContext,
 } from "./history-loader";
 import {
+  allowedModes,
   levelHasCombos,
   openingTarget,
   saturdayPlan,
@@ -91,6 +92,11 @@ export interface TodayStep {
   rungId: number;
   rungName: string;
   mode: "completa" | "negativa" | "hold";
+  /**
+   * Fase 201 DA-10 / anexo §1: modos que ofrece el desplegable. Los de la regla
+   * y, al final, el modo actual si es un dato viejo fuera de la regla.
+   */
+  modes: ("completa" | "negativa" | "hold")[];
   target: number | null;
   estado: Estado | null;
   value: number;
@@ -210,6 +216,15 @@ function incrementFor(mctx: MemberContext, unit: Unit): number {
   return unit === "reps" ? mctx.member.incReps : mctx.member.incS;
 }
 
+/** DA-10: modos permitidos + el actual al final si quedó fuera de la regla. */
+function modesFor(
+  unit: Unit,
+  stepRow: Pick<ConquerStepRow, "step" | "mode">,
+): TodayStep["modes"] {
+  const modes = allowedModes(unit, stepRow.step);
+  return modes.includes(stepRow.mode) ? modes : [...modes, stepRow.mode];
+}
+
 /**
  * Objetivo, estado y contador de un escalón (§4.4, S12-2, D-18). Los counted
  * (e1-e3) parten del objetivo del motor; el hold no tiene objetivo y precarga
@@ -250,6 +265,7 @@ export function computeTodayStep(
     rungId: stepRow.rungId,
     rungName: rung?.name ?? "",
     mode: stepRow.mode,
+    modes: modesFor(exercise.unit, stepRow),
     target,
     estado,
     value: saved ?? preload,

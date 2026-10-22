@@ -1,12 +1,14 @@
 // Módulo: conquer — edición del catálogo desde el admin (Fase 201 D-14, D-20, §8.1)
 //
 // Lo que Nacho valida en la prueba se edita SIN tocar código: escaleras y
-// peldaños (renombrar, brazos rectos, unilateral, agregar, desactivar,
-// reordenar), tabla de arranque y zonas de cada ejercicio, y las plantillas de
-// 2, 3 y 4 días. El catálogo nunca queda inconsistente:
+// peldaños (renombrar, unilateral, agregar, desactivar, reordenar), marca de
+// brazos rectos, las TRES tablas de arranque (Toro, Novillo, Ternero) y zonas de
+// cada ejercicio, y las plantillas de 2, 3 y 4 días. El catálogo nunca queda
+// inconsistente:
 //
 //   - un peldaño NUNCA se borra (el historial lo referencia): se desactiva;
-//   - no se desactiva un peldaño que usa la tabla de arranque de un ejercicio;
+//   - no se desactiva un peldaño que usa alguna tabla de arranque de un ejercicio
+//     (en la escalera de su escalón) ni el de arranque de los combos;
 //   - cada escalera conserva al menos un peldaño activo;
 //   - un ejercicio aparece UNA sola vez entre los días de la misma plantilla
 //     (`conquer_steps` se identifica por ejercicio, no por día);
@@ -16,7 +18,7 @@
 // Los alumnos reciben los escalones nuevos de forma perezosa
 // (`ensureStepsForPlan` en `loadMemberContext`). Las mutaciones corren en una
 // transacción con el FOR UPDATE primero y devuelven la vista ya actualizada.
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, ne, or } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import {
@@ -31,14 +33,17 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
+import { DEFAULT_COMBO_RUNG_CODE, COMBO_LADDER_CODE } from "./combos";
 import {
   loadCatalog,
+  stepLadderId,
   type ExerciseView,
   type LadderView,
   type RungView,
   type TemplateDayView,
 } from "./catalog-service";
 import { CONQUER_ZONES, ZONE_LABELS, isConquerZone } from "./lighting";
+import { allowedModes } from "./rules";
 
 type DbInstance = MySql2Database<typeof schema>;
 type Tx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
@@ -47,12 +52,9 @@ type Tx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
 /**
  * Peldaño del editor: `inUse` = algún escalón de algún alumno apunta a él.
- * 201-25 DA-4: `RungView` ya no trae `brazosRectos` (la marca vive en el
- * ejercicio). El editor lo sigue mostrando de la columna del peldaño hasta que
- * el plan 201-26 rehaga el catálogo del admin.
+ * 201-25 DA-4: la marca de brazos rectos vive en el ejercicio, no en el peldaño.
  */
 export interface RungAdminView extends RungView {
-  brazosRectos: boolean;
   inUse: boolean;
 }
 
@@ -61,8 +63,14 @@ export interface LadderAdminView extends Omit<LadderView, "rungs"> {
   rungs: RungAdminView[];
 }
 
+/**
+ * Ejercicio del editor. `ExerciseView` ya trae `holdLadderId`, `brazosRectos` y
+ * las tablas de arranque de Novillo y Ternero (`[]` = no cargada, DA-5).
+ */
 export interface ExerciseAdminView extends ExerciseView {
   ladderCode: string;
+  /** Código de la escalera de hold (`null` = el hold usa la de E1-E3). */
+  holdLadderCode: string | null;
 }
 
 export interface CatalogAdminView {
@@ -129,21 +137,6 @@ async function loadRungsInUse(
   return new Set(rows.map((r) => r.rungId));
 }
 
-/** Columna `brazos_rectos` de cada peldaño (provisorio hasta el plan 201-26, DA-4). */
-async function loadRungArms(
-  db: DbInstance,
-  ctx: TenantContext,
-): Promise<Map<number, boolean>> {
-  const rows = await db
-    .select({
-      id: schema.conquerRungs.id,
-      brazosRectos: schema.conquerRungs.brazosRectos,
-    })
-    .from(schema.conquerRungs)
-    .where(tenantWhere(schema.conquerRungs, ctx));
-  return new Map(rows.map((r) => [r.id, r.brazosRectos]));
-}
-
 /**
  * Catálogo completo para el editor del admin (§8.1, D-14): escaleras con sus
  * peldaños, ejercicios, plantillas y las 15 zonas.
@@ -152,17 +145,15 @@ export async function getCatalogForAdmin(
   db: DbInstance,
   ctx: TenantContext,
 ): Promise<CatalogAdminView> {
-  const [catalog, inUse, arms] = await Promise.all([
+  const [catalog, inUse] = await Promise.all([
     loadCatalog(db, ctx),
     loadRungsInUse(db, ctx),
-    loadRungArms(db, ctx),
   ]);
   const ladders: LadderAdminView[] = [...catalog.ladders.values()].map(
     (ladder) => ({
       ...ladder,
       rungs: ladder.rungs.map((rung) => ({
         ...rung,
-        brazosRectos: arms.get(rung.id) ?? false,
         inUse: inUse.has(rung.id),
       })),
     }),
@@ -171,6 +162,10 @@ export async function getCatalogForAdmin(
     (exercise) => ({
       ...exercise,
       ladderCode: catalog.ladders.get(exercise.ladderId)?.code ?? "",
+      holdLadderCode:
+        exercise.holdLadderId === null
+          ? null
+          : (catalog.ladders.get(exercise.holdLadderId)?.code ?? null),
     }),
   );
   return {
@@ -248,7 +243,6 @@ async function lockLadder(
 
 export interface CreateRungBody {
   name: string;
-  brazosRectos: boolean;
   unilateral: boolean;
 }
 
@@ -289,7 +283,6 @@ export async function createRung(
         code,
         name,
         position,
-        brazosRectos: body.brazosRectos,
         unilateral: body.unilateral,
       }),
     );
@@ -299,12 +292,23 @@ export async function createRung(
 
 export interface UpdateRungBody {
   name?: string;
-  brazosRectos?: boolean;
   unilateral?: boolean;
   isActive?: boolean;
 }
 
-/** 409 si el peldaño es parte de la tabla de arranque de un ejercicio de su escalera. */
+/** Las tres tablas de arranque de un ejercicio (anexo §3) con su nombre de nivel. */
+const START_TABLES = [
+  { key: "startSteps", level: "Toro" },
+  { key: "startStepsNovillo", level: "Novillo" },
+  { key: "startStepsTernero", level: "Ternero" },
+] as const;
+
+/**
+ * 409 si el peldaño es parte de CUALQUIER tabla de arranque (Toro, Novillo o
+ * Ternero) de un ejercicio cuya escalera para ese escalón es la del peldaño
+ * (E1-E3 usan `ladder_id`, el hold usa `hold_ladder_id ?? ladder_id`, DA-3), o
+ * si es el arranque de los combos (DA-5, anexo §6: "straddle" de la palanca).
+ */
 async function assertNotInStartSteps(
   tx: Tx,
   ctx: TenantContext,
@@ -313,23 +317,64 @@ async function assertNotInStartSteps(
   const exercises = await tx
     .select({
       name: schema.conquerExercises.name,
+      ladderId: schema.conquerExercises.ladderId,
+      holdLadderId: schema.conquerExercises.holdLadderId,
       startSteps: schema.conquerExercises.startSteps,
+      startStepsNovillo: schema.conquerExercises.startStepsNovillo,
+      startStepsTernero: schema.conquerExercises.startStepsTernero,
     })
     .from(schema.conquerExercises)
     .where(
       and(
         tenantWhere(schema.conquerExercises, ctx),
-        eq(schema.conquerExercises.ladderId, rung.ladderId),
+        or(
+          eq(schema.conquerExercises.ladderId, rung.ladderId),
+          eq(schema.conquerExercises.holdLadderId, rung.ladderId),
+        ),
       ),
     );
-  const using = exercises.find(
-    (e) =>
-      Array.isArray(e.startSteps) &&
-      e.startSteps.some((s) => s.rung === rung.code),
-  );
-  if (using) {
+  for (const exercise of exercises) {
+    for (const table of START_TABLES) {
+      const steps = exercise[table.key];
+      const hit = Array.isArray(steps)
+        ? steps.find(
+            (s) =>
+              s.rung === rung.code &&
+              stepLadderId(exercise, s.step) === rung.ladderId,
+          )
+        : undefined;
+      if (hit) {
+        throw new AppError(
+          `El peldaño "${rung.name}" es un escalón de arranque de "${exercise.name}" (${table.level}): cambiá primero la tabla de arranque`,
+          409,
+          "CONQUER_PELDANO_EN_ARRANQUE",
+        );
+      }
+    }
+  }
+  await assertNotComboStart(tx, ctx, rung);
+}
+
+/** 409 si el peldaño es el de arranque de los combos de Toro (T-201-98). */
+async function assertNotComboStart(
+  tx: Tx,
+  ctx: TenantContext,
+  rung: { ladderId: number; code: string; name: string },
+): Promise<void> {
+  if (rung.code !== DEFAULT_COMBO_RUNG_CODE) return;
+  const [ladder] = await tx
+    .select({ code: schema.conquerLadders.code })
+    .from(schema.conquerLadders)
+    .where(
+      and(
+        tenantWhere(schema.conquerLadders, ctx),
+        eq(schema.conquerLadders.id, rung.ladderId),
+      ),
+    )
+    .limit(1);
+  if (ladder?.code === COMBO_LADDER_CODE) {
     throw new AppError(
-      `El peldaño "${rung.name}" es un escalón de arranque de "${using.name}": cambiá primero la tabla de arranque`,
+      `El peldaño "${rung.name}" es el arranque de los combos: no se puede desactivar`,
       409,
       "CONQUER_PELDANO_EN_ARRANQUE",
     );
@@ -364,7 +409,7 @@ async function assertOtherActiveRung(
 }
 
 /**
- * Renombra, marca brazos rectos / unilateral o activa y desactiva un peldaño.
+ * Renombra, marca unilateral o activa y desactiva un peldaño.
  * Nunca se borra (T-201-51): desactivar es la única baja.
  */
 export async function updateRung(
@@ -377,7 +422,6 @@ export async function updateRung(
   if (body.name !== undefined) {
     set.name = cleanText(body.name, 60, "El nombre del peldaño");
   }
-  if (body.brazosRectos !== undefined) set.brazosRectos = body.brazosRectos;
   if (body.unilateral !== undefined) set.unilateral = body.unilateral;
   if (body.isActive !== undefined) set.isActive = body.isActive;
   if (Object.keys(set).length === 0) {
@@ -506,21 +550,36 @@ export async function reorderRungs(
 
 export interface UpdateExerciseBody {
   name?: string;
+  /** Marca de brazos rectos del ejercicio (anexo §1): decide el texto de fallo. */
+  brazosRectos?: boolean;
   /** Se valida en el servicio (4 escalones, peldaños activos de la escalera). */
   startSteps?: unknown;
+  /** Tabla de Novillo (anexo §3): misma validación que `startSteps`. */
+  startStepsNovillo?: unknown;
+  /** Tabla de Ternero (anexo §3): misma validación que `startSteps`. */
+  startStepsTernero?: unknown;
   /** Se valida en el servicio (zonas del mapa, al menos una principal). */
   muscles?: unknown;
 }
 
+/** Escalera y unidad del ejercicio que validan una tabla de arranque. */
+interface StartTableOwner {
+  ladderId: number;
+  holdLadderId: number | null;
+  unit: ExerciseView["unit"];
+}
+
 /**
- * Tabla de arranque (§8.2): exactamente 4 escalones (e1, e2, e3, hold, sin
- * repetir), cada `rung` = `code` de un peldaño ACTIVO de la escalera del
- * ejercicio y `mode` válido. El `hold` va siempre con modo "hold". Se guarda
+ * Tabla de arranque (§8.2, anexo §3): exactamente 4 escalones (e1, e2, e3, hold,
+ * sin repetir). Fase 201 DA-3/DA-10: cada `rung` = `code` de un peldaño ACTIVO de
+ * la escalera de SU escalón (`stepLadderId`: el hold usa la de hold) y cada
+ * `mode` está entre los `allowedModes` del escalón (anexo §1). Se guarda
  * ordenado e1, e2, e3, hold y solo con las 3 claves del contrato.
  */
 function validateStartSteps(
   raw: unknown,
-  activeCodes: Set<string>,
+  owner: StartTableOwner,
+  activeCodesByLadder: ReadonlyMap<number, Set<string>>,
 ): ConquerStartStep[] {
   if (!Array.isArray(raw) || raw.length !== CONQUER_STEP_KEYS.length) {
     throw catalogError(
@@ -542,7 +601,9 @@ function validateStartSteps(
         `El escalón ${step} está repetido en la tabla de arranque`,
       );
     }
-    if (typeof rung !== "string" || !activeCodes.has(rung)) {
+    const stepKey = step as ConquerStartStep["step"];
+    const active = activeCodesByLadder.get(stepLadderId(owner, stepKey));
+    if (typeof rung !== "string" || !active?.has(rung)) {
       throw catalogError(
         `El peldaño del escalón ${step} no existe o no está activo en la escalera de este ejercicio`,
       );
@@ -553,14 +614,15 @@ function validateStartSteps(
     ) {
       throw catalogError(`El modo del escalón ${step} no es válido`);
     }
-    if (step === "hold" && mode !== "hold") {
-      throw catalogError('El escalón hold tiene que ir con modo "hold"');
+    const modeKey = mode as ConquerStartStep["mode"];
+    if (!allowedModes(owner.unit, stepKey).includes(modeKey)) {
+      throw catalogError(
+        step === "hold"
+          ? 'El escalón hold tiene que ir con modo "hold"'
+          : `El modo del escalón ${step} no corresponde a este ejercicio`,
+      );
     }
-    byStep.set(step, {
-      step: step as ConquerStartStep["step"],
-      rung,
-      mode: mode as ConquerStartStep["mode"],
-    });
+    byStep.set(step, { step: stepKey, rung, mode: modeKey });
   }
   return CONQUER_STEP_KEYS.map((key) => byStep.get(key)).filter(
     (s): s is ConquerStartStep => s !== undefined,
@@ -621,9 +683,17 @@ async function activeRungCodes(
   return new Set(rows.map((r) => r.code));
 }
 
+/** Las tres tablas editables con la clave del body y la columna que guardan. */
+const START_TABLE_FIELDS = [
+  { body: "startSteps", column: "startSteps" },
+  { body: "startStepsNovillo", column: "startStepsNovillo" },
+  { body: "startStepsTernero", column: "startStepsTernero" },
+] as const;
+
 /**
- * Edita nombre, tabla de arranque y zonas de un ejercicio (D-14, D-20). La
- * unidad y la escalera NO se editan (consistencia del historial).
+ * Edita nombre, marca de brazos rectos, las tres tablas de arranque y las zonas
+ * de un ejercicio (D-14, D-20, anexo §1 y §3). La unidad y las escaleras NO se
+ * editan (consistencia del historial).
  */
 export async function updateExercise(
   db: DbInstance,
@@ -633,14 +703,21 @@ export async function updateExercise(
 ): Promise<ExerciseAdminView> {
   if (
     body.name === undefined &&
+    body.brazosRectos === undefined &&
     body.startSteps === undefined &&
+    body.startStepsNovillo === undefined &&
+    body.startStepsTernero === undefined &&
     body.muscles === undefined
   ) {
     throw catalogError("No hay nada para cambiar");
   }
   await db.transaction(async (tx) => {
     const [exercise] = await tx
-      .select({ ladderId: schema.conquerExercises.ladderId })
+      .select({
+        ladderId: schema.conquerExercises.ladderId,
+        holdLadderId: schema.conquerExercises.holdLadderId,
+        unit: schema.conquerExercises.unit,
+      })
       .from(schema.conquerExercises)
       .where(
         and(
@@ -656,11 +733,14 @@ export async function updateExercise(
     if (body.name !== undefined) {
       set.name = cleanText(body.name, 80, "El nombre del ejercicio");
     }
-    if (body.startSteps !== undefined) {
-      set.startSteps = validateStartSteps(
-        body.startSteps,
-        await activeRungCodes(tx, ctx, exercise.ladderId),
-      );
+    if (body.brazosRectos !== undefined) set.brazosRectos = body.brazosRectos;
+    if (START_TABLE_FIELDS.some((f) => body[f.body] !== undefined)) {
+      const activeCodes = await activeCodesOfExercise(tx, ctx, exercise);
+      for (const field of START_TABLE_FIELDS) {
+        const raw = body[field.body];
+        if (raw === undefined) continue;
+        set[field.column] = validateStartSteps(raw, exercise, activeCodes);
+      }
     }
     if (body.muscles !== undefined) set.muscles = validateMuscles(body.muscles);
 
@@ -678,6 +758,23 @@ export async function updateExercise(
   const updated = exercises.find((e) => e.id === exerciseId);
   if (!updated) throw exerciseNotFound();
   return updated;
+}
+
+/** Peldaños activos de la escalera de E1-E3 y de la de hold (si es otra). */
+async function activeCodesOfExercise(
+  tx: Tx,
+  ctx: TenantContext,
+  exercise: { ladderId: number; holdLadderId: number | null },
+): Promise<Map<number, Set<string>>> {
+  const ladderIds = new Set([
+    exercise.ladderId,
+    exercise.holdLadderId ?? exercise.ladderId,
+  ]);
+  const out = new Map<number, Set<string>>();
+  for (const ladderId of ladderIds) {
+    out.set(ladderId, await activeRungCodes(tx, ctx, ladderId));
+  }
+  return out;
 }
 
 // ── Plantillas ──────────────────────────────────────────────────────

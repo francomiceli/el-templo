@@ -31,6 +31,7 @@ import {
   markKey,
   type MemberContext,
 } from "./history-loader";
+import { allowedModes } from "./rules";
 import { computeTodayStep, type TodayStep } from "./today-service";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -99,7 +100,7 @@ export async function lockStep(
 /**
  * Cambia peldaño y/o modo del escalón `(exerciseId, step)` del alumno.
  * 404 si el alumno no tiene ese escalón (T-201-24); 400 si el peldaño no es de
- * la escalera del ejercicio o está inactivo, o si el hold pide otro modo.
+ * la escalera del ejercicio o está inactivo, o si el modo no corresponde (§1).
  * Devuelve el `TodayStep` recalculado.
  */
 export async function changeStep(
@@ -128,9 +129,17 @@ export async function changeStep(
   ) {
     throw invalidRungError();
   }
-  if (step === "hold" && body.mode !== "hold") {
+  // Fase 201 DA-10 / anexo §1: los isométricos y el hold final solo en modo
+  // hold, los dinámicos completa o negativa. Un escalón que ya tiene un modo
+  // fuera de la regla (dato viejo) se tolera mientras el pedido no lo cambie.
+  if (
+    body.mode !== current.mode &&
+    !allowedModes(exercise.unit, step).includes(body.mode)
+  ) {
     throw new AppError(
-      "El hold final siempre se hace en modo hold",
+      step === "hold"
+        ? "El hold final siempre se hace en modo hold"
+        : "Ese modo no corresponde a este ejercicio",
       400,
       "CONQUER_MODO_INVALIDO",
     );
