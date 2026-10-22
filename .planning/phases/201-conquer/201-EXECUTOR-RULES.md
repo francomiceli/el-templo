@@ -299,3 +299,7 @@ con preguntas.
   comparador de 226 px y tabla de 4 columnas del control, letras griegas que caen a Georgia (Cormorant sin subset griego),
   y que el sábado de Toro NO muestra mapa muscular (D-13 no define zonas para combos: validación de Nacho).
   Y una sección "Probar en local" (antes de staging): migrar la base LOCAL, levantar API + app + admin, cuentas de prueba.
+- (orquestador, 2026-10-22, cierre de hallazgos del UAT local) 201-25/26 alinean el catálogo con `.docs/conquer-catalogo.md`
+  (anexo de Nacho, fuente de verdad del catálogo). La base LOCAL de Franco ya tiene 0290-0292 aplicadas: la 0293 tiene que
+  correr sobre esa base sin romper (alumno Toro de prueba user 28 ya activado con historial). El orquestador corre
+  `pnpm db:migrate` en local después de 201-25; el ejecutor NO.
