@@ -14,9 +14,13 @@
 
 1. **201-25 HECHO** (`8c0804f40`): la 0293 trae el catálogo del anexo, las tablas de arranque por nivel, la escalera de hold y brazos rectos por ejercicio. Verificado (`tsc`, `lint:tenant`, oráculo con ANEXO OK) y **0293 aplicada en la base local**.
 2. **Ejecutar 201-26**, con `gsd-executor` en sonnet y el mismo prompt que los anteriores. Cubre modos, tope, recorte, frases de las alertas, textos del app, admin y validaciones de Nacho. **Hasta que se ejecute, CI queda en rojo** por `catalog-admin.test.ts` y la pantalla de Ajustes del admin, que todavía lee `ranges.startOffset*`. Los SUMMARYs de 201-25 y 201-26 tienen las trampas.
-3. **Planes de los hallazgos 1 y 2 (201-27 en adelante):** un planner los estaba escribiendo en `/tmp/claude-1000/-home-franco-projects-el-templo/5d3b23a4-76b2-4a15-9505-253a22bfe220/scratchpad/plans/`.
-   - Si los archivos existen, revisarlos, copiarlos a esta carpeta, commitearlos y ejecutarlos después de 201-26.
-   - Si no existen, relanzar `gsd-planner` con este pedido: variante B del sketch 022 con las fuentes de la app en todo; aplicar a todas las pantallas Conquer del app (reemplazar `CqSky`, nubes y sol); guía de 6 pantallas con los textos del anexo §9, que se muestra una vez después del día 0 y queda en "¿Cómo funciona?" en Inicio; "ya la vio" guardado en el API; migración libre después de la 0293; checkpoint visual final en local.
+3. **Planes de los hallazgos 1 y 2: escritos y commiteados (201-27 a 201-35)**, en cadena después de 201-26.
+   - 201-27: API y datos de la guía, con la mig **0294** `conquer_members.guide_seen_at`. Después de ejecutarlo, correr `pnpm db:migrate` en local.
+   - 201-28 a 201-33: base visual B y migración de pantallas, una por plan (Bloqueado, Guía, Inicio/Niveles, Hoy/Sábado, Progreso, Control/Evolución).
+   - 201-34: borra `CqSky`/`CqSun`/`CqCloudButton`.
+   - 201-35: barrido final y checkpoint visual de Franco en local.
+   - **Antes de 201-28**, actualizar en `201-EXECUTOR-RULES.md` la sección "Estética (D-09/D-22)" y la lección de 201-16 sobre `CqSky`, que quedan superadas por la variante B. Las fuentes son las de la app: Geologica para el texto y las letras griegas, Montserrat para títulos y números, Cinzel solo en los kickers.
+   - Preguntas para Franco en 201-35: ¿Cinzel cuenta como fuente de la app? ¿La puerta "Conquer" de Entrenar sigue marrón? ¿Queda la portada de Bloqueado con la ilustración de Nacho, que tiene cielo?
 4. **Verificación del orquestador después de cada plan:** `/tmp/.../scratchpad/verify201.sh front` puede no existir. Si falta, correr a mano: `git status` vacío, `npx tsc --noEmit` y `pnpm lint:tenant` en la API, y `pnpm lint` más `vue-tsc` filtrado (binario en `et-195-seo/el-templo-web`) en app y admin. Sumar las lecciones al final de `201-EXECUTOR-RULES.md`.
 5. **UAT local otra vez** con Franco. Paso a paso y con pasos cortos.
 6. Con el OK de Franco: push a staging (preguntar antes), CI verde y después el UAT de Nacho.
