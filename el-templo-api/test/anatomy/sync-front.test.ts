@@ -8,6 +8,12 @@
 // slugs de `ZoneSlug` y los grupos de `ZONE_GROUPS` contra `REGIONES` y
 // `GRUPOS_ZONA`.
 //
+// Y los tipos espejo del payload (WR-03): `types/anatomy.ts` del admin y
+// `modules/anatomy/types.ts` del app repiten a mano las interfaces de
+// `serializers.ts` / `zone-hits.ts`. CI no typechequea los frontends, asi que un
+// campo nuevo en el API se perderia en silencio: aca se compara el payload real
+// contra las propiedades de cada interfaz espejo.
+//
 // FAIL-CLOSED: si una copia no se puede leer, el test FALLA con el path en el
 // mensaje (no hay skip silencioso).
 import { describe, it, expect } from "vitest";
@@ -17,6 +23,7 @@ import { ROUTE_LABELS } from "../../src/modules/tv/route-labels";
 import { RUTAS } from "../../src/modules/anatomy/content/rutas";
 import { REGIONES } from "../../src/modules/anatomy/content/regiones";
 import { GRUPOS_ZONA } from "../../src/modules/anatomy/projection";
+import { vistaAlumno, vistaProfe } from "../../src/modules/anatomy/serializers";
 
 // Clave (con o sin comillas) -> valor entre comillas simples o dobles. Acepta
 // el estilo de cada copia (la del API ya trae comillas simples, la de app y
@@ -206,5 +213,167 @@ describe("anatomy/sync-front — espejo de zonas del app", () => {
     expect(gruposApp.piernas).toContain("tibialis");
     expect(noMusculares).not.toContain("tibialis");
     expect(noMusculares).toHaveLength(7);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tipos espejo del payload (WR-03): cada interfaz del admin y del app tiene que
+// declarar todas las claves que el API manda de verdad, y ninguna requerida de
+// mas. Se lee el .ts espejo como texto (estatico, sin importar el front) y se
+// compara contra el payload real de `vistaProfe` / `vistaAlumno`.
+// ---------------------------------------------------------------------------
+
+interface PropiedadTipo {
+  nombre: string;
+  opcional: boolean;
+}
+
+function leerEspejo(filePath: string): string {
+  try {
+    return readFileSync(filePath, "utf-8");
+  } catch (err: unknown) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `sync-front: no se pudo leer ${filePath} (${reason}) — el espejo ` +
+        `no existe o el path relativo cambió`,
+    );
+  }
+}
+
+/** Propiedades de primer nivel de `export interface <nombre> { ... }` (indentadas con 2 espacios). */
+function propiedadesDe(
+  contenido: string,
+  interfaz: string,
+  origen: string,
+): PropiedadTipo[] {
+  const cuerpo = new RegExp(
+    `export interface ${interfaz}\\b[^{]*\\{\\n([\\s\\S]*?)\\n\\}`,
+  ).exec(contenido);
+  if (!cuerpo) {
+    throw new Error(
+      `sync-front: ${origen} no declara "export interface ${interfaz}"`,
+    );
+  }
+  return [
+    ...cuerpo[1].matchAll(/^ {2}(?:readonly\s+)?([A-Za-z_]\w*)(\?)?:/gm),
+  ].map((m) => ({ nombre: m[1], opcional: m[2] === "?" }));
+}
+
+function clavesDe(muestras: readonly object[]): Set<string> {
+  return new Set(muestras.flatMap((m) => Object.keys(m)));
+}
+
+describe("anatomy/sync-front — tipos espejo del payload (WR-03)", () => {
+  const adminPath = path.resolve(
+    __dirname,
+    "../../../el-templo-admin/src/types/anatomy.ts",
+  );
+  const appPath = path.resolve(
+    __dirname,
+    "../../../el-templo-app/src/modules/anatomy/types.ts",
+  );
+  const zoneHitsPath = path.resolve(
+    __dirname,
+    "../../src/modules/anatomy/zone-hits.ts",
+  );
+  const admin = leerEspejo(adminPath);
+  const app = leerEspejo(appPath);
+  const zoneHits = leerEspejo(zoneHitsPath);
+
+  const profe = vistaProfe(new Map());
+  const alumno = vistaAlumno();
+
+  interface Caso {
+    espejo: "admin" | "app";
+    interfaz: string;
+    muestras: readonly object[];
+  }
+
+  const casos: readonly Caso[] = [
+    // Admin: GET /api/admin/anatomy
+    { espejo: "admin", interfaz: "VistaProfe", muestras: [profe] },
+    { espejo: "admin", interfaz: "RegionVista", muestras: profe.regiones },
+    { espejo: "admin", interfaz: "MusculoProfe", muestras: profe.musculos },
+    {
+      espejo: "admin",
+      interfaz: "ZonaMusculo",
+      muestras: profe.musculos.flatMap((m) => (m.zona ? [m.zona] : [])),
+    },
+    { espejo: "admin", interfaz: "RutaProfe", muestras: profe.rutas },
+    {
+      espejo: "admin",
+      interfaz: "RelacionVista",
+      muestras: profe.rutas.flatMap((r) => Object.values(r.relaciones).flat()),
+    },
+    { espejo: "admin", interfaz: "BanderaProfe", muestras: profe.banderas },
+    {
+      espejo: "admin",
+      interfaz: "FichaProfeVista",
+      muestras: profe.rutas.flatMap((r) =>
+        r.fichaProfe ? [r.fichaProfe] : [],
+      ),
+    },
+    {
+      espejo: "admin",
+      interfaz: "GlosarioRol",
+      muestras: profe.glosario.roles,
+    },
+    {
+      espejo: "admin",
+      interfaz: "GlosarioEntrada",
+      muestras: [...profe.glosario.contracciones, ...profe.glosario.precision],
+    },
+    { espejo: "admin", interfaz: "CitaDef", muestras: profe.citas },
+    // App: GET /api/anatomy
+    { espejo: "app", interfaz: "VistaAlumno", muestras: [alumno] },
+    { espejo: "app", interfaz: "RegionAlumno", muestras: alumno.regiones },
+    { espejo: "app", interfaz: "MusculoAlumno", muestras: alumno.musculos },
+    {
+      espejo: "app",
+      interfaz: "ZonaMusculoAlumno",
+      muestras: alumno.musculos.flatMap((m) => (m.zona ? [m.zona] : [])),
+    },
+    { espejo: "app", interfaz: "RutaAlumno", muestras: alumno.rutas },
+    {
+      espejo: "app",
+      interfaz: "FichaCortaAlumno",
+      muestras: alumno.rutas.flatMap((r) =>
+        r.fichaCorta ? [r.fichaCorta] : [],
+      ),
+    },
+    { espejo: "app", interfaz: "GrupoAlumnoInfo", muestras: alumno.grupos },
+  ];
+
+  it.each(casos)(
+    "$espejo:$interfaz declara las claves del payload y ninguna requerida de más",
+    (caso) => {
+      const contenido = caso.espejo === "admin" ? admin : app;
+      const origen = caso.espejo === "admin" ? adminPath : appPath;
+      const props = propiedadesDe(contenido, caso.interfaz, origen);
+      const declaradas = props.map((p) => p.nombre);
+      const requeridas = props.filter((p) => !p.opcional).map((p) => p.nombre);
+
+      // Sin muestras el test no probaria nada.
+      expect(caso.muestras.length).toBeGreaterThan(0);
+      const payload = clavesDe(caso.muestras);
+
+      // Una clave nueva del API que el espejo no conoce.
+      expect(
+        [...payload].filter((k) => !declaradas.includes(k)),
+        `${caso.interfaz}: claves del API que faltan en el espejo`,
+      ).toEqual([]);
+      // Una clave requerida del espejo que el API no manda (undefined en runtime).
+      expect(
+        requeridas.filter((k) => !payload.has(k)),
+        `${caso.interfaz}: claves requeridas del espejo que el API no manda`,
+      ).toEqual([]);
+    },
+  );
+
+  it("HitsZona del app tiene las mismas propiedades (y opcionalidad) que el API", () => {
+    const api = propiedadesDe(zoneHits, "HitsZona", zoneHitsPath);
+    const espejo = propiedadesDe(app, "HitsZona", appPath);
+    expect(espejo.length).toBeGreaterThan(0);
+    expect(espejo).toEqual(api);
   });
 });
