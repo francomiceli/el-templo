@@ -85,7 +85,7 @@ export interface BoardResponse {
   members: BoardMember[];
 }
 
-interface BoardRow {
+export interface BoardRow {
   userId: number;
   firstName: string | null;
   lastName: string | null;
@@ -105,10 +105,14 @@ const LIGHT_ORDER: Record<Light, number> = {
   ok: 3,
 };
 
-/** Query 1: alumnos `activo` del gimnasio, con la zona horaria de su sede. */
-async function loadBoardRows(
+/**
+ * Query 1: alumnos `activo` del gimnasio, con la zona horaria de su sede.
+ * `userIds` limita a esos alumnos (la ficha del coach pide uno solo, 201-11).
+ */
+export async function loadBoardRows(
   db: DbInstance,
   ctx: TenantContext,
+  userIds?: number[],
 ): Promise<BoardRow[]> {
   const rows = await db
     .select({
@@ -143,6 +147,10 @@ async function loadBoardRows(
         eq(schema.conquerMembers.status, "activo"),
         isNotNull(schema.conquerMembers.level),
         isNotNull(schema.conquerMembers.daysCount),
+        // `and` descarta el `undefined`: sin `userIds` son todos los alumnos.
+        userIds === undefined
+          ? undefined
+          : inArray(schema.conquerMembers.userId, userIds),
       ),
     );
   const board: BoardRow[] = [];
@@ -307,17 +315,15 @@ function compareMembers(a: BoardMember, b: BoardMember): number {
 }
 
 /**
- * S12-7: todos los alumnos activos del gimnasio ordenados por semáforo (rojo,
- * amarillo, verde, ok y después apellido), en 4 queries fijas.
+ * Queries 2 a 4 y armado en memoria: de las filas de `loadBoardRows` a los
+ * alumnos con sus alertas (guardadas + derivadas) y su semáforo. Sin orden.
  */
-export async function buildBoard(
+export async function buildBoardMembers(
   db: DbInstance,
   ctx: TenantContext,
-): Promise<BoardResponse> {
-  const rows = await loadBoardRows(db, ctx);
-  const counts = { rojo: 0, amarillo: 0, verde: 0, ok: 0, total: 0 };
-  if (rows.length === 0) return { counts, members: [] };
-
+  rows: BoardRow[],
+): Promise<BoardMember[]> {
+  if (rows.length === 0) return [];
   const userIds = rows.map((r) => r.userId);
   const [stored, lastSessions, checks] = await Promise.all([
     loadOpenAlerts(db, ctx, userIds),
@@ -325,7 +331,7 @@ export async function buildBoard(
     loadCheckSummaries(db, ctx, userIds),
   ]);
 
-  const members: BoardMember[] = rows.map((row) => {
+  return rows.map((row) => {
     const today = todayInTz(row.timezone || DEFAULT_TENANT_TIMEZONE);
     const lastSessionDate = lastSessions.get(row.userId) ?? null;
     const alerts: BoardAlert[] = [
@@ -352,8 +358,20 @@ export async function buildBoard(
       alerts,
     };
   });
+}
 
+/**
+ * S12-7: todos los alumnos activos del gimnasio ordenados por semáforo (rojo,
+ * amarillo, verde, ok y después apellido), en 4 queries fijas.
+ */
+export async function buildBoard(
+  db: DbInstance,
+  ctx: TenantContext,
+): Promise<BoardResponse> {
+  const rows = await loadBoardRows(db, ctx);
+  const members = await buildBoardMembers(db, ctx, rows);
   members.sort(compareMembers);
+  const counts = { rojo: 0, amarillo: 0, verde: 0, ok: 0, total: 0 };
   for (const m of members) counts[m.light] += 1;
   counts.total = members.length;
   return { counts, members };

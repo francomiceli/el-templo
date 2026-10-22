@@ -384,3 +384,67 @@ export async function updateAlertStatus(
       ),
     );
 }
+
+/**
+ * Fase 201 §5.1 / §2.2 (T-201-38): el coach aceptó un recorte o confirmó el paso
+ * de nivel, así que cierra las alertas que lo motivaron. Sirve dentro de la
+ * transacción de la acción. Deja `resolved_by = actor` (NUNCA NULL: NULL
+ * significa auto-resuelta y `upsertEventAlert` la reabriría). Solo toca las
+ * `abierta` o `vista`; `alertId` limita a una alerta puntual.
+ */
+export async function resolveAlertsByCoach(
+  db: DbInstance | Tx,
+  ctx: TenantContext,
+  actor: { userId: number },
+  target: {
+    userId: number;
+    types: readonly EventAlertType[];
+    alertId?: number;
+  },
+): Promise<void> {
+  await db
+    .update(schema.conquerAlerts)
+    .set({
+      status: "resuelta",
+      resolvedBy: actor.userId,
+      resolvedAt: sql`NOW()`,
+    })
+    .where(
+      and(
+        tenantWhere(schema.conquerAlerts, ctx),
+        eq(schema.conquerAlerts.userId, target.userId),
+        inArray(schema.conquerAlerts.type, [...target.types]),
+        inArray(schema.conquerAlerts.status, ["abierta", "vista"]),
+        target.alertId === undefined
+          ? undefined
+          : eq(schema.conquerAlerts.id, target.alertId),
+      ),
+    );
+}
+
+/**
+ * T-201-37: la alerta `alertId` tiene que ser de ESE alumno y de uno de los
+ * `types` (molestia o caída al aceptar un recorte). 404 si no, sin distinguir
+ * "no existe" de "es de otro" para no filtrar nada.
+ */
+export async function assertAlertOfMember(
+  db: DbInstance | Tx,
+  ctx: TenantContext,
+  userId: number,
+  alertId: number,
+  types: readonly EventAlertType[],
+): Promise<void> {
+  const [row] = await db
+    .select({ id: schema.conquerAlerts.id })
+    .from(schema.conquerAlerts)
+    .where(
+      and(
+        tenantWhere(schema.conquerAlerts, ctx),
+        eq(schema.conquerAlerts.id, alertId),
+        eq(schema.conquerAlerts.userId, userId),
+        inArray(schema.conquerAlerts.type, [...types]),
+      ),
+    )
+    .limit(1);
+  if (!row) throw alertNotFound();
+}

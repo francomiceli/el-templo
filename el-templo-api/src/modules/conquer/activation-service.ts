@@ -379,6 +379,63 @@ async function selectMemberForUpdate(
   return row;
 }
 
+/** Fila de `conquer_members` de un alumno ACTIVO (con nivel y días ya garantizados). */
+export type ActiveMemberRow = ConquerMemberRow & {
+  level: Level;
+  daysCount: number;
+};
+
+function notActiveError(): AppError {
+  return new AppError(
+    "Ese alumno todavía no tiene Conquer activo",
+    409,
+    "CONQUER_NO_ACTIVO",
+  );
+}
+
+function asActiveMember(row: ConquerMemberRow | undefined): ActiveMemberRow {
+  if (!row) throw new AppError("Alumno de Conquer no encontrado", 404);
+  if (row.status !== "activo" || !row.level || !row.daysCount) {
+    throw notActiveError();
+  }
+  return { ...row, level: row.level, daysCount: row.daysCount };
+}
+
+/**
+ * Primer statement de las acciones del coach (Fase 201 §7.2): bloquea la fila del
+ * alumno (`FOR UPDATE`). 404 si no hay fila en el gimnasio, 409
+ * `CONQUER_NO_ACTIVO` si todavía es un pedido.
+ */
+export async function lockActiveMember(
+  tx: Tx,
+  ctx: TenantContext,
+  userId: number,
+): Promise<ActiveMemberRow> {
+  return asActiveMember(await selectMemberForUpdate(tx, ctx, userId));
+}
+
+/**
+ * Lo mismo sin bloquear, para validar antes de leer (ficha, corrección de
+ * progresiones): 404 si el alumno no es de este gimnasio (T-201-37).
+ */
+export async function requireActiveMember(
+  db: DbInstance,
+  ctx: TenantContext,
+  userId: number,
+): Promise<ActiveMemberRow> {
+  const [row] = await db
+    .select()
+    .from(schema.conquerMembers)
+    .where(
+      and(
+        tenantWhere(schema.conquerMembers, ctx),
+        eq(schema.conquerMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+  return asActiveMember(row);
+}
+
 async function readMemberRow(
   tx: Tx,
   ctx: TenantContext,
@@ -520,15 +577,7 @@ export async function updateMember(
   const today = todayInTz(tz);
 
   return db.transaction(async (tx) => {
-    const row = await selectMemberForUpdate(tx, ctx, userId);
-    if (!row) throw new AppError("Alumno de Conquer no encontrado", 404);
-    if (row.status !== "activo" || !row.level || !row.daysCount) {
-      throw new AppError(
-        "Ese alumno todavía no tiene Conquer activo",
-        409,
-        "CONQUER_NO_ACTIVO",
-      );
-    }
+    const row = await lockActiveMember(tx, ctx, userId);
 
     const level = patch.level ?? row.level;
     const daysCount = patch.daysCount ?? row.daysCount;
