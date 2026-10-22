@@ -9,11 +9,13 @@
         :aria-pressed="day.dayKey === selected"
         @click="emit('select', day.dayKey)"
       >
-        <small>{{ day.done ? 'Hecho' : day.dayKey === nextDayKey ? 'Te toca' : '' }}</small>
-        {{ day.label }}
+        <small class="cq-days__state" :class="{ 'cq-days__state--done': day.done }">{{
+          day.done ? 'Hecho' : day.dayKey === nextDayKey ? 'Te toca' : ''
+        }}</small>
+        <span class="cq-days__label">{{ day.label }}</span>
       </button>
     </div>
-    <div v-if="weekComplete" class="cq-toast cq-days__complete" role="status">
+    <div v-if="weekComplete" class="cq-notice cq-days__complete" role="status">
       Semana completa: podés repetir cualquier día
     </div>
   </div>
@@ -22,8 +24,9 @@
 <script setup lang="ts">
 import type { PlanDayView } from '../../types'
 
-// Fase 201 D-16, §7.1 Hoy (prototipo `.days`): un chip por día del plan. Cada uno dice si ya está
-// hecho; el elegido va resaltado. Con la semana completa se puede repetir cualquiera.
+// Fase 201 D-16, §7.1 Hoy, DA-31 (sketch 022 B `.days`/`.day`): una ficha por día del plan. Arriba el
+// estado ("Hecho", "Te toca" o vacío) y abajo el día; el elegido va en azul noche. Con la semana
+// completa se puede repetir cualquiera. A 390 px entran los 5 días de Toro en una fila.
 withDefaults(
   defineProps<{
     plan: PlanDayView[]
@@ -45,21 +48,17 @@ const emit = defineEmits<{ select: [dayKey: string] }>()
 
   &__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(66px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
     gap: 6px;
   }
 
   &__btn {
-    min-height: 54px;
-    padding: 4px 2px;
-    border-radius: 12px;
-    border: 1px solid var(--cq-hair2);
-    background: transparent;
-    color: var(--cq-cream);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 500;
-    overflow-wrap: anywhere;
+    min-height: 56px;
+    padding: 6px 2px;
+    border-radius: 14px;
+    border: 1px solid var(--cq-edge);
+    background: var(--cq-surface);
+    color: var(--cq-text);
     cursor: pointer;
     display: flex;
     flex-direction: column;
@@ -67,26 +66,42 @@ const emit = defineEmits<{ select: [dayKey: string] }>()
     justify-content: center;
     gap: 2px;
 
-    small {
-      min-height: 12px;
-      font-size: 9.5px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--cq-muted);
-    }
-
     &[aria-pressed='true'] {
-      background: var(--cq-sun);
-      border-color: var(--cq-sun);
-      color: var(--cq-ink);
-
-      small {
-        color: var(--cq-ink2);
-      }
+      background: var(--cq-night);
+      border-color: var(--cq-night);
+      color: var(--cq-on-night-hi);
+      box-shadow: 0 4px 12px rgba(19, 29, 68, 0.25);
     }
   }
 
+  &__state {
+    min-height: 14px;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 14px;
+    color: var(--cq-text-2);
+
+    &--done {
+      color: var(--cq-sage);
+    }
+  }
+
+  &__label {
+    max-width: 100%;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    color: inherit;
+  }
+
+  // El día elegido: texto sobre azul noche (el estado en `--cq-on-night`, el día en `--cq-on-night-hi`)
+  &__btn[aria-pressed='true'] &__state {
+    color: var(--cq-on-night);
+  }
+
   &__complete {
+    justify-content: center;
     text-align: center;
   }
 }

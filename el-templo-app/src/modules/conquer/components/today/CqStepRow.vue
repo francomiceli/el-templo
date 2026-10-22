@@ -1,15 +1,15 @@
 <template>
   <div class="cq-step">
     <div class="cq-step__head">
-      <CqGreek :step="step.step" />
+      <CqGreek :step="step.step" size="md" />
       <div class="cq-step__title">
         <b>{{ isHold ? 'Hold final' : `Escalón ${index}` }}</b>
-        <span>{{ objective }}</span>
+        <span class="cq-sub">{{ objective }}</span>
       </div>
       <span v-if="!isHold" class="cq-chip" :class="chipClass">{{ chip.label }}</span>
     </div>
 
-    <div class="cq-step__sels">
+    <div class="cq-step__sels" :class="{ 'cq-step__sels--one': isHold }">
       <select
         class="cq-select"
         aria-label="Progresión"
@@ -53,7 +53,7 @@ import type { Level, Mode, TodayRung, TodayStep, Unit } from '../../types'
 import CqGreek from '../brand/CqGreek.vue'
 import CqCounter from './CqCounter.vue'
 
-// Fase 201 §1.4, §2, §7.1 Hoy: un escalón de la sesión. Letra griega, objetivo del motor ("objetivo
+// Fase 201 §1.4, §2, §7.1 Hoy, DA-31 (sketch 022 B `.step`): un escalón de la sesión. Letra griega, objetivo del motor ("objetivo
 // 4 reps", "4 por lado" o "al fallo" en el hold), estado, desplegables de progresión y modo, ayuda
 // por nivel y por brazos rectos, y el contador precargado. El app no calcula nada: `step.target`
 // y `step.estado` vienen del API, igual que `step.modes`.
@@ -86,9 +86,7 @@ const emit = defineEmits<{
 
 const isHold = computed(() => props.step.step === 'hold')
 const chip = computed(() => estadoChip(props.step.estado))
-const chipClass = computed(() =>
-  chip.value.tone === 'neutro' ? '' : `cq-chip--${chip.value.tone}`,
-)
+const chipClass = computed(() => `cq-chip--${chip.value.tone}`)
 const failure = computed(() => failureHint(props.step.brazosRectos))
 
 const objective = computed(() => {
@@ -112,9 +110,9 @@ function onModeChange(event: Event): void {
 .cq-step {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 0;
-  border-top: 1px solid var(--cq-hair2);
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--cq-line);
 
   &:first-of-type {
     border-top: 0;
@@ -123,7 +121,9 @@ function onModeChange(event: Event): void {
   &__head {
     display: flex;
     align-items: center;
-    gap: 10px;
+    // El aro de la letra griega sobresale 3 px del disco
+    gap: 13px;
+    padding-left: 3px;
   }
 
   &__title {
@@ -133,32 +133,33 @@ function onModeChange(event: Event): void {
     flex-direction: column;
 
     b {
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    span {
-      font-size: 12px;
-      color: var(--cq-gold);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--cq-text);
     }
   }
 
   &__sels {
-    display: flex;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 8px;
+
+    &--one {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   &__count {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 10px;
   }
 
   &__hint {
     flex: 1;
     min-width: 0;
-    font-size: 12px;
+    line-height: 1.35;
   }
 }
 </style>

@@ -27,8 +27,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-// Fase 201 §7.1 Hoy (prototipo `ctr`): contador − valor + con botones de 48 px (hitbox ≥ 44). El
-// valor se acota entre `min` y `max`; la unidad es opcional ("reps", "s").
+// Fase 201 §7.1 Hoy, DA-31 (sketch 022 B `.ctr`): contador − valor + con botones de 48 px (S12-2,
+// hitbox ≥ 44). El valor se acota entre `min` y `max`; la unidad es opcional ("reps", "s").
 const props = withDefaults(
   defineProps<{
     modelValue: number
@@ -55,44 +55,45 @@ const valueLabel = computed(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: none;
 
   &__pm {
     width: 48px;
     height: 48px;
     flex-shrink: 0;
     padding: 0;
-    border-radius: 50%;
-    border: 1px solid var(--cq-hair);
-    background: transparent;
-    color: var(--cq-gold-hi);
-    font-size: 24px;
+    border-radius: 12px;
+    border: 1.5px solid var(--cq-edge-gold);
+    background: var(--cq-surface);
+    color: var(--cq-night);
+    font-size: 22px;
+    font-weight: 600;
     line-height: 1;
     cursor: pointer;
 
     &:active:not(:disabled) {
-      background: var(--cq-glass);
+      background: var(--cq-sand);
     }
 
     &:disabled {
-      opacity: 0.4;
+      color: var(--cq-text-2);
+      border-color: var(--cq-line);
       cursor: default;
     }
   }
 
   &__val {
-    min-width: 58px;
+    min-width: 68px;
     text-align: center;
-    font-family: var(--cq-display);
-    font-size: 28px;
-    font-weight: 600;
+    font-size: 26px;
     line-height: 1;
-    color: var(--cq-gold-hi);
 
     small {
-      font-size: 14px;
-      font-style: italic;
+      margin-left: 2px;
+      font-family: var(--cq-font-body);
+      font-size: 12px;
       font-weight: 500;
-      color: var(--cq-muted);
+      color: var(--cq-text-2);
     }
   }
 }
