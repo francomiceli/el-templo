@@ -9,8 +9,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-// Fase 201 D-09: el templo de cada ejercicio (prototipo `temple`): tres columnas que se llenan con
-// las series hechas. `filled` va de 0 a 3 (se recorta); `label` es el texto accesible.
+// Fase 201 DA-16: el templo de cada ejercicio (sketch 022 B `.exhead.dk .temple`): tres columnas que
+// se llenan con las series hechas. Se usa SOBRE la pieza oscura (`.cq-dark`): frontón, base y trazo en
+// `--cq-deco-gold`, columna llena en `--cq-on-night-hi`. `filled` va de 0 a 3 (se recorta); `label`
+// es el texto accesible.
 const props = withDefaults(
   defineProps<{
     filled: number
@@ -35,7 +37,7 @@ const accessibleLabel = computed(() => props.label || `${count.value} de 3 serie
   &::before {
     content: '';
     height: 11px;
-    background: var(--cq-gold);
+    background: var(--cq-deco-gold);
     clip-path: polygon(50% 0, 100% 100%, 0 100%);
   }
 
@@ -44,26 +46,27 @@ const accessibleLabel = computed(() => props.label || `${count.value} de 3 serie
     content: '';
     height: 2px;
     margin: 1px -3px 0;
-    background: var(--cq-gold);
+    background: var(--cq-deco-gold);
   }
 
   &__cols {
     display: flex;
     justify-content: space-between;
     padding: 2px 5px 0;
-    border-top: 2px solid var(--cq-gold);
-    border-bottom: 2px solid var(--cq-gold);
+    border-top: 2px solid var(--cq-deco-gold);
+    border-bottom: 2px solid var(--cq-deco-gold);
 
     i {
       width: 8px;
       height: 20px;
-      border: 1px solid var(--cq-gold);
+      border: 1px solid var(--cq-deco-gold);
       display: block;
     }
   }
 
   &__col--on {
-    background: var(--cq-gold);
+    background: var(--cq-on-night-hi);
+    border-color: var(--cq-on-night-hi);
   }
 }
 </style>

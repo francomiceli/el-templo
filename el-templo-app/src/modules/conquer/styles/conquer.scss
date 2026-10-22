@@ -184,6 +184,11 @@
       color: var(--cq-on-night-hi);
     }
 
+    // Icono de nivel (`CqLevelIcon`) y su papel (`--cq-paper`, definido arriba)
+    .cq-level-icon {
+      color: var(--cq-on-night-hi);
+    }
+
     :focus-visible {
       outline-color: var(--cq-on-night-hi);
     }

@@ -20,7 +20,7 @@
         v-if="level === 'toro'"
         d="M28.5 51a3.6 3.6 0 0 0 7 0"
         fill="none"
-        stroke="var(--cq-gold)"
+        stroke="var(--cq-deco-gold)"
         stroke-width="2"
         stroke-linecap="round"
       />
@@ -33,9 +33,10 @@ import { computed } from 'vue'
 import { LEVEL_INFO } from '../../utils/format'
 import type { Level } from '../../types'
 
-// Fase 201 D-09: ícono de cada nivel, la cabeza del toro que crece (prototipo `bull`): Ternero con
-// cuernos chicos, Novillo medianos y Toro grandes y con argolla. Hereda el color del texto
-// (`currentColor`); el "papel" (hocico y ojos) usa `--cq-paper`, que el sol pone en crema.
+// Fase 201 DA-16: ícono de cada nivel, la cabeza del toro que crece (sketch 022 `bull`): Ternero con
+// cuernos chicos, Novillo medianos y Toro grandes y con argolla. Va en azul noche sobre claro y en
+// `--cq-on-night-hi` dentro de `.cq-dark` (regla en `conquer.scss`); el "papel" (hocico y ojos) usa
+// `--cq-paper`, que `.cq-dark` define en azul noche. Sobre claro, el papel es blanco.
 const props = defineProps<{
   level: Level
   size: number
@@ -49,12 +50,13 @@ const HORNS: Record<Level, string> = {
 
 const SCALE: Record<Level, number> = { ternero: 0.82, novillo: 0.92, toro: 1.02 }
 
-const paperStyle = { fill: 'var(--cq-paper, var(--cq-sky2))' }
+const paperStyle = { fill: 'var(--cq-paper, var(--cq-surface))' }
 const transform = computed(() => `translate(32 36) scale(${SCALE[props.level]}) translate(-32 -36)`)
 </script>
 
 <style scoped lang="scss">
 .cq-level-icon {
   flex-shrink: 0;
+  color: var(--cq-night);
 }
 </style>

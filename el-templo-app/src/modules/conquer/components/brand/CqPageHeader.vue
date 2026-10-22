@@ -14,20 +14,19 @@
         <span aria-hidden="true">‹</span>
       </button>
       <div class="cq-page-header__text">
-        <h2 class="cq-display cq-page-header__title">{{ title }}</h2>
-        <div v-if="subtitle" class="cq-ital cq-page-header__subtitle">{{ subtitle }}</div>
+        <h2 class="cq-title">{{ title }}</h2>
+        <p v-if="subtitle" class="cq-sub cq-page-header__subtitle">{{ subtitle }}</p>
       </div>
     </div>
-    <div class="cq-meander" aria-hidden="true" />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
 
-// Fase 201 D-09: cabecera de las pantallas interiores (prototipo `head`): botón atrás de 44 px,
-// título en Cormorant, subtítulo en cursiva y meandro dorado. Con `backTo` el botón es un enlace a
-// esa ruta; sin él emite `back` (para volver entre pantallas que no son rutas).
+// Fase 201 DA-16: cabecera de las pantallas interiores (sketch 022 B `.pghead`): botón atrás de
+// 44 px en azul noche, título `.cq-title` y subtítulo `.cq-sub`, sin meandro. Con `backTo` el botón
+// es un enlace a esa ruta; sin él emite `back` (para volver entre pantallas que no son rutas).
 withDefaults(
   defineProps<{
     title: string
@@ -51,10 +50,12 @@ const emit = defineEmits<{ back: [] }>()
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 12px;
+    gap: 6px;
+    min-width: 0;
   }
 
   &__back {
+    flex: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -64,20 +65,19 @@ const emit = defineEmits<{ back: [] }>()
     padding: 0;
     border: 0;
     background: transparent;
-    color: var(--cq-gold-hi);
-    font-family: var(--cq-display);
-    font-size: 30px;
+    color: var(--cq-night);
+    font-size: 28px;
     line-height: 1;
     text-decoration: none;
     cursor: pointer;
   }
 
-  &__title {
-    font-size: 25px;
+  &__text {
+    min-width: 0;
   }
 
   &__subtitle {
-    margin-top: 3px;
+    margin-top: 2px;
   }
 }
 </style>
