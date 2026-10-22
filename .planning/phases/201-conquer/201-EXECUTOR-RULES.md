@@ -227,3 +227,9 @@ con preguntas.
   `ComboView` → `comboViewSchema`. Sábado: sin `lighting` y zonas vacías al guardar (D-13 no define zonas para combos; el
   app no muestra mapa en el sábado). `opening` llega siempre precargado; el sábado trae `push`/`pull` sin `exercises`.
   Manifiesto: 493 tras 201-10.
+- (201-11) Body de Fastify: `oneOf` + `additionalProperties:false` BORRA en silencio las claves de las otras ramas (Ajv
+  `removeAdditional`): usar schema plano y validar en el servicio. No llamar a `loadMemberContext` después de
+  `lockActiveMember` en la misma tx (puede escribir escalones y trabarse contra el lock): armar el contexto antes, como
+  `applyCut`. Revertir mutantes con `git -C /home/franco/projects/et-201-conquer checkout -- <ruta>` (ruta relativa al
+  repo) y verificar `git status`. Las acciones de la ficha devuelven la `FichaResponse` completa: el admin (201-22)
+  reemplaza su estado con esa respuesta. Manifiesto: 497 tras 201-11.
