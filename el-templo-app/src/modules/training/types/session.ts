@@ -6,6 +6,7 @@
  */
 
 import type { ZoneGroup, ZoneSlug } from 'src/components/anatomy/zones'
+import type { HitsZona } from 'src/modules/anatomy/types'
 
 /**
  * Block role in session structure
@@ -112,6 +113,10 @@ export interface Block {
 
   /** Grupos de zona del bloque (Hombros, Pecho, ...) en el orden de los chips */
   groups?: ZoneGroup[]
+
+  // Fase 200 D17: Hoy en tu clase, calculado por el API (blockToResponse)
+  /** Qué pega el bloque en cada zona (ids de músculos por grupo); opcional: payloads viejos no lo traen */
+  zoneHits?: Partial<Record<ZoneSlug, HitsZona>>
 
   /** Ordered list of exercises in this block */
   exercises: Prescription[]
