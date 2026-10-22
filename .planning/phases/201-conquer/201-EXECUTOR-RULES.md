@@ -176,3 +176,8 @@ con preguntas.
   `CONQUER_UNITS` (`as const`): usarlos, no redeclarar uniones. `conquer_session_steps` solo tiene `created_at`.
   El test de la semilla (201-02) va en el mismo `test/migrations/0290-0292-conquer.test.ts`. Conteos de tenancy tras 201-01:
   114 gym-owned / 119 schema.
+- (201-02) `start_steps` está sembrado como `[{step, rung, mode}]` y `rung` es el **code** del peldaño (`half_lay`,
+  `oap_asistida`), no el nombre del oráculo. `oracle.next(history, unit)` usa E1 de Planche press (`reps`) o Planche hold
+  (`s`); historial vacío → piso (3 reps / 4 s). En `oracle-check.mjs` las secciones nuevas van donde dice
+  "3. motor (lo suma 201-03)", antes del `process.exit(1)` final. Los tests importan `../conquer/oracle` sin extensión.
+  El fixture `conquer-app.html` conserva su `<link>` de Google Fonts (es fixture, no se sirve): no lo toques.
