@@ -258,10 +258,17 @@ const routes: RouteRecordRaw[] = [
       },
       {
         // Conquer (fase 201 D-08): tablero, pedidos y alta para owner/admin. Las tabs viajan en
-        // ?tab=. La ficha (`conquer-alumno`) la suma el plan 201-22. El gate real es el API.
+        // ?tab=. El gate real es el API.
         path: 'conquer',
         name: 'conquer',
         component: () => import('pages/ConquerPage.vue'),
+        meta: { allowedRoles: CONQUER_MANAGER_ROLES },
+      },
+      {
+        // Ficha del alumno de Conquer (fase 201 §7.2): Progreso, Evolución y acciones del coach.
+        path: 'conquer/alumno/:userId',
+        name: 'conquer-alumno',
+        component: () => import('pages/ConquerAlumnoPage.vue'),
         meta: { allowedRoles: CONQUER_MANAGER_ROLES },
       },
       {

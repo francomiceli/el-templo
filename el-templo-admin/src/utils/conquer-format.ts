@@ -3,6 +3,8 @@
  * la ficha. Puros: sin Vue, sin red.
  */
 
+import type { Estado, Mode, Pose, Unit } from 'src/types/conquer';
+
 const DAY_MS = 86_400_000;
 
 /** Número de día (desde 1970) en calendario local, para restar fechas sin lío de horas. */
@@ -40,4 +42,53 @@ export function agoText(days: number): string {
 /** Nombre completo para listas; vacío si el alumno no tiene ni nombre ni apellido. */
 export function fullName(firstName: string, lastName: string): string {
   return `${firstName} ${lastName}`.trim();
+}
+
+/** Etiquetas del estado que calcula el motor (mismo copy que ve el alumno). */
+export const ESTADO_LABELS: Record<Estado, string> = {
+  subir: 'Subir de progresión',
+  techo1: 'Techo 1 de 2',
+  bajo: 'Bajo el piso',
+  rango: 'En rango',
+  sin_datos: 'Sin datos',
+};
+
+export const MODE_LABELS: Record<Mode, string> = {
+  completa: 'Completa',
+  negativa: 'Negativa',
+  hold: 'Hold',
+};
+
+export const POSE_LABELS: Record<Pose, string> = {
+  frente: 'Frente',
+  perfil: 'Perfil',
+  espalda: 'Espalda',
+};
+
+export const POSES: Pose[] = ['frente', 'perfil', 'espalda'];
+
+/** "8 reps", "1 rep", "12 s", "6 por lado". `null` = todavía sin marca. */
+export function markText(value: number | null, unit: Unit, unilateral: boolean): string {
+  if (value === null) return '—';
+  if (unit === 's') return unilateral ? `${value} s por lado` : `${value} s`;
+  if (unilateral) return `${value} por lado`;
+  return value === 1 ? '1 rep' : `${value} reps`;
+}
+
+/** Diferencia con signo para la tabla de medidas: "+2 cm", "-1,5 kg", "sin cambio". */
+export function diffText(diff: number | null, unit: 'cm' | 'kg'): string {
+  if (diff === null) return '—';
+  if (diff === 0) return 'sin cambio';
+  const sign = diff > 0 ? '+' : '-';
+  return `${sign}${String(Math.abs(diff)).replace('.', ',')} ${unit}`;
+}
+
+/** Medida con unidad, o "—" si falta. */
+export function measureText(value: number | null, unit: 'cm' | 'kg'): string {
+  return value === null ? '—' : `${String(value).replace('.', ',')} ${unit}`;
+}
+
+/** Semanas entre dos controles: "1 semana" / "N semanas". */
+export function weeksText(weeks: number): string {
+  return weeks === 1 ? '1 semana' : `${weeks} semanas`;
 }
