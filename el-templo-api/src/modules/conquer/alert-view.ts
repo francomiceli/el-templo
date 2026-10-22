@@ -51,8 +51,15 @@ export async function getBoardAlert(
       ),
     )
     .limit(1);
+  // DA-13: el nombre de pila arma la frase del paso de nivel.
+  const [user] = await db
+    .select({ firstName: schema.users.firstName })
+    .from(schema.users)
+    .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, row.userId)))
+    .limit(1);
   return toBoardAlert(row, {
     level: member?.level ?? "ternero",
     cutStage: member?.cutStage ?? 0,
+    firstName: user?.firstName ?? null,
   });
 }

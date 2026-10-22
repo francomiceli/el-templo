@@ -546,8 +546,28 @@ export const saveSessionSchema = {
           additionalProperties: false,
         },
         calibration: { type: "array", items: calibrationProposalSchema },
+        // Fase 201 DA-14 (anexo §9 `fin_sesion_techo`): escalones que llegaron al techo.
+        techo: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              exerciseName: { type: "string" },
+              step: { type: "string", enum: ["e1", "e2", "e3"] },
+            },
+            required: ["exerciseName", "step"],
+            additionalProperties: false,
+          },
+        },
       },
-      required: ["sessionId", "date", "dayKey", "lighting", "calibration"],
+      required: [
+        "sessionId",
+        "date",
+        "dayKey",
+        "lighting",
+        "calibration",
+        "techo",
+      ],
       additionalProperties: false,
     },
   },
@@ -787,6 +807,8 @@ const boardAlertSchema = {
     kind: { type: "string", enum: [...ALERT_KIND_ENUM] },
     severity: { type: "string", enum: ["rojo", "amarillo", "verde"] },
     label: { type: "string" },
+    // Fase 201 DA-13 / anexo §8: la frase de la alerta con sus datos.
+    text: { type: "string" },
     status: {
       type: ["string", "null"],
       enum: ["abierta", "vista", "resuelta", null],
@@ -808,6 +830,7 @@ const boardAlertSchema = {
     "kind",
     "severity",
     "label",
+    "text",
     "status",
     "createdAt",
     "detail",
@@ -919,8 +942,9 @@ const fichaResponseSchema = {
       },
       progress: progressResponseSchema[200],
       alerts: { type: "array", items: boardAlertSchema },
+      // Fase 201 DA-12: `null` = Toro después de la etapa 5 (anexo §8).
       cutProposal: {
-        type: "object",
+        type: ["object", "null"],
         properties: {
           kind: { type: "string", enum: ["etapa", "bajar_escalon"] },
           stage: { type: "integer" },

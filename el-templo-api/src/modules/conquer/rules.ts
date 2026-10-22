@@ -90,11 +90,17 @@ export type CutProposal =
   | { kind: "bajar_escalon"; label: string };
 
 /**
- * A12: el orden de recorte se propone de a un paso. Toro recorre las etapas 1 a
- * 5 y despues baja un escalon. Ternero y Novillo solo bajan un escalon.
+ * A12 + anexo §8 (Fase 201 DA-12): el orden de recorte se propone de a un paso.
+ * Toro recorre las etapas 1 a 5 y despues NO tiene propuesta (`null`): el paso 6
+ * "bajar una progresion" es solo de Ternero y Novillo, que no tienen etapas.
+ * El anexo manda sobre la sintesis A12.
  */
-export function cutProposal(level: Level, cutStage: number): CutProposal {
-  if (level === "toro" && cutStage < MAX_TORO_CUT_STAGE) {
+export function cutProposal(
+  level: Level,
+  cutStage: number,
+): CutProposal | null {
+  if (level === "toro") {
+    if (cutStage >= MAX_TORO_CUT_STAGE) return null;
     const stage = cutStage + 1;
     return { kind: "etapa", stage, label: CUT_STAGE_LABELS[stage] };
   }

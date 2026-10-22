@@ -13,14 +13,14 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
-import { autoResolveEventAlert, evaluateAfterSave } from "./alerts-service";
+import { evaluateAfterSave } from "./alerts-service";
 import {
   applyComboStateWrites,
   planComboWrites,
   type ComboEntry,
   type ComboWrites,
 } from "./combo-service";
-import { SATURDAY_DAY_KEY } from "./combos";
+import { SATURDAY_DAY_KEY, SATURDAY_LABEL } from "./combos";
 import {
   calibrationProposals,
   type CalibrationProposal,
@@ -48,7 +48,7 @@ import {
 } from "./history-loader";
 import { exerciseWorked, lightZones } from "./lighting";
 import { saturdayPlan } from "./rules";
-import { emitTopeAlert, topeDedupeKey } from "./step-service";
+import { emitTopeAlert } from "./step-service";
 import { computeTodayStep, invalidDayError } from "./today-service";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -84,6 +84,14 @@ export interface SaveSessionResult {
   lighting: { primary: string[]; secondary: string[] };
   /** §4.3: propuestas de calibración de los ejercicios del día (puede ser vacío). */
   calibration: CalibrationProposal[];
+  /** DA-14: escalones que llegaron al techo por primera vez (el sábado, vacío). */
+  techo: TechoStep[];
+}
+
+/** Un escalón E1-E3 en `techo1` al guardar (anexo §9 `fin_sesion_techo`). */
+export interface TechoStep {
+  exerciseName: string;
+  step: CountedStep;
 }
 
 type SessionStepInsert = Omit<
@@ -259,9 +267,11 @@ async function settleCalibration(
 }
 
 /**
- * A2 / §5: un escalón E1-E3 en `subir` sin peldaño más difícil avisa al coach
- * (una alerta por ejercicio, escalón y peldaño: T-201-28). Si el escalón está en
- * el tope pero ya no está en `subir`, la alerta se auto-resuelve.
+ * A2 / §5 + Fase 201 DA-11 (b): un escalón E1-E3 que está en el peldaño más
+ * difícil y pide `subir` avisa al coach (una alerta por ejercicio, escalón y
+ * peldaño: T-201-28). Cubre al Toro que arranca en el tope. Ya NO se auto-resuelve
+ * por guardar sin `subir`: la alerta se cierra cuando el escalón deja el peldaño
+ * (`syncTopeOnRungChange`, step-service).
  */
 async function syncTopeAlerts(
   tx: Tx,
@@ -286,15 +296,31 @@ async function syncTopeAlerts(
       const { estado } = computeTodayStep(mctx, exercise, row, marksAfter);
       if (estado === "subir" && rung) {
         await emitTopeAlert(tx, ctx, mctx.userId, exercise, step, rung);
-      } else {
-        await autoResolveEventAlert(tx, ctx, {
-          userId: mctx.userId,
-          type: "tope_escalera",
-          dedupeKey: topeDedupeKey(exercise.id, step, row.rungId),
-        });
       }
     }
   }
+}
+
+/**
+ * Fase 201 DA-14 / anexo §9 (`fin_sesion_techo`): escalones E1-E3 del día que con
+ * las marcas recién guardadas llegaron al techo por primera vez (`techo1`: si lo
+ * repite, sube). El app no recalcula el motor: pinta esta lista.
+ */
+function techoSteps(
+  mctx: MemberContext,
+  matched: Matched,
+  marksAfter: ReadonlyMap<string, MarkRow[]>,
+): TechoStep[] {
+  const out: TechoStep[] = [];
+  for (const { exercise } of matched) {
+    for (const step of COUNTED) {
+      const row = mctx.steps.get(markKey(exercise.id, step));
+      if (!row) continue;
+      const { estado } = computeTodayStep(mctx, exercise, row, marksAfter);
+      if (estado === "techo1") out.push({ exerciseName: exercise.name, step });
+    }
+  }
+  return out;
 }
 
 /** Sesión ya guardada hoy para ese día, si existe. */
@@ -368,6 +394,8 @@ interface PersistInput {
   rows: SessionStepInsert[];
   marksAfter: ReadonlyMap<string, MarkRow[]>;
   combos: ComboWrites;
+  /** DA-13: rótulo del día para la frase de la alerta de molestia. */
+  dayLabel: string;
 }
 
 /**
@@ -382,7 +410,8 @@ async function persistSession(
   mctx: MemberContext,
   input: PersistInput,
 ): Promise<{ sessionId: number; calibration: CalibrationProposal[] }> {
-  const { date, dayKey, pain, matched, rows, marksAfter, combos } = input;
+  const { date, dayKey, pain, matched, rows, marksAfter, combos, dayLabel } =
+    input;
   let sessionId = null as number | null;
   let calibration: CalibrationProposal[] = [];
   await db.transaction(async (tx) => {
@@ -446,6 +475,7 @@ async function persistSession(
         sessionId: savedId,
         date,
         dayKey,
+        dayLabel,
         pain,
         exerciseIds: matched.map(({ exercise }) => exercise.id),
       },
@@ -492,6 +522,7 @@ export async function saveSession(
     rows,
     marksAfter,
     combos,
+    dayLabel: day === null ? SATURDAY_LABEL : day.label,
   });
 
   // D-13 (a): zonas que se encendieron hoy (cada ejercicio con E1-E3 > 0).
@@ -501,5 +532,12 @@ export async function saveSession(
       worked: exerciseWorked(entry),
     })),
   );
-  return { sessionId, date, dayKey, lighting, calibration };
+  return {
+    sessionId,
+    date,
+    dayKey,
+    lighting,
+    calibration,
+    techo: techoSteps(mctx, matched, marksAfter),
+  };
 }

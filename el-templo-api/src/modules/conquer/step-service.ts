@@ -11,7 +11,7 @@ import * as schema from "../../db/schema";
 import type { ConquerMode, ConquerStepRow } from "../../db/schema/conquer";
 import { AppError } from "../shared/errors";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
-import { upsertEventAlert } from "./alerts-service";
+import { autoResolveEventAlert, upsertEventAlert } from "./alerts-service";
 import {
   neighborRung,
   stepLadderId,
@@ -51,21 +51,23 @@ function invalidRungError(): AppError {
 }
 
 /**
- * §4.5 / §4.3: pasa el escalón a `newRungId` desde `today`. El E1 vuelve a
- * calibración pendiente. No toca el modo (eso lo decide el llamador).
+ * §4.5 / §4.3: pasa el escalón a `newRungId` desde `mctx.today`. El E1 vuelve a
+ * calibración pendiente. No toca el modo (eso lo decide el llamador). Fase 201
+ * DA-11: al final sincroniza la alerta de tope (`syncTopeOnRungChange`).
  */
 export async function applyRungChange(
   tx: Tx,
   ctx: TenantContext,
-  stepRow: Pick<ConquerStepRow, "id" | "step">,
+  mctx: MemberContext,
+  exercise: Pick<ExerciseView, "id" | "name" | "ladderId" | "holdLadderId">,
+  stepRow: Pick<ConquerStepRow, "id" | "step" | "rungId">,
   newRungId: number,
-  today: string,
 ): Promise<void> {
   await tx
     .update(schema.conquerSteps)
     .set({
       rungId: newRungId,
-      sinceDate: today,
+      sinceDate: mctx.today,
       ...(stepRow.step === "e1" ? { calibration: "pendiente" as const } : {}),
     })
     .where(
@@ -74,6 +76,15 @@ export async function applyRungChange(
         eq(schema.conquerSteps.id, stepRow.id),
       ),
     );
+  await syncTopeOnRungChange(
+    tx,
+    ctx,
+    mctx,
+    exercise,
+    stepRow.step,
+    stepRow.rungId,
+    newRungId,
+  );
 }
 
 /** Relee el escalón con `FOR UPDATE` (primero en la transacción). */
@@ -149,7 +160,7 @@ export async function changeStep(
     const locked = await lockStep(tx, ctx, current.id);
     let next: ConquerStepRow = locked;
     if (body.rungId !== locked.rungId) {
-      await applyRungChange(tx, ctx, locked, body.rungId, mctx.today);
+      await applyRungChange(tx, ctx, mctx, exercise, locked, body.rungId);
       next = {
         ...next,
         rungId: body.rungId,
@@ -248,6 +259,36 @@ export async function emitTopeAlert(
   });
 }
 
+/**
+ * Fase 201 DA-11 / anexo §8: el tope se avisa cuando un escalón E1-E3 LLEGA al
+ * peldaño activo más difícil de su escalera (Subir, calibración, cambio a mano,
+ * recorte) y se auto-resuelve cuando DEJA ese peldaño. El hold no avisa (el
+ * anexo dice "E{n}"). Vive acá, junto a `emitTopeAlert`, para no sumar imports
+ * circulares entre servicios.
+ */
+export async function syncTopeOnRungChange(
+  tx: Tx,
+  ctx: TenantContext,
+  mctx: MemberContext,
+  exercise: Pick<ExerciseView, "id" | "name" | "ladderId" | "holdLadderId">,
+  step: StepKey,
+  fromRungId: number,
+  toRungId: number,
+): Promise<void> {
+  if (step === "hold" || fromRungId === toRungId) return;
+  await autoResolveEventAlert(tx, ctx, {
+    userId: mctx.userId,
+    type: "tope_escalera",
+    dedupeKey: topeDedupeKey(exercise.id, step, fromRungId),
+  });
+  const ladderId = stepLadderId(exercise, step);
+  const toRung = mctx.catalog.rungById.get(toRungId);
+  if (!toRung || toRung.ladderId !== ladderId || !toRung.isActive) return;
+  const harder = neighborRung(mctx.catalog, ladderId, toRungId, "harder");
+  if (harder === null)
+    await emitTopeAlert(tx, ctx, mctx.userId, exercise, step, toRung);
+}
+
 /** Clave de dedupe de la alerta de tope: `tope:<ejercicio>:<escalón>:<peldaño>`. */
 export function topeDedupeKey(
   exerciseId: number,
@@ -305,6 +346,6 @@ export async function subirStep(
     const locked = await lockStep(tx, ctx, current.id);
     // Doble toque: si otro pedido ya movió el escalón, este no sube otra vez.
     if (locked.rungId !== current.rungId) throw noTocaSubirError();
-    await applyRungChange(tx, ctx, locked, toRung.id, mctx.today);
+    await applyRungChange(tx, ctx, mctx, exercise, locked, toRung.id);
   });
 }

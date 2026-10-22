@@ -80,9 +80,9 @@ export const DEFAULT_COMBO_RUNG_CODE = "straddle";
 export const SATURDAY_DAY_KEY = "sabado";
 export const SATURDAY_LABEL = "Sábado";
 
-/** §3.2: entrada en calor del sábado (`vSab` del oráculo). */
+/** §3.2 / anexo §9 (`sabado_calor`, byte a byte): entrada en calor del sábado. Fase 201 DA-14. */
 export const SATURDAY_WARMUP =
-  "10 a 15 min. Dos vueltas suaves de la cadena, lejos del fallo. Lo único de la semana que no va al fallo.";
+  "10 a 15 min. Movilidad, escapulares y dos vueltas suaves del combo, lejos del fallo.";
 
 export function isComboKey(value: unknown): value is ComboKey {
   return (COMBO_KEYS as readonly unknown[]).includes(value);

@@ -112,6 +112,8 @@ export interface SavedSessionInfo {
   /** YYYY-MM-DD de "hoy" en la sede del alumno. */
   date: string;
   dayKey: string;
+  /** Fase 201 DA-13: rótulo del día ("Plancha", "Sábado") para la frase de la molestia. */
+  dayLabel: string;
   pain: number;
   exerciseIds: number[];
 }
@@ -135,7 +137,12 @@ async function evaluatePain(
   if (saved.pain >= PAIN_ALERT_MIN) {
     await upsertEventAlert(tx, ctx, {
       ...key,
-      detail: { pain: saved.pain, date: saved.date, dayKey: saved.dayKey },
+      detail: {
+        pain: saved.pain,
+        date: saved.date,
+        dayKey: saved.dayKey,
+        dayLabel: saved.dayLabel,
+      },
     });
   } else {
     await autoResolveEventAlert(tx, ctx, key);

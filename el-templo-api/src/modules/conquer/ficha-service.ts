@@ -45,8 +45,8 @@ export interface FichaResponse {
   progress: ProgressResponse;
   /** Guardadas pendientes (con `id`) y derivadas por tiempo (`id` null). */
   alerts: BoardAlert[];
-  /** Lo que aceptaría el coach hoy (§5.1, A12). */
-  cutProposal: CutProposal;
+  /** Lo que aceptaría el coach hoy (§5.1, A12). `null` = Toro después de la etapa 5 (anexo §8). */
+  cutProposal: CutProposal | null;
   /** `to` null = Toro, sin nivel siguiente; `validDays` = días válidos del nivel nuevo (A14). */
   levelUp: { to: Level | null; validDays: number[] };
 }

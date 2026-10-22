@@ -14,6 +14,7 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
+import { alertText } from "./alert-text";
 import { daysBetweenIso } from "./calendar";
 import {
   deriveTimeAlerts,
@@ -40,6 +41,11 @@ export interface BoardAlert {
   kind: AlertKind;
   severity: "rojo" | "amarillo" | "verde";
   label: string;
+  /**
+   * Fase 201 DA-13 / anexo §8: la frase de la alerta con sus datos ("Molestia
+   * 6/10 en Plancha el 21/10"). El admin la pinta tal cual.
+   */
+  text: string;
   /** `null` = derivada. `resuelta` solo sale de `PATCH /alerts/:id`. */
   status: AlertStatus | null;
   createdAt: string | null;
@@ -53,7 +59,7 @@ export type AlertRow = typeof schema.conquerAlerts.$inferSelect;
 /** Fila de `conquer_alerts` -> `BoardAlert` (la propuesta de recorte se calcula acá). */
 export function toBoardAlert(
   row: AlertRow,
-  member: { level: Level; cutStage: number },
+  member: { level: Level; cutStage: number; firstName: string | null },
 ): BoardAlert {
   const hasProposal = row.type === "molestia" || row.type === "caida";
   return {
@@ -61,6 +67,7 @@ export function toBoardAlert(
     kind: row.type,
     severity: ALERT_SEVERITY[row.type],
     label: ALERT_LABELS[row.type],
+    text: alertText(row.type, row.detail, member.firstName ?? ""),
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     detail: row.detail,
@@ -257,12 +264,14 @@ async function loadCheckSummaries(
 function derivedAlert(
   kind: TimeAlertKind,
   detail: Record<string, unknown>,
+  firstName: string,
 ): BoardAlert {
   return {
     id: null,
     kind,
     severity: ALERT_SEVERITY[kind],
     label: ALERT_LABELS[kind],
+    text: alertText(kind, detail, firstName),
     status: null,
     createdAt: null,
     detail,
@@ -279,6 +288,7 @@ interface MemberFacts {
 
 function derivedAlertsOf(facts: MemberFacts): BoardAlert[] {
   const { row, today, lastSessionDate, checks } = facts;
+  const firstName = row.firstName ?? "";
   const kinds = deriveTimeAlerts({
     activationDate: row.activationDate ?? today,
     lastSessionDate,
@@ -290,18 +300,23 @@ function derivedAlertsOf(facts: MemberFacts): BoardAlert[] {
   return kinds.map((kind) => {
     if (kind === "inactivo") {
       const since = lastSessionDate ?? row.activationDate ?? today;
-      return derivedAlert(kind, {
-        lastSessionDate,
-        days: daysBetweenIso(since, today),
-      });
+      return derivedAlert(
+        kind,
+        { lastSessionDate, days: daysBetweenIso(since, today) },
+        firstName,
+      );
     }
     if (kind === "control_vencido" && checks.lastCheckDate !== null) {
-      return derivedAlert(kind, {
-        lastCheckDate: checks.lastCheckDate,
-        days: daysBetweenIso(checks.lastCheckDate, today),
-      });
+      return derivedAlert(
+        kind,
+        {
+          lastCheckDate: checks.lastCheckDate,
+          days: daysBetweenIso(checks.lastCheckDate, today),
+        },
+        firstName,
+      );
     }
-    return derivedAlert(kind, {});
+    return derivedAlert(kind, {}, firstName);
   });
 }
 

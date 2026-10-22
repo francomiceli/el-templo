@@ -198,7 +198,7 @@ export async function resolveCalibration(
     for (const move of moves) {
       const locked =
         move.stepId === e1.id ? lockedE1 : await lockStep(tx, ctx, move.stepId);
-      await applyRungChange(tx, ctx, locked, move.to.id, mctx.today);
+      await applyRungChange(tx, ctx, mctx, exercise, locked, move.to.id);
     }
   });
 }

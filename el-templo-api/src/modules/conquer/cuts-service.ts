@@ -2,7 +2,8 @@
 //
 // La propuesta de recorte sale de `cutProposal` (rules.ts) y viaja con cada alerta
 // de molestia o caída. Acá el coach la acepta DE A UN PASO:
-//   - Toro: etapas 1 a 5 (`cut_stage + 1`) y después bajar un escalón.
+//   - Toro: etapas 1 a 5 (`cut_stage + 1`) y después NADA (anexo §8, DA-12: el
+//     paso 6 "bajar una progresión" es solo de Ternero y Novillo).
 //   - Ternero y Novillo: bajar un escalón.
 // A12: no hay reversión automática. El coach puede deshacer la última etapa.
 // Los servicios que mutan devuelven `void`: la ruta responde con `buildFicha`
@@ -84,6 +85,15 @@ function sinEtapaError(): AppError {
   );
 }
 
+/** DA-12 / anexo §8: Toro no baja escalones como recorte. */
+function recorteNoAplicaError(): AppError {
+  return new AppError(
+    "Toro no tiene más pasos de recorte: bajar una progresión es solo de Ternero y Novillo",
+    409,
+    "CONQUER_RECORTE_NO_APLICA",
+  );
+}
+
 function pisoEscaleraError(): AppError {
   return new AppError(
     "Ese escalón ya está en el peldaño más fácil de su escalera",
@@ -111,7 +121,8 @@ async function setCutStage(
 
 /**
  * §5.1 / A12: `cut_stage + 1`. Solo lo ofrece `cutProposal` cuando la propuesta
- * es una etapa: Toro con `cut_stage < 5`. Cualquier otro caso es 409.
+ * es una etapa: Toro con `cut_stage < 5`. Cualquier otro caso (incluido Toro con
+ * la etapa 5, sin propuesta) es 409.
  */
 async function applyStage(
   tx: Tx,
@@ -119,7 +130,7 @@ async function applyStage(
   member: { id: number; level: Level; cutStage: number },
 ): Promise<void> {
   const proposal = cutProposal(member.level, member.cutStage);
-  if (proposal.kind !== "etapa") throw sinEtapaError();
+  if (proposal === null || proposal.kind !== "etapa") throw sinEtapaError();
   await setCutStage(tx, ctx, member.id, proposal.stage);
 }
 
@@ -159,7 +170,7 @@ async function lowerStep(
     "easier",
   );
   if (!easier) throw pisoEscaleraError();
-  await applyRungChange(tx, ctx, locked, easier.id, mctx.today);
+  await applyRungChange(tx, ctx, mctx, exercise, locked, easier.id);
 }
 
 /**
@@ -187,6 +198,10 @@ export async function applyCut(
     const member = await lockActiveMember(tx, ctx, userId);
     if (body.action !== "deshacer_etapa" && body.alertId !== undefined) {
       await assertAlertOfMember(tx, ctx, userId, body.alertId, CUT_ALERT_TYPES);
+    }
+    // DA-12: Toro no tiene el paso 6. Se rechaza ANTES de tocar nada: la alerta queda abierta.
+    if (body.action === "bajar_escalon" && member.level === "toro") {
+      throw recorteNoAplicaError();
     }
 
     if (body.action === "aplicar_etapa") {
