@@ -6,15 +6,16 @@
  * `users`; INSERT directos con `tenantValues(TEMPLO_CTX, ...)` y lecturas
  * directas con `tenantWhere(tabla, TEMPLO_CTX)`.
  */
-import { and, like } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import * as schema from "../../src/db/schema";
+import type { Level } from "../../src/modules/conquer/rules";
 import {
   tenantValues,
   tenantWhere,
   type TenantContext,
 } from "../../src/modules/shared/tenant";
-import { createStaffUser, getAuthToken } from "../helpers";
+import { createStaffUser, createTestMember, getAuthToken } from "../helpers";
 
 /** Contexto de El Templo (tenant 1): el único con Conquer en la fase 201. */
 export const TEMPLO_CTX: TenantContext = { tenantId: 1 };
@@ -83,4 +84,113 @@ export async function clearConquerSettings(
         like(schema.tenantSettings.settingKey, "conquer.%"),
       ),
     );
+}
+
+/** Ruta de alta del admin (201-06). */
+export const CONQUER_MEMBERS_URL = "/api/admin/conquer/members";
+
+/**
+ * Activa a un alumno por la API (201-06). Devuelve la respuesta cruda para que
+ * el test decida qué afirmar (201 / 4xx).
+ */
+export async function activateViaApi(
+  app: FastifyInstance,
+  adminToken: string,
+  userId: number,
+  level: Level,
+  daysCount: number,
+  extra: { coachUserId?: number | null } = {},
+) {
+  return app.inject({
+    method: "POST",
+    url: CONQUER_MEMBERS_URL,
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { userId, level, daysCount, ...extra },
+  });
+}
+
+/**
+ * Alumno de El Templo (sin plan, D-17) ya ACTIVO en Conquer, más el token de
+ * un admin. Falla fuerte si el alta no responde 201.
+ */
+export async function createActiveConquerMember(
+  app: FastifyInstance,
+  opts: { level: Level; daysCount: number },
+): Promise<{ userId: number; token: string; adminToken: string }> {
+  const member = await createTestMember(app);
+  const admin = await createConquerStaff(app, "admin");
+  const res = await activateViaApi(
+    app,
+    admin.token,
+    member.id,
+    opts.level,
+    opts.daysCount,
+  );
+  if (res.statusCode !== 201) {
+    throw new Error(`createActiveConquerMember: ${res.statusCode} ${res.body}`);
+  }
+  return { userId: member.id, token: member.token, adminToken: admin.token };
+}
+
+/** Un escalón del alumno resuelto a códigos legibles. */
+export interface StepSnapshot {
+  rungId: number;
+  rungCode: string;
+  mode: string;
+  sinceDate: string | null;
+  calibration: string;
+}
+
+/**
+ * Escalones del alumno `userId` indexados por `"<ejercicio>:<e1|e2|e3|hold>"`
+ * (código del ejercicio y del peldaño, no ids).
+ */
+export async function readConquerSteps(
+  app: FastifyInstance,
+  userId: number,
+): Promise<Map<string, StepSnapshot>> {
+  const rows = await app.db
+    .select({
+      exerciseCode: schema.conquerExercises.code,
+      step: schema.conquerSteps.step,
+      rungId: schema.conquerSteps.rungId,
+      rungCode: schema.conquerRungs.code,
+      mode: schema.conquerSteps.mode,
+      sinceDate: schema.conquerSteps.sinceDate,
+      calibration: schema.conquerSteps.calibration,
+    })
+    .from(schema.conquerSteps)
+    .innerJoin(
+      schema.conquerMembers,
+      eq(schema.conquerMembers.id, schema.conquerSteps.memberId),
+    )
+    .innerJoin(
+      schema.conquerExercises,
+      eq(schema.conquerExercises.id, schema.conquerSteps.exerciseId),
+    )
+    .innerJoin(
+      schema.conquerRungs,
+      eq(schema.conquerRungs.id, schema.conquerSteps.rungId),
+    )
+    .where(
+      and(
+        tenantWhere(schema.conquerSteps, TEMPLO_CTX),
+        tenantWhere(schema.conquerMembers, TEMPLO_CTX),
+        tenantWhere(schema.conquerExercises, TEMPLO_CTX),
+        tenantWhere(schema.conquerRungs, TEMPLO_CTX),
+        eq(schema.conquerMembers.userId, userId),
+      ),
+    );
+  return new Map(
+    rows.map((r) => [
+      `${r.exerciseCode}:${r.step}`,
+      {
+        rungId: r.rungId,
+        rungCode: r.rungCode,
+        mode: r.mode,
+        sinceDate: r.sinceDate,
+        calibration: r.calibration,
+      },
+    ]),
+  );
 }
