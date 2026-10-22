@@ -112,7 +112,6 @@ interface MarkRow {
   value: string
 }
 
-// `HomeLastByDay.e1` no trae si el ejercicio es unilateral: se muestra sin "por lado".
 const marks = computed<MarkRow[]>(() => {
   const rows: MarkRow[] = []
   for (const day of member.value?.home.lastByDay ?? []) {
@@ -121,7 +120,7 @@ const marks = computed<MarkRow[]>(() => {
         key: `${day.dayKey}:${e1.exerciseName}`,
         name: e1.exerciseName,
         sub: day.date ? `${day.label} · ${shortDate(day.date)}` : day.label,
-        value: unitText(e1.value, e1.unit, false),
+        value: unitText(e1.value, e1.unit, e1.unilateral),
       })
     }
   }

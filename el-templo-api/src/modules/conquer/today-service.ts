@@ -133,7 +133,13 @@ export interface HomeLastByDay {
   dayKey: string;
   label: string;
   date: string | null;
-  e1: { exerciseName: string; value: number; unit: Unit }[];
+  /** `unilateral` = el peldaño de la marca se carga por lado (Fase 201 §1.4). */
+  e1: {
+    exerciseName: string;
+    value: number;
+    unit: Unit;
+    unilateral: boolean;
+  }[];
 }
 
 export interface HomeView extends PlanWeek {
@@ -521,26 +527,33 @@ async function loadLastDates(
   return out;
 }
 
+/** Marca de E1 de una sesión: valor y peldaño con que se guardó. */
+interface LastE1Mark {
+  value: number;
+  rungId: number;
+}
+
 /** Valores de E1 de las últimas sesiones por día (una query para todos los días). */
 async function loadLastE1(
   db: DbInstance,
   ctx: TenantContext,
   userId: number,
   lastDates: ReadonlyMap<string, string>,
-): Promise<Map<string, Map<number, number>>> {
+): Promise<Map<string, Map<number, LastE1Mark>>> {
   const pairs = [...lastDates].map(([dayKey, date]) =>
     and(
       eq(schema.conquerSessions.dayKey, dayKey),
       eq(schema.conquerSessions.sessionDate, date),
     ),
   );
-  const out = new Map<string, Map<number, number>>();
+  const out = new Map<string, Map<number, LastE1Mark>>();
   if (pairs.length === 0) return out;
   const rows = await db
     .select({
       dayKey: schema.conquerSessions.dayKey,
       exerciseId: schema.conquerSessionSteps.exerciseId,
       value: schema.conquerSessionSteps.value,
+      rungId: schema.conquerSessionSteps.rungId,
     })
     .from(schema.conquerSessionSteps)
     .innerJoin(
@@ -557,8 +570,8 @@ async function loadLastE1(
       ),
     );
   for (const row of rows) {
-    const byExercise = out.get(row.dayKey) ?? new Map<number, number>();
-    byExercise.set(row.exerciseId, row.value);
+    const byExercise = out.get(row.dayKey) ?? new Map<number, LastE1Mark>();
+    byExercise.set(row.exerciseId, { value: row.value, rungId: row.rungId });
     out.set(row.dayKey, byExercise);
   }
   return out;
@@ -567,14 +580,20 @@ async function loadLastE1(
 function lastE1ForDay(
   catalog: ConquerCatalog,
   exerciseCodes: readonly string[],
-  values: ReadonlyMap<number, number> | undefined,
+  values: ReadonlyMap<number, LastE1Mark> | undefined,
 ): HomeLastByDay["e1"] {
   const out: HomeLastByDay["e1"] = [];
   for (const code of exerciseCodes) {
     const exercise = catalog.exerciseByCode.get(code);
-    const value = exercise ? values?.get(exercise.id) : undefined;
-    if (exercise && value !== undefined) {
-      out.push({ exerciseName: exercise.name, value, unit: exercise.unit });
+    const mark = exercise ? values?.get(exercise.id) : undefined;
+    if (exercise && mark !== undefined) {
+      out.push({
+        exerciseName: exercise.name,
+        value: mark.value,
+        unit: exercise.unit,
+        // Fase 201 §1.4: "por lado" según el peldaño con que se guardó la marca
+        unilateral: catalog.rungById.get(mark.rungId)?.unilateral ?? false,
+      });
     }
   }
   return out;

@@ -34,7 +34,8 @@ export interface HomeLastByDay {
   dayKey: string
   label: string
   date: string | null
-  e1: { exerciseName: string; value: number; unit: Unit }[]
+  /** `unilateral`: el peldaño de la marca se carga por lado (§1.4). */
+  e1: { exerciseName: string; value: number; unit: Unit; unilateral: boolean }[]
 }
 
 export interface HomeView extends PlanWeek {

@@ -69,7 +69,12 @@ interface HomeBody {
     dayKey: string;
     label: string;
     date: string | null;
-    e1: { exerciseName: string; value: number; unit: string }[];
+    e1: {
+      exerciseName: string;
+      value: number;
+      unit: string;
+      unilateral: boolean;
+    }[];
   }[];
 }
 
@@ -459,8 +464,18 @@ describe("GET /api/members/conquer/state — member.home", () => {
       label: "Plancha",
       date: reciente,
       e1: [
-        { exerciseName: "Planche hold", value: 9, unit: "s" },
-        { exerciseName: "Planche press", value: 6, unit: "reps" },
+        {
+          exerciseName: "Planche hold",
+          value: 9,
+          unit: "s",
+          unilateral: false,
+        },
+        {
+          exerciseName: "Planche press",
+          value: 6,
+          unit: "reps",
+          unilateral: false,
+        },
       ],
     });
     expect(home?.lastByDay[1]).toEqual({
@@ -471,6 +486,51 @@ describe("GET /api/members/conquer/state — member.home", () => {
     });
     // Las sesiones de semanas pasadas no marcan el día como hecho.
     expect(home?.plan.every((d) => !d.done)).toBe(true);
+  });
+
+  it("la marca de un peldaño unilateral viene con unilateral true (por lado) y la de uno bilateral con false", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const hoy = await memberToday(app, userId);
+    await insertConquerSession(app, {
+      userId,
+      date: weeksAgo(hoy, 1),
+      dayKey: "dominadas",
+      steps: [
+        {
+          exerciseCode: "one_arm_archer",
+          step: "e1",
+          value: 4,
+          rungCode: "archer",
+        },
+        {
+          exerciseCode: "muscle_up",
+          step: "e1",
+          value: 3,
+        },
+      ],
+    });
+
+    const home = (await getState(token)).json<StateBody>().member?.home;
+    const dominadas = home?.lastByDay.find((d) => d.dayKey === "dominadas");
+
+    // Fase 201 §1.4: el app escribe "4 por lado" solo si el peldaño guardado es unilateral
+    expect(dominadas?.e1).toEqual([
+      {
+        exerciseName: "One arm / archer",
+        value: 4,
+        unit: "reps",
+        unilateral: true,
+      },
+      {
+        exerciseName: "Muscle-up",
+        value: 3,
+        unit: "reps",
+        unilateral: false,
+      },
+    ]);
   });
 
   it("un alumno que no está activo no recibe home", async () => {
