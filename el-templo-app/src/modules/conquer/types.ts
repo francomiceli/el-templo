@@ -64,6 +64,8 @@ export interface ConquerMemberState {
   cutStage: number
   publishEnabled: boolean
   publishNoFace: boolean
+  /** Fase 201 DA-21: ya vio la guía "¿Cómo funciona?" (vive en la base, no en el teléfono). */
+  guideSeen: boolean
   home: HomeView
   bodyCheck: BodyCheckSummary
 }
@@ -347,4 +349,9 @@ export interface PublishPermission {
   enabled: boolean
   noFace: boolean
   changedAt: string
+}
+
+/** POST /guide-seen: la guía quedó marcada como vista (DA-21). */
+export interface GuideSeenResponse {
+  guideSeen: boolean
 }

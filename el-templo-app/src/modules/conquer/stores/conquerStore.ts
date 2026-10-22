@@ -108,6 +108,35 @@ export const useConquerStore = defineStore('conquer', () => {
     }
   }
 
+  /** Marca la guía como vista en el estado (en memoria, sin llamar al API). */
+  function applyGuideSeen(): void {
+    const current = state.value
+    if (!current?.member) return
+    state.value = { ...current, member: { ...current.member, guideSeen: true } }
+  }
+
+  /**
+   * "Ya la vio" (DA-21): lo guarda el API. Es silencioso: nunca toca `error` ni muestra nada. Si
+   * falla, la marca igual en memoria para no mandar al alumno de nuevo a la guía en esta sesión
+   * (la próxima carga del estado se la vuelve a ofrecer). Devuelve true si el API la guardó.
+   */
+  async function markGuideSeen(): Promise<boolean> {
+    try {
+      await api.markGuideSeen()
+      applyGuideSeen()
+      return true
+    } catch (err: unknown) {
+      if (isConquerCanceled(err)) return false
+      if (err instanceof ConquerApiError && err.isExpected) {
+        log.warn('Conquer guide-seen rejected', { status: err.status, error: err.detail })
+      } else {
+        logFailure('Failed to mark Conquer guide as seen', err)
+      }
+      applyGuideSeen()
+      return false
+    }
+  }
+
   /** Aborta lo que siga en vuelo; la vista lo llama al desmontarse. */
   function cleanup(): void {
     loadSeq++
@@ -127,6 +156,8 @@ export const useConquerStore = defineStore('conquer', () => {
     applyState,
     applyBodyCheck,
     applyPublishPermission,
+    applyGuideSeen,
+    markGuideSeen,
     cleanup,
   }
 })

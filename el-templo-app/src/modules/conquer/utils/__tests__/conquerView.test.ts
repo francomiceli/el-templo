@@ -40,6 +40,7 @@ function activeWith(summary: BodyCheckSummary): ConquerStateResponse {
     cutStage: 0,
     publishEnabled: false,
     publishNoFace: false,
+    guideSeen: true,
     home: {
       weekMonday: '2026-10-19',
       plan: [],

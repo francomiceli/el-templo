@@ -8,6 +8,7 @@ import type {
   ComboKey,
   ConquerStateResponse,
   CountedStep,
+  GuideSeenResponse,
   PhotoUploadResponse,
   PhotoUrlResponse,
   Pose,
@@ -222,6 +223,13 @@ export function useConquerApi() {
     )
   }
 
+  /** POST /guide-seen: la guía "¿Cómo funciona?" ya se vio (DA-21). */
+  function markGuideSeen(): Promise<GuideSeenResponse> {
+    return call('No pudimos guardar que viste la guía. Probá de nuevo.', (signal) =>
+      api.post<GuideSeenResponse>(`${BASE}/guide-seen`, {}, { signal }),
+    )
+  }
+
   /** PUT /publish-permission: autorizar o retirar la publicación del antes y después. */
   function setPublishPermission(body: PublishPermissionBody): Promise<PublishPermission> {
     return call('No pudimos guardar tu autorización. Probá de nuevo.', (signal) =>
@@ -251,6 +259,7 @@ export function useConquerApi() {
     confirmPhoto,
     getPhotoUrl,
     skipDay0,
+    markGuideSeen,
     setPublishPermission,
     cleanup,
   }
