@@ -87,3 +87,4 @@ export * from "./staff-shifts";
 export * from "./renewals";
 export * from "./trial-followups";
 export * from "./sponsors";
+export * from "./conquer";
