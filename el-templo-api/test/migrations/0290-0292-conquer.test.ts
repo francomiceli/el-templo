@@ -24,6 +24,7 @@ import { CONQUER_MODES } from "../../src/db/schema/conquer";
 import { tenantWhere } from "../../src/modules/shared/tenant";
 import { splitSqlStatements } from "../../src/db/run-migrations";
 import { loadOracle } from "../conquer/oracle";
+import { loadAnnex } from "../conquer/annex";
 
 const CONQUER_TABLES = [
   "conquer_ladders",
@@ -189,6 +190,23 @@ const ORACLE_PATH = path.resolve(
 /** Oraculo de Nacho (`LAD`, `DIAS`): se carga una vez, alimenta los it.each. */
 const oracle = loadOracle(ORACLE_PATH);
 
+// 201-25: la 0293 (anexo) manda sobre el oraculo en finishers, escaleras por
+// ejercicio y escaleras de hold. Los finishers se leen del anexo de Nacho.
+const ANNEX_PATH = path.resolve(
+  __dirname,
+  "../conquer/fixtures/conquer-catalogo.md",
+);
+const annex = loadAnnex(ANNEX_PATH);
+
+/** Finisher del anexo §4 para un dia de 4 dias (por bloque). */
+function annexFinisher4(block: string): string {
+  const day = annex.templates.find(
+    (t) => t.daysCount === 4 && t.block === block,
+  );
+  if (!day) throw new Error(`El anexo no trae el bloque ${block}`);
+  return day.finisher;
+}
+
 /** Slugs de zona de `BodyFigure` (los 15 que usa el mapa muscular). */
 const ZONE_SLUGS = [
   "chest",
@@ -236,35 +254,38 @@ const EXPECTED_SHORT_TEMPLATES: ReadonlyArray<
     "empuje",
     "Empuje",
     ["planche_hold", "hspu", "planche_pushup"],
-    "Fondos o push-ups, 15–20",
+    "Fondos o push-ups, 15–20 reps",
   ],
   [
     3,
     "traccion",
     "Tracción",
     ["front_hold", "front_pullups", "muscle_up"],
-    "Retracciones escapulares + hold en barra",
+    // 201-25: la 0293 (anexo §4) manda: el día de tracción lleva el curl.
+    "Curl de bíceps en anillas o pelícanos, 15–20 reps",
   ],
   [
     3,
     "mixto",
     "Mixto",
     ["planche_press", "one_arm_archer", "press_90"],
-    "Curl de bíceps en anillas, 15–20",
+    // 201-25: la 0293 (anexo §4) manda: el mixto lleva las retracciones.
+    "Retracciones escapulares + hold en barra",
   ],
   [
     2,
     "empuje",
     "Empuje",
     ["planche_hold", "hspu", "planche_pushup"],
-    "Fondos o push-ups, 15–20",
+    "Fondos o push-ups, 15–20 reps",
   ],
   [
     2,
     "traccion",
     "Tracción",
     ["front_hold", "one_arm_archer", "muscle_up"],
-    "Retracciones escapulares + hold en barra",
+    // 201-25: la 0293 (anexo §4) manda: la tracción de 2 días lleva el curl.
+    "Curl de bíceps en anillas o pelícanos, 15–20 reps",
   ],
 ];
 
@@ -360,9 +381,15 @@ function startStepsAsNames(
   snap: CatalogSnapshot,
   exercise: ExerciseRow,
 ): string[] {
-  return exercise.startSteps.map(
-    (s) => `${rungNameOf(snap, exercise.ladderId, s.rung)}:${s.mode}`,
-  );
+  // 201-25: la 0293 (anexo) manda: el hold final se resuelve en la escalera de
+  // hold del ejercicio (`hold_ladder_id`) o, si es NULL, en la de E1-E3.
+  return exercise.startSteps.map((s) => {
+    const ladderId =
+      s.step === "hold"
+        ? (exercise.holdLadderId ?? exercise.ladderId)
+        : exercise.ladderId;
+    return `${rungNameOf(snap, ladderId, s.rung)}:${s.mode}`;
+  });
 }
 
 describe("0292 semilla del catálogo", () => {
@@ -379,8 +406,13 @@ describe("0292 semilla del catálogo", () => {
   });
 
   it("(1) trae 8 escaleras, 45 peldaños, 12 ejercicios y 9 plantillas", () => {
-    expect(snap.ladders).toHaveLength(8);
-    expect(snap.rungs).toHaveLength(45);
+    // 201-25: la 0293 (anexo) manda: suma 12 escaleras y 61 peldaños. Los
+    // conteos de la 0292 se miran sobre SUS 8 escaleras (el total final lo
+    // prueba 0293-conquer-anexo.test.ts).
+    const seed = snap.ladders.filter((l) => l.code in oracle.LAD);
+    const seedIds = new Set(seed.map((l) => l.id));
+    expect(seed).toHaveLength(8);
+    expect(snap.rungs.filter((r) => seedIds.has(r.ladderId))).toHaveLength(45);
     expect(snap.exercises).toHaveLength(12);
     expect(snap.templates).toHaveLength(9);
   });
@@ -415,7 +447,8 @@ describe("0292 semilla del catálogo", () => {
         `la plantilla de 4 días ${dayName}`,
       );
       expect(template.label).toBe(dayName);
-      expect(template.finisherText).toBe(day.fin);
+      // 201-25: la 0293 (anexo §4/§5) manda: el finisher es el del anexo.
+      expect(template.finisherText).toBe(annexFinisher4(dayName));
       expect(template.openingComboKey).toBe(dayName.toLowerCase());
       expect(template.exerciseCodes).toHaveLength(day.ex.length);
 
@@ -426,7 +459,9 @@ describe("0292 semilla del catálogo", () => {
       expect(exercises.map((e) => e.unit)).toEqual(day.ex.map((e) => e.tipo));
       for (const [i, oracleEx] of day.ex.entries()) {
         const exercise = exercises[i];
-        expect(exercise.ladderId).toBe(ladderByCode(snap, oracleEx.lad).id);
+        // 201-25: la 0293 (anexo §2) manda: cada ejercicio tiene su escalera
+        // y `palanca`/`lsit` ya no son la del ejercicio. El nombre del peldaño
+        // sigue calzando con el oráculo (abajo).
         expect(exercise.startSteps.map((s) => s.step)).toEqual([
           "e1",
           "e2",
@@ -482,10 +517,16 @@ describe("0292 semilla del catálogo", () => {
       expect(exercise.sortOrder).toBe(
         EXPECTED_EXERCISE_CODES.indexOf(code) + 1,
       );
-      const rungs = rungsOfLadder(snap, exercise.ladderId);
       expect(exercise.startSteps).toHaveLength(4);
       for (const step of exercise.startSteps) {
-        const rung = rungs.find((r) => r.code === step.rung);
+        // 201-25: la 0293 (anexo §2) manda: el hold vive en su escalera de hold.
+        const ladderId =
+          step.step === "hold"
+            ? (exercise.holdLadderId ?? exercise.ladderId)
+            : exercise.ladderId;
+        const rung = rungsOfLadder(snap, ladderId).find(
+          (r) => r.code === step.rung,
+        );
         expect(
           rung,
           `${exercise.code}.${step.step}: ${step.rung}`,
@@ -523,7 +564,14 @@ describe("0292 semilla del catálogo", () => {
   it("(7) brazos_rectos: los 11 peldaños de palanca y L-sit, ningún otro", () => {
     const palanca = ladderByCode(snap, "palanca").id;
     const lsit = ladderByCode(snap, "lsit").id;
-    const flagged = snap.rungs.filter((r) => r.brazosRectos);
+    // 201-25: la 0293 (anexo) manda: las escaleras nuevas también llevan la
+    // marca (igual a su ejercicio). Acá se mira solo lo que sembró la 0292.
+    const seedIds = new Set(
+      snap.ladders.filter((l) => l.code in oracle.LAD).map((l) => l.id),
+    );
+    const flagged = snap.rungs.filter(
+      (r) => r.brazosRectos && seedIds.has(r.ladderId),
+    );
     expect(flagged).toHaveLength(11);
     expect(
       flagged.every((r) => r.ladderId === palanca || r.ladderId === lsit),
@@ -536,7 +584,14 @@ describe("0292 semilla del catálogo", () => {
 
   it("(7) unilateral: one arm, OAP asistida y archer de tracción, ningún otro", () => {
     const trac = ladderByCode(snap, "trac").id;
-    const flagged = snap.rungs.filter((r) => r.unilateral);
+    // 201-25: la 0293 (anexo) manda: la escalera one_arm_archer_hold repite
+    // `one arm` como unilateral. Acá se mira solo lo que sembró la 0292.
+    const seedIds = new Set(
+      snap.ladders.filter((l) => l.code in oracle.LAD).map((l) => l.id),
+    );
+    const flagged = snap.rungs.filter(
+      (r) => r.unilateral && seedIds.has(r.ladderId),
+    );
     expect(flagged.map((r) => `${r.ladderId}:${r.code}`).sort()).toEqual(
       [`${trac}:archer`, `${trac}:one_arm`, `${trac}:oap_asistida`].sort(),
     );
@@ -569,7 +624,8 @@ describe("0292 semilla del catálogo", () => {
     }
     const after = await loadCatalog(app);
     expect(countsOf(after)).toEqual(before);
-    expect(countsOf(after)).toEqual([8, 45, 12, 9]);
+    // 201-25: la 0293 (anexo) manda: 8 + 12 escaleras y 45 + 61 peldaños.
+    expect(countsOf(after)).toEqual([20, 106, 12, 9]);
     expect(after.rungs.map((r) => r.id).sort((a, b) => a - b)).toEqual(
       idsBefore,
     );
