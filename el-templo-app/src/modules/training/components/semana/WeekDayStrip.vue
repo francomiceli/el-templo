@@ -19,7 +19,6 @@
     >
       <span class="week-strip__name">{{ dayChip(day.date).short }}</span>
       <b class="week-strip__num">{{ dayChip(day.date).n }}</b>
-      <i class="week-strip__dot" />
     </button>
   </div>
 </template>
@@ -29,7 +28,7 @@ import type { WeekDay } from '../../types/session'
 import { dayChip, dayKicker } from '../../utils/weekLabels'
 
 // Fase 197 D-03: tira de 7 días. Elegido = borde terracota SIN relleno; hoy = borde de tinta;
-// completado = punto salvia; domingo / sin plani = borde punteado. El domingo no se elige (D-02).
+// completado = número en círculo salvia (igual que Reservas); domingo / sin plani = borde punteado. El domingo no se elige (D-02).
 const props = defineProps<{
   days: WeekDay[]
   selectedDate: string | null
@@ -67,7 +66,7 @@ function dayLabel(day: WeekDay): string {
 
   &__day {
     min-height: 56px;
-    padding: 7px 0 6px;
+    padding: 7px 0 7px;
     border: 1px solid $pd-light-line;
     border-radius: 14px;
     background: #fff;
@@ -115,12 +114,19 @@ function dayLabel(day: WeekDay): string {
     display: block;
   }
 
+  // El círculo siempre ocupa su lugar (así las fichas no cambian de alto); se pinta solo si está
+  // completado: círculo salvia y número blanco, como en Reservas.
   &__num {
-    display: block;
-    margin-top: 1px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    margin: 1px auto 0;
+    border-radius: 50%;
     font-family: 'Montserrat', sans-serif;
     font-weight: 700;
     font-size: 17px;
+    line-height: 1;
     color: $pd-ink;
   }
 
@@ -128,16 +134,10 @@ function dayLabel(day: WeekDay): string {
     color: $pd-terra-ink;
   }
 
-  &__dot {
-    display: block;
-    width: 5px;
-    height: 5px;
-    margin: 3px auto 0;
-    border-radius: 50%;
-  }
-
-  &__day--done &__dot {
+  &__day--done &__num,
+  &__day--done.week-strip__day--on &__num {
     background: $pd-sage;
+    color: #fff;
   }
 }
 </style>
