@@ -253,3 +253,8 @@ con preguntas.
   `v-else`) y en `EntrenarVidriera.vue` (`.vidriera__pane`, sin blur). Ids: `paneId('conquer')`/`tabId('conquer')`.
   `TabKey` se importa de `../utils/entrenarTabs`; flags en `ENTRENAR_TAB_FLAGS`. No pasar prettier sobre archivos enteros
   ajenos (los espejos `destinations.ts` reformatean líneas que no son del plan): formatear a mano lo propio.
+- (201-16) Toda pantalla de Conquer usa `CqSky` como raíz (pone `.cq-root` e importa `conquer.scss`; sin eso no hay
+  tokens `--cq-*`). `CqCloudButton` ES el pie de nubes completo (`.cq-foot`): un segundo botón va en su slot como
+  `<button class="cq-cta cq-cta--ghost">`, sin otro `.cq-foot`. El store NO muestra `Notify`: la vista observa `error` o el
+  `false` de las acciones y notifica. El error del API se muestra solo si trae `code` `CONQUER_*`; si no, texto fijo de la
+  acción. El PUT del archivo a `uploadUrl` (201-20) va con axios pelado, sin header de auth. `estadoChip(null)` = "Sin datos".
