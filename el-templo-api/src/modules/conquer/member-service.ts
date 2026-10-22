@@ -18,7 +18,11 @@ import {
   type TenantContext,
 } from "../shared/tenant";
 import { blockWeek } from "./calendar";
-import { bodyCheckSummary, type BodyCheckSummary } from "./body-check-service";
+import {
+  bodyCheckSummary,
+  requireOwnActiveMember,
+  type BodyCheckSummary,
+} from "./body-check-service";
 import { loadMemberContext } from "./history-loader";
 import { buildHome, type HomeView } from "./today-service";
 
@@ -218,4 +222,59 @@ export async function countUnlockRequests(
       ),
     );
   return Number(row?.total ?? 0);
+}
+
+export interface PublishPermission {
+  enabled: boolean;
+  noFace: boolean;
+  /** ISO del último cambio, puesto por el servidor (T-201-47). */
+  changedAt: string;
+}
+
+/**
+ * Fase 201 §6, A19: el alumno activa o retira el permiso de publicación de su
+ * antes y después, con la opción "sin cara". Retirarlo es `enabled: false`.
+ * `publish_changed_at = NOW()` lo pone el servidor (T-201-47). Solo alumnos
+ * activos (409 `CONQUER_NO_ACTIVO`). El permiso NO restringe quién ve las
+ * fotos (eso es por rol, D-08): solo alimenta el filtro "autorizados".
+ */
+export async function setPublishPermission(
+  db: DbInstance,
+  ctx: TenantContext,
+  userId: number,
+  body: { enabled: boolean; noFace: boolean },
+): Promise<PublishPermission> {
+  await requireOwnActiveMember(db, ctx, userId);
+  await db
+    .update(schema.conquerMembers)
+    .set({
+      publishEnabled: body.enabled,
+      publishNoFace: body.noFace,
+      publishChangedAt: sql`NOW()`,
+    })
+    .where(
+      and(
+        tenantWhere(schema.conquerMembers, ctx),
+        eq(schema.conquerMembers.userId, userId),
+      ),
+    );
+  const [row] = await db
+    .select({
+      publishEnabled: schema.conquerMembers.publishEnabled,
+      publishNoFace: schema.conquerMembers.publishNoFace,
+      publishChangedAt: schema.conquerMembers.publishChangedAt,
+    })
+    .from(schema.conquerMembers)
+    .where(
+      and(
+        tenantWhere(schema.conquerMembers, ctx),
+        eq(schema.conquerMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+  return {
+    enabled: row?.publishEnabled ?? body.enabled,
+    noFace: row?.publishNoFace ?? body.noFace,
+    changedAt: toIso(row?.publishChangedAt ?? null) ?? new Date().toISOString(),
+  };
 }

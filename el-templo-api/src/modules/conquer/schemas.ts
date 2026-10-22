@@ -1169,3 +1169,104 @@ export const skipDay0Schema = {
   },
   response: { 200: bodyCheckSummarySchema },
 } as const;
+
+// ── Publicación, controles en el admin y galería (plan 201-13) ──────
+
+/** `PUT /publish-permission` (alumno): ambos campos obligatorios. */
+export const publishPermissionSchema = {
+  body: {
+    type: "object",
+    properties: { enabled: { type: "boolean" }, noFace: { type: "boolean" } },
+    required: ["enabled", "noFace"],
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        enabled: { type: "boolean" },
+        noFace: { type: "boolean" },
+        changedAt: { type: "string" },
+      },
+      required: ["enabled", "noFace", "changedAt"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `GET /members/:userId/body-checks` (admin): mismo cuerpo que el del alumno. */
+export const adminBodyChecksSchema = {
+  params: {
+    type: "object",
+    properties: { userId: { type: "integer", minimum: 1 } },
+    required: ["userId"],
+  },
+  response: listBodyChecksSchema.response,
+} as const;
+
+/** `GET /members/:userId/body-checks/:checkId/photos/:pose/url` (admin). */
+export const adminPhotoUrlSchema = {
+  params: {
+    type: "object",
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+      checkId: { type: "integer", minimum: 1 },
+      pose: { type: "string", enum: [...CONQUER_POSES] },
+    },
+    required: ["userId", "checkId", "pose"],
+  },
+  response: photoUrlSchema.response,
+} as const;
+
+/** `BodyCheckView` que puede ser `null` (mismo patrón que `checkComparisonSchema`). */
+const nullableBodyCheckViewSchema = {
+  ...bodyCheckViewSchema,
+  type: ["object", "null"],
+} as const;
+
+/** `GalleryItem`: sin claves ni URLs (T-201-48). */
+const galleryItemSchema = {
+  type: "object",
+  properties: {
+    userId: { type: "integer" },
+    firstName: { type: "string" },
+    lastName: { type: "string" },
+    level: { type: ["string", "null"], enum: [...CONQUER_LEVELS, null] },
+    publishEnabled: { type: "boolean" },
+    publishNoFace: { type: "boolean" },
+    publishChangedAt: { type: ["string", "null"] },
+    day0: nullableBodyCheckViewSchema,
+    last: nullableBodyCheckViewSchema,
+    compare: checkComparisonSchema,
+  },
+  required: [
+    "userId",
+    "firstName",
+    "lastName",
+    "level",
+    "publishEnabled",
+    "publishNoFace",
+    "publishChangedAt",
+    "day0",
+    "last",
+    "compare",
+  ],
+  additionalProperties: false,
+} as const;
+
+/** `GET /gallery?authorized=true|false` (admin); sin el parámetro = todos. */
+export const gallerySchema = {
+  querystring: {
+    type: "object",
+    properties: { authorized: { type: "boolean" } },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: { items: { type: "array", items: galleryItemSchema } },
+      required: ["items"],
+      additionalProperties: false,
+    },
+  },
+} as const;

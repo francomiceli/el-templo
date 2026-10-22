@@ -21,7 +21,11 @@ import {
 import type { ComboKey } from "./combos";
 import type { CountedStep, StepKey } from "./engine";
 import { sendConquerError } from "./errors";
-import { getConquerState, requestUnlock } from "./member-service";
+import {
+  getConquerState,
+  requestUnlock,
+  setPublishPermission,
+} from "./member-service";
 import type { ConquerPose } from "./private-media";
 import { buildProgress } from "./progress-service";
 import {
@@ -32,6 +36,7 @@ import {
   photoUploadUrlSchema,
   photoUrlSchema,
   progressSchema,
+  publishPermissionSchema,
   resolveCalibrationSchema,
   saveSessionSchema,
   skipDay0Schema,
@@ -368,6 +373,26 @@ export const conquerMemberRoutes: FastifyPluginAsync = async (fastify) => {
         );
       } catch (err: unknown) {
         sendConquerError(err, reply, request.log, "conquer.member.photo_url");
+      }
+    },
+  );
+
+  // PUT /publish-permission — activa o retira el permiso de publicación (§6, A19).
+  fastify.put<{ Body: { enabled: boolean; noFace: boolean } }>(
+    "/publish-permission",
+    { onRequest: [fastify.authenticate], schema: publishPermissionSchema },
+    async (request, reply) => {
+      try {
+        await attachCountryScope(request, fastify.db);
+        const ctx = assertTenant(request.scope, "conquer.member.publish");
+        return await setPublishPermission(
+          fastify.db,
+          ctx,
+          request.user.userId,
+          request.body,
+        );
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.member.publish");
       }
     },
   );

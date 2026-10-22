@@ -16,21 +16,27 @@ import {
 import { updateAlertStatus } from "./alerts-service";
 import { getBoardAlert } from "./alert-view";
 import { buildBoard } from "./board-service";
+import { getPhotoUrlForAdmin, listChecksForAdmin } from "./body-check-service";
 import { applyCut, parseCutBody, type CutRequestBody } from "./cuts-service";
 import type { StepKey } from "./engine";
 import { buildFicha, correctStep } from "./ficha-service";
+import { buildGallery } from "./gallery-service";
 import { confirmLevelUp, type LevelUpBody } from "./level-service";
 import { countUnlockRequests, listUnlockRequests } from "./member-service";
 import { sendConquerError } from "./errors";
-import { canManageConquer } from "./permissions";
+import { canManageConquer, canViewConquerPhotos } from "./permissions";
+import type { ConquerPose } from "./private-media";
 import type { Level } from "./rules";
 import type { ChangeStepBody } from "./step-service";
 import {
   activateMemberSchema,
+  adminBodyChecksSchema,
+  adminPhotoUrlSchema,
   boardSchema,
   correctStepSchema,
   cutSchema,
   fichaSchema,
+  gallerySchema,
   levelUpSchema,
   unlockRequestsCountResponseSchema,
   unlockRequestsResponseSchema,
@@ -259,6 +265,78 @@ export const conquerAdminRoutes: FastifyPluginAsync = async (fastify) => {
           request.log,
           "conquer.admin.ficha-level-up",
         );
+      }
+    },
+  );
+
+  // GET /members/:userId/body-checks — controles y comparador del alumno (§7.2 Evolución).
+  fastify.get<{ Params: { userId: number } }>(
+    "/members/:userId/body-checks",
+    { schema: adminBodyChecksSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.body-checks");
+        // Fase 201 D-08: hoy coincide con `canManageConquer`; se separan cuando
+        // se abra a coach. Chequeo explícito además del guard del plugin.
+        if (!canViewConquerPhotos(request.user)) {
+          return reply
+            .code(403)
+            .send({ error: "No tenés permiso para ver los controles" });
+        }
+        return await listChecksForAdmin(
+          fastify.db,
+          ctx,
+          { userId: request.user.userId, role: request.user.role },
+          request.params.userId,
+        );
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.body-checks");
+      }
+    },
+  );
+
+  // GET /members/:userId/body-checks/:checkId/photos/:pose/url — URL firmada de 5 min (D-08).
+  fastify.get<{
+    Params: { userId: number; checkId: number; pose: ConquerPose };
+  }>(
+    "/members/:userId/body-checks/:checkId/photos/:pose/url",
+    { schema: adminPhotoUrlSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.photo-url");
+        // Fase 201 D-08: chequeo explícito de fotos (ver la ruta de controles).
+        if (!canViewConquerPhotos(request.user)) {
+          return reply
+            .code(403)
+            .send({ error: "No tenés permiso para ver las fotos" });
+        }
+        const { userId, checkId, pose } = request.params;
+        return await getPhotoUrlForAdmin(
+          fastify,
+          ctx,
+          { userId: request.user.userId, role: request.user.role },
+          userId,
+          checkId,
+          pose,
+        );
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.photo-url");
+      }
+    },
+  );
+
+  // GET /gallery?authorized=true|false — antes y después, filtrable por autorizados (§6, A19).
+  fastify.get<{ Querystring: { authorized?: boolean } }>(
+    "/gallery",
+    { schema: gallerySchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.gallery");
+        return await buildGallery(fastify.db, ctx, {
+          authorized: request.query.authorized ?? null,
+        });
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.gallery");
       }
     },
   );

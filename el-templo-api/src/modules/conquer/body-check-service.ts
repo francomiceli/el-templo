@@ -48,6 +48,7 @@ import {
   type ConquerPose,
   type PhotoContentType,
 } from "./private-media";
+import { canViewConquerPhotos } from "./permissions";
 import { resolveMemberTimezone } from "./timezone";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -111,7 +112,7 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function toView(row: CheckRow): BodyCheckView {
+export function toView(row: CheckRow): BodyCheckView {
   return {
     id: row.id,
     checkDate: row.checkDate,
@@ -129,7 +130,7 @@ function toView(row: CheckRow): BodyCheckView {
   };
 }
 
-function toComparable(view: BodyCheckView): ComparableCheck {
+export function toComparable(view: BodyCheckView): ComparableCheck {
   return {
     id: view.id,
     checkDate: view.checkDate,
@@ -187,7 +188,7 @@ async function findOwnCheck(
 }
 
 /** Fila de `conquer_members` del alumno si está ACTIVO; si no, 409 `CONQUER_NO_ACTIVO`. */
-async function requireOwnActiveMember(
+export async function requireOwnActiveMember(
   db: DbInstance,
   ctx: TenantContext,
   userId: number,
@@ -577,4 +578,67 @@ export async function skipDay0(
     )
     .limit(1);
   return summarize(content, row?.day0SkippedAt ?? null, today);
+}
+
+// ── Variantes del admin (§7.2 Evolución, D-08, A19) ─────────────────
+
+/** Quien pide: viene SIEMPRE del token, nunca del body. */
+export interface PhotoActor {
+  role: string;
+  userId: number;
+}
+
+/**
+ * Fase 201 D-08/A19: ver controles y fotos de un alumno es control de acceso
+ * por rol (alumno dueño, owner y admin), NO el flag de publicación. Hoy
+ * coincide con `canManageConquer`; se separan cuando se abra a coach.
+ */
+export function assertCanViewPhotos(actor: PhotoActor): void {
+  if (!canViewConquerPhotos(actor)) {
+    throw new AppError("No tenés permiso para ver los controles", 403);
+  }
+}
+
+/**
+ * Controles de un alumno para el admin: mismo shape que `listChecks`.
+ * Orden: rol (403) -> alumno del gimnasio (404). Sin fila en `conquer_members`
+ * del gimnasio (incluye alumnos de otro gimnasio) es 404.
+ */
+export async function listChecksForAdmin(
+  db: DbInstance,
+  ctx: TenantContext,
+  actor: PhotoActor,
+  userId: number,
+): Promise<BodyChecksList> {
+  assertCanViewPhotos(actor);
+  const [member] = await db
+    .select({ id: schema.conquerMembers.id })
+    .from(schema.conquerMembers)
+    .where(
+      and(
+        tenantWhere(schema.conquerMembers, ctx),
+        eq(schema.conquerMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+  if (!member) throw new AppError("Alumno no encontrado", 404);
+  return listChecks(db, ctx, userId);
+}
+
+/**
+ * URL firmada de 5 minutos para que el admin VEA una foto de un alumno.
+ * Orden: rol (403) -> control DE ESE alumno y del gimnasio (404, cross-ID,
+ * T-201-46) -> storage (503) -> foto (404). Reusa `getPhotoUrl`, que busca el
+ * control por (checkId, userId, tenant).
+ */
+export async function getPhotoUrlForAdmin(
+  fastify: FastifyInstance,
+  ctx: TenantContext,
+  actor: PhotoActor,
+  userId: number,
+  checkId: number,
+  pose: ConquerPose,
+): Promise<{ url: string; expiresIn: number }> {
+  assertCanViewPhotos(actor);
+  return getPhotoUrl(fastify, ctx, userId, checkId, pose);
 }
