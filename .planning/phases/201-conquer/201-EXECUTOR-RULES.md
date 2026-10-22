@@ -258,3 +258,9 @@ con preguntas.
   `<button class="cq-cta cq-cta--ghost">`, sin otro `.cq-foot`. El store NO muestra `Notify`: la vista observa `error` o el
   `false` de las acciones y notifica. El error del API se muestra solo si trae `code` `CONQUER_*`; si no, texto fijo de la
   acción. El PUT del archivo a `uploadUrl` (201-20) va con axios pelado, sin header de auth. `estadoChip(null)` = "Sin datos".
+- (201-17) Cada estado de `ConquerTab` es su propia raíz `CqSky`. `.cq-enter` funciona solo como DESCENDIENTE de `.cq-root`
+  (no sobre la raíz). Para pisar el padding de `CqSky` desde un padre: `.mi-clase.cq-sky`. En `ConquerHome` hay ganchos
+  `<!-- 201-18: CTA principal -->` y `<!-- 201-19/20: accesos -->`. `mustPromptDay0` lo usa 201-20.
+  **Encargo del orquestador para 201-18:** `HomeLastByDay.e1` del API no trae `unilateral`, así que Inicio nunca dice
+  "por lado". Sumar `unilateral` a esa vista en el API (servicio + `schemas.ts` + un `expect` en el test de Hoy existente)
+  y usarlo en `ConquerHome`. Commit propio `fix(201-18): ...`.
