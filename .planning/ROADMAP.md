@@ -401,7 +401,34 @@ Plans:
 **Goal**: Modo Conquer simple según la síntesis de Nacho del 2026-10-21. El coach activa al alumno eligiendo nivel y días. El alumno carga un número por escalón y la app calcula objetivos y cuándo subir. El coach trabaja por excepción con alertas.
 **Depends on**: Phase 197 (tabs de Entrenar, en staging); de cero, la rama 196 queda guardada como cantera
 **Requirements**: `.planning/phases/201-conquer/ref/conquer-desarrollo-sintesis.md` + decisiones en `201-CONTEXT.md`. Los criterios de éxito son el §12 de la síntesis.
-**Plans**: TBD
+**Plans**: 24 plans (ejecución secuencial en un solo worktree, una ola por plan; ejecutor sonnet; tests en CI)
+
+Plans:
+
+- [ ] 201-01-PLAN.md — Schema y DDL de las 10 tablas (0290/0291) + gates de tenancy
+- [ ] 201-02-PLAN.md — Semilla del catálogo (0292) + fixture del oráculo
+- [ ] 201-03-PLAN.md — Motor puro (§4) + test diferencial contra el oráculo
+- [ ] 201-04-PLAN.md — Reglas puras: calendario (D-16), caída, recortes, nivel, encendido muscular
+- [ ] 201-05-PLAN.md — Permisos (D-08), settings, carga del catálogo, estado y pedidos de desbloqueo (D-12)
+- [ ] 201-06-PLAN.md — Alta del alumno por nivel y días + edición
+- [ ] 201-07-PLAN.md — API de Hoy, guardado de la sesión, cambio de escalón, home
+- [ ] 201-08-PLAN.md — Progreso, Subir, calibración, base de alertas
+- [ ] 201-09-PLAN.md — Alertas (con reapertura), alertas derivadas, tablero
+- [ ] 201-10-PLAN.md — Combos de Toro y Sábado (opening opcional)
+- [ ] 201-11-PLAN.md — Recortes, paso de nivel, ficha del alumno
+- [ ] 201-12-PLAN.md — Control físico con fotos privadas, día 0 (regla de contenido), env vars
+- [ ] 201-13-PLAN.md — Permiso de publicación, fotos en el admin, galería
+- [ ] 201-14-PLAN.md — API de edición de catálogo y ajustes (D-14)
+- [ ] 201-15-PLAN.md — Tabs de Entrenar Semana + Conquer, D-17, destino `conquer` del pop-up
+- [ ] 201-16-PLAN.md — App: capa de datos + submarca (tokens, letras, componentes, portada)
+- [ ] 201-17-PLAN.md — App: ConquerTab, Bloqueado, Inicio, Niveles
+- [ ] 201-18-PLAN.md — App: pantalla Hoy
+- [ ] 201-19-PLAN.md — App: Progreso y Sábado
+- [ ] 201-20-PLAN.md — App: control físico y Evolución
+- [ ] 201-21-PLAN.md — Admin: pedidos, alta, tablero
+- [ ] 201-22-PLAN.md — Admin: ficha del alumno y galería
+- [ ] 201-23-PLAN.md — Admin: catálogo y ajustes
+- [ ] 201-24-PLAN.md — E2E del recorrido + UAT + checkpoint humano (Franco + Nacho)
 
 ## Progress
 
