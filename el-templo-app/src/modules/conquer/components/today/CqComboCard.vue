@@ -5,6 +5,7 @@
       Press <b>{{ combo.press }}</b> (sube y baja) → Push <b>{{ combo.push }}</b> → Hold
       <b>{{ combo.hold }}</b>
     </div>
+    <div v-if="hint" class="cq-sub">{{ hint }}</div>
 
     <div class="cq-combo__line">
       <div class="cq-combo__label"><b>Progresión de arranque</b></div>
@@ -60,6 +61,8 @@ withDefaults(
   defineProps<{
     combo: ComboView
     title: string
+    /** Ayuda del anexo §9 (`combo`) debajo de la secuencia. */
+    hint?: string
     rungId: number
     seriesValue: number
     /** Tope del contador de series: 10 en la apertura, 13 en el sábado. */

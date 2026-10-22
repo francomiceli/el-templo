@@ -107,7 +107,6 @@ export interface TodayRung {
   code: string
   name: string
   position: number
-  brazosRectos: boolean
   unilateral: boolean
 }
 
@@ -116,6 +115,8 @@ export interface TodayStep {
   rungId: number
   rungName: string
   mode: Mode
+  /** Modos que ofrece el desplegable de este escalón (anexo §1): lo decide el API. */
+  modes: Mode[]
   /** `null` en el hold. */
   target: number | null
   /** `null` en el hold. */
@@ -130,7 +131,10 @@ export interface TodayExercise {
   code: string
   name: string
   unit: Unit
+  /** Opciones de peldaño de E1-E3. */
   rungs: TodayRung[]
+  /** Opciones de peldaño del hold final (su propia escalera, anexo §2). */
+  holdRungs: TodayRung[]
   steps: TodayStep[]
 }
 
@@ -189,12 +193,19 @@ export interface CalibrationProposal {
   toRungName: string | null
 }
 
+/** Escalón E1-E3 que llegó al techo por primera vez al guardar (anexo §9 `fin_sesion_techo`). */
+export interface SessionTecho {
+  exerciseName: string
+  step: 'e1' | 'e2' | 'e3'
+}
+
 export interface SaveSessionResponse {
   sessionId: number
   date: string
   dayKey: string
   lighting: Lighting
   calibration: CalibrationProposal[]
+  techo: SessionTecho[]
 }
 
 /** Body de `PUT /steps/:exerciseId/:step`. */

@@ -15,6 +15,7 @@ function step(key: StepKey, value: number): TodayStep {
     rungId: 10,
     rungName: 'tuck',
     mode: key === 'hold' ? 'hold' : 'completa',
+    modes: key === 'hold' ? ['hold'] : ['completa', 'negativa'],
     target: key === 'hold' ? null : value,
     estado: key === 'hold' ? null : 'rango',
     value,
@@ -31,6 +32,7 @@ function exercise(exerciseId: number, unit: Unit, values: [number, number, numbe
     name: `Ejercicio ${exerciseId}`,
     unit,
     rungs: [],
+    holdRungs: [],
     steps: keys.map((k, i) => step(k, values[i])),
   }
   return ex

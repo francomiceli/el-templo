@@ -8,8 +8,7 @@
     />
 
     <p class="cq-levels__legend">
-      Milón cargó un ternero todos los días. El ternero creció, y Milón con él, hasta cargar un
-      toro.
+      {{ CQ_TEXTOS.leyenda_milon }}
     </p>
 
     <div class="cq-caps cq-rule">Tres niveles, un método</div>
@@ -45,7 +44,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConquerStore } from '../stores/conquerStore'
-import { LEVEL_INFO } from '../utils/format'
+import { CQ_TEXTOS, LEVEL_INFO } from '../utils/format'
 import type { Level } from '../types'
 import CqSky from '../components/brand/CqSky.vue'
 import CqPageHeader from '../components/brand/CqPageHeader.vue'

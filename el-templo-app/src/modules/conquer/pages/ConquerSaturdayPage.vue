@@ -41,6 +41,8 @@
         <div class="cq-sub">{{ saturday.warmup }}</div>
       </div>
 
+      <div class="cq-sub">{{ CQ_TEXTOS.sabado_combo }}</div>
+
       <CqComboCard
         v-if="form.push"
         :combo="saturday.push"
@@ -99,6 +101,7 @@ import { useQuasar } from 'quasar'
 import { useConquerStore } from '../stores/conquerStore'
 import { useConquerToday } from '../composables/useConquerToday'
 import type { SaturdayCombo } from '../composables/useConquerToday'
+import { CQ_TEXTOS } from '../utils/format'
 import { SATURDAY_DAY_KEY, SATURDAY_MAX_SERIES, saturdayComboTitle } from '../utils/todayForm'
 import CqSky from '../components/brand/CqSky.vue'
 import CqPageHeader from '../components/brand/CqPageHeader.vue'

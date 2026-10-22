@@ -36,6 +36,7 @@
         v-if="today.opening && form.opening"
         :combo="today.opening"
         title="Combo de apertura · al fallo"
+        :hint="CQ_TEXTOS.combo"
         :rung-id="form.opening.rungId"
         :series-value="form.opening.series"
         :busy="changing || saving"
@@ -60,7 +61,7 @@
         <div class="cq-today__line">
           <div class="cq-today__label">
             <b>Finisher</b>
-            <span>{{ today.finisher }} · 3 series, lejos del fallo</span>
+            <span>{{ finisherLine(today.finisher) }}</span>
           </div>
         </div>
         <div class="cq-today__line">
@@ -90,6 +91,7 @@
       v-model="sheetOpen"
       :lighting="lastSave?.lighting ?? null"
       :calibration="lastSave?.calibration ?? []"
+      :techo="lastSave?.techo ?? []"
       :gender="gender"
       :resolving="resolving"
       @resolve="onResolve"
@@ -105,7 +107,7 @@ import { useQuasar } from 'quasar'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useConquerStore } from '../stores/conquerStore'
 import { useConquerToday } from '../composables/useConquerToday'
-import { shortDate } from '../utils/format'
+import { CQ_TEXTOS, finisherLine, shortDate } from '../utils/format'
 import type { Mode, StepKey } from '../types'
 import CqSky from '../components/brand/CqSky.vue'
 import CqPageHeader from '../components/brand/CqPageHeader.vue'

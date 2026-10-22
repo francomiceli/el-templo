@@ -11,13 +11,13 @@
     <CqCloudButton
       v-if="!requested"
       plain
-      label="Quiero desbloquearlo"
+      :label="CQ_TEXTOS.boton_bloqueado"
       :loading="store.requesting"
       @click="onRequest"
     />
     <div v-else class="cq-foot cq-foot--plain">
       <div class="cq-toast" role="status">Ya le avisamos al equipo</div>
-      <div class="cq-sub">Te contactamos para activarlo.</div>
+      <div class="cq-sub">{{ CQ_TEXTOS.confirmacion_pedido }}</div>
     </div>
   </CqSky>
 </template>
@@ -26,12 +26,14 @@
 import { computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { useConquerStore } from '../stores/conquerStore'
+import { CQ_TEXTOS } from '../utils/format'
 import CqSky from './brand/CqSky.vue'
 import CqCloudButton from './brand/CqCloudButton.vue'
 
 // Fase 201 D-12, §7.1 Bloqueado: portada + "Quiero desbloquearlo". El pedido lo registra el API
 // (idempotente, T-201-77); acá el botón va con `:loading` para no mandar dos. Con el pedido
-// enviado (`status = pedido`) el botón se reemplaza por "Ya le avisamos al equipo".
+// enviado (`status = pedido`) el botón se reemplaza por "Ya le avisamos al equipo" (D-12) y, debajo,
+// la confirmación del anexo §9 (`confirmacion_pedido`).
 const $q = useQuasar()
 const store = useConquerStore()
 

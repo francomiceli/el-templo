@@ -9,7 +9,7 @@
         v-for="(step, i) in exercise.steps"
         :key="step.step"
         :step="step"
-        :rungs="exercise.rungs"
+        :rungs="step.step === 'hold' ? exercise.holdRungs : exercise.rungs"
         :unit="step.step === 'hold' ? 's' : exercise.unit"
         :level="level"
         :value="values[step.step]"
@@ -19,11 +19,15 @@
         @change-step="(rungId: number, mode: Mode) => emit('change-step', step.step, rungId, mode)"
       />
     </div>
-    <div class="cq-sub cq-ex__note">Anotá la peor de tus 3 series</div>
+    <div class="cq-sub cq-ex__note">{{ CQ_TEXTOS.ayuda_carga }}</div>
+    <div class="cq-sub cq-ex__note">{{ holdHelp(level) }}</div>
+    <div v-if="hasUnilateral" class="cq-sub cq-ex__note">{{ CQ_TEXTOS.ayuda_unilateral }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { CQ_TEXTOS, holdHelp } from '../../utils/format'
 import { templeFilled } from '../../utils/todayForm'
 import type { StepValues } from '../../utils/todayForm'
 import type { Level, Mode, StepKey, TodayExercise } from '../../types'
@@ -31,8 +35,10 @@ import CqTemple from '../brand/CqTemple.vue'
 import CqStepRow from './CqStepRow.vue'
 
 // Fase 201 §7.1 Hoy: un ejercicio con su templo (se llena con los escalones cargados) y los 4
-// escalones Α Β Γ Ω. "Anotá la peor de tus 3 series" (§4.1: un número por escalón).
-defineProps<{
+// escalones Α Β Γ Ω. Ayudas del anexo §9: `ayuda_carga` (§4.1: un número por escalón), la del hold
+// final según el nivel y `ayuda_unilateral` si algún escalón se carga por lado. E1-E3 eligen
+// progresión en `exercise.rungs` y el hold final en `exercise.holdRungs` (su propia escalera).
+const props = defineProps<{
   exercise: TodayExercise
   /** 1, 2 o 3: posición del ejercicio en el día. */
   index: number
@@ -45,6 +51,8 @@ const emit = defineEmits<{
   'update:value': [step: StepKey, value: number]
   'change-step': [step: StepKey, rungId: number, mode: Mode]
 }>()
+
+const hasUnilateral = computed(() => props.exercise.steps.some((s) => s.unilateral))
 </script>
 
 <style scoped lang="scss">

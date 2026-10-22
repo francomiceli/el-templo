@@ -19,6 +19,11 @@
         :height="200"
       />
 
+      <!-- Anexo §9 `fin_sesion_techo`: los techos los calcula el API, el app solo los muestra -->
+      <p v-for="item in techo" :key="`${item.exerciseName}-${item.step}`" class="cq-sub">
+        {{ techoText(item) }}
+      </p>
+
       <div v-for="item in calibration" :key="item.exerciseId" class="cq-card cq-sheet__calib">
         <div class="cq-sheet__calib-text">{{ calibrationText(item) }}</div>
         <div v-if="canResolveCalibration(item)" class="cq-sheet__calib-actions">
@@ -49,8 +54,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { isZoneSlug } from 'src/components/anatomy/zones'
-import { calibrationText, canResolveCalibration } from '../../utils/format'
-import type { CalibrationProposal, Lighting } from '../../types'
+import { calibrationText, canResolveCalibration, techoText } from '../../utils/format'
+import type { CalibrationProposal, Lighting, SessionTecho } from '../../types'
 import CqBodyMap from '../CqBodyMap.vue'
 import CqCloudButton from '../brand/CqCloudButton.vue'
 
@@ -63,10 +68,12 @@ const props = withDefaults(
     modelValue: boolean
     lighting: Lighting | null
     calibration: CalibrationProposal[]
+    /** Escalones que llegaron al techo por primera vez (lo manda el API). */
+    techo?: SessionTecho[]
     gender: string | null
     resolving?: boolean
   }>(),
-  { resolving: false },
+  { resolving: false, techo: () => [] },
 )
 
 const emit = defineEmits<{

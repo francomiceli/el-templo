@@ -24,10 +24,10 @@
         class="cq-select"
         aria-label="Modo"
         :value="step.mode"
-        :disabled="busy"
+        :disabled="busy || step.modes.length < 2"
         @change="onModeChange"
       >
-        <option v-for="m in MODES" :key="m.value" :value="m.value">{{ m.label }}</option>
+        <option v-for="m in step.modes" :key="m" :value="m">{{ MODE_LABELS[m] }}</option>
       </select>
     </div>
 
@@ -56,12 +56,13 @@ import CqCounter from './CqCounter.vue'
 // Fase 201 §1.4, §2, §7.1 Hoy: un escalón de la sesión. Letra griega, objetivo del motor ("objetivo
 // 4 reps", "4 por lado" o "al fallo" en el hold), estado, desplegables de progresión y modo, ayuda
 // por nivel y por brazos rectos, y el contador precargado. El app no calcula nada: `step.target`
-// y `step.estado` vienen del API.
-const MODES: readonly { value: Mode; label: string }[] = [
-  { value: 'completa', label: 'Completa' },
-  { value: 'negativa', label: 'Negativa' },
-  { value: 'hold', label: 'Hold' },
-]
+// y `step.estado` vienen del API, igual que `step.modes`.
+// Los modos posibles de cada escalón los manda el API (`step.modes`, anexo §1): el app solo les pone nombre.
+const MODE_LABELS: Record<Mode, string> = {
+  completa: 'Completa',
+  negativa: 'Negativa',
+  hold: 'Hold',
+}
 
 const props = withDefaults(
   defineProps<{
