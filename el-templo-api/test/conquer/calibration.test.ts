@@ -250,6 +250,38 @@ describe("POST /api/members/conquer/calibration/:exerciseId", () => {
     expect(otra.json<ConquerErrorBody>().code).toBe("CONQUER_SIN_CALIBRACION");
   });
 
+  // 201-25 DA-3: el hold final se mueve dentro de SU escalera de hold.
+  it("aceptar subir mueve el hold dentro de su escalera de hold (Toro HSPU: pike -> vertical en pared)", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    const hspuId = ids.get("hspu") ?? 0;
+    await saveTodaySession(app, token, {
+      day: "vertical",
+      edits: { hspu: { e1: 6 } },
+    });
+
+    const res = await postCalibration(app, token, hspuId, { accept: true });
+
+    expect(res.statusCode, res.body).toBe(200);
+    const steps = await readConquerSteps(app, userId);
+    expect(steps.get("hspu:hold")).toMatchObject({
+      rungCode: "vertical_en_pared",
+      ladderCode: "hspu_hold",
+    });
+    // E1-E3 siguen en la escalera de E: paralelas profundas -> libre.
+    expect(steps.get("hspu:e1")).toMatchObject({
+      rungCode: "libre",
+      ladderCode: "hspu",
+    });
+    expect(steps.get("hspu:e3")).toMatchObject({
+      rungCode: "pared",
+      ladderCode: "hspu",
+    });
+  });
+
   // Los escalones que no se pueden mover (extremo de la escalera) quedan donde estaban.
   it.each([
     {

@@ -260,6 +260,101 @@ describe("GET /api/members/conquer/today", () => {
     expect(stepOf(dominadas, "one_arm_archer", "e3").unilateral).toBe(false);
   });
 
+  // §1 del anexo: la marca de brazos rectos vive en el EJERCICIO (201-25 DA-4).
+  it("brazosRectos sale del ejercicio: Pull-ups en front lever false en sus 4 escalones, Planche press true", async () => {
+    const { token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+
+    const front = await today(token, "front");
+    const plancha = await today(token, "plancha");
+
+    for (const step of ["e1", "e2", "e3", "hold"] as const) {
+      expect(stepOf(front, "front_pullups", step).brazosRectos, step).toBe(
+        false,
+      );
+      expect(stepOf(front, "front_hold", step).brazosRectos, step).toBe(true);
+      expect(stepOf(plancha, "planche_press", step).brazosRectos, step).toBe(
+        true,
+      );
+    }
+  });
+
+  // §2 del anexo: las escaleras de front lever no tienen lean.
+  it.each(["front_hold", "front_pullups", "front_raises"])(
+    "%s no ofrece el peldaño lean (§2 del anexo)",
+    async (code) => {
+      const { token } = await createActiveConquerMember(app, {
+        level: "toro",
+        daysCount: 4,
+      });
+
+      const body = await today(token, "front");
+
+      const exercise = exerciseOf(body, code);
+      expect(exercise.rungs.map((r) => r.code)).toEqual([
+        "full",
+        "half_lay",
+        "straddle",
+        "super_adv_tuck",
+        "adv_tuck",
+        "tuck",
+      ]);
+      expect(exercise.holdRungs.map((r) => r.code)).toEqual(
+        exercise.rungs.map((r) => r.code),
+      );
+    },
+  );
+
+  // §2 del anexo: el hold final de HSPU se elige entre vertical libre, en pared y pike.
+  it("HSPU: holdRungs son los 3 peldaños de hspu_hold y rungs no los incluye (§2 del anexo)", async () => {
+    const { token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+
+    const body = await today(token, "vertical");
+
+    const hspu = exerciseOf(body, "hspu");
+    expect(hspu.holdRungs.map((r) => r.code)).toEqual([
+      "vertical_libre",
+      "vertical_en_pared",
+      "pike",
+    ]);
+    expect(hspu.holdRungs.map((r) => r.name)).toEqual([
+      "vertical libre",
+      "vertical en pared",
+      "pike",
+    ]);
+    expect(hspu.rungs.map((r) => r.code)).toEqual([
+      "libre_deficit",
+      "libre",
+      "paralelas_profundas",
+      "pared",
+      "wide_en_piso",
+      "pike_elevado",
+      "pike",
+    ]);
+    expect(hspu.rungs.map((r) => r.code)).not.toContain("vertical_libre");
+    // El escalón de hold apunta a un peldaño de SU escalera.
+    const holdStep = stepOf(body, "hspu", "hold");
+    expect(hspu.holdRungs.map((r) => r.id)).toContain(holdStep.rungId);
+    expect(hspu.rungs.map((r) => r.id)).not.toContain(holdStep.rungId);
+  });
+
+  it("un ejercicio sin escalera de hold propia repite la de E1-E3 en holdRungs", async () => {
+    const { token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+
+    const body = await today(token, "plancha");
+
+    const press = exerciseOf(body, "planche_press");
+    expect(press.holdRungs).toEqual(press.rungs);
+  });
+
   it("el alumno puede elegir otro día con ?day= (D-16)", async () => {
     const { token } = await createActiveConquerMember(app, {
       level: "toro",

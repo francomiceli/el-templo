@@ -256,6 +256,7 @@ export async function insertConquerSession(
       id: schema.conquerExercises.id,
       code: schema.conquerExercises.code,
       ladderId: schema.conquerExercises.ladderId,
+      holdLadderId: schema.conquerExercises.holdLadderId,
     })
     .from(schema.conquerExercises)
     .where(tenantWhere(schema.conquerExercises, TEMPLO_CTX));
@@ -292,7 +293,13 @@ export async function insertConquerSession(
         .where(
           and(
             tenantWhere(schema.conquerRungs, TEMPLO_CTX),
-            eq(schema.conquerRungs.ladderId, exercise.ladderId),
+            // 201-25 DA-3: el hold tiene su propia escalera.
+            eq(
+              schema.conquerRungs.ladderId,
+              step.step === "hold"
+                ? (exercise.holdLadderId ?? exercise.ladderId)
+                : exercise.ladderId,
+            ),
             eq(schema.conquerRungs.code, step.rungCode),
           ),
         );
@@ -383,7 +390,14 @@ export interface TodayExerciseBody {
     code: string;
     name: string;
     position: number;
-    brazosRectos: boolean;
+    unilateral: boolean;
+  }[];
+  /** 201-25 DA-3: opciones de peldaño del hold final (su escalera, o la de E1-E3). */
+  holdRungs: {
+    id: number;
+    code: string;
+    name: string;
+    position: number;
     unilateral: boolean;
   }[];
   steps: TodayStepBody[];
@@ -1123,7 +1137,7 @@ export async function putFichaStepRaw(
 
 /**
  * Pisa DIRECTO un escalón del alumno (peldaño por código dentro de la escalera
- * del ejercicio, calibración y `since_date`). Solo para armar el escenario.
+ * del escalón, la del hold para `hold`, calibración y `since_date`). Solo para armar el escenario.
  */
 export async function patchConquerStep(
   app: FastifyInstance,
@@ -1140,6 +1154,7 @@ export async function patchConquerStep(
     .select({
       id: schema.conquerExercises.id,
       ladderId: schema.conquerExercises.ladderId,
+      holdLadderId: schema.conquerExercises.holdLadderId,
     })
     .from(schema.conquerExercises)
     .where(
@@ -1168,7 +1183,13 @@ export async function patchConquerStep(
       .where(
         and(
           tenantWhere(schema.conquerRungs, TEMPLO_CTX),
-          eq(schema.conquerRungs.ladderId, exercise.ladderId),
+          // 201-25 DA-3: el hold tiene su propia escalera.
+          eq(
+            schema.conquerRungs.ladderId,
+            step === "hold"
+              ? (exercise.holdLadderId ?? exercise.ladderId)
+              : exercise.ladderId,
+          ),
           eq(schema.conquerRungs.code, patch.rungCode),
         ),
       );

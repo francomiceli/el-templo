@@ -178,7 +178,7 @@ describe("PUT /api/members/conquer/steps/:exerciseId/:step", () => {
     const ids = await conquerExerciseIds(app);
 
     const res = await putStep(token, ids.get("planche_press") ?? 0, "e1", {
-      rungId: await conquerRungId(app, "palanca", "adv_tuck"),
+      rungId: await conquerRungId(app, "planche_press", "adv_tuck"),
       mode: "completa",
     });
 
@@ -214,7 +214,7 @@ describe("PUT /api/members/conquer/steps/:exerciseId/:step", () => {
     await patchSteps(userId, { calibration: "resuelta" });
     const ids = await conquerExerciseIds(app);
     const exerciseId = ids.get("planche_press") ?? 0;
-    const lean = await conquerRungId(app, "palanca", "lean");
+    const lean = await conquerRungId(app, "planche_press", "lean");
 
     const e2 = await putStep(token, exerciseId, "e2", {
       rungId: lean,
@@ -273,8 +273,8 @@ describe("PUT /api/members/conquer/steps/:exerciseId/:step", () => {
     const exerciseId = ids.get("planche_press") ?? 0;
     // tuck es el peldaño actual de E1 y E2 de Planche press. straddle no es el
     // actual de ningún escalón.
-    const straddle = await conquerRungId(app, "palanca", "straddle");
-    const tuck = await conquerRungId(app, "palanca", "tuck");
+    const straddle = await conquerRungId(app, "planche_press", "straddle");
+    const tuck = await conquerRungId(app, "planche_press", "tuck");
     await deactivateRung(straddle);
     await deactivateRung(tuck);
 
@@ -341,7 +341,7 @@ describe("PUT /api/members/conquer/steps/:exerciseId/:step", () => {
       mode: "completa",
     });
     const bien = await putStep(token, exerciseId, "hold", {
-      rungId: await conquerRungId(app, "palanca", "adv_tuck"),
+      rungId: await conquerRungId(app, "planche_press", "adv_tuck"),
       mode: "hold",
     });
 
@@ -355,6 +355,86 @@ describe("PUT /api/members/conquer/steps/:exerciseId/:step", () => {
       estado: null,
       value: 8,
     });
+  });
+
+  // 201-25 DA-3 / T-201-93: el hold final elige en SU escalera, E1-E3 en la del ejercicio.
+  it("el hold de HSPU se cambia a un peldaño de hspu_hold (§2 del anexo): 200 y queda en su escalera", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+
+    const res = await putStep(token, ids.get("hspu") ?? 0, "hold", {
+      rungId: await conquerRungId(app, "hspu_hold", "vertical_en_pared"),
+      mode: "hold",
+    });
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json<TodayStepBody>()).toMatchObject({
+      step: "hold",
+      rungName: "vertical en pared",
+      mode: "hold",
+    });
+    expect(
+      (await readConquerSteps(app, userId)).get("hspu:hold"),
+    ).toMatchObject({ rungCode: "vertical_en_pared", ladderCode: "hspu_hold" });
+  });
+
+  it("el hold de HSPU con un peldaño de la escalera de E1-E3 (pike_elevado): 400 CONQUER_PELDANO_INVALIDO", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    const antes = (await readConquerSteps(app, userId)).get("hspu:hold");
+
+    const res = await putStep(token, ids.get("hspu") ?? 0, "hold", {
+      rungId: await conquerRungId(app, "hspu", "pike_elevado"),
+      mode: "hold",
+    });
+
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.json<ErrorBody>().code).toBe("CONQUER_PELDANO_INVALIDO");
+    expect((await readConquerSteps(app, userId)).get("hspu:hold")).toEqual(
+      antes,
+    );
+  });
+
+  it("el E1 de HSPU con un peldaño de hspu_hold (vertical_libre): 400 CONQUER_PELDANO_INVALIDO", async () => {
+    const { token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+
+    const res = await putStep(token, ids.get("hspu") ?? 0, "e1", {
+      rungId: await conquerRungId(app, "hspu_hold", "vertical_libre"),
+      mode: "completa",
+    });
+
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.json<ErrorBody>().code).toBe("CONQUER_PELDANO_INVALIDO");
+  });
+
+  it("Planche press con un peldaño de palanca (la escalera de los combos): 400 CONQUER_PELDANO_INVALIDO", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    const antes = (await readConquerSteps(app, userId)).get("planche_press:e1");
+
+    const res = await putStep(token, ids.get("planche_press") ?? 0, "e1", {
+      rungId: await conquerRungId(app, "palanca", "adv_tuck"),
+      mode: "completa",
+    });
+
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.json<ErrorBody>().code).toBe("CONQUER_PELDANO_INVALIDO");
+    expect(
+      (await readConquerSteps(app, userId)).get("planche_press:e1"),
+    ).toEqual(antes);
   });
 
   it("un ejercicio que el alumno no tiene en su plan: 404", async () => {
@@ -423,7 +503,7 @@ describe("PUT /api/members/conquer/steps/:exerciseId/:step", () => {
       ids.get("planche_press") ?? 0,
       "e1",
       {
-        rungId: await conquerRungId(app, "palanca", "lean"),
+        rungId: await conquerRungId(app, "planche_press", "lean"),
         mode: "completa",
       },
     );
@@ -450,7 +530,7 @@ describe("PUT /api/members/conquer/steps/:exerciseId/:step", () => {
     }
     const ids = await conquerExerciseIds(app);
     const cambio = await putStep(token, ids.get("planche_press") ?? 0, "e1", {
-      rungId: await conquerRungId(app, "palanca", "adv_tuck"),
+      rungId: await conquerRungId(app, "planche_press", "adv_tuck"),
       mode: "completa",
     });
     expect(cambio.statusCode, cambio.body).toBe(200);

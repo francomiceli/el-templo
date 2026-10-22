@@ -272,7 +272,7 @@ describe("POST /api/admin/conquer/members/:userId/recortes — bajar un escalón
     await patchConquerStep(app, m.userId, "planche_press", "e1", {
       rungCode: "adv_tuck",
     });
-    const tuckId = await conquerRungId(app, "palanca", "tuck");
+    const tuckId = await conquerRungId(app, "planche_press", "tuck");
     await setRungActive(tuckId, false);
     try {
       const res = await postCutRaw(app, m.admin.token, m.userId, {
@@ -329,6 +329,50 @@ describe("POST /api/admin/conquer/members/:userId/recortes — bajar un escalón
     );
     expect(alerta?.status).toBe("resuelta");
     expect(alerta?.resolvedBy).toBe(m.admin.id);
+  });
+
+  // 201-25 DA-3: bajar un hold se resuelve en la escalera de hold del ejercicio.
+  it("Toro: el hold de Fondo a pelícano baja dentro de fondo_pelicano_hold (anillas -> paralelas)", async () => {
+    const m = await escenario("toro", 4);
+    const ids = await conquerExerciseIds(app);
+
+    const res = await postCutRaw(app, m.admin.token, m.userId, {
+      action: "bajar_escalon",
+      exerciseId: ids.get("fondo_pelicano"),
+      step: "hold",
+    });
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(
+      (await readConquerSteps(app, m.userId)).get("fondo_pelicano:hold"),
+    ).toMatchObject({
+      rungCode: "paralelas",
+      ladderCode: "fondo_pelicano_hold",
+    });
+  });
+
+  it("Novillo: el hold de One arm / archer (dominada, el más fácil de su escalera de hold) da 409 de piso y no pasa a un peldaño de trac", async () => {
+    const m = await escenario("novillo", 3);
+    const ids = await conquerExerciseIds(app);
+    const antes = (await readConquerSteps(app, m.userId)).get(
+      "one_arm_archer:hold",
+    );
+    expect(antes).toMatchObject({
+      rungCode: "dominada",
+      ladderCode: "one_arm_archer_hold",
+    });
+
+    const res = await postCutRaw(app, m.admin.token, m.userId, {
+      action: "bajar_escalon",
+      exerciseId: ids.get("one_arm_archer"),
+      step: "hold",
+    });
+
+    expect(res.statusCode, res.body).toBe(409);
+    expect(res.json<ConquerErrorBody>().code).toBe("CONQUER_PISO_ESCALERA");
+    expect(
+      (await readConquerSteps(app, m.userId)).get("one_arm_archer:hold"),
+    ).toEqual(antes);
   });
 
   it("en el peldaño más fácil: 409 CONQUER_PISO_ESCALERA, sin cambios y la alerta sigue abierta", async () => {

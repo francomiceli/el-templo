@@ -274,7 +274,7 @@ describe("PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step (§7.2)
       ids.get("planche_press") ?? 0,
       "e1",
       {
-        rungId: await conquerRungId(app, "palanca", "adv_tuck"),
+        rungId: await conquerRungId(app, "planche_press", "adv_tuck"),
         mode: "completa",
       },
     );
@@ -331,7 +331,7 @@ describe("PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step (§7.2)
       ids.get("front_hold") ?? 0,
       "e1",
       {
-        rungId: await conquerRungId(app, "palanca", "tuck"),
+        rungId: await conquerRungId(app, "front_hold", "tuck"),
         mode: "hold",
       },
     );
@@ -373,7 +373,7 @@ describe("PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step (§7.2)
       ids.get("planche_press") ?? 0,
       "hold",
       {
-        rungId: await conquerRungId(app, "palanca", "lean"),
+        rungId: await conquerRungId(app, "planche_press", "lean"),
         mode: "completa",
       },
     );
@@ -397,7 +397,7 @@ describe("PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step (§7.2)
       ids.get("planche_press") ?? 0,
       "e1",
       {
-        rungId: await conquerRungId(app, "palanca", "adv_tuck"),
+        rungId: await conquerRungId(app, "planche_press", "adv_tuck"),
         mode: "completa",
       },
     );
@@ -415,7 +415,7 @@ describe("PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step (§7.2)
     const sinFila = await createTestMember(app);
     const ids = await conquerExerciseIds(app);
     const payload = {
-      rungId: await conquerRungId(app, "palanca", "tuck"),
+      rungId: await conquerRungId(app, "planche_press", "tuck"),
       mode: "completa",
     };
 
@@ -458,7 +458,7 @@ describe("PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step (§7.2)
         ids.get("planche_press") ?? 0,
         "e1",
         {
-          rungId: await conquerRungId(app, "palanca", "adv_tuck"),
+          rungId: await conquerRungId(app, "planche_press", "adv_tuck"),
           mode: "completa",
         },
       );
@@ -509,7 +509,7 @@ describe("PUT /api/admin/conquer/members/:userId/steps/:exerciseId/:step (§7.2)
       ids.get("planche_press") ?? 0,
       "e9",
       {
-        rungId: await conquerRungId(app, "palanca", "tuck"),
+        rungId: await conquerRungId(app, "planche_press", "tuck"),
         mode: "completa",
       },
     );

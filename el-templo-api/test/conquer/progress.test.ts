@@ -123,7 +123,7 @@ describe("GET /api/members/conquer/progress — acierto (A8)", () => {
     await changeE1Rung(
       token,
       pressId,
-      await conquerRungId(app, "palanca", "adv_tuck"),
+      await conquerRungId(app, "planche_press", "adv_tuck"),
     );
 
     const body = await fetchProgress(app, token);
@@ -217,7 +217,7 @@ describe("GET /api/members/conquer/progress — curva del E1", () => {
     await changeE1Rung(
       token,
       pressId,
-      await conquerRungId(app, "palanca", "adv_tuck"),
+      await conquerRungId(app, "planche_press", "adv_tuck"),
     );
     // Primera sesión con el peldaño nuevo: 3 repeticiones en adv tuck.
     await saveTodaySession(app, token, { edits: { planche_press: { e1: 3 } } });

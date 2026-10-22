@@ -248,7 +248,7 @@ describe("POST /api/members/conquer/steps/:exerciseId/:step/subir", () => {
       daysCount: 4,
     });
     const ids = await conquerExerciseIds(app);
-    const advTuck = await conquerRungId(app, "palanca", "adv_tuck");
+    const advTuck = await conquerRungId(app, "planche_press", "adv_tuck");
     await setRungActive(advTuck, false);
     desactivados.push(advTuck);
     await seedHistory(userId, "plancha", "planche_press", "e1", [6, 7, 8, 8]);
@@ -275,7 +275,7 @@ describe("POST /api/members/conquer/steps/:exerciseId/:step/subir", () => {
     });
     const ids = await conquerExerciseIds(app);
     const frontId = ids.get("front_hold") ?? 0;
-    const full = await conquerRungId(app, "palanca", "full");
+    const full = await conquerRungId(app, "front_hold", "full");
     await seedHistory(userId, "front", "front_hold", "e1", [12, 12]);
 
     const progreso = await fetchProgress(app, token);
