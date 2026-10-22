@@ -111,13 +111,19 @@ con preguntas.
   simples, ancho 100. API: con punto y coma, comillas dobles, ancho 80, comas finales. Imitar el archivo vecino.
 - Copy en español rioplatense con voseo y tildes ("clase", nunca "turno"). Al alumno, Conquer es "Conquer" y los niveles
   "Ternero", "Novillo", "Toro".
-- **Estética (D-09/D-22):** la submarca (azul noche `#131d44`, dorado `#cfae6b`, dorado claro `#f6e2a4`, crema `#fdf3d3`,
-  sol, nubes, templo de columnas, letras griegas Α Β Γ Ω) vive SOLO bajo la clase raíz `.cq-root` y en variables `--cq-*`
-  definidas ahí. Nada global: ni en `src/css/app.scss` ni en `_brand.scss`. Fuentes: Cormorant Garamond (ya instalada; los
-  pesos 600/700 se importan desde `@fontsource/cormorant-garamond/600.css` y `700.css` DENTRO del chunk de Conquer) para
-  títulos y números grandes; el resto del texto con la letra actual de El Templo (D-19: sin Jost). Sin rojo ni verde salvo
-  el chip SUBIR y el semáforo del coach (admin). Texto siempre en color sólido (`rgba` solo en fondos, sombras y bordes).
-  Hitbox ≥ 44 px. Todo tiene que funcionar a 390 px de ancho. Animaciones dentro de `@media (prefers-reduced-motion: no-preference)`.
+- **Estética (variante B · Pórtico nocturno, hallazgo 2 del UAT local; SUPERA la versión D-09/D-22 de sol, nubes y Cormorant):**
+  manda la sección "Estética" de `201-28-PLAN.md` (DA-15 a DA-18) y el sketch
+  `/home/franco/projects/el-templo/.planning/sketches/022-conquer-templo-clasico/` (variante B, solo lectura). Conquer usa
+  la página, las cards, los botones y la tipografía del app. Los colores de Conquer (azul noche `#131d44`, dorados) van en
+  terminaciones y en UNA pieza oscura (`.cq-dark`, `CqPortico`). Nada de sol, nubes ni lo "dreamy". Fuentes del app en todo,
+  también en los números: Geologica para el texto y las letras griegas Α Β Γ Ω, Montserrat 700/800 con
+  `tabular-nums lining-nums` para títulos, nombre del nivel y números grandes, y Cinzel SOLO en los kickers. NADA de
+  Cormorant ni `@fontsource` en el chunk de Conquer. Las fuentes se usan SIEMPRE vía `var(--cq-font-*)`, nunca con
+  `font-family` literal. Los tokens `--cq-*` viven SOLO dentro de `.cq-root { }` de `styles/conquer.scss`. Nada global: ni
+  en `src/css/app.scss` ni en `_brand.scss`. Los hex de la submarca no aparecen fuera de ese bloque. Siguen vigentes: sin
+  rojo ni verde salvo el chip SUBIR y el semáforo del coach (admin), texto en color sólido (`rgba` solo en fondos, sombras y
+  bordes), hitbox ≥ 44 px, todo a 390 px de ancho y animaciones dentro de `@media (prefers-reduced-motion: no-preference)`.
+  La puerta "Conquer" de Entrenar (`EntrenarTabs.vue`) NO cambia (DA-18).
 - Admin: colores de Quasar `info`/`primary` pueden ser azules: en el admin usar los tokens cálidos de El Templo (el azul de
   la submarca es SOLO del app del alumno).
 
@@ -253,12 +259,13 @@ con preguntas.
   `v-else`) y en `EntrenarVidriera.vue` (`.vidriera__pane`, sin blur). Ids: `paneId('conquer')`/`tabId('conquer')`.
   `TabKey` se importa de `../utils/entrenarTabs`; flags en `ENTRENAR_TAB_FLAGS`. No pasar prettier sobre archivos enteros
   ajenos (los espejos `destinations.ts` reformatean líneas que no son del plan): formatear a mano lo propio.
-- (201-16) Toda pantalla de Conquer usa `CqSky` como raíz (pone `.cq-root` e importa `conquer.scss`; sin eso no hay
-  tokens `--cq-*`). `CqCloudButton` ES el pie de nubes completo (`.cq-foot`): un segundo botón va en su slot como
-  `<button class="cq-cta cq-cta--ghost">`, sin otro `.cq-foot`. El store NO muestra `Notify`: la vista observa `error` o el
-  `false` de las acciones y notifica. El error del API se muestra solo si trae `code` `CONQUER_*`; si no, texto fijo de la
-  acción. El PUT del archivo a `uploadUrl` (201-20) va con axios pelado, sin header de auth. `estadoChip(null)` = "Sin datos".
-- (201-17) Cada estado de `ConquerTab` es su propia raíz `CqSky`. `.cq-enter` funciona solo como DESCENDIENTE de `.cq-root`
+- (201-16, SUPERADA por la variante B desde 201-28) La raíz de cada pantalla ya no es `CqSky`: es `CqScreen`
+  (`.cq-root .cq-screen`, que importa `conquer.scss`). Los botones son `CqButton` y la pieza oscura es `CqPortico`.
+  `CqSky`, `CqSun` y `CqCloudButton` quedan de LEGADO hasta que 201-34 los borra: ninguna pantalla migrada los usa.
+  Sigue vigente: el store NO muestra `Notify`. La vista observa `error` o el `false` de las acciones y notifica. El error
+  del API se muestra solo si trae `code` `CONQUER_*`; si no, va el texto fijo de la acción. El PUT del archivo a
+  `uploadUrl` (201-20) va con axios pelado, sin header de auth. `estadoChip(null)` = "Sin datos".
+- (201-17; desde 201-28 léase `CqScreen` donde dice `CqSky`) Cada estado de `ConquerTab` es su propia raíz `CqSky`. `.cq-enter` funciona solo como DESCENDIENTE de `.cq-root`
   (no sobre la raíz). Para pisar el padding de `CqSky` desde un padre: `.mi-clase.cq-sky`. En `ConquerHome` hay ganchos
   `<!-- 201-18: CTA principal -->` y `<!-- 201-19/20: accesos -->`. `mustPromptDay0` lo usa 201-20.
   **Encargo del orquestador para 201-18:** `HomeLastByDay.e1` del API no trae `unilateral`, así que Inicio nunca dice
