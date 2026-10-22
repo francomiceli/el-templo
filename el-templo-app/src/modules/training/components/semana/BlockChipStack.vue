@@ -15,17 +15,18 @@
       @click="onPick(i)"
     >
       <span class="block-chip-stack__role">{{ ROLE_LABELS[block.role] }}</span>
-      <span class="block-chip-stack__name">{{ blockDisplayName(block) }}</span>
+      <MarqueeText class="block-chip-stack__name">{{ blockDisplayName(block) }}</MarqueeText>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
+import MarqueeText from 'src/components/MarqueeText.vue'
 import { ROLE_LABELS } from 'src/constants/roleLabels'
 import type { Block } from '../../types/session'
 import { blockDisplayName } from '../../utils/blockMeta'
 
-// Fase 197 D-03: chips de bloque apilados (rol arriba, nombre en una línea). Siempre hay uno
+// Fase 197 D-03: chips de bloque apilados (rol arriba, nombre en una línea; si no entra, se desplaza). Siempre hay uno
 // elegido: tocar el elegido emite igual y no lo deselecciona.
 // Fase 200 D18: con la hoja de una zona abierta, `selected = -1` (ningún chip elegido), `hits` marca
 // los bloques que trabajan esa zona (borde + punto) y `dimOthers` apaga el resto. Con los defaults
@@ -160,13 +161,10 @@ function onPick(index: number): void {
   &__name {
     display: block;
     min-width: 0;
-    overflow: hidden;
     font-family: 'Geologica', sans-serif;
     font-weight: 500;
     font-size: 13px;
     line-height: 1.2;
-    white-space: nowrap;
-    text-overflow: ellipsis;
   }
 }
 </style>

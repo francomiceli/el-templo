@@ -8,8 +8,10 @@
     >
       <div class="semana-hero__head" :class="{ 'semana-hero__head--solo': !cta.showButton }">
         <div class="semana-hero__text">
-          <p class="semana-hero__kicker">{{ dayKicker(day.date, today) }}</p>
-          <h1 class="semana-hero__title">{{ title }}</h1>
+          <MarqueeText tag="p" class="semana-hero__kicker">{{
+            dayKicker(day.date, today)
+          }}</MarqueeText>
+          <MarqueeText tag="h1" class="semana-hero__title">{{ title }}</MarqueeText>
           <span v-if="cta.showDoneChip" class="semana-hero__done">
             <q-icon name="check" size="16px" />
             Hecha
@@ -53,6 +55,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import MarqueeText from 'src/components/MarqueeText.vue'
 import { FREE_BLOCKS_ENABLED } from 'src/config/featureFlags'
 import type { WeekDay } from '../../types/session'
 import { sessionTitle } from '../../utils/blockMeta'
@@ -60,6 +63,7 @@ import { resolveSemanaCta } from '../../utils/semanaCta'
 import { dayKicker } from '../../utils/weekLabels'
 
 // Fase 197 D-03: fila título + CTA mitad y mitad, con los 6 estados del CTA (resolveSemanaCta).
+// Título y kicker en una línea con desplazamiento si no entran (item 6, 2026-10-21).
 // Los CTA que arrancan a entrenar (`startsTraining`) llevan el ícono de play.
 const props = defineProps<{
   /** Día elegido en la tira */
@@ -174,14 +178,9 @@ function onCta(): void {
     @include pd-kicker-light;
   }
 
+  // Una sola línea: si el título no entra se desplaza (MarqueeText)
   &__title {
-    display: -webkit-box;
     margin: 2px 0 0;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
     font-family: 'Montserrat', sans-serif;
     font-weight: 700;
     font-size: 28px;
