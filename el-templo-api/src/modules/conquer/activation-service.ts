@@ -2,8 +2,8 @@
 //
 // S12-1: el owner o admin activa a un alumno eligiendo nivel y días; la
 // plantilla y las progresiones iniciales salen solas. Los escalones iniciales
-// son la tabla de Toro (§8.2) corrida hacia lo fácil según el nivel (D-14,
-// parámetro editable en `tenant_settings`).
+// son la tabla EXPLÍCITA del anexo de Nacho para el nivel (§3), guardada como
+// dato por ejercicio (Fase 201 DA-5, 0293). Ya no hay offset de peldaños.
 // D-17: no se exige plan ni inscripción del Templo para activar.
 // D-08: el alumno guarda su `coach_user_id` (por defecto quien lo activó) aunque
 // hoy solo owner/admin manejan Conquer.
@@ -23,13 +23,14 @@ import {
 import {
   loadCatalog,
   planDays,
+  startStepsFor,
+  stepLadderId,
   type ConquerCatalog,
   type ExerciseView,
   type RungView,
 } from "./catalog-service";
 import { resolveMemberTimezone } from "./timezone";
-import { isValidLevelDays, shiftStartPosition, type Level } from "./rules";
-import { getConquerSettings, type ConquerSettings } from "./settings";
+import { isValidLevelDays, type Level } from "./rules";
 
 type DbInstance = MySql2Database<typeof schema>;
 type Tx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
@@ -106,51 +107,35 @@ export function toAdminMemberView(row: ConquerMemberRow): AdminMemberView {
   };
 }
 
-// ── Escalones iniciales (§8.2, D-14) ────────────────────────────────
+// ── Escalones iniciales (anexo §3, DA-5) ────────────────────────────
 
 /**
- * Peldaño de arranque de un escalón: el de Toro (por `code`) corrido `offset`
- * peldaños activos hacia lo fácil, sin pasarse del más fácil (D-14).
- * Si el code de Toro no existe o está inactivo se parte del activo más cercano
- * hacia lo fácil (o, si no hay, hacia lo difícil). Devuelve `null` solo si la
- * escalera no tiene ningún peldaño activo.
+ * Peldaño de arranque de un escalón: el de la tabla del nivel (por `code`). Si
+ * el code no existe o está inactivo se parte del activo más cercano hacia lo
+ * fácil (o, si no hay, hacia lo difícil). Devuelve `null` solo si la escalera no
+ * tiene ningún peldaño activo.
  */
 function resolveStartRung(
   rungs: readonly RungView[],
-  toroCode: string,
-  offset: number,
+  startCode: string,
 ): { rung: RungView; fallback: boolean } | null {
   const active = rungs.filter((r) => r.isActive);
   if (active.length === 0) return null;
 
-  const toro = rungs.find((r) => r.code === toroCode);
-  let basePosition: number;
-  let fallback = false;
-  if (toro && toro.isActive) {
-    basePosition = toro.position;
-  } else {
-    fallback = true;
-    if (toro) {
-      const easier = active
-        .filter((r) => r.position > toro.position)
-        .sort((a, b) => a.position - b.position)[0];
-      const harder = active
-        .filter((r) => r.position < toro.position)
-        .sort((a, b) => b.position - a.position)[0];
-      basePosition = (easier ?? harder).position;
-    } else {
-      // Code desconocido: sin posición de referencia, el activo más fácil.
-      basePosition = Math.max(...active.map((r) => r.position));
-    }
+  const wanted = rungs.find((r) => r.code === startCode);
+  if (wanted && wanted.isActive) return { rung: wanted, fallback: false };
+  if (!wanted) {
+    // Code desconocido: sin posición de referencia, el activo más fácil.
+    const easiest = active.reduce((a, b) => (b.position > a.position ? b : a));
+    return { rung: easiest, fallback: true };
   }
-
-  const position = shiftStartPosition(
-    basePosition,
-    offset,
-    active.map((r) => r.position),
-  );
-  const rung = active.find((r) => r.position === position);
-  return rung ? { rung, fallback } : null;
+  const easier = active
+    .filter((r) => r.position > wanted.position)
+    .sort((a, b) => a.position - b.position)[0];
+  const harder = active
+    .filter((r) => r.position < wanted.position)
+    .sort((a, b) => b.position - a.position)[0];
+  return { rung: easier ?? harder, fallback: true };
 }
 
 /** Ejercicios únicos de la plantilla de `daysCount` días, en orden de plantilla. */
@@ -182,7 +167,6 @@ export async function ensureStepsForPlan(
   tx: Tx,
   ctx: TenantContext,
   catalog: ConquerCatalog,
-  settings: ConquerSettings,
   member: { id: number; level: Level; daysCount: number },
   log?: FastifyBaseLogger,
 ): Promise<number> {
@@ -203,14 +187,22 @@ export async function ensureStepsForPlan(
     );
   const have = new Set(existing.map((s) => `${s.exerciseId}:${s.step}`));
 
-  const offset = settings.startOffset[member.level];
   const rows: Omit<typeof schema.conquerSteps.$inferInsert, "tenantId">[] = [];
   for (const exercise of exercises) {
-    const ladder = catalog.ladders.get(exercise.ladderId);
-    for (const start of exercise.startSteps) {
+    const table = startStepsFor(exercise, member.level);
+    if (table.fallback) {
+      // DA-5: sin tabla para el nivel (catálogo de otro gimnasio) usa la de Toro.
+      log?.warn(
+        { exerciseCode: exercise.code, level: member.level },
+        "Conquer: el ejercicio no tiene tabla de arranque para el nivel, se usa la de Toro",
+      );
+    }
+    for (const start of table.steps) {
       if (have.has(`${exercise.id}:${start.step}`)) continue;
+      // DA-3: el hold final puede tener su propia escalera.
+      const ladder = catalog.ladders.get(stepLadderId(exercise, start.step));
       const resolved = ladder
-        ? resolveStartRung(ladder.rungs, start.rung, offset)
+        ? resolveStartRung(ladder.rungs, start.rung)
         : null;
       if (!resolved) {
         log?.warn(
@@ -222,7 +214,7 @@ export async function ensureStepsForPlan(
       if (resolved.fallback) {
         log?.warn(
           { exerciseCode: exercise.code, rung: start.rung },
-          "Conquer: peldaño de Toro inexistente o inactivo, se usa el activo más cercano",
+          "Conquer: peldaño de arranque inexistente o inactivo, se usa el activo más cercano",
         );
       }
       rows.push({
@@ -458,7 +450,7 @@ async function readMemberRow(
 /**
  * §7.2: owner/admin activa Conquer eligiendo nivel y días. Si el alumno tenía
  * un pedido (D-12) lo pasa a `activo`; si no tenía fila la crea (D-17: sin
- * exigir plan). Crea los escalones iniciales desde la plantilla (§8.2, D-14).
+ * exigir plan). Crea los escalones iniciales desde la plantilla y la tabla del nivel (anexo §3, DA-5).
  */
 export async function activateMember(
   db: DbInstance,
@@ -476,9 +468,8 @@ export async function activateMember(
   const coachUserId =
     input.coachUserId === undefined ? actor.userId : input.coachUserId;
 
-  const [catalog, settings, tz] = await Promise.all([
+  const [catalog, tz] = await Promise.all([
     loadCatalog(db, ctx),
-    getConquerSettings(db, ctx),
     resolveMemberTimezone(db, ctx, input.userId),
   ]);
   // "Hoy" del alumno es el de su sede, nunca UTC (§4.4).
@@ -525,7 +516,6 @@ export async function activateMember(
         tx,
         ctx,
         catalog,
-        settings,
         { id: memberId, level: input.level, daysCount: input.daysCount },
         log,
       );
@@ -598,15 +588,11 @@ export async function updateMember(
     }
 
     if (daysCount !== row.daysCount) {
-      const [catalog, settings] = await Promise.all([
-        loadCatalog(db, ctx),
-        getConquerSettings(db, ctx),
-      ]);
+      const catalog = await loadCatalog(db, ctx);
       await ensureStepsForPlan(
         tx,
         ctx,
         catalog,
-        settings,
         { id: row.id, level, daysCount },
         log,
       );

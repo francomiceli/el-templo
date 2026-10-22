@@ -6,9 +6,12 @@
 // escritura (`saveConquerSettings`, plan 201-14) valida el patch ENTERO contra
 // los rangos antes de tocar la base (D-14).
 //
-//   conquer.start_offset.ternero  peldaños más fáciles que Toro al arrancar (2, 0-4)
-//   conquer.start_offset.novillo  idem para Novillo (1, 0-4)
 //   conquer.combo_weeks_n         semanas seguidas para ofrecer Subir en un combo (2, 1-8)
+//
+// Fase 201 DA-5 (plan 201-25): las claves `conquer.start_offset.ternero|novillo`
+// se BORRARON del código. El arranque de Novillo y Ternero son las tablas
+// explícitas del anexo guardadas por ejercicio (`start_steps_novillo|ternero`).
+// Las filas viejas de esas claves en `tenant_settings`, si existen, se ignoran.
 import { and, like } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../../db/schema";
@@ -26,26 +29,20 @@ type DbInstance = MySql2Database<typeof schema>;
 export const CONQUER_SETTINGS_PREFIX = "conquer.";
 
 export const CONQUER_SETTING_KEYS = {
-  startOffsetTernero: `${CONQUER_SETTINGS_PREFIX}start_offset.ternero`,
-  startOffsetNovillo: `${CONQUER_SETTINGS_PREFIX}start_offset.novillo`,
   comboWeeksN: `${CONQUER_SETTINGS_PREFIX}combo_weeks_n`,
 } as const;
 
 export interface ConquerSettings {
-  startOffset: { ternero: number; novillo: number; toro: 0 };
   comboWeeksN: number;
 }
 
-/** Defaults en código (D-14: propuestas de Nacho §8.2 y §14.3). */
+/** Defaults en código (D-14: propuesta de Nacho §14.3). */
 export const CONQUER_SETTING_DEFAULTS: Readonly<ConquerSettings> = {
-  startOffset: { ternero: 2, novillo: 1, toro: 0 },
   comboWeeksN: 2,
 };
 
 /** Rangos inclusivos de cada parámetro numérico. */
 export const CONQUER_SETTING_RANGES = {
-  startOffsetTernero: { min: 0, max: 4 },
-  startOffsetNovillo: { min: 0, max: 4 },
   comboWeeksN: { min: 1, max: 8 },
 } as const;
 
@@ -72,19 +69,6 @@ export function parseConquerSettings(
   const byKey = new Map(rows.map((r) => [r.settingKey, r.settingValue]));
   const defaults = CONQUER_SETTING_DEFAULTS;
   return {
-    startOffset: {
-      ternero: readInt(
-        byKey.get(CONQUER_SETTING_KEYS.startOffsetTernero),
-        CONQUER_SETTING_RANGES.startOffsetTernero,
-        defaults.startOffset.ternero,
-      ),
-      novillo: readInt(
-        byKey.get(CONQUER_SETTING_KEYS.startOffsetNovillo),
-        CONQUER_SETTING_RANGES.startOffsetNovillo,
-        defaults.startOffset.novillo,
-      ),
-      toro: 0,
-    },
     comboWeeksN: readInt(
       byKey.get(CONQUER_SETTING_KEYS.comboWeeksN),
       CONQUER_SETTING_RANGES.comboWeeksN,
@@ -160,8 +144,8 @@ function validateSettingsPatch(
 /**
  * Escribe los parámetros presentes en `patch` para el gimnasio de `ctx` (D-14):
  * valida contra {@link CONQUER_SETTING_RANGES} y hace upsert por clave dentro de
- * una transacción. Los alumnos ya activos no se tocan: los parámetros se usan al
- * crear escalones nuevos y al evaluar Subir de los combos.
+ * una transacción. Los alumnos ya activos no se tocan: el parámetro se usa al
+ * evaluar Subir de los combos.
  */
 export async function saveConquerSettings(
   db: DbInstance,

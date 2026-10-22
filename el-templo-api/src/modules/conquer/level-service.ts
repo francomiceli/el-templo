@@ -21,7 +21,6 @@ import {
 import { resolveAlertsByCoach } from "./alerts-service";
 import { loadCatalog } from "./catalog-service";
 import { isValidLevelDays, nextLevel } from "./rules";
-import { getConquerSettings } from "./settings";
 import { resolveMemberTimezone } from "./timezone";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -50,9 +49,8 @@ export async function confirmLevelUp(
   log?: FastifyBaseLogger,
 ): Promise<void> {
   await requireActiveMember(db, ctx, userId);
-  const [catalog, settings, tz] = await Promise.all([
+  const [catalog, tz] = await Promise.all([
     loadCatalog(db, ctx),
-    getConquerSettings(db, ctx),
     resolveMemberTimezone(db, ctx, userId),
   ]);
   // "Hoy" del alumno es el de su sede, nunca UTC (§4.4).
@@ -90,7 +88,6 @@ export async function confirmLevelUp(
       tx,
       ctx,
       catalog,
-      settings,
       { id: member.id, level: to, daysCount: body.daysCount },
       log,
     );

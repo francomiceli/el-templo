@@ -2,8 +2,9 @@
  * Fase 201: reglas de niveles, recortes y alertas de Conquer (puro).
  *
  * Cita: §2 (niveles), §2.2 y A13 (paso de nivel), §3.2 y A11 (combos y semana
- * del bloque), §5 y D-15 (alertas), §5.1 y A12 (recortes), §8.2 y D-14 (arranque
- * por nivel), A14 (niveles y dias).
+ * del bloque), §5 y D-15 (alertas), §5.1 y A12 (recortes), A14 (niveles y dias).
+ * El arranque por nivel ya no vive acá: Fase 201 DA-5 lo reemplazó por las tablas
+ * explícitas del anexo (`catalog-service.startStepsFor`), sin offset de peldaños.
  *
  * CERO imports: corre con node por type-stripping (ver test/conquer/oracle-check.mjs).
  * Sin enum, sin namespace, sin clases ni parameter properties.
@@ -54,33 +55,6 @@ export const DEFAULT_COMBO_WEEKS_N = 2;
 export const OPENING_BASE = 3;
 /** §3.2 / A11: series del combo de apertura desde la semana 3. */
 export const OPENING_FROM_WEEK3 = 4;
-
-// ---------------------------------------------------------- arranque (§8.2)
-
-/** §8.2 / D-14: peldanos mas faciles que Toro con los que arranca cada nivel (editable). */
-export const DEFAULT_START_OFFSET: Record<Level, number> = {
-  ternero: 2,
-  novillo: 1,
-  toro: 0,
-};
-
-/**
- * Mueve `offset` peldanos activos hacia lo mas facil (posiciones mayores)
- * saltando los inactivos, sin pasarse del mas facil activo. `activePositions`
- * son solo las posiciones activas de la escalera, en cualquier orden.
- */
-export function shiftStartPosition(
-  toroPosition: number,
-  offset: number,
-  activePositions: readonly number[],
-): number {
-  if (offset <= 0) return toroPosition;
-  const easier = activePositions
-    .filter((p) => p > toroPosition)
-    .sort((a, b) => a - b);
-  if (easier.length === 0) return toroPosition;
-  return easier[Math.min(offset, easier.length) - 1];
-}
 
 // ------------------------------------------------------------ recortes (§5.1)
 

@@ -1567,29 +1567,17 @@ const settingsResponseSchema = {
       settings: {
         type: "object",
         properties: {
-          startOffset: {
-            type: "object",
-            properties: {
-              ternero: { type: "integer" },
-              novillo: { type: "integer" },
-              toro: { type: "integer" },
-            },
-            required: ["ternero", "novillo", "toro"],
-            additionalProperties: false,
-          },
           comboWeeksN: { type: "integer" },
         },
-        required: ["startOffset", "comboWeeksN"],
+        required: ["comboWeeksN"],
         additionalProperties: false,
       },
       ranges: {
         type: "object",
         properties: {
-          startOffsetTernero: rangeSchema,
-          startOffsetNovillo: rangeSchema,
           comboWeeksN: rangeSchema,
         },
-        required: ["startOffsetTernero", "startOffsetNovillo", "comboWeeksN"],
+        required: ["comboWeeksN"],
         additionalProperties: false,
       },
     },
@@ -1606,16 +1594,6 @@ export const putSettingsSchema = {
   body: {
     type: "object",
     properties: {
-      startOffsetTernero: {
-        type: "integer",
-        minimum: CONQUER_SETTING_RANGES.startOffsetTernero.min,
-        maximum: CONQUER_SETTING_RANGES.startOffsetTernero.max,
-      },
-      startOffsetNovillo: {
-        type: "integer",
-        minimum: CONQUER_SETTING_RANGES.startOffsetNovillo.min,
-        maximum: CONQUER_SETTING_RANGES.startOffsetNovillo.max,
-      },
       comboWeeksN: {
         type: "integer",
         minimum: CONQUER_SETTING_RANGES.comboWeeksN.min,

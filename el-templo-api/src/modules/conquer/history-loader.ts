@@ -128,7 +128,6 @@ export async function loadMemberContext(
         tx,
         ctx,
         catalog,
-        settings,
         { id: member.id, level, daysCount },
         log,
       );

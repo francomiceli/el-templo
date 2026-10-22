@@ -1,9 +1,10 @@
 // Módulo: conquer — carga del catálogo del gimnasio (Fase 201 §9)
 //
 // El catálogo (escaleras, peldaños, ejercicios, días de plantilla) lo siembra
-// la migración 0292. Se carga ENTERO en 4 queries (una por tabla, con
-// `tenantWhere`): es chico (4 escaleras, ~30 peldaños, 12 ejercicios, 15 días)
-// y las rutas siguientes lo usan completo, así que no hay N+1.
+// la migración 0292 y lo alinea con el anexo de Nacho la 0293 (plan 201-25).
+// Se carga ENTERO en 4 queries (una por tabla, con `tenantWhere`): es chico
+// (20 escaleras, ~106 peldaños, 12 ejercicios, 9 días de plantilla) y las rutas
+// siguientes lo usan completo, así que no hay N+1.
 import { asc } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
@@ -16,7 +17,8 @@ import {
   type ConquerUnit,
 } from "../../db/schema/conquer";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
-import { easierPosition, harderPosition } from "./engine";
+import { easierPosition, harderPosition, type StepKey } from "./engine";
+import type { Level } from "./rules";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -44,10 +46,20 @@ export interface ExerciseView {
   id: number;
   code: string;
   name: string;
+  /** Escalera de los escalones E1-E3 (y del hold si `holdLadderId` es null). */
   ladderId: number;
+  /** 0293 (DA-3): escalera propia del hold final. `null` = usa `ladderId`. */
+  holdLadderId: number | null;
+  /** 0293 (DA-4): la marca de brazos rectos vive en el ejercicio (anexo §1). */
+  brazosRectos: boolean;
   unit: ConquerUnit;
   muscles: ConquerMuscle[];
+  /** Tabla de arranque de Toro. */
   startSteps: ConquerStartStep[];
+  /** 0293 (DA-5): tabla de arranque de Novillo (`[]` = no cargada). */
+  startStepsNovillo: ConquerStartStep[];
+  /** 0293 (DA-5): tabla de arranque de Ternero (`[]` = no cargada). */
+  startStepsTernero: ConquerStartStep[];
   sortOrder: number;
   isActive: boolean;
 }
@@ -192,9 +204,13 @@ export async function loadCatalog(
       code: row.code,
       name: row.name,
       ladderId: row.ladderId,
+      holdLadderId: row.holdLadderId,
+      brazosRectos: row.brazosRectos,
       unit: toUnit(row.unit),
       muscles: parseMuscles(row.muscles),
       startSteps: parseStartSteps(row.startSteps),
+      startStepsNovillo: parseStartSteps(row.startStepsNovillo),
+      startStepsTernero: parseStartSteps(row.startStepsTernero),
       sortOrder: row.sortOrder,
       isActive: row.isActive,
     };
@@ -221,6 +237,40 @@ export async function loadCatalog(
     exerciseByCode,
     templateDays,
   };
+}
+
+/**
+ * Fase 201 DA-3: escalera de un escalón. El hold final puede tener su propia
+ * escalera (`holdLadderId`); E1-E3 y el hold sin escalera propia usan `ladderId`.
+ */
+export function stepLadderId(
+  exercise: Pick<ExerciseView, "ladderId" | "holdLadderId">,
+  step: StepKey,
+): number {
+  return step === "hold"
+    ? (exercise.holdLadderId ?? exercise.ladderId)
+    : exercise.ladderId;
+}
+
+/**
+ * Fase 201 DA-5: tabla de arranque del ejercicio para un nivel (anexo §3). Si el
+ * ejercicio no tiene la tabla de Novillo o Ternero (catálogo de otro gimnasio,
+ * columna NULL) usa la de Toro y avisa con `fallback: true`.
+ */
+export function startStepsFor(
+  exercise: Pick<
+    ExerciseView,
+    "startSteps" | "startStepsNovillo" | "startStepsTernero"
+  >,
+  level: Level,
+): { steps: ConquerStartStep[]; fallback: boolean } {
+  if (level === "toro") return { steps: exercise.startSteps, fallback: false };
+  const own =
+    level === "novillo"
+      ? exercise.startStepsNovillo
+      : exercise.startStepsTernero;
+  if (own.length === 0) return { steps: exercise.startSteps, fallback: true };
+  return { steps: own, fallback: false };
 }
 
 /** Días de la plantilla de `daysCount` días, por `sortOrder` (D-14). */
