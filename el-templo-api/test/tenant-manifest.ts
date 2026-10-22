@@ -120,6 +120,17 @@
 //   ─────────────────────────
 //   TOTAL          400 → 405   (+5)
 //
+// 2026-10-21 — **484 rutas**: Conquer v2 (fase 201, plan 06): alta
+// (`POST /api/admin/conquer/members`) y edición (`PUT
+// /api/admin/conquer/members/:userId`) del alumno por owner/admin. Las 2 son
+// `templo-module` (`moduleScope` de `templo-training`).
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +2   (las rutas nuevas)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          482 → 484   (+2)
+//
 // 2026-10-21 — **482 rutas**: Conquer v2 (fase 201, plan 05): estado y pedido
 // de desbloqueo del alumno (`GET /api/members/conquer/state`, `POST
 // /api/members/conquer/unlock-request`) y lista + contador de pedidos para
@@ -1551,6 +1562,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "GET /api/admin/conquer/requests/count": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "POST /api/admin/conquer/members": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PUT /api/admin/conquer/members/:userId": {
     categoria: "templo-module",
     modulo: "templo-training",
   },

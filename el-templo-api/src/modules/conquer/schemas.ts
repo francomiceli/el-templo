@@ -4,6 +4,7 @@
 // el schema de respuesta: cada campo nuevo de una respuesta necesita su
 // entrada acá o el serializador lo borra en silencio.
 import { CONQUER_LEVELS } from "../../db/schema/conquer";
+import { CONQUER_INC_RANGES } from "./activation-service";
 
 const memberStateSchema = {
   type: ["object", "null"],
@@ -87,4 +88,84 @@ export const unlockRequestsCountResponseSchema = {
     required: ["count"],
     additionalProperties: false,
   },
+} as const;
+
+// ── Alta y edición del alumno (plan 201-06) ─────────────────────────
+
+/** Vista del alumno para el admin (`AdminMemberView`). */
+const adminMemberViewSchema = {
+  type: "object",
+  properties: {
+    userId: { type: "integer" },
+    status: { type: "string", enum: ["pedido", "activo"] },
+    level: { type: ["string", "null"], enum: [...CONQUER_LEVELS, null] },
+    daysCount: { type: ["integer", "null"] },
+    incReps: { type: "integer" },
+    incS: { type: "integer" },
+    coachUserId: { type: ["integer", "null"] },
+    activatedAt: { type: ["string", "null"] },
+    activationDate: { type: ["string", "null"] },
+    levelSince: { type: ["string", "null"] },
+    cutStage: { type: "integer" },
+  },
+  required: [
+    "userId",
+    "status",
+    "level",
+    "daysCount",
+    "incReps",
+    "incS",
+    "coachUserId",
+    "activatedAt",
+    "activationDate",
+    "levelSince",
+    "cutStage",
+  ],
+  additionalProperties: false,
+} as const;
+
+/** `POST /members` (admin): activa a un alumno. */
+export const activateMemberSchema = {
+  body: {
+    type: "object",
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+      level: { type: "string", enum: [...CONQUER_LEVELS] },
+      daysCount: { type: "integer" },
+      coachUserId: { type: ["integer", "null"], minimum: 1 },
+    },
+    required: ["userId", "level", "daysCount"],
+    additionalProperties: false,
+  },
+  response: { 201: adminMemberViewSchema },
+} as const;
+
+/** `PUT /members/:userId` (admin): edita nivel, días, incrementos y coach. */
+export const updateMemberSchema = {
+  params: {
+    type: "object",
+    properties: { userId: { type: "integer", minimum: 1 } },
+    required: ["userId"],
+  },
+  body: {
+    type: "object",
+    properties: {
+      level: { type: "string", enum: [...CONQUER_LEVELS] },
+      daysCount: { type: "integer" },
+      incReps: {
+        type: "integer",
+        minimum: CONQUER_INC_RANGES.incReps.min,
+        maximum: CONQUER_INC_RANGES.incReps.max,
+      },
+      incS: {
+        type: "integer",
+        minimum: CONQUER_INC_RANGES.incS.min,
+        maximum: CONQUER_INC_RANGES.incS.max,
+      },
+      coachUserId: { type: ["integer", "null"], minimum: 1 },
+    },
+    minProperties: 1,
+    additionalProperties: false,
+  },
+  response: { 200: adminMemberViewSchema },
 } as const;
