@@ -1,7 +1,7 @@
 <template>
-  <CqSky class="cq-saturday">
+  <CqScreen>
     <CqPageHeader
-      title="SÁBADO"
+      title="Sábado"
       subtitle="Combos"
       :back-to="BACK_TO"
       back-label="Volver al inicio de Conquer"
@@ -14,8 +14,8 @@
       aria-live="polite"
     >
       <template v-if="error">
-        <p class="cq-sub" role="alert">{{ error }}</p>
-        <button type="button" class="cq-small cq-small--fill" @click="reload">Reintentar</button>
+        <p class="cq-notice" role="alert">{{ error }}</p>
+        <CqButton label="Reintentar" variant="secondary" small @click="reload" />
       </template>
       <template v-else>
         <span class="cq-saturday__spin" aria-hidden="true" />
@@ -32,16 +32,16 @@
         @select="onSelectDay"
       />
 
-      <div v-if="today.alreadySaved" class="cq-toast cq-saturday__saved" role="status">
+      <div v-if="today.alreadySaved" class="cq-notice cq-saturday__saved" role="status">
         Ya guardaste este día hoy: si guardás de nuevo, se reemplaza.
       </div>
 
       <div class="cq-card">
-        <div class="cq-caps">Entrada en calor</div>
-        <div class="cq-sub">{{ saturday.warmup }}</div>
+        <p class="cq-kicker">Entrada en calor</p>
+        <p class="cq-saturday__warmup">{{ saturday.warmup }}</p>
       </div>
 
-      <div class="cq-sub">{{ CQ_TEXTOS.sabado_combo }}</div>
+      <p class="cq-sub">{{ CQ_TEXTOS.sabado_combo }}</p>
 
       <CqComboCard
         v-if="form.push"
@@ -73,7 +73,7 @@
         <div class="cq-saturday__line">
           <div class="cq-saturday__label">
             <b>Molestia articular</b>
-            <span>0 a 10 · codo, hombro</span>
+            <span class="cq-sub">0 a 10 · codo, hombro</span>
           </div>
           <CqCounter
             :model-value="form.pain"
@@ -85,13 +85,14 @@
         </div>
       </div>
 
-      <div class="cq-grow" />
-
-      <CqCloudButton label="Guardar sábado" :loading="saving" @click="onSave">
-        <div class="cq-sub">Si algo cae, el sábado es lo primero que se recorta</div>
-      </CqCloudButton>
+      <div class="cq-saturday__save">
+        <CqButton label="Guardar sábado" :loading="saving" @click="onSave" />
+        <p class="cq-sub cq-saturday__save-sub">
+          Si algo cae, el sábado es lo primero que se recorta
+        </p>
+      </div>
     </template>
-  </CqSky>
+  </CqScreen>
 </template>
 
 <script setup lang="ts">
@@ -103,9 +104,9 @@ import { useConquerToday } from '../composables/useConquerToday'
 import type { SaturdayCombo } from '../composables/useConquerToday'
 import { CQ_TEXTOS } from '../utils/format'
 import { SATURDAY_DAY_KEY, SATURDAY_MAX_SERIES, saturdayComboTitle } from '../utils/todayForm'
-import CqSky from '../components/brand/CqSky.vue'
+import CqScreen from '../components/brand/CqScreen.vue'
 import CqPageHeader from '../components/brand/CqPageHeader.vue'
-import CqCloudButton from '../components/brand/CqCloudButton.vue'
+import CqButton from '../components/brand/CqButton.vue'
 import CqCounter from '../components/today/CqCounter.vue'
 import CqDayPicker from '../components/today/CqDayPicker.vue'
 import CqComboCard from '../components/today/CqComboCard.vue'
@@ -184,11 +185,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.cq-saturday.cq-sky {
-  // Alto de la pantalla menos el header y la barra de abajo (igual que Hoy)
-  min-height: calc(var(--app-vh) - 50px - var(--mobile-tabs-height));
-}
-
 .cq-saturday__center {
   display: flex;
   flex-direction: column;
@@ -202,7 +198,7 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 2px solid var(--cq-gold);
+  border: 2px solid var(--cq-edge-gold);
   border-right-color: transparent;
 }
 
@@ -219,7 +215,15 @@ onBeforeUnmount(() => {
 }
 
 .cq-saturday__saved {
+  justify-content: center;
   text-align: center;
+}
+
+.cq-saturday__warmup {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--cq-text);
 }
 
 .cq-saturday__line {
@@ -235,13 +239,18 @@ onBeforeUnmount(() => {
   flex-direction: column;
 
   b {
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
   }
+}
 
-  span {
-    font-size: 12px;
-    color: var(--cq-gold);
-  }
+.cq-saturday__save {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cq-saturday__save-sub {
+  text-align: center;
 }
 </style>

@@ -1,16 +1,16 @@
 <template>
-  <CqSky class="cq-today">
+  <CqScreen>
     <CqPageHeader
-      title="HOY"
-      :subtitle="today?.label"
+      title="Hoy"
+      :subtitle="today ? `${shortDate(today.date)} · ${today.label}` : ''"
       :back-to="BACK_TO"
       back-label="Volver al inicio de Conquer"
     />
 
     <div v-if="!today || !form" class="cq-today__center" role="status" aria-live="polite">
       <template v-if="error">
-        <p class="cq-sub" role="alert">{{ error }}</p>
-        <button type="button" class="cq-small cq-small--fill" @click="reload">Reintentar</button>
+        <p class="cq-notice" role="alert">{{ error }}</p>
+        <CqButton label="Reintentar" variant="secondary" small @click="reload" />
       </template>
       <template v-else>
         <span class="cq-today__spin" aria-hidden="true" />
@@ -27,7 +27,7 @@
         @select="onSelectDay"
       />
 
-      <div v-if="today.alreadySaved" class="cq-toast cq-today__saved" role="status">
+      <div v-if="today.alreadySaved" class="cq-notice cq-today__saved" role="status">
         Ya guardaste este día hoy: si guardás de nuevo, se reemplaza.
       </div>
 
@@ -61,13 +61,13 @@
         <div class="cq-today__line">
           <div class="cq-today__label">
             <b>Finisher</b>
-            <span>{{ finisherLine(today.finisher) }}</span>
+            <span class="cq-sub">{{ finisherLine(today.finisher) }}</span>
           </div>
         </div>
         <div class="cq-today__line">
           <div class="cq-today__label">
             <b>Molestia articular</b>
-            <span>0 a 10 · codo, hombro</span>
+            <span class="cq-sub">0 a 10 · codo, hombro</span>
           </div>
           <CqCounter
             :model-value="form.pain"
@@ -79,11 +79,10 @@
         </div>
       </div>
 
-      <div class="cq-grow" />
-
-      <CqCloudButton label="Guardar sesión" :loading="saving" @click="onSave">
-        <div class="cq-sub">{{ shortDate(today.date) }} · {{ today.label }}</div>
-      </CqCloudButton>
+      <div class="cq-today__save">
+        <CqButton label="Guardar sesión" :loading="saving" @click="onSave" />
+        <p class="cq-sub cq-today__save-sub">{{ shortDate(today.date) }} · {{ today.label }}</p>
+      </div>
     </template>
 
     <!-- El diálogo se monta fuera de la página (teleport): un solo nodo raíz para el router -->
@@ -97,7 +96,7 @@
       @resolve="onResolve"
       @done="onDone"
     />
-  </CqSky>
+  </CqScreen>
 </template>
 
 <script setup lang="ts">
@@ -109,9 +108,9 @@ import { useConquerStore } from '../stores/conquerStore'
 import { useConquerToday } from '../composables/useConquerToday'
 import { CQ_TEXTOS, finisherLine, shortDate } from '../utils/format'
 import type { Mode, StepKey } from '../types'
-import CqSky from '../components/brand/CqSky.vue'
+import CqScreen from '../components/brand/CqScreen.vue'
 import CqPageHeader from '../components/brand/CqPageHeader.vue'
-import CqCloudButton from '../components/brand/CqCloudButton.vue'
+import CqButton from '../components/brand/CqButton.vue'
 import CqCounter from '../components/today/CqCounter.vue'
 import CqDayPicker from '../components/today/CqDayPicker.vue'
 import CqComboCard from '../components/today/CqComboCard.vue'
@@ -249,11 +248,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.cq-today.cq-sky {
-  // Alto de la pantalla menos el header y la barra de abajo (igual que Niveles)
-  min-height: calc(var(--app-vh) - 50px - var(--mobile-tabs-height));
-}
-
 .cq-today__center {
   display: flex;
   flex-direction: column;
@@ -267,7 +261,7 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 2px solid var(--cq-gold);
+  border: 2px solid var(--cq-edge-gold);
   border-right-color: transparent;
 }
 
@@ -284,6 +278,7 @@ onBeforeUnmount(() => {
 }
 
 .cq-today__saved {
+  justify-content: center;
   text-align: center;
 }
 
@@ -295,7 +290,7 @@ onBeforeUnmount(() => {
 
   & + & {
     padding-top: 12px;
-    border-top: 1px solid var(--cq-hair2);
+    border-top: 1px solid var(--cq-line);
   }
 }
 
@@ -305,13 +300,18 @@ onBeforeUnmount(() => {
   flex-direction: column;
 
   b {
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
   }
+}
 
-  span {
-    font-size: 12px;
-    color: var(--cq-gold);
-  }
+.cq-today__save {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cq-today__save-sub {
+  text-align: center;
 }
 </style>
