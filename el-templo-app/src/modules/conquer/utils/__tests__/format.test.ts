@@ -2,13 +2,15 @@ import { describe, it, expect } from 'vitest'
 import {
   GREEK_STEP,
   LEVEL_INFO,
+  calibrationText,
+  canResolveCalibration,
   effortHint,
   estadoChip,
   failureHint,
   shortDate,
   unitText,
 } from '../format'
-import type { Estado, Level, StepKey } from '../../types'
+import type { CalibrationProposal, Estado, Level, StepKey } from '../../types'
 
 describe('GREEK_STEP', () => {
   it.each([
@@ -99,5 +101,48 @@ describe('shortDate', () => {
     ['2026-12-31', '31/12'],
   ] as const)('shortDate(%s) = %s', (iso, expected) => {
     expect(shortDate(iso)).toBe(expected)
+  })
+})
+
+function proposal(
+  kind: CalibrationProposal['proposal'],
+  toRungName: string | null,
+): CalibrationProposal {
+  return {
+    exerciseId: 4,
+    exerciseName: 'Front lever hold',
+    proposal: kind,
+    fromRungName: 'full',
+    toRungName,
+  }
+}
+
+describe('calibrationText', () => {
+  it.each([
+    [
+      proposal('subir', 'half lay'),
+      'Tu primera sesión de Front lever hold propone subir a half lay',
+    ],
+    [
+      proposal('bajar', 'adv tuck'),
+      'Tu primera sesión de Front lever hold propone bajar a adv tuck',
+    ],
+    [proposal('quedarse', null), 'Front lever hold: quedate en full'],
+    [proposal('subir', null), 'Front lever hold: ya estás en la más difícil'],
+    [proposal('bajar', null), 'Front lever hold: ya estás en la más fácil'],
+  ] as const)('%j', (item, expected) => {
+    expect(calibrationText({ ...item })).toBe(expected)
+  })
+})
+
+describe('canResolveCalibration', () => {
+  it.each([
+    [proposal('subir', 'half lay'), true],
+    [proposal('bajar', 'adv tuck'), true],
+    [proposal('quedarse', null), false],
+    [proposal('subir', null), false],
+    [proposal('bajar', null), false],
+  ] as const)('%j -> %s', (item, expected) => {
+    expect(canResolveCalibration({ ...item })).toBe(expected)
   })
 })

@@ -21,7 +21,7 @@
 
       <div v-for="item in calibration" :key="item.exerciseId" class="cq-card cq-sheet__calib">
         <div class="cq-sheet__calib-text">{{ calibrationText(item) }}</div>
-        <div v-if="canResolve(item)" class="cq-sheet__calib-actions">
+        <div v-if="canResolveCalibration(item)" class="cq-sheet__calib-actions">
           <button
             type="button"
             class="cq-small cq-small--fill"
@@ -49,6 +49,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { isZoneSlug } from 'src/components/anatomy/zones'
+import { calibrationText, canResolveCalibration } from '../../utils/format'
 import type { CalibrationProposal, Lighting } from '../../types'
 import CqBodyMap from '../CqBodyMap.vue'
 import CqCloudButton from '../brand/CqCloudButton.vue'
@@ -85,22 +86,6 @@ const lead = computed(() => {
   if (zones.value === 0) return 'Tu sesión quedó registrada.'
   return zones.value === 1 ? 'Hoy trabajaste 1 zona' : `Hoy trabajaste ${zones.value} zonas`
 })
-
-/** Solo se puede aceptar o rechazar si el API propone mover el ejercicio y hay a dónde. */
-function canResolve(item: CalibrationProposal): boolean {
-  return item.proposal !== 'quedarse' && item.toRungName !== null
-}
-
-function calibrationText(item: CalibrationProposal): string {
-  if (item.proposal === 'quedarse') return `${item.exerciseName}: quedate en ${item.fromRungName}`
-  if (item.toRungName === null) {
-    return item.proposal === 'subir'
-      ? `${item.exerciseName}: ya estás en la más difícil`
-      : `${item.exerciseName}: ya estás en la más fácil`
-  }
-  const verb = item.proposal === 'subir' ? 'subir a' : 'bajar a'
-  return `Tu primera sesión de ${item.exerciseName} propone ${verb} ${item.toRungName}`
-}
 </script>
 
 <style scoped lang="scss">

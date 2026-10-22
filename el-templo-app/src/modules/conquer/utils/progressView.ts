@@ -53,6 +53,11 @@ export function deltaText(delta: number | null): string {
   return body
 }
 
+/** "1 sesión" / "4 sesiones". */
+export function sessionsText(count: number): string {
+  return count === 1 ? '1 sesión' : `${count} sesiones`
+}
+
 // Claves de las acciones en curso: la pantalla marca `:loading` solo en el botón que se tocó.
 
 export function subirStepKey(exerciseId: number, step: CountedStep): string {

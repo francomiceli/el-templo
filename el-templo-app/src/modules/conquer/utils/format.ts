@@ -1,4 +1,4 @@
-import type { Estado, Level, StepKey, Unit } from '../types'
+import type { CalibrationProposal, Estado, Level, StepKey, Unit } from '../types'
 
 /** Letra griega de cada escalón de la sesión (§10): Α, Β, Γ y el hold final Ω. */
 export const GREEK_STEP: Record<StepKey, string> = {
@@ -84,4 +84,21 @@ export function failureHint(brazosRectos: boolean): string {
 export function shortDate(iso: string): string {
   const [, month, day] = iso.split('-')
   return `${Number(day)}/${Number(month)}`
+}
+
+/** Solo se puede aceptar o rechazar si el API propone mover el ejercicio y hay a dónde (S12-4). */
+export function canResolveCalibration(item: CalibrationProposal): boolean {
+  return item.proposal !== 'quedarse' && item.toRungName !== null
+}
+
+/** Texto de una propuesta de calibración de la semana 1 (S12-4), en la hoja de Hoy y en Progreso. */
+export function calibrationText(item: CalibrationProposal): string {
+  if (item.proposal === 'quedarse') return `${item.exerciseName}: quedate en ${item.fromRungName}`
+  if (item.toRungName === null) {
+    return item.proposal === 'subir'
+      ? `${item.exerciseName}: ya estás en la más difícil`
+      : `${item.exerciseName}: ya estás en la más fácil`
+  }
+  const verb = item.proposal === 'subir' ? 'subir a' : 'bajar a'
+  return `Tu primera sesión de ${item.exerciseName} propone ${verb} ${item.toRungName}`
 }

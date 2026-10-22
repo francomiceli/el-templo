@@ -4,6 +4,7 @@ import {
   accuracyText,
   calibrationKey,
   deltaText,
+  sessionsText,
   sparklinePoints,
   subirComboKey,
   subirStepKey,
@@ -80,6 +81,16 @@ describe('deltaText', () => {
 
   it('usa el signo menos tipográfico (U+2212), no el guion', () => {
     expect(deltaText(-1.2).charCodeAt(0)).toBe(0x2212)
+  })
+})
+
+describe('sessionsText', () => {
+  it.each([
+    [0, '0 sesiones'],
+    [1, '1 sesión'],
+    [4, '4 sesiones'],
+  ] as const)('sessionsText(%i) = %s', (count, expected) => {
+    expect(sessionsText(count)).toBe(expected)
   })
 })
 
