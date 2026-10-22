@@ -12,18 +12,31 @@ import { and, eq, inArray, max, or } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type {
+  ConquerMemberRow,
   ConquerSessionRow,
   ConquerStepRow,
 } from "../../db/schema/conquer";
 import { AppError } from "../shared/errors";
 import { tenantWhere, type TenantContext } from "../shared/tenant";
-import { addDaysIso, mondayOfIso, nextPendingDay } from "./calendar";
+import { addDaysIso, blockWeek, mondayOfIso, nextPendingDay } from "./calendar";
 import {
   planDays,
   type ConquerCatalog,
   type ExerciseView,
   type LadderView,
+  type TemplateDayView,
 } from "./catalog-service";
+import {
+  buildComboView,
+  loadComboSessions,
+  type ComboView,
+} from "./combo-service";
+import {
+  isComboKey,
+  SATURDAY_DAY_KEY,
+  SATURDAY_LABEL,
+  SATURDAY_WARMUP,
+} from "./combos";
 import {
   holdPreload,
   nextTarget,
@@ -40,7 +53,12 @@ import {
   markKey,
   type MemberContext,
 } from "./history-loader";
-import type { Level } from "./rules";
+import {
+  levelHasCombos,
+  openingTarget,
+  saturdayPlan,
+  type Level,
+} from "./rules";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -89,6 +107,13 @@ export interface TodayExercise {
   steps: TodayStep[];
 }
 
+/** Sábado de Toro (§3.2): entrada en calor como texto y los combos push y pull. */
+export interface SaturdayView {
+  warmup: string;
+  push: ComboView;
+  pull: ComboView;
+}
+
 export interface TodayResponse extends PlanWeek {
   date: string;
   dayKey: string;
@@ -98,6 +123,10 @@ export interface TodayResponse extends PlanWeek {
   finisher: string;
   level: Level;
   exercises: TodayExercise[];
+  /** Combo de apertura del día (solo Toro, §3.2). */
+  opening: ComboView | null;
+  /** Solo `day=sabado` (solo Toro): ahí `exercises` es `[]` y `finisher` es `""`. */
+  saturday: SaturdayView | null;
 }
 
 export interface HomeLastByDay {
@@ -115,14 +144,21 @@ const STEP_ORDER: readonly StepKey[] = ["e1", "e2", "e3", "hold"];
 
 // ── Semana del plan ─────────────────────────────────────────────────
 
+/** Lo que `buildPlanWeek` necesita; `level` y `member` son opcionales (sin ellos no hay sábado). */
+type PlanWeekContext = Pick<MemberContext, "today" | "daysCount" | "catalog"> &
+  Partial<Pick<MemberContext, "level">> & {
+    member?: Pick<ConquerMemberRow, "cutStage">;
+  };
+
 /**
  * D-16: días del plan en el orden de la plantilla, cuáles están hechos en la
  * semana calendario de `today` y el primero que falta. `today` ya viene en la
  * zona de la sede (A16). Se filtran las sesiones por la semana acá adentro, así
- * que el llamador puede pasar una lista más ancha.
+ * que el llamador puede pasar una lista más ancha. Toro suma el sábado al final
+ * (§3.2, D-16) salvo que el recorte 3 lo haya sacado (§5.1).
  */
 export function buildPlanWeek(
-  mctx: Pick<MemberContext, "today" | "daysCount" | "catalog">,
+  mctx: PlanWeekContext,
   weekSessions: readonly Pick<ConquerSessionRow, "dayKey" | "sessionDate">[],
 ): PlanWeek {
   const weekMonday = mondayOfIso(mctx.today);
@@ -130,10 +166,18 @@ export function buildPlanWeek(
   const doneKeys = weekSessions
     .filter((s) => s.sessionDate >= weekMonday && s.sessionDate <= weekSunday)
     .map((s) => s.dayKey);
-  const days = planDays(mctx.catalog, mctx.daysCount);
-  const plan = days.map((d) => ({
+  const days = planDays(mctx.catalog, mctx.daysCount).map((d) => ({
     dayKey: d.dayKey,
     label: d.label,
+  }));
+  const hasSaturday =
+    mctx.level !== undefined &&
+    saturdayPlan(mctx.level, mctx.member?.cutStage ?? 0) !== null;
+  if (hasSaturday) {
+    days.push({ dayKey: SATURDAY_DAY_KEY, label: SATURDAY_LABEL });
+  }
+  const plan = days.map((d) => ({
+    ...d,
     done: doneKeys.includes(d.dayKey),
   }));
   const nextDayKey = nextPendingDay(
@@ -304,10 +348,92 @@ function resolveDayKey(week: PlanWeek, requested?: string): string {
   return chosen;
 }
 
+/** Combo de apertura del día (§3.2, A11): solo Toro, con `opening_combo_key` y sin el recorte 5. */
+function buildOpening(
+  mctx: MemberContext,
+  day: TemplateDayView,
+  saved: ConquerSessionRow | undefined,
+  comboSessions: readonly ConquerSessionRow[],
+): ComboView | null {
+  const comboKey = day.openingComboKey;
+  const target = openingTarget(
+    mctx.level,
+    blockWeek(mctx.member.activationDate ?? mctx.today, mctx.today),
+    mctx.member.cutStage,
+  );
+  if (target === null || !isComboKey(comboKey)) return null;
+  return buildComboView(
+    mctx,
+    { comboKey, target, saved: saved?.comboSeries ?? null },
+    comboSessions,
+  );
+}
+
+/** Sábado de Toro (§3.2): entrada en calor y combos push y pull con 3 máximas + 10 drops (menos con recortes). */
+function buildSaturday(
+  mctx: MemberContext,
+  saved: ConquerSessionRow | undefined,
+  comboSessions: readonly ConquerSessionRow[],
+): SaturdayView {
+  const plan = saturdayPlan(mctx.level, mctx.member.cutStage);
+  if (!plan) throw invalidDayError();
+  const base = {
+    target: plan.target,
+    maxSeries: plan.maxSeries,
+    drops: plan.drops,
+  };
+  return {
+    warmup: SATURDAY_WARMUP,
+    push: buildComboView(
+      mctx,
+      { ...base, comboKey: "push", saved: saved?.pushSeries ?? null },
+      comboSessions,
+    ),
+    pull: buildComboView(
+      mctx,
+      { ...base, comboKey: "pull", saved: saved?.pullSeries ?? null },
+      comboSessions,
+    ),
+  };
+}
+
+/** Ejercicios del día con su progresión (D-18): las marcas y los valores ya guardados salen de 2 queries. */
+async function buildDayExercises(
+  db: DbInstance,
+  ctx: TenantContext,
+  mctx: MemberContext,
+  day: TemplateDayView,
+  savedSession: ConquerSessionRow | undefined,
+): Promise<TodayExercise[]> {
+  // Si el día ya se guardó hoy, el objetivo se calcula SIN esa sesión (es el
+  // mismo que se mostró antes de guardar) y el contador trae lo guardado.
+  const [marks, savedValues] = await Promise.all([
+    loadMarks(
+      db,
+      ctx,
+      mctx.userId,
+      savedSession ? { excludeSessionId: savedSession.id } : {},
+    ),
+    savedSession
+      ? loadSavedValues(db, ctx, savedSession.id)
+      : Promise.resolve(new Map<string, number>()),
+  ]);
+  const exercises: TodayExercise[] = [];
+  for (const code of day.exerciseCodes) {
+    const exercise = mctx.catalog.exerciseByCode.get(code);
+    if (exercise) {
+      exercises.push(buildTodayExercise(mctx, exercise, marks, savedValues));
+    }
+  }
+  return exercises;
+}
+
 /**
  * Vista de Hoy (§7.1): los 3 ejercicios del día con progresión, modo y contador
- * precargado. Consultas fijas (contexto, marcas, sesiones de la semana, marcas
- * de la sesión de hoy): nada por ejercicio en un loop.
+ * precargado. Toro suma el combo de apertura (§3.2) y, el sábado, los combos
+ * push y pull en lugar de los ejercicios. Consultas fijas (contexto, marcas,
+ * sesiones de la semana, marcas de la sesión de hoy, sesiones para la regla de
+ * Subir de los combos): nada por ejercicio en un loop.
  */
 export async function buildToday(
   db: DbInstance,
@@ -326,46 +452,42 @@ export async function buildToday(
   );
   const week = buildPlanWeek(mctx, weekSessions);
   const chosen = resolveDayKey(week, dayKey);
+  const savedSession = weekSessions.find(
+    (s) => s.sessionDate === mctx.today && s.dayKey === chosen,
+  );
+  const comboSessions = levelHasCombos(mctx.level)
+    ? await loadComboSessions(db, ctx, mctx)
+    : [];
+
+  const common = {
+    ...week,
+    date: mctx.today,
+    dayKey: chosen,
+    alreadySaved: savedSession !== undefined,
+    pain: savedSession?.pain ?? 0,
+    level: mctx.level,
+  };
+  if (chosen === SATURDAY_DAY_KEY) {
+    return {
+      ...common,
+      label: SATURDAY_LABEL,
+      finisher: "",
+      exercises: [],
+      opening: null,
+      saturday: buildSaturday(mctx, savedSession, comboSessions),
+    };
+  }
   const day = planDays(mctx.catalog, mctx.daysCount).find(
     (d) => d.dayKey === chosen,
   );
   if (!day) throw invalidDayError();
-
-  // Si el día ya se guardó hoy, el objetivo se calcula SIN esa sesión (es el
-  // mismo que se mostró antes de guardar) y el contador trae lo guardado.
-  const savedSession = weekSessions.find(
-    (s) => s.sessionDate === mctx.today && s.dayKey === chosen,
-  );
-  const [marks, savedValues] = await Promise.all([
-    loadMarks(
-      db,
-      ctx,
-      userId,
-      savedSession ? { excludeSessionId: savedSession.id } : {},
-    ),
-    savedSession
-      ? loadSavedValues(db, ctx, savedSession.id)
-      : Promise.resolve(new Map<string, number>()),
-  ]);
-
-  const exercises: TodayExercise[] = [];
-  for (const code of day.exerciseCodes) {
-    const exercise = mctx.catalog.exerciseByCode.get(code);
-    if (exercise) {
-      exercises.push(buildTodayExercise(mctx, exercise, marks, savedValues));
-    }
-  }
-
   return {
-    ...week,
-    date: mctx.today,
-    dayKey: chosen,
+    ...common,
     label: day.label,
-    alreadySaved: savedSession !== undefined,
-    pain: savedSession?.pain ?? 0,
     finisher: day.finisherText,
-    level: mctx.level,
-    exercises,
+    exercises: await buildDayExercises(db, ctx, mctx, day, savedSession),
+    opening: buildOpening(mctx, day, savedSession, comboSessions),
+    saturday: null,
   };
 }
 

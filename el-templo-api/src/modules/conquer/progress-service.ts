@@ -12,6 +12,11 @@ import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { addDaysIso, mondayOfIso } from "./calendar";
 import { planDays, type ExerciseView } from "./catalog-service";
 import {
+  buildComboSubirItems,
+  loadComboSessions,
+  type ComboSubirItem,
+} from "./combo-service";
+import {
   accuracy,
   selectReales,
   type CountedStep,
@@ -32,6 +37,7 @@ import {
   type MemberContext,
 } from "./history-loader";
 import { exerciseWorked, lightZones } from "./lighting";
+import { levelHasCombos } from "./rules";
 import { findSubir } from "./step-service";
 import { computeTodayStep } from "./today-service";
 
@@ -83,6 +89,8 @@ export interface ProgressResponse {
   };
   weekLighting: { primary: string[]; secondary: string[] };
   subir: SubirItem[];
+  /** D-14: combos de Toro listos para Subir la progresión de arranque (vacío en otros niveles). */
+  comboSubir: ComboSubirItem[];
   calibrations: CalibrationProposal[];
   days: ProgressDay[];
 }
@@ -249,11 +257,16 @@ export async function buildProgress(
   userId: number,
 ): Promise<ProgressResponse> {
   const mctx = await loadMemberContext(db, ctx, userId);
-  const [marks, sessionCounts, weekLighting] = await Promise.all([
-    loadMarks(db, ctx, userId),
-    loadSessionCounts(db, ctx, userId),
-    loadWeekLighting(db, ctx, mctx),
-  ]);
+  const [marks, sessionCounts, weekLighting, comboSessions] = await Promise.all(
+    [
+      loadMarks(db, ctx, userId),
+      loadSessionCounts(db, ctx, userId),
+      loadWeekLighting(db, ctx, mctx),
+      levelHasCombos(mctx.level)
+        ? loadComboSessions(db, ctx, mctx)
+        : Promise.resolve([]),
+    ],
+  );
 
   const days: ProgressDay[] = planDays(mctx.catalog, mctx.daysCount).map(
     (day) => ({
@@ -275,6 +288,7 @@ export async function buildProgress(
     accuracy: buildAccuracy(marks),
     weekLighting,
     subir: buildSubirItems(mctx, marks),
+    comboSubir: buildComboSubirItems(mctx, comboSessions),
     calibrations: calibrationProposals(mctx, marks),
     days,
   };
