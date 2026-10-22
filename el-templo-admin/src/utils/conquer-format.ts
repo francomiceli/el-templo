@@ -3,7 +3,15 @@
  * la ficha. Puros: sin Vue, sin red.
  */
 
-import type { Estado, Mode, Pose, Unit } from 'src/types/conquer';
+import type {
+  AlertKind,
+  AlertSeverity,
+  CutProposal,
+  Estado,
+  Mode,
+  Pose,
+  Unit,
+} from 'src/types/conquer';
 
 const DAY_MS = 86_400_000;
 
@@ -92,3 +100,44 @@ export function measureText(value: number | null, unit: 'cm' | 'kg'): string {
 export function weeksText(weeks: number): string {
   return weeks === 1 ? '1 semana' : `${weeks} semanas`;
 }
+
+/** Color de Quasar del chip de una alerta según su severidad (tokens cálidos del admin). */
+export const SEVERITY_CHIP_COLOR: Record<AlertSeverity, string> = {
+  rojo: 'negative',
+  amarillo: 'warning',
+  verde: 'positive',
+};
+
+/** Qué puede hacer el coach con una alerta desde la ficha (§5, §5.1, §2.2). */
+export type AlertActionKind =
+  | 'aceptar_etapa'
+  | 'bajar_escalon'
+  | 'extender_escalera'
+  | 'confirmar_nivel'
+  | 'aviso';
+
+/**
+ * Acción principal de una alerta. Molestia y caída proponen el recorte vigente del alumno (una
+ * etapa del sábado/combo o bajar un escalón); el tope de escalera se resuelve en el Catálogo; el
+ * paso de nivel se confirma solo si hay un nivel siguiente; el resto son avisos por tiempo.
+ */
+export function alertActionKind(
+  kind: AlertKind,
+  cutKind: CutProposal['kind'],
+  hasNextLevel: boolean
+): AlertActionKind {
+  if (kind === 'molestia' || kind === 'caida') {
+    return cutKind === 'etapa' ? 'aceptar_etapa' : 'bajar_escalon';
+  }
+  if (kind === 'tope_escalera') return 'extender_escalera';
+  if (kind === 'paso_nivel' && hasNextLevel) return 'confirmar_nivel';
+  return 'aviso';
+}
+
+/** Lo que propone §5 para las alertas que no tienen botón propio. */
+export const ALERT_HINTS: Partial<Record<AlertKind, string>> = {
+  inactivo: 'Escribirle al alumno',
+  control_vencido: 'Recordarle el control físico',
+  control_dia0_pendiente: 'Recordarle el control del día 0',
+  tope_escalera: 'Extendé la escalera desde Catálogo',
+};

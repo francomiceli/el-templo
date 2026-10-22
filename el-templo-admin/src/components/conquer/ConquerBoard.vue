@@ -135,7 +135,7 @@ import {
   type BoardResponse,
   type Light,
 } from 'src/types/conquer';
-import { agoText, daysSince, fullName } from 'src/utils/conquer-format';
+import { SEVERITY_CHIP_COLOR, agoText, daysSince, fullName } from 'src/utils/conquer-format';
 
 const props = defineProps<{
   /** Sube cuando la página necesita que se relea el tablero (después de activar a alguien). */
@@ -167,11 +167,6 @@ const LIGHT_LABEL: Record<Light, string> = {
   verde: 'Verde',
   ok: 'Sin alertas',
 };
-const CHIP_COLOR: Record<AlertSeverity, string> = {
-  rojo: 'negative',
-  amarillo: 'warning',
-  verde: 'positive',
-};
 
 function dotClass(light: Light): string {
   return DOT_CLASS[light];
@@ -182,7 +177,7 @@ function lightLabel(light: Light): string {
 }
 
 function chipColor(severity: AlertSeverity): string {
-  return CHIP_COLOR[severity];
+  return SEVERITY_CHIP_COLOR[severity];
 }
 
 const counters = computed(() => {

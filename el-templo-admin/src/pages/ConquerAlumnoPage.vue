@@ -1,6 +1,5 @@
-<!-- Ficha del alumno de Conquer (fase 201, §7.2, D-08): su Progreso con corrección de progresiones,
-     incremento, nivel y días. 201-22 suma, en este orden, las acciones sobre alertas y la
-     Evolución. La ficha y el catálogo (opciones de peldaño por escalera) se piden juntos; cada acción
+<!-- Ficha del alumno de Conquer (fase 201, §7.2, D-08): acciones sobre las alertas (recortes y paso
+     de nivel) y su Progreso con corrección de progresiones, incremento, nivel y días. La ficha y el catálogo (opciones de peldaño por escalera) se piden juntos; cada acción
      del coach devuelve la ficha completa y reemplaza el estado de la pantalla. 404/409 (alumno
      ajeno, sin Conquer o todavía un pedido) avisan y vuelven al tablero. El gate real es el API. -->
 <template>
@@ -28,6 +27,10 @@
 
     <template v-else-if="ficha && catalog">
       <div class="q-mb-md">
+        <ConquerAlertActions :ficha="ficha" @updated="onFichaUpdated" @changed="reloadFicha" />
+      </div>
+
+      <div class="q-mb-md">
         <ConquerMemberHeader :member="ficha.member" @saved="reloadFicha" />
       </div>
 
@@ -40,6 +43,7 @@
 import { onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
+import ConquerAlertActions from 'src/components/conquer/ConquerAlertActions.vue';
 import ConquerMemberHeader from 'src/components/conquer/ConquerMemberHeader.vue';
 import ConquerProgressTable from 'src/components/conquer/ConquerProgressTable.vue';
 import { ConquerApiError, useConquerAdminApi } from 'src/composables/useConquerAdminApi';
