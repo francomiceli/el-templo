@@ -836,3 +836,116 @@ export const updateAlertSchema = {
   },
   response: { 200: boardAlertSchema },
 } as const;
+
+// ── Ficha del alumno y acciones del coach (plan 201-11) ─────────────
+
+const memberIdParams = {
+  type: "object",
+  properties: { userId: { type: "integer", minimum: 1 } },
+  required: ["userId"],
+} as const;
+
+/** `FichaResponse`: todo lo que el coach necesita del alumno en una pantalla. */
+const fichaResponseSchema = {
+  200: {
+    type: "object",
+    properties: {
+      member: {
+        ...adminMemberViewSchema,
+        properties: {
+          ...adminMemberViewSchema.properties,
+          firstName: { type: "string" },
+          lastName: { type: "string" },
+          email: { type: ["string", "null"] },
+        },
+        required: [
+          ...adminMemberViewSchema.required,
+          "firstName",
+          "lastName",
+          "email",
+        ],
+      },
+      progress: progressResponseSchema[200],
+      alerts: { type: "array", items: boardAlertSchema },
+      cutProposal: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: ["etapa", "bajar_escalon"] },
+          stage: { type: "integer" },
+          label: { type: "string" },
+        },
+        required: ["kind", "label"],
+        additionalProperties: false,
+      },
+      levelUp: {
+        type: "object",
+        properties: {
+          to: { type: ["string", "null"], enum: [...CONQUER_LEVELS, null] },
+          validDays: { type: "array", items: { type: "integer" } },
+        },
+        required: ["to", "validDays"],
+        additionalProperties: false,
+      },
+    },
+    required: ["member", "progress", "alerts", "cutProposal", "levelUp"],
+    additionalProperties: false,
+  },
+} as const;
+
+/** `GET /members/:userId` (admin): la ficha del alumno. */
+export const fichaSchema = {
+  params: memberIdParams,
+  response: fichaResponseSchema,
+} as const;
+
+/** `PUT /members/:userId/steps/:exerciseId/:step` (admin): corrige una progresión (§7.2). */
+export const correctStepSchema = {
+  params: {
+    type: "object",
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+      exerciseId: { type: "integer", minimum: 1 },
+      step: { type: "string", enum: [...STEP_ENUM] },
+    },
+    required: ["userId", "exerciseId", "step"],
+  },
+  body: changeStepSchema.body,
+  response: fichaResponseSchema,
+} as const;
+
+/**
+ * `POST /members/:userId/recortes` (admin). Esquema plano a propósito: un `oneOf`
+ * por acción con `additionalProperties: false` y `removeAdditional` de Ajv borraría
+ * en silencio las claves de las otras ramas. Los campos que exige cada acción los
+ * valida `parseCutBody` (400 `CONQUER_CORTE_INVALIDO`).
+ */
+export const cutSchema = {
+  params: memberIdParams,
+  body: {
+    type: "object",
+    properties: {
+      action: {
+        type: "string",
+        enum: ["aplicar_etapa", "deshacer_etapa", "bajar_escalon"],
+      },
+      alertId: { type: "integer", minimum: 1 },
+      exerciseId: { type: "integer", minimum: 1 },
+      step: { type: "string", enum: [...STEP_ENUM] },
+    },
+    required: ["action"],
+    additionalProperties: false,
+  },
+  response: fichaResponseSchema,
+} as const;
+
+/** `POST /members/:userId/level-up` (admin): confirma el paso de nivel (§2.2). */
+export const levelUpSchema = {
+  params: memberIdParams,
+  body: {
+    type: "object",
+    properties: { daysCount: { type: "integer" } },
+    required: ["daysCount"],
+    additionalProperties: false,
+  },
+  response: fichaResponseSchema,
+} as const;

@@ -41,6 +41,38 @@ export type CutBody =
       alertId?: number;
     };
 
+/** Body plano del JSON-schema (`cutSchema`): los campos de cada acción son opcionales. */
+export interface CutRequestBody {
+  action: CutBody["action"];
+  alertId?: number;
+  exerciseId?: number;
+  step?: StepKey;
+}
+
+/**
+ * Del body plano a la unión discriminada. `bajar_escalon` exige `exerciseId` y
+ * `step` (400 `CONQUER_CORTE_INVALIDO`); en las otras acciones se ignoran.
+ */
+export function parseCutBody(raw: CutRequestBody): CutBody {
+  if (raw.action === "deshacer_etapa") return { action: "deshacer_etapa" };
+  if (raw.action === "aplicar_etapa") {
+    return { action: "aplicar_etapa", alertId: raw.alertId };
+  }
+  if (raw.exerciseId === undefined || raw.step === undefined) {
+    throw new AppError(
+      "Para bajar un escalón hay que indicar el ejercicio y el escalón",
+      400,
+      "CONQUER_CORTE_INVALIDO",
+    );
+  }
+  return {
+    action: "bajar_escalon",
+    exerciseId: raw.exerciseId,
+    step: raw.step,
+    alertId: raw.alertId,
+  };
+}
+
 /** Alertas que un recorte puede cerrar (§5.1: molestia y caída). */
 const CUT_ALERT_TYPES = ["molestia", "caida"] as const;
 

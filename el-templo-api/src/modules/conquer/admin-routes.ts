@@ -16,13 +16,22 @@ import {
 import { updateAlertStatus } from "./alerts-service";
 import { getBoardAlert } from "./alert-view";
 import { buildBoard } from "./board-service";
+import { applyCut, parseCutBody, type CutRequestBody } from "./cuts-service";
+import type { StepKey } from "./engine";
+import { buildFicha, correctStep } from "./ficha-service";
+import { confirmLevelUp, type LevelUpBody } from "./level-service";
 import { countUnlockRequests, listUnlockRequests } from "./member-service";
 import { sendConquerError } from "./errors";
 import { canManageConquer } from "./permissions";
 import type { Level } from "./rules";
+import type { ChangeStepBody } from "./step-service";
 import {
   activateMemberSchema,
   boardSchema,
+  correctStepSchema,
+  cutSchema,
+  fichaSchema,
+  levelUpSchema,
   unlockRequestsCountResponseSchema,
   unlockRequestsResponseSchema,
   updateAlertSchema,
@@ -159,6 +168,96 @@ export const conquerAdminRoutes: FastifyPluginAsync = async (fastify) => {
           reply,
           request.log,
           "conquer.admin.members-update",
+        );
+      }
+    },
+  );
+
+  // GET /members/:userId — ficha del alumno: Progreso, alertas, recorte y nivel (§7.2).
+  fastify.get<{ Params: { userId: number } }>(
+    "/members/:userId",
+    { schema: fichaSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.ficha");
+        return await buildFicha(fastify.db, ctx, request.params.userId);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.ficha");
+      }
+    },
+  );
+
+  // PUT /members/:userId/steps/:exerciseId/:step — el coach corrige una progresión (§7.2).
+  fastify.put<{
+    Params: { userId: number; exerciseId: number; step: StepKey };
+    Body: ChangeStepBody;
+  }>(
+    "/members/:userId/steps/:exerciseId/:step",
+    { schema: correctStepSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.ficha-step");
+        const { userId, exerciseId, step } = request.params;
+        await correctStep(
+          fastify.db,
+          ctx,
+          userId,
+          exerciseId,
+          step,
+          request.body,
+        );
+        return await buildFicha(fastify.db, ctx, userId);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.ficha-step");
+      }
+    },
+  );
+
+  // POST /members/:userId/recortes — acepta de a un paso el recorte propuesto (§5.1, A12).
+  fastify.post<{ Params: { userId: number }; Body: CutRequestBody }>(
+    "/members/:userId/recortes",
+    { schema: cutSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.ficha-cut");
+        const { userId } = request.params;
+        await applyCut(
+          fastify.db,
+          ctx,
+          { userId: request.user.userId, role: request.user.role },
+          userId,
+          parseCutBody(request.body),
+        );
+        return await buildFicha(fastify.db, ctx, userId);
+      } catch (err: unknown) {
+        sendConquerError(err, reply, request.log, "conquer.admin.ficha-cut");
+      }
+    },
+  );
+
+  // POST /members/:userId/level-up — confirma el paso de nivel con un toque (§2.2, A13).
+  fastify.post<{ Params: { userId: number }; Body: LevelUpBody }>(
+    "/members/:userId/level-up",
+    { schema: levelUpSchema },
+    async (request, reply) => {
+      try {
+        const ctx = assertTenant(request.scope, "conquer.admin.ficha-level-up");
+        const { userId } = request.params;
+        await confirmLevelUp(
+          fastify.db,
+          ctx,
+          { userId: request.user.userId, role: request.user.role },
+          userId,
+          request.body,
+          request.log,
+        );
+        return await buildFicha(fastify.db, ctx, userId);
+      } catch (err: unknown) {
+        sendConquerError(
+          err,
+          reply,
+          request.log,
+          "conquer.admin.ficha-level-up",
         );
       }
     },
