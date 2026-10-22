@@ -31,6 +31,11 @@ export const activities = mysqlTable("activities", {
   // servicio la limpia en las no-especiales. Mismo valor en
   // subscription_plans.special_line (ver scheduling/special-line.ts).
   specialLine: varchar("special_line", { length: 50 }),
+  // Wellhub (2026-10-22, decisión de Franco): solo las actividades marcadas se
+  // publican en Wellhub. Default false → opt-in explícito por actividad (en El
+  // Templo, solo General: Técnica y Combos son rutas dentro de General).
+  // Las especiales quedan afuera aunque estén marcadas (ver wellhub/sync-service.ts).
+  wellhubEnabled: boolean("wellhub_enabled").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
