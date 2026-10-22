@@ -12,13 +12,17 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import type { ConquerLevel } from "../../db/schema/conquer";
-import { DEFAULT_TENANT_TIMEZONE, todayInTz } from "../shared/date-utils";
 import {
   tenantValues,
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
 import { blockWeek } from "./calendar";
+import { loadMemberContext } from "./history-loader";
+import { buildHome, type HomeView } from "./today-service";
+
+// Re-export: los tests y otros servicios importaban la función desde acá.
+export { resolveMemberTimezone } from "./timezone";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -34,6 +38,8 @@ export interface ConquerMemberState {
   cutStage: number;
   publishEnabled: boolean;
   publishNoFace: boolean;
+  /** Fase 201 §7.1: resumen de Inicio (semana del plan y última sesión por día). */
+  home: HomeView;
 }
 
 export interface ConquerStateResponse {
@@ -49,31 +55,6 @@ export interface UnlockRequestRow {
   email: string;
   branchName: string | null;
   requestedAt: string;
-}
-
-/**
- * Zona horaria del alumno: `users.branchId` -> `branches.timezone`, con la del
- * gimnasio por defecto si no tiene sede. "Hoy" del alumno es SIEMPRE el de su
- * sede, nunca UTC (§4.4).
- */
-export async function resolveMemberTimezone(
-  db: DbInstance,
-  ctx: TenantContext,
-  userId: number,
-): Promise<string> {
-  const [row] = await db
-    .select({ timezone: schema.branches.timezone })
-    .from(schema.users)
-    .innerJoin(
-      schema.branches,
-      and(
-        eq(schema.branches.id, schema.users.branchId),
-        tenantWhere(schema.branches, ctx),
-      ),
-    )
-    .where(and(tenantWhere(schema.users, ctx), eq(schema.users.id, userId)))
-    .limit(1);
-  return row?.timezone || DEFAULT_TENANT_TIMEZONE;
 }
 
 /** `datetime` de Drizzle (Date) a ISO; `null` se conserva. */
@@ -110,9 +91,12 @@ export async function getConquerState(
 
   // Activo: la semana del bloque se cuenta desde la activación, con "hoy" de
   // la sede del alumno (A16). Sin fecha de activación es la semana 1.
-  const tz = await resolveMemberTimezone(db, ctx, userId);
+  // Fase 201 §7.1: `home` se arma con el contexto del alumno (que ya trae el
+  // "hoy" de su sede) y reusa el cargador único de historiales.
+  const mctx = await loadMemberContext(db, ctx, userId);
+  const home = await buildHome(db, ctx, mctx);
   const week = row.activationDate
-    ? blockWeek(row.activationDate, todayInTz(tz))
+    ? blockWeek(row.activationDate, mctx.today)
     : 1;
   return {
     status: "activo",
@@ -127,6 +111,7 @@ export async function getConquerState(
       cutStage: row.cutStage,
       publishEnabled: row.publishEnabled,
       publishNoFace: row.publishNoFace,
+      home,
     },
   };
 }

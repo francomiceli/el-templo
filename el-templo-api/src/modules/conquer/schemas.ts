@@ -6,6 +6,74 @@
 import { CONQUER_LEVELS } from "../../db/schema/conquer";
 import { CONQUER_INC_RANGES } from "./activation-service";
 
+// ── Hoy e Inicio (plan 201-07) ──────────────────────────────────────
+
+const UNIT_ENUM = ["reps", "s"] as const;
+const MODE_ENUM = ["completa", "negativa", "hold"] as const;
+
+/** Campos de la semana del plan (D-16), comunes a `TodayResponse` y `HomeView`. */
+const planWeekProperties = {
+  weekMonday: { type: "string" },
+  plan: {
+    type: "array",
+    items: {
+      type: "object",
+      properties: {
+        dayKey: { type: "string" },
+        label: { type: "string" },
+        done: { type: "boolean" },
+      },
+      required: ["dayKey", "label", "done"],
+      additionalProperties: false,
+    },
+  },
+  nextDayKey: { type: ["string", "null"] },
+  weekComplete: { type: "boolean" },
+} as const;
+
+const PLAN_WEEK_REQUIRED = [
+  "weekMonday",
+  "plan",
+  "nextDayKey",
+  "weekComplete",
+] as const;
+
+/** `HomeView` dentro de `GET /state` (member.home). */
+const homeSchema = {
+  type: "object",
+  properties: {
+    ...planWeekProperties,
+    lastByDay: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          dayKey: { type: "string" },
+          label: { type: "string" },
+          date: { type: ["string", "null"] },
+          e1: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                exerciseName: { type: "string" },
+                value: { type: "integer" },
+                unit: { type: "string", enum: [...UNIT_ENUM] },
+              },
+              required: ["exerciseName", "value", "unit"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["dayKey", "label", "date", "e1"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: [...PLAN_WEEK_REQUIRED, "lastByDay"],
+  additionalProperties: false,
+} as const;
+
 const memberStateSchema = {
   type: ["object", "null"],
   properties: {
@@ -18,6 +86,7 @@ const memberStateSchema = {
     cutStage: { type: "integer" },
     publishEnabled: { type: "boolean" },
     publishNoFace: { type: "boolean" },
+    home: homeSchema,
   },
   additionalProperties: false,
 } as const;

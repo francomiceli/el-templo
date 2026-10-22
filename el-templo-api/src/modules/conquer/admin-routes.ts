@@ -4,13 +4,8 @@
 // "/api/admin/conquer" })`. Un único guard de plugin en `onRequest` (NO en
 // `preHandler`: con preHandler un rol sin permiso con body inválido recibiría
 // 400 en vez de 403) resuelto SOLO con `canManageConquer` (T-201-12).
-import type {
-  FastifyBaseLogger,
-  FastifyPluginAsync,
-  FastifyReply,
-} from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import { attachCountryScope } from "../shared/country-scope";
-import { AppError } from "../shared/errors";
 import { handleServiceError } from "../shared/error-handler";
 import { assertTenant } from "../shared/tenant";
 import {
@@ -19,6 +14,7 @@ import {
   type UpdateMemberPatch,
 } from "./activation-service";
 import { countUnlockRequests, listUnlockRequests } from "./member-service";
+import { sendConquerError } from "./errors";
 import { canManageConquer } from "./permissions";
 import type { Level } from "./rules";
 import {
@@ -27,25 +23,6 @@ import {
   unlockRequestsResponseSchema,
   updateMemberSchema,
 } from "./schemas";
-
-/**
- * Errores de negocio de Conquer: `{ error, code }` para que el app ramifique
- * (los mensajes ya vienen en español). Lo que no trae `code` o no es AppError
- * sigue el camino común.
- */
-function sendConquerError(
-  err: unknown,
-  reply: FastifyReply,
-  log: FastifyBaseLogger,
-  context: string,
-): void {
-  if (reply.sent) return;
-  if (err instanceof AppError && err.code) {
-    reply.code(err.statusCode).send({ error: err.message, code: err.code });
-    return;
-  }
-  handleServiceError(err, reply, log, context);
-}
 
 interface ActivateBody {
   userId: number;

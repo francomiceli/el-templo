@@ -27,7 +27,7 @@ import {
   type ExerciseView,
   type RungView,
 } from "./catalog-service";
-import { resolveMemberTimezone } from "./member-service";
+import { resolveMemberTimezone } from "./timezone";
 import { isValidLevelDays, shiftStartPosition, type Level } from "./rules";
 import { getConquerSettings, type ConquerSettings } from "./settings";
 
