@@ -13,6 +13,9 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Crema de la marca entre el splash y el primer pintado del WebView
+             (con DayNight en modo oscuro se veía negro). -->
+        <item name="android:windowBackground">@color/templo_cream</item>
     </style>
 
 
