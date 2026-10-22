@@ -29,7 +29,7 @@ function bodyCheck(overrides: Partial<BodyCheckSummary>): BodyCheckSummary {
   }
 }
 
-function activeWith(summary: BodyCheckSummary): ConquerStateResponse {
+function activeWith(summary: BodyCheckSummary, guideSeen = true): ConquerStateResponse {
   const member: ConquerMemberState = {
     level: 'toro',
     daysCount: 4,
@@ -40,7 +40,7 @@ function activeWith(summary: BodyCheckSummary): ConquerStateResponse {
     cutStage: 0,
     publishEnabled: false,
     publishNoFace: false,
-    guideSeen: true,
+    guideSeen,
     home: {
       weekMonday: '2026-10-19',
       plan: [],
@@ -76,6 +76,27 @@ describe('resolveConquerView', () => {
     ['control vencido', { hasDay0: true, due: true, overdue: true }],
   ] as const)('si no hay que pedir el día 0 (%s) va a Inicio', (_caso, overrides) => {
     expect(resolveConquerView(activeWith(bodyCheck(overrides)))).toBe('inicio')
+  })
+
+  // Fase 201 DA-22: la guía "¿Cómo funciona?" aparece UNA vez, recién después del día 0
+  it.each([
+    ['activo, día 0 pendiente y guía sin ver: gana el día 0', true, false, 'dia0'],
+    ['activo, día 0 resuelto y guía sin ver: va a la guía', false, false, 'guia'],
+    ['activo, día 0 resuelto y guía vista: va a Inicio', false, true, 'inicio'],
+    ['activo, día 0 pendiente y guía vista: sigue el día 0', true, true, 'dia0'],
+  ] as const)('%s', (_caso, mustPromptDay0, guideSeen, view) => {
+    expect(resolveConquerView(activeWith(bodyCheck({ mustPromptDay0 }), guideSeen))).toBe(view)
+  })
+
+  it('la guía sin ver no cambia bloqueado, pedido ni cargando', () => {
+    expect(resolveConquerView(null)).toBe('cargando')
+    expect(resolveConquerView(stateWith('bloqueado'))).toBe('bloqueado')
+    expect(resolveConquerView(stateWith('pedido'))).toBe('pedido')
+    const pedidoSinGuia: ConquerStateResponse = {
+      ...activeWith(bodyCheck({}), false),
+      status: 'pedido',
+    }
+    expect(resolveConquerView(pedidoSinGuia)).toBe('pedido')
   })
 
   it('mustPromptDay0 solo cuenta para el estado activo', () => {

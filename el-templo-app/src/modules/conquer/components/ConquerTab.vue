@@ -29,7 +29,7 @@ import CqScreen from './brand/CqScreen.vue'
 import CqButton from './brand/CqButton.vue'
 
 // Fase 201 D-12, D-17, §7.1: raíz de la tab Conquer. Pide el estado al montar y pinta la pantalla
-// que corresponde (`resolveConquerView`): Bloqueado/pedido, el control del día 0 o Inicio. Cada pantalla trae su propia
+// que corresponde (`resolveConquerView`): Bloqueado/pedido, el control del día 0, la guía o Inicio. Cada pantalla trae su propia
 // raíz `CqScreen` (tokens `--cq-*` solo adentro de Conquer, DA-16). Cargando y error son claros (DA-16). Se carga con `defineAsyncComponent`
 // desde Entrenar y la vidriera: la fuente y el CSS quedan en el chunk de Conquer.
 const store = useConquerStore()
@@ -41,6 +41,9 @@ watch(
   () => store.view,
   (view) => {
     if (view === 'dia0') void router.replace({ name: 'conquer-control', query: { dia0: '1' } })
+    // Fase 201 DA-22: resuelto el día 0 y con la guía sin ver, la tab manda a la guía (una sola vez:
+    // al terminarla o saltarla la página la marca vista y vuelve acá con `inicio`)
+    else if (view === 'guia') void router.replace({ name: 'conquer-guia' })
   },
   { immediate: true },
 )
