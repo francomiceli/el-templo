@@ -745,3 +745,86 @@ describe("validador de rutas — casos negativos (el validador muerde)", () => {
     ).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("modo estricto (cierre de la fase 200)", () => {
+  /** Una sección es válida si es `Pendiente` explícita o tiene contenido. */
+  function seccionConContenido(valor: unknown): boolean {
+    if (valor === null || valor === undefined) return false;
+    if (esPendiente(valor)) return true;
+    if (typeof valor === "string") return valor.trim().length > 0;
+    if (Array.isArray(valor)) return valor.length > 0;
+    return typeof valor === "object";
+  }
+
+  it("las 30 rutas tienen fichaProfe y fichaAlumno (SC1)", () => {
+    expect(RUTAS).toHaveLength(30);
+    for (const r of RUTAS) {
+      expect(r.fichaProfe, `${r.code} fichaProfe`).not.toBeNull();
+      expect(r.fichaAlumno, `${r.code} fichaAlumno`).not.toBeNull();
+    }
+  });
+
+  it("ninguna sección de las fichas está vacía: o tiene contenido o es pendiente explícita", () => {
+    for (const r of RUTAS) {
+      const profe = r.fichaProfe;
+      const alumno = r.fichaAlumno;
+      if (profe === null || alumno === null) continue;
+      const seccionesProfe: Record<string, unknown> = {
+        resumen: profe.resumen,
+        escalones: profe.escalones,
+        fases: profe.fases,
+        articulaciones: profe.articulaciones,
+        progresa: profe.progresa,
+        siente: profe.siente,
+        compensa: profe.compensa,
+        cues: profe.cues,
+        banderasRuta: profe.banderasRuta,
+        evidencia: profe.evidencia,
+      };
+      for (const [nombre, valor] of Object.entries(seccionesProfe)) {
+        expect(seccionConContenido(valor), `${r.code} profe.${nombre}`).toBe(
+          true,
+        );
+      }
+      expect(profe.tipo.trim().length, `${r.code} profe.tipo`).toBeGreaterThan(
+        0,
+      );
+      const seccionesAlumno: Record<string, unknown> = {
+        que: alumno.que,
+        siente: alumno.siente,
+        tips: alumno.tips,
+        errores: alumno.errores,
+      };
+      for (const [nombre, valor] of Object.entries(seccionesAlumno)) {
+        expect(seccionConContenido(valor), `${r.code} alumno.${nombre}`).toBe(
+          true,
+        );
+      }
+    }
+  });
+
+  it("ninguna ficha de alumno tiene todas sus secciones pendientes", () => {
+    for (const r of RUTAS) {
+      const alumno = r.fichaAlumno;
+      if (alumno === null) continue;
+      const secciones = [
+        alumno.que,
+        alumno.siente,
+        alumno.tips,
+        alumno.errores,
+      ];
+      const pendientes = secciones.filter((s) => esPendiente(s));
+      expect(pendientes.length, `${r.code} fichaAlumno`).toBeLessThan(
+        secciones.length,
+      );
+    }
+  });
+
+  it("las 30 rutas siguen en borrador y validarContenido() no da errores", () => {
+    for (const r of RUTAS) {
+      expect(r.estado, r.code).toBe("borrador");
+    }
+    const errores = validarContenido();
+    expect(errores, errores.join("\n")).toEqual([]);
+  });
+});
