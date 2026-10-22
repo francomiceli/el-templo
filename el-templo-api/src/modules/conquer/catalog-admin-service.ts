@@ -45,8 +45,14 @@ type Tx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
 // ── Vistas ──────────────────────────────────────────────────────────
 
-/** Peldaño del editor: `inUse` = algún escalón de algún alumno apunta a él. */
+/**
+ * Peldaño del editor: `inUse` = algún escalón de algún alumno apunta a él.
+ * 201-25 DA-4: `RungView` ya no trae `brazosRectos` (la marca vive en el
+ * ejercicio). El editor lo sigue mostrando de la columna del peldaño hasta que
+ * el plan 201-26 rehaga el catálogo del admin.
+ */
 export interface RungAdminView extends RungView {
+  brazosRectos: boolean;
   inUse: boolean;
 }
 
@@ -123,6 +129,21 @@ async function loadRungsInUse(
   return new Set(rows.map((r) => r.rungId));
 }
 
+/** Columna `brazos_rectos` de cada peldaño (provisorio hasta el plan 201-26, DA-4). */
+async function loadRungArms(
+  db: DbInstance,
+  ctx: TenantContext,
+): Promise<Map<number, boolean>> {
+  const rows = await db
+    .select({
+      id: schema.conquerRungs.id,
+      brazosRectos: schema.conquerRungs.brazosRectos,
+    })
+    .from(schema.conquerRungs)
+    .where(tenantWhere(schema.conquerRungs, ctx));
+  return new Map(rows.map((r) => [r.id, r.brazosRectos]));
+}
+
 /**
  * Catálogo completo para el editor del admin (§8.1, D-14): escaleras con sus
  * peldaños, ejercicios, plantillas y las 15 zonas.
@@ -131,15 +152,17 @@ export async function getCatalogForAdmin(
   db: DbInstance,
   ctx: TenantContext,
 ): Promise<CatalogAdminView> {
-  const [catalog, inUse] = await Promise.all([
+  const [catalog, inUse, arms] = await Promise.all([
     loadCatalog(db, ctx),
     loadRungsInUse(db, ctx),
+    loadRungArms(db, ctx),
   ]);
   const ladders: LadderAdminView[] = [...catalog.ladders.values()].map(
     (ladder) => ({
       ...ladder,
       rungs: ladder.rungs.map((rung) => ({
         ...rung,
+        brazosRectos: arms.get(rung.id) ?? false,
         inUse: inUse.has(rung.id),
       })),
     }),

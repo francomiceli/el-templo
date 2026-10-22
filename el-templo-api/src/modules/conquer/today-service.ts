@@ -21,6 +21,7 @@ import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { addDaysIso, blockWeek, mondayOfIso, nextPendingDay } from "./calendar";
 import {
   planDays,
+  stepLadderId,
   type ConquerCatalog,
   type ExerciseView,
   type LadderView,
@@ -82,7 +83,6 @@ export interface TodayRung {
   code: string;
   name: string;
   position: number;
-  brazosRectos: boolean;
   unilateral: boolean;
 }
 
@@ -103,7 +103,13 @@ export interface TodayExercise {
   code: string;
   name: string;
   unit: Unit;
+  /** Opciones de peldaño de E1-E3 (la escalera del ejercicio). */
   rungs: TodayRung[];
+  /**
+   * Fase 201 DA-3: opciones de peldaño del hold final. Es la escalera de hold
+   * del ejercicio o, si no tiene, la misma de E1-E3.
+   */
+  holdRungs: TodayRung[];
   steps: TodayStep[];
 }
 
@@ -247,12 +253,16 @@ export function computeTodayStep(
     target,
     estado,
     value: saved ?? preload,
-    brazosRectos: rung?.brazosRectos ?? false,
+    // DA-4: la marca de brazos rectos vive en el ejercicio, no en el peldaño.
+    brazosRectos: exercise.brazosRectos,
     unilateral: rung?.unilateral ?? false,
   };
 }
 
-/** Peldaños elegibles: los activos de la escalera + el actual de cada escalón si quedó inactivo. */
+/**
+ * Peldaños elegibles: los activos de la escalera + el actual de cada escalón
+ * que la usa si quedó inactivo.
+ */
 function rungOptions(
   ladder: LadderView | undefined,
   stepRows: readonly ConquerStepRow[],
@@ -266,7 +276,6 @@ function rungOptions(
       code: r.code,
       name: r.name,
       position: r.position,
-      brazosRectos: r.brazosRectos,
       unilateral: r.unilateral,
     }));
 }
@@ -294,7 +303,15 @@ function buildTodayExercise(
     code: exercise.code,
     name: exercise.name,
     unit: exercise.unit,
-    rungs: rungOptions(mctx.catalog.ladders.get(exercise.ladderId), stepRows),
+    // DA-3: E1-E3 eligen en la escalera del ejercicio y el hold en la suya.
+    rungs: rungOptions(
+      mctx.catalog.ladders.get(stepLadderId(exercise, "e1")),
+      stepRows.filter((row) => row.step !== "hold"),
+    ),
+    holdRungs: rungOptions(
+      mctx.catalog.ladders.get(stepLadderId(exercise, "hold")),
+      stepRows.filter((row) => row.step === "hold"),
+    ),
     steps: stepRows.map((row) =>
       computeTodayStep(
         mctx,

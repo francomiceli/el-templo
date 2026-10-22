@@ -14,6 +14,7 @@ import { tenantWhere, type TenantContext } from "../shared/tenant";
 import { upsertEventAlert } from "./alerts-service";
 import {
   neighborRung,
+  stepLadderId,
   type ExerciseView,
   type RungView,
 } from "./catalog-service";
@@ -121,7 +122,8 @@ export async function changeStep(
   const rung = mctx.catalog.rungById.get(body.rungId);
   if (
     !rung ||
-    rung.ladderId !== exercise.ladderId ||
+    // DA-3: el hold final elige en su propia escalera.
+    rung.ladderId !== stepLadderId(exercise, step) ||
     (!rung.isActive && rung.id !== current.rungId)
   ) {
     throw invalidRungError();
@@ -206,7 +208,12 @@ export function findSubir(
   return {
     step: picked,
     fromRung,
-    toRung: neighborRung(mctx.catalog, exercise.ladderId, row.rungId, "harder"),
+    toRung: neighborRung(
+      mctx.catalog,
+      stepLadderId(exercise, picked),
+      row.rungId,
+      "harder",
+    ),
   };
 }
 

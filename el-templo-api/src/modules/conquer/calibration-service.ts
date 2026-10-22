@@ -13,6 +13,7 @@ import { tenantWhere, type TenantContext } from "../shared/tenant";
 import {
   neighborRung,
   planDays,
+  stepLadderId,
   type ExerciseView,
   type RungView,
 } from "./catalog-service";
@@ -88,7 +89,7 @@ export function calibrationProposals(
         ? from
         : neighborRung(
             mctx.catalog,
-            exercise.ladderId,
+            stepLadderId(exercise, "e1"),
             e1.rungId,
             proposal === "subir" ? "harder" : "easier",
           );
@@ -133,7 +134,8 @@ function planMoves(
     if (!row) continue;
     const to = neighborRung(
       mctx.catalog,
-      exercise.ladderId,
+      // DA-3: cada escalón se mueve dentro de SU escalera (el hold, en la de hold).
+      stepLadderId(exercise, step),
       row.rungId,
       direction,
     );

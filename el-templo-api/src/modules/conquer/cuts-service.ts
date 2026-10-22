@@ -18,7 +18,7 @@ import {
   type ConquerActor,
 } from "./activation-service";
 import { assertAlertOfMember, resolveAlertsByCoach } from "./alerts-service";
-import { neighborRung } from "./catalog-service";
+import { neighborRung, stepLadderId } from "./catalog-service";
 import type { StepKey } from "./engine";
 import {
   loadMemberContext,
@@ -153,7 +153,8 @@ async function lowerStep(
   const locked = await lockStep(tx, ctx, current.id);
   const easier = neighborRung(
     mctx.catalog,
-    exercise.ladderId,
+    // DA-3: el escalón baja dentro de SU escalera (el hold, en la de hold).
+    stepLadderId(exercise, step),
     locked.rungId,
     "easier",
   );

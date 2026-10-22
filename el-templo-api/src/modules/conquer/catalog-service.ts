@@ -27,7 +27,6 @@ export interface RungView {
   code: string;
   name: string;
   position: number;
-  brazosRectos: boolean;
   unilateral: boolean;
   isActive: boolean;
 }
@@ -187,7 +186,6 @@ export async function loadCatalog(
       code: row.code,
       name: row.name,
       position: row.position,
-      brazosRectos: row.brazosRectos,
       unilateral: row.unilateral,
       isActive: row.isActive,
     };

@@ -28,6 +28,7 @@ import {
 import {
   neighborRung,
   planDays,
+  stepLadderId,
   type ExerciseView,
   type TemplateDayView,
 } from "./catalog-service";
@@ -274,8 +275,12 @@ async function syncTopeAlerts(
       const row = mctx.steps.get(markKey(exercise.id, step));
       if (!row) continue;
       const atTop =
-        neighborRung(mctx.catalog, exercise.ladderId, row.rungId, "harder") ===
-        null;
+        neighborRung(
+          mctx.catalog,
+          stepLadderId(exercise, step),
+          row.rungId,
+          "harder",
+        ) === null;
       if (!atTop) continue;
       const rung = mctx.catalog.rungById.get(row.rungId);
       const { estado } = computeTodayStep(mctx, exercise, row, marksAfter);

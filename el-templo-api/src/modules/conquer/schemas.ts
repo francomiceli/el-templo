@@ -359,6 +359,23 @@ const todayStepSchema = {
   additionalProperties: false,
 } as const;
 
+/** Opciones de peldaño de Hoy. 201-25 DA-4: ya no trae `brazosRectos` (vive en el ejercicio). */
+const todayRungsSchema = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      id: { type: "integer" },
+      code: { type: "string" },
+      name: { type: "string" },
+      position: { type: "integer" },
+      unilateral: { type: "boolean" },
+    },
+    required: ["id", "code", "name", "position", "unilateral"],
+    additionalProperties: false,
+  },
+} as const;
+
 const todayExerciseSchema = {
   type: "object",
   properties: {
@@ -366,32 +383,20 @@ const todayExerciseSchema = {
     code: { type: "string" },
     name: { type: "string" },
     unit: { type: "string", enum: [...UNIT_ENUM] },
-    rungs: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          id: { type: "integer" },
-          code: { type: "string" },
-          name: { type: "string" },
-          position: { type: "integer" },
-          brazosRectos: { type: "boolean" },
-          unilateral: { type: "boolean" },
-        },
-        required: [
-          "id",
-          "code",
-          "name",
-          "position",
-          "brazosRectos",
-          "unilateral",
-        ],
-        additionalProperties: false,
-      },
-    },
+    // Opciones de E1-E3 y, aparte, las del hold final (201-25 DA-3).
+    rungs: todayRungsSchema,
+    holdRungs: todayRungsSchema,
     steps: { type: "array", items: todayStepSchema },
   },
-  required: ["exerciseId", "code", "name", "unit", "rungs", "steps"],
+  required: [
+    "exerciseId",
+    "code",
+    "name",
+    "unit",
+    "rungs",
+    "holdRungs",
+    "steps",
+  ],
   additionalProperties: false,
 } as const;
 
