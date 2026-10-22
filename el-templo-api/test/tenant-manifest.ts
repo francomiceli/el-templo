@@ -120,6 +120,17 @@
 //   ─────────────────────────
 //   TOTAL          400 → 405   (+5)
 //
+// 2026-10-22 — **492 rutas**: Conquer v2 (fase 201, plan 09): tablero con
+// semáforo (`GET /api/admin/conquer/members`) y estado de una alerta (`PATCH
+// /api/admin/conquer/alerts/:id`) para owner/admin. Las 2 son `templo-module`
+// (`moduleScope` de `templo-training`).
+//
+//   tenant-scoped  sin cambio
+//   templo-module  +2   (las rutas nuevas)
+//   global         sin cambio
+//   ─────────────────────────
+//   TOTAL          490 → 492   (+2)
+//
 // 2026-10-21 — **487 rutas**: Conquer v2 (fase 201, plan 07): Hoy
 // (`GET /api/members/conquer/today`), guardado de la sesión (`PUT
 // /api/members/conquer/sessions`) y cambio de progresión de un escalón (`PUT
@@ -1606,6 +1617,14 @@ export const TENANT_MANIFEST: Record<string, EntradaManifiesto> = {
     modulo: "templo-training",
   },
   "POST /api/members/conquer/calibration/:exerciseId": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "GET /api/admin/conquer/members": {
+    categoria: "templo-module",
+    modulo: "templo-training",
+  },
+  "PATCH /api/admin/conquer/alerts/:id": {
     categoria: "templo-module",
     modulo: "templo-training",
   },

@@ -13,14 +13,19 @@ import {
   updateMember,
   type UpdateMemberPatch,
 } from "./activation-service";
+import { updateAlertStatus } from "./alerts-service";
+import { getBoardAlert } from "./alert-view";
+import { buildBoard } from "./board-service";
 import { countUnlockRequests, listUnlockRequests } from "./member-service";
 import { sendConquerError } from "./errors";
 import { canManageConquer } from "./permissions";
 import type { Level } from "./rules";
 import {
   activateMemberSchema,
+  boardSchema,
   unlockRequestsCountResponseSchema,
   unlockRequestsResponseSchema,
+  updateAlertSchema,
   updateMemberSchema,
 } from "./schemas";
 
@@ -74,6 +79,37 @@ export const conquerAdminRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // GET /members — tablero con semáforo, en una sola request (§7.2, S12-7).
+  fastify.get("/members", { schema: boardSchema }, async (request, reply) => {
+    try {
+      const ctx = assertTenant(request.scope, "conquer.admin.board");
+      return await buildBoard(fastify.db, ctx);
+    } catch (err: unknown) {
+      sendConquerError(err, reply, request.log, "conquer.admin.board");
+    }
+  });
+
+  // PATCH /alerts/:id — vista o resuelta (T-201-30, T-201-32).
+  fastify.patch<{
+    Params: { id: number };
+    Body: { status: "vista" | "resuelta" };
+  }>("/alerts/:id", { schema: updateAlertSchema }, async (request, reply) => {
+    try {
+      const ctx = assertTenant(request.scope, "conquer.admin.alert-update");
+      // El actor sale SIEMPRE del token, nunca del body.
+      await updateAlertStatus(
+        fastify.db,
+        ctx,
+        { userId: request.user.userId },
+        request.params.id,
+        request.body.status,
+      );
+      return await getBoardAlert(fastify.db, ctx, request.params.id);
+    } catch (err: unknown) {
+      sendConquerError(err, reply, request.log, "conquer.admin.alert-update");
+    }
+  });
 
   // POST /members — owner/admin activa a un alumno (§7.2, S12-1).
   fastify.post<{ Body: ActivateBody }>(

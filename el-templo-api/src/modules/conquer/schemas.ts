@@ -588,3 +588,122 @@ export const resolveCalibrationSchema = {
   },
   response: progressResponseSchema,
 } as const;
+
+// ── Tablero y alertas del coach (plan 201-09) ───────────────────────
+
+const ALERT_KIND_ENUM = [
+  "molestia",
+  "caida",
+  "tope_escalera",
+  "paso_nivel",
+  "inactivo",
+  "control_vencido",
+  "control_dia0_pendiente",
+] as const;
+const LIGHT_ENUM = ["rojo", "amarillo", "verde", "ok"] as const;
+
+/** `BoardAlert`: `detail` es libre (cada tipo trae lo suyo), no se vacía. */
+const boardAlertSchema = {
+  type: "object",
+  properties: {
+    id: { type: ["integer", "null"] },
+    kind: { type: "string", enum: [...ALERT_KIND_ENUM] },
+    severity: { type: "string", enum: ["rojo", "amarillo", "verde"] },
+    label: { type: "string" },
+    status: {
+      type: ["string", "null"],
+      enum: ["abierta", "vista", "resuelta", null],
+    },
+    createdAt: { type: ["string", "null"] },
+    detail: { type: "object", additionalProperties: true },
+    proposal: {
+      type: ["object", "null"],
+      properties: {
+        kind: { type: "string", enum: ["etapa", "bajar_escalon"] },
+        stage: { type: "integer" },
+        label: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+  },
+  required: [
+    "id",
+    "kind",
+    "severity",
+    "label",
+    "status",
+    "createdAt",
+    "detail",
+    "proposal",
+  ],
+  additionalProperties: false,
+} as const;
+
+const boardMemberSchema = {
+  type: "object",
+  properties: {
+    userId: { type: "integer" },
+    firstName: { type: "string" },
+    lastName: { type: "string" },
+    level: { type: "string", enum: [...CONQUER_LEVELS] },
+    daysCount: { type: "integer" },
+    cutStage: { type: "integer" },
+    lastSessionDate: { type: ["string", "null"] },
+    light: { type: "string", enum: [...LIGHT_ENUM] },
+    alerts: { type: "array", items: boardAlertSchema },
+  },
+  required: [
+    "userId",
+    "firstName",
+    "lastName",
+    "level",
+    "daysCount",
+    "cutStage",
+    "lastSessionDate",
+    "light",
+    "alerts",
+  ],
+  additionalProperties: false,
+} as const;
+
+/** `GET /members` (admin): el tablero con semáforo (S12-7). */
+export const boardSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        counts: {
+          type: "object",
+          properties: {
+            rojo: { type: "integer" },
+            amarillo: { type: "integer" },
+            verde: { type: "integer" },
+            ok: { type: "integer" },
+            total: { type: "integer" },
+          },
+          required: ["rojo", "amarillo", "verde", "ok", "total"],
+          additionalProperties: false,
+        },
+        members: { type: "array", items: boardMemberSchema },
+      },
+      required: ["counts", "members"],
+      additionalProperties: false,
+    },
+  },
+} as const;
+
+/** `PATCH /alerts/:id` (admin): marca una alerta vista o resuelta. */
+export const updateAlertSchema = {
+  params: {
+    type: "object",
+    properties: { id: { type: "integer", minimum: 1 } },
+    required: ["id"],
+  },
+  body: {
+    type: "object",
+    properties: { status: { type: "string", enum: ["vista", "resuelta"] } },
+    required: ["status"],
+    additionalProperties: false,
+  },
+  response: { 200: boardAlertSchema },
+} as const;
