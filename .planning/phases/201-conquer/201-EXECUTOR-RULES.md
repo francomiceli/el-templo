@@ -1,0 +1,168 @@
+# Fase 201 — Reglas para el ejecutor (gsd-executor, model sonnet)
+
+Este archivo es INPUT de todos los planes 201-NN. Leerlo entero antes de la primera tarea. Ante una duda de producto
+manda `201-CONTEXT.md` (D-01..D-22) y, detrás, `ref/conquer-desarrollo-sintesis.md` (la spec). Los defaults de las
+ambigüedades (A1–A19 de `201-RESEARCH.md` §9.2) están ADOPTADOS por D-20: no re-interpretar. Si aparece una ambigüedad
+NUEVA, anotarla en el SUMMARY con la opción elegida (la más simple que cumpla la spec) y seguir: la cadena no se frena
+con preguntas.
+
+## Entorno
+
+- Worktree: `/home/franco/projects/et-201-conquer`, rama `feat/201-conquer` (base `origin/staging`, tiene la 197).
+  Trabajar SOLO acá, con rutas absolutas en cada comando (el cwd se resetea entre llamadas). Si el harness rechaza un
+  `cd X && git ...` compuesto, separar en dos llamadas.
+- El checkout principal `/home/franco/projects/el-templo` y la rama 196 (`/home/franco/projects/et-196-personalizados`,
+  la "cantera", D-03/D-04) son de SOLO LECTURA. Se copian piezas de la 196 leyendo por ruta absoluta; nunca se escribe ahí.
+- **Prerrequisito de `node_modules`:** los gates locales (`npx tsc --noEmit`, `pnpm lint:tenant`, `pnpm typecheck:tests`,
+  `pnpm lint`, `vue-tsc`) necesitan `node_modules` en los paquetes del worktree. Los instala el ORQUESTADOR (con OK de
+  Franco) antes del plan 201-01. El ejecutor **NUNCA** corre `pnpm install`, `pnpm add`, `npm i`, `pnpm update`, ni crea
+  symlinks a `node_modules` ajenos. Si faltan: correr igual los gates estáticos (grep, `node` sobre los módulos puros),
+  escribir en el SUMMARY "gates de tipos/lint NO corridos: falta node_modules" y seguir.
+- `vue-tsc` no está en app ni admin y NO se instala. Se usa EN SOLO LECTURA el binario
+  `/home/franco/projects/et-195-seo/el-templo-web/node_modules/.bin/vue-tsc` (fallback:
+  `/home/franco/projects/el-templo/el-templo-web/node_modules/.bin/vue-tsc`). Criterio: ningún error en archivos del
+  plan (hay errores preexistentes ajenos; filtrar con `grep`).
+- **Sin dependencias nuevas (D-19).** Sin CDN (los HTML de `ref/` linkean Google Fonts: NO copiar esa línea). Sin bump de
+  versión (`package.json`, `version.txt` quedan como están). Nada de SSH, nada de `git push`.
+
+## Gates locales por tarea
+
+- API (toda tarea que toca `el-templo-api/src` o `el-templo-api/test`):
+  - `cd /home/franco/projects/et-201-conquer/el-templo-api && npx tsc --noEmit`
+  - `cd /home/franco/projects/et-201-conquer/el-templo-api && pnpm lint:tenant`
+  - Si toca tests: `cd /home/franco/projects/et-201-conquer/el-templo-api && pnpm typecheck:tests 2>&1 | grep -E "test/(conquer|unit/conquer|migrations/0290)"`
+    → no tiene que imprimir nada (hay deuda preexistente ajena; el criterio es que NINGÚN archivo del plan aparezca).
+- App: `cd /home/franco/projects/et-201-conquer/el-templo-app && pnpm lint` y
+  `$VUE_TSC --noEmit -p /home/franco/projects/et-201-conquer/el-templo-app/tsconfig.json 2>&1 | grep -E "src/modules/conquer|<otros archivos del plan>"` vacío.
+- Admin: igual con `el-templo-admin`.
+- Módulos puros del motor (`engine.ts`, `calendar.ts`, `rules.ts`, `lighting.ts`): CERO imports, sin `enum`, sin
+  `namespace`, sin parameter properties (tienen que correr con `node --no-warnings` por type-stripping de Node 22).
+  Se verifican con `node --no-warnings /home/franco/projects/et-201-conquer/el-templo-api/test/conquer/oracle-check.mjs`
+  (lo crea 201-02 y lo amplían 201-03 y 201-04).
+- Greps de higiene en todo archivo tocado (tienen que NO imprimir nada):
+  - `grep -nE "console\.(log|warn|error|info|debug)" <archivos>` (front: `createLogger()`; API: `request.log`/`fastify.log`).
+  - `grep -nE ":\s*any\b|<any>|as any\b" <archivos>`.
+  - En `.vue`/`.scss` del app: `grep -nE "fonts\.googleapis|fonts\.gstatic" <archivos>` (sin CDN).
+- `grep -c` cuenta comentarios: si un gate cuenta tokens, filtrar antes (`grep -vE "^\s*(//|\*|/\*|<!--|--)" archivo | grep -c token`).
+  Nunca un gate `== 0` sobre un archivo sin filtrar.
+- Al cerrar cada plan: `git -C /home/franco/projects/et-201-conquer status --porcelain` tiene que salir VACÍO.
+
+## Tests
+
+- Se ESCRIBEN siempre (integración del API en `el-templo-api/test/conquer/`, unitarios puros en `el-templo-api/test/unit/`,
+  utils puras del app en `el-templo-app/src/modules/conquer/**/__tests__/`). **Corren en CI, NO localmente** (regla del
+  proyecto). PROHIBIDO `pnpm test`, `vitest run` y cualquier corrida de vitest local. El admin no tiene vitest.
+- Comandos SOLO en primer plano. **PROHIBIDO `run_in_background`, `&`, `nohup`, y loops de espera con `sleep`/`pgrep`/`ps`**
+  (se matchean a sí mismos y quedan colgados).
+- **Mutation testing razonado:** cada plan con tests lista 2-4 mutantes. Para cada uno: aplicar el cambio en el código de
+  producción, confirmar LEYENDO el test qué `expect` concreto fallaría (citar archivo y línea en el SUMMARY), y revertir
+  (`git diff` limpio sobre ese archivo antes de commitear). En los módulos puros, además, correr `oracle-check.mjs` o el
+  `node -e` del plan con el mutante aplicado y ver que falla. Si un mutante no lo atrapa ningún test, agregar el test.
+- Usuarios SIEMPRE con fábricas (`createTestMember`, `createStaffUser`, `registerUser`); NUNCA ids de `users` hardcodeados.
+- Fechas relativas: `todayInTz(tz)`, `addDays`, `mondayOf`/`shiftDate`. Literales de calendario SOLO en tests unitarios
+  puros. Historial de días pasados: insertarlo DIRECTO en la base con la fábrica `insertConquerSession` de
+  `test/conquer/_helpers.ts` (el archivo nace en 201-05; `insertConquerSession` la agrega 201-07); `PUT /sessions` solo para "hoy". Si hace falta fijar
+  "hoy": SOLO `vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime(...)` calculado desde `Date.now()` real, ANTES
+  de loguear, y `vi.useRealTimers()` en `afterEach`.
+- Queries directas de un test a tablas strict (todas las `conquer_*`, `users`, `tenant_settings`) llevan
+  `tenantWhere(tabla, TEMPLO_CTX)` (`TEMPLO_CTX` se exporta de `test/conquer/_helpers.ts`). INSERT directos con
+  `tenantValues(TEMPLO_CTX, {...})`.
+- `cleanAllTestData` limpia las 6 tablas de ESTADO (`conquer_session_steps`, `conquer_sessions`, `conquer_steps`,
+  `conquer_alerts`, `conquer_body_checks`, `conquer_members`) pero NO el catálogo (`conquer_ladders`, `conquer_rungs`,
+  `conquer_exercises`, `conquer_template_days`), que lo siembra la migración 0292. Un test que modifique el catálogo
+  restaura la fila original en `afterEach`/`afterAll`. `tenant_settings` tampoco se limpia: borrar `conquer.%` a mano en
+  `beforeEach`/`afterEach` del test que lo toque.
+- Toda ruta nueva: test de integración con (a) el caso feliz, (b) el rol sin permiso (403) donde aplique, (c) el recurso
+  ajeno (otro alumno / otro gimnasio con `seedSecondTenant`) → 404, nunca 200 ni 500, (d) validación (400).
+  Toda ruta con 2+ ids anidados valida la pertenencia de cada hijo a su padre y al tenant + test cross-ID.
+- Fastify con `additionalProperties:false` DESCARTA claves extra (no las rechaza). Cada campo nuevo de una respuesta necesita
+  su entrada en el JSON-schema de respuesta o el serializador lo borra en silencio.
+- El MySQL local corre en otra zona horaria que Node: comparar timestamps en SQL, nunca contra `new Date()` de JS. MySQL
+  redondea TIMESTAMP al segundo.
+
+## Código
+
+- API: Fastify + Drizzle. Logs con `request.log`/`fastify.log` (Pino), nunca `console.*`. **Nunca loguear claves de foto,
+  URLs firmadas, perímetros ni peso** (solo `{ checkId, pose }`).
+- Toda query sobre una tabla gym-owned: `tenantWhere(tabla, ctx)` en lecturas/updates/deletes y `tenantValues(ctx, {...})` en
+  inserts (`src/modules/shared/tenant.ts`, import por path directo). En `sql` crudo, `tenant_id = ${ctx.tenantId}` inline.
+  `ctx` sale SIEMPRE de `await attachCountryScope(request, fastify.db)` + `assertTenant(request.scope, "conquer.<algo>")`,
+  nunca del body ni del query. `userId` del alumno SIEMPRE de `request.user.userId`. No agregar nada a
+  `tenant-lint-allowlist.json` (salida válida alternativa: `/* tenant-safe: motivo */`).
+- Columnas en `.select({...})` de un join: SIEMPRE calificadas (`schema.tabla.columna`). `FOR UPDATE` primero en la tx.
+  Variable asignada dentro del callback de `db.transaction`: `let x = null as number | null`.
+- Rutas Conquer: alumno bajo `/api/members/conquer`, admin bajo `/api/admin/conquer`, ambas registradas con
+  `moduleScope(app, "templo-training", ...)` en `src/app.ts`. Guard de rol del admin en `onRequest` (NO en `preHandler`:
+  con preHandler un rol sin permiso con body inválido recibe 400 en vez de 403), resuelto SOLO con
+  `canManageConquer` de `src/modules/conquer/permissions.ts` (D-08; un solo helper). Fotos: `canViewConquerPhotos`.
+- Cada ruta nueva: entrada `"MÉTODO /url"` en `test/tenant-manifest.ts` con `categoria: "templo-module", modulo: "templo-training"`
+  y `ENTRADAS_BASELINE` de `test/tenancy/iso-01-manifiesto.test.ts` sumando N SOBRE EL VALOR ACTUAL (aritmética, no copiar
+  un número de otro lado) + el número en el título del `it` + una línea de comentario con la fecha y la fase.
+- Errores de negocio: `AppError(mensaje en español, status, CODE)` con `CODE` en MAYÚSCULAS (`CONQUER_...`); las rutas
+  serializan `{ error, code }` explícitamente cuando el app necesita ramificar.
+- Funciones de más de ~80 líneas: partir en helpers con nombre. Explícito > ingenioso. Comentarios en español citando la
+  decisión: `// Fase 201 D-16: ...` o `// Fase 201 §4.4: ...`.
+- El app NUNCA recalcula el motor: pinta objetivo/estado/propuestas que manda el API (anti-patrón de la research).
+- Front (Quasar + Vue 3.5 + Pinia): `createLogger()` de `src/utils/logger.ts`; stores con `defineStore('x', () => {...})`;
+  composables exponen `cleanup()` y NO usan `onUnmounted` adentro; sin `any`; `catch (err: unknown)` + `instanceof Error`.
+  Toda acción muestra el `error` del API en un `Notify` (los 409/400 traen copy en español); botones con `:loading`.
+- Formato a mano (en este worktree el pre-commit NO corre). App y admin (`.prettierrc.json`): sin punto y coma, comillas
+  simples, ancho 100. API: con punto y coma, comillas dobles, ancho 80, comas finales. Imitar el archivo vecino.
+- Copy en español rioplatense con voseo y tildes ("clase", nunca "turno"). Al alumno, Conquer es "Conquer" y los niveles
+  "Ternero", "Novillo", "Toro".
+- **Estética (D-09/D-22):** la submarca (azul noche `#131d44`, dorado `#cfae6b`, dorado claro `#f6e2a4`, crema `#fdf3d3`,
+  sol, nubes, templo de columnas, letras griegas Α Β Γ Ω) vive SOLO bajo la clase raíz `.cq-root` y en variables `--cq-*`
+  definidas ahí. Nada global: ni en `src/css/app.scss` ni en `_brand.scss`. Fuentes: Cormorant Garamond (ya instalada; los
+  pesos 600/700 se importan desde `@fontsource/cormorant-garamond/600.css` y `700.css` DENTRO del chunk de Conquer) para
+  títulos y números grandes; el resto del texto con la letra actual de El Templo (D-19: sin Jost). Sin rojo ni verde salvo
+  el chip SUBIR y el semáforo del coach (admin). Texto siempre en color sólido (`rgba` solo en fondos, sombras y bordes).
+  Hitbox ≥ 44 px. Todo tiene que funcionar a 390 px de ancho. Animaciones dentro de `@media (prefers-reduced-motion: no-preference)`.
+- Admin: colores de Quasar `info`/`primary` pueden ser azules: en el admin usar los tokens cálidos de El Templo (el azul de
+  la submarca es SOLO del app del alumno).
+
+## Migraciones
+
+- Números de la fase: **0290, 0291, 0292** (D-21; la 200 tiene 0287–0289). ANTES de crear el primer `.sql`, chequear:
+  `ls /home/franco/projects/et-201-conquer/el-templo-api/src/db/migrations/*.sql | sort | tail -3`,
+  `git -C /home/franco/projects/et-201-conquer fetch origin` (permitido: solo lectura del remoto) y
+  `git -C /home/franco/projects/et-201-conquer ls-tree --name-only origin/master el-templo-api/src/db/migrations/ | sort | tail -3`
+  (idem `origin/staging`), y `ls /home/franco/projects/et-*/el-templo-api/src/db/migrations/029*.sql 2>/dev/null`.
+  Si 0290, 0291 o 0292 ya existen en alguno, PARAR el plan y reportarlo (no renumerar por cuenta propia).
+- SQL a mano en `el-templo-api/src/db/migrations/NNNN_nombre.sql`, en el MISMO commit que el schema `.ts`.
+- NUNCA `;` dentro de un comentario `--` ni dentro de un literal de texto. Usar `--> statement-breakpoint` entre statements en
+  los archivos con INSERT. NUNCA `drizzle-kit push/migrate/generate`, `pnpm db:push`, `pnpm db:generate`, `pnpm db:migrate`.
+- `mysqlEnum("nombre_columna", [...])`: el primer argumento ES el nombre físico de la columna; nombre y valores (en orden)
+  idénticos byte a byte al SQL.
+- Todo UNIQUE de tabla gym-owned empieza por `tenant_id`. `tenant_id int NOT NULL DEFAULT 1` + FK a `tenants`.
+- Contenido de producto (escaleras, ejercicios, plantillas) por migración, idempotente (`INSERT IGNORE` sobre UNIQUE),
+  SOLO tenant 1, resolviendo ids por `code` (nunca ids fijos). Datos de prueba NUNCA en una migración (staging y prod
+  comparten MySQL).
+
+## Git
+
+- `git add` SIEMPRE por ruta explícita. PROHIBIDO `git add -A`, `git add .`, `git commit -a`, `git stash`, `--amend`.
+- Un commit por tarea: `feat(201-NN): ...`, `test(201-NN): ...`, `fix(201-NN): ...`, `docs(201-NN): ...`. El mensaje termina
+  con una línea en blanco + `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
+- NO tocar ni commitear `.planning/STATE.md`, `.planning/ROADMAP.md` ni memorias. Docs SOLO dentro de
+  `.planning/phases/201-conquer/` (el SUMMARY del plan sí va ahí).
+- NUNCA commitear en el checkout principal ni en la 196. Revisar `git show --stat HEAD` después de cada commit.
+- Si un commit falla por un hook, NO usar `--no-verify` ni tocar `core.hooksPath`: arreglar y hacer un commit NUEVO.
+- `prettier --write` solo con rutas explícitas.
+
+## Lecciones heredadas (196 y 197) que aplican acá
+
+- (196) Un `const` de módulo con SQL que nombra una tabla gym-owned necesita su propio `/* tenant-safe: ... */` o
+  `lint:tenant` falla.
+- (196) `tenant_settings`: sumar el prefijo `conquer.%` a `KNOWN_KEY_PATTERNS` de `test/migrations/0190-0191-tenants.test.ts`
+  (lo hace 201-05).
+- (196) Validaciones en loop dentro de un solo `it` esconden mutantes: usar `it.each`.
+- (196) Fotos: el código degrada a 503 limpio sin `R2_PRIVATE_BUCKET_NAME` (y JAMÁS cae al bucket público); los tests
+  mockean el store con `vi.spyOn(privateMediaResolver, "resolve")` y no dependen de R2 real.
+- (197) `BodyFigure.vue` mide con `getBBox`: montarlo con `v-if` cuando el contenedor ya es visible, nunca dentro de
+  `v-show`/`display:none`. NO modificar `src/components/anatomy/*` (lo comparten la 197 y la 200): el tema dorado se hace
+  con `:deep()` desde un contenedor de Conquer.
+- (197) El destino de pop-ups se extrae por regex contigua `key/label/route`: SIN comentarios dentro de la tupla.
+
+## Lecciones acumuladas de la fase 201
+
+(El orquestador agrega acá, entre planes, las trampas que encontraron los ejecutores anteriores. Leerlas.)
