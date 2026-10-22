@@ -1,6 +1,6 @@
-<!-- Conquer (fase 201, §7.2, D-08/D-12): la pantalla del coach. Dos tabs — Tablero (semáforo de
-     los alumnos activos) y Pedidos (alumnos que pidieron el desbloqueo) — y el botón "Activar
-     alumno" para dar de alta a cualquiera buscándolo. 201-22/23 suman Galería, Catálogo y
+<!-- Conquer (fase 201, §7.2, D-08/D-12): la pantalla del coach. Tres tabs — Tablero (semáforo de
+     los alumnos activos), Pedidos (alumnos que pidieron el desbloqueo) y Galería (antes y después)
+     — y el botón "Activar alumno" para dar de alta a cualquiera buscándolo. 201-23 suma Catálogo y
      Ajustes. El tab activo viaja en ?tab= para deep links. El gate real es el API (owner/admin). -->
 <template>
   <q-page padding>
@@ -36,6 +36,7 @@
           :label="adminStore.conquerRequestsCount"
         />
       </q-tab>
+      <q-tab name="galeria" label="Galería" icon="photo_library" no-caps />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -44,6 +45,9 @@
       </q-tab-panel>
       <q-tab-panel name="pedidos" class="q-pa-none">
         <ConquerRequests :reload-token="reloadToken" @activate="openActivate" />
+      </q-tab-panel>
+      <q-tab-panel name="galeria" class="q-pa-none">
+        <ConquerGallery :reload-token="reloadToken" />
       </q-tab-panel>
     </q-tab-panels>
 
@@ -59,12 +63,13 @@
 import { onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ConquerBoard from 'src/components/conquer/ConquerBoard.vue';
+import ConquerGallery from 'src/components/conquer/ConquerGallery.vue';
 import ConquerRequests from 'src/components/conquer/ConquerRequests.vue';
 import ConquerActivateDialog from 'src/components/conquer/ConquerActivateDialog.vue';
 import { useAdminStore } from 'src/stores/useAdminStore';
 
-type ConquerTab = 'tablero' | 'pedidos';
-const TAB_NAMES: ConquerTab[] = ['tablero', 'pedidos'];
+type ConquerTab = 'tablero' | 'pedidos' | 'galeria';
+const TAB_NAMES: ConquerTab[] = ['tablero', 'pedidos', 'galeria'];
 
 const route = useRoute();
 const router = useRouter();

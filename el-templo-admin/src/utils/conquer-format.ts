@@ -6,6 +6,7 @@
 import type {
   AlertKind,
   AlertSeverity,
+  BodyCheckView,
   CutProposal,
   Estado,
   Mode,
@@ -141,3 +142,26 @@ export const ALERT_HINTS: Partial<Record<AlertKind, string>> = {
   control_dia0_pendiente: 'Recordarle el control del día 0',
   tope_escalera: 'Extendé la escalera desde Catálogo',
 };
+
+/** Un control "con contenido" tiene al menos una foto o una medida (el de hoy puede estar vacío). */
+export function checkHasContent(check: BodyCheckView): boolean {
+  const hasPhoto = POSES.some((p) => check.photos[p]);
+  const hasMeasure = [
+    check.armCm,
+    check.chestCm,
+    check.shouldersCm,
+    check.waistCm,
+    check.weightKg,
+  ].some((v) => v !== null);
+  return hasPhoto || hasMeasure;
+}
+
+/** Poses (en orden frente, perfil, espalda) con foto en al menos uno de los controles. */
+export function posesWithPhotos(checks: (BodyCheckView | null)[]): Pose[] {
+  return POSES.filter((p) => checks.some((c) => c !== null && c.photos[p]));
+}
+
+/** Pose que se muestra de un control en la galería: frente si hay, si no la primera con foto. */
+export function galleryPose(check: BodyCheckView | null): Pose | null {
+  return check === null ? null : (POSES.find((p) => check.photos[p]) ?? null);
+}
