@@ -686,3 +686,154 @@ export async function readConquerAlerts(app: FastifyInstance, userId: number) {
       ),
     );
 }
+
+// ── Alertas, controles físicos y tablero (201-09) ───────────────────
+
+export const CONQUER_BOARD_URL = "/api/admin/conquer/members";
+
+export function conquerAlertUrl(alertId: number | string): string {
+  return `/api/admin/conquer/alerts/${alertId}`;
+}
+
+export interface BoardAlertBody {
+  id: number | null;
+  kind: string;
+  severity: "rojo" | "amarillo" | "verde";
+  label: string;
+  status: "abierta" | "vista" | "resuelta" | null;
+  createdAt: string | null;
+  detail: Record<string, unknown>;
+  proposal:
+    | { kind: "etapa"; stage: number; label: string }
+    | { kind: "bajar_escalon"; label: string }
+    | null;
+}
+
+export interface BoardMemberBody {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  level: string;
+  daysCount: number;
+  cutStage: number;
+  lastSessionDate: string | null;
+  light: "rojo" | "amarillo" | "verde" | "ok";
+  alerts: BoardAlertBody[];
+}
+
+export interface BoardBody {
+  counts: {
+    rojo: number;
+    amarillo: number;
+    verde: number;
+    ok: number;
+    total: number;
+  };
+  members: BoardMemberBody[];
+}
+
+/** `GET /members` crudo: el test decide qué afirmar (200 / 401 / 403). */
+export async function getBoardRaw(app: FastifyInstance, token?: string) {
+  return app.inject({
+    method: "GET",
+    url: CONQUER_BOARD_URL,
+    headers: token === undefined ? {} : bearer(token),
+  });
+}
+
+/** `GET /members` que tiene que responder 200. */
+export async function fetchBoard(
+  app: FastifyInstance,
+  token: string,
+): Promise<BoardBody> {
+  const res = await getBoardRaw(app, token);
+  if (res.statusCode !== 200) {
+    throw new Error(`fetchBoard: ${res.statusCode} ${res.body}`);
+  }
+  return res.json<BoardBody>();
+}
+
+/** El alumno `userId` dentro del tablero; falla fuerte si no está. */
+export function boardMember(board: BoardBody, userId: number): BoardMemberBody {
+  const found = board.members.find((m) => m.userId === userId);
+  if (!found) throw new Error(`boardMember: ${userId} no está en el tablero`);
+  return found;
+}
+
+/** `PATCH /alerts/:id` crudo. */
+export async function patchAlert(
+  app: FastifyInstance,
+  token: string | undefined,
+  alertId: number | string,
+  payload: unknown,
+) {
+  return app.inject({
+    method: "PATCH",
+    url: conquerAlertUrl(alertId),
+    headers: token === undefined ? {} : bearer(token),
+    payload: payload as Record<string, unknown>,
+  });
+}
+
+/**
+ * Inserta DIRECTO una alerta de `conquer_alerts` (gimnasio 1 salvo que se pase
+ * `tenantId`). Devuelve el id.
+ */
+export async function insertConquerAlert(
+  app: FastifyInstance,
+  input: {
+    userId: number;
+    type: "molestia" | "caida" | "tope_escalera" | "paso_nivel";
+    dedupeKey: string;
+    detail?: Record<string, unknown>;
+    status?: "abierta" | "vista" | "resuelta";
+    resolvedBy?: number | null;
+    tenantId?: number;
+  },
+): Promise<number> {
+  const [row] = await app.db
+    .insert(schema.conquerAlerts)
+    .values(
+      tenantValues(
+        { tenantId: input.tenantId ?? TEMPLO_CTX.tenantId },
+        {
+          userId: input.userId,
+          type: input.type,
+          dedupeKey: input.dedupeKey,
+          detail: input.detail ?? {},
+          status: input.status ?? ("abierta" as const),
+          resolvedBy: input.resolvedBy ?? null,
+        },
+      ),
+    )
+    .$returningId();
+  return row.id;
+}
+
+/**
+ * Inserta DIRECTO un control físico. Por defecto con `arm_cm = 30` para que
+ * tenga contenido; `empty: true` lo deja sin fotos ni medidas (fila creada pero
+ * sin nada confirmado: no cuenta como control, 201-09).
+ */
+export async function insertBodyCheckRow(
+  app: FastifyInstance,
+  input: {
+    userId: number;
+    checkDate: string;
+    kind: "dia0" | "periodico";
+    empty?: boolean;
+  },
+): Promise<number> {
+  const [row] = await app.db
+    .insert(schema.conquerBodyChecks)
+    .values(
+      tenantValues(TEMPLO_CTX, {
+        userId: input.userId,
+        checkDate: input.checkDate,
+        kind: input.kind,
+        armCm: input.empty === true ? null : "30.0",
+      }),
+    )
+    .$returningId();
+  return row.id;
+}
