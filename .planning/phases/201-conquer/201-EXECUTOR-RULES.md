@@ -216,3 +216,8 @@ con preguntas.
   `neighborRung` vive en `catalog-service.ts`. Los servicios que mutan devuelven `void` y la ruta responde con el builder
   (evita imports circulares). Fastify descarta claves extra del body (`removeAdditional`): no hay 400 por campo extra.
   Manifiesto: 490 tras 201-08.
+- (201-09) `MAX(date)` en SQL crudo vuelve como `Date`: usar `DATE_FORMAT(MAX(col), '%Y-%m-%d')`. `checkHasContent` y
+  `checkHasContentSql` (201-12) cambian juntas. Para cerrar alertas desde otro flujo (201-10/11) usar
+  `updateAlertStatus(..., "resuelta")` (guarda `resolved_by`, el sistema no la reabre). Vista de alerta: `alert-view.ts`
+  (`getBoardAlert`); `BoardAlert`/`toBoardAlert` en `board-service.ts`. Manifiesto: 492 tras 201-09. Contratos
+  `BoardResponse`/`BoardAlert`: `201-09-SUMMARY.md`.
