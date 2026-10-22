@@ -478,6 +478,6 @@ Plans:
 - [x] 200-19-PLAN.md — Fichas PLPU, HS, HSPU, PHS, HR
 - [x] 200-20-PLAN.md — Fichas L, QC, SS, SU, DS
 - [x] 200-21-PLAN.md — Fichas HT, NC, REVERSE HYPER, SPAGAT
-- [ ] 200-22-PLAN.md — Fichas BRIDGE, SIDE PCK, PIKE, AF
+- [x] 200-22-PLAN.md — Fichas BRIDGE, SIDE PCK, PIKE, AF
 - [ ] 200-23-PLAN.md — Cierre: coherencia estricta, barrido, UAT y firma de validación
 
