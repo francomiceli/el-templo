@@ -17,7 +17,7 @@
     <span v-else-if="state === 'none'" class="cq-photo__msg">Sin foto</span>
     <span v-else class="cq-photo__msg" role="alert">
       {{ message }}
-      <button type="button" class="cq-small" @click="retry">Reintentar</button>
+      <CqButton label="Reintentar" variant="on-night" small @click="retry" />
     </span>
   </div>
 </template>
@@ -27,6 +27,7 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { createLogger } from 'src/utils/logger'
 import { ConquerApiError, isConquerCanceled, useConquerApi } from '../../composables/useConquerApi'
 import type { Pose } from '../../types'
+import CqButton from '../brand/CqButton.vue'
 
 // Foto de un control por URL firmada (5 minutos). Sin foto en esa pose muestra "Sin foto".
 const props = defineProps<{
@@ -103,6 +104,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
+// Vive dentro de la hornacina oscura de `CqCompare`: los mensajes van en los tonos "sobre azul noche"
 .cq-photo {
   width: 100%;
   height: 100%;
@@ -125,10 +127,9 @@ onBeforeUnmount(() => {
     gap: 8px;
     padding: 10px;
     text-align: center;
-    font-size: 10.5px;
+    font-size: 13px;
     font-weight: 500;
-    letter-spacing: 0.16em;
-    color: var(--cq-muted);
+    color: var(--cq-on-night-2);
   }
 }
 </style>

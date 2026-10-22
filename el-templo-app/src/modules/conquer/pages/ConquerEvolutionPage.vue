@@ -1,7 +1,7 @@
 <template>
-  <CqSky class="cq-evo">
+  <CqScreen class="cq-evo">
     <CqPageHeader
-      title="ANTES Y DESPUÉS"
+      title="Antes y después"
       subtitle="Día 0 contra el último control"
       :back-to="BACK_TO"
       back-label="Volver al inicio de Conquer"
@@ -9,8 +9,8 @@
 
     <div v-if="loading || loadError" class="cq-evo__center" role="status" aria-live="polite">
       <template v-if="loadError">
-        <p class="cq-sub" role="alert">{{ loadError }}</p>
-        <button type="button" class="cq-small cq-small--fill" @click="reload">Reintentar</button>
+        <p class="cq-notice" role="alert">{{ loadError }}</p>
+        <CqButton label="Reintentar" variant="secondary" small @click="reload" />
       </template>
       <template v-else>
         <span class="cq-evo__spin" aria-hidden="true" />
@@ -20,25 +20,24 @@
 
     <template v-else-if="list">
       <CqCompare v-if="pair" :compare="pair.compare" :from-check="pair.from" :to-check="pair.to" />
-      <div v-else class="cq-card cq-evo__next" role="status">
+      <div v-else class="cq-evo__next cq-card" role="status">
         <p>{{ nextControlText(list.due.nextDueDate) }}</p>
         <p class="cq-sub">Con dos controles vas a ver tu antes y después acá.</p>
       </div>
 
-      <div class="cq-caps cq-rule">Publicación</div>
+      <h2 class="cq-block-title">Publicación</h2>
       <CqPublishPermission
         :enabled="member?.publishEnabled ?? false"
         :no-face="member?.publishNoFace ?? false"
         @saved="store.applyPublishPermission"
       />
 
-      <div class="cq-grow" />
-
-      <CqCloudButton v-if="canDoCheck" label="Hacer el control" @click="goCheck">
-        <div v-if="list.due.due" class="cq-sub">Toca tu control físico</div>
-      </CqCloudButton>
+      <div v-if="canDoCheck" class="cq-evo__foot">
+        <p v-if="list.due.due" class="cq-sub">Toca tu control físico</p>
+        <CqButton label="Hacer el control" variant="secondary" @click="goCheck" />
+      </div>
     </template>
-  </CqSky>
+  </CqScreen>
 </template>
 
 <script setup lang="ts">
@@ -48,9 +47,9 @@ import { useConquerStore } from '../stores/conquerStore'
 import { ConquerApiError, isConquerCanceled, useConquerApi } from '../composables/useConquerApi'
 import { hasContent, nextControlText } from '../utils/bodyCheck'
 import type { BodyCheckView, BodyChecksResponse, CheckComparison } from '../types'
-import CqSky from '../components/brand/CqSky.vue'
+import CqScreen from '../components/brand/CqScreen.vue'
 import CqPageHeader from '../components/brand/CqPageHeader.vue'
-import CqCloudButton from '../components/brand/CqCloudButton.vue'
+import CqButton from '../components/brand/CqButton.vue'
 import CqCompare from '../components/evolution/CqCompare.vue'
 import CqPublishPermission from '../components/evolution/CqPublishPermission.vue'
 
@@ -130,7 +129,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.cq-evo.cq-sky {
+.cq-evo {
   // Alto de la pantalla menos el header y la barra de abajo (igual que Hoy)
   min-height: calc(var(--app-vh) - 50px - var(--mobile-tabs-height));
 }
@@ -148,17 +147,26 @@ onBeforeUnmount(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 3px solid var(--cq-gold);
+  border: 3px solid var(--cq-edge-gold);
   border-right-color: transparent;
 }
 
-.cq-evo__next {
+// `.cq-evo__next.cq-card` (dos clases en el mismo elemento) le gana al `gap: 12px` de `.cq-card`
+.cq-evo__next.cq-card {
   gap: 6px;
   text-align: center;
 
   p {
     margin: 0;
   }
+}
+
+.cq-evo__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  text-align: center;
 }
 
 @media (prefers-reduced-motion: no-preference) {

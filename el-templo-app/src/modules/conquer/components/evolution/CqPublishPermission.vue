@@ -1,5 +1,5 @@
 <template>
-  <div class="cq-pub">
+  <div class="cq-pub cq-card">
     <label class="cq-pub__check">
       <input
         type="checkbox"
@@ -81,33 +81,34 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang="scss">
-.cq-pub {
+.cq-pub.cq-card {
+  gap: 0;
+}
+
+.cq-pub__check {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--cq-text);
+  cursor: pointer;
 
-  &__check {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 44px;
-    font-size: 14px;
-    color: var(--cq-cream);
-    cursor: pointer;
-
-    input {
-      width: 22px;
-      height: 22px;
-      flex-shrink: 0;
-      accent-color: var(--cq-gold);
-    }
-
-    &--off {
-      opacity: 0.5;
-    }
+  input {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    accent-color: var(--cq-night);
   }
 
-  &__hint {
-    margin: 4px 0 0;
+  // Sin permiso, "sin cara" queda apagada: texto sólido más suave, no transparencia
+  &--off {
+    color: var(--cq-text-2);
+    cursor: default;
   }
+}
+
+.cq-pub .cq-pub__hint {
+  margin: 4px 0 0;
 }
 </style>
