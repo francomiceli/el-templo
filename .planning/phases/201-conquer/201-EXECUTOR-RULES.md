@@ -181,3 +181,8 @@ con preguntas.
   (`s`); historial vacío → piso (3 reps / 4 s). En `oracle-check.mjs` las secciones nuevas van donde dice
   "3. motor (lo suma 201-03)", antes del `process.exit(1)` final. Los tests importan `../conquer/oracle` sin extensión.
   El fixture `conquer-app.html` conserva su `<link>` de Google Fonts (es fixture, no se sirve): no lo toques.
+- (201-03) `engine.ts`: `nextTarget` devuelve `{ target, estado }`. `selectReales` conserva el orden de entrada entre filas
+  del mismo día → la ruta ordena por `created_at` antes de llamarla. `harderPosition`/`easierPosition` reciben solo
+  posiciones activas y devuelven una POSICIÓN (la ruta resuelve `rung_id` por `(ladder_id, position)`). Subir se ofrece
+  con `pickSubir` && `harderPosition !== null`; si es `null` → alerta `tope_escalera`. `caidaE1` espera marcas ya
+  filtradas con `selectReales` (≥ 4). El motor trata `0` como marca válida: la ruta decide antes qué escalón está sin cargar.
