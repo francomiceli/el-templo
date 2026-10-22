@@ -13,7 +13,7 @@ import {
   tenantWhere,
   type TenantContext,
 } from "../shared/tenant";
-import { autoResolveEventAlert } from "./alerts-service";
+import { autoResolveEventAlert, evaluateAfterSave } from "./alerts-service";
 import {
   calibrationProposals,
   type CalibrationProposal,
@@ -381,6 +381,20 @@ export async function saveSession(
     // Fase 201 §4.3, A2: calibración y alertas de tope, en la misma transacción.
     calibration = await settleCalibration(tx, ctx, mctx, matched, marksAfter);
     await syncTopeAlerts(tx, ctx, mctx, matched, marksAfter);
+    // Fase 201 §5, A6, A13: molestia, caída y paso de nivel, también en la tx.
+    await evaluateAfterSave(
+      tx,
+      ctx,
+      mctx,
+      {
+        sessionId: savedId,
+        date,
+        dayKey: day.dayKey,
+        pain: body.pain,
+        exerciseIds: matched.map(({ exercise }) => exercise.id),
+      },
+      marksAfter,
+    );
   });
   if (sessionId === null)
     throw new AppError("No pudimos guardar la sesión", 500);
