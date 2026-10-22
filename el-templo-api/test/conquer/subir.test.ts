@@ -39,7 +39,11 @@ import {
   fetchProgress,
   fetchToday,
   insertConquerSession,
+  boardMember,
+  conquerStepUrl,
+  fetchBoard,
   memberToday,
+  patchConquerStep,
   postSubir,
   readConquerAlerts,
   readConquerSteps,
@@ -75,6 +79,16 @@ afterAll(async () => {
   await limpiarSegundoGimnasio(app);
   await app.close();
 });
+
+/** `PUT /steps/:exerciseId/e1` de Planche press: cambia el peldaño y deja el modo `completa`. */
+async function putStep(token: string, exerciseId: number, rungId: number) {
+  return app.inject({
+    method: "PUT",
+    url: conquerStepUrl(exerciseId, "e1"),
+    headers: { authorization: `Bearer ${token}` },
+    payload: { rungId, mode: "completa" },
+  });
+}
 
 async function setRungActive(rungId: number, isActive: boolean): Promise<void> {
   await app.db
@@ -318,7 +332,9 @@ describe("POST /api/members/conquer/steps/:exerciseId/:step/subir", () => {
     expect(await readConquerAlerts(app, userId)).toHaveLength(1);
   });
 
-  it("A2: la alerta de tope se auto-resuelve si el escalón deja de estar en subir y se reabre si vuelve (el coach la cierra para siempre)", async () => {
+  // 201-26 DA-11 (b): en el tope y pidiendo subir sigue avisando (Toro que arranca en `full`).
+  // Guardar sin subir YA NO cierra la alerta: se cierra cuando el escalón deja el peldaño.
+  it("DA-11: guardar sin pedir subir no cierra la alerta de tope; el coach la resuelve y el sistema no la reabre", async () => {
     const { userId, token } = await createActiveConquerMember(app, {
       level: "toro",
       daysCount: 4,
@@ -334,17 +350,12 @@ describe("POST /api/members/conquer/steps/:exerciseId/:step/subir", () => {
     const [abierta] = await readConquerAlerts(app, userId);
     expect(abierta).toMatchObject({ status: "abierta", resolvedBy: null });
 
-    // Re-guardar el mismo día con 5: 12, 12, 5 ya no es subir.
+    // Re-guardar el mismo día con 5: 12, 12, 5 ya no es subir, pero el escalón
+    // sigue en el tope: la alerta queda abierta (antes se auto-resolvía).
     await guardar(5);
-    const [resuelta] = await readConquerAlerts(app, userId);
-    expect(resuelta).toMatchObject({ status: "resuelta", resolvedBy: null });
-    expect(resuelta?.resolvedAt).not.toBeNull();
-
-    // Vuelve a 12: la reabre el sistema (misma fila).
-    await guardar(12);
-    const reabierta = await readConquerAlerts(app, userId);
-    expect(reabierta).toHaveLength(1);
-    expect(reabierta[0]).toMatchObject({
+    const sigue = await readConquerAlerts(app, userId);
+    expect(sigue).toHaveLength(1);
+    expect(sigue[0]).toMatchObject({
       status: "abierta",
       resolvedBy: null,
       resolvedAt: null,
@@ -369,6 +380,140 @@ describe("POST /api/members/conquer/steps/:exerciseId/:step/subir", () => {
       status: "resuelta",
       resolvedBy: admin.id,
     });
+  });
+
+  // 201-26 DA-11 (a): el aviso es al LLEGAR al peldaño más difícil.
+  it("DA-11: un Toro recién activado que guarda Plancha sin pedir subir NO tiene alerta de tope (planche_hold arranca en full)", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const steps = await readConquerSteps(app, userId);
+    expect(steps.get("planche_hold:e1")?.rungCode).toBe("full");
+
+    await saveTodaySession(app, token, {
+      day: "plancha",
+      edits: { planche_hold: { e1: 6 } },
+    });
+
+    expect(await readConquerAlerts(app, userId)).toEqual([]);
+  });
+
+  it("DA-11: Subir que deja un escalón E1-E3 en el peldaño más difícil abre la alerta de tope (una sola)", async () => {
+    const { userId, token, adminToken } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    const pressId = ids.get("planche_press") ?? 0;
+    const full = await conquerRungId(app, "planche_press", "full");
+    await patchConquerStep(app, userId, "planche_press", "e1", {
+      rungCode: "half_lay",
+    });
+    await seedHistory(userId, "plancha", "planche_press", "e1", [6, 7, 8, 8]);
+
+    const res = await postSubir(app, token, pressId, "e1");
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(
+      (await readConquerSteps(app, userId)).get("planche_press:e1")?.rungCode,
+    ).toBe("full");
+    const alertas = await readConquerAlerts(app, userId);
+    expect(alertas).toHaveLength(1);
+    expect(alertas[0]).toMatchObject({
+      type: "tope_escalera",
+      status: "abierta",
+      dedupeKey: `tope:${pressId}:e1:${full}`,
+      detail: {
+        exerciseId: pressId,
+        exerciseName: "Planche press",
+        step: "e1",
+        rungName: "full",
+      },
+    });
+    // El tablero muestra la frase del anexo §8.
+    const member = boardMember(await fetchBoard(app, adminToken), userId);
+    expect(member.alerts.map((a) => a.text)).toContain(
+      "Planche press E1 llegó al tope de su escalera",
+    );
+  });
+
+  it("DA-11: Subir a un peldaño que NO es el más difícil no avisa", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    await seedHistory(userId, "plancha", "planche_press", "e1", [6, 7, 8, 8]);
+
+    const res = await postSubir(
+      app,
+      token,
+      ids.get("planche_press") ?? 0,
+      "e1",
+    );
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await readConquerAlerts(app, userId)).toEqual([]);
+  });
+
+  it("DA-11: bajar el escalón a mano (deja el tope) auto-resuelve la alerta y volver al tope la reabre", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    const pressId = ids.get("planche_press") ?? 0;
+    const full = await conquerRungId(app, "planche_press", "full");
+    const halfLay = await conquerRungId(app, "planche_press", "half_lay");
+    await patchConquerStep(app, userId, "planche_press", "e1", {
+      rungCode: "half_lay",
+    });
+    await seedHistory(userId, "plancha", "planche_press", "e1", [6, 7, 8, 8]);
+    expect((await postSubir(app, token, pressId, "e1")).statusCode).toBe(200);
+    const [abierta] = await readConquerAlerts(app, userId);
+    expect(abierta).toMatchObject({ status: "abierta", resolvedBy: null });
+
+    // Cambio a mano: deja `full` y baja a half_lay.
+    const baja = await putStep(token, pressId, halfLay);
+    expect(baja.statusCode, baja.body).toBe(200);
+    const [resuelta] = await readConquerAlerts(app, userId);
+    expect(resuelta).toMatchObject({ status: "resuelta", resolvedBy: null });
+    expect(resuelta?.resolvedAt).not.toBeNull();
+
+    // Vuelve a `full` a mano: llegó al tope otra vez, la reabre el sistema (misma fila).
+    const sube = await putStep(token, pressId, full);
+    expect(sube.statusCode, sube.body).toBe(200);
+    const reabierta = await readConquerAlerts(app, userId);
+    expect(reabierta).toHaveLength(1);
+    expect(reabierta[0]).toMatchObject({
+      status: "abierta",
+      resolvedBy: null,
+      resolvedAt: null,
+    });
+  });
+
+  it("DA-11: el hold no avisa tope (el anexo dice E{n}): llegar al más difícil de un hold no abre alerta", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const ids = await conquerExerciseIds(app);
+    const pressId = ids.get("planche_press") ?? 0;
+    await patchConquerStep(app, userId, "planche_press", "hold", {
+      rungCode: "half_lay",
+    });
+    const full = await conquerRungId(app, "planche_press", "full");
+
+    const res = await app.inject({
+      method: "PUT",
+      url: conquerStepUrl(pressId, "hold"),
+      headers: { authorization: `Bearer ${token}` },
+      payload: { rungId: full, mode: "hold" },
+    });
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await readConquerAlerts(app, userId)).toEqual([]);
   });
 
   it("ejercicio inexistente, fuera del plan del alumno o de otro gimnasio: 404", async () => {

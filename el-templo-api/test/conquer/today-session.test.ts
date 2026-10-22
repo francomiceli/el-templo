@@ -39,6 +39,7 @@ import {
   CONQUER_STATE_URL,
   CONQUER_TODAY_URL,
   conquerExerciseIds,
+  conquerRungId,
   conquerStepUrl,
   createActiveConquerMember,
   insertConquerMember,
@@ -47,8 +48,10 @@ import {
   readConquerSessions,
   readConquerSteps,
   readSessionSteps,
+  saturdayBody,
   sessionBodyFromToday,
   TEMPLO_CTX,
+  type SavedSessionBody,
   type TodayBody,
   type TodayExerciseBody,
 } from "./_helpers";
@@ -311,6 +314,92 @@ describe("GET /api/members/conquer/today", () => {
       const body = code === "planche_press" ? plancha : vertical;
       expect(stepOf(body, code, "hold").modes, code).toEqual(["hold"]);
     }
+  });
+
+  // 201-26 DA-14 / anexo §9 (`fin_sesion_techo`): el API manda los escalones que
+  // llegaron al techo por primera vez; el app no recalcula el motor.
+  it("techo: un guardado con E2 en el techo por primera vez lo trae; sin techo, lista vacía", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const hoy = await memberToday(app, userId);
+    // Planche press E2 con 6, 7 en semanas anteriores y 8 hoy: techo 1 de 2.
+    for (const [i, value] of [6, 7].entries()) {
+      await insertConquerSession(app, {
+        userId,
+        date: weeksAgo(hoy, 2 - i),
+        dayKey: "plancha",
+        steps: [{ exerciseCode: "planche_press", step: "e2", value }],
+      });
+    }
+
+    // El contador viene precargado con el objetivo (8): se baja a 6 para no tocar el techo.
+    const sinTecho = await putSession(
+      token,
+      sessionBodyFromToday(await today(token, "plancha"), {
+        planche_press: { e2: 6 },
+      }),
+    );
+    expect(sinTecho.statusCode, sinTecho.body).toBe(200);
+    expect(sinTecho.json<SavedSessionBody>().techo).toEqual([]);
+
+    const res = await putSession(
+      token,
+      sessionBodyFromToday(await today(token, "plancha"), {
+        planche_press: { e2: 8 },
+      }),
+    );
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json<SavedSessionBody>().techo).toEqual([
+      { exerciseName: "Planche press", step: "e2" },
+    ]);
+  });
+
+  it("techo: con dos techos seguidos el estado pasa a subir y ya no se avisa", async () => {
+    const { userId, token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const hoy = await memberToday(app, userId);
+    for (const [i, value] of [6, 8].entries()) {
+      await insertConquerSession(app, {
+        userId,
+        date: weeksAgo(hoy, 2 - i),
+        dayKey: "plancha",
+        steps: [{ exerciseCode: "planche_press", step: "e2", value }],
+      });
+    }
+
+    const res = await putSession(
+      token,
+      sessionBodyFromToday(await today(token, "plancha"), {
+        planche_press: { e2: 8 },
+      }),
+    );
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json<SavedSessionBody>().techo).toEqual([]);
+  });
+
+  it("techo: el sábado de Toro devuelve la lista vacía", async () => {
+    const { token } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const straddle = await conquerRungId(app, "palanca", "straddle");
+
+    const res = await putSession(
+      token,
+      saturdayBody({
+        push: { rungId: straddle, series: 3 },
+        pull: { rungId: straddle, series: 3 },
+      }),
+    );
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json<SavedSessionBody>().techo).toEqual([]);
   });
 
   // §2 del anexo: las escaleras de front lever no tienen lean.

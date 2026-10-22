@@ -113,7 +113,7 @@ describe("umbrales", () => {
   });
 });
 
-describe("cutProposal (5.1, A12)", () => {
+describe("cutProposal (5.1, A12, anexo 8)", () => {
   it.each([
     [0, 1],
     [1, 2],
@@ -122,19 +122,27 @@ describe("cutProposal (5.1, A12)", () => {
     [4, 5],
   ])("toro con etapa %i propone la etapa %i", (cutStage, stage) => {
     const proposal = cutProposal("toro", cutStage);
-    expect(proposal.kind).toBe("etapa");
-    if (proposal.kind === "etapa") {
+    expect(proposal?.kind).toBe("etapa");
+    if (proposal?.kind === "etapa") {
       expect(proposal.stage).toBe(stage);
       expect(proposal.label).toBe(CUT_STAGE_LABELS[stage]);
     }
   });
 
+  // Anexo 8 (201-26 DA-12): el paso 6 es SOLO de Ternero y Novillo.
+  it.each([5, 6, 9])(
+    "toro con etapa %i no tiene propuesta (null)",
+    (cutStage) => {
+      expect(cutProposal("toro", cutStage)).toBeNull();
+    },
+  );
+
   it.each([
-    ["toro", 5],
-    ["toro", 6],
     ["novillo", 0],
     ["novillo", 3],
+    ["novillo", 5],
     ["ternero", 0],
+    ["ternero", 6],
   ] as [Level, number][])(
     "%s con etapa %i propone bajar un escalon",
     (level, cutStage) => {

@@ -159,7 +159,8 @@ describe("POST /api/admin/conquer/members/:userId/recortes — etapas de Toro (�
     expect(alerta?.status).toBe("abierta");
   });
 
-  it("de a un paso: 5 etapas y la sexta es 409 CONQUER_SIN_ETAPA; la propuesta pasa a bajar un escalón", async () => {
+  // 201-26 DA-12 / anexo §8: el paso 6 "bajar una progresión" es solo de Ternero y Novillo.
+  it("de a un paso: 5 etapas y la sexta es 409 CONQUER_SIN_ETAPA; después no hay propuesta (null)", async () => {
     const m = await escenario("toro", 4);
 
     for (let etapa = 1; etapa <= 5; etapa++) {
@@ -170,7 +171,7 @@ describe("POST /api/admin/conquer/members/:userId/recortes — etapas de Toro (�
       expect(res.json<FichaBody>().member.cutStage).toBe(etapa);
     }
     const ficha = await fetchFicha(app, m.admin.token, m.userId);
-    expect(ficha.cutProposal.kind).toBe("bajar_escalon");
+    expect(ficha.cutProposal).toBeNull();
 
     const sexta = await postCutRaw(app, m.admin.token, m.userId, {
       action: "aplicar_etapa",
@@ -291,8 +292,8 @@ describe("POST /api/admin/conquer/members/:userId/recortes — bajar un escalón
     }
   });
 
-  it("también en Toro (cualquier nivel): el hold baja un peldaño y la alerta de la caída se resuelve", async () => {
-    const m = await escenario("toro", 4);
+  it("Novillo: el hold baja un peldaño y la alerta de la caída se resuelve", async () => {
+    const m = await escenario("novillo", 3);
     const ids = await conquerExerciseIds(app);
     const alertId = await insertConquerAlert(app, {
       userId: m.userId,
@@ -303,6 +304,7 @@ describe("POST /api/admin/conquer/members/:userId/recortes — bajar un escalón
     const antes = (await readConquerSteps(app, m.userId)).get(
       "planche_press:hold",
     );
+    // Novillo arranca con el hold de Planche press en lean (anexo §3).
     expect(antes?.rungCode).toBe("lean");
     await patchConquerStep(app, m.userId, "planche_press", "hold", {
       rungCode: "tuck",
@@ -332,9 +334,14 @@ describe("POST /api/admin/conquer/members/:userId/recortes — bajar un escalón
   });
 
   // 201-25 DA-3: bajar un hold se resuelve en la escalera de hold del ejercicio.
-  it("Toro: el hold de Fondo a pelícano baja dentro de fondo_pelicano_hold (anillas -> paralelas)", async () => {
-    const m = await escenario("toro", 4);
+  it("Novillo: el hold de Fondo a pelícano baja dentro de fondo_pelicano_hold (anillas -> paralelas)", async () => {
+    // Fondo a pelícano solo está en la plantilla de 4 días. Novillo arranca el hold
+    // en paralelas (el más fácil): se lo sube a anillas para poder bajarlo.
+    const m = await escenario("novillo", 4);
     const ids = await conquerExerciseIds(app);
+    await patchConquerStep(app, m.userId, "fondo_pelicano", "hold", {
+      rungCode: "anillas",
+    });
 
     const res = await postCutRaw(app, m.admin.token, m.userId, {
       action: "bajar_escalon",
@@ -349,6 +356,49 @@ describe("POST /api/admin/conquer/members/:userId/recortes — bajar un escalón
       rungCode: "paralelas",
       ladderCode: "fondo_pelicano_hold",
     });
+  });
+
+  // 201-26 DA-12 / anexo §8: Toro no baja escalones como recorte (el paso 6 no es suyo).
+  it("Toro: bajar_escalon es 409 CONQUER_RECORTE_NO_APLICA, el escalón no cambia y la alerta sigue abierta", async () => {
+    const m = await escenario("toro", 4);
+    const ids = await conquerExerciseIds(app);
+    const alertId = await alertaMolestia(m.userId);
+    await patchConquerMember(app, m.userId, { cutStage: 5 });
+    const antes = (await readConquerSteps(app, m.userId)).get(
+      "planche_press:e1",
+    );
+
+    const res = await postCutRaw(app, m.admin.token, m.userId, {
+      action: "bajar_escalon",
+      exerciseId: ids.get("planche_press"),
+      step: "e1",
+      alertId,
+    });
+
+    expect(res.statusCode, res.body).toBe(409);
+    expect(res.json<ConquerErrorBody>().code).toBe("CONQUER_RECORTE_NO_APLICA");
+    expect(
+      (await readConquerSteps(app, m.userId)).get("planche_press:e1"),
+    ).toEqual(antes);
+    const alerta = (await readConquerAlerts(app, m.userId)).find(
+      (a) => a.id === alertId,
+    );
+    expect(alerta?.status).toBe("abierta");
+    expect(alerta?.resolvedBy).toBeNull();
+  });
+
+  it("Toro con etapa 0 también: bajar_escalon es 409 (no hace falta haber agotado las etapas)", async () => {
+    const m = await escenario("toro", 4);
+    const ids = await conquerExerciseIds(app);
+
+    const res = await postCutRaw(app, m.admin.token, m.userId, {
+      action: "bajar_escalon",
+      exerciseId: ids.get("planche_press"),
+      step: "hold",
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json<ConquerErrorBody>().code).toBe("CONQUER_RECORTE_NO_APLICA");
   });
 
   it("Novillo: el hold de One arm / archer (dominada, el más fácil de su escalera de hold) da 409 de piso y no pasa a un peldaño de trac", async () => {

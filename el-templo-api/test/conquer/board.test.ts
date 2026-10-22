@@ -181,6 +181,8 @@ describe("GET /api/admin/conquer/members (S12-7)", () => {
       expect(rojo.alerts[0]).toMatchObject({
         severity: "rojo",
         label: "Molestia",
+        // 201-26 DA-13: la frase del anexo §8 (alerta sin día ni fecha: se omiten).
+        text: "Molestia 5/10",
         status: "abierta",
         detail: { pain: 5 },
         proposal: { kind: "etapa", stage: 1, label: "Sábado: drops de 10 a 6" },
@@ -191,6 +193,7 @@ describe("GET /api/admin/conquer/members (S12-7)", () => {
         id: null,
         severity: "amarillo",
         label: "Inactivo",
+        text: "Todavía no registró sesiones",
         status: null,
         createdAt: null,
         proposal: null,
@@ -200,6 +203,38 @@ describe("GET /api/admin/conquer/members (S12-7)", () => {
         light: "ok",
         alerts: [],
       });
+    },
+    SEED_TIMEOUT,
+  );
+
+  // 201-26 DA-12 / anexo §8: Toro con la etapa 5 ya no tiene propuesta.
+  it(
+    "Toro en la etapa 5: las alertas de molestia y caída no traen propuesta (null)",
+    async () => {
+      const { ids } = await sembrarAlumnos();
+      const admin = await createConquerStaff(app, "admin");
+      const userId = ids[0] ?? 0;
+      await app.db
+        .update(schema.conquerMembers)
+        .set({ cutStage: 5 })
+        .where(
+          and(
+            tenantWhere(schema.conquerMembers, TEMPLO_CTX),
+            eq(schema.conquerMembers.userId, userId),
+          ),
+        );
+      await insertConquerAlert(app, {
+        userId,
+        type: "caida",
+        dedupeKey: "caida:1:etapa5",
+        detail: { exerciseId: 1, exerciseName: "HSPU" },
+      });
+
+      const member = boardMember(await fetchBoard(app, admin.token), userId);
+
+      const caida = member.alerts.find((a) => a.kind === "caida");
+      expect(caida?.proposal).toBeNull();
+      expect(caida?.text).toBe("El E1 de HSPU bajó 2 sesiones seguidas");
     },
     SEED_TIMEOUT,
   );

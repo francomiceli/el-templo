@@ -10,8 +10,10 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import path from "node:path";
 import { SATURDAY_WARMUP } from "../../src/modules/conquer/combos";
 import { cleanAllTestData, createTestApp } from "../helpers";
+import { loadAnnex } from "./annex";
 import {
   conquerRungId,
   createActiveConquerMember,
@@ -232,6 +234,11 @@ describe("S12-3 — Toro abre cada día con el combo y tiene sábado", () => {
     expect(sabado.finisher).toBe("");
     expect(sabado.opening).toBeNull();
     expect(sabado.saturday?.warmup).toBe(SATURDAY_WARMUP);
+    // 201-26 DA-14: la entrada en calor es `sabado_calor` del anexo §9, byte a byte.
+    expect(sabado.saturday?.warmup).toBe(
+      loadAnnex(path.resolve(__dirname, "fixtures/conquer-catalogo.md")).texts
+        .sabado_calor,
+    );
     expect(sabado.saturday?.push).toMatchObject({
       comboKey: "push",
       press: "Press de plancha",

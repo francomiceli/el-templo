@@ -46,6 +46,7 @@ import {
   patchConquerMember,
   putFichaStepRaw,
   readConquerSteps,
+  shortDateText,
   TEMPLO_CTX,
   type ConquerErrorBody,
   type FichaBody,
@@ -136,7 +137,12 @@ describe("GET /api/admin/conquer/members/:userId (§7.2)", () => {
     const molestia = ficha.alerts.find((a) => a.id === molestiaId);
     expect(molestia?.kind).toBe("molestia");
     expect(molestia?.proposal?.kind).toBe("bajar_escalon");
-    expect(ficha.cutProposal.kind).toBe("bajar_escalon");
+    expect(ficha.cutProposal?.kind).toBe("bajar_escalon");
+    // 201-26 DA-13 / anexo §8: cada alerta trae su frase con los datos.
+    expect(molestia?.text).toBe("Molestia 5/10");
+    expect(ficha.alerts.find((a) => a.id === pasoId)?.text).toBe(
+      "Test completó 4 semanas de su plan sin molestias",
+    );
     expect(ficha.levelUp).toEqual({ to: "toro", validDays: [4] });
     // Cada ficha trae SOLO las alertas de su alumno.
     const fichaOtro = await fetchFicha(app, otro.admin.token, otro.userId);
@@ -204,7 +210,30 @@ describe("GET /api/admin/conquer/members/:userId (§7.2)", () => {
     const ficha = await fetchFicha(app, m.admin.token, m.userId);
 
     expect(ficha.levelUp).toEqual({ to: "novillo", validDays: [3, 4] });
-    expect(ficha.cutProposal.kind).toBe("bajar_escalon");
+    expect(ficha.cutProposal?.kind).toBe("bajar_escalon");
+  });
+
+  // 201-26 DA-12 / anexo §8: Toro después de la etapa 5 no tiene propuesta.
+  it("Toro con recorte 5: cutProposal es null y la alerta de molestia no trae propuesta", async () => {
+    const m = await escenario("toro", 4);
+    const hace2 = addDaysIso(await memberToday(app, m.userId), -2);
+    await patchConquerMember(app, m.userId, { cutStage: 5 });
+    await insertConquerAlert(app, {
+      userId: m.userId,
+      type: "molestia",
+      dedupeKey: "molestia:ficha:etapa5",
+      detail: { pain: 6, date: hace2, dayKey: "plancha" },
+    });
+
+    const ficha = await fetchFicha(app, m.admin.token, m.userId);
+
+    expect(ficha.cutProposal).toBeNull();
+    const molestia = ficha.alerts.find((a) => a.kind === "molestia");
+    expect(molestia?.proposal).toBeNull();
+    // Alerta vieja sin dayLabel: cae al dayKey con mayúscula inicial.
+    expect(molestia?.text).toBe(
+      `Molestia 6/10 en Plancha el ${shortDateText(hace2)}`,
+    );
   });
 
   it("alumno con Conquer solo pedido: 409 CONQUER_NO_ACTIVO; socio sin fila: 404", async () => {

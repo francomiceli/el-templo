@@ -648,6 +648,14 @@ export interface SavedSessionBody {
   dayKey: string;
   lighting: { primary: string[]; secondary: string[] };
   calibration: CalibrationBody[];
+  /** 201-26 DA-14: escalones E1-E3 que llegaron al techo por primera vez. */
+  techo: { exerciseName: string; step: "e1" | "e2" | "e3" }[];
+}
+
+/** "2026-10-21" -> "21/10" (la misma forma `d/m` de las frases de las alertas, 201-26). */
+export function shortDateText(iso: string): string {
+  const [, month, day] = iso.split("-");
+  return `${Number(day)}/${Number(month)}`;
 }
 
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -787,6 +795,8 @@ export interface BoardAlertBody {
   kind: string;
   severity: "rojo" | "amarillo" | "verde";
   label: string;
+  /** 201-26 DA-13: la frase de la alerta del anexo §8 con sus datos. */
+  text: string;
   status: "abierta" | "vista" | "resuelta" | null;
   createdAt: string | null;
   detail: Record<string, unknown>;
@@ -1060,7 +1070,8 @@ export interface FichaBody {
   };
   progress: ProgressBody;
   alerts: BoardAlertBody[];
-  cutProposal: CutProposalBody;
+  /** 201-26 DA-12: `null` = Toro después de la etapa 5. */
+  cutProposal: CutProposalBody | null;
   levelUp: { to: string | null; validDays: number[] };
 }
 

@@ -34,6 +34,7 @@ import { clearModuleFlags, setModuleFlag } from "../fixtures/module-flags";
 import {
   boardMember,
   conquerExerciseIds,
+  conquerRungId,
   createActiveConquerMember,
   createConquerStaff,
   fetchBoard,
@@ -42,8 +43,11 @@ import {
   insertConquerSession,
   memberToday,
   patchAlert,
+  putSessionRaw,
   readConquerAlerts,
+  saturdayBody,
   saveTodaySession,
+  shortDateText,
   TEMPLO_CTX,
   weeksAgo,
   type ConquerErrorBody,
@@ -121,7 +125,9 @@ describe("alerta de molestia al guardar (S12-6)", () => {
       kind: "molestia",
       severity: "rojo",
       status: "abierta",
-      detail: { pain: 4, date: hoy, dayKey: "plancha" },
+      // 201-26 DA-13: el detalle guarda el rótulo del día y la alerta trae la frase del anexo §8.
+      detail: { pain: 4, date: hoy, dayKey: "plancha", dayLabel: "Plancha" },
+      text: `Molestia 4/10 en Plancha el ${shortDateText(hoy)}`,
       proposal: {
         kind: "etapa",
         stage: 1,
@@ -293,6 +299,7 @@ describe("alerta de caída del E1 (A6)", () => {
       expect(member.light).toBe("rojo");
       expect(member.alerts[0]).toMatchObject({
         kind: "caida",
+        text: "El E1 de Planche press bajó 2 sesiones seguidas",
         proposal: { kind: "etapa", stage: 1 },
       });
     },
@@ -656,7 +663,165 @@ describe("alertas derivadas por tiempo, sin cron (D-15, AS-11)", () => {
     expect(member.alerts[0]).toMatchObject({
       kind: "inactivo",
       detail: { days: 9, lastSessionDate: addDaysIso(hoy, -9) },
+      text: `Sin sesiones desde ${shortDateText(addDaysIso(hoy, -9))}`,
     });
+  });
+
+  // 201-26 DA-13: cada derivada trae su frase del anexo §8 (o el respaldo de DA-13).
+  it("inactivo sin ninguna sesión: 'Todavía no registró sesiones'", async () => {
+    const { userId, adminToken } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const hoy = await memberToday(app, userId);
+    await updateMemberRow(userId, { activationDate: addDaysIso(hoy, -10) });
+
+    const member = boardMember(await fetchBoard(app, adminToken), userId);
+
+    expect(member.alerts.find((a) => a.kind === "inactivo")?.text).toBe(
+      "Todavía no registró sesiones",
+    );
+  });
+
+  it("control físico vencido: 'Sin control físico desde {fecha}'", async () => {
+    const { userId, adminToken } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const hoy = await memberToday(app, userId);
+    await controlHace(60, "periodico")(userId, hoy);
+
+    const member = boardMember(await fetchBoard(app, adminToken), userId);
+
+    expect(member.alerts.find((a) => a.kind === "control_vencido")?.text).toBe(
+      `Sin control físico desde ${shortDateText(addDaysIso(hoy, -60))}`,
+    );
+  });
+
+  it("control del día 0 pendiente (D-15): frase propia, no está en el anexo", async () => {
+    const { userId, adminToken } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    await saltearDia0(userId);
+
+    const member = boardMember(await fetchBoard(app, adminToken), userId);
+
+    expect(
+      member.alerts.find((a) => a.kind === "control_dia0_pendiente")?.text,
+    ).toBe("Todavía no hizo el control físico del día 0");
+  });
+});
+
+describe("frases de las alertas guardadas (anexo §8, DA-13)", () => {
+  it("molestia del sábado: el día se llama Sábado", async () => {
+    const { userId, token, adminToken } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const hoy = await memberToday(app, userId);
+    const straddle = await conquerRungId(app, "palanca", "straddle");
+
+    const res = await putSessionRaw(
+      app,
+      token,
+      saturdayBody({
+        push: { rungId: straddle, series: 3 },
+        pull: { rungId: straddle, series: 3 },
+        pain: 5,
+      }),
+    );
+
+    expect(res.statusCode, res.body).toBe(200);
+    const member = boardMember(await fetchBoard(app, adminToken), userId);
+    const molestia = member.alerts.find((a) => a.kind === "molestia");
+    expect(molestia?.detail).toMatchObject({ dayLabel: "Sábado" });
+    expect(molestia?.text).toBe(
+      `Molestia 5/10 en Sábado el ${shortDateText(hoy)}`,
+    );
+  });
+
+  it("una alerta vieja de molestia sin dayLabel cae al dayKey con mayúscula inicial", async () => {
+    const { userId, adminToken } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    const hoy = await memberToday(app, userId);
+    await insertConquerAlert(app, {
+      userId,
+      type: "molestia",
+      dedupeKey: "molestia:vieja",
+      detail: { pain: 7, date: hoy, dayKey: "vertical" },
+    });
+
+    const member = boardMember(await fetchBoard(app, adminToken), userId);
+
+    expect(member.alerts.find((a) => a.kind === "molestia")?.text).toBe(
+      `Molestia 7/10 en Vertical el ${shortDateText(hoy)}`,
+    );
+  });
+
+  it("paso de nivel: lleva el nombre de pila del alumno", async () => {
+    const { userId, adminToken } = await createActiveConquerMember(app, {
+      level: "novillo",
+      daysCount: 3,
+    });
+    await insertConquerAlert(app, {
+      userId,
+      type: "paso_nivel",
+      dedupeKey: "paso_nivel:texto",
+      detail: { from: "novillo", to: "toro", weeks: 4 },
+    });
+
+    const member = boardMember(await fetchBoard(app, adminToken), userId);
+
+    expect(member.alerts.find((a) => a.kind === "paso_nivel")?.text).toBe(
+      "Test completó 4 semanas de su plan sin molestias",
+    );
+  });
+
+  it("tope de un combo: 'Combo X llegó al tope de su escalera'", async () => {
+    const { userId, adminToken } = await createActiveConquerMember(app, {
+      level: "toro",
+      daysCount: 4,
+    });
+    await insertConquerAlert(app, {
+      userId,
+      type: "tope_escalera",
+      dedupeKey: "tope:combo:plancha:1",
+      detail: {
+        exerciseName: "Combo Plancha",
+        comboKey: "plancha",
+        step: "combo",
+        rungName: "full",
+      },
+    });
+
+    const member = boardMember(await fetchBoard(app, adminToken), userId);
+
+    expect(member.alerts.find((a) => a.kind === "tope_escalera")?.text).toBe(
+      "Combo Plancha llegó al tope de su escalera",
+    );
+  });
+
+  it("el PATCH devuelve la misma frase que el tablero (alert-view)", async () => {
+    const { userId, adminToken } = await createActiveConquerMember(app, {
+      level: "novillo",
+      daysCount: 3,
+    });
+    const alertId = await insertConquerAlert(app, {
+      userId,
+      type: "paso_nivel",
+      dedupeKey: "paso_nivel:patch",
+      detail: { from: "novillo", to: "toro", weeks: 4 },
+    });
+
+    const res = await patchAlert(app, adminToken, alertId, { status: "vista" });
+
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json<{ text: string }>().text).toBe(
+      "Test completó 4 semanas de su plan sin molestias",
+    );
   });
 });
 

@@ -40,6 +40,7 @@ import {
   exerciseWorked,
   lightZones,
 } from "../../src/modules/conquer/lighting.ts";
+import { alertText } from "../../src/modules/conquer/alert-text.ts";
 import {
   allowedModes,
   cutProposal,
@@ -417,9 +418,12 @@ function reglasDiffs() {
   );
 
   // rules.ts (5.1, 3.2, 5). El arranque por nivel (8.2) ya no esta: 201-25 DA-5.
-  same("cutProposal toro 4", cutProposal("toro", 4).stage, 5);
-  same("cutProposal toro 5", cutProposal("toro", 5).kind, "bajar_escalon");
-  same("cutProposal novillo", cutProposal("novillo", 0).kind, "bajar_escalon");
+  same("cutProposal toro 4", cutProposal("toro", 4)?.stage, 5);
+  // el anexo 8 manda sobre la sintesis A12: Toro no tiene el paso 6 (201-26 DA-12).
+  same("cutProposal toro 5", cutProposal("toro", 5), null);
+  same("cutProposal toro 7", cutProposal("toro", 7), null);
+  same("cutProposal novillo", cutProposal("novillo", 0)?.kind, "bajar_escalon");
+  same("cutProposal ternero", cutProposal("ternero", 3)?.kind, "bajar_escalon");
   // allowedModes (anexo 1, 201-26 DA-10): isometricos y hold final solo hold.
   same("allowedModes s e1", allowedModes("s", "e1"), ["hold"]);
   same("allowedModes s e3", allowedModes("s", "e3"), ["hold"]);
@@ -429,6 +433,26 @@ function reglasDiffs() {
   ]);
   same("allowedModes reps hold", allowedModes("reps", "hold"), ["hold"]);
   same("allowedModes s hold", allowedModes("s", "hold"), ["hold"]);
+  // alert-text.ts (anexo 8, 201-26 DA-13): las frases con sus datos.
+  same(
+    "alertText molestia",
+    alertText(
+      "molestia",
+      { pain: 6, date: "2026-10-21", dayKey: "plancha", dayLabel: "Plancha" },
+      "Ana",
+    ),
+    "Molestia 6/10 en Plancha el 21/10",
+  );
+  same(
+    "alertText caida",
+    alertText("caida", { exerciseName: "HSPU" }, "Ana"),
+    "El E1 de HSPU bajó 2 sesiones seguidas",
+  );
+  same(
+    "alertText tope",
+    alertText("tope_escalera", { exerciseName: "HSPU", step: "e3" }, "Ana"),
+    "HSPU E3 llegó al tope de su escalera",
+  );
   same("openingTarget semana 2", openingTarget("toro", 2, 0), 3);
   same("openingTarget semana 3", openingTarget("toro", 3, 0), 4);
   same("openingTarget etapa 4", openingTarget("toro", 3, 4), 3);
