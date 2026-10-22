@@ -279,3 +279,9 @@ con preguntas.
   El API no marca el control de "hoy" (el app compara con la fecha local). Store: `applyBodyCheck`, `applyPublishPermission`.
   No agregar comentarios solo para satisfacer un grep de verify: si el grep del plan no calza con un buen diseño, anotarlo
   en el SUMMARY como desvío.
+- (201-21) CORRECCIÓN: el `.prettierrc.json` del ADMIN tiene `semi: true` (manda ese archivo, no lo dicho arriba). En el
+  admin, errores de Conquer con `ConquerApiError`/`toConquerError` (priorizan el `error` en español del API; `extractError`
+  prioriza `message`). 4xx → `log.warn` (`log.error` va a Sentry). La ficha registra la ruta `conquer-alumno` con
+  `params.userId` (el tablero ya navega ahí). `q-tab-panel` desmonta el inactivo: cada tab carga en `onMounted` y recarga
+  con la prop `reloadToken`; tabs nuevas → nombre en `TAB_NAMES` de `ConquerPage`. "Hace N días": `utils/conquer-format.ts`.
+  Colores: `secondary`/`accent`, nunca `primary`/`info`.
