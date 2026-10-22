@@ -312,6 +312,9 @@ export interface UpsertBodyCheckBody {
   weightKg?: number
 }
 
+/** Tipos de foto que acepta el API (`upload-url`). */
+export type PhotoMime = 'image/jpeg' | 'image/png' | 'image/webp'
+
 export interface PhotoUploadResponse {
   uploadUrl: string
   key: string
