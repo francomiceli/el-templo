@@ -474,7 +474,7 @@ Plans:
 - [x] 200-15-PLAN.md — App: Guía en dos cards, Tu cuerpo y ficha corta
 - [x] 200-16-PLAN.md — App: Semana tocable con Hoy en tu clase y modos sin mezclar
 - [x] 200-17-PLAN.md — Fichas FLR, OAP, OAR, MU, TTB
-- [ ] 200-18-PLAN.md — Fichas MN/RP, BL, HD/ID, OAPU, PL
+- [x] 200-18-PLAN.md — Fichas MN/RP, BL, HD/ID, OAPU, PL
 - [ ] 200-19-PLAN.md — Fichas PLPU, HS, HSPU, PHS, HR
 - [ ] 200-20-PLAN.md — Fichas L, QC, SS, SU, DS
 - [ ] 200-21-PLAN.md — Fichas HT, NC, REVERSE HYPER, SPAGAT
