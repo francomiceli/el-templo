@@ -1,9 +1,19 @@
 import { ref } from 'vue'
 import { createLogger } from 'src/utils/logger'
 import { ConquerApiError, isConquerCanceled, useConquerApi } from './useConquerApi'
-import { buildTodayForm, counterMax, toSaveBody } from '../utils/todayForm'
+import { SATURDAY_MAX_SERIES, buildTodayForm, counterMax, toSaveBody } from '../utils/todayForm'
 import type { TodayForm } from '../utils/todayForm'
-import type { Mode, SaveSessionResponse, StepKey, TodayResponse, TodayStep } from '../types'
+import type {
+  ComboView,
+  Mode,
+  SaveSessionResponse,
+  StepKey,
+  TodayResponse,
+  TodayStep,
+} from '../types'
+
+/** Los dos combos del sábado de Toro (§3.2). */
+export type SaturdayCombo = 'push' | 'pull'
 
 const log = createLogger('useConquerToday')
 
@@ -164,25 +174,61 @@ export function useConquerToday() {
     }
   }
 
-  /** Sube el peldaño de arranque del combo de apertura (D-14) y reemplaza el combo. */
-  async function subirOpening(): Promise<boolean> {
-    const opening = today.value?.opening
-    if (!today.value || !opening || changing.value) return false
+  /** Peldaño de arranque de un combo del sábado (push o pull). */
+  function setSaturdayRung(which: SaturdayCombo, rungId: number): void {
+    const entry = form.value?.[which]
+    if (entry) entry.rungId = rungId
+  }
+
+  /** Series completadas de un combo del sábado (0-13, el tope del API). */
+  function setSaturdaySeries(which: SaturdayCombo, value: number): void {
+    const entry = form.value?.[which]
+    if (entry) entry.series = Math.min(SATURDAY_MAX_SERIES, Math.max(0, Math.round(value)))
+  }
+
+  /**
+   * Sube el peldaño de arranque de un combo (D-14) con `POST /combos/:comboKey/subir`. Sin
+   * aprobación del coach. Aplica el combo nuevo que devuelve el API.
+   */
+  async function raiseCombo(
+    comboKey: ComboView['comboKey'],
+    apply: (combo: ComboView) => void,
+  ): Promise<boolean> {
+    if (!today.value || changing.value || saving.value) return false
     changing.value = true
     error.value = null
     try {
-      const { combo } = await api.subirCombo(opening.comboKey)
-      today.value.opening = combo
-      if (form.value) form.value.opening = { rungId: combo.rungId, series: combo.value }
+      const { combo } = await api.subirCombo(comboKey)
+      apply(combo)
       return true
     } catch (err: unknown) {
       if (isConquerCanceled(err)) return false
-      logFailure('Failed to raise Conquer opening combo', err)
+      logFailure('Failed to raise Conquer combo', err)
       error.value = failureMessage(err, 'No pudimos subir el combo. Probá de nuevo.')
       return false
     } finally {
       changing.value = false
     }
+  }
+
+  /** Sube el peldaño de arranque del combo de apertura y reemplaza el combo. */
+  async function subirOpening(): Promise<boolean> {
+    const opening = today.value?.opening
+    if (!opening) return false
+    return raiseCombo(opening.comboKey, (combo) => {
+      if (today.value) today.value.opening = combo
+      if (form.value) form.value.opening = { rungId: combo.rungId, series: combo.value }
+    })
+  }
+
+  /** Sube el peldaño de arranque del combo push o pull del sábado y reemplaza el combo. */
+  async function subirSaturday(which: SaturdayCombo): Promise<boolean> {
+    const saturday = today.value?.saturday
+    if (!saturday) return false
+    return raiseCombo(saturday[which].comboKey, (combo) => {
+      if (today.value?.saturday) today.value.saturday[which] = combo
+      if (form.value) form.value[which] = { rungId: combo.rungId, series: combo.value }
+    })
   }
 
   /** Aborta lo que siga en vuelo; la vista lo llama al desmontarse. */
@@ -211,6 +257,9 @@ export function useConquerToday() {
     save,
     resolveCalibration,
     subirOpening,
+    setSaturdayRung,
+    setSaturdaySeries,
+    subirSaturday,
     cleanup,
   }
 }

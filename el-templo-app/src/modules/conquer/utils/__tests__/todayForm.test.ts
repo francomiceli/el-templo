@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { buildTodayForm, counterMax, templeFilled, toSaveBody } from '../todayForm'
+import {
+  SATURDAY_MAX_SERIES,
+  buildTodayForm,
+  counterMax,
+  templeFilled,
+  toSaveBody,
+} from '../todayForm'
 import type { ComboView, StepKey, TodayExercise, TodayResponse, TodayStep, Unit } from '../../types'
 
 function step(key: StepKey, value: number): TodayStep {
@@ -70,6 +76,37 @@ function makeToday(withOpening: boolean): TodayResponse {
   }
 }
 
+function saturdayCombo(comboKey: 'push' | 'pull', rungId: number, value: number): ComboView {
+  return {
+    ...opening(),
+    comboKey,
+    label: comboKey === 'push' ? 'Push' : 'Pull',
+    rungId,
+    value,
+    target: 13,
+    maxSeries: 3,
+    drops: 10,
+  }
+}
+
+/** Sábado de Toro: sin ejercicios, con los combos push y pull. */
+function makeSaturday(): TodayResponse {
+  return {
+    ...makeToday(true),
+    dayKey: 'sabado',
+    label: 'Sábado',
+    pain: 1,
+    finisher: '',
+    exercises: [],
+    opening: null,
+    saturday: {
+      warmup: 'Dos vueltas suaves de la cadena',
+      push: saturdayCombo('push', 7, 13),
+      pull: saturdayCombo('pull', 8, 12),
+    },
+  }
+}
+
 describe('buildTodayForm', () => {
   it('copia el valor de cada escalón de los 3 ejercicios y la molestia', () => {
     const form = buildTodayForm(makeToday(false))
@@ -88,6 +125,23 @@ describe('buildTodayForm', () => {
 
   it('sin combo de apertura, opening es null', () => {
     expect(buildTodayForm(makeToday(false)).opening).toBeNull()
+  })
+
+  it('un día normal no trae push ni pull', () => {
+    const form = buildTodayForm(makeToday(true))
+
+    expect(form.push).toBeNull()
+    expect(form.pull).toBeNull()
+  })
+
+  it('el sábado precarga push y pull con { rungId, series: value } y no tiene ejercicios', () => {
+    const form = buildTodayForm(makeSaturday())
+
+    expect(form.push).toEqual({ rungId: 7, series: 13 })
+    expect(form.pull).toEqual({ rungId: 8, series: 12 })
+    expect(form.opening).toBeNull()
+    expect(form.values).toEqual({})
+    expect(form.pain).toBe(1)
   })
 })
 
@@ -134,6 +188,54 @@ describe('toSaveBody', () => {
     form.opening = { rungId: 9, series: 2 }
 
     expect(toSaveBody(today, form).opening).toEqual({ rungId: 9, series: 2 })
+  })
+})
+
+describe('toSaveBody del sábado', () => {
+  it('arma dayKey sabado, molestia, push y pull', () => {
+    const today = makeSaturday()
+
+    expect(toSaveBody(today, buildTodayForm(today))).toEqual({
+      dayKey: 'sabado',
+      pain: 1,
+      push: { rungId: 7, series: 13 },
+      pull: { rungId: 8, series: 12 },
+    })
+  })
+
+  it('no manda exercises ni opening (el API los rechaza con 400/409)', () => {
+    const today = makeSaturday()
+    const body = toSaveBody(today, buildTodayForm(today))
+
+    expect('exercises' in body).toBe(false)
+    expect('opening' in body).toBe(false)
+  })
+
+  it('refleja el peldaño, las series y la molestia que eligió el alumno', () => {
+    const today = makeSaturday()
+    const form = buildTodayForm(today)
+    form.push = { rungId: 9, series: 5 }
+    form.pull = { rungId: 8, series: 0 }
+    form.pain = 4
+
+    expect(toSaveBody(today, form)).toEqual({
+      dayKey: 'sabado',
+      pain: 4,
+      push: { rungId: 9, series: 5 },
+      pull: { rungId: 8, series: 0 },
+    })
+  })
+
+  it('un día normal no manda push ni pull', () => {
+    const today = makeToday(true)
+    const body = toSaveBody(today, buildTodayForm(today))
+
+    expect('push' in body).toBe(false)
+    expect('pull' in body).toBe(false)
+  })
+
+  it('el tope de series de cada combo del sábado es 13', () => {
+    expect(SATURDAY_MAX_SERIES).toBe(13)
   })
 })
 

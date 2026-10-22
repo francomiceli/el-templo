@@ -1,4 +1,4 @@
-import type { ComboEntry, SaveSessionBody, StepKey, TodayResponse, Unit } from '../types'
+import type { ComboEntry, ComboView, SaveSessionBody, StepKey, TodayResponse, Unit } from '../types'
 
 // Fase 201 §7.1 Hoy, D-18: formulario puro de la pantalla Hoy. El app NO recalcula el motor: los
 // valores precargados son los que manda `GET /today` (objetivo, o lo guardado si ya hay sesión).
@@ -13,6 +13,24 @@ export interface TodayForm {
   values: Record<number, StepValues>
   /** Combo de apertura de Toro: peldaño de arranque y series; `null` si el día no lo trae. */
   opening: ComboEntry | null
+  /** Combos del sábado de Toro (§3.2): `null` fuera del sábado. */
+  push: ComboEntry | null
+  pull: ComboEntry | null
+}
+
+/** `dayKey` del sábado de Toro (combos, sin ejercicios). */
+export const SATURDAY_DAY_KEY = 'sabado'
+
+/** Tope de series de cada combo del sábado: 3 máx + 10 drops (el del API). */
+export const SATURDAY_MAX_SERIES = 13
+
+/** Lo que el API precargó en un combo: su peldaño de arranque y las series (objetivo o guardadas). */
+function entryOf(combo: ComboView): ComboEntry {
+  return { rungId: combo.rungId, series: combo.value }
+}
+
+function comboEntry(combo: ComboView | null | undefined): ComboEntry | null {
+  return combo ? entryOf(combo) : null
 }
 
 /** Arma el formulario con los valores que mandó el API (D-18: guardar sin tocar = cumplido). */
@@ -26,7 +44,9 @@ export function buildTodayForm(today: TodayResponse): TodayForm {
   return {
     pain: today.pain,
     values,
-    opening: today.opening ? { rungId: today.opening.rungId, series: today.opening.value } : null,
+    opening: comboEntry(today.opening),
+    push: comboEntry(today.saturday?.push),
+    pull: comboEntry(today.saturday?.pull),
   }
 }
 
@@ -39,8 +59,19 @@ export function counterMax(unit: Unit, step: StepKey): number {
   return unit === 'reps' ? 100 : 600
 }
 
-/** Body de `PUT /sessions`. El `opening` va solo si el día trae combo de apertura. */
+/**
+ * Body de `PUT /sessions`. El `opening` va solo si el día trae combo de apertura. El sábado de Toro
+ * (§3.2) manda `push` y `pull` y NUNCA `exercises` (el API responde 400 si vienen).
+ */
 export function toSaveBody(today: TodayResponse, form: TodayForm): SaveSessionBody {
+  if (today.saturday) {
+    return {
+      dayKey: SATURDAY_DAY_KEY,
+      pain: form.pain,
+      push: form.push ?? entryOf(today.saturday.push),
+      pull: form.pull ?? entryOf(today.saturday.pull),
+    }
+  }
   const body: SaveSessionBody = {
     dayKey: today.dayKey,
     pain: form.pain,
@@ -56,7 +87,7 @@ export function toSaveBody(today: TodayResponse, form: TodayForm): SaveSessionBo
     }),
   }
   if (today.opening) {
-    body.opening = form.opening ?? { rungId: today.opening.rungId, series: today.opening.value }
+    body.opening = form.opening ?? entryOf(today.opening)
   }
   return body
 }
